@@ -1,0 +1,69 @@
+@tailwind base;
+    @tailwind components;
+    @tailwind utilities;
+
+    @layer base {
+      :root {
+        --background: 222.2 84% 4.9%;
+        --foreground: 210 40% 98%;
+        --card: 222.2 84% 4.9%;
+        --card-foreground: 210 40% 98%;
+        --popover: 222.2 84% 4.9%;
+        --popover-foreground: 210 40% 98%;
+        --primary: 210 40% 98%;
+        --primary-foreground: 222.2 47.4% 11.2%;
+        --secondary: 217.2 32.6% 17.5%;
+        --secondary-foreground: 210 40% 98%;
+        --muted: 217.2 32.6% 17.5%;
+        --muted-foreground: 215 20.2% 65.1%;
+        --accent: 217.2 32.6% 17.5%;
+        --accent-foreground: 210 40% 98%;
+        --destructive: 0 62.8% 30.6%;
+        --destructive-foreground: 210 40% 98%;
+        --border: 217.2 32.6% 17.5%;
+        --input: 217.2 32.6% 17.5%;
+        --ring: 212.7 26.8% 83.9%;
+        --radius: 0.5rem;
+      }
+    }
+    
+    @layer base {
+      * {
+        @apply border-border;
+      }
+      body {
+        @apply bg-background text-foreground;
+        font-family: 'Inter', sans-serif;
+      }
+       /* Scrollbar styles for WebKit browsers (Chrome, Safari) */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: hsl(var(--secondary));
+        border-radius: 10px;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: hsl(var(--muted-foreground));
+        border-radius: 10px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: hsl(var(--accent-foreground));
+      }
+       /* Scrollbar styles for Firefox */
+      * {
+        scrollbar-width: thin;
+        scrollbar-color: hsl(var(--muted-foreground)) hsl(var(--secondary));
+      }
+    }
+
+    .pattern-bg {
+      background-image: radial-gradient(circle, rgba(239, 68, 68, 0.7) 1.5px, transparent 1.5px);
+      background-size: 6px 6px;
+    }
+
+    #spotting-pattern-chart {
+      background-image: radial-gradient(circle, rgba(239, 68, 68, 0.7) 1.5px, transparent 1.5px);
+      background-size: 6px 6px;
+    }
