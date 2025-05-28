@@ -22,7 +22,7 @@ import { supabase } from '@/lib/supabaseClient';
         id: entry.id, 
         isoDate: entry.iso_date || (entry.timestamp ? format(parseISO(entry.timestamp), 'yyyy-MM-dd') : null),
         date: entry.timestamp ? format(parseISO(entry.timestamp), 'dd/MM') : (entry.iso_date ? format(parseISO(entry.iso_date), 'dd/MM') : 'N/A'),
-        cycleDay: entry.cycle_day || generateCycleDaysForRecord(entry.iso_date || entry.timestamp, cycleStartIsoDate), // Use cycle_day from view
+        cycleDay: generateCycleDaysForRecord(entry.iso_date || entry.timestamp, cycleStartIsoDate),
         temperature_raw: entry.temperature_raw,
         temperature_corrected: entry.temperature_corrected,
         use_corrected: entry.use_corrected,
