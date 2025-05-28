@@ -112,35 +112,38 @@ import { useEffect, useRef, useState, useMemo } from 'react';
         return padding.left + index * (availableWidth / (allDataPoints.length === 1 ? 1 : pointsToDisplay));
       };
       
-      const handlePointInteraction = (point, index, event) => {
-        if (!point || (point.id && String(point.id).startsWith('placeholder-'))) {
-          setActivePoint(null);
-          return;
-        }
-        
-        const chartRect = chartRef.current.getBoundingClientRect();
-        let clientX, clientY;
+const handlePointInteraction = (point, index, event) => {
+  console.log('▶️ handlePointInteraction:', point, index);
+  // Si no es un registro real, simplemente limpiamos y salimos
+  if (!point || String(point.id).startsWith('placeholder-')) {
+    clearActivePoint();
+    return;
+  }
 
-        if (event.type.startsWith('touch')) {
-            const touch = event.changedTouches[0];
-            clientX = touch.clientX;
-            clientY = touch.clientY;
-        } else {
-            clientX = event.clientX;
-            clientY = event.clientY;
-        }
+  // 1) Calcula la posición del ratón/tap
+  const chartRect = chartRef.current.getBoundingClientRect();
+  let clientX, clientY;
+  if (event.type.startsWith('touch')) {
+    const touch = event.changedTouches[0];
+    clientX = touch.clientX; clientY = touch.clientY;
+  } else {
+    clientX = event.clientX;    clientY = event.clientY;
+  }
 
-        const svgX = getX(index);
-        const svgY = point.displayTemperature !== null && point.displayTemperature !== undefined ? getY(point.displayTemperature) : (chartHeight - padding.bottom);
+  // 2) Mapea a coordenadas SVG
+  const svgX = getX(index);
+  const svgY = getY(point.displayTemperature);
 
-        setTooltipPosition({ 
-            svgX: svgX,
-            svgY: svgY,
-            clientX: clientX - chartRect.left, 
-            clientY: clientY - chartRect.top  
-        });
-        setActivePoint(point);
-      };
+  // 3) Fija posición y punto activo
+  setTooltipPosition({
+    svgX,
+    svgY,
+    clientX: clientX - chartRect.left,
+    clientY: clientY - chartRect.top
+  });
+  setActivePoint(point);
+};
+
       
       useEffect(() => {
         const handleClickOutside = (event) => {
@@ -170,19 +173,21 @@ import { useEffect, useRef, useState, useMemo } from 'react';
         };
       }, [activePoint]);
 
-
-      const handleToggleIgnore = (recordId) => {
-        if (onToggleIgnore) {
-          onToggleIgnore(cycleId, recordId);
+        const clearActivePoint = () => {
+          setActivePoint(null);
+          
         }
-        setActivePoint(null);
-      };
+          const handleToggleIgnore = (recordId) => {
+        if (onToggleIgnore && recordId) {
+          onToggleIgnore(recordId, cycleId);
+        }
+      }
 
       return {
         chartRef,
         tooltipRef,
-        dimensions,
-        activePoint, setActivePoint,
+        dimensions, 
+        activePoint,
         tooltipPosition,
         processedData,
         validDataForLine,
@@ -192,9 +197,11 @@ import { useEffect, useRef, useState, useMemo } from 'react';
         tempRange,
         padding,
         textRowHeight,
+        setActivePoint,
         getY,
         getX,
         handlePointInteraction,
+        clearActivePoint,
         handleToggleIgnore,
         responsiveFontSize,
       };

@@ -35,6 +35,7 @@ const ChartPoints = ({
   isFullScreen,
   responsiveFontSize,
   onPointInteraction,
+  clearActivePoint,
   activePoint,
   padding,
   chartHeight,
@@ -89,14 +90,19 @@ const ChartPoints = ({
                              || point.fertility_symbol;
         const isPlaceholder   = String(point.id || '').startsWith('placeholder-');
 
-        const interactionProps = (!hasAnyRecord || isPlaceholder)
-          ? {}
-          : {
-              onMouseEnter: (e) => onPointInteraction(point, index, e),
-              onTouchStart: (e) => onPointInteraction(point, index, e),
-              onClick:       (e) => onPointInteraction(point, index, e),
-               style:        { cursor: 'pointer' }
-            };
+const interactionProps = (!hasAnyRecord || isPlaceholder)
+  ? {}
+  : {
+      pointerEvents: "all",
+      style:         { cursor: 'pointer' },
+
+      // Al pasar el ratón, mostramos la burbuja
+      onMouseEnter: (e) => onPointInteraction(point, index, e),
+
+      // Al hacer click/tap (desktop o móvil), también la mostramos
+      onClick:      (e) => onPointInteraction(point, index, e)
+    };
+
 
         // símbolo
         const symbolInfo    = getSymbolAppearance(point.fertility_symbol);
@@ -120,7 +126,7 @@ const ChartPoints = ({
           <motion.g
             key={`pt-${index}-${point.isoDate || point.timestamp}`}
             variants={itemVariants}
-            {...interactionProps}
+                        {...interactionProps}
           >
             {/* punto temperatura */}
             {hasTemp && !point.ignored && (
@@ -130,8 +136,20 @@ const ChartPoints = ({
                 fill={ activePoint?.id === point.id ? "rgba(255,255,255,0.8)" : "white" }
                 stroke="url(#tempLineGradientChart)"
                 strokeWidth="2"
+
+                /** ← Esto hace que el SVG reciba clicks/taps: **/
+                pointerEvents="all"
+                style={{ cursor: 'pointer' }}
+
+                /** ← Cuando el ratón entra o hace tap, llamamos a onPointInteraction: **/
+                onMouseEnter={(e) => onPointInteraction(point, index, e)}
+                onTouchStart={(e) => onPointInteraction(point, index, e)}
+                onClick={(e) => onPointInteraction(point, index, e)}
+
+
               />
             )}
+
             {/* punto ignorado */}
             {hasTemp && point.ignored && (
               <motion.g initial={{opacity:0}} animate={{opacity:1}}>

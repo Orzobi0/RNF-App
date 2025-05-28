@@ -6,6 +6,7 @@ import React from 'react';
     import ChartTooltip from '@/components/chartElements/ChartTooltip';
     import { useFertilityChart } from '@/hooks/useFertilityChart';
 
+
     const FertilityChart = ({ data, isFullScreen, onToggleIgnore, cycleId }) => {
       const {
         chartRef,
@@ -25,7 +26,8 @@ import React from 'react';
         handlePointInteraction,
         handleToggleIgnore,
         responsiveFontSize,
-        setActivePoint
+        clearActivePoint,
+        setActivePoint,
       } = useFertilityChart(data, isFullScreen, onToggleIgnore, cycleId);
 
       if (!allDataPoints || allDataPoints.length === 0) {
@@ -92,6 +94,7 @@ import React from 'react';
               isFullScreen={isFullScreen}
               responsiveFontSize={responsiveFontSize}
               onPointInteraction={handlePointInteraction}
+              clearActivePoint={clearActivePoint}
               activePoint={activePoint}
               padding={padding}
               chartHeight={chartHeight}
@@ -99,18 +102,19 @@ import React from 'react';
               textRowHeight={textRowHeight}
             />
           </motion.svg>
-          {activePoint && (
-            <div ref={tooltipRef}>
-              <ChartTooltip
-                point={activePoint}
-                position={tooltipPosition}
-                chartWidth={chartWidth}
-                chartHeight={chartHeight}
-                onToggleIgnore={handleToggleIgnore}
-                onClose={() => setActivePoint(null)}
-              />
-            </div>
-          )}
+{activePoint && (
+  <div ref={tooltipRef}>
+    <ChartTooltip
+      point={activePoint}
+      position={tooltipPosition}
+      chartWidth={chartWidth}
+      chartHeight={chartHeight}
+      onToggleIgnore={handleToggleIgnore}
+      onClose={clearActivePoint}
+    />
+  </div>
+)}
+
         </div>
       );
     };
