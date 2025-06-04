@@ -1,0 +1,31 @@
+name: Deploy Vite to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main        # O la rama principal que uses
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: ✔️ Checkout repository
+        uses: actions/checkout@v3
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'    # o la versión que corresponda a tu proyecto
+
+      - name: 📦 Install dependencies
+        run: npm install
+
+      - name: 🛠 Build project
+        run: npm run build
+
+      - name: 🚀 Deploy to gh-pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          publish_branch: gh-pages
