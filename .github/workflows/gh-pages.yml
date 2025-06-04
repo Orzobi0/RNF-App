@@ -18,7 +18,7 @@ jobs:
           node-version: '16'    # o la versión que corresponda a tu proyecto
 
       - name: 📦 Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: 🛠 Build project
         run: npm run build
