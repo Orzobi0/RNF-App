@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main        # O la rama principal que uses
+permissions:
+  contents: write
+  pages: write
 
 jobs:
   build-and-deploy:
