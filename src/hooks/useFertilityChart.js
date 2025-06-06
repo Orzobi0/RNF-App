@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 
-    const DEFAULT_TEMP_MIN = 35.0;
+    const DEFAULT_TEMP_MIN = 35.5;
     const DEFAULT_TEMP_MAX = 37.5;
 
     export const useFertilityChart = (data, isFullScreen, onToggleIgnore, cycleId) => {
