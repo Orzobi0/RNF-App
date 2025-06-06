@@ -12,7 +12,7 @@ import React, { useState, useEffect, useCallback } from 'react';
     import { motion, AnimatePresence } from 'framer-motion';
     import { Maximize, X } from 'lucide-react';
     import { Button } from '@/components/ui/button';
-    import { addDays, format, differenceInDays, startOfDay, parseISO, compareAsc } from 'date-fns';
+    import { addDays, format, differenceInDays, startOfDay, parseISO } from 'date-fns';
 
     const CYCLE_DURATION_DAYS = 30;
     const VISIBLE_DAYS_NORMAL_VIEW = 5;
@@ -264,24 +264,18 @@ import React, { useState, useEffect, useCallback } from 'react';
           return mergedData;
         }
         
-        const recordedDataSorted = currentCycle.data.filter(d => d.id && !d.id.startsWith('placeholder-')).sort((a,b) => compareAsc(parseISO(a.isoDate), parseISO(b.isoDate)));
+                const today = startOfDay(new Date());
+        const daysSinceCycleStart = differenceInDays(today, startOfDay(cycleStartDate));
+        const currentDayIndex = Math.min(Math.max(daysSinceCycleStart, 0), CYCLE_DURATION_DAYS - 1);
 
-        if (recordedDataSorted.length === 0) {
-            return mergedData.slice(0, VISIBLE_DAYS_NORMAL_VIEW);
-        }
-
-        const lastRecordedIsoDate = recordedDataSorted[recordedDataSorted.length - 1].isoDate;
-        const lastRecordedDayIndexInMerged = mergedData.findIndex(d => d.isoDate === lastRecordedIsoDate);
-        
-        let endIndex = Math.min(CYCLE_DURATION_DAYS, lastRecordedDayIndexInMerged + 1);
-        if (recordedDataSorted.length < VISIBLE_DAYS_NORMAL_VIEW && lastRecordedDayIndexInMerged < VISIBLE_DAYS_NORMAL_VIEW -1) {
-             endIndex = Math.min(CYCLE_DURATION_DAYS, VISIBLE_DAYS_NORMAL_VIEW);
+        let endIndex = Math.min(CYCLE_DURATION_DAYS, currentDayIndex + 1);
+        if (currentDayIndex < VISIBLE_DAYS_NORMAL_VIEW - 1) {
+          endIndex = Math.min(CYCLE_DURATION_DAYS, VISIBLE_DAYS_NORMAL_VIEW);
         }
 
         const startIndex = Math.max(0, endIndex - VISIBLE_DAYS_NORMAL_VIEW);
         
         return mergedData.slice(startIndex, endIndex);
-
       }, [currentCycle, isFullScreen, isLoading]);
       
       const chartDisplayData = getChartDisplayData();
