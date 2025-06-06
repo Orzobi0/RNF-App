@@ -27,6 +27,7 @@ import React, { useState, useEffect, useCallback } from 'react';
       isFullScreen,
       toggleFullScreen,
       chartDisplayData,
+      scrollStart,
       showForm, setShowForm,
       showRecords, setShowRecords,
       editingRecord, setEditingRecord,
@@ -99,11 +100,13 @@ import React, { useState, useEffect, useCallback } from 'react';
                   transition={{ duration: 0.5 }}
                   className={`bg-slate-800/50 backdrop-blur-md shadow-2xl rounded-xl ${isFullScreen ? 'w-full h-full p-0 fixed inset-0 z-50' : 'p-4 sm:p-6 mb-8'}`}
                 >
-                  <FertilityChart 
-                    data={chartDisplayData} 
-                    isFullScreen={isFullScreen} 
+                  <FertilityChart
+                    data={chartDisplayData}
+                    isFullScreen={isFullScreen}
                     onToggleIgnore={toggleIgnoreRecord}
                     cycleId={currentCycle.id}
+                    initialScrollIndex={scrollStart}
+                    visibleDays={VISIBLE_DAYS_NORMAL_VIEW}
                   />
                   <Button
                     onClick={toggleFullScreen}
@@ -232,7 +235,7 @@ import React, { useState, useEffect, useCallback } from 'react';
       
       const getChartDisplayData = useCallback(() => {
         if (isLoading || !currentCycle || !currentCycle.startDate) {
-          return [];
+          return { data: [], scrollStart: 0 };
         }
         
         const cycleStartDate = parseISO(currentCycle.startDate);
@@ -261,10 +264,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 
 
         if (isFullScreen) {
-          return mergedData;
+          return { data: mergedData, scrollStart: 0 };
         }
         
-                const today = startOfDay(new Date());
+        const today = startOfDay(new Date());
         const daysSinceCycleStart = differenceInDays(today, startOfDay(cycleStartDate));
         const currentDayIndex = Math.min(Math.max(daysSinceCycleStart, 0), CYCLE_DURATION_DAYS - 1);
 
@@ -275,10 +278,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 
         const startIndex = Math.max(0, endIndex - VISIBLE_DAYS_NORMAL_VIEW);
         
-        return mergedData.slice(startIndex, endIndex);
+        return { data: mergedData, scrollStart: startIndex };
       }, [currentCycle, isFullScreen, isLoading]);
       
-      const chartDisplayData = getChartDisplayData();
+      const { data: chartDisplayData, scrollStart } = getChartDisplayData();
 
       return (
         <DashboardPageContent
@@ -291,6 +294,7 @@ import React, { useState, useEffect, useCallback } from 'react';
           isFullScreen={isFullScreen}
           toggleFullScreen={toggleFullScreen}
           chartDisplayData={chartDisplayData}
+          scrollStart={scrollStart}
           showForm={showForm} setShowForm={setShowForm}
           showRecords={showRecords} setShowRecords={setShowRecords}
           editingRecord={editingRecord} setEditingRecord={setEditingRecord}

@@ -1,4 +1,4 @@
-import React from 'react';
+    import React, { useEffect } from 'react';
     import { motion } from 'framer-motion';
     import ChartAxes from '@/components/chartElements/ChartAxes';
     import ChartLine from '@/components/chartElements/ChartLine';
@@ -7,7 +7,14 @@ import React from 'react';
     import { useFertilityChart } from '@/hooks/useFertilityChart';
 
 
-    const FertilityChart = ({ data, isFullScreen, onToggleIgnore, cycleId }) => {
+const FertilityChart = ({
+  data,
+  isFullScreen,
+  onToggleIgnore,
+  cycleId,
+  initialScrollIndex = 0,
+  visibleDays = 5
+}) => {
       const {
         chartRef,
         tooltipRef,
@@ -28,7 +35,7 @@ import React from 'react';
         responsiveFontSize,
         clearActivePoint,
         setActivePoint,
-      } = useFertilityChart(data, isFullScreen, onToggleIgnore, cycleId);
+      } = useFertilityChart(data, isFullScreen, onToggleIgnore, cycleId, visibleDays);
 
       if (!allDataPoints || allDataPoints.length === 0) {
         return <div className="text-center text-slate-400 p-8">No hay datos para mostrar en el gráfico.</div>;
@@ -39,14 +46,23 @@ import React from 'react';
 
       const containerVariants = {
         hidden: { opacity: 0 },
-        visible: { 
+        visible: {
           opacity: 1,
           transition: { staggerChildren: 0.05, delayChildren: 0.2 }
         }
       };
+            useEffect(() => {
+        if (isFullScreen || !chartRef.current) return;
+        const dayWidth = chartRef.current.clientWidth / visibleDays;
+        chartRef.current.scrollLeft = Math.max(0, dayWidth * initialScrollIndex);
+      }, [isFullScreen, initialScrollIndex, visibleDays]);
+
 
       return (
-        <div ref={chartRef} className={`relative p-0 rounded-lg shadow-inner ${isFullScreen ? 'w-full h-full bg-slate-900 flex items-center justify-center' : 'bg-slate-800 overflow-hidden'}`}>
+        <div
+          ref={chartRef}
+          className={`relative p-0 rounded-lg shadow-inner ${isFullScreen ? 'w-full h-full bg-slate-900 flex items-center justify-center' : 'bg-slate-800 overflow-x-auto overflow-y-hidden'}`}
+        >
           <motion.svg 
             width={chartWidth} 
             height={chartHeight} 
