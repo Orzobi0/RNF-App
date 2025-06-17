@@ -1,10 +1,11 @@
-    import React, { useEffect } from 'react';
-    import { motion } from 'framer-motion';
-    import ChartAxes from '@/components/chartElements/ChartAxes';
-    import ChartLine from '@/components/chartElements/ChartLine';
-    import ChartPoints from '@/components/chartElements/ChartPoints';
-    import ChartTooltip from '@/components/chartElements/ChartTooltip';
-    import { useFertilityChart } from '@/hooks/useFertilityChart';
+import React, { useEffect } from 'react';
+import { motion } from 'framer-motion';
+import ChartAxes from '@/components/chartElements/ChartAxes';
+import ChartLine from '@/components/chartElements/ChartLine';
+import ChartPoints from '@/components/chartElements/ChartPoints';
+import ChartTooltip from '@/components/chartElements/ChartTooltip';
+import ChartLeftLegend from '@/components/chartElements/ChartLeftLegend';
+import { useFertilityChart } from '@/hooks/useFertilityChart';
 
 
 const FertilityChart = ({
@@ -59,13 +60,32 @@ const FertilityChart = ({
 
 
       return (
-        <div
-          ref={chartRef}
-          className={`relative p-0 rounded-lg shadow-inner ${isFullScreen ? 'w-full h-full bg-slate-900 flex items-center justify-center' : 'bg-slate-800 overflow-x-auto overflow-y-hidden'}`}
-        >
-          <motion.svg 
-            width={chartWidth} 
-            height={chartHeight} 
+        <div className="relative">
+          {!isFullScreen && (
+            <div
+              className="absolute left-0 top-0 h-full bg-slate-800 pointer-events-none z-10"
+              style={{ width: padding.left }}
+            >
+              <ChartLeftLegend
+                padding={padding}
+                chartHeight={chartHeight}
+                tempMin={tempMin}
+                tempMax={tempMax}
+                tempRange={tempRange}
+                getY={getY}
+                responsiveFontSize={responsiveFontSize}
+                textRowHeight={textRowHeight}
+                isFullScreen={isFullScreen}
+              />
+            </div>
+          )}
+          <div
+            ref={chartRef}
+            className={`relative p-0 rounded-lg shadow-inner ${isFullScreen ? 'w-full h-full bg-slate-900 flex items-center justify-center' : 'bg-slate-800 overflow-x-auto overflow-y-hidden'}`}
+          >
+          <motion.svg
+            width={chartWidth}
+            height={chartHeight}
             className="font-sans"
             viewBox={`0 0 ${chartWidth} ${chartHeight}`}
             preserveAspectRatio="xMidYMid meet"
@@ -115,8 +135,8 @@ const FertilityChart = ({
               padding={padding}
               chartHeight={chartHeight}
               temperatureField="displayTemperature" 
-              textRowHeight={textRowHeight}
-            />
+            textRowHeight={textRowHeight}
+          />
           </motion.svg>
 {activePoint && (
   <div ref={tooltipRef}>
@@ -130,7 +150,7 @@ const FertilityChart = ({
     />
   </div>
 )}
-
+          </div>
         </div>
       );
     };
