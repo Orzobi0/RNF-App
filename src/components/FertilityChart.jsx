@@ -51,11 +51,11 @@ const FertilityChart = ({
           transition: { staggerChildren: 0.05, delayChildren: 0.2 }
         }
       };
-            useEffect(() => {
+  useEffect(() => {
         if (isFullScreen || !chartRef.current) return;
         const dayWidth = chartRef.current.clientWidth / visibleDays;
         chartRef.current.scrollLeft = Math.max(0, dayWidth * initialScrollIndex);
-      }, [isFullScreen, initialScrollIndex, visibleDays]);
+      }, [isFullScreen, initialScrollIndex, visibleDays, dimensions.width]);
 
 
       return (
