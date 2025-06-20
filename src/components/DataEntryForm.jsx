@@ -5,7 +5,7 @@ import React from 'react';
     import { useDataEntryForm } from '@/hooks/useDataEntryForm';
 
     const DataEntryForm = ({ onSubmit, initialData, onCancel, cycleStartDate, isProcessing, isEditing = false }) => {
-      console.log("RENDER DataEntryForm, isEditing =", isEditing, "initialData =", initialData);
+
       const {
         date, setDate,
         temperatureRaw, setTemperatureRaw,

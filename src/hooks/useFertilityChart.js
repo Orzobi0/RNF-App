@@ -123,7 +123,7 @@ export const useFertilityChart = (
       };
       
 const handlePointInteraction = (point, index, event) => {
-  console.log('▶️ handlePointInteraction:', point, index);
+
   // Si no es un registro real, simplemente limpiamos y salimos
   if (!point || String(point.id).startsWith('placeholder-')) {
     clearActivePoint();
