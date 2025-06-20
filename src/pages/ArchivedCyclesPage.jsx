@@ -3,7 +3,7 @@
     import { Link } from 'react-router-dom';
     import { useCycleData } from '@/hooks/useCycleData';
     import { Button } from '@/components/ui/button';
-    import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
     import { es } from 'date-fns/locale';
     import { Archive, Eye } from 'lucide-react';
     import { motion } from 'framer-motion';
@@ -33,7 +33,9 @@
         );
       }
       
-      const sortedArchivedCycles = [...archivedCycles].sort((a,b) => new Date(b.startDate) - new Date(a.startDate));
+      const sortedArchivedCycles = [...archivedCycles].sort(
+        (a, b) => parseISO(b.startDate) - parseISO(a.startDate)
+      );
 
       return (
         <div className="w-full max-w-4xl mx-auto">
@@ -61,10 +63,10 @@
           >
             {sortedArchivedCycles.map((cycle) => {
               const endDate = cycle.endDate
-                ? format(new Date(cycle.endDate), "dd MMM yyyy", { locale: es })
+                ? format(parseISO(cycle.endDate), "dd MMM yyyy", { locale: es })
                 : cycle.data && cycle.data.length > 0
-                  ? format(new Date(cycle.data[cycle.data.length - 1].isoDate), "dd MMM yyyy", { locale: es })
-                  : format(new Date(cycle.startDate), "dd MMM yyyy", { locale: es });
+                  ? format(parseISO(cycle.data[cycle.data.length - 1].isoDate), "dd MMM yyyy", { locale: es })
+                  : format(parseISO(cycle.startDate), "dd MMM yyyy", { locale: es });
               const recordCount = cycle.data ? cycle.data.length : 0;
 
               return (
@@ -76,7 +78,7 @@
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
                     <div>
                       <h2 className="text-xl font-semibold text-emerald-400 mb-1">
-                        Ciclo: {format(new Date(cycle.startDate), "dd MMM yyyy", { locale: es })} - {endDate}
+                        Ciclo: {format(parseISO(cycle.startDate), "dd MMM yyyy", { locale: es })} - {endDate}
                       </h2>
                       <p className="text-sm text-slate-400">
                         {recordCount} registro{recordCount !== 1 ? 's' : ''}

@@ -169,7 +169,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 
   useEffect(() => {
     const loadCycle = async () => {
-      if (!cycleDataHookIsLoading && user) {
+      if (user) {
         let fetchedCycle = await getCycleById(cycleId);
 
         if (!fetchedCycle) {
@@ -193,7 +193,7 @@ import React, { useState, useEffect, useCallback } from 'react';
     };
 
     loadCycle();
-  }, [cycleId, cycleDataHookIsLoading, user, getCycleById, toast, navigate]);
+  }, [cycleId, user, getCycleById, toast, navigate]);
 
   const generateCycleDaysForRecord = (recordIsoDate, cycleStartIsoDate) => {
     const rDate = startOfDay(parseISO(recordIsoDate));
