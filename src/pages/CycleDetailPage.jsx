@@ -167,23 +167,27 @@ import React, { useState, useEffect, useCallback } from 'react';
       const { isFullScreen, toggleFullScreen } = useFullScreen();
       const [isProcessing, setIsProcessing] = useState(false);
 
-      useEffect(() => {
-        if (!cycleDataHookIsLoading && user) {
-          const fetchedCycle = getCycleById(cycleId);
-          if (fetchedCycle) {
-            setCycleData(fetchedCycle);
-          } else {
-            toast({ title: "Error", description: "No se pudo cargar el ciclo.", variant: "destructive" });
-            navigate('/archived-cycles');
-          }
+  useEffect(() => {
+    const loadCycle = async () => {
+      if (!cycleDataHookIsLoading && user) {
+        const fetchedCycle = await getCycleById(cycleId);
+        if (fetchedCycle) {
+          setCycleData(fetchedCycle);
+        } else {
+          toast({ title: "Error", description: "No se pudo cargar el ciclo.", variant: "destructive" });
+          navigate('/archived-cycles');
         }
-      }, [cycleId, cycleDataHookIsLoading, user, getCycleById, toast, navigate]);
+      }
+    };
 
-      const generateCycleDaysForRecord = (recordIsoDate, cycleStartIsoDate) => {
-        const rDate = startOfDay(parseISO(recordIsoDate));
-        const sDate = startOfDay(parseISO(cycleStartIsoDate));
-        return differenceInDays(rDate, sDate) + 1;
-      };
+    loadCycle();
+  }, [cycleId, cycleDataHookIsLoading, user, getCycleById, toast, navigate]);
+
+  const generateCycleDaysForRecord = (recordIsoDate, cycleStartIsoDate) => {
+    const rDate = startOfDay(parseISO(recordIsoDate));
+    const sDate = startOfDay(parseISO(cycleStartIsoDate));
+    return differenceInDays(rDate, sDate) + 1;
+  };
 
       const processDataWithCycleDays = (data, cycleStartIsoDate) => {
         if (!data || !Array.isArray(data) || !cycleStartIsoDate) return [];

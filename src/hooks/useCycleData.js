@@ -137,31 +137,32 @@ import { useState, useEffect, useCallback } from 'react';
         }
       }, [user, currentCycle, archivedCycles, loadCycleData]);
 
-      const startNewCycle = useCallback(async () => {
-        if (!user || !currentCycle.id) return;
-        setIsLoading(true);
-        try {
-          if (currentCycle.data.length > 0) {
-            await archiveCycleDB(currentCycle.id, user.id);
+  const startNewCycle = useCallback(async (selectedStartDate) => {
+    if (!user || !currentCycle.id) return;
+    setIsLoading(true);
+    try {
+      if (currentCycle.data.length > 0) {
+        await archiveCycleDB(currentCycle.id, user.id);
           } else {
              await supabase.from('cycles').delete().eq('id', currentCycle.id).eq('user_id', user.id);
           }
           
-          const newStartDate = format(startOfDay(new Date()), "yyyy-MM-dd");
-          const newCycle = await createNewCycleDB(user.id, newStartDate);
-          setCurrentCycle({ id: newCycle.id, startDate: newCycle.start_date, data: [] });
-          await loadCycleData();
+      const newStartDate = selectedStartDate
+        ? format(startOfDay(parseISO(selectedStartDate)), "yyyy-MM-dd")
+        : format(startOfDay(new Date()), "yyyy-MM-dd");
+      const newCycle = await createNewCycleDB(user.id, newStartDate);
+      setCurrentCycle({ id: newCycle.id, startDate: newCycle.start_date, data: [] });
+      await loadCycleData();
+    } catch (error) {
+      console.error("Error starting new cycle:", error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user, currentCycle, loadCycleData]);
 
-        } catch (error) {
-          console.error("Error starting new cycle:", error);
-          throw error;
-        } finally {
-          setIsLoading(false);
-        }
-      }, [user, currentCycle, loadCycleData]);
-      
-      const getCycleById = useCallback(async (cycleIdToFetch) => {
-        if (!user) return null;
+  const getCycleById = useCallback(async (cycleIdToFetch) => {
+    if (!user) return null;
         setIsLoading(true);
         try {
           const cycleData = await fetchCycleByIdDB(user.id, cycleIdToFetch);

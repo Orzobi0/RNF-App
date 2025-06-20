@@ -71,18 +71,18 @@ import React, { useState, useEffect, useCallback } from 'react';
         setShowRecords(true);
       };
 
-      const handleStartNewCycle = () => {
-        setConfirmNewCycleDialog(true);
-      };
+  const handleStartNewCycle = () => {
+    setConfirmNewCycleDialog(true);
+  };
 
-      const confirmStartNewCycleAction = () => {
-        startNewCycle();
-        toast({
-          title: "Nuevo Ciclo Iniciado",
-          description: "Los datos del ciclo anterior han sido archivados.",
-        });
-        setConfirmNewCycleDialog(false);
-      };
+  const confirmStartNewCycleAction = (selectedDate) => {
+    startNewCycle(selectedDate);
+    toast({
+      title: "Nuevo Ciclo Iniciado",
+      description: "Los datos del ciclo anterior han sido archivados.",
+    });
+    setConfirmNewCycleDialog(false);
+  };
 
       if (isLoading) {
         return <div className="text-center text-slate-300 p-8">Cargando datos del ciclo...</div>;
@@ -210,9 +210,9 @@ import React, { useState, useEffect, useCallback } from 'react';
       
       const [showForm, setShowForm] = useState(false);
       const [showRecords, setShowRecords] = useState(false);
-      const [editingRecord, setEditingRecord] = useState(null);
-      const [recordToDelete, setRecordToDelete] = useState(null);
-      const [confirmNewCycleDialog, setConfirmNewCycleDialog] = useState(false);
+  const [editingRecord, setEditingRecord] = useState(null);
+  const [recordToDelete, setRecordToDelete] = useState(null);
+  const [confirmNewCycleDialog, setConfirmNewCycleDialog] = useState(false);
       
       const { isFullScreen, toggleFullScreen } = useFullScreen();
       const { toast } = useToast();
