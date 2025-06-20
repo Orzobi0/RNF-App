@@ -81,12 +81,12 @@ const FertilityChart = ({
           )}
           <div
             ref={chartRef}
-            className={`relative p-0 rounded-lg shadow-inner ${isFullScreen ? 'w-full h-full bg-slate-900 flex items-center justify-center' : 'bg-slate-800 overflow-x-auto overflow-y-hidden'}`}
+            className={`relative p-0 rounded-lg shadow-inner ${isFullScreen ? 'w-full h-full bg-slate-900 flex items-center justify-center overflow-x-auto overflow-y-hidden' : 'bg-slate-800 overflow-x-auto overflow-y-hidden'}`}
           >
           <motion.svg
             width={chartWidth}
             height={chartHeight}
-            className="font-sans"
+            className="font-sans flex-shrink-0"
             viewBox={`0 0 ${chartWidth} ${chartHeight}`}
             preserveAspectRatio="xMidYMid meet"
             variants={containerVariants}

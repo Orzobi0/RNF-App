@@ -27,12 +27,13 @@ export const useFertilityChart = (
         const updateDimensions = () => {
           if (!chartRef.current) return;
 
-          const containerWidth = chartRef.current.clientWidth > 0 ? chartRef.current.clientWidth : 600;
-          let newWidth = containerWidth;
+          let containerWidth = chartRef.current.clientWidth > 0 ? chartRef.current.clientWidth : 600;
+          let newWidth;
           let newHeight;
 
           if (isFullScreen) {
-            newWidth = window.innerWidth;
+            containerWidth = window.innerWidth;
+            newWidth = containerWidth;
             newHeight = window.innerHeight;
           } else {
             const perDayWidth = containerWidth / visibleDays;

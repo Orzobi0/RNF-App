@@ -240,12 +240,22 @@ import React, { useState, useEffect, useCallback } from 'react';
         
         const cycleStartDate = parseISO(currentCycle.startDate);
 
-        const fullCyclePlaceholders = [...Array(CYCLE_DURATION_DAYS)].map((_, i) => {
+        const lastRecordDate = currentCycle.data.reduce((maxDate, record) => {
+          const recDate = parseISO(record.isoDate);
+          return recDate > maxDate ? recDate : maxDate;
+        }, cycleStartDate);
+
+        const today = startOfDay(new Date());
+        const lastRelevantDate = lastRecordDate > today ? lastRecordDate : today;
+        const daysSinceStart = differenceInDays(startOfDay(lastRelevantDate), cycleStartDate);
+        const daysInCycle = Math.max(CYCLE_DURATION_DAYS, daysSinceStart + 1);
+
+        const fullCyclePlaceholders = [...Array(daysInCycle)].map((_, i) => {
           const date = addDays(cycleStartDate, i);
           const isoDate = format(date, "yyyy-MM-dd");
           const formattedDate = format(date, "dd/MM");
           const cycleDay = differenceInDays(startOfDay(date), startOfDay(cycleStartDate)) + 1;
-          return { 
+          return {
             date: formattedDate, 
             isoDate, 
             cycleDay, 
@@ -266,14 +276,12 @@ import React, { useState, useEffect, useCallback } from 'react';
         if (isFullScreen) {
           return { data: mergedData, scrollStart: 0 };
         }
-        
-        const today = startOfDay(new Date());
-        const daysSinceCycleStart = differenceInDays(today, startOfDay(cycleStartDate));
-        const currentDayIndex = Math.min(Math.max(daysSinceCycleStart, 0), CYCLE_DURATION_DAYS - 1);
 
-        let endIndex = Math.min(CYCLE_DURATION_DAYS, currentDayIndex + 1);
+          const daysSinceCycleStart = differenceInDays(new Date(), startOfDay(cycleStartDate));
+          const currentDayIndex = Math.min(Math.max(daysSinceCycleStart, 0), daysInCycle - 1);
+          let endIndex = Math.min(daysInCycle, currentDayIndex + 1);
         if (currentDayIndex < VISIBLE_DAYS_NORMAL_VIEW - 1) {
-          endIndex = Math.min(CYCLE_DURATION_DAYS, VISIBLE_DAYS_NORMAL_VIEW);
+           endIndex = Math.min(daysInCycle, VISIBLE_DAYS_NORMAL_VIEW);
         }
 
         const startIndex = Math.max(0, endIndex - VISIBLE_DAYS_NORMAL_VIEW);
