@@ -141,14 +141,10 @@ import { useState, useEffect, useCallback } from 'react';
     if (!user || !currentCycle.id) return;
     setIsLoading(true);
     try {
-      if (currentCycle.data.length > 0) {
-        await archiveCycleDB(currentCycle.id, user.id);
-          } else {
-             await supabase.from('cycles').delete().eq('id', currentCycle.id).eq('user_id', user.id);
-          }
-          
+      await archiveCycleDB(currentCycle.id, user.id);
+
       const newStartDate = selectedStartDate
-        ? format(startOfDay(parseISO(selectedStartDate)), "yyyy-MM-dd")
+        ? selectedStartDate
         : format(startOfDay(new Date()), "yyyy-MM-dd");
       const newCycle = await createNewCycleDB(user.id, newStartDate);
       setCurrentCycle({ id: newCycle.id, startDate: newCycle.start_date, data: [] });
