@@ -27,6 +27,7 @@ import React, { useState, useEffect, useCallback } from 'react';
       isFullScreen,
       toggleFullScreen,
       chartDisplayData,
+      scrollStart,
       showForm, setShowForm,
       showRecords, setShowRecords,
       editingRecord, setEditingRecord,
@@ -99,11 +100,13 @@ import React, { useState, useEffect, useCallback } from 'react';
                   transition={{ duration: 0.5 }}
                   className={`bg-slate-800/50 backdrop-blur-md shadow-2xl rounded-xl ${isFullScreen ? 'w-full h-full p-0 fixed inset-0 z-50' : 'p-4 sm:p-6 mb-8'}`}
                 >
-                  <FertilityChart 
-                    data={chartDisplayData} 
-                    isFullScreen={isFullScreen} 
+                  <FertilityChart
+                    data={chartDisplayData}
+                    isFullScreen={isFullScreen}
                     onToggleIgnore={toggleIgnoreRecord}
                     cycleId={currentCycle.id}
+                    initialScrollIndex={scrollStart}
+                    visibleDays={VISIBLE_DAYS_NORMAL_VIEW}
                   />
                   <Button
                     onClick={toggleFullScreen}
@@ -232,17 +235,27 @@ import React, { useState, useEffect, useCallback } from 'react';
       
       const getChartDisplayData = useCallback(() => {
         if (isLoading || !currentCycle || !currentCycle.startDate) {
-          return [];
+          return { data: [], scrollStart: 0 };
         }
         
         const cycleStartDate = parseISO(currentCycle.startDate);
 
-        const fullCyclePlaceholders = [...Array(CYCLE_DURATION_DAYS)].map((_, i) => {
+        const lastRecordDate = currentCycle.data.reduce((maxDate, record) => {
+          const recDate = parseISO(record.isoDate);
+          return recDate > maxDate ? recDate : maxDate;
+        }, cycleStartDate);
+
+        const today = startOfDay(new Date());
+        const lastRelevantDate = lastRecordDate > today ? lastRecordDate : today;
+        const daysSinceStart = differenceInDays(startOfDay(lastRelevantDate), cycleStartDate);
+        const daysInCycle = Math.max(CYCLE_DURATION_DAYS, daysSinceStart + 1);
+
+        const fullCyclePlaceholders = [...Array(daysInCycle)].map((_, i) => {
           const date = addDays(cycleStartDate, i);
           const isoDate = format(date, "yyyy-MM-dd");
           const formattedDate = format(date, "dd/MM");
           const cycleDay = differenceInDays(startOfDay(date), startOfDay(cycleStartDate)) + 1;
-          return { 
+          return {
             date: formattedDate, 
             isoDate, 
             cycleDay, 
@@ -261,24 +274,22 @@ import React, { useState, useEffect, useCallback } from 'react';
 
 
         if (isFullScreen) {
-          return mergedData;
+          return { data: mergedData, scrollStart: 0 };
         }
-        
-                const today = startOfDay(new Date());
-        const daysSinceCycleStart = differenceInDays(today, startOfDay(cycleStartDate));
-        const currentDayIndex = Math.min(Math.max(daysSinceCycleStart, 0), CYCLE_DURATION_DAYS - 1);
 
-        let endIndex = Math.min(CYCLE_DURATION_DAYS, currentDayIndex + 1);
+          const daysSinceCycleStart = differenceInDays(new Date(), startOfDay(cycleStartDate));
+          const currentDayIndex = Math.min(Math.max(daysSinceCycleStart, 0), daysInCycle - 1);
+          let endIndex = Math.min(daysInCycle, currentDayIndex + 1);
         if (currentDayIndex < VISIBLE_DAYS_NORMAL_VIEW - 1) {
-          endIndex = Math.min(CYCLE_DURATION_DAYS, VISIBLE_DAYS_NORMAL_VIEW);
+           endIndex = Math.min(daysInCycle, VISIBLE_DAYS_NORMAL_VIEW);
         }
 
         const startIndex = Math.max(0, endIndex - VISIBLE_DAYS_NORMAL_VIEW);
         
-        return mergedData.slice(startIndex, endIndex);
+        return { data: mergedData, scrollStart: startIndex };
       }, [currentCycle, isFullScreen, isLoading]);
       
-      const chartDisplayData = getChartDisplayData();
+      const { data: chartDisplayData, scrollStart } = getChartDisplayData();
 
       return (
         <DashboardPageContent
@@ -291,6 +302,7 @@ import React, { useState, useEffect, useCallback } from 'react';
           isFullScreen={isFullScreen}
           toggleFullScreen={toggleFullScreen}
           chartDisplayData={chartDisplayData}
+          scrollStart={scrollStart}
           showForm={showForm} setShowForm={setShowForm}
           showRecords={showRecords} setShowRecords={setShowRecords}
           editingRecord={editingRecord} setEditingRecord={setEditingRecord}

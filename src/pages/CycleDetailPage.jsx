@@ -291,12 +291,22 @@ import React, { useState, useEffect, useCallback } from 'react';
         if (!cycleData || !cycleData.startDate) return [];
         
         const cycleStartDate = parseISO(cycleData.startDate);
-        const fullCyclePlaceholders = [...Array(CYCLE_DURATION_DAYS)].map((_, i) => {
+        const lastRecordDate = cycleData.data.reduce((maxDate, record) => {
+          const recDate = parseISO(record.isoDate);
+          return recDate > maxDate ? recDate : maxDate;
+        }, cycleStartDate);
+
+        const today = startOfDay(new Date());
+        const lastRelevantDate = lastRecordDate > today ? lastRecordDate : today;
+        const daysSinceStart = differenceInDays(startOfDay(lastRelevantDate), cycleStartDate);
+        const daysInCycle = Math.max(CYCLE_DURATION_DAYS, daysSinceStart + 1);
+
+        const fullCyclePlaceholders = [...Array(daysInCycle)].map((_, i) => {
           const date = addDays(cycleStartDate, i);
           const isoDate = format(date, "yyyy-MM-dd");
           const formattedDate = format(date, "dd/MM");
           const cycleDay = differenceInDays(startOfDay(date), startOfDay(cycleStartDate)) + 1;
-          return { 
+          return {
             date: formattedDate, 
             isoDate, 
             cycleDay, 

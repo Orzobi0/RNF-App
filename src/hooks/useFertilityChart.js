@@ -3,7 +3,13 @@ import { useEffect, useRef, useState, useMemo } from 'react';
     const DEFAULT_TEMP_MIN = 35.5;
     const DEFAULT_TEMP_MAX = 37.5;
 
-    export const useFertilityChart = (data, isFullScreen, onToggleIgnore, cycleId) => {
+export const useFertilityChart = (
+  data,
+  isFullScreen,
+  onToggleIgnore,
+  cycleId,
+  visibleDays = 5
+) => {
       const chartRef = useRef(null);
       const tooltipRef = useRef(null);
       const [dimensions, setDimensions] = useState({ width: 600, height: 400 });
@@ -19,19 +25,23 @@ import { useEffect, useRef, useState, useMemo } from 'react';
 
       useEffect(() => {
         const updateDimensions = () => {
-          if (chartRef.current) {
-            let newWidth = chartRef.current.clientWidth;
-            let newHeight = chartRef.current.clientHeight;
+          if (!chartRef.current) return;
 
-            if (isFullScreen) {
-              newWidth = window.innerWidth;
-              newHeight = window.innerHeight;
-            } else {
-              newWidth = chartRef.current.clientWidth > 0 ? chartRef.current.clientWidth : 600;
-              newHeight = 450; 
-            }
-            setDimensions({ width: newWidth, height: newHeight });
+          let containerWidth = chartRef.current.clientWidth > 0 ? chartRef.current.clientWidth : 600;
+          let newWidth;
+          let newHeight;
+
+          if (isFullScreen) {
+            containerWidth = window.innerWidth;
+            newWidth = containerWidth;
+            newHeight = window.innerHeight;
+          } else {
+            const perDayWidth = containerWidth / visibleDays;
+            newWidth = perDayWidth * data.length;
+            newHeight = 450;
           }
+          
+          setDimensions({ width: newWidth, height: newHeight });
         };
 
         updateDimensions(); 
@@ -49,7 +59,7 @@ import { useEffect, useRef, useState, useMemo } from 'react';
             resizeObserver.disconnect();
           }
         };
-      }, [isFullScreen]);
+      }, [isFullScreen, data.length, visibleDays]);
 
       const validDataForLine = useMemo(() => processedData.filter(d => d && d.isoDate && !d.ignored && d.displayTemperature !== null && d.displayTemperature !== undefined), [processedData]);
       const allDataPoints = useMemo(() => processedData.filter(d => d && d.isoDate), [processedData]);

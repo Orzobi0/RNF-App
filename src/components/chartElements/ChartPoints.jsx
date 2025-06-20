@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { X } from 'lucide-react';
+import { parseISO, startOfDay, isAfter } from 'date-fns';
 import { getSymbolAppearance } from '@/config/fertilitySymbols';
 
 /** Quita ceros iniciales a día/mes */
@@ -15,8 +16,8 @@ const compactDate = (dateStr) => {
  * - full-screen: [primeros maxChars, '…']
  * - normal: si cabe en maxChars -> [todo, ''], sino parte en espacio tras maxChars
  */
-const splitText = (str = '', maxChars, isFull) => {
-  if (!str) return ['–', ''];
+const splitText = (str = '', maxChars, isFull, fallback = '–') => {
+  if (!str) return [fallback, ''];
   if (str.length <= maxChars) return [str, ''];
   if (isFull) {
     return [str.slice(0, maxChars), '…'];
@@ -54,6 +55,7 @@ const ChartPoints = ({
   const symbolRowYBase     = bottomY + textRowHeight * 3;
   const mucusSensationRowY = bottomY + textRowHeight * 4.5;
   const mucusAppearanceRowY= bottomY + textRowHeight * 6;
+  const observationsRowY   = bottomY + textRowHeight * 7.5;
 
   return (
     <>
@@ -65,6 +67,7 @@ const ChartPoints = ({
           { label: 'Símbolo', row: 3   },
           { label: 'Sens.',   row: 4.5 },
           { label: 'Apar.',   row: 6   },
+          { label: 'Observ.', row: 7.5 },
         ].map(({ label, row }) => (
           <text
             key={label}
@@ -116,11 +119,32 @@ const interactionProps = (!hasAnyRecord || isPlaceholder)
         }
         const symbolRectSize = responsiveFontSize(isFullScreen ? 1.2 : 1.5);
 
+        const isFuture = point.isoDate
+          ? isAfter(startOfDay(parseISO(point.isoDate)), startOfDay(new Date()))
+          : false;
+
+
         // cuanto texto por línea
         const maxChars = isFullScreen ? 3 : 12;
 
-        const [sensLine1, sensLine2] = splitText(point.mucus_sensation,   maxChars, isFullScreen);
-        const [aparLine1, aparLine2] = splitText(point.mucus_appearance,   maxChars, isFullScreen);
+        const [sensLine1, sensLine2] = splitText(
+          point.mucus_sensation,
+          maxChars,
+          isFullScreen,
+          isFuture ? '' : '–'
+        );
+        const [aparLine1, aparLine2] = splitText(
+          point.mucus_appearance,
+          maxChars,
+          isFullScreen,
+          isFuture ? '' : '–'
+        );
+        const [obsLine1, obsLine2] = splitText(
+          point.observations,
+          maxChars,
+          isFullScreen,
+          ''
+        );
 
         return (
           <motion.g
@@ -213,6 +237,13 @@ const interactionProps = (!hasAnyRecord || isPlaceholder)
                   fontSize={responsiveFontSize(0.9)} fill={textFill}>
               <tspan x={x} dy={0}>{aparLine1}</tspan>
               {aparLine2 && <tspan x={x} dy={responsiveFontSize(1)}>{aparLine2}</tspan>}
+            </text>
+            
+            {/* Observaciones */}
+            <text x={x} y={observationsRowY} textAnchor="middle"
+                  fontSize={responsiveFontSize(0.9)} fill={textFill}>
+              <tspan x={x} dy={0}>{obsLine1}</tspan>
+              {obsLine2 && <tspan x={x} dy={responsiveFontSize(1)}>{obsLine2}</tspan>}
             </text>
           </motion.g>
         );

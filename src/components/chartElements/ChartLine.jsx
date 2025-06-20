@@ -27,7 +27,7 @@ import React from 'react';
         }
       });
       
-      if (pathD === "M" || pathD.endsWith(" M")) return null;
+      if (!pathD.includes("L")) return null;
 
       return (
         <motion.path
@@ -39,9 +39,9 @@ import React from 'react';
           strokeLinejoin="round"
           initial={{ pathLength: 0, opacity: 0 }}
           animate={{ pathLength: 1, opacity: 1 }}
-          transition={{ duration: 1, ease: "easeInOut" }}
+          transition={{ duration: 0.2, ease: "easeInOut" }}
         />
       );
     };
 
-    export default ChartLine;
+export default ChartLine;
