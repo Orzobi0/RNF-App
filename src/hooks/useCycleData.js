@@ -147,7 +147,7 @@ export const useCycleData = (specificCycleId = null) => {
       const startDateObj = selectedStartDate
         ? startOfDay(parseISO(selectedStartDate))
         : startOfDay(new Date());
-      const archiveEndDate = format(addDays(startDateObj, -1), "yyyy-MM-dd");
+      const archiveEndDate = format(startDateObj, "yyyy-MM-dd");
 
       await archiveCycleDB(currentCycle.id, user.id, archiveEndDate);
 

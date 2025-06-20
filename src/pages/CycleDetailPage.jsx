@@ -170,7 +170,19 @@ import React, { useState, useEffect, useCallback } from 'react';
   useEffect(() => {
     const loadCycle = async () => {
       if (!cycleDataHookIsLoading && user) {
-        const fetchedCycle = await getCycleById(cycleId);
+        let fetchedCycle = await getCycleById(cycleId);
+
+        if (!fetchedCycle) {
+          const localData = localStorage.getItem(`fertilityData_cycle_${user.id}_${cycleId}`);
+          if (localData) {
+            const parsed = JSON.parse(localData);
+            fetchedCycle = {
+              ...parsed,
+              data: processDataWithCycleDays(parsed.data || [], parsed.startDate)
+            };
+          }
+        }
+
         if (fetchedCycle) {
           setCycleData(fetchedCycle);
         } else {
