@@ -1,12 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
-    import { format, startOfDay, parseISO } from 'date-fns';
+import { format, startOfDay, parseISO, addDays } from 'date-fns';
+import { useToast } from '@/components/ui/use-toast';
     import { supabase } from '@/lib/supabaseClient';
     import { useAuth } from '@/contexts/AuthContext';
     import { processCycleEntries, createNewCycleEntry, updateCycleEntry, deleteCycleEntryDB, archiveCycleDB, createNewCycleDB, fetchCycleByIdDB, fetchCurrentCycleDB, fetchArchivedCyclesDB } from '@/lib/cycleDataHandler';
 
-    export const useCycleData = (specificCycleId = null) => {
-      const { user } = useAuth();
-      const [currentCycle, setCurrentCycle] = useState({ id: null, startDate: format(startOfDay(new Date()), "yyyy-MM-dd"), data: [] });
+export const useCycleData = (specificCycleId = null) => {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [currentCycle, setCurrentCycle] = useState({ id: null, startDate: format(startOfDay(new Date()), "yyyy-MM-dd"), data: [] });
       const [archivedCycles, setArchivedCycles] = useState([]);
       const [isLoading, setIsLoading] = useState(true);
 
@@ -44,6 +46,7 @@ import { useState, useEffect, useCallback } from 'react';
           setArchivedCycles(archivedData.map(cycle => ({
             ...cycle,
             startDate: cycle.startDate ? format(startOfDay(parseISO(cycle.startDate)), "yyyy-MM-dd") : format(startOfDay(new Date()), "yyyy-MM-dd"),
+                        endDate: cycle.endDate ? format(startOfDay(parseISO(cycle.endDate)), "yyyy-MM-dd") : null,
             data: processCycleEntries(cycle.data || [], cycle.startDate)
           })));
 
@@ -141,21 +144,25 @@ import { useState, useEffect, useCallback } from 'react';
     if (!user || !currentCycle.id) return;
     setIsLoading(true);
     try {
-      await archiveCycleDB(currentCycle.id, user.id);
+      const startDateObj = selectedStartDate
+        ? startOfDay(parseISO(selectedStartDate))
+        : startOfDay(new Date());
+      const archiveEndDate = format(addDays(startDateObj, -1), "yyyy-MM-dd");
 
-      const newStartDate = selectedStartDate
-        ? selectedStartDate
-        : format(startOfDay(new Date()), "yyyy-MM-dd");
+      await archiveCycleDB(currentCycle.id, user.id, archiveEndDate);
+
+      const newStartDate = format(startDateObj, "yyyy-MM-dd");
       const newCycle = await createNewCycleDB(user.id, newStartDate);
       setCurrentCycle({ id: newCycle.id, startDate: newCycle.start_date, data: [] });
       await loadCycleData();
     } catch (error) {
       console.error("Error starting new cycle:", error);
+            toast({ title: "Error", description: "No se pudo archivar el ciclo.", variant: "destructive" });
       throw error;
     } finally {
       setIsLoading(false);
     }
-  }, [user, currentCycle, loadCycleData]);
+  }, [user, currentCycle, loadCycleData, toast]);
 
   const getCycleById = useCallback(async (cycleIdToFetch) => {
     if (!user) return null;
@@ -167,6 +174,7 @@ import { useState, useEffect, useCallback } from 'react';
           return {
             ...cycleData,
             startDate: cycleData.startDate ? format(startOfDay(parseISO(cycleData.startDate)), "yyyy-MM-dd") : format(startOfDay(new Date()), "yyyy-MM-dd"),
+                        endDate: cycleData.endDate ? format(startOfDay(parseISO(cycleData.endDate)), "yyyy-MM-dd") : null,
             data: processCycleEntries(cycleData.data || [], cycleData.startDate)
           };
         } catch (error) {

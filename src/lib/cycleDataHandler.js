@@ -63,13 +63,13 @@ import { supabase } from '@/lib/supabaseClient';
         throw entriesError;
       }
 
-      return { id: cycleData.id, startDate: cycleData.start_date, data: entriesData || [] };
+      return { id: cycleData.id, startDate: cycleData.start_date, endDate: cycleData.end_date, data: entriesData || [] };
     };
 
     export const fetchArchivedCyclesDB = async (userId) => {
       const { data: cycles, error: cyclesError } = await supabase
         .from('cycles')
-        .select('id, start_date')
+        .select('id, start_date, end_date')
         .eq('user_id', userId)
         .not('end_date', 'is', null) 
         .order('start_date', { ascending: false });
@@ -89,9 +89,9 @@ import { supabase } from '@/lib/supabaseClient';
 
           if (entriesError) {
             console.error(`Error fetching entries for archived cycle ${cycle.id} from view:`, entriesError);
-            return { ...cycle, data: [] }; 
+            return { id: cycle.id, startDate: cycle.start_date, endDate: cycle.end_date, data: [] };
           }
-          return { ...cycle, data: entriesData || [] };
+          return { id: cycle.id, startDate: cycle.start_date, endDate: cycle.end_date, data: entriesData || [] };
         })
       );
       return cyclesWithEntries;
@@ -100,7 +100,7 @@ import { supabase } from '@/lib/supabaseClient';
     export const fetchCycleByIdDB = async (userId, cycleId) => {
       const { data: cycleData, error: cycleError } = await supabase
         .from('cycles')
-        .select('id, start_date')
+        .select('id, start_date, end_date')
         .eq('id', cycleId)
         .eq('user_id', userId)
         .single();
@@ -122,7 +122,7 @@ import { supabase } from '@/lib/supabaseClient';
         throw entriesError;
       }
       
-      return { id: cycleData.id, startDate: cycleData.start_date, data: entriesData || [] };
+      return { id: cycleData.id, startDate: cycleData.start_date, endDate: cycleData.end_date, data: entriesData || [] };
     };
     
     export const createNewCycleDB = async (userId, startDate) => {
@@ -207,14 +207,14 @@ import { supabase } from '@/lib/supabaseClient';
       }
     };
 
-    export const archiveCycleDB = async (cycleId, userId) => {
-      const { error } = await supabase
-        .from('cycles')
-        .update({ end_date: format(startOfDay(new Date()), "yyyy-MM-dd")}) 
-        .eq('id', cycleId)
-        .eq('user_id', userId);
-      if (error) {
-        console.error('Error archiving cycle:', error);
-        throw error;
-      }
-    };
+export const archiveCycleDB = async (cycleId, userId, endDate) => {
+  const { error } = await supabase
+    .from('cycles')
+    .update({ end_date: endDate })
+    .eq('id', cycleId)
+    .eq('user_id', userId);
+  if (error) {
+    console.error('Error archiving cycle:', error);
+    throw error;
+  }
+};

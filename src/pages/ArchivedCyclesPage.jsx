@@ -60,9 +60,11 @@
             animate="show"
           >
             {sortedArchivedCycles.map((cycle) => {
-              const endDate = cycle.data && cycle.data.length > 0 
-                ? format(new Date(cycle.data[cycle.data.length - 1].isoDate), "dd MMM yyyy", { locale: es })
-                : format(new Date(cycle.startDate), "dd MMM yyyy", { locale: es });
+              const endDate = cycle.endDate
+                ? format(new Date(cycle.endDate), "dd MMM yyyy", { locale: es })
+                : cycle.data && cycle.data.length > 0
+                  ? format(new Date(cycle.data[cycle.data.length - 1].isoDate), "dd MMM yyyy", { locale: es })
+                  : format(new Date(cycle.startDate), "dd MMM yyyy", { locale: es });
               const recordCount = cycle.data ? cycle.data.length : 0;
 
               return (
