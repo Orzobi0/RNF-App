@@ -29,19 +29,19 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.9 }}
       transition={{ duration: 0.15 }}
-      className="absolute bg-slate-700/80 backdrop-blur-md text-white p-2 rounded-lg shadow-lg z-50"
+      className="absolute bg-white border border-[#E27DBF] text-[#1F2937] p-2 rounded-lg shadow z-50"
       style={{ top: y, left: x, width: tooltipWidth, minHeight: tooltipMinHeight }}
     >
       <Button
         variant="ghost"
         size="icon"
         onClick={onClose}
-        className="absolute top-1 right-1 text-slate-300 hover:text-white hover:bg-slate-600/50"
+        className="absolute top-1 right-1 text-[#E27DBF] hover:bg-[#FFB1DD]"
       >
         <XCircle size={16} />
       </Button>
 
-      <p className="font-semibold text-sm text-pink-300 mb-1">
+      <p className="font-semibold text-sm text-[#E27DBF] mb-1">
         {dateToFormat
           ? format(parseISO(dateToFormat), 'd/M', { locale: es })
           : 'Fecha'}

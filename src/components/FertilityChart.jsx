@@ -63,7 +63,7 @@ const FertilityChart = ({
         <div className="relative">
           {!isFullScreen && (
             <div
-              className="absolute left-0 top-0 h-full bg-slate-800 pointer-events-none z-10"
+              className="absolute left-0 top-0 h-full bg-[#F4F6F8] pointer-events-none z-10"
               style={{ width: padding.left }}
             >
               <ChartLeftLegend
@@ -81,8 +81,8 @@ const FertilityChart = ({
           )}
           <div
             ref={chartRef}
-            className={`relative p-0 rounded-lg shadow-inner ${isFullScreen ? 'w-full h-full bg-slate-900 flex items-center justify-center overflow-x-auto overflow-y-hidden' : 'bg-slate-800 overflow-x-auto overflow-y-hidden'}`}
-          >
+                        className={`relative p-0 rounded-lg shadow-inner ${isFullScreen ? 'w-full h-full bg-white flex items-center justify-center overflow-x-auto overflow-y-hidden' : 'bg-white overflow-x-auto overflow-y-hidden'}`}
+                                  >
           <motion.svg
             width={chartWidth}
             height={chartHeight}
@@ -94,14 +94,23 @@ const FertilityChart = ({
             animate="visible"
           >
             <defs>
+                            <radialGradient id="chartBgGradient" cx="50%" cy="50%" r="75%">
+                <stop offset="0%" stopColor="#FFB1DD" stopOpacity="0.3" />
+                <stop offset="100%" stopColor="#FFFFFF" stopOpacity="1" />
+              </radialGradient>
               <linearGradient id="tempLineGradientChart" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="#2dd4bf" />
-                <stop offset="100%" stopColor="#a855f7" />
+                <stop offset="0%" stopColor="#E27DBF" />
+                <stop offset="100%" stopColor="#FFB1DD" />
+              </linearGradient>
+              <linearGradient id="tempAreaGradientChart" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stopColor="rgba(226,125,191,0.3)" />
+                <stop offset="100%" stopColor="rgba(226,125,191,0)" />
               </linearGradient>
               <pattern id="spotting-pattern-chart" patternUnits="userSpaceOnUse" width="6" height="6">
                 <circle cx="3" cy="3" r="1.5" fill="rgba(239, 68, 68, 0.7)" />
               </pattern>
             </defs>
+            <rect width="100%" height="100%" fill="url(#chartBgGradient)" />
 
             <ChartAxes
               padding={padding}
@@ -120,7 +129,8 @@ const FertilityChart = ({
               allDataPoints={allDataPoints} 
               getX={getX}
               getY={getY}
-              temperatureField="displayTemperature" 
+              baselineY={chartHeight - padding.bottom}
+              temperatureField="displayTemperature"
             />
 
             <ChartPoints

@@ -75,7 +75,7 @@ const ChartPoints = ({
             y={bottomY + textRowHeight * row}
             textAnchor="end"
             fontSize={responsiveFontSize(0.9)}
-            fill={isFullScreen ? "#cbd5e1" : "#94a3b8"}
+            fill={isFullScreen ? "#1F2937" : "#6B7280"}
           >{label}</text>
         ))}
       </motion.g>
@@ -85,7 +85,7 @@ const ChartPoints = ({
         const y               = point[temperatureField] != null
                                 ? getY(point[temperatureField])
                                 : bottomY;
-        const textFill        = isFullScreen ? "#cbd5e1" : "#94a3b8";
+       const textFill        = isFullScreen ? "#1F2937" : "#6B7280";
         const hasTemp         = point[temperatureField] != null;
         const hasAnyRecord    = hasTemp
                              || point.mucus_sensation
@@ -156,10 +156,11 @@ const interactionProps = (!hasAnyRecord || isPlaceholder)
             {hasTemp && !point.ignored && (
               <circle
                 cx={x} cy={y}
-                r={isFullScreen ? responsiveFontSize(0.6) : 5}
-                fill={ activePoint?.id === point.id ? "rgba(255,255,255,0.8)" : "white" }
-                stroke="url(#tempLineGradientChart)"
-                strokeWidth="2"
+                r={4}
+                fill="#FFB1DD"
+                stroke="#E27DBF"
+                strokeWidth="1.5"
+
 
                 /** ← Esto hace que el SVG reciba clicks/taps: **/
                 pointerEvents="all"
@@ -180,7 +181,7 @@ const interactionProps = (!hasAnyRecord || isPlaceholder)
                 <circle
                   cx={x} cy={y}
                   r={isFullScreen ? responsiveFontSize(0.6) : 5}
-                  fill="rgba(100, 116, 139, 0.5)"
+                  fill="4"
                   stroke="#64748b"
                   strokeWidth="1.5"
                 />

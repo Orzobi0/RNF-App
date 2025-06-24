@@ -52,7 +52,7 @@ const ChartLeftLegend = ({
             y={y + responsiveFontSize(0.3)}
             textAnchor="end"
             fontSize={responsiveFontSize()}
-            fill="#94a3b8"
+            fill="#6B7280"
           >
             {labelText}
           </motion.text>
@@ -65,7 +65,7 @@ const ChartLeftLegend = ({
         y={padding.top + responsiveFontSize(1)}
         textAnchor="start"
         fontSize={responsiveFontSize(1.2)}
-        fill={isFullScreen ? '#e2e8f0' : '#cbd5e1'}
+        fill="#6B7280"
       >
         °C
       </motion.text>
@@ -85,7 +85,7 @@ const ChartLeftLegend = ({
             y={bottomY + textRowHeight * row}
             textAnchor="end"
             fontSize={responsiveFontSize(0.9)}
-            fill={isFullScreen ? '#cbd5e1' : '#94a3b8'}
+            fill={isFullScreen ? '#1F2937' : '#6B7280'}
           >
             {label}
           </text>
