@@ -21,7 +21,7 @@ import React from 'react';
       return (
         <motion.form 
           onSubmit={handleSubmit} 
-          className="space-y-6 bg-slate-800/60 backdrop-blur-sm p-6 sm:p-8 rounded-xl shadow-xl"
+          className="space-y-6 bg-[#393C65]/20 backdrop-blur-sm p-6 sm:p-8 rounded-xl shadow-xl"
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
