@@ -81,8 +81,8 @@ const FertilityChart = ({
           )}
           <div
             ref={chartRef}
-                        className={`relative p-0 rounded-lg shadow-inner ${isFullScreen ? 'w-full h-full bg-white flex items-center justify-center overflow-x-auto overflow-y-hidden' : 'bg-white overflow-x-auto overflow-y-hidden'}`}
-                                  >
+                                    className={`relative p-0 rounded-lg border border-[#393C65] ${isFullScreen ? 'w-full h-full bg-white flex items-center justify-center overflow-x-auto overflow-y-hidden' : 'bg-white overflow-x-auto overflow-y-hidden'}`}
+          >
           <motion.svg
             width={chartWidth}
             height={chartHeight}
@@ -94,10 +94,7 @@ const FertilityChart = ({
             animate="visible"
           >
             <defs>
-                            <radialGradient id="chartBgGradient" cx="50%" cy="50%" r="75%">
-                <stop offset="0%" stopColor="#FFB1DD" stopOpacity="0.3" />
-                <stop offset="100%" stopColor="#FFFFFF" stopOpacity="1" />
-              </radialGradient>
+        
               <linearGradient id="tempLineGradientChart" x1="0%" y1="0%" x2="100%" y2="0%">
                 <stop offset="0%" stopColor="#E27DBF" />
                 <stop offset="100%" stopColor="#FFB1DD" />
@@ -105,12 +102,9 @@ const FertilityChart = ({
               <linearGradient id="tempAreaGradientChart" x1="0%" y1="0%" x2="0%" y2="100%">
                 <stop offset="0%" stopColor="rgba(226,125,191,0.3)" />
                 <stop offset="100%" stopColor="rgba(226,125,191,0)" />
-              </linearGradient>
-              <pattern id="spotting-pattern-chart" patternUnits="userSpaceOnUse" width="6" height="6">
-                <circle cx="3" cy="3" r="1.5" fill="rgba(239, 68, 68, 0.7)" />
-              </pattern>
+             </linearGradient>
             </defs>
-            <rect width="100%" height="100%" fill="url(#chartBgGradient)" />
+            <rect width="100%" height="100%" fill="#FFFFFF" />
 
             <ChartAxes
               padding={padding}

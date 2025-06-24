@@ -57,9 +57,10 @@ import React from 'react';
                 const symbolInfo = getSymbolAppearance(record.fertility_symbol);
                 const dateToFormat = record.timestamp || record.isoDate;
                 return (
-                  <motion.li 
-                    key={record.id || dateToFormat} 
-                    className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 bg-[#F4F6F8] rounded-lg shadow"
+                   <motion.li
+                    key={record.id || dateToFormat}
+                    className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 bg-white border border-[#E5E7EB] rounded-[10px]"
+                    style={{ boxShadow: '0 2px 4px rgba(0,0,0,0.04)' }}
                     layout
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -67,7 +68,7 @@ import React from 'react';
                     transition={{ duration: 0.2 }}
                   >
                     <div className="flex-grow mb-3 sm:mb-0">
-                        <p className="text-lg font-medium text-pink-400">
+                        <p className="text-lg font-medium text-[#1F2937]">
                         {dateToFormat ? format(parseISO(dateToFormat), "dd/MM/yyyy HH:mm", { locale: es }) : 'Fecha no disponible'} (Día {record.cycle_day || 'N/A'})
                       </p>
                       
@@ -76,7 +77,7 @@ import React from 'react';
                             <span className="font-semibold">Original:</span> {record.temperature_raw.toFixed(2)}°C
                             {/* si existe corregida y usamos la original, muestro el check */}
                             {record.temperature_corrected != null && !record.use_corrected && (
-                              <Check className="inline h-4 w-4 text-pink-400 ml-1" />
+                              <Check className="inline h-4 w-4 text-[#E27DBF] ml-1" />
                             )}
                           </p>
                         )}

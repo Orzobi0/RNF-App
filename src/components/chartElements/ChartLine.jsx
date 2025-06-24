@@ -26,18 +26,8 @@ const ChartLine = ({ data, allDataPoints, getX, getY, baselineY, temperatureFiel
   });
       
       if (!pathD.includes("L")) return null;
-  const areaPath = `${pathD} L ${lastX} ${baselineY} L ${firstX} ${baselineY} Z`;
-  
-      return (
-                <>
-        <motion.path
-          d={areaPath}
-          fill="url(#tempAreaGradientChart)"
-          stroke="none"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.2 }}
-        />
+   return (
+    <>
         <motion.path
           d={pathD}
           fill="none"
@@ -49,8 +39,8 @@ const ChartLine = ({ data, allDataPoints, getX, getY, baselineY, temperatureFiel
           animate={{ pathLength: 1, opacity: 1 }}
           transition={{ duration: 0.2, ease: "easeInOut" }}
         />
-                </>
-      );
-    };
+    </>
+  );
+};
 
 export default ChartLine;

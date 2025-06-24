@@ -76,7 +76,7 @@ import React, { useState, useEffect, useCallback } from 'react';
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: isFullScreen ? 1 : 0.9 }}
                 transition={{ duration: 0.5 }}
-                className={`bg-slate-800/50 backdrop-blur-md shadow-2xl rounded-xl ${isFullScreen ? 'w-full h-full p-0 fixed inset-0 z-50' : 'p-4 sm:p-6 mb-8'}`}
+                className={`bg-[#393C65]/40 backdrop-blur-md border border-[#393C65] shadow-xl rounded-xl ${isFullScreen ? 'w-full h-full p-0 fixed inset-0 z-50' : 'p-4 sm:p-6 mb-8'}`}
               >
                 <FertilityChart 
                   data={chartDisplayData} 

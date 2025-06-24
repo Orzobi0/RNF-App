@@ -40,7 +40,7 @@
       };
 
       return (
-         <div className="min-h-screen bg-background text-foreground flex flex-col">
+         <div className="min-h-screen bg-gradient-to-br from-[#F4F6F8] to-white text-foreground flex flex-col">
           <header className="sticky top-0 z-40 w-full bg-white shadow">
             <div className="container mx-auto flex items-center justify-between h-20 px-4 sm:px-6">
               <Link to="/" className="flex items-center space-x-2">
