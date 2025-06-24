@@ -42,7 +42,7 @@ const NewCycleDialog = ({ isOpen, onClose, onConfirm, currentCycleStartDate }) =
         </div>
         <DialogFooter className="sm:justify-end">
           <Button variant="outline" onClick={onClose} className="border-slate-600 hover:bg-slate-700">Cancelar</Button>
-          <Button variant="primary" onClick={handleConfirm} className="bg-emerald-600 hover:bg-emerald-700">Confirmar Nuevo Ciclo</Button>
+            <Button variant="primary" onClick={handleConfirm} className="bg-pink-600 hover:bg-pink-700">Confirmar Nuevo Ciclo</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

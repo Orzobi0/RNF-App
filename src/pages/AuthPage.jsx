@@ -44,7 +44,7 @@
       };
 
       return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex flex-col justify-center items-center p-4">
+        <div className="min-h-screen bg-gradient-to-br from-purple-950 to-gray-900 flex flex-col justify-center items-center p-4">
           <motion.div 
             className="w-full max-w-md bg-slate-800/70 backdrop-blur-md shadow-2xl rounded-xl p-8 sm:p-10"
             initial={{ opacity: 0, y: -30 }}
@@ -53,7 +53,7 @@
           >
             <div className="text-center mb-8">
               <motion.h1 
-                className="text-3xl sm:text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 via-cyan-400 to-purple-500 py-2 mb-2"
+                className="text-3xl sm:text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-rose-400 via-pink-400 to-fuchsia-500 py-2 mb-2"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.2, duration: 0.5 }}
@@ -66,7 +66,7 @@
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-2">
                 <Label htmlFor="email" className="flex items-center text-slate-300 text-lg">
-                  <Mail className="mr-2 h-5 w-5 text-purple-400" /> Correo Electrónico
+                <Mail className="mr-2 h-5 w-5 text-pink-400" /> Correo Electrónico
                 </Label>
                 <Input
                   id="email"
@@ -75,7 +75,7 @@
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="tu@email.com"
                   required
-                  className="bg-slate-700 border-slate-600 text-slate-50 placeholder-slate-400 focus:ring-emerald-500 focus:border-emerald-500 text-base py-3 px-4"
+                  className="bg-slate-700 border-slate-600 text-slate-50 placeholder-slate-400 focus:ring-pink-500 focus:border-pink-500 text-base py-3 px-4"
                 />
               </div>
 
@@ -90,7 +90,7 @@
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   required
-                  className="bg-slate-700 border-slate-600 text-slate-50 placeholder-slate-400 focus:ring-emerald-500 focus:border-emerald-500 text-base py-3 px-4"
+                  className="bg-slate-700 border-slate-600 text-slate-50 placeholder-slate-400 focus:ring-pink-500 focus:border-pink-500 text-base py-3 px-4"
                 />
               </div>
 
@@ -106,7 +106,7 @@
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="••••••••"
                     required
-                    className="bg-slate-700 border-slate-600 text-slate-50 placeholder-slate-400 focus:ring-emerald-500 focus:border-emerald-500 text-base py-3 px-4"
+                    className="bg-slate-700 border-slate-600 text-slate-50 placeholder-slate-400 focus:ring-pink-500 focus:border-pink-500 text-base py-3 px-4"
                   />
                 </div>
               )}
@@ -114,7 +114,7 @@
               <Button 
                 type="submit" 
                 disabled={loading}
-                className="w-full bg-gradient-to-r from-emerald-500 to-cyan-600 hover:from-emerald-600 hover:to-cyan-700 text-white font-semibold py-3 text-lg shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-102 flex items-center justify-center"
+                className="w-full bg-gradient-to-r from-pink-500 to-fuchsia-600 hover:from-pink-600 hover:to-fuchsia-700 text-white font-semibold py-3 text-lg shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-102 flex items-center justify-center"
               >
                 {loading ? (
                   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>

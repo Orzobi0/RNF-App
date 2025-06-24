@@ -22,7 +22,7 @@
 
       if (loadingAuth) {
         return (
-          <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex justify-center items-center">
+          <div className="min-h-screen bg-gradient-to-br from-purple-950 to-gray-900 flex justify-center items-center">
             <div className="text-white text-xl">Cargando aplicación...</div>
           </div>
         );

@@ -41,7 +41,7 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
         <XCircle size={16} />
       </Button>
 
-      <p className="font-semibold text-sm text-emerald-300 mb-1">
+      <p className="font-semibold text-sm text-pink-300 mb-1">
         {dateToFormat
           ? format(parseISO(dateToFormat), 'd/M', { locale: es })
           : 'Fecha'}

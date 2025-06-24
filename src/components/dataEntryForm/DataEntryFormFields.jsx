@@ -57,7 +57,7 @@ import React from 'react';
         <>
           <div className="space-y-2">
             <Label htmlFor="date" className="flex items-center text-slate-300 text-lg">
-              <CalendarDays className="mr-2 h-5 w-5 text-purple-400" />
+                <CalendarDays className="mr-2 h-5 w-5 text-pink-400" />
               Fecha del Registro
             </Label>
             <Popover>
@@ -82,7 +82,7 @@ import React from 'react';
                   initialFocus
                   locale={es}
                   disabled={isProcessing ? () => true : disabledDateRanges}
-                  className="[&_button]:text-slate-50 [&_button:hover]:bg-slate-600 [&_button[aria-selected=true]]:bg-emerald-500"
+                  className="[&_button]:text-slate-50 [&_button:hover]:bg-slate-600 [&_button[aria-selected=true]]:bg-pink-500"
                 />
               </PopoverContent>
             </Popover>
@@ -102,7 +102,7 @@ import React from 'react';
               value={temperatureRaw}
               onChange={(e) => setTemperatureRaw(e.target.value)}
               placeholder="Ej: 36.50"
-              className="bg-slate-700 border-slate-600 text-slate-50 placeholder-slate-400 focus:ring-emerald-500 focus:border-emerald-500 text-base"
+              className="bg-slate-700 border-slate-600 text-slate-50 placeholder-slate-400 focus:ring-pink-500 focus:border-pink-500 text-base"
               disabled={isProcessing || (isEditing && initialData?.temperature_raw !== null && initialData?.temperature_raw !== undefined)}
               readOnly={isEditing && initialData?.temperature_raw !== null && initialData?.temperature_raw !== undefined}
             />
@@ -125,7 +125,7 @@ import React from 'react';
                             value={temperatureCorrected}
                             onChange={(e) => setTemperatureCorrected(e.target.value)}
                             placeholder="Ej: 36.65"
-                            className="bg-slate-600 border-slate-500 text-slate-50 placeholder-slate-400 focus:ring-emerald-500 focus:border-emerald-500 text-base"
+                            className="bg-slate-600 border-slate-500 text-slate-50 placeholder-slate-400 focus:ring-pink-500 focus:border-pink-500 text-base"
                             disabled={isProcessing}
                           />
                           {/* Botón “X” para borrar corrección */}
@@ -147,7 +147,7 @@ import React from 'react';
                               id="useCorrected"
                               checked={useCorrected}
                               onCheckedChange={setUseCorrected}
-                              className="data-[state=checked]:bg-emerald-500 data-[state=checked]:text-white border-slate-500"
+                              className="data-[state=checked]:bg-pink-500 data-[state=checked]:text-white border-slate-500"
                               disabled={isProcessing || temperatureCorrected === ''}
                             />
                             <Label htmlFor="useCorrected" className="text-sm text-slate-300">
@@ -189,7 +189,7 @@ import React from 'react';
               value={mucusSensation}
               onChange={(e) => setMucusSensation(e.target.value)}
               placeholder="Describe la sensación (ej: Seca, Húmeda, Clara de huevo)"
-              className="bg-slate-700 border-slate-600 text-slate-50 placeholder-slate-400 focus:ring-emerald-500 focus:border-emerald-500 text-base min-h-[80px]"
+              className="bg-slate-700 border-slate-600 text-slate-50 placeholder-slate-400 focus:ring-pink-500 focus:border-pink-500 text-base min-h-[80px]"
               disabled={isProcessing}
             />
           </div>
@@ -204,7 +204,7 @@ import React from 'react';
               value={mucusAppearance}
               onChange={(e) => setMucusAppearance(e.target.value)}
               placeholder="Describe la apariencia (ej: Ninguno, Pegajoso, Elástico)"
-              className="bg-slate-700 border-slate-600 text-slate-50 placeholder-slate-400 focus:ring-emerald-500 focus:border-emerald-500 text-base min-h-[80px]"
+              className="bg-slate-700 border-slate-600 text-slate-50 placeholder-slate-400 focus:ring-pink-500 focus:border-pink-500 text-base min-h-[80px]"
               disabled={isProcessing}
             />
           </div>
@@ -219,7 +219,7 @@ import React from 'react';
               value={observations}
               onChange={(e) => setObservations(e.target.value)}
               placeholder="Anota cualquier otra observación relevante (ej: Dolor, medicación)"
-              className="bg-slate-700 border-slate-600 text-slate-50 placeholder-slate-400 focus:ring-emerald-500 focus:border-emerald-500 text-base min-h-[80px]"
+              className="bg-slate-700 border-slate-600 text-slate-50 placeholder-slate-400 focus:ring-pink-500 focus:border-pink-500 text-base min-h-[80px]"
               disabled={isProcessing}
             />
           </div>

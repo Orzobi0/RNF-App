@@ -18,11 +18,11 @@
             onClick={onClick}
             className={`flex items-center px-4 py-3 text-lg rounded-md transition-colors duration-200 ease-in-out
                         ${isActive 
-                          ? 'bg-gradient-to-r from-emerald-500 to-cyan-500 text-white shadow-lg' 
+                          ? 'bg-gradient-to-r from-pink-500 to-fuchsia-500 text-white shadow-lg'
                           : 'text-slate-300 hover:bg-slate-700 hover:text-slate-100'
                         }`}
           >
-            <Icon className={`mr-3 h-6 w-6 ${isActive ? 'text-white' : 'text-purple-400'}`} />
+            <Icon className={`mr-3 h-6 w-6 ${isActive ? 'text-white' : 'text-pink-400'}`} />
             {children}
           </Link>
         </SheetClose>
@@ -40,12 +40,12 @@
       };
 
       return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 text-slate-50 flex flex-col">
+        <div className="min-h-screen bg-gradient-to-br from-purple-950 to-gray-900 text-slate-50 flex flex-col">
           <header className="sticky top-0 z-40 w-full bg-slate-900/80 backdrop-blur-md shadow-lg">
             <div className="container mx-auto flex items-center justify-between h-20 px-4 sm:px-6">
               <Link to="/" className="flex items-center space-x-2">
-                <img  alt="FertiliApp Logo - Abstract representation of a cycle or flower" class="h-10 w-10" src="https://images.unsplash.com/photo-1540227794234-fea3ce7dfcea" />
-                <span className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 via-cyan-400 to-purple-500">
+                <img  alt="FertiliApp Logo - Abstract representation of a cycle or flower" class="h-10 w-10 rounded-full ring-2" src="https://images.unsplash.com/photo-1540227794234-fea3ce7dfcea" />
+                <span className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-rose-400 via-pink-400 to-fuchsia-500">
                   FertiliApp
                 </span>
               </Link>
@@ -60,7 +60,7 @@
                 <SheetContent side="right" className="w-[300px] sm:w-[350px] bg-slate-800 border-l-slate-700 p-0 flex flex-col">
                   <div className="flex items-center justify-between p-6 border-b border-slate-700">
                      <div className="flex items-center space-x-3">
-                        <UserCircle className="h-10 w-10 text-emerald-400" />
+                        <UserCircle className="h-10 w-10 text-pink-400" />
                         <div>
                             <p className="text-lg font-semibold text-slate-100">Hola,</p>
                             <p className="text-sm text-slate-400 truncate max-w-[180px]">{user?.email}</p>

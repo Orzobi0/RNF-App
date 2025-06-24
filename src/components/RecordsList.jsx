@@ -67,7 +67,7 @@ import React from 'react';
                     transition={{ duration: 0.2 }}
                   >
                     <div className="flex-grow mb-3 sm:mb-0">
-                      <p className="text-lg font-medium text-emerald-400">
+                        <p className="text-lg font-medium text-pink-400">
                         {dateToFormat ? format(parseISO(dateToFormat), "dd/MM/yyyy HH:mm", { locale: es }) : 'Fecha no disponible'} (Día {record.cycle_day || 'N/A'})
                       </p>
                       
@@ -76,7 +76,7 @@ import React from 'react';
                             <span className="font-semibold">Original:</span> {record.temperature_raw.toFixed(2)}°C
                             {/* si existe corregida y usamos la original, muestro el check */}
                             {record.temperature_corrected != null && !record.use_corrected && (
-                              <Check className="inline h-4 w-4 text-emerald-400 ml-1" />
+                              <Check className="inline h-4 w-4 text-pink-400 ml-1" />
                             )}
                           </p>
                         )}

@@ -122,9 +122,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 
               {!showForm && (
                 <div className="my-8">
-                  <Button 
+                  <Button
                     onClick={() => { setEditingRecord(null); setShowForm(true); }}
-                    className="w-full sm:w-auto bg-gradient-to-r from-emerald-500 to-cyan-600 hover:from-emerald-600 hover:to-cyan-700 text-white font-semibold py-3 px-6 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 flex items-center justify-center text-lg"
+                    className="w-full sm:w-auto bg-gradient-to-r from-pink-500 to-fuchsia-600 hover:from-pink-600 hover:to-fuchsia-700 text-white font-semibold py-3 px-6 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 flex items-center justify-center text-lg"
                     disabled={isProcessing}
                   >
                     <Edit className="mr-2 h-5 w-5" /> Añadir/Editar Registro en este Ciclo
