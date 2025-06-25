@@ -29,7 +29,7 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.9 }}
       transition={{ duration: 0.15 }}
-      className="absolute bg-white border border-[#E27DBF] text-[#1F2937] p-2 rounded-lg shadow z-50"
+      className="absolute bg-white/80 border border-[#E27DBF] text-[#1F2937] p-2 rounded-lg shadow z-50"
       style={{ top: y, left: x, width: tooltipWidth, minHeight: tooltipMinHeight }}
     >
       <Button

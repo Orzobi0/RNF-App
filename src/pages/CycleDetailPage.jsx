@@ -76,11 +76,14 @@ import React, { useState, useEffect, useCallback } from 'react';
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: isFullScreen ? 1 : 0.9 }}
                 transition={{ duration: 0.5 }}
-                className={`${isFullScreen ? 'w-full h-full p-0 fixed inset-0 z-50' : 'p-4 sm:p-6 mb-8'} rounded-xl`}
-                style={{ boxShadow: '0 4px 8px rgba(0,0,0,0.04)' }}
+                className={`${isFullScreen ? 'w-full h-full p-0 fixed inset-0 z-50' : 'p-4 sm:p-6 mb-8'} relative rounded-xl bg-[#FFF5F9]`}
+                style={{ boxShadow: '0 2px 4px rgba(0,0,0,0.03)' }}
               >
-                <FertilityChart 
-                  data={chartDisplayData} 
+                <h2 className="text-xl font-medium text-[#393C65] mb-4 bg-white bg-opacity-90 px-4 py-2 rounded-md">
+                  Gráfica
+                </h2>
+                <FertilityChart
+                  data={chartDisplayData}
                   isFullScreen={isFullScreen}
                   onToggleIgnore={toggleIgnoreRecordForCycle}
                   cycleId={cycleData.id}

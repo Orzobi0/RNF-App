@@ -43,20 +43,20 @@
         height: 8px;
       }
       ::-webkit-scrollbar-track {
-        background: hsl(var(--secondary));
+        background: #F4F6F8;
         border-radius: 10px;
       }
       ::-webkit-scrollbar-thumb {
-        background: hsl(var(--muted-foreground));
+        background: #E27DBF;
         border-radius: 10px;
       }
       ::-webkit-scrollbar-thumb:hover {
-        background: hsl(var(--accent-foreground));
+        background: #E27DBF;
       }
        /* Scrollbar styles for Firefox */
       * {
         scrollbar-width: thin;
-        scrollbar-color: hsl(var(--muted-foreground)) hsl(var(--secondary));
+        scrollbar-color: #E27DBF #F4F6F8;
       }
     }
 

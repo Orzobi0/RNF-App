@@ -49,7 +49,7 @@ const ChartAxes = ({
               y1={y}
               x2={chartWidth - padding.right}
               y2={y}
-              stroke={isMajor ? '#E5E7EB' : '#F3F4F6'}
+              stroke="#F3F0F5"
               strokeWidth={isMajor ? 0.5 : 0.3}
               strokeDasharray={isMajor ? '0' : '2,2'}
             />
@@ -60,7 +60,7 @@ const ChartAxes = ({
               y={y + responsiveFontSize(0.3)}
               textAnchor="end"
               fontSize={responsiveFontSize()}
-              fill="#6B7280"
+              fill="#A0A0A0"
             >
               {labelText}
             </text>
@@ -71,7 +71,7 @@ const ChartAxes = ({
               y={y + responsiveFontSize(0.3)}
               textAnchor="start"
               fontSize={responsiveFontSize()}
-              fill="#6B7280"
+              fill="#A0A0A0"
             >
               {labelText}
             </text>
