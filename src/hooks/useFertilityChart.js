@@ -115,11 +115,12 @@ export const useFertilityChart = (
       };
 
       const getX = (index) => {
-        const availableWidth = chartWidth - padding.left - padding.right;
-        if (availableWidth <= 0) return padding.left;
-        const pointsToDisplay = allDataPoints.length > 1 ? allDataPoints.length -1 : 1;
-        if (pointsToDisplay === 0 || allDataPoints.length === 0) return padding.left;
-        return padding.left + index * (availableWidth / (allDataPoints.length === 1 ? 1 : pointsToDisplay));
+        const extraMargin = isFullScreen ? 0 : 15;
+        const availableWidth = chartWidth - padding.left - padding.right - extraMargin;
+        if (availableWidth <= 0) return padding.left + extraMargin;
+        const pointsToDisplay = allDataPoints.length > 1 ? allDataPoints.length - 1 : 1;
+        if (pointsToDisplay === 0 || allDataPoints.length === 0) return padding.left + extraMargin;
+        return padding.left + extraMargin + index * (availableWidth / (allDataPoints.length === 1 ? 1 : pointsToDisplay));
       };
       
 const handlePointInteraction = (point, index, event) => {
