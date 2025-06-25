@@ -48,7 +48,7 @@ import React, { useState, useEffect, useCallback } from 'react';
       };
 
       return (
-        <div className={`w-full max-w-4xl mx-auto ${isFullScreen ? 'overflow-hidden h-full' : ''}`}>
+        <div className={`w-full ${isFullScreen ? 'h-full overflow-hidden' : 'max-w-4xl mx-auto'}`}>
           <motion.div 
             className="flex items-center justify-between mb-8"
             initial={{ opacity: 0, y: -20 }}
