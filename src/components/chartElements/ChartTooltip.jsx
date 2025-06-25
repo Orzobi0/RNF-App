@@ -45,7 +45,7 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
         {dateToFormat
           ? format(parseISO(dateToFormat), 'd/M', { locale: es })
           : 'Fecha'}
-        {` (Día ${point.cycle_day || 'N/A'})`}
+        {` (Día ${point.cycleDay || 'N/A'})`}
       </p>
 
       {temp != null && (

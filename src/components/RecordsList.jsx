@@ -69,9 +69,8 @@ import React from 'react';
                   >
                     <div className="flex-grow mb-3 sm:mb-0">
                         <p className="text-lg font-medium text-[#1F2937]">
-                        {dateToFormat ? format(parseISO(dateToFormat), "dd/MM/yyyy HH:mm", { locale: es }) : 'Fecha no disponible'} (Día {record.cycle_day || 'N/A'})
-                      </p>
-                      
+                        {dateToFormat ? format(parseISO(dateToFormat), "dd/MM/yyyy HH:mm", { locale: es }) : 'Fecha no disponible'} (Día {record.cycleDay || 'N/A'})
+                                            </p>
                       {record.temperature_raw != null && (
                           <p className="text-sm text-[#6B7280]">
                             <span className="font-semibold">Original:</span> {record.temperature_raw.toFixed(2)}°C
