@@ -81,7 +81,7 @@ const FertilityChart = ({
           )}
           <div
             ref={chartRef}
-            className={`relative p-0 rounded-xl ${isFullScreen ? 'w-full h-full bg-transparent flex items-center justify-center overflow-x-auto overflow-y-hidden' : 'bg-transparent overflow-x-auto overflow-y-hidden'}`}
+            className={`relative p-0 rounded-xl ${isFullScreen ? 'w-full h-full bg-white flex items-center justify-center overflow-x-auto overflow-y-hidden' : 'bg-transparent overflow-x-auto overflow-y-hidden'}`}
             style={{ boxShadow: '0 2px 4px rgba(0,0,0,0.03)' }}
           >
           <motion.svg
