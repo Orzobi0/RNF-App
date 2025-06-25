@@ -39,9 +39,9 @@
         navigate('/auth');
       };
 
-      return (
-         <div className="min-h-screen bg-gradient-to-br from-[#F4F6F8] to-white text-foreground flex flex-col">
-          <header className="sticky top-0 z-40 w-full bg-white shadow">
+       return (
+         <div className="min-h-screen flex flex-col">
+          <header className="sticky top-0 z-40 w-full bg-[#FFB1DD]/20 backdrop-blur-md text-[#393C65]">
             <div className="container mx-auto flex items-center justify-between h-20 px-4 sm:px-6">
               <Link to="/" className="flex items-center space-x-2">
                 <img  alt="FertiliApp Logo - Abstract representation of a cycle or flower" class="h-10 w-10 rounded-full ring-2" src="https://images.unsplash.com/photo-1540227794234-fea3ce7dfcea" />

@@ -32,7 +32,9 @@
         @apply border-border;
       }
       body {
-        @apply bg-gradient-to-br from-[#F4F6F8] to-white text-foreground;
+        background: linear-gradient(135deg, #FFFAFC 0%, #FFEAF2 100%);
+        min-height: 100vh;
+        @apply text-foreground;
         font-family: 'Inter', sans-serif;
       }
        /* Scrollbar styles for WebKit browsers (Chrome, Safari) */

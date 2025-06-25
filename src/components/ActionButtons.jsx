@@ -12,7 +12,7 @@ import React from 'react';
       >
         <Button
           onClick={onAddRecord}
-                  className="bg-gradient-to-r from-pink-500 to-fuchsia-600 hover:from-pink-600 hover:to-fuchsia-700 text-white font-semibold py-3 px-6 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 flex items-center text-lg"
+          className="font-semibold py-3 px-6 shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105 flex items-center text-lg"
           disabled={disableAdd}
         >
           <PlusCircle className="mr-2 h-6 w-6" /> 

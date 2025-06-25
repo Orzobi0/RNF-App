@@ -36,7 +36,7 @@ import React from 'react';
 
       return (
         <motion.div
-          className="bg-white p-6 sm:p-8 rounded-xl shadow"
+          className="bg-white p-4 sm:p-6 rounded-xl border border-[#E5E7EB] shadow"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
