@@ -9,7 +9,8 @@ import React, { useState, useEffect, useCallback } from 'react';
     import { Button } from '@/components/ui/button';
     import { ArrowLeft, Edit, Trash2, Maximize, X } from 'lucide-react';
     import { motion, AnimatePresence } from 'framer-motion';
-    import { addDays, format, differenceInDays, startOfDay, parseISO } from 'date-fns';
+    import { format, differenceInDays, startOfDay, parseISO } from 'date-fns';
+    import generatePlaceholders from '@/lib/generatePlaceholders';
     import { useFullScreen } from '@/hooks/useFullScreen';
     import { useAuth } from '@/contexts/AuthContext';
 
@@ -321,22 +322,7 @@ import React, { useState, useEffect, useCallback } from 'react';
         const daysSinceStart = differenceInDays(startOfDay(lastRelevantDate), cycleStartDate);
         const daysInCycle = Math.max(CYCLE_DURATION_DAYS, daysSinceStart + 1);
 
-        const fullCyclePlaceholders = [...Array(daysInCycle)].map((_, i) => {
-          const date = addDays(cycleStartDate, i);
-          const isoDate = format(date, "yyyy-MM-dd");
-          const formattedDate = format(date, "dd/MM");
-          const cycleDay = differenceInDays(startOfDay(date), startOfDay(cycleStartDate)) + 1;
-          return {
-            date: formattedDate, 
-            isoDate, 
-            cycleDay, 
-            temperature: null, 
-            mucusSensation: null,
-            mucusAppearance: null,
-            id: `placeholder-${isoDate}`,
-            ignored: false
-          };
-        });
+        const fullCyclePlaceholders = generatePlaceholders(cycleStartDate, daysInCycle);
 
         const mergedData = fullCyclePlaceholders.map(placeholder => {
             const existingRecord = cycleData.data.find(d => d.isoDate === placeholder.isoDate);
