@@ -1,12 +1,12 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
-import { XCircle, EyeOff, Eye, Check } from 'lucide-react';
+import { XCircle, EyeOff, Eye, Check, Edit3 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { getSymbolAppearance } from '@/config/fertilitySymbols';
 
-const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore, onClose }) => {
+const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore, onEdit, onClose }) => {
   if (!point) return null;
 
   const tooltipWidth = 180;
@@ -75,15 +75,26 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
       </p>
 
       {point.id && !String(point.id).startsWith('placeholder-') && (
-        <Button
-          onClick={() => onToggleIgnore(point.id)}
-          variant={point.ignored ? 'outline' : 'destructive'}
-          size="sm"
-          className="w-full mt-2 text-xs py-1"
-        >
-          {point.ignored ? <Eye className="mr-1 h-3 w-3" /> : <EyeOff className="mr-1 h-3 w-3" />}   
-          {point.ignored ? 'Restaurar' : 'Despreciar'}
-        </Button>
+        <>
+          <Button
+            onClick={() => { if(onEdit) onEdit(point); if(onClose) onClose(); }}
+            variant="outline"
+            size="sm"
+            className="w-full mt-2 text-xs py-1"
+          >
+            <Edit3 className="mr-1 h-3 w-3" />
+            Editar
+          </Button>
+          <Button
+            onClick={() => onToggleIgnore(point.id)}
+            variant={point.ignored ? 'outline' : 'destructive'}
+            size="sm"
+            className="w-full mt-2 text-xs py-1"
+          >
+            {point.ignored ? <Eye className="mr-1 h-3 w-3" /> : <EyeOff className="mr-1 h-3 w-3" />}
+            {point.ignored ? 'Restaurar' : 'Despreciar'}
+          </Button>
+        </>
       )}
     </motion.div>
   );

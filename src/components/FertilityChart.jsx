@@ -12,6 +12,7 @@ const FertilityChart = ({
   data,
   isFullScreen,
   onToggleIgnore,
+  onEdit,
   cycleId,
   initialScrollIndex = 0,
   visibleDays = 5
@@ -145,14 +146,15 @@ const FertilityChart = ({
           </motion.svg>
 {activePoint && (
   <div ref={tooltipRef}>
-    <ChartTooltip
-      point={activePoint}
-      position={tooltipPosition}
-      chartWidth={chartWidth}
-      chartHeight={chartHeight}
-      onToggleIgnore={handleToggleIgnore}
-      onClose={clearActivePoint}
-    />
+      <ChartTooltip
+        point={activePoint}
+        position={tooltipPosition}
+        chartWidth={chartWidth}
+        chartHeight={chartHeight}
+        onToggleIgnore={handleToggleIgnore}
+        onEdit={onEdit}
+        onClose={clearActivePoint}
+      />
   </div>
 )}
           </div>

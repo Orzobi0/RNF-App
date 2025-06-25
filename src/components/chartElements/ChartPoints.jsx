@@ -1,6 +1,5 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { X } from 'lucide-react';
 import { parseISO, startOfDay, isAfter } from 'date-fns';
 import { getSymbolAppearance } from '@/config/fertilitySymbols';
 
@@ -175,23 +174,6 @@ const interactionProps = (!hasAnyRecord || isPlaceholder)
               />
             )}
 
-            {/* punto ignorado */}
-            {hasTemp && point.ignored && (
-              <motion.g initial={{opacity:0}} animate={{opacity:1}}>
-                <circle
-                  cx={x} cy={y}
-                  r={isFullScreen ? responsiveFontSize(0.6) : 5}
-                  fill="4"
-                  stroke="#64748b"
-                  strokeWidth="1.5"
-                />
-                <X
-                  x={x - 3} y={y - 3}
-                  width={6} height={6}
-                  className="text-slate-400"
-                />
-              </motion.g>
-            )}
 
             {/* Fecha */}
             <text x={x} y={dateRowY} textAnchor="middle"

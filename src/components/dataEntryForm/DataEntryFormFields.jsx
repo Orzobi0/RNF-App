@@ -123,7 +123,10 @@ import React from 'react';
                             min="34.0"
                             max="40.0"
                             value={temperatureCorrected}
-                            onChange={(e) => setTemperatureCorrected(e.target.value)}
+                            onChange={(e) => {
+                              setTemperatureCorrected(e.target.value);
+                              if (e.target.value !== '') setUseCorrected(true);
+                            }}
                             placeholder="Ej: 36.65"
                             className="bg-slate-600 border-slate-500 text-slate-50 placeholder-slate-400 focus:ring-pink-500 focus:border-pink-500 text-base"
                             disabled={isProcessing}

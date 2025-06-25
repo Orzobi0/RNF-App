@@ -1,13 +1,13 @@
 import React from 'react';
     import { Button } from '@/components/ui/button';
-    import { Edit3, Trash2, XCircle, Check } from 'lucide-react';
+    import { Edit3, Trash2, XCircle, Check, EyeOff, Eye } from 'lucide-react';
     import { motion } from 'framer-motion';
     import { ScrollArea } from "@/components/ui/scroll-area";
     import { format, parseISO } from 'date-fns';
     import { es } from 'date-fns/locale';
     import { getSymbolAppearance } from '@/config/fertilitySymbols';
 
-    const RecordsList = ({ records, onEdit, onDelete, onClose, isArchiveView = false, isProcessing }) => {
+const RecordsList = ({ records, onEdit, onDelete, onToggleIgnore, onClose, isArchiveView = false, isProcessing }) => {
       if (!records || records.length === 0) {
         return (
           <motion.div
@@ -115,18 +115,28 @@ import React from 'react';
                     </div>
                     {!isArchiveView && onEdit && onDelete && (
                       <div className="flex space-x-2 self-end sm:self-center">
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
+                        <Button
+                          variant="outline"
+                          size="sm"
                           onClick={() => onEdit(record)}
                           className="border-sky-500 text-sky-400 hover:bg-sky-500/20 hover:text-sky-300"
                           disabled={isProcessing}
                         >
                           <Edit3 className="mr-1 h-4 w-4" /> Editar
                         </Button>
-                        <Button 
-                          variant="destructive" 
-                          size="sm" 
+                        <Button
+                          variant={record.ignored ? 'outline' : 'destructive'}
+                          size="sm"
+                          onClick={() => onToggleIgnore(record.id)}
+                          className="hover:bg-rose-200/20"
+                          disabled={isProcessing}
+                        >
+                          {record.ignored ? <Eye className="mr-1 h-4 w-4" /> : <EyeOff className="mr-1 h-4 w-4" />}
+                          {record.ignored ? 'Restaurar' : 'Despreciar'}
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
                           onClick={() => onDelete(record.id)}
                           className="bg-rose-600 hover:bg-rose-700"
                           disabled={isProcessing}
@@ -135,20 +145,30 @@ import React from 'react';
                         </Button>
                       </div>
                     )}
-                     {isArchiveView && onEdit && onDelete && ( 
-                       <div className="flex space-x-2 self-end sm:self-center">
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
+                    {isArchiveView && onEdit && onDelete && (
+                      <div className="flex space-x-2 self-end sm:self-center">
+                        <Button
+                          variant="outline"
+                          size="sm"
                           onClick={() => onEdit(record)}
                           className="border-sky-500 text-sky-400 hover:bg-sky-500/20 hover:text-sky-300"
                           disabled={isProcessing}
                         >
                           <Edit3 className="mr-1 h-4 w-4" /> Editar
                         </Button>
-                        <Button 
-                          variant="destructive" 
-                          size="sm" 
+                        <Button
+                          variant={record.ignored ? 'outline' : 'destructive'}
+                          size="sm"
+                          onClick={() => onToggleIgnore(record.id)}
+                          className="hover:bg-rose-200/20"
+                          disabled={isProcessing}
+                        >
+                          {record.ignored ? <Eye className="mr-1 h-4 w-4" /> : <EyeOff className="mr-1 h-4 w-4" />}
+                          {record.ignored ? 'Restaurar' : 'Despreciar'}
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
                           onClick={() => onDelete(record.id)}
                           className="bg-rose-600 hover:bg-rose-700"
                           disabled={isProcessing}

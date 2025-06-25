@@ -105,6 +105,7 @@ import React, { useState, useEffect, useCallback } from 'react';
                   <FertilityChart
                     data={chartDisplayData}
                     isFullScreen={isFullScreen}
+                    onEdit={handleEdit}
                     onToggleIgnore={toggleIgnoreRecord}
                     cycleId={currentCycle.id}
                     initialScrollIndex={scrollStart}
@@ -164,10 +165,11 @@ import React, { useState, useEffect, useCallback } from 'react';
                       exit={{ opacity: 0, y: -20 }}
                       transition={{ duration: 0.3 }}
                     >
-                      <RecordsList 
-                        records={currentCycle.data} 
-                        onEdit={handleEdit} 
-                        onDelete={handleDeleteRequest} 
+                      <RecordsList
+                        records={currentCycle.data}
+                        onEdit={handleEdit}
+                        onDelete={handleDeleteRequest}
+                        onToggleIgnore={(id) => toggleIgnoreRecord(currentCycle.id, id)}
                         onClose={() => setShowRecords(false)}
                       />
                     </motion.div>

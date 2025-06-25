@@ -188,11 +188,12 @@ const handlePointInteraction = (point, index, event) => {
           setActivePoint(null);
           
         }
-          const handleToggleIgnore = (recordId) => {
+      const handleToggleIgnore = (recordId) => {
         if (onToggleIgnore && recordId) {
-          onToggleIgnore(recordId, cycleId);
+          onToggleIgnore(cycleId, recordId);
+          setActivePoint(null);
         }
-      }
+      };
 
       return {
         chartRef,

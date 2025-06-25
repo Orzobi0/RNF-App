@@ -89,6 +89,7 @@ import React, { useState, useEffect, useCallback } from 'react';
                   data={chartDisplayData}
                   isFullScreen={isFullScreen}
                   onToggleIgnore={toggleIgnoreRecordForCycle}
+                  onEdit={handleEdit}
                   cycleId={cycleData.id}
                 />
                 <Button
@@ -139,10 +140,11 @@ import React, { useState, useEffect, useCallback } from 'react';
                 </div>
               )}
               
-              <RecordsList 
-                records={cycleData.data} 
-                onEdit={handleEdit} 
+              <RecordsList
+                records={cycleData.data}
+                onEdit={handleEdit}
                 onDelete={handleDeleteRequest}
+                onToggleIgnore={(id) => toggleIgnoreRecordForCycle(cycleData.id, id)}
                 isArchiveView={true}
                 isProcessing={isProcessing}
               />
