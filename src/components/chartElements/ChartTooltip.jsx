@@ -75,29 +75,29 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
       </p>
 
       {point.id && !String(point.id).startsWith('placeholder-') && (
-        <>
+        
+        <div className="flex justify-center space-x-1 mt-2">
           <Button
             onClick={() => { if(onEdit) onEdit(point); if(onClose) onClose(); }}
             variant="outline"
-            size="sm"
-            className="w-full mt-2 text-xs py-1"
+            size="icon"
+            className="text-[#393C65] hover:text-[#E27DBF] hover:bg-[#E27DBF]/10 "
           >
-            <Edit3 className="mr-1 h-3 w-3" />
-            Editar
+          <Edit3 className="h-4 w-4" />
           </Button>
           <Button
             onClick={() => onToggleIgnore(point.id)}
             variant={point.ignored ? 'outline' : 'destructive'}
-            size="sm"
-            className="w-full mt-2 text-xs py-1"
+            size="icon"
+            className="hover:bg-[#FFB1DD]/20"
           >
-            {point.ignored ? <Eye className="mr-1 h-3 w-3" /> : <EyeOff className="mr-1 h-3 w-3" />}
-            {point.ignored ? 'Restaurar' : 'Despreciar'}
+            {point.ignored ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
           </Button>
-        </>
+        </div>
       )}
     </motion.div>
   );
 };
+
 
 export default ChartTooltip;

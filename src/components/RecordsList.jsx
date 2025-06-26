@@ -81,17 +81,29 @@ const RecordsList = ({ records, onEdit, onDelete, onToggleIgnore, onClose, isArc
                           </p>
                         )}
 
-                        {record.temperature_corrected != null && (
+                       {record.temperature_corrected != null && (
                           <p className="text-sm text-[#6B7280]">
                             <span className="font-semibold">
                                 Corregida:
                                 </span>{' '}
                                 {record.temperature_corrected.toFixed(2)}°C
                                 {record.use_corrected && <Check className="inline h-4 w-4 text-emerald-400 ml-1" />}
-                            </p>
+                          </p>
                         )}
 
-                      
+                                            {!isArchiveView && onToggleIgnore && (
+                        <Button
+                          variant={record.ignored ? 'outline' : 'destructive'}
+                          size="sm"
+                          onClick={() => onToggleIgnore(record.id)}
+                          className="mt-2 hover:bg-rose-200/20"
+                          disabled={isProcessing}
+                        >
+                          {record.ignored ? <Eye className="mr-1 h-4 w-4" /> : <EyeOff className="mr-1 h-4 w-4" />}
+                          {record.ignored ? 'Restaurar' : 'Despreciar'}
+                        </Button>
+                      )}
+
                       <div className="flex items-center mt-1">
                          {symbolInfo && symbolInfo.value !== 'none' && (
                             <span className={`w-4 h-4 rounded-full mr-2 ${symbolInfo.color} ${symbolInfo.pattern ? 'pattern-bg' : ''}`}></span>
@@ -124,16 +136,7 @@ const RecordsList = ({ records, onEdit, onDelete, onToggleIgnore, onClose, isArc
                         >
                           <Edit3 className="mr-1 h-4 w-4" /> Editar
                         </Button>
-                        <Button
-                          variant={record.ignored ? 'outline' : 'destructive'}
-                          size="sm"
-                          onClick={() => onToggleIgnore(record.id)}
-                          className="hover:bg-rose-200/20"
-                          disabled={isProcessing}
-                        >
-                          {record.ignored ? <Eye className="mr-1 h-4 w-4" /> : <EyeOff className="mr-1 h-4 w-4" />}
-                          {record.ignored ? 'Restaurar' : 'Despreciar'}
-                        </Button>
+
                         <Button
                           variant="destructive"
                           size="sm"
@@ -156,16 +159,7 @@ const RecordsList = ({ records, onEdit, onDelete, onToggleIgnore, onClose, isArc
                         >
                           <Edit3 className="mr-1 h-4 w-4" /> Editar
                         </Button>
-                        <Button
-                          variant={record.ignored ? 'outline' : 'destructive'}
-                          size="sm"
-                          onClick={() => onToggleIgnore(record.id)}
-                          className="hover:bg-rose-200/20"
-                          disabled={isProcessing}
-                        >
-                          {record.ignored ? <Eye className="mr-1 h-4 w-4" /> : <EyeOff className="mr-1 h-4 w-4" />}
-                          {record.ignored ? 'Restaurar' : 'Despreciar'}
-                        </Button>
+
                         <Button
                           variant="destructive"
                           size="sm"
