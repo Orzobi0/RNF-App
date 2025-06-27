@@ -3,7 +3,7 @@ import { format, startOfDay, parseISO, addDays } from 'date-fns';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/contexts/AuthContext';
-import { processCycleEntries, createNewCycleEntry, updateCycleEntry, deleteCycleEntryDB, archiveCycleDB, createNewCycleDB, fetchCycleByIdDB, fetchCurrentCycleDB, fetchArchivedCyclesDB } from '@/lib/cycleDataHandler';
+import { processCycleEntries, createNewCycleEntry, updateCycleEntry, deleteCycleEntryDB, archiveCycleDB, createNewCycleDB, fetchCycleByIdDB, fetchCurrentCycleDB, fetchArchivedCyclesDB, updateCycleDatesDB } from '@/lib/cycleDataHandler';
 
 const filterEntriesByEndDate = (entries, endDate) => {
   if (!endDate) return entries;
@@ -174,6 +174,24 @@ export const useCycleData = (specificCycleId = null) => {
     }
   }, [user, currentCycle, loadCycleData, toast]);
 
+    const updateCycleDates = useCallback(
+    async (cycleIdToUpdate, newStartDate, newEndDate) => {
+      if (!user) return;
+      setIsLoading(true);
+      try {
+        await updateCycleDatesDB(cycleIdToUpdate, user.id, newStartDate, newEndDate);
+        await loadCycleData();
+      } catch (error) {
+        console.error("Error updating cycle dates:", error);
+        toast({ title: "Error", description: "No se pudieron actualizar las fechas.", variant: "destructive" });
+        throw error;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [user, loadCycleData, toast]
+  );
+
   const getCycleById = useCallback(async (cycleIdToFetch) => {
     if (!user) return null;
         setIsLoading(true);
@@ -197,5 +215,5 @@ export const useCycleData = (specificCycleId = null) => {
         }
       }, [user]);
 
-      return { currentCycle, archivedCycles, addOrUpdateDataPoint, deleteRecord, startNewCycle, isLoading, getCycleById, refreshData: loadCycleData, toggleIgnoreRecord };
+      return { currentCycle, archivedCycles, addOrUpdateDataPoint, deleteRecord, startNewCycle, updateCycleDates, isLoading, getCycleById, refreshData: loadCycleData, toggleIgnoreRecord };
     };

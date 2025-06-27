@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
     import RecordsList from '@/components/RecordsList';
     import DataEntryForm from '@/components/DataEntryForm';
     import DeletionDialog from '@/components/DeletionDialog';
+    import EditCycleDatesDialog from '@/components/EditCycleDatesDialog';
     import { useCycleData } from '@/hooks/useCycleData';
     import { useToast } from '@/components/ui/use-toast';
     import { Button } from '@/components/ui/button';
@@ -28,7 +29,8 @@ import React, { useState, useEffect, useCallback } from 'react';
       editingRecord, setEditingRecord,
       recordToDelete, setRecordToDelete,
       isProcessing,
-      toast
+      toast,
+      onEditCycleDates
     }) => {
 
       const handleEdit = (record) => {
@@ -67,7 +69,11 @@ import React, { useState, useEffect, useCallback } from 'react';
                 Detalle del Ciclo ({format(parseISO(cycleData.startDate), "dd/MM/yyyy")})
               </h1>
             )}
-             <div className={isFullScreen ? 'hidden' : ''}></div>
+            {!isFullScreen && (
+              <Button variant="outline" onClick={onEditCycleDates} className="border-slate-600 hover:bg-slate-700 text-slate-300">
+                <Edit className="mr-2 h-4 w-4" /> Editar Fechas
+              </Button>
+            )}
           </motion.div>
 
           <AnimatePresence>
@@ -167,12 +173,13 @@ import React, { useState, useEffect, useCallback } from 'react';
       const { cycleId } = useParams();
       const navigate = useNavigate();
       const { user } = useAuth();
-      const { getCycleById, isLoading: cycleDataHookIsLoading, refreshData, toggleIgnoreRecord } = useCycleData(cycleId);
+      const { getCycleById, isLoading: cycleDataHookIsLoading, refreshData, toggleIgnoreRecord, updateCycleDates } = useCycleData(cycleId);
       const [cycleData, setCycleData] = useState(null);
       const { toast } = useToast();
       const [editingRecord, setEditingRecord] = useState(null);
       const [showForm, setShowForm] = useState(false);
       const [recordToDelete, setRecordToDelete] = useState(null);
+      const [showEditDialog, setShowEditDialog] = useState(false);
       const { isFullScreen, toggleFullScreen } = useFullScreen();
       const [isProcessing, setIsProcessing] = useState(false);
 
@@ -311,6 +318,22 @@ import React, { useState, useEffect, useCallback } from 'react';
         });
         setIsProcessing(false);
       };
+      const updateCycleDatesForCycle = async ({ startDate, endDate }) => {
+        if (!cycleData || !user) return;
+        setIsProcessing(true);
+        try {
+          await updateCycleDates(cycleData.id, startDate, endDate);
+          const updated = await getCycleById(cycleData.id);
+          if (updated) {
+            saveCycleDataToLocalStorage(updated);
+            setCycleData(updated);
+          }
+          toast({ title: 'Fechas actualizadas', description: 'Las fechas del ciclo han sido modificadas.' });
+        } catch (e) {
+          console.error(e);
+        }
+        setIsProcessing(false);
+      };
 
       const getChartDisplayData = useCallback(() => {
         if (!cycleData || !cycleData.startDate) return [];
@@ -322,13 +345,16 @@ import React, { useState, useEffect, useCallback } from 'react';
         }, cycleStartDate);
 
         const cycleEndDate = cycleData.endDate ? parseISO(cycleData.endDate) : null;
-        const today = startOfDay(new Date());
-        let lastRelevantDate = cycleEndDate ? cycleEndDate : today;
-        if (lastRecordDate > lastRelevantDate) {
-          lastRelevantDate = lastRecordDate;
+        let daysInCycle;
+        if (cycleEndDate) {
+          daysInCycle = differenceInDays(startOfDay(cycleEndDate), cycleStartDate) + 1;
+        } else {
+          const today = startOfDay(new Date());
+          const lastRelevantDate = lastRecordDate > today ? lastRecordDate : today;
+          const daysSinceStart = differenceInDays(startOfDay(lastRelevantDate), cycleStartDate);
+          daysInCycle = Math.max(CYCLE_DURATION_DAYS, daysSinceStart + 1);
         }
-        const daysSinceStart = differenceInDays(startOfDay(lastRelevantDate), cycleStartDate);
-        const daysInCycle = Math.max(CYCLE_DURATION_DAYS, daysSinceStart + 1);
+
 
         const fullCyclePlaceholders = generatePlaceholders(cycleStartDate, daysInCycle);
 
@@ -347,6 +373,7 @@ import React, { useState, useEffect, useCallback } from 'react';
       const chartDisplayData = getChartDisplayData();
 
       return (
+                <>
         <CycleDetailContent
           cycleData={cycleData}
           addOrUpdateDataPointForCycle={addOrUpdateDataPointForCycle}
@@ -360,7 +387,17 @@ import React, { useState, useEffect, useCallback } from 'react';
           recordToDelete={recordToDelete} setRecordToDelete={setRecordToDelete}
           isProcessing={isProcessing}
           toast={toast}
+          onEditCycleDates={() => setShowEditDialog(true)}
         />
+        <EditCycleDatesDialog
+          isOpen={showEditDialog}
+          onClose={() => setShowEditDialog(false)}
+          onConfirm={updateCycleDatesForCycle}
+          initialStartDate={cycleData.startDate}
+          initialEndDate={cycleData.endDate}
+        />
+        </>
+      
       );
     };
 

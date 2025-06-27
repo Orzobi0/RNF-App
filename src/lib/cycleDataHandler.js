@@ -217,4 +217,20 @@ export const archiveCycleDB = async (cycleId, userId, endDate) => {
     console.error('Error archiving cycle:', error);
     throw error;
   }
+  };
+
+export const updateCycleDatesDB = async (cycleId, userId, startDate, endDate) => {
+  const updatePayload = {};
+  if (startDate !== undefined) updatePayload.start_date = startDate;
+  if (endDate !== undefined) updatePayload.end_date = endDate;
+
+  const { error } = await supabase
+    .from('cycles')
+    .update(updatePayload)
+    .eq('id', cycleId)
+    .eq('user_id', userId);
+  if (error) {
+    console.error('Error updating cycle dates:', error);
+    throw error;
+  }
 };
