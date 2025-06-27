@@ -8,6 +8,7 @@ import React from 'react';
 
       const {
         date, setDate,
+        time, setTime,
         temperatureRaw, setTemperatureRaw,
         temperatureCorrected, setTemperatureCorrected,
         useCorrected, setUseCorrected,
@@ -29,6 +30,7 @@ import React from 'react';
         >
           <DataEntryFormFields
             date={date} setDate={setDate}
+            time={time} setTime={setTime}
             temperatureRaw={temperatureRaw} setTemperatureRaw={setTemperatureRaw}
             temperatureCorrected={temperatureCorrected} setTemperatureCorrected={setTemperatureCorrected}
             useCorrected={useCorrected} setUseCorrected={setUseCorrected}

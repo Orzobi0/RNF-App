@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-    import { format, startOfDay, parseISO } from "date-fns";
+import { format, startOfDay, parseISO, parse } from "date-fns";
     import { useToast } from '@/components/ui/use-toast';
     import { FERTILITY_SYMBOLS } from '@/config/fertilitySymbols';
 
     export const useDataEntryForm = (onSubmit, initialData, isEditing, cycleStartDate) => {
       const [date, setDate] = useState(initialData?.isoDate ? parseISO(initialData.isoDate) : startOfDay(new Date()));
       const [temperatureRaw, setTemperatureRaw] = useState(initialData?.temperature_raw === null || initialData?.temperature_raw === undefined ? '' : String(initialData.temperature_raw));
+      const [time, setTime] = useState(initialData?.timestamp ? format(parseISO(initialData.timestamp), 'HH:mm') : '');
       const [temperatureCorrected, setTemperatureCorrected] = useState(initialData?.temperature_corrected === null || initialData?.temperature_corrected === undefined ? '' : String(initialData.temperature_corrected));
       const [useCorrected, setUseCorrected] = useState(initialData?.use_corrected || false);
       const [mucusSensation, setMucusSensation] = useState(initialData?.mucusSensation || '');
@@ -19,6 +20,7 @@ import { useState, useEffect } from 'react';
         if (initialData) {
           setDate(parseISO(initialData.isoDate));
           setTemperatureRaw(initialData.temperature_raw === null || initialData.temperature_raw === undefined ? '' : String(initialData.temperature_raw));
+          setTime(initialData.timestamp ? format(parseISO(initialData.timestamp), 'HH:mm') : '');
           setTemperatureCorrected(initialData.temperature_corrected === null || initialData.temperature_corrected === undefined ? '' : String(initialData.temperature_corrected));
           setUseCorrected(initialData.use_corrected || false);
           setMucusSensation(initialData.mucusSensation || '');
@@ -29,6 +31,7 @@ import { useState, useEffect } from 'react';
         } else {
           setDate(startOfDay(new Date()));
           setTemperatureRaw('');
+          setTime('');
           setTemperatureCorrected('');
           setUseCorrected(false);
           setMucusSensation('');
@@ -50,6 +53,7 @@ import { useState, useEffect } from 'react';
 
         onSubmit({
           isoDate: isoDate,
+          time: time,
           temperature_raw: temperatureRaw === '' ? null : parseFloat(temperatureRaw),
           temperature_corrected: temperatureCorrected === '' ? null : parseFloat(temperatureCorrected),
           use_corrected: useCorrected,
@@ -63,6 +67,7 @@ import { useState, useEffect } from 'react';
         if (!isEditing) {
           setDate(startOfDay(new Date()));
           setTemperatureRaw('');
+          setTime('');
           setTemperatureCorrected('');
           setUseCorrected(false);
           setMucusSensation('');
@@ -75,6 +80,7 @@ import { useState, useEffect } from 'react';
       return {
         date, setDate,
         temperatureRaw, setTemperatureRaw,
+        time, setTime,
         temperatureCorrected, setTemperatureCorrected,
         useCorrected, setUseCorrected,
         mucusSensation, setMucusSensation,

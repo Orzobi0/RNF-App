@@ -44,7 +44,7 @@
           <header className="sticky top-0 z-40 w-full bg-[#FFB1DD]/20 backdrop-blur-md text-[#393C65]">
             <div className="container mx-auto flex items-center justify-between h-20 px-4 sm:px-6">
               <Link to="/" className="flex items-center space-x-2">
-                <img  alt="FertiliApp Logo - Abstract representation of a cycle or flower" class="h-10 w-10 rounded-full ring-2" src="https://images.unsplash.com/photo-1540227794234-fea3ce7dfcea" />
+                <img  alt="FertiliApp Logo " class="h-10 w-10 rounded-full " src="https://i.postimg.cc/W3JHZ71t/Chat-GPT-Image-27-jun-2025-12-17-23.png" />
                 <span className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-rose-400 via-pink-400 to-fuchsia-500">
                   FertiliApp
                 </span>

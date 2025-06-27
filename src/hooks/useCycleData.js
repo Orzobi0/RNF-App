@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { format, startOfDay, parseISO, addDays } from 'date-fns';
+import { format, startOfDay, parseISO, addDays, parse } from 'date-fns';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/contexts/AuthContext';
@@ -80,13 +80,15 @@ export const useCycleData = (specificCycleId = null) => {
         }
         setIsLoading(true);
         try {
+                    const recordDateTime = parse(
+            `${newData.isoDate} ${newData.time || '00:00'}`,
+            'yyyy-MM-dd HH:mm',
+            new Date()
+          );
           const recordPayload = {
-            cycle_id: currentCycle.id, 
+            cycle_id: currentCycle.id,
             user_id: user.id,                       // ← NECESARIO (NOT NULL)
-            timestamp: format(               // la columna real se llama 'timestamp'
-              startOfDay(parseISO(newData.isoDate)),
-              "yyyy-MM-dd'T'HH:mm:ssXXX"
-            ),
+            timestamp: format(recordDateTime, "yyyy-MM-dd'T'HH:mm:ssXXX"),
             temperature_raw: newData.temperature_raw === '' || newData.temperature_raw === null || newData.temperature_raw === undefined ? null : parseFloat(newData.temperature_raw),
             temperature_corrected: newData.temperature_corrected === '' || newData.temperature_corrected === null || newData.temperature_corrected === undefined ? null : parseFloat(newData.temperature_corrected),
             use_corrected: newData.use_corrected || false,

@@ -56,6 +56,7 @@ const RecordsList = ({ records, onEdit, onDelete, onClose, isArchiveView = false
               {sortedRecords.map((record) => {
                 const symbolInfo = getSymbolAppearance(record.fertility_symbol);
                 const dateToFormat = record.timestamp || record.isoDate;
+                  const timeToFormat = record.timestamp ? format(parseISO(record.timestamp), 'HH:mm') : null;
                 return (
                    <motion.li
                     key={record.id || dateToFormat}
@@ -69,17 +70,20 @@ const RecordsList = ({ records, onEdit, onDelete, onClose, isArchiveView = false
                   >
                     <div className="flex-grow mb-3 sm:mb-0">
                         <p className="text-lg font-medium text-[#1F2937]">
-                        {dateToFormat ? format(parseISO(dateToFormat), "dd/MM/yyyy HH:mm", { locale: es }) : 'Fecha no disponible'} (Día {record.cycleDay || 'N/A'})
+                      {dateToFormat ? format(parseISO(dateToFormat), "dd/MM/yyyy", { locale: es }) : 'Fecha no disponible'} (Día {record.cycleDay || 'N/A'})
                                             </p>
-                      {record.temperature_raw != null && (
-                          <p className="text-sm text-[#6B7280]">
-                            <span className="font-semibold">Original:</span> {record.temperature_raw.toFixed(2)}°C
-                            {/* si existe corregida y usamos la original, muestro el check */}
-                            {record.temperature_corrected != null && !record.use_corrected && (
-                              <Check className="inline h-4 w-4 text-[#E27DBF] ml-1" />
-                            )}
-                          </p>
-                        )}
+                        {record.temperature_raw != null && (
+                            <p className="text-sm text-[#6B7280]">
+                              <span className="font-semibold">Original:</span> {record.temperature_raw.toFixed(2)}°C
+                              {timeToFormat && (
+                                <span className="ml-2 text-xs text-[#9CA3AF]">{timeToFormat}</span>
+                              )}
+                              {/* si existe corregida y usamos la original, muestro el check */}
+                              {record.temperature_corrected != null && !record.use_corrected && (
+                                <Check className="inline h-4 w-4 text-[#E27DBF] ml-1" />
+                              )}
+                            </p>
+                          )}
 
                        {record.temperature_corrected != null && (
                           <p className="text-sm text-[#6B7280]">
@@ -87,6 +91,9 @@ const RecordsList = ({ records, onEdit, onDelete, onClose, isArchiveView = false
                                 Corregida:
                                 </span>{' '}
                                 {record.temperature_corrected.toFixed(2)}°C
+                                                                {timeToFormat && (
+                                  <span className="ml-2 text-xs text-[#9CA3AF]">{timeToFormat}</span>
+                                )}
                                 {record.use_corrected && <Check className="inline h-4 w-4 text-emerald-400 ml-1" />}
                           </p>
                         )}

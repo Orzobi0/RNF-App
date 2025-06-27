@@ -7,7 +7,7 @@ import React from 'react';
     import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
     import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
     import { Button } from '@/components/ui/button';
-    import { Thermometer, Droplets, Eye, EyeOff, CalendarDays, CheckSquare, Edit, Palette } from 'lucide-react';
+    import { Thermometer, Droplets, Eye, EyeOff, CalendarDays, CheckSquare, Edit, Palette, Clock } from 'lucide-react';
     import { cn } from "@/lib/utils";
     import { format, addDays, startOfDay, parseISO } from "date-fns";
     import { es } from 'date-fns/locale';
@@ -17,6 +17,7 @@ import React from 'react';
 
     const DataEntryFormFields = ({
       date, setDate,
+      time, setTime,
       temperatureRaw, setTemperatureRaw,
       temperatureCorrected, setTemperatureCorrected,
       useCorrected, setUseCorrected,
@@ -34,6 +35,7 @@ import React from 'react';
           setDate(initialData.timestamp
             ? parseISO(initialData.timestamp)
             : parseISO(initialData.isoDate));
+          setTime(initialData.timestamp ? format(parseISO(initialData.timestamp), 'HH:mm') : '');
           // Temperaturas
           setTemperatureRaw(initialData.temperature_raw ?? '');
           setTemperatureCorrected(initialData.temperature_corrected ?? '');
@@ -95,9 +97,9 @@ import React from 'react';
               <Thermometer className="mr-2 h-5 w-5 text-rose-400" />
               {isEditing ? "Temperatura Original (°C)" : "Temperatura Basal (°C)"} <span className="text-sm text-slate-400 ml-1">(Opcional)</span>
             </Label>
-            <Input
-              id="temperatureRaw"
-              type="number"
+          <Input
+            id="temperatureRaw"
+            type="number"
               step="0.01"
               min="34.0" 
               max="40.0" 
@@ -106,9 +108,23 @@ import React from 'react';
               placeholder="Ej: 36.50"
               className="bg-slate-700 border-slate-600 text-slate-50 placeholder-slate-400 focus:ring-pink-500 focus:border-pink-500 text-base"
               disabled={isProcessing || (isEditing && initialData?.temperature_raw !== null && initialData?.temperature_raw !== undefined)}
-              readOnly={isEditing && initialData?.temperature_raw !== null && initialData?.temperature_raw !== undefined}
+            readOnly={isEditing && initialData?.temperature_raw !== null && initialData?.temperature_raw !== undefined}
+          />
+          <div className="space-y-2">
+            <Label htmlFor="time" className="flex items-center text-slate-300 text-lg">
+              <Clock className="mr-2 h-5 w-5 text-rose-400" />
+              Hora de la Temperatura <span className="text-sm text-slate-400 ml-1">(Opcional)</span>
+            </Label>
+            <Input
+              id="time"
+              type="time"
+              value={time}
+              onChange={(e) => setTime(e.target.value)}
+              className="bg-slate-700 border-slate-600 text-slate-50 placeholder-slate-400 focus:ring-pink-500 focus:border-pink-500 text-base"
+              disabled={isProcessing}
             />
           </div>
+        </div>
 
           {isEditing && (
                       <div>
