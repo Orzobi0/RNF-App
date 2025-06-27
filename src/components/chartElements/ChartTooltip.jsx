@@ -50,7 +50,10 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
 
       {temp != null && (
         <p className="text-xs mb-1">
-          <span className="font-medium">Temp:</span> {parseFloat(temp).toFixed(2)}°C
+          <span className="font-medium">T:</span> {parseFloat(temp).toFixed(2)}°C
+          {point.use_corrected && (
+            <span className="inline-block ml-1 align-middle">&middot;</span>
+          )}
         </p>
       )}
 
@@ -63,7 +66,7 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
           ></span>
         )}
         <p className="text-xs">
-          {symbolInfo ? symbolInfo.label : 'Sin Símbolo'}
+          {symbolInfo ? symbolInfo.label : '-'}
         </p>
       </div>
 
