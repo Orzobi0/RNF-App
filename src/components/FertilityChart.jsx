@@ -140,7 +140,8 @@ const FertilityChart = ({
               activePoint={activePoint}
               padding={padding}
               chartHeight={chartHeight}
-              temperatureField="displayTemperature" 
+              chartWidth={chartWidth}
+              temperatureField="displayTemperature"
             textRowHeight={textRowHeight}
           />
           </motion.svg>

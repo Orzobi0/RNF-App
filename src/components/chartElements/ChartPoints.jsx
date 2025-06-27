@@ -39,6 +39,7 @@ const ChartPoints = ({
   activePoint,
   padding,
   chartHeight,
+  chartWidth,
   temperatureField = 'temperature_chart',
   textRowHeight
 }) => {
@@ -55,9 +56,43 @@ const ChartPoints = ({
   const mucusSensationRowY = bottomY + textRowHeight * (isFullScreen ? 5 : 4.5);
   const mucusAppearanceRowY= bottomY + textRowHeight * (isFullScreen ? 7 : 6);
   const observationsRowY   = bottomY + textRowHeight * (isFullScreen ? 9 : 7.5);
+  const rowWidth = chartWidth - padding.left - padding.right;
+
+    // Altura a sombrear para cada fila de texto. La distancia entre
+  // las filas de "sensación", "apariencia" y "observaciones" varía
+  // según si estamos en pantalla completa o no. Calculamos esa
+  // distancia para que el sombreado cubra todo el espacio disponible
+  // y no deje huecos en blanco entre filas.
+  const rowBlockHeight = textRowHeight * (isFullScreen ? 2 : 1.5);
 
   return (
     <>
+      {/* Sombras de filas */}
+      <g>
+        <rect
+          x={padding.left}
+          y={mucusSensationRowY - rowBlockHeight / 2}
+          width={rowWidth}
+          height={rowBlockHeight}
+          fill="rgba(252, 231, 243, 0.3)"
+        />
+        <rect
+          x={padding.left}
+          y={mucusAppearanceRowY - rowBlockHeight / 2}
+          width={rowWidth}
+          height={rowBlockHeight}
+          fill="rgba(219, 234, 254, 0.3)"
+        />
+        <rect
+          x={padding.left}
+          y={observationsRowY - rowBlockHeight / 2}
+          width={rowWidth}
+          height={rowBlockHeight}
+          fill="rgba(254, 243, 199, 0.3)"
+        />
+      </g>
+
+
       {/* Leyenda izquierda */}
       <motion.g variants={itemVariants}>
         {[
@@ -213,7 +248,7 @@ const interactionProps = (!hasAnyRecord || isPlaceholder)
             {/* Sensación */}
             <text x={x} y={mucusSensationRowY} textAnchor="middle"
                   fontSize={responsiveFontSize(0.9)} fill={textFill}
-                  style={isFullScreen ? { writingMode: 'vertical-rl', textOrientation: 'mixed' } : {}}>
+                  style={isFullScreen ? { writingMode: 'vertical-lr', textOrientation: 'mixed' } : {}}>
               <tspan x={x} dy={0}>{sensLine1}</tspan>
               {sensLine2 && <tspan x={x} dy={responsiveFontSize(1)}>{sensLine2}</tspan>}
             </text>
@@ -221,7 +256,7 @@ const interactionProps = (!hasAnyRecord || isPlaceholder)
             {/* Apariencia */}
             <text x={x} y={mucusAppearanceRowY} textAnchor="middle"
                   fontSize={responsiveFontSize(0.9)} fill={textFill}
-                  style={isFullScreen ? { writingMode: 'vertical-rl', textOrientation: 'mixed' } : {}}>
+                  style={isFullScreen ? { writingMode: 'vertical-lr', textOrientation: 'mixed' } : {}}>
               <tspan x={x} dy={0}>{aparLine1}</tspan>
               {aparLine2 && <tspan x={x} dy={responsiveFontSize(1)}>{aparLine2}</tspan>}
             </text>
@@ -229,7 +264,7 @@ const interactionProps = (!hasAnyRecord || isPlaceholder)
             {/* Observaciones */}
             <text x={x} y={observationsRowY} textAnchor="middle"
                   fontSize={responsiveFontSize(0.9)} fill={textFill}
-                  style={isFullScreen ? { writingMode: 'vertical-rl', textOrientation: 'mixed' } : {}}>
+                  style={isFullScreen ? { writingMode: 'vertical-lr', textOrientation: 'mixed' } : {}}>
               <tspan x={x} dy={0}>{obsLine1}</tspan>
               {obsLine2 && <tspan x={x} dy={responsiveFontSize(1)}>{obsLine2}</tspan>}
             </text>
