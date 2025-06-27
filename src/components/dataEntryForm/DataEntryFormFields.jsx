@@ -7,7 +7,7 @@ import React from 'react';
     import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
     import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
     import { Button } from '@/components/ui/button';
-    import { Thermometer, Droplets, Eye, CalendarDays, CheckSquare, Edit, Palette } from 'lucide-react';
+    import { Thermometer, Droplets, Eye, EyeOff, CalendarDays, CheckSquare, Edit, Palette } from 'lucide-react';
     import { cn } from "@/lib/utils";
     import { format, addDays, startOfDay, parseISO } from "date-fns";
     import { es } from 'date-fns/locale';
@@ -24,6 +24,7 @@ import React from 'react';
       mucusAppearance, setMucusAppearance,
       fertilitySymbol, setFertilitySymbol,
       observations, setObservations,
+      ignored, setIgnored,
       isProcessing, isEditing, initialData, cycleStartDate
     }) => {
 
@@ -44,6 +45,7 @@ import React from 'react';
           setFertilitySymbol(initialData.fertility_symbol ?? 'none');
           // Observaciones
           setObservations(initialData.observations ?? '');
+          setIgnored(initialData.ignored ?? false);
         }
       }, [isEditing, initialData]);
       
@@ -110,7 +112,7 @@ import React from 'react';
 
           {isEditing && (
                       <div>
-                        <div className="space-y-3 p-4 border border-slate-700 rounded-md bg-slate-700/30">
+                        <div className="space-y-3 p-4 border border-slate-700 rounded-md bg-slate-200/30">
                           <Label htmlFor="temperatureCorrected" className="flex items-center text-slate-300 text-md">
                             <Edit className="mr-2 h-4 w-4 text-amber-400" />
                             Temperatura Corregida (°C) <span className="text-sm text-slate-400 ml-1">(Opcional)</span>
@@ -157,7 +159,20 @@ import React from 'react';
                               Usar corrección en la gráfica
                             </Label>
                           </div>
-                      </div>
+                           <Button
+                            type="button"
+                            variant={ignored ? 'outline' : 'destructive'}
+                            size="sm"
+                            onClick={() => setIgnored(!ignored)}
+                            className="mt-2 hover:bg-rose-200/20"
+                            disabled={isProcessing}
+                          >
+                            {ignored ? <Eye className="mr-1 h-4 w-4" /> : <EyeOff className="mr-1 h-4 w-4" />}
+                            {ignored ? 'Restaurar' : 'Despreciar'}
+                          </Button>
+                        </div>
+                      
+                      
                     )}
 
           <div className="space-y-2">

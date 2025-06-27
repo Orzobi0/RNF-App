@@ -95,7 +95,7 @@ export const useCycleData = (specificCycleId = null) => {
             fertility_symbol:
               newData.fertility_symbol === 'none' ? null : newData.fertility_symbol,   // 'red' | 'white' | 'green' | 'spot'
             observations: newData.observations || null,
-            ignored: editingRecord ? editingRecord.ignored : (newData.ignored || false),
+            ignored: editingRecord ? (newData.ignored ?? editingRecord.ignored) : (newData.ignored || false),
           };
           
           if (editingRecord) {

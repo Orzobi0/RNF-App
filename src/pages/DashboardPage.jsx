@@ -169,7 +169,6 @@ import React, { useState, useEffect, useCallback } from 'react';
                         records={currentCycle.data}
                         onEdit={handleEdit}
                         onDelete={handleDeleteRequest}
-                        onToggleIgnore={(id) => toggleIgnoreRecord(currentCycle.id, id)}
                         onClose={() => setShowRecords(false)}
                       />
                     </motion.div>

@@ -12,6 +12,7 @@ import { useState, useEffect } from 'react';
       const [mucusAppearance, setMucusAppearance] = useState(initialData?.mucusAppearance || '');
       const [fertilitySymbol, setFertilitySymbol] = useState(initialData?.fertility_symbol || FERTILITY_SYMBOLS.NONE.value);
       const [observations, setObservations] = useState(initialData?.observations || '');
+      const [ignored, setIgnored] = useState(initialData?.ignored || false);
       const { toast } = useToast();
 
       useEffect(() => {
@@ -24,6 +25,7 @@ import { useState, useEffect } from 'react';
           setMucusAppearance(initialData.mucusAppearance || '');
           setFertilitySymbol(initialData.fertility_symbol || FERTILITY_SYMBOLS.NONE.value);
           setObservations(initialData.observations || '');
+          setIgnored(initialData.ignored || false);
         } else {
           setDate(startOfDay(new Date()));
           setTemperatureRaw('');
@@ -33,6 +35,7 @@ import { useState, useEffect } from 'react';
           setMucusAppearance('');
           setFertilitySymbol(FERTILITY_SYMBOLS.NONE.value);
           setObservations('');
+          setIgnored(false);
         }
       }, [initialData]);
 
@@ -45,15 +48,16 @@ import { useState, useEffect } from 'react';
         
         const isoDate = format(date, "yyyy-MM-dd");
 
-        onSubmit({ 
+        onSubmit({
           isoDate: isoDate,
-          temperature_raw: temperatureRaw === '' ? null : parseFloat(temperatureRaw), 
+          temperature_raw: temperatureRaw === '' ? null : parseFloat(temperatureRaw),
           temperature_corrected: temperatureCorrected === '' ? null : parseFloat(temperatureCorrected),
-          use_corrected: useCorrected, 
-          mucusSensation: mucusSensation, 
+          use_corrected: useCorrected,
+          mucusSensation: mucusSensation,
           mucusAppearance: mucusAppearance,
           fertility_symbol: fertilitySymbol,
           observations: observations,
+          ignored: ignored,
         });
         
         if (!isEditing) {
@@ -77,6 +81,7 @@ import { useState, useEffect } from 'react';
         mucusAppearance, setMucusAppearance,
         fertilitySymbol, setFertilitySymbol,
         observations, setObservations,
+        ignored, setIgnored,
         handleSubmit,
       };
     };

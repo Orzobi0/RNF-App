@@ -123,12 +123,13 @@ import React, { useState, useEffect, useCallback } from 'react';
                     transition={{ duration: 0.3 }}
                     className="overflow-hidden mb-8"
                   >
-                    <DataEntryForm 
-                      onSubmit={addOrUpdateDataPointForCycle} 
-                      initialData={editingRecord} 
+                    <DataEntryForm
+                      onSubmit={addOrUpdateDataPointForCycle}
+                      initialData={editingRecord}
                       onCancel={() => { setShowForm(false); setEditingRecord(null); }}
                       cycleStartDate={cycleData.startDate}
                       isProcessing={isProcessing}
+                      isEditing={Boolean(editingRecord)}
                     />
                   </motion.div>
                 )}
@@ -245,7 +246,7 @@ import React, { useState, useEffect, useCallback } from 'react';
           ...newData,
           isoDate: format(startOfDay(parseISO(newData.isoDate)), "yyyy-MM-dd"),
           cycleDay: generateCycleDaysForRecord(newData.isoDate, cycleData.startDate),
-          ignored: editingRecord ? editingRecord.ignored : (newData.ignored || false)
+          ignored: editingRecord ? (newData.ignored ?? editingRecord.ignored) : (newData.ignored || false)
         };
 
         if (editingRecord) {

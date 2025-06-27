@@ -15,6 +15,7 @@ import React from 'react';
         mucusAppearance, setMucusAppearance,
         fertilitySymbol, setFertilitySymbol,
         observations, setObservations,
+        ignored, setIgnored,
         handleSubmit,
       } = useDataEntryForm(onSubmit, initialData, isEditing, cycleStartDate);
 
@@ -35,6 +36,7 @@ import React from 'react';
             mucusAppearance={mucusAppearance} setMucusAppearance={setMucusAppearance}
             fertilitySymbol={fertilitySymbol} setFertilitySymbol={setFertilitySymbol}
             observations={observations} setObservations={setObservations}
+            ignored={ignored} setIgnored={setIgnored}
             isProcessing={isProcessing}
             isEditing={isEditing}
             initialData={initialData}

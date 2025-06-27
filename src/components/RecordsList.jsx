@@ -1,13 +1,13 @@
 import React from 'react';
     import { Button } from '@/components/ui/button';
-    import { Edit3, Trash2, XCircle, Check, EyeOff, Eye } from 'lucide-react';
+    import { Edit3, Trash2, XCircle, Check } from 'lucide-react';
     import { motion } from 'framer-motion';
     import { ScrollArea } from "@/components/ui/scroll-area";
     import { format, parseISO } from 'date-fns';
     import { es } from 'date-fns/locale';
     import { getSymbolAppearance } from '@/config/fertilitySymbols';
 
-const RecordsList = ({ records, onEdit, onDelete, onToggleIgnore, onClose, isArchiveView = false, isProcessing }) => {
+const RecordsList = ({ records, onEdit, onDelete, onClose, isArchiveView = false, isProcessing }) => {
       if (!records || records.length === 0) {
         return (
           <motion.div
@@ -91,19 +91,7 @@ const RecordsList = ({ records, onEdit, onDelete, onToggleIgnore, onClose, isArc
                           </p>
                         )}
 
-                                            {!isArchiveView && onToggleIgnore && (
-                        <Button
-                          variant={record.ignored ? 'outline' : 'destructive'}
-                          size="sm"
-                          onClick={() => onToggleIgnore(record.id)}
-                          className="mt-2 hover:bg-rose-200/20"
-                          disabled={isProcessing}
-                        >
-                          {record.ignored ? <Eye className="mr-1 h-4 w-4" /> : <EyeOff className="mr-1 h-4 w-4" />}
-                          {record.ignored ? 'Restaurar' : 'Despreciar'}
-                        </Button>
-                      )}
-
+                      
                       <div className="flex items-center mt-1">
                          {symbolInfo && symbolInfo.value !== 'none' && (
                             <span className={`w-4 h-4 rounded-full mr-2 ${symbolInfo.color} ${symbolInfo.pattern ? 'pattern-bg' : ''}`}></span>
