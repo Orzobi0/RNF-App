@@ -321,8 +321,12 @@ import React, { useState, useEffect, useCallback } from 'react';
           return recDate > maxDate ? recDate : maxDate;
         }, cycleStartDate);
 
+        const cycleEndDate = cycleData.endDate ? parseISO(cycleData.endDate) : null;
         const today = startOfDay(new Date());
-        const lastRelevantDate = lastRecordDate > today ? lastRecordDate : today;
+        let lastRelevantDate = cycleEndDate ? cycleEndDate : today;
+        if (lastRecordDate > lastRelevantDate) {
+          lastRelevantDate = lastRecordDate;
+        }
         const daysSinceStart = differenceInDays(startOfDay(lastRelevantDate), cycleStartDate);
         const daysInCycle = Math.max(CYCLE_DURATION_DAYS, daysSinceStart + 1);
 
