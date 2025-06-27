@@ -79,7 +79,7 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
 
       {point.id && !String(point.id).startsWith('placeholder-') && (
         
-        <div className="flex justify-center space-x-1 mt-2">
+        <div className="flex justify-center space-x-1 mt-1">
           <Button
             onClick={() => { if(onEdit) onEdit(point); if(onClose) onClose(); }}
             variant="outline"

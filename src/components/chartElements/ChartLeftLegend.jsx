@@ -75,9 +75,9 @@ const ChartLeftLegend = ({
           { label: 'Fecha', row: 1 },
           { label: 'Día', row: 2 },
           { label: 'Símbolo', row: 3 },
-          { label: 'Sens.', row: 4.5 },
-          { label: 'Apar.', row: 6 },
-          { label: 'Observ.', row: 7.5 }
+          { label: 'Sens.', row: isFullScreen ? 5 : 4.5 },
+          { label: 'Apar.', row: isFullScreen ? 7 : 6 },
+          { label: 'Observ.', row: isFullScreen ? 9 : 7.5 }
         ].map(({ label, row }) => (
           <text
             key={label}

@@ -89,19 +89,22 @@ export const useFertilityChart = (
       const chartWidth = dimensions.width;
       const chartHeight = dimensions.height;
       
-      const baseFontSize = 10;
+      const baseFontSize = 9;
       const responsiveFontSize = (multiplier = 1) => {
         if (!isFullScreen) return baseFontSize * multiplier;
         const smallerDim = Math.min(chartWidth, chartHeight);
         return Math.max(8, Math.min(baseFontSize * multiplier, smallerDim / (allDataPoints.length > 0 ? (40 / multiplier) : 40) ));
       };
 
-      const textRowHeight = responsiveFontSize(isFullScreen ? 1.5 : 1.8); 
+      // In pantalla completa damos un poco más de altura a cada
+      // fila de texto para permitir mostrar palabras más largas
+      // en orientación vertical.
+      const textRowHeight = responsiveFontSize(isFullScreen ? 1.5 : 1.8);
       const numTextRowsBelowChart = 5; 
       const totalTextRowsHeight = textRowHeight * numTextRowsBelowChart;
 
       const padding = { 
-        top: isFullScreen ? Math.max(20, chartHeight * 0.1) : 30, 
+        top: isFullScreen ? Math.max(20, chartHeight * 0.05) : 20, 
         right: isFullScreen ? Math.max(30, chartWidth * 0.05) : 50, 
         bottom: (isFullScreen ? Math.max(60, chartHeight * 0.20) : 60) + totalTextRowsHeight, 
         left: isFullScreen ? Math.max(30, chartWidth * 0.05) : 50

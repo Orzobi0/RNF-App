@@ -52,9 +52,9 @@ const ChartPoints = ({
   const dateRowY           = bottomY + textRowHeight * 1;
   const cycleDayRowY       = bottomY + textRowHeight * 2;
   const symbolRowYBase     = bottomY + textRowHeight * 3;
-  const mucusSensationRowY = bottomY + textRowHeight * 4.5;
-  const mucusAppearanceRowY= bottomY + textRowHeight * 6;
-  const observationsRowY   = bottomY + textRowHeight * 7.5;
+  const mucusSensationRowY = bottomY + textRowHeight * (isFullScreen ? 5 : 4.5);
+  const mucusAppearanceRowY= bottomY + textRowHeight * (isFullScreen ? 7 : 6);
+  const observationsRowY   = bottomY + textRowHeight * (isFullScreen ? 9 : 7.5);
 
   return (
     <>
@@ -64,9 +64,9 @@ const ChartPoints = ({
           { label: 'Fecha',   row: 1   },
           { label: 'Día',     row: 2   },
           { label: 'Símbolo', row: 3   },
-          { label: 'Sens.',   row: 4.5 },
-          { label: 'Apar.',   row: 6   },
-          { label: 'Observ.', row: 7.5 },
+          { label: 'Sens.',   row: isFullScreen ? 5 : 4.5 },
+          { label: 'Apar.',   row: isFullScreen ? 7 : 6   },
+          { label: 'Observ.', row: isFullScreen ? 9 : 7.5 },
         ].map(({ label, row }) => (
           <text
             key={label}
@@ -123,8 +123,10 @@ const interactionProps = (!hasAnyRecord || isPlaceholder)
           : false;
 
 
-        // cuanto texto por línea
-        const maxChars = isFullScreen ? 3 : 12;
+        // cuanto texto por línea. En pantalla completa permitimos
+        // cadenas mucho más largas para aprovechar la orientación
+        // vertical de estos campos.
+        const maxChars = isFullScreen ? 50 : 12;
 
         const [sensLine1, sensLine2] = splitText(
           point.mucus_sensation,
@@ -210,21 +212,24 @@ const interactionProps = (!hasAnyRecord || isPlaceholder)
 
             {/* Sensación */}
             <text x={x} y={mucusSensationRowY} textAnchor="middle"
-                  fontSize={responsiveFontSize(0.9)} fill={textFill}>
+                  fontSize={responsiveFontSize(0.9)} fill={textFill}
+                  style={isFullScreen ? { writingMode: 'vertical-lr', textOrientation: 'mixed' } : {}}>
               <tspan x={x} dy={0}>{sensLine1}</tspan>
               {sensLine2 && <tspan x={x} dy={responsiveFontSize(1)}>{sensLine2}</tspan>}
             </text>
 
             {/* Apariencia */}
             <text x={x} y={mucusAppearanceRowY} textAnchor="middle"
-                  fontSize={responsiveFontSize(0.9)} fill={textFill}>
+                  fontSize={responsiveFontSize(0.9)} fill={textFill}
+                  style={isFullScreen ? { writingMode: 'vertical-lr', textOrientation: 'mixed' } : {}}>
               <tspan x={x} dy={0}>{aparLine1}</tspan>
               {aparLine2 && <tspan x={x} dy={responsiveFontSize(1)}>{aparLine2}</tspan>}
             </text>
             
             {/* Observaciones */}
             <text x={x} y={observationsRowY} textAnchor="middle"
-                  fontSize={responsiveFontSize(0.9)} fill={textFill}>
+                  fontSize={responsiveFontSize(0.9)} fill={textFill}
+                  style={isFullScreen ? { writingMode: 'vertical-lr', textOrientation: 'mixed' } : {}}>
               <tspan x={x} dy={0}>{obsLine1}</tspan>
               {obsLine2 && <tspan x={x} dy={responsiveFontSize(1)}>{obsLine2}</tspan>}
             </text>
