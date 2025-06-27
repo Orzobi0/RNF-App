@@ -87,14 +87,11 @@ const RecordsList = ({ records, onEdit, onDelete, onClose, isArchiveView = false
 
                        {record.temperature_corrected != null && (
                           <p className="text-sm text-[#6B7280]">
-                            <span className="font-semibold">
-                                Corregida:
-                                </span>{' '}
-                                {record.temperature_corrected.toFixed(2)}°C
-                                                                {timeToFormat && (
-                                  <span className="ml-2 text-xs text-[#9CA3AF]">{timeToFormat}</span>
-                                )}
-                                {record.use_corrected && <Check className="inline h-4 w-4 text-emerald-400 ml-1" />}
+                            <span className="font-semibold">Corregida:</span>{' '}
+                            {record.temperature_corrected.toFixed(2)}°C
+                            {record.use_corrected && (
+                              <Check className="inline h-4 w-4 text-emerald-400 ml-1" />
+                            )}
                           </p>
                         )}
 

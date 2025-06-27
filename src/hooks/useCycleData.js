@@ -80,8 +80,11 @@ export const useCycleData = (specificCycleId = null) => {
         }
         setIsLoading(true);
         try {
-                    const recordDateTime = parse(
-            `${newData.isoDate} ${newData.time || '00:00'}`,
+          const timeString = newData.time && newData.time.trim() !== ''
+            ? newData.time
+            : format(new Date(), 'HH:mm');
+          const recordDateTime = parse(
+            `${newData.isoDate} ${timeString}`,
             'yyyy-MM-dd HH:mm',
             new Date()
           );

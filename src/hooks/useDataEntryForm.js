@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
-import { format, startOfDay, parseISO, parse } from "date-fns";
+import { format, startOfDay, parseISO } from "date-fns";
     import { useToast } from '@/components/ui/use-toast';
     import { FERTILITY_SYMBOLS } from '@/config/fertilitySymbols';
 
     export const useDataEntryForm = (onSubmit, initialData, isEditing, cycleStartDate) => {
       const [date, setDate] = useState(initialData?.isoDate ? parseISO(initialData.isoDate) : startOfDay(new Date()));
       const [temperatureRaw, setTemperatureRaw] = useState(initialData?.temperature_raw === null || initialData?.temperature_raw === undefined ? '' : String(initialData.temperature_raw));
-      const [time, setTime] = useState(initialData?.timestamp ? format(parseISO(initialData.timestamp), 'HH:mm') : '');
+      const [time, setTime] = useState(initialData?.timestamp ? format(parseISO(initialData.timestamp), 'HH:mm') : format(new Date(), 'HH:mm'));
       const [temperatureCorrected, setTemperatureCorrected] = useState(initialData?.temperature_corrected === null || initialData?.temperature_corrected === undefined ? '' : String(initialData.temperature_corrected));
       const [useCorrected, setUseCorrected] = useState(initialData?.use_corrected || false);
       const [mucusSensation, setMucusSensation] = useState(initialData?.mucusSensation || '');
@@ -31,7 +31,7 @@ import { format, startOfDay, parseISO, parse } from "date-fns";
         } else {
           setDate(startOfDay(new Date()));
           setTemperatureRaw('');
-          setTime('');
+          setTime(format(new Date(), 'HH:mm'));
           setTemperatureCorrected('');
           setUseCorrected(false);
           setMucusSensation('');
@@ -67,7 +67,7 @@ import { format, startOfDay, parseISO, parse } from "date-fns";
         if (!isEditing) {
           setDate(startOfDay(new Date()));
           setTemperatureRaw('');
-          setTime('');
+          setTime(format(new Date(), 'HH:mm'));
           setTemperatureCorrected('');
           setUseCorrected(false);
           setMucusSensation('');
