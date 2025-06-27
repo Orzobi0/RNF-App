@@ -150,7 +150,6 @@ import React, { useState, useEffect, useCallback } from 'react';
                 records={cycleData.data}
                 onEdit={handleEdit}
                 onDelete={handleDeleteRequest}
-                onToggleIgnore={(id) => toggleIgnoreRecordForCycle(cycleData.id, id)}
                 isArchiveView={true}
                 isProcessing={isProcessing}
               />
