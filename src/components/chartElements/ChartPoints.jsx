@@ -123,10 +123,10 @@ const interactionProps = (!hasAnyRecord || isPlaceholder)
           : false;
 
 
-        // cuanto texto por línea. En pantalla completa permitimos
-        // cadenas mucho más largas para aprovechar la orientación
-        // vertical de estos campos.
-        const maxChars = isFullScreen ? 50 : 12;
+        // Limite de caracteres por línea. En pantalla completa
+        // también usamos un valor bajo para evitar que los textos
+        // verticales se salgan de su "celda" y se superpongan.
+        const maxChars = isFullScreen ? 7 : 14;
 
         const [sensLine1, sensLine2] = splitText(
           point.mucus_sensation,
@@ -213,7 +213,7 @@ const interactionProps = (!hasAnyRecord || isPlaceholder)
             {/* Sensación */}
             <text x={x} y={mucusSensationRowY} textAnchor="middle"
                   fontSize={responsiveFontSize(0.9)} fill={textFill}
-                  style={isFullScreen ? { writingMode: 'vertical-lr', textOrientation: 'mixed' } : {}}>
+                  style={isFullScreen ? { writingMode: 'vertical-rl', textOrientation: 'mixed' } : {}}>
               <tspan x={x} dy={0}>{sensLine1}</tspan>
               {sensLine2 && <tspan x={x} dy={responsiveFontSize(1)}>{sensLine2}</tspan>}
             </text>
@@ -221,7 +221,7 @@ const interactionProps = (!hasAnyRecord || isPlaceholder)
             {/* Apariencia */}
             <text x={x} y={mucusAppearanceRowY} textAnchor="middle"
                   fontSize={responsiveFontSize(0.9)} fill={textFill}
-                  style={isFullScreen ? { writingMode: 'vertical-lr', textOrientation: 'mixed' } : {}}>
+                  style={isFullScreen ? { writingMode: 'vertical-rl', textOrientation: 'mixed' } : {}}>
               <tspan x={x} dy={0}>{aparLine1}</tspan>
               {aparLine2 && <tspan x={x} dy={responsiveFontSize(1)}>{aparLine2}</tspan>}
             </text>
@@ -229,7 +229,7 @@ const interactionProps = (!hasAnyRecord || isPlaceholder)
             {/* Observaciones */}
             <text x={x} y={observationsRowY} textAnchor="middle"
                   fontSize={responsiveFontSize(0.9)} fill={textFill}
-                  style={isFullScreen ? { writingMode: 'vertical-lr', textOrientation: 'mixed' } : {}}>
+                  style={isFullScreen ? { writingMode: 'vertical-rl', textOrientation: 'mixed' } : {}}>
               <tspan x={x} dy={0}>{obsLine1}</tspan>
               {obsLine2 && <tspan x={x} dy={responsiveFontSize(1)}>{obsLine2}</tspan>}
             </text>
