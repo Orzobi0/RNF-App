@@ -9,7 +9,7 @@ import { getSymbolAppearance } from '@/config/fertilitySymbols';
 const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore, onEdit, onClose }) => {
   if (!point) return null;
 
-  const tooltipWidth = 180;
+  const tooltipWidth = 130;
   const tooltipMinHeight = 120;
   let x = position.clientX + 10;
   let y = position.clientY + 10;
@@ -52,7 +52,7 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
         <p className="text-xs mb-1">
           <span className="font-medium">T:</span> {parseFloat(temp).toFixed(2)}°C
           {point.use_corrected && (
-            <span className="inline-block ml-1 align-middle">&middot;</span>
+            <span className="inline-block ml-1 align-middle text-[#FF0000]">&middot;</span>
           )}
         </p>
       )}
