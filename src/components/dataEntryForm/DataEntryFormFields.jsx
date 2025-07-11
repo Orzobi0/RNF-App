@@ -60,7 +60,7 @@ import React from 'react';
       return (
         <>
           <div className="space-y-2">
-            <Label htmlFor="date" className="flex items-center text-slate-300 text-lg">
+            <Label htmlFor="date" className="flex items-center text-[#70747a] text-lg">
                 <CalendarDays className="mr-2 h-5 w-5 text-pink-400" />
               Fecha del Registro
             </Label>
@@ -93,9 +93,9 @@ import React from 'react';
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="temperatureRaw" className="flex items-center text-slate-300 text-lg">
+            <Label htmlFor="temperatureRaw" className="flex items-center text-[#70747a] text-lg">
               <Thermometer className="mr-2 h-5 w-5 text-rose-400" />
-              {isEditing ? "Temperatura Original (°C)" : "Temperatura Basal (°C)"} <span className="text-sm text-slate-400 ml-1">(Opcional)</span>
+              {isEditing ? "Temperatura Original (°C)" : "Temperatura Basal (°C)"} <span className="text-sm text-[#70747a] ml-1">(Opcional)</span>
             </Label>
           <Input
             id="temperatureRaw"
@@ -111,9 +111,9 @@ import React from 'react';
             readOnly={isEditing && initialData?.temperature_raw !== null && initialData?.temperature_raw !== undefined}
           />
           <div className="space-y-2">
-            <Label htmlFor="time" className="flex items-center text-slate-300 text-lg">
+            <Label htmlFor="time" className="flex items-center text-[#70747a] text-lg">
               <Clock className="mr-2 h-5 w-5 text-rose-400" />
-              Hora de la Temperatura <span className="text-sm text-slate-400 ml-1">(Opcional)</span>
+              Hora de la Temperatura <span className="text-sm text-[#70747a] ml-1">(Opcional)</span>
             </Label>
             <Input
               id="time"
@@ -129,7 +129,7 @@ import React from 'react';
           {isEditing && (
                       <div>
                         <div className="space-y-3 p-4 border border-slate-700 rounded-md bg-slate-200/30">
-                          <Label htmlFor="temperatureCorrected" className="flex items-center text-slate-300 text-md">
+                          <Label htmlFor="temperatureCorrected" className="flex items-center text-[#70747a] text-md">
                             <Edit className="mr-2 h-4 w-4 text-amber-400" />
                             Temperatura Corregida (°C) <span className="text-sm text-slate-400 ml-1">(Opcional)</span>
                           </Label>
@@ -192,7 +192,7 @@ import React from 'react';
                     )}
 
           <div className="space-y-2">
-            <Label htmlFor="fertilitySymbol" className="flex items-center text-slate-300 text-lg">
+            <Label htmlFor="fertilitySymbol" className="flex items-center text-[#70747a] text-lg">
                 <Palette className="mr-2 h-5 w-5 text-teal-400" />
                 Símbolo de Fertilidad
             </Label>
@@ -214,7 +214,7 @@ import React from 'react';
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="mucusSensation" className="flex items-center text-slate-300 text-lg">
+            <Label htmlFor="mucusSensation" className="flex items-center text-[#70747a] text-lg">
               <Droplets className="mr-2 h-5 w-5 text-sky-400" />
               Sensación del Moco Cervical
             </Label>
@@ -222,14 +222,14 @@ import React from 'react';
               id="mucusSensation"
               value={mucusSensation}
               onChange={(e) => setMucusSensation(e.target.value)}
-              placeholder="Describe la sensación (ej: Seca, Húmeda, Clara de huevo)"
+              placeholder="Describe la sensación (ej: Seca, Húmeda, Mojada)"
               className="bg-slate-700 border-slate-600 text-slate-50 placeholder-slate-400 focus:ring-pink-500 focus:border-pink-500 text-base min-h-[80px]"
               disabled={isProcessing}
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="mucusAppearance" className="flex items-center text-slate-300 text-lg">
+            <Label htmlFor="mucusAppearance" className="flex items-center text-[#70747a] text-lg">
               <Eye className="mr-2 h-5 w-5 text-amber-400" />
               Apariencia del Moco Cervical
             </Label>
@@ -237,14 +237,14 @@ import React from 'react';
               id="mucusAppearance"
               value={mucusAppearance}
               onChange={(e) => setMucusAppearance(e.target.value)}
-              placeholder="Describe la apariencia (ej: Ninguno, Pegajoso, Elástico)"
+              placeholder="Describe la apariencia (ej: Pegajoso, Elástico)"
               className="bg-slate-700 border-slate-600 text-slate-50 placeholder-slate-400 focus:ring-pink-500 focus:border-pink-500 text-base min-h-[80px]"
               disabled={isProcessing}
             />
           </div>
 
            <div className="space-y-2">
-            <Label htmlFor="observations" className="flex items-center text-slate-300 text-lg">
+            <Label htmlFor="observations" className="flex items-center text-[#70747a] text-lg">
               <CheckSquare className="mr-2 h-5 w-5 text-indigo-400" />
               Observaciones Adicionales
             </Label>

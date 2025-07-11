@@ -31,7 +31,7 @@ import { useDataEntryForm } from '@/hooks/useDataEntryForm';
           transition={{ duration: 0.5 }}
         >
         <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-semibold text-[#393C65]">
+            <h2 className="text-2xl font-semibold text-[#292a46]">
               {isEditing ? 'Editar Registro' : 'Añadir Registro'}
             </h2>
             {onCancel && (

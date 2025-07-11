@@ -10,7 +10,7 @@ import React from 'react';
               type="button" 
               onClick={onCancel}
               variant="outline"
-              className="w-full border-slate-600 hover:bg-slate-700 text-slate-300 font-semibold py-3 text-lg"
+              className="w-full border-slate-600 hover:bg-slate-700 text-[#70747a] font-semibold py-3 text-lg"
               disabled={isProcessing}
             >
               <XCircle className="mr-2 h-5 w-5" />
@@ -27,7 +27,7 @@ import React from 'react';
             ) : (
               <Save className="mr-2 h-5 w-5" />
             )}
-            {isEditing ? 'Actualizar Registro' : 'Guardar Registro'}
+            {isEditing ? 'Actualizar Registro' : 'Guardar'}
           </Button>
         </div>
       );
