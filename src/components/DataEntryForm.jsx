@@ -1,8 +1,10 @@
 import React from 'react';
-    import DataEntryFormFields from '@/components/dataEntryForm/DataEntryFormFields';
-    import DataEntryFormActions from '@/components/dataEntryForm/DataEntryFormActions';
-    import { motion } from 'framer-motion';
-    import { useDataEntryForm } from '@/hooks/useDataEntryForm';
+import DataEntryFormFields from '@/components/dataEntryForm/DataEntryFormFields';
+import DataEntryFormActions from '@/components/dataEntryForm/DataEntryFormActions';
+import { motion } from 'framer-motion';
+import { Button } from '@/components/ui/button';
+import { XCircle } from 'lucide-react';
+import { useDataEntryForm } from '@/hooks/useDataEntryForm';
 
     const DataEntryForm = ({ onSubmit, initialData, onCancel, cycleStartDate, isProcessing, isEditing = false }) => {
 
@@ -23,11 +25,27 @@ import React from 'react';
       return (
         <motion.form
           onSubmit={handleSubmit}
-          className="space-y-6 bg-[#393C65]/20 backdrop-blur-sm p-6 sm:p-8 rounded-xl shadow-xl w-full max-h-[80vh] overflow-y-auto"
+          className="space-y-6 bg-white p-4 sm:p-6 rounded-xl border border-[#E5E7EB] shadow w-full max-h-[80vh] overflow-y-auto"
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
+        <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-semibold text-[#393C65]">
+              {isEditing ? 'Editar Registro' : 'Añadir Registro'}
+            </h2>
+            {onCancel && (
+              <Button
+                type="button"
+                onClick={onCancel}
+                variant="ghost"
+                size="icon"
+                className="text-[#393C65] hover:text-[#E27DBF] hover:bg-[#E27DBF]/10"
+              >
+                <XCircle className="h-6 w-6" />
+              </Button>
+            )}
+          </div>
           <DataEntryFormFields
             date={date} setDate={setDate}
             time={time} setTime={setTime}
