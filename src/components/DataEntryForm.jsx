@@ -21,9 +21,9 @@ import React from 'react';
       } = useDataEntryForm(onSubmit, initialData, isEditing, cycleStartDate);
 
       return (
-        <motion.form 
-          onSubmit={handleSubmit} 
-          className="space-y-6 bg-[#393C65]/20 backdrop-blur-sm p-6 sm:p-8 rounded-xl shadow-xl"
+        <motion.form
+          onSubmit={handleSubmit}
+          className="space-y-6 bg-[#393C65]/20 backdrop-blur-sm p-6 sm:p-8 rounded-xl shadow-xl w-full max-h-[80vh] overflow-y-auto"
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}

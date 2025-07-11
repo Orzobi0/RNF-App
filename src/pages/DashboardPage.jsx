@@ -142,7 +142,7 @@ import React, { useState, useEffect, useCallback } from 'react';
                       animate={{ opacity: 1, y: 0, height: 'auto' }}
                       exit={{ opacity: 0, y: 20, height: 0 }}
                       transition={{ duration: 0.3 }}
-                      className="overflow-hidden"
+                      className="overflow-hidden w-full"
                     >
                       <DataEntryForm 
                         onSubmit={addOrUpdateDataPoint} 
@@ -164,6 +164,7 @@ import React, { useState, useEffect, useCallback } from 'react';
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -20 }}
                       transition={{ duration: 0.3 }}
+                      className="w-full"
                     >
                       <RecordsList
                         records={currentCycle.data}
