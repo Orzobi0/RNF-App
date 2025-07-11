@@ -118,8 +118,8 @@ export const useFertilityChart = (
       };
 
       const getX = (index) => {
-        const extraMargin = isFullScreen ? 5 : 15;
-        const daySpacing = isFullScreen ? 15 : 0;
+        const extraMargin = isFullScreen ? 10 : 20;
+        const daySpacing = isFullScreen ? 25 : 0;
         const availableWidth = chartWidth - padding.left - padding.right - extraMargin - daySpacing * (allDataPoints.length - 1);
         if (availableWidth <= 0) return padding.left + extraMargin + daySpacing * index;
         const pointsToDisplay = allDataPoints.length > 1 ? allDataPoints.length - 1 : 1;

@@ -163,7 +163,7 @@ const interactionProps = (!hasAnyRecord || isPlaceholder)
 
 
         // Limite de caracteres por línea
-        const maxChars = 8;
+        const maxChars = isFullScreen ? 4 : 9;
         const maxWords = 2;
 
         const [sensLine1, sensLine2] = splitText(
