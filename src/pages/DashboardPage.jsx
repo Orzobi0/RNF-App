@@ -92,8 +92,8 @@ import React, { useState, useEffect, useCallback } from 'react';
       return (
         <div className={`flex flex-col items-center w-full ${isFullScreen ? 'overflow-hidden h-full' : ''}`}>
           <main className={`w-full ${isFullScreen ? 'h-full flex items-center justify-center' : 'max-w-4xl flex-grow'}`}>
-                        {!isFullScreen && !showForm && !showRecords && (
-              <h2 className="text-center text-lg font-semibold text-slate-600 mb-2">Ciclo actual</h2>
+            {!isFullScreen && !showForm && !showRecords && (
+              <h2 className="text-center text-lg font-semibold text-pink-600 italic mb-1">Ciclo actual</h2>
             )}
             <AnimatePresence>
               {(!showForm && !showRecords) && (chartDisplayData.length > 0 || isFullScreen) && (
