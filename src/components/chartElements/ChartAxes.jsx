@@ -49,9 +49,9 @@ const ChartAxes = ({
               y1={y}
               x2={chartWidth - padding.right}
               y2={y}
-              stroke="#F3F0F5"
+              stroke="#A0A0A0"
               strokeWidth={isMajor ? 0.5 : 0.3}
-              strokeDasharray={isMajor ? '0' : '2,2'}
+              strokeDasharray={isMajor ? '0' : '2,1'}
             />
 
             {/* left label */}

@@ -11,21 +11,25 @@ const compactDate = (dateStr) => {
 };
 
 /**
- * Divide en dos líneas:
- * - full-screen: [primeros maxChars, '…']
- * - normal: si cabe en maxChars -> [todo, ''], sino parte en espacio tras maxChars
+ * Divide en dos líneas sin añadir puntos suspensivos.
+ * Si "isFull" es true, simplemente corta por caracteres.
  */
 const splitText = (str = '', maxChars, isFull, fallback = '–') => {
   if (!str) return [fallback, ''];
   if (str.length <= maxChars) return [str, ''];
   if (isFull) {
-    return [str.slice(0, maxChars), '…'];
+  return [str.slice(0, maxChars), ''];
   }
   const idx = str.indexOf(' ', maxChars);
   if (idx === -1) {
     return [str.slice(0, maxChars), str.slice(maxChars)];
   }
   return [str.slice(0, idx), str.slice(idx + 1)];
+};
+/** Limita un texto al número indicado de palabras */
+const limitWords = (str = '', maxWords, fallback = '–') => {
+  if (!str) return fallback;
+  return str.split(/\s+/).slice(0, maxWords).join(' ');
 };
 
 const ChartPoints = ({
@@ -158,27 +162,26 @@ const interactionProps = (!hasAnyRecord || isPlaceholder)
           : false;
 
 
-        // Limite de caracteres por línea. En pantalla completa
-        // también usamos un valor bajo para evitar que los textos
-        // verticales se salgan de su "celda" y se superpongan.
-        const maxChars = isFullScreen ? 7 : 14;
+        // Limite de caracteres por línea
+        const maxChars = 6;
+        const maxWords = 2;
 
         const [sensLine1, sensLine2] = splitText(
-          point.mucus_sensation,
+          isFullScreen ? limitWords(point.mucus_sensation, maxWords, isFuture ? '' : '–') : point.mucus_sensation,
           maxChars,
-          isFullScreen,
+          false,
           isFuture ? '' : '–'
         );
         const [aparLine1, aparLine2] = splitText(
-          point.mucus_appearance,
+          isFullScreen ? limitWords(point.mucus_appearance, maxWords, isFuture ? '' : '–') : point.mucus_appearance,
           maxChars,
-          isFullScreen,
+          false,
           isFuture ? '' : '–'
         );
         const [obsLine1, obsLine2] = splitText(
-          point.observations,
+          isFullScreen ? limitWords(point.observations, maxWords, '') : point.observations,
           maxChars,
-          isFullScreen,
+          false,
           ''
         );
 
@@ -247,24 +250,21 @@ const interactionProps = (!hasAnyRecord || isPlaceholder)
 
             {/* Sensación */}
             <text x={x} y={mucusSensationRowY} textAnchor="middle"
-                  fontSize={responsiveFontSize(0.9)} fill={textFill}
-                  style={isFullScreen ? { writingMode: 'vertical-lr', textOrientation: 'mixed' } : {}}>
+                  fontSize={responsiveFontSize(0.9)} fill={textFill}>
               <tspan x={x} dy={0}>{sensLine1}</tspan>
               {sensLine2 && <tspan x={x} dy={responsiveFontSize(1)}>{sensLine2}</tspan>}
             </text>
 
             {/* Apariencia */}
             <text x={x} y={mucusAppearanceRowY} textAnchor="middle"
-                  fontSize={responsiveFontSize(0.9)} fill={textFill}
-                  style={isFullScreen ? { writingMode: 'vertical-lr', textOrientation: 'mixed' } : {}}>
+                  fontSize={responsiveFontSize(0.9)} fill={textFill}>
               <tspan x={x} dy={0}>{aparLine1}</tspan>
               {aparLine2 && <tspan x={x} dy={responsiveFontSize(1)}>{aparLine2}</tspan>}
             </text>
             
             {/* Observaciones */}
             <text x={x} y={observationsRowY} textAnchor="middle"
-                  fontSize={responsiveFontSize(0.9)} fill={textFill}
-                  style={isFullScreen ? { writingMode: 'vertical-lr', textOrientation: 'mixed' } : {}}>
+                  fontSize={responsiveFontSize(0.9)} fill={textFill}>
               <tspan x={x} dy={0}>{obsLine1}</tspan>
               {obsLine2 && <tspan x={x} dy={responsiveFontSize(1)}>{obsLine2}</tspan>}
             </text>
