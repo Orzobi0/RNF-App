@@ -1,47 +1,46 @@
 import React from 'react';
     import { motion } from 'framer-motion';
 
-    const ChartLine = ({ data, allDataPoints, getX, getY, temperatureField = 'temperature' }) => {
-      if (!data || data.length < 2) return null;
+const ChartLine = ({ data, allDataPoints, getX, getY, baselineY, temperatureField = 'temperature' }) => {
+  if (!data || data.length < 2) return null;
 
-      let pathD = "M";
-      let firstPointIndex = -1;
+  let pathD = '';
+  let lastValidIndex = null;
+  let firstX = null;
+  let lastX = null;
 
-      allDataPoints.forEach((point, index) => {
-        const dataPoint = data.find(dp => dp.id === point.id);
-        if (dataPoint && dataPoint[temperatureField] !== null && dataPoint[temperatureField] !== undefined && !dataPoint.ignored) {
-          const x = getX(index);
-          const y = getY(dataPoint[temperatureField]);
-          if (firstPointIndex === -1) {
-            pathD += `${x} ${y}`;
-            firstPointIndex = index;
-          } else {
-            pathD += ` L ${x} ${y}`;
-          }
-        } else if (firstPointIndex !== -1 && point[temperatureField] === null && !point.ignored) {
-           pathD += ` M`; 
-           firstPointIndex = -1;
-        } else if (firstPointIndex !== -1 && point.ignored) {
-           pathD += ` M`;
-           firstPointIndex = -1;
-        }
-      });
+  allDataPoints.forEach((point, index) => {
+    const dataPoint = data.find(dp => dp.id === point.id);
+    if (dataPoint && dataPoint[temperatureField] !== null && dataPoint[temperatureField] !== undefined && !dataPoint.ignored) {
+      const x = getX(index);
+      const y = getY(dataPoint[temperatureField]);
+            if (firstX === null) firstX = x;
+      lastX = x;
+      if (lastValidIndex !== null && index === lastValidIndex + 1) {
+        pathD += ` L ${x} ${y}`;
+      } else {
+        pathD += `${pathD ? ' ' : ''}M ${x} ${y}`;
+      }
+      lastValidIndex = index;
+    }
+  });
       
       if (!pathD.includes("L")) return null;
-
-      return (
+   return (
+    <>
         <motion.path
           d={pathD}
           fill="none"
           stroke="url(#tempLineGradientChart)"
-          strokeWidth="2.5"
+          strokeWidth="3"
           strokeLinecap="round"
           strokeLinejoin="round"
           initial={{ pathLength: 0, opacity: 0 }}
           animate={{ pathLength: 1, opacity: 1 }}
           transition={{ duration: 0.2, ease: "easeInOut" }}
         />
-      );
-    };
+    </>
+  );
+};
 
 export default ChartLine;

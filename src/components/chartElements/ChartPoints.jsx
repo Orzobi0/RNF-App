@@ -1,6 +1,5 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { X } from 'lucide-react';
 import { parseISO, startOfDay, isAfter } from 'date-fns';
 import { getSymbolAppearance } from '@/config/fertilitySymbols';
 
@@ -12,21 +11,25 @@ const compactDate = (dateStr) => {
 };
 
 /**
- * Divide en dos líneas:
- * - full-screen: [primeros maxChars, '…']
- * - normal: si cabe en maxChars -> [todo, ''], sino parte en espacio tras maxChars
+ * Divide en dos líneas sin añadir puntos suspensivos.
+ * Si "isFull" es true, simplemente corta por caracteres.
  */
 const splitText = (str = '', maxChars, isFull, fallback = '–') => {
   if (!str) return [fallback, ''];
   if (str.length <= maxChars) return [str, ''];
   if (isFull) {
-    return [str.slice(0, maxChars), '…'];
+  return [str.slice(0, maxChars), ''];
   }
   const idx = str.indexOf(' ', maxChars);
   if (idx === -1) {
     return [str.slice(0, maxChars), str.slice(maxChars)];
   }
   return [str.slice(0, idx), str.slice(idx + 1)];
+};
+/** Limita un texto al número indicado de palabras */
+const limitWords = (str = '', maxWords, fallback = '–') => {
+  if (!str) return fallback;
+  return str.split(/\s+/).slice(0, maxWords).join(' ');
 };
 
 const ChartPoints = ({
@@ -40,6 +43,7 @@ const ChartPoints = ({
   activePoint,
   padding,
   chartHeight,
+  chartWidth,
   temperatureField = 'temperature_chart',
   textRowHeight
 }) => {
@@ -53,21 +57,55 @@ const ChartPoints = ({
   const dateRowY           = bottomY + textRowHeight * 1;
   const cycleDayRowY       = bottomY + textRowHeight * 2;
   const symbolRowYBase     = bottomY + textRowHeight * 3;
-  const mucusSensationRowY = bottomY + textRowHeight * 4.5;
-  const mucusAppearanceRowY= bottomY + textRowHeight * 6;
-  const observationsRowY   = bottomY + textRowHeight * 7.5;
+  const mucusSensationRowY = bottomY + textRowHeight * (isFullScreen ? 5 : 4.5);
+  const mucusAppearanceRowY= bottomY + textRowHeight * (isFullScreen ? 7 : 6);
+  const observationsRowY   = bottomY + textRowHeight * (isFullScreen ? 9 : 7.5);
+  const rowWidth = chartWidth - padding.left - padding.right;
+
+    // Altura a sombrear para cada fila de texto. La distancia entre
+  // las filas de "sensación", "apariencia" y "observaciones" varía
+  // según si estamos en pantalla completa o no. Calculamos esa
+  // distancia para que el sombreado cubra todo el espacio disponible
+  // y no deje huecos en blanco entre filas.
+  const rowBlockHeight = textRowHeight * (isFullScreen ? 2 : 1.5);
 
   return (
     <>
+      {/* Sombras de filas */}
+      <g>
+        <rect
+          x={padding.left}
+          y={mucusSensationRowY - rowBlockHeight / 2}
+          width={rowWidth}
+          height={rowBlockHeight}
+          fill="rgba(252, 231, 243, 0.3)"
+        />
+        <rect
+          x={padding.left}
+          y={mucusAppearanceRowY - rowBlockHeight / 2}
+          width={rowWidth}
+          height={rowBlockHeight}
+          fill="rgba(219, 234, 254, 0.3)"
+        />
+        <rect
+          x={padding.left}
+          y={observationsRowY - rowBlockHeight / 2}
+          width={rowWidth}
+          height={rowBlockHeight}
+          fill="rgba(254, 243, 199, 0.3)"
+        />
+      </g>
+
+
       {/* Leyenda izquierda */}
       <motion.g variants={itemVariants}>
         {[
           { label: 'Fecha',   row: 1   },
           { label: 'Día',     row: 2   },
           { label: 'Símbolo', row: 3   },
-          { label: 'Sens.',   row: 4.5 },
-          { label: 'Apar.',   row: 6   },
-          { label: 'Observ.', row: 7.5 },
+          { label: 'Sens.',   row: isFullScreen ? 5 : 4.5 },
+          { label: 'Apar.',   row: isFullScreen ? 7 : 6   },
+          { label: 'Observ.', row: isFullScreen ? 9 : 7.5 },
         ].map(({ label, row }) => (
           <text
             key={label}
@@ -75,7 +113,7 @@ const ChartPoints = ({
             y={bottomY + textRowHeight * row}
             textAnchor="end"
             fontSize={responsiveFontSize(0.9)}
-            fill={isFullScreen ? "#cbd5e1" : "#94a3b8"}
+            fill={isFullScreen ? "#1F2937" : "#6B7280"}
           >{label}</text>
         ))}
       </motion.g>
@@ -85,7 +123,7 @@ const ChartPoints = ({
         const y               = point[temperatureField] != null
                                 ? getY(point[temperatureField])
                                 : bottomY;
-        const textFill        = isFullScreen ? "#cbd5e1" : "#94a3b8";
+       const textFill        = isFullScreen ? "#1F2937" : "#6B7280";
         const hasTemp         = point[temperatureField] != null;
         const hasAnyRecord    = hasTemp
                              || point.mucus_sensation
@@ -124,25 +162,26 @@ const interactionProps = (!hasAnyRecord || isPlaceholder)
           : false;
 
 
-        // cuanto texto por línea
-        const maxChars = isFullScreen ? 3 : 12;
+        // Limite de caracteres por línea
+        const maxChars = isFullScreen ? 4 : 9;
+        const maxWords = 2;
 
         const [sensLine1, sensLine2] = splitText(
-          point.mucus_sensation,
+          isFullScreen ? limitWords(point.mucus_sensation, maxWords, isFuture ? '' : '–') : point.mucus_sensation,
           maxChars,
-          isFullScreen,
+          false,
           isFuture ? '' : '–'
         );
         const [aparLine1, aparLine2] = splitText(
-          point.mucus_appearance,
+          isFullScreen ? limitWords(point.mucus_appearance, maxWords, isFuture ? '' : '–') : point.mucus_appearance,
           maxChars,
-          isFullScreen,
+          false,
           isFuture ? '' : '–'
         );
         const [obsLine1, obsLine2] = splitText(
-          point.observations,
+          isFullScreen ? limitWords(point.observations, maxWords, '') : point.observations,
           maxChars,
-          isFullScreen,
+          false,
           ''
         );
 
@@ -156,10 +195,11 @@ const interactionProps = (!hasAnyRecord || isPlaceholder)
             {hasTemp && !point.ignored && (
               <circle
                 cx={x} cy={y}
-                r={isFullScreen ? responsiveFontSize(0.6) : 5}
-                fill={ activePoint?.id === point.id ? "rgba(255,255,255,0.8)" : "white" }
-                stroke="url(#tempLineGradientChart)"
-                strokeWidth="2"
+                r={4}
+                fill="#f472b6"
+                stroke="#d946ef"
+                strokeWidth="1.5"
+
 
                 /** ← Esto hace que el SVG reciba clicks/taps: **/
                 pointerEvents="all"
@@ -174,23 +214,6 @@ const interactionProps = (!hasAnyRecord || isPlaceholder)
               />
             )}
 
-            {/* punto ignorado */}
-            {hasTemp && point.ignored && (
-              <motion.g initial={{opacity:0}} animate={{opacity:1}}>
-                <circle
-                  cx={x} cy={y}
-                  r={isFullScreen ? responsiveFontSize(0.6) : 5}
-                  fill="rgba(100, 116, 139, 0.5)"
-                  stroke="#64748b"
-                  strokeWidth="1.5"
-                />
-                <X
-                  x={x - 3} y={y - 3}
-                  width={6} height={6}
-                  className="text-slate-400"
-                />
-              </motion.g>
-            )}
 
             {/* Fecha */}
             <text x={x} y={dateRowY} textAnchor="middle"

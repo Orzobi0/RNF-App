@@ -4,12 +4,14 @@ import React, { useState, useEffect, useCallback } from 'react';
     import RecordsList from '@/components/RecordsList';
     import DataEntryForm from '@/components/DataEntryForm';
     import DeletionDialog from '@/components/DeletionDialog';
+    import EditCycleDatesDialog from '@/components/EditCycleDatesDialog';
     import { useCycleData } from '@/hooks/useCycleData';
     import { useToast } from '@/components/ui/use-toast';
     import { Button } from '@/components/ui/button';
     import { ArrowLeft, Edit, Trash2, Maximize, X } from 'lucide-react';
     import { motion, AnimatePresence } from 'framer-motion';
-    import { addDays, format, differenceInDays, startOfDay, parseISO } from 'date-fns';
+    import { format, differenceInDays, startOfDay, parseISO } from 'date-fns';
+    import generatePlaceholders from '@/lib/generatePlaceholders';
     import { useFullScreen } from '@/hooks/useFullScreen';
     import { useAuth } from '@/contexts/AuthContext';
 
@@ -27,7 +29,8 @@ import React, { useState, useEffect, useCallback } from 'react';
       editingRecord, setEditingRecord,
       recordToDelete, setRecordToDelete,
       isProcessing,
-      toast
+      toast,
+      onEditCycleDates
     }) => {
 
       const handleEdit = (record) => {
@@ -47,7 +50,7 @@ import React, { useState, useEffect, useCallback } from 'react';
       };
 
       return (
-        <div className={`w-full max-w-4xl mx-auto ${isFullScreen ? 'overflow-hidden h-full' : ''}`}>
+        <div className={`w-full ${isFullScreen ? 'h-full overflow-hidden' : 'max-w-4xl mx-auto'}`}>
           <motion.div 
             className="flex items-center justify-between mb-8"
             initial={{ opacity: 0, y: -20 }}
@@ -66,7 +69,11 @@ import React, { useState, useEffect, useCallback } from 'react';
                 Detalle del Ciclo ({format(parseISO(cycleData.startDate), "dd/MM/yyyy")})
               </h1>
             )}
-             <div className={isFullScreen ? 'hidden' : ''}></div>
+            {!isFullScreen && (
+              <Button variant="outline" onClick={onEditCycleDates} className="border-slate-600 hover:bg-slate-700 text-slate-300">
+                <Edit className="mr-2 h-4 w-4" /> Editar Fechas
+              </Button>
+            )}
           </motion.div>
 
           <AnimatePresence>
@@ -76,12 +83,19 @@ import React, { useState, useEffect, useCallback } from 'react';
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: isFullScreen ? 1 : 0.9 }}
                 transition={{ duration: 0.5 }}
-                className={`bg-slate-800/50 backdrop-blur-md shadow-2xl rounded-xl ${isFullScreen ? 'w-full h-full p-0 fixed inset-0 z-50' : 'p-4 sm:p-6 mb-8'}`}
+                                className={`shadow-2xl rounded-xl ${isFullScreen ? 'w-full h-full p-0 fixed inset-0 z-50 bg-white' : 'p-4 sm:p-6 mb-8 bg-[#FFF5F9] backdrop-blur-lg'}`}
+                style={{ boxShadow: '0 4px 8px rgba(0,0,0,0.04)' }}
               >
-                <FertilityChart 
-                  data={chartDisplayData} 
+                {!isFullScreen && (
+                  <h2 className="text-xl font-medium text-[#393C65] mb-4 bg-white bg-opacity-90 px-4 py-2 rounded-md">
+                    Gráfica
+                  </h2>
+                )}
+                <FertilityChart
+                  data={chartDisplayData}
                   isFullScreen={isFullScreen}
                   onToggleIgnore={toggleIgnoreRecordForCycle}
+                  onEdit={handleEdit}
                   cycleId={cycleData.id}
                 />
                 <Button
@@ -109,12 +123,13 @@ import React, { useState, useEffect, useCallback } from 'react';
                     transition={{ duration: 0.3 }}
                     className="overflow-hidden mb-8"
                   >
-                    <DataEntryForm 
-                      onSubmit={addOrUpdateDataPointForCycle} 
-                      initialData={editingRecord} 
+                    <DataEntryForm
+                      onSubmit={addOrUpdateDataPointForCycle}
+                      initialData={editingRecord}
                       onCancel={() => { setShowForm(false); setEditingRecord(null); }}
                       cycleStartDate={cycleData.startDate}
                       isProcessing={isProcessing}
+                      isEditing={Boolean(editingRecord)}
                     />
                   </motion.div>
                 )}
@@ -122,9 +137,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 
               {!showForm && (
                 <div className="my-8">
-                  <Button 
+                  <Button
                     onClick={() => { setEditingRecord(null); setShowForm(true); }}
-                    className="w-full sm:w-auto bg-gradient-to-r from-emerald-500 to-cyan-600 hover:from-emerald-600 hover:to-cyan-700 text-white font-semibold py-3 px-6 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 flex items-center justify-center text-lg"
+                    className="w-full sm:w-auto bg-gradient-to-r from-pink-500 to-fuchsia-600 hover:from-pink-600 hover:to-fuchsia-700 text-white font-semibold py-3 px-6 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 flex items-center justify-center text-lg"
                     disabled={isProcessing}
                   >
                     <Edit className="mr-2 h-5 w-5" /> Añadir/Editar Registro en este Ciclo
@@ -132,9 +147,9 @@ import React, { useState, useEffect, useCallback } from 'react';
                 </div>
               )}
               
-              <RecordsList 
-                records={cycleData.data} 
-                onEdit={handleEdit} 
+              <RecordsList
+                records={cycleData.data}
+                onEdit={handleEdit}
                 onDelete={handleDeleteRequest}
                 isArchiveView={true}
                 isProcessing={isProcessing}
@@ -158,32 +173,49 @@ import React, { useState, useEffect, useCallback } from 'react';
       const { cycleId } = useParams();
       const navigate = useNavigate();
       const { user } = useAuth();
-      const { getCycleById, isLoading: cycleDataHookIsLoading, refreshData, toggleIgnoreRecord } = useCycleData(cycleId);
+      const { getCycleById, isLoading: cycleDataHookIsLoading, refreshData, toggleIgnoreRecord, updateCycleDates } = useCycleData(cycleId);
       const [cycleData, setCycleData] = useState(null);
       const { toast } = useToast();
       const [editingRecord, setEditingRecord] = useState(null);
       const [showForm, setShowForm] = useState(false);
       const [recordToDelete, setRecordToDelete] = useState(null);
+      const [showEditDialog, setShowEditDialog] = useState(false);
       const { isFullScreen, toggleFullScreen } = useFullScreen();
       const [isProcessing, setIsProcessing] = useState(false);
 
-      useEffect(() => {
-        if (!cycleDataHookIsLoading && user) {
-          const fetchedCycle = getCycleById(cycleId);
-          if (fetchedCycle) {
-            setCycleData(fetchedCycle);
-          } else {
-            toast({ title: "Error", description: "No se pudo cargar el ciclo.", variant: "destructive" });
-            navigate('/archived-cycles');
+  useEffect(() => {
+    const loadCycle = async () => {
+      if (user) {
+        let fetchedCycle = await getCycleById(cycleId);
+
+        if (!fetchedCycle) {
+          const localData = localStorage.getItem(`fertilityData_cycle_${user.id}_${cycleId}`);
+          if (localData) {
+            const parsed = JSON.parse(localData);
+            fetchedCycle = {
+              ...parsed,
+              data: processDataWithCycleDays(parsed.data || [], parsed.startDate)
+            };
           }
         }
-      }, [cycleId, cycleDataHookIsLoading, user, getCycleById, toast, navigate]);
 
-      const generateCycleDaysForRecord = (recordIsoDate, cycleStartIsoDate) => {
-        const rDate = startOfDay(parseISO(recordIsoDate));
-        const sDate = startOfDay(parseISO(cycleStartIsoDate));
-        return differenceInDays(rDate, sDate) + 1;
-      };
+        if (fetchedCycle) {
+          setCycleData(fetchedCycle);
+        } else {
+          toast({ title: "Error", description: "No se pudo cargar el ciclo.", variant: "destructive" });
+          navigate('/archived-cycles');
+        }
+      }
+    };
+
+    loadCycle();
+  }, [cycleId, user, getCycleById, toast, navigate]);
+
+  const generateCycleDaysForRecord = (recordIsoDate, cycleStartIsoDate) => {
+    const rDate = startOfDay(parseISO(recordIsoDate));
+    const sDate = startOfDay(parseISO(cycleStartIsoDate));
+    return differenceInDays(rDate, sDate) + 1;
+  };
 
       const processDataWithCycleDays = (data, cycleStartIsoDate) => {
         if (!data || !Array.isArray(data) || !cycleStartIsoDate) return [];
@@ -214,7 +246,7 @@ import React, { useState, useEffect, useCallback } from 'react';
           ...newData,
           isoDate: format(startOfDay(parseISO(newData.isoDate)), "yyyy-MM-dd"),
           cycleDay: generateCycleDaysForRecord(newData.isoDate, cycleData.startDate),
-          ignored: editingRecord ? editingRecord.ignored : (newData.ignored || false)
+          ignored: editingRecord ? (newData.ignored ?? editingRecord.ignored) : (newData.ignored || false)
         };
 
         if (editingRecord) {
@@ -286,6 +318,22 @@ import React, { useState, useEffect, useCallback } from 'react';
         });
         setIsProcessing(false);
       };
+      const updateCycleDatesForCycle = async ({ startDate, endDate }) => {
+        if (!cycleData || !user) return;
+        setIsProcessing(true);
+        try {
+          await updateCycleDates(cycleData.id, startDate, endDate);
+          const updated = await getCycleById(cycleData.id);
+          if (updated) {
+            saveCycleDataToLocalStorage(updated);
+            setCycleData(updated);
+          }
+          toast({ title: 'Fechas actualizadas', description: 'Las fechas del ciclo han sido modificadas.' });
+        } catch (e) {
+          console.error(e);
+        }
+        setIsProcessing(false);
+      };
 
       const getChartDisplayData = useCallback(() => {
         if (!cycleData || !cycleData.startDate) return [];
@@ -296,27 +344,19 @@ import React, { useState, useEffect, useCallback } from 'react';
           return recDate > maxDate ? recDate : maxDate;
         }, cycleStartDate);
 
-        const today = startOfDay(new Date());
-        const lastRelevantDate = lastRecordDate > today ? lastRecordDate : today;
-        const daysSinceStart = differenceInDays(startOfDay(lastRelevantDate), cycleStartDate);
-        const daysInCycle = Math.max(CYCLE_DURATION_DAYS, daysSinceStart + 1);
+        const cycleEndDate = cycleData.endDate ? parseISO(cycleData.endDate) : null;
+        let daysInCycle;
+        if (cycleEndDate) {
+          daysInCycle = differenceInDays(startOfDay(cycleEndDate), cycleStartDate) + 1;
+        } else {
+          const today = startOfDay(new Date());
+          const lastRelevantDate = lastRecordDate > today ? lastRecordDate : today;
+          const daysSinceStart = differenceInDays(startOfDay(lastRelevantDate), cycleStartDate);
+          daysInCycle = Math.max(CYCLE_DURATION_DAYS, daysSinceStart + 1);
+        }
 
-        const fullCyclePlaceholders = [...Array(daysInCycle)].map((_, i) => {
-          const date = addDays(cycleStartDate, i);
-          const isoDate = format(date, "yyyy-MM-dd");
-          const formattedDate = format(date, "dd/MM");
-          const cycleDay = differenceInDays(startOfDay(date), startOfDay(cycleStartDate)) + 1;
-          return {
-            date: formattedDate, 
-            isoDate, 
-            cycleDay, 
-            temperature: null, 
-            mucusSensation: null,
-            mucusAppearance: null,
-            id: `placeholder-${isoDate}`,
-            ignored: false
-          };
-        });
+
+        const fullCyclePlaceholders = generatePlaceholders(cycleStartDate, daysInCycle);
 
         const mergedData = fullCyclePlaceholders.map(placeholder => {
             const existingRecord = cycleData.data.find(d => d.isoDate === placeholder.isoDate);
@@ -333,6 +373,7 @@ import React, { useState, useEffect, useCallback } from 'react';
       const chartDisplayData = getChartDisplayData();
 
       return (
+                <>
         <CycleDetailContent
           cycleData={cycleData}
           addOrUpdateDataPointForCycle={addOrUpdateDataPointForCycle}
@@ -346,7 +387,17 @@ import React, { useState, useEffect, useCallback } from 'react';
           recordToDelete={recordToDelete} setRecordToDelete={setRecordToDelete}
           isProcessing={isProcessing}
           toast={toast}
+          onEditCycleDates={() => setShowEditDialog(true)}
         />
+        <EditCycleDatesDialog
+          isOpen={showEditDialog}
+          onClose={() => setShowEditDialog(false)}
+          onConfirm={updateCycleDatesForCycle}
+          initialStartDate={cycleData.startDate}
+          initialEndDate={cycleData.endDate}
+        />
+        </>
+      
       );
     };
 

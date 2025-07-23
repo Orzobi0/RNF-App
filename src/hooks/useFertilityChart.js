@@ -89,19 +89,22 @@ export const useFertilityChart = (
       const chartWidth = dimensions.width;
       const chartHeight = dimensions.height;
       
-      const baseFontSize = 10;
+      const baseFontSize = 9;
       const responsiveFontSize = (multiplier = 1) => {
         if (!isFullScreen) return baseFontSize * multiplier;
         const smallerDim = Math.min(chartWidth, chartHeight);
         return Math.max(8, Math.min(baseFontSize * multiplier, smallerDim / (allDataPoints.length > 0 ? (40 / multiplier) : 40) ));
       };
 
-      const textRowHeight = responsiveFontSize(isFullScreen ? 1.5 : 1.8); 
+      // In pantalla completa damos un poco más de altura a cada
+      // fila de texto para permitir mostrar palabras más largas
+      // en orientación vertical.
+      const textRowHeight = responsiveFontSize(isFullScreen ? 1.5 : 1.8);
       const numTextRowsBelowChart = 5; 
       const totalTextRowsHeight = textRowHeight * numTextRowsBelowChart;
 
       const padding = { 
-        top: isFullScreen ? Math.max(20, chartHeight * 0.1) : 30, 
+        top: isFullScreen ? Math.max(20, chartHeight * 0.05) : 20, 
         right: isFullScreen ? Math.max(30, chartWidth * 0.05) : 50, 
         bottom: (isFullScreen ? Math.max(60, chartHeight * 0.20) : 60) + totalTextRowsHeight, 
         left: isFullScreen ? Math.max(30, chartWidth * 0.05) : 50
@@ -115,15 +118,17 @@ export const useFertilityChart = (
       };
 
       const getX = (index) => {
-        const availableWidth = chartWidth - padding.left - padding.right;
-        if (availableWidth <= 0) return padding.left;
-        const pointsToDisplay = allDataPoints.length > 1 ? allDataPoints.length -1 : 1;
-        if (pointsToDisplay === 0 || allDataPoints.length === 0) return padding.left;
-        return padding.left + index * (availableWidth / (allDataPoints.length === 1 ? 1 : pointsToDisplay));
+        const extraMargin = isFullScreen ? 10 : 20;
+        const daySpacing = isFullScreen ? 25 : 0;
+        const availableWidth = chartWidth - padding.left - padding.right - extraMargin - daySpacing * (allDataPoints.length - 1);
+        if (availableWidth <= 0) return padding.left + extraMargin + daySpacing * index;
+        const pointsToDisplay = allDataPoints.length > 1 ? allDataPoints.length - 1 : 1;
+        if (pointsToDisplay === 0 || allDataPoints.length === 0) return padding.left + extraMargin + daySpacing * index;
+        return padding.left + extraMargin + index * (availableWidth / (allDataPoints.length === 1 ? 1 : pointsToDisplay)) + daySpacing * index;
       };
       
 const handlePointInteraction = (point, index, event) => {
-  console.log('▶️ handlePointInteraction:', point, index);
+
   // Si no es un registro real, simplemente limpiamos y salimos
   if (!point || String(point.id).startsWith('placeholder-')) {
     clearActivePoint();
@@ -187,11 +192,12 @@ const handlePointInteraction = (point, index, event) => {
           setActivePoint(null);
           
         }
-          const handleToggleIgnore = (recordId) => {
+      const handleToggleIgnore = (recordId) => {
         if (onToggleIgnore && recordId) {
-          onToggleIgnore(recordId, cycleId);
+          onToggleIgnore(cycleId, recordId);
+          setActivePoint(null);
         }
-      }
+      };
 
       return {
         chartRef,

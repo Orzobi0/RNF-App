@@ -7,18 +7,18 @@ import React from 'react';
     import { es } from 'date-fns/locale';
     import { getSymbolAppearance } from '@/config/fertilitySymbols';
 
-    const RecordsList = ({ records, onEdit, onDelete, onClose, isArchiveView = false, isProcessing }) => {
+const RecordsList = ({ records, onEdit, onDelete, onClose, isArchiveView = false, isProcessing }) => {
       if (!records || records.length === 0) {
         return (
-          <motion.div 
-            className="text-center text-slate-400 p-8 bg-slate-800/60 backdrop-blur-sm rounded-xl shadow-xl"
+          <motion.div
+            className="text-center text-[#6B7280] p-8 bg-white rounded-xl shadow"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}
           >
             <p className="text-xl mb-4">No hay registros para mostrar.</p>
             {onClose && !isArchiveView && (
-              <Button onClick={onClose} variant="outline" className="border-slate-600 hover:bg-slate-700 text-slate-300">
+              <Button onClick={onClose} variant="outline" className="border-[#393C65] hover:bg-[#E27DBF]/10 text-[#393C65]">
                 <XCircle className="mr-2 h-5 w-5" />
                 Cerrar
               </Button>
@@ -35,31 +35,33 @@ import React from 'react';
 
 
       return (
-        <motion.div 
-          className="bg-slate-800/60 backdrop-blur-sm p-6 sm:p-8 rounded-xl shadow-xl"
+        <motion.div
+           className="bg-white p-4 sm:p-6 rounded-xl border border-[#E5E7EB] shadow w-full max-h-[80vh] overflow-y-auto"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
         >
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-semibold text-slate-200">
+            <h2 className="text-2xl font-semibold text-[#393C65]">
               {isArchiveView ? "Registros del Ciclo" : "Mis Registros"}
             </h2>
             {onClose && !isArchiveView && (
-              <Button onClick={onClose} variant="ghost" size="icon" className="text-slate-400 hover:text-slate-200 hover:bg-slate-700">
+              <Button onClick={onClose} variant="ghost" size="icon" className="text-[#393C65] hover:text-[#E27DBF] hover:bg-[#E27DBF]/10">
                 <XCircle className="h-6 w-6" />
               </Button>
             )}
           </div>
-          <ScrollArea className="h-[400px] pr-4">
+          <ScrollArea className="h-[80vh] pr-4">
             <ul className="space-y-4">
               {sortedRecords.map((record) => {
                 const symbolInfo = getSymbolAppearance(record.fertility_symbol);
                 const dateToFormat = record.timestamp || record.isoDate;
+                  const timeToFormat = record.timestamp ? format(parseISO(record.timestamp), 'HH:mm') : null;
                 return (
-                  <motion.li 
-                    key={record.id || dateToFormat} 
-                    className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 bg-slate-700/50 rounded-lg shadow"
+                   <motion.li
+                    key={record.id || dateToFormat}
+                    className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 bg-white border border-[#E5E7EB] rounded-[10px]"
+                    style={{ boxShadow: '0 2px 4px rgba(0,0,0,0.04)' }}
                     layout
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -67,28 +69,30 @@ import React from 'react';
                     transition={{ duration: 0.2 }}
                   >
                     <div className="flex-grow mb-3 sm:mb-0">
-                      <p className="text-lg font-medium text-emerald-400">
-                        {dateToFormat ? format(parseISO(dateToFormat), "dd/MM/yyyy HH:mm", { locale: es }) : 'Fecha no disponible'} (Día {record.cycle_day || 'N/A'})
-                      </p>
-                      
-                      {record.temperature_raw != null && (
-                          <p className="text-sm text-slate-300">
-                            <span className="font-semibold">Original:</span> {record.temperature_raw.toFixed(2)}°C
-                            {/* si existe corregida y usamos la original, muestro el check */}
-                            {record.temperature_corrected != null && !record.use_corrected && (
+                        <p className="text-lg font-medium text-[#1F2937]">
+                      {dateToFormat ? format(parseISO(dateToFormat), "dd/MM/yyyy", { locale: es }) : 'Fecha no disponible'} (Día {record.cycleDay || 'N/A'})
+                                            </p>
+                        {record.temperature_raw != null && (
+                            <p className="text-sm text-[#6B7280]">
+                              <span className="font-semibold">Original:</span> {record.temperature_raw.toFixed(2)}°C
+                              {timeToFormat && (
+                                <span className="ml-2 text-xs text-[#9CA3AF]">{timeToFormat}</span>
+                              )}
+                              {/* si existe corregida y usamos la original, muestro el check */}
+                              {record.temperature_corrected != null && !record.use_corrected && (
+                                <Check className="inline h-4 w-4 text-[#E27DBF] ml-1" />
+                              )}
+                            </p>
+                          )}
+
+                       {record.temperature_corrected != null && (
+                          <p className="text-sm text-[#6B7280]">
+                            <span className="font-semibold">Corregida:</span>{' '}
+                            {record.temperature_corrected.toFixed(2)}°C
+                            {record.use_corrected && (
                               <Check className="inline h-4 w-4 text-emerald-400 ml-1" />
                             )}
                           </p>
-                        )}
-
-                        {record.temperature_corrected != null && (
-                          <p className="text-sm text-slate-300">
-                            <span className="font-semibold">
-                                Corregida:
-                                </span>{' '}
-                                {record.temperature_corrected.toFixed(2)}°C
-                                {record.use_corrected && <Check className="inline h-4 w-4 text-emerald-400 ml-1" />}
-                            </p>
                         )}
 
                       
@@ -96,16 +100,16 @@ import React from 'react';
                          {symbolInfo && symbolInfo.value !== 'none' && (
                             <span className={`w-4 h-4 rounded-full mr-2 ${symbolInfo.color} ${symbolInfo.pattern ? 'pattern-bg' : ''}`}></span>
                          )}
-                         <p className={`text-sm ${symbolInfo ? symbolInfo.textColor : 'text-slate-300'}`}>{symbolInfo ? symbolInfo.label : 'Sin Símbolo'}</p>
+                         <p className={`text-sm ${symbolInfo ? symbolInfo.textColor : 'text-[#6B7280]'}`}>{symbolInfo ? symbolInfo.label : 'Sin Símbolo'}</p>
                       </div>
-                      <p className="text-sm text-slate-300 mt-1">
+                      <p className="text-sm text-[#6B7280] mt-1">
                         <span className="font-semibold">Sensación:</span> {record.mucus_sensation || 'N/A'}
                       </p>
-                      <p className="text-sm text-slate-300">
+                      <p className="text-sm text-[#6B7280]">
                         <span className="font-semibold">Apariencia:</span> {record.mucus_appearance || 'N/A'}
                       </p>
                       {record.observations && (
-                        <p className="text-sm text-slate-400 mt-1 italic">
+                        <p className="text-sm text-[#6B7280] mt-1 italic">
                           <span className="font-semibold">Observaciones:</span> {record.observations}
                         </p>
                       )}
@@ -115,18 +119,19 @@ import React from 'react';
                     </div>
                     {!isArchiveView && onEdit && onDelete && (
                       <div className="flex space-x-2 self-end sm:self-center">
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
+                        <Button
+                          variant="outline"
+                          size="sm"
                           onClick={() => onEdit(record)}
                           className="border-sky-500 text-sky-400 hover:bg-sky-500/20 hover:text-sky-300"
                           disabled={isProcessing}
                         >
                           <Edit3 className="mr-1 h-4 w-4" /> Editar
                         </Button>
-                        <Button 
-                          variant="destructive" 
-                          size="sm" 
+
+                        <Button
+                          variant="destructive"
+                          size="sm"
                           onClick={() => onDelete(record.id)}
                           className="bg-rose-600 hover:bg-rose-700"
                           disabled={isProcessing}
@@ -135,20 +140,21 @@ import React from 'react';
                         </Button>
                       </div>
                     )}
-                     {isArchiveView && onEdit && onDelete && ( 
-                       <div className="flex space-x-2 self-end sm:self-center">
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
+                    {isArchiveView && onEdit && onDelete && (
+                      <div className="flex space-x-2 self-end sm:self-center">
+                        <Button
+                          variant="outline"
+                          size="sm"
                           onClick={() => onEdit(record)}
                           className="border-sky-500 text-sky-400 hover:bg-sky-500/20 hover:text-sky-300"
                           disabled={isProcessing}
                         >
                           <Edit3 className="mr-1 h-4 w-4" /> Editar
                         </Button>
-                        <Button 
-                          variant="destructive" 
-                          size="sm" 
+
+                        <Button
+                          variant="destructive"
+                          size="sm"
                           onClick={() => onDelete(record.id)}
                           className="bg-rose-600 hover:bg-rose-700"
                           disabled={isProcessing}

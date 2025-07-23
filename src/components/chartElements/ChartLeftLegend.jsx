@@ -52,7 +52,7 @@ const ChartLeftLegend = ({
             y={y + responsiveFontSize(0.3)}
             textAnchor="end"
             fontSize={responsiveFontSize()}
-            fill="#94a3b8"
+            fill="#A0A0A0"
           >
             {labelText}
           </motion.text>
@@ -65,7 +65,7 @@ const ChartLeftLegend = ({
         y={padding.top + responsiveFontSize(1)}
         textAnchor="start"
         fontSize={responsiveFontSize(1.2)}
-        fill={isFullScreen ? '#e2e8f0' : '#cbd5e1'}
+        fill="#A0A0A0"
       >
         °C
       </motion.text>
@@ -75,9 +75,9 @@ const ChartLeftLegend = ({
           { label: 'Fecha', row: 1 },
           { label: 'Día', row: 2 },
           { label: 'Símbolo', row: 3 },
-          { label: 'Sens.', row: 4.5 },
-          { label: 'Apar.', row: 6 },
-          { label: 'Observ.', row: 7.5 }
+          { label: 'Sens.', row: isFullScreen ? 5 : 4.5 },
+          { label: 'Apar.', row: isFullScreen ? 7 : 6 },
+          { label: 'Observ.', row: isFullScreen ? 9 : 7.5 }
         ].map(({ label, row }) => (
           <text
             key={label}
@@ -85,7 +85,7 @@ const ChartLeftLegend = ({
             y={bottomY + textRowHeight * row}
             textAnchor="end"
             fontSize={responsiveFontSize(0.9)}
-            fill={isFullScreen ? '#cbd5e1' : '#94a3b8'}
+            fill={isFullScreen ? '#1F2937' : '#A0A0A0'}
           >
             {label}
           </text>

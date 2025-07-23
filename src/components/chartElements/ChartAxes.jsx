@@ -10,6 +10,8 @@ const ChartAxes = ({
   tempMax,
   tempRange,
   getY,
+  getX,
+  allDataPoints = [],
   responsiveFontSize,
   isFullScreen
 }) => {
@@ -49,8 +51,8 @@ const ChartAxes = ({
               y1={y}
               x2={chartWidth - padding.right}
               y2={y}
-              stroke="#475569"
-              strokeWidth={isMajor ? 0.5 : 0.3}
+              stroke="#E5E7EB"
+              strokeWidth={isMajor ? 1 : 0.5}
               strokeDasharray={isMajor ? '0' : '2,2'}
             />
 
@@ -60,7 +62,7 @@ const ChartAxes = ({
               y={y + responsiveFontSize(0.3)}
               textAnchor="end"
               fontSize={responsiveFontSize()}
-              fill="#94a3b8"
+              fill="#9CA3AF"
             >
               {labelText}
             </text>
@@ -71,11 +73,26 @@ const ChartAxes = ({
               y={y + responsiveFontSize(0.3)}
               textAnchor="start"
               fontSize={responsiveFontSize()}
-              fill="#94a3b8"
+              fill="#9CA3AF"
             >
               {labelText}
             </text>
-          </motion.g>
+        </motion.g>
+        );
+      })}
+
+      {allDataPoints.map((_, i) => {
+        const x = getX(i);
+        return (
+          <line
+            key={`day-grid-${i}`}
+            x1={x}
+            y1={padding.top}
+            x2={x}
+            y2={chartHeight - padding.bottom}
+            stroke="#E5E7EB"
+            strokeWidth={0.5}
+          />
         );
       })}
 
@@ -86,7 +103,7 @@ const ChartAxes = ({
         y={padding.top + responsiveFontSize(1)}
         textAnchor="start"
         fontSize={responsiveFontSize(1.2)}
-        fill={isFullScreen ? '#e2e8f0' : '#cbd5e1'}
+        fill="#6B7280"
       >
         °C
       </motion.text>

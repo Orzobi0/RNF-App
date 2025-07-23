@@ -3,7 +3,7 @@
     import { Link } from 'react-router-dom';
     import { useCycleData } from '@/hooks/useCycleData';
     import { Button } from '@/components/ui/button';
-    import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
     import { es } from 'date-fns/locale';
     import { Archive, Eye } from 'lucide-react';
     import { motion } from 'framer-motion';
@@ -26,14 +26,16 @@
             <Archive className="w-24 h-24 text-slate-500 mb-6" />
             <h2 className="text-2xl font-semibold text-slate-200 mb-4">No hay ciclos archivados</h2>
             <p className="text-lg">Cuando inicies un nuevo ciclo, el anterior aparecerá aquí.</p>
-            <Button asChild className="mt-8 bg-gradient-to-r from-emerald-500 to-cyan-600 hover:from-emerald-600 hover:to-cyan-700 text-white">
+            <Button asChild className="mt-8 bg-gradient-to-r from-pink-500 to-fuchsia-600 hover:from-pink-600 hover:to-fuchsia-700 text-white">
               <Link to="/">Volver al Ciclo Actual</Link>
             </Button>
           </motion.div>
         );
       }
       
-      const sortedArchivedCycles = [...archivedCycles].sort((a,b) => new Date(b.startDate) - new Date(a.startDate));
+      const sortedArchivedCycles = [...archivedCycles].sort(
+        (a, b) => parseISO(b.startDate) - parseISO(a.startDate)
+      );
 
       return (
         <div className="w-full max-w-4xl mx-auto">
@@ -60,9 +62,11 @@
             animate="show"
           >
             {sortedArchivedCycles.map((cycle) => {
-              const endDate = cycle.data && cycle.data.length > 0 
-                ? format(new Date(cycle.data[cycle.data.length - 1].isoDate), "dd MMM yyyy", { locale: es })
-                : format(new Date(cycle.startDate), "dd MMM yyyy", { locale: es });
+              const endDate = cycle.endDate
+                ? format(parseISO(cycle.endDate), "dd MMM yyyy", { locale: es })
+                : cycle.data && cycle.data.length > 0
+                  ? format(parseISO(cycle.data[cycle.data.length - 1].isoDate), "dd MMM yyyy", { locale: es })
+                  : format(parseISO(cycle.startDate), "dd MMM yyyy", { locale: es });
               const recordCount = cycle.data ? cycle.data.length : 0;
 
               return (
@@ -73,14 +77,14 @@
                 >
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
                     <div>
-                      <h2 className="text-xl font-semibold text-emerald-400 mb-1">
-                        Ciclo: {format(new Date(cycle.startDate), "dd MMM yyyy", { locale: es })} - {endDate}
+                      <h2 className="text-xl font-semibold text-pink-400 mb-1">
+                        Ciclo: {format(parseISO(cycle.startDate), "dd MMM yyyy", { locale: es })} - {endDate}
                       </h2>
                       <p className="text-sm text-slate-400">
                         {recordCount} registro{recordCount !== 1 ? 's' : ''}
                       </p>
                     </div>
-                    <Button asChild variant="outline" className="mt-4 sm:mt-0 border-purple-500 text-purple-400 hover:bg-purple-500/20 hover:text-purple-300">
+                    <Button asChild variant="outline" className="mt-4 sm:mt-0 border-pink-500 text-pink-400 hover:bg-pink-500/20 hover:text-pink-300">
                       <Link to={`/cycle/${cycle.id}`}>
                         <Eye className="mr-2 h-4 w-4" /> Ver Detalles
                       </Link>
