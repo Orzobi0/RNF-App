@@ -82,7 +82,7 @@ const FertilityChart = ({
           )}
           <div
             ref={chartRef}
-            className={`relative p-0 rounded-xl ${isFullScreen ? 'w-full h-full bg-white flex items-center justify-center overflow-x-auto overflow-y-hidden' : 'bg-transparent overflow-x-auto overflow-y-hidden'}`}
+            className={`relative p-0 rounded-xl ${isFullScreen ? 'w-full h-full bg-white flex items-center justify-center overflow-x-auto overflow-y-hidden' : 'bg-white overflow-x-auto overflow-y-hidden'}`}
             style={{ boxShadow: '0 2px 4px rgba(0,0,0,0.03)' }}
           >
           <motion.svg
@@ -98,13 +98,13 @@ const FertilityChart = ({
             <defs>
         
               <linearGradient id="tempLineGradientChart" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="rgba(226,125,191,0.8)" />
-                <stop offset="100%" stopColor="rgba(226,125,191,0.6)" />
+                <stop offset="0%" stopColor="#f472b6" />
+                <stop offset="100%" stopColor="#d946ef" />
               </linearGradient>
               <linearGradient id="tempAreaGradientChart" x1="0%" y1="0%" x2="0%" y2="100%">
-                <stop offset="0%" stopColor="rgba(226,125,191,0.1)" />
-                <stop offset="100%" stopColor="rgba(226,125,191,0)" />
-             </linearGradient>
+                <stop offset="0%" stopColor="rgba(244,114,182,0.15)" />
+                <stop offset="100%" stopColor="rgba(217,70,239,0)" />
+              </linearGradient>
             </defs>
             <rect width="100%" height="100%" fill="transparent" />
 
@@ -116,6 +116,8 @@ const FertilityChart = ({
               tempMax={tempMax}
               tempRange={tempRange}
               getY={getY}
+              getX={getX}
+              allDataPoints={allDataPoints}
               responsiveFontSize={responsiveFontSize}
               isFullScreen={isFullScreen}
             />

@@ -196,8 +196,8 @@ const interactionProps = (!hasAnyRecord || isPlaceholder)
               <circle
                 cx={x} cy={y}
                 r={4}
-                fill="rgba(226,125,191,0.8)"
-                stroke="#E27DBF"
+                fill="#f472b6"
+                stroke="#d946ef"
                 strokeWidth="1.5"
 
 

@@ -10,6 +10,8 @@ const ChartAxes = ({
   tempMax,
   tempRange,
   getY,
+  getX,
+  allDataPoints = [],
   responsiveFontSize,
   isFullScreen
 }) => {
@@ -49,9 +51,9 @@ const ChartAxes = ({
               y1={y}
               x2={chartWidth - padding.right}
               y2={y}
-              stroke="#A0A0A0"
-              strokeWidth={isMajor ? 0.5 : 0.3}
-              strokeDasharray={isMajor ? '0' : '2,1'}
+              stroke="#E5E7EB"
+              strokeWidth={isMajor ? 1 : 0.5}
+              strokeDasharray={isMajor ? '0' : '2,2'}
             />
 
             {/* left label */}
@@ -60,7 +62,7 @@ const ChartAxes = ({
               y={y + responsiveFontSize(0.3)}
               textAnchor="end"
               fontSize={responsiveFontSize()}
-              fill="#A0A0A0"
+              fill="#9CA3AF"
             >
               {labelText}
             </text>
@@ -71,11 +73,26 @@ const ChartAxes = ({
               y={y + responsiveFontSize(0.3)}
               textAnchor="start"
               fontSize={responsiveFontSize()}
-              fill="#A0A0A0"
+              fill="#9CA3AF"
             >
               {labelText}
             </text>
-          </motion.g>
+        </motion.g>
+        );
+      })}
+
+      {allDataPoints.map((_, i) => {
+        const x = getX(i);
+        return (
+          <line
+            key={`day-grid-${i}`}
+            x1={x}
+            y1={padding.top}
+            x2={x}
+            y2={chartHeight - padding.bottom}
+            stroke="#E5E7EB"
+            strokeWidth={0.5}
+          />
         );
       })}
 

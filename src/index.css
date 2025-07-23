@@ -32,7 +32,7 @@
         @apply border-border;
       }
       body {
-        background: linear-gradient(135deg, #FFFAFC 0%, #FFEAF2 100%);
+        background: linear-gradient(135deg, #FFFAFC 0%, #f7eaef 100%);
         min-height: 100vh;
         @apply text-foreground;
         font-family: 'Inter', sans-serif;
