@@ -36,7 +36,7 @@ const RecordsList = ({ records, onEdit, onDelete, onClose, isArchiveView = false
 
       return (
         <motion.div
-           className="bg-white p-4 sm:p-6 rounded-xl border border-[#E5E7EB] shadow w-full max-h-[80vh] overflow-y-auto"
+          className="bg-white p-4 sm:p-6 rounded-xl border border-[#E5E7EB] shadow w-full max-h-[80dvh] overflow-y-auto"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
@@ -51,7 +51,7 @@ const RecordsList = ({ records, onEdit, onDelete, onClose, isArchiveView = false
               </Button>
             )}
           </div>
-          <ScrollArea className="h-[80vh] pr-4">
+          <ScrollArea className="h-[80dvh] pr-4">
             <ul className="space-y-4">
               {sortedRecords.map((record) => {
                 const symbolInfo = getSymbolAppearance(record.fertility_symbol);
