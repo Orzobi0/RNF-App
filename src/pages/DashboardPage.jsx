@@ -102,8 +102,8 @@ import React, { useState, useEffect, useCallback } from 'react';
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: isFullScreen ? 1 : 0.9 }}
                   transition={{ duration: 0.5 }}
-                                className={`shadow-2xl rounded-xl ${isFullScreen ? 'w-full h-full p-0 fixed inset-0 z-50 bg-white' : 'p-4 sm:p-6 mb-8 backdrop-blur-md'}`}
-                style={{ boxShadow: '0 4px 8px rgba(0,0,0,0.04)' }}
+                  className={`shadow-xl rounded-xl ring-1 ring-[#FFB1DD]/50 ${isFullScreen ? 'w-full h-full p-0 fixed inset-0 z-50 bg-white' : 'p-4 sm:p-6 mb-8 bg-white/70 backdrop-blur-md'}`}
+                style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}
                 >
                   <FertilityChart
                     data={chartDisplayData}

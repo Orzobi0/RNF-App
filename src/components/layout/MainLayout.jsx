@@ -19,10 +19,10 @@
             className={`flex items-center px-4 py-3 text-lg rounded-md transition-colors duration-200 ease-in-out
                          ${isActive
                           ? 'bg-[#E27DBF] text-white shadow'
-                          : 'text-[#F4F6F8] hover:bg-[#E27DBF]/10 hover:text-white'
-                        }`}
+                          : 'text-[#393C65] hover:bg-[#E27DBF]/10 hover:text-[#E27DBF]'}
+                        `}
           >
-            <Icon className={`mr-3 h-6 w-6 ${isActive ? 'text-white' : 'text-[#FFB1DD]'}`} />
+            <Icon className={`mr-3 h-6 w-6 ${isActive ? 'text-white' : 'text-[#E27DBF]'}`} />
             {children}
           </Link>
         </SheetClose>
@@ -61,8 +61,8 @@
                     <span className="sr-only">Abrir menú</span>
                   </Button>
                 </SheetTrigger>
-                <SheetContent side="right" className="w-[300px] sm:w-[350px] bg-[#393C65] border-l-[#393C65] p-0 flex flex-col">
-                  <div className="flex items-center justify-between p-6 border-b border-[#393C65]">
+                <SheetContent side="right" className="w-[300px] sm:w-[350px] bg-[#FFEAF5] border-l-[#FFB1DD] p-0 flex flex-col">
+                    <div className="flex items-center justify-between p-6 border-b border-[#FFB1DD]">
                      <div className="flex items-center space-x-3">
                         <UserCircle className="h-10 w-10 text-[#FFB1DD]" />
                         <div>
@@ -71,7 +71,7 @@
                         </div>
                     </div>
                     <SheetClose asChild>
-                         <Button variant="ghost" size="icon" className="text-[#FFB1DD] hover:bg-white/10">
+                         <Button variant="ghost" size="icon" className="text-[#E27DBF] hover:bg-white/10">
                             <X className="h-6 w-6" />
                          </Button>
                     </SheetClose>
@@ -82,11 +82,11 @@
                     <NavLink to="/archived-cycles" Icon={Archive} onClick={() => setIsSheetOpen(false)}>Mis Ciclos</NavLink>
                   </nav>
 
-                  <div className="p-6 border-t border-[#393C65]">
-                    <Button 
+                  <div className="p-6 border-t border-[#FFB1DD]">
+                    <Button
                       onClick={() => { handleLogout(); setIsSheetOpen(false); }}
-                      variant="outline" 
-                      className="w-full border-[#393C65] text-[#393C65] hover:bg-[#E27DBF]/20 hover:text-[#E27DBF] font-semibold py-3 text-lg flex items-center"
+                      variant="outline"
+                      className="w-full border-[#FFB1DD] text-[#393C65] hover:bg-[#E27DBF]/10 hover:text-[#E27DBF] font-semibold py-3 text-lg flex items-center"
                     >
                       <LogOut className="mr-2 h-5 w-5" /> Salir
                     </Button>
@@ -100,7 +100,7 @@
             {children}
           </div>
 
-          <footer className="w-full py-8 text-center text-[#6B7280] text-sm border-t border-[#393C65]/50 mt-12">
+          <footer className="w-full py-8 text-center text-[#6B7280] text-sm border-t border-[#FFB1DD]/50 mt-12">
             <p>&copy; {new Date().getFullYear()} Seguimiento de Fertilidad. Todos los derechos reservados.</p>
             <p>Creado con Hostinger Horizons.</p>
           </footer>
