@@ -192,12 +192,12 @@ const interactionProps = (!hasAnyRecord || isPlaceholder)
                         {...interactionProps}
           >
             {/* punto temperatura */}
-            {hasTemp && !point.ignored && (
+            {hasTemp && (
               <circle
                 cx={x} cy={y}
                 r={4}
-                fill="#f472b6"
-                stroke="#d946ef"
+                fill={point.ignored ? 'transparent' : '#f472b6'}
+                stroke={point.use_corrected ? '#facc15' : '#d946ef'}
                 strokeWidth="1.5"
 
 

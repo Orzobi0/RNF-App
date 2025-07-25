@@ -12,7 +12,7 @@ import React from 'react';
     import { format, addDays, startOfDay, parseISO } from "date-fns";
     import { es } from 'date-fns/locale';
     import { FERTILITY_SYMBOL_OPTIONS } from '@/config/fertilitySymbols';
-    import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 
     const DataEntryFormFields = ({
@@ -28,6 +28,7 @@ import React from 'react';
       ignored, setIgnored,
       isProcessing, isEditing, initialData, cycleStartDate
     }) => {
+      const [open, setOpen] = useState(false);
 
       useEffect(() => {
         if (isEditing && initialData) {
@@ -64,7 +65,7 @@ import React from 'react';
                 <CalendarDays className="mr-2 h-5 w-5 text-pink-400" />
               Fecha del Registro
             </Label>
-            <Popover>
+            <Popover open={open} onOpenChange={setOpen}>
               <PopoverTrigger asChild>
                 <Button
                   variant={"outline"}
@@ -82,7 +83,10 @@ import React from 'react';
                 <Calendar
                   mode="single"
                   selected={date}
-                  onSelect={(selectedDate) => setDate(startOfDay(selectedDate || new Date()))}
+                                    onSelect={(selectedDate) => {
+                    setDate(startOfDay(selectedDate || new Date()));
+                    setOpen(false);
+                  }}
                   initialFocus
                   locale={es}
                   disabled={isProcessing ? () => true : disabledDateRanges}
