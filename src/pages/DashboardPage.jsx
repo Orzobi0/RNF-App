@@ -9,8 +9,9 @@ import React, { useState, useEffect, useCallback } from 'react';
     import { useToast } from '@/components/ui/use-toast';
     import { useCycleData } from '@/hooks/useCycleData';
     import { useFullScreen } from '@/hooks/useFullScreen';
+    import useBackClose from '@/hooks/useBackClose';
     import { motion, AnimatePresence } from 'framer-motion';
-    import { Maximize, X } from 'lucide-react';
+    import { Maximize, X, Eye, EyeOff } from 'lucide-react';
     import { Button } from '@/components/ui/button';
     import { format, differenceInDays, startOfDay, parseISO } from 'date-fns';
     import generatePlaceholders from '@/lib/generatePlaceholders';
@@ -33,14 +34,31 @@ import React, { useState, useEffect, useCallback } from 'react';
       showRecords, setShowRecords,
       editingRecord, setEditingRecord,
       recordToDelete, setRecordToDelete,
-      confirmNewCycleDialog, setConfirmNewCycleDialog,
-      toast
-    }) => {
+  confirmNewCycleDialog, setConfirmNewCycleDialog,
+  toast,
+  showInterpretation, setShowInterpretation,
+}) => {
+
+  useBackClose(showRecords, () => setShowRecords(false));
+  useBackClose(showForm || editingRecord, () => {
+    setShowForm(false);
+    setEditingRecord(null);
+  });
 
       const handleEdit = (record) => {
-        setEditingRecord(record);
-        setShowRecords(false);
-        setShowForm(true);
+        const openForm = () => {
+          setEditingRecord(record);
+          setShowRecords(false);
+          setShowForm(true);
+        };
+
+        if (isFullScreen) {
+          toggleFullScreen();
+                    setTimeout(openForm, 300);
+        } else {
+          openForm();
+        }
+
       };
 
       const handleDeleteRequest = (recordId) => {
@@ -93,7 +111,7 @@ import React, { useState, useEffect, useCallback } from 'react';
         <div className={`flex flex-col items-center w-full ${isFullScreen ? 'overflow-hidden h-full' : ''}`}>
           <main className={`w-full ${isFullScreen ? 'h-full flex items-center justify-center' : 'max-w-4xl flex-grow'}`}>
             {!isFullScreen && !showForm && !showRecords && (
-              <h2 className="text-center text-lg font-semibold text-pink-600 italic mb-1">Ciclo actual</h2>
+              <h2 className="text-center text-lg font-semibold text-pink-600 mb-1">Ciclo actual</h2>
             )}
             <AnimatePresence>
               {(!showForm && !showRecords) && (chartDisplayData.length > 0 || isFullScreen) && (
@@ -102,8 +120,8 @@ import React, { useState, useEffect, useCallback } from 'react';
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: isFullScreen ? 1 : 0.9 }}
                   transition={{ duration: 0.5 }}
-                                className={`shadow-2xl rounded-xl ${isFullScreen ? 'w-full h-full p-0 fixed inset-0 z-50 bg-white' : 'p-4 sm:p-6 mb-8 backdrop-blur-md'}`}
-                style={{ boxShadow: '0 4px 8px rgba(0,0,0,0.04)' }}
+                  className={`shadow-xl rounded-xl ring-1 ring-[#FFB1DD]/50 ${isFullScreen ? 'w-full h-full p-0 fixed inset-0 z-50 bg-white' : 'p-4 sm:p-6 mb-8 bg-white/70 backdrop-blur-md'}`}
+                style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}
                 >
                   <FertilityChart
                     data={chartDisplayData}
@@ -113,7 +131,21 @@ import React, { useState, useEffect, useCallback } from 'react';
                     cycleId={currentCycle.id}
                     initialScrollIndex={scrollStart}
                     visibleDays={VISIBLE_DAYS_NORMAL_VIEW}
+                    showInterpretation={showInterpretation}
                   />
+                  <Button
+                    onClick={() => setShowInterpretation(v => !v)}
+                    variant="ghost"
+                    size="sm"
+                    className={`absolute ${isFullScreen ? 'top-4 right-24' : 'top-2 right-10'} flex items-center text-xs font-normal py-1 px-2 rounded-lg transition-colors ${showInterpretation ? 'bg-[#E27DBF] text-white hover:bg-[#d46ab3]' : 'bg-transparent text-[#393C65] hover:bg-[#E27DBF]/20'}`}
+                  >
+                   {showInterpretation ? (
+                      <EyeOff className="mr-2 h-4 w-4" />
+                    ) : (
+                      <Eye className="mr-2 h-4 w-4" />
+                    )}
+                    {showInterpretation ? 'Ocultar' : 'Interpretar'}
+                  </Button>
                   <Button
                     onClick={toggleFullScreen}
                     variant="ghost"
@@ -216,10 +248,11 @@ import React, { useState, useEffect, useCallback } from 'react';
       } = useCycleData();
       
       const [showForm, setShowForm] = useState(false);
-      const [showRecords, setShowRecords] = useState(false);
+  const [showRecords, setShowRecords] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [recordToDelete, setRecordToDelete] = useState(null);
   const [confirmNewCycleDialog, setConfirmNewCycleDialog] = useState(false);
+  const [showInterpretation, setShowInterpretation] = useState(false);
       
       const { isFullScreen, toggleFullScreen } = useFullScreen();
       const { toast } = useToast();
@@ -301,6 +334,7 @@ import React, { useState, useEffect, useCallback } from 'react';
           recordToDelete={recordToDelete} setRecordToDelete={setRecordToDelete}
           confirmNewCycleDialog={confirmNewCycleDialog} setConfirmNewCycleDialog={setConfirmNewCycleDialog}
           toast={toast}
+          showInterpretation={showInterpretation} setShowInterpretation={setShowInterpretation}
         />
       );
     }

@@ -12,7 +12,7 @@ import React from 'react';
     import { format, addDays, startOfDay, parseISO } from "date-fns";
     import { es } from 'date-fns/locale';
     import { FERTILITY_SYMBOL_OPTIONS } from '@/config/fertilitySymbols';
-    import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 
     const DataEntryFormFields = ({
@@ -28,6 +28,7 @@ import React from 'react';
       ignored, setIgnored,
       isProcessing, isEditing, initialData, cycleStartDate
     }) => {
+      const [open, setOpen] = useState(false);
 
       useEffect(() => {
         if (isEditing && initialData) {
@@ -60,11 +61,11 @@ import React from 'react';
       return (
         <>
           <div className="space-y-2">
-            <Label htmlFor="date" className="flex items-center text-[#70747a] text-lg">
+            <Label htmlFor="date" className="flex items-center text-[#32334d] text-lg">
                 <CalendarDays className="mr-2 h-5 w-5 text-pink-400" />
               Fecha del Registro
             </Label>
-            <Popover>
+            <Popover open={open} onOpenChange={setOpen}>
               <PopoverTrigger asChild>
                 <Button
                   variant={"outline"}
@@ -82,7 +83,10 @@ import React from 'react';
                 <Calendar
                   mode="single"
                   selected={date}
-                  onSelect={(selectedDate) => setDate(startOfDay(selectedDate || new Date()))}
+                                    onSelect={(selectedDate) => {
+                    setDate(startOfDay(selectedDate || new Date()));
+                    setOpen(false);
+                  }}
                   initialFocus
                   locale={es}
                   disabled={isProcessing ? () => true : disabledDateRanges}
@@ -93,9 +97,9 @@ import React from 'react';
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="temperatureRaw" className="flex items-center text-[#70747a] text-lg">
+            <Label htmlFor="temperatureRaw" className="flex items-center text-[#32334d] text-lg">
               <Thermometer className="mr-2 h-5 w-5 text-rose-400" />
-              {isEditing ? "Temperatura Original (°C)" : "Temperatura Basal (°C)"} <span className="text-sm text-[#70747a] ml-1">(Opcional)</span>
+              {isEditing ? "Temperatura Original (°C)" : "Temperatura Basal (°C)"} <span className="text-sm text-[#32334d] ml-1">(Opcional)</span>
             </Label>
           <Input
             id="temperatureRaw"
@@ -111,9 +115,9 @@ import React from 'react';
             readOnly={isEditing && initialData?.temperature_raw !== null && initialData?.temperature_raw !== undefined}
           />
           <div className="space-y-2">
-            <Label htmlFor="time" className="flex items-center text-[#70747a] text-lg">
+            <Label htmlFor="time" className="flex items-center text-[#32334d] text-lg">
               <Clock className="mr-2 h-5 w-5 text-rose-400" />
-              Hora de la Temperatura <span className="text-sm text-[#70747a] ml-1">(Opcional)</span>
+              Hora de la Temperatura <span className="text-sm text-[#32334d] ml-1">(Opcional)</span>
             </Label>
             <Input
               id="time"
@@ -129,7 +133,7 @@ import React from 'react';
           {isEditing && (
                       <div>
                         <div className="space-y-3 p-4 border border-slate-700 rounded-md bg-slate-200/30">
-                          <Label htmlFor="temperatureCorrected" className="flex items-center text-[#70747a] text-md">
+                          <Label htmlFor="temperatureCorrected" className="flex items-center text-[#32334d] text-md">
                             <Edit className="mr-2 h-4 w-4 text-amber-400" />
                             Temperatura Corregida (°C) <span className="text-sm text-slate-400 ml-1">(Opcional)</span>
                           </Label>
@@ -192,7 +196,7 @@ import React from 'react';
                     )}
 
           <div className="space-y-2">
-            <Label htmlFor="fertilitySymbol" className="flex items-center text-[#70747a] text-lg">
+            <Label htmlFor="fertilitySymbol" className="flex items-center text-[#32334d] text-lg">
                 <Palette className="mr-2 h-5 w-5 text-teal-400" />
                 Símbolo de Fertilidad
             </Label>
@@ -214,7 +218,7 @@ import React from 'react';
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="mucusSensation" className="flex items-center text-[#70747a] text-lg">
+            <Label htmlFor="mucusSensation" className="flex items-center text-[#32334d] text-lg">
               <Droplets className="mr-2 h-5 w-5 text-sky-400" />
               Sensación del Moco Cervical
             </Label>
@@ -229,7 +233,7 @@ import React from 'react';
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="mucusAppearance" className="flex items-center text-[#70747a] text-lg">
+            <Label htmlFor="mucusAppearance" className="flex items-center text-[#32334d] text-lg">
               <Eye className="mr-2 h-5 w-5 text-amber-400" />
               Apariencia del Moco Cervical
             </Label>
@@ -244,7 +248,7 @@ import React from 'react';
           </div>
 
            <div className="space-y-2">
-            <Label htmlFor="observations" className="flex items-center text-[#70747a] text-lg">
+            <Label htmlFor="observations" className="flex items-center text-[#32334d] text-lg">
               <CheckSquare className="mr-2 h-5 w-5 text-indigo-400" />
               Observaciones Adicionales
             </Label>

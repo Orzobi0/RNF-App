@@ -11,7 +11,7 @@ import React from 'react';
         <p className="text-xl mb-4">Aún no hay datos registrados para este ciclo.</p>
         <p>Haz clic en "Añadir Registro" para empezar.</p>
          <div className="mt-8">
-           <img  class="mx-auto w-64 h-64 opacity-30" alt="Ilustración abstracta de ciclo y naturaleza con tonos pastel" src="https://images.unsplash.com/photo-1576123598192-1ac6e1035a3d" />
+          
          </div>
       </motion.div>
     );

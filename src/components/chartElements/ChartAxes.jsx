@@ -51,7 +51,7 @@ const ChartAxes = ({
               y1={y}
               x2={chartWidth - padding.right}
               y2={y}
-              stroke="#E5E7EB"
+              stroke="#FCE7F3"
               strokeWidth={isMajor ? 1 : 0.5}
               strokeDasharray={isMajor ? '0' : '2,2'}
             />
@@ -62,7 +62,7 @@ const ChartAxes = ({
               y={y + responsiveFontSize(0.3)}
               textAnchor="end"
               fontSize={responsiveFontSize()}
-              fill="#9CA3AF"
+              fill="#E27DBF"
             >
               {labelText}
             </text>
@@ -73,7 +73,7 @@ const ChartAxes = ({
               y={y + responsiveFontSize(0.3)}
               textAnchor="start"
               fontSize={responsiveFontSize()}
-              fill="#9CA3AF"
+              fill="#E27DBF"
             >
               {labelText}
             </text>
@@ -90,7 +90,7 @@ const ChartAxes = ({
             y1={padding.top}
             x2={x}
             y2={chartHeight - padding.bottom}
-            stroke="#E5E7EB"
+            stroke="#FCE7F3"
             strokeWidth={0.5}
           />
         );
@@ -103,7 +103,7 @@ const ChartAxes = ({
         y={padding.top + responsiveFontSize(1)}
         textAnchor="start"
         fontSize={responsiveFontSize(1.2)}
-        fill="#6B7280"
+        fill="#E27DBF"
       >
         °C
       </motion.text>

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import DataEntryFormFields from '@/components/dataEntryForm/DataEntryFormFields';
 import DataEntryFormActions from '@/components/dataEntryForm/DataEntryFormActions';
 import { motion } from 'framer-motion';
@@ -7,6 +7,21 @@ import { XCircle } from 'lucide-react';
 import { useDataEntryForm } from '@/hooks/useDataEntryForm';
 
     const DataEntryForm = ({ onSubmit, initialData, onCancel, cycleStartDate, isProcessing, isEditing = false }) => {
+      const formRef = useRef(null);
+
+      useEffect(() => {
+        const form = formRef.current;
+        if (!form) return;
+        const handleFocus = (e) => {
+          if (e.target && 'scrollIntoView' in e.target) {
+            setTimeout(() => {
+              e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 50);
+          }
+        };
+        form.addEventListener('focusin', handleFocus);
+        return () => form.removeEventListener('focusin', handleFocus);
+      }, []);
 
       const {
         date, setDate,
@@ -24,8 +39,9 @@ import { useDataEntryForm } from '@/hooks/useDataEntryForm';
 
       return (
         <motion.form
+          ref={formRef}
           onSubmit={handleSubmit}
-          className="space-y-6 bg-white p-4 sm:p-6 rounded-xl border border-[#E5E7EB] shadow w-full max-h-[80vh] overflow-y-auto"
+          className="space-y-6 bg-white p-4 sm:p-6 rounded-xl border border-[#FFB1DD]/50 shadow w-full"
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}

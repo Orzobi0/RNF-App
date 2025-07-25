@@ -62,7 +62,7 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
           <span
             className={`w-3 h-3 rounded-full mr-1 ${symbolInfo.color} ${
               symbolInfo.pattern ? 'pattern-bg' : ''
-            }`}
+            } ${symbolInfo.value === 'white' ? 'border border-gray-300' : ''}`}
           ></span>
         )}
         <p className="text-xs">

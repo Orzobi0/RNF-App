@@ -33,7 +33,8 @@
       }
       body {
         background: linear-gradient(135deg, #FFFAFC 0%, #f7eaef 100%);
-        min-height: 100vh;
+        min-height: 100dvh;
+        scroll-behavior: smooth;
         @apply text-foreground;
         font-family: 'Inter', sans-serif;
       }
