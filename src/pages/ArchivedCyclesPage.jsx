@@ -70,9 +70,9 @@ import { format, parseISO } from 'date-fns';
               const recordCount = cycle.data ? cycle.data.length : 0;
 
               return (
-                <motion.li 
-                  key={cycle.id} 
-                  className="bg-slate-800/70 backdrop-blur-md shadow-xl rounded-xl p-6 hover:shadow-2xl transition-shadow duration-300"
+                <motion.li
+                  key={cycle.id}
+                  className="bg-white/70 backdrop-blur-md ring-1 ring-[#FFB1DD]/50 shadow-xl rounded-xl p-6 hover:shadow-2xl transition-shadow duration-300"
                   variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }}
                 >
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">

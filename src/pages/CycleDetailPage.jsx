@@ -64,19 +64,19 @@ import { useAuth } from '@/contexts/AuthContext';
             transition={{ duration: 0.5 }}
           >
             {!isFullScreen && (
-              <Button variant="outline" asChild className="border-slate-600 hover:bg-slate-700 text-slate-300">
+              <Button variant="outline" asChild className="mt-4 sm:mt-0 border-pink-500 text-pink-400 hover:bg-pink-500/20 hover:text-pink-300">
                 <Link to="/archived-cycles">
-                  <ArrowLeft className="mr-2 h-4 w-4" /> Volver a Mis Ciclos
+                  <ArrowLeft className="mr-2 h-4 w-4" /> Mis Ciclos
                 </Link>
               </Button>
             )}
             {!isFullScreen && (
-              <h1 className="text-2xl sm:text-3xl font-bold text-slate-100 text-center">
+              <h1 className="text-2xl sm:text-3xl font-bold hover:text-pink-300 text-center">
                 Detalle del Ciclo ({format(parseISO(cycleData.startDate), "dd/MM/yyyy")})
               </h1>
             )}
             {!isFullScreen && (
-              <Button variant="outline" onClick={onEditCycleDates} className="border-slate-600 hover:bg-slate-700 text-slate-300">
+              <Button variant="outline" onClick={onEditCycleDates} className="mt-4 sm:mt-0 border-pink-500 text-pink-400 hover:bg-pink-500/20 hover:text-pink-300">
                 <Edit className="mr-2 h-4 w-4" /> Editar Fechas
               </Button>
             )}
@@ -89,7 +89,7 @@ import { useAuth } from '@/contexts/AuthContext';
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: isFullScreen ? 1 : 0.9 }}
                 transition={{ duration: 0.5 }}
-                                className={`shadow-2xl rounded-xl ${isFullScreen ? 'w-full h-full p-0 fixed inset-0 z-50 bg-white' : 'p-4 sm:p-6 mb-8 bg-[#FFF5F9] backdrop-blur-lg'}`}
+                className={`shadow-2xl rounded-xl ${isFullScreen ? 'w-full h-full p-0 fixed inset-0 z-50 bg-white' : 'p-4 sm:p-6 mb-8 bg-white/70 backdrop-blur-md ring-1 ring-[#FFB1DD]/50'}`}
                 style={{ boxShadow: '0 4px 8px rgba(0,0,0,0.04)' }}
               >
                 {!isFullScreen && (
@@ -148,7 +148,7 @@ import { useAuth } from '@/contexts/AuthContext';
                     className="w-full sm:w-auto bg-gradient-to-r from-pink-500 to-fuchsia-600 hover:from-pink-600 hover:to-fuchsia-700 text-white font-semibold py-3 px-6 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 flex items-center justify-center text-lg"
                     disabled={isProcessing}
                   >
-                    <Edit className="mr-2 h-5 w-5" /> Añadir/Editar Registro en este Ciclo
+                    <Edit className="mr-2 h-5 w-5" /> Añadir registro en este ciclo
                   </Button>
                 </div>
               )}
