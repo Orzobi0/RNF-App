@@ -8,13 +8,13 @@ import React, { useState, useEffect, useCallback } from 'react';
     import { useCycleData } from '@/hooks/useCycleData';
     import { useToast } from '@/components/ui/use-toast';
     import { Button } from '@/components/ui/button';
-    import { ArrowLeft, Edit, Trash2, Maximize, X } from 'lucide-react';
+    import { ArrowLeft, Edit, Trash2, Maximize, X, Eye, EyeOff } from 'lucide-react';
     import { motion, AnimatePresence } from 'framer-motion';
     import { format, differenceInDays, startOfDay, parseISO } from 'date-fns';
     import generatePlaceholders from '@/lib/generatePlaceholders';
-import { useFullScreen } from '@/hooks/useFullScreen';
-import useBackClose from '@/hooks/useBackClose';
-import { useAuth } from '@/contexts/AuthContext';
+    import { useFullScreen } from '@/hooks/useFullScreen';
+    import useBackClose from '@/hooks/useBackClose';
+    import { useAuth } from '@/contexts/AuthContext';
 
     const CYCLE_DURATION_DAYS = 30;
 
@@ -105,12 +105,18 @@ import { useAuth } from '@/contexts/AuthContext';
                   cycleId={cycleData.id}
                   showInterpretation={showInterpretation}
                 />
-                                <Button
+                <Button
                   onClick={() => setShowInterpretation(v => !v)}
-                  variant="ghost"
-                  className={`absolute ${isFullScreen ? 'top-4 right-24' : 'top-2 right-24'} text-slate-400 hover:text-slate-200 hover:bg-slate-700/50`}
+                   variant={showInterpretation ? 'default' : 'outline'}
+                  size="sm"
+                  className={`absolute ${isFullScreen ? 'top-4 right-24' : 'top-2 right-24'} flex items-center font-semibold py-1 px-2 rounded-lg bg-gray-800 bg-opacity-20 shadow-none transition-all`}
                 >
-                  Interpretar
+                  {showInterpretation ? (
+                    <EyeOff className="mr-2 h-4 w-4" />
+                  ) : (
+                    <Eye className="mr-2 h-4 w-4" />
+                  )}
+                  {showInterpretation ? 'Ocultar' : 'Interpretar'}
                 </Button>
                 <Button
                   onClick={toggleFullScreen}
