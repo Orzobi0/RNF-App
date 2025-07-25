@@ -1,12 +1,13 @@
 
-    import React, { useState } from 'react';
+import React, { useState } from 'react';
     import { Link, useNavigate, useLocation } from 'react-router-dom';
     import { useAuth } from '@/contexts/AuthContext';
     import { Button } from '@/components/ui/button';
     import { Sheet, SheetContent, SheetTrigger, SheetClose } from "@/components/ui/sheet";
     import { Menu, LogOut, Home, Archive, UserCircle, X } from 'lucide-react';
     import { motion, AnimatePresence } from 'framer-motion';
-    import AppHeader from '@/components/AppHeader';
+import AppHeader from '@/components/AppHeader';
+import useBackClose from '@/hooks/useBackClose';
 
     const NavLink = ({ to, children, Icon, onClick }) => {
       const location = useLocation();
@@ -31,8 +32,10 @@
 
     const MainLayout = ({ children }) => {
       const { user, logout } = useAuth();
-      const navigate = useNavigate();
-      const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const navigate = useNavigate();
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
+
+  useBackClose(isSheetOpen, () => setIsSheetOpen(false));
 
       const handleLogout = () => {
         logout();

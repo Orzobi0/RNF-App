@@ -8,7 +8,8 @@ import React, { useState, useEffect, useCallback } from 'react';
     import NewCycleDialog from '@/components/NewCycleDialog';
     import { useToast } from '@/components/ui/use-toast';
     import { useCycleData } from '@/hooks/useCycleData';
-    import { useFullScreen } from '@/hooks/useFullScreen';
+import { useFullScreen } from '@/hooks/useFullScreen';
+import useBackClose from '@/hooks/useBackClose';
     import { motion, AnimatePresence } from 'framer-motion';
     import { Maximize, X } from 'lucide-react';
     import { Button } from '@/components/ui/button';
@@ -33,9 +34,15 @@ import React, { useState, useEffect, useCallback } from 'react';
       showRecords, setShowRecords,
       editingRecord, setEditingRecord,
       recordToDelete, setRecordToDelete,
-      confirmNewCycleDialog, setConfirmNewCycleDialog,
-      toast
-    }) => {
+  confirmNewCycleDialog, setConfirmNewCycleDialog,
+  toast
+}) => {
+
+  useBackClose(showRecords, () => setShowRecords(false));
+  useBackClose(showForm || editingRecord, () => {
+    setShowForm(false);
+    setEditingRecord(null);
+  });
 
       const handleEdit = (record) => {
                 if (isFullScreen) {

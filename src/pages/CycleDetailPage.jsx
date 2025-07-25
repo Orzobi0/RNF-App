@@ -12,8 +12,9 @@ import React, { useState, useEffect, useCallback } from 'react';
     import { motion, AnimatePresence } from 'framer-motion';
     import { format, differenceInDays, startOfDay, parseISO } from 'date-fns';
     import generatePlaceholders from '@/lib/generatePlaceholders';
-    import { useFullScreen } from '@/hooks/useFullScreen';
-    import { useAuth } from '@/contexts/AuthContext';
+import { useFullScreen } from '@/hooks/useFullScreen';
+import useBackClose from '@/hooks/useBackClose';
+import { useAuth } from '@/contexts/AuthContext';
 
     const CYCLE_DURATION_DAYS = 30;
 
@@ -30,8 +31,13 @@ import React, { useState, useEffect, useCallback } from 'react';
       recordToDelete, setRecordToDelete,
       isProcessing,
       toast,
-      onEditCycleDates
-    }) => {
+  onEditCycleDates
+}) => {
+
+  useBackClose(showForm || editingRecord, () => {
+    setShowForm(false);
+    setEditingRecord(null);
+  });
 
       const handleEdit = (record) => {
         setEditingRecord(record);
