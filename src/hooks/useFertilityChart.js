@@ -35,7 +35,8 @@ export const useFertilityChart = (
           if (isFullScreen) {
             containerWidth = window.innerWidth;
             if (orientation === 'portrait') {
-              const perDayWidth = containerWidth / visibleDays;
+              const legendSpace = Math.max(30, containerWidth * 0.05);
+              const perDayWidth = (containerWidth - legendSpace) / visibleDays;
               newWidth = perDayWidth * data.length;
               newHeight = window.innerHeight;
             } else {

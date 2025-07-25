@@ -68,7 +68,7 @@ const FertilityChart = ({
 
       return (
         <div className="relative">
-          {!isFullScreen && (
+            {(!isFullScreen || orientation === 'portrait') && (
             <div
               className="absolute left-0 top-0 h-full bg-[#F4F6F8] pointer-events-none z-10"
               style={{ width: padding.left }}
@@ -156,6 +156,7 @@ const FertilityChart = ({
               getX={getX}
               getY={getY}
               isFullScreen={isFullScreen}
+              orientation={orientation}
               responsiveFontSize={responsiveFontSize}
               onPointInteraction={handlePointInteraction}
               clearActivePoint={clearActivePoint}

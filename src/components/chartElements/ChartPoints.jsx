@@ -37,6 +37,7 @@ const ChartPoints = ({
   getX,
   getY,
   isFullScreen,
+  orientation,
   responsiveFontSize,
   onPointInteraction,
   clearActivePoint,
@@ -98,6 +99,7 @@ const ChartPoints = ({
 
 
       {/* Leyenda izquierda */}
+      {(!isFullScreen || orientation !== 'portrait') && (
       <motion.g variants={itemVariants}>
         {[
           { label: 'Fecha',   row: 1   },
@@ -117,6 +119,7 @@ const ChartPoints = ({
           >{label}</text>
         ))}
       </motion.g>
+      )}
 
       {data.map((point, index) => {
         const x               = getX(index);
