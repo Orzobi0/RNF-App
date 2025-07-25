@@ -153,8 +153,8 @@ const handlePointInteraction = (point, index, event) => {
   setTooltipPosition({
     svgX,
     svgY,
-    clientX: clientX - chartRect.left,
-    clientY: clientY - chartRect.top
+    clientX: clientX - chartRect.left + chartRef.current.scrollLeft,
+    clientY: clientY - chartRect.top + chartRef.current.scrollTop
   });
   setActivePoint(point);
 };
