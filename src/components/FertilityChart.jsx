@@ -15,7 +15,9 @@ const FertilityChart = ({
   onEdit,
   cycleId,
   initialScrollIndex = 0,
-  visibleDays = 5
+  visibleDays = 5,
+  showInterpretation = false,
+  orientation = 'portrait-primary'
 }) => {
       const {
         chartRef,
@@ -37,7 +39,16 @@ const FertilityChart = ({
         responsiveFontSize,
         clearActivePoint,
         setActivePoint,
-      } = useFertilityChart(data, isFullScreen, onToggleIgnore, cycleId, visibleDays);
+        baselineTemp,
+        baselineStartIndex,
+      } = useFertilityChart(
+        data,
+        isFullScreen,
+        onToggleIgnore,
+        cycleId,
+        visibleDays,
+        orientation
+      );
 
       if (!allDataPoints || allDataPoints.length === 0) {
         return <div className="text-center text-slate-400 p-8">No hay datos para mostrar en el gráfico.</div>;
@@ -54,10 +65,12 @@ const FertilityChart = ({
         }
       };
   useEffect(() => {
-        if (isFullScreen || !chartRef.current) return;
-        const dayWidth = chartRef.current.clientWidth / visibleDays;
-        chartRef.current.scrollLeft = Math.max(0, dayWidth * initialScrollIndex);
-      }, [isFullScreen, initialScrollIndex, visibleDays, dimensions.width]);
+    if (!chartRef.current) return;
+    const dayWidth = chartRef.current.clientWidth / visibleDays;
+    if (!isFullScreen || orientation.startsWith('portrait')) {
+      chartRef.current.scrollLeft = Math.max(0, dayWidth * initialScrollIndex);
+    }
+  }, [isFullScreen, orientation, initialScrollIndex, visibleDays, dimensions.width]);
 
 
       return (

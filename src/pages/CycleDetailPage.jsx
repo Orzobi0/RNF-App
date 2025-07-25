@@ -8,14 +8,15 @@ import React, { useState, useEffect, useCallback } from 'react';
     import { useCycleData } from '@/hooks/useCycleData';
     import { useToast } from '@/components/ui/use-toast';
     import { Button } from '@/components/ui/button';
-    import { ArrowLeft, Edit, Trash2, Maximize, X } from 'lucide-react';
+    import { ArrowLeft, Edit, Trash2, Maximize, X, Eye, EyeOff, RotateCw } from 'lucide-react';
     import { motion, AnimatePresence } from 'framer-motion';
     import { format, differenceInDays, startOfDay, parseISO } from 'date-fns';
     import generatePlaceholders from '@/lib/generatePlaceholders';
     import { useFullScreen } from '@/hooks/useFullScreen';
     import { useAuth } from '@/contexts/AuthContext';
 
-    const CYCLE_DURATION_DAYS = 30;
+const CYCLE_DURATION_DAYS = 30;
+const VISIBLE_DAYS_FULLSCREEN_PORTRAIT = 10;
 
     const CycleDetailContent = ({
       cycleData,
@@ -23,7 +24,9 @@ import React, { useState, useEffect, useCallback } from 'react';
       deleteRecordForCycle,
       toggleIgnoreRecordForCycle,
       isFullScreen,
+      orientation,
       toggleFullScreen,
+      rotateOrientation,
       chartDisplayData,
       showForm, setShowForm,
       editingRecord, setEditingRecord,
@@ -97,7 +100,39 @@ import React, { useState, useEffect, useCallback } from 'react';
                   onToggleIgnore={toggleIgnoreRecordForCycle}
                   onEdit={handleEdit}
                   cycleId={cycleData.id}
+                  visibleDays={
+                    isFullScreen && orientation.startsWith('portrait')
+                      ? VISIBLE_DAYS_FULLSCREEN_PORTRAIT
+                      : undefined
+                  }
+                  orientation={orientation}
+                  initialScrollIndex={scrollStart}
+                  showInterpretation={showInterpretation}
                 />
+                <Button
+                  onClick={() => setShowInterpretation(v => !v)}
+                  variant="ghost"
+                  size="sm"
+                  className={`absolute ${isFullScreen ? 'top-4 right-24' : 'top-2 right-24'} flex items-center font-semibold py-1 px-2 rounded-lg transition-colors ${showInterpretation ? 'bg-[#E27DBF] text-white hover:bg-[#d46ab3]' : 'bg-transparent text-[#393C65] hover:bg-[#E27DBF]/20'}`}
+                >
+                  {showInterpretation ? (
+                    <EyeOff className="mr-2 h-4 w-4" />
+                  ) : (
+                    <Eye className="mr-2 h-4 w-4" />
+                  )}
+                  {showInterpretation ? 'Ocultar' : 'Interpretar'}
+                </Button>
+                 {isFullScreen && (
+                  <Button
+                    onClick={rotateOrientation}
+                    variant="ghost"
+                    size="icon"
+                    className="absolute top-4 right-12 text-white bg-slate-700/50 hover:bg-slate-600/70"
+                    title="Rotar"
+                  >
+                    <RotateCw className="h-5 w-5" />
+                  </Button>
+                )}
                 <Button
                   onClick={toggleFullScreen}
                   variant="ghost"
@@ -180,7 +215,7 @@ import React, { useState, useEffect, useCallback } from 'react';
       const [showForm, setShowForm] = useState(false);
       const [recordToDelete, setRecordToDelete] = useState(null);
       const [showEditDialog, setShowEditDialog] = useState(false);
-      const { isFullScreen, toggleFullScreen } = useFullScreen();
+      const { isFullScreen, orientation, toggleFullScreen, rotateOrientation } = useFullScreen();
       const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
@@ -371,6 +406,17 @@ import React, { useState, useEffect, useCallback } from 'react';
       }
 
       const chartDisplayData = getChartDisplayData();
+            let scrollStart = 0;
+      if (isFullScreen && orientation.startsWith('portrait')) {
+        const cycleStartDate = parseISO(cycleData.startDate);
+        const daysSinceCycleStart = differenceInDays(new Date(), startOfDay(cycleStartDate));
+        const currentDayIndex = Math.min(Math.max(daysSinceCycleStart, 0), chartDisplayData.length - 1);
+        let endIndex = Math.min(chartDisplayData.length, currentDayIndex + 1);
+        if (currentDayIndex < VISIBLE_DAYS_FULLSCREEN_PORTRAIT - 1) {
+          endIndex = Math.min(chartDisplayData.length, VISIBLE_DAYS_FULLSCREEN_PORTRAIT);
+        }
+        scrollStart = Math.max(0, endIndex - VISIBLE_DAYS_FULLSCREEN_PORTRAIT);
+      }
 
       return (
                 <>
@@ -380,7 +426,9 @@ import React, { useState, useEffect, useCallback } from 'react';
           deleteRecordForCycle={deleteRecordForCycle}
           toggleIgnoreRecordForCycle={toggleIgnoreRecordForCycle}
           isFullScreen={isFullScreen}
+          orientation={orientation}
           toggleFullScreen={toggleFullScreen}
+          rotateOrientation={rotateOrientation}
           chartDisplayData={chartDisplayData}
           showForm={showForm} setShowForm={setShowForm}
           editingRecord={editingRecord} setEditingRecord={setEditingRecord}

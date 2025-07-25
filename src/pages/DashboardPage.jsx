@@ -10,13 +10,14 @@ import React, { useState, useEffect, useCallback } from 'react';
     import { useCycleData } from '@/hooks/useCycleData';
     import { useFullScreen } from '@/hooks/useFullScreen';
     import { motion, AnimatePresence } from 'framer-motion';
-    import { Maximize, X } from 'lucide-react';
+    import { Maximize, X, Eye, EyeOff } from 'lucide-react';
     import { Button } from '@/components/ui/button';
     import { format, differenceInDays, startOfDay, parseISO } from 'date-fns';
     import generatePlaceholders from '@/lib/generatePlaceholders';
 
-    const CYCLE_DURATION_DAYS = 30;
-    const VISIBLE_DAYS_NORMAL_VIEW = 5;
+const CYCLE_DURATION_DAYS = 30;
+const VISIBLE_DAYS_NORMAL_VIEW = 5;
+const VISIBLE_DAYS_FULLSCREEN_PORTRAIT = 10;
 
     const DashboardPageContent = ({
       currentCycle,
@@ -26,7 +27,9 @@ import React, { useState, useEffect, useCallback } from 'react';
       startNewCycle,
       isLoading,
       isFullScreen,
+      orientation,
       toggleFullScreen,
+      rotateOrientation,
       chartDisplayData,
       scrollStart,
       showForm, setShowForm,
@@ -113,7 +116,21 @@ import React, { useState, useEffect, useCallback } from 'react';
                     cycleId={currentCycle.id}
                     initialScrollIndex={scrollStart}
                     visibleDays={VISIBLE_DAYS_NORMAL_VIEW}
+                    showInterpretation={showInterpretation}
                   />
+                  <Button
+                    onClick={() => setShowInterpretation(v => !v)}
+                    variant="ghost"
+                    size="sm"
+                    className={`absolute ${isFullScreen ? 'top-4 right-24' : 'top-2 right-10'} flex items-center text-xs font-normal py-1 px-2 rounded-lg transition-colors ${showInterpretation ? 'bg-[#E27DBF] text-white hover:bg-[#d46ab3]' : 'bg-transparent text-[#393C65] hover:bg-[#E27DBF]/20'}`}
+                  >
+                   {showInterpretation ? (
+                      <EyeOff className="mr-2 h-4 w-4" />
+                    ) : (
+                      <Eye className="mr-2 h-4 w-4" />
+                    )}
+                    {showInterpretation ? 'Ocultar' : 'Interpretar'}
+                  </Button>
                   <Button
                     onClick={toggleFullScreen}
                     variant="ghost"
@@ -221,7 +238,7 @@ import React, { useState, useEffect, useCallback } from 'react';
   const [recordToDelete, setRecordToDelete] = useState(null);
   const [confirmNewCycleDialog, setConfirmNewCycleDialog] = useState(false);
       
-      const { isFullScreen, toggleFullScreen } = useFullScreen();
+      const { isFullScreen, orientation, toggleFullScreen, rotateOrientation } = useFullScreen();
       const { toast } = useToast();
 
       useEffect(() => {
@@ -266,6 +283,16 @@ import React, { useState, useEffect, useCallback } from 'react';
 
 
         if (isFullScreen) {
+                    if (orientation.startsWith('portrait')) {
+            const daysSinceCycleStart = differenceInDays(new Date(), startOfDay(cycleStartDate));
+            const currentDayIndex = Math.min(Math.max(daysSinceCycleStart, 0), daysInCycle - 1);
+            let endIndex = Math.min(daysInCycle, currentDayIndex + 1);
+            if (currentDayIndex < VISIBLE_DAYS_FULLSCREEN_PORTRAIT - 1) {
+              endIndex = Math.min(daysInCycle, VISIBLE_DAYS_FULLSCREEN_PORTRAIT);
+            }
+            const startIndex = Math.max(0, endIndex - VISIBLE_DAYS_FULLSCREEN_PORTRAIT);
+            return { data: mergedData, scrollStart: startIndex };
+          }
           return { data: mergedData, scrollStart: 0 };
         }
 
@@ -292,7 +319,9 @@ import React, { useState, useEffect, useCallback } from 'react';
           startNewCycle={startNewCycle}
           isLoading={isLoading}
           isFullScreen={isFullScreen}
+          orientation={orientation}
           toggleFullScreen={toggleFullScreen}
+          rotateOrientation={rotateOrientation}
           chartDisplayData={chartDisplayData}
           scrollStart={scrollStart}
           showForm={showForm} setShowForm={setShowForm}

@@ -8,7 +8,8 @@ export const useFertilityChart = (
   isFullScreen,
   onToggleIgnore,
   cycleId,
-  visibleDays = 5
+  visibleDays = 5,
+  orientation = 'portrait-primary'
 ) => {
       const chartRef = useRef(null);
       const tooltipRef = useRef(null);
@@ -28,7 +29,12 @@ export const useFertilityChart = (
           if (!chartRef.current) return;
 
           let containerWidth = chartRef.current.clientWidth > 0 ? chartRef.current.clientWidth : 600;
-          let newWidth;
+            if (orientation.startsWith('portrait')) {
+              const perDayWidth = containerWidth / visibleDays;
+              newWidth = perDayWidth * data.length;
+            } else {
+              newWidth = containerWidth;
+            }
           let newHeight;
 
           if (isFullScreen) {
@@ -59,7 +65,7 @@ export const useFertilityChart = (
             resizeObserver.disconnect();
           }
         };
-      }, [isFullScreen, data.length, visibleDays]);
+      }, [isFullScreen, data.length, visibleDays, orientation]);
 
       const validDataForLine = useMemo(() => processedData.filter(d => d && d.isoDate && !d.ignored && d.displayTemperature !== null && d.displayTemperature !== undefined), [processedData]);
       const allDataPoints = useMemo(() => processedData.filter(d => d && d.isoDate), [processedData]);
