@@ -11,6 +11,7 @@ import { useFertilityChart } from '@/hooks/useFertilityChart';
 const FertilityChart = ({
   data,
   isFullScreen,
+  orientation,
   onToggleIgnore,
   onEdit,
   cycleId,
@@ -40,7 +41,7 @@ const FertilityChart = ({
         setActivePoint,
         baselineTemp,
         baselineStartIndex,
-      } = useFertilityChart(data, isFullScreen, onToggleIgnore, cycleId, visibleDays);
+      } = useFertilityChart(data, isFullScreen, orientation, onToggleIgnore, cycleId, visibleDays);
 
       if (!allDataPoints || allDataPoints.length === 0) {
         return <div className="text-center text-slate-400 p-8">No hay datos para mostrar en el gráfico.</div>;
@@ -62,7 +63,7 @@ const FertilityChart = ({
         if (isFullScreen || !chartRef.current) return;
         const dayWidth = chartRef.current.clientWidth / visibleDays;
         chartRef.current.scrollLeft = Math.max(0, dayWidth * initialScrollIndex);
-      }, [isFullScreen, initialScrollIndex, visibleDays, dimensions.width]);
+      }, [isFullScreen, initialScrollIndex, visibleDays, dimensions.width, orientation]);
 
 
       return (

@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, useMemo } from 'react';
 export const useFertilityChart = (
   data,
   isFullScreen,
+  orientation,
   onToggleIgnore,
   cycleId,
   visibleDays = 5
@@ -33,8 +34,14 @@ export const useFertilityChart = (
 
           if (isFullScreen) {
             containerWidth = window.innerWidth;
-            newWidth = containerWidth;
-            newHeight = window.innerHeight;
+            if (orientation === 'portrait') {
+              const perDayWidth = containerWidth / visibleDays;
+              newWidth = perDayWidth * data.length;
+              newHeight = window.innerHeight;
+            } else {
+              newWidth = containerWidth;
+              newHeight = window.innerHeight;
+            }
           } else {
             const perDayWidth = containerWidth / visibleDays;
             newWidth = perDayWidth * data.length;
@@ -59,7 +66,7 @@ export const useFertilityChart = (
             resizeObserver.disconnect();
           }
         };
-      }, [isFullScreen, data.length, visibleDays]);
+      }, [isFullScreen, data.length, visibleDays, orientation]);
 
   const validDataForLine = useMemo(() => processedData.filter(d => d && d.isoDate && !d.ignored && d.displayTemperature !== null && d.displayTemperature !== undefined), [processedData]);
   const allDataPoints = useMemo(() => processedData.filter(d => d && d.isoDate), [processedData]);
