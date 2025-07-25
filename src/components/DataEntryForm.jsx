@@ -41,7 +41,7 @@ import { useDataEntryForm } from '@/hooks/useDataEntryForm';
         <motion.form
           ref={formRef}
           onSubmit={handleSubmit}
-          className="space-y-6 bg-white p-4 sm:p-6 rounded-xl border border-[#E5E7EB] shadow w-full"
+          className="space-y-6 bg-white p-4 sm:p-6 rounded-xl border border-[#FFB1DD]/50 shadow w-full"
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}

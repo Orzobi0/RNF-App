@@ -36,7 +36,7 @@ const RecordsList = ({ records, onEdit, onDelete, onClose, isArchiveView = false
 
       return (
         <motion.div
-          className="w-full bg-white/70 backdrop-blur-md p-4 sm:p-6 rounded-xl ring-1 ring-[#FFB1DD]/50 shadow-xl "
+          className="w-full bg-white/70 backdrop-blur-md p-4 sm:p-6 rounded-xl ring-1 ring-[#FFB1DD]/20 shadow-xl"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
@@ -60,7 +60,7 @@ const RecordsList = ({ records, onEdit, onDelete, onClose, isArchiveView = false
                 return (
                   <motion.li
                     key={record.id || dateToFormat}
-                    className="bg-white/80 backdrop-blur-md ring-1 ring-[#FFB1DD]/30 shadow-lg rounded-lg p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center hover:shadow-xl transition-shadow duration-300 border-pink-500"
+                    className="bg-white/80 backdrop-blur-md ring-1 ring-[#FFB1DD]/50 border border-[#FFB1DD]/80 shadow-lg rounded-lg p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center hover:shadow-xl transition-shadow duration-300"
                     style={{ boxShadow: '0 2px 6px rgba(0,0,0,0.05)' }}
                     layout
                     initial={{ opacity: 0, y: 10 }}
