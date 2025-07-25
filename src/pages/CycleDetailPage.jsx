@@ -109,7 +109,7 @@ import React, { useState, useEffect, useCallback } from 'react';
                   onClick={() => setShowInterpretation(v => !v)}
                    variant={showInterpretation ? 'default' : 'outline'}
                   size="sm"
-                  className={`absolute ${isFullScreen ? 'top-4 right-24' : 'top-2 right-24'} flex items-center font-semibold py-1 px-2 rounded-lg bg-gray-800 bg-opacity-20 shadow-none transition-all`}
+                  className={`absolute ${isFullScreen ? 'top-4 right-24' : 'top-2 right-24'} flex items-center font-semibold py-1 px-2 rounded-lg transition-colors ${showInterpretation ? 'bg-[#E27DBF] text-white hover:bg-[#d46ab3]' : 'bg-[#E27DBF]/20 text-[#393C65] hover:bg-[#E27DBF]/30'}`}
                 >
                   {showInterpretation ? (
                     <EyeOff className="mr-2 h-4 w-4" />
