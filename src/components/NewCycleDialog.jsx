@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import useBackClose from '@/hooks/useBackClose';
     import {
       Dialog,
       DialogContent,
@@ -13,7 +14,8 @@ import { format } from 'date-fns';
 
 const NewCycleDialog = ({ isOpen, onClose, onConfirm, currentCycleStartDate }) => {
   const [startDate, setStartDate] = useState(format(new Date(), "yyyy-MM-dd"));
-
+  useBackClose(isOpen, onClose);
+  
   const handleConfirm = () => {
     onConfirm(startDate);
   };

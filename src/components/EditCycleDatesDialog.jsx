@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
+import useBackClose from '@/hooks/useBackClose';
 import {
   Dialog,
   DialogContent,
@@ -13,6 +14,8 @@ import { Input } from '@/components/ui/input';
 const EditCycleDatesDialog = ({ isOpen, onClose, onConfirm, initialStartDate, initialEndDate }) => {
   const [startDate, setStartDate] = useState(initialStartDate || '');
   const [endDate, setEndDate] = useState(initialEndDate || '');
+
+  useBackClose(isOpen, onClose);
 
   useEffect(() => {
     setStartDate(initialStartDate || '');
