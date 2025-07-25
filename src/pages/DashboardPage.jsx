@@ -46,12 +46,19 @@ import React, { useState, useEffect, useCallback } from 'react';
   });
 
       const handleEdit = (record) => {
-                if (isFullScreen) {
+        const openForm = () => {
+          setEditingRecord(record);
+          setShowRecords(false);
+          setShowForm(true);
+        };
+
+        if (isFullScreen) {
           toggleFullScreen();
+                    setTimeout(openForm, 300);
+        } else {
+          openForm();
         }
-        setEditingRecord(record);
-        setShowRecords(false);
-        setShowForm(true);
+
       };
 
       const handleDeleteRequest = (recordId) => {
@@ -128,9 +135,9 @@ import React, { useState, useEffect, useCallback } from 'react';
                   />
                   <Button
                     onClick={() => setShowInterpretation(v => !v)}
-                    variant={showInterpretation ? 'default' : 'outline'}
+                    variant="ghost"
                     size="sm"
-                    className={`absolute ${isFullScreen ? 'top-4 right-24' : 'top-2 right-10'} flex items-center text-xs font-normal py-1 px-2 rounded-lg transition-colors ${showInterpretation ? 'bg-[#E27DBF] text-white hover:bg-[#d46ab3]' : 'bg-[#E27DBF]/20 text-[#393C65] hover:bg-[#E27DBF]/80'}`}
+                    className={`absolute ${isFullScreen ? 'top-4 right-24' : 'top-2 right-10'} flex items-center text-xs font-normal py-1 px-2 rounded-lg transition-colors ${showInterpretation ? 'bg-[#E27DBF] text-white hover:bg-[#d46ab3]' : 'bg-transparent text-[#393C65] hover:bg-[#E27DBF]/20'}`}
                   >
                    {showInterpretation ? (
                       <EyeOff className="mr-2 h-4 w-4" />
