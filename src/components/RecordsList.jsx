@@ -36,7 +36,7 @@ const RecordsList = ({ records, onEdit, onDelete, onClose, isArchiveView = false
 
       return (
         <motion.div
-          className="bg-white p-4 sm:p-6 rounded-xl border border-[#E5E7EB] shadow w-full"
+          className="w-full bg-white/70 backdrop-blur-md p-4 sm:p-6 rounded-xl ring-1 ring-[#FFB1DD]/50 shadow-xl "
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
@@ -58,10 +58,10 @@ const RecordsList = ({ records, onEdit, onDelete, onClose, isArchiveView = false
                 const dateToFormat = record.timestamp || record.isoDate;
                   const timeToFormat = record.timestamp ? format(parseISO(record.timestamp), 'HH:mm') : null;
                 return (
-                   <motion.li
+                  <motion.li
                     key={record.id || dateToFormat}
-                    className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 bg-white border border-[#E5E7EB] rounded-[10px]"
-                    style={{ boxShadow: '0 2px 4px rgba(0,0,0,0.04)' }}
+                    className="bg-white/80 backdrop-blur-md ring-1 ring-[#FFB1DD]/30 shadow-lg rounded-lg p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center hover:shadow-xl transition-shadow duration-300 border-pink-500"
+                    style={{ boxShadow: '0 2px 6px rgba(0,0,0,0.05)' }}
                     layout
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -69,9 +69,9 @@ const RecordsList = ({ records, onEdit, onDelete, onClose, isArchiveView = false
                     transition={{ duration: 0.2 }}
                   >
                     <div className="flex-grow mb-3 sm:mb-0">
-                        <p className="text-lg font-medium text-[#1F2937]">
+                        <h3 className="text-lg font-semibold text-pink-500 mb-1 ">
                       {dateToFormat ? format(parseISO(dateToFormat), "dd/MM/yyyy", { locale: es }) : 'Fecha no disponible'} (Día {record.cycleDay || 'N/A'})
-                                            </p>
+                                            </h3>
                         {record.temperature_raw != null && (
                             <p className="text-sm text-[#6B7280]">
                               <span className="font-semibold">Original:</span> {record.temperature_raw.toFixed(2)}°C
