@@ -61,8 +61,30 @@ export const useFertilityChart = (
         };
       }, [isFullScreen, data.length, visibleDays]);
 
-      const validDataForLine = useMemo(() => processedData.filter(d => d && d.isoDate && !d.ignored && d.displayTemperature !== null && d.displayTemperature !== undefined), [processedData]);
-      const allDataPoints = useMemo(() => processedData.filter(d => d && d.isoDate), [processedData]);
+  const validDataForLine = useMemo(() => processedData.filter(d => d && d.isoDate && !d.ignored && d.displayTemperature !== null && d.displayTemperature !== undefined), [processedData]);
+  const allDataPoints = useMemo(() => processedData.filter(d => d && d.isoDate), [processedData]);
+
+  const { baselineTemp, baselineStartIndex } = useMemo(() => {
+    const isValid = (p) => p && p.displayTemperature != null && !p.ignored;
+    for (let i = 0; i < processedData.length; i++) {
+      const current = processedData[i];
+      if (!isValid(current)) continue;
+      const prev = [];
+      for (let j = i - 1; j >= 0 && prev.length < 6; j--) {
+        const candidate = processedData[j];
+        if (isValid(candidate)) {
+          prev.unshift({ index: j, temp: candidate.displayTemperature });
+        }
+      }
+      if (prev.length < 6) continue;
+      if (prev.every(p => p.temp < current.displayTemperature)) {
+        const temp = Math.max(...prev.map(p => p.temp));
+        const startIdx = prev.find(p => p.temp === temp).index;
+        return { baselineTemp: temp, baselineStartIndex: startIdx };
+      }
+    }
+    return { baselineTemp: null, baselineStartIndex: null };
+  }, [processedData]);
 
       const { tempMin, tempMax } = useMemo(() => {
         const recordedTemps = validDataForLine.map(d => d.displayTemperature).filter(t => t !== null && t !== undefined);
@@ -220,5 +242,7 @@ const handlePointInteraction = (point, index, event) => {
         clearActivePoint,
         handleToggleIgnore,
         responsiveFontSize,
+        baselineTemp,
+        baselineStartIndex,
       };
     };

@@ -103,7 +103,15 @@ import { useAuth } from '@/contexts/AuthContext';
                   onToggleIgnore={toggleIgnoreRecordForCycle}
                   onEdit={handleEdit}
                   cycleId={cycleData.id}
+                  showInterpretation={showInterpretation}
                 />
+                                <Button
+                  onClick={() => setShowInterpretation(v => !v)}
+                  variant="ghost"
+                  className={`absolute ${isFullScreen ? 'top-4 right-24' : 'top-2 right-24'} text-slate-400 hover:text-slate-200 hover:bg-slate-700/50`}
+                >
+                  Interpretar
+                </Button>
                 <Button
                   onClick={toggleFullScreen}
                   variant="ghost"
@@ -188,6 +196,7 @@ import { useAuth } from '@/contexts/AuthContext';
       const [showEditDialog, setShowEditDialog] = useState(false);
       const { isFullScreen, toggleFullScreen } = useFullScreen();
       const [isProcessing, setIsProcessing] = useState(false);
+      const [showInterpretation, setShowInterpretation] = useState(false);
 
   useEffect(() => {
     const loadCycle = async () => {

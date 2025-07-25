@@ -15,7 +15,8 @@ const FertilityChart = ({
   onEdit,
   cycleId,
   initialScrollIndex = 0,
-  visibleDays = 5
+  visibleDays = 5,
+  showInterpretation = false
 }) => {
       const {
         chartRef,
@@ -37,6 +38,8 @@ const FertilityChart = ({
         responsiveFontSize,
         clearActivePoint,
         setActivePoint,
+        baselineTemp,
+        baselineStartIndex,
       } = useFertilityChart(data, isFullScreen, onToggleIgnore, cycleId, visibleDays);
 
       if (!allDataPoints || allDataPoints.length === 0) {
@@ -45,6 +48,8 @@ const FertilityChart = ({
       
       const chartWidth = dimensions.width;
       const chartHeight = dimensions.height;
+      const baselineY = baselineTemp != null ? getY(baselineTemp) : null;
+      const baselineStartX = baselineTemp != null ? getX(baselineStartIndex) : null;
 
       const containerVariants = {
         hidden: { opacity: 0 },
@@ -124,12 +129,23 @@ const FertilityChart = ({
             
             <ChartLine
               data={validDataForLine}
-              allDataPoints={allDataPoints} 
+              allDataPoints={allDataPoints}
               getX={getX}
               getY={getY}
               baselineY={chartHeight - padding.bottom}
               temperatureField="displayTemperature"
             />
+            {showInterpretation && baselineTemp != null && (
+              <line
+                x1={baselineStartX}
+                y1={baselineY}
+                x2={chartWidth - padding.right}
+                y2={baselineY}
+                stroke="#f59e0b"
+                strokeWidth={2}
+                strokeDasharray="4 4"
+              />
+            )}
 
             <ChartPoints
               data={allDataPoints}

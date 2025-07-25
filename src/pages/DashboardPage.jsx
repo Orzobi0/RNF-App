@@ -35,7 +35,8 @@ import useBackClose from '@/hooks/useBackClose';
       editingRecord, setEditingRecord,
       recordToDelete, setRecordToDelete,
   confirmNewCycleDialog, setConfirmNewCycleDialog,
-  toast
+  toast,
+  showInterpretation, setShowInterpretation,
 }) => {
 
   useBackClose(showRecords, () => setShowRecords(false));
@@ -123,7 +124,15 @@ import useBackClose from '@/hooks/useBackClose';
                     cycleId={currentCycle.id}
                     initialScrollIndex={scrollStart}
                     visibleDays={VISIBLE_DAYS_NORMAL_VIEW}
+                    showInterpretation={showInterpretation}
                   />
+                  <Button
+                    onClick={() => setShowInterpretation(v => !v)}
+                    variant="ghost"
+                    className={`absolute ${isFullScreen ? 'top-4 right-24' : 'top-2 right-24'} text-slate-400 hover:text-slate-200 hover:bg-slate-700/50`}
+                  >
+                    Interpretar
+                  </Button>
                   <Button
                     onClick={toggleFullScreen}
                     variant="ghost"
@@ -226,10 +235,11 @@ import useBackClose from '@/hooks/useBackClose';
       } = useCycleData();
       
       const [showForm, setShowForm] = useState(false);
-      const [showRecords, setShowRecords] = useState(false);
+  const [showRecords, setShowRecords] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [recordToDelete, setRecordToDelete] = useState(null);
   const [confirmNewCycleDialog, setConfirmNewCycleDialog] = useState(false);
+  const [showInterpretation, setShowInterpretation] = useState(false);
       
       const { isFullScreen, toggleFullScreen } = useFullScreen();
       const { toast } = useToast();
@@ -311,6 +321,7 @@ import useBackClose from '@/hooks/useBackClose';
           recordToDelete={recordToDelete} setRecordToDelete={setRecordToDelete}
           confirmNewCycleDialog={confirmNewCycleDialog} setConfirmNewCycleDialog={setConfirmNewCycleDialog}
           toast={toast}
+          showInterpretation={showInterpretation} setShowInterpretation={setShowInterpretation}
         />
       );
     }
