@@ -34,19 +34,21 @@ import React from 'react';
                 {symbolInfo.pattern === 'spotting-pattern' ? (
                   <rect
                     x={x - symbolSize / 2}
-                    y={symbolYPosition - symbolSize / 2} 
+                    y={symbolYPosition - symbolSize / 2}
                     width={symbolSize}
                     height={symbolSize}
                     fill="url(#spotting-pattern-chart)"
+                    stroke={symbolInfo.value === 'white' ? '#cbd5e1' : 'none'}
                     rx={symbolSize * 0.2}
                   />
                 ) : (
                   <rect
                     x={x - symbolSize / 2}
-                    y={symbolYPosition - symbolSize / 2} 
+                    y={symbolYPosition - symbolSize / 2}
                     width={symbolSize}
                     height={symbolSize}
                     fill={fillStyle}
+                    stroke={symbolInfo.value === 'white' ? '#cbd5e1' : 'none'}
                     rx={symbolSize * 0.2} 
                   />
                 )}

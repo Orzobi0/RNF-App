@@ -110,6 +110,9 @@ const FertilityChart = ({
                 <stop offset="0%" stopColor="rgba(244,114,182,0.15)" />
                 <stop offset="100%" stopColor="rgba(217,70,239,0)" />
               </linearGradient>
+              <pattern id="spotting-pattern-chart" patternUnits="userSpaceOnUse" width="6" height="6">
+                <circle cx="1.5" cy="1.5" r="1.5" fill="rgba(239,68,68,0.7)" />
+              </pattern>
             </defs>
             <rect width="100%" height="100%" fill="transparent" />
 

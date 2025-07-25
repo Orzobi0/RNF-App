@@ -98,7 +98,7 @@ const RecordsList = ({ records, onEdit, onDelete, onClose, isArchiveView = false
                       
                       <div className="flex items-center mt-1">
                          {symbolInfo && symbolInfo.value !== 'none' && (
-                            <span className={`w-4 h-4 rounded-full mr-2 ${symbolInfo.color} ${symbolInfo.pattern ? 'pattern-bg' : ''}`}></span>
+                           <span className={`w-4 h-4 rounded-full mr-2 ${symbolInfo.color} ${symbolInfo.pattern ? 'pattern-bg' : ''} ${symbolInfo.value === 'white' ? 'border border-gray-300' : ''}`}></span>
                          )}
                          <p className={`text-sm ${symbolInfo ? symbolInfo.textColor : 'text-[#6B7280]'}`}>{symbolInfo ? symbolInfo.label : 'Sin Símbolo'}</p>
                       </div>

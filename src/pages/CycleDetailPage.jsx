@@ -40,6 +40,9 @@ import React, { useState, useEffect, useCallback } from 'react';
   });
 
       const handleEdit = (record) => {
+                if (isFullScreen) {
+          toggleFullScreen();
+        }
         setEditingRecord(record);
         setShowForm(true);
       };

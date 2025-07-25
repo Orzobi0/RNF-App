@@ -238,6 +238,7 @@ const interactionProps = (!hasAnyRecord || isPlaceholder)
                   fill={ symbolInfo.pattern === 'spotting-pattern'
                           ? "url(#spotting-pattern-chart)"
                           : symbolFillStyle }
+                  stroke={symbolInfo.value === 'white' ? '#cbd5e1' : 'none'}
                   rx={symbolRectSize * 0.2}
                 />
               ) : (
