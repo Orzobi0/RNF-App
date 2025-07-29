@@ -70,7 +70,7 @@ const FertilityChart = ({
         <div className="relative">
             {(!isFullScreen || orientation === 'portrait') && (
             <div
-              className="absolute left-0 top-0 h-full bg-[#F4F6F8] pointer-events-none z-10"
+              className="absolute left-0 top-0 h-full bg-transparent pointer-events-none z-10"
               style={{ width: padding.left }}
             >
               <ChartLeftLegend
