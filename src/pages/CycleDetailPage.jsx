@@ -285,7 +285,12 @@ import React, { useState, useEffect, useCallback } from 'react';
         if (editingRecord) {
           updatedDataArray = cycleData.data.map(item => item.id === editingRecord.id ? { ...item, ...recordWithCycleDay, id: editingRecord.id } : item);
         } else {
-          const newEntry = { ...recordWithCycleDay, id: crypto.randomUUID() };
+          const newEntry = {
+            ...recordWithCycleDay,
+            id: crypto.randomUUID
+              ? crypto.randomUUID()
+              : Math.random().toString(36).slice(2),
+          };
           updatedDataArray = [...cycleData.data, newEntry];
         }
         

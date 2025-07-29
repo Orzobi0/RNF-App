@@ -10,7 +10,9 @@ export default function useBackClose(active, onClose) {
   useEffect(() => {
     if (!active) return;
 
-    const id = crypto.randomUUID();
+    const id = crypto.randomUUID
+      ? crypto.randomUUID()
+      : Math.random().toString(36).slice(2);
 
     const handlePopState = (e) => {
       if (e.state && e.state.overlay === id) {
