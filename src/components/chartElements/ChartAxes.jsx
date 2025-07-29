@@ -13,7 +13,8 @@ const ChartAxes = ({
   getX,
   allDataPoints = [],
   responsiveFontSize,
-  isFullScreen
+  isFullScreen,
+  showLeftLabels = true
 }) => {
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -57,15 +58,17 @@ const ChartAxes = ({
             />
 
             {/* left label */}
-            <text
-              x={padding.left - responsiveFontSize(0.8)}
-              y={y + responsiveFontSize(0.3)}
-              textAnchor="end"
-              fontSize={responsiveFontSize()}
-              fill="#E27DBF"
-            >
-              {labelText}
-            </text>
+            {showLeftLabels && (
+              <text
+                x={padding.left - responsiveFontSize(0.8)}
+                y={y + responsiveFontSize(0.3)}
+                textAnchor="end"
+                fontSize={responsiveFontSize()}
+                fill="#E27DBF"
+              >
+                {labelText}
+              </text>
+            )}
 
             {/* right label */}
             <text
@@ -97,16 +100,18 @@ const ChartAxes = ({
       })}
 
       {/* °C unit in top-left corner */}
-      <motion.text
-        variants={itemVariants}
-        x={padding.left + responsiveFontSize(0.5)}
-        y={padding.top + responsiveFontSize(1)}
-        textAnchor="start"
-        fontSize={responsiveFontSize(1.2)}
-        fill="#E27DBF"
-      >
-        °C
-      </motion.text>
+      {showLeftLabels && (
+        <motion.text
+          variants={itemVariants}
+          x={padding.left + responsiveFontSize(0.5)}
+          y={padding.top + responsiveFontSize(1)}
+          textAnchor="start"
+          fontSize={responsiveFontSize(1.2)}
+          fill="#E27DBF"
+        >
+          °C
+        </motion.text>
+      )}
     </>
   );
 };

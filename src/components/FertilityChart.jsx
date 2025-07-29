@@ -129,6 +129,7 @@ const FertilityChart = ({
               allDataPoints={allDataPoints}
               responsiveFontSize={responsiveFontSize}
               isFullScreen={isFullScreen}
+              showLeftLabels={isFullScreen && orientation === 'landscape'}
             />
             
             <ChartLine
