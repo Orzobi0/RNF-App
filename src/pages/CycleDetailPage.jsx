@@ -16,7 +16,8 @@ import React, { useState, useEffect, useCallback } from 'react';
     import useBackClose from '@/hooks/useBackClose';
     import { useAuth } from '@/contexts/AuthContext';
 
-    const CYCLE_DURATION_DAYS = 30;
+    // Mantener un ancho manejable en horizontal para ciclos largos
+    const CYCLE_DURATION_DAYS = 28;
 
     const CycleDetailContent = ({
       cycleData,

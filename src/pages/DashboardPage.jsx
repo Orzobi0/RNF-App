@@ -16,7 +16,9 @@ import { Maximize, X, Eye, EyeOff, RotateCcw } from 'lucide-react';
     import { format, differenceInDays, startOfDay, parseISO } from 'date-fns';
     import generatePlaceholders from '@/lib/generatePlaceholders';
 
-const CYCLE_DURATION_DAYS = 30;
+// Número de días que se muestran por defecto en horizontal
+// Se reduce a 28 para evitar que la gráfica se desborde en ciclos largos
+const CYCLE_DURATION_DAYS = 28;
 const VISIBLE_DAYS_NORMAL_VIEW = 5;
 const VISIBLE_DAYS_FULLSCREEN_PORTRAIT = 10;
 

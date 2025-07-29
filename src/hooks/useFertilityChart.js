@@ -40,7 +40,8 @@ export const useFertilityChart = (
               newWidth = perDayWidth * data.length;
               newHeight = window.innerHeight;
             } else {
-              newWidth = containerWidth;
+              const perDayWidth = containerWidth / visibleDays;
+              newWidth = perDayWidth * data.length;
               newHeight = window.innerHeight;
             }
           } else {
