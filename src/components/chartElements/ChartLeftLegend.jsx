@@ -1,9 +1,9 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 
-const SENSATION_COLOR = '#0284c7';
-const APPEARANCE_COLOR = '#059669';
-const OBSERVATION_COLOR = '#7e22ce';
+const SENSATION_COLOR = '#135e96';
+const APPEARANCE_COLOR = '#538511';
+const OBSERVATION_COLOR = '#90125c';
 
 const ChartLeftLegend = ({
   padding,

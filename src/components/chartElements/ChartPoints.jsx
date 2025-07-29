@@ -3,6 +3,15 @@ import { motion } from 'framer-motion';
 import { parseISO, startOfDay, isAfter } from 'date-fns';
 import { getSymbolAppearance } from '@/config/fertilitySymbols';
 
+// Colores utilizados en la leyenda y en el sombreado de filas
+const SENSATION_COLOR = '#135e96';
+const APPEARANCE_COLOR = '#538511';
+const OBSERVATION_COLOR = '#90125c';
+const SENSATION_BG = '#f8fcfe';
+const APPEARANCE_BG = '#fcfef8';
+const OBSERVATION_BG = '#fef8fc';
+
+
 /** Quita ceros iniciales a día/mes */
 const compactDate = (dateStr) => {
   if (!dateStr) return '';
