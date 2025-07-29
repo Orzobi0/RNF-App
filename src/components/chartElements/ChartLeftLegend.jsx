@@ -1,6 +1,10 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 
+const SENSATION_COLOR = '#0284c7';
+const APPEARANCE_COLOR = '#059669';
+const OBSERVATION_COLOR = '#7e22ce';
+
 const ChartLeftLegend = ({
   padding,
   chartHeight,
@@ -30,6 +34,7 @@ const ChartLeftLegend = ({
   }
 
   const bottomY = chartHeight - padding.bottom;
+  const rowBlockHeight = textRowHeight * (isFullScreen ? 2 : 1.5);
 
   return (
     <svg
@@ -37,6 +42,14 @@ const ChartLeftLegend = ({
       height={chartHeight}
       className="font-sans pointer-events-none"
     >
+            {/* white background for row labels */}
+      <rect
+        x={0}
+        y={bottomY + textRowHeight * 0.5}
+        width={padding.left}
+        height={textRowHeight * (isFullScreen ? 9.5 : 8)}
+        fill="white"
+      />
       {tempTicks.map((temp, i) => {
         const y = getY(temp);
         const isMajor =
@@ -72,20 +85,20 @@ const ChartLeftLegend = ({
 
       <motion.g variants={itemVariants}>
         {[
-          { label: 'Fecha', row: 1 },
-          { label: 'Día', row: 2 },
-          { label: 'Símbolo', row: 3 },
-          { label: 'Sens.', row: isFullScreen ? 5 : 4.5 },
-          { label: 'Apar.', row: isFullScreen ? 7 : 6 },
-          { label: 'Observ.', row: isFullScreen ? 9 : 7.5 }
-        ].map(({ label, row }) => (
+          { label: 'Fecha', row: 1, color: isFullScreen ? '#1F2937' : '#E27DBF' },
+          { label: 'Día', row: 2, color: isFullScreen ? '#1F2937' : '#E27DBF' },
+          { label: 'Símbolo', row: 3, color: isFullScreen ? '#1F2937' : '#E27DBF' },
+          { label: 'Sens.', row: isFullScreen ? 5 : 4.5, color: SENSATION_COLOR },
+          { label: 'Apar.', row: isFullScreen ? 7 : 6, color: APPEARANCE_COLOR },
+          { label: 'Observ.', row: isFullScreen ? 9 : 7.5, color: OBSERVATION_COLOR }
+        ].map(({ label, row, color }) => (
           <text
             key={label}
             x={padding.left - responsiveFontSize(1.5)}
             y={bottomY + textRowHeight * row}
             textAnchor="end"
             fontSize={responsiveFontSize(0.9)}
-            fill={isFullScreen ? '#1F2937' : '#E27DBF'}
+            fill={color}
           >
             {label}
           </text>
