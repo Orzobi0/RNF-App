@@ -9,5 +9,5 @@ jobs:
       - name: Send keep-alive request
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-        run: curl -fsSL "$SUPABASE_URL" >/dev/null
+        run: curl -sSL "$SUPABASE_URL" >/dev/null
         
