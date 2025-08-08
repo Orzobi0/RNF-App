@@ -1,7 +1,7 @@
 name: Keep Supabase Alive
 on:
   schedule:
-    - cron: '0 0 */6 * *'  # cada 6 días
+    - cron: '0 0 */5 * *'  # cada 5 días
 jobs:
   ping:
     runs-on: ubuntu-latest
