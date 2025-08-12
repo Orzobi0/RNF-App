@@ -1,6 +1,6 @@
 
     import React from 'react';
-    import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+    import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
     import { AuthProvider, useAuth } from '@/contexts/AuthContext';
     import AuthPage from '@/pages/AuthPage';
     import DashboardPage from '@/pages/DashboardPage';
@@ -62,12 +62,12 @@
 
     function App() {
       return (
-        <Router>
+        <BrowserRouter basename="/RNF-App">
           <AuthProvider>
             <AppContent />
             <Toaster />
           </AuthProvider>
-        </Router>
+        </BrowserRouter>
       );
     }
 

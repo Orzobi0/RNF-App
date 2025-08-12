@@ -10,18 +10,24 @@ export default function useBackClose(active, onClose) {
   useEffect(() => {
     if (!active) return;
 
-    const handlePopState = () => {
-      onClose();
+    const id = crypto.randomUUID
+      ? crypto.randomUUID()
+      : Math.random().toString(36).slice(2);
+
+    const handlePopState = (e) => {
+      if (e.state && e.state.overlay === id) {
+        onClose();
+      }
     };
 
     // push dummy state so that back button closes the overlay
-    window.history.pushState({ overlay: true }, "");
+    window.history.pushState({ overlay: id }, "");
     window.addEventListener("popstate", handlePopState);
 
     return () => {
       window.removeEventListener("popstate", handlePopState);
       // remove the dummy state if overlay was closed via UI
-      if (window.history.state && window.history.state.overlay) {
+      if (window.history.state && window.history.state.overlay === id) {
         window.history.back();
       }
     };

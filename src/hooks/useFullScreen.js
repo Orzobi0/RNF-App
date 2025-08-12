@@ -1,46 +1,64 @@
 import { useState, useEffect, useCallback } from 'react';
 
-    export const useFullScreen = () => {
-      const [isFullScreen, setIsFullScreen] = useState(false);
+export const useFullScreen = () => {
+  const [isFullScreen, setIsFullScreen] = useState(false);
+  const [orientation, setOrientation] = useState('portrait');
 
-      const toggleFullScreen = useCallback(async () => {
-        const element = document.documentElement;
-        if (!isFullScreen) {
-          try {
-            if (element.requestFullscreen) {
-              await element.requestFullscreen();
-            } else if (element.mozRequestFullScreen) { 
-              await element.mozRequestFullScreen();
-            } else if (element.webkitRequestFullscreen) { 
-              await element.webkitRequestFullscreen();
-            } else if (element.msRequestFullscreen) { 
-              await element.msRequestFullscreen();
-            }
-            if (typeof window !== 'undefined' && window.screen && window.screen.orientation && window.screen.orientation.lock) {
-              await window.screen.orientation.lock('landscape-primary').catch(() => {});
-            }
-          } catch (error) {
-            // console.error("Error entering fullscreen or locking orientation:", error);
-          }
-        } else {
-          try {
-            if (document.exitFullscreen) {
-              await document.exitFullscreen();
-            } else if (document.mozCancelFullScreen) { 
-              await document.mozCancelFullScreen();
-            } else if (document.webkitExitFullscreen) { 
-              await document.webkitExitFullscreen();
-            } else if (document.msExitFullscreen) { 
-              await document.msExitFullscreen();
-            }
-            if (typeof window !== 'undefined' && window.screen && window.screen.orientation && window.screen.orientation.unlock) {
-              window.screen.orientation.unlock();
-            }
-          } catch (error) {
-            // console.error("Error exiting fullscreen or unlocking orientation:", error);
-          }
-        }
-      }, [isFullScreen]);
+  const enterFullScreen = useCallback(async (desired = 'portrait') => {
+    const element = document.documentElement;
+    try {
+      if (element.requestFullscreen) {
+        await element.requestFullscreen();
+      } else if (element.mozRequestFullScreen) {
+        await element.mozRequestFullScreen();
+      } else if (element.webkitRequestFullscreen) {
+        await element.webkitRequestFullscreen();
+      } else if (element.msRequestFullscreen) {
+        await element.msRequestFullscreen();
+      }
+      if (typeof window !== 'undefined' && window.screen && window.screen.orientation && window.screen.orientation.lock) {
+        await window.screen.orientation.lock(`${desired}-primary`).catch(() => {});
+      }
+      setOrientation(desired);
+    } catch (error) {
+      // ignored
+    }
+  }, []);
+
+  const exitFullScreen = useCallback(async () => {
+    try {
+      if (document.exitFullscreen) {
+        await document.exitFullscreen();
+      } else if (document.mozCancelFullScreen) {
+        await document.mozCancelFullScreen();
+      } else if (document.webkitExitFullscreen) {
+        await document.webkitExitFullscreen();
+      } else if (document.msExitFullscreen) {
+        await document.msExitFullscreen();
+      }
+      if (typeof window !== 'undefined' && window.screen && window.screen.orientation && window.screen.orientation.unlock) {
+        window.screen.orientation.unlock();
+      }
+    } catch (error) {
+      // ignored
+    }
+  }, []);
+
+  const toggleFullScreen = useCallback(async () => {
+    if (!isFullScreen) {
+      await enterFullScreen('portrait');
+    } else {
+      await exitFullScreen();
+    }
+  }, [isFullScreen, enterFullScreen, exitFullScreen]);
+
+  const rotateScreen = useCallback(async () => {
+    const newOrientation = orientation === 'portrait' ? 'landscape' : 'portrait';
+    if (isFullScreen && window.screen && window.screen.orientation && window.screen.orientation.lock) {
+      await window.screen.orientation.lock(`${newOrientation}-primary`).catch(() => {});
+    }
+    setOrientation(newOrientation);
+  }, [orientation, isFullScreen]);
 
       useEffect(() => {
         const handleFullScreenChange = () => {
@@ -69,5 +87,5 @@ import { useState, useEffect, useCallback } from 'react';
         };
       }, []);
 
-      return { isFullScreen, toggleFullScreen };
+return { isFullScreen, orientation, toggleFullScreen, rotateScreen };
     };

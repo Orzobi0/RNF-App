@@ -16,7 +16,8 @@ import React, { useState, useEffect, useCallback } from 'react';
     import useBackClose from '@/hooks/useBackClose';
     import { useAuth } from '@/contexts/AuthContext';
 
-    const CYCLE_DURATION_DAYS = 30;
+    // Mantener un ancho manejable en horizontal para ciclos largos
+    const CYCLE_DURATION_DAYS = 28;
 
     const CycleDetailContent = ({
       cycleData,
@@ -110,6 +111,7 @@ import React, { useState, useEffect, useCallback } from 'react';
                 <FertilityChart
                   data={chartDisplayData}
                   isFullScreen={isFullScreen}
+                  orientation={orientation}
                   onToggleIgnore={toggleIgnoreRecordForCycle}
                   onEdit={handleEdit}
                   cycleId={cycleData.id}
@@ -210,7 +212,7 @@ import React, { useState, useEffect, useCallback } from 'react';
       const [showForm, setShowForm] = useState(false);
       const [recordToDelete, setRecordToDelete] = useState(null);
       const [showEditDialog, setShowEditDialog] = useState(false);
-      const { isFullScreen, toggleFullScreen } = useFullScreen();
+      const { isFullScreen, toggleFullScreen, orientation } = useFullScreen();
       const [isProcessing, setIsProcessing] = useState(false);
       const [showInterpretation, setShowInterpretation] = useState(false);
 
@@ -283,7 +285,12 @@ import React, { useState, useEffect, useCallback } from 'react';
         if (editingRecord) {
           updatedDataArray = cycleData.data.map(item => item.id === editingRecord.id ? { ...item, ...recordWithCycleDay, id: editingRecord.id } : item);
         } else {
-          const newEntry = { ...recordWithCycleDay, id: crypto.randomUUID() };
+          const newEntry = {
+            ...recordWithCycleDay,
+            id: crypto.randomUUID
+              ? crypto.randomUUID()
+              : Math.random().toString(36).slice(2),
+          };
           updatedDataArray = [...cycleData.data, newEntry];
         }
         

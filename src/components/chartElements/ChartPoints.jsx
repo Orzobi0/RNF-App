@@ -3,6 +3,15 @@ import { motion } from 'framer-motion';
 import { parseISO, startOfDay, isAfter } from 'date-fns';
 import { getSymbolAppearance } from '@/config/fertilitySymbols';
 
+// Colores utilizados en la leyenda y en el sombreado de filas
+const SENSATION_COLOR = '#135e96';
+const APPEARANCE_COLOR = '#538511';
+const OBSERVATION_COLOR = '#90125c';
+const SENSATION_BG = '#f8fcfe';
+const APPEARANCE_BG = '#fcfef8';
+const OBSERVATION_BG = '#fef8fc';
+
+
 /** Quita ceros iniciales a día/mes */
 const compactDate = (dateStr) => {
   if (!dateStr) return '';
@@ -37,6 +46,7 @@ const ChartPoints = ({
   getX,
   getY,
   isFullScreen,
+  orientation,
   responsiveFontSize,
   onPointInteraction,
   clearActivePoint,
@@ -78,45 +88,48 @@ const ChartPoints = ({
           y={mucusSensationRowY - rowBlockHeight / 2}
           width={rowWidth}
           height={rowBlockHeight}
-          fill="rgba(252, 231, 243, 0.3)"
+          fill={SENSATION_BG}
         />
         <rect
           x={padding.left}
           y={mucusAppearanceRowY - rowBlockHeight / 2}
           width={rowWidth}
           height={rowBlockHeight}
-          fill="rgba(219, 234, 254, 0.3)"
+          fill={APPEARANCE_BG}
         />
         <rect
           x={padding.left}
           y={observationsRowY - rowBlockHeight / 2}
           width={rowWidth}
           height={rowBlockHeight}
-          fill="rgba(254, 243, 199, 0.3)"
+          fill={OBSERVATION_BG}
         />
       </g>
 
 
       {/* Leyenda izquierda */}
-      <motion.g variants={itemVariants}>
-        {[
-          { label: 'Fecha',   row: 1   },
-          { label: 'Día',     row: 2   },
-          { label: 'Símbolo', row: 3   },
-          { label: 'Sens.',   row: isFullScreen ? 5 : 4.5 },
-          { label: 'Apar.',   row: isFullScreen ? 7 : 6   },
-          { label: 'Observ.', row: isFullScreen ? 9 : 7.5 },
-        ].map(({ label, row }) => (
-          <text
-            key={label}
-            x={padding.left - responsiveFontSize(1.5)}
-            y={bottomY + textRowHeight * row}
-            textAnchor="end"
-            fontSize={responsiveFontSize(0.9)}
-            fill={isFullScreen ? "#1F2937" : "#6B7280"}
-          >{label}</text>
-        ))}
-      </motion.g>
+        {(!isFullScreen || orientation !== 'portrait') && (
+        <motion.g variants={itemVariants}>
+          {[
+            { label: 'Fecha',   row: 1,   color: isFullScreen ? "#1F2937" : "#6B7280" },
+            { label: 'Día',     row: 2,   color: isFullScreen ? "#1F2937" : "#6B7280" },
+            { label: 'Símbolo', row: 3,   color: isFullScreen ? "#1F2937" : "#6B7280" },
+            { label: 'Sens.',   row: isFullScreen ? 5 : 4.5, color: SENSATION_COLOR },
+            { label: 'Apar.',   row: isFullScreen ? 7 : 6,   color: APPEARANCE_COLOR },
+            { label: 'Observ.', row: isFullScreen ? 9 : 7.5, color: OBSERVATION_COLOR },
+          ].map(({ label, row, color }) => (
+            <text
+              key={label}
+              x={padding.left - responsiveFontSize(1.5)}
+              y={bottomY + textRowHeight * row}
+              textAnchor="end"
+              fontSize={responsiveFontSize(0.9)}
+              fill={color}
+            >{label}</text>
+          ))}
+        </motion.g>
+        )}
+      
 
       {data.map((point, index) => {
         const x               = getX(index);
@@ -251,21 +264,21 @@ const interactionProps = (!hasAnyRecord || isPlaceholder)
 
             {/* Sensación */}
             <text x={x} y={mucusSensationRowY} textAnchor="middle"
-                  fontSize={responsiveFontSize(0.9)} fill={textFill}>
+                  fontSize={responsiveFontSize(0.9)} fill={SENSATION_COLOR}>
               <tspan x={x} dy={0}>{sensLine1}</tspan>
               {sensLine2 && <tspan x={x} dy={responsiveFontSize(1)}>{sensLine2}</tspan>}
             </text>
 
             {/* Apariencia */}
             <text x={x} y={mucusAppearanceRowY} textAnchor="middle"
-                  fontSize={responsiveFontSize(0.9)} fill={textFill}>
+                  fontSize={responsiveFontSize(0.9)} fill={APPEARANCE_COLOR}>
               <tspan x={x} dy={0}>{aparLine1}</tspan>
               {aparLine2 && <tspan x={x} dy={responsiveFontSize(1)}>{aparLine2}</tspan>}
             </text>
             
             {/* Observaciones */}
             <text x={x} y={observationsRowY} textAnchor="middle"
-                  fontSize={responsiveFontSize(0.9)} fill={textFill}>
+                  fontSize={responsiveFontSize(0.9)} fill={OBSERVATION_COLOR}>
               <tspan x={x} dy={0}>{obsLine1}</tspan>
               {obsLine2 && <tspan x={x} dy={responsiveFontSize(1)}>{obsLine2}</tspan>}
             </text>

@@ -11,6 +11,7 @@ import { useFertilityChart } from '@/hooks/useFertilityChart';
 const FertilityChart = ({
   data,
   isFullScreen,
+  orientation,
   onToggleIgnore,
   onEdit,
   cycleId,
@@ -40,7 +41,7 @@ const FertilityChart = ({
         setActivePoint,
         baselineTemp,
         baselineStartIndex,
-      } = useFertilityChart(data, isFullScreen, onToggleIgnore, cycleId, visibleDays);
+      } = useFertilityChart(data, isFullScreen, orientation, onToggleIgnore, cycleId, visibleDays);
 
       if (!allDataPoints || allDataPoints.length === 0) {
         return <div className="text-center text-slate-400 p-8">No hay datos para mostrar en el gráfico.</div>;
@@ -62,14 +63,14 @@ const FertilityChart = ({
         if (isFullScreen || !chartRef.current) return;
         const dayWidth = chartRef.current.clientWidth / visibleDays;
         chartRef.current.scrollLeft = Math.max(0, dayWidth * initialScrollIndex);
-      }, [isFullScreen, initialScrollIndex, visibleDays, dimensions.width]);
+      }, [isFullScreen, initialScrollIndex, visibleDays, dimensions.width, orientation]);
 
 
       return (
         <div className="relative">
-          {!isFullScreen && (
+            {(!isFullScreen || orientation === 'portrait') && (
             <div
-              className="absolute left-0 top-0 h-full bg-[#F4F6F8] pointer-events-none z-10"
+              className="absolute left-0 top-0 h-full bg-transparent pointer-events-none z-10"
               style={{ width: padding.left }}
             >
               <ChartLeftLegend
@@ -87,7 +88,7 @@ const FertilityChart = ({
           )}
           <div
             ref={chartRef}
-            className={`relative p-0 rounded-xl ${isFullScreen ? 'w-full h-full bg-white flex items-center justify-center overflow-x-auto overflow-y-hidden' : 'bg-white overflow-x-auto overflow-y-hidden'}`}
+            className={`relative p-0 rounded-xl ${isFullScreen ? 'w-full h-full bg-white flex items-center justify-start overflow-x-auto overflow-y-hidden' : 'bg-white overflow-x-auto overflow-y-hidden'}`}
             style={{ boxShadow: '0 2px 4px rgba(0,0,0,0.03)' }}
           >
           <motion.svg
@@ -128,6 +129,7 @@ const FertilityChart = ({
               allDataPoints={allDataPoints}
               responsiveFontSize={responsiveFontSize}
               isFullScreen={isFullScreen}
+              showLeftLabels={isFullScreen && orientation === 'landscape'}
             />
             
             <ChartLine
@@ -155,6 +157,7 @@ const FertilityChart = ({
               getX={getX}
               getY={getY}
               isFullScreen={isFullScreen}
+              orientation={orientation}
               responsiveFontSize={responsiveFontSize}
               onPointInteraction={handlePointInteraction}
               clearActivePoint={clearActivePoint}
