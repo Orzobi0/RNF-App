@@ -1,3 +1,4 @@
+// src/lib/firebaseClient.js
 import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';

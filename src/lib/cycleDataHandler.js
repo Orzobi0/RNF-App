@@ -1,4 +1,17 @@
-import { supabase } from '@/lib/supabaseClient';
+import {
+  collection,
+  doc,
+  addDoc,
+  getDoc,
+  getDocs,
+  updateDoc,
+  deleteDoc,
+  query,
+  where,
+  orderBy,
+  limit,
+} from 'firebase/firestore';
+import { db } from '@/lib/firebaseClient';
     import { format, differenceInDays, startOfDay, parseISO, compareAsc } from 'date-fns';
 
     const generateCycleDaysForRecord = (recordIsoDate, cycleStartIsoDate) => {
