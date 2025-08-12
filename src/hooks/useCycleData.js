@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { format, startOfDay, parseISO, addDays, parse } from 'date-fns';
 import { useToast } from '@/components/ui/use-toast';
-import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/contexts/AuthContext';
 import { processCycleEntries, createNewCycleEntry, updateCycleEntry, deleteCycleEntryDB, archiveCycleDB, createNewCycleDB, fetchCycleByIdDB, fetchCurrentCycleDB, fetchArchivedCyclesDB, updateCycleDatesDB } from '@/lib/cycleDataHandler';
 

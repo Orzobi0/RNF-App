@@ -1,6 +1,12 @@
 
     import React, { createContext, useState, useContext, useEffect } from 'react';
-    import { supabase } from '@/lib/supabaseClient';
+    import { auth } from '@/lib/firebaseClient';
+    import {
+      onAuthStateChanged,
+      signInWithEmailAndPassword,
+      createUserWithEmailAndPassword,
+      signOut,
+    } from 'firebase/auth';
 
     const AuthContext = createContext(null);
 
@@ -9,42 +15,27 @@
       const [loadingAuth, setLoadingAuth] = useState(true);
 
       useEffect(() => {
-        const getSession = async () => {
-          const { data: { session } } = await supabase.auth.getSession();
-          setUser(session?.user ?? null);
-          setLoadingAuth(false);
-        };
-
-        getSession();
-
-        const { data: authListener } = supabase.auth.onAuthStateChange(
-          async (event, session) => {
-            setUser(session?.user ?? null);
-            setLoadingAuth(false);
+        const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+          if (firebaseUser) {
+            setUser({ id: firebaseUser.uid, email: firebaseUser.email });
+          } else {
+            setUser(null);
           }
-        );
-
-        return () => {
-          authListener?.subscription.unsubscribe();
-        };
+          setLoadingAuth(false);
+        });
+        return () => unsubscribe();
       }, []);
 
       const login = async (email, password) => {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+        await signInWithEmailAndPassword(auth, email, password);
       };
 
       const register = async (email, password) => {
-        const { error } = await supabase.auth.signUp({ 
-          email, 
-          password
-        });
-        if (error) throw error;
+await createUserWithEmailAndPassword(auth, email, password);
       };
 
       const logout = async () => {
-        const { error } = await supabase.auth.signOut();
-        if (error) throw error;
+await signOut(auth);
         setUser(null);
       };
 
