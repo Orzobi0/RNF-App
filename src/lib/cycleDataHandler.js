@@ -8,8 +8,6 @@ import {
   deleteDoc,
   query,
   where,
-  orderBy,
-  limit,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebaseClient';
 import { format, differenceInDays, startOfDay, parseISO, compareAsc } from 'date-fns';
@@ -55,51 +53,44 @@ export const processCycleEntries = (entriesFromView, cycleStartIsoDate) => {
 
 export const fetchCurrentCycleDB = async (userId) => {
   const cyclesRef = collection(db, 'cycles');
-  const q = query(
-    cyclesRef,
-    where('user_id', '==', userId),
-    where('end_date', '==', null),
-    orderBy('start_date', 'desc'),
-    limit(1)
-  );
+const q = query(cyclesRef, where('user_id', '==', userId));
   const cycleSnapshot = await getDocs(q);
   if (cycleSnapshot.empty) return null;
-  const cycleDoc = cycleSnapshot.docs[0];
-  const cycleData = cycleDoc.data();
+
+  const cycles = cycleSnapshot.docs
+    .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
+    .filter((c) => c.end_date === null || c.end_date === undefined)
+    .sort((a, b) => (b.start_date || '').localeCompare(a.start_date || ''));
+
+  if (cycles.length === 0) return null;
+  const cycleDoc = cycles[0];
 
   const entriesRef = collection(db, 'entries');
-  const entriesQ = query(
-    entriesRef,
-    where('cycle_id', '==', cycleDoc.id),
-    orderBy('timestamp', 'asc')
-  );
+ const entriesQ = query(entriesRef, where('cycle_id', '==', cycleDoc.id));
   const entriesSnap = await getDocs(entriesQ);
   const entriesData = entriesSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
   return {
     id: cycleDoc.id,
-    startDate: cycleData.start_date,
-    endDate: cycleData.end_date,
+    startDate: cycleDoc.start_date,
+    endDate: cycleDoc.end_date,
     data: entriesData,
   };
 };
 
 export const fetchArchivedCyclesDB = async (userId) => {
   const cyclesRef = collection(db, 'cycles');
-  const q = query(cyclesRef, where('user_id', '==', userId), orderBy('start_date', 'desc'));
+  const q = query(cyclesRef, where('user_id', '==', userId));
   const snapshot = await getDocs(q);
   const cycles = snapshot.docs
     .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
-    .filter((c) => c.end_date !== null && c.end_date !== undefined);
+    .filter((c) => c.end_date !== null && c.end_date !== undefined)
+    .sort((a, b) => (b.start_date || '').localeCompare(a.start_date || ''));
 
   const cyclesWithEntries = await Promise.all(
     cycles.map(async (cycle) => {
       const entriesRef = collection(db, 'entries');
-      const entriesQ = query(
-        entriesRef,
-        where('cycle_id', '==', cycle.id),
-        orderBy('timestamp', 'asc')
-      );
+      const entriesQ = query(entriesRef, where('cycle_id', '==', cycle.id));
       const entriesSnap = await getDocs(entriesQ);
       const entriesData = entriesSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
       return {
@@ -108,7 +99,7 @@ export const fetchArchivedCyclesDB = async (userId) => {
         endDate: cycle.end_date,
         data: entriesData,
       };
-          })
+    })
   );
   return cyclesWithEntries;
 };
@@ -121,11 +112,7 @@ export const fetchCycleByIdDB = async (userId, cycleId) => {
   if (cycleData.user_id !== userId) return null;
 
   const entriesRef = collection(db, 'entries');
-  const entriesQ = query(
-    entriesRef,
-    where('cycle_id', '==', cycleId),
-    orderBy('timestamp', 'asc')
-  );
+  const entriesQ = query(entriesRef, where('cycle_id', '==', cycleId));
   const entriesSnap = await getDocs(entriesQ);
   const entriesData = entriesSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
 

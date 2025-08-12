@@ -51,6 +51,18 @@ const CycleStats = ({ currentCycle }) => {
         </div>
       </div>
       
+            <div className="bg-gradient-to-br from-emerald-500/10 to-teal-500/10 backdrop-blur-sm rounded-2xl p-4 border border-emerald-200/50">
+        <div className="flex items-center space-x-3">
+          <div className="p-2 bg-emerald-500/20 rounded-xl">
+            <TrendingUp className="h-5 w-5 text-emerald-600" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-gray-600">Registros</p>
+            <p className="text-2xl font-bold text-emerald-600">{totalRecords}</p>
+          </div>
+        </div>
+      </div>
+      
       <div className="bg-gradient-to-br from-purple-500/10 to-indigo-500/10 backdrop-blur-sm rounded-2xl p-4 border border-purple-200/50">
         <div className="flex items-center space-x-3">
           <div className="p-2 bg-purple-500/20 rounded-xl">
@@ -63,17 +75,7 @@ const CycleStats = ({ currentCycle }) => {
         </div>
       </div>
       
-      <div className="bg-gradient-to-br from-emerald-500/10 to-teal-500/10 backdrop-blur-sm rounded-2xl p-4 border border-emerald-200/50">
-        <div className="flex items-center space-x-3">
-          <div className="p-2 bg-emerald-500/20 rounded-xl">
-            <TrendingUp className="h-5 w-5 text-emerald-600" />
-          </div>
-          <div>
-            <p className="text-sm font-medium text-gray-600">Registros</p>
-            <p className="text-2xl font-bold text-emerald-600">{totalRecords}</p>
-          </div>
-        </div>
-      </div>
+
     </motion.div>
   );
 };
