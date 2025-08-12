@@ -222,7 +222,7 @@ import React, { useState, useEffect, useCallback } from 'react';
         let fetchedCycle = await getCycleById(cycleId);
 
         if (!fetchedCycle) {
-          const localData = localStorage.getItem(`fertilityData_cycle_${user.id}_${cycleId}`);
+          const localData = localStorage.getItem(`fertilityData_cycle_${user.uid}_${cycleId}`);
           if (localData) {
             const parsed = JSON.parse(localData);
             fetchedCycle = {
@@ -266,7 +266,7 @@ import React, { useState, useEffect, useCallback } from 'react';
           ...updatedCycle,
           data: updatedCycle.data.map(({cycleDay, ...rest}) => rest) 
         };
-        localStorage.setItem(`fertilityData_cycle_${user.id}_${updatedCycle.id}`, JSON.stringify(cycleToStore));
+        localStorage.setItem(`fertilityData_cycle_${user.uid}_${updatedCycle.id}`, JSON.stringify(cycleToStore));
       };
 
 

@@ -17,7 +17,7 @@
       useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
           if (firebaseUser) {
-            setUser({ id: firebaseUser.uid, email: firebaseUser.email });
+            setUser({ id: firebaseUser.uid, uid: firebaseUser.uid, email: firebaseUser.email });
           } else {
             setUser(null);
           }

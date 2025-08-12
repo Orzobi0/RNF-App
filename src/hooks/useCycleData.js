@@ -19,7 +19,7 @@ export const useCycleData = (specificCycleId = null) => {
   const [isLoading, setIsLoading] = useState(true);
 
   const loadCycleData = useCallback(async () => {
-    if (!user) {
+    if (!user?.uid) {
       console.log('No user found, skipping cycle data load');
       setIsLoading(false);
       return;
@@ -87,7 +87,7 @@ export const useCycleData = (specificCycleId = null) => {
   }, [loadCycleData]);
 
   const addOrUpdateDataPoint = useCallback(async (newData, editingRecord) => {
-    if (!user || !currentCycle.id) {
+    if (!user?.uid || !currentCycle.id) {
       console.error("User or currentCycle.id is missing");
       throw new Error("User or currentCycle.id is missing");
     }
@@ -139,7 +139,7 @@ export const useCycleData = (specificCycleId = null) => {
   }, [user, currentCycle.id, loadCycleData]);
 
   const deleteRecord = useCallback(async (recordId) => {
-    if (!user || !currentCycle.id) return;
+    if (!user?.uid || !currentCycle.id) return;
     
     console.log('Deleting record:', recordId);
     setIsLoading(true);
@@ -156,7 +156,7 @@ export const useCycleData = (specificCycleId = null) => {
   }, [user, currentCycle.id, loadCycleData]);
 
   const toggleIgnoreRecord = useCallback(async (cycleIdToUpdate, recordId) => {
-    if (!user) return;
+    if (!user?.uid) return;
     
     console.log('Toggling ignore for record:', recordId, 'in cycle:', cycleIdToUpdate);
     setIsLoading(true);
@@ -181,7 +181,7 @@ export const useCycleData = (specificCycleId = null) => {
   }, [user, currentCycle, archivedCycles, loadCycleData]);
 
   const startNewCycle = useCallback(async (selectedStartDate) => {
-    if (!user || !currentCycle.id) return;
+    if (!user?.uid || !currentCycle.id) return;
     
     console.log('Starting new cycle with date:', selectedStartDate);
     setIsLoading(true);
@@ -209,7 +209,7 @@ export const useCycleData = (specificCycleId = null) => {
 
   const updateCycleDates = useCallback(
     async (cycleIdToUpdate, newStartDate, newEndDate) => {
-      if (!user) return;
+      if (!user?.uid) return;
       
       console.log('Updating cycle dates:', cycleIdToUpdate, newStartDate, newEndDate);
       setIsLoading(true);
@@ -229,7 +229,7 @@ export const useCycleData = (specificCycleId = null) => {
   );
 
   const getCycleById = useCallback(async (cycleIdToFetch) => {
-    if (!user) return null;
+    if (!user?.uid) return null;
     
     console.log('Fetching cycle by ID:', cycleIdToFetch);
     setIsLoading(true);
