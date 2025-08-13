@@ -67,16 +67,16 @@ const CycleStats = ({ currentCycle, onShowRecords }) => {
   const fertileWindow = calculateFertileWindow([], currentCycle.data);
   
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
+    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-4">
       {/* Día del Ciclo */}
-      <motion.div 
-        className="bg-white/70 backdrop-blur-sm rounded-xl p-4 border border-pink-100/50 shadow-sm"
+      <motion.div
+        className="bg-white/70 backdrop-blur-sm rounded-xl p-3 border border-pink-100/50 shadow-sm"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: 0.1 }}
       >
-        <div className="flex items-center space-x-3">
-          <div className="p-2 bg-gradient-to-br from-pink-500/10 to-rose-500/10 rounded-lg">
+        <div className="flex items-center space-x-2">
+          <div className="p-1.5 bg-gradient-to-br from-pink-500/10 to-rose-500/10 rounded-lg">
             <Calendar className="h-4 w-4 text-pink-600" />
           </div>
           <div className="flex-1 min-w-0">
@@ -89,13 +89,13 @@ const CycleStats = ({ currentCycle, onShowRecords }) => {
       {/* Registros - Clickeable */}
       <motion.button
         onClick={onShowRecords}
-        className="bg-white/70 backdrop-blur-sm rounded-xl p-4 border border-emerald-100/50 shadow-sm hover:shadow-md hover:scale-[1.02] transition-all duration-200 text-left group"
+        className="bg-white/70 backdrop-blur-sm rounded-xl p-3 border border-emerald-100/50 shadow-sm hover:shadow-md hover:scale-[1.02] transition-all duration-200 text-left group"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: 0.2 }}
       >
-        <div className="flex items-center space-x-3">
-          <div className="p-2 bg-gradient-to-br from-emerald-500/10 to-teal-500/10 rounded-lg group-hover:from-emerald-500/20 group-hover:to-teal-500/20 transition-colors">
+        <div className="flex items-center space-x-2">
+          <div className="p-1.5 bg-gradient-to-br from-emerald-500/10 to-teal-500/10 rounded-lg group-hover:from-emerald-500/20 group-hover:to-teal-500/20 transition-colors">
             <TrendingUp className="h-4 w-4 text-emerald-600" />
           </div>
           <div className="flex-1 min-w-0">
@@ -107,13 +107,13 @@ const CycleStats = ({ currentCycle, onShowRecords }) => {
       
       {/* Ventana Fértil */}
       <motion.div 
-        className="bg-white/70 backdrop-blur-sm rounded-xl p-3 border border-purple-100/50 shadow-sm sm:col-span-2 lg:col-span-1"
+        className="bg-white/70 backdrop-blur-sm rounded-xl p-2 border border-purple-100/50 shadow-sm col-span-2 md:col-span-2 lg:col-span-1"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: 0.3 }}
       >
-        <div className="flex items-center space-x-2 mb-2">
-          <div className="p-1.5 bg-gradient-to-br from-purple-500/10 to-indigo-500/10 rounded-lg">
+        <div className="flex items-center space-x-2 mb-1">
+          <div className="p-1 bg-gradient-to-br from-purple-500/10 to-indigo-500/10 rounded-lg">
             <Egg className="h-3.5 w-3.5 text-purple-600" />
           </div>
           <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">Ventana Fértil</p>
@@ -246,12 +246,12 @@ const DashboardPageContent = ({
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
         <motion.div
-          className="w-12 h-12 border-4 border-pink-200 border-t-pink-500 rounded-full animate-spin"
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+          className="w-8 h-8 rounded-full bg-pink-500/80"
+          animate={{ opacity: [0.4, 1, 0.4] }}
+          transition={{ duration: 1.2, repeat: Infinity }}
         />
         <motion.p
-          className="text-slate-600 font-medium"
+          className="text-pink-600 font-medium"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.2 }}
