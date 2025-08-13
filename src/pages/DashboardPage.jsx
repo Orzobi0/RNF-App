@@ -11,7 +11,10 @@ import { useCycleData } from '@/hooks/useCycleData';
 import { useFullScreen } from '@/hooks/useFullScreen';
 import useBackClose from '@/hooks/useBackClose';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Maximize, X, Eye, EyeOff, RotateCcw, Calendar, Thermometer, TrendingUp, Heart } from 'lucide-react';
+import { 
+  Maximize, X, Eye, EyeOff, RotateCcw, Calendar, 
+  TrendingUp, Heart, Plus, List, Egg, Timer 
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { format, differenceInDays, startOfDay, parseISO } from 'date-fns';
@@ -22,61 +25,129 @@ const CYCLE_DURATION_DAYS = 28;
 const VISIBLE_DAYS_NORMAL_VIEW = 5;
 const VISIBLE_DAYS_FULLSCREEN_PORTRAIT = 10;
 
-// Estadísticas del ciclo
-const CycleStats = ({ currentCycle }) => {
+// Componente para calcular ventana fértil
+const calculateFertileWindow = (historicalCycles, currentCycleData) => {
+  // Por ahora devolvemos valores mock ya que no tenemos acceso a los ciclos históricos
+  // En la implementación real, aquí calcularíamos basándonos en los datos reales
+  const totalCycles = 3; // Mock - debería venir de los datos históricos
+  
+  let preovulatoryCalculation = null;
+  let t8Calculation = null;
+  
+  if (totalCycles >= 12) {
+    // Cálculo preovulatorio modificado con 12+ ciclos
+    const shortestCycle = 26; // Mock - debería calcularse del historial
+    preovulatoryCalculation = shortestCycle - 20;
+  } else if (totalCycles >= 6) {
+    // Cálculo preovulatorio modificado con 6-11 ciclos
+    const shortestCycle = 26; // Mock
+    preovulatoryCalculation = shortestCycle - 21;
+  }
+  
+  // T-8: Primer día de temperatura alta de los últimos 12 ciclos
+  // Mock - en la implementación real sería calculado
+  if (totalCycles >= 3) {
+    t8Calculation = 14; // Mock
+  }
+  
+  return {
+    preovulatory: preovulatoryCalculation,
+    t8: t8Calculation,
+    hasSufficientData: totalCycles >= 6
+  };
+};
+
+// Estadísticas del ciclo rediseñadas
+const CycleStats = ({ currentCycle, onShowRecords }) => {
   if (!currentCycle?.startDate) return null;
   
   const cycleDay = differenceInDays(new Date(), parseISO(currentCycle.startDate)) + 1;
   const totalRecords = currentCycle.data?.filter(d => d.id && !d.id.startsWith('placeholder-')).length || 0;
-  const avgTemp = currentCycle.data?.length > 0 
-    ? (currentCycle.data.reduce((sum, d) => sum + (d.displayTemperature || 0), 0) / currentCycle.data.length).toFixed(1)
-    : 0;
-
+  
+  const fertileWindow = calculateFertileWindow([], currentCycle.data);
+  
   return (
-    <motion.div 
-      className="grid grid-cols-3 gap-4 mb-6"
-      initial={{ opacity: 0, y: -20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.6, delay: 0.2 }}
-    >
-      <div className="bg-gradient-to-br from-pink-500/10 to-rose-500/10 backdrop-blur-sm rounded-2xl p-4 border border-pink-200/50">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
+      {/* Día del Ciclo */}
+      <motion.div 
+        className="bg-white/70 backdrop-blur-sm rounded-xl p-4 border border-pink-100/50 shadow-sm"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.1 }}
+      >
         <div className="flex items-center space-x-3">
-          <div className="p-2 bg-pink-500/20 rounded-xl">
-            <Calendar className="h-5 w-5 text-pink-600" />
+          <div className="p-2 bg-gradient-to-br from-pink-500/10 to-rose-500/10 rounded-lg">
+            <Calendar className="h-4 w-4 text-pink-600" />
           </div>
-          <div>
-            <p className="text-sm font-medium text-gray-600">Día del Ciclo</p>
-            <p className="text-2xl font-bold text-pink-600">{cycleDay}</p>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">Día del Ciclo</p>
+            <p className="text-lg font-bold text-pink-600 truncate">{cycleDay}</p>
           </div>
         </div>
-      </div>
+      </motion.div>
       
-            <div className="bg-gradient-to-br from-emerald-500/10 to-teal-500/10 backdrop-blur-sm rounded-2xl p-4 border border-emerald-200/50">
+      {/* Registros - Clickeable */}
+      <motion.button
+        onClick={onShowRecords}
+        className="bg-white/70 backdrop-blur-sm rounded-xl p-4 border border-emerald-100/50 shadow-sm hover:shadow-md hover:scale-[1.02] transition-all duration-200 text-left group"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.2 }}
+      >
         <div className="flex items-center space-x-3">
-          <div className="p-2 bg-emerald-500/20 rounded-xl">
-            <TrendingUp className="h-5 w-5 text-emerald-600" />
+          <div className="p-2 bg-gradient-to-br from-emerald-500/10 to-teal-500/10 rounded-lg group-hover:from-emerald-500/20 group-hover:to-teal-500/20 transition-colors">
+            <TrendingUp className="h-4 w-4 text-emerald-600" />
           </div>
-          <div>
-            <p className="text-sm font-medium text-gray-600">Registros</p>
-            <p className="text-2xl font-bold text-emerald-600">{totalRecords}</p>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">Registros</p>
+            <p className="text-lg font-bold text-emerald-600 truncate">{totalRecords}</p>
           </div>
         </div>
-      </div>
+      </motion.button>
       
-      <div className="bg-gradient-to-br from-purple-500/10 to-indigo-500/10 backdrop-blur-sm rounded-2xl p-4 border border-purple-200/50">
-        <div className="flex items-center space-x-3">
-          <div className="p-2 bg-purple-500/20 rounded-xl">
-            <Thermometer className="h-5 w-5 text-purple-600" />
+      {/* Ventana Fértil */}
+      <motion.div 
+        className="bg-white/70 backdrop-blur-sm rounded-xl p-3 border border-purple-100/50 shadow-sm sm:col-span-2 lg:col-span-1"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.3 }}
+      >
+        <div className="flex items-center space-x-2 mb-2">
+          <div className="p-1.5 bg-gradient-to-br from-purple-500/10 to-indigo-500/10 rounded-lg">
+            <Egg className="h-3.5 w-3.5 text-purple-600" />
           </div>
-          <div>
-            <p className="text-sm font-medium text-gray-600">Temp. Media</p>
-            <p className="text-2xl font-bold text-purple-600">{avgTemp}°C</p>
-          </div>
+          <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">Ventana Fértil</p>
         </div>
-      </div>
-      
-
-    </motion.div>
+        
+        {fertileWindow.hasSufficientData ? (
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-purple-50/50 rounded-lg p-2">
+              <div className="flex items-center space-x-1 mb-1">
+                <Timer className="h-3 w-3 text-purple-500" />
+                <p className="text-xs text-purple-600 font-medium">Cálc. Preov.</p>
+              </div>
+              <p className="text-sm font-bold text-purple-700">
+                {fertileWindow.preovulatory ? `Día ${fertileWindow.preovulatory}` : '—'}
+              </p>
+            </div>
+            <div className="bg-indigo-50/50 rounded-lg p-2">
+              <div className="flex items-center space-x-1 mb-1">
+                <TrendingUp className="h-3 w-3 text-indigo-500" />
+                <p className="text-xs text-indigo-600 font-medium">T-8</p>
+              </div>
+              <p className="text-sm font-bold text-indigo-700">
+                {fertileWindow.t8 ? `Día ${fertileWindow.t8}` : '—'}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-2">
+            <p className="text-xs text-gray-500">Datos insuficientes</p>
+            <p className="text-xs text-gray-400 mt-1">Se requieren ≥6 ciclos</p>
+          </div>
+        )}
+      </motion.div>
+    </div>
   );
 };
 
@@ -193,50 +264,40 @@ const DashboardPageContent = ({
 
   return (
     <div className={`flex flex-col items-center w-full min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-indigo-50 ${isFullScreen ? 'overflow-hidden h-full' : ''}`}>
-      {/* Header mejorado */}
+      {/* Header simplificado y elegante */}
       {!isFullScreen && !showForm && !showRecords && (
         <motion.div 
           className="w-full max-w-6xl px-4 pt-6 pb-4"
-          initial={{ opacity: 0, y: -30 }}
+          initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+          transition={{ duration: 0.5 }}
         >
           <div className="text-center mb-6">
-            <motion.div
-              className="inline-flex items-center space-x-3 mb-4"
-              whileHover={{ scale: 1.05 }}
-              transition={{ type: "spring", stiffness: 300 }}
-            >
-              <div className="p-3 bg-gradient-to-r from-pink-500 to-rose-500 rounded-2xl shadow-lg">
-                <Heart className="h-8 w-8 text-white" />
+            <div className="inline-flex items-center space-x-2 mb-3">
+              <div className="p-2 bg-gradient-to-r from-pink-500 to-rose-500 rounded-xl shadow-sm">
+                <Heart className="h-5 w-5 text-white" />
               </div>
-              <div>
-                <h1 className="text-3xl font-bold bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
+              <div className="text-left">
+                <h1 className="text-2xl font-semibold text-gray-800">
                   Ciclo Actual
                 </h1>
-                <p className="text-sm text-gray-500 mt-1">
+                <p className="text-sm text-gray-500">
                   Seguimiento natural de fertilidad
                 </p>
               </div>
-            </motion.div>
+            </div>
             
-            {/* Badge de estado */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.3 }}
-            >
-              <Badge variant="secondary" className="bg-gradient-to-r from-pink-100 to-purple-100 text-pink-700 border-pink-200 px-4 py-2 rounded-full">
-                {currentCycle?.startDate 
-                  ? `Iniciado el ${format(parseISO(currentCycle.startDate), "dd/MM/yyyy")}`
-                  : "Sin datos de ciclo"
-                }
-              </Badge>
-            </motion.div>
+            {/* Badge de estado más discreto */}
+            <Badge variant="secondary" className="bg-white/60 text-gray-700 border-gray-200 px-3 py-1 rounded-full text-sm">
+              {currentCycle?.startDate 
+                ? `Iniciado el ${format(parseISO(currentCycle.startDate), "dd/MM/yyyy")}`
+                : "Sin datos de ciclo"
+              }
+            </Badge>
           </div>
 
-          {/* Estadísticas */}
-          <CycleStats currentCycle={currentCycle} />
+          {/* Estadísticas rediseñadas */}
+          <CycleStats currentCycle={currentCycle} onShowRecords={openRecordsList} />
         </motion.div>
       )}
 
@@ -244,22 +305,17 @@ const DashboardPageContent = ({
         <AnimatePresence>
           {(!showForm && !showRecords) && (chartDisplayData.length > 0 || isFullScreen) && (
             <motion.div
-              initial={{ opacity: 0, scale: isFullScreen ? 1 : 0.95, y: isFullScreen ? 0 : 20 }}
+              initial={{ opacity: 0, scale: isFullScreen ? 1 : 0.98, y: isFullScreen ? 0 : 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: isFullScreen ? 1 : 0.95, y: isFullScreen ? 0 : 20 }}
-              transition={{ duration: 0.6, type: "spring", stiffness: 100 }}
+              exit={{ opacity: 0, scale: isFullScreen ? 1 : 0.98, y: isFullScreen ? 0 : 10 }}
+              transition={{ duration: 0.4, ease: "easeOut" }}
               className={`
                 ${isFullScreen 
                   ? 'w-full h-full p-0 fixed inset-0 z-50 bg-white' 
-                  : 'p-6 sm:p-8 mb-8 bg-white/80 backdrop-blur-xl rounded-3xl border border-white/50'
+                  : 'p-4 sm:p-6 mb-6 bg-white/70 backdrop-blur-xl rounded-2xl border border-white/50'
                 }
-                shadow-2xl shadow-purple-500/10
+                shadow-xl shadow-purple-500/5
               `}
-              style={{ 
-                boxShadow: isFullScreen 
-                  ? 'none' 
-                  : '0 25px 50px -12px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(255, 255, 255, 0.5)' 
-              }}
             >
               <FertilityChart
                 data={chartDisplayData}
@@ -273,25 +329,25 @@ const DashboardPageContent = ({
                 showInterpretation={showInterpretation}
               />
               
-              {/* Botones del gráfico mejorados */}
+              {/* Botones del gráfico más discretos */}
               <Button
                 onClick={() => setShowInterpretation(v => !v)}
                 variant="ghost"
                 size="sm"
                 className={`
-                  absolute ${isFullScreen ? 'top-6 right-32' : 'top-4 right-16'} 
-                  flex items-center text-sm font-medium py-2 px-4 rounded-full 
-                  transition-all duration-300 backdrop-blur-sm
+                  absolute ${isFullScreen ? 'top-4 right-28' : 'top-3 right-14'} 
+                  flex items-center text-xs font-medium py-1.5 px-3 rounded-lg 
+                  transition-all duration-200 backdrop-blur-sm
                   ${showInterpretation 
-                    ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white hover:from-pink-600 hover:to-rose-600 shadow-lg' 
-                    : 'bg-white/80 text-gray-700 hover:bg-white border border-gray-200 hover:border-pink-300'
+                    ? 'bg-pink-500 text-white hover:bg-pink-600 shadow-sm' 
+                    : 'bg-white/80 text-gray-600 hover:bg-white hover:text-gray-800 border border-gray-200'
                   }
                 `}
               >
                 {showInterpretation ? (
-                  <EyeOff className="mr-2 h-4 w-4" />
+                  <EyeOff className="mr-1.5 h-3.5 w-3.5" />
                 ) : (
-                  <Eye className="mr-2 h-4 w-4" />
+                  <Eye className="mr-1.5 h-3.5 w-3.5" />
                 )}
                 {showInterpretation ? 'Ocultar' : 'Interpretar'}
               </Button>
@@ -301,10 +357,10 @@ const DashboardPageContent = ({
                   onClick={rotateScreen}
                   variant="ghost"
                   size="icon"
-                  className="absolute top-6 right-20 text-white bg-gray-800/50 hover:bg-gray-700/70 backdrop-blur-sm rounded-full p-3"
+                  className="absolute top-4 right-16 text-gray-600 bg-white/80 hover:bg-white backdrop-blur-sm rounded-lg p-2 border border-gray-200"
                   title="Rotar Pantalla"
                 >
-                  <RotateCcw className="h-5 w-5" />
+                  <RotateCcw className="h-4 w-4" />
                 </Button>
               )}
               
@@ -313,82 +369,107 @@ const DashboardPageContent = ({
                 variant="ghost"
                 size="icon"
                 className={`
-                  absolute ${isFullScreen ? 'top-6 right-6' : 'top-4 right-4'} 
-                  rounded-full p-3 backdrop-blur-sm transition-all duration-300
+                  absolute ${isFullScreen ? 'top-4 right-4' : 'top-3 right-3'} 
+                  rounded-lg p-2 backdrop-blur-sm transition-all duration-200
                   ${isFullScreen 
-                    ? 'text-white bg-gray-800/50 hover:bg-gray-700/70' 
-                    : 'text-gray-600 hover:text-gray-800 bg-white/80 hover:bg-white border border-gray-200 hover:border-gray-300'
+                    ? 'text-gray-600 bg-white/80 hover:bg-white border border-gray-200' 
+                    : 'text-gray-500 hover:text-gray-700 bg-white/80 hover:bg-white border border-gray-200'
                   }
                 `}
                 title={isFullScreen ? "Salir de Pantalla Completa" : "Ver en Pantalla Completa"}
               >
-                {isFullScreen ? <X className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
+                {isFullScreen ? <X className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
               </Button>
             </motion.div>
           )}
         </AnimatePresence>
         
-        {!isFullScreen && (
-          <>
-            <ActionButtons
-              onAddRecord={openFormForNewRecord}
-              onShowRecords={openRecordsList}
-              onNewCycle={handleStartNewCycle}
-              disableAdd={showForm && !editingRecord}
-              disableRecords={showRecords}
-            />
-            
-            <AnimatePresence>
-              {(showForm || editingRecord) && (
-                <motion.div
-                  key="data-entry-form"
-                  initial={{ opacity: 0, y: 30, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 30, scale: 0.95 }}
-                  transition={{ duration: 0.4, type: "spring", stiffness: 120 }}
-                  className="w-full"
-                >
-                  <DataEntryForm 
-                    onSubmit={addOrUpdateDataPoint} 
-                    initialData={editingRecord} 
-                    isEditing={Boolean(editingRecord)} 
-                    cycleStartDate={currentCycle.startDate}
-                    onCancel={() => { setShowForm(false); setEditingRecord(null); }}
-                  />
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            <AnimatePresence>
-              {showRecords && (
-                <motion.div
-                  key="records-list"
-                  initial={{ opacity: 0, y: 30, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -30, scale: 0.95 }}
-                  transition={{ duration: 0.4, type: "spring", stiffness: 120 }}
-                  className="w-full"
-                >
-                  <RecordsList
-                    records={currentCycle.data}
-                    onEdit={handleEdit}
-                    onDelete={handleDeleteRequest}
-                    onClose={() => setShowRecords(false)}
-                  />
-                </motion.div>
-              )}
-            </AnimatePresence>
-            
-            {currentCycle.data.filter(d => d.id && !d.id.startsWith('placeholder-')).length === 0 && !showForm && !showRecords && !isFullScreen && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5, duration: 0.6 }}
+        {/* Botones de acción integrados mejor */}
+        {!isFullScreen && !showForm && !showRecords && (
+          <motion.div 
+            className="w-full max-w-md mx-auto mb-8"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3, duration: 0.4 }}
+          >
+            <div className="grid grid-cols-2 gap-3">
+              <Button 
+                onClick={openFormForNewRecord}
+                className="bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white font-medium py-3 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center space-x-2"
               >
-                <NoDataMessage />
-              </motion.div>
-            )}
-          </>
+                <Plus className="h-4 w-4" />
+                <span>Nuevo Registro</span>
+              </Button>
+              
+              <Button 
+                onClick={openRecordsList}
+                variant="outline"
+                className="border-gray-200 text-gray-700 hover:bg-gray-50 font-medium py-3 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center space-x-2"
+              >
+                <List className="h-4 w-4" />
+                <span>Mis Registros</span>
+              </Button>
+            </div>
+            
+            <Button 
+              onClick={handleStartNewCycle}
+              variant="ghost"
+              className="w-full mt-3 text-gray-500 hover:text-gray-700 text-sm font-medium py-2"
+            >
+              Iniciar Nuevo Ciclo
+            </Button>
+          </motion.div>
+        )}
+        
+        <AnimatePresence>
+          {(showForm || editingRecord) && (
+            <motion.div
+              key="data-entry-form"
+              initial={{ opacity: 0, y: 20, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 20, scale: 0.98 }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
+              className="w-full"
+            >
+              <DataEntryForm 
+                onSubmit={addOrUpdateDataPoint} 
+                initialData={editingRecord} 
+                isEditing={Boolean(editingRecord)} 
+                cycleStartDate={currentCycle.startDate}
+                onCancel={() => { setShowForm(false); setEditingRecord(null); }}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {showRecords && (
+            <motion.div
+              key="records-list"
+              initial={{ opacity: 0, y: 20, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -20, scale: 0.98 }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
+              className="w-full"
+            >
+              <RecordsList
+                records={currentCycle.data}
+                onEdit={handleEdit}
+                onDelete={handleDeleteRequest}
+                onClose={() => setShowRecords(false)}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+        
+        {currentCycle.data.filter(d => d.id && !d.id.startsWith('placeholder-')).length === 0 && !showForm && !showRecords && !isFullScreen && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4, duration: 0.4 }}
+          >
+            <NoDataMessage />
+          </motion.div>
         )}
       </main>
       
