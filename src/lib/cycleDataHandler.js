@@ -66,7 +66,11 @@ const q = query(cyclesRef, where('user_id', '==', userId));
   const cycleDoc = cycles[0];
 
   const entriesRef = collection(db, 'entries');
- const entriesQ = query(entriesRef, where('cycle_id', '==', cycleDoc.id));
+  const entriesQ = query(
+    entriesRef,
+    where('cycle_id', '==', cycleDoc.id),
+    where('user_id', '==', userId)
+  );
   const entriesSnap = await getDocs(entriesQ);
   const entriesData = entriesSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
@@ -90,7 +94,11 @@ export const fetchArchivedCyclesDB = async (userId) => {
   const cyclesWithEntries = await Promise.all(
     cycles.map(async (cycle) => {
       const entriesRef = collection(db, 'entries');
-      const entriesQ = query(entriesRef, where('cycle_id', '==', cycle.id));
+            const entriesQ = query(
+        entriesRef,
+        where('cycle_id', '==', cycle.id),
+        where('user_id', '==', userId)
+      );
       const entriesSnap = await getDocs(entriesQ);
       const entriesData = entriesSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
       return {
@@ -112,7 +120,11 @@ export const fetchCycleByIdDB = async (userId, cycleId) => {
   if (cycleData.user_id !== userId) return null;
 
   const entriesRef = collection(db, 'entries');
-  const entriesQ = query(entriesRef, where('cycle_id', '==', cycleId));
+    const entriesQ = query(
+    entriesRef,
+    where('cycle_id', '==', cycleId),
+    where('user_id', '==', userId)
+  );
   const entriesSnap = await getDocs(entriesQ);
   const entriesData = entriesSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
