@@ -16,6 +16,7 @@ const NewCycleDialog = ({ isOpen, onClose, onConfirm, currentCycleStartDate }) =
   const [startDate, setStartDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   useBackClose(isOpen, onClose);
   
+  const isFirstCycle = !currentCycleStartDate;
   const handleConfirm = () => {
     onConfirm(startDate);
   };
@@ -25,8 +26,10 @@ const NewCycleDialog = ({ isOpen, onClose, onConfirm, currentCycleStartDate }) =
       <DialogContent className="bg-white border-pink-100 text-gray-800">
         <DialogHeader>
           <DialogTitle>Iniciar Nuevo Ciclo</DialogTitle>
-                    <DialogDescription className="text-gray-600">
-            ¿Estás seguro de que quieres iniciar un nuevo ciclo? Los datos del ciclo actual ({format(new Date(currentCycleStartDate), 'dd/MM/yyyy')} - {format(new Date(), 'dd/MM/yyyy')}) serán archivados.
+          <DialogDescription className="text-gray-600">
+            {isFirstCycle
+              ? 'Este será tu primer ciclo. Selecciona la fecha de inicio.'
+              : `¿Estás seguro de que quieres iniciar un nuevo ciclo? Los datos del ciclo actual (${format(new Date(currentCycleStartDate), 'dd/MM/yyyy')} - ${format(new Date(), 'dd/MM/yyyy')}) serán archivados.`}
           </DialogDescription>
         </DialogHeader>
         <div className="my-4 space-y-2">
@@ -44,7 +47,7 @@ const NewCycleDialog = ({ isOpen, onClose, onConfirm, currentCycleStartDate }) =
         </div>
         <DialogFooter className="sm:justify-end">
           <Button variant="outline" onClick={onClose} className="border-gray-300 text-gray-700 hover:bg-gray-100">Cancelar</Button>
-          <Button variant="primary" onClick={handleConfirm} className="bg-pink-600 hover:bg-pink-700 text-white">Confirmar Nuevo Ciclo</Button>
+          <Button variant="primary" onClick={handleConfirm} className="bg-pink-600 hover:bg-pink-700 text-white">{isFirstCycle ? 'Iniciar Ciclo' : 'Confirmar Nuevo Ciclo'}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

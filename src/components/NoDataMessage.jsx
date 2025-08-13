@@ -8,8 +8,8 @@ import React from 'react';
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5, delay: 0.6 }}
       >
-        <p className="text-xl mb-4">Aún no hay datos registrados para este ciclo.</p>
-        <p>Haz clic en "Añadir Registro" para empezar.</p>
+        <p className="text-xl mb-4">Aún no hay datos registrados.</p>
+        <p>Inicia un nuevo ciclo o añade un registro para comenzar.</p>
          <div className="mt-8">
           
          </div>

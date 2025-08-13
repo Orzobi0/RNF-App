@@ -6,8 +6,7 @@ import {
   getDocs,
   updateDoc,
   deleteDoc,
-  query,
-  where,
+
 } from 'firebase/firestore';
 import { db } from '@/lib/firebaseClient';
 import { format, differenceInDays, startOfDay, parseISO, compareAsc } from 'date-fns';
@@ -56,9 +55,8 @@ export const processCycleEntries = (entriesFromView, cycleStartIsoDate) => {
 };
 
 export const fetchCurrentCycleDB = async (userId) => {
-  const cyclesRef = collection(db, 'cycles');
-const q = query(cyclesRef, where('user_id', '==', userId));
-  const cycleSnapshot = await getDocs(q);
+  const cyclesRef = collection(db, `users/${userId}/cycles`);
+  const cycleSnapshot = await getDocs(cyclesRef);
   if (cycleSnapshot.empty) return null;
 
   const cycles = cycleSnapshot.docs
@@ -69,13 +67,8 @@ const q = query(cyclesRef, where('user_id', '==', userId));
   if (cycles.length === 0) return null;
   const cycleDoc = cycles[0];
 
-  const entriesRef = collection(db, 'entries');
-  const entriesQ = query(
-    entriesRef,
-    where('cycle_id', '==', cycleDoc.id),
-    where('user_id', '==', userId)
-  );
-  const entriesSnap = await getDocs(entriesQ);
+  const entriesRef = collection(db, `users/${userId}/cycles/${cycleDoc.id}/entries`);
+  const entriesSnap = await getDocs(entriesRef);
   const entriesData = entriesSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
   return {
@@ -87,9 +80,8 @@ const q = query(cyclesRef, where('user_id', '==', userId));
 };
 
 export const fetchArchivedCyclesDB = async (userId) => {
-  const cyclesRef = collection(db, 'cycles');
-  const q = query(cyclesRef, where('user_id', '==', userId));
-  const snapshot = await getDocs(q);
+  const cyclesRef = collection(db, `users/${userId}/cycles`);
+  const snapshot = await getDocs(cyclesRef);
   const cycles = snapshot.docs
     .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
     .filter((c) => c.end_date !== null && c.end_date !== undefined)
@@ -97,13 +89,8 @@ export const fetchArchivedCyclesDB = async (userId) => {
 
   const cyclesWithEntries = await Promise.all(
     cycles.map(async (cycle) => {
-      const entriesRef = collection(db, 'entries');
-            const entriesQ = query(
-        entriesRef,
-        where('cycle_id', '==', cycle.id),
-        where('user_id', '==', userId)
-      );
-      const entriesSnap = await getDocs(entriesQ);
+      const entriesRef = collection(db, `users/${userId}/cycles/${cycle.id}/entries`);
+      const entriesSnap = await getDocs(entriesRef);
       const entriesData = entriesSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
       return {
         id: cycle.id,
@@ -117,19 +104,12 @@ export const fetchArchivedCyclesDB = async (userId) => {
 };
 
 export const fetchCycleByIdDB = async (userId, cycleId) => {
-  const cycleRef = doc(db, 'cycles', cycleId);
+  const cycleRef = doc(db, `users/${userId}/cycles/${cycleId}`);
   const cycleSnap = await getDoc(cycleRef);
   if (!cycleSnap.exists()) return null;
   const cycleData = cycleSnap.data();
-  if (cycleData.user_id !== userId) return null;
-
-  const entriesRef = collection(db, 'entries');
-    const entriesQ = query(
-    entriesRef,
-    where('cycle_id', '==', cycleId),
-    where('user_id', '==', userId)
-  );
-  const entriesSnap = await getDocs(entriesQ);
+  const entriesRef = collection(db, `users/${userId}/cycles/${cycleId}/entries`);
+  const entriesSnap = await getDocs(entriesRef);
   const entriesData = entriesSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
   return {
@@ -141,7 +121,7 @@ export const fetchCycleByIdDB = async (userId, cycleId) => {
 };
 
 export const createNewCycleDB = async (userId, startDate) => {
-  const docRef = await addDoc(collection(db, 'cycles'), {
+   const docRef = await addDoc(collection(db, `users/${userId}/cycles`), {
     user_id: userId,
     start_date: startDate,
     end_date: null,
@@ -150,10 +130,10 @@ export const createNewCycleDB = async (userId, startDate) => {
 };
 
 export const createNewCycleEntry = async (payload) => {
-  const docRef = await addDoc(collection(db, 'entries'), {
-    cycle_id: payload.cycle_id,
-    user_id: payload.user_id,
-    timestamp: payload.timestamp ?? new Date().toISOString(),
+  const userId = payload.user_id;
+  const timestamp = payload.timestamp ?? new Date().toISOString();
+  const entryData = {
+    timestamp,
     temperature_raw: payload.temperature_raw,
     temperature_corrected: payload.temperature_corrected,
     use_corrected: payload.use_corrected,
@@ -163,12 +143,34 @@ export const createNewCycleEntry = async (payload) => {
     fertility_symbol: payload.fertility_symbol,
     observations: payload.observations,
     ignored: payload.ignored,
+      };
+
+  const cyclesRef = collection(db, `users/${userId}/cycles`);
+  const cyclesSnap = await getDocs(cyclesRef);
+  const entryDate = parseISO(timestamp);
+  const targetCycles = cyclesSnap.docs.filter((docSnap) => {
+    const data = docSnap.data();
+    const start = data.start_date ? parseISO(data.start_date) : null;
+    const end = data.end_date ? parseISO(data.end_date) : null;
+    return start && entryDate >= start && (!end || entryDate <= end);
   });
-  return { id: docRef.id };
+
+  const ids = [];
+  for (const cycle of targetCycles) {
+    const ref = await addDoc(collection(db, `users/${userId}/cycles/${cycle.id}/entries`), entryData);
+    ids.push(ref.id);
+  }
+
+  if (ids.length === 0 && payload.cycle_id) {
+    const ref = await addDoc(collection(db, `users/${userId}/cycles/${payload.cycle_id}/entries`), entryData);
+    ids.push(ref.id);
+  }
+
+  return { id: ids[0] ?? null };
 };
 
-export const updateCycleEntry = async (entryId, payload) => {
-  const entryRef = doc(db, 'entries', entryId);
+export const updateCycleEntry = async (userId, cycleId, entryId, payload) => {
+  const entryRef = doc(db, `users/${userId}/cycles/${cycleId}/entries/${entryId}`);
   const entryToUpdate = {
     temperature_raw: payload.temperature_raw,
     temperature_corrected: payload.temperature_corrected,
@@ -186,25 +188,21 @@ export const updateCycleEntry = async (entryId, payload) => {
   await updateDoc(entryRef, entryToUpdate);
   return { id: entryId };
 };
-export const deleteCycleEntryDB = async (entryId) => {
-  await deleteDoc(doc(db, 'entries', entryId));
+export const deleteCycleEntryDB = async (userId, cycleId, entryId) => {
+  await deleteDoc(doc(db, `users/${userId}/cycles/${cycleId}/entries/${entryId}`));
 };
 
 export const archiveCycleDB = async (cycleId, userId, endDate) => {
-  const cycleRef = doc(db, 'cycles', cycleId);
+  const cycleRef = doc(db, `users/${userId}/cycles/${cycleId}`);
   const cycleSnap = await getDoc(cycleRef);
   if (!cycleSnap.exists()) throw new Error('Cycle not found');
-  const cycleData = cycleSnap.data();
-  if (cycleData.user_id !== userId) throw new Error('Unauthorized');
   await updateDoc(cycleRef, { end_date: endDate });
 };
 
 export const updateCycleDatesDB = async (cycleId, userId, startDate, endDate) => {
-    const cycleRef = doc(db, 'cycles', cycleId);
+    const cycleRef = doc(db, `users/${userId}/cycles/${cycleId}`);
   const cycleSnap = await getDoc(cycleRef);
   if (!cycleSnap.exists()) throw new Error('Cycle not found');
-  const cycleData = cycleSnap.data();
-  if (cycleData.user_id !== userId) throw new Error('Unauthorized');
   const updatePayload = {};
   if (startDate !== undefined) updatePayload.start_date = startDate;
   if (endDate !== undefined) updatePayload.end_date = endDate;

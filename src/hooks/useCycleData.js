@@ -25,7 +25,7 @@ const normalizeDate = (date) => {
 export const useCycleData = (specificCycleId = null) => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [currentCycle, setCurrentCycle] = useState({ id: null, startDate: format(startOfDay(new Date()), "yyyy-MM-dd"), data: [] });
+  const [currentCycle, setCurrentCycle] = useState({ id: null, startDate: null, data: [] });
   const [archivedCycles, setArchivedCycles] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -51,25 +51,24 @@ export const useCycleData = (specificCycleId = null) => {
       } else {
         console.log('Loading current cycle');
         cycleToLoad = await fetchCurrentCycleDB(user.uid); // ← CAMBIO: user.uid en lugar de user.id
-        if (!cycleToLoad) {
-          console.log('No current cycle found, creating new one');
-          const newStartDate = format(startOfDay(new Date()), "yyyy-MM-dd");
-          const newCycle = await createNewCycleDB(user.uid, newStartDate); // ← CAMBIO: user.uid en lugar de user.id
-          cycleToLoad = { id: newCycle.id, startDate: newCycle.start_date, data: [] };
-        }
       }
       
       console.log('Cycle loaded:', cycleToLoad);
-      
-      const startDate = normalizeDate(cycleToLoad.startDate);
-      const endDate = normalizeDate(cycleToLoad.endDate);
 
-      setCurrentCycle({
-        ...cycleToLoad,
-        startDate,
-        endDate,
-        data: processCycleEntries(cycleToLoad.data, startDate)
-      });
+
+      if (cycleToLoad) {
+        const startDate = normalizeDate(cycleToLoad.startDate);
+        const endDate = normalizeDate(cycleToLoad.endDate);
+
+        setCurrentCycle({
+          ...cycleToLoad,
+          startDate,
+          endDate,
+          data: processCycleEntries(cycleToLoad.data, startDate)
+        });
+      } else {
+        setCurrentCycle({ id: null, startDate: null, data: [] });
+      }
       
       console.log('Loading archived cycles');
       const archivedData = await fetchArchivedCyclesDB(user.uid); // ← CAMBIO: user.uid en lugar de user.id
@@ -92,7 +91,7 @@ export const useCycleData = (specificCycleId = null) => {
       if (error.code === 'permission-denied') {
         console.error('Firebase permissions error. Check Firestore rules.');
       }
-      setCurrentCycle({ id: null, startDate: format(startOfDay(new Date()), "yyyy-MM-dd"), data: [] });
+      setCurrentCycle({ id: null, startDate: null, data: [] });
       setArchivedCycles([]);
     } finally {
       setIsLoading(false);
@@ -147,7 +146,7 @@ export const useCycleData = (specificCycleId = null) => {
       
       if (editingRecord) {
         console.log('Updating existing record:', editingRecord.id);
-        await updateCycleEntry(editingRecord.id, recordPayload);
+        await updateCycleEntry(user.uid, currentCycle.id, editingRecord.id, recordPayload);
       } else {
         console.log('Creating new record');
         await createNewCycleEntry(recordPayload);
@@ -170,7 +169,7 @@ export const useCycleData = (specificCycleId = null) => {
     console.log('Deleting record:', recordId);
     setIsLoading(true);
     try {
-      await deleteCycleEntryDB(recordId, user.uid); // ← CAMBIO: user.uid en lugar de user.id
+      await deleteCycleEntryDB(user.uid, currentCycle.id, recordId); // ← CAMBIO: user.uid en lugar de user.id
       await loadCycleData();
       console.log('Record deleted successfully');
     } catch (error) {
@@ -194,7 +193,7 @@ export const useCycleData = (specificCycleId = null) => {
       if (!recordToUpdate) throw new Error("Record not found for toggling ignore state.");
 
       const newIgnoredState = !recordToUpdate.ignored;
-      await updateCycleEntry(recordId, { ignored: newIgnoredState });
+      await updateCycleEntry(user.uid, cycleIdToUpdate, recordId, { ignored: newIgnoredState });
       await loadCycleData();
 
       console.log('Record ignore status toggled successfully');
@@ -207,17 +206,19 @@ export const useCycleData = (specificCycleId = null) => {
   }, [user, currentCycle, archivedCycles, loadCycleData]);
 
   const startNewCycle = useCallback(async (selectedStartDate) => {
-    if (!user?.uid || !currentCycle.id) return;
-    
+    if (!user?.uid) return;
+ 
     console.log('Starting new cycle with date:', selectedStartDate);
     setIsLoading(true);
     try {
       const startDateObj = selectedStartDate
         ? startOfDay(parseISO(selectedStartDate))
         : startOfDay(new Date());
-      const archiveEndDate = format(addDays(startDateObj, -1), "yyyy-MM-dd");
 
-      await archiveCycleDB(currentCycle.id, user.uid, archiveEndDate); // ← CAMBIO: user.uid en lugar de user.id
+      if (currentCycle.id) {
+        const archiveEndDate = format(addDays(startDateObj, -1), "yyyy-MM-dd");
+        await archiveCycleDB(currentCycle.id, user.uid, archiveEndDate); // ← CAMBIO: user.uid en lugar de user.id
+      }
 
       const newStartDate = format(startDateObj, "yyyy-MM-dd");
       const newCycle = await createNewCycleDB(user.uid, newStartDate); // ← CAMBIO: user.uid en lugar de user.id

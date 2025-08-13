@@ -406,6 +406,7 @@ const DashboardPageContent = ({
             <div className="grid grid-cols-2 gap-3">
               <Button 
                 onClick={openFormForNewRecord}
+                disabled={!currentCycle.id}
                 className="bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white font-medium py-3 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center space-x-2"
               >
                 <Plus className="h-4 w-4" />
@@ -415,6 +416,7 @@ const DashboardPageContent = ({
               <Button 
                 onClick={openRecordsList}
                 variant="outline"
+                disabled={!currentCycle.id}
                 className="border-pink-200 text-pink-700 hover:bg-pink-50 hover:text-pink-800 font-medium py-3 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center space-x-2"
               >
                 <List className="h-4 w-4" />
