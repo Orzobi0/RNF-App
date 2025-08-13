@@ -121,7 +121,22 @@ export const fetchCycleByIdDB = async (userId, cycleId) => {
 };
 
 export const createNewCycleDB = async (userId, startDate) => {
-   const docRef = await addDoc(collection(db, `users/${userId}/cycles`), {
+  const cyclesRef = collection(db, `users/${userId}/cycles`);
+  const cyclesSnap = await getDocs(cyclesRef);
+  const newStart = parseISO(startDate);
+
+  const overlaps = cyclesSnap.docs.some((docSnap) => {
+    const data = docSnap.data();
+    const start = data.start_date ? parseISO(data.start_date) : null;
+    const end = data.end_date ? parseISO(data.end_date) : null;
+    return start && newStart >= start && (!end || newStart <= end);
+  });
+
+  if (overlaps) {
+    throw new Error('Cycle dates overlap with an existing cycle');
+  }
+
+  const docRef = await addDoc(collection(db, `users/${userId}/cycles`), {
     user_id: userId,
     start_date: startDate,
     end_date: null,
@@ -148,25 +163,39 @@ export const createNewCycleEntry = async (payload) => {
   const cyclesRef = collection(db, `users/${userId}/cycles`);
   const cyclesSnap = await getDocs(cyclesRef);
   const entryDate = parseISO(timestamp);
-  const targetCycles = cyclesSnap.docs.filter((docSnap) => {
+  const candidateCycles = cyclesSnap.docs.filter((docSnap) => {
     const data = docSnap.data();
     const start = data.start_date ? parseISO(data.start_date) : null;
     const end = data.end_date ? parseISO(data.end_date) : null;
     return start && entryDate >= start && (!end || entryDate <= end);
   });
 
-  const ids = [];
-  for (const cycle of targetCycles) {
-    const ref = await addDoc(collection(db, `users/${userId}/cycles/${cycle.id}/entries`), entryData);
-    ids.push(ref.id);
+  let targetCycle = null;
+  if (candidateCycles.length > 1) {
+    targetCycle = candidateCycles
+      .sort((a, b) => {
+        const startA = parseISO(a.data().start_date);
+        const startB = parseISO(b.data().start_date);
+        return startB - startA;
+      })[0];
+  } else if (candidateCycles.length === 1) {
+    targetCycle = candidateCycles[0];
   }
 
-  if (ids.length === 0 && payload.cycle_id) {
+  if (targetCycle) {
+    const ref = await addDoc(
+      collection(db, `users/${userId}/cycles/${targetCycle.id}/entries`),
+      entryData
+    );
+    return { id: ref.id };
+  }
+
+  if (payload.cycle_id) {
     const ref = await addDoc(collection(db, `users/${userId}/cycles/${payload.cycle_id}/entries`), entryData);
-    ids.push(ref.id);
+    return { id: ref.id };
   }
 
-  return { id: ids[0] ?? null };
+  return { id: null };
 };
 
 export const updateCycleEntry = async (userId, cycleId, entryId, payload) => {
@@ -200,9 +229,33 @@ export const archiveCycleDB = async (cycleId, userId, endDate) => {
 };
 
 export const updateCycleDatesDB = async (cycleId, userId, startDate, endDate) => {
-    const cycleRef = doc(db, `users/${userId}/cycles/${cycleId}`);
+  const cycleRef = doc(db, `users/${userId}/cycles/${cycleId}`);
   const cycleSnap = await getDoc(cycleRef);
   if (!cycleSnap.exists()) throw new Error('Cycle not found');
+  
+  const currentData = cycleSnap.data();
+  const proposedStart = startDate ?? currentData.start_date;
+  const proposedEnd = endDate !== undefined ? endDate : currentData.end_date;
+  const proposedStartDate = proposedStart ? parseISO(proposedStart) : null;
+  const proposedEndDate = proposedEnd ? parseISO(proposedEnd) : null;
+
+  const cyclesRef = collection(db, `users/${userId}/cycles`);
+  const cyclesSnap = await getDocs(cyclesRef);
+  const overlap = cyclesSnap.docs.some((docSnap) => {
+    if (docSnap.id === cycleId) return false;
+    const data = docSnap.data();
+    const start = data.start_date ? parseISO(data.start_date) : null;
+    const end = data.end_date ? parseISO(data.end_date) : null;
+    if (!start) return false;
+    const endDateComparable = end ?? new Date('9999-12-31');
+    const proposedEndComparable = proposedEndDate ?? new Date('9999-12-31');
+    return proposedStartDate <= endDateComparable && start <= proposedEndComparable;
+  });
+
+  if (overlap) {
+    throw new Error('Cycle dates overlap with an existing cycle');
+  }
+
   const updatePayload = {};
   if (startDate !== undefined) updatePayload.start_date = startDate;
   if (endDate !== undefined) updatePayload.end_date = endDate;
