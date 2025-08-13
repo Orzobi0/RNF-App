@@ -1,19 +1,19 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import useBackClose from '@/hooks/useBackClose';
-    import {
-      Dialog,
-      DialogContent,
-      DialogHeader,
-      DialogTitle,
-      DialogDescription,
-      DialogFooter,
-} from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { format } from 'date-fns';
 
 const NewCycleDialog = ({ isOpen, onClose, onConfirm, currentCycleStartDate }) => {
-  const [startDate, setStartDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [startDate, setStartDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   useBackClose(isOpen, onClose);
   
   const handleConfirm = () => {
@@ -22,15 +22,15 @@ const NewCycleDialog = ({ isOpen, onClose, onConfirm, currentCycleStartDate }) =
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="bg-slate-800 border-slate-700 text-slate-50">
+      <DialogContent className="bg-white border-pink-100 text-gray-800">
         <DialogHeader>
           <DialogTitle>Iniciar Nuevo Ciclo</DialogTitle>
-          <DialogDescription className="text-slate-400">
-            ¿Estás seguro de que quieres iniciar un nuevo ciclo? Los datos del ciclo actual ({format(new Date(currentCycleStartDate), "dd/MM/yyyy")} - {format(new Date(), "dd/MM/yyyy")}) serán archivados.
+                    <DialogDescription className="text-gray-600">
+            ¿Estás seguro de que quieres iniciar un nuevo ciclo? Los datos del ciclo actual ({format(new Date(currentCycleStartDate), 'dd/MM/yyyy')} - {format(new Date(), 'dd/MM/yyyy')}) serán archivados.
           </DialogDescription>
         </DialogHeader>
         <div className="my-4 space-y-2">
-          <label htmlFor="startDate" className="text-slate-300 text-sm">
+          <label htmlFor="startDate" className="text-gray-700 text-sm">
             Fecha de inicio del nuevo ciclo
           </label>
           <Input
@@ -38,13 +38,13 @@ const NewCycleDialog = ({ isOpen, onClose, onConfirm, currentCycleStartDate }) =
             type="date"
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
-            max={format(new Date(), "yyyy-MM-dd")}
-            className="bg-slate-700 border-slate-600 text-slate-50"
+            max={format(new Date(), 'yyyy-MM-dd')}
+            className="bg-gray-50 border-gray-200 text-gray-800"
           />
         </div>
         <DialogFooter className="sm:justify-end">
-          <Button variant="outline" onClick={onClose} className="border-slate-600 hover:bg-slate-700">Cancelar</Button>
-            <Button variant="primary" onClick={handleConfirm} className="bg-pink-600 hover:bg-pink-700">Confirmar Nuevo Ciclo</Button>
+          <Button variant="outline" onClick={onClose} className="border-gray-300 text-gray-700 hover:bg-gray-100">Cancelar</Button>
+          <Button variant="primary" onClick={handleConfirm} className="bg-pink-600 hover:bg-pink-700 text-white">Confirmar Nuevo Ciclo</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -6,14 +6,15 @@ import ActionButtons from '@/components/ActionButtons';
 import NoDataMessage from '@/components/NoDataMessage';
 import DeletionDialog from '@/components/DeletionDialog';
 import NewCycleDialog from '@/components/NewCycleDialog';
+import EditCycleDatesDialog from '@/components/EditCycleDatesDialog';
 import { useToast } from '@/components/ui/use-toast';
 import { useCycleData } from '@/hooks/useCycleData';
 import { useFullScreen } from '@/hooks/useFullScreen';
 import useBackClose from '@/hooks/useBackClose';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Maximize, X, Eye, EyeOff, RotateCcw, Calendar, 
-  TrendingUp, Heart, Plus, List, Egg, Timer 
+  Maximize, X, Eye, EyeOff, RotateCcw, Calendar,
+  TrendingUp, Heart, Plus, List, Egg, Timer, Pencil
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -171,7 +172,9 @@ const DashboardPageContent = ({
   confirmNewCycleDialog, setConfirmNewCycleDialog,
   toast,
   showInterpretation, setShowInterpretation,
+  updateCycleDates,
 }) => {
+    const [showEditCycleDialog, setShowEditCycleDialog] = useState(false);
 
   useBackClose(showRecords, () => setShowRecords(false));
   useBackClose(showForm || editingRecord, () => {
@@ -203,6 +206,14 @@ const DashboardPageContent = ({
   const handleDeleteRequest = (recordId) => {
     const record = currentCycle.data.find(r => r.id === recordId);
     setRecordToDelete(record);
+  };
+  const handleCycleDatesUpdate = (dates) => {
+    updateCycleDates(currentCycle.id, dates.startDate, dates.endDate);
+    toast({
+      title: 'Fechas actualizadas',
+      description: 'Las fechas del ciclo han sido modificadas.'
+    });
+    setShowEditCycleDialog(false);
   };
 
   const confirmDelete = () => {
@@ -277,23 +288,28 @@ const DashboardPageContent = ({
               <div className="p-2 bg-gradient-to-r from-pink-500 to-rose-500 rounded-xl shadow-sm">
                 <Heart className="h-5 w-5 text-white" />
               </div>
-              <div className="text-left">
-                <h1 className="text-2xl font-semibold text-gray-800">
-                  Ciclo Actual
-                </h1>
-                <p className="text-sm text-gray-500">
-                  Seguimiento natural de fertilidad
-                </p>
-              </div>
+                            <h1 className="text-2xl font-semibold text-gray-800">Ciclo Actual</h1>
+            </div>
+
+            {/* Fecha de inicio editable */}
+            <div className="flex items-center justify-center space-x-2">
+              <Badge variant="secondary" className="bg-white/60 text-gray-700 border-gray-200 px-3 py-1 rounded-full text-sm">
+                {currentCycle?.startDate
+                  ? `Iniciado el ${format(parseISO(currentCycle.startDate), "dd/MM/yyyy")}`
+                  : "Sin datos de ciclo"}
+              </Badge>
+              {currentCycle?.startDate && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-gray-600"
+                  onClick={() => setShowEditCycleDialog(true)}
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+              )}
             </div>
             
-            {/* Badge de estado más discreto */}
-            <Badge variant="secondary" className="bg-white/60 text-gray-700 border-gray-200 px-3 py-1 rounded-full text-sm">
-              {currentCycle?.startDate 
-                ? `Iniciado el ${format(parseISO(currentCycle.startDate), "dd/MM/yyyy")}`
-                : "Sin datos de ciclo"
-              }
-            </Badge>
           </div>
 
           {/* Estadísticas rediseñadas */}
@@ -486,19 +502,28 @@ const DashboardPageContent = ({
         onConfirm={confirmStartNewCycleAction}
         currentCycleStartDate={currentCycle.startDate}
       />
+      
+      <EditCycleDatesDialog
+        isOpen={showEditCycleDialog}
+        onClose={() => setShowEditCycleDialog(false)}
+        onConfirm={handleCycleDatesUpdate}
+        initialStartDate={currentCycle.startDate}
+        initialEndDate={currentCycle.endDate}
+      />
     </div>
   );
 }
 
 function DashboardPage() {
-  const { 
-    currentCycle, 
-    addOrUpdateDataPoint: originalAddOrUpdate, 
-    deleteRecord, 
+  const {
+    currentCycle,
+    addOrUpdateDataPoint: originalAddOrUpdate,
+    deleteRecord,
     startNewCycle,
     isLoading,
     refreshData,
-    toggleIgnoreRecord
+    toggleIgnoreRecord,
+    updateCycleDates
   } = useCycleData();
   
   const [showForm, setShowForm] = useState(false);
@@ -593,6 +618,7 @@ function DashboardPage() {
       confirmNewCycleDialog={confirmNewCycleDialog} setConfirmNewCycleDialog={setConfirmNewCycleDialog}
       toast={toast}
       showInterpretation={showInterpretation} setShowInterpretation={setShowInterpretation}
+      updateCycleDates={updateCycleDates}
     />
   );
 }

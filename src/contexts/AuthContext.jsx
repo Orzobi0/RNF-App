@@ -1,12 +1,12 @@
-
-    import React, { createContext, useState, useContext, useEffect } from 'react';
-    import { auth } from '@/lib/firebaseClient';
-    import {
-      onAuthStateChanged,
-      signInWithEmailAndPassword,
-      createUserWithEmailAndPassword,
-      signOut,
-    } from 'firebase/auth';
+import React, { createContext, useState, useContext, useEffect } from 'react';
+import { auth } from '@/lib/firebaseClient';
+import {
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
+  signOut,
+} from 'firebase/auth';
 
     const AuthContext = createContext(null);
 
@@ -31,16 +31,20 @@
       };
 
       const register = async (email, password) => {
-await createUserWithEmailAndPassword(auth, email, password);
+        await createUserWithEmailAndPassword(auth, email, password);
+      };
+
+      const resetPassword = async (email) => {
+        await sendPasswordResetEmail(auth, email);
       };
 
       const logout = async () => {
-await signOut(auth);
+        await signOut(auth);
         setUser(null);
       };
 
       return (
-        <AuthContext.Provider value={{ user, login, register, logout, loadingAuth }}>
+        <AuthContext.Provider value={{ user, login, register, logout, resetPassword, loadingAuth }}>
           {children}
         </AuthContext.Provider>
       );
