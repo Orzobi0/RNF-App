@@ -404,7 +404,7 @@ const DashboardPageContent = ({
               <Button 
                 onClick={openRecordsList}
                 variant="outline"
-                className="border-gray-200 text-gray-700 hover:bg-gray-50 font-medium py-3 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center space-x-2"
+                className="border-pink-200 text-pink-700 hover:bg-pink-50 hover:text-pink-800 font-medium py-3 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 flex items-center justify-center space-x-2"
               >
                 <List className="h-4 w-4" />
                 <span>Mis Registros</span>
@@ -413,8 +413,8 @@ const DashboardPageContent = ({
             
             <Button 
               onClick={handleStartNewCycle}
-              variant="ghost"
-              className="w-full mt-3 text-gray-500 hover:text-gray-700 text-sm font-medium py-2"
+              variant="outline"
+              className="w-full mt-3 border-pink-200 text-pink-600 hover:bg-pink-50 hover:text-pink-700 text-sm font-medium py-2"
             >
               Iniciar Nuevo Ciclo
             </Button>
@@ -428,12 +428,12 @@ const DashboardPageContent = ({
               initial={{ opacity: 0, y: 20, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 20, scale: 0.98 }}
-              transition={{ duration: 0.3, ease: "easeOut" }}
+              transition={{ type: 'spring', stiffness: 260, damping: 20 }}
               className="w-full"
             >
-              <DataEntryForm 
-                onSubmit={addOrUpdateDataPoint} 
-                initialData={editingRecord} 
+              <DataEntryForm
+                onSubmit={addOrUpdateDataPoint}
+                initialData={editingRecord}
                 isEditing={Boolean(editingRecord)} 
                 cycleStartDate={currentCycle.startDate}
                 onCancel={() => { setShowForm(false); setEditingRecord(null); }}
@@ -449,7 +449,7 @@ const DashboardPageContent = ({
               initial={{ opacity: 0, y: 20, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -20, scale: 0.98 }}
-              transition={{ duration: 0.3, ease: "easeOut" }}
+              transition={{ type: 'spring', stiffness: 260, damping: 20 }}
               className="w-full"
             >
               <RecordsList
