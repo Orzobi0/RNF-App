@@ -11,7 +11,14 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 
-const EditCycleDatesDialog = ({ isOpen, onClose, onConfirm, initialStartDate, initialEndDate }) => {
+const EditCycleDatesDialog = ({
+  isOpen,
+  onClose,
+  onConfirm,
+  initialStartDate,
+  initialEndDate,
+  includeEndDate = true,
+}) => {
   const [startDate, setStartDate] = useState(initialStartDate || '');
   const [endDate, setEndDate] = useState(initialEndDate || '');
 
@@ -23,21 +30,26 @@ const EditCycleDatesDialog = ({ isOpen, onClose, onConfirm, initialStartDate, in
   }, [initialStartDate, initialEndDate]);
 
   const handleConfirm = () => {
-    onConfirm({ startDate, endDate: endDate || null });
+    const payload = includeEndDate
+      ? { startDate, endDate: endDate || null }
+      : { startDate };
+    onConfirm(payload);
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="bg-slate-800 border-slate-700 text-slate-50">
+      <DialogContent className="bg-white border-pink-100 text-gray-800">
         <DialogHeader>
           <DialogTitle>Editar Fechas del Ciclo</DialogTitle>
-          <DialogDescription className="text-slate-400">
-            Modifica la fecha de inicio y fin del ciclo.
+          <DialogDescription className="text-gray-600">
+            {includeEndDate
+              ? 'Modifica la fecha de inicio y fin del ciclo.'
+              : 'Modifica la fecha de inicio del ciclo.'}
           </DialogDescription>
         </DialogHeader>
         <div className="my-4 space-y-4">
           <div>
-            <label htmlFor="startDate" className="text-slate-300 text-sm">
+            <label htmlFor="startDate" className="text-gray-700 text-sm">
               Inicio del ciclo
             </label>
             <Input
@@ -45,25 +57,27 @@ const EditCycleDatesDialog = ({ isOpen, onClose, onConfirm, initialStartDate, in
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              className="bg-slate-700 border-slate-600 text-slate-50"
+              className="bg-gray-50 border-gray-200 text-gray-800"
             />
           </div>
-          <div>
-            <label htmlFor="endDate" className="text-slate-300 text-sm">
-              Fin del ciclo
-            </label>
-            <Input
-              id="endDate"
-              type="date"
-              value={endDate || ''}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="bg-slate-700 border-slate-600 text-slate-50"
-            />
-          </div>
+                    {includeEndDate && (
+            <div>
+              <label htmlFor="endDate" className="text-gray-700 text-sm">
+                Fin del ciclo
+              </label>
+              <Input
+                id="endDate"
+                type="date"
+                value={endDate || ''}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="bg-gray-50 border-gray-200 text-gray-800"
+              />
+            </div>
+          )}
         </div>
         <DialogFooter className="sm:justify-end">
-          <Button variant="outline" onClick={onClose} className="border-slate-600 hover:bg-slate-700">Cancelar</Button>
-          <Button variant="primary" onClick={handleConfirm} className="bg-pink-600 hover:bg-pink-700">Guardar</Button>
+          <Button variant="outline" onClick={onClose} className="border-gray-300 text-gray-700 hover:bg-gray-100">Cancelar</Button>
+          <Button variant="primary" onClick={handleConfirm} className="bg-pink-600 hover:bg-pink-700 text-white">Guardar</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

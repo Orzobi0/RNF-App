@@ -26,13 +26,16 @@ import React, { useState, useEffect, useCallback } from 'react';
       toggleIgnoreRecordForCycle,
       isFullScreen,
       toggleFullScreen,
+      orientation,
+      showInterpretation,
+      setShowInterpretation,
       chartDisplayData,
       showForm, setShowForm,
       editingRecord, setEditingRecord,
       recordToDelete, setRecordToDelete,
       isProcessing,
       toast,
-  onEditCycleDates
+      onEditCycleDates
 }) => {
 
   useBackClose(showForm || editingRecord, () => {
@@ -419,6 +422,9 @@ import React, { useState, useEffect, useCallback } from 'react';
           toggleIgnoreRecordForCycle={toggleIgnoreRecordForCycle}
           isFullScreen={isFullScreen}
           toggleFullScreen={toggleFullScreen}
+          orientation={orientation}
+          showInterpretation={showInterpretation}
+          setShowInterpretation={setShowInterpretation}
           chartDisplayData={chartDisplayData}
           showForm={showForm} setShowForm={setShowForm}
           editingRecord={editingRecord} setEditingRecord={setEditingRecord}

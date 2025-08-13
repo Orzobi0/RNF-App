@@ -11,6 +11,17 @@ const filterEntriesByEndDate = (entries, endDate) => {
   return entries.filter((entry) => parseISO(entry.isoDate) <= end);
 };
 
+const normalizeDate = (date) => {
+  if (!date) return null;
+  if (typeof date === 'string') {
+    return format(startOfDay(parseISO(date)), 'yyyy-MM-dd');
+  }
+  if (typeof date.toDate === 'function') {
+    return format(startOfDay(date.toDate()), 'yyyy-MM-dd');
+  }
+  return format(startOfDay(new Date(date)), 'yyyy-MM-dd');
+};
+
 export const useCycleData = (specificCycleId = null) => {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -50,21 +61,27 @@ export const useCycleData = (specificCycleId = null) => {
       
       console.log('Cycle loaded:', cycleToLoad);
       
+      const startDate = normalizeDate(cycleToLoad.startDate);
+      const endDate = normalizeDate(cycleToLoad.endDate);
+
       setCurrentCycle({
         ...cycleToLoad,
-        startDate: cycleToLoad.startDate ? format(startOfDay(parseISO(cycleToLoad.startDate)), "yyyy-MM-dd") : format(startOfDay(new Date()), "yyyy-MM-dd"),
-        data: processCycleEntries(cycleToLoad.data, cycleToLoad.startDate)
+        startDate,
+        endDate,
+        data: processCycleEntries(cycleToLoad.data, startDate)
       });
       
       console.log('Loading archived cycles');
       const archivedData = await fetchArchivedCyclesDB(user.uid); // ← CAMBIO: user.uid en lugar de user.id
       setArchivedCycles(archivedData.map(cycle => {
-        const processed = processCycleEntries(cycle.data || [], cycle.startDate);
-        const filtered = filterEntriesByEndDate(processed, cycle.endDate);
+        const aStart = normalizeDate(cycle.startDate);
+        const aEnd = normalizeDate(cycle.endDate);
+        const processed = processCycleEntries(cycle.data || [], aStart);
+        const filtered = filterEntriesByEndDate(processed, aEnd);
         return {
           ...cycle,
-          startDate: cycle.startDate ? format(startOfDay(parseISO(cycle.startDate)), "yyyy-MM-dd") : format(startOfDay(new Date()), "yyyy-MM-dd"),
-          endDate: cycle.endDate ? format(startOfDay(parseISO(cycle.endDate)), "yyyy-MM-dd") : null,
+          startDate: aStart ?? format(startOfDay(new Date()), "yyyy-MM-dd"),
+          endDate: aEnd,
           data: filtered
         };
       }));
@@ -246,13 +263,16 @@ export const useCycleData = (specificCycleId = null) => {
       const cycleData = await fetchCycleByIdDB(user.uid, cycleIdToFetch); // ← CAMBIO: user.uid en lugar de user.id
       if (!cycleData) return null;
 
-      const processed = processCycleEntries(cycleData.data || [], cycleData.startDate);
-      const filtered = filterEntriesByEndDate(processed, cycleData.endDate);
+      const startDate = normalizeDate(cycleData.startDate);
+      const endDate = normalizeDate(cycleData.endDate);
+      const processed = processCycleEntries(cycleData.data || [], startDate);
+      const filtered = filterEntriesByEndDate(processed, endDate);
+
       
       const result = {
         ...cycleData,
-        startDate: cycleData.startDate ? format(startOfDay(parseISO(cycleData.startDate)), "yyyy-MM-dd") : format(startOfDay(new Date()), "yyyy-MM-dd"),
-        endDate: cycleData.endDate ? format(startOfDay(parseISO(cycleData.endDate)), "yyyy-MM-dd") : null,
+        startDate: startDate ?? format(startOfDay(new Date()), "yyyy-MM-dd"),
+        endDate,
         data: filtered
       };
       

@@ -56,7 +56,7 @@ import { useDataEntryForm } from '@/hooks/useDataEntryForm';
                 onClick={onCancel}
                 variant="ghost"
                 size="icon"
-                className="text-[#393C65] hover:text-[#E27DBF] hover:bg-[#E27DBF]/10"
+                className="text-gray-700 hover:text-pink-500 hover:bg-pink-50"
               >
                 <XCircle className="h-6 w-6" />
               </Button>

@@ -14,7 +14,7 @@ import useBackClose from '@/hooks/useBackClose';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Maximize, X, Eye, EyeOff, RotateCcw, Calendar,
-  TrendingUp, Heart, Plus, List, Egg, Timer, Pencil
+TrendingUp, Heart, Plus, List, Egg, Timer
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -207,8 +207,8 @@ const DashboardPageContent = ({
     const record = currentCycle.data.find(r => r.id === recordId);
     setRecordToDelete(record);
   };
-  const handleCycleDatesUpdate = (dates) => {
-    updateCycleDates(currentCycle.id, dates.startDate, dates.endDate);
+  const handleCycleDatesUpdate = ({ startDate }) => {
+    updateCycleDates(currentCycle.id, startDate);
     toast({
       title: 'Fechas actualizadas',
       description: 'Las fechas del ciclo han sido modificadas.'
@@ -288,26 +288,21 @@ const DashboardPageContent = ({
               <div className="p-2 bg-gradient-to-r from-pink-500 to-rose-500 rounded-xl shadow-sm">
                 <Heart className="h-5 w-5 text-white" />
               </div>
-                            <h1 className="text-2xl font-semibold text-gray-800">Ciclo Actual</h1>
+              <h1 className="text-2xl font-semibold text-gray-800">Ciclo Actual</h1>
             </div>
 
             {/* Fecha de inicio editable */}
-            <div className="flex items-center justify-center space-x-2">
-              <Badge variant="secondary" className="bg-white/60 text-gray-700 border-gray-200 px-3 py-1 rounded-full text-sm">
+            <div className="flex items-center justify-center">
+              <Badge
+                variant="secondary"
+                onClick={() => currentCycle?.startDate && setShowEditCycleDialog(true)}
+                className="bg-white/60 text-gray-700 border-gray-200 px-3 py-1 rounded-full text-sm cursor-pointer hover:bg-white/80"
+              >
                 {currentCycle?.startDate
                   ? `Iniciado el ${format(parseISO(currentCycle.startDate), "dd/MM/yyyy")}`
                   : "Sin datos de ciclo"}
               </Badge>
-              {currentCycle?.startDate && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 text-gray-600"
-                  onClick={() => setShowEditCycleDialog(true)}
-                >
-                  <Pencil className="h-4 w-4" />
-                </Button>
-              )}
+
             </div>
             
           </div>
@@ -508,7 +503,7 @@ const DashboardPageContent = ({
         onClose={() => setShowEditCycleDialog(false)}
         onConfirm={handleCycleDatesUpdate}
         initialStartDate={currentCycle.startDate}
-        initialEndDate={currentCycle.endDate}
+        includeEndDate={false}
       />
     </div>
   );

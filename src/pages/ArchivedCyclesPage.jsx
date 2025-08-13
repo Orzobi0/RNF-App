@@ -40,7 +40,7 @@ import { format, parseISO } from 'date-fns';
       return (
         <div className="w-full max-w-4xl mx-auto">
           <motion.h1 
-            className="text-3xl sm:text-4xl font-bold text-slate-100 mb-8 text-center"
+            className="text-3xl sm:text-4xl font-bold text-slate-500 mb-8 text-center"
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
