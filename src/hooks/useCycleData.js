@@ -104,13 +104,22 @@ export const useCycleData = (specificCycleId = null) => {
         'yyyy-MM-dd HH:mm',
         new Date()
       );
+ 
+      const tempRaw = newData.temperature_raw === '' || newData.temperature_raw === null || newData.temperature_raw === undefined ? null : parseFloat(newData.temperature_raw);
+      const tempCorrected = newData.temperature_corrected === '' || newData.temperature_corrected === null || newData.temperature_corrected === undefined ? null : parseFloat(newData.temperature_corrected);
+      const useCorrected = newData.use_corrected || false;
+      const temperatureChart = useCorrected
+        ? (tempCorrected ?? tempRaw)
+        : (tempRaw ?? tempCorrected);
+
       const recordPayload = {
         cycle_id: currentCycle.id,
         user_id: user.uid, // ← CAMBIO: user.uid en lugar de user.id
         timestamp: format(recordDateTime, "yyyy-MM-dd'T'HH:mm:ssXXX"),
-        temperature_raw: newData.temperature_raw === '' || newData.temperature_raw === null || newData.temperature_raw === undefined ? null : parseFloat(newData.temperature_raw),
-        temperature_corrected: newData.temperature_corrected === '' || newData.temperature_corrected === null || newData.temperature_corrected === undefined ? null : parseFloat(newData.temperature_corrected),
-        use_corrected: newData.use_corrected || false,
+        temperature_raw: tempRaw,
+        temperature_corrected: tempCorrected,
+        use_corrected: useCorrected,
+        temperature_chart: temperatureChart,
         mucus_sensation: newData.mucusSensation || null,
         mucus_appearance: newData.mucusAppearance || null,
         fertility_symbol:

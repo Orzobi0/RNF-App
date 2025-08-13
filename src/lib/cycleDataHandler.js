@@ -46,7 +46,11 @@ export const processCycleEntries = (entriesFromView, cycleStartIsoDate) => {
     fertility_symbol: entry.fertility_symbol,
     observations: entry.observations,
     ignored: entry.ignored,
-    temperature_chart: entry.temperature_chart,
+    temperature_chart: entry.temperature_chart ?? (
+      entry.use_corrected
+        ? (entry.temperature_corrected ?? entry.temperature_raw)
+        : (entry.temperature_raw ?? entry.temperature_corrected)
+    ),
     timestamp: entry.timestamp,
   }));
 };
@@ -153,6 +157,7 @@ export const createNewCycleEntry = async (payload) => {
     temperature_raw: payload.temperature_raw,
     temperature_corrected: payload.temperature_corrected,
     use_corrected: payload.use_corrected,
+    temperature_chart: payload.temperature_chart,
     mucus_sensation: payload.mucus_sensation,
     mucus_appearance: payload.mucus_appearance,
     fertility_symbol: payload.fertility_symbol,
@@ -168,6 +173,7 @@ export const updateCycleEntry = async (entryId, payload) => {
     temperature_raw: payload.temperature_raw,
     temperature_corrected: payload.temperature_corrected,
     use_corrected: payload.use_corrected,
+    temperature_chart: payload.temperature_chart,
     mucus_sensation: payload.mucus_sensation,
     mucus_appearance: payload.mucus_appearance,
     fertility_symbol: payload.fertility_symbol,
