@@ -1,5 +1,15 @@
 {
   "projects": {
     "default": "rnf-app"
-  }
+  },
+  "targets": {
+    "rnf-app": {
+      "hosting": {
+        "experiment": [
+          "rnf-app-experiment"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }

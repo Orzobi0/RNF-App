@@ -18,6 +18,8 @@ const EditCycleDatesDialog = ({
   initialStartDate,
   initialEndDate,
   includeEndDate = true,
+  title = 'Editar Fechas del Ciclo',
+  description,
 }) => {
   const [startDate, setStartDate] = useState(initialStartDate || '');
   const [endDate, setEndDate] = useState(initialEndDate || '');
@@ -40,11 +42,11 @@ const EditCycleDatesDialog = ({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="bg-white border-pink-100 text-gray-800">
         <DialogHeader>
-          <DialogTitle>Editar Fechas del Ciclo</DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
           <DialogDescription className="text-gray-600">
-            {includeEndDate
+            {description ?? (includeEndDate
               ? 'Modifica la fecha de inicio y fin del ciclo.'
-              : 'Modifica la fecha de inicio del ciclo.'}
+              : 'Modifica la fecha de inicio del ciclo.')}
           </DialogDescription>
         </DialogHeader>
         <div className="my-4 space-y-4">

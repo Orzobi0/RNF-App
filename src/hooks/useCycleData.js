@@ -232,6 +232,26 @@ export const useCycleData = (specificCycleId = null) => {
       setIsLoading(false);
     }
   }, [user, currentCycle, loadCycleData, toast]);
+  const addArchivedCycle = useCallback(async (startDate, endDate) => {
+    if (!user?.uid) return;
+
+    console.log('Adding archived cycle:', startDate, endDate);
+    setIsLoading(true);
+    try {
+      const newCycle = await createNewCycleDB(user.uid, startDate);
+      if (endDate) {
+        await updateCycleDatesDB(newCycle.id, user.uid, undefined, endDate);
+      }
+      await loadCycleData();
+      console.log('Archived cycle added successfully');
+    } catch (error) {
+      console.error('Error adding archived cycle:', error);
+      toast({ title: 'Error', description: 'No se pudo crear el ciclo.', variant: 'destructive' });
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user, loadCycleData, toast]);
 
   const updateCycleDates = useCallback(
     async (cycleIdToUpdate, newStartDate, newEndDate) => {
@@ -291,11 +311,12 @@ export const useCycleData = (specificCycleId = null) => {
     archivedCycles, 
     addOrUpdateDataPoint, 
     deleteRecord, 
-    startNewCycle, 
-    updateCycleDates, 
-    isLoading, 
-    getCycleById, 
-    refreshData: loadCycleData, 
-    toggleIgnoreRecord 
+    startNewCycle,
+    updateCycleDates,
+    isLoading,
+    getCycleById,
+    refreshData: loadCycleData,
+    toggleIgnoreRecord,
+    addArchivedCycle
   };
 };

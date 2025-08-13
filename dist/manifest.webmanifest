@@ -1,6 +1,6 @@
 {
   "name": "Seguimiento natural de Fertilidad",
-  "short_name": "FertiAPP",
+  "short_name": "FertiliAPP",
   "start_url": "/RNF-App/",
   "scope": "/RNF-App/",
   "display": "standalone",
