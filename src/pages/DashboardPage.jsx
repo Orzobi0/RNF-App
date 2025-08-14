@@ -207,13 +207,17 @@ const DashboardPageContent = ({
     const record = currentCycle.data.find(r => r.id === recordId);
     setRecordToDelete(record);
   };
-  const handleCycleDatesUpdate = ({ startDate }) => {
-    updateCycleDates(currentCycle.id, startDate);
-    toast({
-      title: 'Fechas actualizadas',
-      description: 'Las fechas del ciclo han sido modificadas.'
-    });
-    setShowEditCycleDialog(false);
+    const handleCycleDatesUpdate = async ({ startDate }) => {
+    try {
+      await updateCycleDates(currentCycle.id, startDate);
+      toast({
+        title: 'Fechas actualizadas',
+        description: 'Las fechas del ciclo han sido modificadas.'
+      });
+      setShowEditCycleDialog(false);
+    } catch (e) {
+      // error handled via toast
+    }
   };
 
   const confirmDelete = () => {
@@ -447,8 +451,9 @@ const DashboardPageContent = ({
               <DataEntryForm
                 onSubmit={addOrUpdateDataPoint}
                 initialData={editingRecord}
-                isEditing={Boolean(editingRecord)} 
+                isEditing={Boolean(editingRecord)}
                 cycleStartDate={currentCycle.startDate}
+                cycleEndDate={currentCycle.endDate}
                 onCancel={() => { setShowForm(false); setEditingRecord(null); }}
               />
             </motion.div>

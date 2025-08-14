@@ -169,6 +169,7 @@ import React, { useState, useEffect, useCallback } from 'react';
                       initialData={editingRecord}
                       onCancel={() => { setShowForm(false); setEditingRecord(null); }}
                       cycleStartDate={cycleData.startDate}
+                      cycleEndDate={cycleData.endDate}
                       isProcessing={isProcessing}
                       isEditing={Boolean(editingRecord)}
                     />
@@ -283,9 +284,17 @@ import React, { useState, useEffect, useCallback } from 'react';
         if (!cycleData || !user) return;
         setIsProcessing(true);
         
+        const tempRaw = newData.temperature_raw;
+        const tempCorrected = newData.temperature_corrected;
+        const useCorrected = newData.use_corrected || false;
+        const temperatureChart = useCorrected
+          ? (tempCorrected ?? tempRaw)
+          : (tempRaw ?? tempCorrected);
+        
         let updatedDataArray;
         const recordWithCycleDay = {
           ...newData,
+          temperature_chart: temperatureChart,
           isoDate: format(startOfDay(parseISO(newData.isoDate)), "yyyy-MM-dd"),
           cycleDay: generateCycleDaysForRecord(newData.isoDate, cycleData.startDate),
           ignored: editingRecord ? (newData.ignored ?? editingRecord.ignored) : (newData.ignored || false)
@@ -376,6 +385,7 @@ import React, { useState, useEffect, useCallback } from 'react';
             setCycleData(updated);
           }
           toast({ title: 'Fechas actualizadas', description: 'Las fechas del ciclo han sido modificadas.' });
+          setShowEditDialog(false);
         } catch (e) {
           console.error(e);
         }

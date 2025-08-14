@@ -15,7 +15,7 @@ import React from 'react';
 import { useEffect, useState } from 'react';
 
 
-    const DataEntryFormFields = ({
+      const DataEntryFormFields = ({
       date, setDate,
       time, setTime,
       temperatureRaw, setTemperatureRaw,
@@ -26,7 +26,7 @@ import { useEffect, useState } from 'react';
       fertilitySymbol, setFertilitySymbol,
       observations, setObservations,
       ignored, setIgnored,
-      isProcessing, isEditing, initialData, cycleStartDate
+      isProcessing, isEditing, initialData, cycleStartDate, cycleEndDate
     }) => {
       const [open, setOpen] = useState(false);
 
@@ -53,9 +53,10 @@ import { useEffect, useState } from 'react';
       }, [isEditing, initialData]);
       
       const cycleStart = startOfDay(parseISO(cycleStartDate));
+      const cycleEnd = cycleEndDate ? startOfDay(parseISO(cycleEndDate)) : addDays(cycleStart, 45);
       const disabledDateRanges = [
         { before: cycleStart },
-        { after: addDays(cycleStart, 45) } 
+        { after: cycleEnd }
       ];
 
       return (

@@ -292,7 +292,11 @@ export const useCycleData = (specificCycleId = null) => {
         console.log('Cycle dates updated successfully');
       } catch (error) {
         console.error("Error updating cycle dates:", error);
-        toast({ title: "Error", description: "No se pudieron actualizar las fechas.", variant: "destructive" });
+                const description =
+          error.message && error.message.includes('overlap')
+            ? 'Las fechas coinciden con otro ciclo.'
+            : 'No se pudieron actualizar las fechas.';
+        toast({ title: 'Error', description, variant: 'destructive' });
         throw error;
       } finally {
         setIsLoading(false);

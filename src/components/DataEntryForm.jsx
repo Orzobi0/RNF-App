@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { XCircle } from 'lucide-react';
 import { useDataEntryForm } from '@/hooks/useDataEntryForm';
 
-    const DataEntryForm = ({ onSubmit, initialData, onCancel, cycleStartDate, isProcessing, isEditing = false }) => {
+const DataEntryForm = ({ onSubmit, initialData, onCancel, cycleStartDate, cycleEndDate, isProcessing, isEditing = false }) => {
       const formRef = useRef(null);
 
       useEffect(() => {
@@ -35,7 +35,7 @@ import { useDataEntryForm } from '@/hooks/useDataEntryForm';
         observations, setObservations,
         ignored, setIgnored,
         handleSubmit,
-      } = useDataEntryForm(onSubmit, initialData, isEditing, cycleStartDate);
+      } = useDataEntryForm(onSubmit, initialData, isEditing, cycleStartDate, cycleEndDate);
 
       return (
         <motion.form
@@ -77,6 +77,7 @@ import { useDataEntryForm } from '@/hooks/useDataEntryForm';
             isEditing={isEditing}
             initialData={initialData}
             cycleStartDate={cycleStartDate}
+            cycleEndDate={cycleEndDate}
           />
           <DataEntryFormActions
             onCancel={onCancel}

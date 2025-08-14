@@ -28,11 +28,14 @@ import EditCycleDatesDialog from '@/components/EditCycleDatesDialog';
     setEditingCycle(cycle);
   };
 
-  const handleUpdateCycle = ({ startDate, endDate }) => {
-    if (editingCycle) {
-      updateCycleDates(editingCycle.id, startDate, endDate);
+  const handleUpdateCycle = async ({ startDate, endDate }) => {
+    if (!editingCycle) return;
+    try {
+      await updateCycleDates(editingCycle.id, startDate, endDate);
+      setEditingCycle(null);
+    } catch (error) {
+      // error handled via toast in updateCycleDates
     }
-    setEditingCycle(null);
   };
 
   const handleDeleteCycle = (cycleId) => {
@@ -114,9 +117,7 @@ import EditCycleDatesDialog from '@/components/EditCycleDatesDialog';
             {sortedCycles.map((cycle) => {
               const endDate = cycle.endDate
                 ? format(parseISO(cycle.endDate), "dd MMM yyyy", { locale: es })
-                : cycle.data && cycle.data.length > 0
-                  ? format(parseISO(cycle.data[cycle.data.length - 1].isoDate), "dd MMM yyyy", { locale: es })
-                  : format(parseISO(cycle.startDate), "dd MMM yyyy", { locale: es });
+                : 'Sin fecha fin';
               const recordCount = cycle.data ? cycle.data.length : 0;
               const isIncomplete = cycle.needsCompletion;
 
@@ -137,9 +138,6 @@ import EditCycleDatesDialog from '@/components/EditCycleDatesDialog';
                       <p className="text-sm text-slate-400">
                         {recordCount} registro{recordCount !== 1 ? 's' : ''}
                       </p>
-                                            {isIncomplete && (
-                        <p className="text-xs text-red-500 mt-1">Sin fecha de fin</p>
-                      )}
                     </div>
                     <div className="flex gap-2 mt-4 sm:mt-0">
                       <Button asChild variant="outline" className="border-pink-500 text-pink-400 hover:bg-pink-500/20 hover:text-pink-300">

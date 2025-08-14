@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { format, startOfDay, parseISO } from "date-fns";
+import { format, startOfDay, parseISO, addDays } from "date-fns";
     import { useToast } from '@/components/ui/use-toast';
     import { FERTILITY_SYMBOLS } from '@/config/fertilitySymbols';
 
-    export const useDataEntryForm = (onSubmit, initialData, isEditing, cycleStartDate) => {
+   export const useDataEntryForm = (onSubmit, initialData, isEditing, cycleStartDate, cycleEndDate) => {
       const [date, setDate] = useState(initialData?.isoDate ? parseISO(initialData.isoDate) : startOfDay(new Date()));
       const [temperatureRaw, setTemperatureRaw] = useState(initialData?.temperature_raw === null || initialData?.temperature_raw === undefined ? '' : String(initialData.temperature_raw));
       const [time, setTime] = useState(initialData?.timestamp ? format(parseISO(initialData.timestamp), 'HH:mm') : format(new Date(), 'HH:mm'));
@@ -49,6 +49,14 @@ import { format, startOfDay, parseISO } from "date-fns";
           return;
         }
         
+        const cycleStart = startOfDay(parseISO(cycleStartDate));
+        const cycleEnd = cycleEndDate
+          ? startOfDay(parseISO(cycleEndDate))
+          : addDays(cycleStart, 45);
+        if (date < cycleStart || date > cycleEnd) {
+          toast({ title: 'Error', description: 'La fecha debe estar dentro del ciclo.', variant: 'destructive' });
+          return;
+        }
         const isoDate = format(date, "yyyy-MM-dd");
 
         onSubmit({
