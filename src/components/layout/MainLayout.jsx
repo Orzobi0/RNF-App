@@ -4,7 +4,7 @@ import React, { useState } from 'react';
     import { useAuth } from '@/contexts/AuthContext';
     import { Button } from '@/components/ui/button';
     import { Sheet, SheetContent, SheetTrigger, SheetClose } from "@/components/ui/sheet";
-    import { Menu, LogOut, Home, Archive, UserCircle, X } from 'lucide-react';
+    import { Menu, LogOut, Home, Archive, Settings, UserCircle, X } from 'lucide-react';
     import { motion, AnimatePresence } from 'framer-motion';
 import AppHeader from '@/components/AppHeader';
 import useBackClose from '@/hooks/useBackClose';
@@ -83,6 +83,7 @@ import useBackClose from '@/hooks/useBackClose';
                   <nav className="flex-grow p-6 space-y-3">
                     <NavLink to="/" Icon={Home} onClick={() => setIsSheetOpen(false)}>Ciclo Actual</NavLink>
                     <NavLink to="/archived-cycles" Icon={Archive} onClick={() => setIsSheetOpen(false)}>Mis Ciclos</NavLink>
+                    <NavLink to="/settings" Icon={Settings} onClick={() => setIsSheetOpen(false)}>Ajustes</NavLink>
                   </nav>
 
                   <div className="p-6 border-t border-[#FFB1DD]">

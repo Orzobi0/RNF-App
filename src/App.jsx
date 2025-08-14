@@ -5,6 +5,7 @@ import AuthPage from '@/pages/AuthPage';
 import DashboardPage from '@/pages/DashboardPage';
 import ArchivedCyclesPage from '@/pages/ArchivedCyclesPage';
 import CycleDetailPage from '@/pages/CycleDetailPage';
+import SettingsPage from '@/pages/SettingsPage';
 import MainLayout from '@/components/layout/MainLayout';
 import { Toaster } from '@/components/ui/toaster';
 import { motion } from 'framer-motion';
@@ -51,16 +52,24 @@ import { motion } from 'framer-motion';
               </ProtectedRoute>
             } 
           />
-          <Route 
-            path="/archived-cycles" 
+          <Route
+            path="/archived-cycles"
             element={
               <ProtectedRoute>
                 <MainLayout><ArchivedCyclesPage /></MainLayout>
               </ProtectedRoute>
             } 
           />
-          <Route 
-            path="/cycle/:cycleId" 
+          <Route
+            path="/settings"
+            element={
+              <ProtectedRoute>
+                <MainLayout><SettingsPage /></MainLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/cycle/:cycleId"
             element={
               <ProtectedRoute>
                 <MainLayout><CycleDetailPage /></MainLayout>
