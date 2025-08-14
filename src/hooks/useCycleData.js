@@ -250,7 +250,11 @@ export const useCycleData = (specificCycleId = null) => {
       console.log('Archived cycle added successfully');
     } catch (error) {
       console.error('Error adding archived cycle:', error);
-      toast({ title: 'Error', description: 'No se pudo crear el ciclo.', variant: 'destructive' });
+            const description =
+        error.message && error.message.includes('overlap')
+          ? 'Las fechas coinciden con otro ciclo.'
+          : 'No se pudo crear el ciclo.';
+      toast({ title: 'Error', description, variant: 'destructive' });
       throw error;
     } finally {
       setIsLoading(false);

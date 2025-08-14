@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useCycleData } from '@/hooks/useCycleData';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Archive, Eye, Plus, Trash2 } from 'lucide-react';
@@ -10,13 +11,17 @@ import { motion } from 'framer-motion';
 import EditCycleDatesDialog from '@/components/EditCycleDatesDialog';
 
   const ArchivedCyclesPage = () => {
-  const { archivedCycles, isLoading, addArchivedCycle, updateCycleDates, deleteCycle } = useCycleData();
+  const { currentCycle, archivedCycles, isLoading, addArchivedCycle, updateCycleDates, deleteCycle } = useCycleData();
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editingCycle, setEditingCycle] = useState(null);
 
-  const handleAddCycle = ({ startDate, endDate }) => {
-    addArchivedCycle(startDate, endDate);
-    setShowAddDialog(false);
+  const handleAddCycle = async ({ startDate, endDate }) => {
+    try {
+      await addArchivedCycle(startDate, endDate);
+      setShowAddDialog(false);
+    } catch (error) {
+      // error handled via toast
+    }
   };
 
     const handleEditCycle = (cycle) => {
@@ -35,12 +40,15 @@ import EditCycleDatesDialog from '@/components/EditCycleDatesDialog';
       deleteCycle(cycleId);
     }
   };
+  const allCycles = currentCycle.id
+    ? [{ ...currentCycle, isCurrent: true, needsCompletion: !currentCycle.endDate }, ...archivedCycles]
+    : archivedCycles;
 
       if (isLoading) {
         return <div className="text-center text-slate-300 p-8">Cargando ciclos archivados...</div>;
       }
 
-      if (!archivedCycles || archivedCycles.length === 0) {
+      if (!allCycles || allCycles.length === 0) {
     return (
       <motion.div
         className="text-center text-slate-400 py-10 flex flex-col items-center"
@@ -70,7 +78,7 @@ import EditCycleDatesDialog from '@/components/EditCycleDatesDialog';
     );
   }
       
-      const sortedArchivedCycles = [...archivedCycles].sort(
+      const sortedCycles = [...allCycles].sort(
         (a, b) => parseISO(b.startDate) - parseISO(a.startDate)
       );
 
@@ -83,7 +91,7 @@ import EditCycleDatesDialog from '@/components/EditCycleDatesDialog';
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          Mis Ciclos Archivados
+          Mis Ciclos
         </motion.h1>
         <Button onClick={() => setShowAddDialog(true)} className="bg-pink-600 hover:bg-pink-700 text-white">
           <Plus className="mr-2 h-4 w-4" /> Añadir Ciclo
@@ -103,7 +111,7 @@ import EditCycleDatesDialog from '@/components/EditCycleDatesDialog';
         initial="hidden"
         animate="show"
       >
-            {sortedArchivedCycles.map((cycle) => {
+            {sortedCycles.map((cycle) => {
               const endDate = cycle.endDate
                 ? format(parseISO(cycle.endDate), "dd MMM yyyy", { locale: es })
                 : cycle.data && cycle.data.length > 0
@@ -118,10 +126,13 @@ import EditCycleDatesDialog from '@/components/EditCycleDatesDialog';
                   className="bg-white/70 backdrop-blur-md ring-1 ring-[#FFB1DD]/50 shadow-xl rounded-xl p-6 hover:shadow-2xl transition-shadow duration-300"
                   variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }}
                 >
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
                     <div>
                       <h2 className="text-xl font-semibold text-pink-400 mb-1">
                         Ciclo: {format(parseISO(cycle.startDate), "dd MMM yyyy", { locale: es })} - {endDate}
+                                                {cycle.isCurrent && (
+                          <Badge className="ml-2 bg-pink-500 text-white">Ciclo actual</Badge>
+                        )}
                       </h2>
                       <p className="text-sm text-slate-400">
                         {recordCount} registro{recordCount !== 1 ? 's' : ''}
@@ -132,10 +143,11 @@ import EditCycleDatesDialog from '@/components/EditCycleDatesDialog';
                     </div>
                     <div className="flex gap-2 mt-4 sm:mt-0">
                       <Button asChild variant="outline" className="border-pink-500 text-pink-400 hover:bg-pink-500/20 hover:text-pink-300">
-                        <Link to={`/cycle/${cycle.id}`}>
+                        <Link to={cycle.isCurrent ? `/` : `/cycle/${cycle.id}`}>
                           <Eye className="mr-2 h-4 w-4" /> Ver
                         </Link>
-                      </Button>                      <Button variant="destructive" onClick={() => handleDeleteCycle(cycle.id)}>
+                      </Button>
+                      <Button variant="destructive" onClick={() => handleDeleteCycle(cycle.id)}>
                         <Trash2 className="mr-2 h-4 w-4" /> Eliminar
                       </Button>
                     </div>
