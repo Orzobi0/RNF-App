@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { format, startOfDay, parseISO, addDays, parse } from 'date-fns';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { processCycleEntries, createNewCycleEntry, updateCycleEntry, deleteCycleEntryDB, archiveCycleDB, createNewCycleDB, fetchCycleByIdDB, fetchCurrentCycleDB, fetchArchivedCyclesDB, updateCycleDatesDB } from '@/lib/cycleDataHandler';
+import { processCycleEntries, createNewCycleEntry, updateCycleEntry, deleteCycleEntryDB, archiveCycleDB, createNewCycleDB, fetchCycleByIdDB, fetchCurrentCycleDB, fetchArchivedCyclesDB, updateCycleDatesDB, deleteCycleDB } from '@/lib/cycleDataHandler';
 
 const filterEntriesByEndDate = (entries, endDate) => {
   if (!endDate) return entries;
@@ -71,7 +71,7 @@ export const useCycleData = (specificCycleId = null) => {
       }
       
       console.log('Loading archived cycles');
-      const archivedData = await fetchArchivedCyclesDB(user.uid); // ← CAMBIO: user.uid en lugar de user.id
+      const archivedData = await fetchArchivedCyclesDB(user.uid, cycleToLoad ? cycleToLoad.startDate : null); // ← CAMBIO: user.uid en lugar de user.id
       setArchivedCycles(archivedData.map(cycle => {
         const aStart = normalizeDate(cycle.startDate);
         const aEnd = normalizeDate(cycle.endDate);
@@ -81,6 +81,7 @@ export const useCycleData = (specificCycleId = null) => {
           ...cycle,
           startDate: aStart ?? format(startOfDay(new Date()), "yyyy-MM-dd"),
           endDate: aEnd,
+          needsCompletion: cycle.needsCompletion,
           data: filtered
         };
       }));
@@ -235,14 +236,16 @@ export const useCycleData = (specificCycleId = null) => {
   }, [user, currentCycle, loadCycleData, toast]);
   const addArchivedCycle = useCallback(async (startDate, endDate) => {
     if (!user?.uid) return;
+    if (!endDate) {
+      toast({ title: 'Error', description: 'La fecha de fin es obligatoria.', variant: 'destructive' });
+      return;
+    }
 
     console.log('Adding archived cycle:', startDate, endDate);
     setIsLoading(true);
     try {
       const newCycle = await createNewCycleDB(user.uid, startDate);
-      if (endDate) {
-        await updateCycleDatesDB(newCycle.id, user.uid, undefined, endDate);
-      }
+      await updateCycleDatesDB(newCycle.id, user.uid, undefined, endDate);
       await loadCycleData();
       console.log('Archived cycle added successfully');
     } catch (error) {
@@ -253,6 +256,25 @@ export const useCycleData = (specificCycleId = null) => {
       setIsLoading(false);
     }
   }, [user, loadCycleData, toast]);
+
+    const deleteCycle = useCallback(async (cycleId) => {
+    if (!user?.uid) return;
+
+    console.log('Deleting cycle:', cycleId);
+    setIsLoading(true);
+    try {
+      await deleteCycleDB(user.uid, cycleId);
+      await loadCycleData();
+      console.log('Cycle deleted successfully');
+    } catch (error) {
+      console.error('Error deleting cycle:', error);
+      toast({ title: 'Error', description: 'No se pudo eliminar el ciclo.', variant: 'destructive' });
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user, loadCycleData, toast]);
+
 
   const updateCycleDates = useCallback(
     async (cycleIdToUpdate, newStartDate, newEndDate) => {
@@ -318,6 +340,7 @@ export const useCycleData = (specificCycleId = null) => {
     getCycleById,
     refreshData: loadCycleData,
     toggleIgnoreRecord,
-    addArchivedCycle
+    addArchivedCycle,
+    deleteCycle
   };
 };

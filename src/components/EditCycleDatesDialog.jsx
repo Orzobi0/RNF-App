@@ -23,6 +23,7 @@ const EditCycleDatesDialog = ({
 }) => {
   const [startDate, setStartDate] = useState(initialStartDate || '');
   const [endDate, setEndDate] = useState(initialEndDate || '');
+  const [endDateError, setEndDateError] = useState('');
 
   useBackClose(isOpen, onClose);
 
@@ -32,8 +33,12 @@ const EditCycleDatesDialog = ({
   }, [initialStartDate, initialEndDate]);
 
   const handleConfirm = () => {
+        if (includeEndDate && !endDate) {
+      setEndDateError('La fecha de fin es obligatoria');
+      return;
+    }
     const payload = includeEndDate
-      ? { startDate, endDate: endDate || null }
+      ? { startDate, endDate }
       : { startDate };
     onConfirm(payload);
   };
@@ -71,9 +76,12 @@ const EditCycleDatesDialog = ({
                 id="endDate"
                 type="date"
                 value={endDate || ''}
-                onChange={(e) => setEndDate(e.target.value)}
+                onChange={(e) => { setEndDate(e.target.value); setEndDateError(''); }}
                 className="bg-gray-50 border-gray-200 text-gray-800"
               />
+               {endDateError && (
+                <p className="text-red-500 text-sm mt-1">{endDateError}</p>
+              )}
             </div>
           )}
         </div>

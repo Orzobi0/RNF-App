@@ -63,7 +63,9 @@ export const fetchCurrentCycleDB = async (userId) => {
     .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
     .filter((c) => c.end_date === null || c.end_date === undefined)
     .sort((a, b) => (b.start_date || '').localeCompare(a.start_date || ''));
-
+  if (cycles.length > 1) {
+    console.warn(`Se detectaron ${cycles.length} ciclos abiertos. Se usará el más reciente.`);
+  }
   if (cycles.length === 0) return null;
   const cycleDoc = cycles[0];
 
@@ -79,12 +81,15 @@ export const fetchCurrentCycleDB = async (userId) => {
   };
 };
 
-export const fetchArchivedCyclesDB = async (userId) => {
+export const fetchArchivedCyclesDB = async (userId, currentStartDate) => {
   const cyclesRef = collection(db, `users/${userId}/cycles`);
   const snapshot = await getDocs(cyclesRef);
   const cycles = snapshot.docs
     .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
-    .filter((c) => c.end_date !== null && c.end_date !== undefined)
+    .filter((c) =>
+      c.end_date !== null && c.end_date !== undefined ||
+      (currentStartDate && c.start_date && c.start_date < currentStartDate)
+    )
     .sort((a, b) => (b.start_date || '').localeCompare(a.start_date || ''));
 
   const cyclesWithEntries = await Promise.all(
@@ -96,6 +101,7 @@ export const fetchArchivedCyclesDB = async (userId) => {
         id: cycle.id,
         startDate: cycle.start_date,
         endDate: cycle.end_date,
+        needsCompletion: !cycle.end_date,
         data: entriesData,
       };
     })
@@ -261,4 +267,11 @@ export const updateCycleDatesDB = async (cycleId, userId, startDate, endDate) =>
   if (endDate !== undefined) updatePayload.end_date = endDate;
 
   await updateDoc(cycleRef, updatePayload);
+  };
+
+export const deleteCycleDB = async (userId, cycleId) => {
+  const entriesRef = collection(db, `users/${userId}/cycles/${cycleId}/entries`);
+  const entriesSnap = await getDocs(entriesRef);
+  await Promise.all(entriesSnap.docs.map((d) => deleteDoc(d.ref)));
+  await deleteDoc(doc(db, `users/${userId}/cycles/${cycleId}`));
 };

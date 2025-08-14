@@ -35,7 +35,8 @@ import React, { useState, useEffect, useCallback } from 'react';
       recordToDelete, setRecordToDelete,
       isProcessing,
       toast,
-      onEditCycleDates
+      onEditCycleDates,
+      onDeleteCycle
 }) => {
 
   useBackClose(showForm || editingRecord, () => {
@@ -71,7 +72,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 
       return (
         <div className={`w-full ${isFullScreen ? 'h-full overflow-hidden' : 'max-w-4xl mx-auto'}`}>
-          <motion.div 
+          <motion.div
             className="flex items-center justify-between mb-8"
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -90,9 +91,14 @@ import React, { useState, useEffect, useCallback } from 'react';
               </h1>
             )}
             {!isFullScreen && (
-              <Button variant="outline" onClick={onEditCycleDates} className="mt-4 sm:mt-0 border-pink-500 text-pink-400 hover:bg-pink-500/20 hover:text-pink-300">
-                <Edit className="mr-2 h-4 w-4" /> Editar Fechas
-              </Button>
+              <div className="flex gap-2 mt-4 sm:mt-0">
+                <Button variant="outline" onClick={onEditCycleDates} className="border-pink-500 text-pink-400 hover:bg-pink-500/20 hover:text-pink-300">
+                  <Edit className="mr-2 h-4 w-4" /> Editar Fechas
+                </Button>
+                <Button variant="destructive" onClick={onDeleteCycle}>
+                  <Trash2 className="mr-2 h-4 w-4" /> Eliminar Ciclo
+                </Button>
+              </div>
             )}
           </motion.div>
 
@@ -208,7 +214,7 @@ import React, { useState, useEffect, useCallback } from 'react';
       const { cycleId } = useParams();
       const navigate = useNavigate();
       const { user } = useAuth();
-      const { getCycleById, isLoading: cycleDataHookIsLoading, refreshData, toggleIgnoreRecord, updateCycleDates } = useCycleData(cycleId);
+      const { getCycleById, isLoading: cycleDataHookIsLoading, refreshData, toggleIgnoreRecord, updateCycleDates, deleteCycle } = useCycleData(cycleId);
       const [cycleData, setCycleData] = useState(null);
       const { toast } = useToast();
       const [editingRecord, setEditingRecord] = useState(null);
@@ -375,6 +381,20 @@ import React, { useState, useEffect, useCallback } from 'react';
         }
         setIsProcessing(false);
       };
+            const handleDeleteCycle = async () => {
+        if (!cycleData || !user) return;
+        if (window.confirm('¿Eliminar este ciclo?')) {
+          setIsProcessing(true);
+          try {
+            await deleteCycle(cycleData.id);
+            toast({ title: 'Ciclo eliminado', description: 'El ciclo ha sido eliminado.' });
+            navigate('/archived-cycles');
+          } catch (e) {
+            console.error(e);
+          }
+          setIsProcessing(false);
+        }
+      };
 
       const getChartDisplayData = useCallback(() => {
         if (!cycleData || !cycleData.startDate) return [];
@@ -432,6 +452,7 @@ import React, { useState, useEffect, useCallback } from 'react';
           isProcessing={isProcessing}
           toast={toast}
           onEditCycleDates={() => setShowEditDialog(true)}
+          onDeleteCycle={handleDeleteCycle}
         />
         <EditCycleDatesDialog
           isOpen={showEditDialog}

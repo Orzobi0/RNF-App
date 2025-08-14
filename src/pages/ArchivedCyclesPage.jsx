@@ -5,17 +5,35 @@ import { useCycleData } from '@/hooks/useCycleData';
 import { Button } from '@/components/ui/button';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Archive, Eye, Plus } from 'lucide-react';
+import { Archive, Eye, Plus, Trash2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import EditCycleDatesDialog from '@/components/EditCycleDatesDialog';
 
-    const ArchivedCyclesPage = () => {
-  const { archivedCycles, isLoading, addArchivedCycle } = useCycleData();
+  const ArchivedCyclesPage = () => {
+  const { archivedCycles, isLoading, addArchivedCycle, updateCycleDates, deleteCycle } = useCycleData();
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [editingCycle, setEditingCycle] = useState(null);
 
   const handleAddCycle = ({ startDate, endDate }) => {
     addArchivedCycle(startDate, endDate);
     setShowAddDialog(false);
+  };
+
+    const handleEditCycle = (cycle) => {
+    setEditingCycle(cycle);
+  };
+
+  const handleUpdateCycle = ({ startDate, endDate }) => {
+    if (editingCycle) {
+      updateCycleDates(editingCycle.id, startDate, endDate);
+    }
+    setEditingCycle(null);
+  };
+
+  const handleDeleteCycle = (cycleId) => {
+    if (window.confirm('¿Eliminar este ciclo?')) {
+      deleteCycle(cycleId);
+    }
   };
 
       if (isLoading) {
@@ -92,6 +110,7 @@ import EditCycleDatesDialog from '@/components/EditCycleDatesDialog';
                   ? format(parseISO(cycle.data[cycle.data.length - 1].isoDate), "dd MMM yyyy", { locale: es })
                   : format(parseISO(cycle.startDate), "dd MMM yyyy", { locale: es });
               const recordCount = cycle.data ? cycle.data.length : 0;
+              const isIncomplete = cycle.needsCompletion;
 
               return (
                 <motion.li
@@ -107,12 +126,19 @@ import EditCycleDatesDialog from '@/components/EditCycleDatesDialog';
                       <p className="text-sm text-slate-400">
                         {recordCount} registro{recordCount !== 1 ? 's' : ''}
                       </p>
+                                            {isIncomplete && (
+                        <p className="text-xs text-red-500 mt-1">Sin fecha de fin</p>
+                      )}
                     </div>
-                    <Button asChild variant="outline" className="mt-4 sm:mt-0 border-pink-500 text-pink-400 hover:bg-pink-500/20 hover:text-pink-300">
-                      <Link to={`/cycle/${cycle.id}`}>
-                        <Eye className="mr-2 h-4 w-4" /> Ver Detalles
-                      </Link>
-                    </Button>
+                    <div className="flex gap-2 mt-4 sm:mt-0">
+                      <Button asChild variant="outline" className="border-pink-500 text-pink-400 hover:bg-pink-500/20 hover:text-pink-300">
+                        <Link to={`/cycle/${cycle.id}`}>
+                          <Eye className="mr-2 h-4 w-4" /> Ver
+                        </Link>
+                      </Button>                      <Button variant="destructive" onClick={() => handleDeleteCycle(cycle.id)}>
+                        <Trash2 className="mr-2 h-4 w-4" /> Eliminar
+                      </Button>
+                    </div>
                   </div>
                 </motion.li>
               );
@@ -124,6 +150,15 @@ import EditCycleDatesDialog from '@/components/EditCycleDatesDialog';
         onConfirm={handleAddCycle}
         title="Añadir Ciclo Anterior"
         description="Ingresa las fechas de un ciclo previo para añadir registros."
+      />
+            <EditCycleDatesDialog
+        isOpen={!!editingCycle}
+        onClose={() => setEditingCycle(null)}
+        onConfirm={handleUpdateCycle}
+        initialStartDate={editingCycle?.startDate}
+        initialEndDate={editingCycle?.endDate}
+        title="Editar Fechas del Ciclo"
+        description="Actualiza las fechas del ciclo."
       />
     </div>
   );
