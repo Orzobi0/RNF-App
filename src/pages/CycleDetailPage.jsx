@@ -8,7 +8,7 @@ import React, { useState, useEffect, useCallback } from 'react';
     import { useCycleData } from '@/hooks/useCycleData';
     import { useToast } from '@/components/ui/use-toast';
     import { Button } from '@/components/ui/button';
-    import { ArrowLeft, Edit, Trash2, Maximize, X, Eye, EyeOff } from 'lucide-react';
+    import { ArrowLeft, Edit, Trash2, Maximize, X, Eye, EyeOff, RotateCcw } from 'lucide-react';
     import { motion, AnimatePresence } from 'framer-motion';
     import { format, differenceInDays, startOfDay, parseISO } from 'date-fns';
     import generatePlaceholders from '@/lib/generatePlaceholders';
@@ -27,6 +27,7 @@ import React, { useState, useEffect, useCallback } from 'react';
       isFullScreen,
       toggleFullScreen,
       orientation,
+      rotateScreen,
       showInterpretation,
       setShowInterpretation,
       chartDisplayData,
@@ -140,6 +141,15 @@ import React, { useState, useEffect, useCallback } from 'react';
                   {showInterpretation ? 'Ocultar' : 'Interpretar'}
                 </Button>
                 <Button
+                  onClick={rotateScreen}
+                  variant="ghost"
+                  size="icon"
+                  className={`absolute ${isFullScreen ? 'top-4 right-12 text-white bg-slate-700/50 hover:bg-slate-600/70' : 'top-2 right-12 text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'}`}
+                  title="Cambiar orientación"
+                >
+                  <RotateCcw className="h-5 w-5" />
+                </Button>
+                <Button
                   onClick={toggleFullScreen}
                   variant="ghost"
                   size="icon"
@@ -222,7 +232,7 @@ import React, { useState, useEffect, useCallback } from 'react';
       const [showForm, setShowForm] = useState(false);
       const [recordToDelete, setRecordToDelete] = useState(null);
       const [showEditDialog, setShowEditDialog] = useState(false);
-      const { isFullScreen, toggleFullScreen, orientation } = useFullScreen();
+      const { isFullScreen, toggleFullScreen, orientation, rotateScreen } = useFullScreen();
       const [isProcessing, setIsProcessing] = useState(false);
       const [showInterpretation, setShowInterpretation] = useState(false);
 
@@ -453,6 +463,7 @@ import React, { useState, useEffect, useCallback } from 'react';
           isFullScreen={isFullScreen}
           toggleFullScreen={toggleFullScreen}
           orientation={orientation}
+          rotateScreen={rotateScreen}
           showInterpretation={showInterpretation}
           setShowInterpretation={setShowInterpretation}
           chartDisplayData={chartDisplayData}
