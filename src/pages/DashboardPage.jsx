@@ -164,11 +164,10 @@ const CycleOverviewCard = ({ cycleData }) => {
         >
           <h3 className="font-semibold mb-2 text-gray-800">Información</h3>
           <ul className="space-y-1">
-            <li className="font-medium">Cálculo preovulatorio modificado:</li>
-            <li className="ml-2">12 últimos ciclos, al más corto -20</li>
-            <li className="ml-2">6 últimos ciclos, al más corto -21</li>
-            <li className="font-medium pt-2">Cálculo de Rötzer o T-8:</li>
-            <li className="ml-2">12 últimos ciclos el primer día de temp. alta + precoz → -8</li>
+            <li className="font-medium">CPM</li>
+            <li className="ml-2">Datos incompletos</li>
+            <li className="font-medium pt-2">T-8</li>
+            <li className="ml-2">Datos incompletos</li>
           </ul>
         </motion.div>
 
