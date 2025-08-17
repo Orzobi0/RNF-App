@@ -1,8 +1,8 @@
 {
   "name": "Seguimiento natural de Fertilidad",
   "short_name": "FertiliAPP",
-  "start_url": "/RNF-App/",
-  "scope": "/RNF-App/",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#E27DBF",
   "theme_color": "#E27DBF",

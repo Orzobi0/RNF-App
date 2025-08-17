@@ -83,7 +83,7 @@ import { motion } from 'framer-motion';
 
     function App() {
       return (
-        <BrowserRouter basename="/RNF-App">
+        <BrowserRouter>
           <AuthProvider>
             <AppContent />
             <Toaster />
