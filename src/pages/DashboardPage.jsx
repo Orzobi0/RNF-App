@@ -1,575 +1,497 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import FertilityChart from '@/components/FertilityChart';
-import DataEntryForm from '@/components/DataEntryForm';
-import RecordsList from '@/components/RecordsList';
-import NoDataMessage from '@/components/NoDataMessage';
-import DeletionDialog from '@/components/DeletionDialog';
-import NewCycleDialog from '@/components/NewCycleDialog';
-import EditCycleDatesDialog from '@/components/EditCycleDatesDialog';
-import { useToast } from '@/components/ui/use-toast';
-import { useCycleData } from '@/hooks/useCycleData';
-import { useFullScreen } from '@/hooks/useFullScreen';
-import useBackClose from '@/hooks/useBackClose';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  Maximize, X, Eye, EyeOff, RotateCcw, Calendar,
-  TrendingUp, Heart, Plus, Egg
+import { 
+  Calendar, 
+  Plus, 
+  Heart, 
+  BarChart3, 
+  User, 
+  Egg,
+  Droplets,
+  Activity,
+  ChevronRight
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { format, differenceInDays, startOfDay, parseISO } from 'date-fns';
-import generatePlaceholders from '@/lib/generatePlaceholders';
 
-// Configuración de días
-const CYCLE_DURATION_DAYS = 28;
-const VISIBLE_DAYS_NORMAL_VIEW = 5;
-const VISIBLE_DAYS_FULLSCREEN_PORTRAIT = 10;
-
-// Componente para calcular ventana fértil
-const calculateFertileWindow = (historicalCycles, currentCycleData) => {
-  // Por ahora devolvemos valores mock ya que no tenemos acceso a los ciclos históricos
-  // En la implementación real, aquí calcularíamos basándonos en los datos reales
-  const totalCycles = 3; // Mock - debería venir de los datos históricos
-  
-  let preovulatoryCalculation = null;
-  let t8Calculation = null;
-  
-  if (totalCycles >= 12) {
-    // Cálculo preovulatorio modificado con 12+ ciclos
-    const shortestCycle = 26; // Mock - debería calcularse del historial
-    preovulatoryCalculation = shortestCycle - 20;
-  } else if (totalCycles >= 6) {
-    // Cálculo preovulatorio modificado con 6-11 ciclos
-    const shortestCycle = 26; // Mock
-    preovulatoryCalculation = shortestCycle - 21;
-  }
-  
-  // T-8: Primer día de temperatura alta de los últimos 12 ciclos
-  // Mock - en la implementación real sería calculado
-  if (totalCycles >= 3) {
-    t8Calculation = 14; // Mock
-  }
-  
-  return {
-    preovulatory: preovulatoryCalculation,
-    t8: t8Calculation,
-    hasSufficientData: totalCycles >= 6
-  };
+// Mock data - en la implementación real vendría de tus hooks
+const mockCurrentCycle = {
+  startDate: '2025-08-01',
+  currentDay: 17,
+  fertileWindow: { preovulatory: 13, t8: 14 },
+  phase: 'Fase folicular'
 };
 
-const DashboardHeader = ({ currentCycle, onShowRecords, onEditDates }) => {
-  if (!currentCycle?.startDate) return null;
-  
-  const cycleDay = differenceInDays(new Date(), parseISO(currentCycle.startDate)) + 1;
-  const totalRecords =
-    currentCycle.data?.filter(d => d.id && !d.id.startsWith('placeholder-')).length || 0;
+const mockTodayData = {
+  temperature: null,
+  cervicalMucus: null,
+  bleeding: null,
+  symptoms: []
+};
 
-  const fertileWindow = calculateFertileWindow([], currentCycle.data);
-  
+const NavigationBar = ({ activeTab, onTabChange }) => {
+  const tabs = [
+    { id: 'cycle', label: 'Ciclo actual', icon: Heart },
+    { id: 'records', label: 'Mis registros', icon: Calendar },
+    { id: 'cycles', label: 'Mis ciclos', icon: Activity },
+    { id: 'chart', label: 'Gráfica', icon: BarChart3 },
+    { id: 'account', label: 'Cuenta', icon: User }
+  ];
+
   return (
-        <motion.div
-      className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4"
-      initial={{ opacity: 0, y: -20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
+    <motion.div 
+      className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-2 py-1 z-50"
+      initial={{ y: 100 }}
+      animate={{ y: 0 }}
+      transition={{ type: 'spring', stiffness: 300, damping: 30 }}
     >
-      <div className="flex items-center p-2 rounded-lg bg-white/70 backdrop-blur-sm shadow-sm">
-        <Heart className="h-5 w-5 text-rose-500 mr-2" />
-        <div className="text-left">
-          <p className="text-[10px] leading-none text-gray-500">Ciclo actual</p>
-          <Badge
-            variant="secondary"
-            onClick={onEditDates}
-            className="mt-1 bg-white/70 text-gray-700 border border-gray-200 px-2 py-0.5 rounded-full text-xs cursor-pointer hover:bg-white"
-          >
-            Iniciado el {format(parseISO(currentCycle.startDate), 'dd/MM/yyyy')}
-          </Badge>
-        </div>
-
-      </div>
-
-      <div className="flex items-center p-2 rounded-lg bg-white/70 backdrop-blur-sm shadow-sm">
-        <Calendar className="h-5 w-5 text-pink-600 mr-2" />
-        <div className="text-left">
-          <p className="text-[10px] leading-none text-gray-500">Fecha actual</p>
-          <span className="text-xs font-medium text-gray-700">{format(new Date(), 'dd/MM/yyyy')}</span>
-          <p className="mt-1 text-[10px] leading-none text-gray-500">Día de ciclo</p>
-          <span className="text-sm font-medium text-gray-700">{cycleDay}</span>
-        </div>
-      </div>
-
-      <button
-        onClick={onShowRecords}
-        className="flex items-center p-2 rounded-lg bg-white/70 backdrop-blur-sm shadow-sm hover:bg-white transition-colors"
-      >
-        <TrendingUp className="h-5 w-5 text-emerald-600 mr-2" />
-        <div className="text-left">
-          <p className="text-[10px] leading-none text-gray-500">Registros</p>
-          <span className="text-sm font-medium text-gray-700">{totalRecords}</span>
-        </div>
-      </button>
-
-      <div className="flex items-center p-2 rounded-lg bg-white/70 backdrop-blur-sm shadow-sm">
-        <Egg className="h-5 w-5 text-purple-600 mr-2" />
-        <div className="text-left">
-          <p className="text-[10px] leading-none text-gray-500">Ventana de fertilidad</p>
-          <span className="text-sm font-medium text-gray-700">
-            {fertileWindow.preovulatory ? `D${fertileWindow.preovulatory}` : '—'}
-          </span>
-        </div>
-        
+      <div className="flex justify-around items-center max-w-md mx-auto">
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          
+          return (
+            <button
+              key={tab.id}
+              onClick={() => onTabChange(tab.id)}
+              className={`flex flex-col items-center py-2 px-3 rounded-lg transition-all duration-200 ${
+                isActive 
+                  ? 'text-pink-600' 
+                  : 'text-gray-400 hover:text-gray-600'
+              }`}
+            >
+              <div className={`relative ${isActive ? 'scale-110' : ''} transition-transform duration-200`}>
+                <Icon className="h-5 w-5" />
+                {isActive && (
+                  <motion.div
+                    className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-pink-600 rounded-full"
+                    layoutId="activeTab"
+                    transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                  />
+                )}
+              </div>
+              <span className={`text-xs mt-1 ${isActive ? 'font-medium' : ''}`}>
+                {tab.label}
+              </span>
+            </button>
+          );
+        })}
       </div>
     </motion.div>
   );
 };
 
-const DashboardPageContent = ({
-  currentCycle,
-  addOrUpdateDataPoint,
-  deleteCurrentRecord,
-  toggleIgnoreRecord,
-  startNewCycle,
-  isLoading,
-  isFullScreen,
-  toggleFullScreen,
-  orientation,
-  rotateScreen,
-  chartDisplayData,
-  scrollStart,
-  showForm, setShowForm,
-  showRecords, setShowRecords,
-  editingRecord, setEditingRecord,
-  recordToDelete, setRecordToDelete,
-  confirmNewCycleDialog, setConfirmNewCycleDialog,
-  toast,
-  showInterpretation, setShowInterpretation,
-  updateCycleDates,
-}) => {
-  const [showEditCycleDialog, setShowEditCycleDialog] = useState(false);
-  const [fabOpen, setFabOpen] = useState(false);
+const CycleOverviewCard = ({ cycleData, cycleData: { records = [] } = {} }) => {
+  // Simular algunos registros para mostrar el efecto visual
+  const mockRecords = [
+    { day: 1, symbol: 'red' },
+    { day: 2, symbol: 'red' },
+    { day: 3, symbol: 'red' },
+    { day: 4, symbol: 'spot' },
+    { day: 8, symbol: 'green' },
+    { day: 10, symbol: 'white' },
+    { day: 12, symbol: 'white' },
+    { day: 14, symbol: 'white' },
+    { day: 16, symbol: 'green' }
+  ];
 
-  useBackClose(showRecords, () => setShowRecords(false));
-  useBackClose(showForm || editingRecord, () => {
-    setShowForm(false);
-    setEditingRecord(null);
-  });
-
-  const chartVisibleDays = isFullScreen
-    ? orientation === 'portrait'
-      ? VISIBLE_DAYS_FULLSCREEN_PORTRAIT
-      : CYCLE_DURATION_DAYS
-    : VISIBLE_DAYS_NORMAL_VIEW;
-
-  const handleEdit = (record) => {
-    const openForm = () => {
-      setEditingRecord(record);
-      setShowRecords(false);
-      setShowForm(true);
-    };
-
-    if (isFullScreen) {
-      toggleFullScreen();
-      setTimeout(openForm, 300);
-    } else {
-      openForm();
+  const getSymbolColor = (symbolValue) => {
+    switch(symbolValue) {
+      case 'red': return '#ef4444'; // rojo menstruación
+      case 'white': return '#ffffff'; // blanco fértil
+      case 'green': return '#22c55e'; // verde infértil
+      case 'spot': return '#f472b6'; // rosa spotting
+      default: return '#e2e8f0'; // gris por defecto
     }
   };
 
-  const handleDeleteRequest = (recordId) => {
-    const record = currentCycle.data.find(r => r.id === recordId);
-    setRecordToDelete(record);
-  };
-    const handleCycleDatesUpdate = async ({ startDate }) => {
-    try {
-      await updateCycleDates(currentCycle.id, startDate);
-      toast({
-        title: 'Fechas actualizadas',
-        description: 'Las fechas del ciclo han sido modificadas.'
-      });
-      setShowEditCycleDialog(false);
-    } catch (e) {
-      // error handled via toast
-    }
-  };
-
-  const confirmDelete = () => {
-    if (recordToDelete) {
-      deleteCurrentRecord(recordToDelete.id);
-      toast({
-        title: "Registro eliminado",
-        description: `El registro del ${format(parseISO(recordToDelete.isoDate), "dd/MM/yyyy")} ha sido eliminado.`,
-        variant: "destructive",
-      });
-      setRecordToDelete(null);
-    }
-  };
-  
-  const openFormForNewRecord = () => {
-    setEditingRecord(null);
-    setShowRecords(false);
-    setShowForm(true);
-  };
-
-  const openRecordsList = () => {
-    setShowForm(false);
-    setEditingRecord(null);
-    setShowRecords(true);
-  };
-
-  const handleStartNewCycle = () => {
-    setConfirmNewCycleDialog(true);
-  };
-
-  const confirmStartNewCycleAction = (selectedDate) => {
-    startNewCycle(selectedDate);
-    toast({
-      title: "Nuevo Ciclo Iniciado",
-      description: "Los datos del ciclo anterior han sido archivados.",
+  const createProgressSegments = () => {
+    const totalDays = 28;
+    const segmentAngle = (2 * Math.PI) / totalDays;
+    const radius = 45;
+    const strokeWidth = 6;
+    
+    return Array.from({ length: totalDays }, (_, index) => {
+      const day = index + 1;
+      const record = mockRecords.find(r => r.day === day);
+      const startAngle = index * segmentAngle;
+      const endAngle = (index + 1) * segmentAngle;
+      
+      const x1 = 50 + radius * Math.cos(startAngle - Math.PI/2);
+      const y1 = 50 + radius * Math.sin(startAngle - Math.PI/2);
+      const x2 = 50 + radius * Math.cos(endAngle - Math.PI/2);
+      const y2 = 50 + radius * Math.sin(endAngle - Math.PI/2);
+      
+      const largeArc = endAngle - startAngle <= Math.PI ? "0" : "1";
+      
+      const pathData = [
+        "M", x1, y1,
+        "A", radius, radius, 0, largeArc, 1, x2, y2
+      ].join(" ");
+      
+      return {
+        path: pathData,
+        color: day <= cycleData.currentDay && record ? getSymbolColor(record.symbol) : '#f1f5f9',
+        opacity: day <= cycleData.currentDay ? 1 : 0.3
+      };
     });
-    setConfirmNewCycleDialog(false);
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
-        <motion.div
-          className="w-8 h-8 rounded-full bg-pink-500/80"
-          animate={{ opacity: [0.4, 1, 0.4] }}
-          transition={{ duration: 1.2, repeat: Infinity }}
-        />
-        <motion.p
-          className="text-pink-600 font-medium"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.2 }}
-        >
-          Cargando datos del ciclo...
-        </motion.p>
-      </div>
-    );
-  }
+  const segments = createProgressSegments();
 
   return (
-    <div className={`flex flex-col items-center w-full min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-indigo-50 ${isFullScreen ? 'overflow-hidden h-full' : ''}`}>
+    <div className="relative">
+      {/* Fecha actual - Parte superior */}
+      <motion.div 
+        className="text-center mb-6"
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+      >
+        <h1 className="text-2xl font-bold text-gray-800 mb-1">
+          {new Date().toLocaleDateString('es-ES', { 
+            weekday: 'long',
+            day: 'numeric', 
+            month: 'long'
+          })}
+        </h1>
+        <p className="text-sm text-gray-500 capitalize">
+          Día {cycleData.currentDay} del ciclo • {cycleData.phase}
+        </p>
+      </motion.div>
 
-
-      <main className={`w-full ${isFullScreen ? 'h-full flex items-center justify-center' : 'max-w-6xl flex-1 px-4'}`}>
-        <AnimatePresence>
-          {(!showForm && !showRecords) && (chartDisplayData.length > 0 || isFullScreen) && (
-            <motion.div
-              initial={{ opacity: 0, scale: isFullScreen ? 1 : 0.98, y: isFullScreen ? 0 : 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: isFullScreen ? 1 : 0.98, y: isFullScreen ? 0 : 10 }}
-              transition={{ duration: 0.4, ease: "easeOut" }}
-              className={`
-                ${isFullScreen
-                  ? 'w-full h-full p-0 fixed inset-0 z-50 bg-white'
-                  : 'p-4 sm:p-6 mb-2 bg-white/70 backdrop-blur-xl rounded-2xl border border-white/50'
-                }
-                relative shadow-xl shadow-purple-500/5
-              `}
-            >
-              {!isFullScreen && (
-                <DashboardHeader
-                  currentCycle={currentCycle}
-                  onShowRecords={openRecordsList}
-                  onEditDates={() => currentCycle?.startDate && setShowEditCycleDialog(true)}
-                />
-              )}
-              <FertilityChart
-                data={chartDisplayData}
-                isFullScreen={isFullScreen}
-                orientation={orientation}
-                onEdit={handleEdit}
-                onToggleIgnore={toggleIgnoreRecord}
-                cycleId={currentCycle.id}
-                initialScrollIndex={scrollStart}
-                visibleDays={chartVisibleDays}
-                showInterpretation={showInterpretation}
-              />
-              
-              {/* Botones del gráfico más discretos */}
-              <Button
-                onClick={() => setShowInterpretation(v => !v)}
-                variant="ghost"
-                size="icon"
-                title={showInterpretation ? 'Ocultar interpretación' : 'Interpretar'}
-                className={`absolute ${isFullScreen ? 'top-4 right-20' : 'top-2 right-14'} rounded-lg p-2 backdrop-blur-sm transition-all duration-200 ${
-                  showInterpretation
-                    ? 'bg-pink-500 text-white hover:bg-pink-600 shadow-sm'
-                    : 'bg-white/80 text-gray-600 hover:bg-white hover:text-gray-800 border border-gray-200'
-                }`}
-              >
-                {showInterpretation ? (
-                  <EyeOff className="h-4 w-4" />
-                ) : (
-                  <Eye className="h-4 w-4" />
-                )}
-                
-              </Button>
-                            {!showInterpretation && !isFullScreen && (
-                <span className="absolute top-3 right-8 text-xs text-gray-600"></span>
-              )}
-              {isFullScreen && (
-                <Button
-                  onClick={rotateScreen}
-                  variant="ghost"
-                  size="icon"
-                  className="absolute top-4 right-14 text-gray-600 bg-white/80 hover:bg-white backdrop-blur-sm rounded-lg p-2 border border-gray-200"
-                  title="Rotar Pantalla"
-                >
-                  <RotateCcw className="h-4 w-4" />
-                </Button>
-              )}
-              
-              <Button
-                onClick={toggleFullScreen}
-                variant="ghost"
-                size="icon"
-                className={`
-                  absolute ${isFullScreen ? 'top-4 right-4' : 'top-2 right-2'} 
-                  rounded-lg p-2 backdrop-blur-sm transition-all duration-200
-                  ${isFullScreen 
-                    ? 'text-gray-600 bg-white/80 hover:bg-white border border-gray-200'
-                    : 'text-gray-500 hover:text-gray-700 bg-white/80 hover:bg-white border border-gray-200'
-                  }
-                `}
-                title={isFullScreen ? "Salir de Pantalla Completa" : "Ver en Pantalla Completa"}
-              >
-                {isFullScreen ? <X className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
-              </Button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-        
-
-        
-        <AnimatePresence>
-          {(showForm || editingRecord) && (
-            <motion.div
-              key="data-entry-form"
-              initial={{ opacity: 0, y: 20, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 20, scale: 0.98 }}
-              transition={{ type: 'spring', stiffness: 260, damping: 20 }}
-              className="w-full"
-            >
-              <DataEntryForm
-                onSubmit={addOrUpdateDataPoint}
-                initialData={editingRecord}
-                isEditing={Boolean(editingRecord)}
-                cycleStartDate={currentCycle.startDate}
-                cycleEndDate={currentCycle.endDate}
-                onCancel={() => { setShowForm(false); setEditingRecord(null); }}
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <AnimatePresence>
-          {showRecords && (
-            <motion.div
-              key="records-list"
-              initial={{ opacity: 0, y: 20, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -20, scale: 0.98 }}
-              transition={{ type: 'spring', stiffness: 260, damping: 20 }}
-              className="w-full"
-            >
-              <RecordsList
-                records={currentCycle.data}
-                onEdit={handleEdit}
-                onDelete={handleDeleteRequest}
-                onClose={() => setShowRecords(false)}
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
-        
-        {currentCycle.data.filter(d => d.id && !d.id.startsWith('placeholder-')).length === 0 && !showForm && !showRecords && !isFullScreen && (
+      {/* Card principal con fondo sólido */}
+      <motion.div 
+        className="bg-white rounded-3xl p-8 mb-6 shadow-xl shadow-pink-500/10 border border-pink-100/50"
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.4, delay: 0.1 }}
+      >
+        {/* Círculo de progreso mejorado */}
+        <div className="text-center mb-8">
           <motion.div
+            className="relative inline-flex items-center justify-center w-40 h-40 mb-6"
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: 'spring', stiffness: 200, damping: 15, delay: 0.3 }}
+          >
+            <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+              {/* Círculo base más sutil */}
+              <circle
+                cx="50"
+                cy="50"
+                r="45"
+                fill="none"
+                stroke="#f8fafc"
+                strokeWidth="6"
+              />
+              
+              {/* Segmentos de progreso con colores de fertilidad */}
+              {segments.map((segment, index) => (
+                <motion.path
+                  key={index}
+                  d={segment.path}
+                  fill="none"
+                  stroke={segment.color}
+                  strokeWidth="6"
+                  strokeLinecap="round"
+                  opacity={segment.opacity}
+                  initial={{ pathLength: 0 }}
+                  animate={{ pathLength: 1 }}
+                  transition={{ 
+                    duration: 0.8, 
+                    delay: 0.6 + (index * 0.02),
+                    ease: "easeOut" 
+                  }}
+                />
+              ))}
+              
+              {/* Círculo interior decorativo */}
+              <circle
+                cx="50"
+                cy="50"
+                r="35"
+                fill="none"
+                stroke="rgba(236, 72, 153, 0.05)"
+                strokeWidth="1"
+              />
+            </svg>
+            
+            {/* Contenido central mejorado */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <motion.span 
+                className="text-4xl font-bold bg-gradient-to-br from-pink-600 to-rose-600 bg-clip-text text-transparent"
+                initial={{ opacity: 0, scale: 0.5 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 1, type: 'spring', stiffness: 200 }}
+              >
+                {cycleData.currentDay}
+              </motion.span>
+              <motion.span 
+                className="text-sm text-gray-500 font-medium mt-1"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 1.1 }}
+              >
+                días
+              </motion.span>
+              
+              {/* Indicador de fase con color */}
+              <motion.div
+                className="mt-2 px-3 py-1 rounded-full bg-gradient-to-r from-pink-100 to-rose-100 border border-pink-200"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 1.2 }}
+              >
+                <span className="text-xs font-medium text-pink-700">
+                  {cycleData.phase}
+                </span>
+              </motion.div>
+            </div>
+          </motion.div>
+        </div>
+
+        {/* Información de ventana fértil mejorada */}
+        {cycleData.fertileWindow.preovulatory && (
+          <motion.div 
+            className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-2xl p-4 border border-purple-100"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4, duration: 0.4 }}
+            transition={{ delay: 1.4 }}
           >
-            <NoDataMessage />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-200 to-pink-200 flex items-center justify-center mr-4">
+                  <Egg className="h-6 w-6 text-purple-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-800">
+                    Ventana de fertilidad
+                  </p>
+                  <p className="text-xs text-gray-600">
+                    Tasa de concepción alta
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-lg font-bold text-purple-600">
+                  D{cycleData.fertileWindow.preovulatory}
+                </div>
+                <ChevronRight className="h-4 w-4 text-gray-400 mx-auto mt-1" />
+              </div>
+            </div>
           </motion.div>
         )}
-      </main>
-      
-      {!isFullScreen && (
-        <div className="fixed bottom-6 right-6 z-50">
-          <div className="relative flex flex-col items-end">
-            <AnimatePresence>
-              {fabOpen && !showForm && !showRecords && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.8, y: 20 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.8, y: 20 }}
-                  transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-                  className="flex flex-col items-end space-y-2 absolute bottom-16 right-0"
-                >
-                  <button
-                    onClick={() => { setFabOpen(false); handleStartNewCycle(); }}
-                    className="flex items-center px-4 py-2 rounded-lg bg-pink-100 text-pink-700 shadow-md hover:shadow-lg border border-pink-300"
-                  >
-                    Nuevo Registro
-                  </button>
-                  <button
-                    onClick={() => { setFabOpen(false); openFormForNewRecord(); }}
-                    className="flex items-center px-4 py-2 rounded-lg bg-pink-50 text-pink-600 shadow-md hover:shadow-lg border border-pink-200"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Nuevo Registro
-                  </button>
-                </motion.div>
-              )}
-            </AnimatePresence>
-            <motion.button
-              onClick={() => setFabOpen(!fabOpen)}
-              className="w-14 h-14 rounded-full bg-gradient-to-br from-pink-400 to-rose-500 text-white shadow-lg flex items-center justify-center"
-              whileTap={{ scale: 0.95 }}
-            >
-              <motion.span animate={{ rotate: fabOpen ? 45 : 0 }} transition={{ type: 'spring', stiffness: 260, damping: 20 }}>
-                <Plus className="h-6 w-6" />
-              </motion.span>
-             </motion.button>
-            </div>
-          </div>
-        )}
-
-        <DeletionDialog
-        isOpen={!!recordToDelete}
-        onClose={() => setRecordToDelete(null)}
-        onConfirm={confirmDelete}
-        recordDate={recordToDelete ? format(parseISO(recordToDelete.isoDate), "dd/MM/yyyy") : ''}
-      />
-
-      <NewCycleDialog
-        isOpen={confirmNewCycleDialog}
-        onClose={() => setConfirmNewCycleDialog(false)}
-        onConfirm={confirmStartNewCycleAction}
-        currentCycleStartDate={currentCycle.startDate}
-      />
-      
-      <EditCycleDatesDialog
-        isOpen={showEditCycleDialog}
-        onClose={() => setShowEditCycleDialog(false)}
-        onConfirm={handleCycleDatesUpdate}
-        initialStartDate={currentCycle.startDate}
-        includeEndDate={false}
-      />
+      </motion.div>
     </div>
   );
-}
+};
 
-function DashboardPage() {
-  const {
-    currentCycle,
-    addOrUpdateDataPoint: originalAddOrUpdate,
-    deleteRecord,
-    startNewCycle,
-    isLoading,
-    refreshData,
-    toggleIgnoreRecord,
-    updateCycleDates
-  } = useCycleData();
-  
-  const [showForm, setShowForm] = useState(false);
-  const [showRecords, setShowRecords] = useState(false);
-  const [editingRecord, setEditingRecord] = useState(null);
-  const [recordToDelete, setRecordToDelete] = useState(null);
-  const [confirmNewCycleDialog, setConfirmNewCycleDialog] = useState(false);
-  const [showInterpretation, setShowInterpretation] = useState(false);
-  
-  const { isFullScreen, orientation, toggleFullScreen, rotateScreen } = useFullScreen();
-  const { toast } = useToast();
-
-  useEffect(() => {
-    refreshData();
-  }, [refreshData]);
-
-  const addOrUpdateDataPoint = (newData) => {
-    originalAddOrUpdate(newData, editingRecord);
-    toast({
-      title: editingRecord ? "Registro actualizado" : "Nuevo registro añadido",
-      description: editingRecord 
-        ? `Datos del ${format(parseISO(newData.isoDate), "dd/MM/yyyy")} actualizados.`
-        : `Registro para el ${format(parseISO(newData.isoDate), "dd/MM/yyyy")} añadido.`,
-    });
-    setShowForm(false);
-    setEditingRecord(null);
-  };
-  
-  const getChartDisplayData = useCallback(() => {
-    if (isLoading || !currentCycle || !currentCycle.startDate) {
-      return { data: [], scrollStart: 0 };
-    }
-    
-    const cycleStartDate = parseISO(currentCycle.startDate);
-
-    const lastRecordDate = currentCycle.data.reduce((maxDate, record) => {
-      const recDate = parseISO(record.isoDate);
-      return recDate > maxDate ? recDate : maxDate;
-    }, cycleStartDate);
-
-    const today = startOfDay(new Date());
-    const lastRelevantDate = lastRecordDate > today ? lastRecordDate : today;
-    const daysSinceStart = differenceInDays(startOfDay(lastRelevantDate), cycleStartDate);
-    const daysInCycle = Math.max(CYCLE_DURATION_DAYS, daysSinceStart + 1);
-
-    const fullCyclePlaceholders = generatePlaceholders(cycleStartDate, daysInCycle);
-
-    const mergedData = fullCyclePlaceholders.map(placeholder => {
-        const existingRecord = currentCycle.data.find(d => d.isoDate === placeholder.isoDate);
-        return existingRecord ? { ...existingRecord, date: placeholder.date } : placeholder;
-    });
-
-    if (isFullScreen && orientation === 'landscape') {
-      return { data: mergedData, scrollStart: 0 };
-    }
-
-    const daysSinceCycleStart = differenceInDays(new Date(), startOfDay(cycleStartDate));
-    const currentDayIndex = Math.min(Math.max(daysSinceCycleStart, 0), daysInCycle - 1);
-    let endIndex = Math.min(daysInCycle, currentDayIndex + 1);
-    const visibleWindow = isFullScreen
-      ? VISIBLE_DAYS_FULLSCREEN_PORTRAIT
-      : VISIBLE_DAYS_NORMAL_VIEW;
-    if (currentDayIndex < visibleWindow - 1) {
-       endIndex = Math.min(daysInCycle, visibleWindow);
-    }
-
-    const startIndex = Math.max(0, endIndex - visibleWindow);
-    
-    return { data: mergedData, scrollStart: startIndex };
-  }, [currentCycle, isFullScreen, isLoading, orientation]);
-  
-  const { data: chartDisplayData, scrollStart } = getChartDisplayData();
+const TodaySection = ({ todayData, onAddRecord }) => {
+  const hasData = todayData.temperature || todayData.cervicalMucus || todayData.bleeding || todayData.symptoms.length > 0;
 
   return (
-    <DashboardPageContent
-      currentCycle={currentCycle}
-      addOrUpdateDataPoint={addOrUpdateDataPoint}
-      deleteCurrentRecord={deleteRecord}
-      toggleIgnoreRecord={toggleIgnoreRecord}
-      startNewCycle={startNewCycle}
-      isLoading={isLoading}
-      isFullScreen={isFullScreen}
-      toggleFullScreen={toggleFullScreen}
-      orientation={orientation}
-      rotateScreen={rotateScreen}
-      chartDisplayData={chartDisplayData}
-      scrollStart={scrollStart}
-      showForm={showForm} setShowForm={setShowForm}
-      showRecords={showRecords} setShowRecords={setShowRecords}
-      editingRecord={editingRecord} setEditingRecord={setEditingRecord}
-      recordToDelete={recordToDelete} setRecordToDelete={setRecordToDelete}
-      confirmNewCycleDialog={confirmNewCycleDialog} setConfirmNewCycleDialog={setConfirmNewCycleDialog}
-      toast={toast}
-      showInterpretation={showInterpretation} setShowInterpretation={setShowInterpretation}
-      updateCycleDates={updateCycleDates}
-    />
+    <motion.div 
+      className="mb-6"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 1.6 }}
+    >
+      {!hasData ? (
+        <motion.button
+          onClick={onAddRecord}
+          className="w-full bg-white border border-pink-100 rounded-3xl p-8 hover:bg-pink-50 transition-all duration-300 group shadow-lg shadow-pink-500/10"
+          whileTap={{ scale: 0.98 }}
+          whileHover={{ scale: 1.02 }}
+        >
+          <div className="flex flex-col items-center">
+            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-pink-500 to-rose-500 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300 shadow-lg shadow-pink-500/25">
+              <Plus className="h-10 w-10 text-white" />
+            </div>
+            <h4 className="text-xl font-bold text-gray-800 mb-2">
+              Añadir registro
+            </h4>
+            <p className="text-sm text-gray-600 text-center max-w-xs">
+              Registra tu temperatura, flujo cervical y síntomas de hoy
+            </p>
+          </div>
+        </motion.button>
+      ) : (
+        <div className="bg-white rounded-3xl p-6 border border-pink-100 shadow-lg shadow-pink-500/10">
+          <div className="flex items-center justify-between mb-4">
+            <h4 className="text-lg font-bold text-gray-800">
+              Registro de hoy
+            </h4>
+            <button 
+              onClick={onAddRecord}
+              className="px-4 py-2 bg-gradient-to-r from-pink-500 to-rose-500 text-white text-sm font-medium rounded-full hover:from-pink-600 hover:to-rose-600 transition-all duration-200"
+            >
+              Editar
+            </button>
+          </div>
+          
+          <div className="grid grid-cols-1 gap-3">
+            {todayData.temperature && (
+              <div className="flex items-center p-3 bg-red-50 rounded-xl border border-red-100">
+                <div className="w-10 h-10 rounded-full bg-red-500 flex items-center justify-center mr-3">
+                  <Activity className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-800">Temperatura</p>
+                  <p className="text-lg font-bold text-red-600">
+                    {todayData.temperature}°C
+                  </p>
+                </div>
+              </div>
+            )}
+            
+            {todayData.cervicalMucus && (
+              <div className="flex items-center p-3 bg-blue-50 rounded-xl border border-blue-100">
+                <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center mr-3">
+                  <Droplets className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-800">Flujo cervical</p>
+                  <p className="text-sm font-semibold text-blue-600">
+                    {todayData.cervicalMucus}
+                  </p>
+                </div>
+              </div>
+            )}
+            
+            {todayData.bleeding && (
+              <div className="flex items-center p-3 bg-pink-50 rounded-xl border border-pink-100">
+                <div className="w-10 h-10 rounded-full bg-pink-500 flex items-center justify-center mr-3">
+                  <Heart className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-800">Sangrado</p>
+                  <p className="text-sm font-semibold text-pink-600">
+                    {todayData.bleeding}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </motion.div>
   );
-}
+};
 
-export default DashboardPage;
+const FloatingActionButton = ({ onAddRecord }) => {
+  return (
+    <motion.button
+      onClick={onAddRecord}
+      className="fixed bottom-20 right-6 w-14 h-14 bg-gradient-to-br from-pink-500 to-rose-500 text-white rounded-full shadow-lg flex items-center justify-center z-40"
+      whileTap={{ scale: 0.95 }}
+      whileHover={{ scale: 1.05 }}
+      initial={{ scale: 0 }}
+      animate={{ scale: 1 }}
+      transition={{ type: 'spring', stiffness: 300, damping: 20, delay: 1.6 }}
+    >
+      <Plus className="h-6 w-6" />
+    </motion.button>
+  );
+};
+
+const ModernFertilityDashboard = () => {
+  const [activeTab, setActiveTab] = useState('cycle');
+  const [showAddRecord, setShowAddRecord] = useState(false);
+
+  const handleAddRecord = () => {
+    setShowAddRecord(true);
+    // Aquí iría la lógica para mostrar el formulario de registro
+    console.log('Abrir formulario de registro');
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-rose-50 via-pink-50 to-purple-50 pb-20">
+      {/* Contenido principal */}
+      <div className="max-w-md mx-auto px-4 pt-12">
+        <AnimatePresence mode="wait">
+          {activeTab === 'cycle' && (
+            <motion.div
+              key="cycle"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              transition={{ duration: 0.3 }}
+            >
+              <CycleOverviewCard cycleData={mockCurrentCycle} />
+              <TodaySection todayData={mockTodayData} onAddRecord={handleAddRecord} />
+            </motion.div>
+          )}
+          
+          {activeTab === 'records' && (
+            <motion.div
+              key="records"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              transition={{ duration: 0.3 }}
+              className="text-center py-20"
+            >
+              <Calendar className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+              <h2 className="text-xl font-semibold text-gray-800 mb-2">Mis registros</h2>
+              <p className="text-gray-500">Vista de todos tus registros</p>
+            </motion.div>
+          )}
+          
+          {activeTab === 'cycles' && (
+            <motion.div
+              key="cycles"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              transition={{ duration: 0.3 }}
+              className="text-center py-20"
+            >
+              <Activity className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+              <h2 className="text-xl font-semibold text-gray-800 mb-2">Mis ciclos</h2>
+              <p className="text-gray-500">Historial de ciclos anteriores</p>
+            </motion.div>
+          )}
+          
+          {activeTab === 'chart' && (
+            <motion.div
+              key="chart"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              transition={{ duration: 0.3 }}
+              className="text-center py-20"
+            >
+              <BarChart3 className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+              <h2 className="text-xl font-semibold text-gray-800 mb-2">Gráfica</h2>
+              <p className="text-gray-500">Visualización de tu ciclo</p>
+            </motion.div>
+          )}
+          
+          {activeTab === 'account' && (
+            <motion.div
+              key="account"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              transition={{ duration: 0.3 }}
+              className="text-center py-20"
+            >
+              <User className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+              <h2 className="text-xl font-semibold text-gray-800 mb-2">Cuenta</h2>
+              <p className="text-gray-500">Configuración y perfil</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* FAB - solo visible en la pestaña de ciclo actual */}
+      {activeTab === 'cycle' && (
+        <FloatingActionButton onAddRecord={handleAddRecord} />
+      )}
+
+      {/* Barra de navegación inferior */}
+      <NavigationBar activeTab={activeTab} onTabChange={setActiveTab} />
+    </div>
+  );
+};
+
+export default ModernFertilityDashboard;
