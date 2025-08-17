@@ -61,51 +61,63 @@ const DashboardHeader = ({ currentCycle, onShowRecords, onEditDates }) => {
   if (!currentCycle?.startDate) return null;
   
   const cycleDay = differenceInDays(new Date(), parseISO(currentCycle.startDate)) + 1;
-  const totalRecords = currentCycle.data?.filter(d => d.id && !d.id.startsWith('placeholder-')).length || 0;
-  
+  const totalRecords =
+    currentCycle.data?.filter(d => d.id && !d.id.startsWith('placeholder-')).length || 0;
+
   const fertileWindow = calculateFertileWindow([], currentCycle.data);
   
   return (
-    <motion.header
-      className="w-full max-w-6xl flex items-center justify-between px-4 py-2 bg-white/60 backdrop-blur-sm border-b border-pink-100/50"
+        <motion.div
+      className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4"
       initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
-      <div className="flex items-center space-x-2">
-        <div className="p-1.5 bg-gradient-to-br from-pink-500 to-rose-500 rounded-full shadow-sm">
-          <Heart className="h-4 w-4 text-white" />
+      <div className="flex items-center p-2 rounded-lg bg-white/70 backdrop-blur-sm shadow-sm">
+        <Heart className="h-5 w-5 text-rose-500 mr-2" />
+        <div className="text-left">
+          <p className="text-[10px] leading-none text-gray-500">Ciclo actual</p>
+          <Badge
+            variant="secondary"
+            onClick={onEditDates}
+            className="mt-1 bg-white/70 text-gray-700 border border-gray-200 px-2 py-0.5 rounded-full text-xs cursor-pointer hover:bg-white"
+          >
+            {format(parseISO(currentCycle.startDate), 'dd/MM/yyyy')}
+          </Badge>
         </div>
-        <Badge
-          variant="secondary"
-          onClick={onEditDates}
-          className="bg-white/70 text-gray-700 border border-gray-200 px-2 py-1 rounded-full text-xs cursor-pointer hover:bg-white"
-        >
-          {format(parseISO(currentCycle.startDate), 'dd/MM/yyyy')}
-        </Badge>
+
       </div>
 
-      <div className="flex items-center space-x-4">
-        <div className="flex items-center space-x-1">
-          <Calendar className="h-4 w-4 text-pink-600" />
+      <div className="flex items-center p-2 rounded-lg bg-white/70 backdrop-blur-sm shadow-sm">
+        <Calendar className="h-5 w-5 text-pink-600 mr-2" />
+        <div className="text-left">
+          <p className="text-[10px] leading-none text-gray-500">Día de ciclo</p>
           <span className="text-sm font-medium text-gray-700">{cycleDay}</span>
         </div>
-        <button
-          onClick={onShowRecords}
-          className="flex items-center space-x-1 hover:opacity-80"
-        >
-          <TrendingUp className="h-4 w-4 text-emerald-600" />
+      </div>
+
+      <button
+        onClick={onShowRecords}
+        className="flex items-center p-2 rounded-lg bg-white/70 backdrop-blur-sm shadow-sm hover:bg-white transition-colors"
+      >
+        <TrendingUp className="h-5 w-5 text-emerald-600 mr-2" />
+        <div className="text-left">
+          <p className="text-[10px] leading-none text-gray-500">Registros</p>
           <span className="text-sm font-medium text-gray-700">{totalRecords}</span>
-        </button>
-        <div className="flex items-center space-x-1">
-          <Egg className="h-4 w-4 text-purple-600" />
+        </div>
+      </button>
+
+      <div className="flex items-center p-2 rounded-lg bg-white/70 backdrop-blur-sm shadow-sm">
+        <Egg className="h-5 w-5 text-purple-600 mr-2" />
+        <div className="text-left">
+          <p className="text-[10px] leading-none text-gray-500">Ventana de fertilidad</p>
           <span className="text-sm font-medium text-gray-700">
             {fertileWindow.preovulatory ? `D${fertileWindow.preovulatory}` : '—'}
           </span>
         </div>
         
       </div>
-    </motion.header>
+    </motion.div>
   );
 };
 
@@ -238,13 +250,6 @@ const DashboardPageContent = ({
   return (
     <div className={`flex flex-col items-center w-full min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-indigo-50 ${isFullScreen ? 'overflow-hidden h-full' : ''}`}>
 
-      {!isFullScreen && !showForm && !showRecords && (
-        <DashboardHeader
-          currentCycle={currentCycle}
-          onShowRecords={openRecordsList}
-          onEditDates={() => currentCycle?.startDate && setShowEditCycleDialog(true)}
-        />
-      )}
 
       <main className={`w-full ${isFullScreen ? 'h-full flex items-center justify-center' : 'max-w-6xl flex-1 px-4'}`}>
         <AnimatePresence>
@@ -255,13 +260,20 @@ const DashboardPageContent = ({
               exit={{ opacity: 0, scale: isFullScreen ? 1 : 0.98, y: isFullScreen ? 0 : 10 }}
               transition={{ duration: 0.4, ease: "easeOut" }}
               className={`
-                ${isFullScreen 
+                ${isFullScreen
                   ? 'w-full h-full p-0 fixed inset-0 z-50 bg-white' 
                   : 'p-4 sm:p-6 mb-6 bg-white/70 backdrop-blur-xl rounded-2xl border border-white/50'
                 }
                 shadow-xl shadow-purple-500/5
               `}
             >
+              {!isFullScreen && (
+                <DashboardHeader
+                  currentCycle={currentCycle}
+                  onShowRecords={openRecordsList}
+                  onEditDates={() => currentCycle?.startDate && setShowEditCycleDialog(true)}
+                />
+              )}
               <FertilityChart
                 data={chartDisplayData}
                 isFullScreen={isFullScreen}
@@ -385,39 +397,41 @@ const DashboardPageContent = ({
       
       {!isFullScreen && (
         <div className="fixed bottom-6 right-6 z-50">
-          <AnimatePresence>
-            {fabOpen && !showForm && !showRecords && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.8, y: 20 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.8, y: 20 }}
-                transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-                className="flex flex-col items-end mb-3 space-y-2"
-              >
-                <button
-                  onClick={() => { setFabOpen(false); openFormForNewRecord(); }}
-                  className="px-4 py-2 rounded-lg bg-white text-pink-600 shadow-md hover:shadow-lg border border-pink-200"
+          <div className="relative flex flex-col items-end">
+            <AnimatePresence>
+              {fabOpen && !showForm && !showRecords && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.8, y: 20 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.8, y: 20 }}
+                  transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                  className="flex flex-col items-end space-y-2 absolute bottom-16 right-0"
                 >
-                  Nuevo Registro
-                </button>
-                <button
-                  onClick={() => { setFabOpen(false); handleStartNewCycle(); }}
-                  className="px-4 py-2 rounded-lg bg-white text-pink-600 shadow-md hover:shadow-lg border border-pink-200"
-                >
-                  Nuevo Ciclo
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-          <motion.button
-            onClick={() => setFabOpen(!fabOpen)}
-            className="w-14 h-14 rounded-full bg-gradient-to-br from-pink-400 to-rose-500 text-white shadow-lg flex items-center justify-center"
-            whileTap={{ scale: 0.95 }}
-          >
-            <motion.span animate={{ rotate: fabOpen ? 45 : 0 }} transition={{ type: 'spring', stiffness: 260, damping: 20 }}>
-              <Plus className="h-6 w-6" />
-            </motion.span>
-          </motion.button>
+                  <button
+                    onClick={() => { setFabOpen(false); openFormForNewRecord(); }}
+                    className="px-4 py-2 rounded-lg bg-white text-pink-600 shadow-md hover:shadow-lg border border-pink-200"
+                  >
+                    Nuevo Registro
+                  </button>
+                  <button
+                    onClick={() => { setFabOpen(false); handleStartNewCycle(); }}
+                    className="px-4 py-2 rounded-lg bg-white text-pink-600 shadow-md hover:shadow-lg border border-pink-200"
+                  >
+                    Nuevo Ciclo
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+            <motion.button
+              onClick={() => setFabOpen(!fabOpen)}
+              className="w-14 h-14 rounded-full bg-gradient-to-br from-pink-400 to-rose-500 text-white shadow-lg flex items-center justify-center"
+              whileTap={{ scale: 0.95 }}
+            >
+              <motion.span animate={{ rotate: fabOpen ? 45 : 0 }} transition={{ type: 'spring', stiffness: 260, damping: 20 }}>
+                <Plus className="h-6 w-6" />
+              </motion.span>
+            </motion.button>
+          </div>o.l90p0`'0p0pl7p'`
         </div>
       )}
 
