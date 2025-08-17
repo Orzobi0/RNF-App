@@ -5,8 +5,12 @@
   "targets": {
     "rnf-app": {
       "hosting": {
-        "production": ["rnf-app"],
-        "experiment": ["rnf-app-experiment"]
+        "production": [
+          "rnf-app"
+        ],
+        "experiment": [
+          "rnf-app-experiment"
+        ]
       }
     }
   },

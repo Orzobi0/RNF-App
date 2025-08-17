@@ -30,22 +30,17 @@ self.addEventListener('fetch', (event) => {
     return;   // ignorar extensiones u otros esquemas
   }
 
-    event.respondWith(
-      caches.match(event.request).then(cached => {
-        return cached || fetch(event.request).then(response => {
-          if (response && response.status === 200 && response.type === 'basic') {
-            const responseClone = response.clone();
-            caches.open(CACHE_NAME).then(cache =>
-              cache.put(event.request, responseClone)
-            );
-          }
-          return response;
-        }).catch((error) => {
-          if (event.request.mode === 'navigate') {
-            return caches.match(`${BASE_URL}index.html`);
-          }
-          throw error;
-        });
-      })
-    );
-  });
+  event.respondWith(
+    caches.match(event.request).then(cached => {
+      return cached || fetch(event.request).then(response => {
+        if (response && response.status === 200 && response.type === 'basic') {
+          const responseClone = response.clone();
+          caches.open(CACHE_NAME).then(cache =>
+            cache.put(event.request, responseClone)
+          );
+        }
+        return response;
+      }).catch(() => caches.match(`${BASE_URL}index.html`));
+    })
+  );
+});
