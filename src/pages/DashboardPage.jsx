@@ -1,36 +1,15 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Heart, Egg, Droplets, Activity, ChevronRight } from 'lucide-react';
+import { Plus } from 'lucide-react';
+import DataEntryForm from '@/components/DataEntryForm';
+import { useCycleData } from '@/hooks/useCycleData';
+import { differenceInDays, parseISO, startOfDay } from 'date-fns';
 
-// Mock data - en la implementación real vendría de tus hooks
-const mockCurrentCycle = {
-  startDate: '2025-08-01',
-  currentDay: 17,
-  fertileWindow: { preovulatory: 13, t8: 14 },
-  phase: 'Fase folicular'
-};
+const CycleOverviewCard = ({ cycleData }) => {
+  // Extrae los registros reales del ciclo
+  const records = cycleData.records || [];
 
-const mockTodayData = {
-  temperature: null,
-  cervicalMucus: null,
-  bleeding: null,
-  symptoms: []
-};
-
-
-const CycleOverviewCard = ({ cycleData, cycleData: { records = [] } = {} }) => {
-  // Simular algunos registros para mostrar el efecto visual
-  const mockRecords = [
-    { day: 1, symbol: 'red' },
-    { day: 2, symbol: 'red' },
-    { day: 3, symbol: 'red' },
-    { day: 4, symbol: 'spot' },
-    { day: 8, symbol: 'green' },
-    { day: 10, symbol: 'white' },
-    { day: 12, symbol: 'white' },
-    { day: 14, symbol: 'white' },
-    { day: 16, symbol: 'green' }
-  ];
+  // Devuelve el color asociado a cada símbolo de fertilidad
 
   const getSymbolColor = (symbolValue) => {
     switch(symbolValue) {
@@ -41,16 +20,15 @@ const CycleOverviewCard = ({ cycleData, cycleData: { records = [] } = {} }) => {
       default: return '#e2e8f0'; // gris por defecto
     }
   };
-
+  // Construye los segmentos del círculo en función de los registros
   const createProgressSegments = () => {
-    const totalDays = 28;
+    const totalDays = Math.max(cycleData.currentDay, 28);
     const segmentAngle = (2 * Math.PI) / totalDays;
     const radius = 45;
-    const strokeWidth = 6;
-    
+
     return Array.from({ length: totalDays }, (_, index) => {
       const day = index + 1;
-      const record = mockRecords.find(r => r.day === day);
+      const record = records.find(r => r.cycleDay === day);
       const startAngle = index * segmentAngle;
       const endAngle = (index + 1) * segmentAngle;
       
@@ -59,16 +37,16 @@ const CycleOverviewCard = ({ cycleData, cycleData: { records = [] } = {} }) => {
       const x2 = 50 + radius * Math.cos(endAngle - Math.PI/2);
       const y2 = 50 + radius * Math.sin(endAngle - Math.PI/2);
       
-      const largeArc = endAngle - startAngle <= Math.PI ? "0" : "1";
-      
+      const largeArc = endAngle - startAngle <= Math.PI ? '0' : '1';
+
       const pathData = [
-        "M", x1, y1,
-        "A", radius, radius, 0, largeArc, 1, x2, y2
-      ].join(" ");
-      
+        'M', x1, y1,
+        'A', radius, radius, 0, largeArc, 1, x2, y2
+      ].join(' ');
+
       return {
         path: pathData,
-        color: day <= cycleData.currentDay && record ? getSymbolColor(record.symbol) : '#f1f5f9',
+        color: day <= cycleData.currentDay && record ? getSymbolColor(record.fertility_symbol) : '#f1f5f9',
         opacity: day <= cycleData.currentDay ? 1 : 0.3
       };
     });
@@ -86,14 +64,14 @@ const CycleOverviewCard = ({ cycleData, cycleData: { records = [] } = {} }) => {
         transition={{ duration: 0.4 }}
       >
         <h1 className="text-2xl font-bold text-gray-800 mb-1">
-          {new Date().toLocaleDateString('es-ES', { 
+          {new Date().toLocaleDateString('es-ES', {
             weekday: 'long',
-            day: 'numeric', 
+            day: 'numeric',
             month: 'long'
           })}
         </h1>
         <p className="text-sm text-gray-500 capitalize">
-          Día {cycleData.currentDay} del ciclo • {cycleData.phase}
+          Día {cycleData.currentDay} del ciclo
         </p>
       </motion.div>
 
@@ -156,7 +134,7 @@ const CycleOverviewCard = ({ cycleData, cycleData: { records = [] } = {} }) => {
             
             {/* Contenido central mejorado */}
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <motion.span 
+              <motion.span
                 className="text-4xl font-bold bg-gradient-to-br from-pink-600 to-rose-600 bg-clip-text text-transparent"
                 initial={{ opacity: 0, scale: 0.5 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -164,7 +142,7 @@ const CycleOverviewCard = ({ cycleData, cycleData: { records = [] } = {} }) => {
               >
                 {cycleData.currentDay}
               </motion.span>
-              <motion.span 
+              <motion.span
                 className="text-sm text-gray-500 font-medium mt-1"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -173,154 +151,22 @@ const CycleOverviewCard = ({ cycleData, cycleData: { records = [] } = {} }) => {
                 días
               </motion.span>
               
-              {/* Indicador de fase con color */}
-              <motion.div
-                className="mt-2 px-3 py-1 rounded-full bg-gradient-to-r from-pink-100 to-rose-100 border border-pink-200"
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 1.2 }}
-              >
-                <span className="text-xs font-medium text-pink-700">
-                  {cycleData.phase}
-                </span>
-              </motion.div>
             </div>
           </motion.div>
         </div>
 
-        {/* Información de ventana fértil mejorada */}
-        {cycleData.fertileWindow.preovulatory && (
-          <motion.div 
-            className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-2xl p-4 border border-purple-100"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 1.4 }}
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-200 to-pink-200 flex items-center justify-center mr-4">
-                  <Egg className="h-6 w-6 text-purple-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-gray-800">
-                    Ventana de fertilidad
-                  </p>
-                  <p className="text-xs text-gray-600">
-                    Tasa de concepción alta
-                  </p>
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="text-lg font-bold text-purple-600">
-                  D{cycleData.fertileWindow.preovulatory}
-                </div>
-                <ChevronRight className="h-4 w-4 text-gray-400 mx-auto mt-1" />
-              </div>
-            </div>
-          </motion.div>
-        )}
       </motion.div>
     </div>
   );
 };
 
-const TodaySection = ({ todayData, onAddRecord }) => {
-  const hasData = todayData.temperature || todayData.cervicalMucus || todayData.bleeding || todayData.symptoms.length > 0;
 
-  return (
-    <motion.div 
-      className="mb-6"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 1.6 }}
-    >
-      {!hasData ? (
-        <motion.button
-          onClick={onAddRecord}
-          className="w-full bg-white border border-pink-100 rounded-3xl p-8 hover:bg-pink-50 transition-all duration-300 group shadow-lg shadow-pink-500/10"
-          whileTap={{ scale: 0.98 }}
-          whileHover={{ scale: 1.02 }}
-        >
-          <div className="flex flex-col items-center">
-            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-pink-500 to-rose-500 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300 shadow-lg shadow-pink-500/25">
-              <Plus className="h-10 w-10 text-white" />
-            </div>
-            <h4 className="text-xl font-bold text-gray-800 mb-2">
-              Añadir registro
-            </h4>
-            <p className="text-sm text-gray-600 text-center max-w-xs">
-              Registra tu temperatura, flujo cervical y síntomas de hoy
-            </p>
-          </div>
-        </motion.button>
-      ) : (
-        <div className="bg-white rounded-3xl p-6 border border-pink-100 shadow-lg shadow-pink-500/10">
-          <div className="flex items-center justify-between mb-4">
-            <h4 className="text-lg font-bold text-gray-800">
-              Registro de hoy
-            </h4>
-            <button 
-              onClick={onAddRecord}
-              className="px-4 py-2 bg-gradient-to-r from-pink-500 to-rose-500 text-white text-sm font-medium rounded-full hover:from-pink-600 hover:to-rose-600 transition-all duration-200"
-            >
-              Editar
-            </button>
-          </div>
-          
-          <div className="grid grid-cols-1 gap-3">
-            {todayData.temperature && (
-              <div className="flex items-center p-3 bg-red-50 rounded-xl border border-red-100">
-                <div className="w-10 h-10 rounded-full bg-red-500 flex items-center justify-center mr-3">
-                  <Activity className="h-5 w-5 text-white" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-800">Temperatura</p>
-                  <p className="text-lg font-bold text-red-600">
-                    {todayData.temperature}°C
-                  </p>
-                </div>
-              </div>
-            )}
-            
-            {todayData.cervicalMucus && (
-              <div className="flex items-center p-3 bg-blue-50 rounded-xl border border-blue-100">
-                <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center mr-3">
-                  <Droplets className="h-5 w-5 text-white" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-800">Flujo cervical</p>
-                  <p className="text-sm font-semibold text-blue-600">
-                    {todayData.cervicalMucus}
-                  </p>
-                </div>
-              </div>
-            )}
-            
-            {todayData.bleeding && (
-              <div className="flex items-center p-3 bg-pink-50 rounded-xl border border-pink-100">
-                <div className="w-10 h-10 rounded-full bg-pink-500 flex items-center justify-center mr-3">
-                  <Heart className="h-5 w-5 text-white" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-800">Sangrado</p>
-                  <p className="text-sm font-semibold text-pink-600">
-                    {todayData.bleeding}
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-    </motion.div>
-  );
-};
 
 const FloatingActionButton = ({ onAddRecord }) => {
   return (
     <motion.button
       onClick={onAddRecord}
-      className="fixed bottom-20 right-6 w-14 h-14 bg-gradient-to-br from-pink-500 to-rose-500 text-white rounded-full shadow-lg flex items-center justify-center z-40"
+      className="fixed bottom-20 left-6 w-14 h-14 bg-gradient-to-br from-pink-500 to-rose-500 text-white rounded-full shadow-lg flex items-center justify-center z-40"
       whileTap={{ scale: 0.95 }}
       whileHover={{ scale: 1.05 }}
       initial={{ scale: 0 }}
@@ -334,15 +180,38 @@ const FloatingActionButton = ({ onAddRecord }) => {
 
 const ModernFertilityDashboard = () => {
 
-  const handleAddRecord = () => {
+  const { currentCycle, addOrUpdateDataPoint, isLoading } = useCycleData();
+  const [showForm, setShowForm] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
-    // Aquí iría la lógica para mostrar el formulario de registro
-    console.log('Abrir formulario de registro');
+  if (isLoading) {
+    return <p className="text-center text-gray-500">Cargando...</p>;
+  }
+
+  if (!currentCycle?.id) {
+    return <p className="text-center text-gray-500">No hay ciclo activo.</p>;
+  }
+
+  // Calcula el día actual del ciclo
+  const currentDay = differenceInDays(
+    startOfDay(new Date()),
+    parseISO(currentCycle.startDate)
+  ) + 1;
+
+  // Guarda el registro en la base de datos y cierra el formulario
+  const handleSave = async (data) => {
+    setIsProcessing(true);
+    try {
+      await addOrUpdateDataPoint(data);
+      setShowForm(false);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-rose-50 via-pink-50 to-purple-50 pb-20">
-      {/* Contenido principal */}
+      
       <div className="max-w-md mx-auto px-4 pt-12">
         <motion.div
           initial={{ opacity: 0, x: -20 }}
@@ -350,12 +219,21 @@ const ModernFertilityDashboard = () => {
           exit={{ opacity: 0, x: 20 }}
           transition={{ duration: 0.3 }}
         >
-          <CycleOverviewCard cycleData={mockCurrentCycle} />
-          <TodaySection todayData={mockTodayData} onAddRecord={handleAddRecord} />
+          <CycleOverviewCard cycleData={{ ...currentCycle, currentDay, records: currentCycle.data }} />
         </motion.div>
       </div>
 
-      <FloatingActionButton onAddRecord={handleAddRecord} />
+            {showForm && (
+        <DataEntryForm
+          onSubmit={handleSave}
+          onCancel={() => setShowForm(false)}
+          cycleStartDate={currentCycle.startDate}
+          cycleEndDate={currentCycle.endDate}
+          isProcessing={isProcessing}
+        />
+      )}
+
+      <FloatingActionButton onAddRecord={() => setShowForm(true)} />
     </div>
   );
 };
