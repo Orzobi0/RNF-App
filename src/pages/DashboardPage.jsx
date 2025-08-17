@@ -82,7 +82,7 @@ const DashboardHeader = ({ currentCycle, onShowRecords, onEditDates }) => {
             onClick={onEditDates}
             className="mt-1 bg-white/70 text-gray-700 border border-gray-200 px-2 py-0.5 rounded-full text-xs cursor-pointer hover:bg-white"
           >
-            {format(parseISO(currentCycle.startDate), 'dd/MM/yyyy')}
+            Iniciado el {format(parseISO(currentCycle.startDate), 'dd/MM/yyyy')}
           </Badge>
         </div>
 
@@ -91,7 +91,9 @@ const DashboardHeader = ({ currentCycle, onShowRecords, onEditDates }) => {
       <div className="flex items-center p-2 rounded-lg bg-white/70 backdrop-blur-sm shadow-sm">
         <Calendar className="h-5 w-5 text-pink-600 mr-2" />
         <div className="text-left">
-          <p className="text-[10px] leading-none text-gray-500">Día de ciclo</p>
+          <p className="text-[10px] leading-none text-gray-500">Fecha actual</p>
+          <span className="text-xs font-medium text-gray-700">{format(new Date(), 'dd/MM/yyyy')}</span>
+          <p className="mt-1 text-[10px] leading-none text-gray-500">Día de ciclo</p>
           <span className="text-sm font-medium text-gray-700">{cycleDay}</span>
         </div>
       </div>
@@ -261,10 +263,10 @@ const DashboardPageContent = ({
               transition={{ duration: 0.4, ease: "easeOut" }}
               className={`
                 ${isFullScreen
-                  ? 'w-full h-full p-0 fixed inset-0 z-50 bg-white' 
-                  : 'p-4 sm:p-6 mb-6 bg-white/70 backdrop-blur-xl rounded-2xl border border-white/50'
+                  ? 'w-full h-full p-0 fixed inset-0 z-50 bg-white'
+                  : 'p-4 sm:p-6 mb-2 bg-white/70 backdrop-blur-xl rounded-2xl border border-white/50'
                 }
-                shadow-xl shadow-purple-500/5
+                relative shadow-xl shadow-purple-500/5
               `}
             >
               {!isFullScreen && (
@@ -292,7 +294,7 @@ const DashboardPageContent = ({
                 variant="ghost"
                 size="icon"
                 title={showInterpretation ? 'Ocultar interpretación' : 'Interpretar'}
-                className={`absolute ${isFullScreen ? 'top-4 right-28' : 'top-3 right-14'} rounded-lg p-2 backdrop-blur-sm transition-all duration-200 ${
+                className={`absolute ${isFullScreen ? 'top-4 right-20' : 'top-2 right-14'} rounded-lg p-2 backdrop-blur-sm transition-all duration-200 ${
                   showInterpretation
                     ? 'bg-pink-500 text-white hover:bg-pink-600 shadow-sm'
                     : 'bg-white/80 text-gray-600 hover:bg-white hover:text-gray-800 border border-gray-200'
@@ -313,7 +315,7 @@ const DashboardPageContent = ({
                   onClick={rotateScreen}
                   variant="ghost"
                   size="icon"
-                  className="absolute top-4 right-16 text-gray-600 bg-white/80 hover:bg-white backdrop-blur-sm rounded-lg p-2 border border-gray-200"
+                  className="absolute top-4 right-14 text-gray-600 bg-white/80 hover:bg-white backdrop-blur-sm rounded-lg p-2 border border-gray-200"
                   title="Rotar Pantalla"
                 >
                   <RotateCcw className="h-4 w-4" />
@@ -325,10 +327,10 @@ const DashboardPageContent = ({
                 variant="ghost"
                 size="icon"
                 className={`
-                  absolute ${isFullScreen ? 'top-4 right-4' : 'top-3 right-3'} 
+                  absolute ${isFullScreen ? 'top-4 right-4' : 'top-2 right-2'} 
                   rounded-lg p-2 backdrop-blur-sm transition-all duration-200
                   ${isFullScreen 
-                    ? 'text-gray-600 bg-white/80 hover:bg-white border border-gray-200' 
+                    ? 'text-gray-600 bg-white/80 hover:bg-white border border-gray-200'
                     : 'text-gray-500 hover:text-gray-700 bg-white/80 hover:bg-white border border-gray-200'
                   }
                 `}
@@ -408,16 +410,17 @@ const DashboardPageContent = ({
                   className="flex flex-col items-end space-y-2 absolute bottom-16 right-0"
                 >
                   <button
-                    onClick={() => { setFabOpen(false); openFormForNewRecord(); }}
-                    className="px-4 py-2 rounded-lg bg-white text-pink-600 shadow-md hover:shadow-lg border border-pink-200"
+                    onClick={() => { setFabOpen(false); handleStartNewCycle(); }}
+                    className="flex items-center px-4 py-2 rounded-lg bg-pink-100 text-pink-700 shadow-md hover:shadow-lg border border-pink-300"
                   >
                     Nuevo Registro
                   </button>
                   <button
-                    onClick={() => { setFabOpen(false); handleStartNewCycle(); }}
-                    className="px-4 py-2 rounded-lg bg-white text-pink-600 shadow-md hover:shadow-lg border border-pink-200"
+                    onClick={() => { setFabOpen(false); openFormForNewRecord(); }}
+                    className="flex items-center px-4 py-2 rounded-lg bg-pink-50 text-pink-600 shadow-md hover:shadow-lg border border-pink-200"
                   >
-                    Nuevo Ciclo
+                    <Plus className="h-4 w-4 mr-2" />
+                    Nuevo Registro
                   </button>
                 </motion.div>
               )}
@@ -430,12 +433,12 @@ const DashboardPageContent = ({
               <motion.span animate={{ rotate: fabOpen ? 45 : 0 }} transition={{ type: 'spring', stiffness: 260, damping: 20 }}>
                 <Plus className="h-6 w-6" />
               </motion.span>
-            </motion.button>
-          </div>o.l90p0`'0p0pl7p'`
-        </div>
-      )}
+             </motion.button>
+            </div>
+          </div>
+        )}
 
-      <DeletionDialog
+        <DeletionDialog
         isOpen={!!recordToDelete}
         onClose={() => setRecordToDelete(null)}
         onConfirm={confirmDelete}
