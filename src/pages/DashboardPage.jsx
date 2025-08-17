@@ -71,7 +71,7 @@ const CycleOverviewCard = ({ cycleData }) => {
             month: 'long'
           })}
         </h1>
-        <p className="text-sm text-gray-500 capitalize">
+        <p className="text-sm text-gray-500 ">
           Día {cycleData.currentDay} del ciclo
         </p>
       </motion.div>
@@ -98,28 +98,44 @@ const CycleOverviewCard = ({ cycleData }) => {
                 cy="50"
                 r="45"
                 fill="none"
-                stroke="#f8fafc"
+                stroke="#ffc5cb"
                 strokeWidth="6"
               />
               
-              {/* Segmentos de progreso con colores de fertilidad */}
+{/* Segmentos de progreso con borde para distinguir cada día */}
               {segments.map((segment, index) => (
-                <motion.path
-                  key={index}
-                  d={segment.path}
-                  fill="none"
-                  stroke={segment.color}
-                  strokeWidth="6"
-                  strokeLinecap="round"
-                  opacity={segment.opacity}
-                  initial={{ pathLength: 0 }}
-                  animate={{ pathLength: 1 }}
-                  transition={{ 
-                    duration: 0.8, 
-                    delay: 0.6 + (index * 0.02),
-                    ease: "easeOut" 
-                  }}
-                />
+                <g key={index}>
+                  <motion.path
+                    d={segment.path}
+                    fill="none"
+                    stroke="#e2e8f0"
+                    strokeWidth="6"
+                    strokeLinecap="round"
+                    opacity={segment.opacity}
+                    initial={{ pathLength: 0 }}
+                    animate={{ pathLength: 1 }}
+                    transition={{
+                      duration: 0.8,
+                      delay: 0.6 + (index * 0.02),
+                      ease: "easeOut"
+                    }}
+                  />
+                  <motion.path
+                    d={segment.path}
+                    fill="none"
+                    stroke={segment.color}
+                    strokeWidth="4"
+                    strokeLinecap="round"
+                    opacity={segment.opacity}
+                    initial={{ pathLength: 0 }}
+                    animate={{ pathLength: 1 }}
+                    transition={{
+                      duration: 0.8,
+                      delay: 0.6 + (index * 0.02),
+                      ease: "easeOut"
+                    }}
+                  />
+                </g>
               ))}
               
               {/* Círculo interior decorativo */}
@@ -149,7 +165,7 @@ const CycleOverviewCard = ({ cycleData }) => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 1.1 }}
               >
-                días
+                días del ciclo
               </motion.span>
               
             </div>
