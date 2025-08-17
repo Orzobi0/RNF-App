@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Plus } from 'lucide-react';
+import { Plus, FilePlus, CalendarPlus } from 'lucide-react';
 import DataEntryForm from '@/components/DataEntryForm';
 import { useCycleData } from '@/hooks/useCycleData';
 import { differenceInDays, parseISO, startOfDay } from 'date-fns';
@@ -86,7 +86,7 @@ const CycleOverviewCard = ({ cycleData }) => {
         {/* Círculo de progreso mejorado */}
         <div className="text-center mb-8">
           <motion.div
-            className="relative inline-flex items-center justify-center w-40 h-40 mb-6"
+            className="relative inline-flex items-center justify-center w-56 h-56 mb-6"
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ type: 'spring', stiffness: 200, damping: 15, delay: 0.3 }}
@@ -126,7 +126,7 @@ const CycleOverviewCard = ({ cycleData }) => {
               <circle
                 cx="50"
                 cy="50"
-                r="35"
+                r="45"
                 fill="none"
                 stroke="rgba(236, 72, 153, 0.05)"
                 strokeWidth="1"
@@ -155,6 +155,22 @@ const CycleOverviewCard = ({ cycleData }) => {
             </div>
           </motion.div>
         </div>
+     {/* Información relevante del ciclo */}
+        <motion.div
+          className="bg-rose-50 rounded-2xl p-4 text-sm text-gray-700"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.6 }}
+        >
+          <h3 className="font-semibold mb-2 text-gray-800">Información</h3>
+          <ul className="space-y-1">
+            <li className="font-medium">Cálculo preovulatorio modificado:</li>
+            <li className="ml-2">12 últimos ciclos, al más corto -20</li>
+            <li className="ml-2">6 últimos ciclos, al más corto -21</li>
+            <li className="font-medium pt-2">Cálculo de Rötzer o T-8:</li>
+            <li className="ml-2">12 últimos ciclos el primer día de temp. alta + precoz → -8</li>
+          </ul>
+        </motion.div>
 
       </motion.div>
     </div>
@@ -163,25 +179,52 @@ const CycleOverviewCard = ({ cycleData }) => {
 
 
 
-const FloatingActionButton = ({ onAddRecord }) => {
+const FloatingActionButton = ({ onAddRecord, onAddCycle }) => {
+  const [open, setOpen] = useState(false);
+
   return (
-    <motion.button
-      onClick={onAddRecord}
-      className="fixed bottom-20 left-6 w-14 h-14 bg-gradient-to-br from-pink-500 to-rose-500 text-white rounded-full shadow-lg flex items-center justify-center z-40"
-      whileTap={{ scale: 0.95 }}
-      whileHover={{ scale: 1.05 }}
-      initial={{ scale: 0 }}
-      animate={{ scale: 1 }}
-      transition={{ type: 'spring', stiffness: 300, damping: 20, delay: 1.6 }}
-    >
-      <Plus className="h-6 w-6" />
-    </motion.button>
+    <div className="fixed bottom-20 right-6 flex flex-col items-end space-y-3 z-40">
+      {open && (
+        <>
+          <motion.button
+            onClick={onAddRecord}
+            className="w-12 h-12 rounded-full bg-gradient-to-br from-pink-500 to-rose-500 text-white shadow-lg flex items-center justify-center"
+            whileTap={{ scale: 0.95 }}
+            whileHover={{ scale: 1.05 }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <FilePlus className="h-5 w-5" />
+          </motion.button>
+          <motion.button
+            onClick={onAddCycle}
+            className="w-12 h-12 rounded-full bg-gradient-to-br from-fuchsia-500 to-purple-500 text-white shadow-lg flex items-center justify-center"
+            whileTap={{ scale: 0.95 }}
+            whileHover={{ scale: 1.05 }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <CalendarPlus className="h-5 w-5" />
+          </motion.button>
+        </>
+      )}
+      <motion.button
+        onClick={() => setOpen(!open)}
+        className="w-14 h-14 bg-gradient-to-br from-pink-500 to-rose-500 text-white rounded-full shadow-lg flex items-center justify-center"
+        whileTap={{ scale: 0.95 }}
+        whileHover={{ scale: 1.05 }}
+        initial={{ scale: 0 }}
+        animate={{ scale: 1 }}
+      >
+        <Plus className="h-6 w-6" />
+      </motion.button>
+    </div>
   );
 };
 
 const ModernFertilityDashboard = () => {
 
-  const { currentCycle, addOrUpdateDataPoint, isLoading } = useCycleData();
+  const { currentCycle, addOrUpdateDataPoint, startNewCycle, isLoading } = useCycleData();
   const [showForm, setShowForm] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -234,7 +277,10 @@ const ModernFertilityDashboard = () => {
         />
       )}
 
-      <FloatingActionButton onAddRecord={() => setShowForm(true)} />
+      <FloatingActionButton
+        onAddRecord={() => setShowForm(true)}
+        onAddCycle={() => startNewCycle()}
+      />
     </div>
   );
 };

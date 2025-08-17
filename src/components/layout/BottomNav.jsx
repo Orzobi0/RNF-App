@@ -4,9 +4,9 @@ import { Heart, BarChart3, Calendar, Archive, User } from 'lucide-react';
 
 const BottomNav = () => {
   const links = [
-    { to: '/', label: 'Ciclo actual', icon: Heart },
-    { to: '/chart', label: 'Gráfica', icon: BarChart3 },
     { to: '/records', label: 'Mis registros', icon: Calendar },
+    { to: '/chart', label: 'Gráfica', icon: BarChart3 },
+    { to: '/', label: 'Ciclo actual', icon: Heart },
     { to: '/archived-cycles', label: 'Mis ciclos', icon: Archive },
     { to: '/settings', label: 'Cuenta', icon: User }
   ];
