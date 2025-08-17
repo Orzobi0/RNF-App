@@ -45,6 +45,8 @@ import React, { useState, useEffect, useCallback } from 'react';
     setEditingRecord(null);
   });
 
+      const visibleDays = orientation === 'landscape' ? CYCLE_DURATION_DAYS : 5;
+
       const handleEdit = (record) => {
         const openForm = () => {
           setEditingRecord(record);
@@ -126,6 +128,7 @@ import React, { useState, useEffect, useCallback } from 'react';
                   onEdit={handleEdit}
                   cycleId={cycleData.id}
                   showInterpretation={showInterpretation}
+                  visibleDays={visibleDays}
                 />
                 <Button
                   onClick={() => setShowInterpretation(v => !v)}
