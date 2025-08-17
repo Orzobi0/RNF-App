@@ -5,6 +5,7 @@ import DataEntryForm from '@/components/DataEntryForm';
 import { useCycleData } from '@/hooks/useCycleData';
 import { differenceInDays, parseISO, startOfDay } from 'date-fns';
 
+
 const CycleOverviewCard = ({ cycleData }) => {
   // Extrae los registros reales del ciclo
   const records = cycleData.records || [];

@@ -1,18 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import FertilityChart from '@/components/FertilityChart';
 import { useCycleData } from '@/hooks/useCycleData';
-import { Button } from '@/components/ui/button';
-import { Eye, EyeOff } from 'lucide-react';
+import { differenceInDays, parseISO, startOfDay } from 'date-fns';
+import generatePlaceholders from '@/lib/generatePlaceholders';
 
 const ChartPage = () => {
   const { currentCycle } = useCycleData();
-    // Guarda la orientación actual de la pantalla
   const [orientation, setOrientation] = useState('portrait');
-    // Controla si mostramos la interpretación del gráfico
-  const [showInterpretation, setShowInterpretation] = useState(false);
 
   useEffect(() => {
-        // Cuando cambia el tamaño u orientación del dispositivo actualizamos el estado
     const handleResize = () => {
       setOrientation(window.innerWidth > window.innerHeight ? 'landscape' : 'portrait');
     };
@@ -29,29 +25,50 @@ const ChartPage = () => {
     return <p className="text-center text-gray-500">No hay ciclo activo.</p>;
   }
 
+  const CYCLE_DURATION_DAYS = 28;
+  const VISIBLE_DAYS_FULLSCREEN_PORTRAIT = 10;
+
+  const cycleStartDate = parseISO(currentCycle.startDate);
+
+  const lastRecordDate = currentCycle.data.reduce((maxDate, record) => {
+    const recDate = parseISO(record.isoDate);
+    return recDate > maxDate ? recDate : maxDate;
+  }, cycleStartDate);
+
+  const today = startOfDay(new Date());
+  const lastRelevantDate = lastRecordDate > today ? lastRecordDate : today;
+  const daysSinceStart = differenceInDays(startOfDay(lastRelevantDate), cycleStartDate);
+  const daysInCycle = Math.max(CYCLE_DURATION_DAYS, daysSinceStart + 1);
+
+  const fullCyclePlaceholders = generatePlaceholders(cycleStartDate, daysInCycle);
+  const mergedData = fullCyclePlaceholders.map((placeholder) => {
+    const existingRecord = currentCycle.data.find((d) => d.isoDate === placeholder.isoDate);
+    return existingRecord ? { ...existingRecord, date: placeholder.date } : placeholder;
+  });
+
+  const visibleDays = orientation === 'portrait' ? VISIBLE_DAYS_FULLSCREEN_PORTRAIT : daysInCycle;
+  let scrollStart = 0;
+
+  if (orientation !== 'landscape') {
+    const daysSinceCycleStart = differenceInDays(new Date(), startOfDay(cycleStartDate));
+    const currentDayIndex = Math.min(Math.max(daysSinceCycleStart, 0), daysInCycle - 1);
+    let endIndex = Math.min(daysInCycle, currentDayIndex + 1);
+    if (currentDayIndex < visibleDays - 1) {
+      endIndex = Math.min(daysInCycle, visibleDays);
+    }
+    scrollStart = Math.max(0, endIndex - visibleDays);
+  }
+
   return (
-    <div className="w-full h-full relative">
+    <div className="w-full h-full">
       <FertilityChart
-        data={currentCycle.data || []}
+        data={mergedData}
         isFullScreen={true}
         orientation={orientation}
         cycleId={currentCycle.id}
-        visibleDays={10} // Muestra siempre 10 días como en la vista de pantalla completa original
-        showInterpretation={showInterpretation}
+        initialScrollIndex={scrollStart}
+        visibleDays={visibleDays}
       />
-            <Button
-        onClick={() => setShowInterpretation(v => !v)}
-        variant="ghost"
-        size="sm"
-        className="absolute top-4 right-4 flex items-center font-semibold py-1 px-2 rounded-lg"
-      >
-        {showInterpretation ? (
-          <EyeOff className="mr-2 h-4 w-4" />
-        ) : (
-          <Eye className="mr-2 h-4 w-4" />
-        )}
-        {showInterpretation ? 'Ocultar' : 'Interpretar'}
-      </Button>
     </div>
   );
 };
