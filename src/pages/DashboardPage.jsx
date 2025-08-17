@@ -1,16 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Calendar, 
-  Plus, 
-  Heart, 
-  BarChart3, 
-  User, 
-  Egg,
-  Droplets,
-  Activity,
-  ChevronRight
-} from 'lucide-react';
+import React from 'react';
+import { motion } from 'framer-motion';
+import { Plus, Heart, Egg, Droplets, Activity, ChevronRight } from 'lucide-react';
 
 // Mock data - en la implementación real vendría de tus hooks
 const mockCurrentCycle = {
@@ -27,57 +17,6 @@ const mockTodayData = {
   symptoms: []
 };
 
-const NavigationBar = ({ activeTab, onTabChange }) => {
-  const tabs = [
-    { id: 'cycle', label: 'Ciclo actual', icon: Heart },
-    { id: 'records', label: 'Mis registros', icon: Calendar },
-    { id: 'cycles', label: 'Mis ciclos', icon: Activity },
-    { id: 'chart', label: 'Gráfica', icon: BarChart3 },
-    { id: 'account', label: 'Cuenta', icon: User }
-  ];
-
-  return (
-    <motion.div 
-      className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-2 py-1 z-50"
-      initial={{ y: 100 }}
-      animate={{ y: 0 }}
-      transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-    >
-      <div className="flex justify-around items-center max-w-md mx-auto">
-        {tabs.map((tab) => {
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.id;
-          
-          return (
-            <button
-              key={tab.id}
-              onClick={() => onTabChange(tab.id)}
-              className={`flex flex-col items-center py-2 px-3 rounded-lg transition-all duration-200 ${
-                isActive 
-                  ? 'text-pink-600' 
-                  : 'text-gray-400 hover:text-gray-600'
-              }`}
-            >
-              <div className={`relative ${isActive ? 'scale-110' : ''} transition-transform duration-200`}>
-                <Icon className="h-5 w-5" />
-                {isActive && (
-                  <motion.div
-                    className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-pink-600 rounded-full"
-                    layoutId="activeTab"
-                    transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                  />
-                )}
-              </div>
-              <span className={`text-xs mt-1 ${isActive ? 'font-medium' : ''}`}>
-                {tab.label}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-    </motion.div>
-  );
-};
 
 const CycleOverviewCard = ({ cycleData, cycleData: { records = [] } = {} }) => {
   // Simular algunos registros para mostrar el efecto visual
@@ -394,11 +333,9 @@ const FloatingActionButton = ({ onAddRecord }) => {
 };
 
 const ModernFertilityDashboard = () => {
-  const [activeTab, setActiveTab] = useState('cycle');
-  const [showAddRecord, setShowAddRecord] = useState(false);
 
   const handleAddRecord = () => {
-    setShowAddRecord(true);
+
     // Aquí iría la lógica para mostrar el formulario de registro
     console.log('Abrir formulario de registro');
   };
@@ -407,89 +344,18 @@ const ModernFertilityDashboard = () => {
     <div className="min-h-screen bg-gradient-to-br from-rose-50 via-pink-50 to-purple-50 pb-20">
       {/* Contenido principal */}
       <div className="max-w-md mx-auto px-4 pt-12">
-        <AnimatePresence mode="wait">
-          {activeTab === 'cycle' && (
-            <motion.div
-              key="cycle"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
-              transition={{ duration: 0.3 }}
-            >
-              <CycleOverviewCard cycleData={mockCurrentCycle} />
-              <TodaySection todayData={mockTodayData} onAddRecord={handleAddRecord} />
-            </motion.div>
-          )}
-          
-          {activeTab === 'records' && (
-            <motion.div
-              key="records"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
-              transition={{ duration: 0.3 }}
-              className="text-center py-20"
-            >
-              <Calendar className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-              <h2 className="text-xl font-semibold text-gray-800 mb-2">Mis registros</h2>
-              <p className="text-gray-500">Vista de todos tus registros</p>
-            </motion.div>
-          )}
-          
-          {activeTab === 'cycles' && (
-            <motion.div
-              key="cycles"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
-              transition={{ duration: 0.3 }}
-              className="text-center py-20"
-            >
-              <Activity className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-              <h2 className="text-xl font-semibold text-gray-800 mb-2">Mis ciclos</h2>
-              <p className="text-gray-500">Historial de ciclos anteriores</p>
-            </motion.div>
-          )}
-          
-          {activeTab === 'chart' && (
-            <motion.div
-              key="chart"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
-              transition={{ duration: 0.3 }}
-              className="text-center py-20"
-            >
-              <BarChart3 className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-              <h2 className="text-xl font-semibold text-gray-800 mb-2">Gráfica</h2>
-              <p className="text-gray-500">Visualización de tu ciclo</p>
-            </motion.div>
-          )}
-          
-          {activeTab === 'account' && (
-            <motion.div
-              key="account"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
-              transition={{ duration: 0.3 }}
-              className="text-center py-20"
-            >
-              <User className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-              <h2 className="text-xl font-semibold text-gray-800 mb-2">Cuenta</h2>
-              <p className="text-gray-500">Configuración y perfil</p>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <motion.div
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: 20 }}
+          transition={{ duration: 0.3 }}
+        >
+          <CycleOverviewCard cycleData={mockCurrentCycle} />
+          <TodaySection todayData={mockTodayData} onAddRecord={handleAddRecord} />
+        </motion.div>
       </div>
 
-      {/* FAB - solo visible en la pestaña de ciclo actual */}
-      {activeTab === 'cycle' && (
-        <FloatingActionButton onAddRecord={handleAddRecord} />
-      )}
-
-      {/* Barra de navegación inferior */}
-      <NavigationBar activeTab={activeTab} onTabChange={setActiveTab} />
+      <FloatingActionButton onAddRecord={handleAddRecord} />
     </div>
   );
 };
