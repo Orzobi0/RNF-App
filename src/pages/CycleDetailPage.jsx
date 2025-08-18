@@ -8,7 +8,7 @@ import React, { useState, useEffect, useCallback } from 'react';
     import { useCycleData } from '@/hooks/useCycleData';
     import { useToast } from '@/components/ui/use-toast';
     import { Button } from '@/components/ui/button';
-    import { ArrowLeft, Edit, Trash2, Maximize, X, Eye, EyeOff } from 'lucide-react';
+    import { ArrowLeft, Edit, Trash2, Maximize, X, Eye, EyeOff, RotateCcw } from 'lucide-react';
     import { motion, AnimatePresence } from 'framer-motion';
     import { format, differenceInDays, startOfDay, parseISO } from 'date-fns';
     import generatePlaceholders from '@/lib/generatePlaceholders';
@@ -26,19 +26,26 @@ import React, { useState, useEffect, useCallback } from 'react';
       toggleIgnoreRecordForCycle,
       isFullScreen,
       toggleFullScreen,
+      orientation,
+      rotateScreen,
+      showInterpretation,
+      setShowInterpretation,
       chartDisplayData,
       showForm, setShowForm,
       editingRecord, setEditingRecord,
       recordToDelete, setRecordToDelete,
       isProcessing,
       toast,
-  onEditCycleDates
+      onEditCycleDates,
+      onDeleteCycle
 }) => {
 
   useBackClose(showForm || editingRecord, () => {
     setShowForm(false);
     setEditingRecord(null);
   });
+
+      const visibleDays = orientation === 'landscape' ? CYCLE_DURATION_DAYS : 5;
 
       const handleEdit = (record) => {
         const openForm = () => {
@@ -68,7 +75,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 
       return (
         <div className={`w-full ${isFullScreen ? 'h-full overflow-hidden' : 'max-w-4xl mx-auto'}`}>
-          <motion.div 
+          <motion.div
             className="flex items-center justify-between mb-8"
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -87,9 +94,14 @@ import React, { useState, useEffect, useCallback } from 'react';
               </h1>
             )}
             {!isFullScreen && (
-              <Button variant="outline" onClick={onEditCycleDates} className="mt-4 sm:mt-0 border-pink-500 text-pink-400 hover:bg-pink-500/20 hover:text-pink-300">
-                <Edit className="mr-2 h-4 w-4" /> Editar Fechas
-              </Button>
+              <div className="flex gap-2 mt-4 sm:mt-0">
+                <Button variant="outline" onClick={onEditCycleDates} className="border-pink-500 text-pink-400 hover:bg-pink-500/20 hover:text-pink-300">
+                  <Edit className="mr-2 h-4 w-4" /> Editar Fechas
+                </Button>
+                <Button variant="destructive" onClick={onDeleteCycle}>
+                  <Trash2 className="mr-2 h-4 w-4" /> Eliminar Ciclo
+                </Button>
+              </div>
             )}
           </motion.div>
 
@@ -100,7 +112,7 @@ import React, { useState, useEffect, useCallback } from 'react';
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: isFullScreen ? 1 : 0.9 }}
                 transition={{ duration: 0.5 }}
-                className={`shadow-2xl rounded-xl ${isFullScreen ? 'w-full h-full p-0 fixed inset-0 z-50 bg-white' : 'p-4 sm:p-6 mb-8 bg-white/70 backdrop-blur-md ring-1 ring-[#FFB1DD]/50'}`}
+                className={`shadow-2xl rounded-xl ${isFullScreen ? 'w-full h-full p-0 fixed inset-0 z-50 bg-white' : 'p-4 sm:p-6 mb-4 bg-white/70 backdrop-blur-md ring-1 ring-[#FFB1DD]/50'} relative`}
                 style={{ boxShadow: '0 4px 8px rgba(0,0,0,0.04)' }}
               >
                 {!isFullScreen && (
@@ -116,12 +128,13 @@ import React, { useState, useEffect, useCallback } from 'react';
                   onEdit={handleEdit}
                   cycleId={cycleData.id}
                   showInterpretation={showInterpretation}
+                  visibleDays={visibleDays}
                 />
                 <Button
                   onClick={() => setShowInterpretation(v => !v)}
                   variant="ghost"
                   size="sm"
-                  className={`absolute ${isFullScreen ? 'top-4 right-24' : 'top-2 right-24'} flex items-center font-semibold py-1 px-2 rounded-lg transition-colors ${showInterpretation ? 'bg-[#E27DBF] text-white hover:bg-[#d46ab3]' : 'bg-transparent text-[#393C65] hover:bg-[#E27DBF]/20'}`}
+                  className={`absolute ${isFullScreen ? 'top-4 right-20' : 'top-2 right-20'} flex items-center font-semibold py-1 px-2 rounded-lg transition-colors ${showInterpretation ? 'bg-[#E27DBF] text-white hover:bg-[#d46ab3]' : 'bg-transparent text-[#393C65] hover:bg-[#E27DBF]/20'}`}
                 >
                   {showInterpretation ? (
                     <EyeOff className="mr-2 h-4 w-4" />
@@ -129,6 +142,15 @@ import React, { useState, useEffect, useCallback } from 'react';
                     <Eye className="mr-2 h-4 w-4" />
                   )}
                   {showInterpretation ? 'Ocultar' : 'Interpretar'}
+                </Button>
+                <Button
+                  onClick={rotateScreen}
+                  variant="ghost"
+                  size="icon"
+                  className={`absolute ${isFullScreen ? 'top-4 right-12 text-white bg-slate-700/50 hover:bg-slate-600/70' : 'top-2 right-12 text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'}`}
+                  title="Cambiar orientación"
+                >
+                  <RotateCcw className="h-5 w-5" />
                 </Button>
                 <Button
                   onClick={toggleFullScreen}
@@ -160,6 +182,7 @@ import React, { useState, useEffect, useCallback } from 'react';
                       initialData={editingRecord}
                       onCancel={() => { setShowForm(false); setEditingRecord(null); }}
                       cycleStartDate={cycleData.startDate}
+                      cycleEndDate={cycleData.endDate}
                       isProcessing={isProcessing}
                       isEditing={Boolean(editingRecord)}
                     />
@@ -205,14 +228,14 @@ import React, { useState, useEffect, useCallback } from 'react';
       const { cycleId } = useParams();
       const navigate = useNavigate();
       const { user } = useAuth();
-      const { getCycleById, isLoading: cycleDataHookIsLoading, refreshData, toggleIgnoreRecord, updateCycleDates } = useCycleData(cycleId);
+      const { getCycleById, isLoading: cycleDataHookIsLoading, refreshData, toggleIgnoreRecord, updateCycleDates, deleteCycle } = useCycleData(cycleId);
       const [cycleData, setCycleData] = useState(null);
       const { toast } = useToast();
       const [editingRecord, setEditingRecord] = useState(null);
       const [showForm, setShowForm] = useState(false);
       const [recordToDelete, setRecordToDelete] = useState(null);
       const [showEditDialog, setShowEditDialog] = useState(false);
-      const { isFullScreen, toggleFullScreen, orientation } = useFullScreen();
+      const { isFullScreen, toggleFullScreen, orientation, rotateScreen } = useFullScreen();
       const [isProcessing, setIsProcessing] = useState(false);
       const [showInterpretation, setShowInterpretation] = useState(false);
 
@@ -222,7 +245,7 @@ import React, { useState, useEffect, useCallback } from 'react';
         let fetchedCycle = await getCycleById(cycleId);
 
         if (!fetchedCycle) {
-          const localData = localStorage.getItem(`fertilityData_cycle_${user.id}_${cycleId}`);
+          const localData = localStorage.getItem(`fertilityData_cycle_${user.uid}_${cycleId}`);
           if (localData) {
             const parsed = JSON.parse(localData);
             fetchedCycle = {
@@ -266,7 +289,7 @@ import React, { useState, useEffect, useCallback } from 'react';
           ...updatedCycle,
           data: updatedCycle.data.map(({cycleDay, ...rest}) => rest) 
         };
-        localStorage.setItem(`fertilityData_cycle_${user.id}_${updatedCycle.id}`, JSON.stringify(cycleToStore));
+        localStorage.setItem(`fertilityData_cycle_${user.uid}_${updatedCycle.id}`, JSON.stringify(cycleToStore));
       };
 
 
@@ -274,9 +297,17 @@ import React, { useState, useEffect, useCallback } from 'react';
         if (!cycleData || !user) return;
         setIsProcessing(true);
         
+        const tempRaw = newData.temperature_raw;
+        const tempCorrected = newData.temperature_corrected;
+        const useCorrected = newData.use_corrected || false;
+        const temperatureChart = useCorrected
+          ? (tempCorrected ?? tempRaw)
+          : (tempRaw ?? tempCorrected);
+        
         let updatedDataArray;
         const recordWithCycleDay = {
           ...newData,
+          temperature_chart: temperatureChart,
           isoDate: format(startOfDay(parseISO(newData.isoDate)), "yyyy-MM-dd"),
           cycleDay: generateCycleDaysForRecord(newData.isoDate, cycleData.startDate),
           ignored: editingRecord ? (newData.ignored ?? editingRecord.ignored) : (newData.ignored || false)
@@ -367,10 +398,25 @@ import React, { useState, useEffect, useCallback } from 'react';
             setCycleData(updated);
           }
           toast({ title: 'Fechas actualizadas', description: 'Las fechas del ciclo han sido modificadas.' });
+          setShowEditDialog(false);
         } catch (e) {
           console.error(e);
         }
         setIsProcessing(false);
+      };
+            const handleDeleteCycle = async () => {
+        if (!cycleData || !user) return;
+        if (window.confirm('¿Eliminar este ciclo?')) {
+          setIsProcessing(true);
+          try {
+            await deleteCycle(cycleData.id);
+            toast({ title: 'Ciclo eliminado', description: 'El ciclo ha sido eliminado.' });
+            navigate('/archived-cycles');
+          } catch (e) {
+            console.error(e);
+          }
+          setIsProcessing(false);
+        }
       };
 
       const getChartDisplayData = useCallback(() => {
@@ -419,6 +465,10 @@ import React, { useState, useEffect, useCallback } from 'react';
           toggleIgnoreRecordForCycle={toggleIgnoreRecordForCycle}
           isFullScreen={isFullScreen}
           toggleFullScreen={toggleFullScreen}
+          orientation={orientation}
+          rotateScreen={rotateScreen}
+          showInterpretation={showInterpretation}
+          setShowInterpretation={setShowInterpretation}
           chartDisplayData={chartDisplayData}
           showForm={showForm} setShowForm={setShowForm}
           editingRecord={editingRecord} setEditingRecord={setEditingRecord}
@@ -426,6 +476,7 @@ import React, { useState, useEffect, useCallback } from 'react';
           isProcessing={isProcessing}
           toast={toast}
           onEditCycleDates={() => setShowEditDialog(true)}
+          onDeleteCycle={handleDeleteCycle}
         />
         <EditCycleDatesDialog
           isOpen={showEditDialog}

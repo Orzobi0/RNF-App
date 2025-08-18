@@ -6,11 +6,11 @@ import React from 'react';
       return (
         <div className="flex space-x-4 pt-4">
           {onCancel && (
-            <Button 
-              type="button" 
+            <Button
+              type="button"
               onClick={onCancel}
               variant="outline"
-              className="w-full border-slate-600 hover:bg-slate-700 text-[#70747a] font-semibold py-3 text-lg"
+              className="w-full border-gray-300 text-gray-700 hover:bg-gray-100 font-semibold py-3 text-lg"
               disabled={isProcessing}
             >
               <XCircle className="mr-2 h-5 w-5" />

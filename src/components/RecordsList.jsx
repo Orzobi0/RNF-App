@@ -18,7 +18,7 @@ const RecordsList = ({ records, onEdit, onDelete, onClose, isArchiveView = false
           >
             <p className="text-xl mb-4">No hay registros para mostrar.</p>
             {onClose && !isArchiveView && (
-              <Button onClick={onClose} variant="outline" className="border-[#393C65] hover:bg-[#E27DBF]/10 text-[#393C65]">
+              <Button onClick={onClose} variant="outline" className="border-gray-300 hover:bg-gray-100 text-gray-700">
                 <XCircle className="mr-2 h-5 w-5" />
                 Cerrar
               </Button>
@@ -42,11 +42,11 @@ const RecordsList = ({ records, onEdit, onDelete, onClose, isArchiveView = false
           transition={{ duration: 0.3 }}
         >
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-semibold text-[#393C65]">
+            <h2 className="text-2xl font-semibold text-gray-800">
               {isArchiveView ? "Registros del Ciclo" : "Mis Registros"}
             </h2>
             {onClose && !isArchiveView && (
-              <Button onClick={onClose} variant="ghost" size="icon" className="text-[#393C65] hover:text-[#E27DBF] hover:bg-[#E27DBF]/10">
+              <Button onClick={onClose} variant="ghost" size="icon" className="text-gray-700 hover:text-pink-500 hover:bg-pink-50">
                 <XCircle className="h-6 w-6" />
               </Button>
             )}

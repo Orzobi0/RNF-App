@@ -46,19 +46,21 @@ export const useFullScreen = () => {
 
   const toggleFullScreen = useCallback(async () => {
     if (!isFullScreen) {
-      await enterFullScreen('portrait');
+      await enterFullScreen(orientation);
     } else {
       await exitFullScreen();
     }
-  }, [isFullScreen, enterFullScreen, exitFullScreen]);
+  }, [isFullScreen, enterFullScreen, exitFullScreen, orientation]);
 
   const rotateScreen = useCallback(async () => {
     const newOrientation = orientation === 'portrait' ? 'landscape' : 'portrait';
-    if (isFullScreen && window.screen && window.screen.orientation && window.screen.orientation.lock) {
+    if (!isFullScreen) {
+      await enterFullScreen(newOrientation);
+    } else if (window.screen && window.screen.orientation && window.screen.orientation.lock) {
       await window.screen.orientation.lock(`${newOrientation}-primary`).catch(() => {});
     }
     setOrientation(newOrientation);
-  }, [orientation, isFullScreen]);
+  }, [orientation, isFullScreen, enterFullScreen]);
 
       useEffect(() => {
         const handleFullScreenChange = () => {

@@ -1,236 +1,277 @@
-import { supabase } from '@/lib/supabaseClient';
-    import { format, differenceInDays, startOfDay, parseISO, compareAsc } from 'date-fns';
+import {
+  collection,
+  doc,
+  addDoc,
+  getDoc,
+  getDocs,
+  updateDoc,
+  deleteDoc,
 
-    const generateCycleDaysForRecord = (recordIsoDate, cycleStartIsoDate) => {
-      if (!recordIsoDate || !cycleStartIsoDate) return 0;
-      const rDate = startOfDay(parseISO(recordIsoDate));
-      const sDate = startOfDay(parseISO(cycleStartIsoDate));
-      return differenceInDays(rDate, sDate) + 1;
-    };
-    
-    export const processCycleEntries = (entriesFromView, cycleStartIsoDate) => {
-      if (!entriesFromView || !Array.isArray(entriesFromView) || !cycleStartIsoDate) return [];
-      
-      const sortedEntries = [...entriesFromView].sort((a, b) => {
-        const dateA = a.timestamp ? parseISO(a.timestamp) : (a.iso_date ? parseISO(a.iso_date) : 0);
-        const dateB = b.timestamp ? parseISO(b.timestamp) : (b.iso_date ? parseISO(b.iso_date) : 0);
-        return compareAsc(dateA, dateB);
-      });
+} from 'firebase/firestore';
+import { db } from '@/lib/firebaseClient';
+import { format, differenceInDays, startOfDay, parseISO, compareAsc } from 'date-fns';
 
-      return sortedEntries.map(entry => ({
-        ...entry,
-        id: entry.id, 
-        isoDate: entry.iso_date || (entry.timestamp ? format(parseISO(entry.timestamp), 'yyyy-MM-dd') : null),
-        date: entry.timestamp ? format(parseISO(entry.timestamp), 'dd/MM') : (entry.iso_date ? format(parseISO(entry.iso_date), 'dd/MM') : 'N/A'),
-        cycleDay: generateCycleDaysForRecord(entry.iso_date || entry.timestamp, cycleStartIsoDate),
-        temperature_raw: entry.temperature_raw,
-        temperature_corrected: entry.temperature_corrected,
-        use_corrected: entry.use_corrected,
-        mucusSensation: entry.mucus_sensation,
-        mucusAppearance: entry.mucus_appearance,
-        fertility_symbol: entry.fertility_symbol,
-        observations: entry.observations,
-        ignored: entry.ignored,
-        temperature_chart: entry.temperature_chart, 
-        timestamp: entry.timestamp 
-      }));
-    };
+const generateCycleDaysForRecord = (recordIsoDate, cycleStartIsoDate) => {
+  if (!recordIsoDate || !cycleStartIsoDate) return 0;
+  const rDate = startOfDay(parseISO(recordIsoDate));
+  const sDate = startOfDay(parseISO(cycleStartIsoDate));
+  return differenceInDays(rDate, sDate) + 1;
+};
 
-    export const fetchCurrentCycleDB = async (userId) => {
-      const { data: cycleData, error: cycleError } = await supabase
-        .from('cycles')
-        .select('id, start_date, end_date')
-        .eq('user_id', userId)
-        .is('end_date', null) 
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
+export const processCycleEntries = (entriesFromView, cycleStartIsoDate) => {
+  if (!entriesFromView || !Array.isArray(entriesFromView) || !cycleStartIsoDate) return [];
 
-        if (cycleError && cycleError.code !== 'PGRST116') {
-        console.error('Error fetching current cycle metadata:', cycleError);
-        throw cycleError;
-      }
-      if (!cycleData) return null;
+  const sortedEntries = [...entriesFromView].sort((a, b) => {
+    const dateA = a.timestamp ? parseISO(a.timestamp) : (a.iso_date ? parseISO(a.iso_date) : 0);
+    const dateB = b.timestamp ? parseISO(b.timestamp) : (b.iso_date ? parseISO(b.iso_date) : 0);
+    return compareAsc(dateA, dateB);
+  });
 
-      const { data: entriesData, error: entriesError } = await supabase
-        .from('entries_for_chart')
-        .select('*')
-        .eq('cycle_id', cycleData.id)
-        .order('timestamp', { ascending: true });
-      
-      if (entriesError) {
-        console.error('Error fetching entries for current cycle from view:', entriesError);
-        throw entriesError;
-      }
+  return sortedEntries.map((entry) => ({
+    ...entry,
+    id: entry.id,
+    isoDate: entry.iso_date || (entry.timestamp ? format(parseISO(entry.timestamp), 'yyyy-MM-dd') : null),
+    date: entry.timestamp
+      ? format(parseISO(entry.timestamp), 'dd/MM')
+      : entry.iso_date
+      ? format(parseISO(entry.iso_date), 'dd/MM')
+      : 'N/A',
+    cycleDay: generateCycleDaysForRecord(entry.iso_date || entry.timestamp, cycleStartIsoDate),
+    temperature_raw: entry.temperature_raw,
+    temperature_corrected: entry.temperature_corrected,
+    use_corrected: entry.use_corrected,
+    mucusSensation: entry.mucus_sensation,
+    mucusAppearance: entry.mucus_appearance,
+    fertility_symbol: entry.fertility_symbol,
+    observations: entry.observations,
+    ignored: entry.ignored,
+    temperature_chart: entry.temperature_chart ?? (
+      entry.use_corrected
+        ? (entry.temperature_corrected ?? entry.temperature_raw)
+        : (entry.temperature_raw ?? entry.temperature_corrected)
+    ),
+    timestamp: entry.timestamp,
+  }));
+};
 
-      return { id: cycleData.id, startDate: cycleData.start_date, endDate: cycleData.end_date, data: entriesData || [] };
-    };
+export const fetchCurrentCycleDB = async (userId) => {
+  const cyclesRef = collection(db, `users/${userId}/cycles`);
+  const cycleSnapshot = await getDocs(cyclesRef);
+  if (cycleSnapshot.empty) return null;
 
-    export const fetchArchivedCyclesDB = async (userId) => {
-      const { data: cycles, error: cyclesError } = await supabase
-        .from('cycles')
-        .select('id, start_date, end_date')
-        .eq('user_id', userId)
-        .not('end_date', 'is', null) 
-        .order('start_date', { ascending: false });
+  const cycles = cycleSnapshot.docs
+    .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
+    .filter((c) => c.end_date === null || c.end_date === undefined)
+    .sort((a, b) => (b.start_date || '').localeCompare(a.start_date || ''));
+  if (cycles.length > 1) {
+    console.warn(`Se detectaron ${cycles.length} ciclos abiertos. Se usará el más reciente.`);
+  }
+  if (cycles.length === 0) return null;
+  const cycleDoc = cycles[0];
 
-      if (cyclesError) {
-        console.error('Error fetching archived cycles metadata:', cyclesError);
-        throw cyclesError;
-      }
+  const entriesRef = collection(db, `users/${userId}/cycles/${cycleDoc.id}/entries`);
+  const entriesSnap = await getDocs(entriesRef);
+  const entriesData = entriesSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
-      const cyclesWithEntries = await Promise.all(
-        cycles.map(async (cycle) => {
-          const { data: entriesData, error: entriesError } = await supabase
-            .from('entries_for_chart')
-            .select('*')
-            .eq('cycle_id', cycle.id)
-            .order('timestamp', { ascending: true });
+  return {
+    id: cycleDoc.id,
+    startDate: cycleDoc.start_date,
+    endDate: cycleDoc.end_date,
+    data: entriesData,
+  };
+};
 
-          if (entriesError) {
-            console.error(`Error fetching entries for archived cycle ${cycle.id} from view:`, entriesError);
-            return { id: cycle.id, startDate: cycle.start_date, endDate: cycle.end_date, data: [] };
-          }
-          return { id: cycle.id, startDate: cycle.start_date, endDate: cycle.end_date, data: entriesData || [] };
-        })
-      );
-      return cyclesWithEntries;
-    };
+export const fetchArchivedCyclesDB = async (userId, currentStartDate) => {
+  const cyclesRef = collection(db, `users/${userId}/cycles`);
+  const snapshot = await getDocs(cyclesRef);
+  const cycles = snapshot.docs
+    .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
+    .filter((c) =>
+      c.end_date !== null && c.end_date !== undefined ||
+      (currentStartDate && c.start_date && c.start_date < currentStartDate)
+    )
+    .sort((a, b) => (b.start_date || '').localeCompare(a.start_date || ''));
 
-    export const fetchCycleByIdDB = async (userId, cycleId) => {
-      const { data: cycleData, error: cycleError } = await supabase
-        .from('cycles')
-        .select('id, start_date, end_date')
-        .eq('id', cycleId)
-        .eq('user_id', userId)
-        .single();
+  const cyclesWithEntries = await Promise.all(
+    cycles.map(async (cycle) => {
+      const entriesRef = collection(db, `users/${userId}/cycles/${cycle.id}/entries`);
+      const entriesSnap = await getDocs(entriesRef);
+      const entriesData = entriesSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      return {
+        id: cycle.id,
+        startDate: cycle.start_date,
+        endDate: cycle.end_date,
+        needsCompletion: !cycle.end_date,
+        data: entriesData,
+      };
+    })
+  );
+  return cyclesWithEntries;
+};
 
-      if (cycleError && cycleError.code !== 'PGRST116') { 
-        console.error('Error fetching specific cycle metadata:', cycleError);
-        throw cycleError;
-      }
-      if (!cycleData) return null;
+export const fetchCycleByIdDB = async (userId, cycleId) => {
+  const cycleRef = doc(db, `users/${userId}/cycles/${cycleId}`);
+  const cycleSnap = await getDoc(cycleRef);
+  if (!cycleSnap.exists()) return null;
+  const cycleData = cycleSnap.data();
+  const entriesRef = collection(db, `users/${userId}/cycles/${cycleId}/entries`);
+  const entriesSnap = await getDocs(entriesRef);
+  const entriesData = entriesSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
-      const { data: entriesData, error: entriesError } = await supabase
-        .from('entries_for_chart')
-        .select('*')
-        .eq('cycle_id', cycleData.id)
-        .order('timestamp', { ascending: true });
+  return {
+    id: cycleId,
+    startDate: cycleData.start_date,
+    endDate: cycleData.end_date,
+    data: entriesData,
+  };
+};
 
-      if (entriesError) {
-        console.error(`Error fetching entries for cycle ${cycleId} from view:`, entriesError);
-        throw entriesError;
-      }
-      
-      return { id: cycleData.id, startDate: cycleData.start_date, endDate: cycleData.end_date, data: entriesData || [] };
-    };
-    
-    export const createNewCycleDB = async (userId, startDate) => {
-      const { data: newCycle, error: newCycleError } = await supabase
-        .from('cycles')
-        .insert({ user_id: userId, start_date: startDate, end_date: null }) 
-        .select('id, start_date')
-        .single();
-      
-      if (newCycleError) {
-        console.error('Error creating new cycle:', newCycleError);
-        throw newCycleError;
-      }
-      return newCycle;
-    };
+export const createNewCycleDB = async (userId, startDate) => {
+  const cyclesRef = collection(db, `users/${userId}/cycles`);
+  const cyclesSnap = await getDocs(cyclesRef);
+  const newStart = parseISO(startDate);
 
-    export const createNewCycleEntry = async (payload) => {
-      const entryToInsert = {
-        cycle_id: payload.cycle_id,
-        user_id: payload.user_id,
-        timestamp: payload.timestamp ?? new Date().toISOString(),
-        temperature_raw: payload.temperature_raw,
-        temperature_corrected: payload.temperature_corrected,
-        use_corrected: payload.use_corrected,
-        mucus_sensation: payload.mucus_sensation,
-        mucus_appearance: payload.mucus_appearance,
-        fertility_symbol: payload.fertility_symbol,
-        observations: payload.observations,
-        ignored: payload.ignored,
+  const overlaps = cyclesSnap.docs.some((docSnap) => {
+    const data = docSnap.data();
+    const start = data.start_date ? parseISO(data.start_date) : null;
+    const end = data.end_date ? parseISO(data.end_date) : null;
+    return start && newStart >= start && (!end || newStart <= end);
+  });
+
+  if (overlaps) {
+    throw new Error('Cycle dates overlap with an existing cycle');
+  }
+
+  const docRef = await addDoc(collection(db, `users/${userId}/cycles`), {
+    user_id: userId,
+    start_date: startDate,
+    end_date: null,
+  });
+  return { id: docRef.id, start_date: startDate };
+};
+
+export const createNewCycleEntry = async (payload) => {
+  const userId = payload.user_id;
+  const timestamp = payload.timestamp ?? new Date().toISOString();
+  const entryData = {
+    timestamp,
+    temperature_raw: payload.temperature_raw,
+    temperature_corrected: payload.temperature_corrected,
+    use_corrected: payload.use_corrected,
+    temperature_chart: payload.temperature_chart,
+    mucus_sensation: payload.mucus_sensation,
+    mucus_appearance: payload.mucus_appearance,
+    fertility_symbol: payload.fertility_symbol,
+    observations: payload.observations,
+    ignored: payload.ignored,
       };
 
-      const { data, error } = await supabase
-        .from('entries')
-        .insert(entryToInsert)
-        .select('id')
-        .single();
-      if (error) {
-        console.error('Error creating new cycle entry:', error);
-        throw error;
-      }
-      return data;
-    };
+  const cyclesRef = collection(db, `users/${userId}/cycles`);
+  const cyclesSnap = await getDocs(cyclesRef);
+  const entryDate = parseISO(timestamp);
+  const candidateCycles = cyclesSnap.docs.filter((docSnap) => {
+    const data = docSnap.data();
+    const start = data.start_date ? parseISO(data.start_date) : null;
+    const end = data.end_date ? parseISO(data.end_date) : null;
+    return start && entryDate >= start && (!end || entryDate <= end);
+  });
 
-    export const updateCycleEntry = async (entryId, payload) => {
-      const entryToUpdate = {
-        temperature_raw: payload.temperature_raw,
-        temperature_corrected: payload.temperature_corrected,
-        use_corrected: payload.use_corrected,
-        mucus_sensation: payload.mucus_sensation,
-        mucus_appearance: payload.mucus_appearance,
-        fertility_symbol: payload.fertility_symbol,
-        observations: payload.observations,
-        ignored: payload.ignored,
-              };
-      if (payload.timestamp) {
-        entryToUpdate.timestamp = payload.timestamp;
-      }
+  let targetCycle = null;
+  if (candidateCycles.length > 1) {
+    targetCycle = candidateCycles
+      .sort((a, b) => {
+        const startA = parseISO(a.data().start_date);
+        const startB = parseISO(b.data().start_date);
+        return startB - startA;
+      })[0];
+  } else if (candidateCycles.length === 1) {
+    targetCycle = candidateCycles[0];
+  }
 
+  if (targetCycle) {
+    const ref = await addDoc(
+      collection(db, `users/${userId}/cycles/${targetCycle.id}/entries`),
+      entryData
+    );
+    return { id: ref.id };
+  }
 
-      const { data, error } = await supabase
-        .from('entries')
-        .update(entryToUpdate)
-        .eq('id', entryId)
-        .select('id')
-        .single();
-      if (error) {
-        console.error('Error updating cycle entry:', error);
-        throw error;
-      }
-      return data;
-    };
+  if (payload.cycle_id) {
+    const ref = await addDoc(collection(db, `users/${userId}/cycles/${payload.cycle_id}/entries`), entryData);
+    return { id: ref.id };
+  }
 
-    export const deleteCycleEntryDB = async (entryId, userId) => {
-      const { error } = await supabase
-        .from('entries')
-        .delete()
-        .eq('id', entryId)
-        .eq('user_id', userId);
-      if (error) {
-        console.error('Error deleting record:', error);
-        throw error;
-      }
-    };
+  return { id: null };
+};
+
+export const updateCycleEntry = async (userId, cycleId, entryId, payload) => {
+  const entryRef = doc(db, `users/${userId}/cycles/${cycleId}/entries/${entryId}`);
+  const entryToUpdate = {
+    temperature_raw: payload.temperature_raw,
+    temperature_corrected: payload.temperature_corrected,
+    use_corrected: payload.use_corrected,
+    temperature_chart: payload.temperature_chart,
+    mucus_sensation: payload.mucus_sensation,
+    mucus_appearance: payload.mucus_appearance,
+    fertility_symbol: payload.fertility_symbol,
+    observations: payload.observations,
+    ignored: payload.ignored,
+  };
+  if (payload.timestamp) {
+    entryToUpdate.timestamp = payload.timestamp;
+  }
+  await updateDoc(entryRef, entryToUpdate);
+  return { id: entryId };
+};
+export const deleteCycleEntryDB = async (userId, cycleId, entryId) => {
+  await deleteDoc(doc(db, `users/${userId}/cycles/${cycleId}/entries/${entryId}`));
+};
 
 export const archiveCycleDB = async (cycleId, userId, endDate) => {
-  const { error } = await supabase
-    .from('cycles')
-    .update({ end_date: endDate })
-    .eq('id', cycleId)
-    .eq('user_id', userId);
-  if (error) {
-    console.error('Error archiving cycle:', error);
-    throw error;
-  }
-  };
+  const cycleRef = doc(db, `users/${userId}/cycles/${cycleId}`);
+  const cycleSnap = await getDoc(cycleRef);
+  if (!cycleSnap.exists()) throw new Error('Cycle not found');
+  await updateDoc(cycleRef, { end_date: endDate });
+};
 
 export const updateCycleDatesDB = async (cycleId, userId, startDate, endDate) => {
+  const cycleRef = doc(db, `users/${userId}/cycles/${cycleId}`);
+  const cycleSnap = await getDoc(cycleRef);
+  if (!cycleSnap.exists()) throw new Error('Cycle not found');
+  
+  const currentData = cycleSnap.data();
+  const proposedStart = startDate ?? currentData.start_date;
+  const proposedEnd = endDate !== undefined ? endDate : currentData.end_date;
+  const proposedStartDate = proposedStart ? parseISO(proposedStart) : null;
+  const proposedEndDate = proposedEnd ? parseISO(proposedEnd) : null;
+
+  const cyclesRef = collection(db, `users/${userId}/cycles`);
+  const cyclesSnap = await getDocs(cyclesRef);
+  const overlap = cyclesSnap.docs.some((docSnap) => {
+    if (docSnap.id === cycleId) return false;
+    const data = docSnap.data();
+    const start = data.start_date ? parseISO(data.start_date) : null;
+    const end = data.end_date ? parseISO(data.end_date) : null;
+    if (!start) return false;
+    const endDateComparable = end ?? new Date('9999-12-31');
+    const proposedEndComparable = proposedEndDate ?? new Date('9999-12-31');
+    return proposedStartDate <= endDateComparable && start <= proposedEndComparable;
+  });
+
+  if (overlap) {
+    throw new Error('Cycle dates overlap with an existing cycle');
+  }
+
   const updatePayload = {};
   if (startDate !== undefined) updatePayload.start_date = startDate;
   if (endDate !== undefined) updatePayload.end_date = endDate;
 
-  const { error } = await supabase
-    .from('cycles')
-    .update(updatePayload)
-    .eq('id', cycleId)
-    .eq('user_id', userId);
-  if (error) {
-    console.error('Error updating cycle dates:', error);
-    throw error;
-  }
+  await updateDoc(cycleRef, updatePayload);
+  };
+
+export const deleteCycleDB = async (userId, cycleId) => {
+  const entriesRef = collection(db, `users/${userId}/cycles/${cycleId}/entries`);
+  const entriesSnap = await getDocs(entriesRef);
+  await Promise.all(entriesSnap.docs.map((d) => deleteDoc(d.ref)));
+  await deleteDoc(doc(db, `users/${userId}/cycles/${cycleId}`));
 };

@@ -1,370 +1,303 @@
-import React, { useState, useEffect, useCallback } from 'react';
-    import FertilityChart from '@/components/FertilityChart';
-    import DataEntryForm from '@/components/DataEntryForm';
-    import RecordsList from '@/components/RecordsList';
-    import ActionButtons from '@/components/ActionButtons';
-    import NoDataMessage from '@/components/NoDataMessage';
-    import DeletionDialog from '@/components/DeletionDialog';
-    import NewCycleDialog from '@/components/NewCycleDialog';
-    import { useToast } from '@/components/ui/use-toast';
-    import { useCycleData } from '@/hooks/useCycleData';
-    import { useFullScreen } from '@/hooks/useFullScreen';
-    import useBackClose from '@/hooks/useBackClose';
-    import { motion, AnimatePresence } from 'framer-motion';
-import { Maximize, X, Eye, EyeOff, RotateCcw } from 'lucide-react';
-    import { Button } from '@/components/ui/button';
-    import { format, differenceInDays, startOfDay, parseISO } from 'date-fns';
-    import generatePlaceholders from '@/lib/generatePlaceholders';
+import React, { useState } from 'react';
+import { motion } from 'framer-motion';
+import { Plus, FilePlus, CalendarPlus } from 'lucide-react';
+import DataEntryForm from '@/components/DataEntryForm';
+import { useCycleData } from '@/hooks/useCycleData';
+import { differenceInDays, parseISO, startOfDay } from 'date-fns';
 
-// Número de días que se muestran por defecto en horizontal
-// Se reduce a 28 para evitar que la gráfica se desborde en ciclos largos
-const CYCLE_DURATION_DAYS = 28;
-const VISIBLE_DAYS_NORMAL_VIEW = 5;
-const VISIBLE_DAYS_FULLSCREEN_PORTRAIT = 10;
 
-    const DashboardPageContent = ({
-      currentCycle,
-      addOrUpdateDataPoint,
-      deleteCurrentRecord,
-      toggleIgnoreRecord,
-      startNewCycle,
-      isLoading,
-      isFullScreen,
-      toggleFullScreen,
-      orientation,
-      rotateScreen,
-      chartDisplayData,
-      scrollStart,
-      showForm, setShowForm,
-      showRecords, setShowRecords,
-      editingRecord, setEditingRecord,
-      recordToDelete, setRecordToDelete,
-  confirmNewCycleDialog, setConfirmNewCycleDialog,
-  toast,
-  showInterpretation, setShowInterpretation,
-}) => {
+const CycleOverviewCard = ({ cycleData }) => {
+  // Extrae los registros reales del ciclo
+  const records = cycleData.records || [];
 
-  useBackClose(showRecords, () => setShowRecords(false));
-  useBackClose(showForm || editingRecord, () => {
-    setShowForm(false);
-    setEditingRecord(null);
-  });
+  // Devuelve el color asociado a cada símbolo de fertilidad
 
-    const chartVisibleDays = isFullScreen
-    ? orientation === 'portrait'
-      ? VISIBLE_DAYS_FULLSCREEN_PORTRAIT
-      : CYCLE_DURATION_DAYS
-    : VISIBLE_DAYS_NORMAL_VIEW;
-
-      const handleEdit = (record) => {
-        const openForm = () => {
-          setEditingRecord(record);
-          setShowRecords(false);
-          setShowForm(true);
-        };
-
-        if (isFullScreen) {
-          toggleFullScreen();
-                    setTimeout(openForm, 300);
-        } else {
-          openForm();
-        }
-
-      };
-
-      const handleDeleteRequest = (recordId) => {
-        const record = currentCycle.data.find(r => r.id === recordId);
-        setRecordToDelete(record);
-      };
-
-      const confirmDelete = () => {
-        if (recordToDelete) {
-          deleteCurrentRecord(recordToDelete.id);
-          toast({
-            title: "Registro eliminado",
-            description: `El registro del ${format(parseISO(recordToDelete.isoDate), "dd/MM/yyyy")} ha sido eliminado.`,
-            variant: "destructive",
-          });
-          setRecordToDelete(null);
-        }
-      };
-      
-      const openFormForNewRecord = () => {
-        setEditingRecord(null);
-        setShowRecords(false);
-        setShowForm(true);
-      };
-
-      const openRecordsList = () => {
-        setShowForm(false);
-        setEditingRecord(null);
-        setShowRecords(true);
-      };
-
-  const handleStartNewCycle = () => {
-    setConfirmNewCycleDialog(true);
+  const getSymbolColor = (symbolValue) => {
+    switch(symbolValue) {
+      case 'red': return '#ef4444'; // rojo menstruación
+      case 'white': return '#ffffff'; // blanco fértil
+      case 'green': return '#22c55e'; // verde infértil
+      case 'spot': return '#f472b6'; // rosa spotting
+      default: return '#e2e8f0'; // gris por defecto
+    }
   };
+  // Construye los segmentos del círculo en función de los registros
+  const createProgressSegments = () => {
+    const totalDays = Math.max(cycleData.currentDay, 28);
+    const segmentAngle = (2 * Math.PI) / totalDays;
+    const radius = 45;
 
-  const confirmStartNewCycleAction = (selectedDate) => {
-    startNewCycle(selectedDate);
-    toast({
-      title: "Nuevo Ciclo Iniciado",
-      description: "Los datos del ciclo anterior han sido archivados.",
+    return Array.from({ length: totalDays }, (_, index) => {
+      const day = index + 1;
+      const record = records.find(r => r.cycleDay === day);
+      const startAngle = index * segmentAngle;
+      const endAngle = (index + 1) * segmentAngle;
+      
+      const x1 = 50 + radius * Math.cos(startAngle - Math.PI/2);
+      const y1 = 50 + radius * Math.sin(startAngle - Math.PI/2);
+      const x2 = 50 + radius * Math.cos(endAngle - Math.PI/2);
+      const y2 = 50 + radius * Math.sin(endAngle - Math.PI/2);
+      
+      const largeArc = endAngle - startAngle <= Math.PI ? '0' : '1';
+
+      const pathData = [
+        'M', x1, y1,
+        'A', radius, radius, 0, largeArc, 1, x2, y2
+      ].join(' ');
+
+      return {
+        path: pathData,
+        color: day <= cycleData.currentDay && record ? getSymbolColor(record.fertility_symbol) : '#f1f5f9',
+        opacity: day <= cycleData.currentDay ? 1 : 0.3
+      };
     });
-    setConfirmNewCycleDialog(false);
   };
 
-      if (isLoading) {
-        return <div className="text-center text-slate-300 p-8">Cargando datos del ciclo...</div>;
-      }
+  const segments = createProgressSegments();
 
-      return (
-        <div className={`flex flex-col items-center w-full ${isFullScreen ? 'overflow-hidden h-full' : ''}`}>
-          <main className={`w-full ${isFullScreen ? 'h-full flex items-center justify-center' : 'max-w-4xl flex-grow'}`}>
-            {!isFullScreen && !showForm && !showRecords && (
-              <h2 className="text-center text-lg font-semibold text-pink-600 mb-1">Ciclo actual</h2>
-            )}
-            <AnimatePresence>
-              {(!showForm && !showRecords) && (chartDisplayData.length > 0 || isFullScreen) && (
-                <motion.div
-                  initial={{ opacity: 0, scale: isFullScreen ? 1 : 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: isFullScreen ? 1 : 0.9 }}
-                  transition={{ duration: 0.5 }}
-                  className={`shadow-xl rounded-xl ring-1 ring-[#FFB1DD]/50 ${isFullScreen ? 'w-full h-full p-0 fixed inset-0 z-50 bg-white' : 'p-4 sm:p-6 mb-8 bg-white/70 backdrop-blur-md'}`}
-                style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}
-                >
-                  <FertilityChart
-                    data={chartDisplayData}
-                    isFullScreen={isFullScreen}
-                    orientation={orientation}
-                    onEdit={handleEdit}
-                    onToggleIgnore={toggleIgnoreRecord}
-                    cycleId={currentCycle.id}
-                    initialScrollIndex={scrollStart}
-                    visibleDays={chartVisibleDays}
-                    showInterpretation={showInterpretation}
+  return (
+    <div className="relative">
+      {/* Fecha actual - Parte superior */}
+      <motion.div 
+        className="text-center mb-6"
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+      >
+        <h1 className="text-2xl font-bold text-gray-800 mb-1">
+          {new Date().toLocaleDateString('es-ES', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long'
+          })}
+        </h1>
+        <p className="text-sm text-gray-500 ">
+          Día {cycleData.currentDay} del ciclo
+        </p>
+      </motion.div>
+
+      {/* Card principal con fondo sólido */}
+      <motion.div 
+        className="bg-white rounded-3xl p-8 mb-6 shadow-xl shadow-pink-500/10 border border-pink-100/50"
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.4, delay: 0.1 }}
+      >
+        {/* Círculo de progreso mejorado */}
+        <div className="text-center mb-8">
+          <motion.div
+            className="relative inline-flex items-center justify-center w-56 h-56 mb-6"
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: 'spring', stiffness: 200, damping: 15, delay: 0.3 }}
+          >
+            <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+              {/* Círculo base más sutil */}
+              <circle
+                cx="50"
+                cy="50"
+                r="45"
+                fill="none"
+                stroke="#ffc5cb"
+                strokeWidth="6"
+              />
+              
+{/* Segmentos de progreso con borde para distinguir cada día */}
+              {segments.map((segment, index) => (
+                <g key={index}>
+                  <motion.path
+                    d={segment.path}
+                    fill="none"
+                    stroke="#e2e8f0"
+                    strokeWidth="6"
+                    strokeLinecap="round"
+                    opacity={segment.opacity}
+                    initial={{ pathLength: 0 }}
+                    animate={{ pathLength: 1 }}
+                    transition={{
+                      duration: 0.8,
+                      delay: 0.6 + (index * 0.02),
+                      ease: "easeOut"
+                    }}
                   />
-                  <Button
-                    onClick={() => setShowInterpretation(v => !v)}
-                    variant="ghost"
-                    size="sm"
-                    className={`absolute ${isFullScreen ? 'top-4 right-24' : 'top-2 right-10'} flex items-center text-xs font-normal py-1 px-2 rounded-lg transition-colors ${showInterpretation ? 'bg-[#E27DBF] text-white hover:bg-[#d46ab3]' : 'bg-transparent text-[#393C65] hover:bg-[#E27DBF]/20'}`}
-                  >
-                   {showInterpretation ? (
-                      <EyeOff className="mr-2 h-4 w-4" />
-                    ) : (
-                      <Eye className="mr-2 h-4 w-4" />
-                    )}
-                  {showInterpretation ? 'Ocultar' : 'Interpretar'}
-                 </Button>
-                  {isFullScreen && (
-                    <Button
-                      onClick={rotateScreen}
-                      variant="ghost"
-                      size="icon"
-                      className="absolute top-4 right-16 text-white bg-slate-700/50 hover:bg-slate-600/70"
-                      title="Rotar Pantalla"
-                    >
-                      <RotateCcw className="h-6 w-6" />
-                    </Button>
-                  )}
-                  <Button
-                    onClick={toggleFullScreen}
-                    variant="ghost"
-                    size="icon"
-                    className={`absolute ${isFullScreen ? 'top-4 right-4 text-white bg-slate-700/50 hover:bg-slate-600/70' : 'top-2 right-2 text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'}`}
-                    title={isFullScreen ? "Salir de Pantalla Completa" : "Ver en Pantalla Completa"}
-                  >
-                    {isFullScreen ? <X className="h-6 w-6" /> : <Maximize className="h-5 w-5" />}
-                  </Button>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                  <motion.path
+                    d={segment.path}
+                    fill="none"
+                    stroke={segment.color}
+                    strokeWidth="4"
+                    strokeLinecap="round"
+                    opacity={segment.opacity}
+                    initial={{ pathLength: 0 }}
+                    animate={{ pathLength: 1 }}
+                    transition={{
+                      duration: 0.8,
+                      delay: 0.6 + (index * 0.02),
+                      ease: "easeOut"
+                    }}
+                  />
+                </g>
+              ))}
+              
+              {/* Círculo interior decorativo */}
+              <circle
+                cx="50"
+                cy="50"
+                r="45"
+                fill="none"
+                stroke="rgba(236, 72, 153, 0.05)"
+                strokeWidth="1"
+              />
+            </svg>
             
-            {!isFullScreen && (
-              <>
-                <ActionButtons
-                  onAddRecord={openFormForNewRecord}
-                  onShowRecords={openRecordsList}
-                  onNewCycle={handleStartNewCycle}
-                  disableAdd={showForm && !editingRecord}
-                  disableRecords={showRecords}
-                />
-                
-                <AnimatePresence>
-                  {(showForm || editingRecord) && (
-                    <motion.div
-                      key="data-entry-form"
-                      initial={{ opacity: 0, y: 20, height: 0 }}
-                      animate={{ opacity: 1, y: 0, height: 'auto' }}
-                      exit={{ opacity: 0, y: 20, height: 0 }}
-                      transition={{ duration: 0.3 }}
-                      className="overflow-hidden w-full"
-                    >
-                      <DataEntryForm 
-                        onSubmit={addOrUpdateDataPoint} 
-                        initialData={editingRecord} 
-                        isEditing={Boolean(editingRecord)} 
-                        cycleStartDate={currentCycle.startDate}
-                        onCancel={() => { setShowForm(false); setEditingRecord(null); }}
-                        
-                      />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                <AnimatePresence>
-                  {showRecords && (
-                    <motion.div
-                      key="records-list"
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -20 }}
-                      transition={{ duration: 0.3 }}
-                      className="w-full"
-                    >
-                      <RecordsList
-                        records={currentCycle.data}
-                        onEdit={handleEdit}
-                        onDelete={handleDeleteRequest}
-                        onClose={() => setShowRecords(false)}
-                      />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-                
-                {currentCycle.data.filter(d => d.id && !d.id.startsWith('placeholder-')).length === 0 && !showForm && !showRecords && !isFullScreen && (
-                  <NoDataMessage />
-                )}
-              </>
-            )}
-          </main>
-          
-          <DeletionDialog
-            isOpen={!!recordToDelete}
-            onClose={() => setRecordToDelete(null)}
-            onConfirm={confirmDelete}
-            recordDate={recordToDelete ? format(parseISO(recordToDelete.isoDate), "dd/MM/yyyy") : ''}
-          />
-
-          <NewCycleDialog
-            isOpen={confirmNewCycleDialog}
-            onClose={() => setConfirmNewCycleDialog(false)}
-            onConfirm={confirmStartNewCycleAction}
-            currentCycleStartDate={currentCycle.startDate}
-          />
+            {/* Contenido central mejorado */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <motion.span
+                className="text-4xl font-bold bg-gradient-to-br from-pink-600 to-rose-600 bg-clip-text text-transparent"
+                initial={{ opacity: 0, scale: 0.5 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 1, type: 'spring', stiffness: 200 }}
+              >
+                {cycleData.currentDay}
+              </motion.span>
+              <motion.span
+                className="text-sm text-gray-500 font-medium mt-1"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 1.1 }}
+              >
+                días del ciclo
+              </motion.span>
+              
+            </div>
+          </motion.div>
         </div>
-      );
+     {/* Información relevante del ciclo */}
+        <motion.div
+          className="bg-rose-50 rounded-2xl p-4 text-sm text-gray-700"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.6 }}
+        >
+          <h3 className="font-semibold mb-2 text-gray-800">Información</h3>
+          <ul className="space-y-1">
+            <li className="font-medium">CPM</li>
+            <li className="ml-2">Datos incompletos</li>
+            <li className="font-medium pt-2">T-8</li>
+            <li className="ml-2">Datos incompletos</li>
+          </ul>
+        </motion.div>
+
+      </motion.div>
+    </div>
+  );
+};
+
+
+
+const FloatingActionButton = ({ onAddRecord, onAddCycle }) => {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="fixed bottom-20 right-6 flex flex-col items-end space-y-3 z-40">
+      {open && (
+        <>
+          <motion.button
+            onClick={onAddRecord}
+            className="w-12 h-12 rounded-full bg-gradient-to-br from-pink-500 to-rose-500 text-white shadow-lg flex items-center justify-center"
+            whileTap={{ scale: 0.95 }}
+            whileHover={{ scale: 1.05 }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <FilePlus className="h-5 w-5" />
+          </motion.button>
+          <motion.button
+            onClick={onAddCycle}
+            className="w-12 h-12 rounded-full bg-gradient-to-br from-fuchsia-500 to-purple-500 text-white shadow-lg flex items-center justify-center"
+            whileTap={{ scale: 0.95 }}
+            whileHover={{ scale: 1.05 }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <CalendarPlus className="h-5 w-5" />
+          </motion.button>
+        </>
+      )}
+      <motion.button
+        onClick={() => setOpen(!open)}
+        className="w-14 h-14 bg-gradient-to-br from-pink-500 to-rose-500 text-white rounded-full shadow-lg flex items-center justify-center"
+        whileTap={{ scale: 0.95 }}
+        whileHover={{ scale: 1.05 }}
+        initial={{ scale: 0 }}
+        animate={{ scale: 1 }}
+      >
+        <Plus className="h-6 w-6" />
+      </motion.button>
+    </div>
+  );
+};
+
+const ModernFertilityDashboard = () => {
+
+  const { currentCycle, addOrUpdateDataPoint, startNewCycle, isLoading } = useCycleData();
+  const [showForm, setShowForm] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  if (isLoading) {
+    return <p className="text-center text-gray-500">Cargando...</p>;
+  }
+
+  if (!currentCycle?.id) {
+    return <p className="text-center text-gray-500">No hay ciclo activo.</p>;
+  }
+
+  // Calcula el día actual del ciclo
+  const currentDay = differenceInDays(
+    startOfDay(new Date()),
+    parseISO(currentCycle.startDate)
+  ) + 1;
+
+  // Guarda el registro en la base de datos y cierra el formulario
+  const handleSave = async (data) => {
+    setIsProcessing(true);
+    try {
+      await addOrUpdateDataPoint(data);
+      setShowForm(false);
+    } finally {
+      setIsProcessing(false);
     }
+  };
 
-
-    function DashboardPage() {
-      const { 
-        currentCycle, 
-        addOrUpdateDataPoint: originalAddOrUpdate, 
-        deleteRecord, 
-        startNewCycle,
-        isLoading,
-        refreshData,
-        toggleIgnoreRecord
-      } = useCycleData();
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-rose-50 via-pink-50 to-purple-50 pb-20">
       
-      const [showForm, setShowForm] = useState(false);
-  const [showRecords, setShowRecords] = useState(false);
-  const [editingRecord, setEditingRecord] = useState(null);
-  const [recordToDelete, setRecordToDelete] = useState(null);
-  const [confirmNewCycleDialog, setConfirmNewCycleDialog] = useState(false);
-  const [showInterpretation, setShowInterpretation] = useState(false);
-      
-const { isFullScreen, orientation, toggleFullScreen, rotateScreen } = useFullScreen();
-      const { toast } = useToast();
+      <div className="max-w-md mx-auto px-4 pt-12">
+        <motion.div
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: 20 }}
+          transition={{ duration: 0.3 }}
+        >
+          <CycleOverviewCard cycleData={{ ...currentCycle, currentDay, records: currentCycle.data }} />
+        </motion.div>
+      </div>
 
-      useEffect(() => {
-        refreshData();
-      }, [refreshData]);
-
-      const addOrUpdateDataPoint = (newData) => {
-        originalAddOrUpdate(newData, editingRecord);
-        toast({
-          title: editingRecord ? "Registro actualizado" : "Nuevo registro añadido",
-          description: editingRecord 
-            ? `Datos del ${format(parseISO(newData.isoDate), "dd/MM/yyyy")} actualizados.`
-            : `Registro para el ${format(parseISO(newData.isoDate), "dd/MM/yyyy")} añadido.`,
-        });
-        setShowForm(false);
-        setEditingRecord(null);
-      };
-      
-      const getChartDisplayData = useCallback(() => {
-        if (isLoading || !currentCycle || !currentCycle.startDate) {
-          return { data: [], scrollStart: 0 };
-        }
-        
-        const cycleStartDate = parseISO(currentCycle.startDate);
-
-        const lastRecordDate = currentCycle.data.reduce((maxDate, record) => {
-          const recDate = parseISO(record.isoDate);
-          return recDate > maxDate ? recDate : maxDate;
-        }, cycleStartDate);
-
-        const today = startOfDay(new Date());
-        const lastRelevantDate = lastRecordDate > today ? lastRecordDate : today;
-        const daysSinceStart = differenceInDays(startOfDay(lastRelevantDate), cycleStartDate);
-        const daysInCycle = Math.max(CYCLE_DURATION_DAYS, daysSinceStart + 1);
-
-        const fullCyclePlaceholders = generatePlaceholders(cycleStartDate, daysInCycle);
-
-        const mergedData = fullCyclePlaceholders.map(placeholder => {
-            const existingRecord = currentCycle.data.find(d => d.isoDate === placeholder.isoDate);
-            return existingRecord ? { ...existingRecord, date: placeholder.date } : placeholder;
-        });
-
-
-if (isFullScreen && orientation === 'landscape') {
-          return { data: mergedData, scrollStart: 0 };
-        }
-
-          const daysSinceCycleStart = differenceInDays(new Date(), startOfDay(cycleStartDate));
-          const currentDayIndex = Math.min(Math.max(daysSinceCycleStart, 0), daysInCycle - 1);
-          let endIndex = Math.min(daysInCycle, currentDayIndex + 1);
-        const visibleWindow = isFullScreen
-          ? VISIBLE_DAYS_FULLSCREEN_PORTRAIT
-          : VISIBLE_DAYS_NORMAL_VIEW;
-        if (currentDayIndex < visibleWindow - 1) {
-           endIndex = Math.min(daysInCycle, visibleWindow);
-        }
-
-        const startIndex = Math.max(0, endIndex - visibleWindow);
-        
-        return { data: mergedData, scrollStart: startIndex };
-      }, [currentCycle, isFullScreen, isLoading, orientation]);
-      
-      const { data: chartDisplayData, scrollStart } = getChartDisplayData();
-
-      return (
-        <DashboardPageContent
-          currentCycle={currentCycle}
-          addOrUpdateDataPoint={addOrUpdateDataPoint}
-          deleteCurrentRecord={deleteRecord}
-          toggleIgnoreRecord={toggleIgnoreRecord}
-          startNewCycle={startNewCycle}
-          isLoading={isLoading}
-        isFullScreen={isFullScreen}
-        toggleFullScreen={toggleFullScreen}
-        orientation={orientation}
-        rotateScreen={rotateScreen}
-        chartDisplayData={chartDisplayData}
-          scrollStart={scrollStart}
-          showForm={showForm} setShowForm={setShowForm}
-          showRecords={showRecords} setShowRecords={setShowRecords}
-          editingRecord={editingRecord} setEditingRecord={setEditingRecord}
-          recordToDelete={recordToDelete} setRecordToDelete={setRecordToDelete}
-          confirmNewCycleDialog={confirmNewCycleDialog} setConfirmNewCycleDialog={setConfirmNewCycleDialog}
-          toast={toast}
-          showInterpretation={showInterpretation} setShowInterpretation={setShowInterpretation}
+            {showForm && (
+        <DataEntryForm
+          onSubmit={handleSave}
+          onCancel={() => setShowForm(false)}
+          cycleStartDate={currentCycle.startDate}
+          cycleEndDate={currentCycle.endDate}
+          isProcessing={isProcessing}
         />
-      );
-    }
+      )}
 
-    export default DashboardPage;
+      <FloatingActionButton
+        onAddRecord={() => setShowForm(true)}
+        onAddCycle={() => startNewCycle()}
+      />
+    </div>
+  );
+};
+
+export default ModernFertilityDashboard;

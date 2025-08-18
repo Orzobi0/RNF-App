@@ -15,7 +15,7 @@ import React from 'react';
 import { useEffect, useState } from 'react';
 
 
-    const DataEntryFormFields = ({
+      const DataEntryFormFields = ({
       date, setDate,
       time, setTime,
       temperatureRaw, setTemperatureRaw,
@@ -26,7 +26,7 @@ import { useEffect, useState } from 'react';
       fertilitySymbol, setFertilitySymbol,
       observations, setObservations,
       ignored, setIgnored,
-      isProcessing, isEditing, initialData, cycleStartDate
+      isProcessing, isEditing, initialData, cycleStartDate, cycleEndDate
     }) => {
       const [open, setOpen] = useState(false);
 
@@ -53,15 +53,16 @@ import { useEffect, useState } from 'react';
       }, [isEditing, initialData]);
       
       const cycleStart = startOfDay(parseISO(cycleStartDate));
+      const cycleEnd = cycleEndDate ? startOfDay(parseISO(cycleEndDate)) : addDays(cycleStart, 45);
       const disabledDateRanges = [
         { before: cycleStart },
-        { after: addDays(cycleStart, 45) } 
+        { after: cycleEnd }
       ];
 
       return (
         <>
           <div className="space-y-2">
-            <Label htmlFor="date" className="flex items-center text-[#32334d] text-lg">
+            <Label htmlFor="date" className="flex items-center text-gray-700 text-lg">
                 <CalendarDays className="mr-2 h-5 w-5 text-pink-400" />
               Fecha del Registro
             </Label>
@@ -70,7 +71,7 @@ import { useEffect, useState } from 'react';
                 <Button
                   variant={"outline"}
                   className={cn(
-                    "w-full justify-start text-left font-normal bg-slate-700 border-slate-600 text-slate-50 hover:bg-slate-600 hover:text-slate-50",
+                    "w-full justify-start text-left font-normal bg-gray-50 border-gray-200 text-gray-800 hover:bg-gray-100 hover:text-gray-800",
                     !date && "text-muted-foreground"
                   )}
                   disabled={isProcessing}
@@ -79,7 +80,7 @@ import { useEffect, useState } from 'react';
                   {date ? format(date, "PPP", { locale: es }) : <span>Selecciona una fecha</span>}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-0 bg-slate-700 border-slate-600 text-slate-50" align="start">
+              <PopoverContent className="w-auto p-0 bg-gray-50 border-gray-200 text-gray-800" align="start">
                 <Calendar
                   mode="single"
                   selected={date}
@@ -90,16 +91,16 @@ import { useEffect, useState } from 'react';
                   initialFocus
                   locale={es}
                   disabled={isProcessing ? () => true : disabledDateRanges}
-                  className="[&_button]:text-slate-50 [&_button:hover]:bg-slate-600 [&_button[aria-selected=true]]:bg-pink-500"
+                  className="[&_button]:text-gray-800 [&_button:hover]:bg-gray-100 [&_button[aria-selected=true]]:bg-pink-500"
                 />
               </PopoverContent>
             </Popover>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="temperatureRaw" className="flex items-center text-[#32334d] text-lg">
+            <Label htmlFor="temperatureRaw" className="flex items-center text-gray-700 text-lg">
               <Thermometer className="mr-2 h-5 w-5 text-rose-400" />
-              {isEditing ? "Temperatura Original (°C)" : "Temperatura Basal (°C)"} <span className="text-sm text-[#32334d] ml-1">(Opcional)</span>
+              {isEditing ? "Temperatura Original (°C)" : "Temperatura Basal (°C)"} <span className="text-sm text-gray-700 ml-1">(Opcional)</span>
             </Label>
           <Input
             id="temperatureRaw"
@@ -110,21 +111,21 @@ import { useEffect, useState } from 'react';
               value={temperatureRaw}
               onChange={(e) => setTemperatureRaw(e.target.value)}
               placeholder="Ej: 36.50"
-              className="bg-slate-700 border-slate-600 text-slate-50 placeholder-slate-400 focus:ring-pink-500 focus:border-pink-500 text-base"
+              className="bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400 focus:ring-pink-500 focus:border-pink-500 text-base"
               disabled={isProcessing || (isEditing && initialData?.temperature_raw !== null && initialData?.temperature_raw !== undefined)}
             readOnly={isEditing && initialData?.temperature_raw !== null && initialData?.temperature_raw !== undefined}
           />
           <div className="space-y-2">
-            <Label htmlFor="time" className="flex items-center text-[#32334d] text-lg">
+            <Label htmlFor="time" className="flex items-center text-gray-700 text-lg">
               <Clock className="mr-2 h-5 w-5 text-rose-400" />
-              Hora de la Temperatura <span className="text-sm text-[#32334d] ml-1">(Opcional)</span>
+              Hora de la Temperatura <span className="text-sm text-gray-700 ml-1">(Opcional)</span>
             </Label>
             <Input
               id="time"
               type="time"
               value={time}
               onChange={(e) => setTime(e.target.value)}
-              className="bg-slate-700 border-slate-600 text-slate-50 placeholder-slate-400 focus:ring-pink-500 focus:border-pink-500 text-base"
+              className="bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400 focus:ring-pink-500 focus:border-pink-500 text-base"
               disabled={isProcessing}
             />
           </div>
@@ -132,10 +133,10 @@ import { useEffect, useState } from 'react';
 
           {isEditing && (
                       <div>
-                        <div className="space-y-3 p-4 border border-slate-700 rounded-md bg-slate-200/30">
-                          <Label htmlFor="temperatureCorrected" className="flex items-center text-[#32334d] text-md">
+                        <div className="space-y-3 p-4 border border-gray-200 rounded-md bg-gray-50">
+                          <Label htmlFor="temperatureCorrected" className="flex items-center text-gray-700 text-md">
                             <Edit className="mr-2 h-4 w-4 text-amber-400" />
-                            Temperatura Corregida (°C) <span className="text-sm text-slate-400 ml-1">(Opcional)</span>
+                            Temperatura Corregida (°C) <span className="text-sm text-gray-500 ml-1">(Opcional)</span>
                           </Label>
                           <div className="flex items-center space-x-2"></div>              
                           <Input
@@ -150,7 +151,7 @@ import { useEffect, useState } from 'react';
                               if (e.target.value !== '') setUseCorrected(true);
                             }}
                             placeholder="Ej: 36.65"
-                            className="bg-slate-600 border-slate-500 text-slate-50 placeholder-slate-400 focus:ring-pink-500 focus:border-pink-500 text-base"
+                            className="bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400 focus:ring-pink-500 focus:border-pink-500 text-base"
                             disabled={isProcessing}
                           />
                           {/* Botón “X” para borrar corrección */}
@@ -172,10 +173,10 @@ import { useEffect, useState } from 'react';
                               id="useCorrected"
                               checked={useCorrected}
                               onCheckedChange={setUseCorrected}
-                              className="data-[state=checked]:bg-pink-500 data-[state=checked]:text-white border-slate-500"
+                              className="data-[state=checked]:bg-pink-500 data-[state=checked]:text-white border-gray-500"
                               disabled={isProcessing || temperatureCorrected === ''}
                             />
-                            <Label htmlFor="useCorrected" className="text-sm text-slate-300">
+                            <Label htmlFor="useCorrected" className="text-sm text-gray-500">
                               Usar corrección en la gráfica
                             </Label>
                           </div>
@@ -196,17 +197,17 @@ import { useEffect, useState } from 'react';
                     )}
 
           <div className="space-y-2">
-            <Label htmlFor="fertilitySymbol" className="flex items-center text-[#32334d] text-lg">
+            <Label htmlFor="fertilitySymbol" className="flex items-center text-gray-700 text-lg">
                 <Palette className="mr-2 h-5 w-5 text-teal-400" />
                 Símbolo de Fertilidad
             </Label>
             <Select value={fertilitySymbol} onValueChange={setFertilitySymbol} disabled={isProcessing}>
-                <SelectTrigger className="w-full bg-slate-700 border-slate-600 text-slate-50 hover:bg-slate-600 hover:text-slate-50">
+                <SelectTrigger className="w-full bg-gray-50 border-gray-200 text-gray-800 hover:bg-gray-100 hover:text-gray-800">
                     <SelectValue placeholder="Selecciona un símbolo" />
                 </SelectTrigger>
-                <SelectContent className="bg-slate-700 border-slate-600 text-slate-50">
+                <SelectContent className="bg-gray-50 border-gray-200 text-gray-800">
                     {FERTILITY_SYMBOL_OPTIONS.map(symbol => (
-                        <SelectItem key={symbol.value} value={symbol.value} className="hover:bg-slate-600 focus:bg-slate-600">
+                        <SelectItem key={symbol.value} value={symbol.value} className="hover:bg-gray-100 focus:bg-gray-100">
                            <div className="flex items-center">
                              <span className={`w-4 h-4 rounded-full mr-2 ${symbol.color} ${symbol.pattern ? 'pattern-bg' : ''}`}></span>
                              {symbol.label}
@@ -218,7 +219,7 @@ import { useEffect, useState } from 'react';
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="mucusSensation" className="flex items-center text-[#32334d] text-lg">
+            <Label htmlFor="mucusSensation" className="flex items-center text-gray-700 text-lg">
               <Droplets className="mr-2 h-5 w-5 text-sky-400" />
               Sensación del Moco Cervical
             </Label>
@@ -227,13 +228,13 @@ import { useEffect, useState } from 'react';
               value={mucusSensation}
               onChange={(e) => setMucusSensation(e.target.value)}
               placeholder="Describe la sensación (ej: Seca, Húmeda, Mojada)"
-              className="bg-slate-700 border-slate-600 text-slate-50 placeholder-slate-400 focus:ring-pink-500 focus:border-pink-500 text-base min-h-[80px]"
+              className="bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400 focus:ring-pink-500 focus:border-pink-500 text-base min-h-[80px]"
               disabled={isProcessing}
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="mucusAppearance" className="flex items-center text-[#32334d] text-lg">
+            <Label htmlFor="mucusAppearance" className="flex items-center text-gray-700 text-lg">
               <Eye className="mr-2 h-5 w-5 text-amber-400" />
               Apariencia del Moco Cervical
             </Label>
@@ -242,13 +243,13 @@ import { useEffect, useState } from 'react';
               value={mucusAppearance}
               onChange={(e) => setMucusAppearance(e.target.value)}
               placeholder="Describe la apariencia (ej: Pegajoso, Elástico)"
-              className="bg-slate-700 border-slate-600 text-slate-50 placeholder-slate-400 focus:ring-pink-500 focus:border-pink-500 text-base min-h-[80px]"
+              className="bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400 focus:ring-pink-500 focus:border-pink-500 text-base min-h-[80px]"
               disabled={isProcessing}
             />
           </div>
 
            <div className="space-y-2">
-            <Label htmlFor="observations" className="flex items-center text-[#32334d] text-lg">
+            <Label htmlFor="observations" className="flex items-center text-gray-700 text-lg">
               <CheckSquare className="mr-2 h-5 w-5 text-indigo-400" />
               Observaciones Adicionales
             </Label>
@@ -257,7 +258,7 @@ import { useEffect, useState } from 'react';
               value={observations}
               onChange={(e) => setObservations(e.target.value)}
               placeholder="Anota cualquier otra observación relevante (ej: Dolor, medicación)"
-              className="bg-slate-700 border-slate-600 text-slate-50 placeholder-slate-400 focus:ring-pink-500 focus:border-pink-500 text-base min-h-[80px]"
+              className="bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400 focus:ring-pink-500 focus:border-pink-500 text-base min-h-[80px]"
               disabled={isProcessing}
             />
           </div>

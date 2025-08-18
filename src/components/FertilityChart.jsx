@@ -7,7 +7,6 @@ import ChartTooltip from '@/components/chartElements/ChartTooltip';
 import ChartLeftLegend from '@/components/chartElements/ChartLeftLegend';
 import { useFertilityChart } from '@/hooks/useFertilityChart';
 
-
 const FertilityChart = ({
   data,
   isFullScreen,
@@ -19,172 +18,248 @@ const FertilityChart = ({
   visibleDays = 5,
   showInterpretation = false
 }) => {
-      const {
-        chartRef,
-        tooltipRef,
-        dimensions,
-        activePoint,
-        tooltipPosition,
-        allDataPoints, 
-        validDataForLine,
-        tempMin,
-        tempMax,
-        tempRange,
-        padding,
-        textRowHeight,
-        getY,
-        getX,
-        handlePointInteraction,
-        handleToggleIgnore,
-        responsiveFontSize,
-        clearActivePoint,
-        setActivePoint,
-        baselineTemp,
-        baselineStartIndex,
-      } = useFertilityChart(data, isFullScreen, orientation, onToggleIgnore, cycleId, visibleDays);
+  const {
+    chartRef,
+    tooltipRef,
+    dimensions,
+    activePoint,
+    tooltipPosition,
+    allDataPoints,
+    validDataForLine,
+    tempMin,
+    tempMax,
+    tempRange,
+    padding,
+    textRowHeight,
+    getY,
+    getX,
+    handlePointInteraction,
+    handleToggleIgnore,
+    responsiveFontSize,
+    clearActivePoint,
+    setActivePoint,
+    baselineTemp,
+    baselineStartIndex,
+  } = useFertilityChart(data, isFullScreen, orientation, onToggleIgnore, cycleId, visibleDays);
 
-      if (!allDataPoints || allDataPoints.length === 0) {
-        return <div className="text-center text-slate-400 p-8">No hay datos para mostrar en el gráfico.</div>;
-      }
-      
-      const chartWidth = dimensions.width;
-      const chartHeight = dimensions.height;
-      const baselineY = baselineTemp != null ? getY(baselineTemp) : null;
-      const baselineStartX = baselineTemp != null ? getX(baselineStartIndex) : null;
+  if (!allDataPoints || allDataPoints.length === 0) {
+    return (
+      <div className="text-center p-8">
+        <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-pink-100 to-rose-100 rounded-full mb-4">
+          <svg className="w-8 h-8 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+          </svg>
+        </div>
+        <p className="text-slate-400 font-medium">No hay datos para mostrar en el gráfico</p>
+      </div>
+    );
+  }
 
-      const containerVariants = {
-        hidden: { opacity: 0 },
-        visible: {
-          opacity: 1,
-          transition: { duration: 0.2 }
-        }
-      };
+  const chartWidth = dimensions.width;
+  const chartHeight = dimensions.height;
+  const baselineY = baselineTemp != null ? getY(baselineTemp) : null;
+  const baselineStartX = baselineTemp != null ? getX(baselineStartIndex) : null;
+
+  const containerVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: {
+      opacity: 1,
+      y: 0,
+
+    }
+  };
+
+  const chartVariants = {
+    hidden: { opacity: 0, scale: 0.95 },
+    visible: {
+      opacity: 1,
+      scale: 1,
+
+    }
+  };
+
   useEffect(() => {
-        if (isFullScreen || !chartRef.current) return;
-        const dayWidth = chartRef.current.clientWidth / visibleDays;
-        chartRef.current.scrollLeft = Math.max(0, dayWidth * initialScrollIndex);
-      }, [isFullScreen, initialScrollIndex, visibleDays, dimensions.width, orientation]);
+    if (isFullScreen || !chartRef.current) return;
+    const dayWidth = chartRef.current.clientWidth / visibleDays;
+    chartRef.current.scrollLeft = Math.max(0, dayWidth * initialScrollIndex);
+  }, [isFullScreen, initialScrollIndex, visibleDays, dimensions.width, orientation]);
 
+  return (
+    <motion.div 
+      className="relative"
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+    >
+      {/* Leyenda izquierda mejorada */}
+      {(!isFullScreen || orientation === 'portrait') && (
+        <div
+          className="absolute left-0 top-0 h-full bg-transparent pointer-events-none z-10"
+          style={{ width: padding.left }}
+        >
+          <ChartLeftLegend
+            padding={padding}
+            chartHeight={chartHeight}
+            tempMin={tempMin}
+            tempMax={tempMax}
+            tempRange={tempRange}
+            getY={getY}
+            responsiveFontSize={responsiveFontSize}
+            textRowHeight={textRowHeight}
+            isFullScreen={isFullScreen}
+          />
+        </div>
+      )}
 
-      return (
-        <div className="relative">
-            {(!isFullScreen || orientation === 'portrait') && (
-            <div
-              className="absolute left-0 top-0 h-full bg-transparent pointer-events-none z-10"
-              style={{ width: padding.left }}
-            >
-              <ChartLeftLegend
-                padding={padding}
-                chartHeight={chartHeight}
-                tempMin={tempMin}
-                tempMax={tempMax}
-                tempRange={tempRange}
-                getY={getY}
-                responsiveFontSize={responsiveFontSize}
-                textRowHeight={textRowHeight}
-                isFullScreen={isFullScreen}
-              />
-            </div>
-          )}
-          <div
-            ref={chartRef}
-            className={`relative p-0 rounded-xl ${isFullScreen ? 'w-full h-full bg-white flex items-center justify-start overflow-x-auto overflow-y-hidden' : 'bg-white overflow-x-auto overflow-y-hidden'}`}
-            style={{ boxShadow: '0 2px 4px rgba(0,0,0,0.03)' }}
-          >
-          <motion.svg
-            width={chartWidth}
-            height={chartHeight}
-            className="font-sans flex-shrink-0"
-            viewBox={`0 0 ${chartWidth} ${chartHeight}`}
-            preserveAspectRatio="xMidYMid meet"
-            variants={containerVariants}
-            initial="hidden"
-            animate="visible"
-          >
-            <defs>
-        
-              <linearGradient id="tempLineGradientChart" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="#f472b6" />
-                <stop offset="100%" stopColor="#d946ef" />
-              </linearGradient>
-              <linearGradient id="tempAreaGradientChart" x1="0%" y1="0%" x2="0%" y2="100%">
-                <stop offset="0%" stopColor="rgba(244,114,182,0.15)" />
-                <stop offset="100%" stopColor="rgba(217,70,239,0)" />
-              </linearGradient>
-              <pattern id="spotting-pattern-chart" patternUnits="userSpaceOnUse" width="6" height="6">
-                <circle cx="1.5" cy="1.5" r="1.5" fill="rgba(239,68,68,0.7)" />
-              </pattern>
-            </defs>
-            <rect width="100%" height="100%" fill="transparent" />
-
-            <ChartAxes
-              padding={padding}
-              chartWidth={chartWidth}
-              chartHeight={chartHeight}
-              tempMin={tempMin}
-              tempMax={tempMax}
-              tempRange={tempRange}
-              getY={getY}
-              getX={getX}
-              allDataPoints={allDataPoints}
-              responsiveFontSize={responsiveFontSize}
-              isFullScreen={isFullScreen}
-              showLeftLabels={isFullScreen && orientation === 'landscape'}
-            />
+      {/* Contenedor principal del gráfico */}
+      <motion.div
+        ref={chartRef}
+        className={`relative p-0 rounded-2xl ${
+          isFullScreen 
+            ? 'w-full h-full bg-gradient-to-br from-white via-pink-50/30 to-rose-50/20 flex items-center justify-start overflow-x-auto overflow-y-hidden' 
+            : 'bg-gradient-to-br from-white via-pink-50/30 to-rose-50/20 overflow-x-auto overflow-y-hidden border border-pink-100/50'
+        }`}
+        style={{ 
+          boxShadow: isFullScreen 
+            ? 'inset 0 1px 3px rgba(244, 114, 182, 0.1)' 
+            : '0 8px 32px rgba(244, 114, 182, 0.12), 0 2px 8px rgba(244, 114, 182, 0.08)'
+        }}
+        variants={chartVariants}
+      >
+        <motion.svg
+          width={chartWidth}
+          height={chartHeight}
+          className="font-sans flex-shrink-0"
+          viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+          preserveAspectRatio="xMidYMid meet"
+        >
+          <defs>
+            {/* Gradientes mejorados para la línea de temperatura */}
+            <linearGradient id="tempLineGradientChart" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#F472B6" />
+              <stop offset="50%" stopColor="#EC4899" />
+              <stop offset="100%" stopColor="#E91E63" />
+            </linearGradient>
             
-            <ChartLine
-              data={validDataForLine}
-              allDataPoints={allDataPoints}
-              getX={getX}
-              getY={getY}
-              baselineY={chartHeight - padding.bottom}
-              temperatureField="displayTemperature"
-            />
-            {showInterpretation && baselineTemp != null && (
-              <line
-                x1={baselineStartX}
-                y1={baselineY}
-                x2={chartWidth - padding.right}
-                y2={baselineY}
-                stroke="#f59e0b"
-                strokeWidth={2}
-                strokeDasharray="4 4"
-              />
-            )}
+            <linearGradient id="tempAreaGradientChart" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="rgba(244,114,182,0.25)" />
+              <stop offset="50%" stopColor="rgba(236,72,153,0.15)" />
+              <stop offset="100%" stopColor="rgba(233,30,99,0.05)" />
+            </linearGradient>
 
-            <ChartPoints
-              data={allDataPoints}
-              getX={getX}
-              getY={getY}
-              isFullScreen={isFullScreen}
-              orientation={orientation}
-              responsiveFontSize={responsiveFontSize}
-              onPointInteraction={handlePointInteraction}
-              clearActivePoint={clearActivePoint}
-              activePoint={activePoint}
-              padding={padding}
-              chartHeight={chartHeight}
-              chartWidth={chartWidth}
-              temperatureField="displayTemperature"
+            {/* Patrón mejorado para spotting */}
+            <pattern id="spotting-pattern-chart" patternUnits="userSpaceOnUse" width="8" height="8">
+              <circle cx="2" cy="2" r="1.5" fill="rgba(239,68,68,0.8)" />
+              <circle cx="6" cy="6" r="1.5" fill="rgba(239,68,68,0.6)" />
+            </pattern>
+
+            {/* Filtros para efectos de sombra */}
+            <filter id="chartShadow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+              <feMerge>
+                <feMergeNode in="coloredBlur"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+
+            {/* Filtro para el resplandor de la línea baseline */}
+            <filter id="baselineGlow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="1.5" result="coloredBlur"/>
+              <feMerge>
+                <feMergeNode in="coloredBlur"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+          </defs>
+
+          {/* Fondo transparente para interacciones */}
+          <rect width="100%" height="100%" fill="transparent" />
+
+          {/* Ejes del gráfico */}
+          <ChartAxes
+            padding={padding}
+            chartWidth={chartWidth}
+            chartHeight={chartHeight}
+            tempMin={tempMin}
+            tempMax={tempMax}
+            tempRange={tempRange}
+            getY={getY}
+            getX={getX}
+            allDataPoints={allDataPoints}
+            responsiveFontSize={responsiveFontSize}
+            isFullScreen={isFullScreen}
+            showLeftLabels={isFullScreen && orientation === 'landscape'}
+          />
+
+          {/* Línea de temperatura */}
+          <ChartLine
+            data={validDataForLine}
+            allDataPoints={allDataPoints}
+            getX={getX}
+            getY={getY}
+            baselineY={chartHeight - padding.bottom}
+            temperatureField="displayTemperature"
+          />
+
+          {/* Línea baseline mejorada */}
+          {showInterpretation && baselineTemp != null && (
+            <motion.line
+              x1={baselineStartX}
+              y1={baselineY}
+              x2={chartWidth - padding.right}
+              y2={baselineY}
+              stroke="#F59E0B"
+              strokeWidth={3}
+              strokeDasharray="6 4"
+              style={{ filter: 'url(#baselineGlow)' }}
+              initial={{ opacity: 0, pathLength: 0 }}
+              animate={{ opacity: 1, pathLength: 1 }}
+              transition={{ duration: 1, ease: "easeInOut" }}
+            />
+          )}
+
+          {/* Puntos del gráfico */}
+          <ChartPoints
+            data={allDataPoints}
+            getX={getX}
+            getY={getY}
+            isFullScreen={isFullScreen}
+            orientation={orientation}
+            responsiveFontSize={responsiveFontSize}
+            onPointInteraction={handlePointInteraction}
+            clearActivePoint={clearActivePoint}
+            activePoint={activePoint}
+            padding={padding}
+            chartHeight={chartHeight}
+            chartWidth={chartWidth}
+            temperatureField="displayTemperature"
             textRowHeight={textRowHeight}
           />
-          </motion.svg>
-{activePoint && (
-  <div ref={tooltipRef}>
-      <ChartTooltip
-        point={activePoint}
-        position={tooltipPosition}
-        chartWidth={chartWidth}
-        chartHeight={chartHeight}
-        onToggleIgnore={handleToggleIgnore}
-        onEdit={onEdit}
-        onClose={clearActivePoint}
-      />
-  </div>
-)}
-          </div>
-        </div>
-      );
-    };
+        </motion.svg>
+
+        {/* Tooltip mejorado */}
+        {activePoint && (
+          <motion.div 
+            ref={tooltipRef}
+            initial={{ opacity: 0, scale: 0.9, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 10 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+          >
+            <ChartTooltip
+              point={activePoint}
+              position={tooltipPosition}
+              chartWidth={chartWidth}
+              chartHeight={chartHeight}
+              onToggleIgnore={handleToggleIgnore}
+              onEdit={onEdit}
+              onClose={clearActivePoint}
+            />
+          </motion.div>
+        )}
+      </motion.div>
+    </motion.div>
+  );
+};
 
 export default FertilityChart;
