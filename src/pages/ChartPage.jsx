@@ -3,6 +3,7 @@ import FertilityChart from '@/components/FertilityChart';
 import { useCycleData } from '@/hooks/useCycleData';
 import { differenceInDays, parseISO, startOfDay } from 'date-fns';
 import generatePlaceholders from '@/lib/generatePlaceholders';
+import { RotateCcw } from 'lucide-react';
 
 const ChartPage = () => {
   const { currentCycle } = useCycleData();
@@ -60,7 +61,14 @@ const ChartPage = () => {
   }
 
   return (
-    <div className="w-full h-full">
+    <div className="relative w-full h-full">
+      <button
+        onClick={() => setOrientation(orientation === 'portrait' ? 'landscape' : 'portrait')}
+        className="absolute top-4 right-4 z-10 bg-white/80 hover:bg-white text-gray-700 p-2 rounded-full shadow"
+        aria-label="Rotar gráfico"
+      >
+        <RotateCcw className="w-5 h-5" />
+      </button>
       <FertilityChart
         data={mergedData}
         isFullScreen={true}
