@@ -43,7 +43,7 @@ const CycleOverviewCard = ({ cycleData }) => {
   // Crear puntos individuales en lugar de segmentos
   const createProgressDots = () => {
     const totalDays = Math.max(cycleData.currentDay, 28);
-    const radius = 35; // Radio del círculo
+    const radius = 40; // Radio del círculo
     const dotRadius = 4; // Tamaño de cada punto
 
     return Array.from({ length: totalDays }, (_, index) => {
@@ -211,24 +211,7 @@ const CycleOverviewCard = ({ cycleData }) => {
                     />
                   )}
 
-                  {/* Números de día para días clave */}
-                  {(dot.day === 1 || dot.day % 7 === 0 || dot.day === cycleData.currentDay) && (
-                    <motion.text
-                      x={dot.x}
-                      y={dot.y + (dot.y < 50 ? -8 : 12)}
-                      textAnchor="middle"
-                      className="text-xs font-medium"
-                      fill={dot.isToday ? '#dc2626' : '#6b7280'}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 0.8 }}
-                      transition={{
-                        duration: 0.3,
-                        delay: 1.4 + (index * 0.02)
-                      }}
-                    >
-                      {dot.day}
-                    </motion.text>
-                  )}
+                                   
                 </g>
               ))}
             </svg>
