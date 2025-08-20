@@ -93,9 +93,9 @@ const CycleOverviewCard = ({ cycleData }) => {
         </p>
       </motion.div>
 
-      {/* Card principal */}
-      <motion.div 
-        className="bg-white rounded-3xl p-8 mb-6 shadow-xl shadow-pink-500/10 border border-pink-100/50"
+      {/* Contenedor principal sin fondo blanco */}
+      <motion.div
+        className="rounded-3xl p-8 mb-6"
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.4, delay: 0.1 }}
@@ -179,12 +179,11 @@ const CycleOverviewCard = ({ cycleData }) => {
                     cx={dot.x}
                     cy={dot.y}
                     r={dot.isToday ? "5" : "3.5"}
-                    fill={dot.isActive ? dot.colors.main : '#f1f5f9'}
+                    fill={dot.isActive ? dot.colors.main : '#e2e8f0'}
                     stroke={dot.colors.border || 'rgba(255, 255, 255, 0.8)'}
                     strokeWidth={dot.isToday ? "2" : "1"}
-                    opacity={dot.isActive ? 1 : 0.4}
                     initial={{ scale: 0, opacity: 0 }}
-                    animate={{ scale: 1, opacity: dot.isActive ? 1 : 0.4 }}
+                    animate={{ scale: 1, opacity: 1 }}
                     transition={{
                       duration: 0.6,
                       delay: 0.8 + (index * 0.02),
@@ -195,7 +194,7 @@ const CycleOverviewCard = ({ cycleData }) => {
                     filter={dot.isToday ? `url(#glow-${index})` : undefined}
                   />
 
-                  {/* Punto interior para días con registros */}
+                  {/* Punto interior para diferenciar registros */}
                   {dot.hasRecord && dot.isActive && (
                     <motion.circle
                       cx={dot.x}
@@ -210,7 +209,20 @@ const CycleOverviewCard = ({ cycleData }) => {
                       }}
                     />
                   )}
-
+                  {!dot.hasRecord && dot.isActive && (
+                    <motion.circle
+                      cx={dot.x}
+                      cy={dot.y}
+                      r="1"
+                      fill="rgba(0, 0, 0, 0.9)"
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{
+                        duration: 0.3,
+                        delay: 1.2 + (index * 0.02)
+                      }}
+                    />
+                  )}
                                    
                 </g>
               ))}
