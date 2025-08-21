@@ -8,41 +8,46 @@ import { differenceInDays, parseISO, startOfDay } from 'date-fns';
 const CycleOverviewCard = ({ cycleData }) => {
   const records = cycleData.records || [];
 
-  // Colores más elegantes y distintivos
+  // Colores suaves
   const getSymbolColor = (symbolValue) => {
-    switch(symbolValue) {
-      case 'red': return {
-        main: '#dc2626', // rojo más elegante para menstruación
-        light: '#fecaca',
-        glow: 'rgba(220, 38, 38, 0.3)'
-      };
-      case 'white': return {
-        main: '#f8fafc', // blanco para días fértiles
-        light: '#ffe4e6',
-        glow: 'rgba(253, 164, 175, 0.5)' 
-      };
-      case 'green': return {
-        main: '#059669', // verde esmeralda para días infértiles
-        light: '#a7f3d0',
-        glow: 'rgba(5, 150, 105, 0.3)'
-      };
-      case 'spot': return {
-        main: '#ec4899', // rosa vibrante para spotting
-        light: '#fbcfe8',
-        glow: 'rgba(236, 72, 153, 0.3)'
-      };
-      default: return {
-        main: '#f1f5f9', // gris suave por defecto
-        light: '#f8fafc',
-        glow: 'rgba(241, 245, 249, 0.2)'
-      };
+    switch (symbolValue) {
+      case 'red':
+        return {
+          main: '#f27c7c', // rojo suave para menstruación
+          light: '#fee2e2',
+          glow: 'rgba(252, 165, 165, 0.4)'
+        };
+      case 'white':
+        return {
+          main: '#fff7f7', // blanco rosado para días fértiles
+          light: '#ffe4e6',
+          glow: 'rgba(255, 228, 230, 0.5)'
+        };
+      case 'green':
+        return {
+          main: '#86efac', // verde pastel para días infértiles
+          light: '#d1fae5',
+          glow: 'rgba(134, 239, 172, 0.4)'
+        };
+      case 'spot':
+        return {
+          main: '#f9a8d4', // rosa pastel para spotting
+          light: '#fce7f3',
+          glow: 'rgba(249, 168, 212, 0.4)'
+        };
+      default:
+        return {
+          main: '#e5e7eb', // gris muy claro por defecto
+          light: '#f8fafc',
+          glow: 'rgba(229, 231, 235, 0.2)'
+        };
     }
   };
 
   // Crear puntos individuales en lugar de segmentos
   const createProgressDots = () => {
     const totalDays = Math.max(cycleData.currentDay, 28);
-    const radius = 40; // Radio del círculo
+    const radius = 45; // Radio del círculo
 
 
     return Array.from({ length: totalDays }, (_, index) => {
@@ -61,9 +66,9 @@ const CycleOverviewCard = ({ cycleData }) => {
       const isToday = day === cycleData.currentDay;
       if (isToday && !record) {
         colors = {
-          main: '#f472b6',
-          light: '#f9a8d4',
-          glow: 'rgba(244, 114, 182, 0.4)'
+          main: '#93c5fd',
+          light: '#bfdbfe',
+          glow: 'rgba(147, 197, 253, 0.5)'
         };
       }
 
@@ -83,33 +88,33 @@ const CycleOverviewCard = ({ cycleData }) => {
   return (
     <div className="relative">
       {/* Fecha actual - Parte superior */}
-      <motion.div 
-        className="text-center mb-6"
+      <motion.div
+        className="backdrop-blur-sm border-b  px-4 py-4 text-center mb-4 sticky top-0 z-10"
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
       >
-        <h1 className="text-2xl font-bold text-gray-800 mb-1">
+        <h1 className="text-xl font-semibold text-gray-700 mb-1">
           {new Date().toLocaleDateString('es-ES', {
             weekday: 'long',
             day: 'numeric',
             month: 'long'
           })}
         </h1>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-pink-600">
           Día {cycleData.currentDay} del ciclo
         </p>
       </motion.div>
 
       {/* Contenedor principal sin fondo blanco */}
       <motion.div
-        className="rounded-3xl p-8 mb-6"
+        className="p-6 mb-4"
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.4, delay: 0.1 }}
       >
         {/* Círculo de progreso rediseñado */}
-        <div className="text-center mb-8">
+        <div className="text-center mb-6">
           <motion.div
             className="relative inline-flex items-center justify-center w-64 h-64 mb-6"
             initial={{ scale: 0 }}
@@ -229,7 +234,7 @@ const CycleOverviewCard = ({ cycleData }) => {
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 1, type: 'spring', stiffness: 200 }}
               >
-                <span className="text-5xl font-bold bg-gradient-to-br from-pink-600 via-rose-600 to-purple-600 bg-clip-text text-transparent block">
+                <span className="text-5xl font-bold bg-gradient-to-br from-pink-500 via-rose-400 to-purple-400 bg-clip-text text-transparent block">
                   {cycleData.currentDay}
                 </span>
                 <span className="text-sm text-gray-500 font-medium mt-1 block">
@@ -239,7 +244,7 @@ const CycleOverviewCard = ({ cycleData }) => {
 
               {/* Indicador de fase del ciclo */}
               <motion.div
-                className="mt-3 px-3 py-1 bg-gradient-to-r from-pink-100 to-rose-100 rounded-full"
+                className="mt-3 px-3 py-1 bg-gradient-to-r from-pink-100 to-rose-50 rounded-full"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 1.3 }}
@@ -262,10 +267,10 @@ const CycleOverviewCard = ({ cycleData }) => {
           transition={{ duration: 0.4, delay: 0.5 }}
         >
           {[
-            { color: '#dc2626', label: 'Menstrual', symbol: 'red' },
-            { color: '#ffe4e6', label: 'Fértil', symbol: 'white' },
-            { color: '#059669', label: 'Infértil', symbol: 'green' },
-            { color: '#ec4899', label: 'Spotting', symbol: 'spot' }
+            { color: '#fca5a5', label: 'Menstrual', symbol: 'red' },
+            { color: '#fff7f7', label: 'Fértil', symbol: 'white' },
+            { color: '#86efac', label: 'Infértil', symbol: 'green' },
+            { color: '#f9a8d4', label: 'Spotting', symbol: 'spot' }
           ].map(item => (
             <div key={item.symbol} className="flex items-center gap-1">
               <div
@@ -288,12 +293,16 @@ const CycleOverviewCard = ({ cycleData }) => {
             <div className="w-2 h-2 bg-pink-400 rounded-full"></div>
             Información del ciclo
           </h3>
-          <ul className="space-y-1">
-            <li className="font-medium text-pink-800">CPM</li>
-            <li className="ml-2 text-gray-600">Datos incompletos</li>
-            <li className="font-medium pt-2 text-pink-800">T-8</li>
-            <li className="ml-2 text-gray-600">Datos incompletos</li>
-          </ul>
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <span className="font-medium text-pink-800">CPM:</span>
+              <span className="text-gray-600">Datos incompletos</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="font-medium text-pink-800">T-8</span>
+              <span className="text-gray-600">Datos incompletos</span>
+            </div>
+          </div>
         </motion.div>
       </motion.div>
     </div>
@@ -309,7 +318,7 @@ const FloatingActionButton = ({ onAddRecord, onAddCycle }) => {
         <>
           <motion.button
             onClick={onAddRecord}
-            className="w-12 h-12 rounded-full bg-gradient-to-br from-pink-500 to-rose-500 text-white shadow-lg flex items-center justify-center"
+            className="w-12 h-12 rounded-full bg-gradient-to-br from-pink-400 to-rose-400 text-white shadow-lg flex items-center justify-center"
             whileTap={{ scale: 0.95 }}
             whileHover={{ scale: 1.05 }}
             initial={{ opacity: 0, y: 20 }}
@@ -319,7 +328,7 @@ const FloatingActionButton = ({ onAddRecord, onAddCycle }) => {
           </motion.button>
           <motion.button
             onClick={onAddCycle}
-            className="w-12 h-12 rounded-full bg-gradient-to-br from-fuchsia-500 to-purple-500 text-white shadow-lg flex items-center justify-center"
+            className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-400 to-indigo-400 text-white shadow-lg flex items-center justify-center"
             whileTap={{ scale: 0.95 }}
             whileHover={{ scale: 1.05 }}
             initial={{ opacity: 0, y: 20 }}
@@ -331,7 +340,7 @@ const FloatingActionButton = ({ onAddRecord, onAddCycle }) => {
       )}
       <motion.button
         onClick={() => setOpen(!open)}
-        className="w-14 h-14 bg-gradient-to-br from-pink-500 to-rose-500 text-white rounded-full shadow-lg flex items-center justify-center"
+        className="w-14 h-14 bg-gradient-to-br from-pink-400 to-rose-400 text-white rounded-full shadow-lg flex items-center justify-center"
         whileTap={{ scale: 0.95 }}
         whileHover={{ scale: 1.05 }}
         initial={{ scale: 0 }}
@@ -372,8 +381,8 @@ const ModernFertilityDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-rose-200 via-pink-200 to-purple-200 pb-20">
-      <div className="max-w-md mx-auto px-4 pt-12">
+    <div className="min-h-screen bg-gradient-to-b from-rose-300 via-pink-300 to-purple-200 pb-24">
+      <div className="max-w-md mx-auto px-4 pt-6">
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
