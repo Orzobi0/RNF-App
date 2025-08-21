@@ -17,10 +17,9 @@ const CycleOverviewCard = ({ cycleData }) => {
         glow: 'rgba(220, 38, 38, 0.3)'
       };
       case 'white': return {
-        main: '#f8fafc', // blanco puro para días fértiles
-        light: '#ffffff',
-        glow: 'rgba(248, 250, 252, 0.6)',
-        border: '#e2e8f0'
+        main: '#f8fafc', // blanco para días fértiles
+        light: '#ffe4e6',
+        glow: 'rgba(253, 164, 175, 0.5)' 
       };
       case 'green': return {
         main: '#059669', // verde esmeralda para días infértiles
@@ -44,7 +43,7 @@ const CycleOverviewCard = ({ cycleData }) => {
   const createProgressDots = () => {
     const totalDays = Math.max(cycleData.currentDay, 28);
     const radius = 40; // Radio del círculo
-    const dotRadius = 4; // Tamaño de cada punto
+
 
     return Array.from({ length: totalDays }, (_, index) => {
       const day = index + 1;
@@ -54,9 +53,19 @@ const CycleOverviewCard = ({ cycleData }) => {
       const x = 50 + radius * Math.cos(angle);
       const y = 50 + radius * Math.sin(angle);
       
-      const colors = day <= cycleData.currentDay && record 
-        ? getSymbolColor(record.fertility_symbol) 
-        : { main: '#e2e8f0', light: '#f8fafc', glow: 'rgba(226, 232, 240, 0.2)' };
+      //Resaltar el día actual
+      let colors = day <= cycleData.currentDay && record
+        ? getSymbolColor(record.fertility_symbol)
+        : { main: '#e2e8f0', light: '#f1f5f9', glow: 'rgba(226, 232, 240, 0.2)' };
+
+      const isToday = day === cycleData.currentDay;
+      if (isToday && !record) {
+        colors = {
+          main: '#f472b6',
+          light: '#f9a8d4',
+          glow: 'rgba(244, 114, 182, 0.4)'
+        };
+      }
 
       return {
         x,
@@ -64,8 +73,7 @@ const CycleOverviewCard = ({ cycleData }) => {
         day,
         colors,
         isActive: day <= cycleData.currentDay,
-        hasRecord: !!record,
-        isToday: day === cycleData.currentDay
+        isToday
       };
     });
   };
@@ -155,33 +163,32 @@ const CycleOverviewCard = ({ cycleData }) => {
 
               {dots.map((dot, index) => (
                 <g key={index}>
-                  {/* Resplandor para el día actual */}
-                  {dot.isToday && (
+                  {/* Resplandor y aura del punto */}
+                  {dot.isActive && (
                     <motion.circle
                       cx={dot.x}
                       cy={dot.y}
-                      r="4"
+                      r={dot.isToday ? 8 : 2}
                       fill={dot.colors.glow}
-                      initial={{ r: 0, opacity: 0 }}
-                      animate={{ r: 8, opacity: 1 }}
+                      initial={{ scale: 0, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 0.8 }}
                       transition={{
-                        duration: 1.2,
-                        delay: 0.8 + (index * 0.02),
                         repeat: Infinity,
                         repeatType: "reverse",
-                        ease: "easeInOut"
+                        ease: "easeInOut",
+                        duration: 0.8,
+                        delay: 0.1 + (index * 0.02)
                       }}
                     />
                   )}
                   
-                  {/* Punto base */}
+                  {/* Punto principal */}
                   <motion.circle
                     cx={dot.x}
                     cy={dot.y}
-                    r={dot.isToday ? "5" : "3.5"}
-                    fill={dot.isActive ? dot.colors.main : '#e2e8f0'}
-                    stroke={dot.colors.border || 'rgba(255, 255, 255, 0.8)'}
-                    strokeWidth={dot.isToday ? "2" : "1"}
+                    r={dot.isToday ? 5 : 3.5}
+                    fill={dot.isActive ? (dot.isToday ? dot.colors.light : dot.colors.main) : '#e2e8f0'}
+                    stroke="none"
                     initial={{ scale: 0, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     transition={{
@@ -191,30 +198,16 @@ const CycleOverviewCard = ({ cycleData }) => {
                       stiffness: 400,
                       damping: 25
                     }}
-                    filter={dot.isToday ? `url(#glow-${index})` : undefined}
+
                   />
 
-                  {/* Punto interior para diferenciar registros */}
-                  {dot.hasRecord && dot.isActive && (
+                  {/* Punto interior */}
+                  {dot.isActive && (
                     <motion.circle
                       cx={dot.x}
                       cy={dot.y}
-                      r="1"
-                      fill="rgba(255, 255, 255, 0.9)"
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      transition={{
-                        duration: 0.3,
-                        delay: 1.2 + (index * 0.02)
-                      }}
-                    />
-                  )}
-                  {!dot.hasRecord && dot.isActive && (
-                    <motion.circle
-                      cx={dot.x}
-                      cy={dot.y}
-                      r="1"
-                      fill="rgba(0, 0, 0, 0.9)"
+                      r="1.5"
+                      fill="#ffffff"
                       initial={{ scale: 0 }}
                       animate={{ scale: 1 }}
                       transition={{
@@ -270,17 +263,14 @@ const CycleOverviewCard = ({ cycleData }) => {
         >
           {[
             { color: '#dc2626', label: 'Menstrual', symbol: 'red' },
-            { color: '#f8fafc', label: 'Fértil', symbol: 'white', border: '#e2e8f0' },
+            { color: '#ffe4e6', label: 'Fértil', symbol: 'white' },
             { color: '#059669', label: 'Infértil', symbol: 'green' },
             { color: '#ec4899', label: 'Spotting', symbol: 'spot' }
           ].map(item => (
             <div key={item.symbol} className="flex items-center gap-1">
-              <div 
-                className="w-3 h-3 rounded-full" 
-                style={{ 
-                  backgroundColor: item.color,
-                  border: item.border ? `1px solid ${item.border}` : 'none'
-                }}
+              <div
+                className="w-3 h-3 rounded-full"
+                style={{ backgroundColor: item.color }}
               />
               <span className="text-xs text-gray-600">{item.label}</span>
             </div>
@@ -382,7 +372,7 @@ const ModernFertilityDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-rose-50 via-pink-50 to-purple-50 pb-20">
+    <div className="min-h-screen bg-gradient-to-br from-rose-200 via-pink-200 to-purple-200 pb-20">
       <div className="max-w-md mx-auto px-4 pt-12">
         <motion.div
           initial={{ opacity: 0, x: -20 }}
