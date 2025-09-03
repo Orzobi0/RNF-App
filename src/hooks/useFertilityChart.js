@@ -142,7 +142,9 @@ export const useFertilityChart = (
       // en orientación vertical.
       const textRowHeight = responsiveFontSize(isFullScreen ? 1.6 : 1.6);
       const isLandscapeVisual = forceLandscape || orientation === 'landscape';
-      const numTextRowsBelowChart = isLandscapeVisual ? 4 : 5; 
+      // En horizontal mostramos todas las filas (sensación, apariencia y observaciones)
+      // por lo que reservamos más altura bajo la gráfica. Mantenemos portrait como estaba.
+      const numTextRowsBelowChart = isLandscapeVisual ? 9 : 5; 
       const totalTextRowsHeight = textRowHeight * numTextRowsBelowChart;
 
       const padding = { 

@@ -274,7 +274,7 @@ const FertilityChart = ({
             chartWidth={chartWidth}
             temperatureField="displayTemperature"
             textRowHeight={textRowHeight}
-            compact={applyRotation || orientation === 'landscape'}
+            compact={false}
             reduceMotion={reduceMotion}
           />
         </motion.svg>

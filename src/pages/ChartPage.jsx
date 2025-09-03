@@ -52,8 +52,12 @@ const ChartPage = () => {
 
   return (
     <div 
-    className="relative w-full overflow-hidden"
-    style={{ height: 'calc(100dvh - 4rem)', paddingBottom: 'env(safe-area-inset-bottom)' }}
+      className="relative w-full overflow-hidden"
+      style={{ 
+        // En horizontal, toma la menor dimensión del viewport para igualar el alto.
+        height: orientation === 'landscape' ? 'min(100dvh, 100dvw)' : 'calc(100dvh - 4rem)',
+        paddingBottom: 'env(safe-area-inset-bottom)'
+      }}
     >
       <button
         onClick={() => setOrientation(orientation === 'portrait' ? 'landscape' : 'portrait')}
