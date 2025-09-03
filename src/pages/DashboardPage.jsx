@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, FilePlus, CalendarPlus } from 'lucide-react';
 import DataEntryForm from '@/components/DataEntryForm';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
+import useBackClose from '@/hooks/useBackClose';
 import { useCycleData } from '@/hooks/useCycleData';
 import { differenceInDays, parseISO, startOfDay } from 'date-fns';
 
@@ -376,6 +378,9 @@ const ModernFertilityDashboard = () => {
   const [showForm, setShowForm] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
+  // Cerrar modal con gesto/botón atrás en móvil
+  useBackClose(showForm, () => setShowForm(false));
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-rose-50 via-pink-50 to-rose-100 flex items-center justify-center">
@@ -420,15 +425,20 @@ const ModernFertilityDashboard = () => {
         </motion.div>
       </div>
 
-      {showForm && (
-        <DataEntryForm
-          onSubmit={handleSave}
-          onCancel={() => setShowForm(false)}
-          cycleStartDate={currentCycle.startDate}
-          cycleEndDate={currentCycle.endDate}
-          isProcessing={isProcessing}
-        />
-      )}
+      <Dialog
+        open={showForm}
+        onOpenChange={(open) => setShowForm(open)}
+      >
+        <DialogContent hideClose className="bg-white border-pink-100 text-gray-800 w-[90vw] sm:w-auto max-w-md sm:max-w-lg md:max-w-xl max-h-[85vh] overflow-y-auto p-4 sm:p-6 rounded-2xl">
+          <DataEntryForm
+            onSubmit={handleSave}
+            onCancel={() => setShowForm(false)}
+            cycleStartDate={currentCycle.startDate}
+            cycleEndDate={currentCycle.endDate}
+            isProcessing={isProcessing}
+          />
+        </DialogContent>
+      </Dialog>
 
       <FloatingActionButton
         onAddRecord={() => setShowForm(true)}

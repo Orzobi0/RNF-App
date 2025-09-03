@@ -7,6 +7,8 @@ import { useToast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
 import { Edit } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
+import useBackClose from '@/hooks/useBackClose';
 
 const RecordsPage = () => {
   const { currentCycle, addOrUpdateDataPoint, deleteRecord, isLoading } = useCycleData();
@@ -15,6 +17,12 @@ const RecordsPage = () => {
   const [editingRecord, setEditingRecord] = useState(null);
   const [recordToDelete, setRecordToDelete] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Cerrar con botón/gesto atrás del móvil en modal abierto
+  useBackClose(showForm || Boolean(editingRecord), () => {
+    setShowForm(false);
+    setEditingRecord(null);
+  });
 
   const handleEdit = (record) => {
     setEditingRecord(record);
@@ -62,38 +70,42 @@ const RecordsPage = () => {
 
   return (
     <div className="max-w-4xl mx-auto">
-      {!showForm && (
-        <div className="my-4">
-          <Button
-            onClick={() => { setEditingRecord(null); setShowForm(true); }}
-            className="w-full sm:w-auto bg-gradient-to-r from-pink-500 to-fuchsia-600 hover:from-pink-600 hover:to-fuchsia-700 text-white"
-            disabled={isProcessing}
-          >
-            <Edit className="mr-2 h-4 w-4" /> Añadir registro
-          </Button>
-        </div>
-      )}
+      <div className="my-4">
+        <Button
+          onClick={() => { setEditingRecord(null); setShowForm(true); }}
+          className="w-full sm:w-auto bg-gradient-to-r from-pink-500 to-fuchsia-600 hover:from-pink-600 hover:to-fuchsia-700 text-white"
+          disabled={isProcessing}
+        >
+          <Edit className="mr-2 h-4 w-4" /> Añadir registro
+        </Button>
+      </div>
 
-      {!showForm && (
-        <RecordsList
-          records={currentCycle.data}
-          onEdit={handleEdit}
-          onDelete={handleDeleteRequest}
-          isProcessing={isProcessing}
-        />
-      )}
+      <RecordsList
+        records={currentCycle.data}
+        onEdit={handleEdit}
+        onDelete={handleDeleteRequest}
+        isProcessing={isProcessing}
+      />
 
-      {showForm && (
-        <DataEntryForm
-          onSubmit={handleSave}
-          onCancel={() => { setShowForm(false); setEditingRecord(null); }}
-          initialData={editingRecord}
-          cycleStartDate={currentCycle.startDate}
-          cycleEndDate={currentCycle.endDate}
-          isProcessing={isProcessing}
-          isEditing={!!editingRecord}
-        />
-      )}
+      <Dialog
+        open={showForm}
+        onOpenChange={(open) => {
+          setShowForm(open);
+          if (!open) setEditingRecord(null);
+        }}
+      >
+        <DialogContent hideClose className="bg-white border-pink-100 text-gray-800 w-[90vw] sm:w-auto max-w-md sm:max-w-lg md:max-w-xl max-h-[85vh] overflow-y-auto p-4 sm:p-6 rounded-2xl">
+          <DataEntryForm
+            onSubmit={handleSave}
+            onCancel={() => { setShowForm(false); setEditingRecord(null); }}
+            initialData={editingRecord}
+            cycleStartDate={currentCycle.startDate}
+            cycleEndDate={currentCycle.endDate}
+            isProcessing={isProcessing}
+            isEditing={!!editingRecord}
+          />
+        </DialogContent>
+      </Dialog>
 
       <DeletionDialog
         isOpen={!!recordToDelete}
