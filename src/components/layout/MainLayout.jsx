@@ -4,7 +4,7 @@ import BottomNav from './BottomNav';
 const MainLayout = ({ children }) => {
   return (
       <div className="min-h-screen flex flex-col">
-        <main className="flex-grow container mx-auto px-4 sm:px-6 pt-4 pb-[calc(6rem+env(safe-area-inset-bottom))]">
+        <main className="flex-grow w-full pt-0 pb-[calc(6rem+env(safe-area-inset-bottom))]">
           {children}
         </main>
         <BottomNav />

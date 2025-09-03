@@ -8,6 +8,8 @@ import {
   signOut,
   updateEmail as firebaseUpdateEmail,
   updatePassword as firebaseUpdatePassword,
+  updateProfile,
+  deleteUser,
 } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { useToast } from '@/components/ui/use-toast';
@@ -20,29 +22,34 @@ export const AuthProvider = ({ children }) => {
   const [preferences, setPreferences] = useState(null);
   const { toast } = useToast();
 
-      useEffect(() => {
+  useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      try {
-        if (firebaseUser) {
-          setUser({ id: firebaseUser.uid, uid: firebaseUser.uid, email: firebaseUser.email });
-          const prefRef = doc(db, `users/${firebaseUser.uid}/preferences`, 'display');
+      if (firebaseUser) {
+        setUser({
+          id: firebaseUser.uid,
+          uid: firebaseUser.uid,
+          email: firebaseUser.email,
+          displayName: firebaseUser.displayName,
+          photoURL: firebaseUser.photoURL,
+        });
+        const prefRef = doc(db, `users/${firebaseUser.uid}/preferences`, 'display');
+        try {
           const prefSnap = await getDoc(prefRef);
           if (prefSnap.exists()) {
             setPreferences(prefSnap.data());
           } else {
             setPreferences({ theme: 'light', units: 'metric' });
           }
-        } else {
-          setUser(null);
-          setPreferences(null);
+        } catch (error) {
+          console.error('Failed to load preferences', error);
+          toast({ title: 'Error', description: 'No se pudieron cargar las preferencias.', variant: 'destructive' });
+          setPreferences({ theme: 'light', units: 'metric' });
         }
-      } catch (error) {
-        console.error('Failed to load preferences', error);
-        toast({ title: 'Error', description: 'No se pudieron cargar las preferencias.', variant: 'destructive' });
-        setPreferences({ theme: 'light', units: 'metric' });
-      } finally {
-        setLoadingAuth(false);
+      } else {
+        setUser(null);
+        setPreferences(null);
       }
+        setLoadingAuth(false);
     });
     return () => unsubscribe();
   }, []);
@@ -117,12 +124,49 @@ const savePreferences = async (prefs) => {
   }
 };
 
-      return (
-                <AuthContext.Provider value={{ user, login, register, logout, resetPassword, updateEmail: updateUserEmail, updatePassword: updateUserPassword, preferences, savePreferences, loadingAuth }}>
-          {children}
-        </AuthContext.Provider>
-      );
-    };
+  const updateProfileInfo = async (profile) => {
+    if (!auth.currentUser) return;
+    try {
+      await updateProfile(auth.currentUser, profile);
+      setUser((prev) => (prev ? { ...prev, ...profile } : prev));
+    } catch (error) {
+      toast({ title: 'Error al actualizar perfil', description: error.message, variant: 'destructive' });
+      throw error;
+    }
+  };
+
+  const deleteAccount = async () => {
+    if (!auth.currentUser) return;
+    try {
+      await deleteUser(auth.currentUser);
+      setUser(null);
+      setPreferences(null);
+    } catch (error) {
+      toast({ title: 'Error al eliminar cuenta', description: error.message, variant: 'destructive' });
+      throw error;
+    }
+  };
+
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        login,
+        register,
+        logout,
+        resetPassword,
+        updateEmail: updateUserEmail,
+        updatePassword: updateUserPassword,
+        preferences,
+        savePreferences,
+        updateProfile: updateProfileInfo,
+        deleteAccount,
+        loadingAuth,
+      }}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
 
     export const useAuth = () => useContext(AuthContext);
   
