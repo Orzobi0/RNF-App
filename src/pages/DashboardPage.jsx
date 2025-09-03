@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, FilePlus, CalendarPlus } from 'lucide-react';
 import DataEntryForm from '@/components/DataEntryForm';
+import NewCycleDialog from '@/components/NewCycleDialog';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import useBackClose from '@/hooks/useBackClose';
 import { useCycleData } from '@/hooks/useCycleData';
@@ -377,6 +378,7 @@ const ModernFertilityDashboard = () => {
   const { currentCycle, addOrUpdateDataPoint, startNewCycle, isLoading } = useCycleData();
   const [showForm, setShowForm] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showNewCycleDialog, setShowNewCycleDialog] = useState(false);
 
   // Cerrar modal con gesto/botón atrás en móvil
   useBackClose(showForm, () => setShowForm(false));
@@ -412,6 +414,11 @@ const ModernFertilityDashboard = () => {
     }
   };
 
+  const handleConfirmNewCycle = async (selectedStartDate) => {
+    await startNewCycle(selectedStartDate);
+    setShowNewCycleDialog(false);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-rose-50 via-pink-50 to-rose-100 relative overflow-x-hidden">
       <div className="max-w-md mx-auto">
@@ -442,7 +449,14 @@ const ModernFertilityDashboard = () => {
 
       <FloatingActionButton
         onAddRecord={() => setShowForm(true)}
-        onAddCycle={() => startNewCycle()}
+        onAddCycle={() => setShowNewCycleDialog(true)}
+      />
+
+      <NewCycleDialog
+        isOpen={showNewCycleDialog}
+        onClose={() => setShowNewCycleDialog(false)}
+        onConfirm={handleConfirmNewCycle}
+        currentCycleStartDate={currentCycle.startDate}
       />
     </div>
   );
