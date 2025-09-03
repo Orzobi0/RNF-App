@@ -55,7 +55,9 @@ const ChartPoints = ({
   chartHeight,
   chartWidth,
   temperatureField = 'temperature_chart',
-  textRowHeight
+  textRowHeight,
+  compact = false,
+  reduceMotion = false
 }) => {
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -92,6 +94,8 @@ const ChartPoints = ({
 
   const rowBlockHeight = textRowHeight * (isFullScreen ? 2 : 1.5);
 
+  const MotionG = reduceMotion ? 'g' : motion.g;
+
   return (
     <>
       {/* Definiciones de filtros y gradientes mejorados */}
@@ -116,36 +120,38 @@ const ChartPoints = ({
         </linearGradient>
       </defs>
 
-      {/* Sombras de filas con gradientes mejorados */}
-      <g>
-        <rect
-          x={padding.left}
-          y={mucusSensationRowY - rowBlockHeight / 2}
-          width={rowWidth}
-          height={rowBlockHeight}
-          fill="url(#sensationGradient)"
-          rx={6}
-          style={{ filter: 'url(#rowShadow)' }}
-        />
-        <rect
-          x={padding.left}
-          y={mucusAppearanceRowY - rowBlockHeight / 2}
-          width={rowWidth}
-          height={rowBlockHeight}
-          fill="url(#appearanceGradient)"
-          rx={6}
-          style={{ filter: 'url(#rowShadow)' }}
-        />
-        <rect
-          x={padding.left}
-          y={observationsRowY - rowBlockHeight / 2}
-          width={rowWidth}
-          height={rowBlockHeight}
-          fill="url(#observationGradient)"
-          rx={6}
-          style={{ filter: 'url(#rowShadow)' }}
-        />
-      </g>
+      {/* Sombras de filas -- ocultas en modo compacto (landscape forzado) */}
+      {!compact && (
+        <g>
+          <rect
+            x={padding.left}
+            y={mucusSensationRowY - rowBlockHeight / 2}
+            width={rowWidth}
+            height={rowBlockHeight}
+            fill="url(#sensationGradient)"
+            rx={6}
+            style={{ filter: 'url(#rowShadow)' }}
+          />
+          <rect
+            x={padding.left}
+            y={mucusAppearanceRowY - rowBlockHeight / 2}
+            width={rowWidth}
+            height={rowBlockHeight}
+            fill="url(#appearanceGradient)"
+            rx={6}
+            style={{ filter: 'url(#rowShadow)' }}
+          />
+          <rect
+            x={padding.left}
+            y={observationsRowY - rowBlockHeight / 2}
+            width={rowWidth}
+            height={rowBlockHeight}
+            fill="url(#observationGradient)"
+            rx={6}
+            style={{ filter: 'url(#rowShadow)' }}
+          />
+        </g>
+      )}
 
       {/* Leyenda izquierda con mejor tipografía */}
       {(!isFullScreen || orientation !== 'portrait') && (
@@ -239,14 +245,14 @@ const ChartPoints = ({
         );
 
         return (
-          <motion.g
+          <MotionG
             key={`pt-${index}-${point.isoDate || point.timestamp}`}
-            variants={itemVariants}
+            {...(reduceMotion ? {} : { variants: itemVariants })}
             {...interactionProps}
           >
             {/* Punto de temperatura mejorado con gradientes y sombras */}
             {hasTemp && (
-              <motion.g variants={pointVariants}>
+              <MotionG {...(reduceMotion ? {} : { variants: pointVariants })}>
                 {/* Aura del punto */}
                 <circle
                   cx={x} 
@@ -281,7 +287,7 @@ const ChartPoints = ({
                     fill="rgba(255, 255, 255, 0.8)"
                   />
                 )}
-              </motion.g>
+              </MotionG>
             )}
 
             {/* Definir gradiente para puntos */}
@@ -354,6 +360,7 @@ const ChartPoints = ({
             )}
 
             {/* Textos con mejor tipografía y colores */}
+            {!compact && (
             <text 
               x={x} 
               y={mucusSensationRowY} 
@@ -368,7 +375,9 @@ const ChartPoints = ({
               <tspan x={x} dy={0}>{sensLine1}</tspan>
               {sensLine2 && <tspan x={x} dy={responsiveFontSize(1)}>{sensLine2}</tspan>}
             </text>
+            )}
 
+            {!compact && (
             <text 
               x={x} 
               y={mucusAppearanceRowY} 
@@ -383,7 +392,9 @@ const ChartPoints = ({
               <tspan x={x} dy={0}>{aparLine1}</tspan>
               {aparLine2 && <tspan x={x} dy={responsiveFontSize(1)}>{aparLine2}</tspan>}
             </text>
+            )}
             
+            {!compact && (
             <text 
               x={x} 
               y={observationsRowY} 
@@ -398,7 +409,8 @@ const ChartPoints = ({
               <tspan x={x} dy={0}>{obsLine1}</tspan>
               {obsLine2 && <tspan x={x} dy={responsiveFontSize(1)}>{obsLine2}</tspan>}
             </text>
-          </motion.g>
+            )}
+          </MotionG>
         );
       })}
     </>

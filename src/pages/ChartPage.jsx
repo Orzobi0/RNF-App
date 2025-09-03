@@ -7,20 +7,10 @@ import { RotateCcw } from 'lucide-react';
 
 const ChartPage = () => {
   const { currentCycle } = useCycleData();
-  const [orientation, setOrientation] = useState('portrait');
-
-  useEffect(() => {
-    const handleResize = () => {
-      setOrientation(window.innerWidth > window.innerHeight ? 'landscape' : 'portrait');
-    };
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    window.addEventListener('orientationchange', handleResize);
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      window.removeEventListener('orientationchange', handleResize);
-    };
-  }, []);
+  // Orientación controlada por UI, independiente del dispositivo
+  const [orientation, setOrientation] = useState(
+    typeof window !== 'undefined' && window.innerWidth > window.innerHeight ? 'landscape' : 'portrait'
+  );
 
   if (!currentCycle?.id) {
     return <p className="text-center text-gray-500">No hay ciclo activo.</p>;
@@ -61,7 +51,10 @@ const ChartPage = () => {
   }
 
   return (
-    <div className="relative w-full h-full">
+    <div
+      className="relative w-full"
+      style={{ height: 'calc(100dvh - 6rem)', paddingBottom: 'env(safe-area-inset-bottom)' }}
+    >
       <button
         onClick={() => setOrientation(orientation === 'portrait' ? 'landscape' : 'portrait')}
         className="absolute top-4 right-4 z-10 bg-white/80 hover:bg-white text-gray-700 p-2 rounded-full shadow"
@@ -76,6 +69,8 @@ const ChartPage = () => {
         cycleId={currentCycle.id}
         initialScrollIndex={scrollStart}
         visibleDays={visibleDays}
+        reduceMotion={true}
+        forceLandscape={orientation === 'landscape'}
       />
     </div>
   );

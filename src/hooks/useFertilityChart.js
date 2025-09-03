@@ -9,7 +9,8 @@ export const useFertilityChart = (
   orientation,
   onToggleIgnore,
   cycleId,
-  visibleDays = 5
+  visibleDays = 5,
+  forceLandscape = false
 ) => {
       const chartRef = useRef(null);
       const tooltipRef = useRef(null);
@@ -28,26 +29,35 @@ export const useFertilityChart = (
         const updateDimensions = () => {
           if (!chartRef.current) return;
 
-          let containerWidth = chartRef.current.clientWidth > 0 ? chartRef.current.clientWidth : 600;
+          const parentEl = chartRef.current.parentElement || chartRef.current;
+          let parentW = parentEl.clientWidth || 600;
+          let parentH = parentEl.clientHeight || 400;
+          let containerWidth = chartRef.current.clientWidth > 0 ? chartRef.current.clientWidth : parentW;
           let newWidth;
           let newHeight;
 
           if (isFullScreen) {
-            containerWidth = window.innerWidth;
-            if (orientation === 'portrait') {
-              const legendSpace = Math.max(30, containerWidth * 0.05);
-              const perDayWidth = (containerWidth - legendSpace) / visibleDays;
+            // Usa el espacio del contenedor padre (área disponible en la página)
+            const availW = parentW;
+            const availH = parentH;
+            const effectiveWidth = forceLandscape ? availH : availW;
+            const effectiveHeight = forceLandscape ? availW : availH;
+
+            containerWidth = effectiveWidth;
+            if (orientation === 'portrait' && !forceLandscape) {
+              const legendSpace = Math.max(30, effectiveWidth * 0.05);
+              const perDayWidth = (effectiveWidth - legendSpace) / visibleDays;
               newWidth = perDayWidth * data.length;
-              newHeight = window.innerHeight;
+              newHeight = effectiveHeight;
             } else {
-              const perDayWidth = containerWidth / visibleDays;
+              const perDayWidth = effectiveWidth / visibleDays;
               newWidth = perDayWidth * data.length;
-              newHeight = window.innerHeight;
+              newHeight = effectiveHeight;
             }
           } else {
             const perDayWidth = containerWidth / visibleDays;
             newWidth = perDayWidth * data.length;
-            newHeight = 450;
+            newHeight = 50;
           }
           
           setDimensions({ width: newWidth, height: newHeight });
@@ -68,7 +78,7 @@ export const useFertilityChart = (
             resizeObserver.disconnect();
           }
         };
-      }, [isFullScreen, data.length, visibleDays, orientation]);
+      }, [isFullScreen, data.length, visibleDays, orientation, forceLandscape]);
 
   const validDataForLine = useMemo(() => processedData.filter(d => d && d.isoDate && !d.ignored && d.displayTemperature !== null && d.displayTemperature !== undefined), [processedData]);
   const allDataPoints = useMemo(() => processedData.filter(d => d && d.isoDate), [processedData]);
@@ -131,14 +141,15 @@ export const useFertilityChart = (
       // fila de texto para permitir mostrar palabras más largas
       // en orientación vertical.
       const textRowHeight = responsiveFontSize(isFullScreen ? 1.5 : 1.8);
-      const numTextRowsBelowChart = 5; 
+      const isLandscapeVisual = forceLandscape || orientation === 'landscape';
+      const numTextRowsBelowChart = isLandscapeVisual ? 0 : 5; 
       const totalTextRowsHeight = textRowHeight * numTextRowsBelowChart;
 
       const padding = { 
-        top: isFullScreen ? Math.max(20, chartHeight * 0.05) : 20, 
-        right: isFullScreen ? Math.max(30, chartWidth * 0.05) : 50, 
-        bottom: (isFullScreen ? Math.max(60, chartHeight * 0.20) : 60) + totalTextRowsHeight, 
-        left: isFullScreen ? Math.max(30, chartWidth * 0.05) : 50
+        top: isFullScreen ? Math.max(isLandscapeVisual ? 8 : 20, chartHeight * (isLandscapeVisual ? 0.02 : 0.05)) : 20, 
+        right: isFullScreen ? Math.max(isLandscapeVisual ? 12 : 30, chartWidth * (isLandscapeVisual ? 0.02 : 0.05)) : 50, 
+        bottom: (isFullScreen ? Math.max(isLandscapeVisual ? 20 : 60, chartHeight * (isLandscapeVisual ? 0.06 : 0.20)) : 60) + totalTextRowsHeight, 
+        left: isFullScreen ? Math.max(isLandscapeVisual ? 12 : 30, chartWidth * (isLandscapeVisual ? 0.02 : 0.05)) : 50
       };
       
       const getY = (temp) => {
@@ -149,8 +160,8 @@ export const useFertilityChart = (
       };
 
       const getX = (index) => {
-        const extraMargin = isFullScreen ? 10 : 20;
-        const daySpacing = isFullScreen ? 25 : 0;
+        const extraMargin = (isFullScreen && !(forceLandscape || orientation === 'landscape')) ? 0 : 0;
+        const daySpacing = (isFullScreen && !(forceLandscape || orientation === 'landscape')) ? 25 : 0;
         const availableWidth = chartWidth - padding.left - padding.right - extraMargin - daySpacing * (allDataPoints.length - 1);
         if (availableWidth <= 0) return padding.left + extraMargin + daySpacing * index;
         const pointsToDisplay = allDataPoints.length > 1 ? allDataPoints.length - 1 : 1;
