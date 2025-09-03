@@ -102,12 +102,13 @@ const FertilityChart = ({
 
   const shouldAnimate = !reduceMotion;
   const applyRotation = forceLandscape && isViewportPortrait;
+  const scaleFactor = 1;
 
   // Clase del contenedor de scroll ajustada para rotación artificial
   const rotatedContainer = applyRotation;
   const baseFullClass = 'w-full h-full bg-gradient-to-br from-white via-pink-50/30 to-rose-50/20';
   const containerClass = isFullScreen
-    ? `${baseFullClass} w-full h-full min-h-full ${rotatedContainer ? 'flex items-center justify-start overflow-x-auto overflow-y-hidden' : 'flex items-center justify-start overflow-x-auto overflow-y-hidden'}`
+    ? `${baseFullClass} w-full h-full min-h-full ${rotatedContainer ? 'flex items-stretch justify-start overflow-x-auto overflow-y-hidden' : 'flex items-center justify-start overflow-x-auto overflow-y-hidden'}`
     : 'bg-gradient-to-br from-white via-pink-50/30 to-rose-50/20 overflow-x-auto overflow-y-hidden border border-pink-100/50';
 
   return (
@@ -146,7 +147,7 @@ const FertilityChart = ({
             ? 'inset 0 1px 3px rgba(244, 114, 182, 0.1)' 
             : '0 8px 32px rgba(244, 114, 182, 0.12), 0 2px 8px rgba(244, 114, 182, 0.08)'
           ,
-          ...(applyRotation ? { transform: 'rotate(90deg)', transformOrigin: 'center' } : {})
+          ...(applyRotation ? {position: 'absolute', top: 0, left: 0, width: `${viewport.h}px`, height: `${viewport.w}px`, transform: 'rotate(90deg) translateY(-100%)', transformOrigin: 'top left' } : {})
         }}
         variants={shouldAnimate ? chartVariants : undefined}
       >

@@ -140,15 +140,15 @@ export const useFertilityChart = (
       // In pantalla completa damos un poco más de altura a cada
       // fila de texto para permitir mostrar palabras más largas
       // en orientación vertical.
-      const textRowHeight = responsiveFontSize(isFullScreen ? 1.5 : 1.8);
+      const textRowHeight = responsiveFontSize(isFullScreen ? 1.6 : 1.6);
       const isLandscapeVisual = forceLandscape || orientation === 'landscape';
-      const numTextRowsBelowChart = isLandscapeVisual ? 0 : 5; 
+      const numTextRowsBelowChart = isLandscapeVisual ? 4 : 5; 
       const totalTextRowsHeight = textRowHeight * numTextRowsBelowChart;
 
       const padding = { 
-        top: isFullScreen ? Math.max(isLandscapeVisual ? 8 : 20, chartHeight * (isLandscapeVisual ? 0.02 : 0.05)) : 20, 
+        top: isFullScreen ? Math.max(isLandscapeVisual ? 6 : 12, chartHeight * (isLandscapeVisual ? 0.015 : 0.03)) : 12, 
         right: isFullScreen ? Math.max(isLandscapeVisual ? 12 : 30, chartWidth * (isLandscapeVisual ? 0.02 : 0.05)) : 50, 
-        bottom: (isFullScreen ? Math.max(isLandscapeVisual ? 20 : 60, chartHeight * (isLandscapeVisual ? 0.06 : 0.20)) : 60) + totalTextRowsHeight, 
+        bottom: (isFullScreen ? Math.max(isLandscapeVisual ? 24 : 40, chartHeight * (isLandscapeVisual ? 0.05 : 0.11)) : 60) + totalTextRowsHeight, 
         left: isFullScreen ? Math.max(isLandscapeVisual ? 12 : 30, chartWidth * (isLandscapeVisual ? 0.02 : 0.05)) : 50
       };
       

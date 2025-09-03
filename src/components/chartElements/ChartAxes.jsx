@@ -14,7 +14,8 @@ const ChartAxes = ({
   allDataPoints = [],
   responsiveFontSize,
   isFullScreen,
-  showLeftLabels = true
+  showLeftLabels = true,
+  reduceMotion = false
 }) => {
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -37,6 +38,8 @@ const ChartAxes = ({
       tempTicks.push(parseFloat(t.toFixed(1)));
     }
   }
+
+  const G = reduceMotion ? 'g' : motion.g;
 
   return (
     <>
@@ -75,7 +78,7 @@ const ChartAxes = ({
           : `.${temp.toFixed(1).split('.')[1]}`;
 
         return (
-          <motion.g key={`temp-tick-${i}`} variants={itemVariants}>
+          <G key={`temp-tick-${i}`} {...(reduceMotion ? {} : { variants: itemVariants })}>
             {/* Líneas de cuadrícula con gradiente */}
             <line
               x1={padding.left}
@@ -121,7 +124,7 @@ const ChartAxes = ({
             >
               {labelText}
             </text>
-          </motion.g>
+          </G>
         );
       })}
 
@@ -144,7 +147,7 @@ const ChartAxes = ({
 
       {/* Unidad °C con mejor estilo */}
       {showLeftLabels && (
-        <motion.g variants={itemVariants}>
+        <G {...(reduceMotion ? {} : { variants: itemVariants })}>
           {/* Fondo para la etiqueta °C */}
           <rect
             x={padding.left - responsiveFontSize(0.2)}
@@ -170,7 +173,7 @@ const ChartAxes = ({
           >
             °C
           </text>
-        </motion.g>
+        </G>
       )}
 
       {/* Bordes del área del gráfico */}

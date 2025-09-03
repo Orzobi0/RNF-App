@@ -1,7 +1,7 @@
 import React from 'react';
     import { motion } from 'framer-motion';
 
-const ChartLine = ({ data, allDataPoints, getX, getY, baselineY, temperatureField = 'temperature' }) => {
+const ChartLine = ({ data, allDataPoints, getX, getY, baselineY, temperatureField = 'temperature', reduceMotion = false }) => {
   if (!data || data.length < 2) return null;
 
   let pathD = '';
@@ -28,7 +28,17 @@ const ChartLine = ({ data, allDataPoints, getX, getY, baselineY, temperatureFiel
       if (!pathD.includes("L")) return null;
    return (
     <>
-        <motion.path
+        {reduceMotion ? (
+          <path
+            d={pathD}
+            fill="none"
+            stroke="url(#tempLineGradientChart)"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        ) : (
+          <motion.path
           d={pathD}
           fill="none"
           stroke="url(#tempLineGradientChart)"
@@ -39,6 +49,7 @@ const ChartLine = ({ data, allDataPoints, getX, getY, baselineY, temperatureFiel
           animate={{ pathLength: 1, opacity: 1 }}
           transition={{ duration: 0.2, ease: "easeInOut" }}
         />
+        )}
     </>
   );
 };

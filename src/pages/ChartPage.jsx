@@ -51,9 +51,9 @@ const ChartPage = () => {
   }
 
   return (
-    <div
-      className="relative w-full"
-      style={{ height: 'calc(100dvh - 6rem)', paddingBottom: 'env(safe-area-inset-bottom)' }}
+    <div 
+    className="relative w-full overflow-hidden"
+    style={{ height: 'calc(100dvh - 4rem)', paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
       <button
         onClick={() => setOrientation(orientation === 'portrait' ? 'landscape' : 'portrait')}
