@@ -42,7 +42,6 @@ export const AuthProvider = ({ children }) => {
           }
         } catch (error) {
           console.error('Failed to load preferences', error);
-          toast({ title: 'Error', description: 'No se pudieron cargar las preferencias.', variant: 'destructive' });
           setPreferences({ theme: 'light', units: 'metric' });
         }
       } else {
