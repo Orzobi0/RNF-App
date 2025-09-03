@@ -54,8 +54,11 @@ const ChartPage = () => {
     <div 
       className="relative w-full overflow-hidden"
       style={{ 
-        // En horizontal, toma la menor dimensión del viewport para igualar el alto.
-        height: orientation === 'landscape' ? 'min(100dvh, 100dvw)' : 'calc(100dvh - 4rem)',
+        // Altura unificada: siempre restamos la BottomNav + safe-area usando una variable CSS.
+        height:
+          orientation === 'landscape'
+            ? 'calc(min(100dvh, 100dvw) - var(--bottom-nav-safe))'
+            : 'calc(100dvh - var(--bottom-nav-safe))',
         paddingBottom: 'env(safe-area-inset-bottom)'
       }}
     >

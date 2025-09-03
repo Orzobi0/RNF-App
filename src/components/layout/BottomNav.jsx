@@ -12,7 +12,7 @@ const BottomNav = () => {
   ];
 
   return (
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 z-50 pb-[env(safe-area-inset-bottom)] h-14">
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 z-50 pb-[env(safe-area-inset-bottom)] h-[var(--bottom-nav-height)]">
         <ul className="flex justify-around items-center max-w-md mx-auto">
         {links.map(({ to, label, icon: Icon }) => (
           <li key={to}>
