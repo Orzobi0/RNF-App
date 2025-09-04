@@ -37,33 +37,28 @@ export const useFertilityChart = (
           let newHeight;
 
           if (isFullScreen) {
-            // Usa el espacio del contenedor padre (área disponible en la página)
-            let availW = parentW;
-            let availH = parentH;
+            let availW = window.innerWidth;
+            let availH = window.innerHeight;
 
-            if (forceLandscape) {
-              availW = window.innerHeight || parentH;
-              availH = window.innerWidth || parentW;
+            if (forceLandscape && availH > availW) {
+              [availW, availH] = [availH, availW];
             }
 
-            const effectiveWidth = availW;
-            const effectiveHeight = availH;
-
-            containerWidth = effectiveWidth;
+            containerWidth = availW;
             if (orientation === 'portrait' && !forceLandscape) {
-              const legendSpace = Math.max(30, effectiveWidth * 0.05);
-              const perDayWidth = (effectiveWidth - legendSpace) / visibleDays;
+              const legendSpace = Math.max(30, availW * 0.05);
+              const perDayWidth = (availW - legendSpace) / visibleDays;
               newWidth = perDayWidth * data.length;
-              newHeight = effectiveHeight;
+
             } else {
-              const perDayWidth = effectiveWidth / visibleDays;
+              const perDayWidth = availW / visibleDays;
               newWidth = perDayWidth * data.length;
-              newHeight = effectiveHeight;
             }
+            newHeight = availH;
           } else {
             const perDayWidth = containerWidth / visibleDays;
             newWidth = perDayWidth * data.length;
-            newHeight = 50;
+            newHeight = parentH;
           }
           
           setDimensions({ width: newWidth, height: newHeight });
