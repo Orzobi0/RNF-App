@@ -89,7 +89,7 @@ const CycleOverviewCard = ({ cycleData }) => {
   const dots = createProgressDots();
 
   return (
-    <div className="relative min-h-screen">
+    <div className="relative min-h-[calc(100dvh-var(--bottom-nav-safe))]">
       {/* Fecha actual - Parte superior con padding para status bar */}
       <motion.div
         className="px-6 pt-14 pb-6 text-center"

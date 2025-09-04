@@ -86,7 +86,7 @@ import EditCycleDatesDialog from '@/components/EditCycleDatesDialog';
       );
 
       return (
-    <div className="w-full max-w-4xl mx-auto">
+    <div className="w-full max-w-4xl mx-auto px-4">
       <div className="flex flex-col sm:flex-row justify-between items-center mb-8">
         <motion.h1
           className="text-3xl sm:text-4xl font-bold text-slate-500 mb-4 sm:mb-0"

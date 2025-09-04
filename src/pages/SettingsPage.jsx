@@ -132,7 +132,7 @@ const SettingsPage = () => {
   };
 
   return (
-    <div className="max-w-md mx-auto space-y-8">
+    <div className="max-w-md mx-auto space-y-8 px-4">
       <form onSubmit={handleEmailSubmit} className="space-y-2">
         <Label htmlFor="email">Correo</Label>
         <Input

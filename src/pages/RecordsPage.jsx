@@ -69,7 +69,7 @@ const RecordsPage = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-4xl mx-auto px-4">
       <div className="my-4">
         <Button
           onClick={() => { setEditingRecord(null); setShowForm(true); }}
