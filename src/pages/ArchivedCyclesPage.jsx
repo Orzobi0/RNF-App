@@ -139,13 +139,13 @@ import EditCycleDatesDialog from '@/components/EditCycleDatesDialog';
                         {recordCount} registro{recordCount !== 1 ? 's' : ''}
                       </p>
                     </div>
-                    <div className="flex gap-2 mt-4 sm:mt-0">
-                      <Button asChild variant="outline" className="border-pink-500 text-pink-400 hover:bg-pink-500/20 hover:text-pink-300">
+                    <div className="flex flex-col sm:flex-row gap-2 mt-4 sm:mt-0 w-full sm:w-auto">
+                      <Button asChild variant="outline" className="w-full sm:w-auto border-pink-500 text-pink-400 hover:bg-pink-500/20 hover:text-pink-300">
                         <Link to={cycle.isCurrent ? `/` : `/cycle/${cycle.id}`}>
                           <Eye className="mr-2 h-4 w-4" /> Ver
                         </Link>
                       </Button>
-                      <Button variant="destructive" onClick={() => handleDeleteCycle(cycle.id)}>
+                      <Button className="w-full sm:w-auto" variant="destructive" onClick={() => handleDeleteCycle(cycle.id)}>
                         <Trash2 className="mr-2 h-4 w-4" /> Eliminar
                       </Button>
                     </div>

@@ -76,29 +76,29 @@ import React, { useState, useEffect, useCallback } from 'react';
       return (
         <div className={`w-full ${isFullScreen ? 'h-full overflow-hidden' : 'max-w-4xl mx-auto'}`}>
           <motion.div
-            className="flex items-center justify-between mb-8"
+            className="flex flex-wrap items-center justify-between gap-4 mb-8"
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
           >
             {!isFullScreen && (
-              <Button variant="outline" asChild className="mt-4 sm:mt-0 border-pink-500 text-pink-400 hover:bg-pink-500/20 hover:text-pink-300">
+              <Button variant="outline" asChild className="w-full sm:w-auto mt-4 sm:mt-0 border-pink-500 text-pink-400 hover:bg-pink-500/20 hover:text-pink-300">
                 <Link to="/archived-cycles">
                   <ArrowLeft className="mr-2 h-4 w-4" /> Mis Ciclos
                 </Link>
               </Button>
             )}
             {!isFullScreen && (
-              <h1 className="text-2xl sm:text-3xl font-bold hover:text-pink-300 text-center">
+              <h1 className="w-full text-2xl sm:text-3xl font-bold hover:text-pink-300 text-center">
                 Detalle del Ciclo ({format(parseISO(cycleData.startDate), "dd/MM/yyyy")})
               </h1>
             )}
             {!isFullScreen && (
-              <div className="flex gap-2 mt-4 sm:mt-0">
-                <Button variant="outline" onClick={onEditCycleDates} className="border-pink-500 text-pink-400 hover:bg-pink-500/20 hover:text-pink-300">
+              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto mt-4 sm:mt-0">
+                <Button variant="outline" onClick={onEditCycleDates} className="w-full sm:w-auto border-pink-500 text-pink-400 hover:bg-pink-500/20 hover:text-pink-300">
                   <Edit className="mr-2 h-4 w-4" /> Editar Fechas
                 </Button>
-                <Button variant="destructive" onClick={onDeleteCycle}>
+                <Button variant="destructive" onClick={onDeleteCycle} className="w-full sm:w-auto">
                   <Trash2 className="mr-2 h-4 w-4" /> Eliminar Ciclo
                 </Button>
               </div>
