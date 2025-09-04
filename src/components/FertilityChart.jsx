@@ -108,12 +108,12 @@ const FertilityChart = ({
   const rotatedContainer = applyRotation;
   const baseFullClass = 'w-full h-full bg-gradient-to-br from-white via-pink-50/30 to-rose-50/20';
   const containerClass = isFullScreen
-    ? `${baseFullClass} w-full h-full min-h-full ${rotatedContainer ? 'flex items-stretch justify-start overflow-y-auto overflow-x-hidden' : 'flex items-center justify-start overflow-x-auto overflow-y-hidden'}`
-    : 'bg-gradient-to-br from-white via-pink-50/30 to-rose-50/20 overflow-x-auto overflow-y-hidden border border-pink-100/50';
+    ? `${baseFullClass} min-h-full ${rotatedContainer ? 'flex items-stretch justify-start overflow-y-auto overflow-x-hidden' : 'flex items-center justify-start overflow-x-auto overflow-y-hidden'}`
+    : `${baseFullClass} overflow-x-auto overflow-y-hidden border border-pink-100/50`;
 
   return (
     <motion.div 
-      className={`relative ${isFullScreen ? 'h-full' : ''}`}
+      className="relative w-full h-full"
       variants={shouldAnimate ? containerVariants : undefined}
       initial={shouldAnimate ? 'hidden' : false}
       animate={shouldAnimate ? 'visible' : undefined}
