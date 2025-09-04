@@ -38,10 +38,16 @@ export const useFertilityChart = (
 
           if (isFullScreen) {
             // Usa el espacio del contenedor padre (área disponible en la página)
-            const availW = parentW;
-            const availH = parentH;
-            const effectiveWidth = forceLandscape ? availH : availW;
-            const effectiveHeight = forceLandscape ? availW : availH;
+            let availW = parentW;
+            let availH = parentH;
+
+            if (forceLandscape) {
+              availW = window.innerHeight || parentH;
+              availH = window.innerWidth || parentW;
+            }
+
+            const effectiveWidth = availW;
+            const effectiveHeight = availH;
 
             containerWidth = effectiveWidth;
             if (orientation === 'portrait' && !forceLandscape) {
