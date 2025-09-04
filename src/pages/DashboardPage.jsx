@@ -394,7 +394,24 @@ const ModernFertilityDashboard = () => {
   if (!currentCycle?.id) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-rose-50 via-pink-50 to-rose-100 flex items-center justify-center">
-        <p className="text-center text-gray-600 text-lg">No hay ciclo activo.</p>
+        <div className="text-center space-y-4">
+          <p className="text-gray-600 text-lg">No hay ciclo activo.</p>
+          <button
+            onClick={() => setShowNewCycleDialog(true)}
+            className="px-6 py-3 rounded-lg bg-pink-600 hover:bg-pink-700 text-white shadow"
+          >
+            Iniciar ciclo
+          </button>
+        </div>
+        <NewCycleDialog
+          isOpen={showNewCycleDialog}
+          onClose={() => setShowNewCycleDialog(false)}
+          onConfirm={async (selectedStartDate) => {
+            await startNewCycle(selectedStartDate);
+            setShowNewCycleDialog(false);
+            setShowForm(true);
+          }}
+        />
       </div>
     );
   }
@@ -417,6 +434,7 @@ const ModernFertilityDashboard = () => {
   const handleConfirmNewCycle = async (selectedStartDate) => {
     await startNewCycle(selectedStartDate);
     setShowNewCycleDialog(false);
+    setShowForm(true);
   };
 
   return (

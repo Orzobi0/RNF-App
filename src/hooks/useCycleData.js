@@ -11,6 +11,12 @@ const filterEntriesByEndDate = (entries, endDate) => {
   return entries.filter((entry) => parseISO(entry.isoDate) <= end);
 };
 
+const filterEntriesByStartDate = (entries, startDate) => {
+  if (!startDate) return entries;
+  const start = startOfDay(parseISO(startDate));
+  return entries.filter((entry) => parseISO(entry.isoDate) >= start);
+};
+
 const normalizeDate = (date) => {
   if (!date) return null;
   if (typeof date === 'string') {
@@ -59,12 +65,15 @@ export const useCycleData = (specificCycleId = null) => {
       if (cycleToLoad) {
         const startDate = normalizeDate(cycleToLoad.startDate);
         const endDate = normalizeDate(cycleToLoad.endDate);
+        const processed = processCycleEntries(cycleToLoad.data, startDate);
+        const filteredStart = filterEntriesByStartDate(processed, startDate);
+        const filtered = filterEntriesByEndDate(filteredStart, endDate);
 
         setCurrentCycle({
           ...cycleToLoad,
           startDate,
           endDate,
-          data: processCycleEntries(cycleToLoad.data, startDate)
+          data: filtered
         });
       } else {
         setCurrentCycle({ id: null, startDate: null, data: [] });
@@ -76,7 +85,8 @@ export const useCycleData = (specificCycleId = null) => {
         const aStart = normalizeDate(cycle.startDate);
         const aEnd = normalizeDate(cycle.endDate);
         const processed = processCycleEntries(cycle.data || [], aStart);
-        const filtered = filterEntriesByEndDate(processed, aEnd);
+        const filteredStart = filterEntriesByStartDate(processed, aStart);
+        const filtered = filterEntriesByEndDate(filteredStart, aEnd);
         return {
           ...cycle,
           startDate: aStart ?? format(startOfDay(new Date()), "yyyy-MM-dd"),
@@ -216,6 +226,16 @@ export const useCycleData = (specificCycleId = null) => {
         ? startOfDay(parseISO(selectedStartDate))
         : startOfDay(new Date());
 
+      // Validación: si hay ciclo actual, la fecha del nuevo ciclo debe ser posterior a su inicio
+      if (currentCycle.id && selectedStartDate) {
+        const currentStart = startOfDay(parseISO(currentCycle.startDate));
+        if (startDateObj <= currentStart) {
+          toast({ title: 'Fecha inválida', description: 'La fecha de inicio del nuevo ciclo debe ser posterior al inicio del ciclo actual.', variant: 'destructive' });
+          setIsLoading(false);
+          return;
+        }
+      }
+
       if (currentCycle.id) {
         const archiveEndDate = format(addDays(startDateObj, -1), "yyyy-MM-dd");
         await archiveCycleDB(currentCycle.id, user.uid, archiveEndDate); // ← CAMBIO: user.uid en lugar de user.id
@@ -228,7 +248,14 @@ export const useCycleData = (specificCycleId = null) => {
       console.log('New cycle started successfully');
     } catch (error) {
       console.error("Error starting new cycle:", error);
-      toast({ title: "Error", description: "No se pudo archivar el ciclo.", variant: "destructive" });
+      try {
+        if (currentCycle.id) {
+          await updateCycleDatesDB(currentCycle.id, user.uid, undefined, null);
+        }
+      } catch (e) {
+        console.error('Rollback failed:', e);
+      }
+      toast({ title: "Error", description: "No se pudo iniciar el nuevo ciclo.", variant: "destructive" });
       throw error;
     } finally {
       setIsLoading(false);
@@ -317,7 +344,8 @@ export const useCycleData = (specificCycleId = null) => {
       const startDate = normalizeDate(cycleData.startDate);
       const endDate = normalizeDate(cycleData.endDate);
       const processed = processCycleEntries(cycleData.data || [], startDate);
-      const filtered = filterEntriesByEndDate(processed, endDate);
+      const filteredStart = filterEntriesByStartDate(processed, startDate);
+      const filtered = filterEntriesByEndDate(filteredStart, endDate);
 
       
       const result = {
