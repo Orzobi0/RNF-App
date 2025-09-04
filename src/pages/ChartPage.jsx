@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import FertilityChart from '@/components/FertilityChart';
 import { useCycleData } from '@/hooks/useCycleData';
 import { differenceInDays, parseISO, startOfDay } from 'date-fns';
 import generatePlaceholders from '@/lib/generatePlaceholders';
 import { RotateCcw } from 'lucide-react';
+import MainLayout from '@/components/layout/MainLayout';
 
 const ChartPage = () => {
   const { currentCycle } = useCycleData();
@@ -11,6 +12,7 @@ const ChartPage = () => {
   const [orientation, setOrientation] = useState(
     typeof window !== 'undefined' && window.innerWidth > window.innerHeight ? 'landscape' : 'portrait'
   );
+  const [isFullScreen, setIsFullScreen] = useState(false);
 
   if (!currentCycle?.id) {
     return <p className="text-center text-gray-500">No hay ciclo activo.</p>;
@@ -50,36 +52,74 @@ const ChartPage = () => {
     scrollStart = Math.max(0, endIndex - visibleDays);
   }
 
+    const handleToggleFullScreen = async () => {
+    if (!isFullScreen) {
+      try {
+        await document.documentElement.requestFullscreen();
+        await screen.orientation.lock('landscape');
+        setOrientation('landscape');
+        setIsFullScreen(true);
+      } catch (err) {
+        console.error(err);
+      }
+    } else {
+      try {
+        await screen.orientation.unlock();
+      } catch (err) {
+        console.error(err);
+      }
+      try {
+        if (document.fullscreenElement) {
+          await document.exitFullscreen();
+        }
+      } catch (err) {
+        console.error(err);
+      }
+      setOrientation('portrait');
+      setIsFullScreen(false);
+    }
+  };
+
   return (
-    <div
-      className="relative w-full overflow-x-auto overflow-y-auto"
-      style={{
-        // Altura unificada: siempre restamos la BottomNav + safe-area usando una variable CSS.
-        height:
-          orientation === 'landscape'
-            ? 'calc(max(100dvw) - var(--bottom-nav-safe))'
-            : 'calc(100dvh - var(--bottom-nav-safe))',
-        paddingBottom: 'env(safe-area-inset-bottom)'
-      }}
-    >
-      <button
-        onClick={() => setOrientation(orientation === 'portrait' ? 'landscape' : 'portrait')}
-        className="absolute top-4 right-4 z-10 bg-white/80 hover:bg-white text-gray-700 p-2 rounded-full shadow"
-        aria-label="Rotar gráfico"
+    <MainLayout hideBottomNav={isFullScreen}>
+      <div
+        className={
+          isFullScreen
+            ? 'fixed inset-0 z-50 h-[100dvh] w-[100dvw] overflow-x-auto overflow-y-auto'
+            : 'relative w-full overflow-x-auto overflow-y-auto'
+        }
+        style={
+          isFullScreen
+            ? undefined
+            : {
+                // Altura unificada: siempre restamos la BottomNav + safe-area usando una variable CSS.
+                height:
+                  orientation === 'landscape'
+                    ? 'calc(max(100dvw) - var(--bottom-nav-safe))'
+                    : 'calc(100dvh - var(--bottom-nav-safe))',
+                paddingBottom: 'env(safe-area-inset-bottom)'
+              }
+        }
       >
-        <RotateCcw className="w-5 h-5" />
-      </button>
-      <FertilityChart
-        data={mergedData}
-        isFullScreen={true}
-        orientation={orientation}
-        cycleId={currentCycle.id}
-        initialScrollIndex={scrollStart}
-        visibleDays={visibleDays}
-        reduceMotion={true}
-        forceLandscape={orientation === 'landscape'}
-      />
-    </div>
+        <button
+          onClick={handleToggleFullScreen}
+          className="absolute top-4 right-4 z-10 bg-white/80 hover:bg-white text-gray-700 p-2 rounded-full shadow"
+          aria-label={isFullScreen ? 'Salir de pantalla completa' : 'Rotar gráfico'}
+        >
+          <RotateCcw className="w-5 h-5" />
+        </button>
+        <FertilityChart
+          data={mergedData}
+          isFullScreen={isFullScreen}
+          orientation={orientation}
+          cycleId={currentCycle.id}
+          initialScrollIndex={scrollStart}
+          visibleDays={visibleDays}
+          reduceMotion={true}
+          forceLandscape={orientation === 'landscape'}
+        />
+      </div>
+    </MainLayout>
   );
 };
 

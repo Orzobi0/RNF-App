@@ -59,7 +59,7 @@ function AppContent() {
         path="/chart"
         element={
           <ProtectedRoute>
-            <MainLayout><ChartPage /></MainLayout>
+            <ChartPage />
           </ProtectedRoute>
         }
       />

@@ -141,7 +141,7 @@ const FertilityChart = ({
       {/* Contenedor principal del gráfico */}
       <motion.div
         ref={chartRef}
-        className={`relative p-0 rounded-2xl ${containerClass}`}
+        className={`relative p-0 ${isFullScreen ? '' : 'rounded-2xl'} ${containerClass}`}
         style={{ 
           boxShadow: isFullScreen 
             ? 'inset 0 1px 3px rgba(244, 114, 182, 0.1)' 
