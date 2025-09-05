@@ -2,262 +2,425 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, FilePlus, CalendarPlus } from 'lucide-react';
 import DataEntryForm from '@/components/DataEntryForm';
+import NewCycleDialog from '@/components/NewCycleDialog';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
+import useBackClose from '@/hooks/useBackClose';
 import { useCycleData } from '@/hooks/useCycleData';
 import { differenceInDays, parseISO, startOfDay } from 'date-fns';
 
-
 const CycleOverviewCard = ({ cycleData }) => {
-  // Extrae los registros reales del ciclo
   const records = cycleData.records || [];
 
-  // Devuelve el color asociado a cada símbolo de fertilidad
-
+  // Colores suaves con mejor contraste
   const getSymbolColor = (symbolValue) => {
-    switch(symbolValue) {
-      case 'red': return '#ef4444'; // rojo menstruación
-      case 'white': return '#ffffff'; // blanco fértil
-      case 'green': return '#22c55e'; // verde infértil
-      case 'spot': return '#f472b6'; // rosa spotting
-      default: return '#e2e8f0'; // gris por defecto
+    switch (symbolValue) {
+      case 'red':
+        return {
+          main: '#ef4444', // rojo más definido para menstruación
+          light: '#fee2e2',
+          glow: 'rgba(239, 68, 68, 0.3)'
+        };
+      case 'white':
+        return {
+          main: '#f8fafc', // blanco ligeramente grisáceo para días fértiles
+          light: '#ffe4e6',
+          glow: 'rgba(248, 250, 252, 0.3)',
+
+        };
+      case 'green':
+        return {
+          main: '#22c55e', // verde más vibrante para días infértiles
+          light: '#d1fae5',
+          glow: 'rgba(34, 197, 94, 0.3)'
+        };
+      case 'spot':
+        return {
+          main: '#ec4899', // rosa más definido para spotting
+          light: '#fce7f3',
+          glow: 'rgba(236, 72, 153, 0.3)'
+        };
+      default:
+        return {
+          main: '#d1d5db', // gris más definido por defecto
+          light: '#f8fafc',
+          glow: 'rgba(209, 213, 219, 0.3)'
+        };
     }
   };
-  // Construye los segmentos del círculo en función de los registros
-  const createProgressSegments = () => {
+
+  // Crear puntos individuales en lugar de segmentos
+  const createProgressDots = () => {
     const totalDays = Math.max(cycleData.currentDay, 28);
-    const segmentAngle = (2 * Math.PI) / totalDays;
-    const radius = 45;
+    const radius = 40; // Radio del círculo
 
     return Array.from({ length: totalDays }, (_, index) => {
       const day = index + 1;
       const record = records.find(r => r.cycleDay === day);
-      const startAngle = index * segmentAngle;
-      const endAngle = (index + 1) * segmentAngle;
+      const angle = (index / totalDays) * 2 * Math.PI - Math.PI/2; // Empezar desde arriba
       
-      const x1 = 50 + radius * Math.cos(startAngle - Math.PI/2);
-      const y1 = 50 + radius * Math.sin(startAngle - Math.PI/2);
-      const x2 = 50 + radius * Math.cos(endAngle - Math.PI/2);
-      const y2 = 50 + radius * Math.sin(endAngle - Math.PI/2);
+      const x = 50 + radius * Math.cos(angle);
+      const y = 50 + radius * Math.sin(angle);
       
-      const largeArc = endAngle - startAngle <= Math.PI ? '0' : '1';
+      //Resaltar el día actual
+      let colors = day <= cycleData.currentDay && record
+        ? getSymbolColor(record.fertility_symbol)
+        : { main: '#e5e7eb', light: '#f1f5f9', glow: 'rgba(229, 231, 235, 0.3)' };
 
-      const pathData = [
-        'M', x1, y1,
-        'A', radius, radius, 0, largeArc, 1, x2, y2
-      ].join(' ');
+      const isToday = day === cycleData.currentDay;
+      if (isToday && !record) {
+        colors = {
+          main: '#3b82f6',
+          light: '#bfdbfe',
+          glow: 'rgba(59, 130, 246, 0.4)'
+        };
+      }
 
       return {
-        path: pathData,
-        color: day <= cycleData.currentDay && record ? getSymbolColor(record.fertility_symbol) : '#f1f5f9',
-        opacity: day <= cycleData.currentDay ? 1 : 0.3
+        x,
+        y,
+        day,
+        colors,
+        isActive: day <= cycleData.currentDay,
+        isToday
       };
     });
   };
 
-  const segments = createProgressSegments();
+  const dots = createProgressDots();
 
   return (
-    <div className="relative">
-      {/* Fecha actual - Parte superior */}
-      <motion.div 
-        className="text-center mb-6"
+    <div className="relative min-h-[calc(100dvh-var(--bottom-nav-safe))]">
+      {/* Fecha actual - Parte superior con padding para status bar */}
+      <motion.div
+        className="px-6 pt-14 pb-6 text-center"
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
       >
-        <h1 className="text-2xl font-bold text-gray-800 mb-1">
+        <h1 className="text-2xl font-bold text-gray-800 mb-2">
           {new Date().toLocaleDateString('es-ES', {
             weekday: 'long',
             day: 'numeric',
             month: 'long'
           })}
         </h1>
-        <p className="text-sm text-gray-500 ">
+        <p className="text-base font-medium text-pink-700 bg-white/20 backdrop-blur-sm rounded-full px-4 py-2 inline-block">
           Día {cycleData.currentDay} del ciclo
         </p>
       </motion.div>
 
-      {/* Card principal con fondo sólido */}
-      <motion.div 
-        className="bg-white rounded-3xl p-8 mb-6 shadow-xl shadow-pink-500/10 border border-pink-100/50"
+      {/* Contenedor principal */}
+      <motion.div
+        className="px-6"
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.4, delay: 0.1 }}
       >
-        {/* Círculo de progreso mejorado */}
+        {/* Círculo de progreso rediseñado */}
         <div className="text-center mb-8">
           <motion.div
-            className="relative inline-flex items-center justify-center w-56 h-56 mb-6"
+            className="relative inline-flex items-center justify-center w-80 h-80 mb-8"
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ type: 'spring', stiffness: 200, damping: 15, delay: 0.3 }}
           >
-            <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-              {/* Círculo base más sutil */}
+            <svg className="w-full h-full" viewBox="0 0 100 100">
+              {/* Círculo base sutil */}
               <circle
                 cx="50"
                 cy="50"
-                r="45"
+                r="20"
                 fill="none"
-                stroke="#ffc5cb"
-                strokeWidth="6"
+                stroke="rgba(255, 255, 255, 0.2)"
+                strokeWidth="0.5"
               />
               
-{/* Segmentos de progreso con borde para distinguir cada día */}
-              {segments.map((segment, index) => (
+              {/* Líneas de referencia sutiles cada 7 días */}
+              {[7, 14, 21, 28].map(day => {
+                const angle = (day / 28) * 2 * Math.PI - Math.PI/2;
+                const x1 = 50 + 45 * Math.cos(angle);
+                const y1 = 50 + 45 * Math.sin(angle);
+                const x2 = 50 + 55 * Math.cos(angle);
+                const y2 = 50 + 55 * Math.sin(angle);
+                
+                return (
+                  <line
+                    key={day}
+                    x1={x1}
+                    y1={y1}
+                    x2={x2}
+                    y2={y2}
+                    stroke="rgba(255, 255, 255, 0.3)"
+                    strokeWidth="0.5"
+                  />
+                );
+              })}
+
+              {/* Puntos de progreso con sombras mejoradas */}
+              {dots.map((dot, index) => (
                 <g key={index}>
-                  <motion.path
-                    d={segment.path}
-                    fill="none"
-                    stroke="#e2e8f0"
-                    strokeWidth="6"
-                    strokeLinecap="round"
-                    opacity={segment.opacity}
-                    initial={{ pathLength: 0 }}
-                    animate={{ pathLength: 1 }}
+                  {/* Sombra del punto */}
+                  <circle
+                    cx={dot.x + 0.5}
+                    cy={dot.y + 0.5}
+                    r={dot.isToday ? 5 : 3.5}
+                    fill="rgba(0, 0, 0, 0.2)"
+                    opacity={dot.isActive ? 1 : 0.5}
+                  />
+                  
+                  {/* Punto principal con sombra */}
+                  <motion.circle
+                    cx={dot.x}
+                    cy={dot.y}
+                    r={dot.isToday ? 5 : 3.5}
+                    fill={dot.isActive ? (dot.isToday ? dot.colors.light : dot.colors.main) : '#e5e7eb'}
+                    stroke={dot.colors.border || (dot.isActive ? 'rgba(255,255,255,0.4)' : '#cbd5e1')}
+                    strokeWidth={dot.colors.border ? 0.8 : (dot.isActive ? 1 : 1)}
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
                     transition={{
-                      duration: 0.8,
-                      delay: 0.6 + (index * 0.02),
-                      ease: "easeOut"
+                      duration: 0.6,
+                      delay: 0.8 + (index * 0.02),
+                      type: 'spring',
+                      stiffness: 400,
+                      damping: 25
+                    }}
+                    style={{ 
+                      filter: dot.isActive 
+                        ? 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))' 
+                        : 'drop-shadow(0 1px 2px rgba(0,0,0,0.2))'
                     }}
                   />
-                  <motion.path
-                    d={segment.path}
-                    fill="none"
-                    stroke={segment.color}
-                    strokeWidth="4"
-                    strokeLinecap="round"
-                    opacity={segment.opacity}
-                    initial={{ pathLength: 0 }}
-                    animate={{ pathLength: 1 }}
-                    transition={{
-                      duration: 0.8,
-                      delay: 0.6 + (index * 0.02),
-                      ease: "easeOut"
-                    }}
-                  />
+
+                  {/* Punto interior con mejor visibilidad */}
+                  {dot.isActive && (
+                    <motion.circle
+                      cx={dot.x}
+                      cy={dot.y}
+                      r="0.8"
+                      fill={dot.colors.main === '#ffffff' ? '#e5e7eb' : '#e5e7eb'}
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{
+                        duration: 0.3,
+                        delay: 1.2 + (index * 0.02)
+                      }}
+                    />
+                  )}
                 </g>
               ))}
-              
-              {/* Círculo interior decorativo */}
-              <circle
-                cx="50"
-                cy="50"
-                r="45"
-                fill="none"
-                stroke="rgba(236, 72, 153, 0.05)"
-                strokeWidth="1"
-              />
             </svg>
             
             {/* Contenido central mejorado */}
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <motion.span
-                className="text-4xl font-bold bg-gradient-to-br from-pink-600 to-rose-600 bg-clip-text text-transparent"
+              <motion.div
+                className="text-center bg-white/10 backdrop-blur-md rounded-full p-6"
                 initial={{ opacity: 0, scale: 0.5 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 1, type: 'spring', stiffness: 200 }}
+                style={{ filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.1))' }}
               >
-                {cycleData.currentDay}
-              </motion.span>
-              <motion.span
-                className="text-sm text-gray-500 font-medium mt-1"
+                <span className="text-5xl font-bold text-pink-700 block">
+                  {cycleData.currentDay}
+                </span>
+                <span className="text-sm text-pink-700 font-medium mt-1 block">
+                  día del ciclo
+                </span>
+              </motion.div>
+
+              {/* Indicador de fase del ciclo */}
+              <motion.div
+                className="mt-4 px-4 py-2 bg-white/20 backdrop-blur-sm rounded-full border border-white/30"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 1.1 }}
+                transition={{ delay: 1.3 }}
+                style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}
               >
-                días del ciclo
-              </motion.span>
-              
+                <span className="text-xs font-semibold text-gray-800">
+                  {cycleData.currentDay <= 7 ? 'Menstrual' : 
+                   cycleData.currentDay <= 14 ? 'Folicular' :
+                   cycleData.currentDay <= 21 ? 'Ovulatoria' : 'Lútea'}
+                </span>
+              </motion.div>
             </div>
           </motion.div>
         </div>
-     {/* Información relevante del ciclo */}
+
+        {/* Leyenda de colores con estilo mobile */}
         <motion.div
-          className="bg-rose-50 rounded-2xl p-4 text-sm text-gray-700"
+          className="bg-white/80 backdrop-blur-md rounded-3xl p-6 mb-6 mx-2"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.5 }}
+          style={{ filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.1))' }}
+        >
+          <h3 className="text-sm font-bold text-gray-800 mb-4 text-center">Símbolos de fertilidad</h3>
+          <div className="grid grid-cols-2 gap-4">
+            {[
+              { color: '#ef4444', label: 'Menstrual', symbol: 'red' },
+              { color: '#f8fafc', label: 'Fértil', symbol: 'white' },
+              { color: '#22c55e', label: 'Infértil', symbol: 'green' },
+              { color: '#ec4899', label: 'Spotting', symbol: 'spot' }
+            ].map(item => (
+              <div key={item.symbol} className="flex items-center gap-3">
+                <div className="relative">
+                  <div
+                    className="w-5 h-5 rounded-full shadow-md"
+                    style={{
+                      backgroundColor: item.color,
+                      border: item.stroke ? `1px solid ${item.stroke}` : `1px solid rgba(0,0,0,0.1)`
+                    }}
+                  />
+                  <div
+                    className="absolute inset-0 rounded-full bg-white"
+                    style={{
+                      width: '8px',
+                      height: '8px',
+                      top: '50%',
+                      left: '50%',
+                      transform: 'translate(-50%, -50%)',
+                      backgroundColor: item.stroke && item.color === '#f8fafc' ? '#6b7280' : 'white',
+                      opacity: item.color === '#f8fafc' ? 1 : 0.8
+                    }}
+                  />
+                </div>
+                <span className="text-sm font-medium text-gray-800">{item.label}</span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 pt-4 border-t border-gray-200 flex items-center justify-center gap-3">
+            <div className="w-5 h-5 rounded-full bg-[#bfdbfe] shadow-md relative">
+              <div className="absolute inset-0 rounded-full bg-white w-2 h-2 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"/>
+            </div>
+            <span className="text-sm font-medium text-gray-800">Día actual</span>
+          </div>
+        </motion.div>
+
+        {/* Información relevante del ciclo */}
+        <motion.div
+          className="bg-white/60 backdrop-blur-md rounded-3xl p-6 text-sm text-gray-800 mx-2 mb-32"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.6 }}
+          style={{ filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.1))' }}
         >
-          <h3 className="font-semibold mb-2 text-gray-800">Información</h3>
-          <ul className="space-y-1">
-            <li className="font-medium">CPM</li>
-            <li className="ml-2">Datos incompletos</li>
-            <li className="font-medium pt-2">T-8</li>
-            <li className="ml-2">Datos incompletos</li>
-          </ul>
+          <h3 className="font-bold mb-4 text-gray-900 flex items-center gap-2">
+            <div className="w-3 h-3 bg-pink-500 rounded-full shadow-sm"></div>
+            Información del ciclo
+          </h3>
+          <div className="space-y-3">
+            <div className="flex justify-between items-center">
+              <span className="font-semibold text-pink-800">CPM:</span>
+              <span className="text-gray-600 bg-gray-100 px-3 py-1 rounded-full text-xs">
+                Datos incompletos
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="font-semibold text-pink-800">T-8:</span>
+              <span className="text-gray-600 bg-gray-100 px-3 py-1 rounded-full text-xs">
+                Datos incompletos
+              </span>
+            </div>
+          </div>
         </motion.div>
-
       </motion.div>
     </div>
   );
 };
 
-
-
 const FloatingActionButton = ({ onAddRecord, onAddCycle }) => {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="fixed bottom-20 right-6 flex flex-col items-end space-y-3 z-40">
+    <div className="fixed bottom-8 right-6 flex flex-col items-end space-y-4 z-50">
       {open && (
         <>
           <motion.button
             onClick={onAddRecord}
-            className="w-12 h-12 rounded-full bg-gradient-to-br from-pink-500 to-rose-500 text-white shadow-lg flex items-center justify-center"
+            className="w-14 h-14 rounded-full bg-gradient-to-br from-pink-500 to-rose-500 text-white shadow-xl flex items-center justify-center"
             whileTap={{ scale: 0.95 }}
             whileHover={{ scale: 1.05 }}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
+            initial={{ opacity: 0, y: 20, scale: 0.8 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            style={{ filter: 'drop-shadow(0 8px 16px rgba(236, 72, 153, 0.3))' }}
           >
-            <FilePlus className="h-5 w-5" />
+            <FilePlus className="h-6 w-6" />
           </motion.button>
           <motion.button
             onClick={onAddCycle}
-            className="w-12 h-12 rounded-full bg-gradient-to-br from-fuchsia-500 to-purple-500 text-white shadow-lg flex items-center justify-center"
+            className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-500 to-indigo-500 text-white shadow-xl flex items-center justify-center"
             whileTap={{ scale: 0.95 }}
             whileHover={{ scale: 1.05 }}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
+            initial={{ opacity: 0, y: 20, scale: 0.8 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            style={{ filter: 'drop-shadow(0 8px 16px rgba(147, 51, 234, 0.3))' }}
           >
-            <CalendarPlus className="h-5 w-5" />
+            <CalendarPlus className="h-6 w-6" />
           </motion.button>
         </>
       )}
       <motion.button
         onClick={() => setOpen(!open)}
-        className="w-14 h-14 bg-gradient-to-br from-pink-500 to-rose-500 text-white rounded-full shadow-lg flex items-center justify-center"
+        className="w-16 h-16 bg-gradient-to-br from-pink-500 to-rose-500 text-white rounded-full shadow-xl flex items-center justify-center"
         whileTap={{ scale: 0.95 }}
         whileHover={{ scale: 1.05 }}
         initial={{ scale: 0 }}
         animate={{ scale: 1 }}
+        style={{ filter: 'drop-shadow(0 8px 20px rgba(236, 72, 153, 0.4))' }}
       >
-        <Plus className="h-6 w-6" />
+        <Plus className="h-7 w-7" />
       </motion.button>
     </div>
   );
 };
 
 const ModernFertilityDashboard = () => {
-
   const { currentCycle, addOrUpdateDataPoint, startNewCycle, isLoading } = useCycleData();
   const [showForm, setShowForm] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showNewCycleDialog, setShowNewCycleDialog] = useState(false);
+
+  // Cerrar modal con gesto/botón atrás en móvil
+  useBackClose(showForm, () => setShowForm(false));
 
   if (isLoading) {
-    return <p className="text-center text-gray-500">Cargando...</p>;
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-rose-50 via-pink-50 to-rose-100 flex items-center justify-center">
+        <p className="text-center text-gray-600 text-lg">Cargando...</p>
+      </div>
+    );
   }
 
   if (!currentCycle?.id) {
-    return <p className="text-center text-gray-500">No hay ciclo activo.</p>;
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-rose-50 via-pink-50 to-rose-100 flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <p className="text-gray-600 text-lg">No hay ciclo activo.</p>
+          <button
+            onClick={() => setShowNewCycleDialog(true)}
+            className="px-6 py-3 rounded-lg bg-pink-600 hover:bg-pink-700 text-white shadow"
+          >
+            Iniciar ciclo
+          </button>
+        </div>
+        <NewCycleDialog
+          isOpen={showNewCycleDialog}
+          onClose={() => setShowNewCycleDialog(false)}
+          onConfirm={async (selectedStartDate) => {
+            await startNewCycle(selectedStartDate);
+            setShowNewCycleDialog(false);
+            setShowForm(true);
+          }}
+        />
+      </div>
+    );
   }
 
-  // Calcula el día actual del ciclo
   const currentDay = differenceInDays(
     startOfDay(new Date()),
     parseISO(currentCycle.startDate)
   ) + 1;
 
-  // Guarda el registro en la base de datos y cierra el formulario
   const handleSave = async (data) => {
     setIsProcessing(true);
     try {
@@ -268,10 +431,15 @@ const ModernFertilityDashboard = () => {
     }
   };
 
+  const handleConfirmNewCycle = async (selectedStartDate) => {
+    await startNewCycle(selectedStartDate);
+    setShowNewCycleDialog(false);
+    setShowForm(true);
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-rose-50 via-pink-50 to-purple-50 pb-20">
-      
-      <div className="max-w-md mx-auto px-4 pt-12">
+    <div className="min-h-screen bg-gradient-to-br from-rose-50 via-pink-50 to-rose-100 relative overflow-x-hidden">
+      <div className="max-w-md mx-auto">
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -282,19 +450,31 @@ const ModernFertilityDashboard = () => {
         </motion.div>
       </div>
 
-            {showForm && (
-        <DataEntryForm
-          onSubmit={handleSave}
-          onCancel={() => setShowForm(false)}
-          cycleStartDate={currentCycle.startDate}
-          cycleEndDate={currentCycle.endDate}
-          isProcessing={isProcessing}
-        />
-      )}
+      <Dialog
+        open={showForm}
+        onOpenChange={(open) => setShowForm(open)}
+      >
+        <DialogContent hideClose className="bg-white border-pink-100 text-gray-800 w-[90vw] sm:w-auto max-w-md sm:max-w-lg md:max-w-xl max-h-[85vh] overflow-y-auto p-4 sm:p-6 rounded-2xl">
+          <DataEntryForm
+            onSubmit={handleSave}
+            onCancel={() => setShowForm(false)}
+            cycleStartDate={currentCycle.startDate}
+            cycleEndDate={currentCycle.endDate}
+            isProcessing={isProcessing}
+          />
+        </DialogContent>
+      </Dialog>
 
       <FloatingActionButton
         onAddRecord={() => setShowForm(true)}
-        onAddCycle={() => startNewCycle()}
+        onAddCycle={() => setShowNewCycleDialog(true)}
+      />
+
+      <NewCycleDialog
+        isOpen={showNewCycleDialog}
+        onClose={() => setShowNewCycleDialog(false)}
+        onConfirm={handleConfirmNewCycle}
+        currentCycleStartDate={currentCycle.startDate}
       />
     </div>
   );

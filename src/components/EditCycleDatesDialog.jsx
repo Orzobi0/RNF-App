@@ -33,8 +33,12 @@ const EditCycleDatesDialog = ({
   }, [initialStartDate, initialEndDate]);
 
   const handleConfirm = () => {
-        if (includeEndDate && !endDate) {
+    if (includeEndDate && !endDate) {
       setEndDateError('La fecha de fin es obligatoria');
+      return;
+    }
+    if (includeEndDate && startDate && endDate && endDate < startDate) {
+      setEndDateError('La fecha de fin no puede ser anterior al inicio');
       return;
     }
     const payload = includeEndDate

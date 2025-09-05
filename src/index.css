@@ -4,6 +4,9 @@
 
     @layer base {
       :root {
+        /* Altura de la barra inferior y variante con safe-area */
+        --bottom-nav-height: 3.5rem;
+        --bottom-nav-safe: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom));
         --background: 210 22.2% 96.5%;
         --foreground: 215 27.9% 16.9%;
         --card: 0 0% 100%;
@@ -28,12 +31,15 @@
     }
     
     @layer base {
+        html, body, #root {
+        height: 100%;
+        min-height: 100dvh;
+      }
       * {
         @apply border-border;
       }
       body {
         background: linear-gradient(135deg, #FFFAFC 0%, #f7eaef 100%);
-        min-height: 100dvh;
         scroll-behavior: smooth;
         @apply text-foreground;
         font-family: 'Inter', sans-serif;

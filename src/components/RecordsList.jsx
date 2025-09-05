@@ -51,7 +51,7 @@ const RecordsList = ({ records, onEdit, onDelete, onClose, isArchiveView = false
               </Button>
             )}
           </div>
-          <ScrollArea className="pr-4">
+          <ScrollArea className="pr-4 max-h-[calc(100dvh-var(--bottom-nav-safe)-4rem)]">
             <ul className="space-y-4">
               {sortedRecords.map((record) => {
                 const symbolInfo = getSymbolAppearance(record.fertility_symbol);

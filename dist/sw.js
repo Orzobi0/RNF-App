@@ -7,10 +7,16 @@ const ASSETS = [
   `${BASE_URL}icon-192x192.png`,
   `${BASE_URL}icon-512x512.png`
 ];
+// Assets generated during the build step will be injected into this array.
+const BUILD_ASSETS = (self.__BUILD_ASSETS || []).map(
+  (asset) => `${BASE_URL}${asset}`
+);
 
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting())
+    caches.open(CACHE_NAME)
+      .then(cache => cache.addAll([...ASSETS, ...BUILD_ASSETS]))
+      .then(() => self.skipWaiting())
   );
 });
 
@@ -23,10 +29,10 @@ self.addEventListener('activate', event => {
 });
 
 self.addEventListener('fetch', (event) => {
-  if (
-    event.request.method !== 'GET' ||
-    !event.request.url.startsWith('http')
-  ) {
+    if (
+      event.request.method !== 'GET' ||
+      !event.request.url.startsWith(self.location.origin)
+    ) {
     return;   // ignorar extensiones u otros esquemas
   }
 

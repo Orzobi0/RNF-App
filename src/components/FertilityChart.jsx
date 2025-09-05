@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import ChartAxes from '@/components/chartElements/ChartAxes';
 import ChartLine from '@/components/chartElements/ChartLine';
@@ -16,7 +16,9 @@ const FertilityChart = ({
   cycleId,
   initialScrollIndex = 0,
   visibleDays = 5,
-  showInterpretation = false
+  showInterpretation = false,
+  reduceMotion = false,
+  forceLandscape = false
 }) => {
   const {
     chartRef,
@@ -40,7 +42,7 @@ const FertilityChart = ({
     setActivePoint,
     baselineTemp,
     baselineStartIndex,
-  } = useFertilityChart(data, isFullScreen, orientation, onToggleIgnore, cycleId, visibleDays);
+  } = useFertilityChart(data, isFullScreen, orientation, onToggleIgnore, cycleId, visibleDays, forceLandscape);
 
   if (!allDataPoints || allDataPoints.length === 0) {
     return (
@@ -78,18 +80,43 @@ const FertilityChart = ({
     }
   };
 
+  // Detectar orientación real del viewport para rotación visual
+  const [viewport, setViewport] = useState({ w: typeof window !== 'undefined' ? window.innerWidth : 0, h: typeof window !== 'undefined' ? window.innerHeight : 0 });
+  const isViewportPortrait = viewport.w < viewport.h;
+
   useEffect(() => {
-    if (isFullScreen || !chartRef.current) return;
+    const onResize = () => setViewport({ w: window.innerWidth, h: window.innerHeight });
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onResize);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('orientationchange', onResize);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!chartRef.current) return;
     const dayWidth = chartRef.current.clientWidth / visibleDays;
     chartRef.current.scrollLeft = Math.max(0, dayWidth * initialScrollIndex);
-  }, [isFullScreen, initialScrollIndex, visibleDays, dimensions.width, orientation]);
+  }, [initialScrollIndex, visibleDays, dimensions.width, orientation]);
+
+  const shouldAnimate = !reduceMotion;
+  const applyRotation = forceLandscape && isViewportPortrait;
+  const scaleFactor = 1;
+
+  // Clase del contenedor de scroll ajustada para rotación artificial
+  const rotatedContainer = applyRotation;
+  const baseFullClass = 'w-full h-full bg-gradient-to-br from-white via-pink-50/30 to-rose-50/20';
+  const containerClass = isFullScreen
+    ? `${baseFullClass} min-h-full ${rotatedContainer ? 'flex items-stretch justify-start overflow-y-auto overflow-x-hidden' : 'flex items-center justify-start overflow-x-auto overflow-y-hidden'}`
+    : `${baseFullClass} overflow-x-auto overflow-y-hidden border border-pink-100/50`;
 
   return (
     <motion.div 
-      className="relative"
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
+      className="relative w-full h-full"
+      variants={shouldAnimate ? containerVariants : undefined}
+      initial={shouldAnimate ? 'hidden' : false}
+      animate={shouldAnimate ? 'visible' : undefined}
     >
       {/* Leyenda izquierda mejorada */}
       {(!isFullScreen || orientation === 'portrait') && (
@@ -114,17 +141,15 @@ const FertilityChart = ({
       {/* Contenedor principal del gráfico */}
       <motion.div
         ref={chartRef}
-        className={`relative p-0 rounded-2xl ${
-          isFullScreen 
-            ? 'w-full h-full bg-gradient-to-br from-white via-pink-50/30 to-rose-50/20 flex items-center justify-start overflow-x-auto overflow-y-hidden' 
-            : 'bg-gradient-to-br from-white via-pink-50/30 to-rose-50/20 overflow-x-auto overflow-y-hidden border border-pink-100/50'
-        }`}
+        className={`relative p-0 ${isFullScreen ? '' : 'rounded-2xl'} ${containerClass}`}
         style={{ 
           boxShadow: isFullScreen 
             ? 'inset 0 1px 3px rgba(244, 114, 182, 0.1)' 
             : '0 8px 32px rgba(244, 114, 182, 0.12), 0 2px 8px rgba(244, 114, 182, 0.08)'
+          ,
+          ...(applyRotation ? {position: 'absolute', top: 0, left: 0, width: `${viewport.h}px`, height: `${viewport.w}px`, transform: 'rotate(90deg) translateY(-100%)', transformOrigin: 'top left' } : {})
         }}
-        variants={chartVariants}
+        variants={shouldAnimate ? chartVariants : undefined}
       >
         <motion.svg
           width={chartWidth}
@@ -189,6 +214,7 @@ const FertilityChart = ({
             responsiveFontSize={responsiveFontSize}
             isFullScreen={isFullScreen}
             showLeftLabels={isFullScreen && orientation === 'landscape'}
+            reduceMotion={reduceMotion}
           />
 
           {/* Línea de temperatura */}
@@ -199,11 +225,24 @@ const FertilityChart = ({
             getY={getY}
             baselineY={chartHeight - padding.bottom}
             temperatureField="displayTemperature"
+            reduceMotion={reduceMotion}
           />
 
           {/* Línea baseline mejorada */}
           {showInterpretation && baselineTemp != null && (
-            <motion.line
+            (reduceMotion ? (
+              <line
+                x1={baselineStartX}
+                y1={baselineY}
+                x2={chartWidth - padding.right}
+                y2={baselineY}
+                stroke="#F59E0B"
+                strokeWidth={3}
+                strokeDasharray="6 4"
+                style={{ filter: 'url(#baselineGlow)' }}
+              />
+            ) : (
+              <motion.line
               x1={baselineStartX}
               y1={baselineY}
               x2={chartWidth - padding.right}
@@ -216,6 +255,7 @@ const FertilityChart = ({
               animate={{ opacity: 1, pathLength: 1 }}
               transition={{ duration: 1, ease: "easeInOut" }}
             />
+            ))
           )}
 
           {/* Puntos del gráfico */}
@@ -234,6 +274,8 @@ const FertilityChart = ({
             chartWidth={chartWidth}
             temperatureField="displayTemperature"
             textRowHeight={textRowHeight}
+            compact={false}
+            reduceMotion={reduceMotion}
           />
         </motion.svg>
 

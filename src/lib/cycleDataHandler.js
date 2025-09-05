@@ -245,6 +245,10 @@ export const updateCycleDatesDB = async (cycleId, userId, startDate, endDate) =>
   const proposedStartDate = proposedStart ? parseISO(proposedStart) : null;
   const proposedEndDate = proposedEnd ? parseISO(proposedEnd) : null;
 
+  if (proposedStartDate && proposedEndDate && proposedEndDate < proposedStartDate) {
+    throw new Error('End date cannot be earlier than start date');
+  }
+
   const cyclesRef = collection(db, `users/${userId}/cycles`);
   const cyclesSnap = await getDocs(cyclesRef);
   const overlap = cyclesSnap.docs.some((docSnap) => {
