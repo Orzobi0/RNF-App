@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useLayoutEffect } from 'react';
 import FertilityChart from '@/components/FertilityChart';
 import { useCycleData } from '@/hooks/useCycleData';
 import { differenceInDays, parseISO, startOfDay } from 'date-fns';
@@ -13,6 +13,9 @@ const ChartPage = () => {
     typeof window !== 'undefined' && window.innerWidth > window.innerHeight ? 'landscape' : 'portrait'
   );
   const [isFullScreen, setIsFullScreen] = useState(false);
+  useLayoutEffect(() => {
+    window.dispatchEvent(new Event('resize'));
+  }, [orientation, isFullScreen]);
 
   if (!currentCycle?.id) {
     return <p className="text-center text-gray-500">No hay ciclo activo.</p>;
