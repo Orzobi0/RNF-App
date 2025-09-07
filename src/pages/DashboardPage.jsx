@@ -127,7 +127,7 @@ const CycleOverviewCard = ({ cycleData }) => {
               <circle
                 cx="50"
                 cy="50"
-                r="15"
+                r="16"
                 fill="none"
                 stroke="rgba(255, 255, 255, 0.2)"
                 strokeWidth="0.5"
@@ -244,88 +244,113 @@ const CycleOverviewCard = ({ cycleData }) => {
           </motion.div>
         </div>
 
-        {/* Leyenda e información del ciclo en línea horizontal */}
-        <div className="grid grid-cols-2 gap-3 mx-1 mb-20 flex-shrink-0">
-          {/* Leyenda de colores compacta */}
+        {/* Leyenda e información del ciclo con diseño mejorado */}
+        <div className="grid grid-cols-2 gap-4 mx-2 mb-20 flex-shrink-0">
+          {/* Leyenda de colores con forma hexagonal sutil */}
           <motion.div
-            className="bg-white/80 backdrop-blur-md rounded-2xl p-3"
+            className="bg-gradient-to-br from-white/90 to-white/70 backdrop-blur-md rounded-3xl p-4 border border-white/40"
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.4, delay: 0.5 }}
-            style={{ filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.1))' }}
+            style={{
+              filter: 'drop-shadow(0 8px 25px rgba(0,0,0,0.08))',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.7)'
+            }}
           >
-            <h3 className="text-xs font-semibold text-gray-800 mb-2 text-center">Símbolos de fertilidad</h3>
-            
-            {/* Grid de símbolos 2x2 */}
-            <div className="grid grid-cols-2 gap-2">
+            <h3 className="text-xs font-bold text-gray-800 mb-3 text-center tracking-wide uppercase">
+              Símbolos
+            </h3>
+
+            {/* Grid de símbolos refinado */}
+            <div className="grid grid-cols-2 gap-2.5">
               {[
                 { color: '#ef4444', label: 'Menstrual', symbol: 'red' },
-                { color: '#f8fafc', label: 'Fértil', symbol: 'white' },
+                { color: '#f8fafc', label: 'Fértil', symbol: 'white', stroke: '#e2e8f0' },
                 { color: '#22c55e', label: 'Infértil', symbol: 'green' },
                 { color: '#ec4899', label: 'Spotting', symbol: 'spot' }
               ].map(item => (
-                <div key={item.symbol} className="flex flex-col items-center gap-1">
+                <div key={item.symbol} className="flex flex-col items-center gap-1.5">
                   <div className="relative">
+                    {/* Círculo exterior decorativo */}
                     <div
-                      className="w-3 h-3 rounded-full shadow-sm"
+                      className="w-5 h-5 rounded-full flex items-center justify-center"
                       style={{
-                        backgroundColor: item.color,
-                        border: item.stroke ? `1px solid ${item.stroke}` : `1px solid rgba(0,0,0,0.1)`
+                        background: `linear-gradient(135deg, ${item.color}dd, ${item.color})`
                       }}
-                    />
-                    <div
-                      className="absolute inset-0 rounded-full bg-white"
-                      style={{
-                        width: '5px',
-                        height: '5px',
-                        top: '50%',
-                        left: '50%',
-                        transform: 'translate(-50%, -50%)',
-                        backgroundColor: item.stroke && item.color === '#f8fafc' ? '#6b7280' : 'white',
-                        opacity: item.color === '#f8fafc' ? 1 : 0.7
-                      }}
-                    />
+                    >
+                      {/* Punto interior con mejor contraste */}
+                      <div
+                        className="w-2 h-2 rounded-full"
+                        style={{
+                          backgroundColor: item.color === '#f8fafc' ? '#64748b' : 'rgba(255,255,255,0.9)',
+                          boxShadow: '0 1px 2px rgba(0,0,0,0.2)'
+                        }}
+                      />
+                    </div>
                   </div>
-                  <span className="text-xs font-medium text-gray-800 text-center leading-tight">{item.label}</span>
+                  <span className="text-xs font-medium text-gray-700 text-center leading-none">
+                    {item.label}
+                  </span>
                 </div>
               ))}
             </div>
 
-            {/* Día actual al final */}
-            <div className="flex items-center justify-center gap-1 pt-2 mt-2 border-t border-gray-200">
-              <div className="w-3 h-3 rounded-full bg-[#bfdbfe] shadow-sm relative">
-                <div className="absolute inset-0 rounded-full bg-white w-1.5 h-1.5 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"/>
+            {/* Día actual con estilo diferenciado */}
+            <div className="flex items-center justify-center gap-2 pt-3 mt-3 border-t border-gradient-to-r from-transparent via-gray-200 to-transparent">
+              <div className="relative">
+                <div className="w-4 h-4 rounded-full bg-gradient-to-br from-blue-400 to-blue-500 flex items-center justify-center">
+                  <div className="w-1.5 h-1.5 rounded-full bg-white shadow-sm"/>
+                </div>
+                {/* Anillo decorativo */}
+                <div className="absolute inset-0 rounded-full border-2 border-blue-300/50 animate-pulse"/>
               </div>
-              <span className="text-xs font-medium text-gray-800">Día actual</span>
+              <span className="text-xs font-semibold text-gray-700">Hoy</span>
             </div>
           </motion.div>
 
-          {/* Información del ciclo */}
+          {/* Información del ciclo con diseño tipo card premium */}
           <motion.div
-            className="bg-white/60 backdrop-blur-md rounded-2xl p-3 text-xs text-gray-800"
+            className="relative bg-gradient-to-br from-pink-50/80 to-rose-50/60 backdrop-blur-md rounded-3xl p-4 border border-pink-200/40"
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.4, delay: 0.6 }}
-            style={{ filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.1))' }}
+            style={{
+              filter: 'drop-shadow(0 8px 25px rgba(236,72,153,0.1))',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.8)'
+            }}
           >
-            <h3 className="font-semibold mb-2 text-gray-900 flex items-center gap-1.5 justify-center">
-              <div className="w-2 h-2 bg-pink-500 rounded-full shadow-sm"></div>
-              Información del ciclo
+            <h3 className="font-bold mb-3 text-gray-800 flex items-center gap-2 justify-center text-xs tracking-wide uppercase">
+              <div className="w-2.5 h-2.5 bg-gradient-to-br from-pink-500 to-rose-500 rounded-full shadow-sm"/>
+              Informacion del ciclo
             </h3>
-            <div className="space-y-2">
+            
+            <div className="space-y-3">
+              {/* CPM con diseño mejorado */}
               <div className="text-center">
-                <div className="font-medium text-pink-800 mb-1">CPM</div>
-                <div className="text-gray-600 bg-gray-100 px-2 py-1 rounded-lg text-xs">
-                  Datos incompletos
+                <div className="flex items-center justify-center gap-1 mb-1.5">
+                  <div className="w-1 h-1 bg-pink-400 rounded-full"/>
+                  <div className="font-bold text-pink-800 text-xs">CPM</div>
+                  <div className="w-1 h-1 bg-pink-400 rounded-full"/>
+                </div>
+                <div className="bg-white/60 backdrop-blur-sm px-3 py-1.5 rounded-full border border-gray-200/50 shadow-sm">
+                  <span className="text-xs text-gray-600 font-medium">Pendiente</span>
                 </div>
               </div>
+              {/* T-8 con diseño mejorado */}
               <div className="text-center">
-                <div className="font-medium text-pink-800 mb-1">T-8</div>
-                <div className="text-gray-600 bg-gray-100 px-2 py-1 rounded-lg text-xs">
-                  Datos incompletos
+                <div className="flex items-center justify-center gap-1 mb-1.5">
+                  <div className="w-1 h-1 bg-pink-400 rounded-full"/>
+                  <div className="font-bold text-pink-800 text-xs">T-8</div>
+                  <div className="w-1 h-1 bg-pink-400 rounded-full"/>
+                </div>
+                <div className="bg-white/60 backdrop-blur-sm px-3 py-1.5 rounded-full border border-gray-200/50 shadow-sm">
+                  <span className="text-xs text-gray-600 font-medium">Pendiente</span>
                 </div>
               </div>
             </div>
+            
+            {/* Decoración sutil en la esquina */}
+            <div className="absolute top-2 right-2 w-2 h-2 bg-gradient-to-br from-pink-300/40 to-rose-400/40 rounded-full"/>
           </motion.div>
         </div>
       </motion.div>

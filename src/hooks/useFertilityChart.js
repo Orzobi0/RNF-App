@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useMemo } from 'react';
 
     const DEFAULT_TEMP_MIN = 35.5;
     const DEFAULT_TEMP_MAX = 37.5;
@@ -14,7 +14,7 @@ export const useFertilityChart = (
 ) => {
       const chartRef = useRef(null);
       const tooltipRef = useRef(null);
-      const [dimensions, setDimensions] = useState({ width: 600, height: 400 });
+      const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
       const [activePoint, setActivePoint] = useState(null);
       const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
 
@@ -25,7 +25,7 @@ export const useFertilityChart = (
         }));
       }, [data]);
 
-      useEffect(() => {
+      useLayoutEffect(() => {
         const updateDimensions = () => {
           if (!chartRef.current) return;
 

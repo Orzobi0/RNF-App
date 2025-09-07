@@ -61,24 +61,7 @@ const FertilityChart = ({
   const chartHeight = dimensions.height;
   const baselineY = baselineTemp != null ? getY(baselineTemp) : null;
   const baselineStartX = baselineTemp != null ? getX(baselineStartIndex) : null;
-
-  const containerVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: {
-      opacity: 1,
-      y: 0,
-
-    }
-  };
-
-  const chartVariants = {
-    hidden: { opacity: 0, scale: 0.95 },
-    visible: {
-      opacity: 1,
-      scale: 1,
-
-    }
-  };
+  const isLoading = chartWidth === 0;
 
   // Detectar orientación real del viewport para rotación visual
   const [viewport, setViewport] = useState({ w: typeof window !== 'undefined' ? window.innerWidth : 0, h: typeof window !== 'undefined' ? window.innerHeight : 0 });
@@ -100,9 +83,7 @@ const FertilityChart = ({
     chartRef.current.scrollLeft = Math.max(0, dayWidth * initialScrollIndex);
   }, [initialScrollIndex, visibleDays, dimensions.width, orientation]);
 
-  const shouldAnimate = !reduceMotion;
-  const applyRotation = forceLandscape && isViewportPortrait;
-  const scaleFactor = 1;
+   const applyRotation = forceLandscape && isViewportPortrait;
 
   // Clase del contenedor de scroll ajustada para rotación artificial
   const rotatedContainer = applyRotation;
@@ -112,12 +93,7 @@ const FertilityChart = ({
     : `${baseFullClass} overflow-x-auto overflow-y-hidden border border-pink-100/50`;
 
   return (
-    <motion.div 
-      className="relative w-full h-full"
-      variants={shouldAnimate ? containerVariants : undefined}
-      initial={shouldAnimate ? 'hidden' : false}
-      animate={shouldAnimate ? 'visible' : undefined}
-    >
+      <motion.div className="relative w-full h-full" initial={false}>
       {/* Leyenda izquierda mejorada */}
       {(!isFullScreen || orientation === 'portrait') && (
         <div
@@ -142,21 +118,36 @@ const FertilityChart = ({
       <motion.div
         ref={chartRef}
         className={`relative p-0 ${isFullScreen ? '' : 'rounded-2xl'} ${containerClass}`}
-        style={{ 
-          boxShadow: isFullScreen 
-            ? 'inset 0 1px 3px rgba(244, 114, 182, 0.1)' 
-            : '0 8px 32px rgba(244, 114, 182, 0.12), 0 2px 8px rgba(244, 114, 182, 0.08)'
-          ,
-          ...(applyRotation ? {position: 'absolute', top: 0, left: 0, width: `${viewport.h}px`, height: `${viewport.w}px`, transform: 'rotate(90deg) translateY(-100%)', transformOrigin: 'top left' } : {})
+        style={{
+          boxShadow: isFullScreen
+            ? 'inset 0 1px 3px rgba(244, 114, 182, 0.1)'
+            : '0 8px 32px rgba(244, 114, 182, 0.12), 0 2px 8px rgba(244, 114, 182, 0.08)',
+          ...(applyRotation
+            ? {
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: `${viewport.h}px`,
+                height: `${viewport.w}px`,
+                transform: 'rotate(90deg) translateY(-100%)',
+                transformOrigin: 'top left'
+              }
+            : {})
         }}
-        variants={shouldAnimate ? chartVariants : undefined}
+        initial={false}
       >
+        {isLoading && (
+          <div className="flex items-center justify-center w-full h-full text-slate-400">
+            Cargando...
+          </div>
+        )}
         <motion.svg
           width={chartWidth}
           height={chartHeight}
           className="font-sans flex-shrink-0"
           viewBox={`0 0 ${chartWidth} ${chartHeight}`}
           preserveAspectRatio="xMidYMid meet"
+          initial={false}
         >
           <defs>
             {/* Gradientes mejorados para la línea de temperatura */}
