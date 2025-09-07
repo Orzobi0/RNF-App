@@ -333,7 +333,7 @@ const CycleOverviewCard = ({ cycleData }) => {
                   <div className="w-1 h-1 bg-pink-400 rounded-full"/>
                 </div>
                 <div className="bg-white/60 backdrop-blur-sm px-3 py-1.5 rounded-full border border-gray-200/50 shadow-sm">
-                  <span className="text-xs text-gray-600 font-medium">Pendiente</span>
+                  <span className="text-xs text-gray-600 font-medium">Sin datos</span>
                 </div>
               </div>
               {/* T-8 con diseño mejorado */}
@@ -344,7 +344,7 @@ const CycleOverviewCard = ({ cycleData }) => {
                   <div className="w-1 h-1 bg-pink-400 rounded-full"/>
                 </div>
                 <div className="bg-white/60 backdrop-blur-sm px-3 py-1.5 rounded-full border border-gray-200/50 shadow-sm">
-                  <span className="text-xs text-gray-600 font-medium">Pendiente</span>
+                  <span className="text-xs text-gray-600 font-medium">Sin datos</span>
                 </div>
               </div>
             </div>

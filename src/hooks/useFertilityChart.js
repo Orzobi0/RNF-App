@@ -68,9 +68,10 @@ export const useFertilityChart = (
         window.addEventListener('resize', updateDimensions);
         
         let resizeObserver;
-        if (isFullScreen && chartRef.current) {
+        if (chartRef.current) {
+          const targetEl = chartRef.current.parentElement || chartRef.current;
           resizeObserver = new ResizeObserver(updateDimensions);
-          resizeObserver.observe(document.documentElement); 
+          resizeObserver.observe(targetEl);
         }
         
         return () => {
