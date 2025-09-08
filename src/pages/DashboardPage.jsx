@@ -29,15 +29,16 @@ const CycleOverviewCard = ({ cycleData }) => {
       case 'green':
         return {
           main: '#22c55e',
-          light: '#d1fae5',
+          light: '#22c55e',
           glow: 'rgba(34, 197, 94, 0.3)'
         };
       case 'spot':
         return {
-          main: 'url(#spotting-pattern-dashboard)',
-          light: 'url(#spotting-pattern-dashboard)',
+          main: '#f9a8d4',
+          light: '#f9a8d4',
           glow: 'rgba(236, 72, 153, 0.3)',
-          border: '#f87171'
+          border: '#f87171',
+          pattern: 'url(#spotting-pattern-dashboard)'
         };
       default:
         return {
@@ -92,7 +93,7 @@ const CycleOverviewCard = ({ cycleData }) => {
     <div className="relative min-h-[100dvh] flex flex-col">
       {/* Fecha actual - Parte superior con padding reducido */}
       <motion.div
-        className="px-4 pt-12 pb-4 text-center flex-shrink-0"
+        className="px-4 pt-5 pb-4 text-center flex-shrink-0"
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
@@ -126,9 +127,10 @@ const CycleOverviewCard = ({ cycleData }) => {
           >
             <svg className="w-full h-full" viewBox="0 0 100 100">
               <defs>
-                <pattern id="spotting-pattern-dashboard" patternUnits="userSpaceOnUse" width="8" height="8">
-                  <circle cx="2" cy="2" r="0.5" fill="rgba(239,68,68,0.8)" />
-                  <circle cx="6" cy="6" r="0.5" fill="rgba(239,68,68,0.6)" />
+                <pattern id="spotting-pattern-dashboard" patternUnits="userSpaceOnUse" width="2" height="2">
+                  <rect width="4" height="4" fill="#f3f4f6" />
+                  <circle cx="0.5" cy="0.5" r="0.5" fill="rgba(239,68,68,0.8)" />
+                  <circle cx="1.5" cy="1.5" r="0.5" fill="rgba(239,68,68,0.6)" />
                 </pattern>
               </defs>
               {/* Círculo base sutil */}
@@ -256,27 +258,29 @@ const CycleOverviewCard = ({ cycleData }) => {
             {/* Grid de símbolos refinado */}
             <div className="grid grid-cols-2 gap-2.5">
               {[
-                { color: '#ef4444', label: 'Menstrual', symbol: 'red' },
-                { color: '#f8fafc', label: 'Fértil', symbol: 'white', stroke: '#e2e8f0' },
-                { color: '#22c55e', label: 'Infértil', symbol: 'green' },
-                { color: '#ec4899', label: 'Spotting', symbol: 'spot' }
+                { label: 'Menstrual', color: '#ef4444' },
+                { label: 'Fértil', color: '#f8fafc', stroke: '#e2e8f0' },
+                { label: 'Infértil', color: '#22c55e' },
+                { label: 'Spotting', color: '#f3f4f6', stroke: '#f87171', pattern: true }
               ].map(item => (
-                <div key={item.symbol} className="flex flex-col items-center gap-1.5">
+                <div key={item.label} className="flex flex-col items-center gap-1.5">
                   <div
-                    className="w-1.5 h-1.5 rounded-full"
-                    style={{
-                      backgroundColor: item.color,
-                      borderColor: item.symbol === 'white' ? '#e2e8f0' : 'rgba(255,255,255,0.4)'
-                    }}
-                  >
-                    <div
-                      className="w-5 h-5 rounded-full flex items-center justify-center"
-                      style={{
-                        backgroundColor: '#e5e7eb',
-                        boxShadow: '0 1px 2px rgba(0,0,0,0.2)'
-                      }}
-                    />
-                  </div>
+                    className="w-3 h-3 rounded-full border"
+                    style={
+                      item.pattern
+                        ? {
+                            borderColor: item.stroke,
+                            backgroundColor: item.color,
+                            backgroundImage:
+                              'radial-gradient(circle, rgba(239,68,68,0.7) 1px, transparent 1px)',
+                            backgroundSize: '3px 3px'
+                          }
+                        : {
+                            backgroundColor: item.color,
+                            borderColor: item.stroke || 'transparent'
+                          }
+                    }
+                  />
                   <span className="text-xs font-medium text-gray-700 text-center leading-none">
                     {item.label}
                   </span>
@@ -287,8 +291,8 @@ const CycleOverviewCard = ({ cycleData }) => {
             {/* Día actual con estilo diferenciado */}
             <div className="flex items-center justify-center gap-2 pt-3 mt-3 border-t border-gradient-to-r from-transparent via-gray-200 to-transparent">
               <div className="relative">
-                <div className="w-4 h-4 rounded-full bg-gradient-to-br from-blue-400 to-blue-500 flex items-center justify-center">
-                  <div className="w-1.5 h-1.5 rounded-full bg-white shadow-sm"/>
+                <div className="w-3 h-3 rounded-full bg-gradient-to-br from-blue-400 to-blue-500 flex items-center justify-center">
+                  
                 </div>
                 {/* Anillo decorativo */}
                 <div className="absolute inset-0 rounded-full border-2 border-blue-300/50 animate-pulse"/>
