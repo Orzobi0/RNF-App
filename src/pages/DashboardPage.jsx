@@ -143,26 +143,6 @@ const CycleOverviewCard = ({ cycleData }) => {
                 strokeWidth="0.5"
               />
               
-              {/* Líneas de referencia sutiles cada 7 días */}
-              {[7, 14, 21, 28].map(day => {
-                const angle = (day / 28) * 2 * Math.PI - Math.PI/2;
-                const x1 = 50 + 37 * Math.cos(angle);
-                const y1 = 50 + 37 * Math.sin(angle);
-                const x2 = 50 + 43 * Math.cos(angle);
-                const y2 = 50 + 43 * Math.sin(angle);
-                
-                return (
-                  <line
-                    key={day}
-                    x1={x1}
-                    y1={y1}
-                    x2={x2}
-                    y2={y2}
-                    stroke="rgba(255, 255, 255, 0.3)"
-                    strokeWidth="0.5"
-                  />
-                );
-              })}
 
               {/* Puntos de progreso */}
               {dots.map((dot, index) => (

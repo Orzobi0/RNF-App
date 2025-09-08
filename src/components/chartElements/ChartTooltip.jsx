@@ -9,11 +9,16 @@ import { getSymbolAppearance } from '@/config/fertilitySymbols';
 const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore, onEdit, onClose }) => {
   if (!point) return null;
 
-  const tooltipWidth = 180;
-  const tooltipMinHeight = 120;
+  // Escala reducida para que el tooltip ocupe menos espacio en pantalla
+  const scale = 0.6;
+  const baseWidth = 200;
+  const baseMinHeight = 120;
+  const tooltipWidth = baseWidth * scale;
+  const tooltipMinHeight = baseMinHeight * scale;
   let x = position.clientX + 15;
   let y = position.clientY + 10;
 
+  // Mantiene el tooltip siempre visible dentro del área del gráfico
   if (x + tooltipWidth > chartWidth) x = position.clientX - tooltipWidth - 10;
   if (y + tooltipMinHeight > chartHeight) y = position.clientY - tooltipMinHeight - 10;
   if (x < 10) x = 10;
@@ -76,15 +81,19 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
       initial={{ opacity: 0, scale: 0.8, y: 20 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.8, y: 20 }}
-      transition={{ 
+      transition={{
         duration: 0.25,
         ease: [0.16, 1, 0.3, 1]
       }}
       className="absolute z-50"
       style={{ top: y, left: x, width: tooltipWidth }}
     >
-      {/* Contenedor principal con glassmorphism */}
-      <div className="relative bg-gradient-to-br from-white/95 to-white/85 backdrop-blur-xl rounded-2xl border border-white/60 shadow-2xl overflow-hidden">
+      <div
+        className="origin-top-left"
+        style={{ transform: `scale(${scale})`, width: baseWidth, minHeight: baseMinHeight }}
+      >
+        {/* Contenedor principal con glassmorphism */}
+        <div className="relative bg-gradient-to-br from-white/95 to-white/85 backdrop-blur-xl rounded-2xl border border-white/60 shadow-2xl overflow-hidden">
         {/* Borde decorativo superior */}
         <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-pink-400 via-rose-400 to-pink-500"></div>
         
@@ -95,15 +104,15 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
           onClick={onClose}
           className="absolute top-2 right-2 text-gray-400 hover:text-pink-600 hover:bg-pink-50/80 rounded-full w-6 h-6 transition-all duration-200"
         >
-          <XCircle size={14} />
+          <XCircle size={20} />
         </Button>
 
-        <div className="p-6">
+        <div className="p-2">
           {/* Header con fecha y día del ciclo */}
-          <div className="mb-6">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-pink-500 to-rose-500 rounded-full flex items-center justify-center shadow-lg">
-                <Circle className="w-4 h-4 text-white" fill="currentColor" />
+          <div className="mb-2">
+            <div className="flex items-center gap-3 mb-1">
+              <div className="w-6 h-6 bg-gradient-to-br from-pink-500 to-rose-500 rounded-full flex items-center justify-center shadow-lg">
+                <Circle className="w-2 h-2 text-white" fill="currentColor" />
               </div>
               <div>
                 <h3 className="font-bold text-lg text-gray-800">
@@ -119,28 +128,26 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
           </div>
 
           {/* Información principal en grid */}
-          <div className="space-y-4">
+          <div className="space-y-1">
             {/* Temperatura */}
             {temp != null && (
               <motion.div
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.1 }}
-                className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100/50"
+                className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-1 border border-blue-100/50"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-md">
+                  <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-md">
                     <Thermometer className="w-4 h-4 text-white" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-xs font-medium text-blue-700 uppercase tracking-wide mb-1">
-                      Temperatura
-                    </p>
+                    
                     <div className="flex items-baseline gap-2">
-                      <span className="text-xl font-bold text-gray-800">
+                      <span className="text-md font-bold text-gray-800">
                         {parseFloat(temp).toFixed(2)}
                       </span>
-                      <span className="text-sm text-gray-600">°C</span>
+                      <span className="text-md text-gray-600">°C</span>
                       {point.use_corrected && (
                         <div className="w-2 h-2 bg-red-500 rounded-full shadow-sm" title="Temperatura corregida"></div>
                       )}
@@ -156,17 +163,14 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.15 }}
-                className={`${symbolColors.light} rounded-xl p-4 ${symbolColors.border} border`}
+                className={`${symbolColors.light} rounded-xl p-1 ${symbolColors.border} border`}
               >
                 <div className="flex items-center gap-3">
-                  <div className={`w-8 h-8 ${symbolColors.bg} rounded-lg flex items-center justify-center shadow-lg ${symbolColors.glow} shadow-lg`}>
-                    <div className="w-3 h-3 bg-white/90 rounded-full shadow-sm"></div>
+                  <div className={`w-6 h-6 ${symbolColors.bg} rounded-lg flex items-center justify-center shadow-lg ${symbolColors.glow} shadow-lg`}>
+                    <div className="w-2 h-2 bg-white/90 rounded-full shadow-sm"></div>
                   </div>
                   <div className="flex-1">
-                    <p className={`text-xs font-medium ${symbolColors.text} uppercase tracking-wide mb-1`}>
-                      Símbolo Fertilidad
-                    </p>
-                    <span className={`text-lg font-semibold ${symbolColors.text}`}>
+                    <span className={`text-md font-semibold ${symbolColors.text}`}>
                       {symbolInfo.label}
                     </span>
                   </div>
@@ -181,18 +185,16 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.2 }}
-                className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl p-4 border border-emerald-100/50"
+                className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl p-1 border border-emerald-100/50"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center shadow-md">
+                  <div className="w-6 h-6 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center shadow-md">
                     <Droplets className="w-4 h-4 text-white" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-xs font-medium text-emerald-700 uppercase tracking-wide mb-1">
-                      Sensación
-                    </p>
+                    
                     <span className="text-sm font-semibold text-gray-800">
-                      {point.mucus_sensation || 'No registrado'}
+                      {point.mucus_sensation || '-'}
                     </span>
                   </div>
                 </div>
@@ -203,18 +205,16 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.25 }}
-                className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-4 border border-amber-100/50"
+                className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-1 border border-amber-100/50"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-gradient-to-br from-amber-500 to-orange-600 rounded-lg flex items-center justify-center shadow-md">
+                  <div className="w-6 h-6 bg-gradient-to-br from-amber-500 to-orange-600 rounded-lg flex items-center justify-center shadow-md">
                     <Circle className="w-4 h-4 text-white" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-xs font-medium text-amber-700 uppercase tracking-wide mb-1">
-                      Apariencia
-                    </p>
+                    
                     <span className="text-sm font-semibold text-gray-800">
-                      {point.mucus_appearance || 'No registrado'}
+                      {point.mucus_appearance || '-'}
                     </span>
                   </div>
                 </div>
@@ -227,13 +227,13 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.3 }}
-                className="flex justify-center gap-3 pt-4 border-t border-gray-100"
+                className="flex justify-center gap-3 pt-1 border-t border-gray-100"
               >
                 <Button
                   onClick={() => { if(onEdit) onEdit(point); if(onClose) onClose(); }}
                   variant="outline"
                   size="sm"
-                  className="flex items-center gap-2 px-4 py-2 bg-white/80 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 border-gray-200 hover:border-blue-300 text-gray-700 hover:text-blue-700 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md"
+                  className="flex items-center gap-2 px-2 py-2 bg-white/80 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 border-gray-200 hover:border-blue-300 text-gray-700 hover:text-blue-700 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md"
                 >
                   <Edit3 className="h-4 w-4" />
                   <span className="font-medium">Editar</span>
@@ -243,7 +243,7 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
                   onClick={() => onToggleIgnore(point.id)}
                   variant="outline"
                   size="sm"
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md ${
+                  className={`flex items-center gap-2 px-2 py-2 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md ${
                     point.ignored 
                       ? 'bg-green-50 hover:bg-green-100 border-green-200 hover:border-green-300 text-green-700'
                       : 'bg-red-50 hover:bg-red-100 border-red-200 hover:border-red-300 text-red-700'
@@ -268,6 +268,7 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
 
         {/* Decoración inferior */}
         <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-pink-200 to-transparent"></div>
+      </div>
       </div>
 
       {/* Sombra adicional para profundidad */}
