@@ -34,9 +34,10 @@ const CycleOverviewCard = ({ cycleData }) => {
         };
       case 'spot':
         return {
-          main: '#ec4899',
-          light: '#fce7f3',
-          glow: 'rgba(236, 72, 153, 0.3)'
+          main: 'url(#spotting-pattern-dashboard)',
+          light: 'url(#spotting-pattern-dashboard)',
+          glow: 'rgba(236, 72, 153, 0.3)',
+          border: '#f87171'
         };
       default:
         return {
@@ -79,7 +80,8 @@ const CycleOverviewCard = ({ cycleData }) => {
         day,
         colors,
         isActive: day <= cycleData.currentDay,
-        isToday
+        isToday,
+        hasRecord: !!record
       };
     });
   };
@@ -123,6 +125,12 @@ const CycleOverviewCard = ({ cycleData }) => {
             transition={{ type: 'spring', stiffness: 200, damping: 15, delay: 0.3 }}
           >
             <svg className="w-full h-full" viewBox="0 0 100 100">
+              <defs>
+                <pattern id="spotting-pattern-dashboard" patternUnits="userSpaceOnUse" width="8" height="8">
+                  <circle cx="2" cy="2" r="0.5" fill="rgba(239,68,68,0.8)" />
+                  <circle cx="6" cy="6" r="0.5" fill="rgba(239,68,68,0.6)" />
+                </pattern>
+              </defs>
               {/* Círculo base sutil */}
               <circle
                 cx="50"
@@ -171,8 +179,8 @@ const CycleOverviewCard = ({ cycleData }) => {
                     cx={dot.x}
                     cy={dot.y}
                     r={dot.isToday ? 3.5 : 2.5}
-                    fill={dot.isActive ? (dot.isToday ? dot.colors.light : dot.colors.main) : '#e5e7eb'}
-                    stroke={dot.colors.border || (dot.isActive ? 'rgba(255,255,255,0.4)' : '#cbd5e1')}
+                    fill={dot.colors.pattern || (dot.isActive ? (dot.isToday ? dot.colors.light : dot.colors.main) : '#e5e7eb')}
+                    stroke={dot.colors.border || (dot.isActive ? (dot.hasRecord ? 'rgba(255,255,255,0.4)' : '#cbd5e1') : 'rgba(255,255,255,0.4)')}
                     strokeWidth={dot.colors.border ? 0.6 : (dot.isActive ? 0.8 : 0.8)}
                     initial={{ scale: 0, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
@@ -188,21 +196,6 @@ const CycleOverviewCard = ({ cycleData }) => {
                       }}
                     />
 
-                  {/* Punto interior */}
-                  {dot.isActive && (
-                    <motion.circle
-                      cx={dot.x}
-                      cy={dot.y}
-                      r="0.6"
-                      fill={dot.colors.main === '#ffffff' ? '#e5e7eb' : '#e5e7eb'}
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      transition={{
-                        duration: 0.3,
-                        delay: 1.2 + (index * 0.02)
-                      }}
-                    />
-                  )}
                 </g>
               ))}
             </svg>

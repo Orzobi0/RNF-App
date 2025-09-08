@@ -340,13 +340,13 @@ const ChartPoints = ({
                   fill={symbolInfo.pattern === 'spotting-pattern'
                     ? "url(#spotting-pattern-chart)"
                     : symbolFillStyle}
-                  stroke={symbolInfo.value === 'white' ? '#E91E63' : 'rgba(233, 30, 99, 0.3)'}
-                  strokeWidth={symbolInfo.value === 'white' ? 1.5 : 1}
+                  stroke={symbolInfo.value === 'white' ? '#b4c0cf' : 'rgba(233, 30, 99, 0.3)'}
+                  strokeWidth={symbolInfo.value === 'white' ? 1 : 1}
                   rx={symbolRectSize * 0.25}
                   style={{ filter: 'drop-shadow(0 1px 2px rgba(244, 114, 182, 0.2))' }}
                 />
               ) : (
-                <text 
+                <text
                   x={x} 
                   y={symbolRowYBase} 
                   textAnchor="middle"
