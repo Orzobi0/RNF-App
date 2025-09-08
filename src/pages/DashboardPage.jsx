@@ -106,7 +106,7 @@ const CycleOverviewCard = ({ cycleData }) => {
           })}
         </h1>
         <p className="text-sm font-medium text-pink-700 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1.5 inline-block">
-          Día {cycleData.currentDay} del ciclo
+          Ciclo actual
         </p>
       </motion.div>
 
