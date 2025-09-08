@@ -142,7 +142,7 @@ export const useFertilityChart = (
       // In pantalla completa damos un poco más de altura a cada
       // fila de texto para permitir mostrar palabras más largas
       // en orientación vertical.
-      const textRowHeight = responsiveFontSize(isFullScreen ? 1.6 : 1.6);
+      const textRowHeight = responsiveFontSize(isFullScreen ? 1.6 : 2.5);
       const isLandscapeVisual = forceLandscape || orientation === 'landscape';
       // En horizontal mostramos todas las filas (sensación, apariencia y observaciones)
       // por lo que reservamos más altura bajo la gráfica. Mantenemos portrait como estaba.
@@ -152,8 +152,8 @@ export const useFertilityChart = (
       const padding = { 
         top: isFullScreen ? Math.max(isLandscapeVisual ? 6 : 12, chartHeight * (isLandscapeVisual ? 0.015 : 0.03)) : 12, 
         right: isFullScreen ? Math.max(isLandscapeVisual ? 12 : 30, chartWidth * (isLandscapeVisual ? 0.02 : 0.05)) : 50, 
-        bottom: (isFullScreen ? Math.max(isLandscapeVisual ? 24 : 40, chartHeight * (isLandscapeVisual ? 0.05 : 0.11)) : 60) + totalTextRowsHeight, 
-        left: isFullScreen ? Math.max(isLandscapeVisual ? 12 : 30, chartWidth * (isLandscapeVisual ? 0.02 : 0.05)) : 50
+        bottom: (isFullScreen ? Math.max(isLandscapeVisual ? 24 : 40, chartHeight * (isLandscapeVisual ? 0.05 : 0.11)) : 60) + totalTextRowsHeight + 25, 
+        left: isFullScreen ? Math.max(isLandscapeVisual ? 45 : 30, chartWidth * (isLandscapeVisual ? 0.02 : 0.05)) : 50
       };
       
       const getY = (temp) => {
@@ -164,7 +164,7 @@ export const useFertilityChart = (
       };
 
       const getX = (index) => {
-        const extraMargin = (isFullScreen && !(forceLandscape || orientation === 'landscape')) ? 0 : 0;
+        const extraMargin = (isFullScreen && !(forceLandscape || orientation === 'landscape')) ? 10 : 10;
         const daySpacing = (isFullScreen && !(forceLandscape || orientation === 'landscape')) ? 25 : 0;
         const availableWidth = chartWidth - padding.left - padding.right - extraMargin - daySpacing * (allDataPoints.length - 1);
         if (availableWidth <= 0) return padding.left + extraMargin + daySpacing * index;

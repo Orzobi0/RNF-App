@@ -6,12 +6,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { motion } from 'framer-motion';
-import { LogIn, UserPlus, Mail, KeyRound } from 'lucide-react';
+import { LogIn, UserPlus, Mail, KeyRound, Eye, EyeOff } from 'lucide-react';
 const AuthPage = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const { login, register, resetPassword } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -97,21 +99,30 @@ const AuthPage = () => {
               className="bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400 focus:ring-pink-500 focus:border-pink-500 text-base py-3 px-4"
             />
           </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="password" className="flex items-center text-gray-700 text-lg">
-              <KeyRound className="mr-2 h-5 w-5 text-rose-400" /> Contraseña
-            </Label>
-            <Input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-              className="bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400 focus:ring-pink-500 focus:border-pink-500 text-base py-3 px-4"
-            />
-          </div>
+            <div className="space-y-2">
+              <Label htmlFor="password" className="flex items-center text-gray-700 text-lg">
+                <KeyRound className="mr-2 h-5 w-5 text-rose-400" /> Contraseña
+              </Label>
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  className="bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400 focus:ring-pink-500 focus:border-pink-500 text-base py-3 px-4 pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-3 flex items-center text-gray-500"
+                  aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                >
+                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                </button>
+              </div>
+            </div>
 
           {isLogin && (
             <div className="text-right">
@@ -126,22 +137,32 @@ const AuthPage = () => {
             </div>
           )}
 
-          {!isLogin && (
-            <div className="space-y-2">
-              <Label htmlFor="confirmPassword" className="flex items-center text-gray-700 text-lg">
-                <KeyRound className="mr-2 h-5 w-5 text-rose-400" /> Confirmar Contraseña
-              </Label>
-              <Input
-                id="confirmPassword"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-                className="bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400 focus:ring-pink-500 focus:border-pink-500 text-base py-3 px-4"
-              />
-            </div>
-          )}
+            {!isLogin && (
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword" className="flex items-center text-gray-700 text-lg">
+                  <KeyRound className="mr-2 h-5 w-5 text-rose-400" /> Confirmar Contraseña
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="confirmPassword"
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="••••••••"
+                    required
+                    className="bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400 focus:ring-pink-500 focus:border-pink-500 text-base py-3 px-4 pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute inset-y-0 right-3 flex items-center text-gray-500"
+                    aria-label={showConfirmPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  >
+                    {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  </button>
+                </div>
+              </div>
+            )}
 
           <Button
             type="submit"

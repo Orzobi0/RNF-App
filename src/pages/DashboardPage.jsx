@@ -67,8 +67,8 @@ const CycleOverviewCard = ({ cycleData }) => {
       const isToday = day === cycleData.currentDay;
       if (isToday && !record) {
         colors = {
-          main: '#3b82f6',
-          light: '#bfdbfe',
+          main: '#60a5fa',
+          light: '#60a5fa',
           glow: 'rgba(59, 130, 246, 0.4)'
         };
       }
@@ -163,7 +163,7 @@ const CycleOverviewCard = ({ cycleData }) => {
                     cy={dot.y + 0.3}
                     r={dot.isToday ? 3.5 : 2.5}
                     fill="rgba(0, 0, 0, 0.2)"
-                    opacity={dot.isActive ? 1 : 0.5}
+                    opacity={0.5}
                   />
                   
                   {/* Punto principal */}
@@ -182,13 +182,11 @@ const CycleOverviewCard = ({ cycleData }) => {
                       type: 'spring',
                       stiffness: 400,
                       damping: 25
-                    }}
-                    style={{ 
-                      filter: dot.isActive 
-                        ? 'drop-shadow(0 1px 3px rgba(0,0,0,0.3))' 
-                        : 'drop-shadow(0 1px 2px rgba(0,0,0,0.2))'
-                    }}
-                  />
+                      }}
+                      style={{
+                        filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.2))'
+                      }}
+                    />
 
                   {/* Punto interior */}
                   {dot.isActive && (
@@ -246,18 +244,19 @@ const CycleOverviewCard = ({ cycleData }) => {
 
         {/* Leyenda e información del ciclo con diseño mejorado */}
         <div className="grid grid-cols-2 gap-4 mx-2 mb-20 flex-shrink-0">
-          {/* Leyenda de colores con forma hexagonal sutil */}
+          {/* Leyenda de colores */}
           <motion.div
-            className="bg-gradient-to-br from-white/90 to-white/70 backdrop-blur-md rounded-3xl p-4 border border-white/40"
+            className="relative bg-gradient-to-br from-pink-50/90 to-rose-50/90 backdrop-blur-md rounded-3xl p-4 border border-pink-200/30"
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.4, delay: 0.5 }}
             style={{
-              filter: 'drop-shadow(0 8px 25px rgba(0,0,0,0.08))',
+              filter: 'drop-shadow(0 8px 25px rgba(236,72,153,0.08))',
               boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.7)'
             }}
           >
-            <h3 className="text-xs font-bold text-gray-800 mb-3 text-center tracking-wide uppercase">
+            <h3 className="font-bold mb-3 text-gray-800 flex items-center gap-2 justify-center text-xs tracking-wide uppercase">
+              <div className="w-2.5 h-2.5 bg-gradient-to-br from-pink-500 to-rose-500 rounded-full shadow-sm"/>
               Símbolos
             </h3>
 
@@ -270,23 +269,20 @@ const CycleOverviewCard = ({ cycleData }) => {
                 { color: '#ec4899', label: 'Spotting', symbol: 'spot' }
               ].map(item => (
                 <div key={item.symbol} className="flex flex-col items-center gap-1.5">
-                  <div className="relative">
-                    {/* Círculo exterior decorativo */}
+                  <div
+                    className="w-1.5 h-1.5 rounded-full"
+                    style={{
+                      backgroundColor: item.color,
+                      borderColor: item.symbol === 'white' ? '#e2e8f0' : 'rgba(255,255,255,0.4)'
+                    }}
+                  >
                     <div
                       className="w-5 h-5 rounded-full flex items-center justify-center"
                       style={{
-                        background: `linear-gradient(135deg, ${item.color}dd, ${item.color})`
+                        backgroundColor: '#e5e7eb',
+                        boxShadow: '0 1px 2px rgba(0,0,0,0.2)'
                       }}
-                    >
-                      {/* Punto interior con mejor contraste */}
-                      <div
-                        className="w-2 h-2 rounded-full"
-                        style={{
-                          backgroundColor: item.color === '#f8fafc' ? '#64748b' : 'rgba(255,255,255,0.9)',
-                          boxShadow: '0 1px 2px rgba(0,0,0,0.2)'
-                        }}
-                      />
-                    </div>
+                    />
                   </div>
                   <span className="text-xs font-medium text-gray-700 text-center leading-none">
                     {item.label}
@@ -310,7 +306,7 @@ const CycleOverviewCard = ({ cycleData }) => {
 
           {/* Información del ciclo con diseño tipo card premium */}
           <motion.div
-            className="relative bg-gradient-to-br from-pink-50/80 to-rose-50/60 backdrop-blur-md rounded-3xl p-4 border border-pink-200/40"
+            className="relative bg-gradient-to-br from-pink-50/70 to-rose-50/50 backdrop-blur-md rounded-3xl p-4 border border-pink-200/40"
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.4, delay: 0.6 }}
