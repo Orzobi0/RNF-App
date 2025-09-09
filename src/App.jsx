@@ -105,11 +105,11 @@ function AppContent() {
 function App() {
   return (
     <BrowserRouter>
+    <InstallPrompt />
       <AuthProvider>
         <AppContent />
         <Toaster />
-      </AuthProvider>
-      <InstallPrompt />
+      </AuthProvider>      
     </BrowserRouter>
   );
 }

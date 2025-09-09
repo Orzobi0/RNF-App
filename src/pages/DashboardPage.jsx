@@ -69,9 +69,10 @@ const CycleOverviewCard = ({ cycleData }) => {
       const isToday = day === cycleData.currentDay;
       if (isToday && !record) {
         colors = {
-          main: '#60a5fa',
-          light: '#60a5fa',
-          glow: 'rgba(59, 130, 246, 0.4)'
+          main: 'transparent',
+          light: 'transparent',
+          glow: 'rgba(251, 113, 133, 0.4)',
+          border: 'rgba(251, 113, 133, 0.8)'
         };
       }
 
@@ -132,30 +133,38 @@ const CycleOverviewCard = ({ cycleData }) => {
                   <circle cx="0.5" cy="0.5" r="0.5" fill="rgba(239,68,68,0.8)" />
                   <circle cx="1.5" cy="1.5" r="0.5" fill="rgba(239,68,68,0.6)" />
                 </pattern>
+                <radialGradient id="ringGlow" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stopColor="rgba(255,255,255,0.0)" />
+                <stop offset="60%" stopColor="rgba(244,114,182,0.12)" />
+                <stop offset="100%" stopColor="rgba(190,24,93,0.10)" />
+                </radialGradient>
               </defs>
               {/* Círculo base sutil */}
               <circle
                 cx="50"
                 cy="50"
-                r="16"
-                fill="none"
-                stroke="rgba(255, 255, 255, 0.2)"
+                r="30"
+                fill="url(#ringGlow)"
+                stroke="rgba(255,255,255,0.35)"
                 strokeWidth="0.5"
               />
+              
               
 
               {/* Puntos de progreso */}
               {dots.map((dot, index) => (
                 <g key={index}>
                   {/* Sombra del punto */}
-                  <circle
-                    cx={dot.x + 0.3}
-                    cy={dot.y + 0.3}
-                    r={dot.isToday ? 3.5 : 2.5}
-                    fill="rgba(0, 0, 0, 0.2)"
-                    opacity={0.5}
-                  />
-                  
+                  {!(dot.isToday && !dot.hasRecord) && (
+                    <circle
+                      cx={dot.x + 0.3}
+                      cy={dot.y + 0.3}
+                      r={dot.isToday ? 3.5 : 2.5}
+                      fill="rgba(0, 0, 0, 0.2)"
+                      opacity={0.5}
+                    />
+                  )}
+
                   {/* Punto principal */}
                   <motion.circle
                     cx={dot.x}
@@ -163,7 +172,7 @@ const CycleOverviewCard = ({ cycleData }) => {
                     r={dot.isToday ? 3.5 : 2.5}
                     fill={dot.colors.pattern || (dot.isActive ? (dot.isToday ? dot.colors.light : dot.colors.main) : '#e5e7eb')}
                     stroke={dot.colors.border || (dot.isActive ? (dot.hasRecord ? 'rgba(255,255,255,0.4)' : '#cbd5e1') : 'rgba(255,255,255,0.4)')}
-                    strokeWidth={dot.colors.border ? 0.6 : (dot.isActive ? 0.8 : 0.8)}
+                    strokeWidth={dot.isToday && !dot.hasRecord ? 1.2 : (dot.colors.border ? 0.6 : (dot.isActive ? 0.8 : 0.8))}
                     initial={{ scale: 0, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     transition={{
@@ -185,7 +194,7 @@ const CycleOverviewCard = ({ cycleData }) => {
             {/* Contenido central */}
             <div className="absolute inset-0 flex flex-col items-center justify-center">
               <motion.div
-                className="text-center bg-white/10 backdrop-blur-md rounded-full p-4"
+                className="text-center  backdrop-blur-md rounded-full p-4"
                 initial={{ opacity: 0, scale: 0.5 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 1, type: 'spring', stiffness: 200 }}
@@ -201,7 +210,7 @@ const CycleOverviewCard = ({ cycleData }) => {
 
               {/* Indicador de fase del ciclo */}
               <motion.div
-                className="mt-2 px-2.5 py-1 bg-white/20 backdrop-blur-sm rounded-full border border-white/30"
+                className="mt-2 px-2.5 py-1  backdrop-blur-sm rounded-full border border-pink-200"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 1.3 }}
@@ -230,9 +239,8 @@ const CycleOverviewCard = ({ cycleData }) => {
               boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.7)'
             }}
           >
-            <h3 className="font-bold mb-3 text-gray-800 flex items-center gap-2 justify-center text-xs tracking-wide uppercase">
-              <div className="w-2.5 h-2.5 bg-gradient-to-br from-pink-500 to-rose-500 rounded-full shadow-sm"/>
-              Símbolos
+            <h3 className="font-bold mb-6 text-gray-800 flex items-center gap-2 justify-center text-xs tracking-wide uppercase">
+            Símbolos
             </h3>
 
             {/* Grid de símbolos refinado */}
@@ -270,14 +278,12 @@ const CycleOverviewCard = ({ cycleData }) => {
 
             {/* Día actual con estilo diferenciado */}
             <div className="flex items-center justify-center gap-2 pt-3 mt-3 border-t border-gradient-to-r from-transparent via-gray-200 to-transparent">
-              <div className="relative">
-                <div className="w-3 h-3 rounded-full bg-gradient-to-br from-blue-400 to-blue-500 flex items-center justify-center">
-                  
-                </div>
-                {/* Anillo decorativo */}
-                <div className="absolute inset-0 rounded-full border-2 border-blue-300/50 animate-pulse"/>
-              </div>
-              <span className="text-xs font-semibold text-gray-700">Hoy</span>
+            <div className="relative">
+            <div className="w-3 h-3 rounded-full border border-rose-400/80 bg-transparent" />
+            {/* Anillo decorativo */}
+            <div className="absolute inset-0 rounded-full border-[3px] border-rose-500/80 animate-pulse" />
+            </div>
+            <span className="text-xs font-semibold text-gray-700">Hoy</span>
             </div>
           </motion.div>
 
@@ -441,7 +447,14 @@ const ModernFertilityDashboard = () => {
   };
 
   return (
-    <div className="min-h-[100dvh] bg-gradient-to-br from-rose-50 via-pink-50 to-rose-100 relative overflow-x-hidden">
+    <div className="min-h-[100dvh] bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 relative overflow-x-hidden">
+      <div
+  className="pointer-events-none absolute inset-0"
+  style={{
+    background:
+      'radial-gradient(65% 55% at 50% 32%, rgba(244,114,182,0.18) 0%, rgba(244,114,182,0.12) 35%, rgba(244,114,182,0.06) 60%, rgba(244,114,182,0) 100%)'
+  }}
+/>
       <div className="max-w-md mx-auto h-[100dvh]">
         <motion.div
           initial={{ opacity: 0, x: -20 }}
