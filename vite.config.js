@@ -1,4 +1,5 @@
 import path from 'node:path';
+import fs from 'node:fs';
 import react from '@vitejs/plugin-react';
 import { createLogger, defineConfig } from 'vite';
 
@@ -167,6 +168,30 @@ const addTransformIndexHtml = {
 		};
 	},
 };
+const injectSWAssets = () => ({
+        name: 'inject-sw-assets',
+        apply: 'build',
+        closeBundle() {
+                const manifestPath = path.resolve('dist/manifest.json');
+                const swPath = path.resolve('dist/sw.js');
+                if (!fs.existsSync(manifestPath) || !fs.existsSync(swPath)) {
+                        return;
+                }
+                const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+                const assets = Array.from(
+                        new Set(
+                                Object.values(manifest).flatMap(entry => [
+                                        entry.file,
+                                        ...(entry.css || []),
+                                        ...(entry.assets || []),
+                                ])
+                        )
+                );
+                const sw = fs.readFileSync(swPath, 'utf-8');
+                const withAssets = sw.replace('self.__BUILD_ASSETS', JSON.stringify(assets));
+                fs.writeFileSync(swPath, withAssets);
+        }
+});
 
 console.warn = () => {};
 
@@ -182,15 +207,16 @@ logger.error = (msg, options) => {
 }
 
 export default defineConfig({
-	base: '/',
-	customLogger: logger,
-	plugins: [react(), addTransformIndexHtml],
-	server: {
-		cors: true,
-		headers: {
-			'Cross-Origin-Embedder-Policy': 'credentialless',
-		},
-		allowedHosts: true,
+        base: '/',
+        customLogger: logger,
+        build: { manifest: true },
+        plugins: [react(), addTransformIndexHtml, injectSWAssets()],
+        server: {
+                cors: true,
+                headers: {
+                        'Cross-Origin-Embedder-Policy': 'credentialless',
+                },
+                allowedHosts: true
 	},
 	resolve: {
 		extensions: ['.jsx', '.js', '.tsx', '.ts', '.json', ],

@@ -5,7 +5,9 @@ const ASSETS = [
   `${BASE_URL}index.html`,
   `${BASE_URL}manifest.webmanifest`,
   `${BASE_URL}icon-192x192.png`,
-  `${BASE_URL}icon-512x512.png`
+  `${BASE_URL}icon-512x512.png`,
+  `${BASE_URL}icon-512x512-maskable.png`,
+  `${BASE_URL}apple-touch-icon-180x180.png`
 ];
 // Assets generated during the build step will be injected into this array.
 const BUILD_ASSETS = (self.__BUILD_ASSETS || []).map(
