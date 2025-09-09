@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, FilePlus, CalendarPlus } from 'lucide-react';
 import DataEntryForm from '@/components/DataEntryForm';
@@ -7,9 +7,13 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import useBackClose from '@/hooks/useBackClose';
 import { useCycleData } from '@/hooks/useCycleData';
 import { differenceInDays, parseISO, startOfDay } from 'date-fns';
+import ChartTooltip from '@/components/chartElements/ChartTooltip';
 
 const CycleOverviewCard = ({ cycleData }) => {
   const records = cycleData.records || [];
+  const [activePoint, setActivePoint] = useState(null);
+  const [tooltipPosition, setTooltipPosition] = useState({ clientX: 0, clientY: 0 });
+  const circleRef = useRef(null);
 
     // Ajustes del círculo de progreso
   const radius = 55;
@@ -90,15 +94,53 @@ const CycleOverviewCard = ({ cycleData }) => {
         colors,
         isActive: day <= cycleData.currentDay,
         isToday,
-        hasRecord: !!record
+        hasRecord: !!record,
+        record
       };
     });
   };
 
-    const dots = createProgressDots();
+  const dots = createProgressDots();
 
-    return (
-      <div className="relative min-h-[100dvh] flex flex-col">
+  const handleDotClick = (dot, event) => {
+    event.stopPropagation();
+    if (!dot.record) {
+      setActivePoint(null);
+      return;
+    }
+    const rect = circleRef.current.getBoundingClientRect();
+    let clientX, clientY;
+    if (event.touches && event.touches[0]) {
+      clientX = event.touches[0].clientX;
+      clientY = event.touches[0].clientY;
+    } else {
+      clientX = event.clientX;
+      clientY = event.clientY;
+    }
+    setTooltipPosition({
+      clientX: clientX - rect.left,
+      clientY: clientY - rect.top
+    });
+    setActivePoint(dot.record);
+  };
+
+  useEffect(() => {
+    if (!activePoint) return;
+    const handleOutside = (e) => {
+      if (circleRef.current && !circleRef.current.contains(e.target)) {
+        setActivePoint(null);
+      }
+    };
+    document.addEventListener('mousedown', handleOutside);
+    document.addEventListener('touchstart', handleOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleOutside);
+      document.removeEventListener('touchstart', handleOutside);
+    };
+  }, [activePoint]);
+
+  return (
+    <div className="relative min-h-[100dvh] flex flex-col">
       {/* Fecha actual - Parte superior con padding reducido */}
       <motion.div
         className="px-4 pt-5 pb-4 text-center flex-shrink-0"
@@ -128,12 +170,17 @@ const CycleOverviewCard = ({ cycleData }) => {
         {/* Círculo de progreso redimensionado */}
         <div className="text-center mb-4 flex-shrink-0">
           <motion.div
+          ref={circleRef}
             className="relative inline-flex items-center justify-center w-72 h-72 mb-4"
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ type: 'spring', stiffness: 200, damping: 15, delay: 0.3 }}
           >
-            <svg className="w-full h-full" viewBox={`0 0 ${viewBoxSize} ${viewBoxSize}`}>
+            <svg
+              className="w-full h-full"
+              viewBox={`0 0 ${viewBoxSize} ${viewBoxSize}`}
+              onClick={() => setActivePoint(null)}
+            >
               <defs>
                 <pattern id="spotting-pattern-dashboard" patternUnits="userSpaceOnUse" width="2" height="2">
                   <rect width="4" height="4" fill="#f3f4f6" />
@@ -188,23 +235,36 @@ const CycleOverviewCard = ({ cycleData }) => {
                       : (dot.isToday && !dot.hasRecord
                         ? 1.2
                         : (dot.colors.border ? 0.6 : (dot.isActive ? 0.8 : 0.8)))}
-                    initial={{ scale: 0, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    transition={{
-                      duration: 0.6,
-                      delay: 0.8 + (index * 0.02),
-                      type: 'spring',
-                      stiffness: 400,
-                      damping: 25
-                      }}
-                      style={{
-                        filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.2))'
-                      }}
-                    />
+                  onClick={(e) => handleDotClick(dot, e)}
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{
+                    duration: 0.6,
+                    delay: 0.8 + (index * 0.02),
+                    type: 'spring',
+                    stiffness: 400,
+                    damping: 25
+                    }}
+                    style={{
+                      filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.2))'
+                    }}
+                  />
 
                 </g>
               ))}
             </svg>
+                        {activePoint && (
+              <div onClick={(e) => e.stopPropagation()}>
+                <ChartTooltip
+                  point={activePoint}
+                  position={tooltipPosition}
+                  chartWidth={circleRef.current?.clientWidth || 0}
+                  chartHeight={circleRef.current?.clientHeight || 0}
+                  onClose={() => setActivePoint(null)}
+                />
+              </div>
+            )}
+
             
             {/* Contenido central */}
             <div className="absolute inset-0 flex flex-col items-center justify-center">
