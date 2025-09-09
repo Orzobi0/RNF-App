@@ -11,6 +11,7 @@ const RecordsPage = lazy(() => import('@/pages/RecordsPage'));
 import MainLayout from '@/components/layout/MainLayout';
 import { Toaster } from '@/components/ui/toaster';
 import { motion } from 'framer-motion';
+import InstallPrompt from '@/components/InstallPrompt';
 
 function ProtectedRoute({ children }) {
   const { user } = useAuth();
@@ -104,10 +105,11 @@ function AppContent() {
 function App() {
   return (
     <BrowserRouter>
+    <InstallPrompt />
       <AuthProvider>
         <AppContent />
         <Toaster />
-      </AuthProvider>
+      </AuthProvider>      
     </BrowserRouter>
   );
 }
