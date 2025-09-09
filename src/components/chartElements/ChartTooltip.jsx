@@ -94,8 +94,7 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
       >
         {/* Contenedor principal con glassmorphism */}
         <div className="relative bg-gradient-to-br from-white/95 to-white/85 backdrop-blur-xl rounded-2xl border border-white/60 shadow-2xl overflow-hidden">
-        {/* Borde decorativo superior */}
-        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-pink-400 via-rose-400 to-pink-500"></div>
+        
         
         {/* Botón de cerrar más pequeño */}
         <Button
@@ -135,10 +134,10 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.1 }}
-                className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-1 border border-blue-100/50"
+                className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-1 border border-amber-100/50"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-md">
+                  <div className="w-6 h-6 bg-gradient-to-br from-amber-500 to-orange-600 rounded-lg flex items-center justify-center shadow-md">
                     <Thermometer className="w-4 h-4 text-white" />
                   </div>
                   <div className="flex-1">
@@ -185,10 +184,10 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.2 }}
-                className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl p-1 border border-emerald-100/50"
+                className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-1 border border-blue-100/50"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-6 h-6 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center shadow-md">
+                  <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-md">
                     <Droplets className="w-4 h-4 text-white" />
                   </div>
                   <div className="flex-1">
@@ -205,10 +204,10 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.25 }}
-                className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-1 border border-amber-100/50"
+                className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl p-1 border border-emerald-100/50"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-6 h-6 bg-gradient-to-br from-amber-500 to-orange-600 rounded-lg flex items-center justify-center shadow-md">
+                  <div className="w-6 h-6 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center shadow-md">
                     <Circle className="w-4 h-4 text-white" />
                   </div>
                   <div className="flex-1">
