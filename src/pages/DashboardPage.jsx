@@ -11,6 +11,12 @@ import { differenceInDays, parseISO, startOfDay } from 'date-fns';
 const CycleOverviewCard = ({ cycleData }) => {
   const records = cycleData.records || [];
 
+    // Ajustes del círculo de progreso
+  const radius = 55;
+  const padding = 10; // margen alrededor del círculo
+  const center = radius + padding;
+  const viewBoxSize = center * 2;
+
   // Colores suaves con mejor contraste
   const getSymbolColor = (symbolValue) => {
     switch (symbolValue) {
@@ -54,19 +60,18 @@ const CycleOverviewCard = ({ cycleData }) => {
   // Crear puntos individuales en lugar de segmentos
   const createProgressDots = () => {
     const totalDays = Math.max(cycleData.currentDay, 28);
-    const radius = 45; 
 
     return Array.from({ length: totalDays }, (_, index) => {
       const day = index + 1;
       const record = records.find(r => r.cycleDay === day);
-      const angle = (index / totalDays) * 2 * Math.PI - Math.PI/2;
-      
-      const x = 50 + radius * Math.cos(angle);
-      const y = 50 + radius * Math.sin(angle);
+      const angle = (index / totalDays) * 2 * Math.PI - Math.PI / 2;
+
+      const x = center + radius * Math.cos(angle);
+      const y = center + radius * Math.sin(angle);
       
       let colors = day <= cycleData.currentDay && record
         ? getSymbolColor(record.fertility_symbol)
-        : { main: '#e5e7eb', light: '#f1f5f9', glow: 'rgba(229, 231, 235, 0.3)' };
+        : { main: '#b5b6ba', light: '#c8cacf', glow: 'rgba(229, 231, 235, 0.3)' };
 
       const isToday = day === cycleData.currentDay;
       if (isToday && !record) {
@@ -90,10 +95,10 @@ const CycleOverviewCard = ({ cycleData }) => {
     });
   };
 
-  const dots = createProgressDots();
+    const dots = createProgressDots();
 
-  return (
-    <div className="relative min-h-[100dvh] flex flex-col">
+    return (
+      <div className="relative min-h-[100dvh] flex flex-col">
       {/* Fecha actual - Parte superior con padding reducido */}
       <motion.div
         className="px-4 pt-5 pb-4 text-center flex-shrink-0"
@@ -114,8 +119,8 @@ const CycleOverviewCard = ({ cycleData }) => {
       </motion.div>
 
       {/* Contenedor principal con flex-grow para usar todo el espacio disponible */}
-      <motion.div
-        className="px-4 flex-grow flex flex-col justify-start"
+        <motion.div
+          className="px-4 flex-grow flex flex-col justify-start mt-4"
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.4, delay: 0.1 }}
@@ -123,12 +128,12 @@ const CycleOverviewCard = ({ cycleData }) => {
         {/* Círculo de progreso redimensionado */}
         <div className="text-center mb-4 flex-shrink-0">
           <motion.div
-            className="relative inline-flex items-center justify-center w-64 h-64 mb-4"
+            className="relative inline-flex items-center justify-center w-72 h-72 mb-4"
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ type: 'spring', stiffness: 200, damping: 15, delay: 0.3 }}
           >
-            <svg className="w-full h-full" viewBox="0 0 100 100">
+            <svg className="w-full h-full" viewBox={`0 0 ${viewBoxSize} ${viewBoxSize}`}>
               <defs>
                 <pattern id="spotting-pattern-dashboard" patternUnits="userSpaceOnUse" width="2" height="2">
                   <rect width="4" height="4" fill="#f3f4f6" />
@@ -143,9 +148,9 @@ const CycleOverviewCard = ({ cycleData }) => {
               </defs>
               {/* Círculo base sutil */}
               <circle
-                cx="50"
-                cy="50"
-                r="30"
+                cx={center}
+                cy={center}
+                r={radius - 15}
                 fill="url(#ringGlow)"
                 stroke="rgba(255,255,255,0.35)"
                 strokeWidth="0.5"
@@ -161,7 +166,7 @@ const CycleOverviewCard = ({ cycleData }) => {
                     <circle
                       cx={dot.x + 0.3}
                       cy={dot.y + 0.3}
-                      r={dot.isToday ? 3.5 : 2.5}
+                      r={dot.isToday ? 4.5 : 3.5}
                       fill="rgba(0, 0, 0, 0.2)"
                       opacity={0.5}
                     />
@@ -171,12 +176,12 @@ const CycleOverviewCard = ({ cycleData }) => {
                   <motion.circle
                     cx={dot.x}
                     cy={dot.y}
-                    r={dot.isToday ? 3.5 : 2.5}
-                    fill={dot.colors.pattern || (dot.isActive ? (dot.isToday ? dot.colors.light : dot.colors.main) : '#e5e7eb')}
+                    r={dot.isToday ? 4.5 : 3.5}
+                    fill={dot.colors.pattern || (dot.isActive ? (dot.isToday ? dot.colors.light : dot.colors.main) : 'none')}
                        stroke={dot.colors.border === 'none'
                       ? 'none'
                       : dot.colors.border || (dot.isActive
-                        ? (dot.hasRecord ? 'rgba(255,255,255,0.4)' : '#cbd5e1')
+                        ? (dot.hasRecord ? 'rgba(255,255,255,0.4)' : 'none')
                         : 'rgba(255,255,255,0.4)')}
                     strokeWidth={dot.colors.border === 'none'
                       ? 0
@@ -294,6 +299,7 @@ const CycleOverviewCard = ({ cycleData }) => {
             <div className="absolute inset-0 rounded-full border-[3px] border-rose-500/80 animate-pulse" />
             </div>
             <span className="text-xs font-semibold text-gray-700">Hoy</span>
+            <div className="absolute top-3 right-4 w-2 h-2 bg-gradient-to-br from-pink-300/40 to-rose-400/40 rounded-full"/>
             </div>
           </motion.div>
 
@@ -339,7 +345,7 @@ const CycleOverviewCard = ({ cycleData }) => {
             </div>
             
             {/* Decoración sutil en la esquina */}
-            <div className="absolute top-2 right-2 w-2 h-2 bg-gradient-to-br from-pink-300/40 to-rose-400/40 rounded-full"/>
+            <div className="absolute top-3 right-4 w-2 h-2 bg-gradient-to-br from-pink-500/40 to-rose-400/40 rounded-full"/>
           </motion.div>
         </div>
       </motion.div>
