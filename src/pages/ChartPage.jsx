@@ -18,7 +18,7 @@ const ChartPage = () => {
   }, [orientation, isFullScreen]);
 
   if (!currentCycle?.id) {
-    return <p className="text-center text-gray-500">No hay ciclo activo.</p>;
+    return <p className="text-center text-pink-600">No hay ciclo activo.</p>;
   }
 
   const CYCLE_DURATION_DAYS = 28;

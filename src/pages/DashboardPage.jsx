@@ -16,8 +16,8 @@ const CycleOverviewCard = ({ cycleData }) => {
   const circleRef = useRef(null);
 
     // Ajustes del círculo de progreso
-  const radius = 55;
-  const padding = 10; // margen alrededor del círculo
+  const radius = 80; // radio del círculo
+  const padding = 8; // margen alrededor del círculo
   const center = radius + padding;
   const viewBoxSize = center * 2;
 
@@ -213,7 +213,7 @@ const CycleOverviewCard = ({ cycleData }) => {
                     <circle
                       cx={dot.x + 0.3}
                       cy={dot.y + 0.3}
-                      r={dot.isToday ? 4.5 : 3.5}
+                      r={dot.isToday ? 7 : 6}
                       fill="rgba(0, 0, 0, 0.2)"
                       opacity={0.5}
                     />
@@ -223,7 +223,7 @@ const CycleOverviewCard = ({ cycleData }) => {
                   <motion.circle
                     cx={dot.x}
                     cy={dot.y}
-                    r={dot.isToday ? 4.5 : 3.5}
+                    r={dot.isToday ? 7 : 6}
                     fill={dot.colors.pattern || (dot.isActive ? (dot.isToday ? dot.colors.light : dot.colors.main) : 'none')}
                        stroke={dot.colors.border === 'none'
                       ? 'none'
@@ -275,10 +275,10 @@ const CycleOverviewCard = ({ cycleData }) => {
                 transition={{ delay: 1, type: 'spring', stiffness: 200 }}
                 style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}
               >
-                <span className="text-3xl font-bold text-pink-700 block">
+                <span className="text-5xl font-bold text-pink-700 block">
                   {cycleData.currentDay}
                 </span>
-                <span className="text-xs text-pink-700 font-medium mt-0.5 block">
+                <span className="text-800 text-pink-700 font-medium mt-0.5 block">
                   día del ciclo
                 </span>
               </motion.div>
@@ -291,7 +291,7 @@ const CycleOverviewCard = ({ cycleData }) => {
                 transition={{ delay: 1.3 }}
                 style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.1))' }}
               >
-                <span className="text-xs font-medium text-gray-800">
+                <span className="text-md font-medium text-pink-900">
                   {cycleData.currentDay <= 7 ? 'Menstrual' : 
                    cycleData.currentDay <= 14 ? 'Folicular' :
                    cycleData.currentDay <= 21 ? 'Ovulatoria' : 'Lútea'}
@@ -375,8 +375,8 @@ const CycleOverviewCard = ({ cycleData }) => {
             }}
           >
             <h3 className="font-bold mb-3 text-gray-800 flex items-center gap-2 justify-center text-xs tracking-wide uppercase">
-              <div className="w-2.5 h-2.5 bg-gradient-to-br from-pink-500 to-rose-500 rounded-full shadow-sm"/>
-              Informacion del ciclo
+              
+              Cálculo
             </h3>
             
             <div className="space-y-3">

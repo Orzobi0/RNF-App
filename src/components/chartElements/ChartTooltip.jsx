@@ -168,7 +168,7 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
                   <div className={`w-6 h-6 ${symbolColors.bg} rounded-lg flex items-center justify-center shadow-lg ${symbolColors.glow} shadow-lg`}>
                     <div className="w-2 h-2 bg-white/90 rounded-full shadow-sm"></div>
                   </div>
-                  <div className="flex-1">
+                  <div className="flex-1 text-left">
                     <span className={`text-md font-semibold ${symbolColors.text}`}>
                       {symbolInfo.label}
                     </span>
@@ -190,9 +190,9 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
                   <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-md">
                     <Droplets className="w-4 h-4 text-white" />
                   </div>
-                  <div className="flex-1">
-                    
-                    <span className="text-sm font-semibold text-gray-800">
+                  <div className="flex-1 text-left">
+
+                    <span className="text-md font-semibold text-blue-800">
                       {point.mucus_sensation || '-'}
                     </span>
                   </div>
@@ -210,14 +210,35 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
                   <div className="w-6 h-6 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center shadow-md">
                     <Circle className="w-4 h-4 text-white" />
                   </div>
-                  <div className="flex-1">
-                    
-                    <span className="text-sm font-semibold text-gray-800">
+                  <div className="flex-1 text-left">
+
+                    <span className="text-md font-semibold text-green-800">
                       {point.mucus_appearance || '-'}
                     </span>
                   </div>
                 </div>
               </motion.div>
+              
+              {/* Observaciones */}
+              {point.observations && (
+                <motion.div
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="bg-gradient-to-r from-violet-50 to-purple-50 rounded-xl p-1 border border-violet-100/50"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-6 h-6 bg-gradient-to-br from-violet-500 to-purple-600 rounded-lg flex items-center justify-center shadow-md">
+                      <Edit3 className="w-4 h-4 text-white" />
+                    </div>
+                    <div className="flex-1 text-left">
+                      <span className="text-sm font-semibold text-gray-800">
+                        {point.observations}
+                      </span>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
             </div>
 
             {/* Botones de acción */}
