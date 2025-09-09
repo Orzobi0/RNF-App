@@ -267,7 +267,7 @@ const CycleOverviewCard = ({ cycleData }) => {
 
             
             {/* Contenido central */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
               <motion.div
                 className="text-center  backdrop-blur-md rounded-full p-4"
                 initial={{ opacity: 0, scale: 0.5 }}
