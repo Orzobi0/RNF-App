@@ -18,7 +18,8 @@ const CycleOverviewCard = ({ cycleData }) => {
         return {
           main: '#ef4444',
           light: '#fee2e2',
-          glow: 'rgba(239, 68, 68, 0.3)'
+          glow: 'rgba(239, 68, 68, 0.3)',
+          border: 'none'
         };
       case 'white':
         return {
@@ -30,7 +31,8 @@ const CycleOverviewCard = ({ cycleData }) => {
         return {
           main: '#22c55e',
           light: '#22c55e',
-          glow: 'rgba(34, 197, 94, 0.3)'
+          glow: 'rgba(34, 197, 94, 0.3)',
+          border: 'none'
         };
       case 'spot':
         return {
@@ -171,8 +173,16 @@ const CycleOverviewCard = ({ cycleData }) => {
                     cy={dot.y}
                     r={dot.isToday ? 3.5 : 2.5}
                     fill={dot.colors.pattern || (dot.isActive ? (dot.isToday ? dot.colors.light : dot.colors.main) : '#e5e7eb')}
-                    stroke={dot.colors.border || (dot.isActive ? (dot.hasRecord ? 'rgba(255,255,255,0.4)' : '#cbd5e1') : 'rgba(255,255,255,0.4)')}
-                    strokeWidth={dot.isToday && !dot.hasRecord ? 1.2 : (dot.colors.border ? 0.6 : (dot.isActive ? 0.8 : 0.8))}
+                       stroke={dot.colors.border === 'none'
+                      ? 'none'
+                      : dot.colors.border || (dot.isActive
+                        ? (dot.hasRecord ? 'rgba(255,255,255,0.4)' : '#cbd5e1')
+                        : 'rgba(255,255,255,0.4)')}
+                    strokeWidth={dot.colors.border === 'none'
+                      ? 0
+                      : (dot.isToday && !dot.hasRecord
+                        ? 1.2
+                        : (dot.colors.border ? 0.6 : (dot.isActive ? 0.8 : 0.8)))}
                     initial={{ scale: 0, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     transition={{
