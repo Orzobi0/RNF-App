@@ -14,7 +14,7 @@ const ChartAxes = ({
   allDataPoints = [],
   responsiveFontSize,
   isFullScreen,
-  showLeftLabels = true,
+  showLeftLabels = false,
   reduceMotion = false
 }) => {
   const itemVariants = {
@@ -43,40 +43,7 @@ const ChartAxes = ({
 
   return (
     <>
-          {/* Unidad °C con diseño premium similar a la dashboard */}
-      {showLeftLabels && (
-        <G {...(reduceMotion ? {} : { variants: itemVariants })}>
-          {/* Fondo decorativo para la etiqueta °C */}
-          <rect
-            x={padding.left - responsiveFontSize(0.4)}
-            y={padding.top - responsiveFontSize(0.4)}
-            width={responsiveFontSize(3.2)}
-            height={responsiveFontSize(2.4)}
-            rx={responsiveFontSize(0.6)}
-            fill="rgba(244, 114, 182, 0.15)"
-            stroke="rgba(244, 114, 182, 0.3)"
-            strokeWidth={1.5}
-            style={{ 
-              filter: 'drop-shadow(0 4px 8px rgba(244, 114, 182, 0.2))',
-              backdropFilter: 'blur(10px)'
-            }}
-          />
-          <text
-            x={padding.left + responsiveFontSize(1.2)}
-            y={padding.top + responsiveFontSize(1.3)}
-            textAnchor="middle"
-            fontSize={responsiveFontSize(1.4)}
-            fontWeight="800"
-            fill="#E91E63"
-            style={{ 
-              filter: 'url(#textShadow)',
-              fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-            }}
-          >
-            °C
-          </text>
-        </G>
-      )}
+
       {/* Definiciones mejoradas con gradientes inspirados en la dashboard */}
       <defs>
         <linearGradient id="bgGradientChart" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -219,7 +186,26 @@ const ChartAxes = ({
           strokeDasharray: '0'
         }}
       />
+          {/* Unidad °C con diseño premium similar a la dashboard */}
+      {showLeftLabels && (
+        <G {...(reduceMotion ? {} : { variants: itemVariants })}>
 
+          <text
+            x={padding.left + responsiveFontSize(1.2)}
+            y={padding.top + responsiveFontSize(1.5)}
+            textAnchor="middle"
+            fontSize={responsiveFontSize(1.4)}
+            fontWeight="800"
+            fill="#E91E63"
+            style={{ 
+              filter: 'url(#textShadow)',
+              fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+            }}
+          >
+            °C
+          </text>
+        </G>
+      )}
 
     </>
   );
