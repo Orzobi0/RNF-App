@@ -4,20 +4,20 @@ import React from 'react';
 
     const DataEntryFormActions = ({ onCancel, isProcessing, isEditing }) => {
       return (
-        <div className="flex space-x-4 pt-4">
+        <div className="flex space-x-3 pt-2">
           {onCancel && (
             <Button
               type="button"
               onClick={onCancel}
               variant="outline"
-              className="w-full border-gray-300 text-gray-700 hover:bg-gray-100 font-semibold py-3 text-lg"
+              className="w-full border-pink-200 bg-white/70 text-gray-700 hover:bg-rose-50 font-semibold py-3 text-lg"
               disabled={isProcessing}
             >
               <XCircle className="mr-2 h-5 w-5" />
               Cancelar
             </Button>
           )}
-                    <Button
+            <Button
             type="submit"
             className="w-full bg-gradient-to-r from-pink-500 to-fuchsia-600 hover:from-pink-600 hover:to-fuchsia-700 text-white font-semibold py-3 text-lg shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-102"
             disabled={isProcessing}

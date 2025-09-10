@@ -546,7 +546,10 @@ const ModernFertilityDashboard = () => {
         open={showForm}
         onOpenChange={(open) => setShowForm(open)}
       >
-        <DialogContent hideClose className="bg-white border-pink-100 text-gray-800 w-[90vw] sm:w-auto max-w-md sm:max-w-lg md:max-w-xl max-h-[85vh] overflow-y-auto p-4 sm:p-6 rounded-2xl">
+          <DialogContent
+          hideClose
+          className="bg-transparent border-none p-0 text-gray-800 w-[90vw] sm:w-auto max-w-md sm:max-w-lg md:max-w-xl max-h-[85vh] overflow-y-auto"
+        >
           <DataEntryForm
             onSubmit={handleSave}
             onCancel={() => setShowForm(false)}

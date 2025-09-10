@@ -3,7 +3,7 @@ import DataEntryFormFields from '@/components/dataEntryForm/DataEntryFormFields'
 import DataEntryFormActions from '@/components/dataEntryForm/DataEntryFormActions';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
-import { XCircle } from 'lucide-react';
+import { XCircle, Edit3 } from 'lucide-react';
 import { useDataEntryForm } from '@/hooks/useDataEntryForm';
 
 const DataEntryForm = ({ onSubmit, initialData, onCancel, cycleStartDate, cycleEndDate, isProcessing, isEditing = false }) => {
@@ -41,24 +41,29 @@ const DataEntryForm = ({ onSubmit, initialData, onCancel, cycleStartDate, cycleE
         <motion.form
           ref={formRef}
           onSubmit={handleSubmit}
-          className="space-y-6 bg-white p-4 sm:p-6 rounded-xl border border-[#FFB1DD]/50 shadow w-full"
+          className="space-y-4 bg-gradient-to-br from-white/98 to-rose-50/95 backdrop-blur-xl p-4 sm:p-6 rounded-3xl border border-pink-100 shadow-2xl w-full"
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-        <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-semibold text-[#292a46]">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-gradient-to-br from-pink-500 to-rose-500 rounded-full flex items-center justify-center shadow-lg">
+              <Edit3 className="w-4 h-4 text-white" />
+            </div>
+            <h2 className="text-xl font-bold text-gray-800">
               {isEditing ? 'Editar Registro' : 'Añadir Registro'}
             </h2>
+          </div>
             {onCancel && (
               <Button
                 type="button"
                 onClick={onCancel}
                 variant="ghost"
                 size="icon"
-                className="text-gray-700 hover:text-pink-500 hover:bg-pink-50"
+                className="text-gray-400 hover:text-pink-600 hover:bg-pink-50 rounded-full"
               >
-                <XCircle className="h-6 w-6" />
+                <XCircle className="h-5 w-5" />
               </Button>
             )}
           </div>
