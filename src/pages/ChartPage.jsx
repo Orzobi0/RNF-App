@@ -7,7 +7,7 @@ import { RotateCcw } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 
 const ChartPage = () => {
-  const { currentCycle } = useCycleData();
+  const { currentCycle, isLoading } = useCycleData();
   // Orientación controlada por UI, independiente del dispositivo
   const [orientation, setOrientation] = useState(
     typeof window !== 'undefined' && window.innerWidth > window.innerHeight ? 'landscape' : 'portrait'
@@ -16,6 +16,9 @@ const ChartPage = () => {
   useLayoutEffect(() => {
     window.dispatchEvent(new Event('resize'));
   }, [orientation, isFullScreen]);
+  if (isLoading) {
+    return <p className="text-center text-gray-500">Cargando…</p>;
+  }
 
   if (!currentCycle?.id) {
     return <p className="text-center text-pink-600">No hay ciclo activo.</p>;

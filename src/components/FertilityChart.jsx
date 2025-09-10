@@ -87,7 +87,7 @@ const FertilityChart = ({
 
   // Clase del contenedor de scroll ajustada para rotación artificial
   const rotatedContainer = applyRotation;
-  const baseFullClass = 'w-full h-full bg-gradient-to-br from-white via-pink-50/30 to-rose-50/20';
+  const baseFullClass = 'w-full h-full bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100';
   const containerClass = isFullScreen
     ? `${baseFullClass} min-h-full ${rotatedContainer ? 'flex items-stretch justify-start overflow-y-auto overflow-x-hidden' : 'flex items-center justify-start overflow-x-auto overflow-y-hidden'}`
     : `${baseFullClass} overflow-x-auto overflow-y-hidden border border-pink-100/50`;
