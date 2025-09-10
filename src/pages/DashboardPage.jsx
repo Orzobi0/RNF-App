@@ -16,8 +16,8 @@ const CycleOverviewCard = ({ cycleData }) => {
   const circleRef = useRef(null);
 
     // Ajustes del círculo de progreso
-  const radius = 80; // radio del círculo
-  const padding = 8; // margen alrededor del círculo
+  const radius = 140; // radio del círculo
+  const padding = 15; // margen alrededor del círculo
   const center = radius + padding;
   const viewBoxSize = center * 2;
 
@@ -170,8 +170,9 @@ const CycleOverviewCard = ({ cycleData }) => {
         {/* Círculo de progreso redimensionado */}
         <div className="text-center mb-4 flex-shrink-0">
           <motion.div
-          ref={circleRef}
-            className="relative inline-flex items-center justify-center w-72 h-72 mb-4"
+            ref={circleRef}
+            className="relative inline-flex items-center justify-center mb-4"
+            style={{ width: viewBoxSize, height: viewBoxSize }}
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ type: 'spring', stiffness: 200, damping: 15, delay: 0.3 }}
@@ -182,10 +183,9 @@ const CycleOverviewCard = ({ cycleData }) => {
               onClick={() => setActivePoint(null)}
             >
               <defs>
-                <pattern id="spotting-pattern-dashboard" patternUnits="userSpaceOnUse" width="2" height="2">
-                  <rect width="4" height="4" fill="#f3f4f6" />
-                  <circle cx="0.5" cy="0.5" r="0.5" fill="rgba(239,68,68,0.8)" />
-                  <circle cx="1.5" cy="1.5" r="0.5" fill="rgba(239,68,68,0.6)" />
+                <pattern id="spotting-pattern-dashboard" patternUnits="userSpaceOnUse" width="6" height="6">
+                  <rect width="6" height="6" fill="#f3f4f6" />
+                  <circle cx="3" cy="3" r="1.5" fill="rgba(239,68,68,0.7)" />
                 </pattern>
                 <radialGradient id="ringGlow" cx="50%" cy="50%" r="50%">
                 <stop offset="0%" stopColor="rgba(255,255,255,0.0)" />
@@ -197,7 +197,7 @@ const CycleOverviewCard = ({ cycleData }) => {
               <circle
                 cx={center}
                 cy={center}
-                r={radius - 15}
+                r={radius - 30}
                 fill="url(#ringGlow)"
                 stroke="rgba(255,255,255,0.35)"
                 strokeWidth="0.5"
@@ -213,9 +213,22 @@ const CycleOverviewCard = ({ cycleData }) => {
                     <circle
                       cx={dot.x + 0.3}
                       cy={dot.y + 0.3}
-                      r={dot.isToday ? 7 : 6}
+                      r={dot.isToday ? 11 : 10}
                       fill="rgba(0, 0, 0, 0.2)"
                       opacity={0.5}
+                    />
+                  )}
+                  {/* Anillo pulsante para el día actual */}
+                  {dot.isToday && (
+                    <circle
+                      cx={dot.x}
+                      cy={dot.y}
+                      r={8.5}
+                      fill="none"
+                      stroke="rgba(244,63,94,0.8)"
+                      strokeWidth={3}
+                      className="animate-pulse"
+                      style={{ pointerEvents: 'none' }}
                     />
                   )}
 
@@ -223,7 +236,7 @@ const CycleOverviewCard = ({ cycleData }) => {
                   <motion.circle
                     cx={dot.x}
                     cy={dot.y}
-                    r={dot.isToday ? 7 : 6}
+                    r={dot.isToday ? 11 : 10}
                     fill={dot.colors.pattern || (dot.isActive && dot.hasRecord ? (dot.isToday ? dot.colors.light : dot.colors.main) : 'none')}
                     stroke={dot.colors.border === 'none' ? 'none' : dot.colors.border || 'rgba(158,158,158,0.4)'}
                     strokeWidth={dot.colors.border === 'none'
@@ -298,7 +311,7 @@ const CycleOverviewCard = ({ cycleData }) => {
         </div>
 
         {/* Leyenda e información del ciclo con diseño mejorado */}
-        <div className="grid grid-cols-2 gap-4 mx-2 mb-20 flex-shrink-0">
+        <div className="grid grid-cols-2 gap-4 mx-2 mb-20 mt-2 flex-shrink-0">
           {/* Leyenda de colores */}
           <motion.div
             className="relative bg-gradient-to-br from-pink-50/90 to-rose-50/90 backdrop-blur-md rounded-3xl p-4 border border-pink-200/30"
@@ -324,21 +337,11 @@ const CycleOverviewCard = ({ cycleData }) => {
               ].map(item => (
                 <div key={item.label} className="flex flex-col items-center gap-1.5">
                   <div
-                    className="w-4 h-4 rounded-full border"
-                    style={
-                      item.pattern
-                        ? {
-                            borderColor: item.stroke,
-                            backgroundColor: item.color,
-                            backgroundImage:
-                              'radial-gradient(circle, rgba(239,68,68,0.7) 1px, transparent 1px)',
-                            backgroundSize: '3px 3px'
-                          }
-                        : {
-                            backgroundColor: item.color,
-                            borderColor: item.stroke || 'transparent'
-                          }
-                    }
+                    className={`w-4 h-4 rounded-full border ${item.pattern ? 'pattern-bg' : ''}`}
+                    style={{
+                      backgroundColor: item.color,
+                      borderColor: item.stroke || 'transparent'
+                    }}
                   />
                   <span className="text-xs font-medium text-gray-700 text-center leading-none">
                     {item.label}

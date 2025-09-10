@@ -55,14 +55,14 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
           text: 'text-green-700',
           glow: 'shadow-green-200/50'
         };
-      case 'spot':
-        return {
-          bg: 'bg-pink-500',
-          light: 'bg-pink-50',
-          border: 'border-pink-200',
-          text: 'text-pink-700',
-          glow: 'shadow-pink-200/50'
-        };
+    case 'spot':
+      return {
+          bg: 'bg-red-50 pattern-bg',
+          light: 'bg-red-50',
+          border: 'border-red-200',
+          text: 'text-red-700',
+          glow: 'shadow-red-200/50'
+      };
       default:
         return {
           bg: 'bg-gray-400',

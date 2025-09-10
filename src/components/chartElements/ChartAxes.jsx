@@ -104,13 +104,10 @@ const ChartAxes = ({
           <feDropShadow dx="0" dy="1" stdDeviation="1" floodColor="rgba(255, 255, 255, 0.8)" />
         </filter>
 
-        {/* Pattern para spotting mejorado */}
-        <pattern id="spotting-pattern-chart" patternUnits="userSpaceOnUse" width="4" height="4">
-          <rect width="4" height="4" fill="#fef2f2" />
-          <circle cx="1" cy="1" r="0.6" fill="rgba(239,68,68,0.8)" />
-          <circle cx="3" cy="3" r="0.4" fill="rgba(239,68,68,0.6)" />
-          <circle cx="1" cy="3" r="0.3" fill="rgba(239,68,68,0.4)" />
-          <circle cx="3" cy="1" r="0.3" fill="rgba(239,68,68,0.5)" />
+        {/* Patrón unificado para spotting */}
+        <pattern id="spotting-pattern-chart" patternUnits="userSpaceOnUse" width="6" height="6">
+          <rect width="6" height="6" fill="#f3f4f6" />
+          <circle cx="3" cy="3" r="1.5" fill="rgba(239,68,68,0.7)" />
         </pattern>
       </defs>
 

@@ -180,7 +180,7 @@ const ChartPoints = ({
       )}
 
       {/* Leyenda izquierda con tipografía premium */}
-      {(!isFullScreen || orientation !== 'portrait') && (
+      {isFullScreen && orientation !== 'portrait' && (
         <motion.g variants={itemVariants}>
           {[
             { label: 'Fecha', row: 1, color: isFullScreen ? "#374151" : "#6B7280" },
@@ -283,7 +283,7 @@ const ChartPoints = ({
                 <circle
                   cx={x} 
                   cy={y}
-                  r={2}
+                  r={1.5}
                   fill="rgba(244, 114, 182, 0.2)"
                   opacity={0.8}
                   style={{ filter: 'url(#pointGlow)' }}
@@ -293,7 +293,7 @@ const ChartPoints = ({
                 <circle
                   cx={x} 
                   cy={y}
-                  r={7}
+                  r={3.5}
                   fill="none"
                   stroke={point.ignored ? 'rgba(148, 163, 184, 0.4)' : 'rgba(244, 114, 182, 0.3)'}
                   strokeWidth={1.5}
@@ -304,7 +304,7 @@ const ChartPoints = ({
                 <circle
                   cx={x} 
                   cy={y}
-                  r={5.5}
+                  r={4}
                   fill={point.ignored ? 'url(#tempPointIgnoredGradient)' : 'url(#tempPointGradientChart)'}
                   stroke={point.use_corrected ? '#F59E0B' : (point.ignored ? '#94A3B8' : '#E91E63')}
                   strokeWidth={point.ignored ? 2 : 3}
@@ -323,7 +323,7 @@ const ChartPoints = ({
                   <circle
                     cx={x} 
                     cy={y}
-                    r={2}
+                    r={1.5}
                     fill="rgba(255, 255, 255, 0.9)"
                     style={{ filter: 'drop-shadow(0 1px 2px rgba(244, 114, 182, 0.3))' }}
                   />

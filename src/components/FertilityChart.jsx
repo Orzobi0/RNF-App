@@ -163,10 +163,10 @@ const FertilityChart = ({
               <stop offset="100%" stopColor="rgba(233,30,99,0.05)" />
             </linearGradient>
 
-            {/* Patrón mejorado para spotting */}
-            <pattern id="spotting-pattern-chart" patternUnits="userSpaceOnUse" width="8" height="8">
-              <circle cx="2" cy="2" r="1.5" fill="rgba(239,68,68,0.8)" />
-              <circle cx="6" cy="6" r="1.5" fill="rgba(239,68,68,0.6)" />
+            {/* Patrón unificado para spotting */}
+            <pattern id="spotting-pattern-chart" patternUnits="userSpaceOnUse" width="6" height="6">
+              <rect width="6" height="6" fill="#f3f4f6" />
+              <circle cx="3" cy="3" r="1.5" fill="rgba(239,68,68,0.7)" />
             </pattern>
 
             {/* Filtros para efectos de sombra */}
