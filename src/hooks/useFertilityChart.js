@@ -151,9 +151,9 @@ export const useFertilityChart = (
 
       const padding = { 
         top: isFullScreen ? Math.max(isLandscapeVisual ? 6 : 12, chartHeight * (isLandscapeVisual ? 0.015 : 0.03)) : 12, 
-        right: isFullScreen ? Math.max(isLandscapeVisual ? 12 : 30, chartWidth * (isLandscapeVisual ? 0.02 : 0.05)) : 50, 
-        bottom: (isFullScreen ? Math.max(isLandscapeVisual ? 24 : 40, chartHeight * (isLandscapeVisual ? 0.05 : 0.11)) : 60) + totalTextRowsHeight + 25, 
-        left: isFullScreen ? Math.max(isLandscapeVisual ? 45 : 30, chartWidth * (isLandscapeVisual ? 0.02 : 0.05)) : 50
+        right: isFullScreen ? Math.max(isLandscapeVisual ? 35 : 30, chartWidth * (isLandscapeVisual ? 0.02 : 0.05)) : 50, 
+        bottom: (isFullScreen ? Math.max(isLandscapeVisual ? 0 : 40, chartHeight * (isLandscapeVisual ? 0 : 0.11)) : 60) + totalTextRowsHeight + 25, 
+        left: isFullScreen ? Math.max(isLandscapeVisual ? 45 : 20, chartWidth * (isLandscapeVisual ? 0.02 : 0.05)) : 50
       };
       
       const getY = (temp) => {
@@ -164,7 +164,7 @@ export const useFertilityChart = (
       };
 
       const getX = (index) => {
-        const extraMargin = (isFullScreen && !(forceLandscape || orientation === 'landscape')) ? 10 : 10;
+        const extraMargin = (isFullScreen && !(forceLandscape || orientation === 'landscape')) ? 5 : 10;
         const daySpacing = (isFullScreen && !(forceLandscape || orientation === 'landscape')) ? 25 : 0;
         const availableWidth = chartWidth - padding.left - padding.right - extraMargin - daySpacing * (allDataPoints.length - 1);
         if (availableWidth <= 0) return padding.left + extraMargin + daySpacing * index;

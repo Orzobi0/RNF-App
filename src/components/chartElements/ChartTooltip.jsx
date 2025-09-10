@@ -92,8 +92,8 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
         className="origin-top-left"
         style={{ transform: `scale(${scale})`, width: baseWidth, minHeight: baseMinHeight }}
       >
-        {/* Contenedor principal con glassmorphism */}
-        <div className="relative bg-gradient-to-br from-white/95 to-white/85 backdrop-blur-xl rounded-2xl border border-white/60 shadow-2xl overflow-hidden">
+{/* Contenedor principal con diseño premium inspirado en la dashboard */}
+        <div className="relative bg-gradient-to-br from-white/98 to-rose-50/95 backdrop-blur-xl rounded-3xl border border-pink-100 shadow-2xl overflow-hidden">
         
         
         {/* Botón de cerrar más pequeño */}
@@ -114,7 +114,7 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
                 <Circle className="w-2 h-2 text-white" fill="currentColor" />
               </div>
               <div>
-                <h3 className="font-bold text-lg text-gray-800">
+                <h3 className="font-bold text-center text-lg text-gray-800">
                   {dateToFormat
                     ? format(parseISO(dateToFormat), 'EEEE d', { locale: es })
                     : 'Fecha'}
@@ -232,7 +232,7 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
                       <Edit3 className="w-4 h-4 text-white" />
                     </div>
                     <div className="flex-1 text-left">
-                      <span className="text-sm font-semibold text-gray-800">
+                      <span className="text-sm font-semibold text-violet-800">
                         {point.observations}
                       </span>
                     </div>
@@ -286,13 +286,17 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
           </div>
         </div>
 
-        {/* Decoración inferior */}
-        <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-pink-200 to-transparent"></div>
+          {/* Decoración inferior elegante */}
+          <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-pink-200/60 to-transparent"></div>
+          
+          {/* Esquinas decorativas sutiles */}
+          <div className="absolute top-4 left-4 w-2 h-2 bg-gradient-to-br from-pink-400/40 to-rose-500/40 rounded-full"></div>
+          
       </div>
       </div>
 
       {/* Sombra adicional para profundidad */}
-      <div className="absolute -inset-1 bg-gradient-to-br from-pink-200/20 to-rose-300/20 rounded-2xl blur-xl -z-10"></div>
+      <div className="absolute -inset-2 bg-gradient-to-br from-pink-200/25 to-rose-300/25 rounded-3xl blur-2xl -z-10"></div>
     </motion.div>
   );
 };

@@ -43,33 +43,90 @@ const ChartAxes = ({
 
   return (
     <>
-      {/* Gradiente de fondo sutil */}
+          {/* Unidad °C con diseño premium similar a la dashboard */}
+      {showLeftLabels && (
+        <G {...(reduceMotion ? {} : { variants: itemVariants })}>
+          {/* Fondo decorativo para la etiqueta °C */}
+          <rect
+            x={padding.left - responsiveFontSize(0.4)}
+            y={padding.top - responsiveFontSize(0.4)}
+            width={responsiveFontSize(3.2)}
+            height={responsiveFontSize(2.4)}
+            rx={responsiveFontSize(0.6)}
+            fill="rgba(244, 114, 182, 0.15)"
+            stroke="rgba(244, 114, 182, 0.3)"
+            strokeWidth={1.5}
+            style={{ 
+              filter: 'drop-shadow(0 4px 8px rgba(244, 114, 182, 0.2))',
+              backdropFilter: 'blur(10px)'
+            }}
+          />
+          <text
+            x={padding.left + responsiveFontSize(1.2)}
+            y={padding.top + responsiveFontSize(1.3)}
+            textAnchor="middle"
+            fontSize={responsiveFontSize(1.4)}
+            fontWeight="800"
+            fill="#E91E63"
+            style={{ 
+              filter: 'url(#textShadow)',
+              fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+            }}
+          >
+            °C
+          </text>
+        </G>
+      )}
+      {/* Definiciones mejoradas con gradientes inspirados en la dashboard */}
       <defs>
-        <linearGradient id="bgGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stopColor="rgba(252, 231, 243, 0.3)" />
-          <stop offset="50%" stopColor="rgba(255, 255, 255, 0.8)" />
-          <stop offset="100%" stopColor="rgba(252, 231, 243, 0.2)" />
+        <linearGradient id="bgGradientChart" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stopColor="rgba(254, 242, 242, 0.95)" />
+          <stop offset="30%" stopColor="rgba(255, 241, 242, 0.9)" />
+          <stop offset="70%" stopColor="rgba(255, 245, 255, 0.95)" />
+          <stop offset="100%" stopColor="rgba(254, 242, 242, 0.8)" />
         </linearGradient>
         
-        <filter id="softGlow" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur stdDeviation="1" result="coloredBlur"/>
+        <linearGradient id="tempLineGradientChart" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#F472B6" />
+          <stop offset="50%" stopColor="#EC4899" />
+          <stop offset="100%" stopColor="#E91E63" />
+        </linearGradient>
+        
+        <filter id="chartGlow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
           <feMerge> 
             <feMergeNode in="coloredBlur"/>
             <feMergeNode in="SourceGraphic"/>
           </feMerge>
         </filter>
+        
+        <filter id="textShadow" x="-50%" y="-50%" width="200%" height="200%">
+          <feDropShadow dx="0" dy="1" stdDeviation="1" floodColor="rgba(255, 255, 255, 0.8)" />
+        </filter>
+
+        {/* Pattern para spotting mejorado */}
+        <pattern id="spotting-pattern-chart" patternUnits="userSpaceOnUse" width="4" height="4">
+          <rect width="4" height="4" fill="#fef2f2" />
+          <circle cx="1" cy="1" r="0.6" fill="rgba(239,68,68,0.8)" />
+          <circle cx="3" cy="3" r="0.4" fill="rgba(239,68,68,0.6)" />
+          <circle cx="1" cy="3" r="0.3" fill="rgba(239,68,68,0.4)" />
+          <circle cx="3" cy="1" r="0.3" fill="rgba(239,68,68,0.5)" />
+        </pattern>
       </defs>
 
-      {/* Fondo degradado */}
+      {/* Fondo con gradiente elegante inspirado en la dashboard */}
       <rect
         x={padding.left}
         y={padding.top}
         width={chartWidth - padding.left - padding.right}
         height={chartHeight - padding.top - padding.bottom}
-        fill="url(#bgGradient)"
-        opacity={0.4}
+        fill="url(#bgGradientChart)"
+        opacity={2}
+        rx={12}
+        style={{ filter: 'drop-shadow(0 4px 12px rgba(244, 114, 182, 0.1))' }}
       />
 
+      {/* Líneas de cuadrícula con estilo mejorado */}
       {tempTicks.map((temp, i) => {
         const y = getY(temp);
         const isMajor = temp.toFixed(1).endsWith('.0') || temp.toFixed(1).endsWith('.5');
@@ -79,29 +136,32 @@ const ChartAxes = ({
 
         return (
           <G key={`temp-tick-${i}`} {...(reduceMotion ? {} : { variants: itemVariants })}>
-            {/* Líneas de cuadrícula con gradiente */}
+            {/* Líneas de cuadrícula con gradientes sutiles */}
             <line
               x1={padding.left}
               y1={y}
               x2={chartWidth - padding.right}
               y2={y}
-              stroke={isMajor ? "rgba(244, 114, 182, 0.25)" : "rgba(244, 114, 182, 0.15)"}
-              strokeWidth={isMajor ? 1.5 : 1}
-              strokeDasharray={isMajor ? '0' : '3,3'}
-              style={{ filter: isMajor ? 'drop-shadow(0 1px 2px rgba(244, 114, 182, 0.1))' : 'none' }}
+              stroke={isMajor ? "rgba(244, 114, 182, 0.3)" : "rgba(244, 114, 182, 0.15)"}
+              strokeWidth={isMajor ? 2 : 1}
+              strokeDasharray={isMajor ? '0' : '4,4'}
+              style={{ 
+                filter: isMajor ? 'drop-shadow(0 1px 3px rgba(244, 114, 182, 0.15))' : 'none',
+                opacity: isMajor ? 1 : 0.7
+              }}
             />
 
-            {/* Etiquetas izquierda con mejor estilo */}
+            {/* Etiquetas izquierda con diseño premium */}
             {showLeftLabels && (
               <text
                 x={padding.left - responsiveFontSize(1)}
                 y={y + responsiveFontSize(0.35)}
                 textAnchor="end"
-                fontSize={responsiveFontSize(isMajor ? 1 : 0.9)}
-                fontWeight={isMajor ? "600" : "500"}
+                fontSize={responsiveFontSize(isMajor ? 1.1 : 1)}
+                fontWeight={isMajor ? "700" : "600"}
                 fill={isMajor ? "#E91E63" : "#EC4899"}
                 style={{ 
-                  filter: 'drop-shadow(0 1px 1px rgba(255, 255, 255, 0.8))',
+                  filter: 'url(#textShadow)',
                   fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
                 }}
               >
@@ -109,16 +169,16 @@ const ChartAxes = ({
               </text>
             )}
 
-            {/* Etiquetas derecha con mejor estilo */}
+            {/* Etiquetas derecha con diseño premium */}
             <text
               x={chartWidth - padding.right + responsiveFontSize(1)}
               y={y + responsiveFontSize(0.35)}
               textAnchor="start"
-              fontSize={responsiveFontSize(isMajor ? 1 : 0.9)}
-              fontWeight={isMajor ? "600" : "500"}
+              fontSize={responsiveFontSize(isMajor ? 1.1 : 1)}
+              fontWeight={isMajor ? "700" : "600"}
               fill={isMajor ? "#E91E63" : "#EC4899"}
               style={{ 
-                filter: 'drop-shadow(0 1px 1px rgba(255, 255, 255, 0.8))',
+                filter: 'url(#textShadow)',
                 fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
               }}
             >
@@ -128,7 +188,7 @@ const ChartAxes = ({
         );
       })}
 
-      {/* Líneas verticales de días con gradiente */}
+      {/* Líneas verticales de días con gradiente sutil */}
       {allDataPoints.map((_, i) => {
         const x = getX(i);
         return (
@@ -138,56 +198,32 @@ const ChartAxes = ({
             y1={padding.top}
             x2={x}
             y2={chartHeight - padding.bottom}
-            stroke="rgba(244, 114, 182, 0.12)"
+            stroke="rgba(244, 114, 182, 0.08)"
             strokeWidth={0.8}
-            style={{ filter: 'drop-shadow(0 0 1px rgba(244, 114, 182, 0.1))' }}
+            style={{ filter: 'drop-shadow(0 0 1px rgba(244, 114, 182, 0.05))' }}
           />
         );
       })}
 
-      {/* Unidad °C con mejor estilo */}
-      {showLeftLabels && (
-        <G {...(reduceMotion ? {} : { variants: itemVariants })}>
-          {/* Fondo para la etiqueta °C */}
-          <rect
-            x={padding.left - responsiveFontSize(0.2)}
-            y={padding.top - responsiveFontSize(0.2)}
-            width={responsiveFontSize(2.8)}
-            height={responsiveFontSize(2)}
-            rx={responsiveFontSize(0.3)}
-            fill="rgba(244, 114, 182, 0.1)"
-            stroke="rgba(244, 114, 182, 0.2)"
-            strokeWidth={0.5}
-          />
-          <text
-            x={padding.left + responsiveFontSize(1.2)}
-            y={padding.top + responsiveFontSize(1.1)}
-            textAnchor="middle"
-            fontSize={responsiveFontSize(1.3)}
-            fontWeight="700"
-            fill="#E91E63"
-            style={{ 
-              filter: 'drop-shadow(0 1px 2px rgba(255, 255, 255, 0.8))',
-              fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-            }}
-          >
-            °C
-          </text>
-        </G>
-      )}
 
-      {/* Bordes del área del gráfico */}
+
+      {/* Bordes del área del gráfico con estilo premium */}
       <rect
         x={padding.left}
         y={padding.top}
         width={chartWidth - padding.left - padding.right}
         height={chartHeight - padding.top - padding.bottom}
         fill="none"
-        stroke="rgba(244, 114, 182, 0.2)"
-        strokeWidth={1.5}
-        rx={8}
-        style={{ filter: 'drop-shadow(0 2px 4px rgba(244, 114, 182, 0.1))' }}
+        stroke="rgba(244, 114, 182, 0.4)"
+        strokeWidth={2}
+        rx={12}
+        style={{ 
+          filter: 'drop-shadow(0 4px 12px rgba(244, 114, 182, 0.15))',
+          strokeDasharray: '0'
+        }}
       />
+
+
     </>
   );
 };

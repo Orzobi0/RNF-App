@@ -328,7 +328,7 @@ const CycleOverviewCard = ({ cycleData }) => {
               ].map(item => (
                 <div key={item.label} className="flex flex-col items-center gap-1.5">
                   <div
-                    className="w-3 h-3 rounded-full border"
+                    className="w-4 h-4 rounded-full border"
                     style={
                       item.pattern
                         ? {
@@ -354,7 +354,7 @@ const CycleOverviewCard = ({ cycleData }) => {
             {/* Día actual con estilo diferenciado */}
             <div className="flex items-center justify-center gap-2 pt-3 mt-3 border-t border-gradient-to-r from-transparent via-gray-200 to-transparent">
             <div className="relative">
-            <div className="w-3 h-3 rounded-full border border-rose-400/80 bg-transparent" />
+            <div className="w-4 h-4 rounded-full border border-rose-400/80 bg-transparent" />
             {/* Anillo decorativo */}
             <div className="absolute inset-0 rounded-full border-[3px] border-rose-500/80 animate-pulse" />
             </div>

@@ -3,13 +3,13 @@ import { motion } from 'framer-motion';
 import { parseISO, startOfDay, isAfter } from 'date-fns';
 import { getSymbolAppearance } from '@/config/fertilitySymbols';
 
-// Colores mejorados con mejor contraste y elegancia
-const SENSATION_COLOR = '#1E40AF';
-const APPEARANCE_COLOR = '#059669';
-const OBSERVATION_COLOR = '#BE185D';
-const SENSATION_BG = 'rgba(30, 64, 175, 0.08)';
-const APPEARANCE_BG = 'rgba(5, 150, 105, 0.08)';
-const OBSERVATION_BG = 'rgba(190, 24, 93, 0.08)';
+// Colores consistentes con la dashboard pero con mejor contraste para el chart
+const SENSATION_COLOR = '#1565C0';
+const APPEARANCE_COLOR = '#2E7D32';
+const OBSERVATION_COLOR = '#6A1B9A';
+const SENSATION_BG = 'rgba(21, 101, 192, 0.12)';
+const APPEARANCE_BG = 'rgba(46, 125, 50, 0.12)';
+const OBSERVATION_BG = 'rgba(243, 229, 245)';
 
 /** Quita ceros iniciales a día/mes */
 const compactDate = (dateStr) => {
@@ -69,15 +69,16 @@ const ChartPoints = ({
   };
 
   const pointVariants = {
-    hidden: { opacity: 0, scale: 0.5 },
+    hidden: { opacity: 0, scale: 0.3 },
     visible: { 
       opacity: 1, 
       scale: 1,
       transition: { 
-        duration: 0.5, 
-        ease: "easeOut",
+        duration: 0.6, 
+        ease: [0.34, 1.56, 0.64, 1],
         type: "spring",
-        stiffness: 100
+        stiffness: 120,
+        damping: 12
       }
     }
   };
@@ -98,29 +99,50 @@ const ChartPoints = ({
 
   return (
     <>
-      {/* Definiciones de filtros y gradientes mejorados */}
+      {/* Definiciones mejoradas con estilo premium */}
       <defs>
-        <filter id="rowShadow" x="-10%" y="-10%" width="120%" height="120%">
-          <feDropShadow dx="0" dy="1" stdDeviation="2" floodColor="rgba(244, 114, 182, 0.15)" />
+        <filter id="rowShadowChart" x="-10%" y="-10%" width="120%" height="120%">
+          <feDropShadow dx="0" dy="2" stdDeviation="4" floodColor="rgba(244, 114, 182, 0.2)" />
         </filter>
         
-        <linearGradient id="sensationGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+        <filter id="pointGlow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+          <feMerge> 
+            <feMergeNode in="coloredBlur"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+        
+        <linearGradient id="sensationGradientChart" x1="0%" y1="0%" x2="100%" y2="0%">
           <stop offset="0%" stopColor={SENSATION_BG} />
-          <stop offset="100%" stopColor="rgba(30, 64, 175, 0.02)" />
+          <stop offset="100%" stopColor={SENSATION_BG}  />
         </linearGradient>
         
-        <linearGradient id="appearanceGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+        <linearGradient id="appearanceGradientChart" x1="0%" y1="0%" x2="100%" y2="0%">
           <stop offset="0%" stopColor={APPEARANCE_BG} />
-          <stop offset="100%" stopColor="rgba(5, 150, 105, 0.02)" />
+          <stop offset="100%" stopColor={APPEARANCE_BG} />
         </linearGradient>
         
-        <linearGradient id="observationGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+        <linearGradient id="observationGradientChart" x1="0%" y1="0%" x2="100%" y2="0%">
           <stop offset="0%" stopColor={OBSERVATION_BG} />
-          <stop offset="100%" stopColor="rgba(190, 24, 93, 0.02)" />
+          <stop offset="100%" stopColor={OBSERVATION_BG} />
         </linearGradient>
+
+        <radialGradient id="tempPointGradientChart" cx="30%" cy="30%">
+          <stop offset="0%" stopColor="#FCE7F3" />
+          <stop offset="40%" stopColor="#F472B6" />
+          <stop offset="80%" stopColor="#E91E63" />
+          <stop offset="100%" stopColor="#C2185B" />
+        </radialGradient>
+
+        <radialGradient id="tempPointIgnoredGradient" cx="30%" cy="30%">
+          <stop offset="0%" stopColor="#FFFFFF" />
+          <stop offset="80%" stopColor="#F8FAFC" />
+          <stop offset="100%" stopColor="#E2E8F0" />
+        </radialGradient>
       </defs>
 
-      {/* Sombras de filas -- ocultas en modo compacto (landscape forzado) */}
+      {/* Sombras de filas con diseño mejorado -- ocultas en modo compacto */}
       {!compact && (
         <g>
           <rect
@@ -128,32 +150,32 @@ const ChartPoints = ({
             y={mucusSensationRowY - rowBlockHeight / 2}
             width={rowWidth}
             height={rowBlockHeight}
-            fill="url(#sensationGradient)"
-            rx={6}
-            style={{ filter: 'url(#rowShadow)' }}
+            fill="url(#sensationGradientChart)"
+            rx={8}
+            style={{ filter: 'url(#rowShadowChart)' }}
           />
           <rect
             x={padding.left}
             y={mucusAppearanceRowY - rowBlockHeight / 2}
             width={rowWidth}
             height={rowBlockHeight}
-            fill="url(#appearanceGradient)"
-            rx={6}
-            style={{ filter: 'url(#rowShadow)' }}
+            fill="url(#appearanceGradientChart)"
+            rx={8}
+            style={{ filter: 'url(#rowShadowChart)' }}
           />
           <rect
             x={padding.left}
             y={observationsRowY - rowBlockHeight / 2}
             width={rowWidth}
             height={rowBlockHeight}
-            fill="url(#observationGradient)"
-            rx={6}
-            style={{ filter: 'url(#rowShadow)' }}
+            fill="url(#observationGradientChart)"
+            rx={8}
+            style={{ filter: 'url(#rowShadowChart)' }}
           />
         </g>
       )}
 
-      {/* Leyenda izquierda con mejor tipografía */}
+      {/* Leyenda izquierda con tipografía premium */}
       {(!isFullScreen || orientation !== 'portrait') && (
         <motion.g variants={itemVariants}>
           {[
@@ -166,14 +188,14 @@ const ChartPoints = ({
           ].map(({ label, row, color }) => (
             <text
               key={label}
-              x={padding.left - responsiveFontSize(1.5)}
+              x={padding.left - responsiveFontSize(0.5)}
               y={bottomY + textRowHeight * row}
               textAnchor="end"
-              fontSize={responsiveFontSize(0.95)}
-              fontWeight="600"
+              fontSize={responsiveFontSize(1.05)}
+              fontWeight="700"
               fill={color}
               style={{ 
-                filter: 'drop-shadow(0 1px 1px rgba(255, 255, 255, 0.8))',
+                filter: 'drop-shadow(0 1px 2px rgba(255, 255, 255, 0.9))',
                 fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
               }}
             >
@@ -202,11 +224,10 @@ const ChartPoints = ({
               pointerEvents: "all",
               style: { cursor: 'pointer' },
               onMouseEnter: (e) => onPointInteraction(point, index, e),
-              onClick: (e) => onPointInteraction(point, index, e),
-              onTouchStart: (e) => onPointInteraction(point, index, e),
+              onClick: (e) => onPointInteraction(point, index, e)
             };
 
-        // Símbolo con mejor estilizado
+        // Símbolo con colores mejorados
         const symbolInfo = getSymbolAppearance(point.fertility_symbol);
         let symbolFillStyle = 'transparent';
         if (symbolInfo?.color) {
@@ -216,7 +237,7 @@ const ChartPoints = ({
           else if (raw === 'green-500') symbolFillStyle = '#22c55e';
           else if (raw === 'pink-300') symbolFillStyle = '#f9a8d4';
         }
-        const symbolRectSize = responsiveFontSize(isFullScreen ? 1.4 : 1.6);
+        const symbolRectSize = responsiveFontSize(isFullScreen ? 1.8 : 2);
 
         const isFuture = point.isoDate
           ? isAfter(startOfDay(parseISO(point.isoDate)), startOfDay(new Date()))
@@ -251,27 +272,40 @@ const ChartPoints = ({
             {...(reduceMotion ? {} : { variants: itemVariants })}
             {...interactionProps}
           >
-            {/* Punto de temperatura mejorado con gradientes y sombras */}
+            {/* Punto de temperatura con diseño premium */}
             {hasTemp && (
               <MotionG {...(reduceMotion ? {} : { variants: pointVariants })}>
-                {/* Aura del punto */}
+                {/* Aura del punto con efecto glow */}
                 <circle
                   cx={x} 
                   cy={y}
-                  r={8}
-                  fill="rgba(244, 114, 182, 0.15)"
+                  r={2}
+                  fill="rgba(244, 114, 182, 0.2)"
+                  opacity={0.8}
+                  style={{ filter: 'url(#pointGlow)' }}
+                />
+                
+                {/* Anillo decorativo exterior */}
+                <circle
+                  cx={x} 
+                  cy={y}
+                  r={7}
+                  fill="none"
+                  stroke={point.ignored ? 'rgba(148, 163, 184, 0.4)' : 'rgba(244, 114, 182, 0.3)'}
+                  strokeWidth={1.5}
                   opacity={0.6}
                 />
-                {/* Punto principal con gradiente */}
+                
+                {/* Punto principal con gradiente mejorado */}
                 <circle
                   cx={x} 
                   cy={y}
-                  r={5}
-                  fill={point.ignored ? 'white' : 'url(#tempPointGradient)'}
-                  stroke={point.use_corrected ? '#F59E0B' : '#E91E63'}
-                  strokeWidth={point.ignored ? 2 : 2.5}
+                  r={5.5}
+                  fill={point.ignored ? 'url(#tempPointIgnoredGradient)' : 'url(#tempPointGradientChart)'}
+                  stroke={point.use_corrected ? '#F59E0B' : (point.ignored ? '#94A3B8' : '#E91E63')}
+                  strokeWidth={point.ignored ? 2 : 3}
                   style={{ 
-                    filter: 'drop-shadow(0 2px 4px rgba(244, 114, 182, 0.3))',
+                    filter: 'drop-shadow(0 3px 6px rgba(244, 114, 182, 0.4))',
                     cursor: 'pointer'
                   }}
                   pointerEvents="all"
@@ -279,102 +313,123 @@ const ChartPoints = ({
                   onTouchStart={(e) => onPointInteraction(point, index, e)}
                   onClick={(e) => onPointInteraction(point, index, e)}
                 />
+                
                 {/* Punto central brillante */}
                 {!point.ignored && (
                   <circle
                     cx={x} 
                     cy={y}
                     r={2}
-                    fill="rgba(255, 255, 255, 0.8)"
+                    fill="rgba(255, 255, 255, 0.9)"
+                    style={{ filter: 'drop-shadow(0 1px 2px rgba(244, 114, 182, 0.3))' }}
+                  />
+                )}
+
+                {/* Indicador de temperatura corregida */}
+                {point.use_corrected && (
+                  <circle
+                    cx={x + 8}
+                    cy={y - 8}
+                    r={3}
+                    fill="#F59E0B"
+                    style={{ filter: 'drop-shadow(0 2px 4px rgba(245, 158, 11, 0.4))' }}
                   />
                 )}
               </MotionG>
             )}
 
-            {/* Definir gradiente para puntos */}
-            <defs>
-              <radialGradient id="tempPointGradient" cx="30%" cy="30%">
-                <stop offset="0%" stopColor="#F472B6" />
-                <stop offset="70%" stopColor="#E91E63" />
-                <stop offset="100%" stopColor="#C2185B" />
-              </radialGradient>
-            </defs>
-
-            {/* Fecha con mejor estilo */}
+            {/* Fecha con estilo mejorado */}
             <text 
               x={x} 
               y={dateRowY} 
               textAnchor="middle"
-              fontSize={responsiveFontSize(0.95)}
-              fontWeight="600"
+              fontSize={responsiveFontSize(1.05)}
+              fontWeight="700"
               fill={textFill}
               style={{ 
-                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                filter: 'drop-shadow(0 1px 1px rgba(255, 255, 255, 0.8))'
               }}
             >
               {compactDate(point.date)}
             </text>
 
-            {/* Día del ciclo con mejor estilo */}
+            {/* Día del ciclo con estilo mejorado */}
             <text 
               x={x} 
               y={cycleDayRowY} 
               textAnchor="middle"
-              fontSize={responsiveFontSize(0.9)}
-              fontWeight="500"
+              fontSize={responsiveFontSize(1)}
+              fontWeight="700"
               fill={textFill}
               style={{ 
-                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                filter: 'drop-shadow(0 1px 1px rgba(255, 255, 255, 0.8))'
               }}
             >
               {point.cycleDay}
             </text>
 
-            {/* Símbolo mejorado */}
+            {/* Símbolo mejorado con mejor diseño */}
             {!isPlaceholder && (
               symbolInfo.value !== 'none' ? (
-                <rect
-                  x={x - symbolRectSize/2}
-                  y={symbolRowYBase - symbolRectSize*0.75}
-                  width={symbolRectSize}
-                  height={symbolRectSize}
-                  fill={symbolInfo.pattern === 'spotting-pattern'
-                    ? "url(#spotting-pattern-chart)"
-                    : symbolFillStyle}
-                  stroke={symbolInfo.value === 'white' ? '#b4c0cf' : 'rgba(233, 30, 99, 0.3)'}
-                  strokeWidth={symbolInfo.value === 'white' ? 1 : 1}
-                  rx={symbolRectSize * 0.25}
-                  style={{ filter: 'drop-shadow(0 1px 2px rgba(244, 114, 182, 0.2))' }}
-                />
+                <g>
+                  {/* Sombra del símbolo */}
+                  <rect
+                    x={x - symbolRectSize/2 + 1}
+                    y={symbolRowYBase - symbolRectSize*0.75 + 1}
+                    width={symbolRectSize}
+                    height={symbolRectSize}
+                    fill="rgba(0, 0, 0, 0.1)"
+                    rx={symbolRectSize * 0.3}
+                    opacity={0.5}
+                  />
+                  {/* Símbolo principal */}
+                  <rect
+                    x={x - symbolRectSize/2-4}
+                    y={symbolRowYBase - symbolRectSize*0.75}
+                    width={symbolRectSize*1.4}
+                    height={symbolRectSize}
+                    fill={symbolInfo.pattern === 'spotting-pattern'
+                      ? "url(#spotting-pattern-chart)"
+                      : symbolFillStyle}
+                    stroke={symbolInfo.value === 'white' ? '#CBD5E1' : 'rgba(233, 30, 99, 0.4)'}
+                    strokeWidth={symbolInfo.value === 'white' ? 2 : 1}
+                    rx={symbolRectSize * 0.2}
+                    style={{ filter: 'drop-shadow(0 2px 4px rgba(244, 114, 182, 0.25))' }}
+                  />
+                </g>
               ) : (
                 <text
                   x={x} 
                   y={symbolRowYBase} 
                   textAnchor="middle"
-                  fontSize={responsiveFontSize(0.9)} 
+                  fontSize={responsiveFontSize(1)} 
                   fill={textFill}
-                  fontWeight="400"
+                  fontWeight="500"
+                  style={{ filter: 'drop-shadow(0 1px 1px rgba(255, 255, 255, 0.8))' }}
                 >
                   –
                 </text>
               )
             )}
 
-            {/* Textos con mejor tipografía y colores */}
+            {/* Textos con tipografía mejorada y colores premium */}
             {!compact && (
             <text 
               x={x} 
               y={mucusSensationRowY} 
               textAnchor="middle"
-              fontSize={responsiveFontSize(0.85)} 
-              fontWeight="600"
+              fontSize={responsiveFontSize(0.9)} 
+              fontWeight="700"
               fill={SENSATION_COLOR}
               style={{ 
-                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                filter: 'drop-shadow(0 1px 2px rgba(255, 255, 255, 0.9))'
               }}
             >
               <tspan x={x} dy={0}>{sensLine1}</tspan>
-              {sensLine2 && <tspan x={x} dy={responsiveFontSize(1)}>{sensLine2}</tspan>}
+              {sensLine2 && <tspan x={x} dy={responsiveFontSize(1.1)}>{sensLine2}</tspan>}
             </text>
             )}
 
@@ -383,15 +438,16 @@ const ChartPoints = ({
               x={x} 
               y={mucusAppearanceRowY} 
               textAnchor="middle"
-              fontSize={responsiveFontSize(0.85)} 
-              fontWeight="600"
+              fontSize={responsiveFontSize(0.9)} 
+              fontWeight="700"
               fill={APPEARANCE_COLOR}
               style={{ 
-                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                filter: 'drop-shadow(0 1px 2px rgba(255, 255, 255, 0.9))'
               }}
             >
               <tspan x={x} dy={0}>{aparLine1}</tspan>
-              {aparLine2 && <tspan x={x} dy={responsiveFontSize(1)}>{aparLine2}</tspan>}
+              {aparLine2 && <tspan x={x} dy={responsiveFontSize(1.1)}>{aparLine2}</tspan>}
             </text>
             )}
             
@@ -400,15 +456,16 @@ const ChartPoints = ({
               x={x} 
               y={observationsRowY} 
               textAnchor="middle"
-              fontSize={responsiveFontSize(0.85)} 
-              fontWeight="600"
+              fontSize={responsiveFontSize(0.9)} 
+              fontWeight="700"
               fill={OBSERVATION_COLOR}
               style={{ 
-                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                filter: 'drop-shadow(0 1px 2px rgba(255, 255, 255, 0.9))'
               }}
             >
               <tspan x={x} dy={0}>{obsLine1}</tspan>
-              {obsLine2 && <tspan x={x} dy={responsiveFontSize(1)}>{obsLine2}</tspan>}
+              {obsLine2 && <tspan x={x} dy={responsiveFontSize(1.1)}>{obsLine2}</tspan>}
             </text>
             )}
           </MotionG>
