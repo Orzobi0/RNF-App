@@ -1,10 +1,10 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 
-// Colores actualizados para consistencia
-const SENSATION_COLOR = '#1E40AF';
-const APPEARANCE_COLOR = '#059669';
-const OBSERVATION_COLOR = '#BE185D';
+// Colores consistentes con la dashboard
+const SENSATION_COLOR = '#1565C0';
+const APPEARANCE_COLOR = '#2E7D32';
+const OBSERVATION_COLOR = '#6A1B9A';
 
 const ChartLeftLegend = ({
   padding,
@@ -48,30 +48,54 @@ const ChartLeftLegend = ({
       className="font-sans pointer-events-none"
     >
       <defs>
-        {/* Gradiente para el fondo */}
-        <linearGradient id="legendBgGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="rgba(255, 255, 255, 0.95)" />
-          <stop offset="100%" stopColor="rgba(252, 231, 243, 0.8)" />
+        {/* Gradiente premium para el fondo */}
+        <linearGradient id="legendBgGradientChart" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="rgba(254, 242, 242, 0.98)" />
+          <stop offset="30%" stopColor="rgba(255, 241, 242, 0.95)" />
+          <stop offset="70%" stopColor="rgba(255, 255, 255, 0.98)" />
+          <stop offset="100%" stopColor="rgba(254, 242, 242, 0.9)" />
         </linearGradient>
         
-        {/* Filtro de sombra suave */}
-        <filter id="legendShadow" x="-20%" y="-20%" width="140%" height="140%">
-          <feDropShadow dx="2" dy="2" stdDeviation="3" floodColor="rgba(244, 114, 182, 0.15)" />
+        {/* Gradiente decorativo */}
+        <linearGradient id="legendAccentGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stopColor="#F472B6" />
+          <stop offset="50%" stopColor="#EC4899" />
+          <stop offset="100%" stopColor="#E91E63" />
+        </linearGradient>
+        
+        {/* Filtros mejorados */}
+        <filter id="legendShadowChart" x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="3" stdDeviation="4" floodColor="rgba(244, 114, 182, 0.2)" />
+        </filter>
+        
+        <filter id="textShadowLegend" x="-50%" y="-50%" width="200%" height="200%">
+          <feDropShadow dx="0" dy="1" stdDeviation="1" floodColor="rgba(255, 255, 255, 0.9)" />
         </filter>
       </defs>
 
-      {/* Fondo mejorado para las etiquetas de filas */}
+      {/* Fondo premium para las etiquetas de filas */}
       <rect
         x={0}
         y={bottomY + textRowHeight * 0.5}
         width={padding.left}
         height={textRowHeight * (isFullScreen ? 9.5 : 8)}
-        fill="url(#legendBgGradient)"
-        rx={8}
-        style={{ filter: 'url(#legendShadow)' }}
+        fill="url(#legendBgGradientChart)"
+        rx={12}
+        style={{ filter: 'url(#legendShadowChart)' }}
       />
 
-      {/* Etiquetas de temperatura con mejor estilo */}
+      {/* Barra decorativa lateral */}
+      <rect
+        x={padding.left - 4}
+        y={bottomY + textRowHeight * 0.5}
+        width={1}
+        height={textRowHeight * (isFullScreen ? 9.5 : 8)}
+        fill="url(#legendAccentGradient)"
+        rx={1.5}
+        opacity={2}
+      />
+
+      {/* Etiquetas de temperatura con diseño premium */}
       {tempTicks.map((temp, i) => {
         const y = getY(temp);
         const isMajor = temp.toFixed(1).endsWith('.0') || temp.toFixed(1).endsWith('.5');
@@ -80,48 +104,75 @@ const ChartLeftLegend = ({
           : `.${temp.toFixed(1).split('.')[1]}`;
         
         return (
-          <motion.text
-            key={`temp-tick-fixed-${i}`}
-            variants={itemVariants}
-            x={padding.left - responsiveFontSize(1)}
-            y={y + responsiveFontSize(0.35)}
-            textAnchor="end"
-            fontSize={responsiveFontSize(isMajor ? 1 : 0.9)}
-            fontWeight={isMajor ? "600" : "500"}
-            fill={isMajor ? "#E91E63" : "#EC4899"}
-            style={{ 
-              filter: 'drop-shadow(0 1px 1px rgba(255, 255, 255, 0.8))',
-              fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-            }}
-          >
-            {labelText}
-          </motion.text>
+          <motion.g key={`temp-tick-fixed-${i}`} variants={itemVariants}>
+            {/* Marcador visual para temperaturas principales */}
+            {isMajor && (
+              <circle
+                cx={padding.left - responsiveFontSize(2.5)}
+                cy={y}
+                r={2}
+                fill="#E91E63"
+                opacity={0.7}
+                style={{ filter: 'drop-shadow(0 1px 2px rgba(233, 30, 99, 0.4))' }}
+              />
+            )}
+            
+            <text
+              x={padding.left - responsiveFontSize(1.2)}
+              y={y + responsiveFontSize(0.35)}
+              textAnchor="end"
+              fontSize={responsiveFontSize(isMajor ? 1.15 : 1)}
+              fontWeight={isMajor ? "800" : "700"}
+              fill={isMajor ? "#E91E63" : "#EC4899"}
+              style={{ 
+                filter: 'url(#textShadowLegend)',
+                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+              }}
+            >
+              {labelText}
+            </text>
+          </motion.g>
         );
       })}
 
-      {/* Unidad °C con diseño mejorado */}
+      {/* Unidad °C con diseño premium mejorado */}
       <motion.g variants={itemVariants}>
-        {/* Fondo decorativo para °C */}
+        {/* Fondo decorativo para °C con glassmorphism */}
         <rect
-          x={padding.left - responsiveFontSize(0.3)}
-          y={padding.top - responsiveFontSize(0.3)}
-          width={responsiveFontSize(3)}
-          height={responsiveFontSize(2.2)}
-          rx={responsiveFontSize(0.4)}
-          fill="rgba(244, 114, 182, 0.12)"
-          stroke="rgba(244, 114, 182, 0.25)"
-          strokeWidth={1}
-          style={{ filter: 'drop-shadow(0 2px 4px rgba(244, 114, 182, 0.1))' }}
+          x={padding.left - responsiveFontSize(0.4)}
+          y={padding.top - responsiveFontSize(0.4)}
+          width={responsiveFontSize(3.4)}
+          height={responsiveFontSize(2.6)}
+          rx={responsiveFontSize(0.8)}
+          fill="rgba(244, 114, 182, 0.18)"
+          stroke="rgba(244, 114, 182, 0.35)"
+          strokeWidth={1.5}
+          style={{ 
+            filter: 'drop-shadow(0 4px 12px rgba(244, 114, 182, 0.2))',
+            backdropFilter: 'blur(12px)'
+          }}
         />
+        
+        {/* Acento decorativo superior */}
+        <rect
+          x={padding.left - responsiveFontSize(0.2)}
+          y={padding.top - responsiveFontSize(0.2)}
+          width={responsiveFontSize(3)}
+          height={responsiveFontSize(0.3)}
+          rx={responsiveFontSize(0.15)}
+          fill="url(#legendAccentGradient)"
+          opacity={0.8}
+        />
+        
         <text
-          x={padding.left + responsiveFontSize(1.2)}
-          y={padding.top + responsiveFontSize(1.2)}
+          x={padding.left + responsiveFontSize(1.3)}
+          y={padding.top + responsiveFontSize(1.4)}
           textAnchor="middle"
-          fontSize={responsiveFontSize(1.4)}
-          fontWeight="700"
+          fontSize={responsiveFontSize(1.5)}
+          fontWeight="900"
           fill="#E91E63"
           style={{ 
-            filter: 'drop-shadow(0 1px 2px rgba(255, 255, 255, 0.8))',
+            filter: 'url(#textShadowLegend)',
             fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
           }}
         >
@@ -132,28 +183,48 @@ const ChartLeftLegend = ({
       {/* Etiquetas de filas con diseño mejorado */}
       <motion.g variants={itemVariants}>
         {[
-          { label: 'Fecha', row: 1, color: isFullScreen ? '#374151' : '#6B7280' },
-          { label: 'Día', row: 2, color: isFullScreen ? '#374151' : '#6B7280' },
-          { label: 'Símbolo', row: 3, color: isFullScreen ? '#374151' : '#6B7280' },
-          { label: 'Sens.', row: isFullScreen ? 5 : 4.5, color: SENSATION_COLOR },
-          { label: 'Apar.', row: isFullScreen ? 7 : 6, color: APPEARANCE_COLOR },
-          { label: 'Observ.', row: isFullScreen ? 9 : 7.5, color: OBSERVATION_COLOR }
-        ].map(({ label, row, color }) => (
-          <text
-            key={label}
-            x={padding.left - responsiveFontSize(1.5)}
-            y={bottomY + textRowHeight * row}
-            textAnchor="end"
-            fontSize={responsiveFontSize(0.95)}
-            fontWeight="600"
-            fill={color}
-            style={{ 
-              filter: 'drop-shadow(0 1px 1px rgba(255, 255, 255, 0.8))',
-              fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-            }}
-          >
-            {label}
-          </text>
+          { label: 'Fecha', row: 1, color: isFullScreen ? '#374151' : '#6B7280', icon: null },
+          { label: 'Día', row: 2, color: isFullScreen ? '#374151' : '#6B7280', icon: null },
+          { label: 'Símbolo', row: 3, color: isFullScreen ? '#374151' : '#6B7280', icon: null },
+          { label: 'Sens.', row: isFullScreen ? 5 : 4.5, color: SENSATION_COLOR, icon: '◊' },
+          { label: 'Apar.', row: isFullScreen ? 7 : 6, color: APPEARANCE_COLOR, icon: '○' },
+          { label: 'Observ.', row: isFullScreen ? 9 : 7.5, color: OBSERVATION_COLOR, icon: '✦' }
+        ].map(({ label, row, color, icon }) => (
+          <g key={label}>
+            {/* Indicador visual para las categorías de datos */}
+            {icon && (
+              <text
+                x={padding.left - responsiveFontSize(2.8)}
+                y={bottomY + textRowHeight * row}
+                textAnchor="middle"
+                fontSize={responsiveFontSize(0.8)}
+                fontWeight="600"
+                fill={color}
+                opacity={0.7}
+                style={{ 
+                  filter: 'url(#textShadowLegend)',
+                  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+                }}
+              >
+                {icon}
+              </text>
+            )}
+            
+            <text
+              x={padding.left - responsiveFontSize(0.8)}
+              y={bottomY + textRowHeight * row}
+              textAnchor="end"
+              fontSize={responsiveFontSize(1.05)}
+              fontWeight="800"
+              fill={color}
+              style={{ 
+                filter: 'url(#textShadowLegend)',
+                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+              }}
+            >
+              {label}
+            </text>
+          </g>
         ))}
       </motion.g>
     </svg>

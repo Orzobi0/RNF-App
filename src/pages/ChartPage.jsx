@@ -7,7 +7,7 @@ import { RotateCcw } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 
 const ChartPage = () => {
-  const { currentCycle } = useCycleData();
+  const { currentCycle, isLoading } = useCycleData();
   // Orientación controlada por UI, independiente del dispositivo
   const [orientation, setOrientation] = useState(
     typeof window !== 'undefined' && window.innerWidth > window.innerHeight ? 'landscape' : 'portrait'
@@ -16,9 +16,12 @@ const ChartPage = () => {
   useLayoutEffect(() => {
     window.dispatchEvent(new Event('resize'));
   }, [orientation, isFullScreen]);
+  if (isLoading) {
+    return <p className="text-center text-gray-500">Cargando…</p>;
+  }
 
   if (!currentCycle?.id) {
-    return <p className="text-center text-gray-500">No hay ciclo activo.</p>;
+    return <p className="text-center text-pink-600">No hay ciclo activo.</p>;
   }
 
   const CYCLE_DURATION_DAYS = 28;
@@ -54,6 +57,19 @@ const ChartPage = () => {
     }
     scrollStart = Math.max(0, endIndex - visibleDays);
   }
+  const baseStyle = {
+    background: 'linear-gradient(135deg, #FFFAFC 0%, #f7eaef 100%)'
+  };
+  const containerStyle = isFullScreen
+    ? baseStyle
+    : {
+        ...baseStyle,
+        height:
+          orientation === 'landscape'
+            ? 'calc(max(100dvw) - var(--bottom-nav-safe))'
+            : 'calc(100dvh - var(--bottom-nav-safe))',
+        paddingBottom: 'env(safe-area-inset-bottom)'
+      };
 
     const handleToggleFullScreen = async () => {
     if (!isFullScreen) {
@@ -91,18 +107,7 @@ const ChartPage = () => {
             ? 'fixed inset-0 z-50 h-[100dvh] w-[100dvw] overflow-x-auto overflow-y-auto'
             : 'relative w-full overflow-x-auto overflow-y-auto'
         }
-        style={
-          isFullScreen
-            ? undefined
-            : {
-                // Altura unificada: siempre restamos la BottomNav + safe-area usando una variable CSS.
-                height:
-                  orientation === 'landscape'
-                    ? 'calc(max(100dvw) - var(--bottom-nav-safe))'
-                    : 'calc(100dvh - var(--bottom-nav-safe))',
-                paddingBottom: 'env(safe-area-inset-bottom)'
-              }
-        }
+        style={containerStyle}
       >
         <button
           onClick={handleToggleFullScreen}

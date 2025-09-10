@@ -55,14 +55,14 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
           text: 'text-green-700',
           glow: 'shadow-green-200/50'
         };
-      case 'spot':
-        return {
-          bg: 'bg-pink-500',
-          light: 'bg-pink-50',
-          border: 'border-pink-200',
-          text: 'text-pink-700',
-          glow: 'shadow-pink-200/50'
-        };
+    case 'spot':
+      return {
+          bg: 'bg-red-50 pattern-bg',
+          light: 'bg-red-50',
+          border: 'border-red-200',
+          text: 'text-red-700',
+          glow: 'shadow-red-200/50'
+      };
       default:
         return {
           bg: 'bg-gray-400',
@@ -92,10 +92,9 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
         className="origin-top-left"
         style={{ transform: `scale(${scale})`, width: baseWidth, minHeight: baseMinHeight }}
       >
-        {/* Contenedor principal con glassmorphism */}
-        <div className="relative bg-gradient-to-br from-white/95 to-white/85 backdrop-blur-xl rounded-2xl border border-white/60 shadow-2xl overflow-hidden">
-        {/* Borde decorativo superior */}
-        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-pink-400 via-rose-400 to-pink-500"></div>
+{/* Contenedor principal con diseño premium inspirado en la dashboard */}
+        <div className="relative bg-gradient-to-br from-white/98 to-rose-50/95 backdrop-blur-xl rounded-3xl border border-pink-100 shadow-2xl overflow-hidden">
+        
         
         {/* Botón de cerrar más pequeño */}
         <Button
@@ -115,7 +114,7 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
                 <Circle className="w-2 h-2 text-white" fill="currentColor" />
               </div>
               <div>
-                <h3 className="font-bold text-lg text-gray-800">
+                <h3 className="font-bold text-center text-lg text-gray-800">
                   {dateToFormat
                     ? format(parseISO(dateToFormat), 'EEEE d', { locale: es })
                     : 'Fecha'}
@@ -135,10 +134,10 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.1 }}
-                className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-1 border border-blue-100/50"
+                className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-1 border border-amber-100/50"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-md">
+                  <div className="w-6 h-6 bg-gradient-to-br from-amber-500 to-orange-600 rounded-lg flex items-center justify-center shadow-md">
                     <Thermometer className="w-4 h-4 text-white" />
                   </div>
                   <div className="flex-1">
@@ -169,7 +168,7 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
                   <div className={`w-6 h-6 ${symbolColors.bg} rounded-lg flex items-center justify-center shadow-lg ${symbolColors.glow} shadow-lg`}>
                     <div className="w-2 h-2 bg-white/90 rounded-full shadow-sm"></div>
                   </div>
-                  <div className="flex-1">
+                  <div className="flex-1 text-left">
                     <span className={`text-md font-semibold ${symbolColors.text}`}>
                       {symbolInfo.label}
                     </span>
@@ -185,15 +184,15 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.2 }}
-                className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl p-1 border border-emerald-100/50"
+                className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-1 border border-blue-100/50"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-6 h-6 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center shadow-md">
+                  <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-md">
                     <Droplets className="w-4 h-4 text-white" />
                   </div>
-                  <div className="flex-1">
-                    
-                    <span className="text-sm font-semibold text-gray-800">
+                  <div className="flex-1 text-left">
+
+                    <span className="text-md font-semibold text-blue-800">
                       {point.mucus_sensation || '-'}
                     </span>
                   </div>
@@ -205,20 +204,41 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.25 }}
-                className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-1 border border-amber-100/50"
+                className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl p-1 border border-emerald-100/50"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-6 h-6 bg-gradient-to-br from-amber-500 to-orange-600 rounded-lg flex items-center justify-center shadow-md">
+                  <div className="w-6 h-6 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center shadow-md">
                     <Circle className="w-4 h-4 text-white" />
                   </div>
-                  <div className="flex-1">
-                    
-                    <span className="text-sm font-semibold text-gray-800">
+                  <div className="flex-1 text-left">
+
+                    <span className="text-md font-semibold text-green-800">
                       {point.mucus_appearance || '-'}
                     </span>
                   </div>
                 </div>
               </motion.div>
+              
+              {/* Observaciones */}
+              {point.observations && (
+                <motion.div
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="bg-gradient-to-r from-violet-50 to-purple-50 rounded-xl p-1 border border-violet-100/50"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-6 h-6 bg-gradient-to-br from-violet-500 to-purple-600 rounded-lg flex items-center justify-center shadow-md">
+                      <Edit3 className="w-4 h-4 text-white" />
+                    </div>
+                    <div className="flex-1 text-left">
+                      <span className="text-sm font-semibold text-violet-800">
+                        {point.observations}
+                      </span>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
             </div>
 
             {/* Botones de acción */}
@@ -266,13 +286,17 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
           </div>
         </div>
 
-        {/* Decoración inferior */}
-        <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-pink-200 to-transparent"></div>
+          {/* Decoración inferior elegante */}
+          <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-pink-200/60 to-transparent"></div>
+          
+          {/* Esquinas decorativas sutiles */}
+          <div className="absolute top-4 left-4 w-2 h-2 bg-gradient-to-br from-pink-400/40 to-rose-500/40 rounded-full"></div>
+          
       </div>
       </div>
 
       {/* Sombra adicional para profundidad */}
-      <div className="absolute -inset-1 bg-gradient-to-br from-pink-200/20 to-rose-300/20 rounded-2xl blur-xl -z-10"></div>
+      <div className="absolute -inset-2 bg-gradient-to-br from-pink-200/25 to-rose-300/25 rounded-3xl blur-2xl -z-10"></div>
     </motion.div>
   );
 };
