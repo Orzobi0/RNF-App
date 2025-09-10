@@ -7,9 +7,13 @@ import { getSymbolAppearance } from '@/config/fertilitySymbols';
 const SENSATION_COLOR = '#1565C0';
 const APPEARANCE_COLOR = '#2E7D32';
 const OBSERVATION_COLOR = '#6A1B9A';
-const SENSATION_BG = 'rgba(21, 101, 192, 0.12)';
-const APPEARANCE_BG = 'rgba(46, 125, 50, 0.12)';
-const OBSERVATION_BG = 'rgba(243, 229, 245)';
+// Gradientes suaves inspirados en el estilo de las burbujas de la UI
+const SENSATION_BG_START = '#EFF6FF'; // from-blue-50
+const SENSATION_BG_END = '#EEF2FF';   // to-indigo-50
+const APPEARANCE_BG_START = '#ECFDF5'; // from-emerald-50
+const APPEARANCE_BG_END = '#F0FDFA';   // to-teal-50
+const OBSERVATION_BG_START = '#F5F3FF'; // from-violet-50
+const OBSERVATION_BG_END = '#FAF5FF';   // to-purple-50
 
 /** Quita ceros iniciales a día/mes */
 const compactDate = (dateStr) => {
@@ -114,18 +118,18 @@ const ChartPoints = ({
         </filter>
         
         <linearGradient id="sensationGradientChart" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor={SENSATION_BG} />
-          <stop offset="100%" stopColor={SENSATION_BG}  />
+          <stop offset="0%" stopColor={SENSATION_BG_START} />
+          <stop offset="100%" stopColor={SENSATION_BG_END} />
         </linearGradient>
         
         <linearGradient id="appearanceGradientChart" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor={APPEARANCE_BG} />
-          <stop offset="100%" stopColor={APPEARANCE_BG} />
+          <stop offset="0%" stopColor={APPEARANCE_BG_START} />
+          <stop offset="100%" stopColor={APPEARANCE_BG_END} />
         </linearGradient>
         
         <linearGradient id="observationGradientChart" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor={OBSERVATION_BG} />
-          <stop offset="100%" stopColor={OBSERVATION_BG} />
+          <stop offset="0%" stopColor={OBSERVATION_BG_START} />
+          <stop offset="100%" stopColor={OBSERVATION_BG_END} />
         </linearGradient>
 
         <radialGradient id="tempPointGradientChart" cx="30%" cy="30%">

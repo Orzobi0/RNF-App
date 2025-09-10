@@ -209,7 +209,7 @@ const CycleOverviewCard = ({ cycleData }) => {
               {dots.map((dot, index) => (
                 <g key={index}>
                   {/* Sombra del punto */}
-                  {!(dot.isToday && !dot.hasRecord) && (
+                  {!(dot.isToday && !dot.hasRecord) && dot.isActive && (
                     <circle
                       cx={dot.x + 0.3}
                       cy={dot.y + 0.3}
@@ -224,17 +224,13 @@ const CycleOverviewCard = ({ cycleData }) => {
                     cx={dot.x}
                     cy={dot.y}
                     r={dot.isToday ? 7 : 6}
-                    fill={dot.colors.pattern || (dot.isActive ? (dot.isToday ? dot.colors.light : dot.colors.main) : 'none')}
-                       stroke={dot.colors.border === 'none'
-                      ? 'none'
-                      : dot.colors.border || (dot.isActive
-                        ? (dot.hasRecord ? 'rgba(255,255,255,0.4)' : 'none')
-                        : 'rgba(255,255,255,0.4)')}
+                    fill={dot.colors.pattern || (dot.isActive && dot.hasRecord ? (dot.isToday ? dot.colors.light : dot.colors.main) : 'none')}
+                    stroke={dot.colors.border === 'none' ? 'none' : dot.colors.border || 'rgba(158,158,158,0.4)'}
                     strokeWidth={dot.colors.border === 'none'
                       ? 0
                       : (dot.isToday && !dot.hasRecord
-                        ? 1.2
-                        : (dot.colors.border ? 0.6 : (dot.isActive ? 0.8 : 0.8)))}
+                        ? 1.8
+                        : (dot.colors.border ? 0.6 : 0.8))}
                   onClick={(e) => handleDotClick(dot, e)}
                   initial={{ scale: 0, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}

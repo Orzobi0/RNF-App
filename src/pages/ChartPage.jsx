@@ -54,6 +54,19 @@ const ChartPage = () => {
     }
     scrollStart = Math.max(0, endIndex - visibleDays);
   }
+  const baseStyle = {
+    background: 'linear-gradient(135deg, #FFFAFC 0%, #f7eaef 100%)'
+  };
+  const containerStyle = isFullScreen
+    ? baseStyle
+    : {
+        ...baseStyle,
+        height:
+          orientation === 'landscape'
+            ? 'calc(max(100dvw) - var(--bottom-nav-safe))'
+            : 'calc(100dvh - var(--bottom-nav-safe))',
+        paddingBottom: 'env(safe-area-inset-bottom)'
+      };
 
     const handleToggleFullScreen = async () => {
     if (!isFullScreen) {
@@ -91,18 +104,7 @@ const ChartPage = () => {
             ? 'fixed inset-0 z-50 h-[100dvh] w-[100dvw] overflow-x-auto overflow-y-auto'
             : 'relative w-full overflow-x-auto overflow-y-auto'
         }
-        style={
-          isFullScreen
-            ? undefined
-            : {
-                // Altura unificada: siempre restamos la BottomNav + safe-area usando una variable CSS.
-                height:
-                  orientation === 'landscape'
-                    ? 'calc(max(100dvw) - var(--bottom-nav-safe))'
-                    : 'calc(100dvh - var(--bottom-nav-safe))',
-                paddingBottom: 'env(safe-area-inset-bottom)'
-              }
-        }
+        style={containerStyle}
       >
         <button
           onClick={handleToggleFullScreen}
