@@ -155,7 +155,7 @@ const ChartPoints = ({
             width={rowWidth}
             height={rowBlockHeight}
             fill="url(#sensationGradientChart)"
-            rx={8}
+            rx={4}
             style={{ filter: 'url(#rowShadowChart)' }}
           />
           <rect
@@ -164,7 +164,7 @@ const ChartPoints = ({
             width={rowWidth}
             height={rowBlockHeight}
             fill="url(#appearanceGradientChart)"
-            rx={8}
+            rx={4}
             style={{ filter: 'url(#rowShadowChart)' }}
           />
           <rect
@@ -173,7 +173,7 @@ const ChartPoints = ({
             width={rowWidth}
             height={rowBlockHeight}
             fill="url(#observationGradientChart)"
-            rx={8}
+            rx={4}
             style={{ filter: 'url(#rowShadowChart)' }}
           />
         </g>
@@ -348,7 +348,7 @@ const ChartPoints = ({
               y={dateRowY} 
               textAnchor="middle"
               fontSize={responsiveFontSize(1.05)}
-              fontWeight="700"
+              fontWeight="900"
               fill={textFill}
               style={{ 
                 fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
@@ -364,7 +364,7 @@ const ChartPoints = ({
               y={cycleDayRowY} 
               textAnchor="middle"
               fontSize={responsiveFontSize(1)}
-              fontWeight="700"
+              fontWeight="900"
               fill={textFill}
               style={{ 
                 fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',

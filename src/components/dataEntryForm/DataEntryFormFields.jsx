@@ -7,7 +7,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Thermometer, Droplets, Eye, EyeOff, CalendarDays, CheckSquare, Edit, Palette, Clock } from 'lucide-react';
+import { Thermometer, Droplets, Eye, EyeOff, CalendarDays, CheckSquare, Edit, Sprout, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, addDays, startOfDay, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -49,7 +49,7 @@ const DataEntryFormFields = ({
   return (
     <>
       {/* Fecha */}
-      <div className="space-y-2 bg-gradient-to-r from-pink-50 to-rose-50 rounded-xl p-3 border border-pink-100/50">
+      <div className="space-y-2 bg-gradient-to-r from-pink-50 to-rose-50 rounded-xl p-3 border border-pink-300/50">
         <Label htmlFor="date" className="flex items-center text-pink-700 text-sm font-semibold">
           <CalendarDays className="mr-2 h-5 w-5 text-pink-400" />
           Fecha del Registro
@@ -107,7 +107,7 @@ const DataEntryFormFields = ({
         <div className="space-y-2">
           <Label htmlFor="time" className="flex items-center text-amber-800 text-sm font-semibold">
             <Clock className="mr-2 h-5 w-5 text-orange-500" />
-            Hora de la Temperatura <span className="text-xs text-amber-700 ml-1"></span>
+            Hora de la toma <span className="text-xs text-amber-700 ml-1"></span>
           </Label>
           <Input
             id="time"
@@ -149,7 +149,7 @@ const DataEntryFormFields = ({
                 setTemperatureCorrected('');
                 setUseCorrected(false);
               }}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-orange-400 hover:text-orange-600"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-orange-400 hover:text-orange-600"
               title="Eliminar corrección"
             >
               X
@@ -172,7 +172,7 @@ const DataEntryFormFields = ({
             variant={ignored ? 'outline' : 'destructive'}
             size="sm"
             onClick={() => setIgnored(!ignored)}
-            className="mt-1 hover:bg-rose-200/20"
+            className="mt-1 hover:bg-orange-400"
             disabled={isProcessing}
           >
             {ignored ? <Eye className="mr-1 h-4 w-4" /> : <EyeOff className="mr-1 h-4 w-4" />}
@@ -182,20 +182,20 @@ const DataEntryFormFields = ({
              )}
 
      {/* Símbolo de fertilidad */}
-      <div className="space-y-2 bg-gradient-to-r from-teal-50 to-emerald-50 rounded-xl p-3 border border-teal-100/50">
-        <Label htmlFor="fertilitySymbol" className="flex items-center text-teal-800 text-sm font-semibold">
-          <Palette className="mr-2 h-5 w-5 text-teal-400" />
+      <div className="space-y-2 bg-gradient-to-r from-stone-50 to-slate-50 rounded-xl p-3 border border-slate-100/50">
+        <Label htmlFor="fertilitySymbol" className="flex items-center text-slate-800 text-sm font-semibold">
+          <Sprout className="mr-2 h-5 w-5 text-slate-400" />
           Símbolo de Fertilidad
         </Label>
         <Select value={fertilitySymbol} onValueChange={setFertilitySymbol} disabled={isProcessing}>
-          <SelectTrigger className="w-full bg-white/70 border-teal-200 text-gray-800 hover:bg-white">
+          <SelectTrigger className="w-full bg-white border-slate-200 text-gray-800 hover:bg-white">
             <SelectValue placeholder="Selecciona un símbolo" />
           </SelectTrigger>
-          <SelectContent className="bg-white/70 border-teal-200 text-gray-800">
+          <SelectContent className="bg-white border-slate-200 text-gray-800">
             {FERTILITY_SYMBOL_OPTIONS.map(symbol => (
-              <SelectItem key={symbol.value} value={symbol.value} className="hover:bg-teal-50 focus:bg-teal-50">
+              <SelectItem key={symbol.value} value={symbol.value} className="hover:bg-slate-50 focus:bg-slate-50">
                 <div className="flex items-center">
-                  <span className={`w-4 h-4 rounded-full mr-2 ${symbol.color} ${symbol.pattern ? 'pattern-bg' : ''}`}></span>
+                  <span className={`w-4 h-4 rounded-full mr-2 ${symbol.color} border ${symbol.pattern ? 'pattern-bg' : ''}`}></span>
                   {symbol.label}
                 </div>
               </SelectItem>
@@ -214,15 +214,15 @@ const DataEntryFormFields = ({
           value={mucusSensation}
           onChange={(e) => setMucusSensation(e.target.value)}
           placeholder="(ej: Seca, Húmeda, Mojada)"
-          className="bg-white/70 border-blue-200 text-gray-800 placeholder-gray-400 focus:ring-blue-500 focus:border-blue-500 text-base min-h-[60px]"
+          className="bg-white/70 border-blue-200 text-gray-800 placeholder-gray-400 focus:ring-blue-500 focus:border-blue-500 text-base min-h-[40px]"
           disabled={isProcessing}
         />
       </div>
 
       {/* Apariencia del moco */}
-      <div className="space-y-2 bg-gradient-to-r from-purple-50 to-fuchsia-50 rounded-xl p-3 border border-purple-100/50">
-        <Label htmlFor="mucusAppearance" className="flex items-center text-purple-800 text-sm font-semibold">
-          <Eye className="mr-2 h-5 w-5 text-purple-500" />
+      <div className="space-y-2 bg-gradient-to-r from-teal-50 to-emerald-50 rounded-xl p-3 border border-teal-100/50">
+        <Label htmlFor="mucusAppearance" className="flex items-center text-teal-800 text-sm font-semibold">
+          <Eye className="mr-2 h-5 w-5 text-teal-400" />
           Apariencia
         </Label>
         <Textarea
@@ -230,7 +230,7 @@ const DataEntryFormFields = ({
           value={mucusAppearance}
           onChange={(e) => setMucusAppearance(e.target.value)}
           placeholder="(ej: Pegajoso, Elástico)"
-          className="bg-white/70 border-purple-200 text-gray-800 placeholder-gray-400 focus:ring-purple-500 focus:border-purple-500 text-base min-h-[60px]"
+          className="bg-white/70 border-teal-200 text-gray-800 placeholder-gray-400 focus:ring-teal-500 focus:border-teal-500 text-base min-h-[40px]"
           disabled={isProcessing}
         />
       </div>
@@ -246,7 +246,7 @@ const DataEntryFormFields = ({
           value={observations}
           onChange={(e) => setObservations(e.target.value)}
           placeholder="(ej: Dolor, medicación)"
-          className="bg-white/70 border-violet-200 text-gray-800 placeholder-gray-400 focus:ring-violet-500 focus:border-violet-500 text-base min-h-[60px]"
+          className="bg-white/70 border-violet-200 text-gray-800 placeholder-gray-400 focus:ring-violet-500 focus:border-violet-500 text-base min-h-[40px]"
           disabled={isProcessing}
         />
       </div>

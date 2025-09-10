@@ -163,7 +163,7 @@ const ChartAxes = ({
             x2={x}
             y2={chartHeight - padding.bottom}
             stroke="rgba(244, 114, 182, 0.08)"
-            strokeWidth={0.8}
+            strokeWidth={2.8}
             style={{ filter: 'drop-shadow(0 0 1px rgba(244, 114, 182, 0.05))' }}
           />
         );
