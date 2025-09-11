@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import { Edit } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import useBackClose from '@/hooks/useBackClose';
 
 const RecordsPage = () => {
   const { currentCycle, addOrUpdateDataPoint, deleteRecord, isLoading } = useCycleData();
@@ -18,11 +17,6 @@ const RecordsPage = () => {
   const [recordToDelete, setRecordToDelete] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Cerrar con botón/gesto atrás del móvil en modal abierto
-  useBackClose(showForm || Boolean(editingRecord), () => {
-    setShowForm(false);
-    setEditingRecord(null);
-  });
 
   const handleEdit = (record) => {
     setEditingRecord(record);
@@ -69,24 +63,32 @@ const RecordsPage = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4">
-      <div className="my-4">
-        <Button
-          onClick={() => { setEditingRecord(null); setShowForm(true); }}
-          className="w-full sm:w-auto bg-gradient-to-r from-pink-500 to-fuchsia-600 hover:from-pink-600 hover:to-fuchsia-700 text-white"
-          disabled={isProcessing}
-        >
-          <Edit className="mr-2 h-4 w-4" /> Añadir registro
-        </Button>
-      </div>
-
-      <RecordsList
-        records={currentCycle.data}
-        onEdit={handleEdit}
-        onDelete={handleDeleteRequest}
-        isProcessing={isProcessing}
+    <div className="min-h-[100dvh] bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 relative overflow-x-hidden">
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            'radial-gradient(65% 55% at 50% 32%, rgba(244,114,182,0.18) 0%, rgba(244,114,182,0.12) 35%, rgba(244,114,182,0.06) 60%, rgba(244,114,182,0) 100%)'
+        }}
       />
+      <div className="relative z-10 max-w-4xl mx-auto px-4">
+        <div className="my-4">
+          <Button
+            onClick={() => { setEditingRecord(null); setShowForm(true); }}
+            className="w-full sm:w-auto bg-gradient-to-r from-pink-500 to-fuchsia-600 hover:from-pink-600 hover:to-fuchsia-700 text-white"
+            disabled={isProcessing}
+          >
+            <Edit className="mr-2 h-4 w-4" /> Añadir registro
+          </Button>
+        </div>
 
+        <RecordsList
+          records={currentCycle.data}
+          onEdit={handleEdit}
+          onDelete={handleDeleteRequest}
+          isProcessing={isProcessing}
+        />
+      </div>
       <Dialog
         open={showForm}
         onOpenChange={(open) => {

@@ -5,9 +5,13 @@ import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { XCircle, Edit3 } from 'lucide-react';
 import { useDataEntryForm } from '@/hooks/useDataEntryForm';
+import useBackClose from '@/hooks/useBackClose';
 
 const DataEntryForm = ({ onSubmit, initialData, onCancel, cycleStartDate, cycleEndDate, isProcessing, isEditing = false }) => {
       const formRef = useRef(null);
+      useBackClose(Boolean(onCancel), () => {
+        if (onCancel) onCancel();
+      });
 
       useEffect(() => {
         const form = formRef.current;
@@ -41,7 +45,7 @@ const DataEntryForm = ({ onSubmit, initialData, onCancel, cycleStartDate, cycleE
         <motion.form
           ref={formRef}
           onSubmit={handleSubmit}
-          className="space-y-4 bg-gradient-to-br from-white/98 to-rose-50/95 backdrop-blur-xl p-4 sm:p-6 rounded-3xl border border-pink-100 shadow-2xl w-full"
+          className="space-y-4 bg-gradient-to-br from-white/98 to-rose-50/95 backdrop-blur-xl p-4 sm:p-6 rounded-3xl border-2 border-rose-200 shadow-[0_4px_20px_rgba(244,114,182,0.25)] w-full"
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}

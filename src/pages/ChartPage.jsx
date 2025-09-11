@@ -66,8 +66,9 @@ const ChartPage = () => {
         ...baseStyle,
         height:
           orientation === 'landscape'
-            ? 'calc(max(100dvw) - var(--bottom-nav-safe))'
+            ? 'calc(min(100dvh, 100dvw) - var(--bottom-nav-safe))'
             : 'calc(100dvh - var(--bottom-nav-safe))',
+        maxHeight: '100vh',
         paddingBottom: 'env(safe-area-inset-bottom)'
       };
 

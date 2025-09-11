@@ -4,7 +4,6 @@ import { Plus, FilePlus, CalendarPlus } from 'lucide-react';
 import DataEntryForm from '@/components/DataEntryForm';
 import NewCycleDialog from '@/components/NewCycleDialog';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import useBackClose from '@/hooks/useBackClose';
 import { useCycleData } from '@/hooks/useCycleData';
 import { differenceInDays, parseISO, startOfDay } from 'date-fns';
 import ChartTooltip from '@/components/chartElements/ChartTooltip';
@@ -463,9 +462,6 @@ const ModernFertilityDashboard = () => {
   const [showForm, setShowForm] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showNewCycleDialog, setShowNewCycleDialog] = useState(false);
-
-  // Cerrar modal con gesto/botón atrás en móvil
-  useBackClose(showForm, () => setShowForm(false));
 
   if (isLoading) {
     return (
