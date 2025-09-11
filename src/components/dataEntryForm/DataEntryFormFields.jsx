@@ -68,7 +68,7 @@ const DataEntryFormFields = ({
               {date ? format(date, 'PPP', { locale: es }) : <span>Selecciona una fecha</span>}
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-auto p-0 bg-white/70 border-pink-200 text-gray-800" align="start">
+          <PopoverContent className="w-auto p-0 bg-white border-pink-200 text-gray-800" align="start">
             <Calendar
               mode="single"
               selected={date}

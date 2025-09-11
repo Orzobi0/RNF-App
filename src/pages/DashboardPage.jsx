@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, FilePlus, CalendarPlus } from 'lucide-react';
 import DataEntryForm from '@/components/DataEntryForm';
@@ -462,6 +462,16 @@ const ModernFertilityDashboard = () => {
   const [showForm, setShowForm] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showNewCycleDialog, setShowNewCycleDialog] = useState(false);
+  const [editingRecord, setEditingRecord] = useState(null);
+
+  const handleCloseForm = useCallback(() => {
+    setShowForm(false);
+    setEditingRecord(null);
+  }, []);
+
+  const handleDateSelect = useCallback((record) => {
+    setEditingRecord(record);
+  }, []);
 
   if (isLoading) {
     return (
@@ -504,8 +514,9 @@ const ModernFertilityDashboard = () => {
   const handleSave = async (data) => {
     setIsProcessing(true);
     try {
-      await addOrUpdateDataPoint(data);
+      await addOrUpdateDataPoint(data, editingRecord);
       setShowForm(false);
+      setEditingRecord(null);
     } finally {
       setIsProcessing(false);
     }
@@ -540,7 +551,13 @@ const ModernFertilityDashboard = () => {
 
       <Dialog
         open={showForm}
-        onOpenChange={(open) => setShowForm(open)}
+                onOpenChange={(open) => {
+          if (open) {
+            setShowForm(true);
+          } else {
+            handleCloseForm();
+          }
+        }}
       >
           <DialogContent
           hideClose
@@ -548,16 +565,20 @@ const ModernFertilityDashboard = () => {
         >
           <DataEntryForm
             onSubmit={handleSave}
-            onCancel={() => setShowForm(false)}
+            onCancel={handleCloseForm}
+            initialData={editingRecord}
             cycleStartDate={currentCycle.startDate}
             cycleEndDate={currentCycle.endDate}
             isProcessing={isProcessing}
+            isEditing={!!editingRecord}
+            cycleData={currentCycle.data}
+            onDateSelect={handleDateSelect}
           />
         </DialogContent>
       </Dialog>
 
       <FloatingActionButton
-        onAddRecord={() => setShowForm(true)}
+        onAddRecord={() => { setEditingRecord(null); setShowForm(true); }}
         onAddCycle={() => setShowNewCycleDialog(true)}
       />
 
