@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import RecordsList from '@/components/RecordsList';
 import DataEntryForm from '@/components/DataEntryForm';
 import DeletionDialog from '@/components/DeletionDialog';
@@ -9,7 +9,6 @@ import { Edit, Plus, FileText } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { motion } from 'framer-motion';
-import useBackClose from '@/hooks/useBackClose';
 
 const RecordsPage = () => {
   const { currentCycle, addOrUpdateDataPoint, deleteRecord, isLoading } = useCycleData();
@@ -19,11 +18,10 @@ const RecordsPage = () => {
   const [recordToDelete, setRecordToDelete] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Cerrar con botón/gesto atrás del móvil en modal abierto
-  useBackClose(showForm || Boolean(editingRecord), () => {
+  const handleCloseForm = useCallback(() => {
     setShowForm(false);
     setEditingRecord(null);
-  });
+  }, []);
 
   const handleEdit = (record) => {
     setEditingRecord(record);
@@ -143,14 +141,17 @@ const RecordsPage = () => {
       <Dialog
         open={showForm}
         onOpenChange={(open) => {
-          setShowForm(open);
-          if (!open) setEditingRecord(null);
+          if (open) {
+            setShowForm(true);
+          } else {
+            handleCloseForm();
+          }
         }}
       >
         <DialogContent hideClose className="bg-white border-pink-100 text-gray-800 w-[90vw] sm:w-auto max-w-md sm:max-w-lg md:max-w-xl max-h-[85vh] overflow-y-auto p-4 sm:p-6 rounded-2xl">
           <DataEntryForm
             onSubmit={handleSave}
-            onCancel={() => { setShowForm(false); setEditingRecord(null); }}
+            onCancel={handleCloseForm}
             initialData={editingRecord}
             cycleStartDate={currentCycle.startDate}
             cycleEndDate={currentCycle.endDate}

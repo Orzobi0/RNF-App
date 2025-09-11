@@ -85,7 +85,7 @@ const RecordsList = ({ records, onEdit, onDelete, isProcessing }) => {
                   <div className="flex flex-col flex-1 min-w-0">
                     <div className="flex items-center space-x-2 mb-1">
                       <Calendar className="w-4 h-4 text-pink-500 flex-shrink-0" />
-                      <span className="font-semibold text-slate-700 text-sm">
+                      <span className="font-semibold text-slate-700 text-md">
                         {format(parseISO(record.isoDate), 'dd MMM yyyy', { locale: es })}
                       </span>
                       {record.timestamp && (
@@ -109,18 +109,18 @@ const RecordsList = ({ records, onEdit, onDelete, isProcessing }) => {
                           </Badge>
                         )}
                       </div>
+                      <div className="flex items-center">
+                        <Badge className={`${symbolInfo.badgeClass || 'bg-gray-100 text-gray-600'} text-xs py-0 px-1`}>
+                          {symbolInfo.label}
+                        </Badge>
+                      </div>
                       <div className="flex items-center space-x-1">
-                        <Droplets className="w-3 h-3 text-sky-400" />
+                        <Droplets className="w-3 h-3 text-sky-600" />
                         <span className="truncate">{record.mucus_sensation || ''}</span>
                       </div>
                       <div className="flex items-center space-x-1">
-                        <Droplet className="w-3 h-3 text-indigo-400" />
+                        <Droplet className="w-3 h-3 text-indigo-600" />
                         <span className="truncate">{record.mucus_appearance || ''}</span>
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        <Badge className={`${symbolInfo.badgeClass || 'bg-gray-100 text-gray-800'} text-xs py-0 px-2`}>
-                          {symbolInfo.label}
-                        </Badge>
                       </div>
                     </div>
 

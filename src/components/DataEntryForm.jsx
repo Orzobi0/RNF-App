@@ -9,9 +9,7 @@ import useBackClose from '@/hooks/useBackClose';
 
 const DataEntryForm = ({ onSubmit, initialData, onCancel, cycleStartDate, cycleEndDate, isProcessing, isEditing = false }) => {
       const formRef = useRef(null);
-      useBackClose(Boolean(onCancel), () => {
-        if (onCancel) onCancel();
-      });
+      useBackClose(Boolean(onCancel), onCancel);
 
       useEffect(() => {
         const form = formRef.current;

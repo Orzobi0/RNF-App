@@ -329,16 +329,7 @@ const ChartPoints = ({
                   />
                 )}
 
-                {/* Indicador de temperatura corregida */}
-                {point.use_corrected && (
-                  <circle
-                    cx={x + 8}
-                    cy={y - 8}
-                    r={3}
-                    fill="#F59E0B"
-                    style={{ filter: 'drop-shadow(0 2px 4px rgba(245, 158, 11, 0.4))' }}
-                  />
-                )}
+
               </MotionG>
             )}
 

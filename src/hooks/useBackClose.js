@@ -23,10 +23,16 @@ export default function useBackClose(active, onClose) {
     // push dummy state so that back button closes the overlay
     window.history.pushState({ overlay: id }, "");
     window.addEventListener("popstate", handlePopState);
+    let ignore = true;
+    const timeout = setTimeout(() => {
+      ignore = false;
+    }, 0);
 
     return () => {
+      clearTimeout(timeout);
       window.removeEventListener("popstate", handlePopState);
       // remove the dummy state if overlay was closed via UI
+      if (ignore) return;
       if (window.history.state && window.history.state.overlay === id) {
         window.history.back();
       }
