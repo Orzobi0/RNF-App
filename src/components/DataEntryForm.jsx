@@ -7,7 +7,7 @@ import { XCircle, Edit3 } from 'lucide-react';
 import { useDataEntryForm } from '@/hooks/useDataEntryForm';
 import useBackClose from '@/hooks/useBackClose';
 
-const DataEntryForm = ({ onSubmit, initialData, onCancel, cycleStartDate, cycleEndDate, isProcessing, isEditing = false }) => {
+const DataEntryForm = ({ onSubmit, initialData, onCancel, cycleStartDate, cycleEndDate, isProcessing, isEditing = false, cycleData = [], onDateSelect }) => {
       const formRef = useRef(null);
       useBackClose(Boolean(onCancel), onCancel);
 
@@ -37,7 +37,7 @@ const DataEntryForm = ({ onSubmit, initialData, onCancel, cycleStartDate, cycleE
         observations, setObservations,
         ignored, setIgnored,
         handleSubmit,
-      } = useDataEntryForm(onSubmit, initialData, isEditing, cycleStartDate, cycleEndDate);
+      } = useDataEntryForm(onSubmit, initialData, isEditing, cycleStartDate, cycleEndDate, cycleData, onDateSelect);
 
       return (
         <motion.form

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { XCircle, EyeOff, Eye, Edit3, Thermometer, Droplets, Circle } from 'lucide-react';
@@ -16,21 +16,29 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
   const tooltipWidth = baseWidth * scale;
   const tooltipMinHeight = baseMinHeight * scale;
 
-  // Determina si debe invertirse el tooltip según la zona tocada
+  const tooltipRef = useRef(null);
+  const [tooltipHeight, setTooltipHeight] = useState(tooltipMinHeight);
+
+  useEffect(() => {
+    if (tooltipRef.current) {
+      setTooltipHeight(tooltipRef.current.offsetHeight);
+    }
+  }, [point]);
+
   const flipHorizontal = position.clientX > chartWidth * 0.66;
-  const flipVertical = position.clientY > chartHeight * 0.66;
+  const flipVertical = position.clientY + tooltipHeight > chartHeight;
 
   let x = flipHorizontal
     ? position.clientX - tooltipWidth - 10
-    : position.clientX + 15;
+    : position.clientX + 10;
 
   let y = flipVertical
-    ? position.clientY - tooltipMinHeight - 10
+    ? position.clientY
     : position.clientY + 10;
 
-  // Asegura que el tooltip permanezca visible dentro del gráfico
+
   if (x + tooltipWidth > chartWidth) x = chartWidth - tooltipWidth - 10;
-  if (y + tooltipMinHeight > chartHeight) y = chartHeight - tooltipMinHeight - 10;
+  if (y + tooltipHeight > chartHeight) y = chartHeight - tooltipHeight - 10;
   if (x < 10) x = 10;
   if (y < 10) y = 10;
 
@@ -88,6 +96,7 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
 
   return (
     <motion.div
+      ref={tooltipRef}
       initial={{ opacity: 0, scale: 0.8, y: 20 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.8, y: 20 }}

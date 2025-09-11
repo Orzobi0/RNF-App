@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { format, startOfDay, parseISO, addDays } from "date-fns";
-    import { useToast } from '@/components/ui/use-toast';
-    import { FERTILITY_SYMBOLS } from '@/config/fertilitySymbols';
+import { useToast } from '@/components/ui/use-toast';
+import { FERTILITY_SYMBOLS } from '@/config/fertilitySymbols';
 
-   export const useDataEntryForm = (onSubmit, initialData, isEditing, cycleStartDate, cycleEndDate) => {
+export const useDataEntryForm = (onSubmit, initialData, isEditing, cycleStartDate, cycleEndDate, cycleData = [], onDateSelect) => {
       const [date, setDate] = useState(initialData?.isoDate ? parseISO(initialData.isoDate) : startOfDay(new Date()));
       const [temperatureRaw, setTemperatureRaw] = useState(initialData?.temperature_raw === null || initialData?.temperature_raw === undefined ? '' : String(initialData.temperature_raw));
       const [time, setTime] = useState(initialData?.timestamp ? format(parseISO(initialData.timestamp), 'HH:mm') : format(new Date(), 'HH:mm'));
@@ -38,7 +38,6 @@ import { format, startOfDay, parseISO, addDays } from "date-fns";
           setObservations(initialData.observations || '');
           setIgnored(initialData.ignored || false);
         } else {
-          setDate(startOfDay(new Date()));
           setTemperatureRaw('');
           setTime(format(new Date(), 'HH:mm'));
           setTemperatureCorrected('');
@@ -50,6 +49,14 @@ import { format, startOfDay, parseISO, addDays } from "date-fns";
           setIgnored(false);
         }
       }, [initialData]);
+
+        useEffect(() => {
+        if (!onDateSelect) return;
+        const iso = format(date, 'yyyy-MM-dd');
+        const found = cycleData.find(r => r.isoDate === iso);
+        onDateSelect(found || null);
+      }, [date, cycleData, onDateSelect]);
+
 
       const handleSubmit = (e) => {
         e.preventDefault();

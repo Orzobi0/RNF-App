@@ -33,6 +33,10 @@ const RecordsPage = () => {
     setRecordToDelete(record);
   };
 
+  const handleDateSelect = useCallback((record) => {
+    setEditingRecord(record);
+  }, []);
+
   const handleSave = async (data) => {
     setIsProcessing(true);
     try {
@@ -157,6 +161,8 @@ const RecordsPage = () => {
             cycleEndDate={currentCycle.endDate}
             isProcessing={isProcessing}
             isEditing={!!editingRecord}
+            cycleData={currentCycle.data}
+            onDateSelect={handleDateSelect}
           />
         </DialogContent>
       </Dialog>
