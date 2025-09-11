@@ -5,9 +5,11 @@ import DeletionDialog from '@/components/DeletionDialog';
 import { useCycleData } from '@/hooks/useCycleData';
 import { useToast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
-import { Edit } from 'lucide-react';
+import { Edit, Plus, FileText } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { motion } from 'framer-motion';
+import useBackClose from '@/hooks/useBackClose';
 
 const RecordsPage = () => {
   const { currentCycle, addOrUpdateDataPoint, deleteRecord, isLoading } = useCycleData();
@@ -17,6 +19,11 @@ const RecordsPage = () => {
   const [recordToDelete, setRecordToDelete] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
+  // Cerrar con botón/gesto atrás del móvil en modal abierto
+  useBackClose(showForm || Boolean(editingRecord), () => {
+    setShowForm(false);
+    setEditingRecord(null);
+  });
 
   const handleEdit = (record) => {
     setEditingRecord(record);
@@ -55,15 +62,37 @@ const RecordsPage = () => {
   };
 
   if (isLoading) {
-    return <p className="text-center text-gray-500">Cargando...</p>;
+    return (
+      <div className="min-h-[100dvh] bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 flex items-center justify-center">
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              'radial-gradient(65% 55% at 50% 32%, rgba(244,114,182,0.18) 0%, rgba(244,114,182,0.12) 35%, rgba(244,114,182,0.06) 60%, rgba(244,114,182,0) 100%)'
+          }}
+        />
+        <p className="text-center text-slate-600 text-lg">Cargando...</p>
+      </div>
+    );
   }
 
   if (!currentCycle?.id) {
-    return <p className="text-center text-gray-500">No hay ciclo activo.</p>;
+    return (
+      <div className="min-h-[100dvh] bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 flex items-center justify-center">
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              'radial-gradient(65% 55% at 50% 32%, rgba(244,114,182,0.18) 0%, rgba(244,114,182,0.12) 35%, rgba(244,114,182,0.06) 60%, rgba(244,114,182,0) 100%)'
+          }}
+        />
+        <p className="text-center text-slate-600 text-lg">No hay ciclo activo.</p>
+      </div>
+    );
   }
 
   return (
-    <div className="min-h-[100dvh] bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 relative overflow-x-hidden">
+    <div className="min-h-[100dvh] bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 relative">
       <div
         className="pointer-events-none absolute inset-0"
         style={{
@@ -71,24 +100,45 @@ const RecordsPage = () => {
             'radial-gradient(65% 55% at 50% 32%, rgba(244,114,182,0.18) 0%, rgba(244,114,182,0.12) 35%, rgba(244,114,182,0.06) 60%, rgba(244,114,182,0) 100%)'
         }}
       />
-      <div className="relative z-10 max-w-4xl mx-auto px-4">
-        <div className="my-4">
+      
+      <div className="max-w-4xl mx-auto px-4 py-6 relative z-10">
+        {/* Header */}
+        <motion.div
+          className="flex flex-col sm:flex-row justify-between items-center mb-6"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          <h1 className="text-3xl sm:text-4xl font-bold text-slate-700 mb-4 sm:mb-0 flex items-center">
+            <FileText className="mr-3 h-8 w-8 text-pink-500" />
+            Mis Registros
+          </h1>
           <Button
             onClick={() => { setEditingRecord(null); setShowForm(true); }}
-            className="w-full sm:w-auto bg-gradient-to-r from-pink-500 to-fuchsia-600 hover:from-pink-600 hover:to-fuchsia-700 text-white"
+            className="bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white shadow-lg"
             disabled={isProcessing}
+            style={{ filter: 'drop-shadow(0 6px 12px rgba(236, 72, 153, 0.3))' }}
           >
-            <Edit className="mr-2 h-4 w-4" /> Añadir registro
+            <Plus className="mr-2 h-4 w-4" />
+            Añadir registro
           </Button>
-        </div>
+        </motion.div>
 
-        <RecordsList
-          records={currentCycle.data}
-          onEdit={handleEdit}
-          onDelete={handleDeleteRequest}
-          isProcessing={isProcessing}
-        />
+        {/* Records List */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+        >
+          <RecordsList
+            records={currentCycle.data}
+            onEdit={handleEdit}
+            onDelete={handleDeleteRequest}
+            isProcessing={isProcessing}
+          />
+        </motion.div>
       </div>
+
       <Dialog
         open={showForm}
         onOpenChange={(open) => {
@@ -96,10 +146,7 @@ const RecordsPage = () => {
           if (!open) setEditingRecord(null);
         }}
       >
-        <DialogContent
-          hideClose
-          className="bg-transparent border-none p-0 text-gray-800 w-[90vw] sm:w-auto max-w-md sm:max-w-lg md:max-w-xl max-h-[85vh] overflow-y-auto"
-        >
+        <DialogContent hideClose className="bg-white border-pink-100 text-gray-800 w-[90vw] sm:w-auto max-w-md sm:max-w-lg md:max-w-xl max-h-[85vh] overflow-y-auto p-4 sm:p-6 rounded-2xl">
           <DataEntryForm
             onSubmit={handleSave}
             onCancel={() => { setShowForm(false); setEditingRecord(null); }}

@@ -1,175 +1,170 @@
 import React from 'react';
-    import { Button } from '@/components/ui/button';
-    import { Edit3, Trash2, XCircle, Check } from 'lucide-react';
-    import { motion } from 'framer-motion';
-    import { ScrollArea } from "@/components/ui/scroll-area";
-    import { format, parseISO } from 'date-fns';
-    import { es } from 'date-fns/locale';
-    import { getSymbolAppearance } from '@/config/fertilitySymbols';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Edit2, Trash2, Thermometer, Droplets, Eye, Calendar, Clock } from 'lucide-react';
+import { format, parseISO } from 'date-fns';
+import { es } from 'date-fns/locale';
+import { motion } from 'framer-motion';
+import { FERTILITY_SYMBOL_OPTIONS } from '@/config/fertilitySymbols';
 
-const RecordsList = ({ records, onEdit, onDelete, onClose, isArchiveView = false, isProcessing }) => {
-      if (!records || records.length === 0) {
+const RecordsList = ({ records, onEdit, onDelete, isProcessing }) => {
+  if (!records || records.length === 0) {
+    return (
+      <motion.div
+        className="text-center py-12"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        <div className="bg-white/70 backdrop-blur-md rounded-3xl p-8 border border-pink-200/50 shadow-lg mx-4">
+          <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-pink-100 to-rose-100 rounded-full flex items-center justify-center">
+            <Eye className="w-8 h-8 text-pink-500" />
+          </div>
+          <h3 className="text-xl font-semibold text-slate-700 mb-2">No hay registros</h3>
+          <p className="text-slate-500">Añade tu primer registro para comenzar.</p>
+        </div>
+      </motion.div>
+    );
+  }
+
+  const getSymbolInfo = (symbolValue) => {
+    return FERTILITY_SYMBOL_OPTIONS.find(s => s.value === symbolValue) || FERTILITY_SYMBOL_OPTIONS[0];
+  };
+
+  const sortedRecords = [...records].sort((a, b) => {
+    return parseISO(b.isoDate) - parseISO(a.isoDate);
+  });
+
+  return (
+    <motion.div
+      className="space-y-3"
+      variants={{
+        hidden: { opacity: 0 },
+        show: {
+          opacity: 1,
+          transition: {
+            staggerChildren: 0.05
+          }
+        }
+      }}
+      initial="hidden"
+      animate="show"
+    >
+      {sortedRecords.map((record, index) => {
+        const symbolInfo = getSymbolInfo(record.fertility_symbol);
+        const hasTemperature = record.temperature_raw || record.temperature_corrected;
+        const displayTemp = record.use_corrected && record.temperature_corrected
+          ? record.temperature_corrected
+          : record.temperature_raw;
+
         return (
           <motion.div
-            className="text-center text-[#6B7280] p-8 bg-white rounded-xl shadow"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
+            key={record.id}
+            className="bg-white/80 backdrop-blur-md border border-pink-200/50 shadow-lg hover:shadow-xl transition-all duration-300 hover:bg-white/90 rounded-xl"
+            variants={{
+              hidden: { opacity: 0, y: 20 },
+              show: { opacity: 1, y: 0 }
+            }}
           >
-            <p className="text-xl mb-4">No hay registros para mostrar.</p>
-            {onClose && !isArchiveView && (
-              <Button onClick={onClose} variant="outline" className="border-gray-300 hover:bg-gray-100 text-gray-700">
-                <XCircle className="mr-2 h-5 w-5" />
-                Cerrar
-              </Button>
-            )}
-          </motion.div>
-        );
-      }
+            <div className="p-4">
+              <div className="flex items-center justify-between">
+                {/* Información principal - lado izquierdo */}
+                <div className="flex items-center space-x-4 flex-1">
+                  {/* Símbolo de fertilidad */}
+                  <div className="flex flex-col items-center">
+                    <div
+                      className={`w-6 h-6 rounded-full border ${symbolInfo.color} ${symbolInfo.pattern ? 'pattern-bg' : ''} flex-shrink-0`}
+                      style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}
+                    />
+                    <span className="text-xs text-slate-600 mt-1 text-center leading-tight">
+                      Día {record.cycleDay}
+                    </span>
+                  </div>
 
-      const sortedRecords = [...records].sort((a, b) => {
-        const dateA = a.timestamp ? parseISO(a.timestamp) : (a.isoDate ? parseISO(a.isoDate) : 0);
-        const dateB = b.timestamp ? parseISO(b.timestamp) : (b.isoDate ? parseISO(b.isoDate) : 0);
-        return dateA - dateB;
-      });
-
-
-      return (
-        <motion.div
-          className="w-full bg-white/70 backdrop-blur-md p-4 sm:p-6 rounded-xl ring-1 ring-[#FFB1DD]/20 shadow-xl"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-        >
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-semibold text-gray-800">
-              {isArchiveView ? "Registros del Ciclo" : "Mis Registros"}
-            </h2>
-            {onClose && !isArchiveView && (
-              <Button onClick={onClose} variant="ghost" size="icon" className="text-gray-700 hover:text-pink-500 hover:bg-pink-50">
-                <XCircle className="h-6 w-6" />
-              </Button>
-            )}
-          </div>
-          <ScrollArea className="pr-4 max-h-[calc(100dvh-var(--bottom-nav-safe)-4rem)]">
-            <ul className="space-y-4">
-              {sortedRecords.map((record) => {
-                const symbolInfo = getSymbolAppearance(record.fertility_symbol);
-                const dateToFormat = record.timestamp || record.isoDate;
-                  const timeToFormat = record.timestamp ? format(parseISO(record.timestamp), 'HH:mm') : null;
-                return (
-                  <motion.li
-                    key={record.id || dateToFormat}
-                    className="bg-white/80 backdrop-blur-md ring-1 ring-[#FFB1DD]/50 border border-[#FFB1DD]/80 shadow-lg rounded-lg p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center hover:shadow-xl transition-shadow duration-300"
-                    style={{ boxShadow: '0 2px 6px rgba(0,0,0,0.05)' }}
-                    layout
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <div className="flex-grow mb-3 sm:mb-0">
-                        <h3 className="text-lg font-semibold text-pink-500 mb-1 ">
-                      {dateToFormat ? format(parseISO(dateToFormat), "dd/MM/yyyy", { locale: es }) : 'Fecha no disponible'} (Día {record.cycleDay || 'N/A'})
-                                            </h3>
-                        {record.temperature_raw != null && (
-                            <p className="text-sm text-[#6B7280]">
-                              <span className="font-semibold">Original:</span> {record.temperature_raw.toFixed(2)}°C
-                              {timeToFormat && (
-                                <span className="ml-2 text-xs text-[#9CA3AF]">{timeToFormat}</span>
-                              )}
-                              {/* si existe corregida y usamos la original, muestro el check */}
-                              {record.temperature_corrected != null && !record.use_corrected && (
-                                <Check className="inline h-4 w-4 text-[#E27DBF] ml-1" />
-                              )}
-                            </p>
-                          )}
-
-                       {record.temperature_corrected != null && (
-                          <p className="text-sm text-[#6B7280]">
-                            <span className="font-semibold">Corregida:</span>{' '}
-                            {record.temperature_corrected.toFixed(2)}°C
-                            {record.use_corrected && (
-                              <Check className="inline h-4 w-4 text-emerald-400 ml-1" />
-                            )}
-                          </p>
-                        )}
-
-                      
-                      <div className="flex items-center mt-1">
-                         {symbolInfo && symbolInfo.value !== 'none' && (
-                           <span className={`w-4 h-4 rounded-full mr-2 ${symbolInfo.color} ${symbolInfo.pattern ? 'pattern-bg' : ''} ${symbolInfo.value === 'white' ? 'border border-gray-300' : ''}`}></span>
-                         )}
-                         <p className={`text-sm ${symbolInfo ? symbolInfo.textColor : 'text-[#6B7280]'}`}>{symbolInfo ? symbolInfo.label : 'Sin Símbolo'}</p>
-                      </div>
-                      <p className="text-sm text-[#6B7280] mt-1">
-                        <span className="font-semibold">Sensación:</span> {record.mucus_sensation || 'N/A'}
-                      </p>
-                      <p className="text-sm text-[#6B7280]">
-                        <span className="font-semibold">Apariencia:</span> {record.mucus_appearance || 'N/A'}
-                      </p>
-                      {record.observations && (
-                        <p className="text-sm text-[#6B7280] mt-1 italic">
-                          <span className="font-semibold">Observaciones:</span> {record.observations}
-                        </p>
-                      )}
-                      {record.ignored && (
-                        <p className="text-xs text-rose-400 mt-1">(Registro despreciado)</p>
+                  {/* Información de la fecha y hora */}
+                  <div className="flex flex-col flex-1 min-w-0">
+                    <div className="flex items-center space-x-2 mb-1">
+                      <Calendar className="w-4 h-4 text-pink-500 flex-shrink-0" />
+                      <span className="font-semibold text-slate-700 text-sm">
+                        {format(parseISO(record.isoDate), 'dd MMM yyyy', { locale: es })}
+                      </span>
+                      {record.timestamp && (
+                        <>
+                          <Clock className="w-3 h-3 text-slate-400 flex-shrink-0" />
+                          <span className="text-xs text-slate-500">
+                            {format(parseISO(record.timestamp), 'HH:mm')}
+                          </span>
+                        </>
                       )}
                     </div>
-                    {!isArchiveView && onEdit && onDelete && (
-                      <div className="flex space-x-2 self-end sm:self-center">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => onEdit(record)}
-                          className="border-sky-500 text-sky-400 hover:bg-sky-500/20 hover:text-sky-300"
-                          disabled={isProcessing}
-                        >
-                          <Edit3 className="mr-1 h-4 w-4" /> Editar
-                        </Button>
 
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => onDelete(record.id)}
-                          className="bg-rose-600 hover:bg-rose-700"
-                          disabled={isProcessing}
-                        >
-                          <Trash2 className="mr-1 h-4 w-4" /> Eliminar
-                        </Button>
+                    {/* Información compacta en una línea */}
+                    <div className="flex items-center space-x-3 text-xs text-slate-600">
+                      {hasTemperature && (
+                        <div className="flex items-center space-x-1">
+                          <Thermometer className="w-3 h-3 text-rose-400" />
+                          <span className="font-medium">{displayTemp}°C</span>
+                          {record.ignored && (
+                            <Badge variant="secondary" className="text-xs py-0 px-1 bg-slate-200 text-slate-600">
+                              Ignorada
+                            </Badge>
+                          )}
+                        </div>
+                      )}
+                      
+                      {(record.mucus_sensation || record.mucus_appearance) && (
+                        <div className="flex items-center space-x-1">
+                          <Droplets className="w-3 h-3 text-sky-400" />
+                          <span className="truncate max-w-20">
+                            {record.mucus_sensation || record.mucus_appearance}
+                          </span>
+                        </div>
+                      )}
+
+                      <Badge 
+                        className={`${symbolInfo.badgeClass || 'bg-gray-100 text-gray-800'} text-xs py-0 px-2`}
+                      >
+                        {symbolInfo.label}
+                      </Badge>
+                    </div>
+
+                    {/* Observaciones si existen */}
+                    {record.observations && (
+                      <div className="mt-1 text-xs text-slate-500 truncate">
+                        <span className="italic">"{record.observations}"</span>
                       </div>
                     )}
-                    {isArchiveView && onEdit && onDelete && (
-                      <div className="flex space-x-2 self-end sm:self-center">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => onEdit(record)}
-                          className="border-sky-500 text-sky-400 hover:bg-sky-500/20 hover:text-sky-300"
-                          disabled={isProcessing}
-                        >
-                          <Edit3 className="mr-1 h-4 w-4" /> Editar
-                        </Button>
+                  </div>
+                </div>
 
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => onDelete(record.id)}
-                          className="bg-rose-600 hover:bg-rose-700"
-                          disabled={isProcessing}
-                        >
-                          <Trash2 className="mr-1 h-4 w-4" /> Eliminar
-                        </Button>
-                      </div>
-                     )}
-                  </motion.li>
-                )
-              })}
-            </ul>
-          </ScrollArea>
-        </motion.div>
-      );
-    };
+                {/* Botones de acción - lado derecho */}
+                <div className="flex space-x-1 ml-2">
+                  <Button
+                    onClick={() => onEdit(record)}
+                    variant="outline"
+                    size="sm"
+                    className="h-8 w-8 p-0 border-pink-300 text-pink-600 hover:bg-pink-50 hover:border-pink-400"
+                    disabled={isProcessing}
+                  >
+                    <Edit2 className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    onClick={() => onDelete(record.id)}
+                    variant="outline"
+                    size="sm"
+                    className="h-8 w-8 p-0 border-rose-300 text-rose-600 hover:bg-rose-50 hover:border-rose-400"
+                    disabled={isProcessing}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        );
+      })}
+    </motion.div>
+  );
+};
 
-    export default RecordsList;
+export default RecordsList;
