@@ -15,12 +15,22 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
   const baseMinHeight = 120;
   const tooltipWidth = baseWidth * scale;
   const tooltipMinHeight = baseMinHeight * scale;
-  let x = position.clientX + 15;
-  let y = position.clientY + 10;
 
-  // Mantiene el tooltip siempre visible dentro del área del gráfico
-  if (x + tooltipWidth > chartWidth) x = position.clientX - tooltipWidth - 10;
-  if (y + tooltipMinHeight > chartHeight) y = position.clientY - tooltipMinHeight - 10;
+  // Determina si debe invertirse el tooltip según la zona tocada
+  const flipHorizontal = position.clientX > chartWidth * 0.66;
+  const flipVertical = position.clientY > chartHeight * 0.66;
+
+  let x = flipHorizontal
+    ? position.clientX - tooltipWidth - 10
+    : position.clientX + 15;
+
+  let y = flipVertical
+    ? position.clientY - tooltipMinHeight - 10
+    : position.clientY + 10;
+
+  // Asegura que el tooltip permanezca visible dentro del gráfico
+  if (x + tooltipWidth > chartWidth) x = chartWidth - tooltipWidth - 10;
+  if (y + tooltipMinHeight > chartHeight) y = chartHeight - tooltipMinHeight - 10;
   if (x < 10) x = 10;
   if (y < 10) y = 10;
 
