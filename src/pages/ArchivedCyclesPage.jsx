@@ -189,11 +189,7 @@ const ArchivedCyclesPage = () => {
                           <h2 className="text-lg font-semibold text-slate-700">
                             {format(parseISO(cycle.startDate), "dd MMM yyyy", { locale: es })} - {endDate}
                           </h2>
-                          {cycle.isCurrent && (
-                            <Badge className="bg-gradient-to-r from-pink-500 to-rose-500 text-white text-xs">
-                              Ciclo actual
-                            </Badge>
-                          )}
+                          
                         </div>
                         
                         <div className="flex items-center space-x-4 text-sm text-slate-600">
@@ -208,7 +204,13 @@ const ArchivedCyclesPage = () => {
                               <span>
                                 {Math.ceil((parseISO(cycle.endDate) - parseISO(cycle.startDate)) / (1000 * 60 * 60 * 24)) + 1} días
                               </span>
+                              
                             </div>
+                          )}
+                          {cycle.isCurrent && (
+                            <Badge className="bg-gradient-to-r from-pink-500 to-rose-500 text-white text-xs">
+                              Ciclo actual
+                            </Badge>
                           )}
                         </div>
                       </div>

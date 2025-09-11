@@ -1,7 +1,7 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Edit2, Trash2, Thermometer, Droplets, Eye, Calendar, Clock } from 'lucide-react';
+import { Edit2, Trash2, Thermometer, Droplets, Droplet, Eye, Calendar, Clock } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { motion } from 'framer-motion';
@@ -98,42 +98,37 @@ const RecordsList = ({ records, onEdit, onDelete, isProcessing }) => {
                       )}
                     </div>
 
-                    {/* Información compacta en una línea */}
-                    <div className="flex items-center space-x-3 text-xs text-slate-600">
-                      {hasTemperature && (
-                        <div className="flex items-center space-x-1">
-                          <Thermometer className="w-3 h-3 text-rose-400" />
-                          <span className="font-medium">{displayTemp}°C</span>
-                          {record.ignored && (
-                            <Badge variant="secondary" className="text-xs py-0 px-1 bg-slate-200 text-slate-600">
-                              Ignorada
-                            </Badge>
-                          )}
-                        </div>
-                      )}
-                      
-                      {(record.mucus_sensation || record.mucus_appearance) && (
-                        <div className="flex items-center space-x-1">
-                          <Droplets className="w-3 h-3 text-sky-400" />
-                          <span className="truncate max-w-20">
-                            {record.mucus_sensation || record.mucus_appearance}
-                          </span>
-                        </div>
-                      )}
-
-                      <Badge 
-                        className={`${symbolInfo.badgeClass || 'bg-gray-100 text-gray-800'} text-xs py-0 px-2`}
-                      >
-                        {symbolInfo.label}
-                      </Badge>
+                    {/* Información estructurada */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-slate-600 mt-2">
+                      <div className="flex items-center space-x-1">
+                        <Thermometer className="w-3 h-3 text-rose-400" />
+                        <span className="font-medium">{hasTemperature ? `${displayTemp}°C` : ''}</span>
+                        {hasTemperature && record.ignored && (
+                          <Badge variant="secondary" className="text-xs py-0 px-1 bg-slate-200 text-slate-600">
+                            Ignorada
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <Droplets className="w-3 h-3 text-sky-400" />
+                        <span className="truncate">{record.mucus_sensation || ''}</span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <Droplet className="w-3 h-3 text-indigo-400" />
+                        <span className="truncate">{record.mucus_appearance || ''}</span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <Badge className={`${symbolInfo.badgeClass || 'bg-gray-100 text-gray-800'} text-xs py-0 px-2`}>
+                          {symbolInfo.label}
+                        </Badge>
+                      </div>
                     </div>
 
-                    {/* Observaciones si existen */}
-                    {record.observations && (
-                      <div className="mt-1 text-xs text-slate-500 truncate">
-                        <span className="italic">"{record.observations}"</span>
-                      </div>
-                    )}
+                    {/* Observaciones */}
+                    <div className="mt-2 text-xs text-slate-600">
+                      <span className="font-medium">Observaciones:</span>{' '}
+                      <span className="italic">{record.observations || ''}</span>
+                    </div>
                   </div>
                 </div>
 

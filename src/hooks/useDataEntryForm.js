@@ -9,8 +9,13 @@ import { format, startOfDay, parseISO, addDays } from "date-fns";
       const [time, setTime] = useState(initialData?.timestamp ? format(parseISO(initialData.timestamp), 'HH:mm') : format(new Date(), 'HH:mm'));
       const [temperatureCorrected, setTemperatureCorrected] = useState(initialData?.temperature_corrected === null || initialData?.temperature_corrected === undefined ? '' : String(initialData.temperature_corrected));
       const [useCorrected, setUseCorrected] = useState(initialData?.use_corrected || false);
-      const [mucusSensation, setMucusSensation] = useState(initialData?.mucusSensation || '');
-      const [mucusAppearance, setMucusAppearance] = useState(initialData?.mucusAppearance || '');
+      // Permite inicializar los campos tanto si vienen en camelCase como en snake_case
+      const [mucusSensation, setMucusSensation] = useState(
+        initialData?.mucusSensation ?? initialData?.mucus_sensation ?? ''
+      );
+      const [mucusAppearance, setMucusAppearance] = useState(
+        initialData?.mucusAppearance ?? initialData?.mucus_appearance ?? ''
+      );
       const [fertilitySymbol, setFertilitySymbol] = useState(initialData?.fertility_symbol || FERTILITY_SYMBOLS.NONE.value);
       const [observations, setObservations] = useState(initialData?.observations || '');
       const [ignored, setIgnored] = useState(initialData?.ignored || false);
@@ -23,8 +28,12 @@ import { format, startOfDay, parseISO, addDays } from "date-fns";
           setTime(initialData.timestamp ? format(parseISO(initialData.timestamp), 'HH:mm') : '');
           setTemperatureCorrected(initialData.temperature_corrected === null || initialData.temperature_corrected === undefined ? '' : String(initialData.temperature_corrected));
           setUseCorrected(initialData.use_corrected || false);
-          setMucusSensation(initialData.mucusSensation || '');
-          setMucusAppearance(initialData.mucusAppearance || '');
+          setMucusSensation(
+            initialData.mucusSensation ?? initialData.mucus_sensation ?? ''
+          );
+          setMucusAppearance(
+            initialData.mucusAppearance ?? initialData.mucus_appearance ?? ''
+          );
           setFertilitySymbol(initialData.fertility_symbol || FERTILITY_SYMBOLS.NONE.value);
           setObservations(initialData.observations || '');
           setIgnored(initialData.ignored || false);
