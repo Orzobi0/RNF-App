@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { XCircle, Edit3 } from 'lucide-react';
 import { useDataEntryForm } from '@/hooks/useDataEntryForm';
 import useBackClose from '@/hooks/useBackClose';
+import { parseISO } from 'date-fns';
 
 const DataEntryForm = ({ onSubmit, initialData, onCancel, cycleStartDate, cycleEndDate, isProcessing, isEditing = false, cycleData = [], onDateSelect }) => {
       const formRef = useRef(null);
@@ -38,6 +39,7 @@ const DataEntryForm = ({ onSubmit, initialData, onCancel, cycleStartDate, cycleE
         ignored, setIgnored,
         handleSubmit,
       } = useDataEntryForm(onSubmit, initialData, isEditing, cycleStartDate, cycleEndDate, cycleData, onDateSelect);
+      const recordedDates = cycleData.map(r => parseISO(r.isoDate));
 
       return (
         <motion.form
@@ -85,6 +87,7 @@ const DataEntryForm = ({ onSubmit, initialData, onCancel, cycleStartDate, cycleE
             initialData={initialData}
             cycleStartDate={cycleStartDate}
             cycleEndDate={cycleEndDate}
+            recordedDates={recordedDates}
           />
           <DataEntryFormActions
             onCancel={onCancel}

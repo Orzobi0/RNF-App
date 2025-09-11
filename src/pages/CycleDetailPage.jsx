@@ -180,6 +180,7 @@ import React, { useState, useEffect, useCallback } from 'react';
                       cycleEndDate={cycleData.endDate}
                       isProcessing={isProcessing}
                       isEditing={Boolean(editingRecord)}
+                      cycleData={cycleData.data}
                     />
                   </motion.div>
                 )}

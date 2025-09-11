@@ -69,30 +69,64 @@ const RecordsList = ({ records, onEdit, onDelete, isProcessing }) => {
             <div className="p-4">
               {/* Encabezado con fecha y símbolo */}
               <div className="flex items-start justify-between">
-                <div className="flex items-center space-x-2 flex-1">
-                  <Calendar className="w-4 h-4 text-pink-500 flex-shrink-0" />
-                  <span className="font-semibold text-slate-700 text-md">
+                <div className="flex items-center space-x-2">
+                  <Calendar className="w-5 h-5 text-pink-500 flex-shrink-0" />
+                  <span className="font-semibold text-slate-700 text-lg">
                     {format(parseISO(record.isoDate), 'dd MMM yyyy', { locale: es })}
                   </span>
+                  <span className="text-md text-slate-600">Día {record.cycleDay}</span>
                 </div>
-                <div className="flex flex-col items-end ml-2">
-                  <div className="flex items-center space-x-1">
-                    {symbolInfo.label !== 'Sin símbolo' && (
-                      <span className="text-xs text-slate-600">{symbolInfo.label}</span>
-                    )}
-                    <div
-                      className={`w-6 h-6 rounded-full border ${symbolInfo.color} ${symbolInfo.pattern ? 'pattern-bg' : ''} flex-shrink-0`}
-                      style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}
-                    />
-
-                  </div>
-                   <span className="text-xs text-slate-600 mt-1 text-center leading-tight">
-                    Día {record.cycleDay}
-                  </span>
+                <div className="flex items-center space-x-1 ml-2">
+                  {symbolInfo.label !== 'Sin símbolo' && (
+                    <span className="text-xs text-slate-600">{symbolInfo.label}</span>
+                  )}
+                  <div
+                    className={`w-6 h-6 rounded-full border ${symbolInfo.color} ${symbolInfo.pattern ? 'pattern-bg' : ''} flex-shrink-0`}
+                    style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}
+                  />
                 </div>
+              </div>
 
+              {/* Temperatura y hora */}
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-600">
+                <div className="flex items-center space-x-1 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-100/50 p-2 rounded">
+                  <Thermometer className="w-3 h-3 text-rose-400" />
+                  <span className="font-medium">{hasTemperature ? `${displayTemp}°C` : ''}</span>
+                  {hasTemperature && record.ignored && (
+                    <Badge variant="secondary" className="text-xs py-0 px-1 bg-slate-200 text-slate-600">
+                      Ignorada
+                    </Badge>
+                  )}
+                </div>
+                <div className="flex items-center space-x-1 bg-slate-50 border border-amber-100/50 p-2 rounded">
+                  {record.timestamp && (
+                    <>
+                      <Clock className="w-3 h-3 text-amber-600" />
+                      <span>{format(parseISO(record.timestamp), 'HH:mm')}</span>
+                    </>
+                  )}
+                </div>
+              </div>
        
-                <div className="flex space-x-1 ml-2">
+              {/* Sensación y apariencia */}
+              <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-600">
+                <div className="flex items-center space-x-1 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100/50 p-2 rounded">
+                  <Droplets className="w-3 h-3 text-sky-600" />
+                  <span className="truncate">{record.mucus_sensation || ''}</span>
+                </div>
+                <div className="flex items-center space-x-1 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100/50 p-2 rounded">
+                  <Droplet className="w-3 h-3 text-indigo-600" />
+                  <span className="truncate">{record.mucus_appearance || ''}</span>
+                </div>
+              </div>
+
+              {/* Observaciones y acciones */}
+              <div className="mt-2 grid grid-cols-[1fr_auto] gap-2 items-start text-xs text-slate-600">
+                <div className="bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-100/50 p-2 rounded">
+                  <span className="font-medium">Observaciones:</span>{' '}
+                  <span className="italic">{record.observations || ''}</span>
+                </div>
+                <div className="flex space-x-1">
                   <Button
                     type="button"
                     onClick={() => onEdit(record)}
@@ -116,38 +150,6 @@ const RecordsList = ({ records, onEdit, onDelete, isProcessing }) => {
                 </div>
               </div>
               
-              {/* Información estructurada */}
-              <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs text-slate-600">
-                <div className="flex items-center space-x-1 bg-slate-50 p-2 rounded">
-                  <Thermometer className="w-3 h-3 text-rose-400" />
-                  <span className="font-medium">{hasTemperature ? `${displayTemp}°C` : ''}</span>
-                  {record.timestamp && (
-                    <>
-                      <Clock className="w-3 h-3 text-slate-400" />
-                      <span>{format(parseISO(record.timestamp), 'HH:mm')}</span>
-                    </>
-                  )}
-                  {hasTemperature && record.ignored && (
-                    <Badge variant="secondary" className="text-xs py-0 px-1 bg-slate-200 text-slate-600">
-                      Ignorada
-                    </Badge>
-                  )}
-                </div>
-                <div className="flex items-center space-x-1 bg-slate-50 p-2 rounded">
-                  <Droplets className="w-3 h-3 text-sky-600" />
-                  <span className="truncate">{record.mucus_sensation || ''}</span>
-                </div>
-                <div className="flex items-center space-x-1 bg-slate-50 p-2 rounded">
-                  <Droplet className="w-3 h-3 text-indigo-600" />
-                  <span className="truncate">{record.mucus_appearance || ''}</span>
-                </div>
-              </div>
-
-              {/* Observaciones */}
-              <div className="mt-2 text-xs text-slate-600">
-                <span className="font-medium">Observaciones:</span>{' '}
-                <span className="italic">{record.observations || ''}</span>
-              </div>
             </div>
           </motion.div>
         );
