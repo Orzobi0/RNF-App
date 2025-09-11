@@ -135,6 +135,7 @@ const RecordsList = ({ records, onEdit, onDelete, isProcessing }) => {
                 {/* Botones de acción - lado derecho */}
                 <div className="flex space-x-1 ml-2">
                   <Button
+                    type="button"
                     onClick={() => onEdit(record)}
                     variant="outline"
                     size="sm"
@@ -144,6 +145,7 @@ const RecordsList = ({ records, onEdit, onDelete, isProcessing }) => {
                     <Edit2 className="h-3 w-3" />
                   </Button>
                   <Button
+                    type="button"
                     onClick={() => onDelete(record.id)}
                     variant="outline"
                     size="sm"

@@ -114,6 +114,7 @@ const RecordsPage = () => {
             Mis Registros
           </h1>
           <Button
+            type="button"
             onClick={() => { setEditingRecord(null); setShowForm(true); }}
             className="bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white shadow-lg"
             disabled={isProcessing}
