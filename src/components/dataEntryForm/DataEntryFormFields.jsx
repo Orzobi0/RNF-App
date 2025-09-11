@@ -80,8 +80,9 @@ const DataEntryFormFields = ({
               locale={es}
               disabled={isProcessing ? () => true : disabledDateRanges}
               modifiers={{ hasRecord: recordedDates }}
-              classNames={{
-              day_hasRecord: 'relative after:block after:w-1.5 after:h-1.5 after:rounded-full after:bg-pink-500 after:mx-auto after:mt-1'
+              modifiersClassNames={{
+                hasRecord:
+                  'relative flex-col after:content-[""] after:block after:w-1.5 after:h-1.5 after:rounded-full after:bg-pink-500 after:mx-auto after:mt-0.025'
               }}
               className="[&_button]:text-gray-800 [&_button:hover]:bg-pink-100 [&_button[aria-selected=true]]:bg-pink-500"
             />

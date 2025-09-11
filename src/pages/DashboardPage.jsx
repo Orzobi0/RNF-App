@@ -8,7 +8,7 @@ import { useCycleData } from '@/hooks/useCycleData';
 import { differenceInDays, parseISO, startOfDay } from 'date-fns';
 import ChartTooltip from '@/components/chartElements/ChartTooltip';
 
-const CycleOverviewCard = ({ cycleData }) => {
+const CycleOverviewCard = ({ cycleData, onEdit }) => {
   const records = cycleData.records || [];
   const [activePoint, setActivePoint] = useState(null);
   const [tooltipPosition, setTooltipPosition] = useState({ clientX: 0, clientY: 0 });
@@ -268,6 +268,7 @@ const CycleOverviewCard = ({ cycleData }) => {
                   position={tooltipPosition}
                   chartWidth={circleRef.current?.clientWidth || 0}
                   chartHeight={circleRef.current?.clientHeight || 0}
+                  onEdit={onEdit}
                   onClose={() => setActivePoint(null)}
                 />
               </div>
@@ -473,6 +474,11 @@ const ModernFertilityDashboard = () => {
     setEditingRecord(record);
   }, []);
 
+  const handleEdit = useCallback((record) => {
+    setEditingRecord(record);
+    setShowForm(true);
+  }, []);
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-rose-50 via-pink-50 to-rose-100 flex items-center justify-center">
@@ -545,7 +551,7 @@ const ModernFertilityDashboard = () => {
           transition={{ duration: 0.3 }}
           className="h-full"
         >
-          <CycleOverviewCard cycleData={{ ...currentCycle, currentDay, records: currentCycle.data }} />
+          <CycleOverviewCard cycleData={{ ...currentCycle, currentDay, records: currentCycle.data }} onEdit={handleEdit} />
         </motion.div>
       </div>
 
