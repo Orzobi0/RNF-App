@@ -81,9 +81,14 @@ export const fetchCurrentCycleDB = async (userId) => {
   const entriesSnap = await getDocs(entriesRef);
   const entriesData = await Promise.all(
     entriesSnap.docs.map(async (d) => {
-      const mRef = collection(db, `users/${userId}/cycles/${cycleDoc.id}/entries/${d.id}/measurements`);
-      const mSnap = await getDocs(mRef);
-      const measurements = mSnap.docs.map((m) => ({ id: m.id, ...m.data() }));
+      let measurements = [];
+      try {
+        const mRef = collection(db, `users/${userId}/cycles/${cycleDoc.id}/entries/${d.id}/measurements`);
+        const mSnap = await getDocs(mRef);
+        measurements = mSnap.docs.map((m) => ({ id: m.id, ...m.data() }));
+      } catch (error) {
+        console.error('Error fetching measurements for entry', d.id, error);
+      }
       return { id: d.id, ...d.data(), measurements };
     })
   );
@@ -113,9 +118,14 @@ export const fetchArchivedCyclesDB = async (userId, currentStartDate) => {
       const entriesSnap = await getDocs(entriesRef);
       const entriesData = await Promise.all(
         entriesSnap.docs.map(async (d) => {
-          const mRef = collection(db, `users/${userId}/cycles/${cycle.id}/entries/${d.id}/measurements`);
-          const mSnap = await getDocs(mRef);
-          const measurements = mSnap.docs.map((m) => ({ id: m.id, ...m.data() }));
+          let measurements = [];
+          try {
+            const mRef = collection(db, `users/${userId}/cycles/${cycle.id}/entries/${d.id}/measurements`);
+            const mSnap = await getDocs(mRef);
+            measurements = mSnap.docs.map((m) => ({ id: m.id, ...m.data() }));
+          } catch (error) {
+            console.error('Error fetching measurements for entry', d.id, error);
+          }
           return { id: d.id, ...d.data(), measurements };
         })
       );
@@ -140,9 +150,14 @@ export const fetchCycleByIdDB = async (userId, cycleId) => {
   const entriesSnap = await getDocs(entriesRef);
   const entriesData = await Promise.all(
     entriesSnap.docs.map(async (d) => {
-      const mRef = collection(db, `users/${userId}/cycles/${cycleId}/entries/${d.id}/measurements`);
-      const mSnap = await getDocs(mRef);
-      const measurements = mSnap.docs.map((m) => ({ id: m.id, ...m.data() }));
+      let measurements = [];
+      try {
+        const mRef = collection(db, `users/${userId}/cycles/${cycleId}/entries/${d.id}/measurements`);
+        const mSnap = await getDocs(mRef);
+        measurements = mSnap.docs.map((m) => ({ id: m.id, ...m.data() }));
+      } catch (error) {
+        console.error('Error fetching measurements for entry', d.id, error);
+      }
       return { id: d.id, ...d.data(), measurements };
     })
   );
