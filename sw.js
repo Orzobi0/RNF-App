@@ -8,7 +8,7 @@ const ASSETS = [
   `${BASE_URL}icon-512x512.png`
 ];
 // Assets generated during the build step will be injected into this array.
-const BUILD_ASSETS = (["assets/ChartTooltip-c53a692f.js","assets/DataEntryForm-97090216.js","assets/DeletionDialog-eac599e8.js","assets/EditCycleDatesDialog-c63b5949.js","assets/dialog-4560ab56.js","assets/eye-8fe6b589.js","assets/eye-off-a2721236.js","assets/fertilitySymbols-c96635e4.js","assets/generatePlaceholders-53615b77.js","assets/input-d884c3cd.js","assets/label-03db48ed.js","assets/plus-3bdff0e2.js","assets/select-bff7c354.js","assets/trash-2-faaafb17.js","assets/useBackClose-737776a5.js","assets/useCycleData-758a573b.js","assets/index-ed8056f8.css","assets/index-f990749f.js","assets/ArchivedCyclesPage-7383f115.js","assets/AuthPage-eb8ff750.js","assets/ChartPage-1cc03e08.js","assets/CycleDetailPage-36d03ee9.js","assets/DashboardPage-592a95f9.js","assets/RecordsPage-315415ef.js","assets/SettingsPage-0e91bda8.js"] || []).map(
+const BUILD_ASSETS = (["assets/ChartTooltip-2ac35f64.js","assets/DataEntryForm-8234e9d4.js","assets/DeletionDialog-5365865d.js","assets/EditCycleDatesDialog-c69612db.js","assets/badge-e000eb74.js","assets/dialog-9f479f94.js","assets/eye-16f81715.js","assets/eye-off-ea0ccfbb.js","assets/generatePlaceholders-26f1d0e5.js","assets/input-2e2fdcf0.js","assets/label-a061ee7d.js","assets/plus-8b4fb140.js","assets/useCycleData-270ed225.js","assets/index-ef978363.css","assets/index-1b0fe1a0.js","assets/ArchivedCyclesPage-c08bb647.js","assets/AuthPage-ce397967.js","assets/ChartPage-44594270.js","assets/CycleDetailPage-437bd311.js","assets/DashboardPage-6e773384.js","assets/RecordsPage-99acb02a.js","assets/SettingsPage-c9294d5b.js"] || []).map(
   (asset) => `${BASE_URL}${asset}`
 );
 
