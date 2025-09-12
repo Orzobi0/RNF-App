@@ -52,10 +52,11 @@ const RecordsList = ({ records, onEdit, onDelete, isProcessing }) => {
     >
       {sortedRecords.map((record, index) => {
         const symbolInfo = getSymbolInfo(record.fertility_symbol);
-        const hasTemperature = record.temperature_raw || record.temperature_corrected;
-        const displayTemp = record.use_corrected && record.temperature_corrected
-          ? record.temperature_corrected
-          : record.temperature_raw;
+        const selectedMeasurement = record.measurements?.find(m => m.selected);
+        const hasTemperature = selectedMeasurement && (selectedMeasurement.temperature || selectedMeasurement.temperature_corrected);
+        const displayTemp = selectedMeasurement
+          ? (selectedMeasurement.temperature_corrected ?? selectedMeasurement.temperature)
+          : null;
 
         return (
           <motion.div
@@ -99,14 +100,26 @@ const RecordsList = ({ records, onEdit, onDelete, isProcessing }) => {
                   )}
                 </div>
                 <div className="flex items-center space-x-1 bg-slate-50 border border-amber-100/50 p-2 rounded">
-                  {record.timestamp && (
+                  {selectedMeasurement?.time && (
                     <>
                       <Clock className="w-3 h-3 text-amber-600" />
-                      <span>{format(parseISO(record.timestamp), 'HH:mm')}</span>
+                      <span>{selectedMeasurement.time}</span>
                     </>
                   )}
                 </div>
               </div>
+              
+              {Array.isArray(record.measurements) && record.measurements.length > 1 && (
+                <div className="mt-2 text-xs text-slate-600 space-y-1">
+                  {record.measurements.map((m, i) => (
+                    <div key={i} className="flex items-center space-x-2">
+                      <span>{m.time}</span>
+                      <span>{m.temperature}</span>
+                      {m.selected && <Badge className="ml-1" variant="secondary">Principal</Badge>}
+                    </div>
+                  ))}
+                </div>
+              )}
        
               {/* Sensación y apariencia */}
               <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-600">
