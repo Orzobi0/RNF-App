@@ -139,6 +139,11 @@ export const useCycleData = (specificCycleId = null) => {
         ? (tempCorrected ?? tempRaw)
         : (tempRaw ?? tempCorrected);
 
+      let targetRecord = editingRecord;
+      if (!targetRecord) {
+        targetRecord = currentCycle.data.find(r => r.isoDate === newData.isoDate);
+      }
+
       const recordPayload = {
         cycle_id: currentCycle.id,
         user_id: user.uid, // ← CAMBIO: user.uid en lugar de user.id
@@ -152,12 +157,13 @@ export const useCycleData = (specificCycleId = null) => {
         fertility_symbol:
           newData.fertility_symbol === 'none' ? null : newData.fertility_symbol,
         observations: newData.observations || null,
-        ignored: editingRecord ? (newData.ignored ?? editingRecord.ignored) : (newData.ignored || false),
+        ignored: targetRecord ? (newData.ignored ?? targetRecord.ignored) : (newData.ignored || false),
       };
       
-      if (editingRecord) {
-        console.log('Updating existing record:', editingRecord.id);
-        await updateCycleEntry(user.uid, currentCycle.id, editingRecord.id, recordPayload);
+
+      if (targetRecord) {
+        console.log('Updating existing record:', targetRecord.id);
+        await updateCycleEntry(user.uid, currentCycle.id, targetRecord.id, recordPayload);
       } else {
         console.log('Creating new record');
         await createNewCycleEntry(recordPayload);

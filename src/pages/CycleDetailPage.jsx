@@ -13,7 +13,6 @@ import React, { useState, useEffect, useCallback } from 'react';
     import { format, differenceInDays, startOfDay, parseISO } from 'date-fns';
     import generatePlaceholders from '@/lib/generatePlaceholders';
     import { useFullScreen } from '@/hooks/useFullScreen';
-    import useBackClose from '@/hooks/useBackClose';
     import { useAuth } from '@/contexts/AuthContext';
 
     // Mantener un ancho manejable en horizontal para ciclos largos
@@ -40,10 +39,6 @@ import React, { useState, useEffect, useCallback } from 'react';
       onDeleteCycle
 }) => {
 
-  useBackClose(showForm || editingRecord, () => {
-    setShowForm(false);
-    setEditingRecord(null);
-  });
 
       const visibleDays = orientation === 'landscape' ? CYCLE_DURATION_DAYS : 5;
 
@@ -185,6 +180,7 @@ import React, { useState, useEffect, useCallback } from 'react';
                       cycleEndDate={cycleData.endDate}
                       isProcessing={isProcessing}
                       isEditing={Boolean(editingRecord)}
+                      cycleData={cycleData.data}
                     />
                   </motion.div>
                 )}

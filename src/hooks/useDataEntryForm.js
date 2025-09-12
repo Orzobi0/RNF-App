@@ -1,16 +1,21 @@
 import { useState, useEffect } from 'react';
 import { format, startOfDay, parseISO, addDays } from "date-fns";
-    import { useToast } from '@/components/ui/use-toast';
-    import { FERTILITY_SYMBOLS } from '@/config/fertilitySymbols';
+import { useToast } from '@/components/ui/use-toast';
+import { FERTILITY_SYMBOLS } from '@/config/fertilitySymbols';
 
-   export const useDataEntryForm = (onSubmit, initialData, isEditing, cycleStartDate, cycleEndDate) => {
+export const useDataEntryForm = (onSubmit, initialData, isEditing, cycleStartDate, cycleEndDate, cycleData = [], onDateSelect) => {
       const [date, setDate] = useState(initialData?.isoDate ? parseISO(initialData.isoDate) : startOfDay(new Date()));
       const [temperatureRaw, setTemperatureRaw] = useState(initialData?.temperature_raw === null || initialData?.temperature_raw === undefined ? '' : String(initialData.temperature_raw));
       const [time, setTime] = useState(initialData?.timestamp ? format(parseISO(initialData.timestamp), 'HH:mm') : format(new Date(), 'HH:mm'));
       const [temperatureCorrected, setTemperatureCorrected] = useState(initialData?.temperature_corrected === null || initialData?.temperature_corrected === undefined ? '' : String(initialData.temperature_corrected));
       const [useCorrected, setUseCorrected] = useState(initialData?.use_corrected || false);
-      const [mucusSensation, setMucusSensation] = useState(initialData?.mucusSensation || '');
-      const [mucusAppearance, setMucusAppearance] = useState(initialData?.mucusAppearance || '');
+      // Permite inicializar los campos tanto si vienen en camelCase como en snake_case
+      const [mucusSensation, setMucusSensation] = useState(
+        initialData?.mucusSensation ?? initialData?.mucus_sensation ?? ''
+      );
+      const [mucusAppearance, setMucusAppearance] = useState(
+        initialData?.mucusAppearance ?? initialData?.mucus_appearance ?? ''
+      );
       const [fertilitySymbol, setFertilitySymbol] = useState(initialData?.fertility_symbol || FERTILITY_SYMBOLS.NONE.value);
       const [observations, setObservations] = useState(initialData?.observations || '');
       const [ignored, setIgnored] = useState(initialData?.ignored || false);
@@ -23,13 +28,16 @@ import { format, startOfDay, parseISO, addDays } from "date-fns";
           setTime(initialData.timestamp ? format(parseISO(initialData.timestamp), 'HH:mm') : '');
           setTemperatureCorrected(initialData.temperature_corrected === null || initialData.temperature_corrected === undefined ? '' : String(initialData.temperature_corrected));
           setUseCorrected(initialData.use_corrected || false);
-          setMucusSensation(initialData.mucusSensation || '');
-          setMucusAppearance(initialData.mucusAppearance || '');
+          setMucusSensation(
+            initialData.mucusSensation ?? initialData.mucus_sensation ?? ''
+          );
+          setMucusAppearance(
+            initialData.mucusAppearance ?? initialData.mucus_appearance ?? ''
+          );
           setFertilitySymbol(initialData.fertility_symbol || FERTILITY_SYMBOLS.NONE.value);
           setObservations(initialData.observations || '');
           setIgnored(initialData.ignored || false);
         } else {
-          setDate(startOfDay(new Date()));
           setTemperatureRaw('');
           setTime(format(new Date(), 'HH:mm'));
           setTemperatureCorrected('');
@@ -41,6 +49,14 @@ import { format, startOfDay, parseISO, addDays } from "date-fns";
           setIgnored(false);
         }
       }, [initialData]);
+
+        useEffect(() => {
+        if (!onDateSelect) return;
+        const iso = format(date, 'yyyy-MM-dd');
+        const found = cycleData.find(r => r.isoDate === iso);
+        onDateSelect(found || null);
+      }, [date, cycleData, onDateSelect]);
+
 
       const handleSubmit = (e) => {
         e.preventDefault();

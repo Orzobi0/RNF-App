@@ -5,14 +5,19 @@ import { differenceInDays, parseISO, startOfDay } from 'date-fns';
 import generatePlaceholders from '@/lib/generatePlaceholders';
 import { RotateCcw } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
+import DataEntryForm from '@/components/DataEntryForm';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 
 const ChartPage = () => {
-  const { currentCycle, isLoading } = useCycleData();
+const { currentCycle, isLoading, addOrUpdateDataPoint, toggleIgnoreRecord } = useCycleData();
   // Orientación controlada por UI, independiente del dispositivo
   const [orientation, setOrientation] = useState(
     typeof window !== 'undefined' && window.innerWidth > window.innerHeight ? 'landscape' : 'portrait'
   );
   const [isFullScreen, setIsFullScreen] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [editingRecord, setEditingRecord] = useState(null);
+  const [isProcessing, setIsProcessing] = useState(false);
   useLayoutEffect(() => {
     window.dispatchEvent(new Event('resize'));
   }, [orientation, isFullScreen]);
@@ -66,12 +71,42 @@ const ChartPage = () => {
         ...baseStyle,
         height:
           orientation === 'landscape'
-            ? 'calc(max(100dvw) - var(--bottom-nav-safe))'
+            ? 'calc(min(100dvh, 100dvw) - var(--bottom-nav-safe))'
             : 'calc(100dvh - var(--bottom-nav-safe))',
+        maxHeight: '100vh',
         paddingBottom: 'env(safe-area-inset-bottom)'
       };
 
-    const handleToggleFullScreen = async () => {
+  const handleEdit = (record) => {
+    setEditingRecord(record);
+    setShowForm(true);
+  };
+
+  const handleToggleIgnore = (cId, recordId) => {
+    toggleIgnoreRecord(cId, recordId);
+  };
+
+  const handleSave = async (data) => {
+    setIsProcessing(true);
+    try {
+      await addOrUpdateDataPoint(data, editingRecord);
+      setShowForm(false);
+      setEditingRecord(null);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleCloseForm = () => {
+    setShowForm(false);
+    setEditingRecord(null);
+  };
+
+  const handleDateSelect = (record) => {
+    setEditingRecord(record);
+  };
+
+  const handleToggleFullScreen = async () => {
     if (!isFullScreen) {
       try {
         await document.documentElement.requestFullscreen();
@@ -120,12 +155,32 @@ const ChartPage = () => {
           data={mergedData}
           isFullScreen={isFullScreen}
           orientation={orientation}
+          onToggleIgnore={handleToggleIgnore}
+          onEdit={handleEdit}
           cycleId={currentCycle.id}
           initialScrollIndex={scrollStart}
           visibleDays={visibleDays}
           reduceMotion={true}
           forceLandscape={orientation === 'landscape'}
         />
+        <Dialog open={showForm} onOpenChange={(open) => { if (!open) handleCloseForm(); }}>
+          <DialogContent
+            hideClose
+            className="bg-transparent border-none p-0 text-gray-800 w-[90vw] sm:w-auto max-w-md sm:max-w-lg md:max-w-xl max-h-[85vh] overflow-y-auto"
+          >
+            <DataEntryForm
+              onSubmit={handleSave}
+              onCancel={handleCloseForm}
+              initialData={editingRecord}
+              cycleStartDate={currentCycle.startDate}
+              cycleEndDate={currentCycle.endDate}
+              isProcessing={isProcessing}
+              isEditing={!!editingRecord}
+              cycleData={currentCycle.data}
+              onDateSelect={handleDateSelect}
+            />
+          </DialogContent>
+        </Dialog>
       </div>
     </MainLayout>
   );

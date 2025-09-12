@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { XCircle, EyeOff, Eye, Edit3, Thermometer, Droplets, Circle } from 'lucide-react';
@@ -15,12 +15,30 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
   const baseMinHeight = 120;
   const tooltipWidth = baseWidth * scale;
   const tooltipMinHeight = baseMinHeight * scale;
-  let x = position.clientX + 15;
-  let y = position.clientY + 10;
 
-  // Mantiene el tooltip siempre visible dentro del área del gráfico
-  if (x + tooltipWidth > chartWidth) x = position.clientX - tooltipWidth - 10;
-  if (y + tooltipMinHeight > chartHeight) y = position.clientY - tooltipMinHeight - 10;
+  const tooltipRef = useRef(null);
+  const [tooltipHeight, setTooltipHeight] = useState(tooltipMinHeight);
+
+  useEffect(() => {
+    if (tooltipRef.current) {
+      setTooltipHeight(tooltipRef.current.offsetHeight);
+    }
+  }, [point]);
+
+  const flipHorizontal = position.clientX > chartWidth * 0.66;
+  const flipVertical = position.clientY + tooltipHeight > chartHeight;
+
+  let x = flipHorizontal
+    ? position.clientX - tooltipWidth - 10
+    : position.clientX + 10;
+
+  let y = flipVertical
+    ? position.clientY
+    : position.clientY + 10;
+
+
+  if (x + tooltipWidth > chartWidth) x = chartWidth - tooltipWidth - 10;
+  if (y + tooltipHeight > chartHeight) y = chartHeight - tooltipHeight - 10;
   if (x < 10) x = 10;
   if (y < 10) y = 10;
 
@@ -78,6 +96,7 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
 
   return (
     <motion.div
+      ref={tooltipRef}
       initial={{ opacity: 0, scale: 0.8, y: 20 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.8, y: 20 }}
@@ -242,45 +261,52 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
             </div>
 
             {/* Botones de acción */}
-            {point.id && !String(point.id).startsWith('placeholder-') && (
+            {point.id && !String(point.id).startsWith('placeholder-') && (onEdit || onToggleIgnore) && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.3 }}
                 className="flex justify-center gap-3 pt-1 border-t border-gray-100"
               >
-                <Button
-                  onClick={() => { if(onEdit) onEdit(point); if(onClose) onClose(); }}
-                  variant="outline"
-                  size="sm"
-                  className="flex items-center gap-2 px-2 py-2 bg-white/80 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 border-gray-200 hover:border-blue-300 text-gray-700 hover:text-blue-700 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md"
-                >
-                  <Edit3 className="h-4 w-4" />
-                  <span className="font-medium">Editar</span>
-                </Button>
-                
-                <Button
-                  onClick={() => onToggleIgnore(point.id)}
-                  variant="outline"
-                  size="sm"
-                  className={`flex items-center gap-2 px-2 py-2 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md ${
-                    point.ignored 
-                      ? 'bg-green-50 hover:bg-green-100 border-green-200 hover:border-green-300 text-green-700'
-                      : 'bg-red-50 hover:bg-red-100 border-red-200 hover:border-red-300 text-red-700'
-                  }`}
-                >
-                  {point.ignored ? (
-                    <>
-                      <Eye className="h-4 w-4" />
-                      <span className="font-medium">Mostrar</span>
-                    </>
-                  ) : (
-                    <>
-                      <EyeOff className="h-4 w-4" />
-                      <span className="font-medium">Ocultar</span>
-                    </>
-                  )}
-                </Button>
+                {onEdit && (
+                  <Button
+                    onClick={() => {
+                      onEdit(point);
+                      if (onClose) onClose();
+                    }}
+                    variant="outline"
+                    size="sm"
+                    className="flex items-center gap-2 px-2 py-2 bg-white/80 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 border-gray-200 hover:border-blue-300 text-gray-700 hover:text-blue-700 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md"
+                  >
+                    <Edit3 className="h-4 w-4" />
+                    <span className="font-medium">Editar</span>
+                  </Button>
+                )}
+
+                {onToggleIgnore && (
+                  <Button
+                    onClick={() => onToggleIgnore(point.id)}
+                    variant="outline"
+                    size="sm"
+                    className={`flex items-center gap-2 px-2 py-2 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md ${
+                      point.ignored
+                        ? 'bg-green-50 hover:bg-green-100 border-green-200 hover:border-green-300 text-green-700'
+                        : 'bg-red-50 hover:bg-red-100 border-red-200 hover:border-red-300 text-red-700'
+                    }`}
+                  >
+                    {point.ignored ? (
+                      <>
+                        <Eye className="h-4 w-4" />
+                        <span className="font-medium">Mostrar</span>
+                      </>
+                    ) : (
+                      <>
+                        <EyeOff className="h-4 w-4" />
+                        <span className="font-medium">Ocultar</span>
+                      </>
+                    )}
+                  </Button>
+                )}
               </motion.div>
             )}
           </div>

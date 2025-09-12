@@ -1,15 +1,14 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, FilePlus, CalendarPlus } from 'lucide-react';
 import DataEntryForm from '@/components/DataEntryForm';
 import NewCycleDialog from '@/components/NewCycleDialog';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import useBackClose from '@/hooks/useBackClose';
 import { useCycleData } from '@/hooks/useCycleData';
 import { differenceInDays, parseISO, startOfDay } from 'date-fns';
 import ChartTooltip from '@/components/chartElements/ChartTooltip';
 
-const CycleOverviewCard = ({ cycleData }) => {
+const CycleOverviewCard = ({ cycleData, onEdit }) => {
   const records = cycleData.records || [];
   const [activePoint, setActivePoint] = useState(null);
   const [tooltipPosition, setTooltipPosition] = useState({ clientX: 0, clientY: 0 });
@@ -269,6 +268,7 @@ const CycleOverviewCard = ({ cycleData }) => {
                   position={tooltipPosition}
                   chartWidth={circleRef.current?.clientWidth || 0}
                   chartHeight={circleRef.current?.clientHeight || 0}
+                  onEdit={onEdit}
                   onClose={() => setActivePoint(null)}
                 />
               </div>
@@ -463,9 +463,21 @@ const ModernFertilityDashboard = () => {
   const [showForm, setShowForm] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showNewCycleDialog, setShowNewCycleDialog] = useState(false);
+  const [editingRecord, setEditingRecord] = useState(null);
 
-  // Cerrar modal con gesto/botón atrás en móvil
-  useBackClose(showForm, () => setShowForm(false));
+  const handleCloseForm = useCallback(() => {
+    setShowForm(false);
+    setEditingRecord(null);
+  }, []);
+
+  const handleDateSelect = useCallback((record) => {
+    setEditingRecord(record);
+  }, []);
+
+  const handleEdit = useCallback((record) => {
+    setEditingRecord(record);
+    setShowForm(true);
+  }, []);
 
   if (isLoading) {
     return (
@@ -508,8 +520,9 @@ const ModernFertilityDashboard = () => {
   const handleSave = async (data) => {
     setIsProcessing(true);
     try {
-      await addOrUpdateDataPoint(data);
+      await addOrUpdateDataPoint(data, editingRecord);
       setShowForm(false);
+      setEditingRecord(null);
     } finally {
       setIsProcessing(false);
     }
@@ -538,27 +551,40 @@ const ModernFertilityDashboard = () => {
           transition={{ duration: 0.3 }}
           className="h-full"
         >
-          <CycleOverviewCard cycleData={{ ...currentCycle, currentDay, records: currentCycle.data }} />
+          <CycleOverviewCard cycleData={{ ...currentCycle, currentDay, records: currentCycle.data }} onEdit={handleEdit} />
         </motion.div>
       </div>
 
       <Dialog
         open={showForm}
-        onOpenChange={(open) => setShowForm(open)}
+                onOpenChange={(open) => {
+          if (open) {
+            setShowForm(true);
+          } else {
+            handleCloseForm();
+          }
+        }}
       >
-        <DialogContent hideClose className="bg-white border-pink-100 text-gray-800 w-[90vw] sm:w-auto max-w-md sm:max-w-lg md:max-w-xl max-h-[85vh] overflow-y-auto p-4 sm:p-6 rounded-2xl">
+          <DialogContent
+          hideClose
+          className="bg-transparent border-none p-0 text-gray-800 w-[90vw] sm:w-auto max-w-md sm:max-w-lg md:max-w-xl max-h-[85vh] overflow-y-auto"
+        >
           <DataEntryForm
             onSubmit={handleSave}
-            onCancel={() => setShowForm(false)}
+            onCancel={handleCloseForm}
+            initialData={editingRecord}
             cycleStartDate={currentCycle.startDate}
             cycleEndDate={currentCycle.endDate}
             isProcessing={isProcessing}
+            isEditing={!!editingRecord}
+            cycleData={currentCycle.data}
+            onDateSelect={handleDateSelect}
           />
         </DialogContent>
       </Dialog>
 
       <FloatingActionButton
-        onAddRecord={() => setShowForm(true)}
+        onAddRecord={() => { setEditingRecord(null); setShowForm(true); }}
         onAddCycle={() => setShowNewCycleDialog(true)}
       />
 

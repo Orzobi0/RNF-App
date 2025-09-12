@@ -50,10 +50,10 @@ const ChartLeftLegend = ({
       <defs>
         {/* Gradiente premium para el fondo */}
         <linearGradient id="legendBgGradientChart" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="rgba(254, 242, 242, 0.98)" />
-          <stop offset="30%" stopColor="rgba(255, 241, 242, 0.95)" />
-          <stop offset="70%" stopColor="rgba(255, 255, 255, 0.98)" />
-          <stop offset="100%" stopColor="rgba(254, 242, 242, 0.9)" />
+          <stop offset="0%" stopColor="rgba(255, 228, 230, 1)" />
+          <stop offset="30%" stopColor="rgba(255, 229, 235, 1)  " />
+          <stop offset="70%" stopColor="rgba(255, 241, 242, 1)" />
+          <stop offset="100%" stopColor="rgba(255, 236, 240, 0.6)" />
         </linearGradient>
         
         {/* Gradiente decorativo */}
@@ -84,16 +84,7 @@ const ChartLeftLegend = ({
         style={{ filter: 'url(#legendShadowChart)' }}
       />
 
-      {/* Barra decorativa lateral */}
-      <rect
-        x={padding.left - 4}
-        y={bottomY + textRowHeight * 0.5}
-        width={1}
-        height={textRowHeight * (isFullScreen ? 9.5 : 8)}
-        fill="url(#legendAccentGradient)"
-        rx={1.5}
-        opacity={2}
-      />
+
 
       {/* Etiquetas de temperatura con diseño premium */}
       {tempTicks.map((temp, i) => {
@@ -105,17 +96,6 @@ const ChartLeftLegend = ({
         
         return (
           <motion.g key={`temp-tick-fixed-${i}`} variants={itemVariants}>
-            {/* Marcador visual para temperaturas principales */}
-            {isMajor && (
-              <circle
-                cx={padding.left - responsiveFontSize(2.5)}
-                cy={y}
-                r={2}
-                fill="#E91E63"
-                opacity={0.7}
-                style={{ filter: 'drop-shadow(0 1px 2px rgba(233, 30, 99, 0.4))' }}
-              />
-            )}
             
             <text
               x={padding.left - responsiveFontSize(1.2)}
@@ -135,57 +115,14 @@ const ChartLeftLegend = ({
         );
       })}
 
-      {/* Unidad °C con diseño premium mejorado */}
-      <motion.g variants={itemVariants}>
-        {/* Fondo decorativo para °C con glassmorphism */}
-        <rect
-          x={padding.left - responsiveFontSize(0.4)}
-          y={padding.top - responsiveFontSize(0.4)}
-          width={responsiveFontSize(3.4)}
-          height={responsiveFontSize(2.6)}
-          rx={responsiveFontSize(0.8)}
-          fill="rgba(244, 114, 182, 0.18)"
-          stroke="rgba(244, 114, 182, 0.35)"
-          strokeWidth={1.5}
-          style={{ 
-            filter: 'drop-shadow(0 4px 12px rgba(244, 114, 182, 0.2))',
-            backdropFilter: 'blur(12px)'
-          }}
-        />
-        
-        {/* Acento decorativo superior */}
-        <rect
-          x={padding.left - responsiveFontSize(0.2)}
-          y={padding.top - responsiveFontSize(0.2)}
-          width={responsiveFontSize(3)}
-          height={responsiveFontSize(0.3)}
-          rx={responsiveFontSize(0.15)}
-          fill="url(#legendAccentGradient)"
-          opacity={0.8}
-        />
-        
-        <text
-          x={padding.left + responsiveFontSize(1.3)}
-          y={padding.top + responsiveFontSize(1.4)}
-          textAnchor="middle"
-          fontSize={responsiveFontSize(1.5)}
-          fontWeight="900"
-          fill="#E91E63"
-          style={{ 
-            filter: 'url(#textShadowLegend)',
-            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-          }}
-        >
-          °C
-        </text>
-      </motion.g>
+      
 
       {/* Etiquetas de filas con diseño mejorado */}
       <motion.g variants={itemVariants}>
         {[
-          { label: 'Fecha', row: 1, color: isFullScreen ? '#374151' : '#6B7280', icon: null },
-          { label: 'Día', row: 2, color: isFullScreen ? '#374151' : '#6B7280', icon: null },
-          { label: 'Símbolo', row: 3, color: isFullScreen ? '#374151' : '#6B7280', icon: null },
+          { label: 'Fecha', row: 1, color: isFullScreen ? '#374151' : '#374151', icon: null },
+          { label: 'Día', row: 2, color: isFullScreen ? '#374151' : '#374151', icon: null },
+          { label: 'Símbolo', row: 3, color: isFullScreen ? '#374151' : '#374151', icon: null },
           { label: 'Sens.', row: isFullScreen ? 5 : 4.5, color: SENSATION_COLOR, icon: '◊' },
           { label: 'Apar.', row: isFullScreen ? 7 : 6, color: APPEARANCE_COLOR, icon: '○' },
           { label: 'Observ.', row: isFullScreen ? 9 : 7.5, color: OBSERVATION_COLOR, icon: '✦' }
@@ -226,9 +163,13 @@ const ChartLeftLegend = ({
             </text>
           </g>
         ))}
+        
       </motion.g>
+
     </svg>
+    
   );
 };
+
 
 export default ChartLeftLegend;

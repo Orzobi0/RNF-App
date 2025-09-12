@@ -91,11 +91,11 @@ const FertilityChart = ({
   const containerClass = isFullScreen
     ? `${baseFullClass} min-h-full ${rotatedContainer ? 'flex items-stretch justify-start overflow-y-auto overflow-x-hidden' : 'flex items-center justify-start overflow-x-auto overflow-y-hidden'}`
     : `${baseFullClass} overflow-x-auto overflow-y-hidden border border-pink-100/50`;
-
+  const showLegend = !isFullScreen || orientation === 'portrait';
   return (
       <motion.div className="relative w-full h-full" initial={false}>
       {/* Leyenda izquierda mejorada */}
-      {(!isFullScreen || orientation === 'portrait') && (
+      {showLegend && (
         <div
           className="absolute left-0 top-0 h-full bg-transparent pointer-events-none z-10"
           style={{ width: padding.left }}
@@ -204,7 +204,7 @@ const FertilityChart = ({
             allDataPoints={allDataPoints}
             responsiveFontSize={responsiveFontSize}
             isFullScreen={isFullScreen}
-            showLeftLabels={isFullScreen && orientation === 'landscape'}
+            showLeftLabels={!showLegend}
             reduceMotion={reduceMotion}
           />
 
