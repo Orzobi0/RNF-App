@@ -32,6 +32,8 @@ const DataEntryForm = ({ onSubmit, initialData, onCancel, cycleStartDate, cycleE
     measurements,
     addMeasurement,
     updateMeasurement,
+    removeMeasurement,
+    confirmMeasurement,
     selectMeasurement,
     mucusSensation,
     setMucusSensation,
@@ -83,6 +85,8 @@ const DataEntryForm = ({ onSubmit, initialData, onCancel, cycleStartDate, cycleE
         measurements={measurements}
         addMeasurement={addMeasurement}
         updateMeasurement={updateMeasurement}
+        removeMeasurement={removeMeasurement}
+        confirmMeasurement={confirmMeasurement}
         selectMeasurement={selectMeasurement}
         mucusSensation={mucusSensation}
         setMucusSensation={setMucusSensation}

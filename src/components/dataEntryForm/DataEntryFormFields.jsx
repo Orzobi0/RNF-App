@@ -7,7 +7,16 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Thermometer, Droplets, Eye, EyeOff, CalendarDays, Sprout, Clock } from 'lucide-react';
+import { Thermometer, Droplets, Eye, EyeOff, CalendarDays, Sprout, Clock, Check, X } from 'lucide-react';
+import {
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogClose,
+} from '@/components/ui/dialog'
 import { cn } from '@/lib/utils';
 import { format, addDays, startOfDay, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -19,6 +28,8 @@ const DataEntryFormFields = ({
   measurements,
   addMeasurement,
   updateMeasurement,
+  removeMeasurement,
+  confirmMeasurement,
   selectMeasurement,
   mucusSensation,
   setMucusSensation,
@@ -123,6 +134,68 @@ const DataEntryFormFields = ({
               disabled={isProcessing}
             />
             <Label className="text-xs text-amber-700">Usar en gráfica</Label>
+          </div>
+                   <div className="flex items-center space-x-2 mt-2">
+            {!m.confirmed && (
+              <>
+                <Button
+                  type="button"
+                  size="icon"
+                  onClick={() => confirmMeasurement(idx)}
+                  disabled={isProcessing}
+                  className="h-7 w-7"
+                >
+                  <Check className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  size="icon"
+                  onClick={() => removeMeasurement(idx)}
+                  disabled={isProcessing}
+                  className="h-7 w-7"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </>
+            )}
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button type="button" size="sm" variant="outline" disabled={isProcessing}>
+                  Corregir
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="bg-white">
+                <DialogHeader>
+                  <DialogTitle>Corregir medición</DialogTitle>
+                </DialogHeader>
+                <div className="mt-2 space-y-4">
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="34.0"
+                    max="40.0"
+                    value={m.temperature_corrected}
+                    onChange={(e) => updateMeasurement(idx, 'temperature_corrected', e.target.value)}
+                    className="bg-white/70 border-amber-200 text-gray-800 placeholder-gray-400 focus:ring-orange-500 focus:border-orange-500 text-base"
+                  />
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`use_corrected_${idx}`}
+                      checked={m.use_corrected}
+                      onCheckedChange={(checked) => updateMeasurement(idx, 'use_corrected', checked)}
+                    />
+                    <Label htmlFor={`use_corrected_${idx}`} className="text-xs">
+                      Usar valor corregido
+                    </Label>
+                  </div>
+                  <DialogFooter>
+                    <DialogClose asChild>
+                      <Button type="button">Guardar</Button>
+                    </DialogClose>
+                  </DialogFooter>
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
 
         </div>

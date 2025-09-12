@@ -21,6 +21,9 @@ export const useDataEntryForm = (
         temperature: m.temperature ?? '',
         time: m.time || format(new Date(), 'HH:mm'),
         selected: !!m.selected,
+        temperature_corrected: m.temperature_corrected ?? '',
+        use_corrected: !!m.use_corrected,
+        confirmed: true,
       }));
     }
     return [
@@ -33,6 +36,9 @@ export const useDataEntryForm = (
           ? format(parseISO(initialData.timestamp), 'HH:mm')
           : format(new Date(), 'HH:mm'),
         selected: true,
+        temperature_corrected: '',
+        use_corrected: false,
+        confirmed: true,
       },
     ];
   });
@@ -59,6 +65,9 @@ export const useDataEntryForm = (
             temperature: m.temperature ?? '',
             time: m.time || format(new Date(), 'HH:mm'),
             selected: !!m.selected,
+            temperature_corrected: m.temperature_corrected ?? '',
+            use_corrected: !!m.use_corrected,
+            confirmed: true,
           }))
         );
       }
@@ -69,7 +78,14 @@ export const useDataEntryForm = (
       setIgnored(initialData.ignored || false);
     } else {
       setMeasurements([
-        { temperature: '', time: format(new Date(), 'HH:mm'), selected: true },
+      {
+          temperature: '',
+          time: format(new Date(), 'HH:mm'),
+          selected: true,
+          temperature_corrected: '',
+          use_corrected: false,
+          confirmed: true,
+        },
       ]);
       setMucusSensation('');
       setMucusAppearance('');
@@ -89,8 +105,26 @@ export const useDataEntryForm = (
   const addMeasurement = () => {
     setMeasurements((prev) => [
       ...prev,
-      { temperature: '', time: format(new Date(), 'HH:mm'), selected: false },
+       {
+        temperature: prev[prev.length - 1]?.temperature || '',
+        time: format(new Date(), 'HH:mm'),
+        selected: false,
+        temperature_corrected: '',
+        use_corrected: false,
+        confirmed: false,
+      },
     ]);
+  };
+  const removeMeasurement = (index) => {
+    setMeasurements((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const confirmMeasurement = (index) => {
+    setMeasurements((prev) => {
+      const copy = [...prev];
+      copy[index] = { ...copy[index], confirmed: true };
+      return copy;
+    });
   };
 
   const updateMeasurement = (index, field, value) => {
@@ -137,6 +171,11 @@ export const useDataEntryForm = (
         temperature: m.temperature === '' ? null : parseFloat(m.temperature),
         time: m.time,
         selected: m.selected,
+        temperature_corrected:
+          m.temperature_corrected === ''
+            ? null
+            : parseFloat(m.temperature_corrected),
+        use_corrected: !!m.use_corrected,
       })),
       mucusSensation,
       mucusAppearance,
@@ -147,7 +186,16 @@ export const useDataEntryForm = (
 
     if (!isEditing) {
       setDate(startOfDay(new Date()));
-      setMeasurements([{ temperature: '', time: format(new Date(), 'HH:mm'), selected: true }]);
+      setMeasurements([
+        {
+          temperature: '',
+          time: format(new Date(), 'HH:mm'),
+          selected: true,
+          temperature_corrected: '',
+          use_corrected: false,
+          confirmed: true,
+        },
+      ]);
       setMucusSensation('');
       setMucusAppearance('');
       setFertilitySymbol(FERTILITY_SYMBOLS.NONE.value);
@@ -162,6 +210,8 @@ export const useDataEntryForm = (
     addMeasurement,
     updateMeasurement,
     selectMeasurement,
+    removeMeasurement,
+    confirmMeasurement,
     mucusSensation,
     setMucusSensation,
     mucusAppearance,
