@@ -7,16 +7,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Thermometer, Droplets, Eye, EyeOff, CalendarDays, Sprout, Clock, Check, X } from 'lucide-react';
-import {
-  Dialog,
-  DialogTrigger,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogClose,
-} from '@/components/ui/dialog'
+import { Thermometer, Droplets, Eye, EyeOff, CalendarDays, Sprout, Clock, Check, X, ChevronUp, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, addDays, startOfDay, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -49,7 +40,15 @@ const DataEntryFormFields = ({
   recordedDates = [],
 }) => {
   const [open, setOpen] = useState(false);
+  const [correctionIndex, setCorrectionIndex] = useState(null);
 
+  const handleTempAdjust = (index, delta) => {
+    const current = parseFloat(
+      measurements[index].temperature_corrected ?? measurements[index].temperature ?? 0
+    );
+    const newTemp = (current + delta).toFixed(2);
+    updateMeasurement(index, 'temperature_corrected', newTemp);
+  };
   const cycleStart = startOfDay(parseISO(cycleStartDate));
   const cycleEnd = cycleEndDate ? startOfDay(parseISO(cycleEndDate)) : addDays(cycleStart, 45);
   const disabledDateRanges = [{ before: cycleStart }, { after: cycleEnd }];
@@ -158,53 +157,119 @@ const DataEntryFormFields = ({
                 </Button>
               </>
             )}
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button type="button" size="sm" variant="outline" disabled={isProcessing}>
-                  Corregir
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="bg-white">
-                <DialogHeader>
-                  <DialogTitle>Corregir medición</DialogTitle>
-                </DialogHeader>
-                <div className="mt-2 space-y-4">
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="34.0"
-                    max="40.0"
-                    value={m.temperature_corrected}
-                    onChange={(e) => updateMeasurement(idx, 'temperature_corrected', e.target.value)}
-                    className="bg-white/70 border-amber-200 text-gray-800 placeholder-gray-400 focus:ring-orange-500 focus:border-orange-500 text-base"
-                  />
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`use_corrected_${idx}`}
-                      checked={m.use_corrected}
-                      onCheckedChange={(checked) => updateMeasurement(idx, 'use_corrected', checked)}
-                    />
-                    <Label htmlFor={`use_corrected_${idx}`} className="text-xs">
-                      Usar valor corregido
-                    </Label>
-                  </div>
-                  <DialogFooter>
-                    <DialogClose asChild>
-                      <Button type="button">Guardar</Button>
-                    </DialogClose>
-                  </DialogFooter>
-                </div>
-              </DialogContent>
-            </Dialog>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={isProcessing}
+              onClick={() => {
+                if (correctionIndex === idx) {
+                  setCorrectionIndex(null);
+                } else {
+                  setCorrectionIndex(idx);
+                  if (m.temperature_corrected === '' || m.temperature_corrected === undefined) {
+                    updateMeasurement(idx, 'temperature_corrected', m.temperature);
+                  }
+                  if (!m.time_corrected) {
+                    updateMeasurement(idx, 'time_corrected', m.time);
+                  }
+                }
+              }}
+            >
+              Corregir
+            </Button>
           </div>
+          {correctionIndex === idx && (
+            <div className="mt-2 space-y-2">
+              <div className="flex items-center space-x-2">
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="outline"
+                  disabled={isProcessing}
+                  onClick={() => handleTempAdjust(idx, 0.05)}
+                >
+                  <ChevronUp className="h-4 w-4" />
+                </Button>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="34.0"
+                  max="40.0"
+                  value={m.temperature_corrected}
+                  onChange={(e) => updateMeasurement(idx, 'temperature_corrected', e.target.value)}
+                  className="bg-white/70 border-amber-200 text-gray-800 placeholder-gray-400 focus:ring-orange-500 focus:border-orange-500 text-base"
+                  disabled={isProcessing}
+                />
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="outline"
+                  disabled={isProcessing}
+                  onClick={() => handleTempAdjust(idx, -0.05)}
+                >
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+              <div className="flex items-center space-x-2">
+                  <Clock className="h-4 w-4 text-orange-500" />
+                  <Input
+                    type="time"
+                    value={m.time_corrected}
+                    onChange={(e) => updateMeasurement(idx, 'time_corrected', e.target.value)}
+                    className="bg-white/70 border-amber-200 text-gray-800 focus:ring-orange-500 focus:border-orange-500 text-base"
+                    disabled={isProcessing}
+                  />
+
+                </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id={`use_corrected_${idx}`}
+                  checked={m.use_corrected}
+                  onCheckedChange={(checked) => updateMeasurement(idx, 'use_corrected', checked)}
+                />
+                <Label htmlFor={`use_corrected_${idx}`} className="text-xs">
+                  Usar valor corregido
+                </Label>
+              </div>
+            </div>
+          )}
 
         </div>
       ))}
       <Button type="button" onClick={addMeasurement} disabled={isProcessing} className="mb-2">
         Añadir medición
       </Button>
-
-{/* Sensación y apariencia */}
+      {/* Símbolo de fertilidad */}
+      <div className="space-y-2 bg-gradient-to-r from-stone-50 to-slate-50 rounded-xl p-3 border border-slate-100/50">
+        <Label htmlFor="fertilitySymbol" className="flex items-center text-slate-800 text-sm font-semibold">
+          <Sprout className="mr-2 h-5 w-5 text-slate-400" />
+          Símbolo de Fertilidad
+        </Label>
+        <Select value={fertilitySymbol} onValueChange={setFertilitySymbol} disabled={isProcessing}>
+          <SelectTrigger className="w-full bg-white border-slate-200 text-gray-800 hover:bg-white">
+            <div className="flex items-center">
+              <span
+                className={`w-3 h-3 rounded-full mr-2 border border-gray-300 ${
+                  (FERTILITY_SYMBOL_OPTIONS.find((s) => s.value === fertilitySymbol)?.color) || 'bg-gray-200'
+                }`}
+              />
+              <SelectValue placeholder="Selecciona un símbolo" />
+            </div>
+          </SelectTrigger>
+          <SelectContent className="bg-white border-slate-200 text-gray-800">
+            {FERTILITY_SYMBOL_OPTIONS.map((symbol) => (
+              <SelectItem key={symbol.value} value={symbol.value} className="cursor-pointer">
+                <div className="flex items-center">
+                  <span className={`w-3 h-3 rounded-full mr-2 border border-gray-300 ${symbol.color}`} />
+                  {symbol.label}
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      {/* Sensación y apariencia */}
       <div className="space-y-2 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-3 border border-blue-100/50">
         <Label htmlFor="mucusSensation" className="flex items-center text-slate-800 text-sm font-semibold">
           <Droplets className="mr-2 h-5 w-5 text-sky-600" />
@@ -232,25 +297,6 @@ const DataEntryFormFields = ({
         />
       </div>
 
-     {/* Símbolo de fertilidad */}
-      <div className="space-y-2 bg-gradient-to-r from-stone-50 to-slate-50 rounded-xl p-3 border border-slate-100/50">
-        <Label htmlFor="fertilitySymbol" className="flex items-center text-slate-800 text-sm font-semibold">
-          <Sprout className="mr-2 h-5 w-5 text-slate-400" />
-          Símbolo de Fertilidad
-        </Label>
-        <Select value={fertilitySymbol} onValueChange={setFertilitySymbol} disabled={isProcessing}>
-          <SelectTrigger className="w-full bg-white border-slate-200 text-gray-800 hover:bg-white">
-            <SelectValue placeholder="Selecciona un símbolo" />
-          </SelectTrigger>
-          <SelectContent className="bg-white border-slate-200 text-gray-800">
-            {FERTILITY_SYMBOL_OPTIONS.map((symbol) => (
-              <SelectItem key={symbol.value} value={symbol.value} className="cursor-pointer">
-                {symbol.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
 
       {/* Observaciones */}
       <div className="space-y-2 bg-gradient-to-r from-violet-50 to-purple-50 rounded-xl p-3 border border-violet-100/50">

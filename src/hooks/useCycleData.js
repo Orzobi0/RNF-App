@@ -123,9 +123,9 @@ export const useCycleData = (specificCycleId = null) => {
     setIsLoading(true);
     
     try {
-      const selected = newData.measurements.find(m => m.selected) || newData.measurements[0];
-      const timeString = selected && selected.time && selected.time.trim() !== ''
-        ? selected.time
+      const selectedMeasurement = newData.measurements.find(m => m.selected) || newData.measurements[0];
+      const timeString = selectedMeasurement && selectedMeasurement.time && selectedMeasurement.time.trim() !== ''
+        ? selectedMeasurement.time
         : format(new Date(), 'HH:mm');
       const recordDateTime = parse(
         `${newData.isoDate} ${timeString}`,
@@ -150,6 +150,10 @@ export const useCycleData = (specificCycleId = null) => {
           newData.fertility_symbol === 'none' ? null : newData.fertility_symbol,
         observations: newData.observations || null,
         ignored: targetRecord ? (newData.ignored ?? targetRecord.ignored) : (newData.ignored || false),
+        temperature_raw: selectedMeasurement.temperature ?? null,
+        temperature_corrected: selectedMeasurement.temperature_corrected ?? null,
+        use_corrected: !!selectedMeasurement.use_corrected,
+        temperature_chart: selectedMeasurement.temperature_corrected ?? selectedMeasurement.temperature ?? null,
       };
       
 

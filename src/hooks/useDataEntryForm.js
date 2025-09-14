@@ -22,6 +22,7 @@ export const useDataEntryForm = (
         time: m.time || format(new Date(), 'HH:mm'),
         selected: !!m.selected,
         temperature_corrected: m.temperature_corrected ?? '',
+        time_corrected: m.time_corrected || m.time || format(new Date(), 'HH:mm'),
         use_corrected: !!m.use_corrected,
         confirmed: true,
       }));
@@ -37,6 +38,9 @@ export const useDataEntryForm = (
           : format(new Date(), 'HH:mm'),
         selected: true,
         temperature_corrected: '',
+        time_corrected: initialData?.timestamp
+          ? format(parseISO(initialData.timestamp), 'HH:mm')
+          : format(new Date(), 'HH:mm'),
         use_corrected: false,
         confirmed: true,
       },
@@ -66,6 +70,7 @@ export const useDataEntryForm = (
             time: m.time || format(new Date(), 'HH:mm'),
             selected: !!m.selected,
             temperature_corrected: m.temperature_corrected ?? '',
+            time_corrected: m.time_corrected || m.time || format(new Date(), 'HH:mm'),
             use_corrected: !!m.use_corrected,
             confirmed: true,
           }))
@@ -78,12 +83,13 @@ export const useDataEntryForm = (
       setIgnored(initialData.ignored || false);
     } else {
       setMeasurements([
-      {
+        {
           temperature: '',
           time: format(new Date(), 'HH:mm'),
           selected: true,
           temperature_corrected: '',
-          use_corrected: false,
+          time_corrected: format(new Date(), 'HH:mm'),
+          use_corrected: false,          
           confirmed: true,
         },
       ]);
@@ -105,11 +111,12 @@ export const useDataEntryForm = (
   const addMeasurement = () => {
     setMeasurements((prev) => [
       ...prev,
-       {
+        {
         temperature: prev[prev.length - 1]?.temperature || '',
         time: format(new Date(), 'HH:mm'),
         selected: false,
         temperature_corrected: '',
+        time_corrected: format(new Date(), 'HH:mm'),
         use_corrected: false,
         confirmed: false,
       },
@@ -175,6 +182,7 @@ export const useDataEntryForm = (
           m.temperature_corrected === ''
             ? null
             : parseFloat(m.temperature_corrected),
+        time_corrected: m.time_corrected,
         use_corrected: !!m.use_corrected,
       })),
       mucusSensation,
@@ -192,6 +200,7 @@ export const useDataEntryForm = (
           time: format(new Date(), 'HH:mm'),
           selected: true,
           temperature_corrected: '',
+          time_corrected: format(new Date(), 'HH:mm'),
           use_corrected: false,
           confirmed: true,
         },
