@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button';
 import { Thermometer, Droplets, Eye, EyeOff, CalendarDays, Sprout, Clock, Check, X, ChevronUp, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { format, addDays, startOfDay, parseISO } from 'date-fns';
+import { format, addDays, startOfDay, parseISO, addHours, parse } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { FERTILITY_SYMBOL_OPTIONS } from '@/config/fertilitySymbols';
 
@@ -43,11 +43,19 @@ const DataEntryFormFields = ({
   const [correctionIndex, setCorrectionIndex] = useState(null);
 
   const handleTempAdjust = (index, delta) => {
+    const originalTemp = parseFloat(measurements[index].temperature ?? 0);
     const current = parseFloat(
-      measurements[index].temperature_corrected ?? measurements[index].temperature ?? 0
+      measurements[index].temperature_corrected ?? originalTemp
     );
     const newTemp = (current + delta).toFixed(2);
     updateMeasurement(index, 'temperature_corrected', newTemp);
+    
+    const tempDiff = parseFloat(newTemp) - originalTemp;
+    const hoursOffset = Math.round(tempDiff * 10);
+    const originalTime = measurements[index].time || '00:00';
+    const parsedTime = parse(originalTime, 'HH:mm', new Date());
+    const newTime = format(addHours(parsedTime, hoursOffset), 'HH:mm');
+    updateMeasurement(index, 'time_corrected', newTime);
   };
   const cycleStart = startOfDay(parseISO(cycleStartDate));
   const cycleEnd = cycleEndDate ? startOfDay(parseISO(cycleEndDate)) : addDays(cycleStart, 45);
@@ -89,7 +97,7 @@ const DataEntryFormFields = ({
               modifiers={{ hasRecord: recordedDates }}
               modifiersClassNames={{
                 hasRecord:
-                  'relative flex-col after:content-["" ] after:block after:w-1.5 after:h-1.5 after:rounded-full after:bg-pink-500 after:mx-auto after:mt-0.025'
+                  'relative after:content-["" ] after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:w-1.5 after:h-1.5 after:rounded-full after:bg-pink-500'
               }}
               className="[&_button]:text-gray-800 [&_button:hover]:bg-pink-100 [&_button[aria-selected=true]]:bg-pink-500"
             />
@@ -182,15 +190,6 @@ const DataEntryFormFields = ({
           {correctionIndex === idx && (
             <div className="mt-2 space-y-2">
               <div className="flex items-center space-x-2">
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="outline"
-                  disabled={isProcessing}
-                  onClick={() => handleTempAdjust(idx, 0.05)}
-                >
-                  <ChevronUp className="h-4 w-4" />
-                </Button>
                 <Input
                   type="number"
                   step="0.01"
@@ -206,7 +205,17 @@ const DataEntryFormFields = ({
                   size="icon"
                   variant="outline"
                   disabled={isProcessing}
-                  onClick={() => handleTempAdjust(idx, -0.05)}
+                  onClick={() => handleTempAdjust(idx, 0.1)}
+                >
+                
+                  <ChevronUp className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="outline"
+                  disabled={isProcessing}
+                  onClick={() => handleTempAdjust(idx, -0.1)}
                 >
                   <ChevronDown className="h-4 w-4" />
                 </Button>
@@ -248,14 +257,7 @@ const DataEntryFormFields = ({
         </Label>
         <Select value={fertilitySymbol} onValueChange={setFertilitySymbol} disabled={isProcessing}>
           <SelectTrigger className="w-full bg-white border-slate-200 text-gray-800 hover:bg-white">
-            <div className="flex items-center">
-              <span
-                className={`w-3 h-3 rounded-full mr-2 border border-gray-300 ${
-                  (FERTILITY_SYMBOL_OPTIONS.find((s) => s.value === fertilitySymbol)?.color) || 'bg-gray-200'
-                }`}
-              />
-              <SelectValue placeholder="Selecciona un símbolo" />
-            </div>
+            <SelectValue placeholder="Selecciona un símbolo" />
           </SelectTrigger>
           <SelectContent className="bg-white border-slate-200 text-gray-800">
             {FERTILITY_SYMBOL_OPTIONS.map((symbol) => (
