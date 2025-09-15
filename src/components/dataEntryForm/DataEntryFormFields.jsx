@@ -7,7 +7,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Thermometer, Droplets, Eye, EyeOff, CalendarDays, Sprout, Clock, Check, X, ChevronUp, ChevronDown } from 'lucide-react';
+import { Thermometer, Droplets, Eye, EyeOff, CalendarDays, Sprout, Clock, Check, X, ChevronUp, ChevronDown, Circle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, addDays, startOfDay, parseISO, addHours, parse } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -97,7 +97,7 @@ const DataEntryFormFields = ({
               modifiers={{ hasRecord: recordedDates }}
               modifiersClassNames={{
                 hasRecord:
-                  'relative after:content-["" ] after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:w-1.5 after:h-1.5 after:rounded-full after:bg-pink-500'
+                  'relative after:content-["" ] after:absolute after:inset-x-0 after:bottom-1 after:mx-auto after:w-1.5 after:h-1.5 after:rounded-full after:bg-pink-500'
               }}
               className="[&_button]:text-gray-800 [&_button:hover]:bg-pink-100 [&_button[aria-selected=true]]:bg-pink-500"
             />
@@ -306,7 +306,7 @@ const DataEntryFormFields = ({
       </div>
       <div className="space-y-2 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl p-3 border border-emerald-100/50">
         <Label htmlFor="mucusAppearance" className="flex items-center text-slate-800 text-sm font-semibold">
-          <Droplets className="mr-2 h-5 w-5 text-indigo-600" />
+          <Circle className="mr-2 h-5 w-5 text-emerald-600" />
           Apariencia del moco
         </Label>
         <Input
@@ -327,7 +327,7 @@ const DataEntryFormFields = ({
           id="observations"
           value={observations}
           onChange={(e) => setObservations(e.target.value)}
-          className="bg-white/70 border-violet-200 text-gray-800 placeholder-gray-400 focus:ring-violet-500 focus:border-violet-500 text-base"
+          className="bg-white/70 border-violet-200 text-gray-800 placeholder-gray-400 focus:ring-violet-500 focus:border-violet-500 text-base min-h-[40px] resize-none"
           disabled={isProcessing}
         />
       </div>

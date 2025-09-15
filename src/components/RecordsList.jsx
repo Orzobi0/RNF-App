@@ -1,7 +1,7 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Edit2, Trash2, Thermometer, Droplets, Droplet, Eye, Calendar, Clock } from 'lucide-react';
+import { Edit2, Trash2, Thermometer, Droplets, Circle, Eye, Calendar, Clock, Edit3 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { motion } from 'framer-motion';
@@ -73,7 +73,7 @@ const RecordsList = ({ records, onEdit, onDelete, isProcessing }) => {
                 <div className="flex items-center space-x-2">
                   <Calendar className="w-5 h-5 text-pink-500 flex-shrink-0" />
                   <span className="font-semibold text-slate-700 text-lg">
-                    {format(parseISO(record.isoDate), 'dd MMM yyyy', { locale: es })}
+                    {format(parseISO(record.isoDate), 'dd/MM/yyyy', { locale: es })}
                   </span>
                   <span className="text-md text-slate-600">Día {record.cycleDay}</span>
                 </div>
@@ -89,8 +89,8 @@ const RecordsList = ({ records, onEdit, onDelete, isProcessing }) => {
               </div>
 
               {/* Temperatura y hora */}
-              <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-600">
-                <div className="flex items-center space-x-1 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-100/50 p-2 rounded">
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-800">
+                <div className="flex items-center space-x-1 bg-gradient-to-r from-amber-100 to-orange-100 border border-amber-100/50 p-2 rounded-xl">
                   <Thermometer className="w-3 h-3 text-rose-400" />
                   <span className="font-medium">{hasTemperature ? `${displayTemp}°C` : ''}</span>
                   {hasTemperature && record.ignored && (
@@ -99,10 +99,10 @@ const RecordsList = ({ records, onEdit, onDelete, isProcessing }) => {
                     </Badge>
                   )}
                 </div>
-                <div className="flex items-center space-x-1 bg-slate-50 border border-amber-100/50 p-2 rounded">
+                <div className="flex items-center space-x-1 bg-slate-100 border border-amber-100/50 p-2 rounded-xl">
                   {selectedMeasurement?.time && (
                     <>
-                      <Clock className="w-3 h-3 text-amber-600" />
+                      <Clock className="w-3 h-3 text-gray-600" />
                       <span>{selectedMeasurement.time}</span>
                     </>
                   )}
@@ -123,21 +123,27 @@ const RecordsList = ({ records, onEdit, onDelete, isProcessing }) => {
        
               {/* Sensación y apariencia */}
               <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-600">
-                <div className="flex items-center space-x-1 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100/50 p-2 rounded">
-                  <Droplets className="w-3 h-3 text-sky-600" />
-                  <span className="truncate">{record.mucus_sensation || ''}</span>
+                <div className="flex items-center gap-2 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100/50 p-2 rounded-xl">
+                  <div className="w-5 h-5 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-md">
+                    <Droplets className="w-3 h-3 text-white" />
+                  </div>
+                  <span className="font-semibold text-blue-800 truncate">{record.mucus_sensation || ''}</span>
                 </div>
-                <div className="flex items-center space-x-1 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100/50 p-2 rounded">
-                  <Droplet className="w-3 h-3 text-indigo-600" />
-                  <span className="truncate">{record.mucus_appearance || ''}</span>
+                <div className="flex items-center gap-2 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100/50 p-2 rounded-xl">
+                  <div className="w-5 h-5 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center shadow-md">
+                    <Circle className="w-3 h-3 text-white" />
+                  </div>
+                  <span className="font-semibold text-green-800 truncate">{record.mucus_appearance || ''}</span>
                 </div>
               </div>
 
               {/* Observaciones y acciones */}
               <div className="mt-2 grid grid-cols-[1fr_auto] gap-2 items-start text-xs text-slate-600">
-                <div className="bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-100/50 p-2 rounded">
-                  <span className="font-medium">Observaciones:</span>{' '}
-                  <span className="italic">{record.observations || ''}</span>
+                <div className="flex items-center gap-2 bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-100/50 p-2 rounded-xl">
+                  <div className="w-5 h-5 bg-gradient-to-br from-violet-500 to-purple-600 rounded-lg flex items-center justify-center shadow-md">
+                    <Edit3 className="w-3 h-3 text-white" />
+                  </div>
+                  <span className="font-semibold text-violet-800 truncate">{record.observations || ''}</span>
                 </div>
                 <div className="flex space-x-1">
                   <Button
@@ -155,7 +161,7 @@ const RecordsList = ({ records, onEdit, onDelete, isProcessing }) => {
                     onClick={() => onDelete(record.id)}
                     variant="outline"
                     size="sm"
-                    className="h-8 w-8 p-0 border-rose-300 text-rose-600 hover:bg-rose-50 hover:border-rose-400"
+                    className="h-8 w-8 p-0 border-rose-300 text-rose-600 hover:bg-rose-800 hover:border-rose-800"
                     disabled={isProcessing}
                   >
                     <Trash2 className="h-3 w-3" />

@@ -169,8 +169,8 @@ const ArchivedCyclesPage = () => {
         >
           {sortedCycles.map((cycle) => {
             const endDate = cycle.endDate
-              ? format(parseISO(cycle.endDate), "dd MMM yyyy", { locale: es })
-              : 'Sin fecha fin';
+              ? format(parseISO(cycle.endDate), "dd/MM/yyyy", { locale: es })
+              : 'En curso';
             const recordCount = cycle.data ? cycle.data.length : 0;
 
             return (
@@ -194,7 +194,7 @@ const ArchivedCyclesPage = () => {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center flex-wrap gap-2 mb-2">
                           <h2 className="text-lg font-semibold text-slate-700">
-                            {format(parseISO(cycle.startDate), "dd MMM yyyy", { locale: es })} - {endDate}
+                            {format(parseISO(cycle.startDate), "dd/MM/yyyy", { locale: es })} - {endDate}
                           </h2>
                           
                         </div>
@@ -224,21 +224,21 @@ const ArchivedCyclesPage = () => {
                     </div>
 
                     {/* Botones de acción */}
-                    <div className="flex flex-col sm:flex-row gap-2 mt-4 sm:mt-0 w-full sm:w-auto">
-                      <Button 
-                        asChild 
-                        variant="outline" 
+                    <div className="flex gap-2 mt-4 sm:mt-0 w-full sm:w-auto">
+                      <Button
+                        asChild
+                        variant="outline"
                         size="sm"
-                        className="w-full sm:w-auto border-pink-300 text-pink-600 hover:bg-pink-50 hover:border-pink-400"
+                        className="flex-1 sm:flex-none border-pink-300 text-pink-600 hover:bg-pink-50 hover:border-pink-400"
                       >
                         <Link to={cycle.isCurrent ? `/` : `/cycle/${cycle.id}`}>
                           <Eye className="mr-2 h-4 w-4" /> Ver
                         </Link>
                       </Button>
-                      <Button 
-                        variant="outline" 
+                      <Button
+                        variant="default"
                         size="sm"
-                        className="w-full sm:w-auto border-rose-300 text-rose-600 hover:bg-rose-50 hover:border-rose-400" 
+                        className="flex-1 sm:flex-none bg-rose-500 text-white hover:bg-rose-600"
                         onClick={() => handleDeleteCycle(cycle.id)}
                       >
                         <Trash2 className="mr-2 h-4 w-4" /> Eliminar
