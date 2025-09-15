@@ -73,20 +73,20 @@ import { motion, AnimatePresence } from 'framer-motion';
         <div className={`w-full ${isFullScreen ? 'h-full overflow-hidden' : 'max-w-4xl mx-auto'}`}>
           {!isFullScreen && (
             <div className="mb-4">
-              <div className="relative flex items-center justify-center">
+              <div className="flex items-center gap-4 mb-4">
                 <Button
                   asChild
-                  className="absolute left-0 bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow hover:from-pink-600 hover:to-rose-600"
+                  className="bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow hover:from-pink-600 hover:to-rose-600"
                 >
                   <Link to="/archived-cycles">
                     <ArrowLeft className="mr-2 h-4 w-4" /> Mis Ciclos
                   </Link>
                 </Button>
-                <h1 className="text-2xl sm:text-3xl font-bold text-center w-full">
+                <h1 className="flex-1 text-2xl sm:text-3xl font-bold text-center">
                   Detalle de ciclo ({format(parseISO(cycleData.startDate), 'dd/MM/yyyy')} - {cycleData.endDate ? format(parseISO(cycleData.endDate), 'dd/MM/yyyy') : 'En curso'})
                 </h1>
               </div>
-              <div className="flex justify-center gap-2 mt-4">
+              <div className="flex justify-center gap-2">
                 <Button onClick={onEditCycleDates} className="bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow hover:from-pink-600 hover:to-rose-600">
                   <Edit className="mr-2 h-4 w-4" /> Editar Fechas
                 </Button>
@@ -94,24 +94,40 @@ import { motion, AnimatePresence } from 'framer-motion';
                   <Trash2 className="mr-2 h-4 w-4" /> Eliminar Ciclo
                 </Button>
               </div>
-             </div>
+            </div>
           )}
 
           {!showForm && !showChart && !isFullScreen && (
-            <div className="mb-4 flex justify-center">
+            <div className="mb-4 flex justify-center gap-4">
               <Button
-                onClick={() => setShowChart(true)}
+                onClick={() => { setShowChart(true); toggleFullScreen(); }}
                 className="bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow hover:from-pink-600 hover:to-rose-600"
               >
                 <BarChart3 className="mr-2 h-4 w-4" /> Gráfica
+              </Button>
+              <Button
+                onClick={() => { setEditingRecord(null); setShowForm(true); }}
+                className="bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white shadow-lg"
+                style={{ filter: 'drop-shadow(0 6px 12px rgba(236, 72, 153, 0.3))' }}
+                disabled={isProcessing}
+              >
+                <Edit className="mr-2 h-4 w-4" /> Añadir registro en este ciclo
               </Button>
             </div>
           )}
 
           {!showForm && (showChart || isFullScreen) && (
             <div
-              className={`shadow-2xl rounded-xl ${isFullScreen ? 'w-full h-full p-0 fixed inset-0 z-50 bg-white' : 'p-4 sm:p-6 mb-4 bg-white/70 backdrop-blur-md ring-1 ring-[#FFB1DD]/50'} relative`}
-              style={{ boxShadow: '0 4px 8px rgba(0,0,0,0.04)' }}
+              className={
+                isFullScreen
+                  ? 'fixed inset-0 z-50 h-[100dvh] w-[100dvw] overflow-x-auto overflow-y-auto'
+                  : 'p-4 sm:p-6 mb-4 bg-white/70 backdrop-blur-md ring-1 ring-[#FFB1DD]/50 shadow-2xl rounded-xl relative'
+              }
+              style={
+                isFullScreen
+                  ? { background: 'linear-gradient(135deg, #FFFAFC 0%, #f7eaef 100%)' }
+                  : { boxShadow: '0 4px 8px rgba(0,0,0,0.04)' }
+              }
             >
               {!isFullScreen && (
                 <h2 className="text-xl font-medium text-slate-700 mb-4 bg-white bg-opacity-90 px-4 py-2 rounded-md">
@@ -130,11 +146,12 @@ import { motion, AnimatePresence } from 'framer-motion';
                 reduceMotion={true}
               />
               <Button
-                onClick={() => setShowInterpretation((v) => !v)}
-                variant="ghost"
-                size="sm"
-                className={`absolute ${isFullScreen ? 'top-4 right-20' : 'top-2 right-20'} flex items-center font-semibold py-1 px-2 rounded-lg transition-colors ${showInterpretation ? 'bg-[#E27DBF] text-white hover:bg-[#d46ab3]' : 'bg-transparent text-slate-700 hover:bg-[#E27DBF]/20'}`}
-              >
+                  onClick={handleToggleInterpretation}
+                  onTouchEnd={handleToggleInterpretation}
+                  variant="ghost"
+                  size="sm"
+                  className={`absolute ${isFullScreen ? 'top-4 right-20' : 'top-2 right-20'} flex items-center font-semibold py-1 px-2 rounded-lg transition-colors ${showInterpretation ? 'bg-[#E27DBF] text-white hover:bg-[#d46ab3]' : 'bg-transparent text-slate-700 hover:bg-[#E27DBF]/20'}`}
+                >
                 {showInterpretation ? (
                   <EyeOff className="mr-2 h-4 w-4" />
                 ) : (
@@ -152,7 +169,14 @@ import { motion, AnimatePresence } from 'framer-motion';
                 <RotateCcw className="h-5 w-5" />
               </Button>
               <Button
-                onClick={toggleFullScreen}
+                onClick={() => {
+                  if (isFullScreen) {
+                    toggleFullScreen();
+                    setShowChart(false);
+                  } else {
+                    toggleFullScreen();
+                  }
+                }}
                 variant="ghost"
                 size="icon"
                 className={`absolute ${isFullScreen ? 'top-4 right-4 text-white bg-slate-700/50 hover:bg-slate-600/70' : 'top-2 right-2 text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'}`}
@@ -189,18 +213,6 @@ import { motion, AnimatePresence } from 'framer-motion';
                 )}
               </AnimatePresence>
 
-              {!showForm && (
-                <div className="my-8">
-                  <Button
-                    onClick={() => { setEditingRecord(null); setShowForm(true); }}
-                    className="w-full sm:w-auto bg-gradient-to-r from-pink-500 to-fuchsia-600 hover:from-pink-600 hover:to-fuchsia-700 text-white font-semibold py-3 px-6 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 flex items-center justify-center text-lg"
-                    disabled={isProcessing}
-                  >
-                    <Edit className="mr-2 h-5 w-5" /> Añadir registro en este ciclo
-                  </Button>
-                </div>
-              )}
-              
               <RecordsList
                 records={cycleData.data}
                 onEdit={handleEdit}
@@ -237,6 +249,10 @@ import { motion, AnimatePresence } from 'framer-motion';
       const { isFullScreen, toggleFullScreen, orientation, rotateScreen } = useFullScreen();
       const [isProcessing, setIsProcessing] = useState(false);
       const [showInterpretation, setShowInterpretation] = useState(false);
+      const handleToggleInterpretation = (e) => {
+        e.preventDefault();
+        setShowInterpretation((v) => !v);
+      };
 
   useEffect(() => {
     const loadCycle = async () => {

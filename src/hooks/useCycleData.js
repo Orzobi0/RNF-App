@@ -17,6 +17,12 @@ const filterEntriesByStartDate = (entries, startDate) => {
   return entries.filter((entry) => parseISO(entry.isoDate) >= start);
 };
 
+const normalizeTemp = (val) => {
+  if (val === null || val === undefined || val === '') return null;
+  const num = parseFloat(String(val).replace(',', '.'));
+  return isNaN(num) ? null : num;
+};
+
 const normalizeDate = (date) => {
   if (!date) return null;
   if (typeof date === 'string') {
@@ -138,6 +144,10 @@ export const useCycleData = (specificCycleId = null) => {
       if (!targetRecord) {
         targetRecord = currentCycle.data.find(r => r.isoDate === newData.isoDate);
       }
+      const rawTemp = normalizeTemp(selectedMeasurement.temperature);
+      const correctedTemp = normalizeTemp(selectedMeasurement.temperature_corrected);
+      const useCorrected = !!selectedMeasurement.use_corrected && correctedTemp !== null;
+      const chartTemp = useCorrected ? correctedTemp : rawTemp;
 
       const recordPayload = {
         cycle_id: currentCycle.id,
@@ -150,10 +160,10 @@ export const useCycleData = (specificCycleId = null) => {
           newData.fertility_symbol === 'none' ? null : newData.fertility_symbol,
         observations: newData.observations || null,
         ignored: targetRecord ? (newData.ignored ?? targetRecord.ignored) : (newData.ignored || false),
-        temperature_raw: selectedMeasurement.temperature ?? null,
-        temperature_corrected: selectedMeasurement.temperature_corrected ?? null,
-        use_corrected: !!selectedMeasurement.use_corrected,
-        temperature_chart: selectedMeasurement.temperature_corrected ?? selectedMeasurement.temperature ?? null,
+        temperature_raw: rawTemp,
+        temperature_corrected: correctedTemp,
+        use_corrected: useCorrected,
+        temperature_chart: chartTemp,
       };
       
 

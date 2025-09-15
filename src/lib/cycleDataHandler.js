@@ -19,6 +19,12 @@ const generateCycleDaysForRecord = (recordIsoDate, cycleStartIsoDate) => {
   return differenceInDays(rDate, sDate) + 1;
 };
 
+const normalizeTemp = (val) => {
+  if (val === null || val === undefined || val === '') return null;
+  const num = parseFloat(String(val).replace(',', '.'));
+  return isNaN(num) ? null : num;
+};
+
 export const processCycleEntries = (entriesFromView, cycleStartIsoDate) => {
   if (!entriesFromView || !Array.isArray(entriesFromView) || !cycleStartIsoDate) return [];
 
@@ -28,39 +34,48 @@ export const processCycleEntries = (entriesFromView, cycleStartIsoDate) => {
     return compareAsc(dateA, dateB);
   });
 
-  return sortedEntries.map((entry) => ({
-    ...entry,
-    id: entry.id,
-    isoDate: entry.iso_date || (entry.timestamp ? format(parseISO(entry.timestamp), 'yyyy-MM-dd') : null),
-    date: entry.timestamp
-      ? format(parseISO(entry.timestamp), 'dd/MM')
-      : entry.iso_date
-      ? format(parseISO(entry.iso_date), 'dd/MM')
-      : 'N/A',
-    cycleDay: generateCycleDaysForRecord(entry.iso_date || entry.timestamp, cycleStartIsoDate),
-    temperature_raw: entry.temperature_raw,
-    temperature_corrected: entry.temperature_corrected,
-    use_corrected: entry.use_corrected,
-    mucusSensation: entry.mucus_sensation,
-    mucusAppearance: entry.mucus_appearance,
-    fertility_symbol: entry.fertility_symbol,
-    observations: entry.observations,
-    ignored: entry.ignored,
-    measurements: entry.measurements || [],
-    temperature_chart:
-      entry.temperature_chart ?? (() => {
-        if (Array.isArray(entry.measurements)) {
-          const sel = entry.measurements.find((m) => m.selected);
-          if (sel) {
-            return sel.temperature_corrected ?? sel.temperature ?? null;
-          }
+  return sortedEntries.map((entry) => {
+    const rawTemp = normalizeTemp(entry.temperature_raw);
+    const correctedTemp = normalizeTemp(entry.temperature_corrected);
+
+    let chartTemp = normalizeTemp(entry.temperature_chart);
+    if (chartTemp == null) {
+      if (Array.isArray(entry.measurements)) {
+        const sel = entry.measurements.find((m) => m.selected);
+        if (sel) {
+          const selRaw = normalizeTemp(sel.temperature);
+          const selCorr = normalizeTemp(sel.temperature_corrected);
+          chartTemp = sel.use_corrected && selCorr !== null ? selCorr : selRaw;
         }
-        return entry.use_corrected
-          ? entry.temperature_corrected ?? entry.temperature_raw
-          : entry.temperature_raw ?? entry.temperature_corrected;
-      })(),
-    timestamp: entry.timestamp,
-  }));
+      }
+      if (chartTemp == null) {
+        chartTemp = entry.use_corrected && correctedTemp !== null ? correctedTemp : rawTemp ?? correctedTemp;
+      }
+    }
+
+    return {
+      ...entry,
+      id: entry.id,
+      isoDate: entry.iso_date || (entry.timestamp ? format(parseISO(entry.timestamp), 'yyyy-MM-dd') : null),
+      date: entry.timestamp
+        ? format(parseISO(entry.timestamp), 'dd/MM')
+        : entry.iso_date
+        ? format(parseISO(entry.iso_date), 'dd/MM')
+        : 'N/A',
+      cycleDay: generateCycleDaysForRecord(entry.iso_date || entry.timestamp, cycleStartIsoDate),
+      temperature_raw: rawTemp,
+      temperature_corrected: correctedTemp,
+      use_corrected: !!entry.use_corrected,
+      mucusSensation: entry.mucus_sensation,
+      mucusAppearance: entry.mucus_appearance,
+      fertility_symbol: entry.fertility_symbol,
+      observations: entry.observations,
+      ignored: entry.ignored,
+      measurements: entry.measurements || [],
+      temperature_chart: chartTemp,
+      timestamp: entry.timestamp,
+    };
+  });
 };
 
 export const fetchCurrentCycleDB = async (userId) => {

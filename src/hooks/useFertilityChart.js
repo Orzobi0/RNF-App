@@ -19,10 +19,15 @@ export const useFertilityChart = (
       const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
 
       const processedData = useMemo(() => {
-        return data.map(d => ({
-          ...d,
-          displayTemperature: d.temperature_chart 
-        }));
+        return data.map(d => {
+          const t = d.temperature_chart == null
+            ? null
+            : parseFloat(String(d.temperature_chart).replace(',', '.'));
+          return {
+            ...d,
+            displayTemperature: isNaN(t) ? null : t
+          };
+        });
       }, [data]);
 
       useLayoutEffect(() => {
