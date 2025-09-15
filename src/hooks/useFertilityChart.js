@@ -98,9 +98,20 @@ export const useFertilityChart = (
         }
       }
       if (prev.length < 6) continue;
-      if (prev.every(p => p.temp < current.displayTemperature)) {
-        const temp = Math.max(...prev.map(p => p.temp));
-        const startIdx = prev.find(p => p.temp === temp).index;
+      if (!prev.every(p => p.temp < current.displayTemperature)) continue;
+      const temp = Math.max(...prev.map(p => p.temp));
+      const startIdx = prev.find(p => p.temp === temp).index;
+      const rises = [];
+      for (let k = i; k < processedData.length && rises.length < 3; k++) {
+        const dp = processedData[k];
+        if (!isValid(dp)) continue;
+        if (dp.displayTemperature > temp) {
+          rises.push(dp.displayTemperature);
+        } else {
+          break;
+        }
+      }
+      if (rises.length === 3 && rises[2] >= temp + 0.2) {
         return { baselineTemp: temp, baselineStartIndex: startIdx };
       }
     }

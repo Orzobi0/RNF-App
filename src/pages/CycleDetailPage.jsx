@@ -8,8 +8,8 @@ import React, { useState, useEffect, useCallback } from 'react';
     import { useCycleData } from '@/hooks/useCycleData';
     import { useToast } from '@/components/ui/use-toast';
     import { Button } from '@/components/ui/button';
-    import { ArrowLeft, Edit, Trash2, Maximize, X, Eye, EyeOff, RotateCcw } from 'lucide-react';
-    import { motion, AnimatePresence } from 'framer-motion';
+import { ArrowLeft, Edit, Trash2, Maximize, X, Eye, EyeOff, RotateCcw, BarChart3 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
     import { format, differenceInDays, startOfDay, parseISO } from 'date-fns';
     import generatePlaceholders from '@/lib/generatePlaceholders';
     import { useFullScreen } from '@/hooks/useFullScreen';
@@ -67,99 +67,101 @@ import React, { useState, useEffect, useCallback } from 'react';
           deleteRecordForCycle(recordToDelete.id);
         }
       };
+      const [showChart, setShowChart] = useState(false);
 
       return (
         <div className={`w-full ${isFullScreen ? 'h-full overflow-hidden' : 'max-w-4xl mx-auto'}`}>
-          <motion.div
-            className="flex flex-wrap items-center justify-between gap-4 mb-8"
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-          >
-            {!isFullScreen && (
-              <Button asChild className="w-full sm:w-auto mt-4 sm:mt-0 bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow hover:from-pink-600 hover:to-rose-600">
-                <Link to="/archived-cycles">
-                  <ArrowLeft className="mr-2 h-4 w-4" /> Mis Ciclos
-                </Link>
-              </Button>
-            )}
-            {!isFullScreen && (
-              <h1 className="w-full text-2xl sm:text-3xl font-bold hover:text-pink-300 text-center">
-                Detalle del Ciclo ({format(parseISO(cycleData.startDate), "dd/MM/yyyy")})
-              </h1>
-            )}
-            {!isFullScreen && (
-              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto mt-4 sm:mt-0">
-                <Button onClick={onEditCycleDates} className="w-full sm:w-auto bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow hover:from-pink-600 hover:to-rose-600">
+          {!isFullScreen && (
+            <div className="mb-4">
+              <div className="relative flex items-center justify-center">
+                <Button
+                  asChild
+                  className="absolute left-0 bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow hover:from-pink-600 hover:to-rose-600"
+                >
+                  <Link to="/archived-cycles">
+                    <ArrowLeft className="mr-2 h-4 w-4" /> Mis Ciclos
+                  </Link>
+                </Button>
+                <h1 className="text-2xl sm:text-3xl font-bold text-center w-full">
+                  Detalle de ciclo ({format(parseISO(cycleData.startDate), 'dd/MM/yyyy')} - {cycleData.endDate ? format(parseISO(cycleData.endDate), 'dd/MM/yyyy') : 'En curso'})
+                </h1>
+              </div>
+              <div className="flex justify-center gap-2 mt-4">
+                <Button onClick={onEditCycleDates} className="bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow hover:from-pink-600 hover:to-rose-600">
                   <Edit className="mr-2 h-4 w-4" /> Editar Fechas
                 </Button>
-                <Button variant="destructive" onClick={onDeleteCycle} className="w-full sm:w-auto">
+                <Button variant="destructive" onClick={onDeleteCycle}>
                   <Trash2 className="mr-2 h-4 w-4" /> Eliminar Ciclo
                 </Button>
               </div>
-            )}
-          </motion.div>
+             </div>
+          )}
 
-          <AnimatePresence>
-            {(!showForm) && (chartDisplayData.length > 0 || isFullScreen) && (
-              <motion.div
-                initial={{ opacity: 0, scale: isFullScreen ? 1 : 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: isFullScreen ? 1 : 0.9 }}
-                transition={{ duration: 0.5 }}
-                className={`shadow-2xl rounded-xl ${isFullScreen ? 'w-full h-full p-0 fixed inset-0 z-50 bg-white' : 'p-4 sm:p-6 mb-4 bg-white/70 backdrop-blur-md ring-1 ring-[#FFB1DD]/50'} relative`}
-                style={{ boxShadow: '0 4px 8px rgba(0,0,0,0.04)' }}
+          {!showForm && !showChart && !isFullScreen && (
+            <div className="mb-4 flex justify-center">
+              <Button
+                onClick={() => setShowChart(true)}
+                className="bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow hover:from-pink-600 hover:to-rose-600"
               >
-                {!isFullScreen && (
+                <BarChart3 className="mr-2 h-4 w-4" /> Gráfica
+              </Button>
+            </div>
+          )}
+
+          {!showForm && (showChart || isFullScreen) && (
+            <div
+              className={`shadow-2xl rounded-xl ${isFullScreen ? 'w-full h-full p-0 fixed inset-0 z-50 bg-white' : 'p-4 sm:p-6 mb-4 bg-white/70 backdrop-blur-md ring-1 ring-[#FFB1DD]/50'} relative`}
+              style={{ boxShadow: '0 4px 8px rgba(0,0,0,0.04)' }}
+            >
+              {!isFullScreen && (
                 <h2 className="text-xl font-medium text-slate-700 mb-4 bg-white bg-opacity-90 px-4 py-2 rounded-md">
-                Gráfica
+                  Gráfica
                 </h2>
+              )}
+              <FertilityChart
+                data={chartDisplayData}
+                isFullScreen={isFullScreen}
+                orientation={orientation}
+                onToggleIgnore={toggleIgnoreRecordForCycle}
+                onEdit={handleEdit}
+                cycleId={cycleData.id}
+                showInterpretation={showInterpretation}
+                visibleDays={visibleDays}
+                reduceMotion={true}
+              />
+              <Button
+                onClick={() => setShowInterpretation((v) => !v)}
+                variant="ghost"
+                size="sm"
+                className={`absolute ${isFullScreen ? 'top-4 right-20' : 'top-2 right-20'} flex items-center font-semibold py-1 px-2 rounded-lg transition-colors ${showInterpretation ? 'bg-[#E27DBF] text-white hover:bg-[#d46ab3]' : 'bg-transparent text-slate-700 hover:bg-[#E27DBF]/20'}`}
+              >
+                {showInterpretation ? (
+                  <EyeOff className="mr-2 h-4 w-4" />
+                ) : (
+                <Eye className="mr-2 h-4 w-4" />
                 )}
-                <FertilityChart
-                  data={chartDisplayData}
-                  isFullScreen={isFullScreen}
-                  orientation={orientation}
-                  onToggleIgnore={toggleIgnoreRecordForCycle}
-                  onEdit={handleEdit}
-                  cycleId={cycleData.id}
-                  showInterpretation={showInterpretation}
-                  visibleDays={visibleDays}
-                  reduceMotion={true}
-                />
-                <Button
-                  onClick={() => setShowInterpretation(v => !v)}
-                  variant="ghost"
-                  size="sm"
-                  className={`absolute ${isFullScreen ? 'top-4 right-20' : 'top-2 right-20'} flex items-center font-semibold py-1 px-2 rounded-lg transition-colors ${showInterpretation ? 'bg-[#E27DBF] text-white hover:bg-[#d46ab3]' : 'bg-transparent text-slate-700 hover:bg-[#E27DBF]/20'}`}
-                >
-                  {showInterpretation ? (
-                    <EyeOff className="mr-2 h-4 w-4" />
-                  ) : (
-                    <Eye className="mr-2 h-4 w-4" />
-                  )}
-                  {showInterpretation ? 'Ocultar' : 'Interpretar'}
-                </Button>
-                <Button
-                  onClick={rotateScreen}
-                  variant="ghost"
-                  size="icon"
-                  className={`absolute ${isFullScreen ? 'top-4 right-12 text-white bg-slate-700/50 hover:bg-slate-600/70' : 'top-2 right-12 text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'}`}
-                  title="Cambiar orientación"
-                >
-                  <RotateCcw className="h-5 w-5" />
-                </Button>
-                <Button
-                  onClick={toggleFullScreen}
-                  variant="ghost"
-                  size="icon"
-                  className={`absolute ${isFullScreen ? 'top-4 right-4 text-white bg-slate-700/50 hover:bg-slate-600/70' : 'top-2 right-2 text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'}`}
-                  title={isFullScreen ? "Salir de Pantalla Completa" : "Ver en Pantalla Completa"}
-                >
-                  {isFullScreen ? <X className="h-6 w-6" /> : <Maximize className="h-5 w-5" />}
-                </Button>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                {showInterpretation ? 'Ocultar' : 'Interpretar'}
+              </Button>
+              <Button
+                onClick={rotateScreen}
+                variant="ghost"
+                size="icon"
+                className={`absolute ${isFullScreen ? 'top-4 right-12 text-white bg-slate-700/50 hover:bg-slate-600/70' : 'top-2 right-12 text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'}`}
+                title="Cambiar orientación"
+              >
+                <RotateCcw className="h-5 w-5" />
+              </Button>
+              <Button
+                onClick={toggleFullScreen}
+                variant="ghost"
+                size="icon"
+                className={`absolute ${isFullScreen ? 'top-4 right-4 text-white bg-slate-700/50 hover:bg-slate-600/70' : 'top-2 right-2 text-slate-400 hover:text-slate-200 hover:bg-slate-700/50'}`}
+                title={isFullScreen ? 'Salir de Pantalla Completa' : 'Ver en Pantalla Completa'}
+              >
+                {isFullScreen ? <X className="h-6 w-6" /> : <Maximize className="h-5 w-5" />}
+              </Button>
+            </div>
+          )}
 
           {!isFullScreen && (
             <>
