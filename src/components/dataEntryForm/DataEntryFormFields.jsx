@@ -186,7 +186,26 @@ const DataEntryFormFields = ({
             >
               Corregir
             </Button>
+                  {/* Ignorar */}
+      {isEditing && (
+        <div className="space-y-2 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-3 border border-amber-100/50">
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="ignored"
+              checked={ignored}
+              onCheckedChange={setIgnored}
+              className="data-[state=checked]:bg-orange-500 data-[state=checked]:text-white border-amber-400"
+              disabled={isProcessing}
+            />
+            <Label htmlFor="ignored" className="text-xs text-amber-700 flex items-center">
+              {ignored ? <Eye className="mr-1 h-4 w-4" /> : <EyeOff className="mr-1 h-4 w-4" />}
+              {ignored ? 'Restaurar' : 'Despreciar'}
+            </Label>
           </div>
+        </div>
+      )}
+          </div>
+          
           {correctionIndex === idx && (
             <div className="mt-2 space-y-2">
               <div className="flex items-center space-x-2">
@@ -299,7 +318,6 @@ const DataEntryFormFields = ({
         />
       </div>
 
-
       {/* Observaciones */}
       <div className="space-y-2 bg-gradient-to-r from-violet-50 to-purple-50 rounded-xl p-3 border border-violet-100/50">
         <Label htmlFor="observations" className="flex items-center text-slate-800 text-sm font-semibold">
@@ -314,24 +332,7 @@ const DataEntryFormFields = ({
         />
       </div>
       
-      {/* Ignorar */}
-      {isEditing && (
-        <div className="space-y-2 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-3 border border-amber-100/50">
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="ignored"
-              checked={ignored}
-              onCheckedChange={setIgnored}
-              className="data-[state=checked]:bg-orange-500 data-[state=checked]:text-white border-amber-400"
-              disabled={isProcessing}
-            />
-            <Label htmlFor="ignored" className="text-xs text-amber-700 flex items-center">
-              {ignored ? <Eye className="mr-1 h-4 w-4" /> : <EyeOff className="mr-1 h-4 w-4" />}
-              {ignored ? 'Restaurar' : 'Despreciar'}
-            </Label>
-          </div>
-        </div>
-      )}
+
     </>
   );
 };

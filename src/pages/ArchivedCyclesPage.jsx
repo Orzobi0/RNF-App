@@ -10,7 +10,7 @@ import { motion } from 'framer-motion';
 import EditCycleDatesDialog from '@/components/EditCycleDatesDialog';
 
 const ArchivedCyclesPage = () => {
-  const { currentCycle, archivedCycles, isLoading, addArchivedCycle, updateCycleDates, deleteCycle } = useCycleData();
+  const { currentCycle, archivedCycles, isLoading, addArchivedCycle, updateCycleDates, deleteCycle, checkCycleOverlap, forceUpdateCycleStart } = useCycleData();
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editingCycle, setEditingCycle] = useState(null);
 
@@ -27,10 +27,17 @@ const ArchivedCyclesPage = () => {
     setEditingCycle(cycle);
   };
 
-  const handleUpdateCycle = async ({ startDate, endDate }) => {
+  const handleUpdateCycle = async ({ startDate, endDate, force }) => {
     if (!editingCycle) return;
     try {
-      await updateCycleDates(editingCycle.id, startDate, endDate);
+      if (force) {
+        await forceUpdateCycleStart(editingCycle.id, startDate);
+        if (endDate !== undefined) {
+          await updateCycleDates(editingCycle.id, undefined, endDate);
+        }
+      } else {
+        await updateCycleDates(editingCycle.id, startDate, endDate);
+      }
       setEditingCycle(null);
     } catch (error) {
       // error handled via toast in updateCycleDates
@@ -260,6 +267,8 @@ const ArchivedCyclesPage = () => {
         onConfirm={handleUpdateCycle}
         initialStartDate={editingCycle?.startDate}
         initialEndDate={editingCycle?.endDate}
+        cycleId={editingCycle?.id}
+        checkOverlap={checkCycleOverlap}
         title="Editar Fechas del Ciclo"
         description="Actualiza las fechas del ciclo."
       />

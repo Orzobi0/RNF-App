@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { format, startOfDay, parseISO, addDays, parse } from 'date-fns';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { processCycleEntries, createNewCycleEntry, updateCycleEntry, deleteCycleEntryDB, archiveCycleDB, createNewCycleDB, fetchCycleByIdDB, fetchCurrentCycleDB, fetchArchivedCyclesDB, updateCycleDatesDB, deleteCycleDB } from '@/lib/cycleDataHandler';
+import { processCycleEntries, createNewCycleEntry, updateCycleEntry, deleteCycleEntryDB, archiveCycleDB, createNewCycleDB, fetchCycleByIdDB, fetchCurrentCycleDB, fetchArchivedCyclesDB, updateCycleDatesDB, deleteCycleDB, forceUpdateCycleStart as forceUpdateCycleStartDB } from '@/lib/cycleDataHandler';
 
 const filterEntriesByEndDate = (entries, endDate) => {
   if (!endDate) return entries;
@@ -308,20 +308,36 @@ export const useCycleData = (specificCycleId = null) => {
     }
   }, [user, loadCycleData, toast]);
 
-
+const checkCycleOverlap = useCallback(async (cycleIdToCheck, newStartDate) => {
+    if (!user?.uid) return null;
+    try {
+      const result = await updateCycleDatesDB(cycleIdToCheck, user.uid, newStartDate, undefined, true);
+      return result.overlap;
+    } catch (error) {
+      console.error('Error checking cycle overlap:', error);
+      return null;
+    }
+  }, [user]);
   const updateCycleDates = useCallback(
-    async (cycleIdToUpdate, newStartDate, newEndDate) => {
+    async (cycleIdToUpdate, newStartDate, newEndDate, force = false) => {
       if (!user?.uid) return;
       
-      console.log('Updating cycle dates:', cycleIdToUpdate, newStartDate, newEndDate);
+      console.log('Updating cycle dates:', cycleIdToUpdate, newStartDate, newEndDate, force);
       setIsLoading(true);
       try {
-        await updateCycleDatesDB(cycleIdToUpdate, user.uid, newStartDate, newEndDate); // ← CAMBIO: user.uid en lugar de user.id
+        if (force && newStartDate) {
+          await forceUpdateCycleStartDB(user.uid, cycleIdToUpdate, newStartDate);
+          if (newEndDate !== undefined) {
+            await updateCycleDatesDB(cycleIdToUpdate, user.uid, undefined, newEndDate);
+          }
+        } else {
+          await updateCycleDatesDB(cycleIdToUpdate, user.uid, newStartDate, newEndDate);
+        }
         await loadCycleData();
         console.log('Cycle dates updated successfully');
       } catch (error) {
         console.error("Error updating cycle dates:", error);
-                const description =
+        const description =
           error.message && error.message.includes('overlap')
             ? 'Las fechas coinciden con otro ciclo.'
             : 'No se pudieron actualizar las fechas.';
@@ -332,6 +348,11 @@ export const useCycleData = (specificCycleId = null) => {
       }
     },
     [user, loadCycleData, toast]
+  );
+
+  const forceUpdateCycleStart = useCallback(
+    (cycleIdToUpdate, newStartDate) => updateCycleDates(cycleIdToUpdate, newStartDate, undefined, true),
+    [updateCycleDates]
   );
 
   const getCycleById = useCallback(async (cycleIdToFetch) => {
@@ -371,9 +392,11 @@ export const useCycleData = (specificCycleId = null) => {
     currentCycle, 
     archivedCycles, 
     addOrUpdateDataPoint, 
-    deleteRecord, 
+    deleteRecord,
     startNewCycle,
     updateCycleDates,
+    forceUpdateCycleStart,
+    checkCycleOverlap,
     isLoading,
     getCycleById,
     refreshData: loadCycleData,

@@ -224,7 +224,7 @@ import React, { useState, useEffect, useCallback } from 'react';
       const { cycleId } = useParams();
       const navigate = useNavigate();
       const { user } = useAuth();
-      const { getCycleById, isLoading: cycleDataHookIsLoading, refreshData, toggleIgnoreRecord, updateCycleDates, deleteCycle } = useCycleData(cycleId);
+      const { getCycleById, isLoading: cycleDataHookIsLoading, refreshData, toggleIgnoreRecord, updateCycleDates, deleteCycle, checkCycleOverlap, forceUpdateCycleStart } = useCycleData(cycleId);
       const [cycleData, setCycleData] = useState(null);
       const { toast } = useToast();
       const [editingRecord, setEditingRecord] = useState(null);
@@ -383,11 +383,18 @@ import React, { useState, useEffect, useCallback } from 'react';
         });
         setIsProcessing(false);
       };
-      const updateCycleDatesForCycle = async ({ startDate, endDate }) => {
+      const updateCycleDatesForCycle = async ({ startDate, endDate, force }) => {
         if (!cycleData || !user) return;
         setIsProcessing(true);
         try {
-          await updateCycleDates(cycleData.id, startDate, endDate);
+          if (force) {
+            await forceUpdateCycleStart(cycleData.id, startDate);
+            if (endDate !== undefined) {
+              await updateCycleDates(cycleData.id, undefined, endDate);
+            }
+          } else {
+            await updateCycleDates(cycleData.id, startDate, endDate);
+          }
           const updated = await getCycleById(cycleData.id);
           if (updated) {
             saveCycleDataToLocalStorage(updated);
@@ -480,6 +487,8 @@ import React, { useState, useEffect, useCallback } from 'react';
           onConfirm={updateCycleDatesForCycle}
           initialStartDate={cycleData.startDate}
           initialEndDate={cycleData.endDate}
+          cycleId={cycleData.id}
+          checkOverlap={checkCycleOverlap}
         />
         </>
       

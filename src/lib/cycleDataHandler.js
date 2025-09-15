@@ -6,10 +6,11 @@ import {
   getDocs,
   updateDoc,
   deleteDoc,
+  setDoc,
 
 } from 'firebase/firestore';
 import { db } from '@/lib/firebaseClient';
-import { format, differenceInDays, startOfDay, parseISO, compareAsc } from 'date-fns';
+import { format, differenceInDays, startOfDay, parseISO, compareAsc, addDays } from 'date-fns';
 
 const generateCycleDaysForRecord = (recordIsoDate, cycleStartIsoDate) => {
   if (!recordIsoDate || !cycleStartIsoDate) return 0;
@@ -320,7 +321,7 @@ export const archiveCycleDB = async (cycleId, userId, endDate) => {
   await updateDoc(cycleRef, { end_date: endDate });
 };
 
-export const updateCycleDatesDB = async (cycleId, userId, startDate, endDate) => {
+export const updateCycleDatesDB = async (cycleId, userId, startDate, endDate, validateOnly = false) => {
   const cycleRef = doc(db, `users/${userId}/cycles/${cycleId}`);
   const cycleSnap = await getDoc(cycleRef);
   if (!cycleSnap.exists()) throw new Error('Cycle not found');
@@ -337,7 +338,7 @@ export const updateCycleDatesDB = async (cycleId, userId, startDate, endDate) =>
 
   const cyclesRef = collection(db, `users/${userId}/cycles`);
   const cyclesSnap = await getDocs(cyclesRef);
-  const overlap = cyclesSnap.docs.some((docSnap) => {
+  const overlapDoc = cyclesSnap.docs.find((docSnap) => {
     if (docSnap.id === cycleId) return false;
     const data = docSnap.data();
     const start = data.start_date ? parseISO(data.start_date) : null;
@@ -348,7 +349,15 @@ export const updateCycleDatesDB = async (cycleId, userId, startDate, endDate) =>
     return proposedStartDate <= endDateComparable && start <= proposedEndComparable;
   });
 
-  if (overlap) {
+  if (validateOnly) {
+    if (overlapDoc) {
+      const data = overlapDoc.data();
+      return { overlap: { id: overlapDoc.id, startDate: data.start_date, endDate: data.end_date } };
+    }
+    return { overlap: null };
+  }
+
+  if (overlapDoc) {
     throw new Error('Cycle dates overlap with an existing cycle');
   }
 
@@ -358,6 +367,60 @@ export const updateCycleDatesDB = async (cycleId, userId, startDate, endDate) =>
 
   await updateDoc(cycleRef, updatePayload);
   };
+
+export const forceUpdateCycleStart = async (userId, currentCycleId, newStartDate) => {
+  const cyclesRef = collection(db, `users/${userId}/cycles`);
+  const cyclesSnap = await getDocs(cyclesRef);
+  const newStart = parseISO(newStartDate);
+
+  const previousDoc = cyclesSnap.docs.find((docSnap) => {
+    if (docSnap.id === currentCycleId) return false;
+    const data = docSnap.data();
+    const start = data.start_date ? parseISO(data.start_date) : null;
+    const end = data.end_date ? parseISO(data.end_date) : null;
+    if (!start || !end) return false;
+    return end >= newStart;
+  });
+
+  if (previousDoc) {
+    const prevRef = doc(db, `users/${userId}/cycles/${previousDoc.id}`);
+    const dayBefore = format(addDays(newStart, -1), 'yyyy-MM-dd');
+    await updateDoc(prevRef, { end_date: dayBefore });
+
+    const prevEntriesRef = collection(db, `users/${userId}/cycles/${previousDoc.id}/entries`);
+    const prevEntriesSnap = await getDocs(prevEntriesRef);
+
+    await Promise.all(
+      prevEntriesSnap.docs.map(async (entryDoc) => {
+        const data = entryDoc.data();
+        const ts = data.timestamp ? parseISO(data.timestamp) : null;
+        if (ts && ts >= newStart) {
+          const newData = {
+            ...data,
+            cycle_day: generateCycleDaysForRecord(format(ts, 'yyyy-MM-dd'), newStartDate),
+          };
+          const newEntryRef = doc(db, `users/${userId}/cycles/${currentCycleId}/entries/${entryDoc.id}`);
+          await setDoc(newEntryRef, newData);
+
+          const measRef = collection(db, `users/${userId}/cycles/${previousDoc.id}/entries/${entryDoc.id}/measurements`);
+          const measSnap = await getDocs(measRef);
+          await Promise.all(
+            measSnap.docs.map(async (mDoc) => {
+              const newMeasRef = doc(db, `users/${userId}/cycles/${currentCycleId}/entries/${entryDoc.id}/measurements/${mDoc.id}`);
+              await setDoc(newMeasRef, mDoc.data());
+              await deleteDoc(mDoc.ref);
+            })
+          );
+
+          await deleteDoc(entryDoc.ref);
+        }
+      })
+    );
+  }
+
+  const currentRef = doc(db, `users/${userId}/cycles/${currentCycleId}`);
+  await updateDoc(currentRef, { start_date: newStartDate });
+};
 
 export const deleteCycleDB = async (userId, cycleId) => {
   const entriesRef = collection(db, `users/${userId}/cycles/${cycleId}/entries`);
