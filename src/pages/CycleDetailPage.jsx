@@ -77,7 +77,7 @@ import React, { useState, useEffect, useCallback } from 'react';
             transition={{ duration: 0.5 }}
           >
             {!isFullScreen && (
-              <Button variant="outline" asChild className="w-full sm:w-auto mt-4 sm:mt-0 border-pink-500 text-pink-400 hover:bg-pink-500/20 hover:text-pink-300">
+              <Button asChild className="w-full sm:w-auto mt-4 sm:mt-0 bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow hover:from-pink-600 hover:to-rose-600">
                 <Link to="/archived-cycles">
                   <ArrowLeft className="mr-2 h-4 w-4" /> Mis Ciclos
                 </Link>
@@ -90,7 +90,7 @@ import React, { useState, useEffect, useCallback } from 'react';
             )}
             {!isFullScreen && (
               <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto mt-4 sm:mt-0">
-                <Button variant="outline" onClick={onEditCycleDates} className="w-full sm:w-auto border-pink-500 text-pink-400 hover:bg-pink-500/20 hover:text-pink-300">
+                <Button onClick={onEditCycleDates} className="w-full sm:w-auto bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow hover:from-pink-600 hover:to-rose-600">
                   <Edit className="mr-2 h-4 w-4" /> Editar Fechas
                 </Button>
                 <Button variant="destructive" onClick={onDeleteCycle} className="w-full sm:w-auto">
@@ -111,9 +111,9 @@ import React, { useState, useEffect, useCallback } from 'react';
                 style={{ boxShadow: '0 4px 8px rgba(0,0,0,0.04)' }}
               >
                 {!isFullScreen && (
-                  <h2 className="text-xl font-medium text-[#393C65] mb-4 bg-white bg-opacity-90 px-4 py-2 rounded-md">
-                    Gráfica
-                  </h2>
+                <h2 className="text-xl font-medium text-slate-700 mb-4 bg-white bg-opacity-90 px-4 py-2 rounded-md">
+                Gráfica
+                </h2>
                 )}
                 <FertilityChart
                   data={chartDisplayData}
@@ -124,12 +124,13 @@ import React, { useState, useEffect, useCallback } from 'react';
                   cycleId={cycleData.id}
                   showInterpretation={showInterpretation}
                   visibleDays={visibleDays}
+                  reduceMotion={true}
                 />
                 <Button
                   onClick={() => setShowInterpretation(v => !v)}
                   variant="ghost"
                   size="sm"
-                  className={`absolute ${isFullScreen ? 'top-4 right-20' : 'top-2 right-20'} flex items-center font-semibold py-1 px-2 rounded-lg transition-colors ${showInterpretation ? 'bg-[#E27DBF] text-white hover:bg-[#d46ab3]' : 'bg-transparent text-[#393C65] hover:bg-[#E27DBF]/20'}`}
+                  className={`absolute ${isFullScreen ? 'top-4 right-20' : 'top-2 right-20'} flex items-center font-semibold py-1 px-2 rounded-lg transition-colors ${showInterpretation ? 'bg-[#E27DBF] text-white hover:bg-[#d46ab3]' : 'bg-transparent text-slate-700 hover:bg-[#E27DBF]/20'}`}
                 >
                   {showInterpretation ? (
                     <EyeOff className="mr-2 h-4 w-4" />
@@ -460,38 +461,48 @@ import React, { useState, useEffect, useCallback } from 'react';
       const chartDisplayData = getChartDisplayData();
 
       return (
-                <>
-        <CycleDetailContent
-          cycleData={cycleData}
-          addOrUpdateDataPointForCycle={addOrUpdateDataPointForCycle}
-          deleteRecordForCycle={deleteRecordForCycle}
-          toggleIgnoreRecordForCycle={toggleIgnoreRecordForCycle}
-          isFullScreen={isFullScreen}
-          toggleFullScreen={toggleFullScreen}
-          orientation={orientation}
-          rotateScreen={rotateScreen}
-          showInterpretation={showInterpretation}
-          setShowInterpretation={setShowInterpretation}
-          chartDisplayData={chartDisplayData}
-          showForm={showForm} setShowForm={setShowForm}
-          editingRecord={editingRecord} setEditingRecord={setEditingRecord}
-          recordToDelete={recordToDelete} setRecordToDelete={setRecordToDelete}
-          isProcessing={isProcessing}
-          toast={toast}
-          onEditCycleDates={() => setShowEditDialog(true)}
-          onDeleteCycle={handleDeleteCycle}
-        />
-        <EditCycleDatesDialog
-          isOpen={showEditDialog}
-          onClose={() => setShowEditDialog(false)}
-          onConfirm={updateCycleDatesForCycle}
-          initialStartDate={cycleData.startDate}
-          initialEndDate={cycleData.endDate}
-          cycleId={cycleData.id}
-          checkOverlap={checkCycleOverlap}
-        />
-        </>
-      
+        <div className={`min-h-[100dvh] ${isFullScreen ? '' : 'bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 relative'}`}>
+          {!isFullScreen && (
+            <div
+              className="pointer-events-none absolute inset-0"
+              style={{
+                background:
+                  'radial-gradient(65% 55% at 50% 32%, rgba(244,114,182,0.18) 0%, rgba(244,114,182,0.12) 35%, rgba(244,114,182,0.06) 60%, rgba(244,114,182,0) 100%)'
+              }}
+            />
+          )}
+          <div className={`${isFullScreen ? '' : 'relative z-10 px-4 py-6'}`}>
+            <CycleDetailContent
+              cycleData={cycleData}
+              addOrUpdateDataPointForCycle={addOrUpdateDataPointForCycle}
+              deleteRecordForCycle={deleteRecordForCycle}
+              toggleIgnoreRecordForCycle={toggleIgnoreRecordForCycle}
+              isFullScreen={isFullScreen}
+              toggleFullScreen={toggleFullScreen}
+              orientation={orientation}
+              rotateScreen={rotateScreen}
+              showInterpretation={showInterpretation}
+              setShowInterpretation={setShowInterpretation}
+              chartDisplayData={chartDisplayData}
+              showForm={showForm} setShowForm={setShowForm}
+              editingRecord={editingRecord} setEditingRecord={setEditingRecord}
+              recordToDelete={recordToDelete} setRecordToDelete={setRecordToDelete}
+              isProcessing={isProcessing}
+              toast={toast}
+              onEditCycleDates={() => setShowEditDialog(true)}
+              onDeleteCycle={handleDeleteCycle}
+            />
+            <EditCycleDatesDialog
+              isOpen={showEditDialog}
+              onClose={() => setShowEditDialog(false)}
+              onConfirm={updateCycleDatesForCycle}
+              initialStartDate={cycleData.startDate}
+              initialEndDate={cycleData.endDate}
+              cycleId={cycleData.id}
+              checkOverlap={checkCycleOverlap}
+            />
+          </div>
+        </div>      
       );
     };
 
