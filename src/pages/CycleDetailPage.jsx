@@ -8,8 +8,8 @@ import React, { useState, useEffect, useCallback } from 'react';
     import { useCycleData } from '@/hooks/useCycleData';
     import { useToast } from '@/components/ui/use-toast';
     import { Button } from '@/components/ui/button';
+        import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { ArrowLeft, Edit, Trash2, Maximize, X, Eye, EyeOff, RotateCcw, BarChart3 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
     import { format, differenceInDays, startOfDay, parseISO } from 'date-fns';
     import generatePlaceholders from '@/lib/generatePlaceholders';
     import { useFullScreen } from '@/hooks/useFullScreen';
@@ -73,7 +73,7 @@ import { motion, AnimatePresence } from 'framer-motion';
         <div className={`w-full ${isFullScreen ? 'h-full overflow-hidden' : 'max-w-4xl mx-auto'}`}>
           {!isFullScreen && (
             <div className="mb-4">
-              <div className="flex items-center gap-4 mb-4">
+              <div className="flex items-center justify-between gap-2 mb-2">
                 <Button
                   asChild
                   className="bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow hover:from-pink-600 hover:to-rose-600"
@@ -82,18 +82,18 @@ import { motion, AnimatePresence } from 'framer-motion';
                     <ArrowLeft className="mr-2 h-4 w-4" /> Mis Ciclos
                   </Link>
                 </Button>
-                <h1 className="flex-1 text-2xl sm:text-3xl font-bold text-center">
-                  Detalle de ciclo ({format(parseISO(cycleData.startDate), 'dd/MM/yyyy')} - {cycleData.endDate ? format(parseISO(cycleData.endDate), 'dd/MM/yyyy') : 'En curso'})
-                </h1>
+                <div className="flex gap-2">
+                  <Button onClick={onEditCycleDates} className="bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow hover:from-pink-600 hover:to-rose-600">
+                    <Edit className="mr-2 h-4 w-4" /> Editar Fechas
+                  </Button>
+                  <Button variant="destructive" onClick={onDeleteCycle}>
+                    <Trash2 className="mr-2 h-4 w-4" /> Eliminar Ciclo
+                  </Button>
+                </div>
               </div>
-              <div className="flex justify-center gap-2">
-                <Button onClick={onEditCycleDates} className="bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow hover:from-pink-600 hover:to-rose-600">
-                  <Edit className="mr-2 h-4 w-4" /> Editar Fechas
-                </Button>
-                <Button variant="destructive" onClick={onDeleteCycle}>
-                  <Trash2 className="mr-2 h-4 w-4" /> Eliminar Ciclo
-                </Button>
-              </div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-center">
+                Detalle de ciclo ({format(parseISO(cycleData.startDate), 'dd/MM/yyyy')} - {cycleData.endDate ? format(parseISO(cycleData.endDate), 'dd/MM/yyyy') : 'En curso'})
+              </h1>
             </div>
           )}
 
@@ -189,30 +189,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 
           {!isFullScreen && (
             <>
-              <AnimatePresence>
-                {showForm && (
-                  <motion.div
-                    key="data-entry-form-detail"
-                    initial={{ opacity: 0, y: 20, height: 0 }}
-                    animate={{ opacity: 1, y: 0, height: 'auto' }}
-                    exit={{ opacity: 0, y: 20, height: 0 }}
-                    transition={{ duration: 0.3 }}
-                    className="overflow-hidden mb-8"
-                  >
-                    <DataEntryForm
-                      onSubmit={addOrUpdateDataPointForCycle}
-                      initialData={editingRecord}
-                      onCancel={() => { setShowForm(false); setEditingRecord(null); }}
-                      cycleStartDate={cycleData.startDate}
-                      cycleEndDate={cycleData.endDate}
-                      isProcessing={isProcessing}
-                      isEditing={Boolean(editingRecord)}
-                      cycleData={cycleData.data}
-                    />
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
+ 
               <RecordsList
                 records={cycleData.data}
                 onEdit={handleEdit}
@@ -220,6 +197,23 @@ import { motion, AnimatePresence } from 'framer-motion';
                 isArchiveView={true}
                 isProcessing={isProcessing}
               />
+              <Dialog open={showForm} onOpenChange={(open) => { if (!open) { setShowForm(false); setEditingRecord(null); } }}>
+                <DialogContent
+                  hideClose
+                  className="bg-transparent border-none p-0 text-gray-800 w-[90vw] sm:w-auto max-w-md sm:max-w-lg md:max-w-xl max-h-[85vh] overflow-y-auto"
+                >
+                  <DataEntryForm
+                    onSubmit={addOrUpdateDataPointForCycle}
+                    initialData={editingRecord}
+                    onCancel={() => { setShowForm(false); setEditingRecord(null); }}
+                    cycleStartDate={cycleData.startDate}
+                    cycleEndDate={cycleData.endDate}
+                    isProcessing={isProcessing}
+                    isEditing={Boolean(editingRecord)}
+                    cycleData={cycleData.data}
+                  />
+                </DialogContent>
+              </Dialog>
             </>
           )}
 

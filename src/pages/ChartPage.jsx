@@ -3,7 +3,7 @@ import FertilityChart from '@/components/FertilityChart';
 import { useCycleData } from '@/hooks/useCycleData';
 import { differenceInDays, parseISO, startOfDay } from 'date-fns';
 import generatePlaceholders from '@/lib/generatePlaceholders';
-import { RotateCcw, Eye } from 'lucide-react';
+import { RotateCcw, Eye, EyeOff } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import DataEntryForm from '@/components/DataEntryForm';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
@@ -107,6 +107,10 @@ const { currentCycle, isLoading, addOrUpdateDataPoint, toggleIgnoreRecord } = us
   const handleDateSelect = (record) => {
     setEditingRecord(record);
   };
+  const handleToggleInterpretation = (e) => {
+    e.preventDefault();
+    setShowInterpretation((v) => !v);
+  };
 
   const handleToggleFullScreen = async () => {
     if (!isFullScreen) {
@@ -147,12 +151,13 @@ const { currentCycle, isLoading, addOrUpdateDataPoint, toggleIgnoreRecord } = us
         style={containerStyle}
       >
         <Button
-          onClick={() => setShowInterpretation(v => !v)}
+          onClick={handleToggleInterpretation}
+          onTouchEnd={handleToggleInterpretation}
           variant="ghost"
           size="icon"
-          className={`absolute top-4 right-20 z-10 p-2 rounded-full transition-colors bg-white/80 hover:bg-[#E27DBF]/20 ${showInterpretation ? 'text-[#E27DBF]' : 'text-slate-700'}`}
+          className={`absolute top-4 right-20 z-10 p-2 rounded-full transition-colors ${showInterpretation ? 'bg-[#E27DBF] text-white hover:bg-[#d46ab3]' : 'bg-white/80 text-slate-700 hover:bg-[#E27DBF]/20'}`}
         >
-          <Eye className="h-4 w-4" />
+          {showInterpretation ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
         </Button>
         <Button
           onClick={handleToggleFullScreen}

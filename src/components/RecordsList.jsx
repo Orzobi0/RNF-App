@@ -52,10 +52,20 @@ const RecordsList = ({ records, onEdit, onDelete, isProcessing }) => {
     >
       {sortedRecords.map((record, index) => {
         const symbolInfo = getSymbolInfo(record.fertility_symbol);
-        const selectedMeasurement = record.measurements?.find(m => m.selected);
-        const hasTemperature = selectedMeasurement && (selectedMeasurement.temperature || selectedMeasurement.temperature_corrected);
+        const selectedMeasurement =
+          record.measurements?.find(m => m.selected) ||
+          (record.temperature_chart || record.temperature_raw
+            ? {
+                temperature: record.temperature_chart ?? record.temperature_raw,
+                temperature_corrected: record.temperature_corrected ?? null,
+                time: record.timestamp ? format(parseISO(record.timestamp), 'HH:mm') : null
+              }
+            : null);
+        const hasTemperature =
+          selectedMeasurement &&
+          (selectedMeasurement.temperature || selectedMeasurement.temperature_corrected);
         const displayTemp = selectedMeasurement
-          ? (selectedMeasurement.temperature_corrected ?? selectedMeasurement.temperature)
+          ? selectedMeasurement.temperature_corrected ?? selectedMeasurement.temperature
           : null;
 
         return (
@@ -127,13 +137,13 @@ const RecordsList = ({ records, onEdit, onDelete, isProcessing }) => {
                   <div className="w-5 h-5 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-md">
                     <Droplets className="w-3 h-3 text-white" />
                   </div>
-                  <span className="font-semibold text-blue-800 truncate">{record.mucus_sensation || ''}</span>
+                  <span className="font-semibold text-blue-800 truncate">{record.mucus_sensation || record.mucusSensation || ''}</span>
                 </div>
                 <div className="flex items-center gap-2 bg-gradient-to-r from-emerald-100 to-teal-100 border border-emerald-500/50 p-2 rounded-xl">
                   <div className="w-5 h-5 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center shadow-md">
                     <Circle className="w-3 h-3 text-white" />
                   </div>
-                  <span className="font-semibold text-green-800 truncate">{record.mucus_appearance || ''}</span>
+                  <span className="font-semibold text-green-800 truncate">{record.mucus_appearance || record.mucusAppearance || ''}</span>
                 </div>
               </div>
 
