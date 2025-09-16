@@ -1,5 +1,5 @@
-const functions = require('firebase-functions');
-const admin = require('firebase-admin');
+const functions = require("firebase-functions");
+const admin = require("firebase-admin");
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -22,7 +22,7 @@ exports.addTemperature = functions.https.onRequest(async (req, res) => {
   }
   const userId = decoded.uid;
 
-  const { timestamp, temperature } = req.body;
+  const {timestamp, temperature} = req.body;
   if (!timestamp || !temperature) {
     return res.status(400).send('Faltan datos');
   }
@@ -30,14 +30,16 @@ exports.addTemperature = functions.https.onRequest(async (req, res) => {
   // 1) Buscar ciclo activo (basado en createNewCycleEntry)
   const cyclesSnap = await db.collection(`users/${userId}/cycles`).get();
   const entryDate = new Date(timestamp);
-  const candidate = cyclesSnap.docs
-    .filter(d => {
-      const { start_date, end_date } = d.data();
-      const start = start_date ? new Date(start_date) : null;
-      const end = end_date ? new Date(end_date) : null;
-      return start && entryDate >= start && (!end || entryDate <= end);
-    })
-    .sort((a, b) => new Date(b.data().start_date) - new Date(a.data().start_date))[0];
+const candidate = cyclesSnap.docs
+  .filter((d) => {
+    const {start_date: startDate, end_date: endDate} = d.data();
+    const start = startDate ? new Date(startDate) : null;
+    const end = endDate ? new Date(endDate) : null;
+    return start && entryDate >= start && (!end || entryDate <= end);
+  })
+  .sort(
+    (a, b) => new Date(b.data().start_date) - new Date(a.data().start_date)
+  )[0];
 
   if (!candidate) {
     return res.status(404).send('No se encontró ciclo activo');
@@ -52,9 +54,12 @@ exports.addTemperature = functions.https.onRequest(async (req, res) => {
     temperature_chart: temperature,
     ignored: false
   };
-  const ref = await db
-    .collection(`users/${userId}/cycles/${candidate.id}/entries`)
-    .add(entryData);
+const ref = await db
+  .collection(`users/${userId}/cycles/${candidate.id}/entries`)
+  .add(entryData);
 
-  return res.json({ entryId: ref.id, cycleId: candidate.id });
+return res.json({
+  entryId: ref.id,
+  cycleId: candidate.id,
+});
 });
