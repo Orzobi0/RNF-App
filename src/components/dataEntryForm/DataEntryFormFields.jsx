@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -42,6 +42,27 @@ const DataEntryFormFields = ({
   const [open, setOpen] = useState(false);
   const [correctionIndex, setCorrectionIndex] = useState(null);
 
+    useEffect(() => {
+    if (correctionIndex !== null) {
+      return;
+    }
+
+    const existingCorrectionIndex = measurements.findIndex((measurement) => {
+      if (!measurement) return false;
+
+      const hasCorrectedTemperature =
+        measurement.temperature_corrected !== undefined &&
+        measurement.temperature_corrected !== null &&
+        String(measurement.temperature_corrected).trim() !== '';
+
+      return Boolean(measurement.use_corrected) || hasCorrectedTemperature;
+    });
+
+    if (existingCorrectionIndex !== -1) {
+      setCorrectionIndex(existingCorrectionIndex);
+    }
+  }, [correctionIndex, measurements]);
+
   const handleTempAdjust = (index, delta) => {
     const originalTemp = parseFloat(measurements[index].temperature ?? 0);
     const current = parseFloat(
@@ -56,6 +77,10 @@ const DataEntryFormFields = ({
     const parsedTime = parse(originalTime, 'HH:mm', new Date());
     const newTime = format(addHours(parsedTime, hoursOffset), 'HH:mm');
     updateMeasurement(index, 'time_corrected', newTime);
+    
+    if (!measurements[index].use_corrected) {
+      updateMeasurement(index, 'use_corrected', true);
+    }
   };
   const cycleStart = startOfDay(parseISO(cycleStartDate));
   const cycleEnd = cycleEndDate ? startOfDay(parseISO(cycleEndDate)) : addDays(cycleStart, 45);
@@ -215,7 +240,13 @@ const DataEntryFormFields = ({
                   min="34.0"
                   max="40.0"
                   value={m.temperature_corrected}
-                  onChange={(e) => updateMeasurement(idx, 'temperature_corrected', e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    updateMeasurement(idx, 'temperature_corrected', value);
+                    if (!m.use_corrected) {
+                      updateMeasurement(idx, 'use_corrected', true);
+                    }
+                  }}
                   className="bg-white/70 border-amber-200 text-gray-800 placeholder-gray-400 focus:ring-orange-500 focus:border-orange-500 text-base"
                   disabled={isProcessing}
                 />

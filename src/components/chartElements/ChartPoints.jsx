@@ -14,6 +14,9 @@ const APPEARANCE_BG_START = '#ECFDF5'; // from-emerald-50
 const APPEARANCE_BG_END = '#F0FDFA';   // to-teal-50
 const OBSERVATION_BG_START = '#F5F3FF'; // from-violet-50
 const OBSERVATION_BG_END = '#FAF5FF';   // to-purple-50
+const CORRECTION_LINE_COLOR = 'rgba(148, 163, 184, 0.35)';
+const CORRECTION_POINT_FILL = 'rgba(226, 232, 240, 0.6)';
+const CORRECTION_POINT_STROKE = 'rgba(148, 163, 184, 0.5)';
 
 /** Quita ceros iniciales a día/mes */
 const compactDate = (dateStr) => {
@@ -214,6 +217,14 @@ const ChartPoints = ({
         const y = point[temperatureField] != null
           ? getY(point[temperatureField])
           : bottomY;
+        const rawTemp = point.temperature_raw;
+        const correctedTemp = point.temperature_corrected;
+        const showCorrectionIndicator =
+          point.use_corrected &&
+          rawTemp != null &&
+          correctedTemp != null &&
+          Math.abs(correctedTemp - rawTemp) > 0.01;
+        const rawY = showCorrectionIndicator ? getY(rawTemp) : null;  
         const textFill = isFullScreen ? "#374151" : "#6B7280";
         const hasTemp = point[temperatureField] != null;
         const hasAnyRecord = hasTemp
@@ -279,9 +290,38 @@ const ChartPoints = ({
             {/* Punto de temperatura con diseño premium */}
             {hasTemp && (
               <MotionG {...(reduceMotion ? {} : { variants: pointVariants })}>
+                {/* Indicador de corrección: punto original y línea discontinua */}
+                {showCorrectionIndicator && rawY !== null && (
+                  <g pointerEvents="none">
+                    <line
+                      x1={x}
+                      y1={rawY}
+                      x2={x}
+                      y2={y}
+                      stroke={CORRECTION_LINE_COLOR}
+                      strokeWidth={1}
+                      strokeDasharray="4 4"
+                    />
+                    <circle
+                      cx={x}
+                      cy={rawY}
+                      r={3.5}
+                      fill={CORRECTION_POINT_FILL}
+                      stroke={CORRECTION_POINT_STROKE}
+                      strokeWidth={1}
+                    />
+                    <circle
+                      cx={x}
+                      cy={rawY}
+                      r={1.2}
+                      fill="rgba(255, 255, 255, 0.6)"
+                    />
+                  </g>
+                )}
+
                 {/* Aura del punto con efecto glow */}
                 <circle
-                  cx={x} 
+                  cx={x}
                   cy={y}
                   r={1.5}
                   fill="rgba(244, 114, 182, 0.2)"
