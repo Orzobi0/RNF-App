@@ -60,7 +60,8 @@ const FertilityChart = ({
   const chartWidth = dimensions.width;
   const chartHeight = dimensions.height;
   const baselineY = baselineTemp != null ? getY(baselineTemp) : null;
-  const baselineStartX = baselineTemp != null ? getX(baselineStartIndex) : null;
+  const canRenderBaseline = baselineTemp != null && Number.isFinite(baselineStartIndex);
+  const baselineStartX = canRenderBaseline ? getX(baselineStartIndex) : null;
   const isLoading = chartWidth === 0;
 
   // Detectar orientación real del viewport para rotación visual
@@ -220,7 +221,7 @@ const FertilityChart = ({
           />
 
           {/* Línea baseline mejorada */}
-          {showInterpretation && baselineTemp != null && (
+          {showInterpretation && canRenderBaseline && (
             (reduceMotion ? (
               <line
                 x1={baselineStartX}

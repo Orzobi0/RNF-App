@@ -1,4 +1,4 @@
-import React, { useState, useLayoutEffect } from 'react';
+import React, { useState, useLayoutEffect, useRef } from 'react';
 import FertilityChart from '@/components/FertilityChart';
 import { useCycleData } from '@/hooks/useCycleData';
 import { differenceInDays, parseISO, startOfDay } from 'date-fns';
@@ -20,6 +20,7 @@ const { currentCycle, isLoading, addOrUpdateDataPoint, toggleIgnoreRecord } = us
   const [editingRecord, setEditingRecord] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showInterpretation, setShowInterpretation] = useState(false);
+  const ignoreNextClickRef = useRef(false);
   useLayoutEffect(() => {
     window.dispatchEvent(new Event('resize'));
   }, [orientation, isFullScreen]);
@@ -107,10 +108,26 @@ const { currentCycle, isLoading, addOrUpdateDataPoint, toggleIgnoreRecord } = us
   const handleDateSelect = (record) => {
     setEditingRecord(record);
   };
-  const handleToggleInterpretation = (e) => {
-    e.preventDefault();
+  const toggleInterpretation = () => {
     setShowInterpretation((v) => !v);
   };
+  const handleInterpretationClick = (event) => {
+    event.preventDefault();
+    if (ignoreNextClickRef.current) {
+      ignoreNextClickRef.current = false;
+      return;
+    }
+    toggleInterpretation();
+  };
+
+  const handleInterpretationPointerUp = (event) => {
+    if (event.pointerType === 'touch') {
+      event.preventDefault();
+      ignoreNextClickRef.current = true;
+      toggleInterpretation();
+    }
+  };
+
 
   const handleToggleFullScreen = async () => {
     if (!isFullScreen) {
@@ -151,8 +168,8 @@ const { currentCycle, isLoading, addOrUpdateDataPoint, toggleIgnoreRecord } = us
         style={containerStyle}
       >
         <Button
-          onClick={handleToggleInterpretation}
-          onTouchEnd={handleToggleInterpretation}
+          onClick={handleInterpretationClick}
+          onPointerUp={handleInterpretationPointerUp}
           variant="ghost"
           size="icon"
           className={`absolute top-4 right-20 z-10 p-2 rounded-full transition-colors ${showInterpretation ? 'bg-[#E27DBF] text-white hover:bg-[#d46ab3]' : 'bg-white/80 text-slate-700 hover:bg-[#E27DBF]/20'}`}

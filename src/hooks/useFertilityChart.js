@@ -96,17 +96,35 @@ export const useFertilityChart = (
       const current = processedData[i];
       if (!isValid(current)) continue;
       const prev = [];
+      let highestPrevTemp = null;
+      let highestPrevIndex = null;
       for (let j = i - 1; j >= 0 && prev.length < 6; j--) {
         const candidate = processedData[j];
         if (isValid(candidate)) {
           prev.unshift({ index: j, temp: candidate.displayTemperature });
+          if (
+            highestPrevTemp === null ||
+            candidate.displayTemperature > highestPrevTemp
+          ) {
+            highestPrevTemp = candidate.displayTemperature;
+            highestPrevIndex = j;
+          }
         }
       }
       if (prev.length < 6) continue;
-      const highestPrev = Math.max(...prev.map(p => p.temp));
-      if (current.displayTemperature > highestPrev) {
-        const startIdx = prev.find(p => p.temp === highestPrev).index;
-        return { baselineTemp: highestPrev, baselineStartIndex: startIdx };
+      if (
+        highestPrevTemp === null ||
+        !Number.isFinite(highestPrevTemp) ||
+        highestPrevIndex === null ||
+        !Number.isFinite(highestPrevIndex)
+      ) {
+        continue;
+      }
+      if (current.displayTemperature > highestPrevTemp) {
+        return {
+          baselineTemp: highestPrevTemp,
+          baselineStartIndex: highestPrevIndex
+        };
       }
     }
     return { baselineTemp: null, baselineStartIndex: null };
