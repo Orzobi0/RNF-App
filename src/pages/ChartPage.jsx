@@ -1,12 +1,13 @@
-import React, { useState, useLayoutEffect } from 'react';
+import React, { useState, useLayoutEffect, useRef } from 'react';
 import FertilityChart from '@/components/FertilityChart';
 import { useCycleData } from '@/hooks/useCycleData';
 import { differenceInDays, parseISO, startOfDay } from 'date-fns';
 import generatePlaceholders from '@/lib/generatePlaceholders';
-import { RotateCcw } from 'lucide-react';
+import { RotateCcw, Eye, EyeOff } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import DataEntryForm from '@/components/DataEntryForm';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 
 const ChartPage = () => {
 const { currentCycle, isLoading, addOrUpdateDataPoint, toggleIgnoreRecord } = useCycleData();
@@ -18,6 +19,8 @@ const { currentCycle, isLoading, addOrUpdateDataPoint, toggleIgnoreRecord } = us
   const [showForm, setShowForm] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showInterpretation, setShowInterpretation] = useState(false);
+  const ignoreNextClickRef = useRef(false);
   useLayoutEffect(() => {
     window.dispatchEvent(new Event('resize'));
   }, [orientation, isFullScreen]);
@@ -105,6 +108,26 @@ const { currentCycle, isLoading, addOrUpdateDataPoint, toggleIgnoreRecord } = us
   const handleDateSelect = (record) => {
     setEditingRecord(record);
   };
+  const toggleInterpretation = () => {
+    setShowInterpretation((v) => !v);
+  };
+  const handleInterpretationClick = (event) => {
+    event.preventDefault();
+    if (ignoreNextClickRef.current) {
+      ignoreNextClickRef.current = false;
+      return;
+    }
+    toggleInterpretation();
+  };
+
+  const handleInterpretationPointerUp = (event) => {
+    if (event.pointerType === 'touch') {
+      event.preventDefault();
+      ignoreNextClickRef.current = true;
+      toggleInterpretation();
+    }
+  };
+
 
   const handleToggleFullScreen = async () => {
     if (!isFullScreen) {
@@ -144,13 +167,22 @@ const { currentCycle, isLoading, addOrUpdateDataPoint, toggleIgnoreRecord } = us
         }
         style={containerStyle}
       >
-        <button
+        <Button
+          onClick={handleInterpretationClick}
+          onPointerUp={handleInterpretationPointerUp}
+          variant="ghost"
+          size="icon"
+          className={`absolute top-4 right-20 z-10 p-2 rounded-full transition-colors ${showInterpretation ? 'bg-[#E27DBF] text-white hover:bg-[#d46ab3]' : 'bg-white/80 text-slate-700 hover:bg-[#E27DBF]/20'}`}
+        >
+          {showInterpretation ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+        </Button>
+        <Button
           onClick={handleToggleFullScreen}
           className="absolute top-4 right-4 z-10 bg-white/80 hover:bg-white text-gray-700 p-2 rounded-full shadow"
           aria-label={isFullScreen ? 'Salir de pantalla completa' : 'Rotar gráfico'}
         >
           <RotateCcw className="w-5 h-5" />
-        </button>
+        </Button>
         <FertilityChart
           data={mergedData}
           isFullScreen={isFullScreen}
@@ -160,6 +192,7 @@ const { currentCycle, isLoading, addOrUpdateDataPoint, toggleIgnoreRecord } = us
           cycleId={currentCycle.id}
           initialScrollIndex={scrollStart}
           visibleDays={visibleDays}
+          showInterpretation={showInterpretation}
           reduceMotion={true}
           forceLandscape={orientation === 'landscape'}
         />

@@ -19,10 +19,60 @@ export const useFertilityChart = (
       const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
 
       const processedData = useMemo(() => {
-        return data.map(d => ({
-          ...d,
-          displayTemperature: d.temperature_chart 
-        }));
+        const normalizeTemp = (value) => {
+          if (value === null || value === undefined || value === '') {
+            return null;
+          }
+          const parsed = parseFloat(String(value).replace(',', '.'));
+          return Number.isFinite(parsed) ? parsed : null;
+        };
+        const getMeasurementTemp = (measurement) => {
+          if (!measurement) return null;
+          const raw = normalizeTemp(measurement.temperature);
+          const corrected = normalizeTemp(measurement.temperature_corrected);
+          if (measurement.use_corrected && corrected !== null) {
+            return corrected;
+          }
+          if (raw !== null) {
+            return raw;
+          }
+          if (corrected !== null) {
+            return corrected;
+          }
+          return null;
+        };
+
+        return data.map((d) => {
+          const directSources = [
+            d?.temperature_chart,
+            d?.temperature_raw,
+            d?.temperature_corrected,
+          ];
+
+          let resolvedValue = null;
+          for (const candidate of directSources) {
+            if (candidate !== null && candidate !== undefined && candidate !== '') {
+              resolvedValue = candidate;
+              break;
+            }
+          }
+
+          if (resolvedValue == null && Array.isArray(d?.measurements)) {
+            const selectedMeasurement = d.measurements.find(
+              (m) => m && m.selected && getMeasurementTemp(m) !== null
+            );
+            const fallbackMeasurement =
+              selectedMeasurement || d.measurements.find((m) => getMeasurementTemp(m) !== null);
+            if (fallbackMeasurement) {
+              resolvedValue = getMeasurementTemp(fallbackMeasurement);
+            }
+          }
+
+          return {
+            ...d,
+            displayTemperature: normalizeTemp(resolvedValue),
+          };
+        });
       }, [data]);
 
       useLayoutEffect(() => {
@@ -84,24 +134,41 @@ export const useFertilityChart = (
 
   const validDataForLine = useMemo(() => processedData.filter(d => d && d.isoDate && !d.ignored && d.displayTemperature !== null && d.displayTemperature !== undefined), [processedData]);
   const allDataPoints = useMemo(() => processedData.filter(d => d && d.isoDate), [processedData]);
-
   const { baselineTemp, baselineStartIndex } = useMemo(() => {
     const isValid = (p) => p && p.displayTemperature != null && !p.ignored;
     for (let i = 0; i < processedData.length; i++) {
       const current = processedData[i];
       if (!isValid(current)) continue;
       const prev = [];
+      let highestPrevTemp = null;
+      let highestPrevIndex = null;
       for (let j = i - 1; j >= 0 && prev.length < 6; j--) {
         const candidate = processedData[j];
         if (isValid(candidate)) {
           prev.unshift({ index: j, temp: candidate.displayTemperature });
+          if (
+            highestPrevTemp === null ||
+            candidate.displayTemperature > highestPrevTemp
+          ) {
+            highestPrevTemp = candidate.displayTemperature;
+            highestPrevIndex = j;
+          }
         }
       }
       if (prev.length < 6) continue;
-      if (prev.every(p => p.temp < current.displayTemperature)) {
-        const temp = Math.max(...prev.map(p => p.temp));
-        const startIdx = prev.find(p => p.temp === temp).index;
-        return { baselineTemp: temp, baselineStartIndex: startIdx };
+      if (
+        highestPrevTemp === null ||
+        !Number.isFinite(highestPrevTemp) ||
+        highestPrevIndex === null ||
+        !Number.isFinite(highestPrevIndex)
+      ) {
+        continue;
+      }
+      if (current.displayTemperature > highestPrevTemp) {
+        return {
+          baselineTemp: highestPrevTemp,
+          baselineStartIndex: highestPrevIndex
+        };
       }
     }
     return { baselineTemp: null, baselineStartIndex: null };

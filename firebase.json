@@ -8,6 +8,16 @@
         "**/.*",
         "**/node_modules/**"
       ],
+            "headers": [
+        {
+          "source": "/sw.js",
+          "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+        },
+        {
+          "source": "/index.html",
+          "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+        }
+      ],
       "rewrites": [
         {
           "source": "**",
@@ -23,6 +33,16 @@
         "**/.*",
         "**/node_modules/**"
       ],
+            "headers": [
+        {
+          "source": "/sw.js",
+          "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+        },
+        {
+          "source": "/index.html",
+          "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+        }
+      ],
       "rewrites": [
         {
           "source": "**",
@@ -33,5 +53,21 @@
   ],
   "firestore": {
     "rules": "firestore.rules"
-  }
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ],
+      "predeploy": [
+        "npm --prefix \"$RESOURCE_DIR\" run lint"
+      ]
+    }
+  ]
 }

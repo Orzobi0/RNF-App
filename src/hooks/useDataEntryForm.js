@@ -1,117 +1,239 @@
 import { useState, useEffect } from 'react';
-import { format, startOfDay, parseISO, addDays } from "date-fns";
+import { format, startOfDay, parseISO, addDays } from 'date-fns';
 import { useToast } from '@/components/ui/use-toast';
 import { FERTILITY_SYMBOLS } from '@/config/fertilitySymbols';
 
-export const useDataEntryForm = (onSubmit, initialData, isEditing, cycleStartDate, cycleEndDate, cycleData = [], onDateSelect) => {
-      const [date, setDate] = useState(initialData?.isoDate ? parseISO(initialData.isoDate) : startOfDay(new Date()));
-      const [temperatureRaw, setTemperatureRaw] = useState(initialData?.temperature_raw === null || initialData?.temperature_raw === undefined ? '' : String(initialData.temperature_raw));
-      const [time, setTime] = useState(initialData?.timestamp ? format(parseISO(initialData.timestamp), 'HH:mm') : format(new Date(), 'HH:mm'));
-      const [temperatureCorrected, setTemperatureCorrected] = useState(initialData?.temperature_corrected === null || initialData?.temperature_corrected === undefined ? '' : String(initialData.temperature_corrected));
-      const [useCorrected, setUseCorrected] = useState(initialData?.use_corrected || false);
-      // Permite inicializar los campos tanto si vienen en camelCase como en snake_case
-      const [mucusSensation, setMucusSensation] = useState(
-        initialData?.mucusSensation ?? initialData?.mucus_sensation ?? ''
-      );
-      const [mucusAppearance, setMucusAppearance] = useState(
-        initialData?.mucusAppearance ?? initialData?.mucus_appearance ?? ''
-      );
-      const [fertilitySymbol, setFertilitySymbol] = useState(initialData?.fertility_symbol || FERTILITY_SYMBOLS.NONE.value);
-      const [observations, setObservations] = useState(initialData?.observations || '');
-      const [ignored, setIgnored] = useState(initialData?.ignored || false);
-      const { toast } = useToast();
+export const useDataEntryForm = (
+  onSubmit,
+  initialData,
+  isEditing,
+  cycleStartDate,
+  cycleEndDate,
+  cycleData = [],
+  onDateSelect
+) => {
+  const [date, setDate] = useState(
+    initialData?.isoDate ? parseISO(initialData.isoDate) : startOfDay(new Date())
+  );
+  const [measurements, setMeasurements] = useState(() => {
+    if (initialData?.measurements && Array.isArray(initialData.measurements)) {
+      return initialData.measurements.map((m) => ({
+        temperature: m.temperature ?? '',
+        time: m.time || format(new Date(), 'HH:mm'),
+        selected: !!m.selected,
+        temperature_corrected: m.temperature_corrected ?? '',
+        time_corrected: m.time_corrected || m.time || format(new Date(), 'HH:mm'),
+        use_corrected: !!m.use_corrected,
+        confirmed: true,
+      }));
+    }
+    return [
+      {
+        temperature:
+          initialData?.temperature_raw === null || initialData?.temperature_raw === undefined
+            ? ''
+            : String(initialData.temperature_raw),
+        time: initialData?.timestamp
+          ? format(parseISO(initialData.timestamp), 'HH:mm')
+          : format(new Date(), 'HH:mm'),
+        selected: true,
+        temperature_corrected: '',
+        time_corrected: initialData?.timestamp
+          ? format(parseISO(initialData.timestamp), 'HH:mm')
+          : format(new Date(), 'HH:mm'),
+        use_corrected: false,
+        confirmed: true,
+      },
+    ];
+  });
 
-      useEffect(() => {
-        if (initialData) {
-          setDate(parseISO(initialData.isoDate));
-          setTemperatureRaw(initialData.temperature_raw === null || initialData.temperature_raw === undefined ? '' : String(initialData.temperature_raw));
-          setTime(initialData.timestamp ? format(parseISO(initialData.timestamp), 'HH:mm') : '');
-          setTemperatureCorrected(initialData.temperature_corrected === null || initialData.temperature_corrected === undefined ? '' : String(initialData.temperature_corrected));
-          setUseCorrected(initialData.use_corrected || false);
-          setMucusSensation(
-            initialData.mucusSensation ?? initialData.mucus_sensation ?? ''
-          );
-          setMucusAppearance(
-            initialData.mucusAppearance ?? initialData.mucus_appearance ?? ''
-          );
-          setFertilitySymbol(initialData.fertility_symbol || FERTILITY_SYMBOLS.NONE.value);
-          setObservations(initialData.observations || '');
-          setIgnored(initialData.ignored || false);
-        } else {
-          setTemperatureRaw('');
-          setTime(format(new Date(), 'HH:mm'));
-          setTemperatureCorrected('');
-          setUseCorrected(false);
-          setMucusSensation('');
-          setMucusAppearance('');
-          setFertilitySymbol(FERTILITY_SYMBOLS.NONE.value);
-          setObservations('');
-          setIgnored(false);
-        }
-      }, [initialData]);
+ const [mucusSensation, setMucusSensation] = useState(
+    initialData?.mucusSensation ?? initialData?.mucus_sensation ?? ''
+  );
+  const [mucusAppearance, setMucusAppearance] = useState(
+    initialData?.mucusAppearance ?? initialData?.mucus_appearance ?? ''
+  );
+  const [fertilitySymbol, setFertilitySymbol] = useState(
+    initialData?.fertility_symbol || FERTILITY_SYMBOLS.NONE.value
+  );
+  const [observations, setObservations] = useState(initialData?.observations || '');
+  const [ignored, setIgnored] = useState(initialData?.ignored || false);
+  const { toast } = useToast();
 
-        useEffect(() => {
-        if (!onDateSelect) return;
-        const iso = format(date, 'yyyy-MM-dd');
-        const found = cycleData.find(r => r.isoDate === iso);
-        onDateSelect(found || null);
-      }, [date, cycleData, onDateSelect]);
+  useEffect(() => {
+    if (initialData) {
+      setDate(parseISO(initialData.isoDate));
+      if (initialData.measurements && Array.isArray(initialData.measurements)) {
+        setMeasurements(
+          initialData.measurements.map((m) => ({
+            temperature: m.temperature ?? '',
+            time: m.time || format(new Date(), 'HH:mm'),
+            selected: !!m.selected,
+            temperature_corrected: m.temperature_corrected ?? '',
+            time_corrected: m.time_corrected || m.time || format(new Date(), 'HH:mm'),
+            use_corrected: !!m.use_corrected,
+            confirmed: true,
+          }))
+        );
+      }
+      setMucusSensation(initialData.mucusSensation ?? initialData.mucus_sensation ?? '');
+      setMucusAppearance(initialData.mucusAppearance ?? initialData.mucus_appearance ?? '');
+      setFertilitySymbol(initialData.fertility_symbol || FERTILITY_SYMBOLS.NONE.value);
+      setObservations(initialData.observations || '');
+      setIgnored(initialData.ignored || false);
+    } else {
+      setMeasurements([
+        {
+          temperature: '',
+          time: format(new Date(), 'HH:mm'),
+          selected: true,
+          temperature_corrected: '',
+          time_corrected: format(new Date(), 'HH:mm'),
+          use_corrected: false,          
+          confirmed: true,
+        },
+      ]);
+      setMucusSensation('');
+      setMucusAppearance('');
+      setFertilitySymbol(FERTILITY_SYMBOLS.NONE.value);
+      setObservations('');
+      setIgnored(false);
+    }
+  }, [initialData]);
 
+   useEffect(() => {
+    if (!onDateSelect) return;
+    const iso = format(date, 'yyyy-MM-dd');
+    const found = cycleData.find((r) => r.isoDate === iso);
+    onDateSelect(found || null);
+  }, [date, cycleData, onDateSelect]);
 
-      const handleSubmit = (e) => {
-        e.preventDefault();
-        if (!date) {
-          toast({ title: "Error", description: "La fecha es obligatoria.", variant: "destructive" });
-          return;
-        }
-        
-        const cycleStart = startOfDay(parseISO(cycleStartDate));
-        const cycleEnd = cycleEndDate
-          ? startOfDay(parseISO(cycleEndDate))
-          : addDays(cycleStart, 45);
-        if (date < cycleStart || date > cycleEnd) {
-          toast({ title: 'Error', description: 'La fecha debe estar dentro del ciclo.', variant: 'destructive' });
-          return;
-        }
-        const isoDate = format(date, "yyyy-MM-dd");
+  const addMeasurement = () => {
+    setMeasurements((prev) => [
+      ...prev,
+        {
+        temperature: prev[prev.length - 1]?.temperature || '',
+        time: format(new Date(), 'HH:mm'),
+        selected: false,
+        temperature_corrected: '',
+        time_corrected: format(new Date(), 'HH:mm'),
+        use_corrected: false,
+        confirmed: false,
+      },
+    ]);
+  };
+  const removeMeasurement = (index) => {
+    setMeasurements((prev) => prev.filter((_, i) => i !== index));
+  };
 
-        onSubmit({
-          isoDate: isoDate,
-          time: time,
-          temperature_raw: temperatureRaw === '' ? null : parseFloat(temperatureRaw),
-          temperature_corrected: temperatureCorrected === '' ? null : parseFloat(temperatureCorrected),
-          use_corrected: useCorrected,
-          mucusSensation: mucusSensation,
-          mucusAppearance: mucusAppearance,
-          fertility_symbol: fertilitySymbol,
-          observations: observations,
-          ignored: ignored,
-        });
-        
-        if (!isEditing) {
-          setDate(startOfDay(new Date()));
-          setTemperatureRaw('');
-          setTime(format(new Date(), 'HH:mm'));
-          setTemperatureCorrected('');
-          setUseCorrected(false);
-          setMucusSensation('');
-          setMucusAppearance('');
-          setFertilitySymbol(FERTILITY_SYMBOLS.NONE.value);
-          setObservations('');
-        }
-      };
+  const confirmMeasurement = (index) => {
+    setMeasurements((prev) => {
+      const copy = [...prev];
+      copy[index] = { ...copy[index], confirmed: true };
+      return copy;
+    });
+  };
 
-      return {
-        date, setDate,
-        temperatureRaw, setTemperatureRaw,
-        time, setTime,
-        temperatureCorrected, setTemperatureCorrected,
-        useCorrected, setUseCorrected,
-        mucusSensation, setMucusSensation,
-        mucusAppearance, setMucusAppearance,
-        fertilitySymbol, setFertilitySymbol,
-        observations, setObservations,
-        ignored, setIgnored,
-        handleSubmit,
-      };
+  const updateMeasurement = (index, field, value) => {
+    setMeasurements((prev) => {
+      const copy = [...prev];
+      copy[index] = { ...copy[index], [field]: value };
+      return copy;
+    });
+  };
+
+  const selectMeasurement = (index) => {
+    setMeasurements((prev) =>
+      prev.map((m, i) => ({ ...m, selected: i === index }))
+    );
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!date) {
+      toast({
+        title: 'Error',
+        description: 'La fecha es obligatoria.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    const cycleStart = startOfDay(parseISO(cycleStartDate));
+    const cycleEnd = cycleEndDate
+      ? startOfDay(parseISO(cycleEndDate))
+      : addDays(cycleStart, 45);
+    if (date < cycleStart || date > cycleEnd) {
+      toast({
+        title: 'Error',
+        description: 'La fecha debe estar dentro del ciclo.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    const isoDate = format(date, 'yyyy-MM-dd');
+    const normalizeMeasurementValue = (value) => {
+      if (value === null || value === undefined || value === '') {
+        return null;
+      }
+      const parsed = parseFloat(String(value).replace(',', '.'));
+      return Number.isFinite(parsed) ? parsed : null;
     };
+    onSubmit({
+      isoDate,
+      measurements: measurements.map((m) => ({
+        temperature: normalizeMeasurementValue(m.temperature),
+        time: m.time,
+        selected: m.selected,
+        temperature_corrected: normalizeMeasurementValue(m.temperature_corrected),
+        time_corrected: m.time_corrected,
+        use_corrected: !!m.use_corrected,
+      })),
+      mucusSensation,
+      mucusAppearance,
+      fertility_symbol: fertilitySymbol,
+      observations,
+      ignored,
+    });
+
+    if (!isEditing) {
+      setDate(startOfDay(new Date()));
+      setMeasurements([
+        {
+          temperature: '',
+          time: format(new Date(), 'HH:mm'),
+          selected: true,
+          temperature_corrected: '',
+          time_corrected: format(new Date(), 'HH:mm'),
+          use_corrected: false,
+          confirmed: true,
+        },
+      ]);
+      setMucusSensation('');
+      setMucusAppearance('');
+      setFertilitySymbol(FERTILITY_SYMBOLS.NONE.value);
+      setObservations('');
+    }
+  };
+
+  return {
+    date,
+    setDate,
+    measurements,
+    addMeasurement,
+    updateMeasurement,
+    selectMeasurement,
+    removeMeasurement,
+    confirmMeasurement,
+    mucusSensation,
+    setMucusSensation,
+    mucusAppearance,
+    setMucusAppearance,
+    fertilitySymbol,
+    setFertilitySymbol,
+    observations,
+    setObservations,
+    ignored,
+    setIgnored,
+    handleSubmit,
+  };
+};

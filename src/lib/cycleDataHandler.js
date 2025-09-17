@@ -6,16 +6,23 @@ import {
   getDocs,
   updateDoc,
   deleteDoc,
+  setDoc,
 
 } from 'firebase/firestore';
 import { db } from '@/lib/firebaseClient';
-import { format, differenceInDays, startOfDay, parseISO, compareAsc } from 'date-fns';
+import { format, differenceInDays, startOfDay, parseISO, compareAsc, addDays } from 'date-fns';
 
 const generateCycleDaysForRecord = (recordIsoDate, cycleStartIsoDate) => {
   if (!recordIsoDate || !cycleStartIsoDate) return 0;
   const rDate = startOfDay(parseISO(recordIsoDate));
   const sDate = startOfDay(parseISO(cycleStartIsoDate));
   return differenceInDays(rDate, sDate) + 1;
+};
+
+const normalizeTemp = (val) => {
+  if (val === null || val === undefined || val === '') return null;
+  const num = parseFloat(String(val).replace(',', '.'));
+  return isNaN(num) ? null : num;
 };
 
 export const processCycleEntries = (entriesFromView, cycleStartIsoDate) => {
@@ -27,31 +34,70 @@ export const processCycleEntries = (entriesFromView, cycleStartIsoDate) => {
     return compareAsc(dateA, dateB);
   });
 
-  return sortedEntries.map((entry) => ({
-    ...entry,
-    id: entry.id,
-    isoDate: entry.iso_date || (entry.timestamp ? format(parseISO(entry.timestamp), 'yyyy-MM-dd') : null),
-    date: entry.timestamp
-      ? format(parseISO(entry.timestamp), 'dd/MM')
-      : entry.iso_date
-      ? format(parseISO(entry.iso_date), 'dd/MM')
-      : 'N/A',
-    cycleDay: generateCycleDaysForRecord(entry.iso_date || entry.timestamp, cycleStartIsoDate),
-    temperature_raw: entry.temperature_raw,
-    temperature_corrected: entry.temperature_corrected,
-    use_corrected: entry.use_corrected,
-    mucusSensation: entry.mucus_sensation,
-    mucusAppearance: entry.mucus_appearance,
-    fertility_symbol: entry.fertility_symbol,
-    observations: entry.observations,
-    ignored: entry.ignored,
-    temperature_chart: entry.temperature_chart ?? (
-      entry.use_corrected
-        ? (entry.temperature_corrected ?? entry.temperature_raw)
-        : (entry.temperature_raw ?? entry.temperature_corrected)
-    ),
-    timestamp: entry.timestamp,
-  }));
+  return sortedEntries.map((entry) => {
+    const rawTemp = normalizeTemp(entry.temperature_raw);
+    const correctedTemp = normalizeTemp(entry.temperature_corrected);
+    const getMeasurementTemp = (measurement) => {
+      if (!measurement) return null;
+      const mRaw = normalizeTemp(measurement.temperature);
+      const mCorr = normalizeTemp(measurement.temperature_corrected);
+      if (measurement.use_corrected && mCorr !== null) {
+        return mCorr;
+      }
+      if (mRaw !== null) {
+        return mRaw;
+      }
+      if (mCorr !== null) {
+        return mCorr;
+      }
+      return null;
+    };
+
+    let chartTemp = normalizeTemp(entry.temperature_chart);
+    if (chartTemp == null && Array.isArray(entry.measurements)) {
+      const selectedMeasurement = entry.measurements.find(
+        (m) => m && m.selected && getMeasurementTemp(m) !== null
+      );
+      const fallbackMeasurement =
+        selectedMeasurement || entry.measurements.find((m) => getMeasurementTemp(m) !== null);
+      if (fallbackMeasurement) {
+        chartTemp = getMeasurementTemp(fallbackMeasurement);
+      }
+    }
+
+    if (chartTemp == null) {
+      if (entry.use_corrected && correctedTemp !== null) {
+        chartTemp = correctedTemp;
+      } else if (rawTemp !== null) {
+        chartTemp = rawTemp;
+      } else if (correctedTemp !== null) {
+        chartTemp = correctedTemp;
+      }
+    }
+
+    return {
+      ...entry,
+      id: entry.id,
+      isoDate: entry.iso_date || (entry.timestamp ? format(parseISO(entry.timestamp), 'yyyy-MM-dd') : null),
+      date: entry.timestamp
+        ? format(parseISO(entry.timestamp), 'dd/MM')
+        : entry.iso_date
+        ? format(parseISO(entry.iso_date), 'dd/MM')
+        : 'N/A',
+      cycleDay: generateCycleDaysForRecord(entry.iso_date || entry.timestamp, cycleStartIsoDate),
+      temperature_raw: rawTemp,
+      temperature_corrected: correctedTemp,
+      use_corrected: !!entry.use_corrected,
+      mucusSensation: entry.mucus_sensation,
+      mucusAppearance: entry.mucus_appearance,
+      fertility_symbol: entry.fertility_symbol,
+      observations: entry.observations,
+      ignored: entry.ignored,
+      measurements: entry.measurements || [],
+      temperature_chart: chartTemp,
+      timestamp: entry.timestamp,
+    };
+  });
 };
 
 export const fetchCurrentCycleDB = async (userId) => {
@@ -71,7 +117,19 @@ export const fetchCurrentCycleDB = async (userId) => {
 
   const entriesRef = collection(db, `users/${userId}/cycles/${cycleDoc.id}/entries`);
   const entriesSnap = await getDocs(entriesRef);
-  const entriesData = entriesSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const entriesData = await Promise.all(
+    entriesSnap.docs.map(async (d) => {
+      let measurements = [];
+      try {
+        const mRef = collection(db, `users/${userId}/cycles/${cycleDoc.id}/entries/${d.id}/measurements`);
+        const mSnap = await getDocs(mRef);
+        measurements = mSnap.docs.map((m) => ({ id: m.id, ...m.data() }));
+      } catch (error) {
+        console.error('Error fetching measurements for entry', d.id, error);
+      }
+      return { id: d.id, ...d.data(), measurements };
+    })
+  );
 
   return {
     id: cycleDoc.id,
@@ -96,7 +154,19 @@ export const fetchArchivedCyclesDB = async (userId, currentStartDate) => {
     cycles.map(async (cycle) => {
       const entriesRef = collection(db, `users/${userId}/cycles/${cycle.id}/entries`);
       const entriesSnap = await getDocs(entriesRef);
-      const entriesData = entriesSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      const entriesData = await Promise.all(
+        entriesSnap.docs.map(async (d) => {
+          let measurements = [];
+          try {
+            const mRef = collection(db, `users/${userId}/cycles/${cycle.id}/entries/${d.id}/measurements`);
+            const mSnap = await getDocs(mRef);
+            measurements = mSnap.docs.map((m) => ({ id: m.id, ...m.data() }));
+          } catch (error) {
+            console.error('Error fetching measurements for entry', d.id, error);
+          }
+          return { id: d.id, ...d.data(), measurements };
+        })
+      );
       return {
         id: cycle.id,
         startDate: cycle.start_date,
@@ -116,7 +186,19 @@ export const fetchCycleByIdDB = async (userId, cycleId) => {
   const cycleData = cycleSnap.data();
   const entriesRef = collection(db, `users/${userId}/cycles/${cycleId}/entries`);
   const entriesSnap = await getDocs(entriesRef);
-  const entriesData = entriesSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const entriesData = await Promise.all(
+    entriesSnap.docs.map(async (d) => {
+      let measurements = [];
+      try {
+        const mRef = collection(db, `users/${userId}/cycles/${cycleId}/entries/${d.id}/measurements`);
+        const mSnap = await getDocs(mRef);
+        measurements = mSnap.docs.map((m) => ({ id: m.id, ...m.data() }));
+      } catch (error) {
+        console.error('Error fetching measurements for entry', d.id, error);
+      }
+      return { id: d.id, ...d.data(), measurements };
+    })
+  );
 
   return {
     id: cycleId,
@@ -153,18 +235,21 @@ export const createNewCycleDB = async (userId, startDate) => {
 export const createNewCycleEntry = async (payload) => {
   const userId = payload.user_id;
   const timestamp = payload.timestamp ?? new Date().toISOString();
+  const selected = payload.measurements?.find((m) => m.selected);
   const entryData = {
     timestamp,
-    temperature_raw: payload.temperature_raw,
-    temperature_corrected: payload.temperature_corrected,
-    use_corrected: payload.use_corrected,
-    temperature_chart: payload.temperature_chart,
+    temperature_raw: selected?.temperature ?? null,
+    temperature_corrected: selected?.temperature_corrected ?? null,
+    use_corrected: false,
+    temperature_chart: selected
+      ? selected.temperature_corrected ?? selected.temperature
+      : null,
     mucus_sensation: payload.mucus_sensation,
     mucus_appearance: payload.mucus_appearance,
     fertility_symbol: payload.fertility_symbol,
     observations: payload.observations,
     ignored: payload.ignored,
-      };
+  };
 
   const cyclesRef = collection(db, `users/${userId}/cycles`);
   const cyclesSnap = await getDocs(cyclesRef);
@@ -193,11 +278,23 @@ export const createNewCycleEntry = async (payload) => {
       collection(db, `users/${userId}/cycles/${targetCycle.id}/entries`),
       entryData
     );
+        if (payload.measurements && payload.measurements.length) {
+      const mRef = collection(db, `users/${userId}/cycles/${targetCycle.id}/entries/${ref.id}/measurements`);
+      for (const m of payload.measurements) {
+        await addDoc(mRef, m);
+      }
+    }
     return { id: ref.id };
   }
 
   if (payload.cycle_id) {
     const ref = await addDoc(collection(db, `users/${userId}/cycles/${payload.cycle_id}/entries`), entryData);
+        if (payload.measurements && payload.measurements.length) {
+      const mRef = collection(db, `users/${userId}/cycles/${payload.cycle_id}/entries/${ref.id}/measurements`);
+      for (const m of payload.measurements) {
+        await addDoc(mRef, m);
+      }
+    }
     return { id: ref.id };
   }
 
@@ -221,7 +318,34 @@ export const updateCycleEntry = async (userId, cycleId, entryId, payload) => {
     entryToUpdate.timestamp = payload.timestamp;
   }
   await updateDoc(entryRef, entryToUpdate);
+    if (payload.measurements) {
+    const mRef = collection(db, `users/${userId}/cycles/${cycleId}/entries/${entryId}/measurements`);
+    const mSnap = await getDocs(mRef);
+    await Promise.all(mSnap.docs.map((d) => deleteDoc(d.ref)));
+    for (const m of payload.measurements) {
+      await addDoc(mRef, m);
+    }
+  }
   return { id: entryId };
+};
+
+export const addMeasurement = async (userId, cycleId, entryId, measurement) => {
+  const mRef = collection(db, `users/${userId}/cycles/${cycleId}/entries/${entryId}/measurements`);
+  const docRef = await addDoc(mRef, measurement);
+  return { id: docRef.id };
+};
+
+export const updateMeasurement = async (userId, cycleId, entryId, measurementId, data) => {
+  const mRef = doc(db, `users/${userId}/cycles/${cycleId}/entries/${entryId}/measurements/${measurementId}`);
+  await updateDoc(mRef, data);
+};
+
+export const selectMeasurement = async (userId, cycleId, entryId, measurementId) => {
+  const mRef = collection(db, `users/${userId}/cycles/${cycleId}/entries/${entryId}/measurements`);
+  const mSnap = await getDocs(mRef);
+  await Promise.all(
+    mSnap.docs.map((d) => updateDoc(d.ref, { selected: d.id === measurementId }))
+  );
 };
 export const deleteCycleEntryDB = async (userId, cycleId, entryId) => {
   await deleteDoc(doc(db, `users/${userId}/cycles/${cycleId}/entries/${entryId}`));
@@ -234,7 +358,7 @@ export const archiveCycleDB = async (cycleId, userId, endDate) => {
   await updateDoc(cycleRef, { end_date: endDate });
 };
 
-export const updateCycleDatesDB = async (cycleId, userId, startDate, endDate) => {
+export const updateCycleDatesDB = async (cycleId, userId, startDate, endDate, validateOnly = false) => {
   const cycleRef = doc(db, `users/${userId}/cycles/${cycleId}`);
   const cycleSnap = await getDoc(cycleRef);
   if (!cycleSnap.exists()) throw new Error('Cycle not found');
@@ -251,7 +375,7 @@ export const updateCycleDatesDB = async (cycleId, userId, startDate, endDate) =>
 
   const cyclesRef = collection(db, `users/${userId}/cycles`);
   const cyclesSnap = await getDocs(cyclesRef);
-  const overlap = cyclesSnap.docs.some((docSnap) => {
+  const overlapDoc = cyclesSnap.docs.find((docSnap) => {
     if (docSnap.id === cycleId) return false;
     const data = docSnap.data();
     const start = data.start_date ? parseISO(data.start_date) : null;
@@ -262,7 +386,15 @@ export const updateCycleDatesDB = async (cycleId, userId, startDate, endDate) =>
     return proposedStartDate <= endDateComparable && start <= proposedEndComparable;
   });
 
-  if (overlap) {
+  if (validateOnly) {
+    if (overlapDoc) {
+      const data = overlapDoc.data();
+      return { overlap: { id: overlapDoc.id, startDate: data.start_date, endDate: data.end_date } };
+    }
+    return { overlap: null };
+  }
+
+  if (overlapDoc) {
     throw new Error('Cycle dates overlap with an existing cycle');
   }
 
@@ -272,6 +404,60 @@ export const updateCycleDatesDB = async (cycleId, userId, startDate, endDate) =>
 
   await updateDoc(cycleRef, updatePayload);
   };
+
+export const forceUpdateCycleStart = async (userId, currentCycleId, newStartDate) => {
+  const cyclesRef = collection(db, `users/${userId}/cycles`);
+  const cyclesSnap = await getDocs(cyclesRef);
+  const newStart = parseISO(newStartDate);
+
+  const previousDoc = cyclesSnap.docs.find((docSnap) => {
+    if (docSnap.id === currentCycleId) return false;
+    const data = docSnap.data();
+    const start = data.start_date ? parseISO(data.start_date) : null;
+    const end = data.end_date ? parseISO(data.end_date) : null;
+    if (!start || !end) return false;
+    return end >= newStart;
+  });
+
+  if (previousDoc) {
+    const prevRef = doc(db, `users/${userId}/cycles/${previousDoc.id}`);
+    const dayBefore = format(addDays(newStart, -1), 'yyyy-MM-dd');
+    await updateDoc(prevRef, { end_date: dayBefore });
+
+    const prevEntriesRef = collection(db, `users/${userId}/cycles/${previousDoc.id}/entries`);
+    const prevEntriesSnap = await getDocs(prevEntriesRef);
+
+    await Promise.all(
+      prevEntriesSnap.docs.map(async (entryDoc) => {
+        const data = entryDoc.data();
+        const ts = data.timestamp ? parseISO(data.timestamp) : null;
+        if (ts && ts >= newStart) {
+          const newData = {
+            ...data,
+            cycle_day: generateCycleDaysForRecord(format(ts, 'yyyy-MM-dd'), newStartDate),
+          };
+          const newEntryRef = doc(db, `users/${userId}/cycles/${currentCycleId}/entries/${entryDoc.id}`);
+          await setDoc(newEntryRef, newData);
+
+          const measRef = collection(db, `users/${userId}/cycles/${previousDoc.id}/entries/${entryDoc.id}/measurements`);
+          const measSnap = await getDocs(measRef);
+          await Promise.all(
+            measSnap.docs.map(async (mDoc) => {
+              const newMeasRef = doc(db, `users/${userId}/cycles/${currentCycleId}/entries/${entryDoc.id}/measurements/${mDoc.id}`);
+              await setDoc(newMeasRef, mDoc.data());
+              await deleteDoc(mDoc.ref);
+            })
+          );
+
+          await deleteDoc(entryDoc.ref);
+        }
+      })
+    );
+  }
+
+  const currentRef = doc(db, `users/${userId}/cycles/${currentCycleId}`);
+  await updateDoc(currentRef, { start_date: newStartDate });
+};
 
 export const deleteCycleDB = async (userId, cycleId) => {
   const entriesRef = collection(db, `users/${userId}/cycles/${cycleId}/entries`);

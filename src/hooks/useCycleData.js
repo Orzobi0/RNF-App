@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { format, startOfDay, parseISO, addDays, parse } from 'date-fns';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { processCycleEntries, createNewCycleEntry, updateCycleEntry, deleteCycleEntryDB, archiveCycleDB, createNewCycleDB, fetchCycleByIdDB, fetchCurrentCycleDB, fetchArchivedCyclesDB, updateCycleDatesDB, deleteCycleDB } from '@/lib/cycleDataHandler';
+import { processCycleEntries, createNewCycleEntry, updateCycleEntry, deleteCycleEntryDB, archiveCycleDB, createNewCycleDB, fetchCycleByIdDB, fetchCurrentCycleDB, fetchArchivedCyclesDB, updateCycleDatesDB, deleteCycleDB, forceUpdateCycleStart as forceUpdateCycleStartDB } from '@/lib/cycleDataHandler';
 
 const filterEntriesByEndDate = (entries, endDate) => {
   if (!endDate) return entries;
@@ -15,6 +15,12 @@ const filterEntriesByStartDate = (entries, startDate) => {
   if (!startDate) return entries;
   const start = startOfDay(parseISO(startDate));
   return entries.filter((entry) => parseISO(entry.isoDate) >= start);
+};
+
+const normalizeTemp = (val) => {
+  if (val === null || val === undefined || val === '') return null;
+  const num = parseFloat(String(val).replace(',', '.'));
+  return isNaN(num) ? null : num;
 };
 
 const normalizeDate = (date) => {
@@ -123,41 +129,41 @@ export const useCycleData = (specificCycleId = null) => {
     setIsLoading(true);
     
     try {
-      const timeString = newData.time && newData.time.trim() !== ''
-        ? newData.time
+      const selectedMeasurement = newData.measurements.find(m => m.selected) || newData.measurements[0];
+      const timeString = selectedMeasurement && selectedMeasurement.time && selectedMeasurement.time.trim() !== ''
+        ? selectedMeasurement.time
         : format(new Date(), 'HH:mm');
       const recordDateTime = parse(
         `${newData.isoDate} ${timeString}`,
         'yyyy-MM-dd HH:mm',
         new Date()
       );
- 
-      const tempRaw = newData.temperature_raw === '' || newData.temperature_raw === null || newData.temperature_raw === undefined ? null : parseFloat(newData.temperature_raw);
-      const tempCorrected = newData.temperature_corrected === '' || newData.temperature_corrected === null || newData.temperature_corrected === undefined ? null : parseFloat(newData.temperature_corrected);
-      const useCorrected = newData.use_corrected || false;
-      const temperatureChart = useCorrected
-        ? (tempCorrected ?? tempRaw)
-        : (tempRaw ?? tempCorrected);
+
 
       let targetRecord = editingRecord;
       if (!targetRecord) {
         targetRecord = currentCycle.data.find(r => r.isoDate === newData.isoDate);
       }
+      const rawTemp = normalizeTemp(selectedMeasurement.temperature);
+      const correctedTemp = normalizeTemp(selectedMeasurement.temperature_corrected);
+      const useCorrected = !!selectedMeasurement.use_corrected && correctedTemp !== null;
+      const chartTemp = useCorrected ? correctedTemp : rawTemp;
 
       const recordPayload = {
         cycle_id: currentCycle.id,
-        user_id: user.uid, // ← CAMBIO: user.uid en lugar de user.id
+        user_id: user.uid,
         timestamp: format(recordDateTime, "yyyy-MM-dd'T'HH:mm:ssXXX"),
-        temperature_raw: tempRaw,
-        temperature_corrected: tempCorrected,
-        use_corrected: useCorrected,
-        temperature_chart: temperatureChart,
+        measurements: newData.measurements,
         mucus_sensation: newData.mucusSensation || null,
         mucus_appearance: newData.mucusAppearance || null,
         fertility_symbol:
           newData.fertility_symbol === 'none' ? null : newData.fertility_symbol,
         observations: newData.observations || null,
         ignored: targetRecord ? (newData.ignored ?? targetRecord.ignored) : (newData.ignored || false),
+        temperature_raw: rawTemp,
+        temperature_corrected: correctedTemp,
+        use_corrected: useCorrected,
+        temperature_chart: chartTemp,
       };
       
 
@@ -312,20 +318,36 @@ export const useCycleData = (specificCycleId = null) => {
     }
   }, [user, loadCycleData, toast]);
 
-
+const checkCycleOverlap = useCallback(async (cycleIdToCheck, newStartDate) => {
+    if (!user?.uid) return null;
+    try {
+      const result = await updateCycleDatesDB(cycleIdToCheck, user.uid, newStartDate, undefined, true);
+      return result.overlap;
+    } catch (error) {
+      console.error('Error checking cycle overlap:', error);
+      return null;
+    }
+  }, [user]);
   const updateCycleDates = useCallback(
-    async (cycleIdToUpdate, newStartDate, newEndDate) => {
+    async (cycleIdToUpdate, newStartDate, newEndDate, force = false) => {
       if (!user?.uid) return;
       
-      console.log('Updating cycle dates:', cycleIdToUpdate, newStartDate, newEndDate);
+      console.log('Updating cycle dates:', cycleIdToUpdate, newStartDate, newEndDate, force);
       setIsLoading(true);
       try {
-        await updateCycleDatesDB(cycleIdToUpdate, user.uid, newStartDate, newEndDate); // ← CAMBIO: user.uid en lugar de user.id
+        if (force && newStartDate) {
+          await forceUpdateCycleStartDB(user.uid, cycleIdToUpdate, newStartDate);
+          if (newEndDate !== undefined) {
+            await updateCycleDatesDB(cycleIdToUpdate, user.uid, undefined, newEndDate);
+          }
+        } else {
+          await updateCycleDatesDB(cycleIdToUpdate, user.uid, newStartDate, newEndDate);
+        }
         await loadCycleData();
         console.log('Cycle dates updated successfully');
       } catch (error) {
         console.error("Error updating cycle dates:", error);
-                const description =
+        const description =
           error.message && error.message.includes('overlap')
             ? 'Las fechas coinciden con otro ciclo.'
             : 'No se pudieron actualizar las fechas.';
@@ -336,6 +358,11 @@ export const useCycleData = (specificCycleId = null) => {
       }
     },
     [user, loadCycleData, toast]
+  );
+
+  const forceUpdateCycleStart = useCallback(
+    (cycleIdToUpdate, newStartDate) => updateCycleDates(cycleIdToUpdate, newStartDate, undefined, true),
+    [updateCycleDates]
   );
 
   const getCycleById = useCallback(async (cycleIdToFetch) => {
@@ -375,9 +402,11 @@ export const useCycleData = (specificCycleId = null) => {
     currentCycle, 
     archivedCycles, 
     addOrUpdateDataPoint, 
-    deleteRecord, 
+    deleteRecord,
     startNewCycle,
     updateCycleDates,
+    forceUpdateCycleStart,
+    checkCycleOverlap,
     isLoading,
     getCycleById,
     refreshData: loadCycleData,

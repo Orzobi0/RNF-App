@@ -77,13 +77,20 @@ const CycleOverviewCard = ({ cycleData, onEdit }) => {
         : { main: '#b5b6ba', light: '#c8cacf', glow: 'rgba(229, 231, 235, 0.3)' };
 
       const isToday = day === cycleData.currentDay;
-      if (isToday && !record) {
-        colors = {
-          main: 'transparent',
-          light: 'transparent',
-          glow: 'rgba(251, 113, 133, 0.4)',
-          border: 'rgba(251, 113, 133, 0.8)'
-        };
+      if (isToday) {
+        if (record) {
+          colors = {
+            ...getSymbolColor(record.fertility_symbol),
+            border: 'rgba(251, 113, 133, 0.8)'
+          };
+        } else {
+          colors = {
+            main: 'transparent',
+            light: 'transparent',
+            glow: 'rgba(251, 113, 133, 0.4)',
+            border: 'rgba(251, 113, 133, 0.8)'
+          };
+        }
       }
 
       return {
@@ -236,11 +243,11 @@ const CycleOverviewCard = ({ cycleData, onEdit }) => {
                     cx={dot.x}
                     cy={dot.y}
                     r={dot.isToday ? 11 : 10}
-                    fill={dot.colors.pattern || (dot.isActive && dot.hasRecord ? (dot.isToday ? dot.colors.light : dot.colors.main) : 'none')}
+                    fill={dot.colors.pattern || (dot.isActive && dot.hasRecord ? dot.colors.main : 'none')}
                     stroke={dot.colors.border === 'none' ? 'none' : dot.colors.border || 'rgba(158,158,158,0.4)'}
                     strokeWidth={dot.colors.border === 'none'
                       ? 0
-                      : (dot.isToday && !dot.hasRecord
+                      : (dot.isToday
                         ? 1.8
                         : (dot.colors.border ? 0.6 : 0.8))}
                   onClick={(e) => handleDotClick(dot, e)}
