@@ -61,9 +61,11 @@ const FertilityChart = ({
   const chartHeight = dimensions.height;
   const baselineY = baselineTemp != null ? getY(baselineTemp) : null;
   const canRenderBaseline = baselineTemp != null && Number.isFinite(baselineStartIndex);
-  const baselineStartX = canRenderBaseline ? getX(baselineStartIndex) : null;
+  const baselineStartX = getX(0);
   const isLoading = chartWidth === 0;
+  
 
+  
   // Detectar orientación real del viewport para rotación visual
   const [viewport, setViewport] = useState({ w: typeof window !== 'undefined' ? window.innerWidth : 0, h: typeof window !== 'undefined' ? window.innerHeight : 0 });
   const isViewportPortrait = viewport.w < viewport.h;
@@ -142,6 +144,7 @@ const FertilityChart = ({
             Cargando...
           </div>
         )}
+        
         <motion.svg
           width={chartWidth}
           height={chartHeight}
@@ -208,7 +211,31 @@ const FertilityChart = ({
             showLeftLabels={!showLegend}
             reduceMotion={reduceMotion}
           />
-
+                   {/* Línea baseline mejorada */}
+          {showInterpretation && canRenderBaseline && (            
+            (reduceMotion ? (
+              
+              <line
+                x1={baselineStartX}
+                y1={baselineY}
+                x2={chartWidth - padding.right}
+                y2={baselineY}
+                stroke="#F59E0B"
+                strokeWidth={3}
+                strokeDasharray="6 4"
+              />
+            ) : (
+            <motion.path
+                d={`M ${baselineStartX} ${baselineY} L ${chartWidth - padding.right} ${baselineY}`}
+                stroke="#F59E0B"
+                strokeWidth={3}
+                strokeDasharray="6 4"
+                initial={{ pathLength: 0, opacity: 0 }}
+                animate={{ pathLength: 1, opacity: 1 }}
+                transition={{ duration: 4, ease: "easeInOut", delay: 0.5 }}
+/>
+            ))
+          )}
           {/* Línea de temperatura */}
           <ChartLine
             data={validDataForLine}
@@ -219,36 +246,6 @@ const FertilityChart = ({
             temperatureField="displayTemperature"
             reduceMotion={reduceMotion}
           />
-
-          {/* Línea baseline mejorada */}
-          {showInterpretation && canRenderBaseline && (
-            (reduceMotion ? (
-              <line
-                x1={baselineStartX}
-                y1={baselineY}
-                x2={chartWidth - padding.right}
-                y2={baselineY}
-                stroke="#F59E0B"
-                strokeWidth={3}
-                strokeDasharray="6 4"
-                style={{ filter: 'url(#baselineGlow)' }}
-              />
-            ) : (
-              <motion.line
-              x1={baselineStartX}
-              y1={baselineY}
-              x2={chartWidth - padding.right}
-              y2={baselineY}
-              stroke="#F59E0B"
-              strokeWidth={3}
-              strokeDasharray="6 4"
-              style={{ filter: 'url(#baselineGlow)' }}
-              initial={{ opacity: 0, pathLength: 0 }}
-              animate={{ opacity: 1, pathLength: 1 }}
-              transition={{ duration: 1, ease: "easeInOut" }}
-            />
-            ))
-          )}
 
           {/* Puntos del gráfico */}
           <ChartPoints
@@ -269,6 +266,7 @@ const FertilityChart = ({
             compact={false}
             reduceMotion={reduceMotion}
           />
+ 
         </motion.svg>
 
         {/* Tooltip mejorado */}
