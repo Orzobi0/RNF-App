@@ -8,7 +8,7 @@ const ASSETS = [
   `${BASE_URL}icon-512x512.png`
 ];
 // Assets generated during the build step will be injected into this array.
-const BUILD_ASSETS = (["assets/ChartTooltip-2ac35f64.js","assets/DataEntryForm-8234e9d4.js","assets/DeletionDialog-5365865d.js","assets/EditCycleDatesDialog-c69612db.js","assets/badge-e000eb74.js","assets/dialog-9f479f94.js","assets/eye-16f81715.js","assets/eye-off-ea0ccfbb.js","assets/generatePlaceholders-26f1d0e5.js","assets/input-2e2fdcf0.js","assets/label-a061ee7d.js","assets/plus-8b4fb140.js","assets/useCycleData-270ed225.js","assets/index-ef978363.css","assets/index-1b0fe1a0.js","assets/ArchivedCyclesPage-c08bb647.js","assets/AuthPage-ce397967.js","assets/ChartPage-44594270.js","assets/CycleDetailPage-437bd311.js","assets/DashboardPage-6e773384.js","assets/RecordsPage-99acb02a.js","assets/SettingsPage-c9294d5b.js"] || []).map(
+const BUILD_ASSETS = (["assets/ChartTooltip-6a801a66.js","assets/DataEntryForm-99bdedea.js","assets/DeletionDialog-26852e1b.js","assets/EditCycleDatesDialog-c0218425.js","assets/badge-97c5a111.js","assets/dialog-2828cd6f.js","assets/eye-153cd699.js","assets/eye-off-b1122abf.js","assets/generatePlaceholders-ff84f052.js","assets/input-2b285a94.js","assets/label-3b80786f.js","assets/plus-e21e75d4.js","assets/useCycleData-4dcbf14b.js","assets/index-c797be08.css","assets/index-b896ef43.js","assets/ArchivedCyclesPage-a48c3de0.js","assets/AuthPage-157a3cc4.js","assets/ChartPage-3f0c00c2.js","assets/CycleDetailPage-37815bd2.js","assets/DashboardPage-ea45302c.js","assets/RecordsPage-81f65016.js","assets/SettingsPage-73a34e38.js"] || []).map(
   (asset) => `${BASE_URL}${asset}`
 );
 
