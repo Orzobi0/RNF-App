@@ -171,17 +171,20 @@ export const useDataEntryForm = (
       return;
     }
     const isoDate = format(date, 'yyyy-MM-dd');
-
+    const normalizeMeasurementValue = (value) => {
+      if (value === null || value === undefined || value === '') {
+        return null;
+      }
+      const parsed = parseFloat(String(value).replace(',', '.'));
+      return Number.isFinite(parsed) ? parsed : null;
+    };
     onSubmit({
       isoDate,
       measurements: measurements.map((m) => ({
-        temperature: m.temperature === '' ? null : parseFloat(m.temperature),
+        temperature: normalizeMeasurementValue(m.temperature),
         time: m.time,
         selected: m.selected,
-        temperature_corrected:
-          m.temperature_corrected === ''
-            ? null
-            : parseFloat(m.temperature_corrected),
+        temperature_corrected: normalizeMeasurementValue(m.temperature_corrected),
         time_corrected: m.time_corrected,
         use_corrected: !!m.use_corrected,
       })),

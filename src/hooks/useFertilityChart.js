@@ -26,6 +26,21 @@ export const useFertilityChart = (
           const parsed = parseFloat(String(value).replace(',', '.'));
           return Number.isFinite(parsed) ? parsed : null;
         };
+        const getMeasurementTemp = (measurement) => {
+          if (!measurement) return null;
+          const raw = normalizeTemp(measurement.temperature);
+          const corrected = normalizeTemp(measurement.temperature_corrected);
+          if (measurement.use_corrected && corrected !== null) {
+            return corrected;
+          }
+          if (raw !== null) {
+            return raw;
+          }
+          if (corrected !== null) {
+            return corrected;
+          }
+          return null;
+        };
 
         return data.map((d) => {
           const directSources = [
@@ -43,21 +58,13 @@ export const useFertilityChart = (
           }
 
           if (resolvedValue == null && Array.isArray(d?.measurements)) {
-            const selectedMeasurement = d.measurements.find((m) => m && m.selected);
-            if (selectedMeasurement) {
-              const measurementCandidates = [
-                selectedMeasurement.use_corrected
-                  ? selectedMeasurement.temperature_corrected
-                  : undefined,
-                selectedMeasurement.temperature,
-                selectedMeasurement.temperature_corrected,
-              ];
-              for (const candidate of measurementCandidates) {
-                if (candidate !== null && candidate !== undefined && candidate !== '') {
-                  resolvedValue = candidate;
-                  break;
-                }
-              }
+            const selectedMeasurement = d.measurements.find(
+              (m) => m && m.selected && getMeasurementTemp(m) !== null
+            );
+            const fallbackMeasurement =
+              selectedMeasurement || d.measurements.find((m) => getMeasurementTemp(m) !== null);
+            if (fallbackMeasurement) {
+              resolvedValue = getMeasurementTemp(fallbackMeasurement);
             }
           }
 
@@ -127,7 +134,6 @@ export const useFertilityChart = (
 
   const validDataForLine = useMemo(() => processedData.filter(d => d && d.isoDate && !d.ignored && d.displayTemperature !== null && d.displayTemperature !== undefined), [processedData]);
   const allDataPoints = useMemo(() => processedData.filter(d => d && d.isoDate), [processedData]);
-
   const { baselineTemp, baselineStartIndex } = useMemo(() => {
     const isValid = (p) => p && p.displayTemperature != null && !p.ignored;
     for (let i = 0; i < processedData.length; i++) {

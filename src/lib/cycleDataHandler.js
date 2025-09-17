@@ -37,19 +37,41 @@ export const processCycleEntries = (entriesFromView, cycleStartIsoDate) => {
   return sortedEntries.map((entry) => {
     const rawTemp = normalizeTemp(entry.temperature_raw);
     const correctedTemp = normalizeTemp(entry.temperature_corrected);
+    const getMeasurementTemp = (measurement) => {
+      if (!measurement) return null;
+      const mRaw = normalizeTemp(measurement.temperature);
+      const mCorr = normalizeTemp(measurement.temperature_corrected);
+      if (measurement.use_corrected && mCorr !== null) {
+        return mCorr;
+      }
+      if (mRaw !== null) {
+        return mRaw;
+      }
+      if (mCorr !== null) {
+        return mCorr;
+      }
+      return null;
+    };
 
     let chartTemp = normalizeTemp(entry.temperature_chart);
-    if (chartTemp == null) {
-      if (Array.isArray(entry.measurements)) {
-        const sel = entry.measurements.find((m) => m.selected);
-        if (sel) {
-          const selRaw = normalizeTemp(sel.temperature);
-          const selCorr = normalizeTemp(sel.temperature_corrected);
-          chartTemp = sel.use_corrected && selCorr !== null ? selCorr : selRaw;
-        }
+    if (chartTemp == null && Array.isArray(entry.measurements)) {
+      const selectedMeasurement = entry.measurements.find(
+        (m) => m && m.selected && getMeasurementTemp(m) !== null
+      );
+      const fallbackMeasurement =
+        selectedMeasurement || entry.measurements.find((m) => getMeasurementTemp(m) !== null);
+      if (fallbackMeasurement) {
+        chartTemp = getMeasurementTemp(fallbackMeasurement);
       }
-      if (chartTemp == null) {
-        chartTemp = entry.use_corrected && correctedTemp !== null ? correctedTemp : rawTemp ?? correctedTemp;
+    }
+
+    if (chartTemp == null) {
+      if (entry.use_corrected && correctedTemp !== null) {
+        chartTemp = correctedTemp;
+      } else if (rawTemp !== null) {
+        chartTemp = rawTemp;
+      } else if (correctedTemp !== null) {
+        chartTemp = correctedTemp;
       }
     }
 
