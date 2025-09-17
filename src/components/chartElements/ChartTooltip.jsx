@@ -167,7 +167,10 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
                       </span>
                       <span className="text-md text-gray-600">°C</span>
                       {point.use_corrected && (
-                        <div className="w-2 h-2 bg-red-500 rounded-full shadow-sm" title="Temperatura corregida"></div>
+                        <div
+                          className="w-2 h-2 bg-amber-500 rounded-full shadow-[0_0_4px_rgba(245,158,11,0.65)]"
+                          title="Temperatura corregida"
+                        ></div>
                       )}
                     </div>
                   </div>

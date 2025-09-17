@@ -1,19 +1,19 @@
 import React, { useState, useEffect, useCallback } from 'react';
-    import { useParams, Link, useNavigate } from 'react-router-dom';
-    import FertilityChart from '@/components/FertilityChart';
-    import RecordsList from '@/components/RecordsList';
-    import DataEntryForm from '@/components/DataEntryForm';
-    import DeletionDialog from '@/components/DeletionDialog';
-    import EditCycleDatesDialog from '@/components/EditCycleDatesDialog';
-    import { useCycleData } from '@/hooks/useCycleData';
-    import { useToast } from '@/components/ui/use-toast';
-    import { Button } from '@/components/ui/button';
-        import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import FertilityChart from '@/components/FertilityChart';
+import RecordsList from '@/components/RecordsList';
+import DataEntryForm from '@/components/DataEntryForm';
+import DeletionDialog from '@/components/DeletionDialog';
+import EditCycleDatesDialog from '@/components/EditCycleDatesDialog';
+import { useCycleData } from '@/hooks/useCycleData';
+import { useToast } from '@/components/ui/use-toast';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { ArrowLeft, Edit, Trash2, Maximize, X, Eye, EyeOff, RotateCcw, BarChart3 } from 'lucide-react';
-    import { format, differenceInDays, startOfDay, parseISO } from 'date-fns';
-    import generatePlaceholders from '@/lib/generatePlaceholders';
-    import { useFullScreen } from '@/hooks/useFullScreen';
-    import { useAuth } from '@/contexts/AuthContext';
+import { format, differenceInDays, startOfDay, parseISO, parse } from 'date-fns';
+import generatePlaceholders from '@/lib/generatePlaceholders';
+import { useFullScreen } from '@/hooks/useFullScreen';
+import { useAuth } from '@/contexts/AuthContext';
 
     // Mantener un ancho manejable en horizontal para ciclos largos
     const CYCLE_DURATION_DAYS = 28;
@@ -69,6 +69,11 @@ import { ArrowLeft, Edit, Trash2, Maximize, X, Eye, EyeOff, RotateCcw, BarChart3
         }
       };
       const [showChart, setShowChart] = useState(false);
+      useEffect(() => {
+        if (!isFullScreen && showChart) {
+          setShowChart(false);
+        }
+      }, [isFullScreen, showChart]);
 
       return (
         <div className={`w-full ${isFullScreen ? 'h-full overflow-hidden' : 'max-w-4xl mx-auto'}`}>
@@ -307,24 +312,102 @@ import { ArrowLeft, Edit, Trash2, Maximize, X, Eye, EyeOff, RotateCcw, BarChart3
         if (!cycleData || !user) return;
         setIsProcessing(true);
         
-        const tempRaw = newData.temperature_raw;
-        const tempCorrected = newData.temperature_corrected;
-        const useCorrected = newData.use_corrected || false;
-        const temperatureChart = useCorrected
-          ? (tempCorrected ?? tempRaw)
-          : (tempRaw ?? tempCorrected);
-        
-        let updatedDataArray;
+
+        const measurements = Array.isArray(newData.measurements)
+          ? newData.measurements.map((measurement, index, arr) => ({
+              ...measurement,
+              temperature:
+                measurement.temperature === '' || measurement.temperature === undefined
+                  ? null
+                  : measurement.temperature,
+              temperature_corrected:
+                measurement.temperature_corrected === '' || measurement.temperature_corrected === undefined
+                  ? null
+                  : measurement.temperature_corrected,
+              selected:
+                typeof measurement.selected === 'boolean'
+                  ? measurement.selected
+                  : index === 0 && !arr.some((m) => m.selected),
+              use_corrected: !!measurement.use_corrected,
+            }))
+          : [];
+
+        const selectedMeasurement =
+          measurements.find((m) => m.selected) || measurements[0] || null;
+
+        const normalizedIsoDate = newData.isoDate
+          ? format(startOfDay(parseISO(newData.isoDate)), "yyyy-MM-dd")
+          : null;
+
+        let computedTimestamp = null;
+        const measurementTime = selectedMeasurement?.time?.trim();
+        if (normalizedIsoDate && measurementTime) {
+          const parsedDate = parse(
+            `${normalizedIsoDate} ${measurementTime}`,
+            "yyyy-MM-dd HH:mm",
+            new Date()
+          );
+          if (!Number.isNaN(parsedDate.getTime())) {
+            computedTimestamp = format(parsedDate, "yyyy-MM-dd'T'HH:mm:ssXXX");
+          }
+        }
+
+        const rawTemp =
+          selectedMeasurement && selectedMeasurement.temperature != null
+            ? selectedMeasurement.temperature
+            : null;
+        const correctedTemp =
+          selectedMeasurement && selectedMeasurement.temperature_corrected != null
+            ? selectedMeasurement.temperature_corrected
+            : null;
+        const useCorrected =
+          !!selectedMeasurement?.use_corrected && correctedTemp !== null;
+
+        const temperatureChart =
+          useCorrected && correctedTemp !== null
+            ? correctedTemp
+            : rawTemp ?? correctedTemp ?? null;
+
+        const normalizedFertilitySymbol =
+          newData.fertility_symbol === 'none' ? null : newData.fertility_symbol;
+
+        const rawMucusSensation =
+          newData.mucus_sensation ?? newData.mucusSensation ?? '';
+        const rawMucusAppearance =
+          newData.mucus_appearance ?? newData.mucusAppearance ?? '';
+
         const recordWithCycleDay = {
           ...newData,
+          measurements,
+          isoDate: normalizedIsoDate || newData.isoDate,
+          timestamp: computedTimestamp ?? editingRecord?.timestamp ?? null,
+          cycleDay: generateCycleDaysForRecord(
+            normalizedIsoDate || newData.isoDate,
+            cycleData.startDate
+          ),
+          ignored: editingRecord
+            ? newData.ignored ?? editingRecord.ignored
+            : newData.ignored || false,
+          temperature_raw: rawTemp,
+          temperature_corrected: correctedTemp,
+          use_corrected: useCorrected,
           temperature_chart: temperatureChart,
-          isoDate: format(startOfDay(parseISO(newData.isoDate)), "yyyy-MM-dd"),
-          cycleDay: generateCycleDaysForRecord(newData.isoDate, cycleData.startDate),
-          ignored: editingRecord ? (newData.ignored ?? editingRecord.ignored) : (newData.ignored || false)
+          fertility_symbol: normalizedFertilitySymbol,
+          mucus_sensation: rawMucusSensation || null,
+          mucusSensation: rawMucusSensation,
+          mucus_appearance: rawMucusAppearance || null,
+          mucusAppearance: rawMucusAppearance,
+          observations: newData.observations ?? '',
         };
 
+        let updatedDataArray;
+
         if (editingRecord) {
-          updatedDataArray = cycleData.data.map(item => item.id === editingRecord.id ? { ...item, ...recordWithCycleDay, id: editingRecord.id } : item);
+          updatedDataArray = cycleData.data.map((item) =>
+            item.id === editingRecord.id
+              ? { ...item, ...recordWithCycleDay, id: editingRecord.id }
+              : item
+          );
         } else {
           const newEntry = {
             ...recordWithCycleDay,
@@ -335,7 +418,10 @@ import { ArrowLeft, Edit, Trash2, Maximize, X, Eye, EyeOff, RotateCcw, BarChart3
           updatedDataArray = [...cycleData.data, newEntry];
         }
         
-        const processedData = processDataWithCycleDays(updatedDataArray, cycleData.startDate);
+        const processedData = processDataWithCycleDays(
+          updatedDataArray,
+          cycleData.startDate
+        );
         const updatedCycle = { ...cycleData, data: processedData };
         
         saveCycleDataToLocalStorage(updatedCycle);
@@ -348,7 +434,7 @@ import { ArrowLeft, Edit, Trash2, Maximize, X, Eye, EyeOff, RotateCcw, BarChart3
         setShowForm(false);
         setEditingRecord(null);
         setIsProcessing(false);
-        refreshData(); 
+        refreshData();
       };
 
       const deleteRecordForCycle = (recordId) => {

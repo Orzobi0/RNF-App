@@ -58,7 +58,8 @@ const RecordsList = ({ records, onEdit, onDelete, isProcessing }) => {
             ? {
                 temperature: record.temperature_chart ?? record.temperature_raw,
                 temperature_corrected: record.temperature_corrected ?? null,
-                time: record.timestamp ? format(parseISO(record.timestamp), 'HH:mm') : null
+                time: record.timestamp ? format(parseISO(record.timestamp), 'HH:mm') : null,
+                use_corrected: record.use_corrected ?? false,
               }
             : null);
         const hasTemperature =
@@ -67,6 +68,9 @@ const RecordsList = ({ records, onEdit, onDelete, isProcessing }) => {
         const displayTemp = selectedMeasurement
           ? selectedMeasurement.temperature_corrected ?? selectedMeasurement.temperature
           : null;
+        const showCorrectedIndicator =
+          (selectedMeasurement?.use_corrected ?? record.use_corrected ?? false) &&
+          (selectedMeasurement?.temperature_corrected ?? record.temperature_corrected ?? null) !== null;
 
         return (
           <motion.div
@@ -103,6 +107,12 @@ const RecordsList = ({ records, onEdit, onDelete, isProcessing }) => {
                 <div className="flex items-center space-x-1 bg-gradient-to-r from-amber-200 to-orange-200 border border-amber-300/50 p-2 rounded-xl">
                   <Thermometer className="w-3 h-3 text-rose-400" />
                   <span className="font-medium">{hasTemperature ? `${displayTemp}°C` : ''}</span>
+                                      {showCorrectedIndicator && (
+                    <span
+                      className="w-1 h-1 rounded-full bg-amber-500 shadow-[0_0_4px_rgba(245,158,11,0.65)]"
+                      title="Temperatura corregida"
+                    />
+                  )}
                   {hasTemperature && record.ignored && (
                     <Badge variant="secondary" className="text-xs py-0 px-1 bg-slate-200 text-slate-600">
                       Ignorada
