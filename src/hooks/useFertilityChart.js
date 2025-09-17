@@ -19,13 +19,51 @@ export const useFertilityChart = (
       const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
 
       const processedData = useMemo(() => {
-        return data.map(d => {
-          const t = d.temperature_chart == null
-            ? null
-            : parseFloat(String(d.temperature_chart).replace(',', '.'));
+        const normalizeTemp = (value) => {
+          if (value === null || value === undefined || value === '') {
+            return null;
+          }
+          const parsed = parseFloat(String(value).replace(',', '.'));
+          return Number.isFinite(parsed) ? parsed : null;
+        };
+
+        return data.map((d) => {
+          const directSources = [
+            d?.temperature_chart,
+            d?.temperature_raw,
+            d?.temperature_corrected,
+          ];
+
+          let resolvedValue = null;
+          for (const candidate of directSources) {
+            if (candidate !== null && candidate !== undefined && candidate !== '') {
+              resolvedValue = candidate;
+              break;
+            }
+          }
+
+          if (resolvedValue == null && Array.isArray(d?.measurements)) {
+            const selectedMeasurement = d.measurements.find((m) => m && m.selected);
+            if (selectedMeasurement) {
+              const measurementCandidates = [
+                selectedMeasurement.use_corrected
+                  ? selectedMeasurement.temperature_corrected
+                  : undefined,
+                selectedMeasurement.temperature,
+                selectedMeasurement.temperature_corrected,
+              ];
+              for (const candidate of measurementCandidates) {
+                if (candidate !== null && candidate !== undefined && candidate !== '') {
+                  resolvedValue = candidate;
+                  break;
+                }
+              }
+            }
+          }
+
           return {
             ...d,
-            displayTemperature: isNaN(t) ? null : t
+            displayTemperature: normalizeTemp(resolvedValue),
           };
         });
       }, [data]);
