@@ -29,6 +29,7 @@ import { ArrowLeft, Edit, Trash2, Maximize, X, Eye, EyeOff, RotateCcw, BarChart3
       rotateScreen,
       showInterpretation,
       setShowInterpretation,
+      onToggleInterpretation,
       chartDisplayData,
       showForm, setShowForm,
       editingRecord, setEditingRecord,
@@ -146,8 +147,8 @@ import { ArrowLeft, Edit, Trash2, Maximize, X, Eye, EyeOff, RotateCcw, BarChart3
                 reduceMotion={true}
               />
               <Button
-                  onClick={handleToggleInterpretation}
-                  onTouchEnd={handleToggleInterpretation}
+                  onClick={onToggleInterpretation}
+                  onTouchEnd={onToggleInterpretation}
                   variant="ghost"
                   size="sm"
                   className={`absolute ${isFullScreen ? 'top-4 right-20' : 'top-2 right-20'} flex items-center font-semibold py-1 px-2 rounded-lg transition-colors ${showInterpretation ? 'bg-[#E27DBF] text-white hover:bg-[#d46ab3]' : 'bg-transparent text-slate-700 hover:bg-[#E27DBF]/20'}`}
@@ -495,6 +496,7 @@ import { ArrowLeft, Edit, Trash2, Maximize, X, Eye, EyeOff, RotateCcw, BarChart3
               rotateScreen={rotateScreen}
               showInterpretation={showInterpretation}
               setShowInterpretation={setShowInterpretation}
+              onToggleInterpretation={handleToggleInterpretation}
               chartDisplayData={chartDisplayData}
               showForm={showForm} setShowForm={setShowForm}
               editingRecord={editingRecord} setEditingRecord={setEditingRecord}

@@ -189,7 +189,8 @@ const injectSWAssets = () => ({
                 );
                 const sw = fs.readFileSync(swPath, 'utf-8');
                 const withAssets = sw.replace('self.__BUILD_ASSETS', JSON.stringify(assets));
-                fs.writeFileSync(swPath, withAssets);
+                const withDate = withAssets.replace('${__DATE__}', new Date().toISOString());
+                fs.writeFileSync(swPath, withDate);
         }
 });
 
@@ -210,12 +211,13 @@ export default defineConfig({
         base: '/',
         customLogger: logger,
         build: { manifest: true },
+		define: { __DATE__: JSON.stringify(new Date().toISOString()) },
         plugins: [react(), addTransformIndexHtml, injectSWAssets()],
         server: {
                 cors: true,
                 headers: {
                         'Cross-Origin-Embedder-Policy': 'credentialless',
-                },
+        },
                 allowedHosts: true
 	},
 	resolve: {
