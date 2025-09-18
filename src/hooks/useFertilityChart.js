@@ -134,8 +134,12 @@ export const useFertilityChart = (
 
   const validDataForLine = useMemo(() => processedData.filter(d => d && d.isoDate && !d.ignored && d.displayTemperature !== null && d.displayTemperature !== undefined), [processedData]);
   const allDataPoints = useMemo(() => processedData.filter(d => d && d.isoDate), [processedData]);
-  const { baselineTemp, baselineStartIndex } = useMemo(() => {
+  const { baselineTemp, baselineStartIndex, firstHighIndex, ovulationDetails } = useMemo(() => {
     const isValid = (p) => p && p.displayTemperature != null && !p.ignored;
+    let baselineTemp = null;
+    let baselineStartIndex = null;
+    let firstHighIndex = null;
+
     for (let i = 0; i < processedData.length; i++) {
       const current = processedData[i];
       if (!isValid(current)) continue;
@@ -165,13 +169,110 @@ export const useFertilityChart = (
         continue;
       }
       if (current.displayTemperature > highestPrevTemp) {
-        return {
-          baselineTemp: highestPrevTemp,
-          baselineStartIndex: highestPrevIndex
-        };
+        baselineTemp = highestPrevTemp;
+        baselineStartIndex = highestPrevIndex;
+        firstHighIndex = i;
+        break;
       }
     }
-    return { baselineTemp: null, baselineStartIndex: null };
+
+    const emptyResult = {
+      baselineTemp,
+      baselineStartIndex,
+      firstHighIndex,
+      ovulationDetails: {
+        confirmed: false,
+        confirmationIndex: null,
+        infertileStartIndex: null,
+        rule: null,
+        highSequenceIndices: []
+      }
+    };
+
+    if (baselineTemp == null || firstHighIndex == null) {
+      return emptyResult;
+    }
+
+    const evaluateSequence = (sequence) => {
+      if (!sequence || sequence.length < 3) return null;
+
+      const requiredRise = baselineTemp + 0.2;
+      const firstThree = sequence.slice(0, 3);
+      if (firstThree.length < 3) return null;
+
+      // Ya garantizamos que todas están por encima de la línea base al construir la secuencia.
+      const countBelowThreshold = firstThree.filter((p) => p.temp < requiredRise).length;
+
+      if (countBelowThreshold === 0) {
+        return {
+          confirmationIndex: firstThree[2].index,
+          usedIndices: firstThree.map((p) => p.index),
+          rule: '3-high'
+        };
+      }
+
+      if (countBelowThreshold === 1) {
+        if (sequence.length >= 4 && sequence[3].temp > baselineTemp) {
+          return {
+            confirmationIndex: sequence[3].index,
+            usedIndices: sequence.slice(0, 4).map((p) => p.index),
+            rule: '4-high'
+          };
+        }
+        return null;
+      }
+
+      if (countBelowThreshold >= 2) {
+        if (
+          sequence.length >= 5 &&
+          sequence[4].temp >= requiredRise
+        ) {
+          return {
+            confirmationIndex: sequence[4].index,
+            usedIndices: sequence.slice(0, 5).map((p) => p.index),
+            rule: '5-high'
+          };
+        }
+      }
+
+      return null;
+    };
+
+    let confirmedDetails = emptyResult.ovulationDetails;
+
+    for (let start = firstHighIndex; start < processedData.length; start++) {
+      const startPoint = processedData[start];
+      if (!isValid(startPoint) || startPoint.displayTemperature <= baselineTemp) {
+        continue;
+      }
+
+      const sequence = [];
+      for (let j = start; j < processedData.length && sequence.length < 5; j++) {
+        const candidate = processedData[j];
+        if (!isValid(candidate) || candidate.displayTemperature <= baselineTemp) {
+          break;
+        }
+        sequence.push({ index: j, temp: candidate.displayTemperature });
+      }
+
+      const result = evaluateSequence(sequence);
+      if (result) {
+        confirmedDetails = {
+          confirmed: true,
+          confirmationIndex: result.confirmationIndex,
+          infertileStartIndex: result.confirmationIndex + 1,
+          rule: result.rule,
+          highSequenceIndices: result.usedIndices
+        };
+        break;
+      }
+    }
+    return {
+      baselineTemp,
+      baselineStartIndex,
+      firstHighIndex,
+      ovulationDetails: confirmedDetails
+    };
   }, [processedData]);
 
       const { tempMin, tempMax } = useMemo(() => {
@@ -335,5 +436,6 @@ const handlePointInteraction = (point, index, event) => {
         responsiveFontSize,
         baselineTemp,
         baselineStartIndex,
+        ovulationDetails,
       };
     };
