@@ -176,30 +176,22 @@ export const useFertilityChart = (
       }
     }
     if (baselineTemp == null || firstHighIndex == null) {
-      let fallbackBaselineTemp = null;
-      let fallbackBaselineIndex = null;
+      const recentValid = [];
+      for (let idx = processedData.length - 1; idx >= 0 && recentValid.length < 6; idx--) {
+        const candidate = processedData[idx];
+        if (!isValid(candidate)) continue;
+        recentValid.push({ index: idx, temp: candidate.displayTemperature });
+      }
 
-      processedData.forEach((candidate, idx) => {
-        if (!isValid(candidate)) return;
-        const candidateTemp = candidate.displayTemperature;
-        if (
-          fallbackBaselineTemp === null ||
-          candidateTemp > fallbackBaselineTemp ||
-          (candidateTemp === fallbackBaselineTemp && idx < fallbackBaselineIndex)
-        ) {
-          fallbackBaselineTemp = candidateTemp;
-          fallbackBaselineIndex = idx;
+      if (recentValid.length === 6) {
+        let highestEntry = recentValid[0];
+        for (let k = 1; k < recentValid.length; k++) {
+          if (recentValid[k].temp > highestEntry.temp) {
+            highestEntry = recentValid[k];
+          }
         }
-        });
-
-      if (
-        fallbackBaselineTemp !== null &&
-        Number.isFinite(fallbackBaselineTemp) &&
-        fallbackBaselineIndex !== null &&
-        Number.isFinite(fallbackBaselineIndex)
-      ) {
-        baselineTemp = fallbackBaselineTemp;
-        baselineStartIndex = fallbackBaselineIndex;
+        baselineTemp = highestEntry.temp;
+        baselineStartIndex = highestEntry.index;
       }
     }
     const emptyResult = {
