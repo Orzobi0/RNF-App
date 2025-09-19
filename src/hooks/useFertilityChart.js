@@ -436,6 +436,7 @@ const handlePointInteraction = (point, index, event) => {
         responsiveFontSize,
         baselineTemp,
         baselineStartIndex,
+        firstHighIndex,
         ovulationDetails,
       };
     };

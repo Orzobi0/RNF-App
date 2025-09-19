@@ -42,6 +42,7 @@ const FertilityChart = ({
     setActivePoint,
     baselineTemp,
     baselineStartIndex,
+    firstHighIndex,
     ovulationDetails,
   } = useFertilityChart(data, isFullScreen, orientation, onToggleIgnore, cycleId, visibleDays, forceLandscape);
 
@@ -61,10 +62,22 @@ const FertilityChart = ({
   const chartWidth = dimensions.width;
   const chartHeight = dimensions.height;
   const baselineY = baselineTemp != null ? getY(baselineTemp) : null;
-  const canRenderBaseline = baselineTemp != null && Number.isFinite(baselineStartIndex);
+  const hasPotentialRise = baselineTemp != null && Number.isFinite(firstHighIndex);
+  const confirmedRise = Boolean(ovulationDetails?.confirmed);
+  const shouldRenderBaseline = baselineTemp != null;
+
   const baselineStartX = getX(0);
+  const baselineEndX =
+    allDataPoints.length > 0
+      ? getX(allDataPoints.length - 1)
+      : chartWidth - padding.right;
+  const baselineStroke = confirmedRise ? '#F59E0B' : '#94A3B8';
+  const baselineDash = confirmedRise ? '6 4' : '4 4';
+  const baselineOpacity = confirmedRise ? 1 : 0.7;
+  const baselineWidth = 3;
   const isLoading = chartWidth === 0;
   const baseY = chartHeight - padding.bottom;
+  console.log({ baselineTemp, firstHighIndex, confirmedRise });
 
   const validDataMap = useMemo(() => {
     const map = new Map();
@@ -356,29 +369,31 @@ const FertilityChart = ({
             </>
           )}
                    {/* Línea baseline mejorada */}
-          {showInterpretation && canRenderBaseline && (            
-            (reduceMotion ? (
+          {showInterpretation && shouldRenderBaseline && baselineY !== null && (
+            reduceMotion ? (
               
               <line
                 x1={baselineStartX}
                 y1={baselineY}
-                x2={chartWidth - padding.right}
+                x2={baselineEndX}
                 y2={baselineY}
-                stroke="#F59E0B"
-                strokeWidth={3}
-                strokeDasharray="6 4"
+                stroke={baselineStroke}
+                strokeWidth={baselineWidth}
+                strokeDasharray={baselineDash}
+                opacity={baselineOpacity}
               />
             ) : (
             <motion.path
-                d={`M ${baselineStartX} ${baselineY} L ${chartWidth - padding.right} ${baselineY}`}
-                stroke="#F59E0B"
-                strokeWidth={3}
-                strokeDasharray="6 4"
+                d={`M ${baselineStartX} ${baselineY} L ${baselineEndX} ${baselineY}`}
+                stroke={baselineStroke}
+                strokeWidth={baselineWidth}
+                strokeDasharray={baselineDash}
+                opacity={baselineOpacity}
                 initial={{ pathLength: 0, opacity: 0 }}
-                animate={{ pathLength: 1, opacity: 1 }}
-                transition={{ duration: 4, ease: "easeInOut", delay: 0.5 }}
-/>
-            ))
+                animate={{ pathLength: 1, opacity: baselineOpacity }}
+                transition={{ duration: 4, ease: 'easeInOut', delay: 0.5 }}
+              />
+            )
           )}
           {/* Línea de temperatura */}
           <ChartLine
