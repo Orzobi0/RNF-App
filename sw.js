@@ -5,10 +5,12 @@ const ASSETS = [
   `${BASE_URL}index.html`,
   `${BASE_URL}manifest.webmanifest`,
   `${BASE_URL}icon-192x192.png`,
-  `${BASE_URL}icon-512x512.png`
+  `${BASE_URL}icon-512x512-maskable.png`,
+  `${BASE_URL}icon-512x512.png`,
+  `${BASE_URL}apple-touch-icon.png`
 ];
 // Assets generated during the build step will be injected into this array.
-const BUILD_ASSETS = (["assets/ChartTooltip-6a801a66.js","assets/DataEntryForm-99bdedea.js","assets/DeletionDialog-26852e1b.js","assets/EditCycleDatesDialog-c0218425.js","assets/badge-97c5a111.js","assets/dialog-2828cd6f.js","assets/eye-153cd699.js","assets/eye-off-b1122abf.js","assets/generatePlaceholders-ff84f052.js","assets/input-2b285a94.js","assets/label-3b80786f.js","assets/plus-e21e75d4.js","assets/useCycleData-4dcbf14b.js","assets/index-c797be08.css","assets/index-b896ef43.js","assets/ArchivedCyclesPage-a48c3de0.js","assets/AuthPage-157a3cc4.js","assets/ChartPage-3f0c00c2.js","assets/CycleDetailPage-37815bd2.js","assets/DashboardPage-ea45302c.js","assets/RecordsPage-81f65016.js","assets/SettingsPage-73a34e38.js"] || []).map(
+const BUILD_ASSETS = (["assets/ChartTooltip-6fef2c69.js","assets/DataEntryForm-ff5b3dce.js","assets/DeletionDialog-da7111f6.js","assets/EditCycleDatesDialog-acde630c.js","assets/badge-51682c31.js","assets/dialog-d17201db.js","assets/eye-add74470.js","assets/eye-off-cbbbeb2a.js","assets/generatePlaceholders-b76e4eec.js","assets/input-44b95b9b.js","assets/label-75f62444.js","assets/plus-2ba7c1cf.js","assets/useCycleData-58376b29.js","assets/index-c797be08.css","assets/index-ba6a3a71.js","assets/ArchivedCyclesPage-131e4991.js","assets/AuthPage-b2f97ae1.js","assets/ChartPage-d3701919.js","assets/CycleDetailPage-ea7bb52e.js","assets/DashboardPage-d370725b.js","assets/RecordsPage-079d47bb.js","assets/SettingsPage-d7ec1293.js"] || []).map(
   (asset) => `${BASE_URL}${asset}`
 );
 
@@ -29,24 +31,65 @@ self.addEventListener('activate', event => {
 });
 
 self.addEventListener('fetch', (event) => {
-    if (
-      event.request.method !== 'GET' ||
-      !event.request.url.startsWith(self.location.origin)
-    ) {
-    return;   // ignorar extensiones u otros esquemas
+  if (
+    event.request.method !== 'GET' ||
+    !event.request.url.startsWith(self.location.origin)
+  ) {
+    return; // ignorar extensiones u otros esquemas
+  }
+
+  const requestUrl = new URL(event.request.url);
+  const isIconRequest =
+    event.request.destination === 'image' &&
+    [
+      `${BASE_URL}icon-192x192.png`,
+      `${BASE_URL}icon-512x512.png`,
+      `${BASE_URL}icon-512x512-maskable.png`,
+      `${BASE_URL}apple-touch-icon.png`
+    ].includes(requestUrl.href);
+
+  if (isIconRequest) {
+    event.respondWith(
+      (async () => {
+        try {
+          const networkResponse = await fetch(event.request);
+          if (networkResponse && networkResponse.ok) {
+            const cache = await caches.open(CACHE_NAME);
+            await cache.put(event.request, networkResponse.clone());
+          }
+          return networkResponse;
+        } catch (error) {
+          const cachedResponse = await caches.match(event.request);
+          return cachedResponse || Response.error();
+        }
+      })()
+    );
+    return;
   }
 
   event.respondWith(
-    caches.match(event.request).then(cached => {
-      return cached || fetch(event.request).then(response => {
-        if (response && response.status === 200 && response.type === 'basic') {
-          const responseClone = response.clone();
-          caches.open(CACHE_NAME).then(cache =>
-            cache.put(event.request, responseClone)
-          );
+    (async () => {
+      const cachedResponse = await caches.match(event.request);
+      if (cachedResponse) {
+        return cachedResponse;
+      }
+
+      try {
+        const networkResponse = await fetch(event.request);
+        if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+          const cache = await caches.open(CACHE_NAME);
+          await cache.put(event.request, networkResponse.clone());
         }
-        return response;
-      }).catch(() => caches.match(`${BASE_URL}index.html`));
-    })
+        return networkResponse;
+      } catch (error) {
+        if (event.request.mode === 'navigate') {
+          const fallback = await caches.match(`${BASE_URL}index.html`);
+          if (fallback) {
+            return fallback;
+          }
+        }
+        return Response.error();
+      }
+    })()
   );
 });
