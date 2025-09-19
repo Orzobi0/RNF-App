@@ -62,16 +62,15 @@ const RecordsList = ({ records, onEdit, onDelete, isProcessing }) => {
                 use_corrected: record.use_corrected ?? false,
               }
             : null);
-        const hasTemperature =
-          selectedMeasurement &&
-          (selectedMeasurement.temperature || selectedMeasurement.temperature_corrected);
-        const displayTemp = selectedMeasurement
-          ? selectedMeasurement.temperature_corrected ?? selectedMeasurement.temperature
-          : null;
-        const showCorrectedIndicator =
-          (selectedMeasurement?.use_corrected ?? record.use_corrected ?? false) &&
-          (selectedMeasurement?.temperature_corrected ?? record.temperature_corrected ?? null) !== null;
-
+        const usesCorrected = selectedMeasurement?.use_corrected ?? record.use_corrected ?? false;
+        const correctedTemp =
+          selectedMeasurement?.temperature_corrected ?? record.temperature_corrected ?? null;
+        const rawTemp = selectedMeasurement?.temperature ?? record.temperature_chart ?? record.temperature_raw ?? null;
+        const resolvedTemp = usesCorrected && correctedTemp !== null ? correctedTemp : rawTemp ?? correctedTemp;
+        const hasTemperature = resolvedTemp !== null;
+        const displayTemp = resolvedTemp;
+        const showCorrectedIndicator = usesCorrected && correctedTemp !== null;
+        
         return (
           <motion.div
             key={record.id}
