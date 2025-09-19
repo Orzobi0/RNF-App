@@ -154,58 +154,30 @@ export const useFertilityChart = (
       return collected;
     };
 
-    for (let i = 0; i < processedData.length; i++) {
-      const current = processedData[i];
-      if (!isValid(current)) continue;
-      const prev = [];
-      let highestPrevTemp = null;
-      let highestPrevIndex = null;
-      for (let j = i - 1; j >= 0 && prev.length < 6; j--) {
-        const candidate = processedData[j];
-        if (isValid(candidate)) {
-          prev.unshift({ index: j, temp: candidate.displayTemperature });
-          if (
-            highestPrevTemp === null ||
-            candidate.displayTemperature > highestPrevTemp
-          ) {
-            highestPrevTemp = candidate.displayTemperature;
-            highestPrevIndex = j;
-          }
+    const recentValidEntries = collectLastValidEntries(6);
+
+    if (recentValidEntries.length === 6) {
+      const chronologicalEntries = [...recentValidEntries].sort(
+        (a, b) => a.index - b.index
+      );
+
+      baselineStartIndex = chronologicalEntries[0].index;
+      baselineTemp = chronologicalEntries.reduce(
+        (max, entry) => (entry.temp > max ? entry.temp : max),
+        chronologicalEntries[0].temp
+      );
+
+      const newestBaselineIndex = chronologicalEntries[chronologicalEntries.length - 1].index;
+
+      for (let idx = newestBaselineIndex + 1; idx < processedData.length; idx++) {
+        const candidate = processedData[idx];
+        if (!isValid(candidate)) continue;
+        if (candidate.displayTemperature > baselineTemp) {
+          firstHighIndex = idx;
+          break;
         }
       }
-      if (prev.length < 6) continue;
-      if (
-        highestPrevTemp === null ||
-        !Number.isFinite(highestPrevTemp) ||
-        highestPrevIndex === null ||
-        !Number.isFinite(highestPrevIndex)
-      ) {
-        continue;
-      }
-      if (current.displayTemperature > highestPrevTemp) {
-        baselineTemp = highestPrevTemp;
-        baselineStartIndex = highestPrevIndex;
-        firstHighIndex = i;
-        break;
-      }
     }
-if (baselineTemp == null || firstHighIndex == null) {
-  const validChrono = processedData
-    .map((d, idx) => ({ ...d, index: idx }))
-    .filter(d => isValid(d));
-
-  if (validChrono.length >= 6) {
-    // últimos 6 en orden cronológico real
-    const recentValid = validChrono.slice(validChrono.length - 6);
-
-    const highestEntry = recentValid.reduce((max, d) =>
-      d.displayTemperature > max.displayTemperature ? d : max
-    );
-
-    baselineTemp = highestEntry.displayTemperature;
-    baselineStartIndex = recentValid[0].index;
-  }
-}
 
 
     const emptyResult = {
