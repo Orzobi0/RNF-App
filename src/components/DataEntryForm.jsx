@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useMemo } from 'react';
 import DataEntryFormFields from '@/components/dataEntryForm/DataEntryFormFields';
 import DataEntryFormActions from '@/components/dataEntryForm/DataEntryFormActions';
 import { motion } from 'framer-motion';
@@ -47,7 +47,10 @@ const DataEntryForm = ({ onSubmit, initialData, onCancel, cycleStartDate, cycleE
     setIgnored,
     handleSubmit,
   } = useDataEntryForm(onSubmit, initialData, isEditing, cycleStartDate, cycleEndDate, cycleData, onDateSelect);
-  const recordedDates = cycleData.map((r) => parseISO(r.isoDate));
+   const recordedDates = useMemo(
+    () => cycleData.map((r) => parseISO(r.isoDate)),
+    [cycleData]
+  );
 
   return (
     <motion.form

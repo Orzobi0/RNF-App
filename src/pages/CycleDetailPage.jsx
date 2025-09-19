@@ -17,6 +17,7 @@ import { useAuth } from '@/contexts/AuthContext';
 
     // Mantener un ancho manejable en horizontal para ciclos largos
     const CYCLE_DURATION_DAYS = 28;
+    const VISIBLE_DAYS_FULLSCREEN_PORTRAIT = 10;
 
     const CycleDetailContent = ({
       cycleData,
@@ -41,7 +42,9 @@ import { useAuth } from '@/contexts/AuthContext';
 }) => {
 
 
-      const visibleDays = orientation === 'landscape' ? CYCLE_DURATION_DAYS : 5;
+      const visibleDays = orientation === 'portrait'
+        ? VISIBLE_DAYS_FULLSCREEN_PORTRAIT
+        : CYCLE_DURATION_DAYS;
 
       const handleEdit = (record) => {
         const openForm = () => {
@@ -150,6 +153,7 @@ import { useAuth } from '@/contexts/AuthContext';
                 showInterpretation={showInterpretation}
                 visibleDays={visibleDays}
                 reduceMotion={true}
+                forceLandscape={orientation === 'landscape'}
               />
               <Button
                   onClick={onToggleInterpretation}
