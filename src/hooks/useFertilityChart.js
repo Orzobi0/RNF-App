@@ -140,6 +140,20 @@ export const useFertilityChart = (
     let baselineStartIndex = null;
     let firstHighIndex = null;
 
+    const collectLastValidEntries = (limit = 6) => {
+      const collected = [];
+      for (let idx = processedData.length - 1; idx >= 0 && collected.length < limit; idx--) {
+        const candidate = processedData[idx];
+        if (!isValid(candidate)) continue;
+
+        const temperature = candidate.displayTemperature;
+        if (!Number.isFinite(temperature)) continue;
+
+        collected.push({ index: idx, temp: temperature });
+      }
+      return collected;
+    };
+
     for (let i = 0; i < processedData.length; i++) {
       const current = processedData[i];
       if (!isValid(current)) continue;
@@ -175,25 +189,25 @@ export const useFertilityChart = (
         break;
       }
     }
-    if (baselineTemp == null || firstHighIndex == null) {
-      const recentValid = [];
-      for (let idx = processedData.length - 1; idx >= 0 && recentValid.length < 6; idx--) {
-        const candidate = processedData[idx];
-        if (!isValid(candidate)) continue;
-        recentValid.push({ index: idx, temp: candidate.displayTemperature });
-      }
+if (baselineTemp == null || firstHighIndex == null) {
+  const validChrono = processedData
+    .map((d, idx) => ({ ...d, index: idx }))
+    .filter(d => isValid(d));
 
-      if (recentValid.length === 6) {
-        let highestEntry = recentValid[0];
-        for (let k = 1; k < recentValid.length; k++) {
-          if (recentValid[k].temp > highestEntry.temp) {
-            highestEntry = recentValid[k];
-          }
-        }
-        baselineTemp = highestEntry.temp;
-        baselineStartIndex = highestEntry.index;
-      }
-    }
+  if (validChrono.length >= 6) {
+    // últimos 6 en orden cronológico real
+    const recentValid = validChrono.slice(validChrono.length - 6);
+
+    const highestEntry = recentValid.reduce((max, d) =>
+      d.displayTemperature > max.displayTemperature ? d : max
+    );
+
+    baselineTemp = highestEntry.displayTemperature;
+    baselineStartIndex = recentValid[0].index;
+  }
+}
+
+
     const emptyResult = {
       baselineTemp,
       baselineStartIndex,
