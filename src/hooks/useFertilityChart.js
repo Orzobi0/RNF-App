@@ -176,37 +176,30 @@ export const useFertilityChart = (
       }
     }
     if (baselineTemp == null || firstHighIndex == null) {
-      const fallbackPoints = [];
-      for (let idx = processedData.length - 1; idx >= 0 && fallbackPoints.length < 6; idx--) {
-        const candidate = processedData[idx];
-        if (isValid(candidate)) {
-          fallbackPoints.unshift({ index: idx, temp: candidate.displayTemperature });
+      let fallbackBaselineTemp = null;
+      let fallbackBaselineIndex = null;
+
+      processedData.forEach((candidate, idx) => {
+        if (!isValid(candidate)) return;
+        const candidateTemp = candidate.displayTemperature;
+        if (
+          fallbackBaselineTemp === null ||
+          candidateTemp > fallbackBaselineTemp ||
+          (candidateTemp === fallbackBaselineTemp && idx < fallbackBaselineIndex)
+        ) {
+          fallbackBaselineTemp = candidateTemp;
+          fallbackBaselineIndex = idx;
         }
-      }
-
-      if (fallbackPoints.length === 6) {
-        let fallbackBaselineTemp = null;
-        let fallbackBaselineIndex = null;
-
-        fallbackPoints.forEach((point) => {
-          if (
-            fallbackBaselineTemp === null ||
-            point.temp > fallbackBaselineTemp
-          ) {
-            fallbackBaselineTemp = point.temp;
-            fallbackBaselineIndex = point.index;
-          }
         });
 
-        if (
-          fallbackBaselineTemp !== null &&
-          Number.isFinite(fallbackBaselineTemp) &&
-          fallbackBaselineIndex !== null &&
-          Number.isFinite(fallbackBaselineIndex)
-        ) {
-          baselineTemp = fallbackBaselineTemp;
-          baselineStartIndex = fallbackBaselineIndex;
-        }
+      if (
+        fallbackBaselineTemp !== null &&
+        Number.isFinite(fallbackBaselineTemp) &&
+        fallbackBaselineIndex !== null &&
+        Number.isFinite(fallbackBaselineIndex)
+      ) {
+        baselineTemp = fallbackBaselineTemp;
+        baselineStartIndex = fallbackBaselineIndex;
       }
     }
     const emptyResult = {
