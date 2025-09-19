@@ -77,7 +77,7 @@ const FertilityChart = ({
   const baselineWidth = 3;
   const isLoading = chartWidth === 0;
   const baseY = chartHeight - padding.bottom;
-  console.log({ baselineTemp, firstHighIndex, confirmedRise });
+ 
 
   const validDataMap = useMemo(() => {
     const map = new Map();

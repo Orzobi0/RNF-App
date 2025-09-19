@@ -175,7 +175,40 @@ export const useFertilityChart = (
         break;
       }
     }
+    if (baselineTemp == null || firstHighIndex == null) {
+      const fallbackPoints = [];
+      for (let idx = processedData.length - 1; idx >= 0 && fallbackPoints.length < 6; idx--) {
+        const candidate = processedData[idx];
+        if (isValid(candidate)) {
+          fallbackPoints.unshift({ index: idx, temp: candidate.displayTemperature });
+        }
+      }
 
+      if (fallbackPoints.length === 6) {
+        let fallbackBaselineTemp = null;
+        let fallbackBaselineIndex = null;
+
+        fallbackPoints.forEach((point) => {
+          if (
+            fallbackBaselineTemp === null ||
+            point.temp > fallbackBaselineTemp
+          ) {
+            fallbackBaselineTemp = point.temp;
+            fallbackBaselineIndex = point.index;
+          }
+        });
+
+        if (
+          fallbackBaselineTemp !== null &&
+          Number.isFinite(fallbackBaselineTemp) &&
+          fallbackBaselineIndex !== null &&
+          Number.isFinite(fallbackBaselineIndex)
+        ) {
+          baselineTemp = fallbackBaselineTemp;
+          baselineStartIndex = fallbackBaselineIndex;
+        }
+      }
+    }
     const emptyResult = {
       baselineTemp,
       baselineStartIndex,
