@@ -64,7 +64,9 @@ const ChartPoints = ({
   temperatureField = 'temperature_chart',
   textRowHeight,
   compact = false,
-  reduceMotion = false
+  reduceMotion = false,
+  showInterpretation = false,
+  ovulationDetails = null
 }) => {
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -146,6 +148,12 @@ const ChartPoints = ({
           <stop offset="0%" stopColor="#FFFFFF" />
           <stop offset="80%" stopColor="#F8FAFC" />
           <stop offset="100%" stopColor="#E2E8F0" />
+        </radialGradient>
+        <radialGradient id="ovulationPointGradient" cx="30%" cy="30%">
+          <stop offset="0%" stopColor="#bfdbfe" />
+          <stop offset="45%" stopColor="#60a5fa" />
+          <stop offset="85%" stopColor="#2563eb" />
+          <stop offset="100%" stopColor="#1d4ed8" />
         </radialGradient>
       </defs>
 
@@ -232,6 +240,13 @@ const ChartPoints = ({
           || point.mucus_appearance
           || point.fertility_symbol;
         const isPlaceholder = String(point.id || '').startsWith('placeholder-');
+        const isOvulationConfirmation =
+          showInterpretation &&
+          ovulationDetails?.confirmed &&
+          !point.ignored &&
+          hasTemp &&
+          index === ovulationDetails.confirmationIndex;
+
 
         const interactionProps = (!hasAnyRecord || isPlaceholder)
           ? {}
@@ -323,33 +338,55 @@ const ChartPoints = ({
                 <circle
                   cx={x}
                   cy={y}
-                  r={1.5}
-                  fill="rgba(244, 114, 182, 0.2)"
-                  opacity={0.8}
+                  r={isOvulationConfirmation ? 2 : 1.5}
+                  fill={isOvulationConfirmation ? 'rgba(59, 130, 246, 0.28)' : 'rgba(244, 114, 182, 0.2)'}
+                  opacity={0.85}
                   style={{ filter: 'url(#pointGlow)' }}
                 />
                 
                 {/* Anillo decorativo exterior */}
                 <circle
-                  cx={x} 
+                  cx={x}
                   cy={y}
-                  r={3.5}
+                  r={isOvulationConfirmation ? 4.2 : 3.5}
                   fill="none"
-                  stroke={point.ignored ? 'rgba(148, 163, 184, 0.4)' : 'rgba(244, 114, 182, 0.3)'}
-                  strokeWidth={1.5}
-                  opacity={0.6}
+                  stroke={
+                    point.ignored
+                      ? 'rgba(148, 163, 184, 0.4)'
+                      : isOvulationConfirmation
+                        ? 'rgba(37, 99, 235, 0.55)'
+                        : 'rgba(244, 114, 182, 0.3)'
+                  }
+                  strokeWidth={isOvulationConfirmation ? 2 : 1.5}
+                  opacity={isOvulationConfirmation ? 0.9 : 0.6}
                 />
                 
                 {/* Punto principal con gradiente mejorado */}
                 <circle
-                  cx={x} 
+                  cx={x}
                   cy={y}
-                  r={4}
-                  fill={point.ignored ? 'url(#tempPointIgnoredGradient)' : 'url(#tempPointGradientChart)'}
-                  stroke={point.use_corrected ? '#F59E0B' : (point.ignored ? '#94A3B8' : '#E91E63')}
-                  strokeWidth={point.ignored ? 2 : 3}
-                  style={{ 
-                    filter: 'drop-shadow(0 3px 6px rgba(244, 114, 182, 0.4))',
+                  r={isOvulationConfirmation ? 4.6 : 4}
+                  fill={
+                    point.ignored
+                      ? 'url(#tempPointIgnoredGradient)'
+                      : isOvulationConfirmation
+                        ? 'url(#ovulationPointGradient)'
+                        : 'url(#tempPointGradientChart)'
+                  }
+                  stroke={
+                    point.use_corrected
+                      ? '#F59E0B'
+                      : point.ignored
+                        ? '#94A3B8'
+                        : isOvulationConfirmation
+                          ? '#1d4ed8'
+                          : '#E91E63'
+                  }
+                  strokeWidth={point.ignored ? 2 : isOvulationConfirmation ? 3.2 : 3}
+                  style={{
+                    filter: isOvulationConfirmation
+                      ? 'drop-shadow(0 3px 8px rgba(37, 99, 235, 0.45))'
+                      : 'drop-shadow(0 3px 6px rgba(244, 114, 182, 0.4))',
                     cursor: 'pointer'
                   }}
                   pointerEvents="all"
@@ -361,11 +398,27 @@ const ChartPoints = ({
                 {/* Punto central brillante */}
                 {!point.ignored && (
                   <circle
+                    cx={x}
+                    cy={y}
+                    r={isOvulationConfirmation ? 1.8 : 1.5}
+                    fill={isOvulationConfirmation ? 'rgba(239, 246, 255, 0.95)' : 'rgba(255, 255, 255, 0.9)'}
+                    style={{
+                      filter: isOvulationConfirmation
+                        ? 'drop-shadow(0 1px 3px rgba(37, 99, 235, 0.45))'
+                        : 'drop-shadow(0 1px 2px rgba(244, 114, 182, 0.3))'
+                    }}
+                  />
+                )}
+
+                {isOvulationConfirmation && (
+                  <circle
                     cx={x} 
                     cy={y}
-                    r={1.5}
-                    fill="rgba(255, 255, 255, 0.9)"
-                    style={{ filter: 'drop-shadow(0 1px 2px rgba(244, 114, 182, 0.3))' }}
+                    r={6.5}
+                    fill="none"
+                    stroke="rgba(37, 99, 235, 0.35)"
+                    strokeWidth={1.2}
+                    strokeDasharray="4 3"
                   />
                 )}
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import ChartAxes from '@/components/chartElements/ChartAxes';
 import ChartLine from '@/components/chartElements/ChartLine';
@@ -42,6 +42,8 @@ const FertilityChart = ({
     setActivePoint,
     baselineTemp,
     baselineStartIndex,
+    firstHighIndex,
+    ovulationDetails,
   } = useFertilityChart(data, isFullScreen, orientation, onToggleIgnore, cycleId, visibleDays, forceLandscape);
 
   if (!allDataPoints || allDataPoints.length === 0) {
@@ -60,9 +62,133 @@ const FertilityChart = ({
   const chartWidth = dimensions.width;
   const chartHeight = dimensions.height;
   const baselineY = baselineTemp != null ? getY(baselineTemp) : null;
-  const canRenderBaseline = baselineTemp != null && Number.isFinite(baselineStartIndex);
+  const hasPotentialRise = baselineTemp != null && Number.isFinite(firstHighIndex);
+  const confirmedRise = Boolean(ovulationDetails?.confirmed);
+  const shouldRenderBaseline = baselineTemp != null;
+
   const baselineStartX = getX(0);
+  const baselineEndX =
+    allDataPoints.length > 0
+      ? getX(allDataPoints.length - 1)
+      : chartWidth - padding.right;
+  const baselineStroke = confirmedRise ? '#F59E0B' : '#94A3B8';
+  const baselineDash = confirmedRise ? '6 4' : '4 4';
+  const baselineOpacity = confirmedRise ? 1 : 0.7;
+  const baselineWidth = 3;
   const isLoading = chartWidth === 0;
+  const baseY = chartHeight - padding.bottom;
+ 
+
+  const validDataMap = useMemo(() => {
+    const map = new Map();
+    validDataForLine.forEach((point) => {
+      if (point && point.id != null) {
+        map.set(point.id, point);
+      }
+    });
+    return map;
+  }, [validDataForLine]);
+
+  const fertileAreaPaths = useMemo(() => {
+    if (!showInterpretation || !ovulationDetails?.confirmed) return [];
+
+    const segments = [];
+    let currentSegment = [];
+    let lastIndex = null;
+
+    for (let idx = 0; idx < allDataPoints.length; idx++) {
+      const point = allDataPoints[idx];
+      const dataPoint = validDataMap.get(point?.id);
+      const include = dataPoint && idx <= ovulationDetails.confirmationIndex;
+
+      if (!include) {
+        if (currentSegment.length > 0) {
+          segments.push(currentSegment);
+          currentSegment = [];
+        }
+        lastIndex = null;
+        continue;
+      }
+
+      const x = getX(idx);
+      const y = getY(dataPoint.displayTemperature);
+
+      if (currentSegment.length > 0 && lastIndex !== null && idx !== lastIndex + 1) {
+        segments.push(currentSegment);
+        currentSegment = [];
+      }
+
+      currentSegment.push({ x, y, index: idx });
+      lastIndex = idx;
+    }
+
+    if (currentSegment.length > 0) {
+      segments.push(currentSegment);
+    }
+
+    return segments
+      .filter((segment) => segment.length >= 2)
+      .map((segment) => {
+        let path = `M ${segment[0].x} ${baseY} L ${segment[0].x} ${segment[0].y}`;
+        for (let i = 1; i < segment.length; i++) {
+          const point = segment[i];
+          path += ` L ${point.x} ${point.y}`;
+        }
+        path += ` L ${segment[segment.length - 1].x} ${baseY} Z`;
+        return path;
+      });
+  }, [showInterpretation, ovulationDetails, allDataPoints, validDataMap, getX, getY, baseY]);
+
+  const infertileAreaPaths = useMemo(() => {
+    if (!showInterpretation || !ovulationDetails?.confirmed) return [];
+    if (ovulationDetails.infertileStartIndex == null) return [];
+
+    const segments = [];
+    let currentSegment = [];
+    let lastIndex = null;
+
+    for (let idx = 0; idx < allDataPoints.length; idx++) {
+      const point = allDataPoints[idx];
+      const dataPoint = validDataMap.get(point?.id);
+      const include = dataPoint && idx >= ovulationDetails.infertileStartIndex;
+
+      if (!include) {
+        if (currentSegment.length > 0) {
+          segments.push(currentSegment);
+          currentSegment = [];
+        }
+        lastIndex = null;
+        continue;
+      }
+
+      const x = getX(idx);
+      const y = getY(dataPoint.displayTemperature);
+
+      if (currentSegment.length > 0 && lastIndex !== null && idx !== lastIndex + 1) {
+        segments.push(currentSegment);
+        currentSegment = [];
+      }
+
+      currentSegment.push({ x, y, index: idx });
+      lastIndex = idx;
+    }
+
+    if (currentSegment.length > 0) {
+      segments.push(currentSegment);
+    }
+
+    return segments
+      .filter((segment) => segment.length >= 2)
+      .map((segment) => {
+        let path = `M ${segment[0].x} ${baseY} L ${segment[0].x} ${segment[0].y}`;
+        for (let i = 1; i < segment.length; i++) {
+          const point = segment[i];
+          path += ` L ${point.x} ${point.y}`;
+        }
+        path += ` L ${segment[segment.length - 1].x} ${baseY} Z`;
+        return path;
+      });
+  }, [showInterpretation, ovulationDetails, allDataPoints, validDataMap, getX, getY, baseY]);
   
 
   
@@ -190,6 +316,15 @@ const FertilityChart = ({
                 <feMergeNode in="SourceGraphic"/>
               </feMerge>
             </filter>
+            <linearGradient id="fertileAreaGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="rgba(96, 165, 250, 0.35)" />
+              <stop offset="100%" stopColor="rgba(59, 130, 246, 0.12)" />
+            </linearGradient>
+
+            <linearGradient id="infertileAreaGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="rgba(196, 181, 253, 0.32)" />
+              <stop offset="100%" stopColor="rgba(167, 139, 250, 0.12)" />
+            </linearGradient>
           </defs>
 
           {/* Fondo transparente para interacciones */}
@@ -211,30 +346,54 @@ const FertilityChart = ({
             showLeftLabels={!showLegend}
             reduceMotion={reduceMotion}
           />
+          {showInterpretation && ovulationDetails?.confirmed && (
+            <>
+              {fertileAreaPaths.map((path, idx) => (
+                <path
+                  key={`fertile-area-${idx}`}
+                  d={path}
+                  fill="url(#fertileAreaGradient)"
+                  opacity={0.65}
+                  pointerEvents="none"
+                />
+              ))}
+              {infertileAreaPaths.map((path, idx) => (
+                <path
+                  key={`infertile-area-${idx}`}
+                  d={path}
+                  fill="url(#infertileAreaGradient)"
+                  opacity={0.6}
+                  pointerEvents="none"
+                />
+              ))}
+            </>
+          )}
                    {/* Línea baseline mejorada */}
-          {showInterpretation && canRenderBaseline && (            
-            (reduceMotion ? (
+          {showInterpretation && shouldRenderBaseline && baselineY !== null && (
+            reduceMotion ? (
               
               <line
                 x1={baselineStartX}
                 y1={baselineY}
-                x2={chartWidth - padding.right}
+                x2={baselineEndX}
                 y2={baselineY}
-                stroke="#F59E0B"
-                strokeWidth={3}
-                strokeDasharray="6 4"
+                stroke={baselineStroke}
+                strokeWidth={baselineWidth}
+                strokeDasharray={baselineDash}
+                opacity={baselineOpacity}
               />
             ) : (
             <motion.path
-                d={`M ${baselineStartX} ${baselineY} L ${chartWidth - padding.right} ${baselineY}`}
-                stroke="#F59E0B"
-                strokeWidth={3}
-                strokeDasharray="6 4"
+                d={`M ${baselineStartX} ${baselineY} L ${baselineEndX} ${baselineY}`}
+                stroke={baselineStroke}
+                strokeWidth={baselineWidth}
+                strokeDasharray={baselineDash}
+                opacity={baselineOpacity}
                 initial={{ pathLength: 0, opacity: 0 }}
-                animate={{ pathLength: 1, opacity: 1 }}
-                transition={{ duration: 4, ease: "easeInOut", delay: 0.5 }}
-/>
-            ))
+                animate={{ pathLength: 1, opacity: baselineOpacity }}
+                transition={{ duration: 4, ease: 'easeInOut', delay: 0.5 }}
+              />
+            )
           )}
           {/* Línea de temperatura */}
           <ChartLine
@@ -265,6 +424,8 @@ const FertilityChart = ({
             textRowHeight={textRowHeight}
             compact={false}
             reduceMotion={reduceMotion}
+            showInterpretation={showInterpretation}
+            ovulationDetails={ovulationDetails}
           />
  
         </motion.svg>

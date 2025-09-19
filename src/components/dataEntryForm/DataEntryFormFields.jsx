@@ -145,6 +145,7 @@ const DataEntryFormFields = ({
               max="40.0"
               value={m.temperature}
               onChange={(e) => updateMeasurement(idx, 'temperature', e.target.value)}
+              onInput={(e) => updateMeasurement(idx, 'temperature', e.target.value)}
               placeholder="36.50"
               className="bg-white/70 border-amber-200 text-gray-800 placeholder-gray-400 focus:ring-orange-500 focus:border-orange-500 text-base"
               disabled={isProcessing}

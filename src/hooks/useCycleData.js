@@ -41,15 +41,21 @@ export const useCycleData = (specificCycleId = null) => {
   const [archivedCycles, setArchivedCycles] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const loadCycleData = useCallback(async () => {
+  const loadCycleData = useCallback(async (options = {}) => {
+    const { silent = false } = options;
+
     if (!user?.uid) {
       console.log('No user found, skipping cycle data load');
-      setIsLoading(false);
+      if (!silent) {
+        setIsLoading(false);
+      }
       return;
     }
     
     console.log('Loading cycle data for user:', user.uid);
-    setIsLoading(true);
+    if (!silent) {
+      setIsLoading(true);
+    }
 
     try {
       let cycleToLoad;
@@ -111,7 +117,9 @@ export const useCycleData = (specificCycleId = null) => {
       setCurrentCycle({ id: null, startDate: null, data: [] });
       setArchivedCycles([]);
     } finally {
-      setIsLoading(false);
+      if (!silent) {
+        setIsLoading(false);
+      }
     }
   }, [user, specificCycleId]);
 
@@ -207,24 +215,63 @@ export const useCycleData = (specificCycleId = null) => {
     if (!user?.uid) return;
     
     console.log('Toggling ignore for record:', recordId, 'in cycle:', cycleIdToUpdate);
-    setIsLoading(true);
+
+    const isCurrentCycle = cycleIdToUpdate === currentCycle.id;
+    const targetCycle = isCurrentCycle
+      ? currentCycle
+      : archivedCycles.find(cycle => cycle.id === cycleIdToUpdate);
+
+    if (!targetCycle) {
+      throw new Error("Cycle not found for toggling ignore state.");
+    }
+
+    const recordToUpdate = targetCycle.data?.find(r => r.id === recordId);
+    if (!recordToUpdate) {
+      throw new Error("Record not found for toggling ignore state.");
+    }
+
+    const newIgnoredState = !recordToUpdate.ignored;
+
+    const applyIgnoredState = (ignoredValue) => {
+      if (isCurrentCycle) {
+        setCurrentCycle(prevCycle => {
+          if (prevCycle.id !== cycleIdToUpdate) return prevCycle;
+          return {
+            ...prevCycle,
+            data: prevCycle.data.map(record =>
+              record.id === recordId ? { ...record, ignored: ignoredValue } : record
+            )
+          };
+        });
+      } else {
+        setArchivedCycles(prevCycles =>
+          prevCycles.map(cycle => {
+            if (cycle.id !== cycleIdToUpdate) return cycle;
+            return {
+              ...cycle,
+              data: (cycle.data || []).map(record =>
+                record.id === recordId ? { ...record, ignored: ignoredValue } : record
+              )
+            };
+          })
+        );
+      }
+    };
+
     try {
-      const targetCycle = cycleIdToUpdate === currentCycle.id ? currentCycle : archivedCycles.find(c => c.id === cycleIdToUpdate);
-      if (!targetCycle) throw new Error("Cycle not found for toggling ignore state.");
-
-      const recordToUpdate = targetCycle.data.find(r => r.id === recordId);
-      if (!recordToUpdate) throw new Error("Record not found for toggling ignore state.");
-
-      const newIgnoredState = !recordToUpdate.ignored;
+      applyIgnoredState(newIgnoredState);
       await updateCycleEntry(user.uid, cycleIdToUpdate, recordId, { ignored: newIgnoredState });
-      await loadCycleData();
+
+      loadCycleData({ silent: true }).catch(error =>
+        console.error('Background cycle data refresh failed after toggling ignore state:', error)
+      );
 
       console.log('Record ignore status toggled successfully');
     } catch (error) {
       console.error("Error toggling ignore state:", error);
+      applyIgnoredState(!newIgnoredState);
       throw error;
-    } finally {
-      setIsLoading(false);
+
     }
   }, [user, currentCycle, archivedCycles, loadCycleData]);
 

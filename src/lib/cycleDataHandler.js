@@ -303,20 +303,35 @@ export const createNewCycleEntry = async (payload) => {
 
 export const updateCycleEntry = async (userId, cycleId, entryId, payload) => {
   const entryRef = doc(db, `users/${userId}/cycles/${cycleId}/entries/${entryId}`);
-  const entryToUpdate = {
-    temperature_raw: payload.temperature_raw,
-    temperature_corrected: payload.temperature_corrected,
-    use_corrected: payload.use_corrected,
-    temperature_chart: payload.temperature_chart,
-    mucus_sensation: payload.mucus_sensation,
-    mucus_appearance: payload.mucus_appearance,
-    fertility_symbol: payload.fertility_symbol,
-    observations: payload.observations,
-    ignored: payload.ignored,
-  };
-  if (payload.timestamp) {
+
+  const allowedFields = [
+    'temperature_raw',
+    'temperature_corrected',
+    'use_corrected',
+    'temperature_chart',
+    'mucus_sensation',
+    'mucus_appearance',
+    'fertility_symbol',
+    'observations',
+    'ignored',
+  ];
+
+  const entryToUpdate = {};
+
+  for (const field of allowedFields) {
+    if (Object.prototype.hasOwnProperty.call(payload, field)) {
+      entryToUpdate[field] = payload[field];
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(payload, 'timestamp')) {
     entryToUpdate.timestamp = payload.timestamp;
   }
+  
+  if (Object.keys(entryToUpdate).length === 0) {
+    return { id: entryId };
+  }
+
   await updateDoc(entryRef, entryToUpdate);
     if (payload.measurements) {
     const mRef = collection(db, `users/${userId}/cycles/${cycleId}/entries/${entryId}/measurements`);

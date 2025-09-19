@@ -1,7 +1,162 @@
 import { useEffect, useLayoutEffect, useRef, useState, useMemo } from 'react';
 
-    const DEFAULT_TEMP_MIN = 35.5;
-    const DEFAULT_TEMP_MAX = 37.5;
+const DEFAULT_TEMP_MIN = 35.5;
+const DEFAULT_TEMP_MAX = 37.5;
+
+export const computeOvulationMetrics = (processedData = []) => {
+  const isValid = (p) => p && p.displayTemperature != null && !p.ignored;
+  const windowSize = 6;
+  const slidingWindow = [];
+
+  let baselineTemp = null;
+  let baselineStartIndex = null;
+  let firstHighIndex = null;
+
+  const getBaselineInfo = (entries) => {
+    if (!entries || entries.length !== windowSize) return null;
+    const temps = entries.map((entry) => entry.temp);
+    if (temps.some((value) => !Number.isFinite(value))) return null;
+
+    const maxTemp = temps.reduce(
+      (max, current) => (current > max ? current : max),
+      temps[0]
+    );
+
+    return {
+      baselineTemp: maxTemp,
+      baselineStartIndex: entries[0].index,
+    };
+  };
+
+  for (let idx = 0; idx < processedData.length; idx++) {
+    const candidate = processedData[idx];
+    if (!isValid(candidate)) continue;
+
+    const temperature = candidate.displayTemperature;
+    if (!Number.isFinite(temperature)) continue;
+
+    if (slidingWindow.length === windowSize) {
+      const baselineInfo = getBaselineInfo(slidingWindow);
+      if (baselineInfo) {
+        baselineTemp = baselineInfo.baselineTemp;
+        baselineStartIndex = baselineInfo.baselineStartIndex;
+
+        if (temperature > baselineTemp) {
+          firstHighIndex = idx;
+          break;
+        }
+      }
+    }
+
+    slidingWindow.push({ index: idx, temp: temperature });
+    if (slidingWindow.length > windowSize) {
+      slidingWindow.shift();
+    }
+  }
+
+  if (baselineTemp == null && slidingWindow.length === windowSize) {
+    const baselineInfo = getBaselineInfo(slidingWindow);
+    if (baselineInfo) {
+      baselineTemp = baselineInfo.baselineTemp;
+      baselineStartIndex = baselineInfo.baselineStartIndex;
+    }
+  }
+
+  const emptyDetails = {
+    confirmed: false,
+    confirmationIndex: null,
+    infertileStartIndex: null,
+    rule: null,
+    highSequenceIndices: [],
+  };
+
+  if (baselineTemp == null || firstHighIndex == null) {
+    return {
+      baselineTemp,
+      baselineStartIndex,
+      firstHighIndex,
+      ovulationDetails: emptyDetails,
+    };
+  }
+
+  const evaluateSequence = (sequence) => {
+    if (!sequence || sequence.length < 3) return null;
+
+    const requiredRise = baselineTemp + 0.2;
+    const firstThree = sequence.slice(0, 3);
+    if (firstThree.length < 3) return null;
+
+    const countBelowThreshold = firstThree.filter((p) => p.temp < requiredRise).length;
+
+    if (countBelowThreshold === 0) {
+      return {
+        confirmationIndex: firstThree[2].index,
+        usedIndices: firstThree.map((p) => p.index),
+        rule: '3-high',
+      };
+    }
+
+    if (countBelowThreshold === 1) {
+      if (sequence.length >= 4 && sequence[3].temp > baselineTemp) {
+        return {
+          confirmationIndex: sequence[3].index,
+          usedIndices: sequence.slice(0, 4).map((p) => p.index),
+          rule: '4-high',
+        };
+      }
+      return null;
+    }
+
+    if (countBelowThreshold >= 2) {
+      if (sequence.length >= 5 && sequence[4].temp >= requiredRise) {
+        return {
+          confirmationIndex: sequence[4].index,
+          usedIndices: sequence.slice(0, 5).map((p) => p.index),
+          rule: '5-high',
+        };
+      }
+    }
+
+    return null;
+  };
+
+  let confirmedDetails = emptyDetails;
+
+  for (let start = firstHighIndex; start < processedData.length; start++) {
+    const startPoint = processedData[start];
+    if (!isValid(startPoint) || startPoint.displayTemperature <= baselineTemp) {
+      continue;
+    }
+
+    const sequence = [];
+    for (let j = start; j < processedData.length && sequence.length < 5; j++) {
+      const candidate = processedData[j];
+      if (!isValid(candidate) || candidate.displayTemperature <= baselineTemp) {
+        break;
+      }
+      sequence.push({ index: j, temp: candidate.displayTemperature });
+    }
+
+    const result = evaluateSequence(sequence);
+    if (result) {
+      confirmedDetails = {
+        confirmed: true,
+        confirmationIndex: result.confirmationIndex,
+        infertileStartIndex: result.confirmationIndex + 1,
+        rule: result.rule,
+        highSequenceIndices: result.usedIndices,
+      };
+      break;
+    }
+  }
+
+  return {
+    baselineTemp,
+    baselineStartIndex,
+    firstHighIndex,
+    ovulationDetails: confirmedDetails,
+  };
+};
 
 export const useFertilityChart = (
   data,
@@ -134,45 +289,10 @@ export const useFertilityChart = (
 
   const validDataForLine = useMemo(() => processedData.filter(d => d && d.isoDate && !d.ignored && d.displayTemperature !== null && d.displayTemperature !== undefined), [processedData]);
   const allDataPoints = useMemo(() => processedData.filter(d => d && d.isoDate), [processedData]);
-  const { baselineTemp, baselineStartIndex } = useMemo(() => {
-    const isValid = (p) => p && p.displayTemperature != null && !p.ignored;
-    for (let i = 0; i < processedData.length; i++) {
-      const current = processedData[i];
-      if (!isValid(current)) continue;
-      const prev = [];
-      let highestPrevTemp = null;
-      let highestPrevIndex = null;
-      for (let j = i - 1; j >= 0 && prev.length < 6; j--) {
-        const candidate = processedData[j];
-        if (isValid(candidate)) {
-          prev.unshift({ index: j, temp: candidate.displayTemperature });
-          if (
-            highestPrevTemp === null ||
-            candidate.displayTemperature > highestPrevTemp
-          ) {
-            highestPrevTemp = candidate.displayTemperature;
-            highestPrevIndex = j;
-          }
-        }
-      }
-      if (prev.length < 6) continue;
-      if (
-        highestPrevTemp === null ||
-        !Number.isFinite(highestPrevTemp) ||
-        highestPrevIndex === null ||
-        !Number.isFinite(highestPrevIndex)
-      ) {
-        continue;
-      }
-      if (current.displayTemperature > highestPrevTemp) {
-        return {
-          baselineTemp: highestPrevTemp,
-          baselineStartIndex: highestPrevIndex
-        };
-      }
-    }
-    return { baselineTemp: null, baselineStartIndex: null };
-  }, [processedData]);
+  const { baselineTemp, baselineStartIndex, firstHighIndex, ovulationDetails } = useMemo(
+    () => computeOvulationMetrics(processedData),
+    [processedData]
+  );
 
       const { tempMin, tempMax } = useMemo(() => {
         const recordedTemps = validDataForLine.map(d => d.displayTemperature).filter(t => t !== null && t !== undefined);
@@ -335,5 +455,7 @@ const handlePointInteraction = (point, index, event) => {
         responsiveFontSize,
         baselineTemp,
         baselineStartIndex,
+        firstHighIndex,
+        ovulationDetails,
       };
     };

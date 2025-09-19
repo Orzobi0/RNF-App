@@ -14,10 +14,10 @@ export default function useBackClose(active, onClose) {
       ? crypto.randomUUID()
       : Math.random().toString(36).slice(2);
 
-    const handlePopState = (e) => {
-      if (e.state && e.state.overlay === id) {
-        onClose();
-      }
+    let dismissedByPop = false;
+    const handlePopState = () => {
+      dismissedByPop = true;
+      onClose();
     };
 
     // push dummy state so that back button closes the overlay
@@ -32,7 +32,7 @@ export default function useBackClose(active, onClose) {
       clearTimeout(timeout);
       window.removeEventListener("popstate", handlePopState);
       // remove the dummy state if overlay was closed via UI
-      if (ignore) return;
+      if (ignore || dismissedByPop) return;
       if (window.history.state && window.history.state.overlay === id) {
         window.history.back();
       }
