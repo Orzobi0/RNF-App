@@ -1,4 +1,5 @@
-const CACHE_NAME = 'rnf-app-cache-v1';
+const CACHE_VERSION = '2025-09-22T21:25:33.860Z';
+const CACHE_NAME = `rnf-app-cache-${CACHE_VERSION}`;
 const BASE_URL = self.registration.scope;
 const ASSETS = [
   BASE_URL,
@@ -10,7 +11,7 @@ const ASSETS = [
   `${BASE_URL}apple-touch-icon.png`
 ];
 // Assets generated during the build step will be injected into this array.
-const BUILD_ASSETS = (["assets/ChartTooltip-e7d15225.js","assets/DataEntryForm-8cc4c6ac.js","assets/DeletionDialog-16ddeba9.js","assets/OverlapWarningDialog-c1eccf73.js","assets/badge-d29f03fc.js","assets/dialog-ac3ab53e.js","assets/eye-d7a8097f.js","assets/eye-off-6a9408c7.js","assets/generatePlaceholders-84d4ebe7.js","assets/input-d6ccd637.js","assets/label-bb718494.js","assets/plus-284fda1e.js","assets/useCycleData-f8d63aaa.js","assets/index-c6a4abef.css","assets/index-00d866bf.js","assets/ArchivedCyclesPage-1ca2c24e.js","assets/AuthPage-e6138e97.js","assets/ChartPage-60a1e8d1.js","assets/CycleDetailPage-5cb4b1fd.js","assets/DashboardPage-024d96ed.js","assets/RecordsPage-e6a4756c.js","assets/SettingsPage-bfaafd0b.js"] || []).map(
+const BUILD_ASSETS = (["assets/ChartTooltip-fb88c83e.js","assets/DataEntryForm-8a2d2643.js","assets/DeletionDialog-92631ac5.js","assets/OverlapWarningDialog-8764e8c9.js","assets/badge-ba0d7950.js","assets/dialog-51f02635.js","assets/eye-1d723979.js","assets/eye-off-2409ea2a.js","assets/generatePlaceholders-6ff1d6b9.js","assets/input-b64dc7c3.js","assets/label-98f269bf.js","assets/plus-f9bee64c.js","assets/useCycleData-3d93d17f.js","assets/index-c6a4abef.css","assets/index-091bc822.js","assets/ArchivedCyclesPage-2380a156.js","assets/AuthPage-c87f9b12.js","assets/ChartPage-99571f13.js","assets/CycleDetailPage-ce2d4481.js","assets/DashboardPage-7511e5bf.js","assets/RecordsPage-42683385.js","assets/SettingsPage-aba1c598.js"] || []).map(
   (asset) => `${BASE_URL}${asset}`
 );
 
