@@ -140,7 +140,7 @@ export const computeOvulationMetrics = (processedData = []) => {
       confirmedDetails = {
         confirmed: true,
         confirmationIndex: result.confirmationIndex,
-        infertileStartIndex: result.confirmationIndex + 1,
+        infertileStartIndex: result.confirmationIndex,
         rule: result.rule,
         highSequenceIndices: result.usedIndices,
         ovulationIndex:

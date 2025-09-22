@@ -89,106 +89,78 @@ const FertilityChart = ({
     return map;
   }, [validDataForLine]);
 
+  const createAreaPaths = useMemo(() => {
+    const buildPathFromSegment = (segment) => {
+      if (!segment || segment.length < 2) return null;
+
+      let path = `M ${segment[0].x} ${baseY} L ${segment[0].x} ${segment[0].y}`;
+      for (let i = 1; i < segment.length; i++) {
+        const point = segment[i];
+        path += ` L ${point.x} ${point.y}`;
+      }
+      path += ` L ${segment[segment.length - 1].x} ${baseY} Z`;
+      return path;
+    };
+
+    return (shouldIncludeIndex) => {
+      if (typeof shouldIncludeIndex !== 'function') return [];
+
+      const paths = [];
+      let currentSegment = [];
+      let isActive = false;
+
+      const flushSegment = () => {
+        const path = buildPathFromSegment(currentSegment);
+        if (path) {
+          paths.push(path);
+        }
+        currentSegment = [];
+      };
+
+      for (let idx = 0; idx < allDataPoints.length; idx++) {
+        if (!shouldIncludeIndex(idx)) {
+          if (isActive) {
+            flushSegment();
+            isActive = false;
+          }
+          continue;
+        }
+
+        isActive = true;
+
+        const point = allDataPoints[idx];
+        const dataPoint = validDataMap.get(point?.id);
+
+        if (!dataPoint || !Number.isFinite(dataPoint.displayTemperature)) {
+          continue;
+        }
+
+        const x = getX(idx);
+        const y = getY(dataPoint.displayTemperature);
+        currentSegment.push({ x, y });
+      }
+
+      if (isActive) {
+        flushSegment();
+      }
+
+      return paths;
+    };
+  }, [allDataPoints, validDataMap, getX, getY, baseY]);
+
   const fertileAreaPaths = useMemo(() => {
     if (!showInterpretation || !ovulationDetails?.confirmed) return [];
+    if (!Number.isFinite(ovulationDetails.confirmationIndex)) return [];
 
-    const segments = [];
-    let currentSegment = [];
-    let lastIndex = null;
-
-    for (let idx = 0; idx < allDataPoints.length; idx++) {
-      const point = allDataPoints[idx];
-      const dataPoint = validDataMap.get(point?.id);
-      const include = dataPoint && idx <= ovulationDetails.confirmationIndex;
-
-      if (!include) {
-        if (currentSegment.length > 0) {
-          segments.push(currentSegment);
-          currentSegment = [];
-        }
-        lastIndex = null;
-        continue;
-      }
-
-      const x = getX(idx);
-      const y = getY(dataPoint.displayTemperature);
-
-      if (currentSegment.length > 0 && lastIndex !== null && idx !== lastIndex + 1) {
-        segments.push(currentSegment);
-        currentSegment = [];
-      }
-
-      currentSegment.push({ x, y, index: idx });
-      lastIndex = idx;
-    }
-
-    if (currentSegment.length > 0) {
-      segments.push(currentSegment);
-    }
-
-    return segments
-      .filter((segment) => segment.length >= 2)
-      .map((segment) => {
-        let path = `M ${segment[0].x} ${baseY} L ${segment[0].x} ${segment[0].y}`;
-        for (let i = 1; i < segment.length; i++) {
-          const point = segment[i];
-          path += ` L ${point.x} ${point.y}`;
-        }
-        path += ` L ${segment[segment.length - 1].x} ${baseY} Z`;
-        return path;
-      });
-  }, [showInterpretation, ovulationDetails, allDataPoints, validDataMap, getX, getY, baseY]);
+    return createAreaPaths((idx) => idx <= ovulationDetails.confirmationIndex);
+  }, [showInterpretation, ovulationDetails, createAreaPaths]);
 
   const infertileAreaPaths = useMemo(() => {
     if (!showInterpretation || !ovulationDetails?.confirmed) return [];
-    if (ovulationDetails.infertileStartIndex == null) return [];
+    if (!Number.isFinite(ovulationDetails.infertileStartIndex)) return [];
 
-    const segments = [];
-    let currentSegment = [];
-    let lastIndex = null;
-
-    for (let idx = 0; idx < allDataPoints.length; idx++) {
-      const point = allDataPoints[idx];
-      const dataPoint = validDataMap.get(point?.id);
-      const include = dataPoint && idx >= ovulationDetails.infertileStartIndex;
-
-      if (!include) {
-        if (currentSegment.length > 0) {
-          segments.push(currentSegment);
-          currentSegment = [];
-        }
-        lastIndex = null;
-        continue;
-      }
-
-      const x = getX(idx);
-      const y = getY(dataPoint.displayTemperature);
-
-      if (currentSegment.length > 0 && lastIndex !== null && idx !== lastIndex + 1) {
-        segments.push(currentSegment);
-        currentSegment = [];
-      }
-
-      currentSegment.push({ x, y, index: idx });
-      lastIndex = idx;
-    }
-
-    if (currentSegment.length > 0) {
-      segments.push(currentSegment);
-    }
-
-    return segments
-      .filter((segment) => segment.length >= 2)
-      .map((segment) => {
-        let path = `M ${segment[0].x} ${baseY} L ${segment[0].x} ${segment[0].y}`;
-        for (let i = 1; i < segment.length; i++) {
-          const point = segment[i];
-          path += ` L ${point.x} ${point.y}`;
-        }
-        path += ` L ${segment[segment.length - 1].x} ${baseY} Z`;
-        return path;
-      });
-  }, [showInterpretation, ovulationDetails, allDataPoints, validDataMap, getX, getY, baseY]);
+    return createAreaPaths((idx) => idx >= ovulationDetails.infertileStartIndex);
+  }, [showInterpretation, ovulationDetails, createAreaPaths]);
   
 
   
