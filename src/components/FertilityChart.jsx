@@ -322,10 +322,10 @@ const FertilityChart = ({
               <stop offset="100%" stopColor="rgba(236, 72, 153, 0.28)" />
             </linearGradient>
 
-            <linearGradient id="infertileAreaGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="rgba(221, 214, 254, 0.85)" />
-              <stop offset="45%" stopColor="rgba(165, 180, 252, 0.48)" />
-              <stop offset="100%" stopColor="rgba(129, 140, 248, 0.22)" />
+            <linearGradient id="infertileAreaGradient" x1="0%" y1="100%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="rgba(109, 189, 245, 0.48)" />
+              <stop offset="50%" stopColor="rgba(111, 168, 220, 0.48)" />
+              <stop offset="80%" stopColor="rgba(120, 143, 207, 0.48)" />
             </linearGradient>
           </defs>
 
