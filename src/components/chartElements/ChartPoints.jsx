@@ -276,7 +276,7 @@ const ChartPoints = ({
           : false;
 
         // Límites de texto
-        const maxChars = isFullScreen ? 4 : 9;
+        const maxChars = isFullScreen ? 4 : 7;
         const maxWords = 2;
 
         const [sensLine1, sensLine2] = splitText(
