@@ -1,4 +1,5 @@
-const CACHE_NAME = 'rnf-app-cache-v1';
+const CACHE_VERSION = '${__DATE__}';
+const CACHE_NAME = `rnf-app-cache-${CACHE_VERSION}`;
 const BASE_URL = self.registration.scope;
 const ASSETS = [
   BASE_URL,
