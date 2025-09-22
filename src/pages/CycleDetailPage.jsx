@@ -253,7 +253,7 @@ import { useAuth } from '@/contexts/AuthContext';
     deleteCycle,
     checkCycleOverlap,
     forceUpdateCycleStart
-  } = useCycleData(cycleId);
+  } = useCycleData();
       const [cycleData, setCycleData] = useState(null);
       const { toast } = useToast();
       const [editingRecord, setEditingRecord] = useState(null);
@@ -328,7 +328,7 @@ import { useAuth } from '@/contexts/AuthContext';
         setIsProcessing(true);
 
         try {
-          await addOrUpdateDataPoint(newData, editingRecord);
+          await addOrUpdateDataPoint(newData, editingRecord, cycleData.id);
           const updatedCycle = await getCycleById(cycleData.id);
           if (updatedCycle) {
             saveCycleDataToLocalStorage(updatedCycle);
@@ -360,7 +360,7 @@ import { useAuth } from '@/contexts/AuthContext';
         setIsProcessing(true);
 
         try {
-          await deleteRecord(recordId);
+          await deleteRecord(recordId, cycleData.id);
           const updatedCycle = await getCycleById(cycleData.id);
 
           if (updatedCycle) {
@@ -482,7 +482,7 @@ import { useAuth } from '@/contexts/AuthContext';
 
       }, [cycleData]);
 
-      if (cycleDataHookIsLoading || !cycleData) {
+      if ((cycleDataHookIsLoading && !cycleData) || !cycleData) {
         return <div className="text-center text-slate-300 p-8">Cargando detalles del ciclo...</div>;
       }
 

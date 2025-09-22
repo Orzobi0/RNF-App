@@ -63,7 +63,7 @@ const RecordsPage = () => {
     }
   };
 
-  if (isLoading) {
+  if (isLoading && !currentCycle?.id) {
     return (
       <div className="min-h-[100dvh] bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 flex items-center justify-center">
         <div

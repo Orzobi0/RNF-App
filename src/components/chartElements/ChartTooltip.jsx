@@ -129,13 +129,13 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
           {/* Header con fecha y día del ciclo */}
           <div className="mb-2">
             <div className="flex items-center gap-3 mb-1">
-              <div className="w-6 h-6 bg-gradient-to-br from-pink-500 to-rose-500 rounded-full flex items-center justify-center shadow-lg">
+              <div className="w-5 h-5 bg-gradient-to-br from-pink-500 to-rose-500 rounded-full absolute top-2 left-2 flex items-center justify-center shadow-lg">
                 <Circle className="w-2 h-2 text-white" fill="currentColor" />
               </div>
               <div>
                 <h3 className="font-bold text-center text-lg text-gray-800">
                   {dateToFormat
-                    ? format(parseISO(dateToFormat), 'EEEE d', { locale: es })
+                    ? format(parseISO(dateToFormat), 'dd/MM', { locale: es })
                     : 'Fecha'}
                 </h3>
                 <p className="text-sm text-pink-600 font-medium">
@@ -314,13 +314,7 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
             )}
           </div>
         </div>
-
-          {/* Decoración inferior elegante */}
-          <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-pink-200/60 to-transparent"></div>
-          
-          {/* Esquinas decorativas sutiles */}
-          <div className="absolute top-4 left-4 w-2 h-2 bg-gradient-to-br from-pink-400/40 to-rose-500/40 rounded-full"></div>
-          
+                   
       </div>
       </div>
 

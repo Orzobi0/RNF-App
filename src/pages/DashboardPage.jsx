@@ -486,7 +486,7 @@ const ModernFertilityDashboard = () => {
     setShowForm(true);
   }, []);
 
-  if (isLoading) {
+  if (isLoading && !currentCycle?.id) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-rose-50 via-pink-50 to-rose-100 flex items-center justify-center">
         <p className="text-center text-gray-600 text-lg">Cargando...</p>
