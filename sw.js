@@ -10,7 +10,7 @@ const ASSETS = [
   `${BASE_URL}apple-touch-icon.png`
 ];
 // Assets generated during the build step will be injected into this array.
-const BUILD_ASSETS = (["assets/ChartTooltip-6fef2c69.js","assets/DataEntryForm-ff5b3dce.js","assets/DeletionDialog-da7111f6.js","assets/EditCycleDatesDialog-acde630c.js","assets/badge-51682c31.js","assets/dialog-d17201db.js","assets/eye-add74470.js","assets/eye-off-cbbbeb2a.js","assets/generatePlaceholders-b76e4eec.js","assets/input-44b95b9b.js","assets/label-75f62444.js","assets/plus-2ba7c1cf.js","assets/useCycleData-58376b29.js","assets/index-c797be08.css","assets/index-ba6a3a71.js","assets/ArchivedCyclesPage-131e4991.js","assets/AuthPage-b2f97ae1.js","assets/ChartPage-d3701919.js","assets/CycleDetailPage-ea7bb52e.js","assets/DashboardPage-d370725b.js","assets/RecordsPage-079d47bb.js","assets/SettingsPage-d7ec1293.js"] || []).map(
+const BUILD_ASSETS = (["assets/ChartTooltip-478e06f3.js","assets/DataEntryForm-ad843356.js","assets/DeletionDialog-453a823d.js","assets/EditCycleDatesDialog-7915286f.js","assets/badge-e8164852.js","assets/dialog-5eeab027.js","assets/eye-f4dacf7c.js","assets/eye-off-ec261603.js","assets/generatePlaceholders-d43e9126.js","assets/input-eebcb0c4.js","assets/label-b7675640.js","assets/plus-ffaa469b.js","assets/useCycleData-321f2a4b.js","assets/index-c797be08.css","assets/index-7fea14b0.js","assets/ArchivedCyclesPage-efc271c4.js","assets/AuthPage-5c58f296.js","assets/ChartPage-4081a0ce.js","assets/CycleDetailPage-0c5a143d.js","assets/DashboardPage-17a480d0.js","assets/RecordsPage-812ea3c8.js","assets/SettingsPage-0ac8e63d.js"] || []).map(
   (asset) => `${BASE_URL}${asset}`
 );
 
