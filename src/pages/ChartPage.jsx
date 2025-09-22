@@ -24,7 +24,7 @@ const { currentCycle, isLoading, addOrUpdateDataPoint, toggleIgnoreRecord } = us
   useLayoutEffect(() => {
     window.dispatchEvent(new Event('resize'));
   }, [orientation, isFullScreen]);
-  if (isLoading) {
+  if (isLoading && !currentCycle?.id) {
     return <p className="text-center text-gray-500">Cargando…</p>;
   }
 

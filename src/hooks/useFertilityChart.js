@@ -68,6 +68,7 @@ export const computeOvulationMetrics = (processedData = []) => {
     infertileStartIndex: null,
     rule: null,
     highSequenceIndices: [],
+    ovulationIndex: null,
   };
 
   if (baselineTemp == null || firstHighIndex == null) {
@@ -86,31 +87,28 @@ export const computeOvulationMetrics = (processedData = []) => {
     const firstThree = sequence.slice(0, 3);
     if (firstThree.length < 3) return null;
 
-    const countBelowThreshold = firstThree.filter((p) => p.temp < requiredRise).length;
+    const thirdHigh = firstThree[2];
 
-    if (countBelowThreshold === 0) {
+    if (thirdHigh.temp >= requiredRise) {
       return {
-        confirmationIndex: firstThree[2].index,
+        confirmationIndex: thirdHigh.index,
         usedIndices: firstThree.map((p) => p.index),
         rule: '3-high',
       };
     }
 
-    if (countBelowThreshold === 1) {
-      if (sequence.length >= 4 && sequence[3].temp > baselineTemp) {
-        return {
-          confirmationIndex: sequence[3].index,
-          usedIndices: sequence.slice(0, 4).map((p) => p.index),
-          rule: '4-high',
-        };
-      }
-      return null;
-    }
+    if (sequence.length >= 5) {
+      const fourthHigh = sequence[3];
+      const fifthHigh = sequence[4];
 
-    if (countBelowThreshold >= 2) {
-      if (sequence.length >= 5 && sequence[4].temp >= requiredRise) {
+    if (
+        fourthHigh &&
+        fifthHigh &&
+        fourthHigh.temp > baselineTemp &&
+        fifthHigh.temp >= requiredRise
+      ) {
         return {
-          confirmationIndex: sequence[4].index,
+          confirmationIndex: fifthHigh.index,
           usedIndices: sequence.slice(0, 5).map((p) => p.index),
           rule: '5-high',
         };
@@ -145,6 +143,12 @@ export const computeOvulationMetrics = (processedData = []) => {
         infertileStartIndex: result.confirmationIndex + 1,
         rule: result.rule,
         highSequenceIndices: result.usedIndices,
+        ovulationIndex:
+          firstHighIndex != null
+            ? firstHighIndex
+            : result.usedIndices?.length
+              ? result.usedIndices[0]
+              : null,
       };
       break;
     }

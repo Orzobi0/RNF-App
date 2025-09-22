@@ -316,14 +316,16 @@ const FertilityChart = ({
                 <feMergeNode in="SourceGraphic"/>
               </feMerge>
             </filter>
-            <linearGradient id="fertileAreaGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="rgba(96, 165, 250, 0.35)" />
-              <stop offset="100%" stopColor="rgba(59, 130, 246, 0.12)" />
+            <linearGradient id="fertileAreaGradient" x1="0%" y1="100%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="rgba(253, 224, 255, 0.9)" />
+              <stop offset="65%" stopColor="rgba(249, 168, 212, 0.6)" />
+              <stop offset="100%" stopColor="rgba(236, 72, 153, 0.28)" />
             </linearGradient>
 
-            <linearGradient id="infertileAreaGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="rgba(196, 181, 253, 0.32)" />
-              <stop offset="100%" stopColor="rgba(167, 139, 250, 0.12)" />
+            <linearGradient id="infertileAreaGradient" x1="0%" y1="100%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="rgba(109, 189, 245, 0.48)" />
+              <stop offset="50%" stopColor="rgba(111, 168, 220, 0.48)" />
+              <stop offset="80%" stopColor="rgba(120, 143, 207, 0.48)" />
             </linearGradient>
           </defs>
 

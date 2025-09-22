@@ -54,7 +54,9 @@ const ArchivedCyclesPage = () => {
     ? [{ ...currentCycle, isCurrent: true, needsCompletion: !currentCycle.endDate }, ...archivedCycles]
     : archivedCycles;
 
-  if (isLoading) {
+  const hasCachedCycles = allCycles && allCycles.length > 0;
+
+  if (isLoading && !hasCachedCycles) {
     return (
       <div className="min-h-[100dvh] bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 flex items-center justify-center">
         <div

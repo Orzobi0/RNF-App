@@ -1,6 +1,7 @@
 import React, { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { CycleDataProvider } from '@/contexts/CycleDataContext.jsx';
 const AuthPage = lazy(() => import('@/pages/AuthPage'));
 const DashboardPage = lazy(() => import('@/pages/DashboardPage'));
 const ArchivedCyclesPage = lazy(() => import('@/pages/ArchivedCyclesPage'));
@@ -107,9 +108,11 @@ function App() {
     <BrowserRouter>
     <InstallPrompt />
       <AuthProvider>
-        <AppContent />
+        <CycleDataProvider>
+          <AppContent />
+        </CycleDataProvider>
         <Toaster />
-      </AuthProvider>      
+      </AuthProvider>
     </BrowserRouter>
   );
 }
