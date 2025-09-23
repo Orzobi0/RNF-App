@@ -73,8 +73,8 @@ const ChartAxes = ({
 
         {/* Patrón unificado para spotting */}
         <pattern id="spotting-pattern-chart" patternUnits="userSpaceOnUse" width="6" height="6">
-          <rect width="6" height="6" fill="#f3f4f6" />
-          <circle cx="3" cy="3" r="1.5" fill="rgba(239,68,68,0.7)" />
+          <rect width="6" height="6" fill="#ef4444" />
+          <circle cx="3" cy="3" r="1.5" fill="rgba(255,255,255,0.85)" />
         </pattern>
       </defs>
 

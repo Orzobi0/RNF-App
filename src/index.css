@@ -68,11 +68,14 @@
     }
 
     .pattern-bg {
-      background-image: radial-gradient(circle, rgba(239, 68, 68, 0.7) 1.5px, transparent 1.5px);
+      background-image: radial-gradient(circle, rgba(255, 255, 255, 0.85) 1.5px, transparent 1.5px);
       background-size: 6px 6px;
+      background-position: 0 0;
     }
 
     #spotting-pattern-chart {
-      background-image: radial-gradient(circle, rgba(239, 68, 68, 0.7) 1.5px, transparent 1.5px);
+      background-color: #ef4444;
+      background-image: radial-gradient(circle, rgba(255, 255, 255, 0.85) 1.5px, transparent 1.5px);
       background-size: 6px 6px;
+      background-position: 0 0;
     }

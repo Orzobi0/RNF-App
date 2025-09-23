@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/dialog';
 
 const SettingsPage = () => {
-  const { user, updateEmail, updatePassword, login } = useAuth();
+  const { user, updateEmail, updatePassword, login, logout } = useAuth();
   const { toast } = useToast();
 
   const [showEmailDialog, setShowEmailDialog] = useState(false);
@@ -30,6 +30,7 @@ const SettingsPage = () => {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loadingPassword, setLoadingPassword] = useState(false);
+  const [loadingLogout, setLoadingLogout] = useState(false);
 
   const handleEmailSubmit = async (e) => {
     e.preventDefault();
@@ -67,6 +68,17 @@ const SettingsPage = () => {
     }
   };
 
+  const handleLogout = async () => {
+    setLoadingLogout(true);
+    try {
+      await logout();
+      toast({ title: 'Sesión cerrada' });
+    } catch (error) {
+      console.error('Error al cerrar sesión', error);
+    } finally {
+      setLoadingLogout(false);
+    }
+  };
 
   return (
     <div className="min-h-[100dvh] bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 relative">
@@ -116,8 +128,24 @@ const SettingsPage = () => {
               Actualizar contraseña
             </Button>
           </div>
+          
         </div>
+        <div className="bg-white/80 backdrop-blur p-4 rounded-xl shadow flex items-center justify-between">
+            <div>
+              <p className="text-sm text-slate-500">Sesión</p>
+              <p className="font-medium text-slate-700">Cerrar sesión de tu cuenta actual</p>
+            </div>
+            <Button
+              variant="destructive"
+              onClick={handleLogout}
+              className="ml-4"
+              disabled={loadingLogout}
+            >
+              {loadingLogout ? 'Cerrando...' : 'Cerrar sesión'}
+            </Button>
+          </div>
       </div>
+      
 
       <Dialog open={showEmailDialog} onOpenChange={setShowEmailDialog}>
         <DialogContent className="sm:max-w-md">

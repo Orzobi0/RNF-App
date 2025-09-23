@@ -45,10 +45,10 @@ const CycleOverviewCard = ({ cycleData, onEdit }) => {
         };
       case 'spot':
         return {
-          main: '#f9a8d4',
-          light: '#f9a8d4',
-          glow: 'rgba(236, 72, 153, 0.3)',
-          border: '#f87171',
+          main: '#ef4444',
+          light: '#ef4444',
+          glow: 'rgba(239, 68, 68, 0.3)',
+          border: '#fee2e2',
           pattern: 'url(#spotting-pattern-dashboard)'
         };
       default:
@@ -190,8 +190,8 @@ const CycleOverviewCard = ({ cycleData, onEdit }) => {
             >
               <defs>
                 <pattern id="spotting-pattern-dashboard" patternUnits="userSpaceOnUse" width="6" height="6">
-                  <rect width="6" height="6" fill="#f3f4f6" />
-                  <circle cx="3" cy="3" r="1.5" fill="rgba(239,68,68,0.7)" />
+                  <rect width="6" height="6" fill="#ef4444" />
+                  <circle cx="3" cy="3" r="1.5" fill="rgba(255,255,255,0.85)" />
                 </pattern>
                 <radialGradient id="ringGlow" cx="50%" cy="50%" r="50%">
                 <stop offset="0%" stopColor="rgba(255,255,255,0.0)" />
@@ -340,7 +340,7 @@ const CycleOverviewCard = ({ cycleData, onEdit }) => {
                 { label: 'Menstrual', color: '#ef4444' },
                 { label: 'Fértil', color: '#f8fafc', stroke: '#e2e8f0' },
                 { label: 'Infértil', color: '#22c55e' },
-                { label: 'Spotting', color: '#f3f4f6', stroke: '#f87171', pattern: true }
+                { label: 'Spotting', color: '#ef4444', stroke: '#fee2e2', pattern: true }
               ].map(item => (
                 <div key={item.label} className="flex flex-col items-center gap-1.5">
                   <div

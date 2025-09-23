@@ -75,7 +75,7 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
         };
     case 'spot':
       return {
-          bg: 'bg-red-50 pattern-bg',
+          bg: 'bg-red-500 pattern-bg',
           light: 'bg-red-50',
           border: 'border-red-200',
           text: 'text-red-700',
