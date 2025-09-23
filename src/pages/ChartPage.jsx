@@ -134,7 +134,8 @@ const ChartPage = () => {
     return existingRecord ? { ...existingRecord, date: placeholder.date } : placeholder;
   });
 
-  const visibleDays = orientation === 'portrait' ? VISIBLE_DAYS_FULLSCREEN_PORTRAIT : daysInCycle;
+  const visibleDays =
+    orientation === 'portrait' ? VISIBLE_DAYS_FULLSCREEN_PORTRAIT : CYCLE_DURATION_DAYS;
   let scrollStart = 0;
 
   if (orientation !== 'landscape') {
