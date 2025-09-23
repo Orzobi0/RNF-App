@@ -27,7 +27,7 @@ function AppContent() {
 
   if (loadingAuth) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[100dvh] bg-gradient-to-br from-pink-50 via-purple-50 to-indigo-50 space-y-4">
+      <div className="flex flex-col items-center justify-center min-h-[100dvh] bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 space-y-4">
         <motion.div
           className="w-8 h-8 rounded-full bg-pink-500/80"
           animate={{ opacity: [0.4, 1, 0.4] }}

@@ -488,7 +488,7 @@ const ModernFertilityDashboard = () => {
 
   if (isLoading && !currentCycle?.id) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-rose-50 via-pink-50 to-rose-100 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 flex items-center justify-center">
         <p className="text-center text-gray-600 text-lg">Cargando...</p>
       </div>
     );
@@ -496,7 +496,7 @@ const ModernFertilityDashboard = () => {
 
   if (!currentCycle?.id) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-rose-50 via-pink-50 to-rose-100 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br ffrom-rose-100 via-pink-100 to-rose-100 flex items-center justify-center">
         <div className="text-center space-y-4">
           <p className="text-gray-600 text-lg">No hay ciclo activo.</p>
           <button
