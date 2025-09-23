@@ -31,6 +31,7 @@ const SettingsPage = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loadingPassword, setLoadingPassword] = useState(false);
   const [loadingLogout, setLoadingLogout] = useState(false);
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false);
 
   const handleEmailSubmit = async (e) => {
     e.preventDefault();
@@ -77,6 +78,7 @@ const SettingsPage = () => {
       console.error('Error al cerrar sesión', error);
     } finally {
       setLoadingLogout(false);
+      setShowLogoutDialog(false);
     }
   };
 
@@ -90,7 +92,7 @@ const SettingsPage = () => {
         }}
       />
 
-      <div className="max-w-2xl mx-auto px-4 py-6 relative z-10 space-y-6">
+      <div className="max-w-2xl mx-auto px-4 py-6 relative z-10 flex flex-col min-h-[100dvh]">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -102,7 +104,7 @@ const SettingsPage = () => {
           </h1>
         </motion.div>
 
-        <div className="space-y-4">
+        <div className="mt-6 space-y-4 flex-1">
           <div className="bg-white/80 backdrop-blur p-4 rounded-xl shadow flex items-center justify-between">
             <div>
               <p className="text-sm text-slate-500">Correo</p>
@@ -128,22 +130,23 @@ const SettingsPage = () => {
               Actualizar contraseña
             </Button>
           </div>
-          
         </div>
-        <div className="bg-white/80 backdrop-blur p-4 rounded-xl shadow flex items-center justify-between">
+        <div className="mt-auto pt-6">
+          <div className="bg-white/80 backdrop-blur p-4 rounded-xl shadow flex items-center justify-between">
             <div>
               <p className="text-sm text-slate-500">Sesión</p>
               <p className="font-medium text-slate-700">Cerrar sesión de tu cuenta actual</p>
             </div>
             <Button
               variant="destructive"
-              onClick={handleLogout}
+              onClick={() => setShowLogoutDialog(true)}
               className="ml-4"
               disabled={loadingLogout}
             >
-              {loadingLogout ? 'Cerrando...' : 'Cerrar sesión'}
+              Cerrar sesión
             </Button>
           </div>
+        </div>
       </div>
       
 
@@ -232,6 +235,34 @@ const SettingsPage = () => {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>¿Cerrar sesión?</DialogTitle>
+            <DialogDescription>
+              Confirma que deseas salir de tu cuenta actual.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowLogoutDialog(false)}
+              disabled={loadingLogout}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleLogout}
+              disabled={loadingLogout}
+            >
+              {loadingLogout ? 'Cerrando...' : 'Cerrar sesión'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

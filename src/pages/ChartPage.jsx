@@ -1,4 +1,4 @@
-import React, { useState, useLayoutEffect, useRef } from 'react';
+import React, { useState, useLayoutEffect, useRef, useEffect } from 'react';
 import FertilityChart from '@/components/FertilityChart';
 import { useCycleData } from '@/hooks/useCycleData';
 import { differenceInDays, parseISO, startOfDay } from 'date-fns';
@@ -8,9 +8,77 @@ import MainLayout from '@/components/layout/MainLayout';
 import DataEntryForm from '@/components/DataEntryForm';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { useParams, Link } from 'react-router-dom';
 
 const ChartPage = () => {
-const { currentCycle, isLoading, addOrUpdateDataPoint, toggleIgnoreRecord } = useCycleData();
+  const { cycleId } = useParams();
+  const {
+    currentCycle,
+    archivedCycles,
+    isLoading,
+    addOrUpdateDataPoint,
+    toggleIgnoreRecord,
+    getCycleById
+  } = useCycleData();
+
+  const [fetchedCycle, setFetchedCycle] = useState(null);
+  const [externalLoading, setExternalLoading] = useState(false);
+  const [notFound, setNotFound] = useState(false);
+
+  const isViewingCurrentCycle = !cycleId || cycleId === currentCycle.id;
+  const archivedMatch = !isViewingCurrentCycle
+    ? archivedCycles.find((cycle) => cycle.id === cycleId)
+    : null;
+
+  useEffect(() => {
+    if (isViewingCurrentCycle) {
+      setFetchedCycle(null);
+      setExternalLoading(false);
+      setNotFound(false);
+      return;
+    }
+
+    if (archivedMatch) {
+      setFetchedCycle(null);
+      setExternalLoading(false);
+      setNotFound(false);
+      return;
+    }
+
+    let isMounted = true;
+    setExternalLoading(true);
+    getCycleById(cycleId)
+      .then((cycle) => {
+        if (!isMounted) return;
+        if (cycle) {
+          setFetchedCycle(cycle);
+          setNotFound(false);
+        } else {
+          setFetchedCycle(null);
+          setNotFound(true);
+        }
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        setFetchedCycle(null);
+        setNotFound(true);
+      })
+      .finally(() => {
+        if (isMounted) {
+          setExternalLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isViewingCurrentCycle, archivedMatch, getCycleById, cycleId]);
+
+  const targetCycle = isViewingCurrentCycle ? currentCycle : archivedMatch || fetchedCycle;
+  const isUsingFallbackCycle = !isViewingCurrentCycle && !archivedMatch;
+  const showLoading = isViewingCurrentCycle
+    ? isLoading && !currentCycle?.id
+    : externalLoading || (isLoading && !archivedMatch && !fetchedCycle);
   // Orientación controlada por UI, independiente del dispositivo
   const [orientation, setOrientation] = useState(
     typeof window !== 'undefined' && window.innerWidth > window.innerHeight ? 'landscape' : 'portrait'
@@ -24,20 +92,33 @@ const { currentCycle, isLoading, addOrUpdateDataPoint, toggleIgnoreRecord } = us
   useLayoutEffect(() => {
     window.dispatchEvent(new Event('resize'));
   }, [orientation, isFullScreen]);
-  if (isLoading && !currentCycle?.id) {
+  if (showLoading) {
     return <p className="text-center text-gray-500">Cargando…</p>;
   }
 
-  if (!currentCycle?.id) {
+  if (!targetCycle?.id) {
+    if (cycleId && notFound) {
+      return (
+        <MainLayout>
+          <div className="flex flex-col items-center justify-center min-h-[100dvh] space-y-4 text-center text-pink-600">
+            <p>No se encontró el ciclo solicitado.</p>
+            <Button asChild className="bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow">
+              <Link to="/archived-cycles">Volver a Mis Ciclos</Link>
+            </Button>
+          </div>
+        </MainLayout>
+      );
+    }
     return <p className="text-center text-pink-600">No hay ciclo activo.</p>;
   }
 
   const CYCLE_DURATION_DAYS = 28;
   const VISIBLE_DAYS_FULLSCREEN_PORTRAIT = 10;
 
-  const cycleStartDate = parseISO(currentCycle.startDate);
+  const cycleStartDate = parseISO(targetCycle.startDate);
+  const cycleEntries = targetCycle.data || [];
 
-  const lastRecordDate = currentCycle.data.reduce((maxDate, record) => {
+  const lastRecordDate = cycleEntries.reduce((maxDate, record) => {
     const recDate = parseISO(record.isoDate);
     return recDate > maxDate ? recDate : maxDate;
   }, cycleStartDate);
@@ -49,7 +130,7 @@ const { currentCycle, isLoading, addOrUpdateDataPoint, toggleIgnoreRecord } = us
 
   const fullCyclePlaceholders = generatePlaceholders(cycleStartDate, daysInCycle);
   const mergedData = fullCyclePlaceholders.map((placeholder) => {
-    const existingRecord = currentCycle.data.find((d) => d.isoDate === placeholder.isoDate);
+    const existingRecord = cycleEntries.find((d) => d.isoDate === placeholder.isoDate);
     return existingRecord ? { ...existingRecord, date: placeholder.date } : placeholder;
   });
 
@@ -85,14 +166,31 @@ const { currentCycle, isLoading, addOrUpdateDataPoint, toggleIgnoreRecord } = us
     setShowForm(true);
   };
 
-  const handleToggleIgnore = (cId, recordId) => {
-    toggleIgnoreRecord(cId, recordId);
+  const handleToggleIgnore = async (cId, recordId) => {
+    try {
+      await toggleIgnoreRecord(cId, recordId);
+      if (isUsingFallbackCycle) {
+        const refreshed = await getCycleById(cId);
+        if (refreshed) {
+          setFetchedCycle(refreshed);
+        }
+      }
+    } catch (error) {
+      console.error('Error toggling ignore state:', error);
+    }
   };
 
   const handleSave = async (data) => {
+    if (!targetCycle?.id) return;
     setIsProcessing(true);
     try {
-      await addOrUpdateDataPoint(data, editingRecord);
+      await addOrUpdateDataPoint(data, editingRecord, targetCycle.id);
+      if (isUsingFallbackCycle) {
+        const refreshed = await getCycleById(targetCycle.id);
+        if (refreshed) {
+          setFetchedCycle(refreshed);
+        }
+      }
       setShowForm(false);
       setEditingRecord(null);
     } finally {
@@ -189,7 +287,7 @@ const { currentCycle, isLoading, addOrUpdateDataPoint, toggleIgnoreRecord } = us
           orientation={orientation}
           onToggleIgnore={handleToggleIgnore}
           onEdit={handleEdit}
-          cycleId={currentCycle.id}
+          cycleId={targetCycle.id}
           initialScrollIndex={scrollStart}
           visibleDays={visibleDays}
           showInterpretation={showInterpretation}
@@ -205,11 +303,11 @@ const { currentCycle, isLoading, addOrUpdateDataPoint, toggleIgnoreRecord } = us
               onSubmit={handleSave}
               onCancel={handleCloseForm}
               initialData={editingRecord}
-              cycleStartDate={currentCycle.startDate}
-              cycleEndDate={currentCycle.endDate}
+              cycleStartDate={targetCycle.startDate}
+              cycleEndDate={targetCycle.endDate}
               isProcessing={isProcessing}
               isEditing={!!editingRecord}
-              cycleData={currentCycle.data}
+              cycleData={targetCycle.data}
               onDateSelect={handleDateSelect}
             />
           </DialogContent>

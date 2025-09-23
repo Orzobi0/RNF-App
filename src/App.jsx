@@ -58,7 +58,7 @@ function AppContent() {
         }
       />
       <Route
-        path="/chart"
+        path="/chart/:cycleId?"
         element={
           <ProtectedRoute>
             <ChartPage />
