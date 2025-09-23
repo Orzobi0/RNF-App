@@ -146,7 +146,7 @@ const CycleOverviewCard = ({ cycleData, onEdit }) => {
   }, [activePoint]);
 
   return (
-    <div className="relative min-h-[100dvh] flex flex-col">
+    <div className="relative h-full flex flex-col overflow-y-hidden">
       {/* Fecha actual - Parte superior con padding reducido */}
       <motion.div
         className="px-4 pt-5 pb-4 text-center flex-shrink-0"
@@ -318,7 +318,7 @@ const CycleOverviewCard = ({ cycleData, onEdit }) => {
         </div>
 
         {/* Leyenda e información del ciclo con diseño mejorado */}
-        <div className="grid grid-cols-2 gap-4 mx-2 mb-20 mt-2 flex-shrink-0">
+        <div className="grid grid-cols-2 gap-4 mx-2 mb-10 mt-2 flex-shrink-0">
           {/* Leyenda de colores */}
           <motion.div
             className="relative bg-gradient-to-br from-pink-50/90 to-rose-50/90 backdrop-blur-md rounded-3xl p-4 border border-pink-200/30"
@@ -542,7 +542,7 @@ const ModernFertilityDashboard = () => {
   };
 
   return (
-    <div className="min-h-[100dvh] bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 relative overflow-x-hidden">
+    <div className="h-[100dvh] bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 relative overflow-hidden">
       <div
   className="pointer-events-none absolute inset-0"
   style={{
@@ -550,7 +550,7 @@ const ModernFertilityDashboard = () => {
       'radial-gradient(65% 55% at 50% 32%, rgba(244,114,182,0.18) 0%, rgba(244,114,182,0.12) 35%, rgba(244,114,182,0.06) 60%, rgba(244,114,182,0) 100%)'
   }}
 />
-      <div className="max-w-md mx-auto h-[100dvh]">
+      <div className="max-w-md mx-auto h-full">
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}

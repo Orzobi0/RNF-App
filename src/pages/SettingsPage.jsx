@@ -83,7 +83,7 @@ const SettingsPage = () => {
   };
 
   return (
-    <div className="min-h-[100dvh] bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 relative">
+    <div className="h-[100dvh] bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 relative overflow-hidden">
       <div
         className="pointer-events-none absolute inset-0"
         style={{
@@ -92,7 +92,7 @@ const SettingsPage = () => {
         }}
       />
 
-      <div className="max-w-2xl mx-auto px-4 py-6 relative z-10 flex flex-col min-h-[100dvh]">
+      <div className="max-w-2xl mx-auto px-4 py-6 relative z-10 flex flex-col h-full box-border">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -104,34 +104,35 @@ const SettingsPage = () => {
           </h1>
         </motion.div>
 
-        <div className="mt-6 space-y-4 flex-1">
-          <div className="bg-white/80 backdrop-blur p-4 rounded-xl shadow flex items-center justify-between">
-            <div>
-              <p className="text-sm text-slate-500">Correo</p>
-              <p className="font-medium text-slate-700 break-all">{user?.email}</p>
+        <div className="mt-6 flex flex-1 flex-col gap-6">
+          <div className="space-y-4">
+            <div className="bg-white/80 backdrop-blur p-4 rounded-xl shadow flex items-center justify-between">
+              <div>
+                <p className="text-sm text-slate-500">Correo</p>
+                <p className="font-medium text-slate-700 break-all">{user?.email}</p>
+              </div>
+              <Button
+                onClick={() => {
+                  setNewEmail(user?.email || '');
+                  setShowEmailDialog(true);
+                }}
+                className="ml-4"
+              >
+                Actualizar email
+              </Button>
             </div>
-            <Button
-              onClick={() => {
-                setNewEmail(user?.email || '');
-                setShowEmailDialog(true);
-              }}
-              className="ml-4"
-            >
-              Actualizar email
-            </Button>
-          </div>
-
-          <div className="bg-white/80 backdrop-blur p-4 rounded-xl shadow flex items-center justify-between">
-            <div>
-              <p className="text-sm text-slate-500">Contraseña</p>
-              <p className="font-medium text-slate-700">********</p>
+                 
+            <div className="bg-white/80 backdrop-blur p-4 rounded-xl shadow flex items-center justify-between">
+              <div>
+                <p className="text-sm text-slate-500">Contraseña</p>
+                <p className="font-medium text-slate-700">********</p>
+              </div>
+              <Button onClick={() => setShowPasswordDialog(true)} className="ml-4">
+                Actualizar contraseña
+              </Button>
             </div>
-            <Button onClick={() => setShowPasswordDialog(true)} className="ml-4">
-              Actualizar contraseña
-            </Button>
           </div>
-        </div>
-        <div className="mt-auto pt-6">
+          <div className="mt-20 pt-6"></div>
           <div className="bg-white/80 backdrop-blur p-4 rounded-xl shadow flex items-center justify-between">
             <div>
               <p className="text-sm text-slate-500">Sesión</p>
