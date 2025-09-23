@@ -146,7 +146,7 @@ const CycleOverviewCard = ({ cycleData, onEdit }) => {
   }, [activePoint]);
 
   return (
-    <div className="relative h-full flex flex-col overflow-y-hidden">
+    <div className="relative flex flex-col flex-1 min-h-full overflow-y-hidden">
       {/* Fecha actual - Parte superior con padding reducido */}
       <motion.div
         className="px-4 pt-5 pb-4 text-center flex-shrink-0"
@@ -542,7 +542,7 @@ const ModernFertilityDashboard = () => {
   };
 
   return (
-    <div className="h-[100dvh] bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 relative overflow-hidden">
+    <div className="min-h-[calc(100dvh-var(--bottom-nav-safe))] bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 relative overflow-hidden flex flex-col">
       <div
   className="pointer-events-none absolute inset-0"
   style={{
@@ -550,13 +550,13 @@ const ModernFertilityDashboard = () => {
       'radial-gradient(65% 55% at 50% 32%, rgba(244,114,182,0.18) 0%, rgba(244,114,182,0.12) 35%, rgba(244,114,182,0.06) 60%, rgba(244,114,182,0) 100%)'
   }}
 />
-      <div className="max-w-md mx-auto h-full">
+      <div className="max-w-md mx-auto flex-1 w-full flex flex-col">
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: 20 }}
           transition={{ duration: 0.3 }}
-          className="h-full"
+          className="flex-1 flex flex-col"
         >
           <CycleOverviewCard cycleData={{ ...currentCycle, currentDay, records: currentCycle.data }} onEdit={handleEdit} />
         </motion.div>

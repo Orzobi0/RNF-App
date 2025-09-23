@@ -325,7 +325,7 @@ const CycleDetailPage = () => {
               <button
                 type="button"
                 onClick={handleToggleActions}
-                className={`text-2xl sm:text-3xl font-bold px-4 py-3 rounded-xl transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-rose-400 focus:ring-offset-2 ${showCycleActions ? 'bg-rose-200/80 text-rose-700 shadow-inner' : 'bg-rose-100/60 hover:bg-rose-200/70 text-rose-700'}`}
+                className={`text-2xl sm:text-3xl font-bold px-4 py-3 rounded-xl transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-rose-400 focus:ring-offset-2 ${showCycleActions ? 'bg-rose-200/80 text-rose-700 shadow-inner' : 'bg-rose-300/40 hover:bg-rose-200/70 text-rose-700'}`}
               >
                 Detalle de ciclo ({format(parseISO(cycleData.startDate), 'dd/MM/yyyy')} -{' '}
                 {cycleData.endDate ? format(parseISO(cycleData.endDate), 'dd/MM/yyyy') : 'En curso'})

@@ -83,7 +83,7 @@ const SettingsPage = () => {
   };
 
   return (
-    <div className="h-[100dvh] bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 relative overflow-hidden">
+    <div className="min-h-[calc(100dvh-var(--bottom-nav-safe))] bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 relative overflow-hidden flex flex-col">
       <div
         className="pointer-events-none absolute inset-0"
         style={{
@@ -92,7 +92,7 @@ const SettingsPage = () => {
         }}
       />
 
-      <div className="max-w-2xl mx-auto px-4 py-6 relative z-10 flex flex-col h-full box-border">
+      <div className="max-w-2xl mx-auto px-4 py-6 relative z-10 flex flex-col flex-1 min-h-full box-border">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -132,7 +132,7 @@ const SettingsPage = () => {
               </Button>
             </div>
           </div>
-          <div className="mt-20 pt-6"></div>
+          
           <div className="bg-white/80 backdrop-blur p-4 rounded-xl shadow flex items-center justify-between">
             <div>
               <p className="text-sm text-slate-500">Sesión</p>
