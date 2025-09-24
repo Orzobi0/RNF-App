@@ -268,6 +268,7 @@ const ChartPoints = ({
           else if (raw === 'white') symbolFillStyle = '#ffffff';
           else if (raw === 'green-500') symbolFillStyle = '#22c55e';
           else if (raw === 'pink-300') symbolFillStyle = '#f9a8d4';
+          else if (raw === 'yellow-400') symbolFillStyle = '#facc15';
         }
         const symbolRectSize = responsiveFontSize(isFullScreen ? 1.8 : 2);
 
