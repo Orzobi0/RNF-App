@@ -249,18 +249,6 @@ const ChartPoints = ({
           hasTemp &&
           index === ovulationMarkerIndex;
 
-
-        const shouldEnableInteractions = hasAnyRecord || isPlaceholder;
-        const interactionProps = shouldEnableInteractions
-          ? {
-              pointerEvents: 'all',
-              style: { cursor: 'pointer' },
-              onMouseEnter: (e) => onPointInteraction(point, index, e),
-              onClick: (e) => onPointInteraction(point, index, e),
-              onTouchStart: (e) => onPointInteraction(point, index, e)
-            }
-          : {};
-
         // Símbolo con colores mejorados
         const symbolInfo = getSymbolAppearance(point.fertility_symbol);
         let symbolFillStyle = 'transparent';
@@ -272,11 +260,25 @@ const ChartPoints = ({
           else if (raw === 'pink-300') symbolFillStyle = '#f9a8d4';
           else if (raw === 'yellow-400') symbolFillStyle = '#facc15';
         }
-        const symbolRectSize = responsiveFontSize(isFullScreen ? 1.8 : 2);
+
 
         const isFuture = point.isoDate
           ? isAfter(startOfDay(parseISO(point.isoDate)), startOfDay(new Date()))
           : false;
+
+          const symbolRectSize = responsiveFontSize(isFullScreen ? 1.8 : 2);
+
+        const shouldEnableInteractions = hasAnyRecord || (isPlaceholder && !isFuture);
+        const interactionProps = shouldEnableInteractions
+          ? {
+              pointerEvents: 'all',
+              style: { cursor: 'pointer' },
+              onMouseEnter: (e) => onPointInteraction(point, index, e),
+              onClick: (e) => onPointInteraction(point, index, e),
+              onTouchStart: (e) => onPointInteraction(point, index, e)
+            }
+          : {};
+
 
         // Límites de texto
         const maxChars = isFullScreen ? 4 : 7;

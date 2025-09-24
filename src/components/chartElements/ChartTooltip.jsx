@@ -54,6 +54,13 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
   const hasMucusInfo = Boolean((mucusSensation && mucusSensation.trim()) || (mucusAppearance && mucusAppearance.trim()));
   const hasObservations = Boolean(observations && observations.trim());
   const hasAnyData = hasTemperature || hasSymbol || hasMucusInfo || hasObservations;
+  const showEmptyState = !hasAnyData;
+
+  const handleEditClick = () => {
+    if (!onEdit) return;
+    onEdit(point);
+    if (onClose) onClose();
+  };
 
   // Función para obtener los colores del símbolo
   const getSymbolColors = (symbolValue) => {
@@ -162,185 +169,206 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
             </div>
           </div>
 
-          {/* Información principal en grid */}
-          <div className="space-y-1">
-            {/* Temperatura */}
-            {hasTemperature && (
+          {showEmptyState ? (
+            <div className="pt-1 space-y-3">
               <motion.div
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
-                className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-1 border border-amber-100/50"
+                className="rounded-xl border border-dashed border-pink-200 bg-pink-50/60 p-2 text-center"
+                
               >
-                <div className="flex items-center gap-3">
-                  <div className="w-6 h-6 bg-gradient-to-br from-amber-500 to-orange-600 rounded-lg flex items-center justify-center shadow-md">
-                    <Thermometer className="w-4 h-4 text-white" />
-                  </div>
-                  <div className="flex-1">
-                    
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-md font-bold text-gray-800">
-                        {parseFloat(temp).toFixed(2)}
-                      </span>
-                      <span className="text-md text-gray-600">°C</span>
-                      {point.use_corrected && (
-                        <div
-                          className="w-2 h-2 bg-amber-500 rounded-full shadow-[0_0_4px_rgba(245,158,11,0.65)]"
-                          title="Temperatura corregida"
-                        ></div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {/* Símbolo de fertilidad */}
-            {hasSymbol && (
-              <motion.div
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.15 }}
-                className={`${symbolColors.light} rounded-xl p-1 ${symbolColors.border} border`}
-              >
-                <div className="flex items-center gap-3">
-                  <div className={`w-6 h-6 ${symbolColors.bg} rounded-lg flex items-center justify-center shadow-lg ${symbolColors.glow} shadow-lg`}>
-                    <div className="w-2 h-2 bg-white/90 rounded-full shadow-sm"></div>
-                  </div>
-                  <div className="flex-1 text-left">
-                    <span className={`text-md font-semibold ${symbolColors.text}`}>
-                      {symbolInfo.label}
-                    </span>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {/* Información de mucus */}
-            <div className="grid grid-cols-1 gap-3">
-              {/* Sensación */}
-              <motion.div
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.2 }}
-                className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-1 border border-blue-100/50"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-md">
-                    <Droplets className="w-4 h-4 text-white" />
-                  </div>
-                  <div className="flex-1 text-left">
-
-                    <span className="text-md font-semibold text-blue-800">
-                      {mucusSensation || '-'}
-                    </span>
-                  </div>
-                </div>
-              </motion.div>
-
-              {/* Apariencia */}
-              <motion.div
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.25 }}
-                className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl p-1 border border-emerald-100/50"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-6 h-6 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center shadow-md">
-                    <Circle className="w-4 h-4 text-white" />
-                  </div>
-                  <div className="flex-1 text-left">
-
-                    <span className="text-md font-semibold text-green-800">
-                      {mucusAppearance || '-'}
-                    </span>
-                  </div>
-                </div>
+                <p className="text-sm font-semibold text-pink-600">Sin datos registrados para este día.</p>
               </motion.div>
               
-              {/* Observaciones */}
-              {hasObservations && (
+              {onEdit && (
                 <motion.div
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.3 }}
-                  className="bg-gradient-to-r from-violet-50 to-purple-50 rounded-xl p-1 border border-violet-100/50"
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.15 }}
+                  className="flex justify-center"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="w-6 h-6 bg-gradient-to-br from-violet-500 to-purple-600 rounded-lg flex items-center justify-center shadow-md">
-                      <Edit3 className="w-4 h-4 text-white" />
-                    </div>
-                    <div className="flex-1 text-left">
-                      <span className="text-sm font-semibold text-violet-800">
-                        {observations}
-                      </span>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-            </div>
 
-            {/* Botones de acción */}
-            {(onEdit || (onToggleIgnore && !isPlaceholder && point.id)) && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-                className="flex justify-center gap-3 pt-1 border-t border-gray-100"
-              >
-                {onEdit && (
                   <Button
-                    onClick={() => {
-                      onEdit(point);
-                      if (onClose) onClose();
-                    }}
+                    onClick={handleEditClick}
                     variant="outline"
                     size="sm"
                     className="flex items-center gap-2 px-2 py-2 bg-white/80 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 border-gray-200 hover:border-blue-300 text-gray-700 hover:text-blue-700 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md"
                   >
                     <Edit3 className="h-4 w-4" />
-                    <span className="font-medium">{isPlaceholder ? 'Añadir datos' : 'Editar'}</span>
+                    <span className="font-medium">Añadir datos</span>
                   </Button>
+                  </motion.div>
+              )}
+            </div>
+          ) : (
+            <>
+              <div className="space-y-1">
+                {/* Temperatura */}
+                {hasTemperature && (
+                  <motion.div
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.1 }}
+                    className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-1 border border-amber-100/50"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-6 h-6 bg-gradient-to-br from-amber-500 to-orange-600 rounded-lg flex items-center justify-center shadow-md">
+                        <Thermometer className="w-4 h-4 text-white" />
+                      </div>
+                      <div className="flex-1">
+
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-md font-bold text-gray-800">
+                            {parseFloat(temp).toFixed(2)}
+                          </span>
+                          <span className="text-md text-gray-600">°C</span>
+                          {point.use_corrected && (
+                            <div
+                              className="w-2 h-2 bg-amber-500 rounded-full shadow-[0_0_4px_rgba(245,158,11,0.65)]"
+                              title="Temperatura corregida"
+                            ></div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
                 )}
 
-                {onToggleIgnore && !isPlaceholder && point.id && (
-                  <Button
-                    onClick={() => onToggleIgnore(point.id)}
-                    variant="outline"
-                    size="sm"
-                    className={`flex items-center gap-2 px-2 py-2 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md ${
-                      point.ignored
-                        ? 'bg-green-50 hover:bg-green-100 border-green-200 hover:border-green-300 text-green-700'
-                        : 'bg-red-50 hover:bg-red-100 border-red-200 hover:border-red-300 text-red-700'
-                    }`}
+                {/* Símbolo de fertilidad */}
+                {hasSymbol && (
+                  <motion.div
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.15 }}
+                    className={`${symbolColors.light} rounded-xl p-1 ${symbolColors.border} border`}
                   >
-                    {point.ignored ? (
-                      <>
-                        <Eye className="h-4 w-4" />
-                        <span className="font-medium">Mostrar</span>
-                      </>
-                    ) : (
-                      <>
-                        <EyeOff className="h-4 w-4" />
-                        <span className="font-medium">Ocultar</span>
-                      </>
-                    )}
-                  </Button>
+                    <div className="flex items-center gap-3">
+                      <div className={`w-6 h-6 ${symbolColors.bg} rounded-lg flex items-center justify-center shadow-lg ${symbolColors.glow} shadow-lg`}>
+                        <div className="w-2 h-2 bg-white/90 rounded-full shadow-sm"></div>
+                      </div>
+                      <div className="flex-1 text-left">
+                        <span className={`text-md font-semibold ${symbolColors.text}`}>
+                          {symbolInfo.label}
+                        </span>
+                      </div>
+                    </div>
+                  </motion.div>
                 )}
-              </motion.div>
-            )}
-            {!hasAnyData && (
-              <div className="mt-2 rounded-xl border border-dashed border-pink-200 bg-pink-50/60 p-2 text-center">
-                <p className="text-sm font-semibold text-pink-600">Sin datos registrados para este día.</p>
-                {onEdit && (
-                  <p className="mt-1 text-xs text-pink-500">
-                    Usa el botón "{isPlaceholder ? 'Añadir datos' : 'Editar'}" para agregar información.
-                  </p>
-                )}
+                {/* Información de mucus */}
+                <div className="grid grid-cols-1 gap-3">
+                  {/* Sensación */}
+                  <motion.div
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.2 }}
+                    className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-1 border border-blue-100/50"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-md">
+                        <Droplets className="w-4 h-4 text-white" />
+                      </div>
+                      <div className="flex-1 text-left">
+
+                        <span className="text-md font-semibold text-blue-800">
+                          {mucusSensation || '-'}
+                        </span>
+                      </div>
+                    </div>
+                  </motion.div>
+
+                  {/* Apariencia */}
+                  <motion.div
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.25 }}
+                    className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl p-1 border border-emerald-100/50"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-6 h-6 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center shadow-md">
+                        <Circle className="w-4 h-4 text-white" />
+                      </div>
+                      <div className="flex-1 text-left">
+
+                        <span className="text-md font-semibold text-green-800">
+                          {mucusAppearance || '-'}
+                        </span>
+                      </div>
+                    </div>
+                  </motion.div>
+
+                  {/* Observaciones */}
+                  {hasObservations && (
+                    <motion.div
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.3 }}
+                      className="bg-gradient-to-r from-violet-50 to-purple-50 rounded-xl p-1 border border-violet-100/50"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-6 h-6 bg-gradient-to-br from-violet-500 to-purple-600 rounded-lg flex items-center justify-center shadow-md">
+                          <Edit3 className="w-4 h-4 text-white" />
+                        </div>
+                        <div className="flex-1 text-left">
+                          <span className="text-sm font-semibold text-violet-800">
+                            {observations}
+                          </span>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </div>
               </div>
-            )}
+              {/* Botones de acción */}
+              {(onEdit || (onToggleIgnore && !isPlaceholder && point.id)) && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="flex justify-center gap-3 pt-1 border-t border-gray-100"
+                >
+                  {onEdit && (
+                    <Button
+                      onClick={handleEditClick}
+                      variant="outline"
+                      size="sm"
+                      className="flex items-center gap-2 px-2 py-2 bg-white/80 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 border-gray-200 hover:border-blue-300 text-gray-700 hover:text-blue-700 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                      <span className="font-medium">{isPlaceholder ? 'Añadir datos' : 'Editar'}</span>
+                    </Button>
+                  )}
+
+                  {onToggleIgnore && !isPlaceholder && point.id && (
+                    <Button
+                      onClick={() => onToggleIgnore(point.id)}
+                      variant="outline"
+                      size="sm"
+                      className={`flex items-center gap-2 px-2 py-2 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md ${
+                        point.ignored
+                          ? 'bg-green-50 hover:bg-green-100 border-green-200 hover:border-green-300 text-green-700'
+                          : 'bg-red-50 hover:bg-red-100 border-red-200 hover:border-red-300 text-red-700'
+                      }`}
+                    >
+                      {point.ignored ? (
+                        <>
+                          <Eye className="h-4 w-4" />
+                          <span className="font-medium">Mostrar</span>
+                        </>
+                      ) : (
+                        <>
+                          <EyeOff className="h-4 w-4" />
+                          <span className="font-medium">Ocultar</span>
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </motion.div>
+              )}
+            </>
+          )}      
           </div>
-        </div>
+        
                    
       </div>
       </div>

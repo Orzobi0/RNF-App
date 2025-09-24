@@ -5,7 +5,7 @@ import DataEntryForm from '@/components/DataEntryForm';
 import NewCycleDialog from '@/components/NewCycleDialog';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { useCycleData } from '@/hooks/useCycleData';
-import { differenceInDays, parseISO, startOfDay } from 'date-fns';
+import { addDays, differenceInDays, format, isAfter, parseISO, startOfDay } from 'date-fns';
 import ChartTooltip from '@/components/chartElements/ChartTooltip';
 
 const CycleOverviewCard = ({ cycleData, onEdit }) => {
@@ -13,6 +13,8 @@ const CycleOverviewCard = ({ cycleData, onEdit }) => {
   const [activePoint, setActivePoint] = useState(null);
   const [tooltipPosition, setTooltipPosition] = useState({ clientX: 0, clientY: 0 });
   const circleRef = useRef(null);
+  const cycleStartDate = cycleData.startDate ? parseISO(cycleData.startDate) : null;
+  const today = startOfDay(new Date());
 
     // Ajustes del círculo de progreso
   const radius = 140; // radio del círculo
@@ -73,21 +75,25 @@ const CycleOverviewCard = ({ cycleData, onEdit }) => {
 
     return Array.from({ length: totalDays }, (_, index) => {
       const day = index + 1;
-      const record = records.find(r => r.cycleDay === day);
+      const record = records.find((r) => r.cycleDay === day);
+      const placeholderDate = cycleStartDate ? addDays(cycleStartDate, index) : null;
+      const isoDate = placeholderDate ? format(placeholderDate, 'yyyy-MM-dd') : null;
+      const isFutureDay = placeholderDate ? isAfter(startOfDay(placeholderDate), today) : false;
+      const recordWithCycleDay = record ? { ...record, cycleDay: record.cycleDay ?? day } : null;
       const angle = (index / totalDays) * 2 * Math.PI - Math.PI / 2;
 
       const x = center + radius * Math.cos(angle);
       const y = center + radius * Math.sin(angle);
       
-      let colors = day <= cycleData.currentDay && record
-        ? getSymbolColor(record.fertility_symbol)
+      let colors = day <= cycleData.currentDay && recordWithCycleDay
+        ? getSymbolColor(recordWithCycleDay.fertility_symbol)
         : { main: '#b5b6ba', light: '#c8cacf', glow: 'rgba(229, 231, 235, 0.3)' };
 
       const isToday = day === cycleData.currentDay;
       if (isToday) {
-        if (record) {
+        if (recordWithCycleDay) {
           colors = {
-            ...getSymbolColor(record.fertility_symbol),
+            ...getSymbolColor(recordWithCycleDay.fertility_symbol),
             border: 'rgba(251, 113, 133, 0.8)'
           };
         } else {
@@ -107,8 +113,10 @@ const CycleOverviewCard = ({ cycleData, onEdit }) => {
         colors,
         isActive: day <= cycleData.currentDay,
         isToday,
-        hasRecord: !!record,
-        record
+        hasRecord: !!recordWithCycleDay,
+        record: recordWithCycleDay,
+        isoDate,
+        canShowPlaceholder: Boolean(!recordWithCycleDay && isoDate && !isFutureDay)
       };
     });
   };
@@ -117,7 +125,7 @@ const CycleOverviewCard = ({ cycleData, onEdit }) => {
 
   const handleDotClick = (dot, event) => {
     event.stopPropagation();
-    if (!dot.record) {
+    if (!circleRef.current) {
       setActivePoint(null);
       return;
     }
@@ -130,11 +138,37 @@ const CycleOverviewCard = ({ cycleData, onEdit }) => {
       clientX = event.clientX;
       clientY = event.clientY;
     }
+    const placeholderRecord = dot.canShowPlaceholder && dot.isoDate
+      ? {
+          id: `placeholder-${dot.isoDate}`,
+          isoDate: dot.isoDate,
+          cycleDay: dot.day,
+          fertility_symbol: null,
+          mucus_sensation: '',
+          mucusSensation: '',
+          mucus_appearance: '',
+          mucusAppearance: '',
+          observations: '',
+          temperature_chart: null,
+          displayTemperature: null,
+          ignored: false,
+        }
+      : null;
+
+    const targetRecord = dot.record
+      ? { ...dot.record, cycleDay: dot.record.cycleDay ?? dot.day }
+      : placeholderRecord;
+
+    if (!targetRecord) {
+      setActivePoint(null);
+      return;
+    }
+
     setTooltipPosition({
       clientX: clientX - rect.left,
       clientY: clientY - rect.top
     });
-    setActivePoint(dot.record);
+    setActivePoint(targetRecord);
   };
 
   useEffect(() => {
@@ -484,6 +518,9 @@ const ModernFertilityDashboard = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showNewCycleDialog, setShowNewCycleDialog] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
+  const isPlaceholderRecord = Boolean(
+    editingRecord && String(editingRecord.id || '').startsWith('placeholder-')
+  );
 
   const handleCloseForm = useCallback(() => {
     setShowForm(false);
@@ -596,7 +633,7 @@ const ModernFertilityDashboard = () => {
             cycleStartDate={currentCycle.startDate}
             cycleEndDate={currentCycle.endDate}
             isProcessing={isProcessing}
-            isEditing={!!editingRecord}
+            isEditing={!!editingRecord && !isPlaceholderRecord}
             cycleData={currentCycle.data}
             onDateSelect={handleDateSelect}
           />
