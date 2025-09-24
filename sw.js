@@ -1,4 +1,4 @@
-const CACHE_VERSION = '2025-09-22T21:25:33.860Z';
+const CACHE_VERSION = '2025-09-24T07:27:30.869Z';
 const CACHE_NAME = `rnf-app-cache-${CACHE_VERSION}`;
 const BASE_URL = self.registration.scope;
 const ASSETS = [
@@ -11,7 +11,7 @@ const ASSETS = [
   `${BASE_URL}apple-touch-icon.png`
 ];
 // Assets generated during the build step will be injected into this array.
-const BUILD_ASSETS = (["assets/ChartTooltip-fb88c83e.js","assets/DataEntryForm-8a2d2643.js","assets/DeletionDialog-92631ac5.js","assets/OverlapWarningDialog-8764e8c9.js","assets/badge-ba0d7950.js","assets/dialog-51f02635.js","assets/eye-1d723979.js","assets/eye-off-2409ea2a.js","assets/generatePlaceholders-6ff1d6b9.js","assets/input-b64dc7c3.js","assets/label-98f269bf.js","assets/plus-f9bee64c.js","assets/useCycleData-3d93d17f.js","assets/index-c6a4abef.css","assets/index-091bc822.js","assets/ArchivedCyclesPage-2380a156.js","assets/AuthPage-c87f9b12.js","assets/ChartPage-99571f13.js","assets/CycleDetailPage-ce2d4481.js","assets/DashboardPage-7511e5bf.js","assets/RecordsPage-42683385.js","assets/SettingsPage-aba1c598.js"] || []).map(
+const BUILD_ASSETS = (["assets/ChartTooltip-5350e5f6.js","assets/DataEntryForm-99673c61.js","assets/DeletionDialog-1303d971.js","assets/OverlapWarningDialog-7190f3a2.js","assets/badge-fc139165.js","assets/dialog-9607b487.js","assets/eye-67758e41.js","assets/eye-off-1c06221e.js","assets/input-235c5ced.js","assets/label-0ecf343f.js","assets/plus-1f07c869.js","assets/useCycleData-af0f9bf4.js","assets/index-d9964085.css","assets/index-752021ba.js","assets/ArchivedCyclesPage-a5d2d81d.js","assets/AuthPage-f6c2c8fa.js","assets/ChartPage-4342ff1a.js","assets/CycleDetailPage-ff26e289.js","assets/DashboardPage-87b15230.js","assets/RecordsPage-01e062cc.js","assets/SettingsPage-01be1fad.js"] || []).map(
   (asset) => `${BASE_URL}${asset}`
 );
 
