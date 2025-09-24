@@ -326,6 +326,7 @@ const CycleOverviewCard = ({ cycleData, onEdit }) => {
 
         {/* Leyenda e información del ciclo con diseño mejorado */}
         <div className="grid grid-cols-2 gap-4 mx-2 mb-10 mt-2 flex-shrink-0">
+          
           {/* Leyenda de colores */}
           <motion.div
             className="relative bg-gradient-to-br from-pink-50/90 to-rose-50/90 backdrop-blur-md rounded-3xl p-4 border border-pink-200/30"
@@ -337,45 +338,48 @@ const CycleOverviewCard = ({ cycleData, onEdit }) => {
               boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.7)'
             }}
           >
+            
             <h3 className="font-bold mb-6 text-gray-800 flex items-center gap-2 justify-center text-xs tracking-wide uppercase">
             Símbolos
             </h3>
-
+            
             {/* Grid de símbolos refinado */}
-            <div className="grid grid-cols-2 gap-2.5">
+            <div className="grid grid-cols-2 gap-2.5">              
               {[
                 { label: 'Menstrual', color: '#ef4444' },
                 { label: 'Moco (Fértil)', color: '#f8fafc', stroke: '#c2c6cc' },
                 { label: 'Seco (Rel. Infértil)', color: '#22c55e' },
                 { label: 'Moco (No fértil)', color: '#facc15', stroke: '#fef08a' },
-                { label: 'Spotting', color: '#ef4444', stroke: '#fee2e2', pattern: true }
+                { label: 'Spotting', color: '#ef4444', stroke: '#fee2e2', pattern: true },
+                { label: 'Hoy', isToday: true }
               ].map(item => (
                 <div key={item.label} className="flex flex-col items-center gap-1.5">
-                  <div
-                    className={`w-4 h-4 rounded-full border ${item.pattern ? 'pattern-bg' : ''}`}
-                    style={{
-                      backgroundColor: item.color,
-                      borderColor: item.stroke || 'transparent'
-                    }}
-                  />
-                  <span className="text-xs font-medium text-gray-700 text-center leading-none">
+                  {item.isToday ? (
+                    <div className="relative flex items-center justify-center">
+                      <div className="w-4 h-4 rounded-full border border-rose-400/80 bg-transparent" />
+                      <div className="absolute inset-0 -m-1 rounded-full border-[3px] border-rose-500/80 animate-pulse" />
+                      
+                    </div>
+                  ) : (
+                    <div
+                      className={`w-4 h-4 rounded-full border ${item.pattern ? 'pattern-bg' : ''}`}
+                      style={{
+                        backgroundColor: item.color,
+                        borderColor: item.stroke || 'transparent'
+                      }}
+                    />
+                  )}
+                  <span
+                    className={`text-xs font-medium text-center leading-none ${
+                      item.isToday ? 'text-gray-700 font-semibold' : 'text-gray-700'
+                    }`}
+                  >
                     {item.label}
                   </span>
-                </div>                
+                </div>       
               ))}
-              {/* Día actual con estilo diferenciado */}
-            <div className="flex items-center justify-center  border-gradient-to-r from-transparent via-gray-200 to-transparent">
-            <div className="relative">
-            <div className="w-4 h-4 rounded-full border border-rose-400/80 bg-transparent" />
-            {/* Anillo decorativo */}
-            <div className="absolute inset-0 rounded-full border-[3px] border-rose-500/80 animate-pulse" />
             </div>
-            <span className="text-xs font-semibold text-gray-700">Hoy</span>
-            <div className="absolute top-3 right-4 w-2 h-2 bg-gradient-to-br from-pink-300/40 to-rose-400/40 rounded-full"/>
-            </div>
-            </div>
-
-            
+            <div className="absolute -top-1 -right-1 w-2 h-2 bg-gradient-to-br from-pink-300/40 to-rose-400/40 rounded-full" />
           </motion.div>
 
           {/* Información del ciclo con diseño tipo card premium */}

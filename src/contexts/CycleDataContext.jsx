@@ -166,6 +166,9 @@ export const CycleDataProvider = ({ children }) => {
 
         let targetRecord = editingRecord;
         if (!targetRecord && targetCycle) {
+          if (targetRecord && String(targetRecord.id).startsWith('placeholder-')) {
+          targetRecord = null;
+        }
           targetRecord = targetCycle.data.find((r) => r.isoDate === newData.isoDate);
         }
 

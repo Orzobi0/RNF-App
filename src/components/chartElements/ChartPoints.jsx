@@ -250,14 +250,16 @@ const ChartPoints = ({
           index === ovulationMarkerIndex;
 
 
-        const interactionProps = (!hasAnyRecord || isPlaceholder)
-          ? {}
-          : {
-              pointerEvents: "all",
+        const shouldEnableInteractions = hasAnyRecord || isPlaceholder;
+        const interactionProps = shouldEnableInteractions
+          ? {
+              pointerEvents: 'all',
               style: { cursor: 'pointer' },
               onMouseEnter: (e) => onPointInteraction(point, index, e),
-              onClick: (e) => onPointInteraction(point, index, e)
-            };
+              onClick: (e) => onPointInteraction(point, index, e),
+              onTouchStart: (e) => onPointInteraction(point, index, e)
+            }
+          : {};
 
         // Símbolo con colores mejorados
         const symbolInfo = getSymbolAppearance(point.fertility_symbol);

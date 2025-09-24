@@ -314,7 +314,7 @@ const DataEntryFormFields = ({
             {FERTILITY_SYMBOL_OPTIONS.map((symbol) => (
               <SelectItem key={symbol.value} value={symbol.value} className="cursor-pointer">
                 <div className="flex items-center">
-                  <span className={`w-3 h-3 rounded-full mr-2 border border-gray-300 ${symbol.color}`} />
+                  <span className={`w-4 h-4 rounded-full mr-2 border border-gray-300 ${symbol.color}`} />
                   {symbol.label}
                 </div>
               </SelectItem>

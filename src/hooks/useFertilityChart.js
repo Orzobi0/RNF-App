@@ -365,9 +365,7 @@ export const useFertilityChart = (
       };
       
 const handlePointInteraction = (point, index, event) => {
-
-  // Si no es un registro real, simplemente limpiamos y salimos
-  if (!point || String(point.id).startsWith('placeholder-')) {
+if (!point) {
     clearActivePoint();
     return;
   }
@@ -384,7 +382,8 @@ const handlePointInteraction = (point, index, event) => {
 
   // 2) Mapea a coordenadas SVG
   const svgX = getX(index);
-  const svgY = getY(point.displayTemperature);
+  const displayTemp = point.displayTemperature ?? point.temperature_chart ?? null;
+  const svgY = getY(displayTemp);
 
   // 3) Fija posición y punto activo
   setTooltipPosition({

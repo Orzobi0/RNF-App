@@ -89,6 +89,9 @@ const ChartPage = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showInterpretation, setShowInterpretation] = useState(false);
   const ignoreNextClickRef = useRef(false);
+  const isPlaceholderRecord = Boolean(
+    editingRecord && String(editingRecord.id || '').startsWith('placeholder-')
+  );
   
   useEffect(() => {
     const handleFullScreenChange = async () => {
@@ -344,7 +347,7 @@ const ChartPage = () => {
               cycleStartDate={targetCycle.startDate}
               cycleEndDate={targetCycle.endDate}
               isProcessing={isProcessing}
-              isEditing={!!editingRecord}
+              isEditing={!!editingRecord && !isPlaceholderRecord}
               cycleData={targetCycle.data}
               onDateSelect={handleDateSelect}
             />

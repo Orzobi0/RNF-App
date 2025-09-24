@@ -42,9 +42,18 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
   if (x < 10) x = 10;
   if (y < 10) y = 10;
 
-  const temp = point.temperature_chart;
+  const isPlaceholder = !point.id || String(point.id).startsWith('placeholder-');
+  const temp = point.temperature_chart ?? point.displayTemperature ?? null;
   const symbolInfo = getSymbolAppearance(point.fertility_symbol);
   const dateToFormat = point.timestamp || point.isoDate;
+  const mucusSensation = point.mucus_sensation ?? point.mucusSensation ?? '';
+  const mucusAppearance = point.mucus_appearance ?? point.mucusAppearance ?? '';
+  const observations = point.observations ?? '';
+  const hasSymbol = symbolInfo && symbolInfo.value !== 'none';
+  const hasTemperature = temp != null;
+  const hasMucusInfo = Boolean((mucusSensation && mucusSensation.trim()) || (mucusAppearance && mucusAppearance.trim()));
+  const hasObservations = Boolean(observations && observations.trim());
+  const hasAnyData = hasTemperature || hasSymbol || hasMucusInfo || hasObservations;
 
   // Función para obtener los colores del símbolo
   const getSymbolColors = (symbolValue) => {
@@ -156,7 +165,7 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
           {/* Información principal en grid */}
           <div className="space-y-1">
             {/* Temperatura */}
-            {temp != null && (
+            {hasTemperature && (
               <motion.div
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -187,7 +196,7 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
             )}
 
             {/* Símbolo de fertilidad */}
-            {symbolInfo && symbolInfo.value !== 'none' && (
+            {hasSymbol && (
               <motion.div
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -223,7 +232,7 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
                   <div className="flex-1 text-left">
 
                     <span className="text-md font-semibold text-blue-800">
-                      {point.mucus_sensation || '-'}
+                      {mucusSensation || '-'}
                     </span>
                   </div>
                 </div>
@@ -243,14 +252,14 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
                   <div className="flex-1 text-left">
 
                     <span className="text-md font-semibold text-green-800">
-                      {point.mucus_appearance || '-'}
+                      {mucusAppearance || '-'}
                     </span>
                   </div>
                 </div>
               </motion.div>
               
               {/* Observaciones */}
-              {point.observations && (
+              {hasObservations && (
                 <motion.div
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
@@ -263,7 +272,7 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
                     </div>
                     <div className="flex-1 text-left">
                       <span className="text-sm font-semibold text-violet-800">
-                        {point.observations}
+                        {observations}
                       </span>
                     </div>
                   </div>
@@ -272,7 +281,7 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
             </div>
 
             {/* Botones de acción */}
-            {point.id && !String(point.id).startsWith('placeholder-') && (onEdit || onToggleIgnore) && (
+            {(onEdit || (onToggleIgnore && !isPlaceholder && point.id)) && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -290,11 +299,11 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
                     className="flex items-center gap-2 px-2 py-2 bg-white/80 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 border-gray-200 hover:border-blue-300 text-gray-700 hover:text-blue-700 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md"
                   >
                     <Edit3 className="h-4 w-4" />
-                    <span className="font-medium">Editar</span>
+                    <span className="font-medium">{isPlaceholder ? 'Añadir datos' : 'Editar'}</span>
                   </Button>
                 )}
 
-                {onToggleIgnore && (
+                {onToggleIgnore && !isPlaceholder && point.id && (
                   <Button
                     onClick={() => onToggleIgnore(point.id)}
                     variant="outline"
@@ -319,6 +328,16 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
                   </Button>
                 )}
               </motion.div>
+            )}
+            {!hasAnyData && (
+              <div className="mt-2 rounded-xl border border-dashed border-pink-200 bg-pink-50/60 p-2 text-center">
+                <p className="text-sm font-semibold text-pink-600">Sin datos registrados para este día.</p>
+                {onEdit && (
+                  <p className="mt-1 text-xs text-pink-500">
+                    Usa el botón "{isPlaceholder ? 'Añadir datos' : 'Editar'}" para agregar información.
+                  </p>
+                )}
+              </div>
             )}
           </div>
         </div>
