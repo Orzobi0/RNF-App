@@ -12,9 +12,36 @@ export const useDataEntryForm = (
   cycleData = [],
   onDateSelect
 ) => {
-  const [date, setDate] = useState(
-    initialData?.isoDate ? parseISO(initialData.isoDate) : startOfDay(new Date())
-  );
+  const getDefaultDate = () => {
+    if (initialData?.isoDate) {
+      return parseISO(initialData.isoDate);
+    }
+
+    const today = startOfDay(new Date());
+    const cycleStart = cycleStartDate ? startOfDay(parseISO(cycleStartDate)) : null;
+    const cycleEnd = cycleEndDate ? startOfDay(parseISO(cycleEndDate)) : null;
+
+    let candidate = today;
+
+    if (cycleStart && candidate < cycleStart) {
+      candidate = cycleStart;
+    }
+
+    if (cycleEnd && candidate > cycleEnd) {
+      candidate = cycleEnd;
+    }
+
+    if (!cycleEnd && cycleStart) {
+      const maxAllowedDate = addDays(cycleStart, 45);
+      if (candidate > maxAllowedDate) {
+        candidate = maxAllowedDate;
+      }
+    }
+
+    return candidate;
+  };
+
+  const [date, setDate] = useState(getDefaultDate);
   const [measurements, setMeasurements] = useState(() => {
     if (initialData?.measurements && Array.isArray(initialData.measurements)) {
       return initialData.measurements.map((m) => ({
@@ -89,7 +116,7 @@ export const useDataEntryForm = (
           selected: true,
           temperature_corrected: '',
           time_corrected: format(new Date(), 'HH:mm'),
-          use_corrected: false,          
+          use_corrected: false,      
           confirmed: true,
         },
       ]);
@@ -98,8 +125,43 @@ export const useDataEntryForm = (
       setFertilitySymbol(FERTILITY_SYMBOLS.NONE.value);
       setObservations('');
       setIgnored(false);
+      setDate(getDefaultDate());
     }
   }, [initialData]);
+
+    useEffect(() => {
+    if (initialData) {
+      return;
+    }
+
+    const cycleStart = cycleStartDate ? startOfDay(parseISO(cycleStartDate)) : null;
+    const cycleEnd = cycleEndDate ? startOfDay(parseISO(cycleEndDate)) : null;
+
+    setDate((currentDate) => {
+      if (!currentDate) {
+        return getDefaultDate();
+      }
+
+      let adjustedDate = currentDate;
+
+      if (cycleStart && adjustedDate < cycleStart) {
+        adjustedDate = cycleStart;
+      }
+
+      if (cycleEnd && adjustedDate > cycleEnd) {
+        adjustedDate = cycleEnd;
+      }
+
+      if (!cycleEnd && cycleStart) {
+        const maxAllowedDate = addDays(cycleStart, 45);
+        if (adjustedDate > maxAllowedDate) {
+          adjustedDate = maxAllowedDate;
+        }
+      }
+
+      return adjustedDate;
+    });
+  }, [cycleStartDate, cycleEndDate, initialData]);
 
    useEffect(() => {
     if (!onDateSelect) return;
@@ -196,7 +258,7 @@ export const useDataEntryForm = (
     });
 
     if (!isEditing) {
-      setDate(startOfDay(new Date()));
+      setDate(getDefaultDate());
       setMeasurements([
         {
           temperature: '',

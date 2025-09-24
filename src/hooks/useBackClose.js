@@ -10,9 +10,12 @@ export default function useBackClose(active, onClose) {
   useEffect(() => {
     if (!active) return;
 
-    const id = crypto.randomUUID
-      ? crypto.randomUUID()
-      : Math.random().toString(36).slice(2);
+    const id =
+      typeof window !== 'undefined' &&
+      window.crypto &&
+      typeof window.crypto.randomUUID === 'function'
+        ? window.crypto.randomUUID()
+        : Math.random().toString(36).slice(2);
 
     let dismissedByPop = false;
     const handlePopState = () => {

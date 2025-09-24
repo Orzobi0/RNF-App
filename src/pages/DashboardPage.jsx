@@ -45,10 +45,10 @@ const CycleOverviewCard = ({ cycleData, onEdit }) => {
         };
       case 'spot':
         return {
-          main: '#f9a8d4',
-          light: '#f9a8d4',
-          glow: 'rgba(236, 72, 153, 0.3)',
-          border: '#f87171',
+          main: '#ef4444',
+          light: '#ef4444',
+          glow: 'rgba(239, 68, 68, 0.3)',
+          border: '#fee2e2',
           pattern: 'url(#spotting-pattern-dashboard)'
         };
       default:
@@ -146,7 +146,7 @@ const CycleOverviewCard = ({ cycleData, onEdit }) => {
   }, [activePoint]);
 
   return (
-    <div className="relative min-h-[100dvh] flex flex-col">
+    <div className="relative flex flex-col flex-1 min-h-full overflow-y-hidden">
       {/* Fecha actual - Parte superior con padding reducido */}
       <motion.div
         className="px-4 pt-5 pb-4 text-center flex-shrink-0"
@@ -190,8 +190,8 @@ const CycleOverviewCard = ({ cycleData, onEdit }) => {
             >
               <defs>
                 <pattern id="spotting-pattern-dashboard" patternUnits="userSpaceOnUse" width="6" height="6">
-                  <rect width="6" height="6" fill="#f3f4f6" />
-                  <circle cx="3" cy="3" r="1.5" fill="rgba(239,68,68,0.7)" />
+                  <rect width="6" height="6" fill="#ef4444" />
+                  <circle cx="3" cy="3" r="1.5" fill="rgba(255,255,255,0.85)" />
                 </pattern>
                 <radialGradient id="ringGlow" cx="50%" cy="50%" r="50%">
                 <stop offset="0%" stopColor="rgba(255,255,255,0.0)" />
@@ -318,7 +318,7 @@ const CycleOverviewCard = ({ cycleData, onEdit }) => {
         </div>
 
         {/* Leyenda e información del ciclo con diseño mejorado */}
-        <div className="grid grid-cols-2 gap-4 mx-2 mb-20 mt-2 flex-shrink-0">
+        <div className="grid grid-cols-2 gap-4 mx-2 mb-10 mt-2 flex-shrink-0">
           {/* Leyenda de colores */}
           <motion.div
             className="relative bg-gradient-to-br from-pink-50/90 to-rose-50/90 backdrop-blur-md rounded-3xl p-4 border border-pink-200/30"
@@ -340,7 +340,7 @@ const CycleOverviewCard = ({ cycleData, onEdit }) => {
                 { label: 'Menstrual', color: '#ef4444' },
                 { label: 'Fértil', color: '#f8fafc', stroke: '#e2e8f0' },
                 { label: 'Infértil', color: '#22c55e' },
-                { label: 'Spotting', color: '#f3f4f6', stroke: '#f87171', pattern: true }
+                { label: 'Spotting', color: '#ef4444', stroke: '#fee2e2', pattern: true }
               ].map(item => (
                 <div key={item.label} className="flex flex-col items-center gap-1.5">
                   <div
@@ -488,7 +488,7 @@ const ModernFertilityDashboard = () => {
 
   if (isLoading && !currentCycle?.id) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-rose-50 via-pink-50 to-rose-100 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 flex items-center justify-center">
         <p className="text-center text-gray-600 text-lg">Cargando...</p>
       </div>
     );
@@ -496,7 +496,7 @@ const ModernFertilityDashboard = () => {
 
   if (!currentCycle?.id) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-rose-50 via-pink-50 to-rose-100 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br ffrom-rose-100 via-pink-100 to-rose-100 flex items-center justify-center">
         <div className="text-center space-y-4">
           <p className="text-gray-600 text-lg">No hay ciclo activo.</p>
           <button
@@ -542,7 +542,7 @@ const ModernFertilityDashboard = () => {
   };
 
   return (
-    <div className="min-h-[100dvh] bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 relative overflow-x-hidden">
+    <div className="min-h-[calc(100dvh-var(--bottom-nav-safe))] bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 relative overflow-hidden flex flex-col">
       <div
   className="pointer-events-none absolute inset-0"
   style={{
@@ -550,13 +550,13 @@ const ModernFertilityDashboard = () => {
       'radial-gradient(65% 55% at 50% 32%, rgba(244,114,182,0.18) 0%, rgba(244,114,182,0.12) 35%, rgba(244,114,182,0.06) 60%, rgba(244,114,182,0) 100%)'
   }}
 />
-      <div className="max-w-md mx-auto h-[100dvh]">
+      <div className="max-w-md mx-auto flex-1 w-full flex flex-col">
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: 20 }}
           transition={{ duration: 0.3 }}
-          className="h-full"
+          className="flex-1 flex flex-col"
         >
           <CycleOverviewCard cycleData={{ ...currentCycle, currentDay, records: currentCycle.data }} onEdit={handleEdit} />
         </motion.div>

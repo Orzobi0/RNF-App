@@ -65,7 +65,7 @@ const AuthPage = () => {
   };
 
   return (
-    <div className="min-h-[calc(100dvh-var(--bottom-nav-safe))] bg-gradient-to-br from-pink-50 via-purple-50 to-indigo-50 flex flex-col justify-center items-center p-4">
+    <div className="min-h-[calc(100dvh-var(--bottom-nav-safe))] bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 flex flex-col justify-center items-center p-4">
       <motion.div
         className="w-full max-w-md bg-white/80 backdrop-blur-md shadow-xl rounded-xl p-8 sm:p-10"
         initial={{ opacity: 0, y: -30 }}

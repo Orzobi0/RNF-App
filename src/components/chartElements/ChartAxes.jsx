@@ -73,8 +73,8 @@ const ChartAxes = ({
 
         {/* Patrón unificado para spotting */}
         <pattern id="spotting-pattern-chart" patternUnits="userSpaceOnUse" width="6" height="6">
-          <rect width="6" height="6" fill="#f3f4f6" />
-          <circle cx="3" cy="3" r="1.5" fill="rgba(239,68,68,0.7)" />
+          <rect width="6" height="6" fill="#ef4444" />
+          <circle cx="3" cy="3" r="1.5" fill="rgba(255,255,255,0.85)" />
         </pattern>
       </defs>
 
@@ -107,7 +107,7 @@ const ChartAxes = ({
               x2={chartWidth - padding.right}
               y2={y}
               stroke={isMajor ? "rgba(244, 114, 182, 0.3)" : "rgba(244, 114, 182, 0.15)"}
-              strokeWidth={isMajor ? 2 : 1}
+              strokeWidth={isMajor ? 3 : 2}
               strokeDasharray={isMajor ? '0' : '4,4'}
               style={{ 
                 filter: isMajor ? 'drop-shadow(0 1px 3px rgba(244, 114, 182, 0.15))' : 'none',
@@ -169,8 +169,6 @@ const ChartAxes = ({
         );
       })}
 
-
-
       {/* Bordes del área del gráfico con estilo premium */}
       <rect
         x={padding.left}
@@ -179,8 +177,8 @@ const ChartAxes = ({
         height={chartHeight - padding.top - padding.bottom}
         fill="none"
         stroke="rgba(244, 114, 182, 0.4)"
-        strokeWidth={2}
-        rx={12}
+        strokeWidth={4}
+        rx={8}
         style={{ 
           filter: 'drop-shadow(0 4px 12px rgba(244, 114, 182, 0.15))',
           strokeDasharray: '0'

@@ -3,7 +3,7 @@ export const FERTILITY_SYMBOLS = {
       MENSTRUATION: { value: 'red', label: 'Menstruación', color: 'bg-red-500', textColor: '#e2e8f0' },
       FERTILE: { value: 'white', label: 'Fértil (Moco)', color: 'bg-white', textColor: '#e2e8f0' },
       INFERTILE: { value: 'green', label: 'Infértil (Sin Moco)', color: 'bg-green-500', textColor: '#e2e8f0' },
-      SPOTTING: { value: 'spot', label: 'Spotting', color: 'bg-pink-300', textColor: '#e2e8f0', pattern: 'spotting-pattern' },
+      SPOTTING: { value: 'spot', label: 'Spotting', color: 'bg-red-500', textColor: '#e2e8f0', pattern: 'spotting-pattern' },
     };
 
     export const FERTILITY_SYMBOL_OPTIONS = Object.values(FERTILITY_SYMBOLS);
