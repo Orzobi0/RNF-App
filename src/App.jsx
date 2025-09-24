@@ -13,6 +13,7 @@ import MainLayout from '@/components/layout/MainLayout';
 import { Toaster } from '@/components/ui/toaster';
 import { motion } from 'framer-motion';
 import InstallPrompt from '@/components/InstallPrompt';
+import UpdateNotification from '@/components/UpdateNotification';
 
 function ProtectedRoute({ children }) {
   const { user } = useAuth();
@@ -107,6 +108,7 @@ function App() {
   return (
     <BrowserRouter>
     <InstallPrompt />
+      <UpdateNotification />
       <AuthProvider>
         <CycleDataProvider>
           <AppContent />

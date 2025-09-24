@@ -89,6 +89,43 @@ const ChartPage = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showInterpretation, setShowInterpretation] = useState(false);
   const ignoreNextClickRef = useRef(false);
+  
+  useEffect(() => {
+    const handleFullScreenChange = async () => {
+      const isCurrentlyFullScreen = Boolean(
+        document.fullscreenElement ||
+          document.webkitFullscreenElement ||
+          document.mozFullScreenElement ||
+          document.msFullscreenElement
+      );
+
+      setIsFullScreen(isCurrentlyFullScreen);
+
+      if (!isCurrentlyFullScreen) {
+        try {
+          const screenOrientation =
+            typeof window !== 'undefined' ? window.screen?.orientation : null;
+          await screenOrientation?.unlock?.();
+        } catch (error) {
+          // ignored
+        }
+        setOrientation('portrait');
+      }
+    };
+
+    document.addEventListener('fullscreenchange', handleFullScreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullScreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullScreenChange);
+    document.addEventListener('MSFullscreenChange', handleFullScreenChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullScreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullScreenChange);
+      document.removeEventListener('mozfullscreenchange', handleFullScreenChange);
+      document.removeEventListener('MSFullscreenChange', handleFullScreenChange);
+    };
+  }, []);
+
   useLayoutEffect(() => {
     window.dispatchEvent(new Event('resize'));
   }, [orientation, isFullScreen]);

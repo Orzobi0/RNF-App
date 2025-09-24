@@ -16,19 +16,44 @@ const BUILD_ASSETS = (self.__BUILD_ASSETS || []).map(
 );
 
 self.addEventListener('install', event => {
+  console.log('SW: Installing new version', CACHE_VERSION);
   event.waitUntil(
-    caches.open(CACHE_NAME)
+    caches
+      .open(CACHE_NAME)
       .then(cache => cache.addAll([...ASSETS, ...BUILD_ASSETS]))
-      .then(() => self.skipWaiting())
+      .then(() => {
+        console.log('SW: Cache populated, skipping waiting');
+        return self.skipWaiting();
+      })
   );
 });
 
 self.addEventListener('activate', event => {
+  console.log('SW: Activating version', CACHE_VERSION);
   event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.map(key => key !== CACHE_NAME && caches.delete(key)))
-    ).then(() => self.clients.claim())
+    caches
+      .keys()
+      .then(keys =>
+        Promise.all(
+          keys
+            .filter(key => key !== CACHE_NAME)
+            .map(key => {
+              console.log('SW: Deleting old cache', key);
+              return caches.delete(key);
+            })
+        )
+      )
+      .then(() => {
+        console.log('SW: Claiming clients');
+        return self.clients.claim();
+      })
   );
+});
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    console.log('SW: Received SKIP_WAITING message');
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener('fetch', (event) => {
