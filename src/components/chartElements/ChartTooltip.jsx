@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { XCircle, EyeOff, Eye, Edit3, Thermometer, Droplets, Circle } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -55,6 +56,14 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
   const hasObservations = Boolean(observations && observations.trim());
   const hasAnyData = hasTemperature || hasSymbol || hasMucusInfo || hasObservations;
   const showEmptyState = !hasAnyData;
+  const peakStatus = point.peakStatus || (point.peak_marker === 'peak' ? 'P' : null);
+  const peakLabels = {
+    P: 'Día pico',
+    1: 'Post pico 1',
+    2: 'Post pico 2',
+    3: 'Post pico 3',
+  };
+  const peakLabel = peakStatus ? peakLabels[peakStatus] || null : null;
 
   const handleEditClick = () => {
     if (!onEdit) return;
@@ -165,6 +174,13 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
                 <p className="text-sm text-pink-600 font-medium">
                   Día {point.cycleDay || 'N/A'} del ciclo
                 </p>
+                {peakLabel && (
+                  <div className="mt-1 flex justify-center">
+                    <Badge className="bg-rose-100 text-rose-600 border border-rose-200 px-2 py-0 text-[11px]">
+                      {peakLabel}
+                    </Badge>
+                  </div>
+                )}
               </div>
             </div>
           </div>

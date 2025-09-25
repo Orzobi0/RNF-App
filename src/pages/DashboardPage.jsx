@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, FilePlus, CalendarPlus } from 'lucide-react';
 import DataEntryForm from '@/components/DataEntryForm';
@@ -7,6 +7,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { useCycleData } from '@/hooks/useCycleData';
 import { addDays, differenceInDays, format, isAfter, parseISO, startOfDay } from 'date-fns';
 import ChartTooltip from '@/components/chartElements/ChartTooltip';
+import computePeakStatuses from '@/lib/computePeakStatuses';
 
 const CycleOverviewCard = ({ cycleData, onEdit }) => {
   const records = cycleData.records || [];
@@ -15,6 +16,7 @@ const CycleOverviewCard = ({ cycleData, onEdit }) => {
   const circleRef = useRef(null);
   const cycleStartDate = cycleData.startDate ? parseISO(cycleData.startDate) : null;
   const today = startOfDay(new Date());
+  const peakStatuses = useMemo(() => computePeakStatuses(records), [records]);
 
     // Ajustes del círculo de progreso
   const radius = 140; // radio del círculo
@@ -105,7 +107,7 @@ const CycleOverviewCard = ({ cycleData, onEdit }) => {
           };
         }
       }
-
+      const peakStatus = isoDate ? peakStatuses[isoDate] || null : null;
       return {
         x,
         y,
@@ -116,7 +118,8 @@ const CycleOverviewCard = ({ cycleData, onEdit }) => {
         hasRecord: !!recordWithCycleDay,
         record: recordWithCycleDay,
         isoDate,
-        canShowPlaceholder: Boolean(!recordWithCycleDay && isoDate && !isFutureDay)
+        canShowPlaceholder: Boolean(!recordWithCycleDay && isoDate && !isFutureDay),
+        peakStatus,
       };
     });
   };
@@ -152,11 +155,12 @@ const CycleOverviewCard = ({ cycleData, onEdit }) => {
           temperature_chart: null,
           displayTemperature: null,
           ignored: false,
+          peakStatus: dot.peakStatus,
         }
       : null;
 
     const targetRecord = dot.record
-      ? { ...dot.record, cycleDay: dot.record.cycleDay ?? dot.day }
+      ? { ...dot.record, cycleDay: dot.record.cycleDay ?? dot.day, peakStatus: dot.peakStatus }
       : placeholderRecord;
 
     if (!targetRecord) {
@@ -296,21 +300,55 @@ const CycleOverviewCard = ({ cycleData, onEdit }) => {
                       : (dot.isToday
                         ? 1.8
                         : (dot.colors.border ? 0.6 : 0.8))}
-                  onClick={(e) => handleDotClick(dot, e)}
-                  initial={{ scale: 0, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{
-                    duration: 0.6,
-                    delay: 0.8 + (index * 0.02),
-                    type: 'spring',
-                    stiffness: 400,
-                    damping: 25
+                    onClick={(e) => handleDotClick(dot, e)}
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{
+                      duration: 0.6,
+                      delay: 0.8 + index * 0.02,
+                      type: 'spring',
+                      stiffness: 400,
+                      damping: 25
                     }}
                     style={{
                       filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.2))',
                       cursor: 'pointer'
                     }}
                   />
+                {dot.peakStatus && (
+                    dot.peakStatus === 'P' ? (
+                      <g pointerEvents="none">
+                        <line
+                          x1={dot.x - 6}
+                          y1={dot.y - 6}
+                          x2={dot.x + 6}
+                          y2={dot.y + 6}
+                          stroke="#7f1d1d"
+                          strokeWidth={2}
+                        />
+                        <line
+                          x1={dot.x + 6}
+                          y1={dot.y - 6}
+                          x2={dot.x - 6}
+                          y2={dot.y + 6}
+                          stroke="#7f1d1d"
+                          strokeWidth={2}
+                        />
+                      </g>
+                    ) : (
+                      <text
+                        x={dot.x}
+                        y={dot.y + 4}
+                        textAnchor="middle"
+                        fontSize="12"
+                        fontWeight="800"
+                        fill="#7f1d1d"
+                        style={{ pointerEvents: 'none' }}
+                      >
+                        {dot.peakStatus}
+                      </text>
+                    )
+                  )}
 
                 </g>
               ))}

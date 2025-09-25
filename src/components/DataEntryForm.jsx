@@ -45,6 +45,9 @@ const DataEntryForm = ({ onSubmit, initialData, onCancel, cycleStartDate, cycleE
     setObservations,
     ignored,
     setIgnored,
+    peakTag,
+    setPeakTag,
+    existingPeakIsoDate,
     handleSubmit,
   } = useDataEntryForm(onSubmit, initialData, isEditing, cycleStartDate, cycleEndDate, cycleData, onDateSelect);
    const recordedDates = useMemo(
@@ -101,6 +104,9 @@ const DataEntryForm = ({ onSubmit, initialData, onCancel, cycleStartDate, cycleE
         setObservations={setObservations}
         ignored={ignored}
         setIgnored={setIgnored}
+        peakTag={peakTag}
+        setPeakTag={setPeakTag}
+        existingPeakIsoDate={existingPeakIsoDate}
         isProcessing={isProcessing}
         isEditing={isEditing}
         initialData={initialData}

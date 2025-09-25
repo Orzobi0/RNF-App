@@ -268,6 +268,7 @@ const ChartPoints = ({
 
           const symbolRectSize = responsiveFontSize(isFullScreen ? 1.8 : 2);
 
+        const peakStatus = point.peakStatus;
         const shouldEnableInteractions = hasAnyRecord || (isPlaceholder && !isFuture);
         const interactionProps = shouldEnableInteractions
           ? {
@@ -493,18 +494,54 @@ const ChartPoints = ({
                     rx={symbolRectSize * 0.2}
                     style={{ filter: 'drop-shadow(0 2px 4px rgba(244, 114, 182, 0.25))' }}
                   />
+                  {peakStatus && (
+                    <g pointerEvents="none">
+                      {peakStatus === 'P' ? (
+                        <>
+                          <line
+                            x1={x - symbolRectSize / 2 - 2}
+                            y1={symbolRowYBase - symbolRectSize * 0.75 + 2}
+                            x2={x + symbolRectSize / 2 + 2}
+                            y2={symbolRowYBase - symbolRectSize * 0.75 + symbolRectSize - 2}
+                            stroke="#7f1d1d"
+                            strokeWidth={1.8}
+                          />
+                          <line
+                            x1={x + symbolRectSize / 2 + 2}
+                            y1={symbolRowYBase - symbolRectSize * 0.75 + 2}
+                            x2={x - symbolRectSize / 2 - 2}
+                            y2={symbolRowYBase - symbolRectSize * 0.75 + symbolRectSize - 2}
+                            stroke="#7f1d1d"
+                            strokeWidth={1.8}
+                          />
+                        </>
+                      ) : (
+                        <text
+                          x={x}
+                          y={symbolRowYBase - symbolRectSize * 0.75 + symbolRectSize / 2 + 2}
+                          textAnchor="middle"
+                          fontSize={responsiveFontSize(peakStatus ? 1.1 : 1)}
+                          fontWeight="800"
+                          fill="#7f1d1d"
+                          style={{ filter: 'drop-shadow(0 1px 1px rgba(255,255,255,0.9))' }}
+                        >
+                          {peakStatus}
+                        </text>
+                      )}
+                    </g>
+                  )}
                 </g>
               ) : (
                 <text
-                  x={x} 
-                  y={symbolRowYBase} 
+                  x={x}
+                  y={symbolRowYBase}
                   textAnchor="middle"
-                  fontSize={responsiveFontSize(1)} 
+                  fontSize={responsiveFontSize(1)}
                   fill={textFill}
                   fontWeight="500"
                   style={{ filter: 'drop-shadow(0 1px 1px rgba(255, 255, 255, 0.8))' }}
                 >
-                  –
+                  {peakStatus === 'P' ? 'X' : peakStatus || '–'}
                 </text>
               )
             )}

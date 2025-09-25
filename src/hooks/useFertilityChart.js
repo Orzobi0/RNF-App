@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, useMemo } from 'react';
+import computePeakStatuses from '@/lib/computePeakStatuses';
 
 const DEFAULT_TEMP_MIN = 35.5;
 const DEFAULT_TEMP_MAX = 37.5;
@@ -177,6 +178,7 @@ export const useFertilityChart = (
       const [activePoint, setActivePoint] = useState(null);
       const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
 
+      const peakStatusByIsoDate = useMemo(() => computePeakStatuses(data), [data]);
       const processedData = useMemo(() => {
         const normalizeTemp = (value) => {
           if (value === null || value === undefined || value === '') {
@@ -226,13 +228,14 @@ export const useFertilityChart = (
               resolvedValue = getMeasurementTemp(fallbackMeasurement);
             }
           }
-
+          const isoDate = d?.isoDate;  
           return {
             ...d,
             displayTemperature: normalizeTemp(resolvedValue),
+            peakStatus: isoDate ? peakStatusByIsoDate[isoDate] || null : null,
           };
         });
-      }, [data]);
+      }, [data, peakStatusByIsoDate]);
 
       useLayoutEffect(() => {
         const updateDimensions = () => {

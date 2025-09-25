@@ -32,6 +32,9 @@ const DataEntryFormFields = ({
   setObservations,
   ignored,
   setIgnored,
+  peakTag,
+  setPeakTag,
+  existingPeakIsoDate,
   isProcessing,
   isEditing,
   initialData,
@@ -85,7 +88,19 @@ const DataEntryFormFields = ({
   const cycleStart = startOfDay(parseISO(cycleStartDate));
   const cycleEnd = cycleEndDate ? startOfDay(parseISO(cycleEndDate)) : addDays(cycleStart, 45);
   const disabledDateRanges = [{ before: cycleStart }, { after: cycleEnd }];
+  const selectedIsoDate = date ? format(date, 'yyyy-MM-dd') : null;
+  const isCurrentPeak = peakTag === 'peak';
+  const hasOtherPeak = existingPeakIsoDate && existingPeakIsoDate !== selectedIsoDate;
+  const formattedExistingPeak = existingPeakIsoDate
+    ? format(parseISO(existingPeakIsoDate), 'dd/MM/yyyy')
+    : null;
 
+  const togglePeakTag = () => {
+    if (isProcessing || hasOtherPeak) {
+      return;
+    }
+    setPeakTag(isCurrentPeak ? null : 'peak');
+  };
   return (
     <>
       {/* Fecha */}
@@ -321,6 +336,34 @@ const DataEntryFormFields = ({
             ))}
           </SelectContent>
         </Select>
+        {selectedIsoDate && (
+          <div className="mt-2 flex flex-col gap-1">
+            <Button
+              type="button"
+              size="sm"
+              variant={isCurrentPeak ? 'default' : 'outline'}
+              disabled={isProcessing || hasOtherPeak}
+              onClick={togglePeakTag}
+              className={`justify-center ${
+                isCurrentPeak
+                  ? 'bg-rose-500 hover:bg-rose-600 text-white'
+                  : 'border-rose-200 text-rose-600 hover:bg-rose-50'
+              }`}
+            >
+              {isCurrentPeak ? 'Quitar día pico' : 'Determinar día pico'}
+            </Button>
+            {hasOtherPeak && formattedExistingPeak && (
+              <p className="text-[11px] text-rose-500 font-medium">
+                Ya hay un pico registrado el {formattedExistingPeak}.
+              </p>
+            )}
+            {!hasOtherPeak && isCurrentPeak && (
+              <p className="text-[11px] text-rose-500">
+                Este día se marcará como pico y los tres siguientes quedarán etiquetados.
+              </p>
+            )}
+          </div>
+        )}
       </div>
       {/* Sensación y apariencia */}
       <div className="space-y-2 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-3 border border-blue-100/50">

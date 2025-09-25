@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Edit2, Trash2, Thermometer, Droplets, Circle, Eye, Calendar, Clock, Edit3 } from 'lucide-react';
@@ -6,6 +6,7 @@ import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { motion } from 'framer-motion';
 import { FERTILITY_SYMBOL_OPTIONS } from '@/config/fertilitySymbols';
+import computePeakStatuses from '@/lib/computePeakStatuses';
 
 const RecordsList = ({ records, onEdit, onDelete, isProcessing }) => {
   if (!records || records.length === 0) {
@@ -29,6 +30,13 @@ const RecordsList = ({ records, onEdit, onDelete, isProcessing }) => {
 
   const getSymbolInfo = (symbolValue) => {
     return FERTILITY_SYMBOL_OPTIONS.find(s => s.value === symbolValue) || FERTILITY_SYMBOL_OPTIONS[0];
+  };
+const peakStatuses = useMemo(() => computePeakStatuses(records), [records]);
+  const peakLabelMap = {
+    P: 'Día pico',
+    1: 'Post pico 1',
+    2: 'Post pico 2',
+    3: 'Post pico 3',
   };
 
   const sortedRecords = [...records].sort((a, b) => {
@@ -70,7 +78,9 @@ const RecordsList = ({ records, onEdit, onDelete, isProcessing }) => {
         const hasTemperature = resolvedTemp !== null;
         const displayTemp = resolvedTemp;
         const showCorrectedIndicator = usesCorrected && correctedTemp !== null;
-        
+        const peakStatus = peakStatuses[record.isoDate];
+        const peakLabel = peakStatus ? peakLabelMap[peakStatus] || null : null;
+
         return (
           <motion.div
             key={record.id}
@@ -89,6 +99,11 @@ const RecordsList = ({ records, onEdit, onDelete, isProcessing }) => {
                     {format(parseISO(record.isoDate), 'dd/MM/yyyy', { locale: es })}
                   </span>
                   <span className="text-md text-slate-600">Día {record.cycleDay}</span>
+                  {peakLabel && (
+                    <Badge className="ml-2 bg-rose-100 text-rose-600 border border-rose-200">
+                      {peakLabel}
+                    </Badge>
+                  )}
                 </div>
                 <div className="flex items-center space-x-1 ml-2">
                   {symbolInfo.label !== 'Sin símbolo' && (

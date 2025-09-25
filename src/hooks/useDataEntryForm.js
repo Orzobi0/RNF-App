@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { format, startOfDay, parseISO, addDays } from 'date-fns';
 import { useToast } from '@/components/ui/use-toast';
 import { FERTILITY_SYMBOLS } from '@/config/fertilitySymbols';
@@ -85,6 +85,13 @@ export const useDataEntryForm = (
   );
   const [observations, setObservations] = useState(initialData?.observations || '');
   const [ignored, setIgnored] = useState(initialData?.ignored || false);
+  const [peakTag, setPeakTag] = useState(
+    initialData?.peak_marker === 'peak' ? 'peak' : null
+  );
+  const existingPeakIsoDate = useMemo(() => {
+    const peakRecord = cycleData.find((record) => record?.peak_marker === 'peak');
+    return peakRecord?.isoDate || null;
+  }, [cycleData]);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -108,6 +115,7 @@ export const useDataEntryForm = (
       setFertilitySymbol(initialData.fertility_symbol || FERTILITY_SYMBOLS.NONE.value);
       setObservations(initialData.observations || '');
       setIgnored(initialData.ignored || false);
+      setPeakTag(initialData.peak_marker === 'peak' ? 'peak' : null);
     } else {
       setMeasurements([
         {
@@ -125,6 +133,7 @@ export const useDataEntryForm = (
       setFertilitySymbol(FERTILITY_SYMBOLS.NONE.value);
       setObservations('');
       setIgnored(false);
+      setPeakTag(null);
       setDate(getDefaultDate());
     }
   }, [initialData]);
@@ -168,6 +177,9 @@ export const useDataEntryForm = (
     const iso = format(date, 'yyyy-MM-dd');
     const found = cycleData.find((r) => r.isoDate === iso);
     onDateSelect(found || null);
+    if (found) {
+      setPeakTag(found.peak_marker === 'peak' ? 'peak' : null);
+    }
   }, [date, cycleData, onDateSelect]);
 
   const addMeasurement = () => {
@@ -255,6 +267,7 @@ export const useDataEntryForm = (
       fertility_symbol: fertilitySymbol,
       observations,
       ignored,
+      peak_marker: peakTag === 'peak' ? 'peak' : null,
     });
 
     if (!isEditing) {
@@ -274,6 +287,7 @@ export const useDataEntryForm = (
       setMucusAppearance('');
       setFertilitySymbol(FERTILITY_SYMBOLS.NONE.value);
       setObservations('');
+      setPeakTag(null);
     }
   };
 
@@ -296,6 +310,9 @@ export const useDataEntryForm = (
     setObservations,
     ignored,
     setIgnored,
+    peakTag,
+    setPeakTag,
+    existingPeakIsoDate,
     handleSubmit,
   };
 };

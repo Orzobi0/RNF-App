@@ -187,6 +187,7 @@ export const CycleDataProvider = ({ children }) => {
           fertility_symbol: newData.fertility_symbol === 'none' ? null : newData.fertility_symbol,
           observations: newData.observations || null,
           ignored: targetRecord ? (newData.ignored ?? targetRecord.ignored) : newData.ignored || false,
+          peak_marker: newData.peak_marker ?? (targetRecord?.peak_marker ?? null),
           temperature_raw: rawTemp,
           temperature_corrected: correctedTemp,
           use_corrected: useCorrected,
