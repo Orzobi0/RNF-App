@@ -49,6 +49,7 @@ const DataEntryForm = ({ onSubmit, initialData, onCancel, cycleStartDate, cycleE
     setPeakTag,
     existingPeakIsoDate,
     handleSubmit,
+    submitCurrentState,
   } = useDataEntryForm(onSubmit, initialData, isEditing, cycleStartDate, cycleEndDate, cycleData, onDateSelect);
    const recordedDates = useMemo(
     () => cycleData.map((r) => parseISO(r.isoDate)),
@@ -113,6 +114,7 @@ const DataEntryForm = ({ onSubmit, initialData, onCancel, cycleStartDate, cycleE
         cycleStartDate={cycleStartDate}
         cycleEndDate={cycleEndDate}
         recordedDates={recordedDates}
+        submitCurrentState={submitCurrentState}
       />
       <DataEntryFormActions
         onCancel={onCancel}

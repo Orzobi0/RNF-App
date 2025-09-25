@@ -41,6 +41,7 @@ const DataEntryFormFields = ({
   cycleStartDate,
   cycleEndDate,
   recordedDates = [],
+  submitCurrentState,
 }) => {
   const [open, setOpen] = useState(false);
   const [correctionIndex, setCorrectionIndex] = useState(null);
@@ -96,11 +97,23 @@ const DataEntryFormFields = ({
     : null;
 
   const togglePeakTag = () => {
-    if (isProcessing || hasOtherPeak) {
+    if (isProcessing) {
       return;
     }
-    setPeakTag(isCurrentPeak ? null : 'peak');
+
+    const newPeakTag = isCurrentPeak ? null : 'peak';
+    setPeakTag(newPeakTag);
+
+    if (isEditing && typeof submitCurrentState === 'function') {
+      submitCurrentState({ peakTagOverride: newPeakTag });
+    }
   };
+
+  const peakButtonLabel = isCurrentPeak
+    ? 'Quitar día pico'
+    : hasOtherPeak
+      ? 'Actualizar el día pico'
+      : 'Determinar día pico';
   return (
     <>
       {/* Fecha */}
@@ -342,7 +355,7 @@ const DataEntryFormFields = ({
               type="button"
               size="sm"
               variant={isCurrentPeak ? 'default' : 'outline'}
-              disabled={isProcessing || hasOtherPeak}
+              disabled={isProcessing}
               onClick={togglePeakTag}
               className={`justify-center ${
                 isCurrentPeak
@@ -350,7 +363,7 @@ const DataEntryFormFields = ({
                   : 'border-rose-200 text-rose-600 hover:bg-rose-50'
               }`}
             >
-              {isCurrentPeak ? 'Quitar día pico' : 'Determinar día pico'}
+              {peakButtonLabel}
             </Button>
             {hasOtherPeak && formattedExistingPeak && (
               <p className="text-[11px] text-rose-500 font-medium">

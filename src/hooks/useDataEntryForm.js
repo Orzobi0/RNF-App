@@ -222,15 +222,14 @@ export const useDataEntryForm = (
     );
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
+  const buildSubmissionPayload = (options = {}) => {
     if (!date) {
       toast({
         title: 'Error',
         description: 'La fecha es obligatoria.',
         variant: 'destructive',
       });
-      return;
+      return null;
     }
     const cycleStart = startOfDay(parseISO(cycleStartDate));
     const cycleEnd = cycleEndDate
@@ -242,7 +241,7 @@ export const useDataEntryForm = (
         description: 'La fecha debe estar dentro del ciclo.',
         variant: 'destructive',
       });
-      return;
+      return null;
     }
     const isoDate = format(date, 'yyyy-MM-dd');
     const normalizeMeasurementValue = (value) => {
@@ -252,7 +251,15 @@ export const useDataEntryForm = (
       const parsed = parseFloat(String(value).replace(',', '.'));
       return Number.isFinite(parsed) ? parsed : null;
     };
-    onSubmit({
+    const peakTagOverrideProvided = Object.prototype.hasOwnProperty.call(
+      options,
+      'peakTagOverride'
+    );
+    const effectivePeakTag = peakTagOverrideProvided
+      ? options.peakTagOverride
+      : peakTag;
+
+    return {
       isoDate,
       measurements: measurements.map((m) => ({
         temperature: normalizeMeasurementValue(m.temperature),
@@ -267,28 +274,51 @@ export const useDataEntryForm = (
       fertility_symbol: fertilitySymbol,
       observations,
       ignored,
-      peak_marker: peakTag === 'peak' ? 'peak' : null,
-    });
+      peak_marker: effectivePeakTag === 'peak' ? 'peak' : null,
+    };
+  };
+
+  const resetFormState = () => {
+    setDate(getDefaultDate());
+    setMeasurements([
+      {
+        temperature: '',
+        time: format(new Date(), 'HH:mm'),
+        selected: true,
+        temperature_corrected: '',
+        time_corrected: format(new Date(), 'HH:mm'),
+        use_corrected: false,
+        confirmed: true,
+      },
+    ]);
+    setMucusSensation('');
+    setMucusAppearance('');
+    setFertilitySymbol(FERTILITY_SYMBOLS.NONE.value);
+    setObservations('');
+    setPeakTag(null);
+  };
+
+  const submitCurrentState = (options = {}) => {
+    const payload = buildSubmissionPayload(options);
+    if (!payload) {
+      return null;
+    }
+
+    const result = onSubmit(payload);
 
     if (!isEditing) {
-      setDate(getDefaultDate());
-      setMeasurements([
-        {
-          temperature: '',
-          time: format(new Date(), 'HH:mm'),
-          selected: true,
-          temperature_corrected: '',
-          time_corrected: format(new Date(), 'HH:mm'),
-          use_corrected: false,
-          confirmed: true,
-        },
-      ]);
-      setMucusSensation('');
-      setMucusAppearance('');
-      setFertilitySymbol(FERTILITY_SYMBOLS.NONE.value);
-      setObservations('');
-      setPeakTag(null);
+      resetFormState();
     }
+  
+    return result;
+  };
+
+  const handleSubmit = (e) => {
+    if (e && typeof e.preventDefault === 'function') {
+      e.preventDefault();
+    }
+
+    return submitCurrentState();
   };
 
   return {
@@ -314,5 +344,6 @@ export const useDataEntryForm = (
     setPeakTag,
     existingPeakIsoDate,
     handleSubmit,
+    submitCurrentState,
   };
 };

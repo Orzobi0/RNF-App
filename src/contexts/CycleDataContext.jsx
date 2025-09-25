@@ -167,9 +167,21 @@ export const CycleDataProvider = ({ children }) => {
         let targetRecord = editingRecord;
         if (!targetRecord && targetCycle) {
           if (targetRecord && String(targetRecord.id).startsWith('placeholder-')) {
-          targetRecord = null;
-        }
+            targetRecord = null;
+          }
           targetRecord = targetCycle.data.find((r) => r.isoDate === newData.isoDate);
+        }
+        const existingPeakRecord =
+          targetCycle?.data?.find((record) => record?.peak_marker === 'peak') || null;
+
+        if (
+          newData.peak_marker === 'peak' &&
+          existingPeakRecord &&
+          existingPeakRecord.id !== targetRecord?.id
+        ) {
+          await updateCycleEntry(user.uid, cycleIdToUse, existingPeakRecord.id, {
+            peak_marker: null,
+          });
         }
 
         const rawTemp = normalizeTemp(selectedMeasurement.temperature);
