@@ -32,16 +32,9 @@ export const computePeakStatuses = (records = []) => {
     if (isAfter(candidateDate, today)) {
       break;
     }
+
     const candidateIso = format(candidateDate, 'yyyy-MM-dd');
-    const matchingRecord = records.find(
-      (record) =>
-        record?.isoDate === candidateIso &&
-        !isPlaceholderRecord(record) &&
-        !isAfter(startOfDay(parseISO(record.isoDate)), today)
-    );
-    if (matchingRecord) {
-      statuses[candidateIso] = String(offset);
-    }
+    statuses[candidateIso] = String(offset);
   }
 
   return statuses;

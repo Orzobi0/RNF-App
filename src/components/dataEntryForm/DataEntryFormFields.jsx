@@ -325,9 +325,51 @@ const DataEntryFormFields = ({
 
         </div>
       ))}
-      <Button type="button" onClick={addMeasurement} disabled={isProcessing} className="mb-2">
-        Añadir medición
-      </Button>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-3 mb-2">
+        <Button
+          type="button"
+          onClick={addMeasurement}
+          disabled={isProcessing}
+          className="sm:w-auto"
+        >
+          Añadir medición
+        </Button>
+        {selectedIsoDate && (
+          <div className="flex-1">
+            <div className="space-y-1 rounded-xl border border-rose-200/60 bg-gradient-to-r from-rose-50 to-pink-50 p-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm font-semibold text-rose-700">
+                  Gestión del día pico
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={isCurrentPeak ? 'default' : 'outline'}
+                  disabled={isProcessing}
+                  onClick={togglePeakTag}
+                  className={`w-full justify-center sm:w-auto ${
+                    isCurrentPeak
+                      ? 'bg-rose-500 hover:bg-rose-600 text-white'
+                      : 'border-rose-200 text-rose-600 hover:bg-rose-50'
+                  }`}
+                >
+                  {peakButtonLabel}
+                </Button>
+              </div>
+              {hasOtherPeak && formattedExistingPeak && (
+                <p className="text-[11px] text-rose-500 font-medium">
+                  Ya hay un pico registrado el {formattedExistingPeak}.
+                </p>
+              )}
+              {!hasOtherPeak && isCurrentPeak && (
+                <p className="text-[11px] text-rose-500">
+                  Este día se marcará como pico y los tres siguientes quedarán etiquetados.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
       {/* Símbolo de fertilidad */}
       <div className="space-y-2 bg-gradient-to-r from-stone-50 to-slate-50 rounded-xl p-3 border border-slate-100/50">
         <Label htmlFor="fertilitySymbol" className="flex items-center text-slate-800 text-sm font-semibold">
@@ -349,34 +391,6 @@ const DataEntryFormFields = ({
             ))}
           </SelectContent>
         </Select>
-        {selectedIsoDate && (
-          <div className="mt-2 flex flex-col gap-1">
-            <Button
-              type="button"
-              size="sm"
-              variant={isCurrentPeak ? 'default' : 'outline'}
-              disabled={isProcessing}
-              onClick={togglePeakTag}
-              className={`justify-center ${
-                isCurrentPeak
-                  ? 'bg-rose-500 hover:bg-rose-600 text-white'
-                  : 'border-rose-200 text-rose-600 hover:bg-rose-50'
-              }`}
-            >
-              {peakButtonLabel}
-            </Button>
-            {hasOtherPeak && formattedExistingPeak && (
-              <p className="text-[11px] text-rose-500 font-medium">
-                Ya hay un pico registrado el {formattedExistingPeak}.
-              </p>
-            )}
-            {!hasOtherPeak && isCurrentPeak && (
-              <p className="text-[11px] text-rose-500">
-                Este día se marcará como pico y los tres siguientes quedarán etiquetados.
-              </p>
-            )}
-          </div>
-        )}
       </div>
       {/* Sensación y apariencia */}
       <div className="space-y-2 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-3 border border-blue-100/50">
