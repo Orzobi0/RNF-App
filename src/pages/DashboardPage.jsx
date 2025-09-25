@@ -284,7 +284,12 @@ const CycleOverviewCard = ({ cycleData, onEdit }) => {
                     cx={dot.x}
                     cy={dot.y}
                     r={dot.isToday ? 11 : 10}
-                    fill={dot.colors.pattern || (dot.isActive && dot.hasRecord ? dot.colors.main : 'none')}
+                    fill={
+                      dot.colors.pattern
+                        || (dot.isActive && dot.hasRecord
+                          ? dot.colors.main
+                          : 'rgba(255,255,255,0.001)')
+                    }
                     stroke={dot.colors.border === 'none' ? 'none' : dot.colors.border || 'rgba(158,158,158,0.4)'}
                     strokeWidth={dot.colors.border === 'none'
                       ? 0
@@ -302,7 +307,8 @@ const CycleOverviewCard = ({ cycleData, onEdit }) => {
                     damping: 25
                     }}
                     style={{
-                      filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.2))'
+                      filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.2))',
+                      cursor: 'pointer'
                     }}
                   />
 
@@ -413,7 +419,7 @@ const CycleOverviewCard = ({ cycleData, onEdit }) => {
                 </div>       
               ))}
             </div>
-            <div className="absolute -top-1 -right-1 w-2 h-2 bg-gradient-to-br from-pink-300/40 to-rose-400/40 rounded-full" />
+            <div className="absolute top-3 right-4 w-2 h-2 bg-gradient-to-br from-pink-300/40 to-rose-400/40 rounded-full" />
           </motion.div>
 
           {/* Información del ciclo con diseño tipo card premium */}
