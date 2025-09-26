@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { User } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -6,6 +6,9 @@ import { useToast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { downloadCyclesAsCsv, downloadCyclesAsPdf } from '@/lib/cycleExport';
+import ExportCyclesDialog from '@/components/ExportCyclesDialog';
+import { useCycleData } from '@/hooks/useCycleData';
 
 import {
   Dialog,
@@ -18,10 +21,15 @@ import {
 
 const SettingsPage = () => {
   const { user, updateEmail, updatePassword, login, logout } = useAuth();
+  const { currentCycle, archivedCycles } = useCycleData();
   const { toast } = useToast();
 
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  const [selectedCycleIds, setSelectedCycleIds] = useState([]);
+  const [exportFormat, setExportFormat] = useState('csv');
+  const [isExporting, setIsExporting] = useState(false);
 
   const [newEmail, setNewEmail] = useState(user?.email || '');
   const [loadingEmail, setLoadingEmail] = useState(false);
@@ -32,6 +40,116 @@ const SettingsPage = () => {
   const [loadingPassword, setLoadingPassword] = useState(false);
   const [loadingLogout, setLoadingLogout] = useState(false);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+
+    const allCycles = useMemo(() => {
+    const combined = [];
+    if (currentCycle?.id) {
+      combined.push({
+        id: currentCycle.id,
+        name: 'Ciclo actual',
+        startDate: currentCycle.startDate,
+        endDate: currentCycle.endDate,
+        recordCount: currentCycle.data?.length ?? 0,
+        type: 'current',
+        raw: currentCycle,
+      });
+    }
+
+    if (Array.isArray(archivedCycles) && archivedCycles.length > 0) {
+      archivedCycles.forEach((cycle, index) => {
+        combined.push({
+          id: cycle.id,
+          name: cycle.name || `Ciclo archivado ${index + 1}`,
+          startDate: cycle.startDate,
+          endDate: cycle.endDate,
+          recordCount: cycle.data?.length ?? 0,
+          type: 'archived',
+          raw: cycle,
+        });
+      });
+    }
+
+    return combined;
+  }, [archivedCycles, currentCycle]);
+
+  const resetExportState = () => {
+    setSelectedCycleIds([]);
+    setExportFormat('csv');
+    setIsExporting(false);
+  };
+
+  const handleCloseExportDialog = () => {
+    setShowExportDialog(false);
+    resetExportState();
+  };
+
+  const handleToggleCycle = (cycleId, checked) => {
+    const isChecked = Boolean(checked);
+    setSelectedCycleIds((prev) => {
+      const set = new Set(prev);
+      if (isChecked) {
+        set.add(cycleId);
+      } else {
+        set.delete(cycleId);
+      }
+      return Array.from(set);
+    });
+  };
+
+  const handleToggleAllCycles = (checked) => {
+    if (checked) {
+      setSelectedCycleIds(allCycles.map((cycle) => cycle.id));
+    } else {
+      setSelectedCycleIds([]);
+    }
+  };
+
+  const handleConfirmExport = async () => {
+    if (!selectedCycleIds.length) return;
+
+    setIsExporting(true);
+    try {
+      const cyclesToExport = allCycles
+        .filter((cycle) => selectedCycleIds.includes(cycle.id))
+        .map((cycle) => cycle.raw)
+        .filter(Boolean);
+
+      if (!cyclesToExport.length) {
+        toast({
+          title: 'Sin ciclos seleccionados',
+          description: 'Selecciona al menos un ciclo para exportar.',
+          variant: 'destructive',
+        });
+        setIsExporting(false);
+        return;
+      }
+
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const filename = `ciclos-${timestamp}.${exportFormat}`;
+
+      if (exportFormat === 'pdf') {
+        await downloadCyclesAsPdf(cyclesToExport, filename);
+      } else {
+        await downloadCyclesAsCsv(cyclesToExport, filename);
+      }
+
+      toast({
+        title: 'Exportación completada',
+        description: 'Los ciclos seleccionados se han exportado correctamente.',
+      });
+      handleCloseExportDialog();
+    } catch (error) {
+      console.error('Error al exportar ciclos', error);
+      toast({
+        title: 'Error al exportar',
+        description:
+          'No se pudieron exportar los ciclos seleccionados. Inténtalo nuevamente más tarde.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const handleEmailSubmit = async (e) => {
     e.preventDefault();
@@ -145,6 +263,18 @@ const SettingsPage = () => {
               disabled={loadingLogout}
             >
               Cerrar sesión
+            </Button>
+          </div>
+
+          <div className="bg-white/80 backdrop-blur p-4 rounded-xl shadow flex items-center justify-between">
+            <div>
+              <p className="text-sm text-slate-500">Exportar datos</p>
+              <p className="font-medium text-slate-700">
+                Descarga tus ciclos actuales y archivados
+              </p>
+            </div>
+            <Button onClick={() => setShowExportDialog(true)} className="ml-4">
+              Exportar ciclos
             </Button>
           </div>
         </div>
@@ -266,6 +396,19 @@ const SettingsPage = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ExportCyclesDialog
+        isOpen={showExportDialog}
+        onClose={handleCloseExportDialog}
+        cycles={allCycles}
+        onConfirm={handleConfirmExport}
+        selectedIds={selectedCycleIds}
+        onToggleId={handleToggleCycle}
+        onToggleAll={handleToggleAllCycles}
+        format={exportFormat}
+        onFormatChange={setExportFormat}
+        isProcessing={isExporting}
+      />
     </div>
   );
 };

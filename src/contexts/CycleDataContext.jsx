@@ -16,6 +16,7 @@ import {
   deleteCycleDB,
   forceUpdateCycleStart as forceUpdateCycleStartDB
 } from '@/lib/cycleDataHandler';
+import { getCachedCycleData, saveCycleDataToCache, clearCycleDataCache } from '@/lib/cycleCache';
 
 const CycleDataContext = createContext(null);
 
@@ -57,6 +58,7 @@ export const CycleDataProvider = ({ children }) => {
   const [archivedCycles, setArchivedCycles] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const hasLoadedRef = useRef(false);
+  const lastUserIdRef = useRef(null);
 
   const resetState = useCallback(() => {
     setCurrentCycle(defaultCycleState);
@@ -68,11 +70,39 @@ export const CycleDataProvider = ({ children }) => {
   const loadCycleData = useCallback(
     async ({ silent = false } = {}) => {
       if (!user?.uid) {
+        const previousUserId = lastUserIdRef.current;
+        lastUserIdRef.current = null;
+        if (previousUserId) {
+          clearCycleDataCache(previousUserId).catch((error) =>
+            console.error('Failed to clear cached cycle data on sign-out.', error)
+          );
+        }
         resetState();
         return;
       }
 
-      const shouldShowLoading = !silent && !hasLoadedRef.current;
+      lastUserIdRef.current = user.uid;
+
+      let cachedDataApplied = false;
+
+      if (!hasLoadedRef.current) {
+        try {
+          const cached = await getCachedCycleData(user.uid);
+          if (cached) {
+            setCurrentCycle(cached.currentCycle ?? defaultCycleState);
+            setArchivedCycles(cached.archivedCycles ?? []);
+            hasLoadedRef.current = true;
+            cachedDataApplied = true;
+            if (!silent) {
+              setIsLoading(false);
+            }
+          }
+        } catch (cacheError) {
+          console.error('Failed to hydrate cycle data from cache.', cacheError);
+        }
+      }
+
+      const shouldShowLoading = !silent && !cachedDataApplied && !hasLoadedRef.current;
       if (shouldShowLoading) {
         setIsLoading(true);
       }
@@ -80,6 +110,7 @@ export const CycleDataProvider = ({ children }) => {
       try {
         const cycleToLoad = await fetchCurrentCycleDB(user.uid);
 
+        let currentCycleData = defaultCycleState;
         if (cycleToLoad) {
           const startDate = normalizeDate(cycleToLoad.startDate);
           const endDate = normalizeDate(cycleToLoad.endDate);
@@ -87,33 +118,37 @@ export const CycleDataProvider = ({ children }) => {
           const filteredStart = filterEntriesByStartDate(processed, startDate);
           const filtered = filterEntriesByEndDate(filteredStart, endDate);
 
-          setCurrentCycle({
+          currentCycleData = {
             ...cycleToLoad,
             startDate,
             endDate,
             data: filtered
-          });
-        } else {
-          setCurrentCycle(defaultCycleState);
+          };
         }
 
         const archivedData = await fetchArchivedCyclesDB(user.uid, cycleToLoad ? cycleToLoad.startDate : null);
-        setArchivedCycles(
-          archivedData.map((cycle) => {
-            const aStart = normalizeDate(cycle.startDate);
-            const aEnd = normalizeDate(cycle.endDate);
-            const processed = processCycleEntries(cycle.data || [], aStart);
-            const filteredStart = filterEntriesByStartDate(processed, aStart);
-            const filtered = filterEntriesByEndDate(filteredStart, aEnd);
-            return {
-              ...cycle,
-              startDate: aStart ?? format(startOfDay(new Date()), 'yyyy-MM-dd'),
-              endDate: aEnd,
-              needsCompletion: cycle.needsCompletion,
-              data: filtered
-            };
-          })
-        );
+        const archivedCyclesData = archivedData.map((cycle) => {
+          const aStart = normalizeDate(cycle.startDate);
+          const aEnd = normalizeDate(cycle.endDate);
+          const processed = processCycleEntries(cycle.data || [], aStart);
+          const filteredStart = filterEntriesByStartDate(processed, aStart);
+          const filtered = filterEntriesByEndDate(filteredStart, aEnd);
+          return {
+            ...cycle,
+            startDate: aStart ?? format(startOfDay(new Date()), 'yyyy-MM-dd'),
+            endDate: aEnd,
+            needsCompletion: cycle.needsCompletion,
+            data: filtered
+          };
+        });
+
+        setCurrentCycle(currentCycleData);
+        setArchivedCycles(archivedCyclesData);
+
+        await saveCycleDataToCache(user.uid, {
+          currentCycle: currentCycleData,
+          archivedCycles: archivedCyclesData
+        });
 
         hasLoadedRef.current = true;
       } catch (error) {
@@ -121,8 +156,25 @@ export const CycleDataProvider = ({ children }) => {
         if (error.code === 'permission-denied') {
           console.error('Firebase permissions error. Check Firestore rules.');
         }
-        setCurrentCycle(defaultCycleState);
-        setArchivedCycles([]);
+        if (!cachedDataApplied) {
+          try {
+            const cached = await getCachedCycleData(user.uid);
+            if (cached) {
+              setCurrentCycle(cached.currentCycle ?? defaultCycleState);
+              setArchivedCycles(cached.archivedCycles ?? []);
+              hasLoadedRef.current = true;
+            } else {
+              setCurrentCycle(defaultCycleState);
+              setArchivedCycles([]);
+              hasLoadedRef.current = false;
+            }
+          } catch (cacheError) {
+            console.error('Failed to recover cycle data from cache after error.', cacheError);
+            setCurrentCycle(defaultCycleState);
+            setArchivedCycles([]);
+            hasLoadedRef.current = false;
+          }
+        }
       } finally {
         if (shouldShowLoading) {
           setIsLoading(false);

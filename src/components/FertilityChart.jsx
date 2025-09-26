@@ -331,18 +331,6 @@ const FertilityChart = ({
           {/* Fondo transparente para interacciones */}
           <rect width="100%" height="100%" fill="transparent" />
 
-          {activeIndex !== null && highlightX !== null && dayWidth > 0 && (
-            <rect
-              x={highlightX - dayWidth / 2}
-              y={0}
-              width={dayWidth}
-              height={chartHeight}
-              fill="rgba(236,72,153,0.15)"
-              pointerEvents="none"
-            />
-          )}
-
-
           {/* Ejes del gráfico */}
           <ChartAxes
             padding={padding}
@@ -440,17 +428,30 @@ const FertilityChart = ({
             showInterpretation={showInterpretation}
             ovulationDetails={ovulationDetails}
           />
- 
+
+          {activeIndex !== null && highlightX !== null && dayWidth > 0 && (
+            <g pointerEvents="none">
+              <line
+                x1={highlightX}
+                y1={0}
+                x2={highlightX}
+                y2={chartHeight}
+                stroke="rgba(206,95,153,0.15)"
+                strokeWidth={Math.max(2, Math.min(10, dayWidth * 0.28))}
+                strokeLinecap="round"
+              />
+            </g>
+          )}
         </motion.svg>
 
         {/* Tooltip mejorado */}
         {activePoint && (
-          <motion.div 
+          <motion.div
             ref={tooltipRef}
             initial={{ opacity: 0, scale: 0.9, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 10 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
+            transition={{ duration: 0.12, ease: "easeOut" }}
           >
             <ChartTooltip
               point={activePoint}
