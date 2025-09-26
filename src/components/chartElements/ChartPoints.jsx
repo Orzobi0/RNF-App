@@ -285,9 +285,7 @@ const ChartPoints = ({
           ? {
               pointerEvents: 'all',
               style: { cursor: 'pointer' },
-              onMouseEnter: (e) => onPointInteraction(point, index, e),
-              onClick: (e) => onPointInteraction(point, index, e),
-              onTouchStart: (e) => onPointInteraction(point, index, e)
+              onClick: (e) => onPointInteraction(point, index, e)
             }
           : {};
 
@@ -409,8 +407,6 @@ const ChartPoints = ({
                     cursor: 'pointer'
                   }}
                   pointerEvents="all"
-                  onMouseEnter={(e) => onPointInteraction(point, index, e)}
-                  onTouchStart={(e) => onPointInteraction(point, index, e)}
                   onClick={(e) => onPointInteraction(point, index, e)}
                 />
                 
