@@ -117,19 +117,24 @@ const FertilityChart = ({
   }, [validDataForLine]);
 
   const createAreaPaths = useMemo(() => {
-    const buildPathFromSegment = (segment) => {
+    const topY = padding.top;
+
+    const buildPathFromSegment = (segment, direction = 'down') => {
       if (!segment || segment.length < 2) return null;
 
-      let path = `M ${segment[0].x} ${baseY} L ${segment[0].x} ${segment[0].y}`;
+      const isUpward = direction === 'up';
+      const boundaryY = isUpward ? topY : baseY;
+
+      let path = `M ${segment[0].x} ${boundaryY} L ${segment[0].x} ${segment[0].y}`;
       for (let i = 1; i < segment.length; i++) {
         const point = segment[i];
         path += ` L ${point.x} ${point.y}`;
       }
-      path += ` L ${segment[segment.length - 1].x} ${baseY} Z`;
+      path += ` L ${segment[segment.length - 1].x} ${boundaryY} Z`;
       return path;
     };
 
-    return (shouldIncludeIndex) => {
+    return (shouldIncludeIndex, { direction = 'down' } = {}) => {
       if (typeof shouldIncludeIndex !== 'function') return [];
 
       const paths = [];
@@ -137,7 +142,7 @@ const FertilityChart = ({
       let isActive = false;
 
       const flushSegment = () => {
-        const path = buildPathFromSegment(currentSegment);
+        const path = buildPathFromSegment(currentSegment, direction);
         if (path) {
           paths.push(path);
         }
@@ -173,23 +178,52 @@ const FertilityChart = ({
 
       return paths;
     };
-  }, [allDataPoints, validDataMap, getX, getY, baseY]);
+  }, [allDataPoints, validDataMap, getX, getY, baseY, padding.top]);
 
   const fertileAreaPaths = useMemo(() => {
     if (!showInterpretation || !ovulationDetails?.confirmed) return [];
     if (!Number.isFinite(ovulationDetails.confirmationIndex)) return [];
 
-    return createAreaPaths((idx) => idx <= ovulationDetails.confirmationIndex);
+    return createAreaPaths((idx) => idx <= ovulationDetails.confirmationIndex, { direction: 'up' });
   }, [showInterpretation, ovulationDetails, createAreaPaths]);
 
-  const infertileAreaPaths = useMemo(() => {
+  const infertileUpperAreaPaths = useMemo(() => {
     if (!showInterpretation || !ovulationDetails?.confirmed) return [];
     if (!Number.isFinite(ovulationDetails.infertileStartIndex)) return [];
 
-    return createAreaPaths((idx) => idx >= ovulationDetails.infertileStartIndex);
+    return createAreaPaths((idx) => idx >= ovulationDetails.infertileStartIndex, { direction: 'up' });
   }, [showInterpretation, ovulationDetails, createAreaPaths]);
   
 
+  const infertileLowerStartIndex = useMemo(() => {
+    if (!ovulationDetails?.confirmed) return null;
+
+    let thirdDayIndex = null;
+    for (let idx = 0; idx < allDataPoints.length; idx++) {
+      if (allDataPoints[idx]?.peakStatus === '3') {
+        thirdDayIndex = idx;
+        break;
+      }
+    }
+
+    if (thirdDayIndex == null) return null;
+
+    for (let idx = thirdDayIndex + 1; idx < allDataPoints.length; idx++) {
+      const point = allDataPoints[idx];
+      if (point && validDataMap.has(point.id)) {
+        return idx;
+      }
+    }
+
+    return null;
+  }, [allDataPoints, ovulationDetails, validDataMap]);
+
+  const infertileLowerAreaPaths = useMemo(() => {
+    if (!showInterpretation || !ovulationDetails?.confirmed) return [];
+    if (!Number.isFinite(infertileLowerStartIndex)) return [];
+
+    return createAreaPaths((idx) => idx >= infertileLowerStartIndex, { direction: 'down' });
+  }, [showInterpretation, ovulationDetails, createAreaPaths, infertileLowerStartIndex]);
   
   // Detectar orientación real del viewport para rotación visual
   const [viewport, setViewport] = useState({ w: typeof window !== 'undefined' ? window.innerWidth : 0, h: typeof window !== 'undefined' ? window.innerHeight : 0 });
@@ -326,6 +360,11 @@ const FertilityChart = ({
               <stop offset="50%" stopColor="rgba(111, 168, 220, 0.48)" />
               <stop offset="80%" stopColor="rgba(120, 143, 207, 0.48)" />
             </linearGradient>
+            <linearGradient id="infertileLowerAreaGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="rgba(142, 124, 195, 0.25)" />
+              <stop offset="60%" stopColor="rgba(159, 130, 246, 0.2)" />
+              <stop offset="100%" stopColor="rgba(137, 99, 235, 0.15)" />
+            </linearGradient>
           </defs>
 
           {/* Fondo transparente para interacciones */}
@@ -349,6 +388,15 @@ const FertilityChart = ({
           />
           {showInterpretation && ovulationDetails?.confirmed && (
             <>
+            {infertileLowerAreaPaths.map((path, idx) => (
+                <path
+                  key={`infertile-lower-area-${idx}`}
+                  d={path}
+                  fill="url(#infertileLowerAreaGradient)"
+                  opacity={0.45}
+                  pointerEvents="none"
+                />
+              ))}
               {fertileAreaPaths.map((path, idx) => (
                 <path
                   key={`fertile-area-${idx}`}
@@ -358,7 +406,7 @@ const FertilityChart = ({
                   pointerEvents="none"
                 />
               ))}
-              {infertileAreaPaths.map((path, idx) => (
+              {infertileUpperAreaPaths.map((path, idx) => (
                 <path
                   key={`infertile-area-${idx}`}
                   d={path}
