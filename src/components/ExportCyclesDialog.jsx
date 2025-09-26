@@ -112,8 +112,11 @@ const ExportCyclesDialog = ({
           </div>
 
           {hasCycles ? (
-            <ScrollArea className="max-h-72 rounded-lg border border-slate-200 bg-slate-50 p-3">
-              <div className="space-y-3">
+            <ScrollArea
+              type="auto"
+              className="h-72 rounded-lg border border-slate-200 bg-slate-50 p-3"
+            >
+              <div className="space-y-3 pr-1">
                 {currentCycles.length > 0 && (
                   <div className="space-y-2">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">

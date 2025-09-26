@@ -329,24 +329,20 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
                   />
                 {dot.peakStatus && (
                     dot.peakStatus === 'P' ? (
-                      <g pointerEvents="none">
-                        <line
-                          x1={dot.x - 6}
-                          y1={dot.y - 6}
-                          x2={dot.x + 6}
-                          y2={dot.y + 6}
-                          stroke="#7f1d1d"
-                          strokeWidth={2}
-                        />
-                        <line
-                          x1={dot.x + 6}
-                          y1={dot.y - 6}
-                          x2={dot.x - 6}
-                          y2={dot.y + 6}
-                          stroke="#7f1d1d"
-                          strokeWidth={2}
-                        />
-                      </g>
+                      <text
+                        x={dot.x}
+                        y={dot.y + 4}
+                        textAnchor="middle"
+                        fontSize="14"
+                        fontWeight="900"
+                        fill="#ec4899"
+                        style={{
+                          pointerEvents: 'none',
+                          filter: 'drop-shadow(0 2px 4px rgba(244, 114, 182, 0.35))'
+                        }}
+                      >
+                        ✖
+                      </text>
                     ) : (
                       <text
                         x={dot.x}

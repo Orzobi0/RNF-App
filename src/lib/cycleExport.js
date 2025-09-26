@@ -145,24 +145,44 @@ export const downloadCyclesAsPdf = (cycles, filename = 'ciclos.pdf') => {
   const formatted = formatCyclesForExport(cycles);
   if (!formatted.length) return;
 
-  const doc = new jsPDF();
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const horizontalMargin = 14;
+  const tableWidth = doc.internal.pageSize.getWidth() - horizontalMargin * 2;
 
   formatted.forEach((cycle, index) => {
     if (index > 0) {
       doc.addPage();
     }
 
-    doc.setFontSize(14);
-    doc.text(cycle.title, 14, 22);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.text(cycle.title, horizontalMargin, 24);
+    doc.setFont('helvetica', 'normal');
 
     autoTable(doc, {
-      startY: 30,
+      startY: 32,
       head: [cycle.headers],
       body: cycle.rows,
-      styles: { fontSize: 8, cellPadding: 2 },
-      headStyles: { fillColor: [244, 114, 182] },
-      alternateRowStyles: { fillColor: [249, 239, 244] },
-      margin: { left: 14, right: 14 },
+      styles: {
+        fontSize: 8,
+        cellPadding: { top: 2, right: 2, bottom: 2, left: 2 },
+        overflow: 'linebreak',
+        cellWidth: 'wrap',
+        halign: 'left',
+        valign: 'top',
+      },
+      headStyles: { fillColor: [244, 114, 182], textColor: [255, 255, 255], fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [252, 242, 248] },
+      columnStyles: {
+        0: { cellWidth: 24 },
+        3: { cellWidth: 26 },
+        4: { cellWidth: 32 },
+        10: { cellWidth: 22 },
+        14: { cellWidth: 60 },
+        17: { cellWidth: 90 },
+      },
+      margin: { left: horizontalMargin, right: horizontalMargin },
+      tableWidth,
     });
   });
 
