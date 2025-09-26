@@ -349,21 +349,21 @@ const FertilityChart = ({
                 <feMergeNode in="SourceGraphic"/>
               </feMerge>
             </filter>
-            <linearGradient id="fertileAreaGradient" x1="0%" y1="100%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="rgba(253, 224, 255, 0.9)" />
-              <stop offset="65%" stopColor="rgba(249, 168, 212, 0.6)" />
-              <stop offset="100%" stopColor="rgba(236, 72, 153, 0.28)" />
+            <linearGradient id="fertileAreaGradient" x1="0%" y1="100%" x2="0%" y2="0%">
+              <stop offset="0%" stopColor="rgba(255, 182, 193, 0.7)" />
+              <stop offset="50%" stopColor="rgba(255, 195, 195, 0.5)" />
+              <stop offset="100%" stopColor="rgba(255, 208, 200, 0.3)" />
             </linearGradient>
 
-            <linearGradient id="infertileAreaGradient" x1="0%" y1="100%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="rgba(109, 189, 245, 0.48)" />
-              <stop offset="50%" stopColor="rgba(111, 168, 220, 0.48)" />
-              <stop offset="80%" stopColor="rgba(120, 143, 207, 0.48)" />
+            <linearGradient id="infertileAreaGradient" x1="0%" y1="100%" x2="0%" y2="0%">
+              <stop offset="0%" stopColor="rgba(132, 170, 230, 0.7)" /> 
+              <stop offset="50%" stopColor="rgba(155, 180, 245, 0.5)" />
+              <stop offset="100%" stopColor="rgba(170, 200, 255, 0.3)" />
             </linearGradient>
-            <linearGradient id="infertileLowerAreaGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="rgba(142, 124, 195, 0.25)" />
-              <stop offset="60%" stopColor="rgba(159, 130, 246, 0.2)" />
-              <stop offset="100%" stopColor="rgba(137, 99, 235, 0.15)" />
+            <linearGradient id="infertileLowerAreaGradient" x1="0%" y1="100%" x2="0%" y2="0%">
+              <stop offset="0%" stopColor="rgba(226, 180, 216, 0.7)" />
+              <stop offset="50%" stopColor="rgba(228, 190, 220, 0.5)" />
+              <stop offset="100%" stopColor="rgba(228, 198, 225, 0.3)" />
             </linearGradient>
           </defs>
 
@@ -393,7 +393,7 @@ const FertilityChart = ({
                   key={`infertile-lower-area-${idx}`}
                   d={path}
                   fill="url(#infertileLowerAreaGradient)"
-                  opacity={0.45}
+                  opacity={0.65}
                   pointerEvents="none"
                 />
               ))}
@@ -411,7 +411,7 @@ const FertilityChart = ({
                   key={`infertile-area-${idx}`}
                   d={path}
                   fill="url(#infertileAreaGradient)"
-                  opacity={0.6}
+                  opacity={0.45}
                   pointerEvents="none"
                 />
               ))}
