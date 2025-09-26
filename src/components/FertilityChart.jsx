@@ -27,6 +27,7 @@ const FertilityChart = ({
     tooltipRef,
     dimensions,
     activePoint,
+    activeIndex,
     tooltipPosition,
     allDataPoints,
     validDataForLine,
@@ -41,7 +42,6 @@ const FertilityChart = ({
     handleToggleIgnore,
     responsiveFontSize,
     clearActivePoint,
-    setActivePoint,
     baselineTemp,
     baselineStartIndex,
     firstHighIndex,
@@ -79,6 +79,31 @@ const FertilityChart = ({
   const baselineWidth = 3;
   const isLoading = chartWidth === 0;
   const baseY = chartHeight - padding.bottom;
+  const highlightX = activeIndex != null ? getX(activeIndex) : null;
+  const prevX =
+    activeIndex != null
+      ? activeIndex > 0
+        ? getX(activeIndex - 1)
+        : highlightX
+      : null;
+  const nextX =
+    activeIndex != null
+      ? activeIndex < allDataPoints.length - 1
+        ? getX(activeIndex + 1)
+        : highlightX
+      : null;
+  const fallbackDayWidth = Math.max(
+    (chartWidth - padding.left - padding.right) / Math.max(allDataPoints.length, 1),
+    0
+  );
+  const dayWidth =
+    activeIndex != null
+      ? Math.max(
+          ((nextX != null && prevX != null ? nextX - prevX : 0) || fallbackDayWidth),
+          fallbackDayWidth,
+          0
+        )
+      : 0;
  
 
   const validDataMap = useMemo(() => {
@@ -305,6 +330,18 @@ const FertilityChart = ({
 
           {/* Fondo transparente para interacciones */}
           <rect width="100%" height="100%" fill="transparent" />
+
+          {activeIndex !== null && highlightX !== null && dayWidth > 0 && (
+            <rect
+              x={highlightX - dayWidth / 2}
+              y={0}
+              width={dayWidth}
+              height={chartHeight}
+              fill="rgba(236,72,153,0.15)"
+              pointerEvents="none"
+            />
+          )}
+
 
           {/* Ejes del gráfico */}
           <ChartAxes

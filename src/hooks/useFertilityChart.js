@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, useMemo } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useMemo, useCallback } from 'react';
 import computePeakStatuses from '@/lib/computePeakStatuses';
 
 const DEFAULT_TEMP_MIN = 35.5;
@@ -177,6 +177,13 @@ export const useFertilityChart = (
       const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
       const [activePoint, setActivePoint] = useState(null);
       const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
+      const [activeIndex, setActiveIndex] = useState(null);
+
+      const clearActivePoint = useCallback(() => {
+        setActivePoint(null);
+        setActiveIndex(null);
+      }, []);
+
 
       const peakStatusByIsoDate = useMemo(() => computePeakStatuses(data), [data]);
       const processedData = useMemo(() => {
@@ -367,36 +374,39 @@ export const useFertilityChart = (
         return padding.left + extraMargin + index * (availableWidth / (allDataPoints.length === 1 ? 1 : pointsToDisplay)) + daySpacing * index;
       };
       
-const handlePointInteraction = (point, index, event) => {
-if (!point) {
-    clearActivePoint();
-    return;
-  }
+      const handlePointInteraction = (point, index, event) => {
+        if (!point) {
+          clearActivePoint();
+          return;
+        }
 
-  // 1) Calcula la posición del ratón/tap
-  const chartRect = chartRef.current.getBoundingClientRect();
-  let clientX, clientY;
-  if (event.type.startsWith('touch')) {
-    const touch = event.changedTouches[0];
-    clientX = touch.clientX; clientY = touch.clientY;
-  } else {
-    clientX = event.clientX;    clientY = event.clientY;
-  }
+        // 1) Calcula la posición del ratón/tap
+        const chartRect = chartRef.current.getBoundingClientRect();
+        let clientX, clientY;
+        if (event.type.startsWith('touch')) {
+          const touch = event.changedTouches[0];
+          clientX = touch.clientX;
+          clientY = touch.clientY;
+        } else {
+          clientX = event.clientX;
+          clientY = event.clientY;
+        }
 
-  // 2) Mapea a coordenadas SVG
-  const svgX = getX(index);
-  const displayTemp = point.displayTemperature ?? point.temperature_chart ?? null;
-  const svgY = getY(displayTemp);
+        // 2) Mapea a coordenadas SVG
+        const svgX = getX(index);
+        const displayTemp = point.displayTemperature ?? point.temperature_chart ?? null;
+        const svgY = getY(displayTemp);
 
-  // 3) Fija posición y punto activo
-  setTooltipPosition({
-    svgX,
-    svgY,
-    clientX: clientX - chartRect.left + chartRef.current.scrollLeft,
-    clientY: clientY - chartRect.top + chartRef.current.scrollTop
-  });
-  setActivePoint(point);
-};
+        // 3) Fija posición y punto activo
+        setTooltipPosition({
+          svgX,
+          svgY,
+          clientX: clientX - chartRect.left + chartRef.current.scrollLeft,
+          clientY: clientY - chartRect.top + chartRef.current.scrollTop,
+        });
+        setActiveIndex(index);
+        setActivePoint(point);
+      };
 
       
       useEffect(() => {
@@ -412,7 +422,7 @@ if (!point) {
                     }
                 }
              }
-            if(!isPointClick) setActivePoint(null);
+            if(!isPointClick) clearActivePoint();
           }
         };
     
@@ -425,24 +435,20 @@ if (!point) {
           document.removeEventListener('mousedown', handleClickOutside);
           document.removeEventListener('touchstart', handleClickOutside);
         };
-      }, [activePoint]);
-
-        const clearActivePoint = () => {
-          setActivePoint(null);
-          
-        }
+      }, [activePoint, clearActivePoint]);
       const handleToggleIgnore = (recordId) => {
         if (onToggleIgnore && recordId) {
           onToggleIgnore(cycleId, recordId);
-          setActivePoint(null);
+          clearActivePoint();
         }
       };
 
       return {
         chartRef,
         tooltipRef,
-        dimensions, 
+        dimensions,
         activePoint,
+        activeIndex,
         tooltipPosition,
         processedData,
         validDataForLine,
@@ -453,6 +459,7 @@ if (!point) {
         padding,
         textRowHeight,
         setActivePoint,
+        setActiveIndex,
         getY,
         getX,
         handlePointInteraction,
