@@ -1,4 +1,4 @@
-import React, { useState, useLayoutEffect, useRef, useEffect } from 'react';
+import React, { useState, useLayoutEffect, useRef, useEffect, useMemo } from 'react';
 import FertilityChart from '@/components/FertilityChart';
 import { useCycleData } from '@/hooks/useCycleData';
 import { differenceInDays, format, parseISO, startOfDay } from 'date-fns';
@@ -157,6 +157,12 @@ const ChartPage = () => {
 
   const cycleStartDate = parseISO(targetCycle.startDate);
   const cycleEntries = targetCycle.data || [];
+  const currentPeakIsoDate = useMemo(() => {
+    const peakRecord = Array.isArray(cycleEntries)
+      ? cycleEntries.find((record) => record?.peak_marker === 'peak')
+      : null;
+    return peakRecord?.isoDate || null;
+  }, [cycleEntries]);
 
   const lastRecordDate = cycleEntries.reduce((maxDate, record) => {
     const recDate = parseISO(record.isoDate);
@@ -427,6 +433,7 @@ const ChartPage = () => {
           showInterpretation={showInterpretation}
           reduceMotion={true}
           forceLandscape={orientation === 'landscape'}
+          currentPeakIsoDate={currentPeakIsoDate}
         />
         <Dialog open={showForm} onOpenChange={(open) => { if (!open) handleCloseForm(); }}>
           <DialogContent

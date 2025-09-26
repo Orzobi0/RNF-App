@@ -271,7 +271,7 @@ const ChartPoints = ({
         const peakStatus = point.peakStatus;
         const peakDisplay = peakStatus === 'P' ? 'X' : peakStatus || '–';
         const shouldRenderSymbol = !isPlaceholder && symbolInfo.value !== 'none';
-        const shouldEnableInteractions = hasAnyRecord || (isPlaceholder && !isFuture);
+        const shouldEnableInteractions = Boolean(point.isoDate) && !isFuture;
         const interactionProps = shouldEnableInteractions
           ? {
               pointerEvents: 'all',

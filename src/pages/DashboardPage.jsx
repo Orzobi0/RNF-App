@@ -9,7 +9,7 @@ import { addDays, differenceInDays, format, isAfter, parseISO, startOfDay } from
 import ChartTooltip from '@/components/chartElements/ChartTooltip';
 import computePeakStatuses from '@/lib/computePeakStatuses';
 
-const CycleOverviewCard = ({ cycleData, onEdit }) => {
+const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate }) => {
   const records = cycleData.records || [];
   const [activePoint, setActivePoint] = useState(null);
   const [tooltipPosition, setTooltipPosition] = useState({ clientX: 0, clientY: 0 });
@@ -156,12 +156,24 @@ const CycleOverviewCard = ({ cycleData, onEdit }) => {
           displayTemperature: null,
           ignored: false,
           peakStatus: dot.peakStatus,
+          peak_marker: dot.peakStatus === 'P' ? 'peak' : null,
         }
       : null;
 
     const targetRecord = dot.record
-      ? { ...dot.record, cycleDay: dot.record.cycleDay ?? dot.day, peakStatus: dot.peakStatus }
+      ? {
+          ...dot.record,
+          cycleDay: dot.record.cycleDay ?? dot.day,
+          peakStatus: dot.peakStatus,
+          peak_marker:
+            dot.record.peak_marker ?? (dot.peakStatus === 'P' ? 'peak' : null),
+        }
       : placeholderRecord;
+    if (targetRecord && currentPeakIsoDate && targetRecord.isoDate === currentPeakIsoDate) {
+      targetRecord.peak_marker = 'peak';
+      targetRecord.peakStatus = targetRecord.peakStatus || 'P';
+    }
+  
 
     if (!targetRecord) {
       setActivePoint(null);
@@ -362,6 +374,8 @@ const CycleOverviewCard = ({ cycleData, onEdit }) => {
                   chartHeight={circleRef.current?.clientHeight || 0}
                   onEdit={onEdit}
                   onClose={() => setActivePoint(null)}
+                  onTogglePeak={onTogglePeak}
+                  currentPeakIsoDate={currentPeakIsoDate}
                 />
               </div>
             )}
@@ -565,6 +579,10 @@ const ModernFertilityDashboard = () => {
   const isPlaceholderRecord = Boolean(
     editingRecord && String(editingRecord.id || '').startsWith('placeholder-')
   );
+  const currentPeakIsoDate = useMemo(() => {
+    const peakRecord = currentCycle?.data?.find((record) => record?.peak_marker === 'peak');
+    return peakRecord?.isoDate || null;
+  }, [currentCycle?.data]);
 
   const handleCloseForm = useCallback(() => {
     setShowForm(false);
@@ -579,6 +597,99 @@ const ModernFertilityDashboard = () => {
     setEditingRecord(record);
     setShowForm(true);
   }, []);
+
+    const handleTogglePeak = useCallback(
+    async (record, shouldMarkAsPeak = true) => {
+      if (!currentCycle?.id || !record?.isoDate) {
+        return;
+      }
+
+      const normalizeMeasurementValue = (value) => {
+        if (value === null || value === undefined || value === '') {
+          return null;
+        }
+        const parsed = parseFloat(String(value).replace(',', '.'));
+        return Number.isFinite(parsed) ? parsed : null;
+      };
+
+      const markAsPeak = shouldMarkAsPeak ?? !(
+        record.peak_marker === 'peak' || record.peakStatus === 'P'
+      );
+
+      try {
+        const fallbackTime = record.timestamp
+          ? format(parseISO(record.timestamp), 'HH:mm')
+          : format(new Date(), 'HH:mm');
+
+        let measurementsSource = Array.isArray(record.measurements) && record.measurements.length > 0
+          ? record.measurements
+          : [
+              {
+                temperature: record.temperature_chart ?? record.temperature_raw ?? null,
+                temperature_corrected: record.temperature_corrected ?? null,
+                time: record.time ?? fallbackTime,
+                time_corrected: record.time_corrected ?? fallbackTime,
+                selected: true,
+                use_corrected: record.use_corrected ?? false,
+              },
+            ];
+
+        if (measurementsSource.length === 0) {
+          measurementsSource = [
+            {
+              temperature: null,
+              temperature_corrected: null,
+              time: fallbackTime,
+              time_corrected: fallbackTime,
+              selected: true,
+              use_corrected: false,
+            },
+          ];
+        }
+
+        const normalizedMeasurements = measurementsSource.map((measurement, index) => {
+          const timeValue = measurement.time || fallbackTime;
+          const correctedTime = measurement.time_corrected || timeValue;
+
+          return {
+            temperature: normalizeMeasurementValue(
+              measurement.temperature ?? measurement.temperature_raw
+            ),
+            time: timeValue,
+            selected: index === 0 ? true : !!measurement.selected,
+            temperature_corrected: normalizeMeasurementValue(
+              measurement.temperature_corrected
+            ),
+            time_corrected: correctedTime,
+            use_corrected: !!measurement.use_corrected,
+          };
+        });
+
+        if (!normalizedMeasurements.some((measurement) => measurement.selected)) {
+          normalizedMeasurements[0].selected = true;
+        }
+
+        const payload = {
+          isoDate: record.isoDate,
+          measurements: normalizedMeasurements,
+          mucusSensation: record.mucus_sensation ?? record.mucusSensation ?? '',
+          mucusAppearance: record.mucus_appearance ?? record.mucusAppearance ?? '',
+          fertility_symbol: record.fertility_symbol ?? 'none',
+          observations: record.observations ?? '',
+          ignored: record.ignored ?? false,
+          peak_marker: markAsPeak ? 'peak' : null,
+        };
+
+        const existingRecord =
+          record?.id && !String(record.id).startsWith('placeholder-') ? record : null;
+
+        await addOrUpdateDataPoint(payload, existingRecord);
+      } catch (error) {
+        console.error('Error toggling peak marker from dashboard:', error);
+      }
+    },
+    [addOrUpdateDataPoint, currentCycle?.id]
+  );
 
   if (isLoading && !currentCycle?.id) {
     return (
@@ -652,7 +763,12 @@ const ModernFertilityDashboard = () => {
           transition={{ duration: 0.3 }}
           className="flex-1 flex flex-col"
         >
-          <CycleOverviewCard cycleData={{ ...currentCycle, currentDay, records: currentCycle.data }} onEdit={handleEdit} />
+          <CycleOverviewCard
+            cycleData={{ ...currentCycle, currentDay, records: currentCycle.data }}
+            onEdit={handleEdit}
+            onTogglePeak={handleTogglePeak}
+            currentPeakIsoDate={currentPeakIsoDate}
+          />
         </motion.div>
       </div>
 

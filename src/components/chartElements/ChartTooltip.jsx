@@ -7,7 +7,17 @@ import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { getSymbolAppearance } from '@/config/fertilitySymbols';
 
-const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore, onEdit, onClose, onTogglePeak }) => {
+const ChartTooltip = ({
+  point,
+  position,
+  chartWidth,
+  chartHeight,
+  onToggleIgnore,
+  onEdit,
+  onClose,
+  onTogglePeak,
+  currentPeakIsoDate,
+}) => {
   if (!point) return null;
 
   // Escala reducida para que el tooltip ocupe menos espacio en pantalla
@@ -67,8 +77,32 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
   };
   const peakLabel = peakStatus ? peakLabels[peakStatus] || null : null;
   const canTogglePeak = Boolean(onTogglePeak && point.isoDate);
-  const isPeakDay = peakStatus === 'P' || point.peak_marker === 'peak';
-  const togglePeakLabel = isPeakDay ? 'Quitar día pico' : 'Marcar día pico';
+  const hasExistingPeak = Boolean(currentPeakIsoDate);
+  const isSameAsCurrent = hasExistingPeak && point.isoDate === currentPeakIsoDate;
+  const isPeakDay = isSameAsCurrent || peakStatus === 'P' || point.peak_marker === 'peak';
+  const peakButtonLabel = 'Día pico';
+  const peakButtonAriaLabel = isPeakDay
+    ? 'Quitar día pico'
+    : hasExistingPeak
+      ? 'Actualizar día pico'
+      : 'Marcar día pico';
+  const peakButtonTone = isPeakDay
+    ? 'bg-white/85 text-rose-600 border border-rose-200 hover:bg-rose-50'
+    : hasExistingPeak
+      ? 'bg-amber-500 text-white hover:bg-amber-600'
+      : 'bg-rose-500 text-white hover:bg-rose-600';
+  const peakButtonBaseClasses = [
+    'flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold',
+    'transition-all duration-200 shadow-sm hover:shadow-md',
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300',
+  ].join(' ');
+  const peakButtonClassName = [
+    peakButtonBaseClasses,
+    peakButtonTone,
+    peakActionPending ? 'opacity-70 cursor-not-allowed' : null,
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   const handlePeakToggle = async () => {
     if (!onTogglePeak || peakActionPending) return;
@@ -246,13 +280,12 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
                     variant={isPeakDay ? 'outline' : 'default'}
                     size="sm"
                     disabled={peakActionPending}
-                    className={`flex items-center gap-2 px-2 py-2 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md ${
-                      isPeakDay
-                        ? 'bg-white/80 text-rose-600 border-rose-200 hover:bg-rose-50'
-                        : 'bg-rose-500 text-white hover:bg-rose-600'
-                    }`}
+                    className={peakButtonClassName}
+                    aria-label={peakButtonAriaLabel}
+                    title={peakButtonAriaLabel}
+                    aria-pressed={isPeakDay}
                   >
-                    <span className="font-medium">{togglePeakLabel}</span>
+                    <span className="font-medium">{peakButtonLabel}</span>
                   </Button>
                 </motion.div>
               )}
@@ -396,18 +429,17 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
                   )}
                   {canTogglePeak && !isPlaceholder && (
                     <Button
-                      onClick={handlePeakToggle}
-                      variant={isPeakDay ? 'outline' : 'default'}
-                      size="sm"
-                      disabled={peakActionPending}
-                      className={`flex items-center gap-2 px-2 py-2 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md ${
-                        isPeakDay
-                          ? 'bg-white/80 text-rose-600 border-rose-200 hover:bg-rose-50'
-                          : 'bg-rose-500 text-white hover:bg-rose-600'
-                      }`}
-                    >
-                      <span className="font-medium">{togglePeakLabel}</span>
-                    </Button>
+                    onClick={handlePeakToggle}
+                    variant={isPeakDay ? 'outline' : 'default'}
+                    size="sm"
+                    disabled={peakActionPending}
+                    className={peakButtonClassName}
+                    aria-label={peakButtonAriaLabel}
+                    title={peakButtonAriaLabel}
+                    aria-pressed={isPeakDay}
+                  >
+                    <span className="font-medium">{peakButtonLabel}</span>
+                  </Button>
                   )}
 
                   {onToggleIgnore && !isPlaceholder && point.id && (

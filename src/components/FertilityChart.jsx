@@ -19,7 +19,8 @@ const FertilityChart = ({
   visibleDays = 5,
   showInterpretation = false,
   reduceMotion = false,
-  forceLandscape = false
+  forceLandscape = false,
+  currentPeakIsoDate = null,
 }) => {
   const {
     chartRef,
@@ -423,6 +424,7 @@ const FertilityChart = ({
               onEdit={onEdit}
               onClose={clearActivePoint}
               onTogglePeak={onTogglePeak}
+              currentPeakIsoDate={currentPeakIsoDate}
             />
           </motion.div>
         )}
