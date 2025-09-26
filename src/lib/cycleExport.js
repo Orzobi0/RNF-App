@@ -148,6 +148,35 @@ export const downloadCyclesAsPdf = (cycles, filename = 'ciclos.pdf') => {
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
   const horizontalMargin = 14;
   const tableWidth = doc.internal.pageSize.getWidth() - horizontalMargin * 2;
+  const columnWidthRatios = {
+    0: 0.05,
+    1: 0.075,
+    2: 0.075,
+    3: 0.055,
+    4: 0.065,
+    5: 0.05,
+    6: 0.035,
+    7: 0.045,
+    8: 0.045,
+    9: 0.045,
+    10: 0.035,
+    11: 0.045,
+    12: 0.045,
+    13: 0.045,
+    14: 0.09,
+    15: 0.035,
+    16: 0.045,
+    17: 0.12,
+  };
+  const computedColumnStyles = Object.fromEntries(
+    Object.entries(columnWidthRatios).map(([index, ratio]) => [
+      Number(index),
+      {
+        cellWidth: tableWidth * ratio,
+        minCellWidth: tableWidth * ratio * 0.9,
+      },
+    ]),
+  );
 
   formatted.forEach((cycle, index) => {
     if (index > 0) {
@@ -164,8 +193,8 @@ export const downloadCyclesAsPdf = (cycles, filename = 'ciclos.pdf') => {
       head: [cycle.headers],
       body: cycle.rows,
       styles: {
-        fontSize: 8,
-        cellPadding: { top: 2, right: 2, bottom: 2, left: 2 },
+        fontSize: 7,
+        cellPadding: { top: 1.6, right: 1.6, bottom: 1.6, left: 1.6 },
         overflow: 'linebreak',
         cellWidth: 'wrap',
         halign: 'left',
@@ -173,14 +202,7 @@ export const downloadCyclesAsPdf = (cycles, filename = 'ciclos.pdf') => {
       },
       headStyles: { fillColor: [244, 114, 182], textColor: [255, 255, 255], fontStyle: 'bold' },
       alternateRowStyles: { fillColor: [252, 242, 248] },
-      columnStyles: {
-        0: { cellWidth: 24 },
-        3: { cellWidth: 26 },
-        4: { cellWidth: 32 },
-        10: { cellWidth: 22 },
-        14: { cellWidth: 60 },
-        17: { cellWidth: 90 },
-      },
+      columnStyles: computedColumnStyles,
       margin: { left: horizontalMargin, right: horizontalMargin },
       tableWidth,
     });

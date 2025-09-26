@@ -18,6 +18,7 @@ const CORRECTION_LINE_COLOR = 'rgba(148, 163, 184, 0.35)';
 const CORRECTION_POINT_FILL = 'rgba(226, 232, 240, 0.6)';
 const CORRECTION_POINT_STROKE = 'rgba(148, 163, 184, 0.5)';
 const PEAK_EMOJI = '✖';
+const POST_PEAK_MARKER_COLOR = '#7f1d1d';
 const PEAK_EMOJI_COLOR = '#ec4899';
 const PEAK_TEXT_SHADOW = 'drop-shadow(0 2px 4px rgba(244, 114, 182, 0.35))';
 
@@ -272,10 +273,12 @@ const ChartPoints = ({
           const symbolRectSize = responsiveFontSize(isFullScreen ? 1.8 : 2);
           const symbolTextY = symbolRowYBase - symbolRectSize * 0.75 + symbolRectSize / 2 + 2;
 
-        const peakStatus = point.peakStatus;
-        const isPeakMarker = peakStatus === 'P';
-        const isPostPeakMarker = peakStatus && peakStatus !== 'P';
+        const peakStatus = point.peakStatus ? String(point.peakStatus).toUpperCase() : null;
+        const isPeakMarker = peakStatus === 'P' || peakStatus === 'X';
+        const isPostPeakMarker = peakStatus && !isPeakMarker;
         const peakDisplay = isPeakMarker ? PEAK_EMOJI : peakStatus || '–';
+        const isPeakSeriesDay =
+          isPeakMarker || ['1', '2', '3'].includes(peakStatus);
         const shouldRenderSymbol = !isPlaceholder && symbolInfo.value !== 'none';
         const shouldEnableInteractions = Boolean(point.isoDate) && !isFuture;
         const interactionProps = shouldEnableInteractions
@@ -522,7 +525,7 @@ const ChartPoints = ({
                         textAnchor="middle"
                         fontSize={responsiveFontSize(peakStatus ? 1.1 : 1)}
                         fontWeight="800"
-                        fill="#7f1d1d"
+                        fill={POST_PEAK_MARKER_COLOR}
                         style={{ filter: 'drop-shadow(0 1px 1px rgba(255,255,255,0.9))' }}
                       >
                         {peakStatus}
@@ -532,23 +535,45 @@ const ChartPoints = ({
                 )}
               </g>
             ) : (
-              <text
-                x={x}
-                y={symbolTextY}
-                textAnchor="middle"
-                fontSize={responsiveFontSize(isPeakMarker ? 1.35 : isPostPeakMarker ? 1.1 : 1)}
-                fill={isPeakMarker ? PEAK_EMOJI_COLOR : isPostPeakMarker ? '#7f1d1d' : textFill}
-                fontWeight={isPeakMarker ? '900' : isPostPeakMarker ? '800' : '500'}
-                style={{
-                  filter: isPeakMarker
-                    ? PEAK_TEXT_SHADOW
-                    : isPostPeakMarker
-                      ? 'drop-shadow(0 1px 1px rgba(255,255,255,0.9))'
-                      : 'drop-shadow(0 1px 1px rgba(255, 255, 255, 0.8))'
-                }}
-              >
-                {peakDisplay}
-              </text>
+              <g>
+                {isPeakSeriesDay && (
+                  <rect
+                    x={x - symbolRectSize / 2 - 4}
+                    y={symbolRowYBase - symbolRectSize * 0.75}
+                    width={symbolRectSize * 1.4}
+                    height={symbolRectSize}
+                    fill="transparent"
+                    stroke={isPeakMarker ? PEAK_EMOJI_COLOR : POST_PEAK_MARKER_COLOR}
+                    strokeWidth={1}
+                    rx={symbolRectSize * 0.2}
+                  />
+                )}
+                <text
+                  x={x}
+                  y={symbolTextY}
+                  textAnchor="middle"
+                  fontSize={responsiveFontSize(
+                    isPeakMarker ? 1.35 : isPostPeakMarker ? 1.1 : 1
+                  )}
+                  fill={
+                    isPeakMarker
+                      ? PEAK_EMOJI_COLOR
+                      : isPostPeakMarker
+                        ? POST_PEAK_MARKER_COLOR
+                        : textFill
+                  }
+                  fontWeight={isPeakMarker ? '900' : isPostPeakMarker ? '800' : '500'}
+                  style={{
+                    filter: isPeakMarker
+                      ? PEAK_TEXT_SHADOW
+                      : isPostPeakMarker
+                        ? 'drop-shadow(0 1px 1px rgba(255,255,255,0.9))'
+                        : 'drop-shadow(0 1px 1px rgba(255, 255, 255, 0.8))'
+                  }}
+                >
+                  {peakDisplay}
+                </text>
+              </g>
             )}
 
             {/* Textos con tipografía mejorada y colores premium */}
