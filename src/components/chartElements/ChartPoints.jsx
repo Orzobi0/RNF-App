@@ -269,6 +269,8 @@ const ChartPoints = ({
           const symbolRectSize = responsiveFontSize(isFullScreen ? 1.8 : 2);
 
         const peakStatus = point.peakStatus;
+        const peakDisplay = peakStatus === 'P' ? 'X' : peakStatus || '–';
+        const shouldRenderSymbol = !isPlaceholder && symbolInfo.value !== 'none';
         const shouldEnableInteractions = hasAnyRecord || (isPlaceholder && !isFuture);
         const interactionProps = shouldEnableInteractions
           ? {
@@ -467,83 +469,81 @@ const ChartPoints = ({
             </text>
 
             {/* Símbolo mejorado con mejor diseño */}
-            {!isPlaceholder && (
-              symbolInfo.value !== 'none' ? (
-                <g>
-                  {/* Sombra del símbolo */}
-                  <rect
-                    x={x - symbolRectSize/2 + 1}
-                    y={symbolRowYBase - symbolRectSize*0.75 + 1}
-                    width={symbolRectSize}
-                    height={symbolRectSize}
-                    fill="rgba(0, 0, 0, 0.1)"
-                    rx={symbolRectSize * 0.3}
-                    opacity={0.5}
-                  />
-                  {/* Símbolo principal */}
-                  <rect
-                    x={x - symbolRectSize/2-4}
-                    y={symbolRowYBase - symbolRectSize*0.75}
-                    width={symbolRectSize*1.4}
-                    height={symbolRectSize}
-                    fill={symbolInfo.pattern === 'spotting-pattern'
-                      ? "url(#spotting-pattern-chart)"
-                      : symbolFillStyle}
-                    stroke={symbolInfo.value === 'white' ? '#CBD5E1' : 'rgba(233, 30, 99, 0.4)'}
-                    strokeWidth={symbolInfo.value === 'white' ? 2 : 1}
-                    rx={symbolRectSize * 0.2}
-                    style={{ filter: 'drop-shadow(0 2px 4px rgba(244, 114, 182, 0.25))' }}
-                  />
-                  {peakStatus && (
-                    <g pointerEvents="none">
-                      {peakStatus === 'P' ? (
-                        <>
-                          <line
-                            x1={x - symbolRectSize / 2 - 2}
-                            y1={symbolRowYBase - symbolRectSize * 0.75 + 2}
-                            x2={x + symbolRectSize / 2 + 2}
-                            y2={symbolRowYBase - symbolRectSize * 0.75 + symbolRectSize - 2}
-                            stroke="#7f1d1d"
-                            strokeWidth={1.8}
-                          />
-                          <line
-                            x1={x + symbolRectSize / 2 + 2}
-                            y1={symbolRowYBase - symbolRectSize * 0.75 + 2}
-                            x2={x - symbolRectSize / 2 - 2}
-                            y2={symbolRowYBase - symbolRectSize * 0.75 + symbolRectSize - 2}
-                            stroke="#7f1d1d"
-                            strokeWidth={1.8}
-                          />
-                        </>
-                      ) : (
-                        <text
-                          x={x}
-                          y={symbolRowYBase - symbolRectSize * 0.75 + symbolRectSize / 2 + 2}
-                          textAnchor="middle"
-                          fontSize={responsiveFontSize(peakStatus ? 1.1 : 1)}
-                          fontWeight="800"
-                          fill="#7f1d1d"
-                          style={{ filter: 'drop-shadow(0 1px 1px rgba(255,255,255,0.9))' }}
-                        >
-                          {peakStatus}
-                        </text>
-                      )}
-                    </g>
-                  )}
-                </g>
-              ) : (
-                <text
-                  x={x}
-                  y={symbolRowYBase}
-                  textAnchor="middle"
-                  fontSize={responsiveFontSize(1)}
-                  fill={textFill}
-                  fontWeight="500"
-                  style={{ filter: 'drop-shadow(0 1px 1px rgba(255, 255, 255, 0.8))' }}
-                >
-                  {peakStatus === 'P' ? 'X' : peakStatus || '–'}
-                </text>
-              )
+            {shouldRenderSymbol ? (
+              <g>
+                {/* Sombra del símbolo */}
+                <rect
+                  x={x - symbolRectSize/2 + 1}
+                  y={symbolRowYBase - symbolRectSize*0.75 + 1}
+                  width={symbolRectSize}
+                  height={symbolRectSize}
+                  fill="rgba(0, 0, 0, 0.1)"
+                  rx={symbolRectSize * 0.3}
+                  opacity={0.5}
+                />
+                {/* Símbolo principal */}
+                <rect
+                  x={x - symbolRectSize/2-4}
+                  y={symbolRowYBase - symbolRectSize*0.75}
+                  width={symbolRectSize*1.4}
+                  height={symbolRectSize}
+                  fill={symbolInfo.pattern === 'spotting-pattern'
+                    ? "url(#spotting-pattern-chart)"
+                    : symbolFillStyle}
+                  stroke={symbolInfo.value === 'white' ? '#CBD5E1' : 'rgba(233, 30, 99, 0.4)'}
+                  strokeWidth={symbolInfo.value === 'white' ? 2 : 1}
+                  rx={symbolRectSize * 0.2}
+                  style={{ filter: 'drop-shadow(0 2px 4px rgba(244, 114, 182, 0.25))' }}
+                />
+                {peakStatus && (
+                  <g pointerEvents="none">
+                    {peakStatus === 'P' ? (
+                      <>
+                        <line
+                          x1={x - symbolRectSize / 2 - 2}
+                          y1={symbolRowYBase - symbolRectSize * 0.75 + 2}
+                          x2={x + symbolRectSize / 2 + 2}
+                          y2={symbolRowYBase - symbolRectSize * 0.75 + symbolRectSize - 2}
+                          stroke="#7f1d1d"
+                          strokeWidth={1.8}
+                        />
+                        <line
+                          x1={x + symbolRectSize / 2 + 2}
+                          y1={symbolRowYBase - symbolRectSize * 0.75 + 2}
+                          x2={x - symbolRectSize / 2 - 2}
+                          y2={symbolRowYBase - symbolRectSize * 0.75 + symbolRectSize - 2}
+                          stroke="#7f1d1d"
+                          strokeWidth={1.8}
+                        />
+                      </>
+                    ) : (
+                      <text
+                        x={x}
+                        y={symbolRowYBase - symbolRectSize * 0.75 + symbolRectSize / 2 + 2}
+                        textAnchor="middle"
+                        fontSize={responsiveFontSize(peakStatus ? 1.1 : 1)}
+                        fontWeight="800"
+                        fill="#7f1d1d"
+                        style={{ filter: 'drop-shadow(0 1px 1px rgba(255,255,255,0.9))' }}
+                      >
+                        {peakStatus}
+                      </text>
+                    )}
+                  </g>
+                )}
+              </g>
+            ) : (
+              <text
+                x={x}
+                y={symbolRowYBase}
+                textAnchor="middle"
+                fontSize={responsiveFontSize(1)}
+                fill={textFill}
+                fontWeight="500"
+                style={{ filter: 'drop-shadow(0 1px 1px rgba(255, 255, 255, 0.8))' }}
+              >
+                {peakDisplay}
+              </text>    
             )}
 
             {/* Textos con tipografía mejorada y colores premium */}

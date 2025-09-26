@@ -1,7 +1,7 @@
 import React, { useState, useLayoutEffect, useRef, useEffect } from 'react';
 import FertilityChart from '@/components/FertilityChart';
 import { useCycleData } from '@/hooks/useCycleData';
-import { differenceInDays, parseISO, startOfDay } from 'date-fns';
+import { differenceInDays, format, parseISO, startOfDay } from 'date-fns';
 import generatePlaceholders from '@/lib/generatePlaceholders';
 import { RotateCcw, Eye, EyeOff } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
@@ -220,6 +220,98 @@ const ChartPage = () => {
       console.error('Error toggling ignore state:', error);
     }
   };
+  const handleTogglePeak = async (record, shouldMarkAsPeak = true) => {
+    if (!targetCycle?.id || !record?.isoDate) {
+      return;
+    }
+
+    const normalizeMeasurementValue = (value) => {
+      if (value === null || value === undefined || value === '') {
+        return null;
+      }
+      const parsed = parseFloat(String(value).replace(',', '.'));
+      return Number.isFinite(parsed) ? parsed : null;
+    };
+
+    const markAsPeak = shouldMarkAsPeak ?? !(
+      record.peak_marker === 'peak' || record.peakStatus === 'P'
+    );
+
+    setIsProcessing(true);
+    try {
+      const fallbackTime = record.timestamp
+        ? format(parseISO(record.timestamp), 'HH:mm')
+        : format(new Date(), 'HH:mm');
+
+      let measurementsSource = Array.isArray(record.measurements) && record.measurements.length > 0
+        ? record.measurements
+        : [
+            {
+              temperature: record.temperature_chart ?? record.temperature_raw ?? null,
+              temperature_corrected: record.temperature_corrected ?? null,
+              time: fallbackTime,
+              time_corrected: record.time_corrected ?? fallbackTime,
+              selected: true,
+              use_corrected: record.use_corrected ?? false,
+            },
+          ];
+
+      if (measurementsSource.length === 0) {
+        measurementsSource = [
+          {
+            temperature: null,
+            temperature_corrected: null,
+            time: fallbackTime,
+            time_corrected: fallbackTime,
+            selected: true,
+            use_corrected: false,
+          },
+        ];
+      }
+
+      const normalizedMeasurements = measurementsSource.map((measurement, index) => {
+        const timeValue = measurement.time || fallbackTime;
+        const correctedTime = measurement.time_corrected || timeValue;
+
+        return {
+          temperature: normalizeMeasurementValue(
+            measurement.temperature ?? measurement.temperature_raw
+          ),
+          time: timeValue,
+          selected: index === 0 ? true : !!measurement.selected,
+          temperature_corrected: normalizeMeasurementValue(
+            measurement.temperature_corrected
+          ),
+          time_corrected: correctedTime,
+          use_corrected: !!measurement.use_corrected,
+        };
+      });
+
+      if (!normalizedMeasurements.some((measurement) => measurement.selected)) {
+        normalizedMeasurements[0].selected = true;
+      }
+
+      const payload = {
+        isoDate: record.isoDate,
+        measurements: normalizedMeasurements,
+        mucusSensation: record.mucus_sensation ?? record.mucusSensation ?? '',
+        mucusAppearance: record.mucus_appearance ?? record.mucusAppearance ?? '',
+        fertility_symbol: record.fertility_symbol ?? 'none',
+        observations: record.observations ?? '',
+        ignored: record.ignored ?? false,
+        peak_marker: markAsPeak ? 'peak' : null,
+      };
+
+      const existingRecord =
+        record?.id && !String(record.id).startsWith('placeholder-') ? record : null;
+
+      await addOrUpdateDataPoint(payload, existingRecord, targetCycle.id);
+    } catch (error) {
+      console.error('Error toggling peak marker:', error);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   const handleSave = async (data) => {
     if (!targetCycle?.id) return;
@@ -328,6 +420,7 @@ const ChartPage = () => {
           orientation={orientation}
           onToggleIgnore={handleToggleIgnore}
           onEdit={handleEdit}
+          onTogglePeak={handleTogglePeak}
           cycleId={targetCycle.id}
           initialScrollIndex={scrollStart}
           visibleDays={visibleDays}

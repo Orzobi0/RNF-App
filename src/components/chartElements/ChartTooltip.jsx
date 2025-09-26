@@ -7,7 +7,7 @@ import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { getSymbolAppearance } from '@/config/fertilitySymbols';
 
-const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore, onEdit, onClose }) => {
+const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore, onEdit, onClose, onTogglePeak }) => {
   if (!point) return null;
 
   // Escala reducida para que el tooltip ocupe menos espacio en pantalla
@@ -19,11 +19,13 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
 
   const tooltipRef = useRef(null);
   const [tooltipHeight, setTooltipHeight] = useState(tooltipMinHeight);
+  const [peakActionPending, setPeakActionPending] = useState(false);
 
   useEffect(() => {
     if (tooltipRef.current) {
       setTooltipHeight(tooltipRef.current.offsetHeight);
     }
+    setPeakActionPending(false);
   }, [point]);
 
   const flipHorizontal = position.clientX > chartWidth * 0.66;
@@ -64,6 +66,22 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
     3: 'Post pico 3',
   };
   const peakLabel = peakStatus ? peakLabels[peakStatus] || null : null;
+  const canTogglePeak = Boolean(onTogglePeak && point.isoDate);
+  const isPeakDay = peakStatus === 'P' || point.peak_marker === 'peak';
+  const togglePeakLabel = isPeakDay ? 'Quitar día pico' : 'Marcar día pico';
+
+  const handlePeakToggle = async () => {
+    if (!onTogglePeak || peakActionPending) return;
+    setPeakActionPending(true);
+    try {
+      await onTogglePeak(point, !isPeakDay);
+      if (onClose) onClose();
+    } catch (error) {
+      console.error('Error toggling peak marker from tooltip:', error);
+    } finally {
+      setPeakActionPending(false);
+    }
+  };
 
   const handleEditClick = () => {
     if (!onEdit) return;
@@ -216,6 +234,28 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
                   </Button>
                   </motion.div>
               )}
+              {canTogglePeak && (
+                <motion.div
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="flex justify-center"
+                >
+                  <Button
+                    onClick={handlePeakToggle}
+                    variant={isPeakDay ? 'outline' : 'default'}
+                    size="sm"
+                    disabled={peakActionPending}
+                    className={`flex items-center gap-2 px-2 py-2 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md ${
+                      isPeakDay
+                        ? 'bg-white/80 text-rose-600 border-rose-200 hover:bg-rose-50'
+                        : 'bg-rose-500 text-white hover:bg-rose-600'
+                    }`}
+                  >
+                    <span className="font-medium">{togglePeakLabel}</span>
+                  </Button>
+                </motion.div>
+              )}
             </div>
           ) : (
             <>
@@ -336,7 +376,7 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
                 </div>
               </div>
               {/* Botones de acción */}
-              {(onEdit || (onToggleIgnore && !isPlaceholder && point.id)) && (
+              {(onEdit || (onToggleIgnore && !isPlaceholder && point.id) || (canTogglePeak && !isPlaceholder)) && (
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -352,6 +392,21 @@ const ChartTooltip = ({ point, position, chartWidth, chartHeight, onToggleIgnore
                     >
                       <Edit3 className="h-4 w-4" />
                       <span className="font-medium">{isPlaceholder ? 'Añadir datos' : 'Editar'}</span>
+                    </Button>
+                  )}
+                  {canTogglePeak && !isPlaceholder && (
+                    <Button
+                      onClick={handlePeakToggle}
+                      variant={isPeakDay ? 'outline' : 'default'}
+                      size="sm"
+                      disabled={peakActionPending}
+                      className={`flex items-center gap-2 px-2 py-2 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md ${
+                        isPeakDay
+                          ? 'bg-white/80 text-rose-600 border-rose-200 hover:bg-rose-50'
+                          : 'bg-rose-500 text-white hover:bg-rose-600'
+                      }`}
+                    >
+                      <span className="font-medium">{togglePeakLabel}</span>
                     </Button>
                   )}
 

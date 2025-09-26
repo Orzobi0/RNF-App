@@ -13,6 +13,7 @@ const FertilityChart = ({
   orientation,
   onToggleIgnore,
   onEdit,
+  onTogglePeak,
   cycleId,
   initialScrollIndex = 0,
   visibleDays = 5,
@@ -421,6 +422,7 @@ const FertilityChart = ({
               onToggleIgnore={handleToggleIgnore}
               onEdit={onEdit}
               onClose={clearActivePoint}
+              onTogglePeak={onTogglePeak}
             />
           </motion.div>
         )}
