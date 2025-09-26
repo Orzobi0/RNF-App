@@ -80,17 +80,18 @@ const ChartTooltip = ({
   const hasExistingPeak = Boolean(currentPeakIsoDate);
   const isSameAsCurrent = hasExistingPeak && point.isoDate === currentPeakIsoDate;
   const isPeakDay = isSameAsCurrent || peakStatus === 'P' || point.peak_marker === 'peak';
+  const isDifferentPeakCandidate = hasExistingPeak && !isPeakDay;
   const peakButtonLabel = 'Día pico';
-  const peakButtonAriaLabel = isPeakDay
+  const peakButtonAriaLabel = isPeakDay  
     ? 'Quitar día pico'
     : hasExistingPeak
       ? 'Actualizar día pico'
       : 'Marcar día pico';
   const peakButtonTone = isPeakDay
-    ? 'bg-white/85 text-rose-600 border border-rose-200 hover:bg-rose-50'
-    : hasExistingPeak
-      ? 'bg-amber-500 text-white hover:bg-amber-600'
-      : 'bg-rose-500 text-white hover:bg-rose-600';
+    ? 'bg-rose-600 text-white border border-rose-600 hover:bg-rose-700 focus-visible:ring-rose-400'
+    : isDifferentPeakCandidate
+      ? 'bg-amber-400 text-amber-900 border border-amber-300 hover:bg-amber-500 hover:text-white focus-visible:ring-amber-300'
+      : 'bg-rose-500 text-white border border-rose-500 hover:bg-rose-600 focus-visible:ring-rose-300';
   const peakButtonBaseClasses = [
     'flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold',
     'transition-all duration-200 shadow-sm hover:shadow-md',
