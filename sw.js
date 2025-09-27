@@ -1,4 +1,4 @@
-const CACHE_VERSION = '2025-09-27T15:43:25.246Z';
+const CACHE_VERSION = `v${Date.now()}`; // Versión más confiable
 const CACHE_NAME = `rnf-app-cache-${CACHE_VERSION}`;
 const BASE_URL = self.registration.scope;
 const ASSETS = [
@@ -10,8 +10,7 @@ const ASSETS = [
   `${BASE_URL}icon-512x512.png`,
   `${BASE_URL}apple-touch-icon.png`
 ];
-// Assets generated during the build step will be injected into this array.
-const BUILD_ASSETS = (["assets/ChartTooltip-39d225ca.js","assets/DeletionDialog-67eaf41a.js","assets/OverlapWarningDialog-dbf432e8.js","assets/badge-9df465b8.js","assets/computePeakStatuses-d276643a.js","assets/eye-038575bd.js","assets/eye-off-d66a2167.js","assets/input-e93faeb5.js","assets/label-73ddbd29.js","assets/select-02b6d54e.js","assets/trash-2-f191a093.js","assets/useCycleData-de3e222e.js","assets/index-a18e6b05.css","assets/index-52f58b78.js","assets/index.es-9a8a4a61.js","assets/purify.es-2de9db7f.js","assets/html2canvas.esm-e0a7d97b.js","assets/ArchivedCyclesPage-3ae143ca.js","assets/AuthPage-34a7485b.js","assets/ChartPage-f533eefb.js","assets/CycleDetailPage-d4638589.js","assets/DashboardPage-4ac53390.js","assets/RecordsPage-825748b6.js","assets/SettingsPage-2bb3e8f7.js"] || []).map(
+const BUILD_ASSETS = (["assets/ChartTooltip-e75c591f.js","assets/DeletionDialog-7bd1c78b.js","assets/OverlapWarningDialog-991f9ff1.js","assets/badge-5e659d9f.js","assets/computePeakStatuses-661e63be.js","assets/eye-6935ae29.js","assets/eye-off-c72a7d9f.js","assets/input-80776554.js","assets/label-219a7c01.js","assets/select-676b9547.js","assets/trash-2-be84491f.js","assets/useCycleData-a4d1add2.js","assets/index-a18e6b05.css","assets/index-5f6b7abb.js","assets/index.es-cc8b98f6.js","assets/purify.es-2de9db7f.js","assets/html2canvas.esm-e0a7d97b.js","assets/ArchivedCyclesPage-d8bf8d27.js","assets/AuthPage-7b045051.js","assets/ChartPage-1ce1d6ab.js","assets/CycleDetailPage-dbba4e70.js","assets/DashboardPage-5bf3584d.js","assets/RecordsPage-2ce107c0.js","assets/SettingsPage-8b7e29b9.js"] || []).map(
   (asset) => `${BASE_URL}${asset}`
 );
 
@@ -49,26 +48,44 @@ self.addEventListener('activate', event => {
       })
   );
 });
+
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     console.log('SW: Received SKIP_WAITING message');
     self.skipWaiting();
   }
+  // Nuevo: Limpiar cache cuando se solicite
+  if (event.data && event.data.type === 'CLEAR_CACHE') {
+    console.log('SW: Clearing all caches');
+    event.waitUntil(
+      caches.keys().then(keys => 
+        Promise.all(keys.map(key => caches.delete(key)))
+      )
+    );
+  }
 });
+
+// Función para detectar si es una recarga forzada
+function isForcedReload(request) {
+  return request.cache === 'reload' || 
+         request.headers.get('cache-control') === 'no-cache';
+}
 
 self.addEventListener('fetch', (event) => {
   if (
     event.request.method !== 'GET' ||
     !event.request.url.startsWith(self.location.origin)
   ) {
-    return; // ignorar extensiones u otros esquemas
+    return;
   }
 
   const requestUrl = new URL(event.request.url);
   
   if (requestUrl.pathname === '/sw.js') {
-    return; // evitar cachear el propio service worker
+    return;
   }
+
+  // Para recursos de iconos
   const isIconRequest =
     event.request.destination === 'image' &&
     [
@@ -81,6 +98,22 @@ self.addEventListener('fetch', (event) => {
   if (isIconRequest) {
     event.respondWith(
       (async () => {
+        // Si es recarga forzada, ir directo a la red
+        if (isForcedReload(event.request)) {
+          try {
+            const networkResponse = await fetch(event.request);
+            if (networkResponse && networkResponse.ok) {
+              const cache = await caches.open(CACHE_NAME);
+              await cache.put(event.request, networkResponse.clone());
+            }
+            return networkResponse;
+          } catch (error) {
+            const cachedResponse = await caches.match(event.request);
+            return cachedResponse || Response.error();
+          }
+        }
+
+        // Network-first para iconos
         try {
           const networkResponse = await fetch(event.request);
           if (networkResponse && networkResponse.ok) {
@@ -96,17 +129,40 @@ self.addEventListener('fetch', (event) => {
     );
     return;
   }
-if (event.request.mode === 'navigate') {
+
+  // Para navegación (index.html, rutas SPA)
+  if (event.request.mode === 'navigate') {
     event.respondWith(
       (async () => {
+        // Si es recarga forzada, ir directo a la red
+        if (isForcedReload(event.request)) {
+          console.log('SW: Forced reload detected, bypassing cache');
+          try {
+            const networkResponse = await fetch(event.request);
+            if (networkResponse && networkResponse.ok) {
+              const cache = await caches.open(CACHE_NAME);
+              await cache.put(event.request, networkResponse.clone());
+            }
+            return networkResponse;
+          } catch (error) {
+            console.log('SW: Network failed on forced reload, falling back to cache');
+            const fallback = await caches.match(`${BASE_URL}index.html`);
+            return fallback || Response.error();
+          }
+        }
+
+        // Network-first strategy para navegación normal
         try {
-          const networkResponse = await fetch(event.request);
+          const networkResponse = await fetch(event.request, {
+            cache: 'no-cache' // Forzar verificación del servidor
+          });
           if (networkResponse && networkResponse.ok) {
             const cache = await caches.open(CACHE_NAME);
             await cache.put(event.request, networkResponse.clone());
           }
           return networkResponse;
         } catch (error) {
+          console.log('SW: Network failed, trying cache');
           const cachedResponse = await caches.match(event.request);
           if (cachedResponse) {
             return cachedResponse;
@@ -123,22 +179,38 @@ if (event.request.mode === 'navigate') {
     );
     return;
   }
+
+  // Para otros recursos (JS, CSS, etc.)
   event.respondWith(
     (async () => {
-      const cachedResponse = await caches.match(event.request);
-      if (cachedResponse) {
-        return cachedResponse;
+      // Si es recarga forzada, ir directo a la red
+      if (isForcedReload(event.request)) {
+        try {
+          const networkResponse = await fetch(event.request);
+          if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+            const cache = await caches.open(CACHE_NAME);
+            await cache.put(event.request, networkResponse.clone());
+          }
+          return networkResponse;
+        } catch (error) {
+          const cachedResponse = await caches.match(event.request);
+          return cachedResponse || Response.error();
+        }
       }
 
+      // Network-first para recursos críticos
       try {
-        const networkResponse = await fetch(event.request);
+        const networkResponse = await fetch(event.request, {
+          cache: 'no-cache'
+        });
         if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
           const cache = await caches.open(CACHE_NAME);
           await cache.put(event.request, networkResponse.clone());
         }
         return networkResponse;
       } catch (error) {
-        return Response.error();
+        const cachedResponse = await caches.match(event.request);
+        return cachedResponse || Response.error();
       }
     })()
   );

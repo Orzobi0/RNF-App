@@ -1,90 +1,90 @@
 {
-  "_ChartTooltip-39d225ca.js": {
-    "file": "assets/ChartTooltip-39d225ca.js",
+  "_ChartTooltip-e75c591f.js": {
+    "file": "assets/ChartTooltip-e75c591f.js",
     "imports": [
       "index.html",
-      "_badge-9df465b8.js",
-      "_computePeakStatuses-d276643a.js",
-      "_eye-038575bd.js",
-      "_eye-off-d66a2167.js"
+      "_badge-5e659d9f.js",
+      "_computePeakStatuses-661e63be.js",
+      "_eye-6935ae29.js",
+      "_eye-off-c72a7d9f.js"
     ]
   },
-  "_DeletionDialog-67eaf41a.js": {
-    "file": "assets/DeletionDialog-67eaf41a.js",
+  "_DeletionDialog-7bd1c78b.js": {
+    "file": "assets/DeletionDialog-7bd1c78b.js",
     "imports": [
       "index.html",
-      "_badge-9df465b8.js",
-      "_computePeakStatuses-d276643a.js",
-      "_eye-038575bd.js",
-      "_trash-2-f191a093.js",
-      "_useCycleData-de3e222e.js"
+      "_badge-5e659d9f.js",
+      "_computePeakStatuses-661e63be.js",
+      "_eye-6935ae29.js",
+      "_trash-2-be84491f.js",
+      "_useCycleData-a4d1add2.js"
     ]
   },
-  "_OverlapWarningDialog-dbf432e8.js": {
-    "file": "assets/OverlapWarningDialog-dbf432e8.js",
+  "_OverlapWarningDialog-991f9ff1.js": {
+    "file": "assets/OverlapWarningDialog-991f9ff1.js",
     "imports": [
       "index.html",
-      "_useCycleData-de3e222e.js"
+      "_useCycleData-a4d1add2.js"
     ]
   },
-  "_badge-9df465b8.js": {
-    "file": "assets/badge-9df465b8.js",
+  "_badge-5e659d9f.js": {
+    "file": "assets/badge-5e659d9f.js",
     "imports": [
       "index.html"
     ]
   },
-  "_computePeakStatuses-d276643a.js": {
-    "file": "assets/computePeakStatuses-d276643a.js",
+  "_computePeakStatuses-661e63be.js": {
+    "file": "assets/computePeakStatuses-661e63be.js",
     "imports": [
       "index.html",
-      "_input-e93faeb5.js",
-      "_label-73ddbd29.js",
-      "_select-02b6d54e.js",
-      "_useCycleData-de3e222e.js",
-      "_badge-9df465b8.js",
-      "_eye-038575bd.js",
-      "_eye-off-d66a2167.js"
+      "_input-80776554.js",
+      "_label-219a7c01.js",
+      "_select-676b9547.js",
+      "_useCycleData-a4d1add2.js",
+      "_badge-5e659d9f.js",
+      "_eye-6935ae29.js",
+      "_eye-off-c72a7d9f.js"
     ]
   },
-  "_eye-038575bd.js": {
-    "file": "assets/eye-038575bd.js",
+  "_eye-6935ae29.js": {
+    "file": "assets/eye-6935ae29.js",
     "imports": [
       "index.html"
     ]
   },
-  "_eye-off-d66a2167.js": {
-    "file": "assets/eye-off-d66a2167.js",
+  "_eye-off-c72a7d9f.js": {
+    "file": "assets/eye-off-c72a7d9f.js",
     "imports": [
       "index.html"
     ]
   },
-  "_input-e93faeb5.js": {
-    "file": "assets/input-e93faeb5.js",
+  "_input-80776554.js": {
+    "file": "assets/input-80776554.js",
     "imports": [
       "index.html"
     ]
   },
-  "_label-73ddbd29.js": {
-    "file": "assets/label-73ddbd29.js",
+  "_label-219a7c01.js": {
+    "file": "assets/label-219a7c01.js",
     "imports": [
       "index.html"
     ]
   },
-  "_select-02b6d54e.js": {
-    "file": "assets/select-02b6d54e.js",
+  "_select-676b9547.js": {
+    "file": "assets/select-676b9547.js",
     "imports": [
       "index.html",
-      "_useCycleData-de3e222e.js"
+      "_useCycleData-a4d1add2.js"
     ]
   },
-  "_trash-2-f191a093.js": {
-    "file": "assets/trash-2-f191a093.js",
+  "_trash-2-be84491f.js": {
+    "file": "assets/trash-2-be84491f.js",
     "imports": [
       "index.html"
     ]
   },
-  "_useCycleData-de3e222e.js": {
-    "file": "assets/useCycleData-de3e222e.js",
+  "_useCycleData-a4d1add2.js": {
+    "file": "assets/useCycleData-a4d1add2.js",
     "imports": [
       "index.html"
     ]
@@ -106,12 +106,12 @@
       "src/pages/ChartPage.jsx",
       "src/pages/RecordsPage.jsx"
     ],
-    "file": "assets/index-52f58b78.js",
+    "file": "assets/index-5f6b7abb.js",
     "isEntry": true,
     "src": "index.html"
   },
   "node_modules/canvg/lib/index.es.js": {
-    "file": "assets/index.es-9a8a4a61.js",
+    "file": "assets/index.es-cc8b98f6.js",
     "imports": [
       "index.html"
     ],
@@ -129,98 +129,98 @@
     "src": "node_modules/html2canvas/dist/html2canvas.esm.js"
   },
   "src/pages/ArchivedCyclesPage.jsx": {
-    "file": "assets/ArchivedCyclesPage-3ae143ca.js",
+    "file": "assets/ArchivedCyclesPage-d8bf8d27.js",
     "imports": [
       "index.html",
-      "_useCycleData-de3e222e.js",
-      "_badge-9df465b8.js",
-      "_input-e93faeb5.js",
-      "_OverlapWarningDialog-dbf432e8.js",
-      "_eye-038575bd.js",
-      "_trash-2-f191a093.js"
+      "_useCycleData-a4d1add2.js",
+      "_badge-5e659d9f.js",
+      "_input-80776554.js",
+      "_OverlapWarningDialog-991f9ff1.js",
+      "_eye-6935ae29.js",
+      "_trash-2-be84491f.js"
     ],
     "isDynamicEntry": true,
     "src": "src/pages/ArchivedCyclesPage.jsx"
   },
   "src/pages/AuthPage.jsx": {
-    "file": "assets/AuthPage-34a7485b.js",
+    "file": "assets/AuthPage-7b045051.js",
     "imports": [
       "index.html",
-      "_input-e93faeb5.js",
-      "_label-73ddbd29.js",
-      "_eye-off-d66a2167.js",
-      "_eye-038575bd.js"
+      "_input-80776554.js",
+      "_label-219a7c01.js",
+      "_eye-off-c72a7d9f.js",
+      "_eye-6935ae29.js"
     ],
     "isDynamicEntry": true,
     "src": "src/pages/AuthPage.jsx"
   },
   "src/pages/ChartPage.jsx": {
-    "file": "assets/ChartPage-f533eefb.js",
+    "file": "assets/ChartPage-1ce1d6ab.js",
     "imports": [
       "index.html",
-      "_computePeakStatuses-d276643a.js",
-      "_ChartTooltip-39d225ca.js",
-      "_useCycleData-de3e222e.js",
-      "_eye-off-d66a2167.js",
-      "_eye-038575bd.js",
-      "_input-e93faeb5.js",
-      "_label-73ddbd29.js",
-      "_select-02b6d54e.js",
-      "_badge-9df465b8.js"
+      "_computePeakStatuses-661e63be.js",
+      "_ChartTooltip-e75c591f.js",
+      "_useCycleData-a4d1add2.js",
+      "_eye-off-c72a7d9f.js",
+      "_eye-6935ae29.js",
+      "_input-80776554.js",
+      "_label-219a7c01.js",
+      "_select-676b9547.js",
+      "_badge-5e659d9f.js"
     ],
     "isDynamicEntry": true,
     "src": "src/pages/ChartPage.jsx"
   },
   "src/pages/CycleDetailPage.jsx": {
-    "file": "assets/CycleDetailPage-d4638589.js",
+    "file": "assets/CycleDetailPage-dbba4e70.js",
     "imports": [
       "index.html",
-      "_DeletionDialog-67eaf41a.js",
-      "_computePeakStatuses-d276643a.js",
-      "_OverlapWarningDialog-dbf432e8.js",
-      "_useCycleData-de3e222e.js",
-      "_trash-2-f191a093.js",
-      "_badge-9df465b8.js",
-      "_eye-038575bd.js",
-      "_input-e93faeb5.js",
-      "_label-73ddbd29.js",
-      "_select-02b6d54e.js",
-      "_eye-off-d66a2167.js"
+      "_DeletionDialog-7bd1c78b.js",
+      "_computePeakStatuses-661e63be.js",
+      "_OverlapWarningDialog-991f9ff1.js",
+      "_useCycleData-a4d1add2.js",
+      "_trash-2-be84491f.js",
+      "_badge-5e659d9f.js",
+      "_eye-6935ae29.js",
+      "_input-80776554.js",
+      "_label-219a7c01.js",
+      "_select-676b9547.js",
+      "_eye-off-c72a7d9f.js"
     ],
     "isDynamicEntry": true,
     "src": "src/pages/CycleDetailPage.jsx"
   },
   "src/pages/DashboardPage.jsx": {
-    "file": "assets/DashboardPage-4ac53390.js",
+    "file": "assets/DashboardPage-5bf3584d.js",
     "imports": [
       "index.html",
-      "_computePeakStatuses-d276643a.js",
-      "_badge-9df465b8.js",
-      "_useCycleData-de3e222e.js",
-      "_input-e93faeb5.js",
-      "_ChartTooltip-39d225ca.js",
-      "_label-73ddbd29.js",
-      "_select-02b6d54e.js",
-      "_eye-038575bd.js",
-      "_eye-off-d66a2167.js"
+      "_computePeakStatuses-661e63be.js",
+      "_badge-5e659d9f.js",
+      "_useCycleData-a4d1add2.js",
+      "_input-80776554.js",
+      "_ChartTooltip-e75c591f.js",
+      "_label-219a7c01.js",
+      "_select-676b9547.js",
+      "_eye-6935ae29.js",
+      "_eye-off-c72a7d9f.js"
     ],
     "isDynamicEntry": true,
     "src": "src/pages/DashboardPage.jsx"
   },
   "src/pages/RecordsPage.jsx": {
-    "file": "assets/RecordsPage-825748b6.js",
+    "file": "assets/RecordsPage-2ce107c0.js",
     "imports": [
       "index.html",
-      "_DeletionDialog-67eaf41a.js",
-      "_computePeakStatuses-d276643a.js",
-      "_useCycleData-de3e222e.js",
-      "_badge-9df465b8.js",
-      "_eye-038575bd.js",
-      "_trash-2-f191a093.js",
-      "_input-e93faeb5.js",
-      "_label-73ddbd29.js",
-      "_select-02b6d54e.js",
-      "_eye-off-d66a2167.js"
+      "_DeletionDialog-7bd1c78b.js",
+      "_computePeakStatuses-661e63be.js",
+      "_useCycleData-a4d1add2.js",
+      "_badge-5e659d9f.js",
+      "_eye-6935ae29.js",
+      "_trash-2-be84491f.js",
+      "_input-80776554.js",
+      "_label-219a7c01.js",
+      "_select-676b9547.js",
+      "_eye-off-c72a7d9f.js"
     ],
     "isDynamicEntry": true,
     "src": "src/pages/RecordsPage.jsx"
@@ -231,13 +231,13 @@
       "node_modules/dompurify/dist/purify.es.js",
       "node_modules/canvg/lib/index.es.js"
     ],
-    "file": "assets/SettingsPage-2bb3e8f7.js",
+    "file": "assets/SettingsPage-8b7e29b9.js",
     "imports": [
       "index.html",
-      "_input-e93faeb5.js",
-      "_label-73ddbd29.js",
-      "_useCycleData-de3e222e.js",
-      "_select-02b6d54e.js"
+      "_input-80776554.js",
+      "_label-219a7c01.js",
+      "_useCycleData-a4d1add2.js",
+      "_select-676b9547.js"
     ],
     "isDynamicEntry": true,
     "src": "src/pages/SettingsPage.jsx"
