@@ -253,6 +253,19 @@ const SettingsPage = () => {
           
           <div className="bg-white/80 backdrop-blur p-4 rounded-xl shadow flex items-center justify-between">
             <div>
+              <p className="text-sm text-slate-500">Exportar datos</p>
+              <p className="font-medium text-slate-700">
+                Descarga tus ciclos actuales y archivados
+              </p>
+            </div>
+            <Button onClick={() => setShowExportDialog(true)} className="ml-4">
+              Exportar ciclos
+            </Button>
+          </div>
+        </div>
+
+                  <div className="bg-white/80 backdrop-blur p-4 rounded-xl shadow flex items-center justify-between">
+            <div>
               <p className="text-sm text-slate-500">Sesión</p>
               <p className="font-medium text-slate-700">Cerrar sesión de tu cuenta actual</p>
             </div>
@@ -265,19 +278,6 @@ const SettingsPage = () => {
               Cerrar sesión
             </Button>
           </div>
-
-          <div className="bg-white/80 backdrop-blur p-4 rounded-xl shadow flex items-center justify-between">
-            <div>
-              <p className="text-sm text-slate-500">Exportar datos</p>
-              <p className="font-medium text-slate-700">
-                Descarga tus ciclos actuales y archivados
-              </p>
-            </div>
-            <Button onClick={() => setShowExportDialog(true)} className="ml-4">
-              Exportar ciclos
-            </Button>
-          </div>
-        </div>
       </div>
       
 

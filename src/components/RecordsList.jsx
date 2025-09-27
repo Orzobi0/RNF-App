@@ -90,7 +90,7 @@ const peakStatuses = useMemo(() => computePeakStatuses(records), [records]);
               show: { opacity: 1, y: 0 }
             }}
           >
-            <div className="p-4">
+            <div className="p-3 shadow-md">
               {/* Encabezado con fecha y símbolo */}
               <div className="flex items-start justify-between">
                 <div className="flex items-center space-x-2">
@@ -98,7 +98,7 @@ const peakStatuses = useMemo(() => computePeakStatuses(records), [records]);
                   <span className="font-semibold text-slate-700 text-lg">
                     {format(parseISO(record.isoDate), 'dd/MM/yyyy', { locale: es })}
                   </span>
-                  <span className="text-md text-slate-600">Día {record.cycleDay}</span>
+                  <span className="text-md text-pink-500">Día {record.cycleDay}</span>
                   {peakLabel && (
                     <Badge className="ml-2 bg-rose-100 text-rose-600 border border-rose-200">
                       {peakLabel}
@@ -117,7 +117,7 @@ const peakStatuses = useMemo(() => computePeakStatuses(records), [records]);
               </div>
 
               {/* Temperatura y hora */}
-              <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-800">
+              <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-800">
                 <div className="flex items-center space-x-1 bg-gradient-to-r from-amber-200 to-orange-200 border border-amber-300/50 p-2 rounded-xl">
                   <Thermometer className="w-3 h-3 text-rose-400" />
                   <span className="font-medium">{hasTemperature ? `${displayTemp}°C` : ''}</span>
@@ -128,7 +128,7 @@ const peakStatuses = useMemo(() => computePeakStatuses(records), [records]);
                     />
                   )}
                   {hasTemperature && record.ignored && (
-                    <Badge variant="secondary" className="text-xs py-0 px-1 bg-slate-200 text-slate-600">
+                    <Badge variant="secondary" className="text-xs py-0 px-1 bg-orange-200 text-slate-700">
                       Ignorada
                     </Badge>
                   )}
