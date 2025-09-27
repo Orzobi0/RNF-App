@@ -17,6 +17,10 @@ const OBSERVATION_BG_END = '#FAF5FF';   // to-purple-50
 const CORRECTION_LINE_COLOR = 'rgba(148, 163, 184, 0.35)';
 const CORRECTION_POINT_FILL = 'rgba(226, 232, 240, 0.6)';
 const CORRECTION_POINT_STROKE = 'rgba(148, 163, 184, 0.5)';
+const PEAK_EMOJI = '✖';
+const POST_PEAK_MARKER_COLOR = '#7f1d1d';
+const PEAK_EMOJI_COLOR = '#ed5ca4';
+const PEAK_TEXT_SHADOW = 'drop-shadow(0 2px 4px rgba(244, 114, 182, 0.35))';
 
 /** Quita ceros iniciales a día/mes */
 const compactDate = (dateStr) => {
@@ -249,16 +253,6 @@ const ChartPoints = ({
           hasTemp &&
           index === ovulationMarkerIndex;
 
-
-        const interactionProps = (!hasAnyRecord || isPlaceholder)
-          ? {}
-          : {
-              pointerEvents: "all",
-              style: { cursor: 'pointer' },
-              onMouseEnter: (e) => onPointInteraction(point, index, e),
-              onClick: (e) => onPointInteraction(point, index, e)
-            };
-
         // Símbolo con colores mejorados
         const symbolInfo = getSymbolAppearance(point.fertility_symbol);
         let symbolFillStyle = 'transparent';
@@ -268,12 +262,33 @@ const ChartPoints = ({
           else if (raw === 'white') symbolFillStyle = '#ffffff';
           else if (raw === 'green-500') symbolFillStyle = '#22c55e';
           else if (raw === 'pink-300') symbolFillStyle = '#f9a8d4';
+          else if (raw === 'yellow-400') symbolFillStyle = '#facc15';
         }
-        const symbolRectSize = responsiveFontSize(isFullScreen ? 1.8 : 2);
+
 
         const isFuture = point.isoDate
           ? isAfter(startOfDay(parseISO(point.isoDate)), startOfDay(new Date()))
           : false;
+
+          const symbolRectSize = responsiveFontSize(isFullScreen ? 1.8 : 2);
+          const symbolTextY = symbolRowYBase - symbolRectSize * 0.75 + symbolRectSize / 2 + 2;
+
+        const peakStatus = point.peakStatus ? String(point.peakStatus).toUpperCase() : null;
+        const isPeakMarker = peakStatus === 'P' || peakStatus === 'X';
+        const isPostPeakMarker = peakStatus && !isPeakMarker;
+        const peakDisplay = isPeakMarker ? PEAK_EMOJI : peakStatus || '–';
+        const isPeakSeriesDay =
+          isPeakMarker || ['1', '2', '3'].includes(peakStatus);
+        const shouldRenderSymbol = !isPlaceholder && symbolInfo.value !== 'none';
+        const shouldEnableInteractions = Boolean(point.isoDate) && !isFuture;
+        const interactionProps = shouldEnableInteractions
+          ? {
+              pointerEvents: 'all',
+              style: { cursor: 'pointer' },
+              onClick: (e) => onPointInteraction(point, index, e)
+            }
+          : {};
+
 
         // Límites de texto
         const maxChars = isFullScreen ? 4 : 7;
@@ -392,8 +407,6 @@ const ChartPoints = ({
                     cursor: 'pointer'
                   }}
                   pointerEvents="all"
-                  onMouseEnter={(e) => onPointInteraction(point, index, e)}
-                  onTouchStart={(e) => onPointInteraction(point, index, e)}
                   onClick={(e) => onPointInteraction(point, index, e)}
                 />
                 
@@ -461,47 +474,102 @@ const ChartPoints = ({
             </text>
 
             {/* Símbolo mejorado con mejor diseño */}
-            {!isPlaceholder && (
-              symbolInfo.value !== 'none' ? (
-                <g>
-                  {/* Sombra del símbolo */}
+            {shouldRenderSymbol ? (
+              <g>
+                {/* Sombra del símbolo */}
+                <rect
+                  x={x - symbolRectSize/2 + 1}
+                  y={symbolRowYBase - symbolRectSize*0.75 + 1}
+                  width={symbolRectSize}
+                  height={symbolRectSize}
+                  fill="rgba(0, 0, 0, 0.1)"
+                  rx={symbolRectSize * 0.3}
+                  opacity={0.5}
+                />
+                {/* Símbolo principal */}
+                <rect
+                  x={x - symbolRectSize/2-4}
+                  y={symbolRowYBase - symbolRectSize*0.75}
+                  width={symbolRectSize*1.4}
+                  height={symbolRectSize}
+                  fill={symbolInfo.pattern === 'spotting-pattern'
+                    ? "url(#spotting-pattern-chart)"
+                    : symbolFillStyle}
+                  stroke={symbolInfo.value === 'white' ? '#CBD5E1' : 'rgba(233, 30, 99, 0.4)'}
+                  strokeWidth={symbolInfo.value === 'white' ? 2 : 1}
+                  rx={symbolRectSize * 0.2}
+                  style={{ filter: 'drop-shadow(0 2px 4px rgba(244, 114, 182, 0.25))' }}
+                />
+                {peakStatus && (
+                  <g pointerEvents="none">
+                {isPeakMarker ? (
+                      <text
+                        x={x}
+                        y={symbolTextY}
+                        textAnchor="middle"
+                        fontSize={responsiveFontSize(1.35)}
+                        fontWeight="900"
+                        fill={PEAK_EMOJI_COLOR}
+                        style={{ filter: PEAK_TEXT_SHADOW }}
+                      >
+                        {PEAK_EMOJI}
+                      </text>
+                    ) : (
+                      <text
+                        x={x}
+                        y={symbolTextY}
+                        textAnchor="middle"
+                        fontSize={responsiveFontSize(peakStatus ? 1.1 : 1)}
+                        fontWeight="800"
+                        fill={POST_PEAK_MARKER_COLOR}
+                        style={{ filter: 'drop-shadow(0 1px 1px rgba(255,255,255,0.9))' }}
+                      >
+                        {peakStatus}
+                      </text>
+                    )}
+                  </g>
+                )}
+              </g>
+            ) : (
+              <g>
+                {isPeakSeriesDay && (
                   <rect
-                    x={x - symbolRectSize/2 + 1}
-                    y={symbolRowYBase - symbolRectSize*0.75 + 1}
-                    width={symbolRectSize}
+                    x={x - symbolRectSize / 2 - 4}
+                    y={symbolRowYBase - symbolRectSize * 0.75}
+                    width={symbolRectSize * 1.4}
                     height={symbolRectSize}
-                    fill="rgba(0, 0, 0, 0.1)"
-                    rx={symbolRectSize * 0.3}
-                    opacity={0.5}
-                  />
-                  {/* Símbolo principal */}
-                  <rect
-                    x={x - symbolRectSize/2-4}
-                    y={symbolRowYBase - symbolRectSize*0.75}
-                    width={symbolRectSize*1.4}
-                    height={symbolRectSize}
-                    fill={symbolInfo.pattern === 'spotting-pattern'
-                      ? "url(#spotting-pattern-chart)"
-                      : symbolFillStyle}
-                    stroke={symbolInfo.value === 'white' ? '#CBD5E1' : 'rgba(233, 30, 99, 0.4)'}
-                    strokeWidth={symbolInfo.value === 'white' ? 2 : 1}
+                    fill="transparent"
+                    stroke={isPeakMarker ? PEAK_EMOJI_COLOR : POST_PEAK_MARKER_COLOR}
+                    strokeWidth={1}
                     rx={symbolRectSize * 0.2}
-                    style={{ filter: 'drop-shadow(0 2px 4px rgba(244, 114, 182, 0.25))' }}
                   />
-                </g>
-              ) : (
+                )}
                 <text
-                  x={x} 
-                  y={symbolRowYBase} 
+                  x={x}
+                  y={symbolTextY}
                   textAnchor="middle"
-                  fontSize={responsiveFontSize(1)} 
-                  fill={textFill}
-                  fontWeight="500"
-                  style={{ filter: 'drop-shadow(0 1px 1px rgba(255, 255, 255, 0.8))' }}
+                  fontSize={responsiveFontSize(
+                    isPeakMarker ? 1.35 : isPostPeakMarker ? 1.1 : 1
+                  )}
+                  fill={
+                    isPeakMarker
+                      ? PEAK_EMOJI_COLOR
+                      : isPostPeakMarker
+                        ? POST_PEAK_MARKER_COLOR
+                        : textFill
+                  }
+                  fontWeight={isPeakMarker ? '900' : isPostPeakMarker ? '800' : '500'}
+                  style={{
+                    filter: isPeakMarker
+                      ? PEAK_TEXT_SHADOW
+                      : isPostPeakMarker
+                        ? 'drop-shadow(0 1px 1px rgba(255,255,255,0.9))'
+                        : 'drop-shadow(0 1px 1px rgba(255, 255, 255, 0.8))'
+                  }}
                 >
-                  –
+                  {peakDisplay}
                 </text>
-              )
+              </g>
             )}
 
             {/* Textos con tipografía mejorada y colores premium */}

@@ -1,18 +1,22 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, FilePlus, CalendarPlus } from 'lucide-react';
 import DataEntryForm from '@/components/DataEntryForm';
 import NewCycleDialog from '@/components/NewCycleDialog';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { useCycleData } from '@/hooks/useCycleData';
-import { differenceInDays, parseISO, startOfDay } from 'date-fns';
+import { addDays, differenceInDays, format, isAfter, parseISO, startOfDay } from 'date-fns';
 import ChartTooltip from '@/components/chartElements/ChartTooltip';
+import computePeakStatuses from '@/lib/computePeakStatuses';
 
-const CycleOverviewCard = ({ cycleData, onEdit }) => {
+const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate }) => {
   const records = cycleData.records || [];
   const [activePoint, setActivePoint] = useState(null);
   const [tooltipPosition, setTooltipPosition] = useState({ clientX: 0, clientY: 0 });
   const circleRef = useRef(null);
+  const cycleStartDate = cycleData.startDate ? parseISO(cycleData.startDate) : null;
+  const today = startOfDay(new Date());
+  const peakStatuses = useMemo(() => computePeakStatuses(records), [records]);
 
     // Ajustes del círculo de progreso
   const radius = 140; // radio del círculo
@@ -43,6 +47,13 @@ const CycleOverviewCard = ({ cycleData, onEdit }) => {
           glow: 'rgba(34, 197, 94, 0.3)',
           border: 'none'
         };
+        case 'yellow':
+        return {
+          main: '#facc15',
+          light: '#fef08a',
+          glow: 'rgba(250, 204, 21, 0.3)',
+          border: 'none'
+        };
       case 'spot':
         return {
           main: '#ef4444',
@@ -66,21 +77,25 @@ const CycleOverviewCard = ({ cycleData, onEdit }) => {
 
     return Array.from({ length: totalDays }, (_, index) => {
       const day = index + 1;
-      const record = records.find(r => r.cycleDay === day);
+      const record = records.find((r) => r.cycleDay === day);
+      const placeholderDate = cycleStartDate ? addDays(cycleStartDate, index) : null;
+      const isoDate = placeholderDate ? format(placeholderDate, 'yyyy-MM-dd') : null;
+      const isFutureDay = placeholderDate ? isAfter(startOfDay(placeholderDate), today) : false;
+      const recordWithCycleDay = record ? { ...record, cycleDay: record.cycleDay ?? day } : null;
       const angle = (index / totalDays) * 2 * Math.PI - Math.PI / 2;
 
       const x = center + radius * Math.cos(angle);
       const y = center + radius * Math.sin(angle);
       
-      let colors = day <= cycleData.currentDay && record
-        ? getSymbolColor(record.fertility_symbol)
+      let colors = day <= cycleData.currentDay && recordWithCycleDay
+        ? getSymbolColor(recordWithCycleDay.fertility_symbol)
         : { main: '#b5b6ba', light: '#c8cacf', glow: 'rgba(229, 231, 235, 0.3)' };
 
       const isToday = day === cycleData.currentDay;
       if (isToday) {
-        if (record) {
+        if (recordWithCycleDay) {
           colors = {
-            ...getSymbolColor(record.fertility_symbol),
+            ...getSymbolColor(recordWithCycleDay.fertility_symbol),
             border: 'rgba(251, 113, 133, 0.8)'
           };
         } else {
@@ -92,7 +107,7 @@ const CycleOverviewCard = ({ cycleData, onEdit }) => {
           };
         }
       }
-
+      const peakStatus = isoDate ? peakStatuses[isoDate] || null : null;
       return {
         x,
         y,
@@ -100,8 +115,11 @@ const CycleOverviewCard = ({ cycleData, onEdit }) => {
         colors,
         isActive: day <= cycleData.currentDay,
         isToday,
-        hasRecord: !!record,
-        record
+        hasRecord: !!recordWithCycleDay,
+        record: recordWithCycleDay,
+        isoDate,
+        canShowPlaceholder: Boolean(!recordWithCycleDay && isoDate && !isFutureDay),
+        peakStatus,
       };
     });
   };
@@ -110,7 +128,7 @@ const CycleOverviewCard = ({ cycleData, onEdit }) => {
 
   const handleDotClick = (dot, event) => {
     event.stopPropagation();
-    if (!dot.record) {
+    if (!circleRef.current) {
       setActivePoint(null);
       return;
     }
@@ -123,11 +141,50 @@ const CycleOverviewCard = ({ cycleData, onEdit }) => {
       clientX = event.clientX;
       clientY = event.clientY;
     }
+    const placeholderRecord = dot.canShowPlaceholder && dot.isoDate
+      ? {
+          id: `placeholder-${dot.isoDate}`,
+          isoDate: dot.isoDate,
+          cycleDay: dot.day,
+          fertility_symbol: null,
+          mucus_sensation: '',
+          mucusSensation: '',
+          mucus_appearance: '',
+          mucusAppearance: '',
+          observations: '',
+          temperature_chart: null,
+          displayTemperature: null,
+          ignored: false,
+          peakStatus: dot.peakStatus,
+          peak_marker: dot.peakStatus === 'P' ? 'peak' : null,
+        }
+      : null;
+
+    const targetRecord = dot.record
+      ? {
+          ...dot.record,
+          cycleDay: dot.record.cycleDay ?? dot.day,
+          peakStatus: dot.peakStatus,
+          peak_marker:
+            dot.record.peak_marker ?? (dot.peakStatus === 'P' ? 'peak' : null),
+        }
+      : placeholderRecord;
+    if (targetRecord && currentPeakIsoDate && targetRecord.isoDate === currentPeakIsoDate) {
+      targetRecord.peak_marker = 'peak';
+      targetRecord.peakStatus = targetRecord.peakStatus || 'P';
+    }
+  
+
+    if (!targetRecord) {
+      setActivePoint(null);
+      return;
+    }
+
     setTooltipPosition({
       clientX: clientX - rect.left,
       clientY: clientY - rect.top
     });
-    setActivePoint(dot.record);
+    setActivePoint(targetRecord);
   };
 
   useEffect(() => {
@@ -243,27 +300,63 @@ const CycleOverviewCard = ({ cycleData, onEdit }) => {
                     cx={dot.x}
                     cy={dot.y}
                     r={dot.isToday ? 11 : 10}
-                    fill={dot.colors.pattern || (dot.isActive && dot.hasRecord ? dot.colors.main : 'none')}
+                    fill={
+                      dot.colors.pattern
+                        || (dot.isActive && dot.hasRecord
+                          ? dot.colors.main
+                          : 'rgba(255,255,255,0.001)')
+                    }
                     stroke={dot.colors.border === 'none' ? 'none' : dot.colors.border || 'rgba(158,158,158,0.4)'}
                     strokeWidth={dot.colors.border === 'none'
                       ? 0
                       : (dot.isToday
                         ? 1.8
                         : (dot.colors.border ? 0.6 : 0.8))}
-                  onClick={(e) => handleDotClick(dot, e)}
-                  initial={{ scale: 0, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{
-                    duration: 0.6,
-                    delay: 0.8 + (index * 0.02),
-                    type: 'spring',
-                    stiffness: 400,
-                    damping: 25
+                    onClick={(e) => handleDotClick(dot, e)}
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{
+                      duration: 0.6,
+                      delay: 0.8 + index * 0.02,
+                      type: 'spring',
+                      stiffness: 400,
+                      damping: 25
                     }}
                     style={{
-                      filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.2))'
+                      filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.2))',
+                      cursor: 'pointer'
                     }}
                   />
+                {dot.peakStatus && (
+                    dot.peakStatus === 'P' ? (
+                      <text
+                        x={dot.x}
+                        y={dot.y + 4}
+                        textAnchor="middle"
+                        fontSize="14"
+                        fontWeight="900"
+                        fill="#ec4899"
+                        style={{
+                          pointerEvents: 'none',
+                          filter: 'drop-shadow(0 2px 4px rgba(244, 114, 182, 0.35))'
+                        }}
+                      >
+                        ✖
+                      </text>
+                    ) : (
+                      <text
+                        x={dot.x}
+                        y={dot.y + 4}
+                        textAnchor="middle"
+                        fontSize="12"
+                        fontWeight="800"
+                        fill="#7f1d1d"
+                        style={{ pointerEvents: 'none' }}
+                      >
+                        {dot.peakStatus}
+                      </text>
+                    )
+                  )}
 
                 </g>
               ))}
@@ -277,6 +370,8 @@ const CycleOverviewCard = ({ cycleData, onEdit }) => {
                   chartHeight={circleRef.current?.clientHeight || 0}
                   onEdit={onEdit}
                   onClose={() => setActivePoint(null)}
+                  onTogglePeak={onTogglePeak}
+                  currentPeakIsoDate={currentPeakIsoDate}
                 />
               </div>
             )}
@@ -319,6 +414,7 @@ const CycleOverviewCard = ({ cycleData, onEdit }) => {
 
         {/* Leyenda e información del ciclo con diseño mejorado */}
         <div className="grid grid-cols-2 gap-4 mx-2 mb-10 mt-2 flex-shrink-0">
+          
           {/* Leyenda de colores */}
           <motion.div
             className="relative bg-gradient-to-br from-pink-50/90 to-rose-50/90 backdrop-blur-md rounded-3xl p-4 border border-pink-200/30"
@@ -330,43 +426,48 @@ const CycleOverviewCard = ({ cycleData, onEdit }) => {
               boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.7)'
             }}
           >
+            
             <h3 className="font-bold mb-6 text-gray-800 flex items-center gap-2 justify-center text-xs tracking-wide uppercase">
             Símbolos
             </h3>
-
+            
             {/* Grid de símbolos refinado */}
-            <div className="grid grid-cols-2 gap-2.5">
+            <div className="grid grid-cols-2 gap-2.5">              
               {[
                 { label: 'Menstrual', color: '#ef4444' },
-                { label: 'Fértil', color: '#f8fafc', stroke: '#e2e8f0' },
-                { label: 'Infértil', color: '#22c55e' },
-                { label: 'Spotting', color: '#ef4444', stroke: '#fee2e2', pattern: true }
+                { label: 'Moco (Fértil)', color: '#f8fafc', stroke: '#c2c6cc' },
+                { label: 'Seco (Rel. Infértil)', color: '#22c55e' },
+                { label: 'Moco (No fértil)', color: '#facc15', stroke: '#fef08a' },
+                { label: 'Spotting', color: '#ef4444', stroke: '#fee2e2', pattern: true },
+                { label: 'Hoy', isToday: true }
               ].map(item => (
                 <div key={item.label} className="flex flex-col items-center gap-1.5">
-                  <div
-                    className={`w-4 h-4 rounded-full border ${item.pattern ? 'pattern-bg' : ''}`}
-                    style={{
-                      backgroundColor: item.color,
-                      borderColor: item.stroke || 'transparent'
-                    }}
-                  />
-                  <span className="text-xs font-medium text-gray-700 text-center leading-none">
+                  {item.isToday ? (
+                    <div className="relative flex items-center justify-center">
+                      <div className="w-4 h-4 rounded-full border border-rose-400/80 bg-transparent" />
+                      <div className="absolute inset-0 -m-1 rounded-full border-[3px] border-rose-500/80 animate-pulse" />
+                      
+                    </div>
+                  ) : (
+                    <div
+                      className={`w-4 h-4 rounded-full border ${item.pattern ? 'pattern-bg' : ''}`}
+                      style={{
+                        backgroundColor: item.color,
+                        borderColor: item.stroke || 'transparent'
+                      }}
+                    />
+                  )}
+                  <span
+                    className={`text-xs font-medium text-center leading-none ${
+                      item.isToday ? 'text-gray-700 font-semibold' : 'text-gray-700'
+                    }`}
+                  >
                     {item.label}
                   </span>
-                </div>
+                </div>       
               ))}
             </div>
-
-            {/* Día actual con estilo diferenciado */}
-            <div className="flex items-center justify-center gap-2 pt-3 mt-3 border-t border-gradient-to-r from-transparent via-gray-200 to-transparent">
-            <div className="relative">
-            <div className="w-4 h-4 rounded-full border border-rose-400/80 bg-transparent" />
-            {/* Anillo decorativo */}
-            <div className="absolute inset-0 rounded-full border-[3px] border-rose-500/80 animate-pulse" />
-            </div>
-            <span className="text-xs font-semibold text-gray-700">Hoy</span>
-            <div className="absolute top-3 right-4 w-2 h-2 bg-gradient-to-br from-pink-300/40 to-rose-400/40 rounded-full"/>
-            </div>
+            <div className="absolute top-3 right-4 w-2 h-2 bg-gradient-to-br from-pink-300/40 to-rose-400/40 rounded-full" />
           </motion.div>
 
           {/* Información del ciclo con diseño tipo card premium */}
@@ -471,6 +572,13 @@ const ModernFertilityDashboard = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showNewCycleDialog, setShowNewCycleDialog] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
+  const isPlaceholderRecord = Boolean(
+    editingRecord && String(editingRecord.id || '').startsWith('placeholder-')
+  );
+  const currentPeakIsoDate = useMemo(() => {
+    const peakRecord = currentCycle?.data?.find((record) => record?.peak_marker === 'peak');
+    return peakRecord?.isoDate || null;
+  }, [currentCycle?.data]);
 
   const handleCloseForm = useCallback(() => {
     setShowForm(false);
@@ -485,6 +593,99 @@ const ModernFertilityDashboard = () => {
     setEditingRecord(record);
     setShowForm(true);
   }, []);
+
+    const handleTogglePeak = useCallback(
+    async (record, shouldMarkAsPeak = true) => {
+      if (!currentCycle?.id || !record?.isoDate) {
+        return;
+      }
+
+      const normalizeMeasurementValue = (value) => {
+        if (value === null || value === undefined || value === '') {
+          return null;
+        }
+        const parsed = parseFloat(String(value).replace(',', '.'));
+        return Number.isFinite(parsed) ? parsed : null;
+      };
+
+      const markAsPeak = shouldMarkAsPeak ?? !(
+        record.peak_marker === 'peak' || record.peakStatus === 'P'
+      );
+
+      try {
+        const fallbackTime = record.timestamp
+          ? format(parseISO(record.timestamp), 'HH:mm')
+          : format(new Date(), 'HH:mm');
+
+        let measurementsSource = Array.isArray(record.measurements) && record.measurements.length > 0
+          ? record.measurements
+          : [
+              {
+                temperature: record.temperature_chart ?? record.temperature_raw ?? null,
+                temperature_corrected: record.temperature_corrected ?? null,
+                time: record.time ?? fallbackTime,
+                time_corrected: record.time_corrected ?? fallbackTime,
+                selected: true,
+                use_corrected: record.use_corrected ?? false,
+              },
+            ];
+
+        if (measurementsSource.length === 0) {
+          measurementsSource = [
+            {
+              temperature: null,
+              temperature_corrected: null,
+              time: fallbackTime,
+              time_corrected: fallbackTime,
+              selected: true,
+              use_corrected: false,
+            },
+          ];
+        }
+
+        const normalizedMeasurements = measurementsSource.map((measurement, index) => {
+          const timeValue = measurement.time || fallbackTime;
+          const correctedTime = measurement.time_corrected || timeValue;
+
+          return {
+            temperature: normalizeMeasurementValue(
+              measurement.temperature ?? measurement.temperature_raw
+            ),
+            time: timeValue,
+            selected: index === 0 ? true : !!measurement.selected,
+            temperature_corrected: normalizeMeasurementValue(
+              measurement.temperature_corrected
+            ),
+            time_corrected: correctedTime,
+            use_corrected: !!measurement.use_corrected,
+          };
+        });
+
+        if (!normalizedMeasurements.some((measurement) => measurement.selected)) {
+          normalizedMeasurements[0].selected = true;
+        }
+
+        const payload = {
+          isoDate: record.isoDate,
+          measurements: normalizedMeasurements,
+          mucusSensation: record.mucus_sensation ?? record.mucusSensation ?? '',
+          mucusAppearance: record.mucus_appearance ?? record.mucusAppearance ?? '',
+          fertility_symbol: record.fertility_symbol ?? 'none',
+          observations: record.observations ?? '',
+          ignored: record.ignored ?? false,
+          peak_marker: markAsPeak ? 'peak' : null,
+        };
+
+        const existingRecord =
+          record?.id && !String(record.id).startsWith('placeholder-') ? record : null;
+
+        await addOrUpdateDataPoint(payload, existingRecord);
+      } catch (error) {
+        console.error('Error toggling peak marker from dashboard:', error);
+      }
+    },
+    [addOrUpdateDataPoint, currentCycle?.id]
+  );
 
   if (isLoading && !currentCycle?.id) {
     return (
@@ -524,12 +725,14 @@ const ModernFertilityDashboard = () => {
     parseISO(currentCycle.startDate)
   ) + 1;
 
-  const handleSave = async (data) => {
+  const handleSave = async (data, { keepFormOpen = false } = {}) => {
     setIsProcessing(true);
     try {
       await addOrUpdateDataPoint(data, editingRecord);
-      setShowForm(false);
-      setEditingRecord(null);
+      if (!keepFormOpen) {
+        setShowForm(false);
+        setEditingRecord(null);
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -558,7 +761,12 @@ const ModernFertilityDashboard = () => {
           transition={{ duration: 0.3 }}
           className="flex-1 flex flex-col"
         >
-          <CycleOverviewCard cycleData={{ ...currentCycle, currentDay, records: currentCycle.data }} onEdit={handleEdit} />
+          <CycleOverviewCard
+            cycleData={{ ...currentCycle, currentDay, records: currentCycle.data }}
+            onEdit={handleEdit}
+            onTogglePeak={handleTogglePeak}
+            currentPeakIsoDate={currentPeakIsoDate}
+          />
         </motion.div>
       </div>
 
@@ -583,7 +791,7 @@ const ModernFertilityDashboard = () => {
             cycleStartDate={currentCycle.startDate}
             cycleEndDate={currentCycle.endDate}
             isProcessing={isProcessing}
-            isEditing={!!editingRecord}
+            isEditing={!!editingRecord && !isPlaceholderRecord}
             cycleData={currentCycle.data}
             onDateSelect={handleDateSelect}
           />

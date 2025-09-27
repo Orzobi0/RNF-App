@@ -1,7 +1,7 @@
-import React, { useState, useLayoutEffect, useRef, useEffect } from 'react';
+import React, { useState, useLayoutEffect, useRef, useEffect, useMemo } from 'react';
 import FertilityChart from '@/components/FertilityChart';
 import { useCycleData } from '@/hooks/useCycleData';
-import { differenceInDays, parseISO, startOfDay } from 'date-fns';
+import { differenceInDays, format, parseISO, startOfDay } from 'date-fns';
 import generatePlaceholders from '@/lib/generatePlaceholders';
 import { RotateCcw, Eye, EyeOff } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
@@ -89,6 +89,46 @@ const ChartPage = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showInterpretation, setShowInterpretation] = useState(false);
   const ignoreNextClickRef = useRef(false);
+  const isPlaceholderRecord = Boolean(
+    editingRecord && String(editingRecord.id || '').startsWith('placeholder-')
+  );
+  
+  useEffect(() => {
+    const handleFullScreenChange = async () => {
+      const isCurrentlyFullScreen = Boolean(
+        document.fullscreenElement ||
+          document.webkitFullscreenElement ||
+          document.mozFullScreenElement ||
+          document.msFullscreenElement
+      );
+
+      setIsFullScreen(isCurrentlyFullScreen);
+
+      if (!isCurrentlyFullScreen) {
+        try {
+          const screenOrientation =
+            typeof window !== 'undefined' ? window.screen?.orientation : null;
+          await screenOrientation?.unlock?.();
+        } catch (error) {
+          // ignored
+        }
+        setOrientation('portrait');
+      }
+    };
+
+    document.addEventListener('fullscreenchange', handleFullScreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullScreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullScreenChange);
+    document.addEventListener('MSFullscreenChange', handleFullScreenChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullScreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullScreenChange);
+      document.removeEventListener('mozfullscreenchange', handleFullScreenChange);
+      document.removeEventListener('MSFullscreenChange', handleFullScreenChange);
+    };
+  }, []);
+
   useLayoutEffect(() => {
     window.dispatchEvent(new Event('resize'));
   }, [orientation, isFullScreen]);
@@ -117,6 +157,12 @@ const ChartPage = () => {
 
   const cycleStartDate = parseISO(targetCycle.startDate);
   const cycleEntries = targetCycle.data || [];
+  const currentPeakIsoDate = useMemo(() => {
+    const peakRecord = Array.isArray(cycleEntries)
+      ? cycleEntries.find((record) => record?.peak_marker === 'peak')
+      : null;
+    return peakRecord?.isoDate || null;
+  }, [cycleEntries]);
 
   const lastRecordDate = cycleEntries.reduce((maxDate, record) => {
     const recDate = parseISO(record.isoDate);
@@ -180,8 +226,100 @@ const ChartPage = () => {
       console.error('Error toggling ignore state:', error);
     }
   };
+  const handleTogglePeak = async (record, shouldMarkAsPeak = true) => {
+    if (!targetCycle?.id || !record?.isoDate) {
+      return;
+    }
 
-  const handleSave = async (data) => {
+    const normalizeMeasurementValue = (value) => {
+      if (value === null || value === undefined || value === '') {
+        return null;
+      }
+      const parsed = parseFloat(String(value).replace(',', '.'));
+      return Number.isFinite(parsed) ? parsed : null;
+    };
+
+    const markAsPeak = shouldMarkAsPeak ?? !(
+      record.peak_marker === 'peak' || record.peakStatus === 'P'
+    );
+
+    setIsProcessing(true);
+    try {
+      const fallbackTime = record.timestamp
+        ? format(parseISO(record.timestamp), 'HH:mm')
+        : format(new Date(), 'HH:mm');
+
+      let measurementsSource = Array.isArray(record.measurements) && record.measurements.length > 0
+        ? record.measurements
+        : [
+            {
+              temperature: record.temperature_chart ?? record.temperature_raw ?? null,
+              temperature_corrected: record.temperature_corrected ?? null,
+              time: fallbackTime,
+              time_corrected: record.time_corrected ?? fallbackTime,
+              selected: true,
+              use_corrected: record.use_corrected ?? false,
+            },
+          ];
+
+      if (measurementsSource.length === 0) {
+        measurementsSource = [
+          {
+            temperature: null,
+            temperature_corrected: null,
+            time: fallbackTime,
+            time_corrected: fallbackTime,
+            selected: true,
+            use_corrected: false,
+          },
+        ];
+      }
+
+      const normalizedMeasurements = measurementsSource.map((measurement, index) => {
+        const timeValue = measurement.time || fallbackTime;
+        const correctedTime = measurement.time_corrected || timeValue;
+
+        return {
+          temperature: normalizeMeasurementValue(
+            measurement.temperature ?? measurement.temperature_raw
+          ),
+          time: timeValue,
+          selected: index === 0 ? true : !!measurement.selected,
+          temperature_corrected: normalizeMeasurementValue(
+            measurement.temperature_corrected
+          ),
+          time_corrected: correctedTime,
+          use_corrected: !!measurement.use_corrected,
+        };
+      });
+
+      if (!normalizedMeasurements.some((measurement) => measurement.selected)) {
+        normalizedMeasurements[0].selected = true;
+      }
+
+      const payload = {
+        isoDate: record.isoDate,
+        measurements: normalizedMeasurements,
+        mucusSensation: record.mucus_sensation ?? record.mucusSensation ?? '',
+        mucusAppearance: record.mucus_appearance ?? record.mucusAppearance ?? '',
+        fertility_symbol: record.fertility_symbol ?? 'none',
+        observations: record.observations ?? '',
+        ignored: record.ignored ?? false,
+        peak_marker: markAsPeak ? 'peak' : null,
+      };
+
+      const existingRecord =
+        record?.id && !String(record.id).startsWith('placeholder-') ? record : null;
+
+      await addOrUpdateDataPoint(payload, existingRecord, targetCycle.id);
+    } catch (error) {
+      console.error('Error toggling peak marker:', error);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleSave = async (data, { keepFormOpen = false } = {}) => {
     if (!targetCycle?.id) return;
     setIsProcessing(true);
     try {
@@ -192,8 +330,10 @@ const ChartPage = () => {
           setFetchedCycle(refreshed);
         }
       }
-      setShowForm(false);
-      setEditingRecord(null);
+      if (!keepFormOpen) {
+        setShowForm(false);
+        setEditingRecord(null);
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -288,12 +428,14 @@ const ChartPage = () => {
           orientation={orientation}
           onToggleIgnore={handleToggleIgnore}
           onEdit={handleEdit}
+          onTogglePeak={handleTogglePeak}
           cycleId={targetCycle.id}
           initialScrollIndex={scrollStart}
           visibleDays={visibleDays}
           showInterpretation={showInterpretation}
           reduceMotion={true}
           forceLandscape={orientation === 'landscape'}
+          currentPeakIsoDate={currentPeakIsoDate}
         />
         <Dialog open={showForm} onOpenChange={(open) => { if (!open) handleCloseForm(); }}>
           <DialogContent
@@ -307,7 +449,7 @@ const ChartPage = () => {
               cycleStartDate={targetCycle.startDate}
               cycleEndDate={targetCycle.endDate}
               isProcessing={isProcessing}
-              isEditing={!!editingRecord}
+              isEditing={!!editingRecord && !isPlaceholderRecord}
               cycleData={targetCycle.data}
               onDateSelect={handleDateSelect}
             />

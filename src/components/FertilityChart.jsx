@@ -13,18 +13,21 @@ const FertilityChart = ({
   orientation,
   onToggleIgnore,
   onEdit,
+  onTogglePeak,
   cycleId,
   initialScrollIndex = 0,
   visibleDays = 5,
   showInterpretation = false,
   reduceMotion = false,
-  forceLandscape = false
+  forceLandscape = false,
+  currentPeakIsoDate = null,
 }) => {
   const {
     chartRef,
     tooltipRef,
     dimensions,
     activePoint,
+    activeIndex,
     tooltipPosition,
     allDataPoints,
     validDataForLine,
@@ -39,7 +42,6 @@ const FertilityChart = ({
     handleToggleIgnore,
     responsiveFontSize,
     clearActivePoint,
-    setActivePoint,
     baselineTemp,
     baselineStartIndex,
     firstHighIndex,
@@ -77,6 +79,31 @@ const FertilityChart = ({
   const baselineWidth = 3;
   const isLoading = chartWidth === 0;
   const baseY = chartHeight - padding.bottom;
+  const highlightX = activeIndex != null ? getX(activeIndex) : null;
+  const prevX =
+    activeIndex != null
+      ? activeIndex > 0
+        ? getX(activeIndex - 1)
+        : highlightX
+      : null;
+  const nextX =
+    activeIndex != null
+      ? activeIndex < allDataPoints.length - 1
+        ? getX(activeIndex + 1)
+        : highlightX
+      : null;
+  const fallbackDayWidth = Math.max(
+    (chartWidth - padding.left - padding.right) / Math.max(allDataPoints.length, 1),
+    0
+  );
+  const dayWidth =
+    activeIndex != null
+      ? Math.max(
+          ((nextX != null && prevX != null ? nextX - prevX : 0) || fallbackDayWidth),
+          fallbackDayWidth,
+          0
+        )
+      : 0;
  
 
   const validDataMap = useMemo(() => {
@@ -90,19 +117,24 @@ const FertilityChart = ({
   }, [validDataForLine]);
 
   const createAreaPaths = useMemo(() => {
-    const buildPathFromSegment = (segment) => {
+    const topY = padding.top;
+
+    const buildPathFromSegment = (segment, direction = 'down') => {
       if (!segment || segment.length < 2) return null;
 
-      let path = `M ${segment[0].x} ${baseY} L ${segment[0].x} ${segment[0].y}`;
+      const isUpward = direction === 'up';
+      const boundaryY = isUpward ? topY : baseY;
+
+      let path = `M ${segment[0].x} ${boundaryY} L ${segment[0].x} ${segment[0].y}`;
       for (let i = 1; i < segment.length; i++) {
         const point = segment[i];
         path += ` L ${point.x} ${point.y}`;
       }
-      path += ` L ${segment[segment.length - 1].x} ${baseY} Z`;
+      path += ` L ${segment[segment.length - 1].x} ${boundaryY} Z`;
       return path;
     };
 
-    return (shouldIncludeIndex) => {
+    return (shouldIncludeIndex, { direction = 'down' } = {}) => {
       if (typeof shouldIncludeIndex !== 'function') return [];
 
       const paths = [];
@@ -110,7 +142,7 @@ const FertilityChart = ({
       let isActive = false;
 
       const flushSegment = () => {
-        const path = buildPathFromSegment(currentSegment);
+        const path = buildPathFromSegment(currentSegment, direction);
         if (path) {
           paths.push(path);
         }
@@ -146,23 +178,52 @@ const FertilityChart = ({
 
       return paths;
     };
-  }, [allDataPoints, validDataMap, getX, getY, baseY]);
+  }, [allDataPoints, validDataMap, getX, getY, baseY, padding.top]);
 
   const fertileAreaPaths = useMemo(() => {
     if (!showInterpretation || !ovulationDetails?.confirmed) return [];
     if (!Number.isFinite(ovulationDetails.confirmationIndex)) return [];
 
-    return createAreaPaths((idx) => idx <= ovulationDetails.confirmationIndex);
+    return createAreaPaths((idx) => idx <= ovulationDetails.confirmationIndex, { direction: 'up' });
   }, [showInterpretation, ovulationDetails, createAreaPaths]);
 
-  const infertileAreaPaths = useMemo(() => {
+  const infertileUpperAreaPaths = useMemo(() => {
     if (!showInterpretation || !ovulationDetails?.confirmed) return [];
     if (!Number.isFinite(ovulationDetails.infertileStartIndex)) return [];
 
-    return createAreaPaths((idx) => idx >= ovulationDetails.infertileStartIndex);
+    return createAreaPaths((idx) => idx >= ovulationDetails.infertileStartIndex, { direction: 'up' });
   }, [showInterpretation, ovulationDetails, createAreaPaths]);
   
 
+  const infertileLowerStartIndex = useMemo(() => {
+    if (!ovulationDetails?.confirmed) return null;
+
+    let thirdDayIndex = null;
+    for (let idx = 0; idx < allDataPoints.length; idx++) {
+      if (allDataPoints[idx]?.peakStatus === '3') {
+        thirdDayIndex = idx;
+        break;
+      }
+    }
+
+    if (thirdDayIndex == null) return null;
+
+    for (let idx = thirdDayIndex + 1; idx < allDataPoints.length; idx++) {
+      const point = allDataPoints[idx];
+      if (point && validDataMap.has(point.id)) {
+        return idx;
+      }
+    }
+
+    return null;
+  }, [allDataPoints, ovulationDetails, validDataMap]);
+
+  const infertileLowerAreaPaths = useMemo(() => {
+    if (!showInterpretation || !ovulationDetails?.confirmed) return [];
+    if (!Number.isFinite(infertileLowerStartIndex)) return [];
+
+    return createAreaPaths((idx) => idx >= infertileLowerStartIndex, { direction: 'down' });
+  }, [showInterpretation, ovulationDetails, createAreaPaths, infertileLowerStartIndex]);
   
   // Detectar orientación real del viewport para rotación visual
   const [viewport, setViewport] = useState({ w: typeof window !== 'undefined' ? window.innerWidth : 0, h: typeof window !== 'undefined' ? window.innerHeight : 0 });
@@ -288,16 +349,21 @@ const FertilityChart = ({
                 <feMergeNode in="SourceGraphic"/>
               </feMerge>
             </filter>
-            <linearGradient id="fertileAreaGradient" x1="0%" y1="100%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="rgba(253, 224, 255, 0.9)" />
-              <stop offset="65%" stopColor="rgba(249, 168, 212, 0.6)" />
-              <stop offset="100%" stopColor="rgba(236, 72, 153, 0.28)" />
+            <linearGradient id="fertileAreaGradient" x1="0%" y1="100%" x2="0%" y2="0%">
+              <stop offset="0%" stopColor="rgba(255, 182, 193, 0.7)" />
+              <stop offset="50%" stopColor="rgba(255, 195, 195, 0.5)" />
+              <stop offset="100%" stopColor="rgba(255, 208, 200, 0.3)" />
             </linearGradient>
 
-            <linearGradient id="infertileAreaGradient" x1="0%" y1="100%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="rgba(109, 189, 245, 0.48)" />
-              <stop offset="50%" stopColor="rgba(111, 168, 220, 0.48)" />
-              <stop offset="80%" stopColor="rgba(120, 143, 207, 0.48)" />
+            <linearGradient id="infertileAreaGradient" x1="0%" y1="100%" x2="0%" y2="0%">
+              <stop offset="0%" stopColor="rgba(132, 170, 230, 0.7)" /> 
+              <stop offset="50%" stopColor="rgba(155, 180, 245, 0.5)" />
+              <stop offset="100%" stopColor="rgba(170, 200, 255, 0.3)" />
+            </linearGradient>
+            <linearGradient id="infertileLowerAreaGradient" x1="0%" y1="100%" x2="0%" y2="0%">
+              <stop offset="0%" stopColor="rgba(226, 180, 216, 0.7)" />
+              <stop offset="50%" stopColor="rgba(228, 190, 220, 0.5)" />
+              <stop offset="100%" stopColor="rgba(228, 198, 225, 0.3)" />
             </linearGradient>
           </defs>
 
@@ -322,6 +388,15 @@ const FertilityChart = ({
           />
           {showInterpretation && ovulationDetails?.confirmed && (
             <>
+            {infertileLowerAreaPaths.map((path, idx) => (
+                <path
+                  key={`infertile-lower-area-${idx}`}
+                  d={path}
+                  fill="url(#infertileLowerAreaGradient)"
+                  opacity={0.65}
+                  pointerEvents="none"
+                />
+              ))}
               {fertileAreaPaths.map((path, idx) => (
                 <path
                   key={`fertile-area-${idx}`}
@@ -331,12 +406,12 @@ const FertilityChart = ({
                   pointerEvents="none"
                 />
               ))}
-              {infertileAreaPaths.map((path, idx) => (
+              {infertileUpperAreaPaths.map((path, idx) => (
                 <path
                   key={`infertile-area-${idx}`}
                   d={path}
                   fill="url(#infertileAreaGradient)"
-                  opacity={0.6}
+                  opacity={0.45}
                   pointerEvents="none"
                 />
               ))}
@@ -401,17 +476,30 @@ const FertilityChart = ({
             showInterpretation={showInterpretation}
             ovulationDetails={ovulationDetails}
           />
- 
+
+          {activeIndex !== null && highlightX !== null && dayWidth > 0 && (
+            <g pointerEvents="none">
+              <line
+                x1={highlightX}
+                y1={0}
+                x2={highlightX}
+                y2={chartHeight}
+                stroke="rgba(206,95,153,0.15)"
+                strokeWidth={Math.max(2, Math.min(10, dayWidth * 0.28))}
+                strokeLinecap="round"
+              />
+            </g>
+          )}
         </motion.svg>
 
         {/* Tooltip mejorado */}
         {activePoint && (
-          <motion.div 
+          <motion.div
             ref={tooltipRef}
             initial={{ opacity: 0, scale: 0.9, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 10 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
+            transition={{ duration: 0.12, ease: "easeOut" }}
           >
             <ChartTooltip
               point={activePoint}
@@ -421,6 +509,8 @@ const FertilityChart = ({
               onToggleIgnore={handleToggleIgnore}
               onEdit={onEdit}
               onClose={clearActivePoint}
+              onTogglePeak={onTogglePeak}
+              currentPeakIsoDate={currentPeakIsoDate}
             />
           </motion.div>
         )}

@@ -1,4 +1,5 @@
-import { useEffect, useLayoutEffect, useRef, useState, useMemo } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useMemo, useCallback } from 'react';
+import computePeakStatuses from '@/lib/computePeakStatuses';
 
 const DEFAULT_TEMP_MIN = 35.5;
 const DEFAULT_TEMP_MAX = 37.5;
@@ -176,7 +177,15 @@ export const useFertilityChart = (
       const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
       const [activePoint, setActivePoint] = useState(null);
       const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
+      const [activeIndex, setActiveIndex] = useState(null);
 
+      const clearActivePoint = useCallback(() => {
+        setActivePoint(null);
+        setActiveIndex(null);
+      }, []);
+
+
+      const peakStatusByIsoDate = useMemo(() => computePeakStatuses(data), [data]);
       const processedData = useMemo(() => {
         const normalizeTemp = (value) => {
           if (value === null || value === undefined || value === '') {
@@ -226,13 +235,14 @@ export const useFertilityChart = (
               resolvedValue = getMeasurementTemp(fallbackMeasurement);
             }
           }
-
+          const isoDate = d?.isoDate;  
           return {
             ...d,
             displayTemperature: normalizeTemp(resolvedValue),
+            peakStatus: isoDate ? peakStatusByIsoDate[isoDate] || null : null,
           };
         });
-      }, [data]);
+      }, [data, peakStatusByIsoDate]);
 
       useLayoutEffect(() => {
         const updateDimensions = () => {
@@ -364,37 +374,39 @@ export const useFertilityChart = (
         return padding.left + extraMargin + index * (availableWidth / (allDataPoints.length === 1 ? 1 : pointsToDisplay)) + daySpacing * index;
       };
       
-const handlePointInteraction = (point, index, event) => {
+      const handlePointInteraction = (point, index, event) => {
+        if (!point) {
+          clearActivePoint();
+          return;
+        }
 
-  // Si no es un registro real, simplemente limpiamos y salimos
-  if (!point || String(point.id).startsWith('placeholder-')) {
-    clearActivePoint();
-    return;
-  }
+        // 1) Calcula la posición del ratón/tap
+        const chartRect = chartRef.current.getBoundingClientRect();
+        let clientX, clientY;
+        if (event.type.startsWith('touch')) {
+          const touch = event.changedTouches[0];
+          clientX = touch.clientX;
+          clientY = touch.clientY;
+        } else {
+          clientX = event.clientX;
+          clientY = event.clientY;
+        }
 
-  // 1) Calcula la posición del ratón/tap
-  const chartRect = chartRef.current.getBoundingClientRect();
-  let clientX, clientY;
-  if (event.type.startsWith('touch')) {
-    const touch = event.changedTouches[0];
-    clientX = touch.clientX; clientY = touch.clientY;
-  } else {
-    clientX = event.clientX;    clientY = event.clientY;
-  }
+        // 2) Mapea a coordenadas SVG
+        const svgX = getX(index);
+        const displayTemp = point.displayTemperature ?? point.temperature_chart ?? null;
+        const svgY = getY(displayTemp);
 
-  // 2) Mapea a coordenadas SVG
-  const svgX = getX(index);
-  const svgY = getY(point.displayTemperature);
-
-  // 3) Fija posición y punto activo
-  setTooltipPosition({
-    svgX,
-    svgY,
-    clientX: clientX - chartRect.left + chartRef.current.scrollLeft,
-    clientY: clientY - chartRect.top + chartRef.current.scrollTop
-  });
-  setActivePoint(point);
-};
+        // 3) Fija posición y punto activo
+        setTooltipPosition({
+          svgX,
+          svgY,
+          clientX: clientX - chartRect.left + chartRef.current.scrollLeft,
+          clientY: clientY - chartRect.top + chartRef.current.scrollTop,
+        });
+        setActiveIndex(index);
+        setActivePoint(point);
+      };
 
       
       useEffect(() => {
@@ -410,7 +422,7 @@ const handlePointInteraction = (point, index, event) => {
                     }
                 }
              }
-            if(!isPointClick) setActivePoint(null);
+            if(!isPointClick) clearActivePoint();
           }
         };
     
@@ -423,24 +435,20 @@ const handlePointInteraction = (point, index, event) => {
           document.removeEventListener('mousedown', handleClickOutside);
           document.removeEventListener('touchstart', handleClickOutside);
         };
-      }, [activePoint]);
-
-        const clearActivePoint = () => {
-          setActivePoint(null);
-          
-        }
+      }, [activePoint, clearActivePoint]);
       const handleToggleIgnore = (recordId) => {
         if (onToggleIgnore && recordId) {
           onToggleIgnore(cycleId, recordId);
-          setActivePoint(null);
+          clearActivePoint();
         }
       };
 
       return {
         chartRef,
         tooltipRef,
-        dimensions, 
+        dimensions,
         activePoint,
+        activeIndex,
         tooltipPosition,
         processedData,
         validDataForLine,
@@ -451,6 +459,7 @@ const handlePointInteraction = (point, index, event) => {
         padding,
         textRowHeight,
         setActivePoint,
+        setActiveIndex,
         getY,
         getX,
         handlePointInteraction,

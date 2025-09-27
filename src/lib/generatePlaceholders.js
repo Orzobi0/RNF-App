@@ -19,6 +19,7 @@ export function generatePlaceholders(startDate, daysInCycle) {
       mucusAppearance: null,
       id: `placeholder-${isoDate}`,
       ignored: false,
+      peak_marker: null,
     };
   });
 }

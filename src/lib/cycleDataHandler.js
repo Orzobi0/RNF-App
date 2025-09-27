@@ -96,6 +96,7 @@ export const processCycleEntries = (entriesFromView, cycleStartIsoDate) => {
       measurements: entry.measurements || [],
       temperature_chart: chartTemp,
       timestamp: entry.timestamp,
+      peak_marker: entry.peak_marker || null,
     };
   });
 };
@@ -249,6 +250,7 @@ export const createNewCycleEntry = async (payload) => {
     fertility_symbol: payload.fertility_symbol,
     observations: payload.observations,
     ignored: payload.ignored,
+    peak_marker: payload.peak_marker ?? null,
   };
 
   const cyclesRef = collection(db, `users/${userId}/cycles`);
@@ -314,6 +316,7 @@ export const updateCycleEntry = async (userId, cycleId, entryId, payload) => {
     'fertility_symbol',
     'observations',
     'ignored',
+    'peak_marker',
   ];
 
   const entryToUpdate = {};

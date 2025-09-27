@@ -37,12 +37,14 @@ const RecordsPage = () => {
     setEditingRecord(record);
   }, []);
 
-  const handleSave = async (data) => {
+  const handleSave = async (data, { keepFormOpen = false } = {}) => {
     setIsProcessing(true);
     try {
       await addOrUpdateDataPoint(data, editingRecord);
-      setShowForm(false);
-      setEditingRecord(null);
+      if (!keepFormOpen) {
+        setShowForm(false);
+        setEditingRecord(null);
+      }
     } catch (error) {
       toast({ title: 'Error', description: 'No se pudo guardar el registro', variant: 'destructive' });
     } finally {

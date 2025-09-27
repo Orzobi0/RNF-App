@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { format, startOfDay, parseISO, addDays } from 'date-fns';
 import { useToast } from '@/components/ui/use-toast';
 import { FERTILITY_SYMBOLS } from '@/config/fertilitySymbols';
@@ -85,6 +85,13 @@ export const useDataEntryForm = (
   );
   const [observations, setObservations] = useState(initialData?.observations || '');
   const [ignored, setIgnored] = useState(initialData?.ignored || false);
+  const [peakTag, setPeakTag] = useState(
+    initialData?.peak_marker === 'peak' ? 'peak' : null
+  );
+  const existingPeakIsoDate = useMemo(() => {
+    const peakRecord = cycleData.find((record) => record?.peak_marker === 'peak');
+    return peakRecord?.isoDate || null;
+  }, [cycleData]);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -108,6 +115,7 @@ export const useDataEntryForm = (
       setFertilitySymbol(initialData.fertility_symbol || FERTILITY_SYMBOLS.NONE.value);
       setObservations(initialData.observations || '');
       setIgnored(initialData.ignored || false);
+      setPeakTag(initialData.peak_marker === 'peak' ? 'peak' : null);
     } else {
       setMeasurements([
         {
@@ -125,6 +133,7 @@ export const useDataEntryForm = (
       setFertilitySymbol(FERTILITY_SYMBOLS.NONE.value);
       setObservations('');
       setIgnored(false);
+      setPeakTag(null);
       setDate(getDefaultDate());
     }
   }, [initialData]);
@@ -168,6 +177,9 @@ export const useDataEntryForm = (
     const iso = format(date, 'yyyy-MM-dd');
     const found = cycleData.find((r) => r.isoDate === iso);
     onDateSelect(found || null);
+    if (found) {
+      setPeakTag(found.peak_marker === 'peak' ? 'peak' : null);
+    }
   }, [date, cycleData, onDateSelect]);
 
   const addMeasurement = () => {
@@ -210,15 +222,15 @@ export const useDataEntryForm = (
     );
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
+  const buildSubmissionPayload = (options = {}) => {
+    const { overrideMeasurements, overrideIgnored, peakTagOverride } = options;
     if (!date) {
       toast({
         title: 'Error',
         description: 'La fecha es obligatoria.',
         variant: 'destructive',
       });
-      return;
+      return null;
     }
     const cycleStart = startOfDay(parseISO(cycleStartDate));
     const cycleEnd = cycleEndDate
@@ -230,7 +242,7 @@ export const useDataEntryForm = (
         description: 'La fecha debe estar dentro del ciclo.',
         variant: 'destructive',
       });
-      return;
+      return null;
     }
     const isoDate = format(date, 'yyyy-MM-dd');
     const normalizeMeasurementValue = (value) => {
@@ -240,9 +252,21 @@ export const useDataEntryForm = (
       const parsed = parseFloat(String(value).replace(',', '.'));
       return Number.isFinite(parsed) ? parsed : null;
     };
-    onSubmit({
+    const peakTagOverrideProvided = Object.prototype.hasOwnProperty.call(
+      options,
+      'peakTagOverride'
+    );
+    const effectivePeakTag = peakTagOverrideProvided
+      ? peakTagOverride
+      : peakTag;
+
+      const measurementsSource = Array.isArray(overrideMeasurements)
+      ? overrideMeasurements
+      : measurements;
+
+    return {
       isoDate,
-      measurements: measurements.map((m) => ({
+      measurements: measurementsSource.map((m) => ({
         temperature: normalizeMeasurementValue(m.temperature),
         time: m.time,
         selected: m.selected,
@@ -254,27 +278,56 @@ export const useDataEntryForm = (
       mucusAppearance,
       fertility_symbol: fertilitySymbol,
       observations,
-      ignored,
-    });
+      ignored:
+        Object.prototype.hasOwnProperty.call(options, 'overrideIgnored')
+          ? !!overrideIgnored
+          : ignored,
+      peak_marker: effectivePeakTag === 'peak' ? 'peak' : null,
+    };
+  };
 
-    if (!isEditing) {
-      setDate(getDefaultDate());
-      setMeasurements([
-        {
-          temperature: '',
-          time: format(new Date(), 'HH:mm'),
-          selected: true,
-          temperature_corrected: '',
-          time_corrected: format(new Date(), 'HH:mm'),
-          use_corrected: false,
-          confirmed: true,
-        },
-      ]);
-      setMucusSensation('');
-      setMucusAppearance('');
-      setFertilitySymbol(FERTILITY_SYMBOLS.NONE.value);
-      setObservations('');
+  const resetFormState = () => {
+    setDate(getDefaultDate());
+    setMeasurements([
+      {
+        temperature: '',
+        time: format(new Date(), 'HH:mm'),
+        selected: true,
+        temperature_corrected: '',
+        time_corrected: format(new Date(), 'HH:mm'),
+        use_corrected: false,
+        confirmed: true,
+      },
+    ]);
+    setMucusSensation('');
+    setMucusAppearance('');
+    setFertilitySymbol(FERTILITY_SYMBOLS.NONE.value);
+    setObservations('');
+    setPeakTag(null);
+  };
+
+  const submitCurrentState = (options = {}) => {
+    const { keepFormOpen = false, skipReset = false, ...payloadOptions } = options;
+    const payload = buildSubmissionPayload(payloadOptions);
+    if (!payload) {
+      return null;
     }
+
+    const result = onSubmit(payload, { keepFormOpen, skipReset });
+
+    if (!isEditing && !skipReset) {
+      resetFormState();
+    }
+  
+    return result;
+  };
+
+  const handleSubmit = (e) => {
+    if (e && typeof e.preventDefault === 'function') {
+      e.preventDefault();
+    }
+
+    return submitCurrentState();
   };
 
   return {
@@ -296,6 +349,10 @@ export const useDataEntryForm = (
     setObservations,
     ignored,
     setIgnored,
+    peakTag,
+    setPeakTag,
+    existingPeakIsoDate,
     handleSubmit,
+    submitCurrentState,
   };
 };

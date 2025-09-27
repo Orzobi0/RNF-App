@@ -21,11 +21,12 @@ import React from 'react';
             
             let fillStyle = 'transparent';
              if (symbolInfo && symbolInfo.color) {
-                fillStyle = symbolInfo.color.startsWith('bg-') ? symbolInfo.color.replace('bg-', '') : symbolInfo.color;
-                if (fillStyle === 'red-500') fillStyle = '#ef4444';
-                else if (fillStyle === 'white') fillStyle = '#ffffff';
-                else if (fillStyle === 'green-500') fillStyle = '#22c55e';
-                else if (fillStyle === 'pink-300') fillStyle = '#f9a8d4'; // For 'spot' or others if needed
+              fillStyle = symbolInfo.color.startsWith('bg-') ? symbolInfo.color.replace('bg-', '') : symbolInfo.color;
+              if (fillStyle === 'red-500') fillStyle = '#ef4444';
+              else if (fillStyle === 'white') fillStyle = '#ffffff';
+              else if (fillStyle === 'green-500') fillStyle = '#22c55e';
+              else if (fillStyle === 'yellow-400') fillStyle = '#facc15';
+              else if (fillStyle === 'pink-300') fillStyle = '#f9a8d4'; // For 'spot' or others if needed
             }
 
 
