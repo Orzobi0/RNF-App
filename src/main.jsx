@@ -13,7 +13,10 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     const swUrl = `${import.meta.env.BASE_URL}sw.js`;
-    navigator.serviceWorker.register(swUrl);
+    navigator.serviceWorker.register(swUrl, { updateViaCache: 'none' });
+    navigator.serviceWorker.ready.then((registration) => {
+      registration.update();
+    });
   });
 }
   
