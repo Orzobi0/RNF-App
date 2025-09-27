@@ -1,4 +1,4 @@
-const CACHE_VERSION = '2025-09-27T15:11:51.589Z';
+const CACHE_VERSION = '2025-09-27T15:43:25.246Z';
 const CACHE_NAME = `rnf-app-cache-${CACHE_VERSION}`;
 const BASE_URL = self.registration.scope;
 const ASSETS = [
@@ -11,7 +11,7 @@ const ASSETS = [
   `${BASE_URL}apple-touch-icon.png`
 ];
 // Assets generated during the build step will be injected into this array.
-const BUILD_ASSETS = (["assets/ChartTooltip-086fab25.js","assets/DeletionDialog-8f61e9be.js","assets/OverlapWarningDialog-3f38b600.js","assets/badge-e36f7fd8.js","assets/computePeakStatuses-a8c393d1.js","assets/eye-61791957.js","assets/eye-off-b85355d3.js","assets/input-2a7ce825.js","assets/label-e033e1bb.js","assets/select-4e9e95be.js","assets/trash-2-f8d41441.js","assets/useCycleData-4efbc629.js","assets/index-a18e6b05.css","assets/index-24043ae7.js","assets/index.es-ed0e0bd7.js","assets/purify.es-2de9db7f.js","assets/html2canvas.esm-e0a7d97b.js","assets/ArchivedCyclesPage-47966f21.js","assets/AuthPage-aa27ad5a.js","assets/ChartPage-659a9c9a.js","assets/CycleDetailPage-0ba9d12c.js","assets/DashboardPage-1afa71ad.js","assets/RecordsPage-3ba03bcd.js","assets/SettingsPage-9536063a.js"] || []).map(
+const BUILD_ASSETS = (["assets/ChartTooltip-39d225ca.js","assets/DeletionDialog-67eaf41a.js","assets/OverlapWarningDialog-dbf432e8.js","assets/badge-9df465b8.js","assets/computePeakStatuses-d276643a.js","assets/eye-038575bd.js","assets/eye-off-d66a2167.js","assets/input-e93faeb5.js","assets/label-73ddbd29.js","assets/select-02b6d54e.js","assets/trash-2-f191a093.js","assets/useCycleData-de3e222e.js","assets/index-a18e6b05.css","assets/index-52f58b78.js","assets/index.es-9a8a4a61.js","assets/purify.es-2de9db7f.js","assets/html2canvas.esm-e0a7d97b.js","assets/ArchivedCyclesPage-3ae143ca.js","assets/AuthPage-34a7485b.js","assets/ChartPage-f533eefb.js","assets/CycleDetailPage-d4638589.js","assets/DashboardPage-4ac53390.js","assets/RecordsPage-825748b6.js","assets/SettingsPage-2bb3e8f7.js"] || []).map(
   (asset) => `${BASE_URL}${asset}`
 );
 
@@ -65,6 +65,10 @@ self.addEventListener('fetch', (event) => {
   }
 
   const requestUrl = new URL(event.request.url);
+  
+  if (requestUrl.pathname === '/sw.js') {
+    return; // evitar cachear el propio service worker
+  }
   const isIconRequest =
     event.request.destination === 'image' &&
     [
@@ -92,7 +96,33 @@ self.addEventListener('fetch', (event) => {
     );
     return;
   }
+if (event.request.mode === 'navigate') {
+    event.respondWith(
+      (async () => {
+        try {
+          const networkResponse = await fetch(event.request);
+          if (networkResponse && networkResponse.ok) {
+            const cache = await caches.open(CACHE_NAME);
+            await cache.put(event.request, networkResponse.clone());
+          }
+          return networkResponse;
+        } catch (error) {
+          const cachedResponse = await caches.match(event.request);
+          if (cachedResponse) {
+            return cachedResponse;
+          }
 
+          const fallback = await caches.match(`${BASE_URL}index.html`);
+          if (fallback) {
+            return fallback;
+          }
+
+          return Response.error();
+        }
+      })()
+    );
+    return;
+  }
   event.respondWith(
     (async () => {
       const cachedResponse = await caches.match(event.request);
@@ -108,12 +138,6 @@ self.addEventListener('fetch', (event) => {
         }
         return networkResponse;
       } catch (error) {
-        if (event.request.mode === 'navigate') {
-          const fallback = await caches.match(`${BASE_URL}index.html`);
-          if (fallback) {
-            return fallback;
-          }
-        }
         return Response.error();
       }
     })()
