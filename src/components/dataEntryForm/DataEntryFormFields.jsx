@@ -120,8 +120,50 @@ const DataEntryFormFields = ({
     setPeakTag(newPeakTag);
 
     if (isEditing && typeof submitCurrentState === 'function') {
-      submitCurrentState({ peakTagOverride: newPeakTag });
+      submitCurrentState({
+        peakTagOverride: newPeakTag,
+        keepFormOpen: true,
+        skipReset: true,
+      });
     }
+  };
+  const handleIgnoredChange = (checked) => {
+    const nextValue = checked === true;
+    setIgnored(nextValue);
+
+    if (!isEditing || isProcessing || typeof submitCurrentState !== 'function') {
+      return;
+    }
+
+    submitCurrentState({
+      overrideIgnored: nextValue,
+      keepFormOpen: true,
+      skipReset: true,
+    });
+  };
+
+  const handleUseCorrectedChange = (index, checked) => {
+    const nextValue = checked === true;
+    updateMeasurement(index, 'use_corrected', nextValue);
+
+    if (!isEditing || isProcessing || typeof submitCurrentState !== 'function') {
+      return;
+    }
+
+    const updatedMeasurements = measurements.map((measurement, measurementIndex) =>
+      measurementIndex === index
+        ? {
+            ...measurement,
+            use_corrected: nextValue,
+          }
+        : measurement
+    );
+
+    submitCurrentState({
+      overrideMeasurements: updatedMeasurements,
+      keepFormOpen: true,
+      skipReset: true,
+    });
   };
 
   const peakButtonLabel = isCurrentPeak
@@ -287,7 +329,7 @@ const DataEntryFormFields = ({
                   <Checkbox
                     id="ignored"
                     checked={ignored}
-                    onCheckedChange={setIgnored}
+                    onCheckedChange={handleIgnoredChange}
                     className="data-[state=checked]:bg-orange-500 data-[state=checked]:text-white border-amber-400"
                     disabled={isProcessing}
                   />
@@ -352,7 +394,7 @@ const DataEntryFormFields = ({
                   <Checkbox
                     id={`use_corrected_${idx}`}
                     checked={m.use_corrected}
-                    onCheckedChange={(checked) => updateMeasurement(idx, 'use_corrected', checked)}
+                    onCheckedChange={(checked) => handleUseCorrectedChange(idx, checked)}
                   />
                   <Label htmlFor={`use_corrected_${idx}`} className="text-xs">
                     Usar valor corregido

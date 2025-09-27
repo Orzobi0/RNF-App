@@ -223,6 +223,7 @@ export const useDataEntryForm = (
   };
 
   const buildSubmissionPayload = (options = {}) => {
+    const { overrideMeasurements, overrideIgnored, peakTagOverride } = options;
     if (!date) {
       toast({
         title: 'Error',
@@ -256,12 +257,16 @@ export const useDataEntryForm = (
       'peakTagOverride'
     );
     const effectivePeakTag = peakTagOverrideProvided
-      ? options.peakTagOverride
+      ? peakTagOverride
       : peakTag;
+
+      const measurementsSource = Array.isArray(overrideMeasurements)
+      ? overrideMeasurements
+      : measurements;
 
     return {
       isoDate,
-      measurements: measurements.map((m) => ({
+      measurements: measurementsSource.map((m) => ({
         temperature: normalizeMeasurementValue(m.temperature),
         time: m.time,
         selected: m.selected,
@@ -273,7 +278,10 @@ export const useDataEntryForm = (
       mucusAppearance,
       fertility_symbol: fertilitySymbol,
       observations,
-      ignored,
+      ignored:
+        Object.prototype.hasOwnProperty.call(options, 'overrideIgnored')
+          ? !!overrideIgnored
+          : ignored,
       peak_marker: effectivePeakTag === 'peak' ? 'peak' : null,
     };
   };
@@ -299,14 +307,15 @@ export const useDataEntryForm = (
   };
 
   const submitCurrentState = (options = {}) => {
-    const payload = buildSubmissionPayload(options);
+    const { keepFormOpen = false, skipReset = false, ...payloadOptions } = options;
+    const payload = buildSubmissionPayload(payloadOptions);
     if (!payload) {
       return null;
     }
 
-    const result = onSubmit(payload);
+    const result = onSubmit(payload, { keepFormOpen, skipReset });
 
-    if (!isEditing) {
+    if (!isEditing && !skipReset) {
       resetFormState();
     }
   

@@ -319,7 +319,7 @@ const ChartPage = () => {
     }
   };
 
-  const handleSave = async (data) => {
+  const handleSave = async (data, { keepFormOpen = false } = {}) => {
     if (!targetCycle?.id) return;
     setIsProcessing(true);
     try {
@@ -330,8 +330,10 @@ const ChartPage = () => {
           setFetchedCycle(refreshed);
         }
       }
-      setShowForm(false);
-      setEditingRecord(null);
+      if (!keepFormOpen) {
+        setShowForm(false);
+        setEditingRecord(null);
+      }
     } finally {
       setIsProcessing(false);
     }

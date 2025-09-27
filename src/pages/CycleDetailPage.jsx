@@ -104,7 +104,7 @@ const CycleDetailPage = () => {
     }
   }, [cycleData]);
 
-  const addOrUpdateDataPointForCycle = async (newData) => {
+  const addOrUpdateDataPointForCycle = async (newData, { keepFormOpen = false } = {}) => {
     if (!cycleData || !user) return;
     const wasEditing = Boolean(editingRecord);
     setIsProcessing(true);
@@ -121,8 +121,10 @@ const CycleDetailPage = () => {
         title: wasEditing ? 'Registro actualizado' : 'Nuevo registro añadido',
         description: 'Datos para el ciclo actualizados.'
       });
-      setShowForm(false);
-      setEditingRecord(null);
+      if (!keepFormOpen) {
+        setShowForm(false);
+        setEditingRecord(null);
+      }
     } catch (error) {
       console.error('Error adding/updating data point:', error);
       toast({

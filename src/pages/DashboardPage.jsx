@@ -725,12 +725,14 @@ const ModernFertilityDashboard = () => {
     parseISO(currentCycle.startDate)
   ) + 1;
 
-  const handleSave = async (data) => {
+  const handleSave = async (data, { keepFormOpen = false } = {}) => {
     setIsProcessing(true);
     try {
       await addOrUpdateDataPoint(data, editingRecord);
-      setShowForm(false);
-      setEditingRecord(null);
+      if (!keepFormOpen) {
+        setShowForm(false);
+        setEditingRecord(null);
+      }
     } finally {
       setIsProcessing(false);
     }
