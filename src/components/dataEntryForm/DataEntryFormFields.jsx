@@ -7,7 +7,22 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Thermometer, Droplets, Eye, EyeOff, CalendarDays, Sprout, Clock, Check, X, ChevronUp, ChevronDown, Circle } from 'lucide-react';
+import {
+  Thermometer,
+  Droplets,
+  Eye,
+  EyeOff,
+  CalendarDays,
+  Sprout,
+  Clock,
+  Check,
+  X,
+  ChevronUp,
+  ChevronDown,
+  Circle,
+  Plus,
+  Sparkles,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, addDays, startOfDay, parseISO, addHours, parse } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -159,217 +174,231 @@ const DataEntryFormFields = ({
       </div>
 
       {/* Mediciones */}
-      {measurements.map((m, idx) => (
-        <div key={idx} className="space-y-2 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-3 border border-amber-100/50">
-          <Label className="flex items-center text-amber-800 text-sm font-semibold">
-            <Thermometer className="mr-2 h-5 w-5 text-orange-500" />
-            Medición {idx + 1}
-          </Label>
-          <div className="grid grid-cols-2 gap-2">
-            <Input
-              type="number"
-              step="0.01"
-              min="34.0"
-              max="40.0"
-              value={m.temperature}
-              onChange={(e) => updateMeasurement(idx, 'temperature', e.target.value)}
-              onInput={(e) => updateMeasurement(idx, 'temperature', e.target.value)}
-              placeholder="36.50"
-              className="bg-white/70 border-amber-200 text-gray-800 placeholder-gray-400 focus:ring-orange-500 focus:border-orange-500 text-base"
-              disabled={isProcessing}
-            />
-            <Input
-              type="time"
-              value={m.time}
-              onChange={(e) => updateMeasurement(idx, 'time', e.target.value)}
-              className="bg-white/70 border-amber-200 text-gray-800 placeholder-gray-400 focus:ring-orange-500 focus:border-orange-500 text-base"
-              disabled={isProcessing}
-            />
-
-          </div>
-          <div className="flex items-center space-x-2">
-            <input
-              type="radio"
-              checked={m.selected}
-              onChange={() => selectMeasurement(idx)}
-              disabled={isProcessing}
-            />
-            <Label className="text-xs text-amber-700">Usar en gráfica</Label>
-          </div>
-                   <div className="flex items-center space-x-2 mt-2">
-            {!m.confirmed && (
-              <>
-                <Button
-                  type="button"
-                  size="icon"
-                  onClick={() => confirmMeasurement(idx)}
+      {measurements.map((m, idx) => {
+        const measurementSelectId = `measurement_select_${idx}`;
+        return (
+          <div key={idx} className="space-y-3 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-3 border border-amber-100/50">
+            <div className="flex items-start justify-between gap-2">
+              <Label className="flex items-center text-amber-800 text-sm font-semibold">
+                <Thermometer className="mr-2 h-5 w-5 text-orange-500" />
+                Medición {idx + 1}
+              </Label>
+              <label
+                htmlFor={measurementSelectId}
+                className="flex items-center gap-2 rounded-full border border-amber-200 bg-white/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-700 shadow-sm"
+              >
+                <input
+                  id={measurementSelectId}
+                  type="radio"
+                  checked={m.selected}
+                  onChange={() => selectMeasurement(idx)}
                   disabled={isProcessing}
-                  className="h-7 w-7"
-                >
-                  <Check className="h-4 w-4" />
-                </Button>
-                <Button
-                  type="button"
-                  size="icon"
-                  onClick={() => removeMeasurement(idx)}
-                  disabled={isProcessing}
-                  className="h-7 w-7"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </>
-            )}
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={isProcessing}
-              onClick={() => {
-                if (correctionIndex === idx) {
-                  setCorrectionIndex(null);
-                } else {
-                  setCorrectionIndex(idx);
-                  if (m.temperature_corrected === '' || m.temperature_corrected === undefined) {
-                    updateMeasurement(idx, 'temperature_corrected', m.temperature);
-                  }
-                  if (!m.time_corrected) {
-                    updateMeasurement(idx, 'time_corrected', m.time);
-                  }
-                }
-              }}
-            >
-              Corregir
-            </Button>
-                  {/* Ignorar */}
-      {isEditing && (
-        <div className="space-y-2 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-3 border border-amber-100/50">
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="ignored"
-              checked={ignored}
-              onCheckedChange={setIgnored}
-              className="data-[state=checked]:bg-orange-500 data-[state=checked]:text-white border-amber-400"
-              disabled={isProcessing}
-            />
-            <Label htmlFor="ignored" className="text-xs text-amber-700 flex items-center">
-              {ignored ? <Eye className="mr-1 h-4 w-4" /> : <EyeOff className="mr-1 h-4 w-4" />}
-              {ignored ? 'Restaurar' : 'Despreciar'}
-            </Label>
-          </div>
-        </div>
-      )}
-          </div>
-          
-          {correctionIndex === idx && (
-            <div className="mt-2 space-y-2">
-              <div className="flex items-center space-x-2">
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="34.0"
-                  max="40.0"
-                  value={m.temperature_corrected}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    updateMeasurement(idx, 'temperature_corrected', value);
-                    if (!m.use_corrected) {
-                      updateMeasurement(idx, 'use_corrected', true);
-                    }
-                  }}
-                  className="bg-white/70 border-amber-200 text-gray-800 placeholder-gray-400 focus:ring-orange-500 focus:border-orange-500 text-base"
-                  disabled={isProcessing}
+                  className="h-3.5 w-3.5 text-orange-500 focus:ring-orange-400"
                 />
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="outline"
-                  disabled={isProcessing}
-                  onClick={() => handleTempAdjust(idx, 0.1)}
-                >
-                
-                  <ChevronUp className="h-4 w-4" />
-                </Button>
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="outline"
-                  disabled={isProcessing}
-                  onClick={() => handleTempAdjust(idx, -0.1)}
-                >
-                  <ChevronDown className="h-4 w-4" />
-                </Button>
-              <div className="flex items-center space-x-2">
-                  <Clock className="h-4 w-4 text-orange-500" />
-                  <Input
-                    type="time"
-                    value={m.time_corrected}
-                    onChange={(e) => updateMeasurement(idx, 'time_corrected', e.target.value)}
-                    className="bg-white/70 border-amber-200 text-gray-800 focus:ring-orange-500 focus:border-orange-500 text-base"
-                    disabled={isProcessing}
-                  />
-
-                </div>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id={`use_corrected_${idx}`}
-                  checked={m.use_corrected}
-                  onCheckedChange={(checked) => updateMeasurement(idx, 'use_corrected', checked)}
-                />
-                <Label htmlFor={`use_corrected_${idx}`} className="text-xs">
-                  Usar valor corregido
-                </Label>
-              </div>
+                <span>Usar en gráfica</span>
+              </label>
             </div>
-          )}
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                type="number"
+                step="0.01"
+                min="34.0"
+                max="40.0"
+                value={m.temperature}
+                onChange={(e) => updateMeasurement(idx, 'temperature', e.target.value)}
+                onInput={(e) => updateMeasurement(idx, 'temperature', e.target.value)}
+                placeholder="36.50"
+                className="bg-white/70 border-amber-200 text-gray-800 placeholder-gray-400 focus:ring-orange-500 focus:border-orange-500 text-base"
+                disabled={isProcessing}
+              />
+              <Input
+                type="time"
+                value={m.time}
+                onChange={(e) => updateMeasurement(idx, 'time', e.target.value)}
+                className="bg-white/70 border-amber-200 text-gray-800 placeholder-gray-400 focus:ring-orange-500 focus:border-orange-500 text-base"
+                disabled={isProcessing}
+              />
+            </div>
 
-        </div>
-      ))}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-3 mb-2">
-        <Button
-          type="button"
-          onClick={addMeasurement}
-          disabled={isProcessing}
-          className="sm:w-auto"
-        >
-          Añadir medición
-        </Button>
-        {selectedIsoDate && (
-          <div className="flex-1">
-            <div className="space-y-1 rounded-xl border border-rose-200/60 bg-gradient-to-r from-rose-50 to-pink-50 p-3">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm font-semibold text-rose-700">
-                  Gestión del día pico
-                </p>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
                 <Button
                   type="button"
                   size="sm"
-                  variant={isCurrentPeak ? 'default' : 'outline'}
+                  variant="outline"
                   disabled={isProcessing}
-                  onClick={togglePeakTag}
-                  className={`w-full justify-center sm:w-auto ${
-                    isCurrentPeak
-                      ? 'bg-rose-500 hover:bg-rose-600 text-white'
-                      : 'border-rose-200 text-rose-600 hover:bg-rose-50'
-                  }`}
+                  className=" text-white bg-orange-300 focus:ring-orange-400"
+                  onClick={() => {
+                    if (correctionIndex === idx) {
+                      setCorrectionIndex(null);
+                    } else {
+                      setCorrectionIndex(idx);
+                      if (m.temperature_corrected === '' || m.temperature_corrected === undefined) {
+                        updateMeasurement(idx, 'temperature_corrected', m.temperature);
+                      }
+                      if (!m.time_corrected) {
+                        updateMeasurement(idx, 'time_corrected', m.time);
+                      }
+                    }
+                  }}
                 >
-                  {peakButtonLabel}
+                  Corregir
                 </Button>
+                {!m.confirmed && (
+                  <>
+                    <Button
+                      type="button"
+                      size="icon"
+                      onClick={() => confirmMeasurement(idx)}
+                      disabled={isProcessing}
+                      className="h-7 w-7"
+                    >
+                      <Check className="h-4 w-4 " />
+                    </Button>
+                    <Button
+                      type="button"
+                      size="icon"
+                      onClick={() => removeMeasurement(idx)}
+                      disabled={isProcessing}
+                      className="h-7 w-7"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </>
+                )}
+              </div>
+              <Button
+                type="button"
+                onClick={addMeasurement}
+                disabled={isProcessing}
+                size="sm"
+                variant="outline"
+                className="ml-auto flex items-center gap-1 rounded-full border-amber-300 bg-white/70 px-3 py-1 text-xs font-semibold text-amber-700 shadow-sm transition-colors hover:bg-amber-100"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Añadir medición
+              </Button>
+            </div>
+
+            {/* Ignorar */}
+            {isEditing && (
+              <div className="space-y-2 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-3 border border-amber-100/50">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="ignored"
+                    checked={ignored}
+                    onCheckedChange={setIgnored}
+                    className="data-[state=checked]:bg-orange-500 data-[state=checked]:text-white border-amber-400"
+                    disabled={isProcessing}
+                  />
+                  <Label htmlFor="ignored" className="text-xs text-amber-700 flex items-center">
+                    {ignored ? <Eye className="mr-1 h-4 w-4" /> : <EyeOff className="mr-1 h-4 w-4" />}
+                    {ignored ? 'Restaurar' : 'Despreciar'}
+                  </Label>
+
+                </div>
+              </div>
+              )}
+              
+            {correctionIndex === idx && (
+              <div className="mt-2 space-y-2">
+                <div className="flex items-center space-x-2">
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="34.0"
+                    max="40.0"
+                    value={m.temperature_corrected}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      updateMeasurement(idx, 'temperature_corrected', value);
+                      if (!m.use_corrected) {
+                        updateMeasurement(idx, 'use_corrected', true);
+                      }
+                    }}
+                    className="bg-white/70 border-amber-200 text-gray-800 placeholder-gray-400 focus:ring-orange-500 focus:border-orange-500 text-base"
+                    disabled={isProcessing}
+                  />
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="outline"
+                    disabled={isProcessing}
+                    onClick={() => handleTempAdjust(idx, 0.1)}
+                  >
+                    <ChevronUp className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="outline"
+                    disabled={isProcessing}
+                    onClick={() => handleTempAdjust(idx, -0.1)}
+                  >
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
+                  <div className="flex items-center space-x-2">
+                    <Clock className="h-4 w-4 text-orange-500" />
+                    <Input
+                      type="time"
+                      value={m.time_corrected}
+                      onChange={(e) => updateMeasurement(idx, 'time_corrected', e.target.value)}
+                      className="bg-white/70 border-amber-200 text-gray-800 focus:ring-orange-500 focus:border-orange-500 text-base"
+                      disabled={isProcessing}
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id={`use_corrected_${idx}`}
+                    checked={m.use_corrected}
+                    onCheckedChange={(checked) => updateMeasurement(idx, 'use_corrected', checked)}
+                  />
+                  <Label htmlFor={`use_corrected_${idx}`} className="text-xs">
+                    Usar valor corregido
+                  </Label>
+                </div>
+              </div>
+              )}
+          </div>
+        );
+      })}
+      {selectedIsoDate && (
+        <div className="mb-2 mt-4">
+          <div className="space-y-2 rounded-2xl border border-rose-200/60 bg-gradient-to-r from-rose-50 to-pink-50 p-3 shadow-sm">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <Button
+                type="button"
+                size="sm"
+                variant={isCurrentPeak ? 'default' : 'outline'}
+                disabled={isProcessing}
+                onClick={togglePeakTag}
+                className={cn(
+                  'group w-full justify-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide transition-all duration-200 sm:w-auto sm:text-sm',
+                  isCurrentPeak
+                    ? 'bg-rose-500 text-white shadow-md hover:bg-rose-600'
+                    : 'border-rose-200 text-rose-600 shadow-sm hover:bg-rose-50'
+                )}
+              >
+                <Sparkles className="mr-1.5 h-3.5 w-3.5 transition-transform group-hover:scale-110" />
+                {peakButtonLabel}
+              </Button>
               </div>
               {hasOtherPeak && formattedExistingPeak && (
-                <p className="text-[11px] text-rose-500 font-medium">
-                  Ya hay un pico registrado el {formattedExistingPeak}.
-                </p>
-              )}
-              {!hasOtherPeak && isCurrentPeak && (
-                <p className="text-[11px] text-rose-500">
-                  Este día se marcará como pico y los tres siguientes quedarán etiquetados.
-                </p>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
+              <p className="text-[11px] text-rose-500 font-medium">
+                Ya hay un pico registrado el {formattedExistingPeak}.
+              </p>
+            )}
+            {!hasOtherPeak && isCurrentPeak && (
+              <p className="text-[11px] text-rose-500">
+                Este día se marcará como pico y los tres siguientes quedarán etiquetados.
+              </p>
+            )}
+        </div>
+        </div>
+      )}
+
+      
       {/* Símbolo de fertilidad */}
       <div className="space-y-2 bg-gradient-to-r from-stone-50 to-slate-50 rounded-xl p-3 border border-slate-100/50">
         <Label htmlFor="fertilitySymbol" className="flex items-center text-slate-800 text-sm font-semibold">
