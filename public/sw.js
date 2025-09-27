@@ -65,6 +65,10 @@ self.addEventListener('fetch', (event) => {
   }
 
   const requestUrl = new URL(event.request.url);
+  
+  if (requestUrl.pathname === '/sw.js') {
+    return; // evitar cachear el propio service worker
+  }
   const isIconRequest =
     event.request.destination === 'image' &&
     [
@@ -92,7 +96,33 @@ self.addEventListener('fetch', (event) => {
     );
     return;
   }
+if (event.request.mode === 'navigate') {
+    event.respondWith(
+      (async () => {
+        try {
+          const networkResponse = await fetch(event.request);
+          if (networkResponse && networkResponse.ok) {
+            const cache = await caches.open(CACHE_NAME);
+            await cache.put(event.request, networkResponse.clone());
+          }
+          return networkResponse;
+        } catch (error) {
+          const cachedResponse = await caches.match(event.request);
+          if (cachedResponse) {
+            return cachedResponse;
+          }
 
+          const fallback = await caches.match(`${BASE_URL}index.html`);
+          if (fallback) {
+            return fallback;
+          }
+
+          return Response.error();
+        }
+      })()
+    );
+    return;
+  }
   event.respondWith(
     (async () => {
       const cachedResponse = await caches.match(event.request);
@@ -108,12 +138,6 @@ self.addEventListener('fetch', (event) => {
         }
         return networkResponse;
       } catch (error) {
-        if (event.request.mode === 'navigate') {
-          const fallback = await caches.match(`${BASE_URL}index.html`);
-          if (fallback) {
-            return fallback;
-          }
-        }
         return Response.error();
       }
     })()
