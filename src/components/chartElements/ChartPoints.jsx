@@ -19,7 +19,7 @@ const CORRECTION_POINT_FILL = 'rgba(226, 232, 240, 0.6)';
 const CORRECTION_POINT_STROKE = 'rgba(148, 163, 184, 0.5)';
 const PEAK_EMOJI = '✖';
 const POST_PEAK_MARKER_COLOR = '#7f1d1d';
-const PEAK_EMOJI_COLOR = '#ed5ca4';
+const PEAK_EMOJI_COLOR = '#ec4899';
 const PEAK_TEXT_SHADOW = 'drop-shadow(0 2px 4px rgba(244, 114, 182, 0.35))';
 
 /** Quita ceros iniciales a día/mes */
@@ -502,7 +502,7 @@ const ChartPoints = ({
                 />
                 {peakStatus && (
                   <g pointerEvents="none">
-                {isPeakMarker ? (
+                    {isPeakMarker ? (
                       <text
                         x={x}
                         y={symbolTextY}
@@ -510,6 +510,9 @@ const ChartPoints = ({
                         fontSize={responsiveFontSize(1.35)}
                         fontWeight="900"
                         fill={PEAK_EMOJI_COLOR}
+                        stroke="#fff"
+                        strokeWidth={1.5}
+                        paintOrder="stroke"
                         style={{ filter: PEAK_TEXT_SHADOW }}
                       >
                         {PEAK_EMOJI}

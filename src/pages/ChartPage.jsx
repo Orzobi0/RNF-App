@@ -133,14 +133,20 @@ const ChartPage = () => {
     window.dispatchEvent(new Event('resize'));
   }, [orientation, isFullScreen]);
   if (showLoading) {
-    return <p className="text-center text-gray-500">Cargando…</p>;
+    return (
+      <MainLayout>
+        <div className="flex h-full flex-col items-center justify-center space-y-4 px-4 py-8 text-center text-gray-500">
+          <p>Cargando…</p>
+        </div>
+      </MainLayout>
+    );
   }
 
   if (!targetCycle?.id) {
     if (cycleId && notFound) {
       return (
         <MainLayout>
-          <div className="flex flex-col items-center justify-center min-h-[100dvh] space-y-4 text-center text-pink-600">
+          <div className="flex h-full flex-col items-center justify-center space-y-4 px-4 py-8 text-center text-pink-600">
             <p>No se encontró el ciclo solicitado.</p>
             <Button asChild className="bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow">
               <Link to="/archived-cycles">Volver a Mis Ciclos</Link>
@@ -149,7 +155,16 @@ const ChartPage = () => {
         </MainLayout>
       );
     }
-    return <p className="text-center text-pink-600">No hay ciclo activo.</p>;
+    return (
+      <MainLayout>
+        <div className="flex h-full flex-col items-center justify-center space-y-4 px-4 py-8 text-center text-pink-600">
+          <p>No hay ciclo activo.</p>
+          <Button asChild className="bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow">
+            <Link to="/records">Ir a Mis Registros</Link>
+          </Button>
+        </div>
+      </MainLayout>
+    );
   }
 
   const CYCLE_DURATION_DAYS = 28;
