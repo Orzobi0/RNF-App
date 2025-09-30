@@ -4,6 +4,7 @@ import RecordsList from '@/components/RecordsList';
 import DataEntryForm from '@/components/DataEntryForm';
 import DeletionDialog from '@/components/DeletionDialog';
 import CycleDatesEditor from '@/components/CycleDatesEditor';
+import OverlapWarningDialog from '@/components/OverlapWarningDialog';
 import { useCycleData } from '@/hooks/useCycleData';
 import { useToast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';

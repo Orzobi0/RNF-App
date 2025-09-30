@@ -915,27 +915,40 @@ const ModernFertilityDashboard = () => {
             currentPeakIsoDate={currentPeakIsoDate}
             onEditStartDate={handleOpenStartDateEditor}
           />
-          {showStartDateEditor && (
-            <CycleDatesEditor
-              cycle={currentCycle}
-              startDate={draftStartDate}
-              endDate={currentCycle.endDate}
-              onStartDateChange={(value) => setDraftStartDate(value)}
-              onSave={handleSaveStartDate}
-              onCancel={handleCloseStartDateEditor}
-              isProcessing={isUpdatingStartDate}
-              dateError={dateError}
-              includeEndDate={false}
-              showOverlapDialog={showOverlapDialog}
-              overlapCycle={overlapCycle}
-              onConfirmOverlap={handleConfirmOverlapStart}
-              onCancelOverlap={handleCancelOverlapStart}
-              onClearError={() => setDateError('')}
-              saveLabel="Guardar cambios"
-              title="Editar fecha de inicio"
-              description="Selecciona una nueva fecha de inicio para el ciclo actual. Los registros se reorganizarán automáticamente."
-            />
-          )}
+          <Dialog
+            open={showStartDateEditor}
+            onOpenChange={(open) => {
+              if (!open) {
+                handleCloseStartDateEditor();
+              }
+            }}
+          >
+            <DialogContent
+              hideClose
+              className="bg-transparent border-none p-0 text-gray-800 w-[90vw] sm:w-auto max-w-md sm:max-w-lg md:max-w-xl max-h-[85vh] overflow-y-auto"
+            >
+              <CycleDatesEditor
+                cycle={currentCycle}
+                startDate={draftStartDate}
+                endDate={currentCycle.endDate}
+                onStartDateChange={(value) => setDraftStartDate(value)}
+                onSave={handleSaveStartDate}
+                onCancel={handleCloseStartDateEditor}
+                isProcessing={isUpdatingStartDate}
+                dateError={dateError}
+                includeEndDate={false}
+                showOverlapDialog={showOverlapDialog}
+                overlapCycle={overlapCycle}
+                onConfirmOverlap={handleConfirmOverlapStart}
+                onCancelOverlap={handleCancelOverlapStart}
+                onClearError={() => setDateError('')}
+                saveLabel="Guardar cambios"
+                title="Editar fecha de inicio"
+                description="Selecciona una nueva fecha de inicio para el ciclo actual. Los registros se reorganizarán automáticamente."
+                className="w-full"
+              />
+            </DialogContent>
+          </Dialog>
         </motion.div>
       </div>
 

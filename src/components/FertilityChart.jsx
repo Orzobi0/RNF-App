@@ -149,9 +149,7 @@ const FertilityChart = ({
     (index) => {
       if (!Number.isFinite(index) || !allDataPoints.length) return padding.left;
       if (index <= 0) return padding.left;
-      const prevX = getX(index - 1);
-      const currentX = getX(index);
-      return prevX + (currentX - prevX) / 2;
+      return getX(index);
     },
     [allDataPoints, getX, padding.left]
   );
@@ -160,9 +158,7 @@ const FertilityChart = ({
     (index) => {
       if (!Number.isFinite(index) || !allDataPoints.length) return chartWidth - padding.right;
       if (index >= allDataPoints.length - 1) return chartWidth - padding.right;
-      const currentX = getX(index);
-      const nextX = getX(index + 1);
-      return currentX + (nextX - currentX) / 2;
+      return getX(index + 1);
     },
     [allDataPoints, chartWidth, getX, padding.right]
   );
