@@ -1,7 +1,9 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, FilePlus, CalendarPlus } from 'lucide-react';
+import { Plus, FilePlus, CalendarPlus, Edit } from 'lucide-react';
+import CycleDatesEditor from '@/components/CycleDatesEditor';
 import DataEntryForm from '@/components/DataEntryForm';
+import { useToast } from '@/components/ui/use-toast';
 import NewCycleDialog from '@/components/NewCycleDialog';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { useCycleData } from '@/hooks/useCycleData';
@@ -9,7 +11,7 @@ import { addDays, differenceInDays, format, isAfter, parseISO, startOfDay } from
 import ChartTooltip from '@/components/chartElements/ChartTooltip';
 import computePeakStatuses from '@/lib/computePeakStatuses';
 
-const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate }) => {
+const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate, onEditStartDate = () => {} }) => {
   const records = cycleData.records || [];
   const [activePoint, setActivePoint] = useState(null);
   const [tooltipPosition, setTooltipPosition] = useState({ clientX: 0, clientY: 0 });
@@ -218,9 +220,15 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
             month: 'long'
           })}
         </h1>
-        <p className="text-sm font-medium text-pink-700 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1.5 inline-block">
+                <button
+          type="button"
+          onClick={onEditStartDate}
+          className="text-sm font-medium text-pink-700 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1.5 inline-flex items-center gap-1.5 transition-colors focus:outline-none focus:ring-2 focus:ring-rose-300 focus:ring-offset-2 focus:ring-offset-transparent hover:bg-white/40"
+          title="Editar fecha de inicio del ciclo"
+        >
+          <Edit className="w-4 h-4" />
           Ciclo actual
-        </p>
+        </button>
       </motion.div>
 
       {/* Contenedor principal con flex-grow para usar todo el espacio disponible */}
@@ -567,7 +575,146 @@ const FloatingActionButton = ({ onAddRecord, onAddCycle }) => {
 };
 
 const ModernFertilityDashboard = () => {
-  const { currentCycle, addOrUpdateDataPoint, startNewCycle, isLoading } = useCycleData();
+  const {
+    currentCycle,
+    addOrUpdateDataPoint,
+    startNewCycle,
+    isLoading,
+    updateCycleDates,
+    checkCycleOverlap,
+    forceUpdateCycleStart,
+    refreshData,
+  } = useCycleData();
+  const { toast } = useToast();
+  const [showStartDateEditor, setShowStartDateEditor] = useState(false);
+  const [draftStartDate, setDraftStartDate] = useState(() => currentCycle?.startDate || '');
+  const [dateError, setDateError] = useState('');
+  const [pendingStartDate, setPendingStartDate] = useState(null);
+  const [overlapCycle, setOverlapCycle] = useState(null);
+  const [showOverlapDialog, setShowOverlapDialog] = useState(false);
+  const [isUpdatingStartDate, setIsUpdatingStartDate] = useState(false);
+
+  useEffect(() => {
+    setDraftStartDate(currentCycle?.startDate || '');
+  }, [currentCycle?.startDate]);
+
+  const resetStartDateFlow = useCallback(() => {
+    setPendingStartDate(null);
+    setOverlapCycle(null);
+    setShowOverlapDialog(false);
+  }, []);
+
+  const handleOpenStartDateEditor = useCallback(() => {
+    setDraftStartDate(currentCycle?.startDate || '');
+    setDateError('');
+    resetStartDateFlow();
+    setShowStartDateEditor(true);
+  }, [currentCycle?.startDate, resetStartDateFlow]);
+
+  const handleCloseStartDateEditor = useCallback(() => {
+    setShowStartDateEditor(false);
+    setDateError('');
+    resetStartDateFlow();
+    setDraftStartDate(currentCycle?.startDate || '');
+  }, [currentCycle?.startDate, resetStartDateFlow]);
+
+  const handleCancelOverlapStart = useCallback(() => {
+    resetStartDateFlow();
+  }, [resetStartDateFlow]);
+
+  const handleSaveStartDate = useCallback(async () => {
+    if (!draftStartDate) {
+      setDateError('La fecha de inicio es obligatoria');
+      return;
+    }
+
+    if (!currentCycle?.id) {
+      return;
+    }
+
+    setDateError('');
+    setIsUpdatingStartDate(true);
+
+    try {
+      const overlap = checkCycleOverlap
+        ? await checkCycleOverlap(currentCycle.id, draftStartDate)
+        : null;
+
+      if (overlap) {
+        setPendingStartDate(draftStartDate);
+        setOverlapCycle(overlap);
+        setShowOverlapDialog(true);
+        setIsUpdatingStartDate(false);
+        return;
+      }
+
+      await updateCycleDates(currentCycle.id, draftStartDate);
+      await refreshData({ silent: true });
+      toast({
+        title: 'Fecha de inicio actualizada',
+        description: 'El ciclo se ha ajustado a la nueva fecha de inicio.',
+      });
+      handleCloseStartDateEditor();
+    } catch (error) {
+      console.error('Error updating start date from dashboard:', error);
+      setDateError('No se pudo actualizar la fecha de inicio');
+      toast({
+        title: 'Error',
+        description: 'No se pudo actualizar la fecha de inicio.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUpdatingStartDate(false);
+    }
+  }, [
+    draftStartDate,
+    currentCycle?.id,
+    checkCycleOverlap,
+    updateCycleDates,
+    refreshData,
+    toast,
+    handleCloseStartDateEditor,
+  ]);
+
+  const handleConfirmOverlapStart = useCallback(async () => {
+    if (!currentCycle?.id || !pendingStartDate) {
+      resetStartDateFlow();
+      return;
+    }
+
+    setIsUpdatingStartDate(true);
+    setShowOverlapDialog(false);
+
+    try {
+      await forceUpdateCycleStart(currentCycle.id, pendingStartDate);
+      await refreshData({ silent: true });
+      toast({
+        title: 'Fecha de inicio actualizada',
+        description: 'El ciclo se ha ajustado a la nueva fecha de inicio.',
+      });
+      handleCloseStartDateEditor();
+    } catch (error) {
+      console.error('Error forcing start date from dashboard:', error);
+      setDateError('No se pudo actualizar la fecha de inicio');
+      toast({
+        title: 'Error',
+        description: 'No se pudo actualizar la fecha de inicio.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUpdatingStartDate(false);
+      resetStartDateFlow();
+    }
+  }, [
+    currentCycle?.id,
+    pendingStartDate,
+    forceUpdateCycleStart,
+    refreshData,
+    toast,
+    handleCloseStartDateEditor,
+    resetStartDateFlow,
+  ]);
+
   const [showForm, setShowForm] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showNewCycleDialog, setShowNewCycleDialog] = useState(false);
@@ -766,7 +913,29 @@ const ModernFertilityDashboard = () => {
             onEdit={handleEdit}
             onTogglePeak={handleTogglePeak}
             currentPeakIsoDate={currentPeakIsoDate}
+            onEditStartDate={handleOpenStartDateEditor}
           />
+          {showStartDateEditor && (
+            <CycleDatesEditor
+              cycle={currentCycle}
+              startDate={draftStartDate}
+              endDate={currentCycle.endDate}
+              onStartDateChange={(value) => setDraftStartDate(value)}
+              onSave={handleSaveStartDate}
+              onCancel={handleCloseStartDateEditor}
+              isProcessing={isUpdatingStartDate}
+              dateError={dateError}
+              includeEndDate={false}
+              showOverlapDialog={showOverlapDialog}
+              overlapCycle={overlapCycle}
+              onConfirmOverlap={handleConfirmOverlapStart}
+              onCancelOverlap={handleCancelOverlapStart}
+              onClearError={() => setDateError('')}
+              saveLabel="Guardar cambios"
+              title="Editar fecha de inicio"
+              description="Selecciona una nueva fecha de inicio para el ciclo actual. Los registros se reorganizarán automáticamente."
+            />
+          )}
         </motion.div>
       </div>
 

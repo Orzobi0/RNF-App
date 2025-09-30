@@ -168,25 +168,41 @@ const FertilityChart = ({
   );
 
   const getSegmentBounds = useCallback(
-    (startIdx, endIdx) => {
-      if (!Number.isFinite(startIdx) || !Number.isFinite(endIdx) || startIdx > endIdx) return null;
+    (startIdx, endIdx, { inclusiveEnd = true } = {}) => {
+      if (!Number.isFinite(startIdx) || !Number.isFinite(endIdx)) return null;
       if (allDataPoints.length === 0) return null;
 
-      const clampIndex = (value) =>
+      const clampStart = (value) =>
         Math.max(0, Math.min(allDataPoints.length - 1, Math.floor(value)));
 
-      const start = clampIndex(startIdx);
-      const end = clampIndex(endIdx);
+      const clampEndInclusive = (value) =>
+        Math.max(0, Math.min(allDataPoints.length - 1, Math.floor(value)));
+      const clampEndExclusive = (value) =>
+        Math.max(0, Math.min(allDataPoints.length, Math.floor(value)));
 
-      const startX = getX(start);
-      const leftBoundary = Math.min(
-        chartWidth - padding.right,
-        Math.max(padding.left, startX)
-      );
-      const rightBoundary =
-        end >= allDataPoints.length - 1
-          ? chartWidth - padding.right
-          : getDayRightEdge(end);
+      const start = clampStart(startIdx);
+      const end = inclusiveEnd
+        ? clampEndInclusive(endIdx)
+        : clampEndExclusive(endIdx);
+
+      const leftBoundary =
+        start <= 0 ? padding.left : getDayLeftEdge(start);
+
+      let rightBoundary;
+      if (inclusiveEnd) {
+        rightBoundary =
+          end >= allDataPoints.length - 1
+            ? chartWidth - padding.right
+            : getDayRightEdge(end);
+      } else {
+        if (end <= 0) {
+          rightBoundary = padding.left;
+        } else if (end >= allDataPoints.length) {
+          rightBoundary = chartWidth - padding.right;
+        } else {
+          rightBoundary = getDayLeftEdge(end);
+        }
+      }
 
       const width = Math.max(rightBoundary - leftBoundary, 0);
       if (width <= 0) return null;
@@ -196,8 +212,8 @@ const FertilityChart = ({
     [
       allDataPoints,
       chartWidth,
+      getDayLeftEdge,
       getDayRightEdge,
-      getX,
       padding.left,
       padding.right,
     ]
@@ -209,50 +225,50 @@ const FertilityChart = ({
 
     const bottomY = chartHeight - padding.bottom;
     const topY = padding.top;
-    const segments = [];
-    let currentSegment = [];
+    const validPoints = allDataPoints
+      .map((point, index) => {
+        const dataPoint = point ? validDataMap.get(point.id) : null;
+        if (!dataPoint || !Number.isFinite(dataPoint.displayTemperature)) {
+          return null;
+        }
 
-    allDataPoints.forEach((point, index) => {
-      const dataPoint = point ? validDataMap.get(point.id) : null;
-      if (dataPoint && Number.isFinite(dataPoint.displayTemperature)) {
-        currentSegment.push({
+        return {
           index,
           x: getX(index),
           y: getY(dataPoint.displayTemperature),
-        });
-      } else if (currentSegment.length) {
-        segments.push(currentSegment);
-        currentSegment = [];
-      }
-    });
+        };
+      })
+      .filter(Boolean);
 
-    if (currentSegment.length) {
-      segments.push(currentSegment);
-    }
-
-    if (!segments.length) {
+    if (!validPoints.length) {
       return { below: null, above: null };
     }
 
-    const buildPath = (boundaryY) =>
-      segments
-        .map((segment) => {
-          const first = segment[0];
-          const last = segment[segment.length - 1];
-          const leftEdge = getDayLeftEdge(first.index);
-          const rightEdge = getDayRightEdge(last.index);
+    const firstPoint = validPoints[0];
+    const lastPoint = validPoints[validPoints.length - 1];
+    const leftBoundary = getDayLeftEdge(firstPoint.index);
+    const rightBoundary = chartWidth - padding.right;
 
-          const pathCommands = [
-            `M ${leftEdge} ${boundaryY}`,
-            `L ${first.x} ${first.y}`,
-            ...segment.slice(1).map(({ x, y }) => `L ${x} ${y}`),
-            `L ${rightEdge} ${boundaryY}`,
-            'Z',
-          ];
+    const extendedPoints = [...validPoints];
+    if (extendedPoints[extendedPoints.length - 1].x !== rightBoundary) {
+      extendedPoints.push({
+        index: lastPoint.index,
+        x: rightBoundary,
+        y: lastPoint.y,
+      });
+    }
 
-          return pathCommands.join(' ');
-        })
-        .join(' ');
+    const buildPath = (boundaryY) => {
+      const commands = [
+        `M ${leftBoundary} ${boundaryY}`,
+        `L ${firstPoint.x} ${firstPoint.y}`,
+        ...extendedPoints.slice(1).map(({ x, y }) => `L ${x} ${y}`),
+        `L ${rightBoundary} ${boundaryY}`,
+        'Z',
+      ];
+
+      return commands.join(' ');
+    };
 
     return {
       below: buildPath(bottomY),
@@ -262,12 +278,13 @@ const FertilityChart = ({
     allDataPoints,
     chartAreaHeight,
     chartHeight,
+    chartWidth,
     getDayLeftEdge,
-    getDayRightEdge,
     getX,
     getY,
     hasTemperatureData,
     padding.bottom,
+    padding.right,
     padding.top,
     validDataMap,
   ]);
@@ -281,15 +298,15 @@ const FertilityChart = ({
     ) {
       return null;
     }
-
+    const inclusiveEnd = absoluteInfertilityStartIndex == null;
     const endIndex =
       absoluteInfertilityStartIndex != null
-        ? absoluteInfertilityStartIndex - 1
+        ? absoluteInfertilityStartIndex
         : allDataPoints.length - 1;
   
     if (endIndex < temperatureInfertilityStartIndex) return null;
 
-    return getSegmentBounds(temperatureInfertilityStartIndex, endIndex);
+    return getSegmentBounds(temperatureInfertilityStartIndex, endIndex, { inclusiveEnd });
   }, [
     showInterpretation,
     ovulationDetails,
@@ -305,14 +322,15 @@ const FertilityChart = ({
       return null;
     }
 
+    const inclusiveEnd = absoluteInfertilityStartIndex == null;
     const endIndex =
       absoluteInfertilityStartIndex != null
-        ? absoluteInfertilityStartIndex - 1
+        ? absoluteInfertilityStartIndex
         : allDataPoints.length - 1;
 
     if (endIndex < peakInfertilityStartIndex) return null;
 
-    return getSegmentBounds(peakInfertilityStartIndex, endIndex);
+    return getSegmentBounds(peakInfertilityStartIndex, endIndex, { inclusiveEnd });
   }, [
     showInterpretation,
     peakInfertilityStartIndex,
