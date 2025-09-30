@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import ChartAxes from '@/components/chartElements/ChartAxes';
 import ChartLine from '@/components/chartElements/ChartLine';
@@ -46,7 +46,14 @@ const FertilityChart = ({
     baselineStartIndex,
     firstHighIndex,
     ovulationDetails,
+    hasTemperatureData,
   } = useFertilityChart(data, isFullScreen, orientation, onToggleIgnore, cycleId, visibleDays, forceLandscape);
+  const uniqueIdRef = useRef(null);
+  if (!uniqueIdRef.current) {
+    const randomSuffix = Math.random().toString(36).slice(2, 10);
+    uniqueIdRef.current = `fertility-chart-${cycleId ?? 'default'}-${randomSuffix}`;
+  }
+  const uniqueId = uniqueIdRef.current;
 
   if (!allDataPoints || allDataPoints.length === 0) {
     return (
@@ -136,6 +143,30 @@ const FertilityChart = ({
   }, [temperatureInfertilityStartIndex, peakInfertilityStartIndex])
 
   const chartAreaHeight = Math.max(chartHeight - padding.top - padding.bottom, 0);
+  const temperatureBelowClipId = `${uniqueId}-temperature-below`;
+  const temperatureAboveClipId = `${uniqueId}-temperature-above`;
+  const getDayLeftEdge = useCallback(
+    (index) => {
+      if (!Number.isFinite(index) || !allDataPoints.length) return padding.left;
+      if (index <= 0) return padding.left;
+      const prevX = getX(index - 1);
+      const currentX = getX(index);
+      return prevX + (currentX - prevX) / 2;
+    },
+    [allDataPoints, getX, padding.left]
+  );
+
+  const getDayRightEdge = useCallback(
+    (index) => {
+      if (!Number.isFinite(index) || !allDataPoints.length) return chartWidth - padding.right;
+      if (index >= allDataPoints.length - 1) return chartWidth - padding.right;
+      const currentX = getX(index);
+      const nextX = getX(index + 1);
+      return currentX + (nextX - currentX) / 2;
+    },
+    [allDataPoints, chartWidth, getX, padding.right]
+  );
+
   const getSegmentBounds = useCallback(
     (startIdx, endIdx) => {
       if (!Number.isFinite(startIdx) || !Number.isFinite(endIdx) || startIdx > endIdx) return null;
@@ -147,20 +178,99 @@ const FertilityChart = ({
       const start = clampIndex(startIdx);
       const end = clampIndex(endIdx);
 
-      const leftBoundary =
-        start === 0 ? padding.left : (getX(start) + getX(start - 1)) / 2;
+      const startX = getX(start);
+      const leftBoundary = Math.min(
+        chartWidth - padding.right,
+        Math.max(padding.left, startX)
+      );
       const rightBoundary =
         end >= allDataPoints.length - 1
           ? chartWidth - padding.right
-          : (getX(end) + getX(end + 1)) / 2;
+          : getDayRightEdge(end);
 
       const width = Math.max(rightBoundary - leftBoundary, 0);
       if (width <= 0) return null;
 
       return { x: leftBoundary, width };
     },
-    [allDataPoints, chartWidth, getX, padding.left, padding.right]
+    [
+      allDataPoints,
+      chartWidth,
+      getDayRightEdge,
+      getX,
+      padding.left,
+      padding.right,
+    ]
   );
+  const temperatureAreaPaths = useMemo(() => {
+    if (!hasTemperatureData || chartAreaHeight <= 0) {
+      return { below: null, above: null };
+    }
+
+    const bottomY = chartHeight - padding.bottom;
+    const topY = padding.top;
+    const segments = [];
+    let currentSegment = [];
+
+    allDataPoints.forEach((point, index) => {
+      const dataPoint = point ? validDataMap.get(point.id) : null;
+      if (dataPoint && Number.isFinite(dataPoint.displayTemperature)) {
+        currentSegment.push({
+          index,
+          x: getX(index),
+          y: getY(dataPoint.displayTemperature),
+        });
+      } else if (currentSegment.length) {
+        segments.push(currentSegment);
+        currentSegment = [];
+      }
+    });
+
+    if (currentSegment.length) {
+      segments.push(currentSegment);
+    }
+
+    if (!segments.length) {
+      return { below: null, above: null };
+    }
+
+    const buildPath = (boundaryY) =>
+      segments
+        .map((segment) => {
+          const first = segment[0];
+          const last = segment[segment.length - 1];
+          const leftEdge = getDayLeftEdge(first.index);
+          const rightEdge = getDayRightEdge(last.index);
+
+          const pathCommands = [
+            `M ${leftEdge} ${boundaryY}`,
+            `L ${first.x} ${first.y}`,
+            ...segment.slice(1).map(({ x, y }) => `L ${x} ${y}`),
+            `L ${rightEdge} ${boundaryY}`,
+            'Z',
+          ];
+
+          return pathCommands.join(' ');
+        })
+        .join(' ');
+
+    return {
+      below: buildPath(bottomY),
+      above: buildPath(topY),
+    };
+  }, [
+    allDataPoints,
+    chartAreaHeight,
+    chartHeight,
+    getDayLeftEdge,
+    getDayRightEdge,
+    getX,
+    getY,
+    hasTemperatureData,
+    padding.bottom,
+    padding.top,
+    validDataMap,
+  ]);
 
   const temperatureInfertilityBounds = useMemo(() => {
     if (
@@ -403,6 +513,16 @@ const FertilityChart = ({
               <circle cx="4" cy="12" r="1.6" fill="rgba(19, 78, 74, 0.6)" />
               <circle cx="12" cy="4" r="1.6" fill="rgba(19, 78, 74, 0.6)" />
             </pattern>
+            {hasTemperatureData && temperatureAreaPaths.below && (
+              <clipPath id={temperatureBelowClipId} clipPathUnits="userSpaceOnUse">
+                <path d={temperatureAreaPaths.below} />
+              </clipPath>
+            )}
+            {hasTemperatureData && temperatureAreaPaths.above && (
+              <clipPath id={temperatureAboveClipId} clipPathUnits="userSpaceOnUse">
+                <path d={temperatureAreaPaths.above} />
+              </clipPath>
+            )}
           </defs>
 
           {/* Fondo transparente para interacciones */}
@@ -427,26 +547,52 @@ const FertilityChart = ({
           {showInterpretation && (
             <>
             {peakInfertilityBounds && (
-                <rect
-                  x={peakInfertilityBounds.x}
-                  y={padding.top}
-                  width={peakInfertilityBounds.width}
-                  height={chartAreaHeight}
-                  fill="url(#peakInfertilityPattern)"
-                  opacity={0.75}
-                  pointerEvents="none"
-                />
+                hasTemperatureData && temperatureAreaPaths.below ? (
+                  <rect
+                    x={peakInfertilityBounds.x}
+                    y={padding.top}
+                    width={peakInfertilityBounds.width}
+                    height={chartAreaHeight}
+                    fill="url(#peakInfertilityPattern)"
+                    opacity={0.75}
+                    pointerEvents="none"
+                    clipPath={`url(#${temperatureBelowClipId})`}
+                  />
+                ) : (
+                  <rect
+                    x={peakInfertilityBounds.x}
+                    y={padding.top}
+                    width={peakInfertilityBounds.width}
+                    height={chartAreaHeight}
+                    fill="url(#peakInfertilityPattern)"
+                    opacity={0.75}
+                    pointerEvents="none"
+                  />
+                )
               )}
               {temperatureInfertilityBounds && (
-                <rect
-                  x={temperatureInfertilityBounds.x}
-                  y={padding.top}
-                  width={temperatureInfertilityBounds.width}
-                  height={chartAreaHeight}
-                  fill="url(#temperatureInfertilityPattern)"
-                  opacity={0.7}
-                  pointerEvents="none"
-                />
+                hasTemperatureData && temperatureAreaPaths.above ? (
+                  <rect
+                    x={temperatureInfertilityBounds.x}
+                    y={padding.top}
+                    width={temperatureInfertilityBounds.width}
+                    height={chartAreaHeight}
+                    fill="url(#temperatureInfertilityPattern)"
+                    opacity={0.7}
+                    pointerEvents="none"
+                    clipPath={`url(#${temperatureAboveClipId})`}
+                  />
+                ) : (
+                  <rect
+                    x={temperatureInfertilityBounds.x}
+                    y={padding.top}
+                    width={temperatureInfertilityBounds.width}
+                    height={chartAreaHeight}
+                    fill="url(#temperatureInfertilityPattern)"
+                    opacity={0.7}
+                    pointerEvents="none"
+                  />
+                )
               )}
               {absoluteInfertilityBounds && (
                 <rect
@@ -502,12 +648,12 @@ const FertilityChart = ({
             <path
               d={temperatureRiseHighlightPath}
               fill="none"
-              stroke="#0ea5e9"
+              stroke="#cc0e93"
               strokeWidth={6}
               strokeLinecap="round"
               strokeLinejoin="round"
               opacity={0.85}
-              style={{ filter: 'drop-shadow(0 2px 6px rgba(14, 165, 233, 0.4))' }}
+              style={{ filter: 'drop-shadow(0 2px 6px rgba(206, 14, 147, 0.4))' }}
               pointerEvents="none"
             />
           )}
