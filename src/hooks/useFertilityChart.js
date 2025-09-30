@@ -301,12 +301,72 @@ export const useFertilityChart = (
         };
       }, [isFullScreen, data.length, visibleDays, orientation, forceLandscape]);
 
-  const validDataForLine = useMemo(() => processedData.filter(d => d && d.isoDate && !d.ignored && d.displayTemperature !== null && d.displayTemperature !== undefined), [processedData]);
-  const allDataPoints = useMemo(() => processedData.filter(d => d && d.isoDate), [processedData]);
-  const { baselineTemp, baselineStartIndex, firstHighIndex, ovulationDetails } = useMemo(
+  const validDataForLine = useMemo(
+    () =>
+      processedData.filter(
+        (d) =>
+          d &&
+          d.isoDate &&
+          !d.ignored &&
+          d.displayTemperature !== null &&
+          d.displayTemperature !== undefined
+      ),
+    [processedData]
+  );
+  const allDataPoints = useMemo(() => processedData.filter((d) => d && d.isoDate), [processedData]);
+  const hasTemperatureData = validDataForLine.length > 0;
+
+  const peakDayIndex = useMemo(() => {
+    if (!allDataPoints.length) return null;
+    for (let idx = 0; idx < allDataPoints.length; idx += 1) {
+      if (allDataPoints[idx]?.peakStatus === 'P') {
+        return idx;
+      }
+    }
+    return null;
+  }, [allDataPoints]);
+
+  const peakInfertilityStartIndex = useMemo(() => {
+    if (!allDataPoints.length) return null;
+    if (!hasTemperatureData) return 0;
+
+    let thirdDayIndex = null;
+    for (let idx = 0; idx < allDataPoints.length; idx += 1) {
+      if (allDataPoints[idx]?.peakStatus === '3') {
+        thirdDayIndex = idx;
+        break;
+      }
+    }
+
+    if (thirdDayIndex == null) return null;
+    const candidate = thirdDayIndex + 1;
+    if (candidate >= allDataPoints.length) {
+      return thirdDayIndex;
+    }
+    return candidate;
+  }, [allDataPoints, hasTemperatureData]);
+
+  const { baselineTemp, baselineStartIndex, firstHighIndex, ovulationDetails: rawOvulationDetails } = useMemo(
     () => computeOvulationMetrics(processedData),
     [processedData]
   );
+  const ovulationDetails = useMemo(() => {
+    const baseDetails =
+      rawOvulationDetails ?? {
+        confirmed: false,
+        confirmationIndex: null,
+        infertileStartIndex: null,
+        rule: null,
+        highSequenceIndices: [],
+        ovulationIndex: null,
+      };
+
+    return {
+      ...baseDetails,
+      peakDayIndex,
+      peakInfertilityStartIndex,
+    };
+  }, [rawOvulationDetails, peakDayIndex, peakInfertilityStartIndex]);
 
       const { tempMin, tempMax } = useMemo(() => {
         const recordedTemps = validDataForLine.map(d => d.displayTemperature).filter(t => t !== null && t !== undefined);
@@ -470,5 +530,6 @@ export const useFertilityChart = (
         baselineStartIndex,
         firstHighIndex,
         ovulationDetails,
+        hasTemperatureData,
       };
     };

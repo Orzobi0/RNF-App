@@ -244,14 +244,13 @@ const ChartPoints = ({
           || point.mucus_appearance
           || point.fertility_symbol;
         const isPlaceholder = String(point.id || '').startsWith('placeholder-');
-        const ovulationMarkerIndex = ovulationDetails?.ovulationIndex;
-        const isOvulationPoint =
+        const peakMarkerIndex = ovulationDetails?.peakDayIndex;
+        const isPeakTemperaturePoint =
           showInterpretation &&
-          ovulationDetails?.confirmed &&
-          ovulationMarkerIndex != null &&
+          peakMarkerIndex != null &&
           !point.ignored &&
           hasTemp &&
-          index === ovulationMarkerIndex;
+          index === peakMarkerIndex;
 
         // Símbolo con colores mejorados
         const symbolInfo = getSymbolAppearance(point.fertility_symbol);
@@ -355,8 +354,8 @@ const ChartPoints = ({
                 <circle
                   cx={x}
                   cy={y}
-                  r={isOvulationPoint ? 2 : 1.5}
-                  fill={isOvulationPoint ? 'rgba(59, 130, 246, 0.28)' : 'rgba(244, 114, 182, 0.2)'}
+                  r={isPeakTemperaturePoint ? 2 : 1.5}
+                  fill={isPeakTemperaturePoint ? 'rgba(59, 130, 246, 0.28)' : 'rgba(244, 114, 182, 0.2)'}
                   opacity={0.85}
                   style={{ filter: 'url(#pointGlow)' }}
                 />
@@ -365,28 +364,28 @@ const ChartPoints = ({
                 <circle
                   cx={x}
                   cy={y}
-                  r={isOvulationPoint ? 4.2 : 3.5}
+                  r={isPeakTemperaturePoint ? 4.2 : 3.5}
                   fill="none"
                   stroke={
                     point.ignored
                       ? 'rgba(148, 163, 184, 0.4)'
-                      : isOvulationPoint
+                      : isPeakTemperaturePoint
                         ? 'rgba(37, 99, 235, 0.55)'
                         : 'rgba(244, 114, 182, 0.3)'
                   }
-                  strokeWidth={isOvulationPoint ? 2 : 1.5}
-                  opacity={isOvulationPoint ? 0.9 : 0.6}
+                  strokeWidth={isPeakTemperaturePoint ? 2 : 1.5}
+                  opacity={isPeakTemperaturePoint ? 0.9 : 0.6}
                 />
                 
                 {/* Punto principal con gradiente mejorado */}
                 <circle
                   cx={x}
                   cy={y}
-                  r={isOvulationPoint ? 4.6 : 4}
+                  r={isPeakTemperaturePoint ? 4.6 : 4}
                   fill={
                     point.ignored
                       ? 'url(#tempPointIgnoredGradient)'
-                      : isOvulationPoint
+                      : isPeakTemperaturePoint
                         ? 'url(#ovulationPointGradient)'
                         : 'url(#tempPointGradientChart)'
                   }
@@ -395,13 +394,13 @@ const ChartPoints = ({
                       ? '#F59E0B'
                       : point.ignored
                         ? '#94A3B8'
-                        : isOvulationPoint
+                        : isPeakTemperaturePoint
                           ? '#1d4ed8'
                           : '#E91E63'
                   }
-                  strokeWidth={point.ignored ? 2 : isOvulationPoint ? 3.2 : 3}
+                  strokeWidth={point.ignored ? 2 : isPeakTemperaturePoint ? 3.2 : 3}
                   style={{
-                    filter: isOvulationPoint
+                    filter: isPeakTemperaturePoint
                       ? 'drop-shadow(0 3px 8px rgba(37, 99, 235, 0.45))'
                       : 'drop-shadow(0 3px 6px rgba(244, 114, 182, 0.4))',
                     cursor: 'pointer'
@@ -415,17 +414,17 @@ const ChartPoints = ({
                   <circle
                     cx={x}
                     cy={y}
-                    r={isOvulationPoint ? 1.8 : 1.5}
-                    fill={isOvulationPoint ? 'rgba(239, 246, 255, 0.95)' : 'rgba(255, 255, 255, 0.9)'}
+                    r={isPeakTemperaturePoint ? 1.8 : 1.5}
+                    fill={isPeakTemperaturePoint ? 'rgba(239, 246, 255, 0.95)' : 'rgba(255, 255, 255, 0.9)'}
                     style={{
-                      filter: isOvulationPoint
+                      filter: isPeakTemperaturePoint
                         ? 'drop-shadow(0 1px 3px rgba(37, 99, 235, 0.45))'
                         : 'drop-shadow(0 1px 2px rgba(244, 114, 182, 0.3))'
                     }}
                   />
                 )}
 
-                {isOvulationPoint && (
+                {isPeakTemperaturePoint && (
                   <circle
                     cx={x}
                     cy={y}
