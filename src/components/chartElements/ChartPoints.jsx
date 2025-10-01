@@ -21,9 +21,8 @@ const PEAK_EMOJI = '✖';
 const POST_PEAK_MARKER_COLOR = '#7f1d1d';
 const PEAK_EMOJI_COLOR = '#ec4899';
 const PEAK_TEXT_SHADOW = 'drop-shadow(0 2px 4px rgba(244, 114, 182, 0.35))';
-const BASELINE_NUMBER_COLOR = '#334155';
 const HIGH_SEQUENCE_NUMBER_COLOR = '#be185d';
-const BASELINE_WINDOW_SIZE = 6;
+
 
 /** Quita ceros iniciales a día/mes */
 const compactDate = (dateStr) => {
@@ -74,7 +73,6 @@ const ChartPoints = ({
   reduceMotion = false,
   showInterpretation = false,
   ovulationDetails = null,
-  baselineStartIndex = null
 }) => {
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -115,21 +113,6 @@ const ChartPoints = ({
   const MotionG = reduceMotion ? 'g' : motion.g;
 
     const totalPoints = Array.isArray(data) ? data.length : 0;
-
-  const baselineOrderMap = useMemo(() => {
-    if (!showInterpretation || baselineStartIndex == null) {
-      return new Map();
-    }
-
-    const map = new Map();
-    for (let offset = 0; offset < BASELINE_WINDOW_SIZE; offset += 1) {
-      const idx = baselineStartIndex + offset;
-      if (idx >= 0 && idx < totalPoints) {
-        map.set(idx, offset + 1);
-      }
-    }
-    return map;
-  }, [showInterpretation, baselineStartIndex, totalPoints]);
 
   const highSequenceOrderMap = useMemo(() => {
     if (!showInterpretation) {
@@ -328,14 +311,11 @@ const ChartPoints = ({
             }
           : {};
 
-          const hasBaselineOrder = baselineOrderMap.has(index);
         const hasHighOrder = highSequenceOrderMap.has(index);
-        const baselineOrder = hasBaselineOrder ? baselineOrderMap.get(index) : null;
         const highOrder = hasHighOrder ? highSequenceOrderMap.get(index) : null;
         const numberFontSize = responsiveFontSize(isFullScreen ? 0.75 : 1.2);
         const numberStrokeWidth = Math.max(0.5, numberFontSize * 0.18);
         const highNumberY = y - numberFontSize * (isFullScreen ? 2.6 : 2.2);
-        const baselineNumberY = y + numberFontSize * (isFullScreen ? 2.8 : 2.3);
 
 
         // Límites de texto
@@ -489,48 +469,26 @@ const ChartPoints = ({
 {showInterpretation &&
                   hasTemp &&
                   !point.ignored &&
-                  (hasHighOrder || hasBaselineOrder) && (
+                  hasHighOrder && (
                     <g pointerEvents="none">
-                      {hasHighOrder && (
-                        <text
-                          x={x}
-                          y={highNumberY}
-                          textAnchor="middle"
-                          fontSize={numberFontSize}
-                          fontWeight="900"
-                          fill={HIGH_SEQUENCE_NUMBER_COLOR}
-                          
-                          strokeWidth={numberStrokeWidth}
-                          style={{
-                            fontFamily:
-                              '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                            paintOrder: 'stroke',
-                            filter: 'drop-shadow(0 1px 1px rgba(255, 255, 255, 0.8))',
-                          }}
-                        >
-                          {highOrder}
-                        </text>
-                      )}
-                      {hasBaselineOrder && (
-                        <text
-                          x={x}
-                          y={baselineNumberY}
-                          textAnchor="middle"
-                          fontSize={numberFontSize}
-                          fontWeight="800"
-                          fill={BASELINE_NUMBER_COLOR}
-                          
-                          strokeWidth={numberStrokeWidth}
-                          style={{
-                            fontFamily:
-                              '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                            paintOrder: 'stroke',
-                            filter: 'drop-shadow(0 1px 1px rgba(255, 255, 255, 0.85))',
-                          }}
-                        >
-                          {baselineOrder}
-                        </text>
-                      )}
+                     <text
+                        x={x}
+                        y={highNumberY}
+                        textAnchor="middle"
+                        fontSize={numberFontSize}
+                        fontWeight="900"
+                        fill={HIGH_SEQUENCE_NUMBER_COLOR}
+
+                        strokeWidth={numberStrokeWidth}
+                        style={{
+                          fontFamily:
+                            '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                          paintOrder: 'stroke',
+                          filter: 'drop-shadow(0 1px 1px rgba(255, 255, 255, 0.8))',
+                        }}
+                      >
+                        {highOrder}
+                      </text>
                     </g>
                   )}
               </MotionG>

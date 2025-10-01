@@ -142,20 +142,27 @@ const evaluateHighSequence = ({
 
       // Regla normal: 3-high
       if (highs.length === 3 && highs[2].temp >= requiredRise) {
+        const precedingLowIndex = sequenceStartIndex > 0 ? sequenceStartIndex - 1 : null;
+        const usedIndices =
+          precedingLowIndex != null ? [precedingLowIndex, ...sequenceIndices] : [...sequenceIndices];       
+
         return {
           confirmed: true,
           confirmationIndex: highs[2].index,
-          usedIndices: sequenceIndices,
+          usedIndices,
           rule: "3-high",
         };
       }
 
       // 1ª excepción: tercer alto <+0.2 → pedir un 4º > baseline
       if (highs.length === 4 && highs[2].temp < requiredRise && highs[3].temp > currentBaselineTemp) {
+        const precedingLowIndex = sequenceStartIndex > 0 ? sequenceStartIndex - 1 : null;
+        const usedIndices =
+          precedingLowIndex != null ? [precedingLowIndex, ...sequenceIndices] : [...sequenceIndices];
         return {
           confirmed: true,
           confirmationIndex: highs[3].index,
-          usedIndices: sequenceIndices,
+          usedIndices,
           rule: "german-3+1",
         };
       }
@@ -166,10 +173,13 @@ const evaluateHighSequence = ({
         highs.length === 3 &&
         highs[2].temp >= requiredRise
       ) {
+        const precedingLowIndex = sequenceStartIndex > 0 ? sequenceStartIndex - 1 : null;
+        const usedIndices =
+          precedingLowIndex != null ? [precedingLowIndex, ...sequenceIndices] : [...sequenceIndices];
         return {
           confirmed: true,
           confirmationIndex: highs[2].index,
-          usedIndices: sequenceIndices,
+          usedIndices,
           rule: "german-2nd-exception",
         };
       }
@@ -177,10 +187,13 @@ const evaluateHighSequence = ({
 
       // Regla 5-high
       if (highs.length === 5 && highs[3].temp > currentBaselineTemp && highs[4].temp >= requiredRise) {
+        const precedingLowIndex = sequenceStartIndex > 0 ? sequenceStartIndex - 1 : null;
+        const usedIndices =
+          precedingLowIndex != null ? [precedingLowIndex, ...sequenceIndices] : [...sequenceIndices];
         return {
           confirmed: true,
           confirmationIndex: highs[4].index,
-          usedIndices: sequenceIndices,
+          usedIndices,
           rule: "5-high",
         };
       }
