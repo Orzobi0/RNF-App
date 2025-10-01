@@ -22,6 +22,7 @@ const POST_PEAK_MARKER_COLOR = '#7f1d1d';
 const PEAK_EMOJI_COLOR = '#ec4899';
 const PEAK_TEXT_SHADOW = 'drop-shadow(0 2px 4px rgba(244, 114, 182, 0.35))';
 const HIGH_SEQUENCE_NUMBER_COLOR = '#be185d';
+const BASELINE_NUMBER_COLOR = '#2563eb';
 
 
 /** Quita ceros iniciales a día/mes */
@@ -39,13 +40,27 @@ const splitText = (str = '', maxChars, isFull, fallback = '–') => {
   if (!str) return [fallback, ''];
   if (str.length <= maxChars) return [str, ''];
   if (isFull) {
-    return [str.slice(0, maxChars), ''];
+    const firstLine = str.slice(0, maxChars);
+    const secondLine = str.slice(maxChars, maxChars * 2);
+    return [firstLine, secondLine];
   }
-  const idx = str.indexOf(' ', maxChars);
-  if (idx === -1) {
-    return [str.slice(0, maxChars), str.slice(maxChars)];
-  }
-  return [str.slice(0, idx), str.slice(idx + 1)];
+
+  const splitByWords = (text) => {
+    if (!text) return ['', ''];
+    if (text.length <= maxChars) return [text, ''];
+
+    const spaceIdx = text.indexOf(' ', maxChars);
+    if (spaceIdx === -1) {
+      return [text.slice(0, maxChars), text.slice(maxChars)];
+    }
+
+    return [text.slice(0, spaceIdx), text.slice(spaceIdx + 1)];
+  };
+
+  const [firstLine, remainder] = splitByWords(str);
+  const [secondLine] = splitByWords(remainder.trimStart());
+
+  return [firstLine, secondLine];
 };
 
 /** Limita un texto al número indicado de palabras */
@@ -73,6 +88,7 @@ const ChartPoints = ({
   reduceMotion = false,
   showInterpretation = false,
   ovulationDetails = null,
+  baselineIndices = [],
 }) => {
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -112,7 +128,7 @@ const ChartPoints = ({
 
   const MotionG = reduceMotion ? 'g' : motion.g;
 
-    const totalPoints = Array.isArray(data) ? data.length : 0;
+  const totalPoints = Array.isArray(data) ? data.length : 0;
 
   const highSequenceOrderMap = useMemo(() => {
     if (!showInterpretation) {
@@ -132,6 +148,41 @@ const ChartPoints = ({
     });
     return map;
   }, [showInterpretation, ovulationDetails, totalPoints]);
+
+    const baselineOrderMap = useMemo(() => {
+    if (!showInterpretation) {
+      return new Map();
+    }
+
+    const indices = Array.isArray(baselineIndices) ? baselineIndices : [];
+    if (!indices.length) {
+      return new Map();
+    }
+
+    const seen = new Set();
+    const validIndices = [];
+    indices.forEach((value) => {
+      const idx = Number(value);
+      if (Number.isInteger(idx) && idx >= 0 && idx < totalPoints && !seen.has(idx)) {
+        seen.add(idx);
+        validIndices.push(idx);
+      }
+    });
+
+    if (!validIndices.length) {
+      return new Map();
+    }
+
+    const orderedAscending = [...validIndices].sort((a, b) => a - b);
+    const windowed = orderedAscending.slice(-6);
+    const map = new Map();
+    let counter = 1;
+    for (let i = windowed.length - 1; i >= 0; i -= 1) {
+      map.set(windowed[i], counter);
+      counter += 1;
+    }
+    return map;
+  }, [showInterpretation, baselineIndices, totalPoints]);
 
   return (
     <>
@@ -313,9 +364,12 @@ const ChartPoints = ({
 
         const hasHighOrder = highSequenceOrderMap.has(index);
         const highOrder = hasHighOrder ? highSequenceOrderMap.get(index) : null;
+        const hasBaselineOrder = baselineOrderMap.has(index);
+        const baselineOrder = hasBaselineOrder ? baselineOrderMap.get(index) : null;
         const numberFontSize = responsiveFontSize(isFullScreen ? 0.75 : 1.2);
         const numberStrokeWidth = Math.max(0.5, numberFontSize * 0.18);
         const highNumberY = y - numberFontSize * (isFullScreen ? 2.6 : 2.2);
+        const baselineNumberY = y + numberFontSize * (isFullScreen ? 1.9 : 1.6);
 
 
         // Límites de texto
@@ -471,7 +525,7 @@ const ChartPoints = ({
                   !point.ignored &&
                   hasHighOrder && (
                     <g pointerEvents="none">
-                     <text
+                      <text
                         x={x}
                         y={highNumberY}
                         textAnchor="middle"
@@ -491,8 +545,33 @@ const ChartPoints = ({
                       </text>
                     </g>
                   )}
-              </MotionG>
-            )}
+                {showInterpretation &&
+                  hasTemp &&
+                  !point.ignored &&
+                  hasBaselineOrder && (
+                    <g pointerEvents="none">
+                      <text
+                        x={x}
+                        y={baselineNumberY}
+                        textAnchor="middle"
+                        fontSize={numberFontSize}
+                        fontWeight="800"
+                        fill={BASELINE_NUMBER_COLOR}
+                        stroke="#ffffff"
+                        strokeWidth={numberStrokeWidth}
+                        style={{
+                          fontFamily:
+                            '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                          paintOrder: 'stroke',
+                          filter: 'drop-shadow(0 1px 1px rgba(255, 255, 255, 0.85))',
+                        }}
+                      >
+                        {baselineOrder}
+                      </text>
+                    </g>
+                  )}
+                </MotionG>
+              )}
 
             {/* Fecha con estilo mejorado */}
             <text 

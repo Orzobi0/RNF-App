@@ -44,6 +44,7 @@ const FertilityChart = ({
     clearActivePoint,
     baselineTemp,
     baselineStartIndex,
+    baselineIndices,
     firstHighIndex,
     ovulationDetails,
     hasTemperatureData,
@@ -693,6 +694,7 @@ const FertilityChart = ({
             showInterpretation={showInterpretation}
             ovulationDetails={ovulationDetails}
             baselineStartIndex={baselineStartIndex}
+            baselineIndices={baselineIndices}
           />
 
           {activeIndex !== null && highlightX !== null && dayWidth > 0 && (

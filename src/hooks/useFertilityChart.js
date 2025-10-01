@@ -34,6 +34,7 @@ export const computeOvulationMetrics = (processedData = []) => {
     return {
       baselineTemp: maxTemp,
       baselineStartIndex: entries[0].index,
+      baselineIndices: entries.map((entry) => entry.index),
       baselineBorderlineCount: borderlineCount,
     };
   };
@@ -83,6 +84,7 @@ export const computeOvulationMetrics = (processedData = []) => {
         return {
           baselineTemp: baselineInfo.baselineTemp,
           baselineStartIndex: baselineInfo.baselineStartIndex,
+          baselineIndices: baselineInfo.baselineIndices,
           baselineBorderlineCount: baselineInfo.baselineBorderlineCount,
           firstHighIndex,
         };
@@ -97,12 +99,14 @@ export const computeOvulationMetrics = (processedData = []) => {
     infertileStartIndex: null,
     rule: null,
     highSequenceIndices: [],
+    usedIndices: [],
     ovulationIndex: null,
   };
 
   let baselineTemp = null;
   let baselineStartIndex = null;
   let firstHighIndex = null;
+  let baselineIndices = [];
   let baselineBorderlineCount = null;
 
   let confirmedDetails = emptyDetails;
@@ -127,6 +131,12 @@ const evaluateHighSequence = ({
   };
   let borderlineSkipIndex = null; // segunda excepción
   let slipUsed = false; // un valor bajo permitido antes de 3 altos
+  const precedingLowIndex = sequenceStartIndex > 0 ? sequenceStartIndex - 1 : null;
+
+  const buildUsedIndices = () =>
+    precedingLowIndex != null
+      ? [precedingLowIndex, ...sequenceIndices]
+      : [...sequenceIndices];
 
   for (let idx = sequenceStartIndex; idx < processedData.length; idx++) {
     const point = processedData[idx];
@@ -142,27 +152,24 @@ const evaluateHighSequence = ({
 
       // Regla normal: 3-high
       if (highs.length === 3 && highs[2].temp >= requiredRise) {
-        const precedingLowIndex = sequenceStartIndex > 0 ? sequenceStartIndex - 1 : null;
-        const usedIndices =
-          precedingLowIndex != null ? [precedingLowIndex, ...sequenceIndices] : [...sequenceIndices];       
-
+        
         return {
           confirmed: true,
           confirmationIndex: highs[2].index,
-          usedIndices,
+          usedIndices: buildUsedIndices(),
+          highSequenceIndices: [...sequenceIndices],
           rule: "3-high",
         };
       }
 
       // 1ª excepción: tercer alto <+0.2 → pedir un 4º > baseline
       if (highs.length === 4 && highs[2].temp < requiredRise && highs[3].temp > currentBaselineTemp) {
-        const precedingLowIndex = sequenceStartIndex > 0 ? sequenceStartIndex - 1 : null;
-        const usedIndices =
-          precedingLowIndex != null ? [precedingLowIndex, ...sequenceIndices] : [...sequenceIndices];
+        
         return {
           confirmed: true,
           confirmationIndex: highs[3].index,
-          usedIndices,
+          usedIndices: buildUsedIndices(),
+          highSequenceIndices: [...sequenceIndices],
           rule: "german-3+1",
         };
       }
@@ -173,13 +180,12 @@ const evaluateHighSequence = ({
         highs.length === 3 &&
         highs[2].temp >= requiredRise
       ) {
-        const precedingLowIndex = sequenceStartIndex > 0 ? sequenceStartIndex - 1 : null;
-        const usedIndices =
-          precedingLowIndex != null ? [precedingLowIndex, ...sequenceIndices] : [...sequenceIndices];
+        
         return {
           confirmed: true,
           confirmationIndex: highs[2].index,
-          usedIndices,
+          usedIndices: buildUsedIndices(),
+          highSequenceIndices: [...sequenceIndices],
           rule: "german-2nd-exception",
         };
       }
@@ -187,13 +193,12 @@ const evaluateHighSequence = ({
 
       // Regla 5-high
       if (highs.length === 5 && highs[3].temp > currentBaselineTemp && highs[4].temp >= requiredRise) {
-        const precedingLowIndex = sequenceStartIndex > 0 ? sequenceStartIndex - 1 : null;
-        const usedIndices =
-          precedingLowIndex != null ? [precedingLowIndex, ...sequenceIndices] : [...sequenceIndices];
+        
         return {
           confirmed: true,
           confirmationIndex: highs[4].index,
-          usedIndices,
+          usedIndices: buildUsedIndices(),
+          highSequenceIndices: [...sequenceIndices],
           rule: "5-high",
         };
       }
@@ -220,7 +225,11 @@ const evaluateHighSequence = ({
     break;
   }
 
-  return { confirmed: false, usedIndices: sequenceIndices };
+  return {
+    confirmed: false,
+    usedIndices: buildUsedIndices(),
+    highSequenceIndices: [...sequenceIndices],
+  };
 };
 
 
@@ -232,6 +241,9 @@ const evaluateHighSequence = ({
 
     baselineTemp = baselineInfo.baselineTemp;
     baselineStartIndex = baselineInfo.baselineStartIndex;
+    baselineIndices = Array.isArray(baselineInfo.baselineIndices)
+      ? [...baselineInfo.baselineIndices]
+      : [];
     firstHighIndex = baselineInfo.firstHighIndex;
     baselineBorderlineCount = baselineInfo.baselineBorderlineCount;
 
@@ -247,17 +259,21 @@ const evaluateHighSequence = ({
     }
 
     if (evaluation?.confirmed) {
+      const firstSequenceIndex = evaluation.highSequenceIndices?.length
+        ? evaluation.highSequenceIndices[0]
+        : null;
       confirmedDetails = {
         confirmed: true,
         confirmationIndex: evaluation.confirmationIndex,
         infertileStartIndex: evaluation.confirmationIndex,
         rule: evaluation.rule,
-        highSequenceIndices: evaluation.usedIndices,
+        highSequenceIndices: evaluation.highSequenceIndices ?? evaluation.usedIndices,
+        usedIndices: evaluation.usedIndices,
         ovulationIndex:
           firstHighIndex != null
             ? firstHighIndex
-            : evaluation.usedIndices?.length
-              ? evaluation.usedIndices[0]
+            : firstSequenceIndex != null
+              ? firstSequenceIndex
               : null,
       };
       break;
@@ -269,6 +285,7 @@ const evaluateHighSequence = ({
     baselineTemp,
     baselineStartIndex,
     firstHighIndex,
+    baselineIndices,
     ovulationDetails: confirmedDetails,
   };
 };
@@ -477,7 +494,13 @@ export const useFertilityChart = (
     return null;
   }, [allDataPoints, peakDayIndex]);
 
-  const { baselineTemp, baselineStartIndex, firstHighIndex, ovulationDetails: rawOvulationDetails } = useMemo(
+  const {
+    baselineTemp,
+    baselineStartIndex,
+    firstHighIndex,
+    baselineIndices,
+    ovulationDetails: rawOvulationDetails,
+  } = useMemo(
     () => computeOvulationMetrics(processedData),
     [processedData]
   );
@@ -489,6 +512,7 @@ export const useFertilityChart = (
         infertileStartIndex: null,
         rule: null,
         highSequenceIndices: [],
+        usedIndices: [],
         ovulationIndex: null,
       };
 
@@ -659,6 +683,7 @@ export const useFertilityChart = (
         responsiveFontSize,
         baselineTemp,
         baselineStartIndex,
+        baselineIndices,
         firstHighIndex,
         ovulationDetails,
         hasTemperatureData,
