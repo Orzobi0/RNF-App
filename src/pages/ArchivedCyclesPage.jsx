@@ -8,11 +8,16 @@ import { es } from 'date-fns/locale';
 import { Archive, Eye, Plus, Trash2, Calendar, BarChart3 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import EditCycleDatesDialog from '@/components/EditCycleDatesDialog';
+import DeletionDialog from '@/components/DeletionDialog';
+import { useToast } from '@/components/ui/use-toast';
 
 const ArchivedCyclesPage = () => {
   const { currentCycle, archivedCycles, isLoading, addArchivedCycle, updateCycleDates, deleteCycle, checkCycleOverlap, forceUpdateCycleStart } = useCycleData();
+  const { toast } = useToast();  
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editingCycle, setEditingCycle] = useState(null);
+  const [cycleToDelete, setCycleToDelete] = useState(null);
+  const [isDeletingCycle, setIsDeletingCycle] = useState(false);
 
   const handleAddCycle = async ({ startDate, endDate }) => {
     try {
@@ -44,9 +49,21 @@ const ArchivedCyclesPage = () => {
     }
   };
 
-  const handleDeleteCycle = (cycleId) => {
-    if (window.confirm('¿Eliminar este ciclo?')) {
-      deleteCycle(cycleId);
+  const handleDeleteCycleRequest = (cycle) => {
+    setCycleToDelete(cycle);
+  };
+
+  const handleConfirmDeleteCycle = async () => {
+    if (!cycleToDelete) return;
+    setIsDeletingCycle(true);
+    try {
+      await deleteCycle(cycleToDelete.id);
+      toast({ title: 'Ciclo eliminado', description: 'El ciclo ha sido eliminado.' });
+      setCycleToDelete(null);
+    } catch (error) {
+      console.error('Error deleting archived cycle:', error);
+    } finally {
+      setIsDeletingCycle(false);
     }
   };
 
@@ -241,7 +258,7 @@ const ArchivedCyclesPage = () => {
                         variant="default"
                         size="sm"
                         className="flex-1 sm:flex-none bg-rose-500 text-white hover:bg-rose-600"
-                        onClick={() => handleDeleteCycle(cycle.id)}
+                        onClick={() => handleDeleteCycleRequest(cycle)}
                       >
                         <Trash2 className="mr-2 h-4 w-4" /> Eliminar
                       </Button>
@@ -273,6 +290,23 @@ const ArchivedCyclesPage = () => {
         checkOverlap={checkCycleOverlap}
         title="Editar Fechas del Ciclo"
         description="Actualiza las fechas del ciclo."
+      />
+      <DeletionDialog
+        isOpen={!!cycleToDelete}
+        onClose={() => setCycleToDelete(null)}
+        onConfirm={handleConfirmDeleteCycle}
+        title="Eliminar ciclo"
+        confirmLabel="Eliminar ciclo"
+        description={
+          cycleToDelete
+            ? `¿Estás seguro de que quieres eliminar el ciclo ${format(parseISO(cycleToDelete.startDate), 'dd/MM/yyyy')} - ${
+                cycleToDelete.endDate
+                  ? format(parseISO(cycleToDelete.endDate), 'dd/MM/yyyy')
+                  : 'En curso'
+              }? Esta acción no se puede deshacer.`
+            : ''
+        }
+        isProcessing={isDeletingCycle}
       />
     </div>
   );

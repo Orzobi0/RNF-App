@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import RecordsList from '@/components/RecordsList';
 import DataEntryForm from '@/components/DataEntryForm';
 import DeletionDialog from '@/components/DeletionDialog';
+import CycleDatesEditor from '@/components/CycleDatesEditor';
 import OverlapWarningDialog from '@/components/OverlapWarningDialog';
 import { useCycleData } from '@/hooks/useCycleData';
 import { useToast } from '@/components/ui/use-toast';
@@ -49,6 +50,7 @@ const CycleDetailPage = () => {
   const [showForm, setShowForm] = useState(false);
   const [recordToDelete, setRecordToDelete] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showCycleDeleteDialog, setShowCycleDeleteDialog] = useState(false);
   const [showCycleActions, setShowCycleActions] = useState(false);
   const [draftStartDate, setDraftStartDate] = useState('');
   const [draftEndDate, setDraftEndDate] = useState('');
@@ -56,6 +58,11 @@ const CycleDetailPage = () => {
   const [showOverlapDialog, setShowOverlapDialog] = useState(false);
   const [pendingPayload, setPendingPayload] = useState(null);
   const [overlapCycle, setOverlapCycle] = useState(null);
+  const cycleRangeLabel = cycleData
+    ? `${format(parseISO(cycleData.startDate), 'dd/MM/yyyy')} - ${
+        cycleData.endDate ? format(parseISO(cycleData.endDate), 'dd/MM/yyyy') : 'En curso'
+      }`
+    : '';
 
   const saveCycleDataToLocalStorage = useCallback(
     (updatedCycle) => {
@@ -186,16 +193,19 @@ const CycleDetailPage = () => {
     }
   };
 
-  const handleDeleteCycle = async () => {
+  const handleDeleteCycleRequest = () => {
+    if (!cycleData) return;
+    setShowCycleDeleteDialog(true);
+  };
+
+  const handleConfirmDeleteCycle = async () => {
     if (!cycleData || !user) return;
-    if (!window.confirm('¿Eliminar este ciclo?')) {
-      return;
-    }
     setIsProcessing(true);
     try {
       await deleteCycle(cycleData.id);
       toast({ title: 'Ciclo eliminado', description: 'El ciclo ha sido eliminado.' });
       navigate('/archived-cycles');
+      setShowCycleDeleteDialog(false);
     } catch (error) {
       console.error(error);
       toast({ title: 'Error', description: 'No se pudo eliminar el ciclo.', variant: 'destructive' });
@@ -230,8 +240,7 @@ const CycleDetailPage = () => {
     }
   };
 
-  const handleSaveDates = async (event) => {
-    event.preventDefault();
+  const handleSaveDates = async () => {
     if (!draftStartDate) {
       setDateError('La fecha de inicio es obligatoria');
       return;
@@ -327,7 +336,7 @@ const CycleDetailPage = () => {
               <button
                 type="button"
                 onClick={handleToggleActions}
-                className={`text-2xl sm:text-3xl font-bold px-4 py-3 rounded-xl transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-rose-400 focus:ring-offset-2 ${showCycleActions ? 'bg-rose-200/80 text-rose-700 shadow-inner' : 'bg-rose-300/40 hover:bg-rose-200/70 text-rose-700'}`}
+                className={`text-2xl sm:text-3xl font-bold px-4 py-3 rounded-xl transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-rose-400 focus:ring-offset-2 ${showCycleActions ? 'bg-rose-200/80 text-rose-700 shadow-inner' : 'bg-rose-200/50 hover:bg-rose-200/70 text-rose-700'}`}
               >
                 Detalle de ciclo ({format(parseISO(cycleData.startDate), 'dd/MM/yyyy')} -{' '}
                 {cycleData.endDate ? format(parseISO(cycleData.endDate), 'dd/MM/yyyy') : 'En curso'})
@@ -336,60 +345,35 @@ const CycleDetailPage = () => {
           </div>
 
           {showCycleActions && (
-            <div className="mb-6 mx-auto w-full max-w-xl rounded-2xl border border-rose-100 bg-white/90 p-5 shadow-lg">
-              <form onSubmit={handleSaveDates} className="space-y-4">
-                <div>
-                  <h2 className="text-lg font-semibold text-rose-700 mb-1">Editar fechas del ciclo</h2>
-                  <p className="text-sm text-slate-600 mb-3">
-                    Actualiza las fechas de inicio y fin del ciclo. Guarda los cambios cuando termines.
-                  </p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <label className="flex flex-col text-sm text-slate-700">
-                      Inicio del ciclo
-                      <input
-                        type="date"
-                        value={draftStartDate}
-                        onChange={(event) => setDraftStartDate(event.target.value)}
-                        className="mt-1 rounded-lg border border-rose-200 bg-rose-50/60 px-3 py-2 text-slate-800 focus:border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-300"
-                      />
-                    </label>
-                    <label className="flex flex-col text-sm text-slate-700">
-                      Fin del ciclo
-                      <input
-                        type="date"
-                        value={draftEndDate || ''}
-                        onChange={(event) => setDraftEndDate(event.target.value)}
-                        className="mt-1 rounded-lg border border-rose-200 bg-rose-50/60 px-3 py-2 text-slate-800 focus:border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-300"
-                      />
-                    </label>
-                  </div>
-                  {dateError && <p className="mt-2 text-sm text-red-500">{dateError}</p>}
-                  <div className="mt-4 flex flex-wrap gap-2 justify-center">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={handleCancelEdit}
-                      className="border-rose-200 text-rose-600 hover:bg-rose-50"
-                      disabled={isProcessing}
-                    >
-                      Cancelar
-                    </Button>
-                    <Button
-                      type="submit"
-                      className="bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow hover:from-pink-600 hover:to-rose-600"
-                      disabled={isProcessing}
-                    >
-                      Guardar
-                    </Button>
-                  </div>
-                </div>
-              </form>
-              <div className="mt-6 border-t border-rose-100 pt-4">
+            <div className="mb-6 mx-auto w-full max-w-xl">
+              <CycleDatesEditor
+                cycle={cycleData}
+                startDate={draftStartDate}
+                endDate={draftEndDate}
+                onStartDateChange={(value) => setDraftStartDate(value)}
+                onEndDateChange={(value) => setDraftEndDate(value)}
+                onSave={handleSaveDates}
+                onCancel={handleCancelEdit}
+                isProcessing={isProcessing}
+                dateError={dateError}
+                includeEndDate
+                showOverlapDialog={showOverlapDialog}
+                overlapCycle={overlapCycle}
+                onConfirmOverlap={handleConfirmOverlap}
+                onCancelOverlap={handleCancelOverlap}
+                onClearError={() => setDateError('')}
+                className="w-full mb-4"
+              />
+              <div className="rounded-2xl border border-rose-100 bg-white/90 p-5 shadow-lg">
                 <h3 className="text-lg font-semibold text-rose-700 mb-2">Eliminar ciclo</h3>
                 <p className="text-sm text-slate-600 mb-3">
                   Esta acción no se puede deshacer. Se eliminarán todos los registros asociados.
                 </p>
-                <Button variant="destructive" onClick={handleDeleteCycle} disabled={isProcessing} className="w-full sm:w-auto">
+                <Button
+                  onClick={handleDeleteCycleRequest}
+                  disabled={isProcessing}
+                  className="w-full sm:w-auto bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white shadow-md"
+                >
                   <Trash2 className="mr-2 h-4 w-4" /> Eliminar ciclo
                 </Button>
               </div>
@@ -456,7 +440,26 @@ const CycleDetailPage = () => {
             isOpen={!!recordToDelete}
             onClose={() => setRecordToDelete(null)}
             onConfirm={confirmDeleteRecord}
-            recordDate={recordToDelete ? format(parseISO(recordToDelete.isoDate), 'dd/MM/yyyy') : ''}
+            title="Eliminar registro"
+            confirmLabel="Eliminar registro"
+            description={
+              recordToDelete
+                ? `¿Estás seguro de que quieres eliminar el registro del ${format(parseISO(recordToDelete.isoDate), 'dd/MM/yyyy')}? Esta acción no se puede deshacer.`
+                : ''
+            }
+            isProcessing={isProcessing}
+          />
+          <DeletionDialog
+            isOpen={showCycleDeleteDialog}
+            onClose={() => setShowCycleDeleteDialog(false)}
+            onConfirm={handleConfirmDeleteCycle}
+            title="Eliminar ciclo"
+            confirmLabel="Eliminar ciclo"
+            description={
+              cycleRangeLabel
+                ? `¿Estás seguro de que quieres eliminar el ciclo ${cycleRangeLabel}? Esta acción no se puede deshacer.`
+                : '¿Estás seguro de que quieres eliminar este ciclo? Esta acción no se puede deshacer.'
+            }
             isProcessing={isProcessing}
           />
           <OverlapWarningDialog

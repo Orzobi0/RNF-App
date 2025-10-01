@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, useMemo, useCallback } from 'react';
+import { parseISO, differenceInCalendarDays } from 'date-fns';
 import computePeakStatuses from '@/lib/computePeakStatuses';
 
 const DEFAULT_TEMP_MIN = 35.5;
@@ -7,61 +8,90 @@ const DEFAULT_TEMP_MAX = 37.5;
 export const computeOvulationMetrics = (processedData = []) => {
   const isValid = (p) => p && p.displayTemperature != null && !p.ignored;
   const windowSize = 6;
-  const slidingWindow = [];
-
-  let baselineTemp = null;
-  let baselineStartIndex = null;
-  let firstHighIndex = null;
+  const borderlineTolerance = 0.05;
 
   const getBaselineInfo = (entries) => {
     if (!entries || entries.length !== windowSize) return null;
     const temps = entries.map((entry) => entry.temp);
     if (temps.some((value) => !Number.isFinite(value))) return null;
 
+  
     const maxTemp = temps.reduce(
       (max, current) => (current > max ? current : max),
       temps[0]
     );
+    const borderlineCount = temps.reduce((count, current) => {
+      if (current >= maxTemp - borderlineTolerance && current < maxTemp) {
+        return count + 1;
+      }
+      return count;
+    }, 0);
+
+    if (borderlineCount >= 2) {
+      return null;
+    }
 
     return {
       baselineTemp: maxTemp,
       baselineStartIndex: entries[0].index,
+      baselineIndices: entries.map((entry) => entry.index),
+      baselineBorderlineCount: borderlineCount,
     };
   };
 
-  for (let idx = 0; idx < processedData.length; idx++) {
-    const candidate = processedData[idx];
-    if (!isValid(candidate)) continue;
+  const findBaselineFromIndex = (startIndex) => {
+    const slidingWindow = [];
 
-    const temperature = candidate.displayTemperature;
-    if (!Number.isFinite(temperature)) continue;
+    for (let idx = startIndex; idx < processedData.length; idx += 1) {
+      const candidate = processedData[idx];
+      if (!isValid(candidate)) {
+        continue;
+      }
 
-    if (slidingWindow.length === windowSize) {
-      const baselineInfo = getBaselineInfo(slidingWindow);
-      if (baselineInfo) {
-        baselineTemp = baselineInfo.baselineTemp;
-        baselineStartIndex = baselineInfo.baselineStartIndex;
+      const temperature = candidate.displayTemperature;
+      if (!Number.isFinite(temperature)) {
+        continue;
+      }
 
-        if (temperature > baselineTemp) {
-          firstHighIndex = idx;
-          break;
+      slidingWindow.push({ index: idx, temp: temperature });
+      if (slidingWindow.length > windowSize) {
+        slidingWindow.shift();
+      }
+    
+
+      if (slidingWindow.length === windowSize) {
+        const baselineInfo = getBaselineInfo(slidingWindow);
+        if (!baselineInfo) {
+          continue;
         }
+
+        let firstHighIndex = null;
+        for (let j = idx + 1; j < processedData.length; j += 1) {
+          const potentialHigh = processedData[j];
+          if (!isValid(potentialHigh)) {
+            continue;
+          }
+          const potentialTemp = potentialHigh.displayTemperature;
+          if (!Number.isFinite(potentialTemp)) {
+            continue;
+          }
+          if (potentialTemp > baselineInfo.baselineTemp) {
+            firstHighIndex = j;
+            break;
+          }
+        }
+
+        return {
+          baselineTemp: baselineInfo.baselineTemp,
+          baselineStartIndex: baselineInfo.baselineStartIndex,
+          baselineIndices: baselineInfo.baselineIndices,
+          baselineBorderlineCount: baselineInfo.baselineBorderlineCount,
+          firstHighIndex,
+        };
       }
     }
-
-    slidingWindow.push({ index: idx, temp: temperature });
-    if (slidingWindow.length > windowSize) {
-      slidingWindow.shift();
-    }
-  }
-
-  if (baselineTemp == null && slidingWindow.length === windowSize) {
-    const baselineInfo = getBaselineInfo(slidingWindow);
-    if (baselineInfo) {
-      baselineTemp = baselineInfo.baselineTemp;
-      baselineStartIndex = baselineInfo.baselineStartIndex;
-    }
-  }
+      return null;
+  };
 
   const emptyDetails = {
     confirmed: false,
@@ -69,96 +99,193 @@ export const computeOvulationMetrics = (processedData = []) => {
     infertileStartIndex: null,
     rule: null,
     highSequenceIndices: [],
+    usedIndices: [],
     ovulationIndex: null,
   };
 
-  if (baselineTemp == null || firstHighIndex == null) {
-    return {
-      baselineTemp,
-      baselineStartIndex,
-      firstHighIndex,
-      ovulationDetails: emptyDetails,
-    };
-  }
-
-  const evaluateSequence = (sequence) => {
-    if (!sequence || sequence.length < 3) return null;
-
-    const requiredRise = baselineTemp + 0.2;
-    const firstThree = sequence.slice(0, 3);
-    if (firstThree.length < 3) return null;
-
-    const thirdHigh = firstThree[2];
-
-    if (thirdHigh.temp >= requiredRise) {
-      return {
-        confirmationIndex: thirdHigh.index,
-        usedIndices: firstThree.map((p) => p.index),
-        rule: '3-high',
-      };
-    }
-
-    if (sequence.length >= 5) {
-      const fourthHigh = sequence[3];
-      const fifthHigh = sequence[4];
-
-    if (
-        fourthHigh &&
-        fifthHigh &&
-        fourthHigh.temp > baselineTemp &&
-        fifthHigh.temp >= requiredRise
-      ) {
-        return {
-          confirmationIndex: fifthHigh.index,
-          usedIndices: sequence.slice(0, 5).map((p) => p.index),
-          rule: '5-high',
-        };
-      }
-    }
-
-    return null;
-  };
+  let baselineTemp = null;
+  let baselineStartIndex = null;
+  let firstHighIndex = null;
+  let baselineIndices = [];
+  let baselineBorderlineCount = null;
 
   let confirmedDetails = emptyDetails;
+  let searchStartIndex = 0;
 
-  for (let start = firstHighIndex; start < processedData.length; start++) {
-    const startPoint = processedData[start];
-    if (!isValid(startPoint) || startPoint.displayTemperature <= baselineTemp) {
+const evaluateHighSequence = ({
+  baselineTemp: currentBaselineTemp,
+  firstHighIndex: sequenceStartIndex,
+}) => {
+  if (sequenceStartIndex == null) {
+    return { confirmed: false };
+  }
+
+  const requiredRise = currentBaselineTemp + 0.2;
+  const highs = [];
+  const sequenceIndices = [];
+  const seenSequenceIndices = new Set();
+  const addSequenceIndex = (index) => {
+    if (index == null || seenSequenceIndices.has(index)) return;
+    seenSequenceIndices.add(index);
+    sequenceIndices.push(index);
+  };
+  let borderlineSkipIndex = null; // segunda excepción
+  let slipUsed = false; // un valor bajo permitido antes de 3 altos
+  const precedingLowIndex = sequenceStartIndex > 0 ? sequenceStartIndex - 1 : null;
+
+  const buildUsedIndices = () =>
+    precedingLowIndex != null
+      ? [precedingLowIndex, ...sequenceIndices]
+      : [...sequenceIndices];
+
+  for (let idx = sequenceStartIndex; idx < processedData.length; idx++) {
+    const point = processedData[idx];
+    if (!isValid(point)) break;
+
+    const temp = point.displayTemperature;
+    if (!Number.isFinite(temp)) break;
+
+    // --- Caso normal: temperatura alta ---
+    if (temp > currentBaselineTemp) {
+      addSequenceIndex(idx);
+      highs.push({ index: idx, temp });
+
+      // Regla normal: 3-high
+      if (highs.length === 3 && highs[2].temp >= requiredRise) {
+        
+        return {
+          confirmed: true,
+          confirmationIndex: highs[2].index,
+          usedIndices: buildUsedIndices(),
+          highSequenceIndices: [...sequenceIndices],
+          rule: "3-high",
+        };
+      }
+
+      // 1ª excepción: tercer alto <+0.2 → pedir un 4º > baseline
+      if (highs.length === 4 && highs[2].temp < requiredRise && highs[3].temp > currentBaselineTemp) {
+        
+        return {
+          confirmed: true,
+          confirmationIndex: highs[3].index,
+          usedIndices: buildUsedIndices(),
+          highSequenceIndices: [...sequenceIndices],
+          rule: "german-3+1",
+        };
+      }
+
+      // 2ª excepción: un rasante en los 3 primeros → basta con que el 3º alto sea ≥ +0.2
+      if (
+        borderlineSkipIndex !== null &&
+        highs.length === 3 &&
+        highs[2].temp >= requiredRise
+      ) {
+        
+        return {
+          confirmed: true,
+          confirmationIndex: highs[2].index,
+          usedIndices: buildUsedIndices(),
+          highSequenceIndices: [...sequenceIndices],
+          rule: "german-2nd-exception",
+        };
+      }
+
+
+      // Regla 5-high
+      if (highs.length === 5 && highs[3].temp > currentBaselineTemp && highs[4].temp >= requiredRise) {
+        
+        return {
+          confirmed: true,
+          confirmationIndex: highs[4].index,
+          usedIndices: buildUsedIndices(),
+          highSequenceIndices: [...sequenceIndices],
+          rule: "5-high",
+        };
+      }
+
       continue;
     }
 
-    const sequence = [];
-    for (let j = start; j < processedData.length && sequence.length < 5; j++) {
-      const candidate = processedData[j];
-      if (!isValid(candidate) || candidate.displayTemperature <= baselineTemp) {
-        break;
-      }
-      sequence.push({ index: j, temp: candidate.displayTemperature });
+    // --- Borderline (segunda excepción) ---
+    if (temp >= currentBaselineTemp - 0.05 && borderlineSkipIndex === null && highs.length > 0 && highs.length < 3) {
+      borderlineSkipIndex = idx;
+      addSequenceIndex(idx);
+      highs.push({ index: idx, temp: currentBaselineTemp }); // lo contamos como un “alto” justo en baseline
+      continue;
     }
 
-    const result = evaluateSequence(sequence);
-    if (result) {
+
+    // --- Slip permitido ---
+    if (!slipUsed && highs.length > 0 && highs.length < 3) {
+      slipUsed = true;
+      addSequenceIndex(idx);
+      continue;
+    }
+
+    break;
+  }
+
+  return {
+    confirmed: false,
+    usedIndices: buildUsedIndices(),
+    highSequenceIndices: [...sequenceIndices],
+  };
+};
+
+
+  while (searchStartIndex < processedData.length) {
+    const baselineInfo = findBaselineFromIndex(searchStartIndex);
+    if (!baselineInfo) {
+      break;
+    }
+
+    baselineTemp = baselineInfo.baselineTemp;
+    baselineStartIndex = baselineInfo.baselineStartIndex;
+    baselineIndices = Array.isArray(baselineInfo.baselineIndices)
+      ? [...baselineInfo.baselineIndices]
+      : [];
+    firstHighIndex = baselineInfo.firstHighIndex;
+    baselineBorderlineCount = baselineInfo.baselineBorderlineCount;
+
+    if (firstHighIndex == null) {
+      searchStartIndex = baselineStartIndex + 1;
+      continue;
+    }
+
+    const evaluation = evaluateHighSequence(baselineInfo);
+    if (evaluation?.requireRebaseline) {
+      searchStartIndex = baselineStartIndex + 1;
+      continue;
+    }
+
+    if (evaluation?.confirmed) {
+      const firstSequenceIndex = evaluation.highSequenceIndices?.length
+        ? evaluation.highSequenceIndices[0]
+        : null;
       confirmedDetails = {
         confirmed: true,
-        confirmationIndex: result.confirmationIndex,
-        infertileStartIndex: result.confirmationIndex,
-        rule: result.rule,
-        highSequenceIndices: result.usedIndices,
+        confirmationIndex: evaluation.confirmationIndex,
+        infertileStartIndex: evaluation.confirmationIndex,
+        rule: evaluation.rule,
+        highSequenceIndices: evaluation.highSequenceIndices ?? evaluation.usedIndices,
+        usedIndices: evaluation.usedIndices,
         ovulationIndex:
           firstHighIndex != null
             ? firstHighIndex
-            : result.usedIndices?.length
-              ? result.usedIndices[0]
+            : firstSequenceIndex != null
+              ? firstSequenceIndex
               : null,
       };
       break;
     }
+        searchStartIndex = baselineStartIndex + 1;
   }
 
   return {
     baselineTemp,
     baselineStartIndex,
     firstHighIndex,
+    baselineIndices,
     ovulationDetails: confirmedDetails,
   };
 };
@@ -301,12 +428,100 @@ export const useFertilityChart = (
         };
       }, [isFullScreen, data.length, visibleDays, orientation, forceLandscape]);
 
-  const validDataForLine = useMemo(() => processedData.filter(d => d && d.isoDate && !d.ignored && d.displayTemperature !== null && d.displayTemperature !== undefined), [processedData]);
-  const allDataPoints = useMemo(() => processedData.filter(d => d && d.isoDate), [processedData]);
-  const { baselineTemp, baselineStartIndex, firstHighIndex, ovulationDetails } = useMemo(
+  const validDataForLine = useMemo(
+    () =>
+      processedData.filter(
+        (d) =>
+          d &&
+          d.isoDate &&
+          !d.ignored &&
+          d.displayTemperature !== null &&
+          d.displayTemperature !== undefined
+      ),
+    [processedData]
+  );
+  const allDataPoints = useMemo(() => processedData.filter((d) => d && d.isoDate), [processedData]);
+  const hasTemperatureData = validDataForLine.length > 0;
+
+  const peakDayIndex = useMemo(() => {
+    if (!allDataPoints.length) return null;
+    for (let idx = 0; idx < allDataPoints.length; idx += 1) {
+      if (allDataPoints[idx]?.peakStatus === 'P') {
+        return idx;
+      }
+    }
+    return null;
+  }, [allDataPoints]);
+
+  const peakInfertilityStartIndex = useMemo(() => {
+    if (!allDataPoints.length) return null;
+    
+
+    let thirdDayIndex = null;
+    for (let idx = 0; idx < allDataPoints.length; idx += 1) {
+      if (allDataPoints[idx]?.peakStatus === '3') {
+        thirdDayIndex = idx;
+        break;
+      }
+    }
+
+    if (thirdDayIndex != null) {
+    const candidate = thirdDayIndex + 1;
+    if (candidate >= allDataPoints.length) {
+      return thirdDayIndex;
+    }
+    return candidate;
+    }
+
+    if (peakDayIndex == null) return null;
+
+    const peakEntry = allDataPoints[peakDayIndex];
+    if (!peakEntry?.isoDate) return null;
+    const peakDate = parseISO(peakEntry.isoDate);
+
+    for (let idx = peakDayIndex + 1; idx < allDataPoints.length; idx += 1) {
+      const entry = allDataPoints[idx];
+      if (!entry?.isoDate) {
+        continue;
+      }
+
+      const daysFromPeak = differenceInCalendarDays(parseISO(entry.isoDate), peakDate);
+      if (daysFromPeak >= 4) {
+        return idx;
+      }
+    }
+
+    return null;
+  }, [allDataPoints, peakDayIndex]);
+
+  const {
+    baselineTemp,
+    baselineStartIndex,
+    firstHighIndex,
+    baselineIndices,
+    ovulationDetails: rawOvulationDetails,
+  } = useMemo(
     () => computeOvulationMetrics(processedData),
     [processedData]
   );
+  const ovulationDetails = useMemo(() => {
+    const baseDetails =
+      rawOvulationDetails ?? {
+        confirmed: false,
+        confirmationIndex: null,
+        infertileStartIndex: null,
+        rule: null,
+        highSequenceIndices: [],
+        usedIndices: [],
+        ovulationIndex: null,
+      };
+
+    return {
+      ...baseDetails,
+      peakDayIndex,
+      peakInfertilityStartIndex,
+    };
+  }, [rawOvulationDetails, peakDayIndex, peakInfertilityStartIndex]);
 
       const { tempMin, tempMax } = useMemo(() => {
         const recordedTemps = validDataForLine.map(d => d.displayTemperature).filter(t => t !== null && t !== undefined);
@@ -468,7 +683,9 @@ export const useFertilityChart = (
         responsiveFontSize,
         baselineTemp,
         baselineStartIndex,
+        baselineIndices,
         firstHighIndex,
         ovulationDetails,
+        hasTemperatureData,
       };
     };

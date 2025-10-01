@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import ChartAxes from '@/components/chartElements/ChartAxes';
 import ChartLine from '@/components/chartElements/ChartLine';
@@ -44,9 +44,17 @@ const FertilityChart = ({
     clearActivePoint,
     baselineTemp,
     baselineStartIndex,
+    baselineIndices,
     firstHighIndex,
     ovulationDetails,
+    hasTemperatureData,
   } = useFertilityChart(data, isFullScreen, orientation, onToggleIgnore, cycleId, visibleDays, forceLandscape);
+  const uniqueIdRef = useRef(null);
+  if (!uniqueIdRef.current) {
+    const randomSuffix = Math.random().toString(36).slice(2, 10);
+    uniqueIdRef.current = `fertility-chart-${cycleId ?? 'default'}-${randomSuffix}`;
+  }
+  const uniqueId = uniqueIdRef.current;
 
   if (!allDataPoints || allDataPoints.length === 0) {
     return (
@@ -78,7 +86,6 @@ const FertilityChart = ({
   const baselineOpacity = confirmedRise ? 1 : 0.7;
   const baselineWidth = 3;
   const isLoading = chartWidth === 0;
-  const baseY = chartHeight - padding.bottom;
   const highlightX = activeIndex != null ? getX(activeIndex) : null;
   const prevX =
     activeIndex != null
@@ -116,114 +123,269 @@ const FertilityChart = ({
     return map;
   }, [validDataForLine]);
 
-  const createAreaPaths = useMemo(() => {
-    const topY = padding.top;
+  const temperatureInfertilityStartIndex = useMemo(() => {
+    if (!ovulationDetails?.confirmed) return null;
+    return Number.isFinite(ovulationDetails?.infertileStartIndex)
+      ? ovulationDetails.infertileStartIndex
+      : null;
+  }, [ovulationDetails]);
 
-    const buildPathFromSegment = (segment, direction = 'down') => {
-      if (!segment || segment.length < 2) return null;
+  const peakInfertilityStartIndex = useMemo(() => {
+    return Number.isFinite(ovulationDetails?.peakInfertilityStartIndex)
+      ? ovulationDetails.peakInfertilityStartIndex
+      : null;
+  }, [ovulationDetails]);
 
-      const isUpward = direction === 'up';
-      const boundaryY = isUpward ? topY : baseY;
+  const absoluteInfertilityStartIndex = useMemo(() => {
+    if (temperatureInfertilityStartIndex == null || peakInfertilityStartIndex == null) {
+      return null;
+    }
+    return Math.max(temperatureInfertilityStartIndex, peakInfertilityStartIndex);
+  }, [temperatureInfertilityStartIndex, peakInfertilityStartIndex])
 
-      let path = `M ${segment[0].x} ${boundaryY} L ${segment[0].x} ${segment[0].y}`;
-      for (let i = 1; i < segment.length; i++) {
-        const point = segment[i];
-        path += ` L ${point.x} ${point.y}`;
+  const chartAreaHeight = Math.max(chartHeight - padding.top - padding.bottom, 0);
+  const temperatureBelowClipId = `${uniqueId}-temperature-below`;
+  const temperatureAboveClipId = `${uniqueId}-temperature-above`;
+  const getDayLeftEdge = useCallback(
+    (index) => {
+      if (!Number.isFinite(index) || !allDataPoints.length) return padding.left;
+      if (index <= 0) return padding.left;
+      return getX(index);
+    },
+    [allDataPoints, getX, padding.left]
+  );
+
+  const getDayRightEdge = useCallback(
+    (index) => {
+      if (!Number.isFinite(index) || !allDataPoints.length) return chartWidth - padding.right;
+      if (index >= allDataPoints.length - 1) return chartWidth - padding.right;
+      return getX(index + 1);
+    },
+    [allDataPoints, chartWidth, getX, padding.right]
+  );
+
+  const getSegmentBounds = useCallback(
+    (startIdx, endIdx, { inclusiveEnd = true } = {}) => {
+      if (!Number.isFinite(startIdx) || !Number.isFinite(endIdx)) return null;
+      if (allDataPoints.length === 0) return null;
+
+      const clampStart = (value) =>
+        Math.max(0, Math.min(allDataPoints.length - 1, Math.floor(value)));
+
+      const clampEndInclusive = (value) =>
+        Math.max(0, Math.min(allDataPoints.length - 1, Math.floor(value)));
+      const clampEndExclusive = (value) =>
+        Math.max(0, Math.min(allDataPoints.length, Math.floor(value)));
+
+      const start = clampStart(startIdx);
+      const end = inclusiveEnd
+        ? clampEndInclusive(endIdx)
+        : clampEndExclusive(endIdx);
+
+      const leftBoundary =
+        start <= 0 ? padding.left : getDayLeftEdge(start);
+
+      let rightBoundary;
+      if (inclusiveEnd) {
+        rightBoundary =
+          end >= allDataPoints.length - 1
+            ? chartWidth - padding.right
+            : getDayRightEdge(end);
+      } else {
+        if (end <= 0) {
+          rightBoundary = padding.left;
+        } else if (end >= allDataPoints.length) {
+          rightBoundary = chartWidth - padding.right;
+        } else {
+          rightBoundary = getDayLeftEdge(end);
+        }
       }
-      path += ` L ${segment[segment.length - 1].x} ${boundaryY} Z`;
-      return path;
+
+      const width = Math.max(rightBoundary - leftBoundary, 0);
+      if (width <= 0) return null;
+
+      return { x: leftBoundary, width };
+    },
+    [
+      allDataPoints,
+      chartWidth,
+      getDayLeftEdge,
+      getDayRightEdge,
+      padding.left,
+      padding.right,
+    ]
+  );
+  const temperatureAreaPaths = useMemo(() => {
+    if (!hasTemperatureData || chartAreaHeight <= 0) {
+      return { below: null, above: null };
+    }
+
+    const bottomY = chartHeight - padding.bottom;
+    const topY = padding.top;
+    const validPoints = allDataPoints
+      .map((point, index) => {
+        const dataPoint = point ? validDataMap.get(point.id) : null;
+        if (!dataPoint || !Number.isFinite(dataPoint.displayTemperature)) {
+          return null;
+        }
+
+        return {
+          index,
+          x: getX(index),
+          y: getY(dataPoint.displayTemperature),
+        };
+      })
+      .filter(Boolean);
+
+    if (!validPoints.length) {
+      return { below: null, above: null };
+    }
+
+    const firstPoint = validPoints[0];
+    const lastPoint = validPoints[validPoints.length - 1];
+    const leftBoundary = getDayLeftEdge(firstPoint.index);
+    const rightBoundary = chartWidth - padding.right;
+
+    const extendedPoints = [...validPoints];
+    if (extendedPoints[extendedPoints.length - 1].x !== rightBoundary) {
+      extendedPoints.push({
+        index: lastPoint.index,
+        x: rightBoundary,
+        y: lastPoint.y,
+      });
+    }
+
+    const buildPath = (boundaryY) => {
+      const commands = [
+        `M ${leftBoundary} ${boundaryY}`,
+        `L ${firstPoint.x} ${firstPoint.y}`,
+        ...extendedPoints.slice(1).map(({ x, y }) => `L ${x} ${y}`),
+        `L ${rightBoundary} ${boundaryY}`,
+        'Z',
+      ];
+
+      return commands.join(' ');
     };
 
-    return (shouldIncludeIndex, { direction = 'down' } = {}) => {
-      if (typeof shouldIncludeIndex !== 'function') return [];
+    return {
+      below: buildPath(bottomY),
+      above: buildPath(topY),
+    };
+  }, [
+    allDataPoints,
+    chartAreaHeight,
+    chartHeight,
+    chartWidth,
+    getDayLeftEdge,
+    getX,
+    getY,
+    hasTemperatureData,
+    padding.bottom,
+    padding.right,
+    padding.top,
+    validDataMap,
+  ]);
 
-      const paths = [];
-      let currentSegment = [];
-      let isActive = false;
+  const temperatureInfertilityBounds = useMemo(() => {
+    if (
+      !showInterpretation ||
+      !ovulationDetails?.confirmed ||
+      temperatureInfertilityStartIndex == null ||
+      chartAreaHeight <= 0
+    ) {
+      return null;
+    }
+    const inclusiveEnd = absoluteInfertilityStartIndex == null;
+    const endIndex =
+      absoluteInfertilityStartIndex != null
+        ? absoluteInfertilityStartIndex
+        : allDataPoints.length - 1;
+  
+    if (endIndex < temperatureInfertilityStartIndex) return null;
 
-      const flushSegment = () => {
-        const path = buildPathFromSegment(currentSegment, direction);
-        if (path) {
-          paths.push(path);
-        }
-        currentSegment = [];
-      };
+    return getSegmentBounds(temperatureInfertilityStartIndex, endIndex, { inclusiveEnd });
+  }, [
+    showInterpretation,
+    ovulationDetails,
+    temperatureInfertilityStartIndex,
+    chartAreaHeight,
+    absoluteInfertilityStartIndex,
+    allDataPoints.length,
+    getSegmentBounds,
+  ]);
 
-      for (let idx = 0; idx < allDataPoints.length; idx++) {
-        if (!shouldIncludeIndex(idx)) {
-          if (isActive) {
-            flushSegment();
-            isActive = false;
-          }
-          continue;
-        }
+  const peakInfertilityBounds = useMemo(() => {
+    if (!showInterpretation || peakInfertilityStartIndex == null || chartAreaHeight <= 0) {
+      return null;
+    }
 
-        isActive = true;
+    const inclusiveEnd = absoluteInfertilityStartIndex == null;
+    const endIndex =
+      absoluteInfertilityStartIndex != null
+        ? absoluteInfertilityStartIndex
+        : allDataPoints.length - 1;
 
+    if (endIndex < peakInfertilityStartIndex) return null;
+
+    return getSegmentBounds(peakInfertilityStartIndex, endIndex, { inclusiveEnd });
+  }, [
+    showInterpretation,
+    peakInfertilityStartIndex,
+    chartAreaHeight,
+    absoluteInfertilityStartIndex,
+    allDataPoints.length,
+    getSegmentBounds,
+  ]);
+
+  const absoluteInfertilityBounds = useMemo(() => {
+    if (
+      !showInterpretation ||
+      absoluteInfertilityStartIndex == null ||
+      chartAreaHeight <= 0
+    ) {
+      return null;
+    }
+
+    return getSegmentBounds(absoluteInfertilityStartIndex, allDataPoints.length - 1);
+  }, [
+    showInterpretation,
+    absoluteInfertilityStartIndex,
+    chartAreaHeight,
+    allDataPoints.length,
+    getSegmentBounds,
+  ]);
+
+  const temperatureRiseHighlightPath = useMemo(() => {
+    if (!showInterpretation || !ovulationDetails?.confirmed) return null;
+    const indices = Array.isArray(ovulationDetails?.highSequenceIndices)
+      ? ovulationDetails.highSequenceIndices
+      : [];
+
+    if (indices.length < 2) return null;
+
+    const coordinates = indices
+      .map((idx) => {
+        if (idx == null || idx < 0 || idx >= allDataPoints.length) return null;
         const point = allDataPoints[idx];
         const dataPoint = validDataMap.get(point?.id);
+        if (!dataPoint || !Number.isFinite(dataPoint.displayTemperature)) return null;
+        return { x: getX(idx), y: getY(dataPoint.displayTemperature) };
+      })
+      .filter(Boolean);
 
-        if (!dataPoint || !Number.isFinite(dataPoint.displayTemperature)) {
-          continue;
-        }
+    if (coordinates.length < 2) return null;
 
-        const x = getX(idx);
-        const y = getY(dataPoint.displayTemperature);
-        currentSegment.push({ x, y });
-      }
-
-      if (isActive) {
-        flushSegment();
-      }
-
-      return paths;
-    };
-  }, [allDataPoints, validDataMap, getX, getY, baseY, padding.top]);
-
-  const fertileAreaPaths = useMemo(() => {
-    if (!showInterpretation || !ovulationDetails?.confirmed) return [];
-    if (!Number.isFinite(ovulationDetails.confirmationIndex)) return [];
-
-    return createAreaPaths((idx) => idx <= ovulationDetails.confirmationIndex, { direction: 'up' });
-  }, [showInterpretation, ovulationDetails, createAreaPaths]);
-
-  const infertileUpperAreaPaths = useMemo(() => {
-    if (!showInterpretation || !ovulationDetails?.confirmed) return [];
-    if (!Number.isFinite(ovulationDetails.infertileStartIndex)) return [];
-
-    return createAreaPaths((idx) => idx >= ovulationDetails.infertileStartIndex, { direction: 'up' });
-  }, [showInterpretation, ovulationDetails, createAreaPaths]);
-  
-
-  const infertileLowerStartIndex = useMemo(() => {
-    if (!ovulationDetails?.confirmed) return null;
-
-    let thirdDayIndex = null;
-    for (let idx = 0; idx < allDataPoints.length; idx++) {
-      if (allDataPoints[idx]?.peakStatus === '3') {
-        thirdDayIndex = idx;
-        break;
-      }
-    }
-
-    if (thirdDayIndex == null) return null;
-
-    for (let idx = thirdDayIndex + 1; idx < allDataPoints.length; idx++) {
-      const point = allDataPoints[idx];
-      if (point && validDataMap.has(point.id)) {
-        return idx;
-      }
-    }
-
-    return null;
-  }, [allDataPoints, ovulationDetails, validDataMap]);
-
-  const infertileLowerAreaPaths = useMemo(() => {
-    if (!showInterpretation || !ovulationDetails?.confirmed) return [];
-    if (!Number.isFinite(infertileLowerStartIndex)) return [];
-
-    return createAreaPaths((idx) => idx >= infertileLowerStartIndex, { direction: 'down' });
-  }, [showInterpretation, ovulationDetails, createAreaPaths, infertileLowerStartIndex]);
+    return coordinates
+      .map(({ x, y }, index) => `${index === 0 ? 'M' : 'L'} ${x} ${y}`)
+      .join(' ');
+  }, [
+    showInterpretation,
+    ovulationDetails,
+    allDataPoints,
+    validDataMap,
+    getX,
+    getY,
+  ]);
   
   // Detectar orientación real del viewport para rotación visual
   const [viewport, setViewport] = useState({ w: typeof window !== 'undefined' ? window.innerWidth : 0, h: typeof window !== 'undefined' ? window.innerHeight : 0 });
@@ -349,22 +511,33 @@ const FertilityChart = ({
                 <feMergeNode in="SourceGraphic"/>
               </feMerge>
             </filter>
-            <linearGradient id="fertileAreaGradient" x1="0%" y1="100%" x2="0%" y2="0%">
-              <stop offset="0%" stopColor="rgba(255, 182, 193, 0.7)" />
-              <stop offset="50%" stopColor="rgba(255, 195, 195, 0.5)" />
-              <stop offset="100%" stopColor="rgba(255, 208, 200, 0.3)" />
-            </linearGradient>
-
-            <linearGradient id="infertileAreaGradient" x1="0%" y1="100%" x2="0%" y2="0%">
-              <stop offset="0%" stopColor="rgba(132, 170, 230, 0.7)" /> 
-              <stop offset="50%" stopColor="rgba(155, 180, 245, 0.5)" />
-              <stop offset="100%" stopColor="rgba(170, 200, 255, 0.3)" />
-            </linearGradient>
-            <linearGradient id="infertileLowerAreaGradient" x1="0%" y1="100%" x2="0%" y2="0%">
-              <stop offset="0%" stopColor="rgba(226, 180, 216, 0.7)" />
-              <stop offset="50%" stopColor="rgba(228, 190, 220, 0.5)" />
-              <stop offset="100%" stopColor="rgba(228, 198, 225, 0.3)" />
-            </linearGradient>
+            <pattern id="temperatureInfertilityPattern" patternUnits="userSpaceOnUse" width="14" height="14">
+              <rect width="14" height="14" fill="rgba(191, 219, 254, 0.45)" />
+              <path d="M0 0 L14 14" stroke="rgba(59, 130, 246, 0.55)" strokeWidth="1.4" />
+              <path d="M14 0 L0 14" stroke="rgba(59, 130, 246, 0.55)" strokeWidth="1.4" />
+            </pattern>
+            <pattern id="peakInfertilityPattern" patternUnits="userSpaceOnUse" width="12" height="12">
+              <rect width="12" height="12" fill="rgba(167, 243, 208, 0.42)" />
+              <circle cx="3" cy="3" r="1.7" fill="rgba(13, 148, 136, 0.55)" />
+              <circle cx="9" cy="9" r="1.7" fill="rgba(13, 148, 136, 0.55)" />
+            </pattern>
+            <pattern id="absoluteInfertilityPattern" patternUnits="userSpaceOnUse" width="16" height="16">
+              <rect width="16" height="16" fill="rgba(56, 189, 248, 0.45)" />
+              <path d="M0 0 L16 16" stroke="rgba(13, 148, 136, 0.6)" strokeWidth="1.2" />
+              <path d="M16 0 L0 16" stroke="rgba(13, 148, 136, 0.6)" strokeWidth="1.2" />
+              <circle cx="4" cy="12" r="1.6" fill="rgba(19, 78, 74, 0.6)" />
+              <circle cx="12" cy="4" r="1.6" fill="rgba(19, 78, 74, 0.6)" />
+            </pattern>
+            {hasTemperatureData && temperatureAreaPaths.below && (
+              <clipPath id={temperatureBelowClipId} clipPathUnits="userSpaceOnUse">
+                <path d={temperatureAreaPaths.below} />
+              </clipPath>
+            )}
+            {hasTemperatureData && temperatureAreaPaths.above && (
+              <clipPath id={temperatureAboveClipId} clipPathUnits="userSpaceOnUse">
+                <path d={temperatureAreaPaths.above} />
+              </clipPath>
+            )}
           </defs>
 
           {/* Fondo transparente para interacciones */}
@@ -386,35 +559,67 @@ const FertilityChart = ({
             showLeftLabels={!showLegend}
             reduceMotion={reduceMotion}
           />
-          {showInterpretation && ovulationDetails?.confirmed && (
+          {showInterpretation && (
             <>
-            {infertileLowerAreaPaths.map((path, idx) => (
-                <path
-                  key={`infertile-lower-area-${idx}`}
-                  d={path}
-                  fill="url(#infertileLowerAreaGradient)"
-                  opacity={0.65}
+            {peakInfertilityBounds && (
+                hasTemperatureData && temperatureAreaPaths.below ? (
+                  <rect
+                    x={peakInfertilityBounds.x}
+                    y={padding.top}
+                    width={peakInfertilityBounds.width}
+                    height={chartAreaHeight}
+                    fill="url(#peakInfertilityPattern)"
+                    opacity={0.75}
+                    pointerEvents="none"
+                    clipPath={`url(#${temperatureBelowClipId})`}
+                  />
+                ) : (
+                  <rect
+                    x={peakInfertilityBounds.x}
+                    y={padding.top}
+                    width={peakInfertilityBounds.width}
+                    height={chartAreaHeight}
+                    fill="url(#peakInfertilityPattern)"
+                    opacity={0.75}
+                    pointerEvents="none"
+                  />
+                )
+              )}
+              {temperatureInfertilityBounds && (
+                hasTemperatureData && temperatureAreaPaths.above ? (
+                  <rect
+                    x={temperatureInfertilityBounds.x}
+                    y={padding.top}
+                    width={temperatureInfertilityBounds.width}
+                    height={chartAreaHeight}
+                    fill="url(#temperatureInfertilityPattern)"
+                    opacity={0.7}
+                    pointerEvents="none"
+                    clipPath={`url(#${temperatureAboveClipId})`}
+                  />
+                ) : (
+                  <rect
+                    x={temperatureInfertilityBounds.x}
+                    y={padding.top}
+                    width={temperatureInfertilityBounds.width}
+                    height={chartAreaHeight}
+                    fill="url(#temperatureInfertilityPattern)"
+                    opacity={0.7}
+                    pointerEvents="none"
+                  />
+                )
+              )}
+              {absoluteInfertilityBounds && (
+                <rect
+                  x={absoluteInfertilityBounds.x}
+                  y={padding.top}
+                  width={absoluteInfertilityBounds.width}
+                  height={chartAreaHeight}
+                  fill="url(#absoluteInfertilityPattern)"
+                  opacity={0.8}
                   pointerEvents="none"
                 />
-              ))}
-              {fertileAreaPaths.map((path, idx) => (
-                <path
-                  key={`fertile-area-${idx}`}
-                  d={path}
-                  fill="url(#fertileAreaGradient)"
-                  opacity={0.65}
-                  pointerEvents="none"
-                />
-              ))}
-              {infertileUpperAreaPaths.map((path, idx) => (
-                <path
-                  key={`infertile-area-${idx}`}
-                  d={path}
-                  fill="url(#infertileAreaGradient)"
-                  opacity={0.45}
-                  pointerEvents="none"
-                />
-              ))}
+              )}
             </>
           )}
                    {/* Línea baseline mejorada */}
@@ -454,6 +659,33 @@ const FertilityChart = ({
             temperatureField="displayTemperature"
             reduceMotion={reduceMotion}
           />
+          {temperatureRiseHighlightPath && (
+            <path
+              d={temperatureRiseHighlightPath}
+              fill="none"
+              stroke="#cc0e93"
+              strokeWidth={6}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              opacity={0.85}
+              style={{ filter: 'drop-shadow(0 2px 6px rgba(206, 14, 147, 0.4))' }}
+              pointerEvents="none"
+            />
+          )}
+
+          {activeIndex !== null && highlightX !== null && dayWidth > 0 && (
+            <g pointerEvents="none">
+              <line
+                x1={highlightX}
+                y1={0}
+                x2={highlightX}
+                y2={chartHeight}
+                stroke="rgba(235, 171, 204,0.15)"
+                strokeWidth={Math.max(3, Math.min(14, dayWidth * 0.4))}
+                strokeLinecap="round"
+              />
+            </g>
+          )}
 
           {/* Puntos del gráfico */}
           <ChartPoints
@@ -475,21 +707,11 @@ const FertilityChart = ({
             reduceMotion={reduceMotion}
             showInterpretation={showInterpretation}
             ovulationDetails={ovulationDetails}
+            baselineStartIndex={baselineStartIndex}
+            firstHighIndex={firstHighIndex}
+            baselineIndices={baselineIndices}
           />
 
-          {activeIndex !== null && highlightX !== null && dayWidth > 0 && (
-            <g pointerEvents="none">
-              <line
-                x1={highlightX}
-                y1={0}
-                x2={highlightX}
-                y2={chartHeight}
-                stroke="rgba(206,95,153,0.15)"
-                strokeWidth={Math.max(2, Math.min(10, dayWidth * 0.28))}
-                strokeLinecap="round"
-              />
-            </g>
-          )}
         </motion.svg>
 
         {/* Tooltip mejorado */}

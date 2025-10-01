@@ -134,7 +134,7 @@ export const useDataEntryForm = (
       setObservations('');
       setIgnored(false);
       setPeakTag(null);
-      setDate(getDefaultDate());
+      setDate((prevDate) => prevDate || getDefaultDate());
     }
   }, [initialData]);
 

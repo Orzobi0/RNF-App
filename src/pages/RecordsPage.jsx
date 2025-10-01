@@ -1,4 +1,5 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
+import CycleDatesEditor from '@/components/CycleDatesEditor';
 import RecordsList from '@/components/RecordsList';
 import DataEntryForm from '@/components/DataEntryForm';
 import DeletionDialog from '@/components/DeletionDialog';
@@ -11,12 +12,151 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { motion } from 'framer-motion';
 
 const RecordsPage = () => {
-  const { currentCycle, addOrUpdateDataPoint, deleteRecord, isLoading } = useCycleData();
+  const {
+    currentCycle,
+    addOrUpdateDataPoint,
+    deleteRecord,
+    isLoading,
+    updateCycleDates,
+    checkCycleOverlap,
+    forceUpdateCycleStart,
+    refreshData,
+  } = useCycleData();
   const { toast } = useToast();
   const [showForm, setShowForm] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [recordToDelete, setRecordToDelete] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showStartDateEditor, setShowStartDateEditor] = useState(false);
+  const [draftStartDate, setDraftStartDate] = useState(() => currentCycle?.startDate || '');
+  const [startDateError, setStartDateError] = useState('');
+  const [pendingStartDate, setPendingStartDate] = useState(null);
+  const [overlapCycle, setOverlapCycle] = useState(null);
+  const [showOverlapDialog, setShowOverlapDialog] = useState(false);
+  const [isUpdatingStartDate, setIsUpdatingStartDate] = useState(false);
+
+  useEffect(() => {
+    setDraftStartDate(currentCycle?.startDate || '');
+  }, [currentCycle?.startDate]);
+
+  const resetStartDateFlow = useCallback(() => {
+    setPendingStartDate(null);
+    setOverlapCycle(null);
+    setShowOverlapDialog(false);
+  }, []);
+
+  const openStartDateEditor = useCallback(() => {
+    setDraftStartDate(currentCycle?.startDate || '');
+    setStartDateError('');
+    resetStartDateFlow();
+    setShowStartDateEditor(true);
+  }, [currentCycle?.startDate, resetStartDateFlow]);
+
+  const closeStartDateEditor = useCallback(() => {
+    setShowStartDateEditor(false);
+    setStartDateError('');
+    resetStartDateFlow();
+    setDraftStartDate(currentCycle?.startDate || '');
+  }, [currentCycle?.startDate, resetStartDateFlow]);
+
+  const handleCancelOverlapStart = useCallback(() => {
+    resetStartDateFlow();
+  }, [resetStartDateFlow]);
+
+  const handleSaveStartDate = useCallback(async () => {
+    if (!draftStartDate) {
+      setStartDateError('La fecha de inicio es obligatoria');
+      return;
+    }
+
+    if (!currentCycle?.id) {
+      return;
+    }
+
+    setStartDateError('');
+    setIsUpdatingStartDate(true);
+
+    try {
+      const overlap = checkCycleOverlap
+        ? await checkCycleOverlap(currentCycle.id, draftStartDate)
+        : null;
+
+      if (overlap) {
+        setPendingStartDate(draftStartDate);
+        setOverlapCycle(overlap);
+        setShowOverlapDialog(true);
+        setIsUpdatingStartDate(false);
+        return;
+      }
+
+      await updateCycleDates(currentCycle.id, draftStartDate);
+      await refreshData({ silent: true });
+      toast({
+        title: 'Fecha de inicio actualizada',
+        description: 'El ciclo se ha ajustado a la nueva fecha de inicio.',
+      });
+      closeStartDateEditor();
+    } catch (error) {
+      console.error('Error updating start date from records page:', error);
+      setStartDateError('No se pudo actualizar la fecha de inicio');
+      toast({
+        title: 'Error',
+        description: 'No se pudo actualizar la fecha de inicio.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUpdatingStartDate(false);
+    }
+  }, [
+    draftStartDate,
+    currentCycle?.id,
+    checkCycleOverlap,
+    updateCycleDates,
+    refreshData,
+    toast,
+    closeStartDateEditor,
+  ]);
+
+  const handleConfirmOverlapStart = useCallback(async () => {
+    if (!currentCycle?.id || !pendingStartDate) {
+      resetStartDateFlow();
+      return;
+    }
+
+    setIsUpdatingStartDate(true);
+    setShowOverlapDialog(false);
+
+    try {
+      await forceUpdateCycleStart(currentCycle.id, pendingStartDate);
+      await refreshData({ silent: true });
+      toast({
+        title: 'Fecha de inicio actualizada',
+        description: 'El ciclo se ha ajustado a la nueva fecha de inicio.',
+      });
+      closeStartDateEditor();
+    } catch (error) {
+      console.error('Error forcing start date from records page:', error);
+      setStartDateError('No se pudo actualizar la fecha de inicio');
+      toast({
+        title: 'Error',
+        description: 'No se pudo actualizar la fecha de inicio.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUpdatingStartDate(false);
+      resetStartDateFlow();
+    }
+  }, [
+    currentCycle?.id,
+    pendingStartDate,
+    forceUpdateCycleStart,
+    refreshData,
+    toast,
+    closeStartDateEditor,
+    resetStartDateFlow,
+  ]);
+
+
 
   const handleCloseForm = useCallback(() => {
     setShowForm(false);
@@ -117,17 +257,56 @@ const RecordsPage = () => {
             <FileText className="mr-3 h-8 w-8 text-pink-500" />
             Mis Registros
           </h1>
-          <Button
-            type="button"
-            onClick={() => { setEditingRecord(null); setShowForm(true); }}
-            className="bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white shadow-lg"
-            disabled={isProcessing}
-            style={{ filter: 'drop-shadow(0 6px 12px rgba(236, 72, 153, 0.3))' }}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Añadir registro
-          </Button>
+          <div className="w-full sm:w-auto flex  gap-2 sm:items-center">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={openStartDateEditor}
+              className="border-pink-200 text-pink-600 hover:bg-pink-50"
+              disabled={isProcessing || isUpdatingStartDate}
+            >
+              <Edit className="mr-2 h-4 w-4" />
+              Editar fecha inicio
+            </Button>
+            <Button
+              type="button"
+              onClick={() => { setEditingRecord(null); setShowForm(true); }}
+              className="bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white shadow-lg"
+              disabled={isProcessing}
+              style={{ filter: 'drop-shadow(0 6px 12px rgba(236, 72, 153, 0.3))' }}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Añadir registro
+            </Button>
+          </div>
         </motion.div>
+        {showStartDateEditor && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4 }}
+          >
+            <CycleDatesEditor
+              cycle={currentCycle}
+              startDate={draftStartDate}
+              endDate={currentCycle.endDate}
+              onStartDateChange={(value) => setDraftStartDate(value)}
+              onSave={handleSaveStartDate}
+              onCancel={closeStartDateEditor}
+              isProcessing={isUpdatingStartDate}
+              dateError={startDateError}
+              includeEndDate={false}
+              showOverlapDialog={showOverlapDialog}
+              overlapCycle={overlapCycle}
+              onConfirmOverlap={handleConfirmOverlapStart}
+              onCancelOverlap={handleCancelOverlapStart}
+              onClearError={() => setStartDateError('')}
+              saveLabel="Guardar cambios"
+              title="Editar fecha de inicio"
+              description="Actualiza la fecha de inicio del ciclo actual. Los registros se reorganizarán automáticamente."
+            />
+          </motion.div>
+        )}
 
         {/* Records List */}
         <motion.div
@@ -173,7 +352,13 @@ const RecordsPage = () => {
         isOpen={!!recordToDelete}
         onClose={() => setRecordToDelete(null)}
         onConfirm={confirmDelete}
-        recordDate={recordToDelete ? format(parseISO(recordToDelete.isoDate), 'dd/MM/yyyy') : ''}
+        title="Eliminar registro"
+        confirmLabel="Eliminar registro"
+        description={
+          recordToDelete
+            ? `¿Estás seguro de que quieres eliminar el registro del ${format(parseISO(recordToDelete.isoDate), 'dd/MM/yyyy')}? Esta acción no se puede deshacer.`
+            : ''
+        }
         isProcessing={isProcessing}
       />
     </div>

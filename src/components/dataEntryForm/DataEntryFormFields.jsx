@@ -111,20 +111,23 @@ const DataEntryFormFields = ({
     ? format(parseISO(existingPeakIsoDate), 'dd/MM/yyyy')
     : null;
 
-  const togglePeakTag = () => {
-    if (isProcessing) {
+  const togglePeakTag = async () => {
+    if (isProcessing || typeof submitCurrentState !== 'function') {
       return;
     }
 
     const newPeakTag = isCurrentPeak ? null : 'peak';
     setPeakTag(newPeakTag);
 
-    if (isEditing && typeof submitCurrentState === 'function') {
-      submitCurrentState({
+    try {
+      await submitCurrentState({
         peakTagOverride: newPeakTag,
         keepFormOpen: true,
         skipReset: true,
       });
+          } catch (error) {
+      // Restore previous peak marker if the submission fails
+      setPeakTag(isCurrentPeak ? 'peak' : null);
     }
   };
   const handleIgnoredChange = (checked) => {

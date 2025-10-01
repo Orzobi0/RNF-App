@@ -1,7 +1,16 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, FilePlus, CalendarPlus } from 'lucide-react';
+import {
+  Plus,
+  FilePlus,
+  CalendarPlus,
+  Edit,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react';
+import CycleDatesEditor from '@/components/CycleDatesEditor';
 import DataEntryForm from '@/components/DataEntryForm';
+import { useToast } from '@/components/ui/use-toast';
 import NewCycleDialog from '@/components/NewCycleDialog';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { useCycleData } from '@/hooks/useCycleData';
@@ -9,20 +18,161 @@ import { addDays, differenceInDays, format, isAfter, parseISO, startOfDay } from
 import ChartTooltip from '@/components/chartElements/ChartTooltip';
 import computePeakStatuses from '@/lib/computePeakStatuses';
 
-const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate }) => {
+const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate, onEditStartDate = () => {} }) => {
   const records = cycleData.records || [];
   const [activePoint, setActivePoint] = useState(null);
   const [tooltipPosition, setTooltipPosition] = useState({ clientX: 0, clientY: 0 });
+  const [wheelOffset, setWheelOffset] = useState(0);
+  const hasInitializedWheelRef = useRef(false);
+  const touchStartXRef = useRef(null);
   const circleRef = useRef(null);
   const cycleStartDate = cycleData.startDate ? parseISO(cycleData.startDate) : null;
   const today = startOfDay(new Date());
   const peakStatuses = useMemo(() => computePeakStatuses(records), [records]);
 
     // Ajustes del círculo de progreso
-  const radius = 140; // radio del círculo
-  const padding = 15; // margen alrededor del círculo
+  const totalDots = 28;
+  const radius = 140;
+  const padding = 15;
   const center = radius + padding;
   const viewBoxSize = center * 2;
+
+  const totalCycleDays = useMemo(() => {
+    const maxRecordDay = records.reduce((maxValue, record) => {
+      const recordDay = record?.cycleDay ?? null;
+
+      if (recordDay) {
+        return Math.max(maxValue, recordDay);
+      }
+
+      if (!cycleStartDate || !record?.isoDate) {
+        return maxValue;
+      }
+
+      try {
+        const parsedIso = parseISO(record.isoDate);
+        const calculatedDay = differenceInDays(parsedIso, cycleStartDate) + 1;
+
+        return Number.isFinite(calculatedDay)
+          ? Math.max(maxValue, calculatedDay)
+          : maxValue;
+      } catch (error) {
+        console.error('Error calculating record day for wheel:', error);
+        return maxValue;
+      }
+    }, 0);
+
+    return Math.max(cycleData.currentDay, maxRecordDay, totalDots);
+  }, [cycleData.currentDay, records, cycleStartDate, totalDots]);
+
+  const maxOffset = Math.max(totalCycleDays - totalDots, 0);
+  const hasOverflow = maxOffset > 0;
+
+  useEffect(() => {
+    if (!hasOverflow) {
+      hasInitializedWheelRef.current = true;
+      setWheelOffset(0);
+      return;
+    }
+
+    setWheelOffset((previous) => {
+      const clampedPrevious = Math.min(previous, maxOffset);
+      const desiredOffset = Math.max(
+        0,
+        Math.min(Math.max(cycleData.currentDay - totalDots, 0), maxOffset)
+      );
+      const isCurrentDayVisible =
+        cycleData.currentDay >= clampedPrevious + 1 &&
+        cycleData.currentDay <= clampedPrevious + totalDots;
+
+      if (!hasInitializedWheelRef.current) {
+        hasInitializedWheelRef.current = true;
+        return desiredOffset;
+      }
+
+      if (!isCurrentDayVisible) {
+        return desiredOffset;
+      }
+
+      if (clampedPrevious !== previous) {
+        return clampedPrevious;
+      }
+
+      return previous;
+    });
+  }, [hasOverflow, maxOffset, cycleData.currentDay, totalDots]);
+
+  const clampOffset = useCallback(
+    (value) => Math.max(0, Math.min(value, maxOffset)),
+    [maxOffset]
+  );
+
+  const changeOffset = useCallback(
+    (delta) => {
+      if (!hasOverflow || delta === 0) {
+        return;
+      }
+
+      setWheelOffset((previous) => clampOffset(previous + delta));
+    },
+    [clampOffset, hasOverflow]
+  );
+
+  const handleWheelScroll = useCallback(
+    (event) => {
+      if (!hasOverflow) {
+        return;
+      }
+
+      event.preventDefault();
+      const delta = Math.abs(event.deltaY) > Math.abs(event.deltaX)
+        ? event.deltaY
+        : event.deltaX;
+
+      if (delta === 0) {
+        return;
+      }
+
+      changeOffset(delta > 0 ? 1 : -1);
+    },
+    [changeOffset, hasOverflow]
+  );
+
+  const handleTouchStart = useCallback((event) => {
+    if (!hasOverflow) {
+      return;
+    }
+
+    touchStartXRef.current = event.touches?.[0]?.clientX ?? null;
+  }, [hasOverflow]);
+
+  const handleTouchMove = useCallback(
+    (event) => {
+      if (!hasOverflow || touchStartXRef.current === null) {
+        return;
+      }
+
+      const currentX = event.touches?.[0]?.clientX ?? null;
+
+      if (currentX === null) {
+        return;
+      }
+
+      const deltaX = currentX - touchStartXRef.current;
+
+      if (Math.abs(deltaX) < 24) {
+        return;
+      }
+
+      changeOffset(deltaX < 0 ? 1 : -1);
+      touchStartXRef.current = currentX;
+    },
+    [changeOffset, hasOverflow]
+  );
+
+  const handleTouchEnd = useCallback(() => {
+    touchStartXRef.current = null;
+  }, []);
 
   // Colores suaves con mejor contraste
   const getSymbolColor = (symbolValue) => {
@@ -72,18 +222,50 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
   };
 
   // Crear puntos individuales en lugar de segmentos
-  const createProgressDots = () => {
-    const totalDays = Math.max(cycleData.currentDay, 28);
+  const recordsByDay = useMemo(() => {
+    return records.reduce((map, record) => {
+      if (!record) {
+        return map;
+      }
 
-    return Array.from({ length: totalDays }, (_, index) => {
-      const day = index + 1;
-      const record = records.find((r) => r.cycleDay === day);
-      const placeholderDate = cycleStartDate ? addDays(cycleStartDate, index) : null;
+      const numericDay = Number(record.cycleDay);
+
+      if (Number.isFinite(numericDay) && numericDay > 0) {
+        if (!map.has(numericDay)) {
+          map.set(numericDay, record);
+        }
+        return map;
+      }
+
+      if (!cycleStartDate || !record.isoDate) {
+        return map;
+      }
+
+      try {
+        const parsedIso = parseISO(record.isoDate);
+        const calculatedDay = differenceInDays(parsedIso, cycleStartDate) + 1;
+
+        if (Number.isFinite(calculatedDay) && calculatedDay > 0 && !map.has(calculatedDay)) {
+          map.set(calculatedDay, { ...record, cycleDay: calculatedDay });
+        }
+      } catch (error) {
+        console.error('Error mapping record by day for wheel:', error);
+      }
+
+    return map;
+    }, new Map());
+  }, [records, cycleStartDate]);
+
+  const createProgressDots = () => {
+    return Array.from({ length: totalDots }, (_, index) => {
+      const day = wheelOffset + index + 1;
+      const record = recordsByDay.get(day) ?? null;
+      const placeholderDate = cycleStartDate ? addDays(cycleStartDate, day - 1) : null;
       const isoDate = placeholderDate ? format(placeholderDate, 'yyyy-MM-dd') : null;
       const isFutureDay = placeholderDate ? isAfter(startOfDay(placeholderDate), today) : false;
       const recordWithCycleDay = record ? { ...record, cycleDay: record.cycleDay ?? day } : null;
-      const angle = (index / totalDays) * 2 * Math.PI - Math.PI / 2;
-
+      const normalizedIndex = (index + wheelOffset) % totalDots;
+      const angle = (normalizedIndex / totalDots) * 2 * Math.PI - Math.PI / 2;
       const x = center + radius * Math.cos(angle);
       const y = center + radius * Math.sin(angle);
       
@@ -125,6 +307,25 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
   };
 
   const dots = createProgressDots();
+
+  const stepAngleRadians = (2 * Math.PI) / totalDots;
+  const seamAngle = -Math.PI / 2 - stepAngleRadians / 2;
+  const seamInnerRadius = radius - 18;
+  const seamOuterRadius = radius + 10;
+  const seamStartX = center + seamInnerRadius * Math.cos(seamAngle);
+  const seamStartY = center + seamInnerRadius * Math.sin(seamAngle);
+  const seamEndX = center + seamOuterRadius * Math.cos(seamAngle);
+  const seamEndY = center + seamOuterRadius * Math.sin(seamAngle);
+  const stepAngle = 360 / totalDots;
+  const rotationAngle = useMemo(() => -(wheelOffset * stepAngle), [wheelOffset, stepAngle]);
+
+  useEffect(() => {
+    if (!hasOverflow) {
+      return;
+    }
+
+    setActivePoint(null);
+  }, [wheelOffset, hasOverflow]);
 
   const handleDotClick = (dot, event) => {
     event.stopPropagation();
@@ -206,7 +407,7 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
     <div className="relative flex flex-col flex-1 min-h-full overflow-y-hidden">
       {/* Fecha actual - Parte superior con padding reducido */}
       <motion.div
-        className="px-4 pt-5 pb-4 text-center flex-shrink-0"
+        className="px-4 pt-4 pb-3 text-center flex-shrink-0"
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
@@ -218,20 +419,26 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
             month: 'long'
           })}
         </h1>
-        <p className="text-sm font-medium text-pink-700 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1.5 inline-block">
+                <button
+          type="button"
+          onClick={onEditStartDate}
+          className="text-sm font-medium text-pink-700 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1.5 inline-flex items-center gap-1.5 transition-colors focus:outline-none focus:ring-2 focus:ring-rose-300 focus:ring-offset-2 focus:ring-offset-transparent hover:bg-white/40"
+          title="Editar fecha de inicio del ciclo"
+        >
+          <Edit className="w-4 h-4" />
           Ciclo actual
-        </p>
+        </button>
       </motion.div>
 
       {/* Contenedor principal con flex-grow para usar todo el espacio disponible */}
         <motion.div
-          className="px-4 flex-grow flex flex-col justify-start mt-4"
+          className="px-4 flex-grow flex flex-col justify-start mt-2"
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.4, delay: 0.1 }}
       >
         {/* Círculo de progreso redimensionado */}
-        <div className="text-center mb-4 flex-shrink-0">
+        <div className="text-center mb-3 flex-shrink-0">
           <motion.div
             ref={circleRef}
             className="relative inline-flex items-center justify-center mb-4"
@@ -239,6 +446,10 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ type: 'spring', stiffness: 200, damping: 15, delay: 0.3 }}
+            onWheel={handleWheelScroll}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
           >
             <svg
               className="w-full h-full"
@@ -265,12 +476,28 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
                 stroke="rgba(255,255,255,0.35)"
                 strokeWidth="0.5"
               />
-              
-              
+              {hasOverflow && (
+                <line
+                  x1={seamStartX}
+                  y1={seamStartY}
+                  x2={seamEndX}
+                  y2={seamEndY}
+                  stroke="rgba(244,63,94,0.55)"
+                  strokeWidth={5}
+                  strokeLinecap="round"
+                  opacity={0.8}
+                />
+              )}
 
               {/* Puntos de progreso */}
-              {dots.map((dot, index) => (
-                <g key={index}>
+              <motion.g
+                animate={{ rotate: rotationAngle }}
+                transition={{ type: 'spring', stiffness: 140, damping: 18 }}
+                initial={false}
+                style={{ transformOrigin: `${center}px ${center}px`, transformBox: 'fill-box' }}
+              >
+                {dots.map((dot, index) => (
+                  <g key={index}>
                   {/* Sombra del punto */}
                   {!(dot.isToday && !dot.hasRecord) && dot.isActive && (
                     <circle
@@ -359,7 +586,8 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
                   )}
 
                 </g>
-              ))}
+                ))}
+              </motion.g>
             </svg>
                         {activePoint && (
               <div onClick={(e) => e.stopPropagation()}>
@@ -410,10 +638,50 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
               </motion.div>
             </div>
           </motion.div>
+          {hasOverflow && (
+            <div className="flex items-center justify-center gap-3">
+              <button
+                type="button"
+                className="p-2 rounded-full bg-white/60 text-rose-500 shadow-sm border border-rose-200/60 transition hover:bg-white"
+                onClick={() => changeOffset(-1)}
+                disabled={wheelOffset === 0}
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-xs font-semibold text-rose-600 tracking-wide uppercase">Rueda del ciclo</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-rose-500">
+                    Día {wheelOffset + 1}
+                  </span>
+                  <span className="text-xs text-rose-400">•</span>
+                  <span className="text-xs font-medium text-rose-500">
+                    Día {Math.min(wheelOffset + totalDots, totalCycleDays)}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={maxOffset}
+                  value={wheelOffset}
+                  onChange={(event) => setWheelOffset(clampOffset(Number(event.target.value)))}
+                  className="w-44 accent-rose-500"
+                />
+              </div>
+              <button
+                type="button"
+                className="p-2 rounded-full bg-white/60 text-rose-500 shadow-sm border border-rose-200/60 transition hover:bg-white"
+                onClick={() => changeOffset(1)}
+                disabled={wheelOffset === maxOffset}
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Leyenda e información del ciclo con diseño mejorado */}
-        <div className="grid grid-cols-2 gap-4 mx-2 mb-10 mt-2 flex-shrink-0">
+        <div className="grid grid-cols-2 gap-4 mx-2 mb-6 mt-2 flex-shrink-0">
           
           {/* Leyenda de colores */}
           <motion.div
@@ -528,19 +796,8 @@ const FloatingActionButton = ({ onAddRecord, onAddCycle }) => {
       {open && (
         <>
           <motion.button
-            onClick={onAddRecord}
-            className="w-12 h-12 rounded-full bg-gradient-to-br from-pink-500 to-rose-500 text-white shadow-lg flex items-center justify-center"
-            whileTap={{ scale: 0.95 }}
-            whileHover={{ scale: 1.05 }}
-            initial={{ opacity: 0, y: 20, scale: 0.8 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            style={{ filter: 'drop-shadow(0 6px 12px rgba(236, 72, 153, 0.3))' }}
-          >
-            <FilePlus className="h-5 w-5" />
-          </motion.button>
-          <motion.button
             onClick={onAddCycle}
-            className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-indigo-500 text-white shadow-lg flex items-center justify-center"
+            className="flex items-center gap-3 px-4 h-12 rounded-full bg-gradient-to-br from-purple-500 to-indigo-500 text-white shadow-lg"
             whileTap={{ scale: 0.95 }}
             whileHover={{ scale: 1.05 }}
             initial={{ opacity: 0, y: 20, scale: 0.8 }}
@@ -548,6 +805,19 @@ const FloatingActionButton = ({ onAddRecord, onAddCycle }) => {
             style={{ filter: 'drop-shadow(0 6px 12px rgba(147, 51, 234, 0.3))' }}
           >
             <CalendarPlus className="h-5 w-5" />
+            <span className="text-sm font-medium tracking-tight">Nuevo ciclo</span>
+          </motion.button>
+          <motion.button
+            onClick={onAddRecord}
+            className="flex items-center gap-3 px-4 h-12 rounded-full bg-gradient-to-br from-pink-500 to-rose-500 text-white shadow-lg"
+            whileTap={{ scale: 0.95 }}
+            whileHover={{ scale: 1.05 }}
+            initial={{ opacity: 0, y: 20, scale: 0.8 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            style={{ filter: 'drop-shadow(0 6px 12px rgba(236, 72, 153, 0.3))' }}
+          >
+            <FilePlus className="h-5 w-5" />
+            <span className="text-sm font-medium tracking-tight">Añadir registro</span>
           </motion.button>
         </>
       )}
@@ -560,14 +830,155 @@ const FloatingActionButton = ({ onAddRecord, onAddCycle }) => {
         animate={{ scale: 1 }}
         style={{ filter: 'drop-shadow(0 6px 16px rgba(236, 72, 153, 0.4))' }}
       >
-        <Plus className="h-6 w-6" />
+        <motion.span animate={{ rotate: open ? 135 : 0 }} transition={{ type: 'spring', stiffness: 260, damping: 20 }}>
+          <Plus className="h-6 w-6" />
+        </motion.span>
       </motion.button>
     </div>
   );
 };
 
 const ModernFertilityDashboard = () => {
-  const { currentCycle, addOrUpdateDataPoint, startNewCycle, isLoading } = useCycleData();
+  const {
+    currentCycle,
+    addOrUpdateDataPoint,
+    startNewCycle,
+    isLoading,
+    updateCycleDates,
+    checkCycleOverlap,
+    forceUpdateCycleStart,
+    refreshData,
+  } = useCycleData();
+  const { toast } = useToast();
+  const [showStartDateEditor, setShowStartDateEditor] = useState(false);
+  const [draftStartDate, setDraftStartDate] = useState(() => currentCycle?.startDate || '');
+  const [dateError, setDateError] = useState('');
+  const [pendingStartDate, setPendingStartDate] = useState(null);
+  const [overlapCycle, setOverlapCycle] = useState(null);
+  const [showOverlapDialog, setShowOverlapDialog] = useState(false);
+  const [isUpdatingStartDate, setIsUpdatingStartDate] = useState(false);
+
+  useEffect(() => {
+    setDraftStartDate(currentCycle?.startDate || '');
+  }, [currentCycle?.startDate]);
+
+  const resetStartDateFlow = useCallback(() => {
+    setPendingStartDate(null);
+    setOverlapCycle(null);
+    setShowOverlapDialog(false);
+  }, []);
+
+  const handleOpenStartDateEditor = useCallback(() => {
+    setDraftStartDate(currentCycle?.startDate || '');
+    setDateError('');
+    resetStartDateFlow();
+    setShowStartDateEditor(true);
+  }, [currentCycle?.startDate, resetStartDateFlow]);
+
+  const handleCloseStartDateEditor = useCallback(() => {
+    setShowStartDateEditor(false);
+    setDateError('');
+    resetStartDateFlow();
+    setDraftStartDate(currentCycle?.startDate || '');
+  }, [currentCycle?.startDate, resetStartDateFlow]);
+
+  const handleCancelOverlapStart = useCallback(() => {
+    resetStartDateFlow();
+  }, [resetStartDateFlow]);
+
+  const handleSaveStartDate = useCallback(async () => {
+    if (!draftStartDate) {
+      setDateError('La fecha de inicio es obligatoria');
+      return;
+    }
+
+    if (!currentCycle?.id) {
+      return;
+    }
+
+    setDateError('');
+    setIsUpdatingStartDate(true);
+
+    try {
+      const overlap = checkCycleOverlap
+        ? await checkCycleOverlap(currentCycle.id, draftStartDate)
+        : null;
+
+      if (overlap) {
+        setPendingStartDate(draftStartDate);
+        setOverlapCycle(overlap);
+        setShowOverlapDialog(true);
+        setIsUpdatingStartDate(false);
+        return;
+      }
+
+      await updateCycleDates(currentCycle.id, draftStartDate);
+      await refreshData({ silent: true });
+      toast({
+        title: 'Fecha de inicio actualizada',
+        description: 'El ciclo se ha ajustado a la nueva fecha de inicio.',
+      });
+      handleCloseStartDateEditor();
+    } catch (error) {
+      console.error('Error updating start date from dashboard:', error);
+      setDateError('No se pudo actualizar la fecha de inicio');
+      toast({
+        title: 'Error',
+        description: 'No se pudo actualizar la fecha de inicio.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUpdatingStartDate(false);
+    }
+  }, [
+    draftStartDate,
+    currentCycle?.id,
+    checkCycleOverlap,
+    updateCycleDates,
+    refreshData,
+    toast,
+    handleCloseStartDateEditor,
+  ]);
+
+  const handleConfirmOverlapStart = useCallback(async () => {
+    if (!currentCycle?.id || !pendingStartDate) {
+      resetStartDateFlow();
+      return;
+    }
+
+    setIsUpdatingStartDate(true);
+    setShowOverlapDialog(false);
+
+    try {
+      await forceUpdateCycleStart(currentCycle.id, pendingStartDate);
+      await refreshData({ silent: true });
+      toast({
+        title: 'Fecha de inicio actualizada',
+        description: 'El ciclo se ha ajustado a la nueva fecha de inicio.',
+      });
+      handleCloseStartDateEditor();
+    } catch (error) {
+      console.error('Error forcing start date from dashboard:', error);
+      setDateError('No se pudo actualizar la fecha de inicio');
+      toast({
+        title: 'Error',
+        description: 'No se pudo actualizar la fecha de inicio.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUpdatingStartDate(false);
+      resetStartDateFlow();
+    }
+  }, [
+    currentCycle?.id,
+    pendingStartDate,
+    forceUpdateCycleStart,
+    refreshData,
+    toast,
+    handleCloseStartDateEditor,
+    resetStartDateFlow,
+  ]);
+
   const [showForm, setShowForm] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showNewCycleDialog, setShowNewCycleDialog] = useState(false);
@@ -766,7 +1177,42 @@ const ModernFertilityDashboard = () => {
             onEdit={handleEdit}
             onTogglePeak={handleTogglePeak}
             currentPeakIsoDate={currentPeakIsoDate}
+            onEditStartDate={handleOpenStartDateEditor}
           />
+          <Dialog
+            open={showStartDateEditor}
+            onOpenChange={(open) => {
+              if (!open) {
+                handleCloseStartDateEditor();
+              }
+            }}
+          >
+            <DialogContent
+              hideClose
+              className="bg-transparent border-none p-0 text-gray-800 w-[90vw] sm:w-auto max-w-md sm:max-w-lg md:max-w-xl max-h-[85vh] overflow-y-auto"
+            >
+              <CycleDatesEditor
+                cycle={currentCycle}
+                startDate={draftStartDate}
+                endDate={currentCycle.endDate}
+                onStartDateChange={(value) => setDraftStartDate(value)}
+                onSave={handleSaveStartDate}
+                onCancel={handleCloseStartDateEditor}
+                isProcessing={isUpdatingStartDate}
+                dateError={dateError}
+                includeEndDate={false}
+                showOverlapDialog={showOverlapDialog}
+                overlapCycle={overlapCycle}
+                onConfirmOverlap={handleConfirmOverlapStart}
+                onCancelOverlap={handleCancelOverlapStart}
+                onClearError={() => setDateError('')}
+                saveLabel="Guardar cambios"
+                title="Editar fecha de inicio"
+                description="Selecciona una nueva fecha de inicio para el ciclo actual. Los registros se reorganizarán automáticamente."
+                className="w-full"
+              />
+            </DialogContent>
+          </Dialog>
         </motion.div>
       </div>
 

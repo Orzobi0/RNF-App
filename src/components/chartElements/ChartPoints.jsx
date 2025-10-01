@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { parseISO, startOfDay, isAfter } from 'date-fns';
 import { getSymbolAppearance } from '@/config/fertilitySymbols';
@@ -19,8 +19,11 @@ const CORRECTION_POINT_FILL = 'rgba(226, 232, 240, 0.6)';
 const CORRECTION_POINT_STROKE = 'rgba(148, 163, 184, 0.5)';
 const PEAK_EMOJI = '✖';
 const POST_PEAK_MARKER_COLOR = '#7f1d1d';
-const PEAK_EMOJI_COLOR = '#ed5ca4';
+const PEAK_EMOJI_COLOR = '#ec4899';
 const PEAK_TEXT_SHADOW = 'drop-shadow(0 2px 4px rgba(244, 114, 182, 0.35))';
+const HIGH_SEQUENCE_NUMBER_COLOR = '#be185d';
+const BASELINE_NUMBER_COLOR = '#2563eb';
+
 
 /** Quita ceros iniciales a día/mes */
 const compactDate = (dateStr) => {
@@ -37,13 +40,27 @@ const splitText = (str = '', maxChars, isFull, fallback = '–') => {
   if (!str) return [fallback, ''];
   if (str.length <= maxChars) return [str, ''];
   if (isFull) {
-    return [str.slice(0, maxChars), ''];
+    const firstLine = str.slice(0, maxChars);
+    const secondLine = str.slice(maxChars, maxChars * 2);
+    return [firstLine, secondLine];
   }
-  const idx = str.indexOf(' ', maxChars);
-  if (idx === -1) {
-    return [str.slice(0, maxChars), str.slice(maxChars)];
-  }
-  return [str.slice(0, idx), str.slice(idx + 1)];
+
+  const splitByWords = (text) => {
+    if (!text) return ['', ''];
+    if (text.length <= maxChars) return [text, ''];
+
+    const spaceIdx = text.indexOf(' ', maxChars);
+    if (spaceIdx === -1) {
+      return [text.slice(0, maxChars), text.slice(maxChars)];
+    }
+
+    return [text.slice(0, spaceIdx), text.slice(spaceIdx + 1)];
+  };
+
+  const [firstLine, remainder] = splitByWords(str);
+  const [secondLine] = splitByWords(remainder.trimStart());
+
+  return [firstLine, secondLine];
 };
 
 /** Limita un texto al número indicado de palabras */
@@ -70,7 +87,9 @@ const ChartPoints = ({
   compact = false,
   reduceMotion = false,
   showInterpretation = false,
-  ovulationDetails = null
+  ovulationDetails = null,
+  firstHighIndex = null,
+  baselineIndices = [],
 }) => {
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -109,6 +128,73 @@ const ChartPoints = ({
   const rowBlockHeight = textRowHeight * (isFullScreen ? 2 : 1.5);
 
   const MotionG = reduceMotion ? 'g' : motion.g;
+
+  const totalPoints = Array.isArray(data) ? data.length : 0;
+
+  const highSequenceOrderMap = useMemo(() => {
+    if (!showInterpretation) {
+      return new Map();
+    }
+
+    const indices = Array.isArray(ovulationDetails?.highSequenceIndices)
+      ? ovulationDetails.highSequenceIndices
+      : [];
+
+    const map = new Map();
+    indices.forEach((sequenceIndex, position) => {
+      const idx = Number(sequenceIndex);
+      if (Number.isInteger(idx) && idx >= 0 && idx < totalPoints && !map.has(idx)) {
+        map.set(idx, position + 1);
+      }
+    });
+    return map;
+  }, [showInterpretation, ovulationDetails, totalPoints]);
+
+    const baselineOrderMap = useMemo(() => {
+    if (!showInterpretation) {
+      return new Map();
+    }
+
+    const indices = Array.isArray(baselineIndices) ? baselineIndices : [];
+    if (!indices.length) {
+      return new Map();
+    }
+
+    const seen = new Set();
+    const validIndices = [];
+    const addIndexIfValid = (value) => {
+      const idx = Number(value);
+      if (Number.isInteger(idx) && idx >= 0 && idx < totalPoints && !seen.has(idx)) {
+        seen.add(idx);
+        validIndices.push(idx);
+      }
+      };
+
+    indices.forEach((value) => {
+      addIndexIfValid(value);
+    });
+    if (firstHighIndex != null) {
+      const firstHighIdx = Number(firstHighIndex);
+      if (Number.isInteger(firstHighIdx)) {
+        addIndexIfValid(firstHighIdx - 1);
+      }
+    }
+
+    if (!validIndices.length) {
+      return new Map();
+    }
+
+    const orderedAscending = [...validIndices].sort((a, b) => a - b);
+const map = new Map();
+let counter = 1;
+for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
+  if (counter > 6) break;   // 👈 límite máximo
+  map.set(orderedAscending[i], counter);
+  counter += 1;
+}
+
+    return map;
+  }, [showInterpretation, baselineIndices, totalPoints, firstHighIndex]);
 
   return (
     <>
@@ -244,14 +330,13 @@ const ChartPoints = ({
           || point.mucus_appearance
           || point.fertility_symbol;
         const isPlaceholder = String(point.id || '').startsWith('placeholder-');
-        const ovulationMarkerIndex = ovulationDetails?.ovulationIndex;
-        const isOvulationPoint =
+        const peakMarkerIndex = ovulationDetails?.peakDayIndex;
+        const isPeakTemperaturePoint =
           showInterpretation &&
-          ovulationDetails?.confirmed &&
-          ovulationMarkerIndex != null &&
+          peakMarkerIndex != null &&
           !point.ignored &&
           hasTemp &&
-          index === ovulationMarkerIndex;
+          index === peakMarkerIndex;
 
         // Símbolo con colores mejorados
         const symbolInfo = getSymbolAppearance(point.fertility_symbol);
@@ -288,6 +373,15 @@ const ChartPoints = ({
               onClick: (e) => onPointInteraction(point, index, e)
             }
           : {};
+
+        const hasHighOrder = highSequenceOrderMap.has(index);
+        const highOrder = hasHighOrder ? highSequenceOrderMap.get(index) : null;
+        const hasBaselineOrder = baselineOrderMap.has(index);
+        const baselineOrder = hasBaselineOrder ? baselineOrderMap.get(index) : null;
+        const numberFontSize = responsiveFontSize(isFullScreen ? 0.75 : 1.2);
+        const numberStrokeWidth = Math.max(0.5, numberFontSize * 0.18);
+        const highNumberY = y - numberFontSize * (isFullScreen ? 2.6 : 1.8);
+        const baselineNumberY = y + numberFontSize * (isFullScreen ? 1.9 : 1.6);
 
 
         // Límites de texto
@@ -355,8 +449,8 @@ const ChartPoints = ({
                 <circle
                   cx={x}
                   cy={y}
-                  r={isOvulationPoint ? 2 : 1.5}
-                  fill={isOvulationPoint ? 'rgba(59, 130, 246, 0.28)' : 'rgba(244, 114, 182, 0.2)'}
+                  r={isPeakTemperaturePoint ? 2 : 1.5}
+                  fill={isPeakTemperaturePoint ? 'rgba(59, 130, 246, 0.28)' : 'rgba(244, 114, 182, 0.2)'}
                   opacity={0.85}
                   style={{ filter: 'url(#pointGlow)' }}
                 />
@@ -365,28 +459,28 @@ const ChartPoints = ({
                 <circle
                   cx={x}
                   cy={y}
-                  r={isOvulationPoint ? 4.2 : 3.5}
+                  r={isPeakTemperaturePoint ? 4.2 : 3.5}
                   fill="none"
                   stroke={
                     point.ignored
                       ? 'rgba(148, 163, 184, 0.4)'
-                      : isOvulationPoint
+                      : isPeakTemperaturePoint
                         ? 'rgba(37, 99, 235, 0.55)'
                         : 'rgba(244, 114, 182, 0.3)'
                   }
-                  strokeWidth={isOvulationPoint ? 2 : 1.5}
-                  opacity={isOvulationPoint ? 0.9 : 0.6}
+                  strokeWidth={isPeakTemperaturePoint ? 2 : 1.5}
+                  opacity={isPeakTemperaturePoint ? 0.9 : 0.6}
                 />
                 
                 {/* Punto principal con gradiente mejorado */}
                 <circle
                   cx={x}
                   cy={y}
-                  r={isOvulationPoint ? 4.6 : 4}
+                  r={isPeakTemperaturePoint ? 4.6 : 4}
                   fill={
                     point.ignored
                       ? 'url(#tempPointIgnoredGradient)'
-                      : isOvulationPoint
+                      : isPeakTemperaturePoint
                         ? 'url(#ovulationPointGradient)'
                         : 'url(#tempPointGradientChart)'
                   }
@@ -395,13 +489,13 @@ const ChartPoints = ({
                       ? '#F59E0B'
                       : point.ignored
                         ? '#94A3B8'
-                        : isOvulationPoint
+                        : isPeakTemperaturePoint
                           ? '#1d4ed8'
                           : '#E91E63'
                   }
-                  strokeWidth={point.ignored ? 2 : isOvulationPoint ? 3.2 : 3}
+                  strokeWidth={point.ignored ? 2 : isPeakTemperaturePoint ? 3.2 : 3}
                   style={{
-                    filter: isOvulationPoint
+                    filter: isPeakTemperaturePoint
                       ? 'drop-shadow(0 3px 8px rgba(37, 99, 235, 0.45))'
                       : 'drop-shadow(0 3px 6px rgba(244, 114, 182, 0.4))',
                     cursor: 'pointer'
@@ -415,17 +509,17 @@ const ChartPoints = ({
                   <circle
                     cx={x}
                     cy={y}
-                    r={isOvulationPoint ? 1.8 : 1.5}
-                    fill={isOvulationPoint ? 'rgba(239, 246, 255, 0.95)' : 'rgba(255, 255, 255, 0.9)'}
+                    r={isPeakTemperaturePoint ? 1.8 : 1.5}
+                    fill={isPeakTemperaturePoint ? 'rgba(239, 246, 255, 0.95)' : 'rgba(255, 255, 255, 0.9)'}
                     style={{
-                      filter: isOvulationPoint
+                      filter: isPeakTemperaturePoint
                         ? 'drop-shadow(0 1px 3px rgba(37, 99, 235, 0.45))'
                         : 'drop-shadow(0 1px 2px rgba(244, 114, 182, 0.3))'
                     }}
                   />
                 )}
 
-                {isOvulationPoint && (
+                {isPeakTemperaturePoint && (
                   <circle
                     cx={x}
                     cy={y}
@@ -438,8 +532,58 @@ const ChartPoints = ({
                 )}
 
 
-              </MotionG>
-            )}
+{showInterpretation &&
+                  hasTemp &&
+                  !point.ignored &&
+                  hasHighOrder && (
+                    <g pointerEvents="none">
+                      <text
+                        x={x}
+                        y={highNumberY}
+                        textAnchor="middle"
+                        fontSize={numberFontSize}
+                        fontWeight="900"
+                        fill={HIGH_SEQUENCE_NUMBER_COLOR}
+
+                        strokeWidth={numberStrokeWidth}
+                        style={{
+                          fontFamily:
+                            '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                          paintOrder: 'stroke',
+                          filter: 'drop-shadow(0 1px 1px rgba(255, 255, 255, 0.8))',
+                        }}
+                      >
+                        {highOrder}
+                      </text>
+                    </g>
+                  )}
+                {showInterpretation &&
+                  hasTemp &&
+                  !point.ignored &&
+                  hasBaselineOrder && (
+                    <g pointerEvents="none">
+                      <text
+                        x={x}
+                        y={baselineNumberY}
+                        textAnchor="middle"
+                        fontSize={numberFontSize}
+                        fontWeight="800"
+                        fill={BASELINE_NUMBER_COLOR}
+                        stroke="#ffffff"
+                        strokeWidth={numberStrokeWidth}
+                        style={{
+                          fontFamily:
+                            '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                          paintOrder: 'stroke',
+                          filter: 'drop-shadow(0 1px 1px rgba(255, 255, 255, 0.85))',
+                        }}
+                      >
+                        {baselineOrder}
+                      </text>
+                    </g>
+                  )}
+                </MotionG>
+              )}
 
             {/* Fecha con estilo mejorado */}
             <text 
@@ -502,7 +646,7 @@ const ChartPoints = ({
                 />
                 {peakStatus && (
                   <g pointerEvents="none">
-                {isPeakMarker ? (
+                    {isPeakMarker ? (
                       <text
                         x={x}
                         y={symbolTextY}
@@ -510,6 +654,9 @@ const ChartPoints = ({
                         fontSize={responsiveFontSize(1.35)}
                         fontWeight="900"
                         fill={PEAK_EMOJI_COLOR}
+                        stroke="#fff"
+                        strokeWidth={1.5}
+                        paintOrder="stroke"
                         style={{ filter: PEAK_TEXT_SHADOW }}
                       >
                         {PEAK_EMOJI}

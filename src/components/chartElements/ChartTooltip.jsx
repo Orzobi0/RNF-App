@@ -93,7 +93,7 @@ const ChartTooltip = ({
       ? 'bg-amber-400 text-amber-900 border border-amber-300 hover:bg-amber-500 hover:text-white focus-visible:ring-amber-300'
       : 'bg-rose-500 text-white border border-rose-500 hover:bg-rose-600 focus-visible:ring-rose-300';
   const peakButtonBaseClasses = [
-    'flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold',
+    'flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-xl text-sm font-semibold sm:text-sm',
     'transition-all duration-200 shadow-sm hover:shadow-md',
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300',
   ].join(' ');
@@ -262,7 +262,7 @@ const ChartTooltip = ({
                     onClick={handleEditClick}
                     variant="outline"
                     size="sm"
-                    className="flex items-center gap-2 px-2 py-2 bg-white/80 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 border-gray-200 hover:border-blue-300 text-gray-700 hover:text-blue-700 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md"
+                    className="flex items-center gap-1.5 px-2 py-1.5 bg-white/80 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 border-gray-200 hover:border-blue-300 text-gray-700 hover:text-blue-700 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md text-xs"
                   >
                     <Edit3 className="h-4 w-4" />
                     <span className="font-medium">Añadir datos</span>
@@ -297,8 +297,8 @@ const ChartTooltip = ({
                 {/* Temperatura */}
                 {hasTemperature && (
                   <motion.div
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
                     transition={{ delay: 0.1 }}
                     className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-1 border border-amber-100/50"
                   >
@@ -328,8 +328,8 @@ const ChartTooltip = ({
                 {/* Símbolo de fertilidad */}
                 {hasSymbol && (
                   <motion.div
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
                     transition={{ delay: 0.15 }}
                     className={`${symbolColors.light} rounded-xl p-1 ${symbolColors.border} border`}
                   >
@@ -346,11 +346,11 @@ const ChartTooltip = ({
                   </motion.div>
                 )}
                 {/* Información de mucus */}
-                <div className="grid grid-cols-1 gap-3">
+                <div className="grid grid-cols-1 gap-1">
                   {/* Sensación */}
                   <motion.div
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
                     transition={{ delay: 0.2 }}
                     className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-1 border border-blue-100/50"
                   >
@@ -369,8 +369,8 @@ const ChartTooltip = ({
 
                   {/* Apariencia */}
                   <motion.div
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
                     transition={{ delay: 0.25 }}
                     className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl p-1 border border-emerald-100/50"
                   >
@@ -386,12 +386,11 @@ const ChartTooltip = ({
                       </div>
                     </div>
                   </motion.div>
-
                   {/* Observaciones */}
                   {hasObservations && (
                     <motion.div
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
                       transition={{ delay: 0.3 }}
                       className="bg-gradient-to-r from-violet-50 to-purple-50 rounded-xl p-1 border border-violet-100/50"
                     >
@@ -415,17 +414,17 @@ const ChartTooltip = ({
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.3 }}
-                  className="flex justify-center gap-3 pt-1 border-t border-gray-100"
+                  className="flex justify-center gap-2 pt-2 border-t border-gray-100"
                 >
                   {onEdit && (
                     <Button
                       onClick={handleEditClick}
                       variant="outline"
                       size="sm"
-                      className="flex items-center gap-2 px-2 py-2 bg-white/80 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 border-gray-200 hover:border-blue-300 text-gray-700 hover:text-blue-700 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md"
+                      className="flex items-center gap-1.5 px-2 py-1.5 bg-white/80 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 border-gray-200 hover:border-blue-300 text-gray-700 hover:text-blue-700 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md text-sm"
                     >
                       <Edit3 className="h-4 w-4" />
-                      <span className="font-medium">{isPlaceholder ? 'Añadir datos' : 'Editar'}</span>
+                      <span className="font-medium">{isPlaceholder ? 'Añadir datos' : ''}</span>
                     </Button>
                   )}
                   {canTogglePeak && !isPlaceholder && (
@@ -439,7 +438,7 @@ const ChartTooltip = ({
                     title={peakButtonAriaLabel}
                     aria-pressed={isPeakDay}
                   >
-                    <span className="font-medium">{peakButtonLabel}</span>
+                    <span className="font-medium text-xs sm:text-sm">{peakButtonLabel}</span>
                   </Button>
                   )}
 
@@ -448,7 +447,7 @@ const ChartTooltip = ({
                       onClick={() => onToggleIgnore(point.id)}
                       variant="outline"
                       size="sm"
-                      className={`flex items-center gap-2 px-2 py-2 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md ${
+                      className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md text-sm ${
                         point.ignored
                           ? 'bg-green-50 hover:bg-green-100 border-green-200 hover:border-green-300 text-green-700'
                           : 'bg-red-50 hover:bg-red-100 border-red-200 hover:border-red-300 text-red-700'
@@ -457,12 +456,12 @@ const ChartTooltip = ({
                       {point.ignored ? (
                         <>
                           <Eye className="h-4 w-4" />
-                          <span className="font-medium">Mostrar</span>
+                          <span className="font-medium"></span>
                         </>
                       ) : (
                         <>
                           <EyeOff className="h-4 w-4" />
-                          <span className="font-medium">Ocultar</span>
+                          <span className="font-medium"></span>
                         </>
                       )}
                     </Button>

@@ -3,7 +3,7 @@ import FertilityChart from '@/components/FertilityChart';
 import { useCycleData } from '@/hooks/useCycleData';
 import { differenceInDays, format, parseISO, startOfDay } from 'date-fns';
 import generatePlaceholders from '@/lib/generatePlaceholders';
-import { RotateCcw, Eye, EyeOff } from 'lucide-react';
+import { RotateCcw, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import DataEntryForm from '@/components/DataEntryForm';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
@@ -76,6 +76,7 @@ const ChartPage = () => {
 
   const targetCycle = isViewingCurrentCycle ? currentCycle : archivedMatch || fetchedCycle;
   const isUsingFallbackCycle = !isViewingCurrentCycle && !archivedMatch;
+  const showBackToCycleRecords = !isViewingCurrentCycle && targetCycle?.id;
   const showLoading = isViewingCurrentCycle
     ? isLoading && !currentCycle?.id
     : externalLoading || (isLoading && !archivedMatch && !fetchedCycle);
@@ -133,14 +134,20 @@ const ChartPage = () => {
     window.dispatchEvent(new Event('resize'));
   }, [orientation, isFullScreen]);
   if (showLoading) {
-    return <p className="text-center text-gray-500">Cargando…</p>;
+    return (
+      <MainLayout>
+        <div className="flex h-full flex-col items-center justify-center space-y-4 px-4 py-8 text-center text-gray-500">
+          <p>Cargando…</p>
+        </div>
+      </MainLayout>
+    );
   }
 
   if (!targetCycle?.id) {
     if (cycleId && notFound) {
       return (
         <MainLayout>
-          <div className="flex flex-col items-center justify-center min-h-[100dvh] space-y-4 text-center text-pink-600">
+          <div className="flex h-full flex-col items-center justify-center space-y-4 px-4 py-8 text-center text-pink-600">
             <p>No se encontró el ciclo solicitado.</p>
             <Button asChild className="bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow">
               <Link to="/archived-cycles">Volver a Mis Ciclos</Link>
@@ -149,7 +156,16 @@ const ChartPage = () => {
         </MainLayout>
       );
     }
-    return <p className="text-center text-pink-600">No hay ciclo activo.</p>;
+    return (
+      <MainLayout>
+        <div className="flex h-full flex-col items-center justify-center space-y-4 px-4 py-8 text-center text-pink-600">
+          <p>No hay ciclo activo.</p>
+          <Button asChild className="bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow">
+            <Link to="/records">Ir a Mis Registros</Link>
+          </Button>
+        </div>
+      </MainLayout>
+    );
   }
 
   const CYCLE_DURATION_DAYS = 28;
@@ -406,6 +422,18 @@ const ChartPage = () => {
         }
         style={containerStyle}
       >
+        {showBackToCycleRecords && !isFullScreen && (
+          <Button
+            asChild
+            variant="ghost"
+            className="absolute top-4 left-4 z-10 bg-white/80 text-slate-700 hover:bg-[#E27DBF]/20"
+          >
+            <Link to={`/cycle/${targetCycle.id}`} className="flex items-center gap-1">
+              <ArrowLeft className="h-4 w-4" />
+              <span className="hidden sm:inline">Registros</span>
+            </Link>
+          </Button>
+        )}
         <Button
           onClick={handleInterpretationClick}
           onPointerUp={handleInterpretationPointerUp}
