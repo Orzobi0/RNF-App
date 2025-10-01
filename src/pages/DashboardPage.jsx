@@ -238,7 +238,8 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
       const isoDate = placeholderDate ? format(placeholderDate, 'yyyy-MM-dd') : null;
       const isFutureDay = placeholderDate ? isAfter(startOfDay(placeholderDate), today) : false;
       const recordWithCycleDay = record ? { ...record, cycleDay: record.cycleDay ?? day } : null;
-      const angle = (index / totalDots) * 2 * Math.PI - Math.PI / 2;
+      const normalizedIndex = (index + wheelOffset) % totalDots;
+      const angle = (normalizedIndex / totalDots) * 2 * Math.PI - Math.PI / 2;
       const x = center + radius * Math.cos(angle);
       const y = center + radius * Math.sin(angle);
       
@@ -281,7 +282,8 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
 
   const dots = createProgressDots();
 
-  const seamAngle = -Math.PI / 2;
+  const stepAngleRadians = (2 * Math.PI) / totalDots;
+  const seamAngle = -Math.PI / 2 - stepAngleRadians / 2;
   const seamInnerRadius = radius - 18;
   const seamOuterRadius = radius + 10;
   const seamStartX = center + seamInnerRadius * Math.cos(seamAngle);

@@ -692,6 +692,7 @@ const FertilityChart = ({
             reduceMotion={reduceMotion}
             showInterpretation={showInterpretation}
             ovulationDetails={ovulationDetails}
+            baselineStartIndex={baselineStartIndex}
           />
 
           {activeIndex !== null && highlightX !== null && dayWidth > 0 && (

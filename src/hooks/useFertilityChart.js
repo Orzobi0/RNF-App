@@ -14,6 +14,7 @@ export const computeOvulationMetrics = (processedData = []) => {
     const temps = entries.map((entry) => entry.temp);
     if (temps.some((value) => !Number.isFinite(value))) return null;
 
+  
     const maxTemp = temps.reduce(
       (max, current) => (current > max ? current : max),
       temps[0]
