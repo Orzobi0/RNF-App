@@ -23,6 +23,7 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
   const [activePoint, setActivePoint] = useState(null);
   const [tooltipPosition, setTooltipPosition] = useState({ clientX: 0, clientY: 0 });
   const [wheelOffset, setWheelOffset] = useState(0);
+  const hasInitializedWheelRef = useRef(false);
   const touchStartXRef = useRef(null);
   const circleRef = useRef(null);
   const cycleStartDate = cycleData.startDate ? parseISO(cycleData.startDate) : null;
@@ -69,12 +70,37 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
 
   useEffect(() => {
     if (!hasOverflow) {
+      hasInitializedWheelRef.current = true;
       setWheelOffset(0);
       return;
     }
 
-    setWheelOffset((previous) => Math.min(previous, maxOffset));
-  }, [hasOverflow, maxOffset]);
+    setWheelOffset((previous) => {
+      const clampedPrevious = Math.min(previous, maxOffset);
+      const desiredOffset = Math.max(
+        0,
+        Math.min(Math.max(cycleData.currentDay - totalDots, 0), maxOffset)
+      );
+      const isCurrentDayVisible =
+        cycleData.currentDay >= clampedPrevious + 1 &&
+        cycleData.currentDay <= clampedPrevious + totalDots;
+
+      if (!hasInitializedWheelRef.current) {
+        hasInitializedWheelRef.current = true;
+        return desiredOffset;
+      }
+
+      if (!isCurrentDayVisible) {
+        return desiredOffset;
+      }
+
+      if (clampedPrevious !== previous) {
+        return clampedPrevious;
+      }
+
+      return previous;
+    });
+  }, [hasOverflow, maxOffset, cycleData.currentDay, totalDots]);
 
   const clampOffset = useCallback(
     (value) => Math.max(0, Math.min(value, maxOffset)),
@@ -770,19 +796,8 @@ const FloatingActionButton = ({ onAddRecord, onAddCycle }) => {
       {open && (
         <>
           <motion.button
-            onClick={onAddRecord}
-            className="w-12 h-12 rounded-full bg-gradient-to-br from-pink-500 to-rose-500 text-white shadow-lg flex items-center justify-center"
-            whileTap={{ scale: 0.95 }}
-            whileHover={{ scale: 1.05 }}
-            initial={{ opacity: 0, y: 20, scale: 0.8 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            style={{ filter: 'drop-shadow(0 6px 12px rgba(236, 72, 153, 0.3))' }}
-          >
-            <FilePlus className="h-5 w-5" />
-          </motion.button>
-          <motion.button
             onClick={onAddCycle}
-            className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-indigo-500 text-white shadow-lg flex items-center justify-center"
+            className="flex items-center gap-3 px-4 h-12 rounded-full bg-gradient-to-br from-purple-500 to-indigo-500 text-white shadow-lg"
             whileTap={{ scale: 0.95 }}
             whileHover={{ scale: 1.05 }}
             initial={{ opacity: 0, y: 20, scale: 0.8 }}
@@ -790,6 +805,19 @@ const FloatingActionButton = ({ onAddRecord, onAddCycle }) => {
             style={{ filter: 'drop-shadow(0 6px 12px rgba(147, 51, 234, 0.3))' }}
           >
             <CalendarPlus className="h-5 w-5" />
+            <span className="text-sm font-medium tracking-tight">Nuevo ciclo</span>
+          </motion.button>
+          <motion.button
+            onClick={onAddRecord}
+            className="flex items-center gap-3 px-4 h-12 rounded-full bg-gradient-to-br from-pink-500 to-rose-500 text-white shadow-lg"
+            whileTap={{ scale: 0.95 }}
+            whileHover={{ scale: 1.05 }}
+            initial={{ opacity: 0, y: 20, scale: 0.8 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            style={{ filter: 'drop-shadow(0 6px 12px rgba(236, 72, 153, 0.3))' }}
+          >
+            <FilePlus className="h-5 w-5" />
+            <span className="text-sm font-medium tracking-tight">Añadir registro</span>
           </motion.button>
         </>
       )}
@@ -802,7 +830,9 @@ const FloatingActionButton = ({ onAddRecord, onAddCycle }) => {
         animate={{ scale: 1 }}
         style={{ filter: 'drop-shadow(0 6px 16px rgba(236, 72, 153, 0.4))' }}
       >
-        <Plus className="h-6 w-6" />
+        <motion.span animate={{ rotate: open ? 135 : 0 }} transition={{ type: 'spring', stiffness: 260, damping: 20 }}>
+          <Plus className="h-6 w-6" />
+        </motion.span>
       </motion.button>
     </div>
   );
