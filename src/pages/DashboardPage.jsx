@@ -288,6 +288,8 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
   const seamStartY = center + seamInnerRadius * Math.sin(seamAngle);
   const seamEndX = center + seamOuterRadius * Math.cos(seamAngle);
   const seamEndY = center + seamOuterRadius * Math.sin(seamAngle);
+  const stepAngle = 360 / totalDots;
+  const rotationAngle = useMemo(() => -(wheelOffset * stepAngle), [wheelOffset, stepAngle]);
 
   useEffect(() => {
     if (!hasOverflow) {
@@ -377,7 +379,7 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
     <div className="relative flex flex-col flex-1 min-h-full overflow-y-hidden">
       {/* Fecha actual - Parte superior con padding reducido */}
       <motion.div
-        className="px-4 pt-5 pb-4 text-center flex-shrink-0"
+        className="px-4 pt-4 pb-3 text-center flex-shrink-0"
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
@@ -402,13 +404,13 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
 
       {/* Contenedor principal con flex-grow para usar todo el espacio disponible */}
         <motion.div
-          className="px-4 flex-grow flex flex-col justify-start mt-4"
+          className="px-4 flex-grow flex flex-col justify-start mt-2"
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.4, delay: 0.1 }}
       >
         {/* Círculo de progreso redimensionado */}
-        <div className="text-center mb-4 flex-shrink-0">
+        <div className="text-center mb-3 flex-shrink-0">
           <motion.div
             ref={circleRef}
             className="relative inline-flex items-center justify-center mb-4"
@@ -460,8 +462,14 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
               )}
 
               {/* Puntos de progreso */}
-              {dots.map((dot, index) => (
-                <g key={index}>
+              <motion.g
+                animate={{ rotate: rotationAngle }}
+                transition={{ type: 'spring', stiffness: 140, damping: 18 }}
+                initial={false}
+                style={{ transformOrigin: `${center}px ${center}px`, transformBox: 'fill-box' }}
+              >
+                {dots.map((dot, index) => (
+                  <g key={index}>
                   {/* Sombra del punto */}
                   {!(dot.isToday && !dot.hasRecord) && dot.isActive && (
                     <circle
@@ -550,7 +558,8 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
                   )}
 
                 </g>
-              ))}
+                ))}
+              </motion.g>
             </svg>
                         {activePoint && (
               <div onClick={(e) => e.stopPropagation()}>
@@ -644,7 +653,7 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
         </div>
 
         {/* Leyenda e información del ciclo con diseño mejorado */}
-        <div className="grid grid-cols-2 gap-4 mx-2 mb-10 mt-2 flex-shrink-0">
+        <div className="grid grid-cols-2 gap-4 mx-2 mb-6 mt-2 flex-shrink-0">
           
           {/* Leyenda de colores */}
           <motion.div
