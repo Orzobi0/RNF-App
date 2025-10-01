@@ -673,6 +673,20 @@ const FertilityChart = ({
             />
           )}
 
+          {activeIndex !== null && highlightX !== null && dayWidth > 0 && (
+            <g pointerEvents="none">
+              <line
+                x1={highlightX}
+                y1={0}
+                x2={highlightX}
+                y2={chartHeight}
+                stroke="rgba(235, 171, 204,0.15)"
+                strokeWidth={Math.max(3, Math.min(14, dayWidth * 0.4))}
+                strokeLinecap="round"
+              />
+            </g>
+          )}
+
           {/* Puntos del gráfico */}
           <ChartPoints
             data={allDataPoints}
@@ -697,19 +711,6 @@ const FertilityChart = ({
             baselineIndices={baselineIndices}
           />
 
-          {activeIndex !== null && highlightX !== null && dayWidth > 0 && (
-            <g pointerEvents="none">
-              <line
-                x1={highlightX}
-                y1={0}
-                x2={highlightX}
-                y2={chartHeight}
-                stroke="rgba(206,95,153,0.15)"
-                strokeWidth={Math.max(2, Math.min(10, dayWidth * 0.28))}
-                strokeLinecap="round"
-              />
-            </g>
-          )}
         </motion.svg>
 
         {/* Tooltip mejorado */}

@@ -174,11 +174,10 @@ const ChartPoints = ({
     }
 
     const orderedAscending = [...validIndices].sort((a, b) => a - b);
-    const windowed = orderedAscending.slice(-6);
     const map = new Map();
     let counter = 1;
-    for (let i = windowed.length - 1; i >= 0; i -= 1) {
-      map.set(windowed[i], counter);
+    for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
+      map.set(orderedAscending[i], counter);
       counter += 1;
     }
     return map;
