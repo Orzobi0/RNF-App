@@ -708,6 +708,7 @@ const FertilityChart = ({
             showInterpretation={showInterpretation}
             ovulationDetails={ovulationDetails}
             baselineStartIndex={baselineStartIndex}
+            firstHighIndex={firstHighIndex}
             baselineIndices={baselineIndices}
           />
 

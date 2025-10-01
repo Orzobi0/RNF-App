@@ -297,8 +297,8 @@ const ChartTooltip = ({
                 {/* Temperatura */}
                 {hasTemperature && (
                   <motion.div
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
                     transition={{ delay: 0.1 }}
                     className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-1 border border-amber-100/50"
                   >
@@ -328,8 +328,8 @@ const ChartTooltip = ({
                 {/* Símbolo de fertilidad */}
                 {hasSymbol && (
                   <motion.div
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
                     transition={{ delay: 0.15 }}
                     className={`${symbolColors.light} rounded-xl p-1 ${symbolColors.border} border`}
                   >
@@ -346,11 +346,11 @@ const ChartTooltip = ({
                   </motion.div>
                 )}
                 {/* Información de mucus */}
-                <div className="grid grid-cols-1 gap-3">
+                <div className="grid grid-cols-1 gap-1">
                   {/* Sensación */}
                   <motion.div
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
                     transition={{ delay: 0.2 }}
                     className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-1 border border-blue-100/50"
                   >
@@ -369,12 +369,12 @@ const ChartTooltip = ({
 
                   {/* Apariencia */}
                   <motion.div
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
                     transition={{ delay: 0.25 }}
                     className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl p-1 border border-emerald-100/50"
                   >
-                    <div className="flex-1 items-center gap-3">
+                    <div className="flex items-center gap-3">
                       <div className="w-6 h-6 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center shadow-md">
                         <Circle className="w-4 h-4 text-white" />
                       </div>
@@ -389,8 +389,8 @@ const ChartTooltip = ({
                   {/* Observaciones */}
                   {hasObservations && (
                     <motion.div
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
                       transition={{ delay: 0.3 }}
                       className="bg-gradient-to-r from-violet-50 to-purple-50 rounded-xl p-1 border border-violet-100/50"
                     >

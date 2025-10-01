@@ -88,6 +88,7 @@ const ChartPoints = ({
   reduceMotion = false,
   showInterpretation = false,
   ovulationDetails = null,
+  firstHighIndex = null,
   baselineIndices = [],
 }) => {
   const itemVariants = {
@@ -161,27 +162,39 @@ const ChartPoints = ({
 
     const seen = new Set();
     const validIndices = [];
-    indices.forEach((value) => {
+    const addIndexIfValid = (value) => {
       const idx = Number(value);
       if (Number.isInteger(idx) && idx >= 0 && idx < totalPoints && !seen.has(idx)) {
         seen.add(idx);
         validIndices.push(idx);
       }
+      };
+
+    indices.forEach((value) => {
+      addIndexIfValid(value);
     });
+    if (firstHighIndex != null) {
+      const firstHighIdx = Number(firstHighIndex);
+      if (Number.isInteger(firstHighIdx)) {
+        addIndexIfValid(firstHighIdx - 1);
+      }
+    }
 
     if (!validIndices.length) {
       return new Map();
     }
 
     const orderedAscending = [...validIndices].sort((a, b) => a - b);
-    const map = new Map();
-    let counter = 1;
-    for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
-      map.set(orderedAscending[i], counter);
-      counter += 1;
-    }
+const map = new Map();
+let counter = 1;
+for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
+  if (counter > 6) break;   // 👈 límite máximo
+  map.set(orderedAscending[i], counter);
+  counter += 1;
+}
+
     return map;
-  }, [showInterpretation, baselineIndices, totalPoints]);
+  }, [showInterpretation, baselineIndices, totalPoints, firstHighIndex]);
 
   return (
     <>
@@ -367,7 +380,7 @@ const ChartPoints = ({
         const baselineOrder = hasBaselineOrder ? baselineOrderMap.get(index) : null;
         const numberFontSize = responsiveFontSize(isFullScreen ? 0.75 : 1.2);
         const numberStrokeWidth = Math.max(0.5, numberFontSize * 0.18);
-        const highNumberY = y - numberFontSize * (isFullScreen ? 2.6 : 2.2);
+        const highNumberY = y - numberFontSize * (isFullScreen ? 2.6 : 1.8);
         const baselineNumberY = y + numberFontSize * (isFullScreen ? 1.9 : 1.6);
 
 
