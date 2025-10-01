@@ -50,6 +50,7 @@ const CycleDetailPage = () => {
   const [showForm, setShowForm] = useState(false);
   const [recordToDelete, setRecordToDelete] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showCycleDeleteDialog, setShowCycleDeleteDialog] = useState(false);
   const [showCycleActions, setShowCycleActions] = useState(false);
   const [draftStartDate, setDraftStartDate] = useState('');
   const [draftEndDate, setDraftEndDate] = useState('');
@@ -57,6 +58,11 @@ const CycleDetailPage = () => {
   const [showOverlapDialog, setShowOverlapDialog] = useState(false);
   const [pendingPayload, setPendingPayload] = useState(null);
   const [overlapCycle, setOverlapCycle] = useState(null);
+  const cycleRangeLabel = cycleData
+    ? `${format(parseISO(cycleData.startDate), 'dd/MM/yyyy')} - ${
+        cycleData.endDate ? format(parseISO(cycleData.endDate), 'dd/MM/yyyy') : 'En curso'
+      }`
+    : '';
 
   const saveCycleDataToLocalStorage = useCallback(
     (updatedCycle) => {
@@ -187,16 +193,19 @@ const CycleDetailPage = () => {
     }
   };
 
-  const handleDeleteCycle = async () => {
+  const handleDeleteCycleRequest = () => {
+    if (!cycleData) return;
+    setShowCycleDeleteDialog(true);
+  };
+
+  const handleConfirmDeleteCycle = async () => {
     if (!cycleData || !user) return;
-    if (!window.confirm('¿Eliminar este ciclo?')) {
-      return;
-    }
     setIsProcessing(true);
     try {
       await deleteCycle(cycleData.id);
       toast({ title: 'Ciclo eliminado', description: 'El ciclo ha sido eliminado.' });
       navigate('/archived-cycles');
+      setShowCycleDeleteDialog(false);
     } catch (error) {
       console.error(error);
       toast({ title: 'Error', description: 'No se pudo eliminar el ciclo.', variant: 'destructive' });
@@ -360,7 +369,11 @@ const CycleDetailPage = () => {
                 <p className="text-sm text-slate-600 mb-3">
                   Esta acción no se puede deshacer. Se eliminarán todos los registros asociados.
                 </p>
-                <Button variant="destructive" onClick={handleDeleteCycle} disabled={isProcessing} className="w-full sm:w-auto">
+                <Button
+                  onClick={handleDeleteCycleRequest}
+                  disabled={isProcessing}
+                  className="w-full sm:w-auto bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white shadow-md"
+                >
                   <Trash2 className="mr-2 h-4 w-4" /> Eliminar ciclo
                 </Button>
               </div>
@@ -427,7 +440,26 @@ const CycleDetailPage = () => {
             isOpen={!!recordToDelete}
             onClose={() => setRecordToDelete(null)}
             onConfirm={confirmDeleteRecord}
-            recordDate={recordToDelete ? format(parseISO(recordToDelete.isoDate), 'dd/MM/yyyy') : ''}
+            title="Eliminar registro"
+            confirmLabel="Eliminar registro"
+            description={
+              recordToDelete
+                ? `¿Estás seguro de que quieres eliminar el registro del ${format(parseISO(recordToDelete.isoDate), 'dd/MM/yyyy')}? Esta acción no se puede deshacer.`
+                : ''
+            }
+            isProcessing={isProcessing}
+          />
+          <DeletionDialog
+            isOpen={showCycleDeleteDialog}
+            onClose={() => setShowCycleDeleteDialog(false)}
+            onConfirm={handleConfirmDeleteCycle}
+            title="Eliminar ciclo"
+            confirmLabel="Eliminar ciclo"
+            description={
+              cycleRangeLabel
+                ? `¿Estás seguro de que quieres eliminar el ciclo ${cycleRangeLabel}? Esta acción no se puede deshacer.`
+                : '¿Estás seguro de que quieres eliminar este ciclo? Esta acción no se puede deshacer.'
+            }
             isProcessing={isProcessing}
           />
           <OverlapWarningDialog

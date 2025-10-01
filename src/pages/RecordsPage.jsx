@@ -352,7 +352,13 @@ const RecordsPage = () => {
         isOpen={!!recordToDelete}
         onClose={() => setRecordToDelete(null)}
         onConfirm={confirmDelete}
-        recordDate={recordToDelete ? format(parseISO(recordToDelete.isoDate), 'dd/MM/yyyy') : ''}
+        title="Eliminar registro"
+        confirmLabel="Eliminar registro"
+        description={
+          recordToDelete
+            ? `¿Estás seguro de que quieres eliminar el registro del ${format(parseISO(recordToDelete.isoDate), 'dd/MM/yyyy')}? Esta acción no se puede deshacer.`
+            : ''
+        }
         isProcessing={isProcessing}
       />
     </div>
