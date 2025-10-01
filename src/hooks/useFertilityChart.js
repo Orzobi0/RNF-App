@@ -116,6 +116,13 @@ const evaluateHighSequence = ({
 
   const requiredRise = currentBaselineTemp + 0.2;
   const highs = [];
+  const sequenceIndices = [];
+  const seenSequenceIndices = new Set();
+  const addSequenceIndex = (index) => {
+    if (index == null || seenSequenceIndices.has(index)) return;
+    seenSequenceIndices.add(index);
+    sequenceIndices.push(index);
+  };
   let borderlineSkipIndex = null; // segunda excepción
   let slipUsed = false; // un valor bajo permitido antes de 3 altos
 
@@ -128,6 +135,7 @@ const evaluateHighSequence = ({
 
     // --- Caso normal: temperatura alta ---
     if (temp > currentBaselineTemp) {
+      addSequenceIndex(idx);
       highs.push({ index: idx, temp });
 
       // Regla normal: 3-high
@@ -135,7 +143,7 @@ const evaluateHighSequence = ({
         return {
           confirmed: true,
           confirmationIndex: highs[2].index,
-          usedIndices: highs.map((p) => p.index),
+          usedIndices: sequenceIndices,
           rule: "3-high",
         };
       }
@@ -145,24 +153,24 @@ const evaluateHighSequence = ({
         return {
           confirmed: true,
           confirmationIndex: highs[3].index,
-          usedIndices: highs.map((p) => p.index),
+          usedIndices: sequenceIndices,
           rule: "german-3+1",
         };
       }
 
-  // 2ª excepción: un rasante en los 3 primeros → basta con que el 3º alto sea ≥ +0.2
-  if (
-    borderlineSkipIndex !== null &&
-    highs.length === 3 &&
-    highs[2].temp >= requiredRise
-  ) {
-    return {
-      confirmed: true,
-      confirmationIndex: highs[2].index,
-      usedIndices: highs.map((p) => p.index),
-      rule: "german-2nd-exception",
-    };
-  }
+      // 2ª excepción: un rasante en los 3 primeros → basta con que el 3º alto sea ≥ +0.2
+      if (
+        borderlineSkipIndex !== null &&
+        highs.length === 3 &&
+        highs[2].temp >= requiredRise
+      ) {
+        return {
+          confirmed: true,
+          confirmationIndex: highs[2].index,
+          usedIndices: sequenceIndices,
+          rule: "german-2nd-exception",
+        };
+      }
 
 
       // Regla 5-high
@@ -170,7 +178,7 @@ const evaluateHighSequence = ({
         return {
           confirmed: true,
           confirmationIndex: highs[4].index,
-          usedIndices: highs.map((p) => p.index),
+          usedIndices: sequenceIndices,
           rule: "5-high",
         };
       }
@@ -178,24 +186,26 @@ const evaluateHighSequence = ({
       continue;
     }
 
-// --- Borderline (segunda excepción) ---
-if (temp >= currentBaselineTemp - 0.05 && borderlineSkipIndex === null && highs.length > 0 && highs.length < 3) {
-  borderlineSkipIndex = idx;
-  highs.push({ index: idx, temp: currentBaselineTemp }); // lo contamos como un “alto” justo en baseline
-  continue;
-}
+    // --- Borderline (segunda excepción) ---
+    if (temp >= currentBaselineTemp - 0.05 && borderlineSkipIndex === null && highs.length > 0 && highs.length < 3) {
+      borderlineSkipIndex = idx;
+      addSequenceIndex(idx);
+      highs.push({ index: idx, temp: currentBaselineTemp }); // lo contamos como un “alto” justo en baseline
+      continue;
+    }
 
 
     // --- Slip permitido ---
     if (!slipUsed && highs.length > 0 && highs.length < 3) {
       slipUsed = true;
+      addSequenceIndex(idx);
       continue;
     }
 
     break;
   }
 
-  return { confirmed: false };
+  return { confirmed: false, usedIndices: sequenceIndices };
 };
 
 
