@@ -3,7 +3,7 @@ import FertilityChart from '@/components/FertilityChart';
 import { useCycleData } from '@/hooks/useCycleData';
 import { differenceInDays, format, parseISO, startOfDay } from 'date-fns';
 import generatePlaceholders from '@/lib/generatePlaceholders';
-import { RotateCcw, Eye, EyeOff } from 'lucide-react';
+import { RotateCcw, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import DataEntryForm from '@/components/DataEntryForm';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
@@ -76,6 +76,7 @@ const ChartPage = () => {
 
   const targetCycle = isViewingCurrentCycle ? currentCycle : archivedMatch || fetchedCycle;
   const isUsingFallbackCycle = !isViewingCurrentCycle && !archivedMatch;
+  const showBackToCycleRecords = !isViewingCurrentCycle && targetCycle?.id;
   const showLoading = isViewingCurrentCycle
     ? isLoading && !currentCycle?.id
     : externalLoading || (isLoading && !archivedMatch && !fetchedCycle);
@@ -421,6 +422,18 @@ const ChartPage = () => {
         }
         style={containerStyle}
       >
+        {showBackToCycleRecords && !isFullScreen && (
+          <Button
+            asChild
+            variant="ghost"
+            className="absolute top-4 left-4 z-10 bg-white/80 text-slate-700 hover:bg-[#E27DBF]/20"
+          >
+            <Link to={`/cycle/${targetCycle.id}`} className="flex items-center gap-1">
+              <ArrowLeft className="h-4 w-4" />
+              <span className="hidden sm:inline">Registros</span>
+            </Link>
+          </Button>
+        )}
         <Button
           onClick={handleInterpretationClick}
           onPointerUp={handleInterpretationPointerUp}

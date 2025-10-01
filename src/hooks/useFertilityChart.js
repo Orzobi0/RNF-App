@@ -7,11 +7,7 @@ const DEFAULT_TEMP_MAX = 37.5;
 export const computeOvulationMetrics = (processedData = []) => {
   const isValid = (p) => p && p.displayTemperature != null && !p.ignored;
   const windowSize = 6;
-  const slidingWindow = [];
-
-  let baselineTemp = null;
-  let baselineStartIndex = null;
-  let firstHighIndex = null;
+  const borderlineTolerance = 0.05;
 
   const getBaselineInfo = (entries) => {
     if (!entries || entries.length !== windowSize) return null;
@@ -22,46 +18,76 @@ export const computeOvulationMetrics = (processedData = []) => {
       (max, current) => (current > max ? current : max),
       temps[0]
     );
+    const borderlineCount = temps.reduce((count, current) => {
+      if (current >= maxTemp - borderlineTolerance && current <= maxTemp) {
+        return count + 1;
+      }
+      return count;
+    }, 0);
+
+    if (borderlineCount >= 2) {
+      return null;
+    }
 
     return {
       baselineTemp: maxTemp,
       baselineStartIndex: entries[0].index,
+      baselineBorderlineCount: borderlineCount,
     };
   };
 
-  for (let idx = 0; idx < processedData.length; idx++) {
-    const candidate = processedData[idx];
-    if (!isValid(candidate)) continue;
+  const findBaselineFromIndex = (startIndex) => {
+    const slidingWindow = [];
 
-    const temperature = candidate.displayTemperature;
-    if (!Number.isFinite(temperature)) continue;
+    for (let idx = startIndex; idx < processedData.length; idx += 1) {
+      const candidate = processedData[idx];
+      if (!isValid(candidate)) {
+        continue;
+      }
 
-    if (slidingWindow.length === windowSize) {
-      const baselineInfo = getBaselineInfo(slidingWindow);
-      if (baselineInfo) {
-        baselineTemp = baselineInfo.baselineTemp;
-        baselineStartIndex = baselineInfo.baselineStartIndex;
+      const temperature = candidate.displayTemperature;
+      if (!Number.isFinite(temperature)) {
+        continue;
+      }
 
-        if (temperature > baselineTemp) {
-          firstHighIndex = idx;
-          break;
+      slidingWindow.push({ index: idx, temp: temperature });
+      if (slidingWindow.length > windowSize) {
+        slidingWindow.shift();
+      }
+    
+
+      if (slidingWindow.length === windowSize) {
+        const baselineInfo = getBaselineInfo(slidingWindow);
+        if (!baselineInfo) {
+          continue;
         }
+
+        let firstHighIndex = null;
+        for (let j = idx + 1; j < processedData.length; j += 1) {
+          const potentialHigh = processedData[j];
+          if (!isValid(potentialHigh)) {
+            continue;
+          }
+          const potentialTemp = potentialHigh.displayTemperature;
+          if (!Number.isFinite(potentialTemp)) {
+            continue;
+          }
+          if (potentialTemp > baselineInfo.baselineTemp) {
+            firstHighIndex = j;
+            break;
+          }
+        }
+
+        return {
+          baselineTemp: baselineInfo.baselineTemp,
+          baselineStartIndex: baselineInfo.baselineStartIndex,
+          baselineBorderlineCount: baselineInfo.baselineBorderlineCount,
+          firstHighIndex,
+        };
       }
     }
-
-    slidingWindow.push({ index: idx, temp: temperature });
-    if (slidingWindow.length > windowSize) {
-      slidingWindow.shift();
-    }
-  }
-
-  if (baselineTemp == null && slidingWindow.length === windowSize) {
-    const baselineInfo = getBaselineInfo(slidingWindow);
-    if (baselineInfo) {
-      baselineTemp = baselineInfo.baselineTemp;
-      baselineStartIndex = baselineInfo.baselineStartIndex;
-    }
-  }
+      return null;
+  };
 
   const emptyDetails = {
     confirmed: false,
@@ -72,87 +98,146 @@ export const computeOvulationMetrics = (processedData = []) => {
     ovulationIndex: null,
   };
 
-  if (baselineTemp == null || firstHighIndex == null) {
+  let baselineTemp = null;
+  let baselineStartIndex = null;
+  let firstHighIndex = null;
+  let baselineBorderlineCount = null;
+
+  let confirmedDetails = emptyDetails;
+  let searchStartIndex = 0;
+
+const evaluateHighSequence = ({
+  baselineTemp: currentBaselineTemp,
+  firstHighIndex: sequenceStartIndex,
+}) => {
+  if (sequenceStartIndex == null) {
+    return { confirmed: false };
+  }
+
+  const requiredRise = currentBaselineTemp + 0.2;
+  const highs = [];
+  let borderlineSkipIndex = null; // segunda excepción
+  let slipUsed = false; // un valor bajo permitido antes de 3 altos
+
+  for (let idx = sequenceStartIndex; idx < processedData.length; idx++) {
+    const point = processedData[idx];
+    if (!isValid(point)) break;
+
+    const temp = point.displayTemperature;
+    if (!Number.isFinite(temp)) break;
+
+    // --- Caso normal: temperatura alta ---
+    if (temp > currentBaselineTemp) {
+      highs.push({ index: idx, temp });
+
+      // Regla normal: 3-high
+      if (highs.length === 3 && highs[2].temp >= requiredRise) {
+        return {
+          confirmed: true,
+          confirmationIndex: highs[2].index,
+          usedIndices: highs.map((p) => p.index),
+          rule: "3-high",
+        };
+      }
+
+      // 1ª excepción: tercer alto <+0.2 → pedir un 4º > baseline
+      if (highs.length === 4 && highs[2].temp < requiredRise && highs[3].temp > currentBaselineTemp) {
+        return {
+          confirmed: true,
+          confirmationIndex: highs[3].index,
+          usedIndices: highs.map((p) => p.index),
+          rule: "german-3+1",
+        };
+      }
+
+  // 2ª excepción: un rasante en los 3 primeros → basta con que el 3º alto sea ≥ +0.2
+  if (
+    borderlineSkipIndex !== null &&
+    highs.length === 3 &&
+    highs[2].temp >= requiredRise
+  ) {
     return {
-      baselineTemp,
-      baselineStartIndex,
-      firstHighIndex,
-      ovulationDetails: emptyDetails,
+      confirmed: true,
+      confirmationIndex: highs[2].index,
+      usedIndices: highs.map((p) => p.index),
+      rule: "german-2nd-exception",
     };
   }
 
-  const evaluateSequence = (sequence) => {
-    if (!sequence || sequence.length < 3) return null;
 
-    const requiredRise = baselineTemp + 0.2;
-    const firstThree = sequence.slice(0, 3);
-    if (firstThree.length < 3) return null;
-
-    const thirdHigh = firstThree[2];
-
-    if (thirdHigh.temp >= requiredRise) {
-      return {
-        confirmationIndex: thirdHigh.index,
-        usedIndices: firstThree.map((p) => p.index),
-        rule: '3-high',
-      };
-    }
-
-    if (sequence.length >= 5) {
-      const fourthHigh = sequence[3];
-      const fifthHigh = sequence[4];
-
-    if (
-        fourthHigh &&
-        fifthHigh &&
-        fourthHigh.temp > baselineTemp &&
-        fifthHigh.temp >= requiredRise
-      ) {
+      // Regla 5-high
+      if (highs.length === 5 && highs[3].temp > currentBaselineTemp && highs[4].temp >= requiredRise) {
         return {
-          confirmationIndex: fifthHigh.index,
-          usedIndices: sequence.slice(0, 5).map((p) => p.index),
-          rule: '5-high',
+          confirmed: true,
+          confirmationIndex: highs[4].index,
+          usedIndices: highs.map((p) => p.index),
+          rule: "5-high",
         };
       }
-    }
 
-    return null;
-  };
-
-  let confirmedDetails = emptyDetails;
-
-  for (let start = firstHighIndex; start < processedData.length; start++) {
-    const startPoint = processedData[start];
-    if (!isValid(startPoint) || startPoint.displayTemperature <= baselineTemp) {
       continue;
     }
 
-    const sequence = [];
-    for (let j = start; j < processedData.length && sequence.length < 5; j++) {
-      const candidate = processedData[j];
-      if (!isValid(candidate) || candidate.displayTemperature <= baselineTemp) {
-        break;
-      }
-      sequence.push({ index: j, temp: candidate.displayTemperature });
+// --- Borderline (segunda excepción) ---
+if (temp >= currentBaselineTemp - 0.05 && borderlineSkipIndex === null && highs.length > 0 && highs.length < 3) {
+  borderlineSkipIndex = idx;
+  highs.push({ index: idx, temp: currentBaselineTemp }); // lo contamos como un “alto” justo en baseline
+  continue;
+}
+
+
+    // --- Slip permitido ---
+    if (!slipUsed && highs.length > 0 && highs.length < 3) {
+      slipUsed = true;
+      continue;
     }
 
-    const result = evaluateSequence(sequence);
-    if (result) {
+    break;
+  }
+
+  return { confirmed: false };
+};
+
+
+  while (searchStartIndex < processedData.length) {
+    const baselineInfo = findBaselineFromIndex(searchStartIndex);
+    if (!baselineInfo) {
+      break;
+    }
+
+    baselineTemp = baselineInfo.baselineTemp;
+    baselineStartIndex = baselineInfo.baselineStartIndex;
+    firstHighIndex = baselineInfo.firstHighIndex;
+    baselineBorderlineCount = baselineInfo.baselineBorderlineCount;
+
+    if (firstHighIndex == null) {
+      searchStartIndex = baselineStartIndex + 1;
+      continue;
+    }
+
+    const evaluation = evaluateHighSequence(baselineInfo);
+    if (evaluation?.requireRebaseline) {
+      searchStartIndex = baselineStartIndex + 1;
+      continue;
+    }
+
+    if (evaluation?.confirmed) {
       confirmedDetails = {
         confirmed: true,
-        confirmationIndex: result.confirmationIndex,
-        infertileStartIndex: result.confirmationIndex,
-        rule: result.rule,
-        highSequenceIndices: result.usedIndices,
+        confirmationIndex: evaluation.confirmationIndex,
+        infertileStartIndex: evaluation.confirmationIndex,
+        rule: evaluation.rule,
+        highSequenceIndices: evaluation.usedIndices,
         ovulationIndex:
           firstHighIndex != null
             ? firstHighIndex
-            : result.usedIndices?.length
-              ? result.usedIndices[0]
+            : evaluation.usedIndices?.length
+              ? evaluation.usedIndices[0]
               : null,
       };
       break;
     }
+        searchStartIndex = baselineStartIndex + 1;
   }
 
   return {
