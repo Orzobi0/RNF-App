@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, useMemo, useCallback } from 'react';
+import { parseISO, differenceInCalendarDays } from 'date-fns';
 import computePeakStatuses from '@/lib/computePeakStatuses';
 
 const DEFAULT_TEMP_MIN = 35.5;
@@ -424,7 +425,7 @@ export const useFertilityChart = (
 
   const peakInfertilityStartIndex = useMemo(() => {
     if (!allDataPoints.length) return null;
-    if (!hasTemperatureData) return 0;
+    
 
     let thirdDayIndex = null;
     for (let idx = 0; idx < allDataPoints.length; idx += 1) {
@@ -434,13 +435,34 @@ export const useFertilityChart = (
       }
     }
 
-    if (thirdDayIndex == null) return null;
+    if (thirdDayIndex != null) {
     const candidate = thirdDayIndex + 1;
     if (candidate >= allDataPoints.length) {
       return thirdDayIndex;
     }
     return candidate;
-  }, [allDataPoints, hasTemperatureData]);
+    }
+
+    if (peakDayIndex == null) return null;
+
+    const peakEntry = allDataPoints[peakDayIndex];
+    if (!peakEntry?.isoDate) return null;
+    const peakDate = parseISO(peakEntry.isoDate);
+
+    for (let idx = peakDayIndex + 1; idx < allDataPoints.length; idx += 1) {
+      const entry = allDataPoints[idx];
+      if (!entry?.isoDate) {
+        continue;
+      }
+
+      const daysFromPeak = differenceInCalendarDays(parseISO(entry.isoDate), peakDate);
+      if (daysFromPeak >= 4) {
+        return idx;
+      }
+    }
+
+    return null;
+  }, [allDataPoints, peakDayIndex]);
 
   const { baselineTemp, baselineStartIndex, firstHighIndex, ovulationDetails: rawOvulationDetails } = useMemo(
     () => computeOvulationMetrics(processedData),
