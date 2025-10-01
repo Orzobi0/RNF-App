@@ -19,7 +19,7 @@ export const computeOvulationMetrics = (processedData = []) => {
       temps[0]
     );
     const borderlineCount = temps.reduce((count, current) => {
-      if (current >= maxTemp - borderlineTolerance && current <= maxTemp) {
+      if (current >= maxTemp - borderlineTolerance && current < maxTemp) {
         return count + 1;
       }
       return count;

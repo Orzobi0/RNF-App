@@ -257,7 +257,7 @@ const RecordsPage = () => {
             <FileText className="mr-3 h-8 w-8 text-pink-500" />
             Mis Registros
           </h1>
-          <div className="w-full sm:w-auto flex flex-col sm:flex-row gap-2 sm:items-center">
+          <div className="w-full sm:w-auto flex  gap-2 sm:items-center">
             <Button
               type="button"
               variant="outline"
