@@ -567,6 +567,7 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
                           pointerEvents: 'none',
                           filter: 'drop-shadow(0 2px 4px rgba(244, 114, 182, 0.35))'
                         }}
+                        transform={`rotate(${-rotationAngle} ${dot.x} ${dot.y})`}
                       >
                         ✖
                       </text>
@@ -579,6 +580,7 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
                         fontWeight="800"
                         fill="#7f1d1d"
                         style={{ pointerEvents: 'none' }}
+                        transform={`rotate(${-rotationAngle} ${dot.x} ${dot.y})`}
                       >
                         {dot.peakStatus}
                       </text>

@@ -1,4 +1,8 @@
-const CACHE_VERSION = `v${Date.now()}`; // Versión más confiable
+const BUILD_VERSION_MARKER = '${__DATE__}';
+const CACHE_VERSION =
+  BUILD_VERSION_MARKER !== '${__DATE__}'
+    ? BUILD_VERSION_MARKER
+    : `dev-${Date.now()}`; // Fallback en desarrollo cuando el marcador no fue reemplazado
 const CACHE_NAME = `rnf-app-cache-${CACHE_VERSION}`;
 const BASE_URL = self.registration.scope;
 const ASSETS = [
@@ -13,6 +17,10 @@ const ASSETS = [
 const BUILD_ASSETS = (self.__BUILD_ASSETS || []).map(
   (asset) => `${BASE_URL}${asset}`
 );
+async function matchActiveCache(request) {
+  const cache = await caches.open(CACHE_NAME);
+  return cache.match(request);
+}
 
 self.addEventListener('install', event => {
   console.log('SW: Installing new version', CACHE_VERSION);
@@ -108,7 +116,7 @@ self.addEventListener('fetch', (event) => {
             }
             return networkResponse;
           } catch (error) {
-            const cachedResponse = await caches.match(event.request);
+            const cachedResponse = await matchActiveCache(event.request);
             return cachedResponse || Response.error();
           }
         }
@@ -122,7 +130,7 @@ self.addEventListener('fetch', (event) => {
           }
           return networkResponse;
         } catch (error) {
-          const cachedResponse = await caches.match(event.request);
+          const cachedResponse = await matchActiveCache(event.request);
           return cachedResponse || Response.error();
         }
       })()
@@ -146,7 +154,7 @@ self.addEventListener('fetch', (event) => {
             return networkResponse;
           } catch (error) {
             console.log('SW: Network failed on forced reload, falling back to cache');
-            const fallback = await caches.match(`${BASE_URL}index.html`);
+            const fallback = await matchActiveCache(`${BASE_URL}index.html`);
             return fallback || Response.error();
           }
         }
@@ -163,12 +171,12 @@ self.addEventListener('fetch', (event) => {
           return networkResponse;
         } catch (error) {
           console.log('SW: Network failed, trying cache');
-          const cachedResponse = await caches.match(event.request);
+          const cachedResponse = await matchActiveCache(event.request);
           if (cachedResponse) {
             return cachedResponse;
           }
 
-          const fallback = await caches.match(`${BASE_URL}index.html`);
+          const fallback = await matchActiveCache(`${BASE_URL}index.html`);
           if (fallback) {
             return fallback;
           }
@@ -193,7 +201,7 @@ self.addEventListener('fetch', (event) => {
           }
           return networkResponse;
         } catch (error) {
-          const cachedResponse = await caches.match(event.request);
+          const cachedResponse = await matchActiveCache(event.request);
           return cachedResponse || Response.error();
         }
       }
@@ -209,7 +217,7 @@ self.addEventListener('fetch', (event) => {
         }
         return networkResponse;
       } catch (error) {
-        const cachedResponse = await caches.match(event.request);
+        const cachedResponse = await matchActiveCache(event.request);
         return cachedResponse || Response.error();
       }
     })()

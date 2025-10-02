@@ -172,7 +172,7 @@ const DataEntryFormFields = ({
   const peakButtonLabel = isCurrentPeak
     ? 'Quitar día pico'
     : hasOtherPeak
-      ? 'Actualizar el día pico'
+      ? 'Actualizar día pico'
       : 'Determinar día pico';
   return (
     <>
@@ -408,8 +408,31 @@ const DataEntryFormFields = ({
           </div>
         );
       })}
-      {selectedIsoDate && (
-        <div className="mb-2 mt-4">
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        {/* Símbolo de fertilidad */}
+        <div className="space-y-2 rounded-xl border border-slate-100/50 bg-gradient-to-r from-stone-50 to-slate-50 p-3">
+          <Label htmlFor="fertilitySymbol" className="flex items-center text-slate-800 text-sm font-semibold">
+            <Sprout className="mr-2 h-5 w-5 text-slate-400" />
+            Símbolo de Fertilidad
+          </Label>
+          <Select value={fertilitySymbol} onValueChange={setFertilitySymbol} disabled={isProcessing}>
+            <SelectTrigger className="w-full bg-white border-slate-200 text-gray-800 hover:bg-white">
+              <SelectValue placeholder="Selecciona un símbolo" />
+            </SelectTrigger>
+            <SelectContent className="bg-white border-slate-200 text-gray-800">
+              {FERTILITY_SYMBOL_OPTIONS.map((symbol) => (
+                <SelectItem key={symbol.value} value={symbol.value} className="cursor-pointer">
+                  <div className="flex items-center">
+                    <span className={`w-4 h-4 rounded-full mr-2 border border-gray-300 ${symbol.color}`} />
+                    {symbol.label}
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {selectedIsoDate && (
           <div className="space-y-2 rounded-2xl border border-rose-200/60 bg-gradient-to-r from-rose-50 to-pink-50 p-3 shadow-sm">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <Button
@@ -428,9 +451,9 @@ const DataEntryFormFields = ({
                 <Sparkles className="mr-1.5 h-3.5 w-3.5 transition-transform group-hover:scale-110" />
                 {peakButtonLabel}
               </Button>
-              </div>
-              {hasOtherPeak && formattedExistingPeak && (
-              <p className="text-[11px] text-rose-500 font-medium">
+            </div>
+            {hasOtherPeak && formattedExistingPeak && (
+              <p className="text-[11px] font-medium text-rose-500">
                 Ya hay un pico registrado el {formattedExistingPeak}.
               </p>
             )}
@@ -439,32 +462,8 @@ const DataEntryFormFields = ({
                 Este día se marcará como pico y los tres siguientes quedarán etiquetados.
               </p>
             )}
-        </div>
-        </div>
-      )}
-
-      
-      {/* Símbolo de fertilidad */}
-      <div className="space-y-2 bg-gradient-to-r from-stone-50 to-slate-50 rounded-xl p-3 border border-slate-100/50">
-        <Label htmlFor="fertilitySymbol" className="flex items-center text-slate-800 text-sm font-semibold">
-          <Sprout className="mr-2 h-5 w-5 text-slate-400" />
-          Símbolo de Fertilidad
-        </Label>
-        <Select value={fertilitySymbol} onValueChange={setFertilitySymbol} disabled={isProcessing}>
-          <SelectTrigger className="w-full bg-white border-slate-200 text-gray-800 hover:bg-white">
-            <SelectValue placeholder="Selecciona un símbolo" />
-          </SelectTrigger>
-          <SelectContent className="bg-white border-slate-200 text-gray-800">
-            {FERTILITY_SYMBOL_OPTIONS.map((symbol) => (
-              <SelectItem key={symbol.value} value={symbol.value} className="cursor-pointer">
-                <div className="flex items-center">
-                  <span className={`w-4 h-4 rounded-full mr-2 border border-gray-300 ${symbol.color}`} />
-                  {symbol.label}
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          </div>
+        )}
       </div>
       {/* Sensación y apariencia */}
       <div className="space-y-2 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-3 border border-blue-100/50">
