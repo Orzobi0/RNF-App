@@ -38,6 +38,7 @@ const RecordsPage = () => {
   const [isUpdatingStartDate, setIsUpdatingStartDate] = useState(false);
   const [selectedDate, setSelectedDate] = useState(null);
   const listContainerRef = useRef(null);
+  const hasUserSelectedDateRef = useRef(false);
 
   useEffect(() => {
     setDraftStartDate(currentCycle?.startDate || '');
@@ -68,10 +69,15 @@ const RecordsPage = () => {
   }, [sortedRecordDates, selectedDate]);
 
   useEffect(() => {
-    if (selectedDate && listContainerRef.current) {
+    if (selectedDate && listContainerRef.current && hasUserSelectedDateRef.current) {
       listContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   }, [selectedDate]);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }, []);
+
 
   const recordDateObjects = useMemo(() => {
     if (!currentCycle?.data?.length) return [];
@@ -122,6 +128,7 @@ const RecordsPage = () => {
       if (!day) return;
       const iso = format(day, 'yyyy-MM-dd');
       if (modifiers?.hasRecord || recordDateSet.has(iso)) {
+        hasUserSelectedDateRef.current = true;
         setSelectedDate(iso);
       }
     },
@@ -403,43 +410,29 @@ const RecordsPage = () => {
           transition={{ duration: 0.4, delay: 0.05 }}
           className="mb-6"
         >
-          <div className="bg-white/80 backdrop-blur border border-pink-200/50 rounded-3xl shadow-lg p-4 sm:p-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-2">
-              <h2 className="text-lg font-semibold text-slate-700">Calendario del ciclo</h2>
-              <p className="text-sm text-slate-500">
-                Selecciona un día con registro para ver su tarjeta destacada.
-              </p>
-            </div>
-            <Calendar
-              mode="single"
-              locale={es}
-              defaultMonth={
-                selectedDate && isValid(parseISO(selectedDate))
-                  ? parseISO(selectedDate)
-                  : cycleRange?.to
-              }
-              selected={selectedDate && isValid(parseISO(selectedDate)) ? parseISO(selectedDate) : undefined}
-              onDayClick={handleCalendarSelect}
-              modifiers={calendarModifiers}
-              className="rounded-2xl border border-pink-100 shadow-sm bg-white/80 [&_button]:text-slate-600 [&_button:hover]:bg-rose-100 [&_button[aria-selected=true]]:bg-rose-500"
-              classNames={{
-                day_selected:
-                  'bg-rose-500 text-white hover:bg-rose-500 hover:text-white focus:bg-rose-500 focus:text-white',
-                day_today: 'bg-rose-200 text-rose-700 font-semibold',
-              }}
-              modifiersClassNames={{
-                hasRecord:
-                  "relative font-semibold after:absolute after:bottom-1.5 after:left-1/2 after:-translate-x-1/2 after:w-1.5 after:h-1.5 after:rounded-full after:bg-rose-500 after:content-['']",
-                outsideCycle: 'text-slate-300 opacity-50 hover:text-slate-300 hover:bg-transparent',
-              }}
-            />
-            <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-500">
-              <div className="flex items-center gap-2">
-                <span className="inline-block h-3 w-3 rounded-full bg-rose-500" />
-                <span>Día con registro</span>
-              </div>
-            </div>
-          </div>
+          <Calendar
+            mode="single"
+            locale={es}
+            defaultMonth={
+              selectedDate && isValid(parseISO(selectedDate))
+                ? parseISO(selectedDate)
+                : cycleRange?.to
+            }
+            selected={selectedDate && isValid(parseISO(selectedDate)) ? parseISO(selectedDate) : undefined}
+            onDayClick={handleCalendarSelect}
+            modifiers={calendarModifiers}
+            className="rounded-2xl border border-pink-100 shadow-sm bg-white/80 p-3 [&_button]:text-slate-900 [&_button:hover]:bg-rose-100 [&_button[aria-selected=true]]:bg-rose-500"
+            classNames={{
+              day_selected:
+                'bg-rose-500 text-white hover:bg-rose-500 hover:text-white focus:bg-rose-500 focus:text-white',
+              day_today: 'bg-rose-200 text-rose-700 font-semibold',
+            }}
+            modifiersClassNames={{
+              hasRecord:
+                "relative font-semibold after:absolute after:bottom-1.5 after:left-1/2 after:-translate-x-1/2 after:w-1.5 after:h-1.5 after:rounded-full after:bg-rose-500 after:content-['']",
+              outsideCycle: 'text-slate-300 opacity-50 hover:text-slate-300 hover:bg-transparent',
+            }}
+          />
         </motion.div>
 
 
