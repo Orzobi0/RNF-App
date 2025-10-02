@@ -1,4 +1,4 @@
-const BUILD_VERSION_MARKER = '2025-10-02T11:17:03.253Z';
+const BUILD_VERSION_MARKER = '2025-10-02T13:22:01.185Z';
 const CACHE_VERSION =
   BUILD_VERSION_MARKER !== '${__DATE__}'
     ? BUILD_VERSION_MARKER
@@ -14,7 +14,7 @@ const ASSETS = [
   `${BASE_URL}icon-512x512.png`,
   `${BASE_URL}apple-touch-icon.png`
 ];
-const BUILD_ASSETS = (["assets/ChartTooltip-35e03b20.js","assets/CycleDatesEditor-0db50ef5.js","assets/DeletionDialog-aaefd1b0.js","assets/OverlapWarningDialog-26e0e497.js","assets/RecordsList-1441e981.js","assets/arrow-left-d976c708.js","assets/badge-b2616664.js","assets/computePeakStatuses-9c417235.js","assets/eye-020a87c7.js","assets/eye-off-a74b0232.js","assets/input-49c2a17b.js","assets/label-61f7cfb2.js","assets/select-e07d8604.js","assets/useCycleData-834d83be.js","assets/index-46ef17f2.css","assets/index-65a39a90.js","assets/index.es-4d57ba33.js","assets/purify.es-2de9db7f.js","assets/html2canvas.esm-e0a7d97b.js","assets/ArchivedCyclesPage-2bcf2014.js","assets/AuthPage-671dec8f.js","assets/ChartPage-021d61be.js","assets/CycleDetailPage-e6259024.js","assets/DashboardPage-9d16e7a7.js","assets/RecordsPage-b683b3c9.js","assets/SettingsPage-cb91f340.js"] || []).map(
+const BUILD_ASSETS = (["assets/ChartTooltip-e20861b8.js","assets/CycleDatesEditor-ae4b5b89.js","assets/DeletionDialog-18caf2a0.js","assets/OverlapWarningDialog-800934cb.js","assets/RecordsList-aca1b009.js","assets/arrow-left-047040cd.js","assets/badge-98f311a3.js","assets/checkbox-f5e56bc8.js","assets/computePeakStatuses-cc1a8250.js","assets/eye-2e9ccd1a.js","assets/eye-off-e3755f54.js","assets/input-cce78a3a.js","assets/label-b3767793.js","assets/useCycleData-0b42a521.js","assets/index-e236e994.css","assets/index-094431a6.js","assets/index.es-28d1c803.js","assets/purify.es-2de9db7f.js","assets/html2canvas.esm-e0a7d97b.js","assets/ArchivedCyclesPage-196b67ef.js","assets/AuthPage-37b9e363.js","assets/ChartPage-39a08058.js","assets/CycleDetailPage-c2efcc09.js","assets/DashboardPage-e65ebfb3.js","assets/RecordsPage-ebceb884.js","assets/SettingsPage-4ce8b3e2.js"] || []).map(
   (asset) => `${BASE_URL}${asset}`
 );
 async function matchActiveCache(request) {
