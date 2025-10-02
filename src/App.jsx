@@ -46,8 +46,30 @@ function AppContent() {
     );
   }
 
+  const suspenseFallback = user ? (
+    <MainLayout>
+      <div className="flex items-center justify-center min-h-[100dvh] p-4 text-pink-600">Cargando...</div>
+    </MainLayout>
+  ) : (
+    <div className="flex flex-col items-center justify-center min-h-[100dvh] bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 space-y-4">
+      <motion.div
+        className="w-8 h-8 rounded-full bg-pink-500/80"
+        animate={{ opacity: [0.4, 1, 0.4] }}
+        transition={{ duration: 1.2, repeat: Infinity }}
+      />
+      <motion.p
+        className="text-pink-600 font-medium"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.2 }}
+      >
+        Cargando aplicación...
+      </motion.p>
+    </div>
+  );
+
   return (
-    <Suspense fallback={<div className="p-4 text-center">Cargando...</div>}>
+    <Suspense fallback={suspenseFallback}>
       <Routes>
         <Route path="/auth" element={user ? <Navigate to="/" replace /> : <AuthPage />} />
       <Route

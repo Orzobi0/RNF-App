@@ -8,7 +8,7 @@ import { motion } from 'framer-motion';
 import { FERTILITY_SYMBOL_OPTIONS } from '@/config/fertilitySymbols';
 import computePeakStatuses from '@/lib/computePeakStatuses';
 
-const RecordsList = ({ records, onEdit, onDelete, isProcessing }) => {
+const RecordsList = ({ records, onEdit, onDelete, isProcessing, selectedDate }) => {
   if (!records || records.length === 0) {
     return (
       <motion.div
@@ -31,7 +31,8 @@ const RecordsList = ({ records, onEdit, onDelete, isProcessing }) => {
   const getSymbolInfo = (symbolValue) => {
     return FERTILITY_SYMBOL_OPTIONS.find(s => s.value === symbolValue) || FERTILITY_SYMBOL_OPTIONS[0];
   };
-const peakStatuses = useMemo(() => computePeakStatuses(records), [records]);
+
+  const peakStatuses = useMemo(() => computePeakStatuses(records), [records]);
   const peakLabelMap = {
     P: 'Día pico',
     1: 'Post pico 1',
@@ -39,9 +40,21 @@ const peakStatuses = useMemo(() => computePeakStatuses(records), [records]);
     3: 'Post pico 3',
   };
 
-  const sortedRecords = [...records].sort((a, b) => {
-    return parseISO(b.isoDate) - parseISO(a.isoDate);
-  });
+  const sortedRecords = useMemo(() => {
+    if (!records?.length) return [];
+
+    const ordered = [...records].sort((a, b) => parseISO(b.isoDate) - parseISO(a.isoDate));
+
+    if (selectedDate) {
+      const selectedIndex = ordered.findIndex((record) => record.isoDate === selectedDate);
+      if (selectedIndex > 0) {
+        const [selectedRecord] = ordered.splice(selectedIndex, 1);
+        ordered.unshift(selectedRecord);
+      }
+    }
+
+    return ordered;
+  }, [records, selectedDate]);
 
   return (
     <motion.div
@@ -81,10 +94,12 @@ const peakStatuses = useMemo(() => computePeakStatuses(records), [records]);
         const peakStatus = peakStatuses[record.isoDate];
         const peakLabel = peakStatus ? peakLabelMap[peakStatus] || null : null;
 
+        const isSelected = selectedDate === record.isoDate;
+
         return (
           <motion.div
             key={record.id}
-            className="bg-white/80 backdrop-blur-md border border-pink-200/50 shadow-lg hover:shadow-xl transition-all duration-300 hover:bg-white/90 rounded-xl"
+            className={`bg-white/80 backdrop-blur-md border border-pink-200/50 shadow-lg hover:shadow-xl transition-all duration-300 hover:bg-white/90 rounded-xl ${isSelected ? 'ring-2 ring-rose-400 shadow-xl shadow-rose-200/70' : ''}`}
             variants={{
               hidden: { opacity: 0, y: 20 },
               show: { opacity: 1, y: 0 }
@@ -99,6 +114,7 @@ const peakStatuses = useMemo(() => computePeakStatuses(records), [records]);
                     {format(parseISO(record.isoDate), 'dd/MM/yyyy', { locale: es })}
                   </span>
                   <span className="text-md text-pink-500">Día {record.cycleDay}</span>
+                  
                   {peakLabel && (
                     <Badge className="ml-2 bg-rose-100 text-rose-600 border border-rose-200">
                       {peakLabel}
@@ -121,7 +137,7 @@ const peakStatuses = useMemo(() => computePeakStatuses(records), [records]);
                 <div className="flex items-center space-x-1 bg-gradient-to-r from-amber-200 to-orange-200 border border-amber-300/50 p-2 rounded-xl">
                   <Thermometer className="w-3 h-3 text-rose-400" />
                   <span className="font-medium">{hasTemperature ? `${displayTemp}°C` : ''}</span>
-                                      {showCorrectedIndicator && (
+                  {showCorrectedIndicator && (
                     <span
                       className="w-1 h-1 rounded-full bg-amber-500 shadow-[0_0_4px_rgba(245,158,11,0.65)]"
                       title="Temperatura corregida"

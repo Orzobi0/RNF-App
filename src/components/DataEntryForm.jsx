@@ -63,7 +63,7 @@ const DataEntryForm = ({ onSubmit, initialData, onCancel, cycleStartDate, cycleE
       className="space-y-4 bg-gradient-to-br from-white/98 to-rose-50/95 backdrop-blur-xl p-4 sm:p-6 rounded-3xl border-2 border-rose-200 shadow-[0_4px_20px_rgba(244,114,182,0.25)] w-full"
       initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
+      transition={{ duration: 0.18, ease: 'easeOut' }}
     >
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">

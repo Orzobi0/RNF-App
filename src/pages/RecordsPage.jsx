@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import CycleDatesEditor from '@/components/CycleDatesEditor';
 import RecordsList from '@/components/RecordsList';
 import DataEntryForm from '@/components/DataEntryForm';
@@ -7,9 +7,11 @@ import { useCycleData } from '@/hooks/useCycleData';
 import { useToast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
 import { Edit, Plus, FileText } from 'lucide-react';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, isValid, max, isBefore, isAfter, startOfDay } from 'date-fns';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { motion } from 'framer-motion';
+import { Calendar } from '@/components/ui/calendar';
+import { es } from 'date-fns/locale';
 
 const RecordsPage = () => {
   const {
@@ -34,10 +36,121 @@ const RecordsPage = () => {
   const [overlapCycle, setOverlapCycle] = useState(null);
   const [showOverlapDialog, setShowOverlapDialog] = useState(false);
   const [isUpdatingStartDate, setIsUpdatingStartDate] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(null);
+  const listContainerRef = useRef(null);
+  const hasUserSelectedDateRef = useRef(false);
 
   useEffect(() => {
     setDraftStartDate(currentCycle?.startDate || '');
   }, [currentCycle?.startDate]);
+
+  const sortedRecordDates = useMemo(() => {
+    if (!currentCycle?.data?.length) return [];
+
+    return [...currentCycle.data]
+      .filter((record) => record?.isoDate)
+      .sort((a, b) => {
+        const dateA = parseISO(a.isoDate);
+        const dateB = parseISO(b.isoDate);
+        return dateB - dateA;
+      })
+      .map((record) => record.isoDate);
+  }, [currentCycle?.data]);
+
+  useEffect(() => {
+    if (!sortedRecordDates.length) {
+      setSelectedDate(null);
+      return;
+    }
+
+    if (!selectedDate || !sortedRecordDates.includes(selectedDate)) {
+      setSelectedDate(sortedRecordDates[0]);
+    }
+  }, [sortedRecordDates, selectedDate]);
+
+  useEffect(() => {
+    if (selectedDate && listContainerRef.current && hasUserSelectedDateRef.current) {
+      listContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [selectedDate]);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }, []);
+
+
+  const recordDateObjects = useMemo(() => {
+    if (!currentCycle?.data?.length) return [];
+
+    return currentCycle.data
+      .map((record) => {
+        if (!record?.isoDate) return null;
+        const parsed = parseISO(record.isoDate);
+        return isValid(parsed) ? parsed : null;
+      })
+      .filter(Boolean);
+  }, [currentCycle?.data]);
+
+  const recordDateSet = useMemo(() => new Set(sortedRecordDates), [sortedRecordDates]);
+
+  const cycleRange = useMemo(() => {
+    if (!currentCycle?.startDate) return null;
+    const start = parseISO(currentCycle.startDate);
+    if (!isValid(start)) return null;
+
+    let end;
+
+    if (currentCycle?.endDate) {
+      end = parseISO(currentCycle.endDate);
+    } else {
+      const today = startOfDay(new Date());
+      const candidates = [start, today];
+
+      if (recordDateObjects.length) {
+        candidates.push(max(recordDateObjects));
+      }
+
+      end = max(candidates);
+    }
+
+    if (!isValid(end)) {
+      return { from: start, to: start };
+    }
+
+    return { from: start, to: end };
+  }, [currentCycle?.startDate, currentCycle?.endDate, recordDateObjects]);
+
+  const calendarModifiers = useMemo(() => {
+    const modifiers = {};
+    if (cycleRange) {
+      modifiers.outsideCycle = (day) =>
+        isBefore(day, cycleRange.from) || isAfter(day, cycleRange.to);
+      modifiers.insideCycleNoRecord = (day) => {
+        if (isBefore(day, cycleRange.from) || isAfter(day, cycleRange.to)) {
+          return false;
+        }
+
+        const iso = format(day, 'yyyy-MM-dd');
+        return !recordDateSet.has(iso);
+      };
+    }
+    if (recordDateObjects.length) {
+      modifiers.hasRecord = recordDateObjects;
+    }
+    return modifiers;
+  }, [cycleRange, recordDateObjects, recordDateSet]);
+
+  const handleCalendarSelect = useCallback(
+    (day, modifiers) => {
+      if (!day) return;
+      const iso = format(day, 'yyyy-MM-dd');
+      if (modifiers?.hasRecord || recordDateSet.has(iso)) {
+        hasUserSelectedDateRef.current = true;
+        setSelectedDate(iso);
+      }
+    },
+    [recordDateSet]
+  );
 
   const resetStartDateFlow = useCallback(() => {
     setPendingStartDate(null);
@@ -257,7 +370,7 @@ const RecordsPage = () => {
             <FileText className="mr-3 h-8 w-8 text-pink-500" />
             Mis Registros
           </h1>
-          <div className="w-full sm:w-auto flex  gap-2 sm:items-center">
+          <div className="w-full sm:w-auto justify-center flex gap-2 sm:items-center">
             <Button
               type="button"
               variant="outline"
@@ -308,17 +421,53 @@ const RecordsPage = () => {
           </motion.div>
         )}
 
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.05 }}
+          className="mb-5 flex justify-center"
+        >
+          <Calendar
+            mode="single"
+            locale={es}
+            defaultMonth={
+              selectedDate && isValid(parseISO(selectedDate))
+                ? parseISO(selectedDate)
+                : cycleRange?.to
+            }
+            selected={selectedDate && isValid(parseISO(selectedDate)) ? parseISO(selectedDate) : undefined}
+            onDayClick={handleCalendarSelect}
+            modifiers={calendarModifiers}
+            className="w-full max-w-md sm:max-w-lg rounded-2xl border border-pink-100 shadow-sm bg-white/60 backdrop-blur-sm p-3 mx-auto [&_button]:text-slate-900 [&_button:hover]:bg-rose-100 [&_button[aria-selected=true]]:bg-rose-500"
+            classNames={{
+              day_selected:
+                'bg-rose-500 text-white hover:bg-rose-500 hover:text-white focus:bg-rose-500 focus:text-white',
+              day_today: 'bg-rose-200 text-rose-700 font-semibold',
+            }}
+            modifiersClassNames={{
+              hasRecord:
+                "relative font-semibold after:absolute after:bottom-1.5 after:left-1/2 after:-translate-x-1/2 after:w-1.5 after:h-1.5 after:rounded-full after:bg-rose-500 after:content-['']",
+              outsideCycle: 'text-slate-300 opacity-50 hover:text-slate-300 hover:bg-transparent',
+              insideCycleNoRecord:
+                'text-slate-900 hover:text-slate-900 hover:bg-rose-50',
+            }}
+          />
+        </motion.div>
+
+
         {/* Records List */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.1 }}
+          ref={listContainerRef}
         >
           <RecordsList
             records={currentCycle.data}
             onEdit={handleEdit}
             onDelete={handleDeleteRequest}
             isProcessing={isProcessing}
+            selectedDate={selectedDate}
           />
         </motion.div>
       </div>

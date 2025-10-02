@@ -555,8 +555,9 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
                     }}
                   />
                 {dot.peakStatus && (
-                    dot.peakStatus === 'P' ? (
-                      <text
+                    <g transform={`rotate(${-rotationAngle} ${dot.x} ${dot.y})`}>
+                    {dot.peakStatus === 'P' ? (
+                      <motion.text
                         x={dot.x}
                         y={dot.y + 4}
                         textAnchor="middle"
@@ -567,11 +568,19 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
                           pointerEvents: 'none',
                           filter: 'drop-shadow(0 2px 4px rgba(244, 114, 182, 0.35))'
                         }}
+                        initial={{ scale: 0.2, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={{
+                          delay: 0.95 + index * 0.02,
+                          type: 'spring',
+                          stiffness: 320,
+                          damping: 22
+                        }}
                       >
                         ✖
-                      </text>
+                      </motion.text>
                     ) : (
-                      <text
+                      <motion.text
                         x={dot.x}
                         y={dot.y + 4}
                         textAnchor="middle"
@@ -579,12 +588,20 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
                         fontWeight="800"
                         fill="#7f1d1d"
                         style={{ pointerEvents: 'none' }}
+                        initial={{ scale: 0.2, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={{
+                          delay: 0.95 + index * 0.02,
+                          type: 'spring',
+                          stiffness: 320,
+                          damping: 22
+                        }}
                       >
                         {dot.peakStatus}
-                      </text>
-                    )
-                  )}
-
+                      </motion.text>
+                    )}
+                  </g>
+                )}
                 </g>
                 ))}
               </motion.g>
@@ -810,7 +827,7 @@ const FloatingActionButton = ({ onAddRecord, onAddCycle }) => {
           <motion.button
             onClick={onAddRecord}
             className="flex items-center gap-3 px-4 h-12 rounded-full bg-gradient-to-br from-pink-500 to-rose-500 text-white shadow-lg"
-            whileTap={{ scale: 0.95 }}
+            whileTap={{ scale: 0.80 }}
             whileHover={{ scale: 1.05 }}
             initial={{ opacity: 0, y: 20, scale: 0.8 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}

@@ -616,7 +616,7 @@ const FertilityChart = ({
                   width={absoluteInfertilityBounds.width}
                   height={chartAreaHeight}
                   fill="url(#absoluteInfertilityPattern)"
-                  opacity={0.8}
+                  opacity={0.5}
                   pointerEvents="none"
                 />
               )}

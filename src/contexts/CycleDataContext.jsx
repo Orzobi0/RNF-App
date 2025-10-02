@@ -218,10 +218,10 @@ export const CycleDataProvider = ({ children }) => {
 
         let targetRecord = editingRecord;
         if (!targetRecord && targetCycle) {
-          if (targetRecord && String(targetRecord.id).startsWith('placeholder-')) {
-            targetRecord = null;
-          }
           targetRecord = targetCycle.data.find((r) => r.isoDate === newData.isoDate);
+        }
+        if (targetRecord && String(targetRecord.id).startsWith('placeholder-')) {
+          targetRecord = null;
         }
         const existingPeakRecord =
           targetCycle?.data?.find((record) => record?.peak_marker === 'peak') || null;
@@ -246,6 +246,43 @@ export const CycleDataProvider = ({ children }) => {
           'peak_marker'
         );
 
+        const measurementsList = Array.isArray(newData.measurements) ? newData.measurements : [];
+        const hasTemperatureData = measurementsList.some((measurement) => {
+          if (!measurement) return false;
+          const measurementRaw = normalizeTemp(measurement.temperature);
+          const measurementCorrected = normalizeTemp(measurement.temperature_corrected);
+          return measurementRaw !== null || measurementCorrected !== null;
+        });
+
+        const trimValue = (value) => {
+          if (value === null || value === undefined) return '';
+          return String(value).trim();
+        };
+
+        const mucusSensationValue = trimValue(
+          newData.mucusSensation ?? newData.mucus_sensation ?? ''
+        );
+        const mucusAppearanceValue = trimValue(
+          newData.mucusAppearance ?? newData.mucus_appearance ?? ''
+        );
+        const observationsValue = trimValue(newData.observations ?? '');
+        const fertilitySymbolValue =
+          newData.fertility_symbol ?? newData.fertilitySymbol ?? null;
+        const hasFertilitySymbol =
+          fertilitySymbolValue !== null &&
+          fertilitySymbolValue !== undefined &&
+          fertilitySymbolValue !== '' &&
+          fertilitySymbolValue !== 'none';
+        const isPeakMarked = newData.peak_marker === 'peak';
+
+        const isPayloadEmpty =
+          !hasTemperatureData &&
+          mucusSensationValue === '' &&
+          mucusAppearanceValue === '' &&
+          !hasFertilitySymbol &&
+          observationsValue === '' &&
+          !isPeakMarked;
+
         const recordPayload = {
           cycle_id: cycleIdToUse,
           user_id: user.uid,
@@ -266,8 +303,17 @@ export const CycleDataProvider = ({ children }) => {
         };
 
         if (targetRecord) {
-          await updateCycleEntry(user.uid, cycleIdToUse, targetRecord.id, recordPayload);
+          const isRemovingPeak =
+            peakMarkerProvided && targetRecord?.peak_marker === 'peak' && !isPeakMarked;
+          if (isPayloadEmpty && isRemovingPeak) {
+            await deleteCycleEntryDB(user.uid, cycleIdToUse, targetRecord.id);
+          } else {
+            await updateCycleEntry(user.uid, cycleIdToUse, targetRecord.id, recordPayload);
+          }
         } else {
+          if (isPayloadEmpty) {
+            return;
+          }
           await createNewCycleEntry(recordPayload);
         }
 
