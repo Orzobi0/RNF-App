@@ -7,7 +7,7 @@ import { useCycleData } from '@/hooks/useCycleData';
 import { useToast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
 import { Edit, Plus, FileText } from 'lucide-react';
-import { format, parseISO, isValid, max, isBefore, isAfter } from 'date-fns';
+import { format, parseISO, isValid, max, isBefore, isAfter, startOfDay } from 'date-fns';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { motion } from 'framer-motion';
 import { Calendar } from '@/components/ui/calendar';
@@ -98,11 +98,20 @@ const RecordsPage = () => {
     const start = parseISO(currentCycle.startDate);
     if (!isValid(start)) return null;
 
-    const end = currentCycle?.endDate
-      ? parseISO(currentCycle.endDate)
-      : recordDateObjects.length
-        ? max(recordDateObjects)
-        : start;
+    let end;
+
+    if (currentCycle?.endDate) {
+      end = parseISO(currentCycle.endDate);
+    } else {
+      const today = startOfDay(new Date());
+      const candidates = [start, today];
+
+      if (recordDateObjects.length) {
+        candidates.push(max(recordDateObjects));
+      }
+
+      end = max(candidates);
+    }
 
     if (!isValid(end)) {
       return { from: start, to: start };

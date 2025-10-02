@@ -555,7 +555,8 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
                     }}
                   />
                 {dot.peakStatus && (
-                    dot.peakStatus === 'P' ? (
+                    <g transform={`rotate(${-rotationAngle} ${dot.x} ${dot.y})`}>
+                    {dot.peakStatus === 'P' ? (
                       <motion.text
                         x={dot.x}
                         y={dot.y + 4}
@@ -587,7 +588,6 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
                         fontWeight="800"
                         fill="#7f1d1d"
                         style={{ pointerEvents: 'none' }}
-                        
                         initial={{ scale: 0.2, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
                         transition={{
@@ -599,9 +599,9 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
                       >
                         {dot.peakStatus}
                       </motion.text>
-                    )
-                  )}
-
+                    )}
+                  </g>
+                )}
                 </g>
                 ))}
               </motion.g>
