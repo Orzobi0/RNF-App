@@ -116,12 +116,20 @@ const RecordsPage = () => {
     if (cycleRange) {
       modifiers.outsideCycle = (day) =>
         isBefore(day, cycleRange.from) || isAfter(day, cycleRange.to);
+      modifiers.insideCycleNoRecord = (day) => {
+        if (isBefore(day, cycleRange.from) || isAfter(day, cycleRange.to)) {
+          return false;
+        }
+
+        const iso = format(day, 'yyyy-MM-dd');
+        return !recordDateSet.has(iso);
+      };
     }
     if (recordDateObjects.length) {
       modifiers.hasRecord = recordDateObjects;
     }
     return modifiers;
-  }, [cycleRange, recordDateObjects]);
+  }, [cycleRange, recordDateObjects, recordDateSet]);
 
   const handleCalendarSelect = useCallback(
     (day, modifiers) => {
@@ -353,7 +361,7 @@ const RecordsPage = () => {
             <FileText className="mr-3 h-8 w-8 text-pink-500" />
             Mis Registros
           </h1>
-          <div className="w-full sm:w-auto flex  gap-2 sm:items-center">
+          <div className="w-full sm:w-auto justify-center flex gap-2 sm:items-center">
             <Button
               type="button"
               variant="outline"
@@ -408,7 +416,7 @@ const RecordsPage = () => {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.05 }}
-          className="mb-6"
+          className="mb-6 flex justify-center"
         >
           <Calendar
             mode="single"
@@ -421,7 +429,7 @@ const RecordsPage = () => {
             selected={selectedDate && isValid(parseISO(selectedDate)) ? parseISO(selectedDate) : undefined}
             onDayClick={handleCalendarSelect}
             modifiers={calendarModifiers}
-            className="rounded-2xl border border-pink-100 shadow-sm bg-white/80 p-3 [&_button]:text-slate-900 [&_button:hover]:bg-rose-100 [&_button[aria-selected=true]]:bg-rose-500"
+            className="w-full max-w-md sm:max-w-lg rounded-2xl border border-pink-100 shadow-sm bg-white/60 backdrop-blur-sm p-3 mx-auto [&_button]:text-slate-900 [&_button:hover]:bg-rose-100 [&_button[aria-selected=true]]:bg-rose-500"
             classNames={{
               day_selected:
                 'bg-rose-500 text-white hover:bg-rose-500 hover:text-white focus:bg-rose-500 focus:text-white',
@@ -431,6 +439,8 @@ const RecordsPage = () => {
               hasRecord:
                 "relative font-semibold after:absolute after:bottom-1.5 after:left-1/2 after:-translate-x-1/2 after:w-1.5 after:h-1.5 after:rounded-full after:bg-rose-500 after:content-['']",
               outsideCycle: 'text-slate-300 opacity-50 hover:text-slate-300 hover:bg-transparent',
+              insideCycleNoRecord:
+                'text-slate-900 hover:text-slate-900 hover:bg-rose-50',
             }}
           />
         </motion.div>
