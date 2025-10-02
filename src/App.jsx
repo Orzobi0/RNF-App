@@ -48,7 +48,9 @@ function AppContent() {
 
   const suspenseFallback = user ? (
     <MainLayout>
-      <div className="flex items-center justify-center min-h-[100dvh] p-4 text-pink-600">Cargando...</div>
+      <div className="flex min-h-[100dvh] items-center justify-center bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 p-4 text-pink-600">
+        Cargando...
+      </div>
     </MainLayout>
   ) : (
     <div className="flex flex-col items-center justify-center min-h-[100dvh] bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 space-y-4">

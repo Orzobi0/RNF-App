@@ -6,6 +6,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Thermometer,
   Droplets,
@@ -220,7 +221,7 @@ const DataEntryFormFields = ({
       {measurements.map((m, idx) => {
         const measurementSelectId = `measurement_select_${idx}`;
         return (
-          <div key={idx} className="space-y-3 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-3 border border-amber-100/50">
+          <div key={idx} className="space-y-3 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-3 border border-amber-300/50">
             <div className="flex items-start justify-between gap-2">
               <Label className="flex items-center text-amber-800 text-sm font-semibold">
                 <Thermometer className="mr-2 h-5 w-5 text-orange-500" />
@@ -270,7 +271,7 @@ const DataEntryFormFields = ({
                   size="sm"
                   variant="outline"
                   disabled={isProcessing}
-                  className=" text-slate-800 bg-orange-300 focus:ring-orange-100"
+                  className=" text-slate-600 bg-slate-200 "
                   onClick={() => {
                     if (correctionIndex === idx) {
                       setCorrectionIndex(null);
@@ -407,7 +408,7 @@ const DataEntryFormFields = ({
       })}
       <div className="mt-4 gap-3 ">
         {/* Símbolo de fertilidad */}
-        <div className="space-y-2 rounded-xl border border-slate-100/50 bg-gradient-to-r from-stone-100 to-slate-100 p-3">
+        <div className="space-y-2 rounded-xl border border-slate-300/50 bg-gradient-to-r from-stone-100 to-slate-100 p-3">
           <div className="flex items-start justify-between gap-3">
             <Label htmlFor="fertilitySymbol" className="flex items-center text-slate-800 text-sm font-semibold">
               <Sprout className="mr-2 h-5 w-5 text-slate-400" />
@@ -450,7 +451,7 @@ const DataEntryFormFields = ({
           </div>
       </div>
       {/* Sensación y apariencia */}
-      <div className="space-y-2 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-3 border border-blue-100/50">
+      <div className="space-y-2 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-3 border border-blue-300/50">
         <Label htmlFor="mucusSensation" className="flex items-center text-slate-800 text-sm font-semibold">
           <Droplets className="mr-2 h-5 w-5 text-sky-600" />
           Sensación del moco
@@ -463,7 +464,7 @@ const DataEntryFormFields = ({
           disabled={isProcessing}
         />
       </div>
-      <div className="space-y-2 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl p-3 border border-emerald-100/50">
+      <div className="space-y-2 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl p-3 border border-emerald-300/50">
         <Label htmlFor="mucusAppearance" className="flex items-center text-slate-800 text-sm font-semibold">
           <Circle className="mr-2 h-5 w-5 text-emerald-600" />
           Apariencia del moco
@@ -478,7 +479,7 @@ const DataEntryFormFields = ({
       </div>
 
       {/* Observaciones */}
-      <div className="space-y-2 bg-gradient-to-r from-violet-50 to-purple-50 rounded-xl p-3 border border-violet-100/50">
+      <div className="space-y-2 bg-gradient-to-r from-violet-50 to-purple-50 rounded-xl p-3 border border-violet-300/50">
         <Label htmlFor="observations" className="flex items-center text-slate-800 text-sm font-semibold">
           Observaciones
         </Label>
