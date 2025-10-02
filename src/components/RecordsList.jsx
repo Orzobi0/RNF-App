@@ -114,9 +114,7 @@ const RecordsList = ({ records, onEdit, onDelete, isProcessing, selectedDate }) 
                     {format(parseISO(record.isoDate), 'dd/MM/yyyy', { locale: es })}
                   </span>
                   <span className="text-md text-pink-500">Día {record.cycleDay}</span>
-                  {isSelected && (
-                    <Badge className="ml-2 bg-rose-500/10 text-rose-600 border border-rose-200">Seleccionado</Badge>
-                  )}
+                  
                   {peakLabel && (
                     <Badge className="ml-2 bg-rose-100 text-rose-600 border border-rose-200">
                       {peakLabel}

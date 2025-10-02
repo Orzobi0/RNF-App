@@ -7,7 +7,7 @@ import { useCycleData } from '@/hooks/useCycleData';
 import { useToast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
 import { Edit, Plus, FileText } from 'lucide-react';
-import { format, parseISO, isValid, max } from 'date-fns';
+import { format, parseISO, isValid, max, isBefore, isAfter } from 'date-fns';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { motion } from 'framer-motion';
 import { Calendar } from '@/components/ui/calendar';
@@ -108,7 +108,8 @@ const RecordsPage = () => {
   const calendarModifiers = useMemo(() => {
     const modifiers = {};
     if (cycleRange) {
-      modifiers.cycle = cycleRange;
+      modifiers.outsideCycle = (day) =>
+        isBefore(day, cycleRange.from) || isAfter(day, cycleRange.to);
     }
     if (recordDateObjects.length) {
       modifiers.hasRecord = recordDateObjects;
@@ -420,31 +421,22 @@ const RecordsPage = () => {
               selected={selectedDate && isValid(parseISO(selectedDate)) ? parseISO(selectedDate) : undefined}
               onDayClick={handleCalendarSelect}
               modifiers={calendarModifiers}
-              className="rounded-2xl border border-pink-100 shadow-sm"
+              className="rounded-2xl border border-pink-100 shadow-sm bg-white/80 [&_button]:text-slate-600 [&_button:hover]:bg-rose-100 [&_button[aria-selected=true]]:bg-rose-500"
               classNames={{
                 day_selected:
                   'bg-rose-500 text-white hover:bg-rose-500 hover:text-white focus:bg-rose-500 focus:text-white',
                 day_today: 'bg-rose-200 text-rose-700 font-semibold',
               }}
               modifiersClassNames={{
-                cycle:
-                  "relative after:absolute after:inset-0 after:rounded-full after:bg-rose-100/60 after:content-[''] after:-z-10",
                 hasRecord:
                   "relative font-semibold after:absolute after:bottom-1.5 after:left-1/2 after:-translate-x-1/2 after:w-1.5 after:h-1.5 after:rounded-full after:bg-rose-500 after:content-['']",
+                outsideCycle: 'text-slate-300 opacity-50 hover:text-slate-300 hover:bg-transparent',
               }}
             />
             <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-500">
               <div className="flex items-center gap-2">
                 <span className="inline-block h-3 w-3 rounded-full bg-rose-500" />
                 <span>Día con registro</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="inline-block h-3 w-3 rounded bg-rose-100 border border-rose-200" />
-                <span>Día dentro del ciclo</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="inline-block h-3 w-3 rounded bg-rose-500" />
-                
               </div>
             </div>
           </div>
