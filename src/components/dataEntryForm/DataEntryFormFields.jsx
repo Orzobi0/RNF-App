@@ -21,7 +21,6 @@ import {
   ChevronDown,
   Circle,
   Plus,
-  Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, addDays, startOfDay, parseISO, addHours, parse } from 'date-fns';
@@ -107,9 +106,14 @@ const DataEntryFormFields = ({
   const selectedIsoDate = date ? format(date, 'yyyy-MM-dd') : null;
   const isCurrentPeak = peakTag === 'peak';
   const hasOtherPeak = existingPeakIsoDate && existingPeakIsoDate !== selectedIsoDate;
-  const formattedExistingPeak = existingPeakIsoDate
-    ? format(parseISO(existingPeakIsoDate), 'dd/MM/yyyy')
-    : null;
+  const peakButtonClasses = cn(
+    'h-7 rounded-xl border px-3 text-[11px] font-semibold uppercase tracking-wide transition-colors shadow-sm',
+    isCurrentPeak
+      ? 'border-rose-400 bg-white text-rose-600 hover:bg-rose-50'
+      : hasOtherPeak
+        ? 'border-slate-300 bg-slate-200 text-slate-600 hover:bg-slate-200'
+        : 'border-rose-500 bg-rose-500 text-white hover:bg-rose-600'
+  );
 
   const togglePeakTag = async () => {
     if (isProcessing || typeof submitCurrentState !== 'function') {
@@ -169,11 +173,6 @@ const DataEntryFormFields = ({
     });
   };
 
-  const peakButtonLabel = isCurrentPeak
-    ? 'Quitar día pico'
-    : hasOtherPeak
-      ? 'Actualizar día pico'
-      : 'Determinar día pico';
   return (
     <>
       {/* Fecha */}
@@ -408,13 +407,28 @@ const DataEntryFormFields = ({
           </div>
         );
       })}
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+      <div className="mt-4 gap-3 ">
         {/* Símbolo de fertilidad */}
-        <div className="space-y-2 rounded-xl border border-slate-100/50 bg-gradient-to-r from-stone-50 to-slate-50 p-3">
-          <Label htmlFor="fertilitySymbol" className="flex items-center text-slate-800 text-sm font-semibold">
-            <Sprout className="mr-2 h-5 w-5 text-slate-400" />
-            Símbolo de Fertilidad
-          </Label>
+        <div className="space-y-2 rounded-xl border border-slate-100/50 bg-gradient-to-r from-stone-100 to-slate-100 p-3">
+          <div className="flex items-start justify-between gap-3">
+            <Label htmlFor="fertilitySymbol" className="flex items-center text-slate-800 text-sm font-semibold">
+              <Sprout className="mr-2 h-5 w-5 text-slate-400" />
+              Símbolo de Fertilidad
+            </Label>
+            {selectedIsoDate && (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                aria-pressed={isCurrentPeak}
+                disabled={isProcessing}
+                onClick={togglePeakTag}
+                className={peakButtonClasses}
+              >
+                Día pico
+              </Button>
+            )}
+          </div>
           <Select value={fertilitySymbol} onValueChange={setFertilitySymbol} disabled={isProcessing}>
             <SelectTrigger className="w-full bg-white border-slate-200 text-gray-800 hover:bg-white">
               <SelectValue placeholder="Selecciona un símbolo" />
@@ -429,41 +443,8 @@ const DataEntryFormFields = ({
                 </SelectItem>
               ))}
             </SelectContent>
-          </Select>
-        </div>
-
-        {selectedIsoDate && (
-          <div className="space-y-2 rounded-2xl border border-rose-200/60 bg-gradient-to-r from-rose-50 to-pink-50 p-3 shadow-sm">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <Button
-                type="button"
-                size="sm"
-                variant={isCurrentPeak ? 'default' : 'outline'}
-                disabled={isProcessing}
-                onClick={togglePeakTag}
-                className={cn(
-                  'group w-full justify-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide transition-all duration-200 sm:w-auto sm:text-sm',
-                  isCurrentPeak
-                    ? 'bg-rose-500 text-white shadow-md hover:bg-rose-600'
-                    : 'border-rose-200 text-rose-600 shadow-sm hover:bg-rose-50'
-                )}
-              >
-                <Sparkles className="mr-1.5 h-3.5 w-3.5 transition-transform group-hover:scale-110" />
-                {peakButtonLabel}
-              </Button>
-            </div>
-            {hasOtherPeak && formattedExistingPeak && (
-              <p className="text-[11px] font-medium text-rose-500">
-                Ya hay un pico registrado el {formattedExistingPeak}.
-              </p>
-            )}
-            {!hasOtherPeak && isCurrentPeak && (
-              <p className="text-[11px] text-rose-500">
-                Este día se marcará como pico y los tres siguientes quedarán etiquetados.
-              </p>
-            )}
+          </Select>       
           </div>
-        )}
       </div>
       {/* Sensación y apariencia */}
       <div className="space-y-2 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-3 border border-blue-100/50">

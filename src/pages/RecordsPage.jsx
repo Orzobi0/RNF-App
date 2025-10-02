@@ -425,7 +425,7 @@ const RecordsPage = () => {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.05 }}
-          className="mb-6 flex justify-center"
+          className="mb-5 flex justify-center"
         >
           <Calendar
             mode="single"
