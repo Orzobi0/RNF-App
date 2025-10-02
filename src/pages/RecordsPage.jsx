@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import CycleDatesEditor from '@/components/CycleDatesEditor';
 import RecordsList from '@/components/RecordsList';
 import DataEntryForm from '@/components/DataEntryForm';
@@ -7,9 +7,11 @@ import { useCycleData } from '@/hooks/useCycleData';
 import { useToast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
 import { Edit, Plus, FileText } from 'lucide-react';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, isValid, max } from 'date-fns';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { motion } from 'framer-motion';
+import { Calendar } from '@/components/ui/calendar';
+import { es } from 'date-fns/locale';
 
 const RecordsPage = () => {
   const {
@@ -34,10 +36,96 @@ const RecordsPage = () => {
   const [overlapCycle, setOverlapCycle] = useState(null);
   const [showOverlapDialog, setShowOverlapDialog] = useState(false);
   const [isUpdatingStartDate, setIsUpdatingStartDate] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(null);
+  const listContainerRef = useRef(null);
 
   useEffect(() => {
     setDraftStartDate(currentCycle?.startDate || '');
   }, [currentCycle?.startDate]);
+
+  const sortedRecordDates = useMemo(() => {
+    if (!currentCycle?.data?.length) return [];
+
+    return [...currentCycle.data]
+      .filter((record) => record?.isoDate)
+      .sort((a, b) => {
+        const dateA = parseISO(a.isoDate);
+        const dateB = parseISO(b.isoDate);
+        return dateB - dateA;
+      })
+      .map((record) => record.isoDate);
+  }, [currentCycle?.data]);
+
+  useEffect(() => {
+    if (!sortedRecordDates.length) {
+      setSelectedDate(null);
+      return;
+    }
+
+    if (!selectedDate || !sortedRecordDates.includes(selectedDate)) {
+      setSelectedDate(sortedRecordDates[0]);
+    }
+  }, [sortedRecordDates, selectedDate]);
+
+  useEffect(() => {
+    if (selectedDate && listContainerRef.current) {
+      listContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [selectedDate]);
+
+  const recordDateObjects = useMemo(() => {
+    if (!currentCycle?.data?.length) return [];
+
+    return currentCycle.data
+      .map((record) => {
+        if (!record?.isoDate) return null;
+        const parsed = parseISO(record.isoDate);
+        return isValid(parsed) ? parsed : null;
+      })
+      .filter(Boolean);
+  }, [currentCycle?.data]);
+
+  const recordDateSet = useMemo(() => new Set(sortedRecordDates), [sortedRecordDates]);
+
+  const cycleRange = useMemo(() => {
+    if (!currentCycle?.startDate) return null;
+    const start = parseISO(currentCycle.startDate);
+    if (!isValid(start)) return null;
+
+    const end = currentCycle?.endDate
+      ? parseISO(currentCycle.endDate)
+      : recordDateObjects.length
+        ? max(recordDateObjects)
+        : start;
+
+    if (!isValid(end)) {
+      return { from: start, to: start };
+    }
+
+    return { from: start, to: end };
+  }, [currentCycle?.startDate, currentCycle?.endDate, recordDateObjects]);
+
+  const calendarModifiers = useMemo(() => {
+    const modifiers = {};
+    if (cycleRange) {
+      modifiers.cycle = cycleRange;
+    }
+    if (recordDateObjects.length) {
+      modifiers.hasRecord = recordDateObjects;
+    }
+    return modifiers;
+  }, [cycleRange, recordDateObjects]);
+
+  const handleCalendarSelect = useCallback(
+    (day, modifiers) => {
+      if (!day) return;
+      const iso = format(day, 'yyyy-MM-dd');
+      if (modifiers?.hasRecord || recordDateSet.has(iso)) {
+        setSelectedDate(iso);
+      }
+    },
+    [recordDateSet]
+  );
 
   const resetStartDateFlow = useCallback(() => {
     setPendingStartDate(null);
@@ -308,17 +396,74 @@ const RecordsPage = () => {
           </motion.div>
         )}
 
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.05 }}
+          className="mb-6"
+        >
+          <div className="bg-white/80 backdrop-blur border border-pink-200/50 rounded-3xl shadow-lg p-4 sm:p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-2">
+              <h2 className="text-lg font-semibold text-slate-700">Calendario del ciclo</h2>
+              <p className="text-sm text-slate-500">
+                Selecciona un día con registro para ver su tarjeta destacada.
+              </p>
+            </div>
+            <Calendar
+              mode="single"
+              locale={es}
+              defaultMonth={
+                selectedDate && isValid(parseISO(selectedDate))
+                  ? parseISO(selectedDate)
+                  : cycleRange?.to
+              }
+              selected={selectedDate && isValid(parseISO(selectedDate)) ? parseISO(selectedDate) : undefined}
+              onDayClick={handleCalendarSelect}
+              modifiers={calendarModifiers}
+              className="rounded-2xl border border-pink-100 shadow-sm"
+              classNames={{
+                day_selected:
+                  'bg-rose-500 text-white hover:bg-rose-500 hover:text-white focus:bg-rose-500 focus:text-white',
+                day_today: 'bg-rose-200 text-rose-700 font-semibold',
+              }}
+              modifiersClassNames={{
+                cycle:
+                  "relative after:absolute after:inset-0 after:rounded-full after:bg-rose-100/60 after:content-[''] after:-z-10",
+                hasRecord:
+                  "relative font-semibold after:absolute after:bottom-1.5 after:left-1/2 after:-translate-x-1/2 after:w-1.5 after:h-1.5 after:rounded-full after:bg-rose-500 after:content-['']",
+              }}
+            />
+            <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-500">
+              <div className="flex items-center gap-2">
+                <span className="inline-block h-3 w-3 rounded-full bg-rose-500" />
+                <span>Día con registro</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="inline-block h-3 w-3 rounded bg-rose-100 border border-rose-200" />
+                <span>Día dentro del ciclo</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="inline-block h-3 w-3 rounded bg-rose-500" />
+                
+              </div>
+            </div>
+          </div>
+        </motion.div>
+
+
         {/* Records List */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.1 }}
+          ref={listContainerRef}
         >
           <RecordsList
             records={currentCycle.data}
             onEdit={handleEdit}
             onDelete={handleDeleteRequest}
             isProcessing={isProcessing}
+            selectedDate={selectedDate}
           />
         </motion.div>
       </div>
