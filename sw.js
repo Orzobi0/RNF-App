@@ -1,4 +1,8 @@
-const CACHE_VERSION = `v${Date.now()}`; // Versión más confiable
+const BUILD_VERSION_MARKER = '2025-10-02T11:17:03.253Z';
+const CACHE_VERSION =
+  BUILD_VERSION_MARKER !== '${__DATE__}'
+    ? BUILD_VERSION_MARKER
+    : `dev-${Date.now()}`; // Fallback en desarrollo cuando el marcador no fue reemplazado
 const CACHE_NAME = `rnf-app-cache-${CACHE_VERSION}`;
 const BASE_URL = self.registration.scope;
 const ASSETS = [
@@ -10,9 +14,13 @@ const ASSETS = [
   `${BASE_URL}icon-512x512.png`,
   `${BASE_URL}apple-touch-icon.png`
 ];
-const BUILD_ASSETS = (["assets/ChartTooltip-c0dcf72c.js","assets/CycleDatesEditor-4d5ec674.js","assets/DeletionDialog-9bcd306e.js","assets/OverlapWarningDialog-cf4973a4.js","assets/RecordsList-8aa66fff.js","assets/arrow-left-c923ae35.js","assets/badge-2d3d489e.js","assets/computePeakStatuses-1cb03412.js","assets/eye-853f9d7c.js","assets/eye-off-dac0e639.js","assets/input-693389fa.js","assets/label-962136e3.js","assets/select-973da53b.js","assets/useCycleData-09262d0a.js","assets/index-167800fe.css","assets/index-e84ae47f.js","assets/index.es-131c3a8c.js","assets/purify.es-2de9db7f.js","assets/html2canvas.esm-e0a7d97b.js","assets/ArchivedCyclesPage-4412364a.js","assets/AuthPage-89d27e18.js","assets/ChartPage-c9112152.js","assets/CycleDetailPage-f559d7bc.js","assets/DashboardPage-58cf59ef.js","assets/RecordsPage-5d46ad7d.js","assets/SettingsPage-c3d64eef.js"] || []).map(
+const BUILD_ASSETS = (["assets/ChartTooltip-35e03b20.js","assets/CycleDatesEditor-0db50ef5.js","assets/DeletionDialog-aaefd1b0.js","assets/OverlapWarningDialog-26e0e497.js","assets/RecordsList-1441e981.js","assets/arrow-left-d976c708.js","assets/badge-b2616664.js","assets/computePeakStatuses-9c417235.js","assets/eye-020a87c7.js","assets/eye-off-a74b0232.js","assets/input-49c2a17b.js","assets/label-61f7cfb2.js","assets/select-e07d8604.js","assets/useCycleData-834d83be.js","assets/index-46ef17f2.css","assets/index-65a39a90.js","assets/index.es-4d57ba33.js","assets/purify.es-2de9db7f.js","assets/html2canvas.esm-e0a7d97b.js","assets/ArchivedCyclesPage-2bcf2014.js","assets/AuthPage-671dec8f.js","assets/ChartPage-021d61be.js","assets/CycleDetailPage-e6259024.js","assets/DashboardPage-9d16e7a7.js","assets/RecordsPage-b683b3c9.js","assets/SettingsPage-cb91f340.js"] || []).map(
   (asset) => `${BASE_URL}${asset}`
 );
+async function matchActiveCache(request) {
+  const cache = await caches.open(CACHE_NAME);
+  return cache.match(request);
+}
 
 self.addEventListener('install', event => {
   console.log('SW: Installing new version', CACHE_VERSION);
@@ -108,7 +116,7 @@ self.addEventListener('fetch', (event) => {
             }
             return networkResponse;
           } catch (error) {
-            const cachedResponse = await caches.match(event.request);
+            const cachedResponse = await matchActiveCache(event.request);
             return cachedResponse || Response.error();
           }
         }
@@ -122,7 +130,7 @@ self.addEventListener('fetch', (event) => {
           }
           return networkResponse;
         } catch (error) {
-          const cachedResponse = await caches.match(event.request);
+          const cachedResponse = await matchActiveCache(event.request);
           return cachedResponse || Response.error();
         }
       })()
@@ -146,7 +154,7 @@ self.addEventListener('fetch', (event) => {
             return networkResponse;
           } catch (error) {
             console.log('SW: Network failed on forced reload, falling back to cache');
-            const fallback = await caches.match(`${BASE_URL}index.html`);
+            const fallback = await matchActiveCache(`${BASE_URL}index.html`);
             return fallback || Response.error();
           }
         }
@@ -163,12 +171,12 @@ self.addEventListener('fetch', (event) => {
           return networkResponse;
         } catch (error) {
           console.log('SW: Network failed, trying cache');
-          const cachedResponse = await caches.match(event.request);
+          const cachedResponse = await matchActiveCache(event.request);
           if (cachedResponse) {
             return cachedResponse;
           }
 
-          const fallback = await caches.match(`${BASE_URL}index.html`);
+          const fallback = await matchActiveCache(`${BASE_URL}index.html`);
           if (fallback) {
             return fallback;
           }
@@ -193,7 +201,7 @@ self.addEventListener('fetch', (event) => {
           }
           return networkResponse;
         } catch (error) {
-          const cachedResponse = await caches.match(event.request);
+          const cachedResponse = await matchActiveCache(event.request);
           return cachedResponse || Response.error();
         }
       }
@@ -209,7 +217,7 @@ self.addEventListener('fetch', (event) => {
         }
         return networkResponse;
       } catch (error) {
-        const cachedResponse = await caches.match(event.request);
+        const cachedResponse = await matchActiveCache(event.request);
         return cachedResponse || Response.error();
       }
     })()
