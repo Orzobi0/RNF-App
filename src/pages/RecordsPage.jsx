@@ -377,7 +377,7 @@ const RecordsPage = () => {
                 variant="outline"
                 size="icon"
                 onClick={openStartDateEditor}
-                className="border-pink-200 text-pink-600 hover:bg-pink-50"
+                className="border-pink-200 rounded-full text-pink-600 hover:bg-pink-50"
                 disabled={isProcessing || isUpdatingStartDate}
                 aria-label="Editar fecha de inicio"
               >
@@ -388,7 +388,7 @@ const RecordsPage = () => {
                 type="button"
                 size="icon"
                 onClick={() => { setEditingRecord(null); setShowForm(true); }}
-                className="bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white shadow-lg"
+                className="rounded-full bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white shadow-lg"
                 disabled={isProcessing}
                 style={{ filter: 'drop-shadow(0 6px 12px rgba(236, 72, 153, 0.3))' }}
                 aria-label="Añadir registro"

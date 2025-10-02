@@ -123,7 +123,7 @@ const RecordsList = ({ records, onEdit, onDelete, isProcessing, selectedDate }) 
                 </div>
                 <div className="flex items-center space-x-1 ml-2">                  
                   <div
-                    className={`w-6 h-6 rounded-full border ${symbolInfo.color} ${symbolInfo.pattern ? 'pattern-bg' : ''} flex-shrink-0`}
+                    className={`w-6 h-6 rounded-full ${symbolInfo.color} ${symbolInfo.pattern ? 'pattern-bg' : ''} flex-shrink-0`}
                     style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}
                   />
                 </div>

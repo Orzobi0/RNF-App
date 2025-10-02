@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -271,7 +270,7 @@ const DataEntryFormFields = ({
                   size="sm"
                   variant="outline"
                   disabled={isProcessing}
-                  className=" text-white bg-orange-300 focus:ring-orange-400"
+                  className=" text-slate-800 bg-orange-300 focus:ring-orange-100"
                   onClick={() => {
                     if (correctionIndex === idx) {
                       setCorrectionIndex(null);
@@ -288,6 +287,24 @@ const DataEntryFormFields = ({
                 >
                   Corregir
                 </Button>
+                {isEditing && Boolean(m.temperature) && (
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="outline"
+                    disabled={isProcessing}
+                    onClick={() => handleIgnoredChange(!ignored)}
+                    className={cn(
+                      'h-7 w-7 border-amber-200 text-amber-600 transition-colors',
+                      ignored
+                        ? 'bg-orange-500 text-white hover:bg-orange-600'
+                        : 'bg-white/70 hover:bg-amber-100'
+                    )}
+                    title={ignored ? 'Restaurar' : 'Despreciar'}
+                  >
+                    {ignored ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                  </Button>
+                )}
                 {!m.confirmed && (
                   <>
                     <Button
@@ -324,25 +341,6 @@ const DataEntryFormFields = ({
               </Button>
             </div>
 
-            {/* Ignorar */}
-            {isEditing && (
-              <div className="space-y-2 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-3 border border-amber-100/50">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="ignored"
-                    checked={ignored}
-                    onCheckedChange={handleIgnoredChange}
-                    className="data-[state=checked]:bg-orange-500 data-[state=checked]:text-white border-amber-400"
-                    disabled={isProcessing}
-                  />
-                  <Label htmlFor="ignored" className="text-xs text-amber-700 flex items-center">
-                    {ignored ? <Eye className="mr-1 h-4 w-4" /> : <EyeOff className="mr-1 h-4 w-4" />}
-                    {ignored ? 'Restaurar' : 'Despreciar'}
-                  </Label>
-
-                </div>
-              </div>
-              )}
               
             {correctionIndex === idx && (
               <div className="mt-2 space-y-2">
@@ -437,7 +435,12 @@ const DataEntryFormFields = ({
               {FERTILITY_SYMBOL_OPTIONS.map((symbol) => (
                 <SelectItem key={symbol.value} value={symbol.value} className="cursor-pointer">
                   <div className="flex items-center">
-                    <span className={`w-4 h-4 rounded-full mr-2 border border-gray-300 ${symbol.color}`} />
+                    <span
+                      className={cn(
+                        'w-4 h-4 rounded-full mr-2 border border-gray-300',
+                        symbol.pattern === 'spotting-pattern' ? 'spotting-pattern-icon' : symbol.color
+                      )}
+                    />
                     {symbol.label}
                   </div>
                 </SelectItem>
