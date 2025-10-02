@@ -121,12 +121,9 @@ const RecordsList = ({ records, onEdit, onDelete, isProcessing, selectedDate }) 
                     </Badge>
                   )}
                 </div>
-                <div className="flex items-center space-x-1 ml-2">
-                  {symbolInfo.label !== 'Sin símbolo' && (
-                    <span className="text-xs text-slate-600">{symbolInfo.label}</span>
-                  )}
+                <div className="flex items-center space-x-1 ml-2">                  
                   <div
-                    className={`w-6 h-6 rounded-full border ${symbolInfo.color} ${symbolInfo.pattern ? 'pattern-bg' : ''} flex-shrink-0`}
+                    className={`w-6 h-6 rounded-full border border-slate-300 ${symbolInfo.color} ${symbolInfo.pattern ? 'pattern-bg' : ''} flex-shrink-0`}
                     style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}
                   />
                 </div>
@@ -134,8 +131,8 @@ const RecordsList = ({ records, onEdit, onDelete, isProcessing, selectedDate }) 
 
               {/* Temperatura y hora */}
               <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-800">
-                <div className="flex items-center space-x-1 bg-gradient-to-r from-amber-200 to-orange-200 border border-amber-300/50 p-2 rounded-xl">
-                  <Thermometer className="w-3 h-3 text-rose-400" />
+                <div className="flex items-center space-x-1 border border-amber-500 px-2 py-1.5 rounded-lg">
+                  <Thermometer className="w-4 h-4 bg-amber-500 rounded-full text-white" />
                   <span className="font-medium">{hasTemperature ? `${displayTemp}°C` : ''}</span>
                   {showCorrectedIndicator && (
                     <span
@@ -149,7 +146,7 @@ const RecordsList = ({ records, onEdit, onDelete, isProcessing, selectedDate }) 
                     </Badge>
                   )}
                 </div>
-                <div className="flex items-center space-x-1 bg-slate-200 border border-gray-300/50 p-2 rounded-xl">
+                <div className="flex items-center space-x-1  border border-gray-400 px-2 py-1.5 rounded-lg">
                   {selectedMeasurement?.time && (
                     <>
                       <Clock className="w-3 h-3 text-gray-600" />
@@ -173,14 +170,14 @@ const RecordsList = ({ records, onEdit, onDelete, isProcessing, selectedDate }) 
        
               {/* Sensación y apariencia */}
               <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-600">
-                <div className="flex items-center gap-2 bg-gradient-to-r from-blue-100 to-indigo-100 border border-blue-500/50 p-2 rounded-xl">
-                  <div className="w-5 h-5 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-md">
+                <div className="flex items-center gap-2 border border-blue-600/40 px-2 py-1.5 rounded-lg">
+                  <div className="w-5 h-5 bg-gradient-to-br from-blue-500/90 to-indigo-600/90 rounded-lg flex items-center justify-center shadow-md">
                     <Droplets className="w-3 h-3 text-white" />
                   </div>
                   <span className="font-semibold text-blue-800 truncate">{record.mucus_sensation || record.mucusSensation || ''}</span>
                 </div>
-                <div className="flex items-center gap-2 bg-gradient-to-r from-emerald-100 to-teal-100 border border-emerald-500/50 p-2 rounded-xl">
-                  <div className="w-5 h-5 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center shadow-md">
+                <div className="flex items-center gap-2  border border-emerald-500 px-2 py-1.5 rounded-lg">
+                  <div className="w-5 h-5 bg-gradient-to-br from-emerald-500/90 to-teal-600/90 rounded-lg flex items-center justify-center shadow-md">
                     <Circle className="w-3 h-3 text-white" />
                   </div>
                   <span className="font-semibold text-green-800 truncate">{record.mucus_appearance || record.mucusAppearance || ''}</span>
@@ -189,8 +186,8 @@ const RecordsList = ({ records, onEdit, onDelete, isProcessing, selectedDate }) 
 
               {/* Observaciones y acciones */}
               <div className="mt-2 grid grid-cols-[1fr_auto] gap-2 items-start text-xs text-slate-600">
-                <div className="flex items-center gap-2 bg-gradient-to-r from-violet-100 to-purple-100 border border-violet-500/50 p-2 rounded-xl">
-                  <div className="w-5 h-5 bg-gradient-to-br from-violet-500 to-purple-600 rounded-lg flex items-center justify-center shadow-md">
+                <div className="flex items-center gap-2 border border-violet-500/40 px-2 py-1.5 rounded-lg">
+                  <div className="w-5 h-5 bg-gradient-to-br from-violet-500/90 to-purple-600/90 rounded-lg flex items-center justify-center shadow-md">
                     <Edit3 className="w-3 h-3 text-white" />
                   </div>
                   <span className="font-semibold text-violet-800 truncate">{record.observations || ''}</span>
@@ -201,7 +198,7 @@ const RecordsList = ({ records, onEdit, onDelete, isProcessing, selectedDate }) 
                     onClick={() => onEdit(record)}
                     variant="outline"
                     size="sm"
-                    className="h-8 w-8 p-0 border-pink-300 text-pink-600 hover:bg-pink-50 hover:border-pink-400"
+                    className="h-8 w-8 p-0 bg-slate-100 border-pink-300 text-pink-600 hover:bg-pink-50 hover:border-pink-400"
                     disabled={isProcessing}
                   >
                     <Edit2 className="h-3 w-3" />

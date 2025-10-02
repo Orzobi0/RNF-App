@@ -136,7 +136,7 @@ const ChartPage = () => {
   if (showLoading) {
     return (
       <MainLayout>
-        <div className="flex h-full flex-col items-center justify-center space-y-4 px-4 py-8 text-center text-gray-500">
+        <div className="flex h-full flex-col items-center justify-center space-y-4 bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 px-4 py-8 text-center text-pink-600">
           <p>Cargando…</p>
         </div>
       </MainLayout>

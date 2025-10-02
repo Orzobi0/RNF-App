@@ -361,36 +361,42 @@ const RecordsPage = () => {
       <div className="max-w-4xl mx-auto px-4 py-6 relative z-10">
         {/* Header */}
         <motion.div
-          className="flex flex-col sm:flex-row justify-between items-center mb-6"
+          className="flex flex-col gap-4 mb-6"
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <h1 className="text-3xl sm:text-4xl font-bold text-slate-700 mb-4 sm:mb-0 flex items-center">
-            <FileText className="mr-3 h-8 w-8 text-pink-500" />
-            Mis Registros
-          </h1>
-          <div className="w-full sm:w-auto justify-center flex gap-2 sm:items-center">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={openStartDateEditor}
-              className="border-pink-200 text-pink-600 hover:bg-pink-50"
-              disabled={isProcessing || isUpdatingStartDate}
-            >
-              <Edit className="mr-2 h-4 w-4" />
-              Editar fecha inicio
-            </Button>
-            <Button
-              type="button"
-              onClick={() => { setEditingRecord(null); setShowForm(true); }}
-              className="bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white shadow-lg"
-              disabled={isProcessing}
-              style={{ filter: 'drop-shadow(0 6px 12px rgba(236, 72, 153, 0.3))' }}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Añadir registro
-            </Button>
+          <div className="flex flex-wrap items-center gap-3 justify-between sm:justify-start">
+            <div className="flex items-center gap-3">
+              <FileText className="h-8 w-8 text-pink-500" />
+              <h1 className="text-3xl sm:text-4xl font-bold text-slate-700">Mis Registros</h1>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={openStartDateEditor}
+                className="border-pink-200 rounded-full text-pink-600 hover:bg-pink-50"
+                disabled={isProcessing || isUpdatingStartDate}
+                aria-label="Editar fecha de inicio"
+              >
+                <Edit className="h-4 w-4" />
+                <span className="sr-only">Editar fecha de inicio</span>
+              </Button>
+              <Button
+                type="button"
+                size="icon"
+                onClick={() => { setEditingRecord(null); setShowForm(true); }}
+                className="rounded-full bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white shadow-lg"
+                disabled={isProcessing}
+                style={{ filter: 'drop-shadow(0 6px 12px rgba(236, 72, 153, 0.3))' }}
+                aria-label="Añadir registro"
+              >
+                <Plus className="h-4 w-4" />
+                <span className="sr-only">Añadir registro</span>
+              </Button>
+            </div>
           </div>
         </motion.div>
         {showStartDateEditor && (
@@ -441,7 +447,7 @@ const RecordsPage = () => {
             className="w-full max-w-md sm:max-w-lg rounded-2xl border border-pink-100 shadow-sm bg-white/60 backdrop-blur-sm p-3 mx-auto [&_button]:text-slate-900 [&_button:hover]:bg-rose-100 [&_button[aria-selected=true]]:bg-rose-500"
             classNames={{
               day_selected:
-                'bg-rose-500 text-white hover:bg-rose-500 hover:text-white focus:bg-rose-500 focus:text-white',
+                'border border-rose-500 text-white hover:bg-rose-500 hover:text-white focus:bg-rose-500 focus:text-white',
               day_today: 'bg-rose-200 text-rose-700 font-semibold',
             }}
             modifiersClassNames={{
