@@ -10,11 +10,19 @@ export const useDataEntryForm = (
   cycleStartDate,
   cycleEndDate,
   cycleData = [],
-  onDateSelect
+  onDateSelect,
+  defaultIsoDate
 ) => {
   const getDefaultDate = () => {
     if (initialData?.isoDate) {
       return parseISO(initialData.isoDate);
+    }
+
+    if (defaultIsoDate) {
+      const parsedDefault = startOfDay(parseISO(defaultIsoDate));
+      if (!Number.isNaN(parsedDefault.getTime())) {
+        return parsedDefault;
+      }
     }
 
     const today = startOfDay(new Date());
@@ -74,7 +82,7 @@ export const useDataEntryForm = (
     ];
   });
 
- const [mucusSensation, setMucusSensation] = useState(
+  const [mucusSensation, setMucusSensation] = useState(
     initialData?.mucusSensation ?? initialData?.mucus_sensation ?? ''
   );
   const [mucusAppearance, setMucusAppearance] = useState(
@@ -134,11 +142,11 @@ export const useDataEntryForm = (
       setObservations('');
       setIgnored(false);
       setPeakTag(null);
-      setDate((prevDate) => prevDate || getDefaultDate());
+      setDate(getDefaultDate());
     }
-  }, [initialData]);
+  }, [initialData, defaultIsoDate]);
 
-    useEffect(() => {
+  useEffect(() => {
     if (initialData) {
       return;
     }
@@ -172,7 +180,7 @@ export const useDataEntryForm = (
     });
   }, [cycleStartDate, cycleEndDate, initialData]);
 
-   useEffect(() => {
+  useEffect(() => {
     if (!onDateSelect) return;
     const iso = format(date, 'yyyy-MM-dd');
     const found = cycleData.find((r) => r.isoDate === iso);
