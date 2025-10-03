@@ -12,20 +12,20 @@ const BottomNav = () => {
   ];
 
   return (
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 z-50 pb-[env(safe-area-inset-bottom)] min-h-[var(--bottom-nav-safe)]">
-        <ul className="flex justify-around items-center max-w-md mx-auto h-full">
+      <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-gray-100 bg-white pt-2 pb-[env(safe-area-inset-bottom)] min-h-[var(--bottom-nav-safe)]">
+      <ul className="mx-auto flex w-full max-w-md items-center justify-around gap-2 px-2">
         {links.map(({ to, label, icon: Icon }) => (
-          <li key={to}>
+          <li key={to} className="flex-1">
             <NavLink
               to={to}
               className={({ isActive }) =>
-                `flex flex-col items-center py-2 px-3 rounded-lg transition-colors duration-200 ${
+                `flex flex-col items-center gap-1 rounded-lg px-3 py-2 text-center text-xs leading-tight transition-colors duration-200 ${
                   isActive ? 'text-pink-600' : 'text-gray-400 hover:text-gray-600'
                 }`
               }
             >
               <Icon className="h-5 w-5" />
-              <span className="text-xs mt-1">{label}</span>
+              <span>{label}</span>
             </NavLink>
           </li>
         ))}
