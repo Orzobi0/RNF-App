@@ -61,7 +61,13 @@ const formatTemperatureDisplay = (value) => {
   return numeric.toFixed(2);
 };
 
-const FieldBadges = ({ hasTemperature, hasMucus, hasObservations, isPeakDay }) => {
+const FieldBadges = ({
+  hasTemperature,
+  hasMucusSensation,
+  hasMucusAppearance,
+  hasObservations,
+  isPeakDay,
+}) => {
   const badgeBase =
     'flex items-center justify-center w-7 h-7 rounded-full text-white shadow-sm shadow-rose-200/50 transition-transform duration-200';
 
@@ -72,16 +78,21 @@ const FieldBadges = ({ hasTemperature, hasMucus, hasObservations, isPeakDay }) =
           <Thermometer className="h-3.5 w-3.5" />
         </span>
       )}
-      {hasMucus && (
+      {hasMucusSensation && (
         <span className={`${badgeBase} bg-sky-500/90`}>
           <Droplets className="h-3.5 w-3.5" />
+        </span>
+      )}
+      {hasMucusAppearance && (
+        <span className={`${badgeBase} bg-emerald-500/90`}>
+          <Circle className="h-3.5 w-3.5" />
         </span>
       )}
       {hasObservations && (
         <span className={`${badgeBase} bg-violet-500/90`}>
           <Edit3 className="h-3.5 w-3.5" />
         </span>
-      )}
+      )}      
       {isPeakDay && (
         <span className={`${badgeBase} bg-rose-500/90 text-xs font-semibold`}>✖</span>
       )}
@@ -115,6 +126,7 @@ const RecordsPage = () => {
   const [selectedDate, setSelectedDate] = useState(null);
   const [expandedIsoDate, setExpandedIsoDate] = useState(null);
   const [defaultFormIsoDate, setDefaultFormIsoDate] = useState(null);
+  const [isCalendarOpen, setIsCalendarOpen] = useState(true);
   const dayRefs = useRef({});
   const hasUserSelectedDateRef = useRef(false);
 
@@ -237,7 +249,9 @@ const RecordsPage = () => {
 
       const mucusSensation = record.mucusSensation ?? record.mucus_sensation ?? '';
       const mucusAppearance = record.mucusAppearance ?? record.mucus_appearance ?? '';
-      const hasMucus = Boolean(mucusSensation || mucusAppearance);
+      const hasMucusSensation = Boolean(mucusSensation);
+      const hasMucusAppearance = Boolean(mucusAppearance);
+      const hasMucus = hasMucusSensation || hasMucusAppearance;
       const observationsText = record.observations || '';
       const hasObservations = Boolean(observationsText);
 
@@ -255,6 +269,8 @@ const RecordsPage = () => {
         showCorrectedIndicator,
         timeValue,
         hasMucus,
+        hasMucusSensation,
+        hasMucusAppearance,
         mucusSensation,
         mucusAppearance,
         hasObservations,
@@ -644,7 +660,22 @@ const RecordsPage = () => {
           <div className="flex flex-wrap items-center gap-3 justify-between sm:justify-start">
             <div className="flex items-center gap-3">
               <FileText className="h-8 w-8 text-pink-500" />
-              <h1 className="text-3xl sm:text-4xl font-bold text-slate-700">Mis Registros</h1>
+              <button
+                type="button"
+                onClick={() => setIsCalendarOpen((prev) => !prev)}
+                className="group flex items-center gap-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:ring-offset-2 focus-visible:ring-offset-rose-50 rounded-lg"
+                aria-expanded={isCalendarOpen}
+                aria-controls="records-calendar"
+              >
+                <span className="text-3xl sm:text-4xl font-bold text-slate-700">Mis Registros</span>
+                <span className="flex items-center gap-1 rounded-full bg-rose-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-rose-600 transition-colors group-hover:bg-rose-200">
+                  <CalendarDays className="h-3.5 w-3.5" />
+                  {isCalendarOpen ? 'Ocultar calendario' : 'Mostrar calendario'}
+                  <motion.span animate={{ rotate: isCalendarOpen ? 180 : 0 }} className="ml-1 inline-flex">
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  </motion.span>
+                </span>
+              </button>
             </div>
             <div className="flex items-center gap-2">
               <Button
@@ -713,38 +744,45 @@ const RecordsPage = () => {
           </motion.div>
         )}
 
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.05 }}
-          className="mb-5 flex justify-center"
-        >
-          <Calendar
-            mode="single"
-            locale={es}
-            defaultMonth={
-              selectedDate && isValid(parseISO(selectedDate))
-                ? parseISO(selectedDate)
-                : cycleRange?.to
-            }
-            selected={selectedDate && isValid(parseISO(selectedDate)) ? parseISO(selectedDate) : undefined}
-            onDayClick={handleCalendarSelect}
-            modifiers={calendarModifiers}
-            className="w-full max-w-md sm:max-w-lg rounded-2xl border border-pink-100 shadow-sm bg-white/60 backdrop-blur-sm p-3 mx-auto [&_button]:text-slate-900 [&_button:hover]:bg-rose-100 [&_button[aria-selected=true]]:bg-rose-500"
-            classNames={{
-              day_selected:
-                'border border-rose-500 text-white hover:bg-rose-500 hover:text-white focus:bg-rose-500 focus:text-white',
-              day_today: 'bg-rose-200 text-rose-700 font-semibold',
-            }}
-            modifiersClassNames={{
-              hasRecord:
-                "relative font-semibold after:absolute after:bottom-1.5 after:left-1/2 after:-translate-x-1/2 after:w-1.5 after:h-1.5 after:rounded-full after:bg-rose-500 after:content-['']",
-              outsideCycle: 'text-slate-300 opacity-50 hover:text-slate-300 hover:bg-transparent',
-              insideCycleNoRecord:
-                'text-slate-900 hover:text-slate-900 hover:bg-rose-50',
-            }}
-          />
-        </motion.div>
+        <AnimatePresence initial={false}>
+          {isCalendarOpen && (
+            <motion.div
+              key="records-calendar"
+              id="records-calendar"
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.3 }}
+              className="mb-5 flex justify-center"
+            >
+              <Calendar
+                mode="single"
+                locale={es}
+                defaultMonth={
+                  selectedDate && isValid(parseISO(selectedDate))
+                    ? parseISO(selectedDate)
+                    : cycleRange?.to
+                }
+                selected={selectedDate && isValid(parseISO(selectedDate)) ? parseISO(selectedDate) : undefined}
+                onDayClick={handleCalendarSelect}
+                modifiers={calendarModifiers}
+                className="w-full max-w-md sm:max-w-lg rounded-2xl border border-pink-100 shadow-sm bg-white/60 backdrop-blur-sm p-3 mx-auto [&_button]:text-slate-900 [&_button:hover]:bg-rose-100 [&_button[aria-selected=true]]:bg-rose-500"
+                classNames={{
+                  day_selected:
+                    'border border-rose-500 text-white hover:bg-rose-500 hover:text-white focus:bg-rose-500 focus:text-white',
+                  day_today: 'bg-rose-200 text-rose-700 font-semibold',
+                }}
+                modifiersClassNames={{
+                  hasRecord:
+                    "relative font-semibold after:absolute after:bottom-1.5 after:left-1/2 after:-translate-x-1/2 after:w-1.5 after:h-1.5 after:rounded-full after:bg-rose-500 after:content-['']",
+                  outsideCycle: 'text-slate-300 opacity-50 hover:text-slate-300 hover:bg-transparent',
+                  insideCycleNoRecord:
+                    'text-slate-900 hover:text-slate-900 hover:bg-rose-50',
+                }}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
 
         {/* Records List */}
@@ -818,7 +856,8 @@ const RecordsPage = () => {
                     </span>
                     <FieldBadges
                       hasTemperature={details.hasTemperature}
-                      hasMucus={details.hasMucus}
+                      hasMucusSensation={details.hasMucusSensation}
+                      hasMucusAppearance={details.hasMucusAppearance}
                       hasObservations={details.hasObservations}
                       isPeakDay={details.isPeakDay}
                     />
@@ -839,36 +878,20 @@ const RecordsPage = () => {
                           {symbolInitial}
                         </span>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-9 w-9 rounded-full bg-rose-50 text-rose-500 hover:bg-rose-100"
-                          disabled={isProcessing}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            handleEdit(details.record);
-                          }}
-                          aria-label="Editar registro"
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-9 w-9 rounded-full bg-rose-50 text-rose-500 hover:bg-rose-100"
-                          disabled={isProcessing}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            handleDeleteRequest(details.record.id);
-                          }}
-                          aria-label="Eliminar registro"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9 rounded-full bg-rose-50 text-rose-500 hover:bg-rose-100"
+                        disabled={isProcessing}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleEdit(details.record);
+                        }}
+                        aria-label="Editar registro"
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
                       <motion.span
                         animate={{ rotate: isExpanded ? 180 : 0 }}
                         className="rounded-full bg-rose-50 p-1 text-rose-400 shadow-inner"
@@ -935,20 +958,37 @@ const RecordsPage = () => {
                               </Badge>
                             )}
                           </div>
-                          <div className="flex flex-col gap-2 rounded-3xl border border-violet-200 bg-violet-50/80 p-4 text-sm text-violet-700">
-                            <div className="flex items-center gap-2">
-                              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-violet-400 text-white shadow-md">
-                                <Edit3 className="h-4 w-4" />
-                              </div>
-                              <span className="font-semibold">Observaciones</span>
+                          <div className="rounded-3xl border border-violet-200 bg-violet-50/80 px-3 py-2 text-sm text-violet-700">
+                          <div className="flex items-start gap-2">
+                            <div className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-violet-400 text-white shadow-md">
+                              <Edit3 className="h-4 w-4" />
                             </div>
-                            <p className="whitespace-pre-line text-violet-600">
-                              {details.observationsText || 'Sin observaciones registradas.'}
-                            </p>
+                            <div className="flex-1 space-y-1">
+                              <span className="block font-semibold leading-tight"></span>
+                              <p className="whitespace-pre-line text-sm leading-snug text-violet-600">
+                                {details.observationsText || 'Sin observaciones'}
+                              </p>
+                            </div>
+
                           </div>
                         </div>
-                      </motion.div>
-                    )}
+                        <div className="flex justify-end">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="rounded-full border-rose-200 text-rose-600 hover:bg-rose-50"
+                            disabled={isProcessing}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleDeleteRequest(details.record.id);
+                            }}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" /> 
+                          </Button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
                   </AnimatePresence>
                 </motion.div>
               );
