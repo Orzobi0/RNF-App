@@ -73,6 +73,9 @@ const FieldBadges = ({
 
   return (
     <div className="flex items-center gap-1.5">
+      {isPeakDay && (
+        <span className={`${badgeBase} bg-pink-500 text-xs font-semibold`}>✖</span>
+      )}
       {hasTemperature && (
         <span className={`${badgeBase} bg-orange-400/90`}> 
           <Thermometer className="h-3.5 w-3.5" />
@@ -92,10 +95,7 @@ const FieldBadges = ({
         <span className={`${badgeBase} bg-violet-500/90`}>
           <Edit3 className="h-3.5 w-3.5" />
         </span>
-      )}      
-      {isPeakDay && (
-        <span className={`${badgeBase} bg-rose-500/90 text-xs font-semibold`}>✖</span>
-      )}
+      )}            
     </div>
   );
 };
@@ -663,16 +663,20 @@ const RecordsPage = () => {
               <button
                 type="button"
                 onClick={() => setIsCalendarOpen((prev) => !prev)}
-                className="group flex items-center gap-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:ring-offset-2 focus-visible:ring-offset-rose-50 rounded-lg"
+                className="group flex items-center gap-3 rounded-full border border-rose-200/80 bg-white/70 px-4 py-2 text-left shadow-sm transition-all hover:border-rose-300 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:ring-offset-2 focus-visible:ring-offset-rose-50"
                 aria-expanded={isCalendarOpen}
                 aria-controls="records-calendar"
               >
                 <span className="text-3xl sm:text-4xl font-bold text-slate-700">Mis Registros</span>
-                <span className="flex items-center gap-1 rounded-full bg-rose-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-rose-600 transition-colors group-hover:bg-rose-200">
-                  <CalendarDays className="h-3.5 w-3.5" />
-                  {isCalendarOpen ? 'Ocultar calendario' : 'Mostrar calendario'}
-                  <motion.span animate={{ rotate: isCalendarOpen ? 180 : 0 }} className="ml-1 inline-flex">
-                    <ChevronDown className="h-3.5 w-3.5" />
+                <span className="flex items-center gap-2">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-rose-100 text-rose-500 transition-colors group-hover:bg-rose-200">
+                    <CalendarDays className="h-5 w-5" />
+                  </span>
+                  <motion.span
+                    animate={{ rotate: isCalendarOpen ? 180 : 0 }}
+                    className="flex h-9 w-9 items-center justify-center rounded-full bg-rose-50 text-rose-400 shadow-inner"
+                  >
+                    <ChevronDown className="h-4 w-4" />
                   </motion.span>
                 </span>
               </button>
@@ -830,7 +834,7 @@ const RecordsPage = () => {
                   >
                     <div className="flex items-center gap-2">
                       <CalendarDays className="h-4 w-4 text-rose-300" />
-                      <span>{`Día ${cycleDay} - Sin registro`}</span>
+                      <span>{`${displayDate} D${cycleDay} - Sin registro`}</span>
                     </div>
                     <span className="text-xs font-semibold uppercase tracking-wide text-rose-400">Añadir</span>
                   </motion.button>
@@ -851,8 +855,8 @@ const RecordsPage = () => {
                       <CalendarDays className="h-4 w-4 text-rose-400" />
                       {displayDate}
                     </div>
-                    <span className="rounded-full bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-600 shadow-sm">
-                      Día {cycleDay}
+                    <span className="rounded-full  py-1 text-sm font-semibold text-rose-600 ">
+                      D{cycleDay}
                     </span>
                     <FieldBadges
                       hasTemperature={details.hasTemperature}
@@ -868,21 +872,16 @@ const RecordsPage = () => {
                     )}
                     <div className="ml-auto flex items-center gap-2">
                       <div
-                        className={`flex h-10 w-10 items-center justify-center rounded-full border border-rose-100 shadow-inner ${details.symbolInfo.color} ${details.symbolInfo.pattern ? 'pattern-bg' : ''}`}
+                        className={`flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 shadow-inner ${details.symbolInfo.color} ${details.symbolInfo.pattern ? 'pattern-bg' : ''}`}
                         title={symbolLabel}
                       >
-                        <span
-                          className="text-xs font-semibold uppercase"
-                          style={{ color: details.symbolInfo.textColor || '#1f2937' }}
-                        >
-                          {symbolInitial}
-                        </span>
+                        
                       </div>
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className="h-9 w-9 rounded-full bg-rose-50 text-rose-500 hover:bg-rose-100"
+                        className="h-6 w-6 rounded-full bg-rose-50 text-rose-500 hover:bg-rose-100"
                         disabled={isProcessing}
                         onClick={(event) => {
                           event.stopPropagation();
@@ -958,35 +957,36 @@ const RecordsPage = () => {
                               </Badge>
                             )}
                           </div>
-                          <div className="rounded-3xl border border-violet-200 bg-violet-50/80 px-3 py-2 text-sm text-violet-700">
-                          <div className="flex items-start gap-2">
-                            <div className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-violet-400 text-white shadow-md">
-                              <Edit3 className="h-4 w-4" />
+                          <div className="flex items-start gap-3">
+                            <div className="rounded-3xl border border-violet-200 bg-violet-50/80 px-3 py-2 text-sm text-violet-700 flex-1">
+                              <div className="flex items-start gap-2">
+                                <div className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-violet-400 text-white shadow-md">
+                                  <Edit3 className="h-4 w-4" />
+                                </div>
+                                <div className="flex-1 space-y-1">
+                                  <span className="block font-semibold leading-tight"></span>
+                                  <p className="whitespace-pre-line text-sm leading-snug text-violet-600">
+                                    {details.observationsText || 'Sin observaciones'}
+                                  </p>
+                                </div>
+                              </div>
                             </div>
-                            <div className="flex-1 space-y-1">
-                              <span className="block font-semibold leading-tight"></span>
-                              <p className="whitespace-pre-line text-sm leading-snug text-violet-600">
-                                {details.observationsText || 'Sin observaciones'}
-                              </p>
-                            </div>
-
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="mt-1 rounded-full border-rose-200 text-rose-600 hover:bg-rose-50"
+                              disabled={isProcessing}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                handleDeleteRequest(details.record.id);
+                              }}
+                              aria-label="Eliminar registro"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
                         </div>
-                        <div className="flex justify-end">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="rounded-full border-rose-200 text-rose-600 hover:bg-rose-50"
-                            disabled={isProcessing}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              handleDeleteRequest(details.record.id);
-                            }}
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" /> 
-                          </Button>
-                        </div>
-                      </div>
+                        
                     </motion.div>
                   )}
                   </AnimatePresence>
