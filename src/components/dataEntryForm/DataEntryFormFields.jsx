@@ -109,10 +109,10 @@ const DataEntryFormFields = ({
   const peakButtonClasses = cn(
     'h-7 rounded-xl border px-3 text-[11px] font-semibold uppercase tracking-wide transition-colors shadow-sm',
     isCurrentPeak
-      ? 'border-rose-400 bg-white text-rose-600 hover:bg-rose-50'
+      ? 'border-rose-400 bg-rose-50 text-rose-600 shadow-[0_0_0_1px_rgba(244,114,182,0.25)] hover:bg-rose-100'
       : hasOtherPeak
-        ? 'border-slate-300 bg-slate-200 text-slate-600 hover:bg-slate-200'
-        : 'border-rose-500 bg-rose-500 text-white hover:bg-rose-600'
+        ? 'border-slate-300 bg-slate-100 text-slate-500 hover:bg-slate-100'
+        : 'border-rose-500 bg-gradient-to-r from-rose-500 via-rose-500/95 to-pink-500 text-white shadow-[0_4px_12px_rgba(244,114,182,0.35)] hover:from-rose-600 hover:to-pink-600'
   );
 
   const togglePeakTag = async () => {

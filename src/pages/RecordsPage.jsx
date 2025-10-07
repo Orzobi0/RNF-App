@@ -38,13 +38,6 @@ import { es } from 'date-fns/locale';
 import { FERTILITY_SYMBOL_OPTIONS } from '@/config/fertilitySymbols';
 import computePeakStatuses from '@/lib/computePeakStatuses';
 
-const PEAK_LABEL_MAP = {
-  P: 'Día pico',
-  1: 'Post pico 1',
-  2: 'Post pico 2',
-  3: 'Post pico 3',
-};
-
 const getSymbolInfo = (symbolValue) =>
   FERTILITY_SYMBOL_OPTIONS.find((symbol) => symbol.value === symbolValue) || FERTILITY_SYMBOL_OPTIONS[0];
 
@@ -61,11 +54,56 @@ const formatTemperatureDisplay = (value) => {
   return numeric.toFixed(2);
 };
 
+const PeakBadge = ({ peakStatus, isPeakDay, size = 'default', className = '' }) => {
+  let label = null;
+  let title = '';
+  let bgClass = 'bg-pink-500';
+
+  if (isPeakDay || peakStatus === 'P') {
+    label = '✖';
+    title = 'Día pico';
+    bgClass = 'bg-pink-500';
+  } else if (peakStatus === '1') {
+    label = '+1';
+    title = 'Post día pico +1';
+    bgClass = 'bg-pink-500/90';
+  } else if (peakStatus === '2') {
+    label = '+2';
+    title = 'Post día pico +2';
+    bgClass = 'bg-pink-500/80';
+  } else if (peakStatus === '3') {
+    label = '+3';
+    title = 'Post día pico +3';
+    bgClass = 'bg-pink-500/70';
+  }
+
+  if (!label) {
+    return null;
+  }
+
+  const sizeClasses =
+    size === 'small'
+      ? 'h-6 w-6 text-[0.65rem]'
+      : 'h-7 w-7 text-xs';
+
+  return (
+    <span
+      role="img"
+      aria-label={title}
+      title={title}
+      className={`flex items-center justify-center rounded-full font-semibold text-white shadow-sm shadow-rose-200/50 transition-transform duration-200 ${sizeClasses} ${bgClass} ${className}`}
+    >
+      {label}
+    </span>
+  );
+};
+
 const FieldBadges = ({
   hasTemperature,
   hasMucusSensation,
   hasMucusAppearance,
   hasObservations,
+  peakStatus,
   isPeakDay,
 }) => {
   const badgeBase =
@@ -73,11 +111,9 @@ const FieldBadges = ({
 
   return (
     <div className="flex items-center gap-1.5">
-      {isPeakDay && (
-        <span className={`${badgeBase} bg-pink-500 text-xs font-semibold`}>✖</span>
-      )}
+      <PeakBadge peakStatus={peakStatus} isPeakDay={isPeakDay} />
       {hasTemperature && (
-        <span className={`${badgeBase} bg-orange-400/90`}> 
+        <span className={`${badgeBase} bg-orange-400/90`}>
           <Thermometer className="h-3.5 w-3.5" />
         </span>
       )}
@@ -95,7 +131,7 @@ const FieldBadges = ({
         <span className={`${badgeBase} bg-violet-500/90`}>
           <Edit3 className="h-3.5 w-3.5" />
         </span>
-      )}            
+      )}     
     </div>
   );
 };
@@ -127,6 +163,7 @@ const RecordsPage = () => {
   const [expandedIsoDate, setExpandedIsoDate] = useState(null);
   const [defaultFormIsoDate, setDefaultFormIsoDate] = useState(null);
   const [isCalendarOpen, setIsCalendarOpen] = useState(true);
+  const [expandedEmptyGroups, setExpandedEmptyGroups] = useState([]);
   const dayRefs = useRef({});
   const hasUserSelectedDateRef = useRef(false);
 
@@ -180,9 +217,9 @@ const RecordsPage = () => {
     const targetNode = dayRefs.current[selectedDate];
     if (targetNode && 'scrollIntoView' in targetNode) {
       targetNode.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      hasUserSelectedDateRef.current = false;
     }
-    hasUserSelectedDateRef.current = false;
-  }, [selectedDate]);
+    }, [selectedDate, expandedEmptyGroups]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'auto' });
@@ -255,8 +292,7 @@ const RecordsPage = () => {
       const observationsText = record.observations || '';
       const hasObservations = Boolean(observationsText);
 
-      const peakStatus = peakStatuses[record.isoDate];
-      const peakLabel = peakStatus ? PEAK_LABEL_MAP[peakStatus] || null : null;
+      const peakStatus = peakStatuses[record.isoDate] || null;
       const isPeakDay = record.peak_marker === 'peak' || peakStatus === 'P';
 
       const symbolInfo = getSymbolInfo(record.fertility_symbol);
@@ -276,7 +312,6 @@ const RecordsPage = () => {
         hasObservations,
         observationsText,
         peakStatus,
-        peakLabel,
         isPeakDay,
       });
     });
@@ -373,6 +408,69 @@ const RecordsPage = () => {
 
     return days;
   }, [currentCycle?.startDate, cycleRange, recordDetailsByIso]);
+
+  const processedCycleDays = useMemo(() => {
+    if (!cycleDays.length) {
+      return { items: [], isoToGroup: {} };
+    }
+
+    const items = [];
+    const isoToGroup = {};
+
+    for (let index = 0; index < cycleDays.length;) {
+      const day = cycleDays[index];
+      if (day.details) {
+        items.push({ type: 'record', day });
+        index += 1;
+        continue;
+      }
+
+      let runEnd = index;
+      while (runEnd < cycleDays.length && !cycleDays[runEnd].details) {
+        runEnd += 1;
+      }
+
+      const runLength = runEnd - index;
+
+      if (runLength > 3) {
+        const groupDays = cycleDays.slice(index, runEnd);
+        const groupId = `${groupDays[0].isoDate}_${groupDays[groupDays.length - 1].isoDate}`;
+        groupDays.forEach(({ isoDate }) => {
+          isoToGroup[isoDate] = groupId;
+        });
+        items.push({
+          type: 'empty-group',
+          id: groupId,
+          days: groupDays,
+        });
+      } else {
+        for (let offset = index; offset < runEnd; offset += 1) {
+          items.push({ type: 'empty-day', day: cycleDays[offset] });
+        }
+      }
+
+      index = runEnd;
+    }
+
+    return { items, isoToGroup };
+  }, [cycleDays]);
+
+  const { items: cycleDisplayItems, isoToGroup: isoToGroupMap } = processedCycleDays;
+
+  const toggleEmptyGroup = useCallback((groupId) => {
+    if (!groupId) return;
+    setExpandedEmptyGroups((prev) =>
+      prev.includes(groupId) ? prev.filter((id) => id !== groupId) : [...prev, groupId]
+    );
+  }, []);
+
+  useEffect(() => {
+    if (!selectedDate) return;
+    const groupId = isoToGroupMap[selectedDate];
+    if (!groupId) return;
+
+    setExpandedEmptyGroups((prev) => (prev.includes(groupId) ? prev : [...prev, groupId]));
+  }, [selectedDate, isoToGroupMap]);
 
   const handleCalendarSelect = useCallback(
     (day) => {
@@ -652,29 +750,26 @@ const RecordsPage = () => {
       <div className="max-w-4xl mx-auto px-4 py-6 relative z-10">
         {/* Header */}
         <motion.div
-          className="flex flex-col gap-4 mb-6"
+          className="flex flex-col gap-4 mb-3"
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <div className="flex flex-wrap items-center gap-3 justify-between sm:justify-start">
-            <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-1 justify-between sm:justify-start">
+            <div className="flex items-center gap-1">
               <FileText className="h-8 w-8 text-pink-500" />
               <button
                 type="button"
                 onClick={() => setIsCalendarOpen((prev) => !prev)}
-                className="group flex items-center gap-3 rounded-full border border-rose-200/80 bg-white/70 px-4 py-2 text-left shadow-sm transition-all hover:border-rose-300 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:ring-offset-2 focus-visible:ring-offset-rose-50"
+                className="group flex items-center gap-1 rounded-full px-2 py-2 text-left shadow-sm transition-all hover:border-rose-300 hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:ring-offset-2 focus-visible:ring-offset-rose-50"
                 aria-expanded={isCalendarOpen}
                 aria-controls="records-calendar"
               >
                 <span className="text-3xl sm:text-4xl font-bold text-slate-700">Mis Registros</span>
                 <span className="flex items-center gap-2">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-rose-100 text-rose-500 transition-colors group-hover:bg-rose-200">
-                    <CalendarDays className="h-5 w-5" />
-                  </span>
                   <motion.span
                     animate={{ rotate: isCalendarOpen ? 180 : 0 }}
-                    className="flex h-9 w-9 items-center justify-center rounded-full bg-rose-50 text-rose-400 shadow-inner"
+                    className="flex h-7 w-7 items-center justify-center rounded-full bg-rose-50 text-rose-400 shadow-inner"
                   >
                     <ChevronDown className="h-4 w-4" />
                   </motion.span>
@@ -687,7 +782,7 @@ const RecordsPage = () => {
                 variant="outline"
                 size="icon"
                 onClick={openStartDateEditor}
-                className="border-pink-200 rounded-full text-pink-600 hover:bg-pink-50"
+                className="border-pink-200 rounded-full text-pink-600 hover:bg-pink-500"
                 disabled={isProcessing || isUpdatingStartDate}
                 aria-label="Editar fecha de inicio"
               >
@@ -813,14 +908,94 @@ const RecordsPage = () => {
               </div>
             </motion.div>
           ) : (
-            cycleDays.map(({ isoDate, date, cycleDay, details }) => {
+            cycleDisplayItems.map((item) => {
+              if (item.type === 'empty-group') {
+                const { id, days } = item;
+                if (!days.length) {
+                  return null;
+                }
+
+                const newestDay = days[0];
+                const oldestDay = days[days.length - 1];
+                const rangeStartLabel = format(oldestDay.date, 'dd/MM', { locale: es });
+                const rangeEndLabel = format(newestDay.date, 'dd/MM', { locale: es });
+                const isExpandedGroup = expandedEmptyGroups.includes(id);
+                const hasSelectedInGroup = selectedDate
+                  ? days.some((day) => day.isoDate === selectedDate)
+                  : false;
+
+                return (
+                  <motion.div key={id} layout className="space-y-2">
+                    <motion.button
+                      type="button"
+                      onClick={() => toggleEmptyGroup(id)}
+                      className={`flex w-full items-center justify-between rounded-full border border-dashed border-rose-200/70 bg-white/40 px-4 py-3 text-sm font-medium text-slate-500 backdrop-blur-sm transition-all duration-200 hover:border-rose-300 hover:bg-white/70 ${
+                        hasSelectedInGroup ? 'ring-2 ring-rose-300 text-rose-500 shadow-rose-200/70' : ''
+                      }`}
+                      whileHover={{ scale: 1.01 }}
+                      whileTap={{ scale: 0.99 }}
+                      aria-expanded={isExpandedGroup}
+                    >
+                      <div className="flex items-center gap-2">
+                        <CalendarDays className="h-4 w-4 text-rose-300" />
+                        <span>{`${rangeStartLabel} --- ${rangeEndLabel} sin registro`}</span>
+                      </div>
+                      <motion.span
+                        animate={{ rotate: isExpandedGroup ? 180 : 0 }}
+                        className="rounded-full bg-rose-50 p-1 text-rose-400 shadow-inner"
+                      >
+                        <ChevronDown className="h-4 w-4" />
+                      </motion.span>
+                    </motion.button>
+                    <AnimatePresence initial={false}>
+                      {isExpandedGroup && (
+                        <motion.div
+                          key={`${id}-items`}
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ duration: 0.2, ease: 'easeInOut' }}
+                          className="space-y-2 pl-4 sm:pl-6"
+                        >
+                          {days.map(({ isoDate, date, cycleDay }) => {
+                            const isSelectedDay = selectedDate === isoDate;
+                            const displayDate = format(date, 'dd/MM/yyyy', { locale: es });
+                            return (
+                              <motion.button
+                                key={isoDate}
+                                type="button"
+                                ref={registerDayRef(isoDate)}
+                                onClick={() => handleAddRecordForDay(isoDate)}
+                                className={`flex w-full items-center justify-between rounded-full border border-dashed border-rose-200/70 bg-white/40 px-4 py-3 text-sm font-medium text-slate-500 backdrop-blur-sm transition-all duration-200 hover:border-rose-300 hover:bg-white/70 ${
+                                  isSelectedDay ? 'ring-2 ring-rose-300 text-rose-500 shadow-rose-200/70' : ''
+                                }`}
+                                whileHover={{ scale: 1.01 }}
+                                whileTap={{ scale: 0.99 }}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <CalendarDays className="h-4 w-4 text-rose-300" />
+                                  <span>{`${displayDate} D${cycleDay} - Sin registro`}</span>
+                                </div>
+                                <span className="text-xs font-semibold uppercase tracking-wide text-rose-400">
+                                  Añadir
+                                </span>
+                              </motion.button>
+                            );
+                          })}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </motion.div>
+                );
+              }
+
+              const { isoDate, date, cycleDay, details } = item.day;
               const hasRecord = Boolean(details);
               const isSelected = selectedDate === isoDate;
               const isExpanded = hasRecord && expandedIsoDate === isoDate;
               const displayDate = format(date, 'dd/MM/yyyy', { locale: es });
               const symbolLabel = details?.symbolInfo?.label || '';
-              const symbolInitial = symbolLabel ? symbolLabel.charAt(0) : '—';
-
+              
               if (!hasRecord) {
                 return (
                   <motion.button
@@ -828,7 +1003,9 @@ const RecordsPage = () => {
                     type="button"
                     ref={registerDayRef(isoDate)}
                     onClick={() => handleAddRecordForDay(isoDate)}
-                    className={`flex w-full items-center justify-between rounded-full border border-dashed border-rose-200/70 bg-white/40 px-4 py-3 text-sm font-medium text-slate-500 backdrop-blur-sm transition-all duration-200 hover:border-rose-300 hover:bg-white/70 ${isSelected ? 'ring-2 ring-rose-300 text-rose-500 shadow-rose-200/70' : ''}`}
+                    className={`flex w-full items-center justify-between rounded-full border border-dashed border-rose-200/70 bg-white/40 px-4 py-3 text-sm font-medium text-slate-500 backdrop-blur-sm transition-all duration-200 hover:border-rose-300 hover:bg-white/70 ${
+                      isSelected ? 'ring-2 ring-rose-300 text-rose-500 shadow-rose-200/70' : ''
+                    }`}
                     whileHover={{ scale: 1.01 }}
                     whileTap={{ scale: 0.99 }}
                   >
@@ -847,15 +1024,17 @@ const RecordsPage = () => {
                   layout
                   ref={registerDayRef(isoDate)}
                   onClick={() => handleToggleRecord(isoDate, true)}
-                  className={`group relative flex w-full cursor-pointer flex-col rounded-3xl border border-rose-100 bg-white/75 px-4 py-4 shadow-sm backdrop-blur-md transition-all duration-300 hover:shadow-lg sm:px-6 ${isSelected ? 'bg-white/90 ring-2 ring-rose-400 shadow-rose-200/70' : ''}`}
+                  className={`group relative flex w-full cursor-pointer flex-col rounded-3xl border border-rose-100 bg-white/75 px-4 py-4 shadow-sm backdrop-blur-md transition-all duration-300 hover:shadow-lg sm:px-6 ${
+                    isSelected ? 'bg-white/90 ring-2 ring-rose-400 shadow-rose-200/70' : ''
+                  }`}
                   whileHover={{ translateY: -2 }}
                 >
-                  <div className="flex flex-wrap items-center gap-3">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex items-center gap-1 text-sm font-semibold text-slate-700">
                       <CalendarDays className="h-4 w-4 text-rose-400" />
                       {displayDate}
                     </div>
-                    <span className="rounded-full  py-1 text-sm font-semibold text-rose-600 ">
+                    <span className="text-sm font-semibold text-rose-600 ">
                       D{cycleDay}
                     </span>
                     <FieldBadges
@@ -863,40 +1042,15 @@ const RecordsPage = () => {
                       hasMucusSensation={details.hasMucusSensation}
                       hasMucusAppearance={details.hasMucusAppearance}
                       hasObservations={details.hasObservations}
+                      peakStatus={details.peakStatus}
                       isPeakDay={details.isPeakDay}
-                    />
-                    {details.peakLabel && (
-                      <Badge className="rounded-full border border-rose-200 bg-rose-100 text-rose-600">
-                        {details.peakLabel}
-                      </Badge>
-                    )}
-                    <div className="ml-auto flex items-center gap-2">
+                    />                    
+                    <div className="ml-auto flex items-center">
                       <div
-                        className={`flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 shadow-inner ${details.symbolInfo.color} ${details.symbolInfo.pattern ? 'pattern-bg' : ''}`}
+                        className={`flex h-6 w-6 items-center justify-center rounded-full border border-slate-500 shadow-inner ${details.symbolInfo.color} ${details.symbolInfo.pattern ? 'pattern-bg' : ''}`}
                         title={symbolLabel}
-                      >
-                        
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 rounded-full bg-rose-50 text-rose-500 hover:bg-rose-100"
-                        disabled={isProcessing}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          handleEdit(details.record);
-                        }}
-                        aria-label="Editar registro"
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </Button>
-                      <motion.span
-                        animate={{ rotate: isExpanded ? 180 : 0 }}
-                        className="rounded-full bg-rose-50 p-1 text-rose-400 shadow-inner"
-                      >
-                        <ChevronDown className="h-4 w-4" />
-                      </motion.span>
+                      >                        
+                      </div>                      
                     </div>
                   </div>
                   <AnimatePresence initial={false}>
@@ -908,17 +1062,24 @@ const RecordsPage = () => {
                         transition={{ duration: 0.25, ease: 'easeInOut' }}
                         className="mt-3 overflow-hidden"
                       >
-                        <div className="flex flex-col gap-3 rounded-3xl border border-rose-100 bg-white/95 p-4 shadow-inner sm:p-5">
+                        <div className="flex flex-col gap-1 rounded-3xl border border-rose-100 bg-white/95 p-4 shadow-inner sm:p-5">
                           <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-rose-500">
-                            <span className="rounded-full bg-rose-50 px-3 py-1 text-[0.65rem]">
-                              Símbolo: {symbolLabel || 'Sin símbolo'}
+                            <PeakBadge
+                              peakStatus={details.peakStatus}
+                              isPeakDay={details.isPeakDay}
+                              size="small"
+                              className="shadow-inner"
+                            />
+                            <span className="rounded-full bg-rose-50 px-3 py-1.5 text-[0.65rem]">
+                              {symbolLabel || '-'}
                             </span>
+                            
                           </div>
-                          <div className="flex flex-wrap items-center gap-2 text-sm text-slate-700">
+                          <div className="flex flex-wrap items-center gap-3 text-xs text-slate-700">
                             <div className="flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-3 py-1.5 text-orange-600">
                               <Thermometer className="h-4 w-4" />
                               <span className="font-semibold">
-                                {details.hasTemperature ? `${details.displayTemp}°C` : 'Sin temperatura'}
+                                {details.hasTemperature ? `${details.displayTemp}°C` : '-'}
                               </span>
                               {details.showCorrectedIndicator && (
                                 <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[0.6rem] font-semibold uppercase tracking-wide">
@@ -927,7 +1088,7 @@ const RecordsPage = () => {
                               )}
                             </div>
                             {details.timeValue && (
-                              <div className="flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-amber-600">
+                              <div className="flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-amber-600">
                                 <Clock className="h-4 w-4" />
                                 <span>{details.timeValue}</span>
                               </div>
@@ -951,39 +1112,50 @@ const RecordsPage = () => {
                                 {details.mucusAppearance || 'Sin apariencia'}
                               </span>
                             </div>
-                            {details.peakLabel && (
-                              <Badge className="rounded-full border border-rose-200 bg-rose-50 text-rose-500">
-                                {details.peakLabel}
-                              </Badge>
-                            )}
+                            
                           </div>
-                          <div className="flex items-start gap-3">
-                            <div className="rounded-3xl border border-violet-200 bg-violet-50/80 px-3 py-2 text-sm text-violet-700 flex-1">
-                              <div className="flex items-start gap-2">
-                                <div className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-violet-400 text-white shadow-md">
-                                  <Edit3 className="h-4 w-4" />
+                          <div className="flex items-center gap-2">
+                            <div className="rounded-3xl border border-violet-200 bg-violet-50/80 px-3 py-1.5 text-xs text-violet-700 flex-1">
+                              <div className="flex items-center gap-2">
+                                <div className="flex h-4 w-4 items-center justify-center rounded-full bg-violet-400 text-white shadow-md">
+                                  <Edit3 className="h-3 w-3" />
                                 </div>
                                 <div className="flex-1 space-y-1">
-                                  <span className="block font-semibold leading-tight"></span>
-                                  <p className="whitespace-pre-line text-sm leading-snug text-violet-600">
+                                  <span className="font-semibold-medium"></span>
+                                  <p className="whitespace-pre-line font-medium text-sm leading-snug text-violet-600">
                                     {details.observationsText || 'Sin observaciones'}
                                   </p>
                                 </div>
                               </div>
                             </div>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              className="mt-1 rounded-full border-rose-200 text-rose-600 hover:bg-rose-50"
-                              disabled={isProcessing}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                handleDeleteRequest(details.record.id);
-                              }}
-                              aria-label="Eliminar registro"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="rounded-full border-rose-200 text-rose-600 hover:bg-rose-50"
+                                disabled={isProcessing}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  handleEdit(details.record);
+                                }}
+                                aria-label="Editar registro"
+                              >
+                                <Edit2 className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="rounded-full border-rose-200 text-rose-600 hover:bg-rose-50"
+                                disabled={isProcessing}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  handleDeleteRequest(details.record.id);
+                                }}
+                                aria-label="Eliminar registro"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </div>
                         </div>
                         
