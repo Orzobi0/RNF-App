@@ -748,140 +748,144 @@ const RecordsPage = () => {
       />
       
       <div className="max-w-4xl mx-auto px-4 py-6 relative z-10">
-        {/* Header */}
-        <motion.div
-          className="flex flex-col gap-4 mb-3"
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-        >
-          <div className="flex flex-wrap items-center gap-1 justify-between sm:justify-start">
-            <div className="flex items-center gap-1">
-              <FileText className="h-8 w-8 text-pink-500" />
-              <button
-                type="button"
-                onClick={() => setIsCalendarOpen((prev) => !prev)}
-                className="group flex items-center gap-1 rounded-full px-2 py-2 text-left shadow-sm transition-all hover:border-rose-300 hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:ring-offset-2 focus-visible:ring-offset-rose-50"
-                aria-expanded={isCalendarOpen}
-                aria-controls="records-calendar"
-              >
-                <span className="text-3xl sm:text-4xl font-bold text-slate-700">Mis Registros</span>
-                <span className="flex items-center gap-2">
-                  <motion.span
-                    animate={{ rotate: isCalendarOpen ? 180 : 0 }}
-                    className="flex h-7 w-7 items-center justify-center rounded-full bg-rose-50 text-rose-400 shadow-inner"
-                  >
-                    <ChevronDown className="h-4 w-4" />
-                  </motion.span>
-                </span>
-              </button>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                onClick={openStartDateEditor}
-                className="border-pink-200 rounded-full text-pink-600 hover:bg-pink-500"
-                disabled={isProcessing || isUpdatingStartDate}
-                aria-label="Editar fecha de inicio"
-              >
-                <Edit className="h-4 w-4" />
-                <span className="sr-only">Editar fecha de inicio</span>
-              </Button>
-              <Button
-                type="button"
-                size="icon"
-                onClick={() => {
-                  const fallbackIso = cycleDays.length ? cycleDays[0].isoDate : currentCycle.startDate;
-                  const targetIso = selectedDate || fallbackIso || null;
-                  setEditingRecord(null);
-                  setDefaultFormIsoDate(targetIso);
-                  hasUserSelectedDateRef.current = false;
-                  if (targetIso) {
-                    setSelectedDate(targetIso);
-                    setExpandedIsoDate(null);
-                  }
-                  setShowForm(true);
-                }}
-                className="rounded-full bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white shadow-lg"
-                disabled={isProcessing}
-                style={{ filter: 'drop-shadow(0 6px 12px rgba(236, 72, 153, 0.3))' }}
-                aria-label="Añadir registro"
-              >
-                <Plus className="h-4 w-4" />
-                <span className="sr-only">Añadir registro</span>
-              </Button>
-            </div>
-          </div>
-        </motion.div>
-        {showStartDateEditor && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4 }}
-          >
-            <CycleDatesEditor
-              cycle={currentCycle}
-              startDate={draftStartDate}
-              endDate={currentCycle.endDate}
-              onStartDateChange={(value) => setDraftStartDate(value)}
-              onSave={handleSaveStartDate}
-              onCancel={closeStartDateEditor}
-              isProcessing={isUpdatingStartDate}
-              dateError={startDateError}
-              includeEndDate={false}
-              showOverlapDialog={showOverlapDialog}
-              overlapCycle={overlapCycle}
-              onConfirmOverlap={handleConfirmOverlapStart}
-              onCancelOverlap={handleCancelOverlapStart}
-              onClearError={() => setStartDateError('')}
-              saveLabel="Guardar cambios"
-              title="Editar fecha de inicio"
-              description="Actualiza la fecha de inicio del ciclo actual. Los registros se reorganizarán automáticamente."
-            />
-          </motion.div>
-        )}
-
-        <AnimatePresence initial={false}>
-          {isCalendarOpen && (
+        <div className="sticky top-6 z-20">
+          <div className="space-y-4 rounded-3xl p-4 shadow-xl shadow-rose-200/40 backdrop-blur-md sm:p-6">
+            {/* Header */}
             <motion.div
-              key="records-calendar"
-              id="records-calendar"
-              initial={{ opacity: 0, y: -10 }}
+              className="flex flex-col gap-4"
+              initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.3 }}
-              className="mb-5 flex justify-center"
+              transition={{ duration: 0.5 }}
             >
-              <Calendar
-                mode="single"
-                locale={es}
-                defaultMonth={
-                  selectedDate && isValid(parseISO(selectedDate))
-                    ? parseISO(selectedDate)
-                    : cycleRange?.to
-                }
-                selected={selectedDate && isValid(parseISO(selectedDate)) ? parseISO(selectedDate) : undefined}
-                onDayClick={handleCalendarSelect}
-                modifiers={calendarModifiers}
-                className="w-full max-w-md sm:max-w-lg rounded-2xl border border-pink-100 shadow-sm bg-white/60 backdrop-blur-sm p-3 mx-auto [&_button]:text-slate-900 [&_button:hover]:bg-rose-100 [&_button[aria-selected=true]]:bg-rose-500"
-                classNames={{
-                  day_selected:
-                    'border border-rose-500 text-white hover:bg-rose-500 hover:text-white focus:bg-rose-500 focus:text-white',
-                  day_today: 'bg-rose-200 text-rose-700 font-semibold',
-                }}
-                modifiersClassNames={{
-                  hasRecord:
-                    "relative font-semibold after:absolute after:bottom-1.5 after:left-1/2 after:-translate-x-1/2 after:w-1.5 after:h-1.5 after:rounded-full after:bg-rose-500 after:content-['']",
-                  outsideCycle: 'text-slate-300 opacity-50 hover:text-slate-300 hover:bg-transparent',
-                  insideCycleNoRecord:
-                    'text-slate-900 hover:text-slate-900 hover:bg-rose-50',
-                }}
-              />
+              <div className="flex flex-wrap items-center gap-1 justify-between sm:justify-start">
+                <div className="flex items-center gap-1">
+                  <FileText className="h-8 w-8 text-pink-500" />
+                  <button
+                    type="button"
+                    onClick={() => setIsCalendarOpen((prev) => !prev)}
+                    className="group flex items-center gap-1 rounded-full px-2 py-2 text-left shadow-sm transition-all hover:border-rose-300 hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:ring-offset-2 focus-visible:ring-offset-rose-50"
+                    aria-expanded={isCalendarOpen}
+                    aria-controls="records-calendar"
+                  >
+                    <span className="text-3xl sm:text-4xl font-bold text-slate-700">Mis Registros</span>
+                    <span className="flex items-center gap-2">
+                      <motion.span
+                        animate={{ rotate: isCalendarOpen ? 180 : 0 }}
+                        className="flex h-7 w-7 items-center justify-center rounded-full bg-rose-50 text-rose-400 shadow-inner"
+                      >
+                        <ChevronDown className="h-4 w-4" />
+                      </motion.span>
+                    </span>
+                  </button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={openStartDateEditor}
+                    className="border-pink-200 rounded-full text-pink-600 hover:bg-pink-500"
+                    disabled={isProcessing || isUpdatingStartDate}
+                    aria-label="Editar fecha de inicio"
+                  >
+                    <Edit className="h-4 w-4" />
+                    <span className="sr-only">Editar fecha de inicio</span>
+                  </Button>
+                  <Button
+                    type="button"
+                    size="icon"
+                    onClick={() => {
+                      const fallbackIso = cycleDays.length ? cycleDays[0].isoDate : currentCycle.startDate;
+                      const targetIso = selectedDate || fallbackIso || null;
+                      setEditingRecord(null);
+                      setDefaultFormIsoDate(targetIso);
+                      hasUserSelectedDateRef.current = false;
+                      if (targetIso) {
+                        setSelectedDate(targetIso);
+                        setExpandedIsoDate(null);
+                      }
+                      setShowForm(true);
+                    }}
+                    className="rounded-full bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white shadow-lg"
+                    disabled={isProcessing}
+                    style={{ filter: 'drop-shadow(0 6px 12px rgba(236, 72, 153, 0.3))' }}
+                    aria-label="Añadir registro"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span className="sr-only">Añadir registro</span>
+                  </Button>
+                </div>
+              </div>
             </motion.div>
-          )}
-        </AnimatePresence>
+          {showStartDateEditor && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
+              >
+                <CycleDatesEditor
+                  cycle={currentCycle}
+                  startDate={draftStartDate}
+                  endDate={currentCycle.endDate}
+                  onStartDateChange={(value) => setDraftStartDate(value)}
+                  onSave={handleSaveStartDate}
+                  onCancel={closeStartDateEditor}
+                  isProcessing={isUpdatingStartDate}
+                  dateError={startDateError}
+                  includeEndDate={false}
+                  showOverlapDialog={showOverlapDialog}
+                  overlapCycle={overlapCycle}
+                  onConfirmOverlap={handleConfirmOverlapStart}
+                  onCancelOverlap={handleCancelOverlapStart}
+                  onClearError={() => setStartDateError('')}
+                  saveLabel="Guardar cambios"
+                  title="Editar fecha de inicio"
+                  description="Actualiza la fecha de inicio del ciclo actual. Los registros se reorganizarán automáticamente."
+                />
+              </motion.div>
+            )}
+
+            <AnimatePresence initial={false}>
+              {isCalendarOpen && (
+                <motion.div
+                  key="records-calendar"
+                  id="records-calendar"
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.3 }}
+                  className="flex justify-center"
+                >
+                  <Calendar
+                    mode="single"
+                    locale={es}
+                    defaultMonth={
+                      selectedDate && isValid(parseISO(selectedDate))
+                        ? parseISO(selectedDate)
+                        : cycleRange?.to
+                    }
+                    selected={selectedDate && isValid(parseISO(selectedDate)) ? parseISO(selectedDate) : undefined}
+                    onDayClick={handleCalendarSelect}
+                    modifiers={calendarModifiers}
+                    className="w-full max-w-md sm:max-w-lg rounded-2xl border border-pink-100 shadow-sm bg-white/60 backdrop-blur-sm p-3 mx-auto [&_button]:text-slate-900 [&_button:hover]:bg-rose-100 [&_button[aria-selected=true]]:bg-rose-500"
+                    classNames={{
+                      day_selected:
+                        'border border-rose-500 text-white hover:bg-rose-500 hover:text-white focus:bg-rose-500 focus:text-white',
+                      day_today: 'bg-rose-200 text-rose-700 font-semibold',
+                    }}
+                    modifiersClassNames={{
+                      hasRecord:
+                        "relative font-semibold after:absolute after:bottom-1.5 after:left-1/2 after:-translate-x-1/2 after:w-1.5 after:h-1.5 after:rounded-full after:bg-rose-500 after:content-['']",
+                      outsideCycle: 'text-slate-300 opacity-50 hover:text-slate-300 hover:bg-transparent',
+                      insideCycleNoRecord:
+                        'text-slate-900 hover:text-slate-900 hover:bg-rose-50',
+                    }}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
 
 
         {/* Records List */}
@@ -889,8 +893,9 @@ const RecordsPage = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.1 }}
-          className="space-y-2"
+          className="relative mt-10 space-y-2 pt-10"
         >
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-20 bg-gradient-to-b from-white/90 via-white/60 to-transparent sm:h-24" />
           {cycleDays.length === 0 ? (
             <motion.div
               className="py-12 text-center"
