@@ -199,9 +199,9 @@ const ArchivedCyclesPage = () => {
                 variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }}
               >
                 <div className="p-5">
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
+                  
                     {/* Información del ciclo */}
-                    <div className="flex items-start space-x-4 flex-1">
+                    <div className="flex items-start gap-4 flex-1 min-w-0">
                       {/* Icono del ciclo */}
                       <div className="flex flex-col items-center">
                         <div className="w-12 h-12 bg-gradient-to-br from-pink-100 to-rose-100 rounded-full flex items-center justify-center flex-shrink-0">
@@ -218,7 +218,7 @@ const ArchivedCyclesPage = () => {
                           
                         </div>
                         
-                        <div className="flex items-center space-x-4 text-sm text-slate-600">
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-600">
                           <div className="flex items-center space-x-1">
                             <BarChart3 className="w-4 h-4 text-slate-500" />
                             <span>{recordCount} registro{recordCount !== 1 ? 's' : ''}</span>
@@ -240,30 +240,31 @@ const ArchivedCyclesPage = () => {
                           )}
                         </div>
                       </div>
-                    </div>
-
+                      <div className="flex flex-wrap items-start gap-4">
                     {/* Botones de acción */}
-                    <div className="flex gap-2 mt-4 sm:mt-0 w-full sm:w-auto">
+                    <div className="flex gap-2 flex-shrink-0">
                       <Button
                         asChild
                         variant="outline"
-                        size="sm"
-                        className="flex-1 sm:flex-none border-pink-300 text-pink-600 hover:bg-pink-50 hover:border-pink-400"
+                        size="icon"
+                        className="border-pink-300 text-pink-600 hover:bg-pink-50 hover:border-pink-400"
                       >
                         <Link to={cycle.isCurrent ? `/` : `/cycle/${cycle.id}`}>
-                          <Eye className="mr-2 h-4 w-4" />
+                          <Eye className="h-4 w-4" />
                         </Link>
                       </Button>
                       <Button
                         variant="default"
-                        size="sm"
-                        className="flex-1 sm:flex-none bg-rose-500 text-white hover:bg-rose-600"
+                        size="icon"
+                        className="bg-rose-500 text-white hover:bg-rose-600"
                         onClick={() => handleDeleteCycleRequest(cycle)}
                       >
-                        <Trash2 className="mr-2 h-4 w-4" />
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
-                  </div>
+                    </div>
+
+                    </div>
                 </div>
               </motion.div>
             );

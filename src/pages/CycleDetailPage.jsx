@@ -326,7 +326,7 @@ const CycleDetailPage = () => {
       <div className="relative z-10 px-4 py-6">
         <div className="w-full max-w-4xl mx-auto">
           <div className="mb-4">
-            <div className="flex items-center justify-between gap-2 mb-2">
+            <div className="flex flex-wrap items-center gap-2 mb-3">
               <Button
                 asChild
                 className="bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow hover:from-pink-600 hover:to-rose-600"
@@ -335,12 +335,30 @@ const CycleDetailPage = () => {
                   <ArrowLeft className="mr-2 h-4 w-4" /> Mis Ciclos
                 </Link>
               </Button>
+              <Button
+                asChild
+                variant="outline"
+                size="icon"
+                className="border-pink-300 text-pink-600 hover:bg-pink-50 hover:border-pink-400"
+              >
+                <Link to={`/chart/${cycleData.id}`} aria-label="Ver gráfica del ciclo">
+                  <BarChart3 className="h-4 w-4" />
+                </Link>
+              </Button>
+              <Button
+                onClick={handleAddRecord}
+                size="icon"
+                className="bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white shadow"
+                aria-label="Añadir registro al ciclo"
+              >
+                <Edit className="h-4 w-4" />
+              </Button>
             </div>
             <div className="text-center">
               <button
                 type="button"
                 onClick={handleToggleActions}
-                className={`text-2xl sm:text-3xl font-bold px-4 py-3 rounded-xl transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-rose-400 focus:ring-offset-2 ${showCycleActions ? 'bg-rose-200/80 text-rose-700 shadow-inner' : 'bg-rose-200/50 hover:bg-rose-200/70 text-rose-700'}`}
+                className={`text-2xl sm:text-3xl font-bold text-rose-700 transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:ring-offset-2 ${showCycleActions ? 'text-rose-700 underline underline-offset-4 decoration-rose-400' : 'hover:text-rose-600 hover:underline hover:underline-offset-4'}`}
               >
                 Detalle de ciclo ({format(parseISO(cycleData.startDate), 'dd/MM/yyyy')} -{' '}
                 {cycleData.endDate ? format(parseISO(cycleData.endDate), 'dd/MM/yyyy') : 'En curso'})
@@ -384,25 +402,6 @@ const CycleDetailPage = () => {
             </div>
           )}
 
-          <div className="mb-4 flex justify-center gap-4">
-            <Button
-              asChild
-              className="bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow hover:from-pink-600 hover:to-rose-600"
-              disabled={isProcessing}
-            >
-              <Link to={`/chart/${cycleData.id}`}>
-                <BarChart3 className="mr-2 h-4 w-4" /> Gráfica
-              </Link>
-            </Button>
-            <Button
-              onClick={handleAddRecord}
-              className="bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white shadow-lg"
-              style={{ filter: 'drop-shadow(0 6px 12px rgba(236, 72, 153, 0.3))' }}
-              disabled={isProcessing}
-            >
-              <Edit className="mr-2 h-4 w-4" /> Añadir registro en este ciclo
-            </Button>
-          </div>
 
           <RecordsList
             records={cycleData.data}

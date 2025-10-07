@@ -37,7 +37,6 @@ import {
   AnimatePresence,
   useScroll,
   useMotionValue,
-  useSpring,
   useMotionValueEvent,
 } from 'framer-motion';
 import { Calendar } from '@/components/ui/calendar';
@@ -51,37 +50,11 @@ const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
 const CALENDAR_FADE_OFFSET = 12;
 
-const RecordCard = ({
-  isoDate,
-  dayRef,
-  onToggle,
-  isSelected,
-  displayDate,
-  cycleDay,
-  details,
-  symbolLabel,
-  isExpanded,
-  onEdit,
-  onDelete,
-  isProcessing,
-  calendarContainerRef,
-  isCalendarOpen,
-}) => {
+const useCalendarFade = (calendarContainerRef, { dependencies = [], externalRef } = {}) => {
   const localRef = useRef(null);
-
-  const setRefs = useCallback(
-    (node) => {
-      localRef.current = node;
-      if (typeof dayRef === 'function') {
-        dayRef(node);
-      }
-    },
-    [dayRef]
-  );
 
   const rawOpacity = useMotionValue(1);
   const opacity = rawOpacity;
-
   const { scrollY } = useScroll();
 
   const updateOpacity = useCallback(() => {
@@ -108,12 +81,29 @@ const RecordCard = ({
     }
 
     const distance = rect.bottom - fadeBoundary;
-const threshold = height * 0.1; // solo el 10% superior del elemento
-rawOpacity.set(clamp(distance / threshold, 0, 1));
+    const threshold = height * 0.1; // solo el 10% superior del elemento
+    rawOpacity.set(clamp(distance / threshold, 0, 1));
 
   }, [calendarContainerRef, rawOpacity]);
 
   useMotionValueEvent(scrollY, 'change', updateOpacity);
+
+    const setRefs = useCallback(
+    (node) => {
+      localRef.current = node;
+
+      if (typeof externalRef === 'function') {
+        externalRef(node);
+      } else if (externalRef && typeof externalRef === 'object') {
+        externalRef.current = node;
+      }
+
+      if (node) {
+        requestAnimationFrame(() => updateOpacity());
+      }
+    },
+    [externalRef, updateOpacity]
+  );
 
   useEffect(() => {
     updateOpacity();
@@ -124,7 +114,7 @@ rawOpacity.set(clamp(distance / threshold, 0, 1));
     return () => {
       window.removeEventListener('resize', handleResize);
     };
-  }, [updateOpacity, isExpanded, isCalendarOpen]);
+  }, [updateOpacity, ...dependencies]);
 
   useEffect(() => {
     const node = localRef.current;
@@ -138,7 +128,31 @@ rawOpacity.set(clamp(distance / threshold, 0, 1));
     return () => {
       observer.disconnect();
     };
-  }, [updateOpacity]);
+  }, [updateOpacity, ...dependencies]);
+
+  return { setRefs, opacity };
+};
+
+const RecordCard = ({
+  isoDate,
+  dayRef,
+  onToggle,
+  isSelected,
+  displayDate,
+  cycleDay,
+  details,
+  symbolLabel,
+  isExpanded,
+  onEdit,
+  onDelete,
+  isProcessing,
+  calendarContainerRef,
+  isCalendarOpen,
+}) => {
+  const { setRefs, opacity } = useCalendarFade(calendarContainerRef, {
+    dependencies: [isExpanded, isCalendarOpen],
+    externalRef: dayRef,
+  });
 
   return (
     <motion.div
@@ -269,6 +283,38 @@ rawOpacity.set(clamp(distance / threshold, 0, 1));
         )}
       </AnimatePresence>
     </motion.div>
+  );
+};
+
+const EmptyGroupRow = ({
+  id,
+  days,
+  toggleEmptyGroup,
+  isExpandedGroup,
+  hasSelectedInGroup,
+  calendarContainerRef,
+  isCalendarOpen,
+  children,
+}) => {
+  const { setRefs, opacity } = useCalendarFade(calendarContainerRef, {
+    dependencies: [isExpandedGroup, isCalendarOpen, days.length],
+  });
+
+  return (
+    <motion.button
+      type="button"
+      ref={setRefs}
+      onClick={() => toggleEmptyGroup(id)}
+      className={`flex w-full items-center justify-between rounded-full border border-dashed border-rose-200/70 bg-white/40 px-4 py-3 text-sm font-medium text-slate-500 backdrop-blur-sm transition-all duration-200 hover:border-rose-300 hover:bg-white/70 ${
+        hasSelectedInGroup ? 'ring-2 ring-rose-300 text-rose-500 shadow-rose-200/70' : ''
+      }`}
+      whileHover={{ scale: 1.01 }}
+      whileTap={{ scale: 0.99 }}
+      aria-expanded={isExpandedGroup}
+      style={{ opacity }}
+    >
+      {children}
+    </motion.button>
   );
 };
 
@@ -447,11 +493,40 @@ const RecordsPage = () => {
     }
 
     const targetNode = dayRefs.current[selectedDate];
-    if (targetNode && 'scrollIntoView' in targetNode) {
-      targetNode.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      hasUserSelectedDateRef.current = false;
+    if (!targetNode) {
+      return;
     }
-    }, [selectedDate, expandedEmptyGroups]);
+    const handleScrollIntoView = () => {
+      const calendarRect = calendarContainerRef.current?.getBoundingClientRect();
+      const targetRect = targetNode.getBoundingClientRect();
+
+      if (!calendarRect) {
+        targetNode.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        hasUserSelectedDateRef.current = false;
+        return;
+      }
+
+      const additionalSpacing = CALENDAR_FADE_OFFSET + 4;
+      const desiredOffset = calendarRect.bottom + additionalSpacing;
+      const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+
+      const isAboveCalendar = targetRect.top < desiredOffset;
+      const isBelowViewport = targetRect.bottom > viewportHeight;
+
+      if (isAboveCalendar || isBelowViewport) {
+        const targetScrollTop = Math.max(window.scrollY + targetRect.top - desiredOffset, 0);
+        window.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
+      }
+
+      hasUserSelectedDateRef.current = false;
+    };
+
+    const rafId = window.requestAnimationFrame(handleScrollIntoView);
+
+    return () => {
+      window.cancelAnimationFrame(rafId);
+    };
+  }, [selectedDate, expandedEmptyGroups, isCalendarOpen]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'auto' });
@@ -1165,15 +1240,14 @@ const RecordsPage = () => {
 
                 return (
                   <motion.div key={id} layout className="space-y-2">
-                    <motion.button
-                      type="button"
-                      onClick={() => toggleEmptyGroup(id)}
-                      className={`flex w-full items-center justify-between rounded-full border border-dashed border-rose-200/70 bg-white/40 px-4 py-3 text-sm font-medium text-slate-500 backdrop-blur-sm transition-all duration-200 hover:border-rose-300 hover:bg-white/70 ${
-                        hasSelectedInGroup ? 'ring-2 ring-rose-300 text-rose-500 shadow-rose-200/70' : ''
-                      }`}
-                      whileHover={{ scale: 1.01 }}
-                      whileTap={{ scale: 0.99 }}
-                      aria-expanded={isExpandedGroup}
+                    <EmptyGroupRow
+                      id={id}
+                      days={days}
+                      toggleEmptyGroup={toggleEmptyGroup}
+                      isExpandedGroup={isExpandedGroup}
+                      hasSelectedInGroup={hasSelectedInGroup}
+                      calendarContainerRef={calendarContainerRef}
+                      isCalendarOpen={isCalendarOpen}
                     >
                       <div className="flex items-center gap-2">
                         <CalendarDays className="h-4 w-4 text-rose-300" />
@@ -1185,7 +1259,7 @@ const RecordsPage = () => {
                       >
                         <ChevronDown className="h-4 w-4" />
                       </motion.span>
-                    </motion.button>
+                    </EmptyGroupRow>
                     <AnimatePresence initial={false}>
                       {isExpandedGroup && (
                         <motion.div
