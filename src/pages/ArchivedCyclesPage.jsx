@@ -251,7 +251,7 @@ const ArchivedCyclesPage = () => {
                         className="flex-1 sm:flex-none border-pink-300 text-pink-600 hover:bg-pink-50 hover:border-pink-400"
                       >
                         <Link to={cycle.isCurrent ? `/` : `/cycle/${cycle.id}`}>
-                          <Eye className="mr-2 h-4 w-4" /> Ver
+                          <Eye className="mr-2 h-4 w-4" />
                         </Link>
                       </Button>
                       <Button
@@ -260,7 +260,7 @@ const ArchivedCyclesPage = () => {
                         className="flex-1 sm:flex-none bg-rose-500 text-white hover:bg-rose-600"
                         onClick={() => handleDeleteCycleRequest(cycle)}
                       >
-                        <Trash2 className="mr-2 h-4 w-4" /> Eliminar
+                        <Trash2 className="mr-2 h-4 w-4" />
                       </Button>
                     </div>
                   </div>

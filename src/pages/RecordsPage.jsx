@@ -32,7 +32,14 @@ import {
   addDays,
 } from 'date-fns';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { motion, AnimatePresence } from 'framer-motion';
+import {
+  motion,
+  AnimatePresence,
+  useScroll,
+  useMotionValue,
+  useSpring,
+  useMotionValueEvent,
+} from 'framer-motion';
 import { Calendar } from '@/components/ui/calendar';
 import { es } from 'date-fns/locale';
 import { FERTILITY_SYMBOL_OPTIONS } from '@/config/fertilitySymbols';
@@ -40,6 +47,230 @@ import computePeakStatuses from '@/lib/computePeakStatuses';
 
 const getSymbolInfo = (symbolValue) =>
   FERTILITY_SYMBOL_OPTIONS.find((symbol) => symbol.value === symbolValue) || FERTILITY_SYMBOL_OPTIONS[0];
+const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+
+const CALENDAR_FADE_OFFSET = 12;
+
+const RecordCard = ({
+  isoDate,
+  dayRef,
+  onToggle,
+  isSelected,
+  displayDate,
+  cycleDay,
+  details,
+  symbolLabel,
+  isExpanded,
+  onEdit,
+  onDelete,
+  isProcessing,
+  calendarContainerRef,
+  isCalendarOpen,
+}) => {
+  const localRef = useRef(null);
+
+  const setRefs = useCallback(
+    (node) => {
+      localRef.current = node;
+      if (typeof dayRef === 'function') {
+        dayRef(node);
+      }
+    },
+    [dayRef]
+  );
+
+  const rawOpacity = useMotionValue(1);
+  const opacity = rawOpacity;
+
+  const { scrollY } = useScroll();
+
+  const updateOpacity = useCallback(() => {
+    const element = localRef.current;
+    const calendarRect = calendarContainerRef?.current?.getBoundingClientRect();
+
+    if (!element || !calendarRect) {
+      rawOpacity.set(1);
+      return;
+    }
+
+    const fadeBoundary = calendarRect.bottom + CALENDAR_FADE_OFFSET;
+    const rect = element.getBoundingClientRect();
+    const height = rect.height || 1;
+
+    if (rect.top >= fadeBoundary) {
+      rawOpacity.set(1);
+      return;
+    }
+
+    if (rect.bottom <= fadeBoundary) {
+      rawOpacity.set(0);
+      return;
+    }
+
+    const distance = rect.bottom - fadeBoundary;
+const threshold = height * 0.1; // solo el 10% superior del elemento
+rawOpacity.set(clamp(distance / threshold, 0, 1));
+
+  }, [calendarContainerRef, rawOpacity]);
+
+  useMotionValueEvent(scrollY, 'change', updateOpacity);
+
+  useEffect(() => {
+    updateOpacity();
+
+    const handleResize = () => updateOpacity();
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [updateOpacity, isExpanded, isCalendarOpen]);
+
+  useEffect(() => {
+    const node = localRef.current;
+    if (!node || typeof ResizeObserver === 'undefined') {
+      return undefined;
+    }
+
+    const observer = new ResizeObserver(() => updateOpacity());
+    observer.observe(node);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [updateOpacity]);
+
+  return (
+    <motion.div
+      layout
+      ref={setRefs}
+      onClick={() => onToggle(isoDate)}
+      className={`group relative flex w-full cursor-pointer flex-col rounded-3xl border border-rose-100 bg-white/75 px-4 py-4 shadow-sm backdrop-blur-md transition-all duration-300 hover:shadow-lg sm:px-6 ${
+        isSelected ? 'bg-white/90 ring-2 ring-rose-400 shadow-rose-200/70' : ''
+      }`}
+      whileHover={{ translateY: -2 }}
+      style={{ opacity }}
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-1 text-sm font-semibold text-slate-700">
+          <CalendarDays className="h-4 w-4 text-rose-400" />
+          {displayDate}
+        </div>
+        <span className="text-sm font-semibold text-rose-600 ">D{cycleDay}</span>
+        <FieldBadges
+          hasTemperature={details.hasTemperature}
+          hasMucusSensation={details.hasMucusSensation}
+          hasMucusAppearance={details.hasMucusAppearance}
+          hasObservations={details.hasObservations}
+          peakStatus={details.peakStatus}
+          isPeakDay={details.isPeakDay}
+        />
+        <div className="ml-auto flex items-center">
+          <div
+            className={`flex h-6 w-6 items-center justify-center rounded-full border border-slate-500 shadow-inner ${details.symbolInfo.color} ${details.symbolInfo.pattern ? 'pattern-bg' : ''}`}
+            title={symbolLabel}
+          ></div>
+        </div>
+      </div>
+      <AnimatePresence initial={false}>
+        {isExpanded && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.25, ease: 'easeInOut' }}
+            className="mt-3 overflow-hidden"
+          >
+            <div className="flex flex-col gap-1 rounded-3xl border border-rose-100 bg-white/95 p-4 shadow-inner sm:p-5">
+              <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-rose-500">
+                <PeakBadge
+                  peakStatus={details.peakStatus}
+                  isPeakDay={details.isPeakDay}
+                  size="small"
+                  className="shadow-inner"
+                />
+                <span className="rounded-full bg-rose-50 px-3 py-1.5 text-[0.65rem]">{symbolLabel || '-'}</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-3 text-xs text-slate-700">
+                <div className="flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-3 py-1.5 text-orange-600">
+                  <Thermometer className="h-4 w-4" />
+                  <span className="font-semibold">{details.hasTemperature ? `${details.displayTemp}°C` : '-'}</span>
+                  {details.showCorrectedIndicator && (
+                    <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[0.6rem] font-semibold uppercase tracking-wide">
+                      Corregida
+                    </span>
+                  )}
+                </div>
+                {details.timeValue && (
+                  <div className="flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-amber-600">
+                    <Clock className="h-4 w-4" />
+                    <span>{details.timeValue}</span>
+                  </div>
+                )}
+                {details.record.ignored && (
+                  <Badge className="rounded-full border border-orange-200 bg-orange-100 text-orange-600">Ignorada</Badge>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
+                <div className="flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-sky-600">
+                  <Droplets className="h-4 w-4" />
+                  <span className="font-medium">{details.mucusSensation || 'Sin sensación'}</span>
+                </div>
+                <div className="flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-emerald-600">
+                  <Circle className="h-4 w-4" />
+                  <span className="font-medium">{details.mucusAppearance || 'Sin apariencia'}</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="rounded-3xl border border-violet-200 bg-violet-50/80 px-3 py-1.5 text-xs text-violet-700 flex-1">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-4 w-4 items-center justify-center rounded-full bg-violet-400 text-white shadow-md">
+                      <Edit3 className="h-3 w-3" />
+                    </div>
+                    <div className="flex-1 space-y-1">
+                      <span className="font-semibold-medium"></span>
+                      <p className="whitespace-pre-line font-medium text-sm leading-snug text-violet-600">
+                        {details.observationsText || 'Sin observaciones'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="rounded-full border-rose-200 text-rose-600 hover:bg-rose-50"
+                    disabled={isProcessing}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onEdit(details.record);
+                    }}
+                    aria-label="Editar registro"
+                  >
+                    <Edit2 className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="rounded-full border-rose-200 text-rose-600 hover:bg-rose-50"
+                    disabled={isProcessing}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onDelete(details.record.id);
+                    }}
+                    aria-label="Eliminar registro"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+};
 
 const formatTemperatureDisplay = (value) => {
   if (value === null || value === undefined || value === '') {
@@ -164,6 +395,7 @@ const RecordsPage = () => {
   const [defaultFormIsoDate, setDefaultFormIsoDate] = useState(null);
   const [isCalendarOpen, setIsCalendarOpen] = useState(true);
   const [expandedEmptyGroups, setExpandedEmptyGroups] = useState([]);
+  const calendarContainerRef = useRef(null);
   const dayRefs = useRef({});
   const hasUserSelectedDateRef = useRef(false);
 
@@ -747,9 +979,9 @@ const RecordsPage = () => {
         }}
       />
       
-      <div className="max-w-4xl mx-auto px-4 py-6 relative z-10">
-        <div className="sticky top-6 z-20">
- <div className="relative overflow-hidden rounded-3xl shadow-xl shadow-rose-200/40 bg-[inherit]">
+      <div className="max-w-4xl mx-auto px-4 relative z-10">
+        <div ref={calendarContainerRef} className="sticky top-2 z-20">
+          <div className="relative overflow-hidden rounded-3xl  bg-[inherit]">
             <div className="space-y-4 p-4 sm:p-6">
               {/* Header */}
               <motion.div
@@ -764,7 +996,7 @@ const RecordsPage = () => {
                     <button
                       type="button"
                       onClick={() => setIsCalendarOpen((prev) => !prev)}
-                      className="group flex items-center gap-1 rounded-full px-2 py-2 text-left shadow-sm transition-all hover:border-rose-300 hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:ring-offset-2 focus-visible:ring-offset-rose-50"
+                      className="group flex items-center gap-1 rounded-full px-2 py-1 text-left shadow-sm transition-all hover:border-rose-300 hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:ring-offset-2 focus-visible:ring-offset-rose-50"
                       aria-expanded={isCalendarOpen}
                       aria-controls="records-calendar"
                     >
@@ -895,9 +1127,9 @@ const RecordsPage = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.1 }}
-          className="relative mt-10 space-y-2 pt-10"
+          className="relative mt-5 space-y-2 pt-2"
         >
-          <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-20 bg-gradient-to-b from-rose-100 via-pink-100 to-transparent sm:h-24" />
+         
           {cycleDays.length === 0 ? (
             <motion.div
               className="py-12 text-center"
@@ -1026,150 +1258,23 @@ const RecordsPage = () => {
               }
 
               return (
-                <motion.div
+                <RecordCard
                   key={isoDate}
-                  layout
-                  ref={registerDayRef(isoDate)}
-                  onClick={() => handleToggleRecord(isoDate, true)}
-                  className={`group relative flex w-full cursor-pointer flex-col rounded-3xl border border-rose-100 bg-white/75 px-4 py-4 shadow-sm backdrop-blur-md transition-all duration-300 hover:shadow-lg sm:px-6 ${
-                    isSelected ? 'bg-white/90 ring-2 ring-rose-400 shadow-rose-200/70' : ''
-                  }`}
-                  whileHover={{ translateY: -2 }}
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div className="flex items-center gap-1 text-sm font-semibold text-slate-700">
-                      <CalendarDays className="h-4 w-4 text-rose-400" />
-                      {displayDate}
-                    </div>
-                    <span className="text-sm font-semibold text-rose-600 ">
-                      D{cycleDay}
-                    </span>
-                    <FieldBadges
-                      hasTemperature={details.hasTemperature}
-                      hasMucusSensation={details.hasMucusSensation}
-                      hasMucusAppearance={details.hasMucusAppearance}
-                      hasObservations={details.hasObservations}
-                      peakStatus={details.peakStatus}
-                      isPeakDay={details.isPeakDay}
-                    />                    
-                    <div className="ml-auto flex items-center">
-                      <div
-                        className={`flex h-6 w-6 items-center justify-center rounded-full border border-slate-500 shadow-inner ${details.symbolInfo.color} ${details.symbolInfo.pattern ? 'pattern-bg' : ''}`}
-                        title={symbolLabel}
-                      >                        
-                      </div>                      
-                    </div>
-                  </div>
-                  <AnimatePresence initial={false}>
-                    {isExpanded && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.25, ease: 'easeInOut' }}
-                        className="mt-3 overflow-hidden"
-                      >
-                        <div className="flex flex-col gap-1 rounded-3xl border border-rose-100 bg-white/95 p-4 shadow-inner sm:p-5">
-                          <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-rose-500">
-                            <PeakBadge
-                              peakStatus={details.peakStatus}
-                              isPeakDay={details.isPeakDay}
-                              size="small"
-                              className="shadow-inner"
-                            />
-                            <span className="rounded-full bg-rose-50 px-3 py-1.5 text-[0.65rem]">
-                              {symbolLabel || '-'}
-                            </span>
-                            
-                          </div>
-                          <div className="flex flex-wrap items-center gap-3 text-xs text-slate-700">
-                            <div className="flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-3 py-1.5 text-orange-600">
-                              <Thermometer className="h-4 w-4" />
-                              <span className="font-semibold">
-                                {details.hasTemperature ? `${details.displayTemp}°C` : '-'}
-                              </span>
-                              {details.showCorrectedIndicator && (
-                                <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[0.6rem] font-semibold uppercase tracking-wide">
-                                  Corregida
-                                </span>
-                              )}
-                            </div>
-                            {details.timeValue && (
-                              <div className="flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-amber-600">
-                                <Clock className="h-4 w-4" />
-                                <span>{details.timeValue}</span>
-                              </div>
-                            )}
-                            {details.record.ignored && (
-                              <Badge className="rounded-full border border-orange-200 bg-orange-100 text-orange-600">
-                                Ignorada
-                              </Badge>
-                            )}
-                          </div>
-                          <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
-                            <div className="flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-sky-600">
-                              <Droplets className="h-4 w-4" />
-                              <span className="font-medium">
-                                {details.mucusSensation || 'Sin sensación'}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-emerald-600">
-                              <Circle className="h-4 w-4" />
-                              <span className="font-medium">
-                                {details.mucusAppearance || 'Sin apariencia'}
-                              </span>
-                            </div>
-                            
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <div className="rounded-3xl border border-violet-200 bg-violet-50/80 px-3 py-1.5 text-xs text-violet-700 flex-1">
-                              <div className="flex items-center gap-2">
-                                <div className="flex h-4 w-4 items-center justify-center rounded-full bg-violet-400 text-white shadow-md">
-                                  <Edit3 className="h-3 w-3" />
-                                </div>
-                                <div className="flex-1 space-y-1">
-                                  <span className="font-semibold-medium"></span>
-                                  <p className="whitespace-pre-line font-medium text-sm leading-snug text-violet-600">
-                                    {details.observationsText || 'Sin observaciones'}
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                className="rounded-full border-rose-200 text-rose-600 hover:bg-rose-50"
-                                disabled={isProcessing}
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  handleEdit(details.record);
-                                }}
-                                aria-label="Editar registro"
-                              >
-                                <Edit2 className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                className="rounded-full border-rose-200 text-rose-600 hover:bg-rose-50"
-                                disabled={isProcessing}
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  handleDeleteRequest(details.record.id);
-                                }}
-                                aria-label="Eliminar registro"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                        
-                    </motion.div>
-                  )}
-                  </AnimatePresence>
-                </motion.div>
+                  isoDate={isoDate}
+                  dayRef={registerDayRef(isoDate)}
+                  onToggle={(date) => handleToggleRecord(date, true)}
+                  isSelected={isSelected}
+                  displayDate={displayDate}
+                  cycleDay={cycleDay}
+                  details={details}
+                  symbolLabel={symbolLabel}
+                  isExpanded={isExpanded}
+                  onEdit={handleEdit}
+                  onDelete={handleDeleteRequest}
+                  isProcessing={isProcessing}
+                  calendarContainerRef={calendarContainerRef}
+                  isCalendarOpen={isCalendarOpen}
+                />
               );
             })
           )}
