@@ -48,7 +48,7 @@ const getSymbolInfo = (symbolValue) =>
   FERTILITY_SYMBOL_OPTIONS.find((symbol) => symbol.value === symbolValue) || FERTILITY_SYMBOL_OPTIONS[0];
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
-const CALENDAR_FADE_OFFSET = 12;
+const CALENDAR_FADE_OFFSET = 48;
 
 const useCalendarFade = (calendarContainerRef, { dependencies = [], externalRef } = {}) => {
   const localRef = useRef(null);
@@ -506,7 +506,7 @@ const RecordsPage = () => {
         return;
       }
 
-      const additionalSpacing = CALENDAR_FADE_OFFSET + 4;
+      const additionalSpacing = CALENDAR_FADE_OFFSET + 12;
       const desiredOffset = calendarRect.bottom + additionalSpacing;
       const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
 
@@ -1055,9 +1055,9 @@ const RecordsPage = () => {
       />
       
       <div className="max-w-4xl mx-auto px-4 relative z-10">
-        <div ref={calendarContainerRef} className="sticky top-2 z-20">
-          <div className="relative overflow-hidden rounded-3xl  bg-[inherit]">
-            <div className="space-y-4 p-4 sm:p-6">
+        <div ref={calendarContainerRef} className="sticky top-1 z-20">
+          <div className="relative overflow-hidden rounded-xl  backdrop-blur-sm">
+            <div className="space-y-3 p-3 sm:p-4">
               {/* Header */}
               <motion.div
                 className="flex flex-col gap-4"
@@ -1075,7 +1075,7 @@ const RecordsPage = () => {
                       aria-expanded={isCalendarOpen}
                       aria-controls="records-calendar"
                     >
-                      <span className="text-3xl sm:text-4xl font-bold text-slate-700">Mis Registros</span>
+                      <span className="text-2xl sm:text-2xl font-bold text-slate-700">Mis Registros</span>
                       <span className="flex items-center gap-2">
                         <motion.span
                           animate={{ rotate: isCalendarOpen ? 180 : 0 }}
@@ -1175,7 +1175,7 @@ const RecordsPage = () => {
                       selected={selectedDate && isValid(parseISO(selectedDate)) ? parseISO(selectedDate) : undefined}
                       onDayClick={handleCalendarSelect}
                       modifiers={calendarModifiers}
-                      className="w-full max-w-md sm:max-w-lg rounded-2xl border border-pink-100 shadow-sm bg-white p-3 mx-auto [&_button]:text-slate-900 [&_button:hover]:bg-rose-100 [&_button[aria-selected=true]]:bg-rose-500"
+                      className="w-full max-w-md sm:max-w-lg rounded-xl bg-white/40 p-2.5 sm:p-3 mx-auto backdrop-blur-sm [&_button]:text-slate-900 [&_button:hover]:bg-rose-100 [&_button[aria-selected=true]]:bg-rose-500"
                       classNames={{
                         day_selected:
                           'border border-rose-500 text-white hover:bg-rose-500 hover:text-white focus:bg-rose-500 focus:text-white',

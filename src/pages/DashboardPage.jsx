@@ -264,8 +264,7 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
       const isoDate = placeholderDate ? format(placeholderDate, 'yyyy-MM-dd') : null;
       const isFutureDay = placeholderDate ? isAfter(startOfDay(placeholderDate), today) : false;
       const recordWithCycleDay = record ? { ...record, cycleDay: record.cycleDay ?? day } : null;
-      const normalizedIndex = (index + wheelOffset) % totalDots;
-      const angle = (normalizedIndex / totalDots) * 2 * Math.PI - Math.PI / 2;
+      const angle = ((index + wheelOffset) / totalDots) * 2 * Math.PI - Math.PI / 2;
       const x = center + radius * Math.cos(angle);
       const y = center + radius * Math.sin(angle);
       
@@ -316,8 +315,7 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
   const seamStartY = center + seamInnerRadius * Math.sin(seamAngle);
   const seamEndX = center + seamOuterRadius * Math.cos(seamAngle);
   const seamEndY = center + seamOuterRadius * Math.sin(seamAngle);
-  const stepAngle = 360 / totalDots;
-  const rotationAngle = useMemo(() => -(wheelOffset * stepAngle), [wheelOffset, stepAngle]);
+  
 
   useEffect(() => {
     if (!hasOverflow) {
@@ -491,7 +489,6 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
 
               {/* Puntos de progreso */}
               <motion.g
-                animate={{ rotate: rotationAngle }}
                 transition={{ type: 'spring', stiffness: 140, damping: 18 }}
                 initial={false}
                 style={{ transformOrigin: `${center}px ${center}px`, transformBox: 'fill-box' }}
@@ -555,7 +552,7 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
                     }}
                   />
                 {dot.peakStatus && (
-                    <g transform={`rotate(${-rotationAngle} ${dot.x} ${dot.y})`}>
+                    <g>
                     {dot.peakStatus === 'P' ? (
                       <motion.text
                         x={dot.x}
