@@ -53,9 +53,12 @@ import computePeakStatuses from '@/lib/computePeakStatuses';
 
 const getSymbolInfo = (symbolValue) =>
   FERTILITY_SYMBOL_OPTIONS.find((symbol) => symbol.value === symbolValue) || FERTILITY_SYMBOL_OPTIONS[0];
-const CALENDAR_BOUNDARY_OFFSET = 16;
+const CALENDAR_BOUNDARY_OFFSET = 10;
 
-const useCalendarFade = (calendarContainerRef, { dependencies = [], externalRef } = {}) => {
+const useCalendarFade = (
+  calendarContainerRef,
+  { dependencies = [], externalRef, scrollContainerRef } = {}
+) => {
   const localRef = useRef(null);
 
   const rawOpacity = useMotionValue(1);
@@ -85,7 +88,22 @@ const useCalendarFade = (calendarContainerRef, { dependencies = [], externalRef 
 
   useMotionValueEvent(scrollY, 'change', updateOpacity);
 
-    const setRefs = useCallback(
+    useEffect(() => {
+    const container = scrollContainerRef?.current;
+    if (!container) {
+      return undefined;
+    }
+
+    const handleScroll = () => updateOpacity();
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    updateOpacity();
+
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+    };
+  }, [scrollContainerRef, updateOpacity, ...dependencies]);
+
+  const setRefs = useCallback(
     (node) => {
       localRef.current = node;
 
@@ -146,10 +164,12 @@ const RecordCard = ({
   calendarContainerRef,
   isCalendarOpen,
   scrollMarginTop,
+  scrollContainerRef,
 }) => {
   const { setRefs, opacity } = useCalendarFade(calendarContainerRef, {
     dependencies: [isExpanded, isCalendarOpen],
     externalRef: dayRef,
+    scrollContainerRef,
   });
 
   return (
@@ -163,7 +183,7 @@ const RecordCard = ({
       whileHover={{ translateY: -2 }}
       style={{ opacity, scrollMarginTop }}
     >
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-1.5">
         <div className="flex items-center gap-1 text-sm font-semibold text-slate-700">
           <CalendarDays className="h-4 w-4 text-rose-400" />
           {displayDate}
@@ -179,7 +199,7 @@ const RecordCard = ({
         />
         <div className="ml-auto flex items-center">
           <div
-            className={`flex h-6 w-6 items-center justify-center rounded-full border border-slate-500 shadow-inner ${details.symbolInfo.color} ${details.symbolInfo.pattern ? 'pattern-bg' : ''}`}
+            className={`flex h-5 w-5 items-center justify-center rounded-full border border-slate-500 shadow-inner ${details.symbolInfo.color} ${details.symbolInfo.pattern ? 'pattern-bg' : ''}`}
             title={symbolLabel}
           ></div>
         </div>
@@ -298,9 +318,11 @@ const EmptyGroupRow = ({
   isCalendarOpen,
   children,
   scrollMarginTop,
+  scrollContainerRef,
 }) => {
   const { setRefs, opacity } = useCalendarFade(calendarContainerRef, {
     dependencies: [isExpandedGroup, isCalendarOpen, days.length],
+    scrollContainerRef,
   });
 
   return (
@@ -387,29 +409,29 @@ const FieldBadges = ({
   isPeakDay,
 }) => {
   const badgeBase =
-    'flex items-center justify-center w-7 h-7 rounded-full text-white shadow-sm shadow-rose-200/50 transition-transform duration-200';
+    'flex items-center justify-center w-5 h-5 rounded-full text-white shadow-sm shadow-rose-200/50 transition-transform duration-200';
 
   return (
     <div className="flex items-center gap-1.5">
       <PeakBadge peakStatus={peakStatus} isPeakDay={isPeakDay} />
       {hasTemperature && (
         <span className={`${badgeBase} bg-orange-400/90`}>
-          <Thermometer className="h-3.5 w-3.5" />
+          <Thermometer className="h-3 w-3" />
         </span>
       )}
       {hasMucusSensation && (
         <span className={`${badgeBase} bg-sky-500/90`}>
-          <Droplets className="h-3.5 w-3.5" />
+          <Droplets className="h-3 w-3" />
         </span>
       )}
       {hasMucusAppearance && (
         <span className={`${badgeBase} bg-emerald-500/90`}>
-          <Circle className="h-3.5 w-3.5" />
+          <Circle className="h-3 w-3" />
         </span>
       )}
       {hasObservations && (
         <span className={`${badgeBase} bg-violet-500/90`}>
-          <Edit3 className="h-3.5 w-3.5" />
+          <Edit3 className="h-3 w-3" />
         </span>
       )}     
     </div>
@@ -445,6 +467,7 @@ const RecordsPage = () => {
   const [isCalendarOpen, setIsCalendarOpen] = useState(true);
   const [expandedEmptyGroups, setExpandedEmptyGroups] = useState([]);
   const calendarContainerRef = useRef(null);
+  const recordsScrollRef = useRef(null);
   const dayRefs = useRef({});
   const hasUserSelectedDateRef = useRef(false);
   const calendarHeightRef = useRef(0);
@@ -520,36 +543,39 @@ const RecordsPage = () => {
 
   const ensureElementBelowCalendar = useCallback(
     (element, { behavior = 'smooth', forceAlignTop = false } = {}) => {
-      if (!element) {
+      const container = recordsScrollRef.current;
+
+      if (!element || !container) {
         return;
       }
 
-      const calendarRect = calendarContainerRef.current?.getBoundingClientRect();
-      const boundaryFromCalendar = calendarRect ? calendarRect.bottom + CALENDAR_BOUNDARY_OFFSET : null;
-      const boundary = boundaryFromCalendar ?? calendarHeightRef.current + CALENDAR_BOUNDARY_OFFSET;
+      const containerRect = container.getBoundingClientRect();
+      const elementRect = element.getBoundingClientRect();
 
-      const rect = element.getBoundingClientRect();
-      const targetTop = Math.max(window.scrollY + rect.top - boundary, 0);
+      const elementTop = elementRect.top - containerRect.top + container.scrollTop;
+      const elementBottom = elementTop + elementRect.height;
+      const viewTop = container.scrollTop;
+      const viewBottom = viewTop + container.clientHeight;
 
-      if (forceAlignTop || rect.top < boundary) {
-        window.scrollTo({ top: targetTop, behavior });
+      if (forceAlignTop || elementTop < viewTop) {
+        container.scrollTo({ top: Math.max(elementTop - 12, 0), behavior });
         return;
       }
 
-      const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
-
-      if (rect.bottom > viewportHeight) {
-        const overflow = rect.bottom - viewportHeight + CALENDAR_BOUNDARY_OFFSET;
-        window.scrollTo({ top: Math.max(window.scrollY + overflow, 0), behavior });
+      if (elementBottom > viewBottom) {
+        const newTop = Math.max(elementBottom - container.clientHeight + 12, 0);
+        container.scrollTo({ top: newTop, behavior });
       }
     },
     []
   );
 
-  const calendarScrollMargin = useMemo(
-    () => Math.max(calendarHeight + CALENDAR_BOUNDARY_OFFSET, CALENDAR_BOUNDARY_OFFSET),
+  const boundaryPx = useMemo(
+    () => Math.max(Math.round(calendarHeight + CALENDAR_BOUNDARY_OFFSET), CALENDAR_BOUNDARY_OFFSET),
     [calendarHeight]
   );
+
+    const calendarScrollMargin = useMemo(() => boundaryPx, [boundaryPx]);
 
   useEffect(() => {
     setDraftStartDate(currentCycle?.startDate || '');
@@ -635,7 +661,12 @@ const RecordsPage = () => {
   }, [calendarHeight, isCalendarOpen, expandedIsoDate, selectedDate, ensureElementBelowCalendar]);
 
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'auto' });
+    const container = recordsScrollRef.current;
+    if (!container) {
+      return;
+    }
+
+    container.scrollTo({ top: 0, behavior: 'auto' });
   }, []);
 
 
@@ -1163,7 +1194,7 @@ const RecordsPage = () => {
       <div className="max-w-4xl mx-auto px-4 relative z-10">
         <div ref={calendarContainerRef} className="sticky top-1 z-50">
           <div className="relative overflow-hidden rounded-xl ring-1 ring-rose-100/70">
-            <div className="space-y-3 p-3 sm:p-4 relative z-10">
+            <div className="space-y-2 p-2 sm:p-3 relative z-10">
               {/* Header */}
               <motion.div
                 className="flex flex-col gap-4"
@@ -1233,85 +1264,93 @@ const RecordsPage = () => {
               </motion.div>
             
             {showStartDateEditor && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
+              >
+                <CycleDatesEditor
+                  cycle={currentCycle}
+                  startDate={draftStartDate}
+                  endDate={currentCycle.endDate}
+                  onStartDateChange={(value) => setDraftStartDate(value)}
+                  onSave={handleSaveStartDate}
+                  onCancel={closeStartDateEditor}
+                  isProcessing={isUpdatingStartDate}
+                  dateError={startDateError}
+                  includeEndDate={false}
+                  showOverlapDialog={showOverlapDialog}
+                  overlapCycle={overlapCycle}
+                  onConfirmOverlap={handleConfirmOverlapStart}
+                  onCancelOverlap={handleCancelOverlapStart}
+                  onClearError={() => setStartDateError('')}
+                  saveLabel="Guardar cambios"
+                  title="Editar fecha de inicio"
+                  description="Actualiza la fecha de inicio del ciclo actual. Los registros se reorganizarán automáticamente."
+                />
+              </motion.div>
+            )}
+            <AnimatePresence initial={false}>
+              {isCalendarOpen && (
                 <motion.div
+                  key="records-calendar"
+                  id="records-calendar"
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.3 }}
+                  className="flex justify-center"
                 >
-                  <CycleDatesEditor
-                    cycle={currentCycle}
-                    startDate={draftStartDate}
-                    endDate={currentCycle.endDate}
-                    onStartDateChange={(value) => setDraftStartDate(value)}
-                    onSave={handleSaveStartDate}
-                    onCancel={closeStartDateEditor}
-                    isProcessing={isUpdatingStartDate}
-                    dateError={startDateError}
-                    includeEndDate={false}
-                    showOverlapDialog={showOverlapDialog}
-                    overlapCycle={overlapCycle}
-                    onConfirmOverlap={handleConfirmOverlapStart}
-                    onCancelOverlap={handleCancelOverlapStart}
-                    onClearError={() => setStartDateError('')}
-                    saveLabel="Guardar cambios"
-                    title="Editar fecha de inicio"
-                    description="Actualiza la fecha de inicio del ciclo actual. Los registros se reorganizarán automáticamente."
+                  <Calendar
+                    mode="single"
+                    locale={es}
+                    defaultMonth={
+                      selectedDate && isValid(parseISO(selectedDate))
+                        ? parseISO(selectedDate)
+                        : cycleRange?.to
+                    }
+                    selected={selectedDate && isValid(parseISO(selectedDate)) ? parseISO(selectedDate) : undefined}
+                    onDayClick={handleCalendarSelect}
+                    modifiers={calendarModifiers}
+                    className="w-full max-w-md sm:max-w-lg rounded-lg bg-white/40 p-2 sm:p-3 mx-auto backdrop-blur-sm [&_button]:text-slate-900 [&_button:hover]:bg-rose-100 [&_button[aria-selected=true]]:bg-rose-500"
+                    classNames={{
+                      day_selected:
+                        'border border-rose-500 text-white hover:bg-rose-500 hover:text-white focus:bg-rose-500 focus:text-white',
+                      day_today: 'bg-rose-200 text-rose-700 font-semibold',
+                    }}
+                    modifiersClassNames={{
+                      hasRecord:
+                        "relative font-semibold after:absolute after:bottom-1.5 after:left-1/2 after:-translate-x-1/2 after:w-1.5 after:h-1.5 after:rounded-full after:bg-rose-500 after:content-['']",
+                      outsideCycle: 'text-slate-300 opacity-50 hover:text-slate-300 hover:bg-transparent',
+                      insideCycleNoRecord:
+                        'text-slate-900 hover:text-slate-900 hover:bg-rose-50',
+                    }}
                   />
                 </motion.div>
               )}
-            <AnimatePresence initial={false}>
-                {isCalendarOpen && (
-                  <motion.div
-                    key="records-calendar"
-                    id="records-calendar"
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    transition={{ duration: 0.3 }}
-                    className="flex justify-center"
-                  >
-                    <Calendar
-                      mode="single"
-                      locale={es}
-                      defaultMonth={
-                        selectedDate && isValid(parseISO(selectedDate))
-                          ? parseISO(selectedDate)
-                          : cycleRange?.to
-                      }
-                      selected={selectedDate && isValid(parseISO(selectedDate)) ? parseISO(selectedDate) : undefined}
-                      onDayClick={handleCalendarSelect}
-                      modifiers={calendarModifiers}
-                      className="w-full max-w-md sm:max-w-lg rounded-xl bg-white/40 p-2.5 sm:p-3 mx-auto backdrop-blur-sm [&_button]:text-slate-900 [&_button:hover]:bg-rose-100 [&_button[aria-selected=true]]:bg-rose-500"
-                      classNames={{
-                        day_selected:
-                          'border border-rose-500 text-white hover:bg-rose-500 hover:text-white focus:bg-rose-500 focus:text-white',
-                        day_today: 'bg-rose-200 text-rose-700 font-semibold',
-                      }}
-                      modifiersClassNames={{
-                        hasRecord:
-                          "relative font-semibold after:absolute after:bottom-1.5 after:left-1/2 after:-translate-x-1/2 after:w-1.5 after:h-1.5 after:rounded-full after:bg-rose-500 after:content-['']",
-                        outsideCycle: 'text-slate-300 opacity-50 hover:text-slate-300 hover:bg-transparent',
-                        insideCycleNoRecord:
-                          'text-slate-900 hover:text-slate-900 hover:bg-rose-50',
-                      }}
-                    />
-                  </motion.div>
-                )}
-              </AnimatePresence>
+            </AnimatePresence>
             </div>
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-3" />
-            <div className="pointer-events-none absolute inset-x-4 bottom-0 h-px  z-10" />
+            
           </div>
         </div>
 
 
         {/* Records List */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
-          className="relative mt-5 space-y-2 pt-2"
+        <div
+          ref={recordsScrollRef}
+          className="sticky mt-4 overflow-y-auto overscroll-contain"
+          style={{
+            top: boundaryPx,
+            maxHeight: `calc(100dvh - ${boundaryPx}px)`,
+            WebkitOverflowScrolling: 'touch',
+          }}
         >
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+            className="relative space-y-1 pt-2 pb-10"
+          >
          
           {cycleDays.length === 0 ? (
             <motion.div
@@ -1357,6 +1396,7 @@ const RecordsPage = () => {
                       calendarContainerRef={calendarContainerRef}
                       isCalendarOpen={isCalendarOpen}
                       scrollMarginTop={calendarScrollMargin}
+                      scrollContainerRef={recordsScrollRef}
                     >
                       <div className="flex items-center gap-2">
                         <CalendarDays className="h-4 w-4 text-rose-300" />
@@ -1460,11 +1500,13 @@ const RecordsPage = () => {
                   calendarContainerRef={calendarContainerRef}
                   isCalendarOpen={isCalendarOpen}
                   scrollMarginTop={calendarScrollMargin}
+                  scrollContainerRef={recordsScrollRef}
                 />
               );
             })
           )}
         </motion.div>
+        </div>
       </div>
 
       <Dialog
