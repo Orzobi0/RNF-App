@@ -666,7 +666,7 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <div className="flex flex-col items-center gap-1">
-                <span className="text-xs font-semibold text-rose-600 tracking-wide uppercase">Rueda del ciclo</span>
+                
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-medium text-rose-500">
                     Día {wheelOffset + 1}
@@ -711,8 +711,8 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
               boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.7)'
             }}
           >
-            
-            <h3 className="font-bold mb-6 text-gray-800 flex items-center gap-2 justify-center text-xs tracking-wide uppercase">
+
+            <h3 className="font-bold mb-4 text-gray-800 flex items-center gap-2 justify-center text-xs tracking-wide uppercase">
             Símbolos
             </h3>
             

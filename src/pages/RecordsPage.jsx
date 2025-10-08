@@ -55,6 +55,151 @@ const getSymbolInfo = (symbolValue) =>
   FERTILITY_SYMBOL_OPTIONS.find((symbol) => symbol.value === symbolValue) || FERTILITY_SYMBOL_OPTIONS[0];
 const CALENDAR_BOUNDARY_OFFSET = 10;
 
+const FIELD_PALETTES = {
+  default: {
+    iconBg: 'bg-slate-50',
+    iconBorder: 'border-slate-200',
+    iconColor: 'text-slate-500',
+    labelColor: 'text-slate-600',
+    valueColor: 'text-slate-600',
+    chipBorder: 'border-slate-200',
+    chipBg: 'bg-white/80',
+    hoverBg: 'hover:bg-slate-50',
+    focusRing: 'focus-visible:ring-2 focus-visible:ring-slate-200',
+  },
+  temperature: {
+    iconBg: 'bg-orange-50',
+    iconBorder: 'border-orange-100',
+    iconColor: 'text-orange-500',
+    labelColor: 'text-orange-600',
+    valueColor: 'text-orange-600',
+    chipBorder: 'border-orange-100',
+    hoverBg: 'hover:bg-orange-50',
+    focusRing: 'focus-visible:ring-2 focus-visible:ring-orange-100',
+  },
+  time: {
+    iconBg: 'bg-slate-50',
+    iconBorder: 'border-slate-200',
+    iconColor: 'text-slate-500',
+    labelColor: 'text-slate-500',
+    valueColor: 'text-slate-600',
+    chipBorder: 'border-slate-200',
+    hoverBg: 'hover:bg-slate-50',
+    focusRing: 'focus-visible:ring-2 focus-visible:ring-slate-200',
+  },
+  mucusSensation: {
+    iconBg: 'bg-sky-50',
+    iconBorder: 'border-sky-100',
+    iconColor: 'text-sky-500',
+    labelColor: 'text-sky-600',
+    valueColor: 'text-sky-600',
+    chipBorder: 'border-sky-100',
+    hoverBg: 'hover:bg-sky-50',
+    focusRing: 'focus-visible:ring-2 focus-visible:ring-sky-100',
+  },
+  mucusAppearance: {
+    iconBg: 'bg-emerald-50',
+    iconBorder: 'border-emerald-100',
+    iconColor: 'text-emerald-500',
+    labelColor: 'text-emerald-600',
+    valueColor: 'text-emerald-600',
+    chipBorder: 'border-emerald-100',
+    hoverBg: 'hover:bg-emerald-50',
+    focusRing: 'focus-visible:ring-2 focus-visible:ring-emerald-100',
+  },
+  observations: {
+    iconBg: 'bg-violet-50',
+    iconBorder: 'border-violet-100',
+    iconColor: 'text-violet-500',
+    labelColor: 'text-violet-600',
+    valueColor: 'text-violet-600',
+    chipBorder: 'border-violet-100',
+    hoverBg: 'hover:bg-violet-50',
+    focusRing: 'focus-visible:ring-2 focus-visible:ring-violet-100',
+  },
+};
+
+const getSymbolPalette = (symbolInfo = {}) => {
+  const base = {
+    ...FIELD_PALETTES.default,
+    dotColor: 'bg-slate-300',
+    patternClass: symbolInfo?.pattern ? 'pattern-bg' : '',
+  };
+
+  switch (symbolInfo?.value) {
+    case 'red':
+      return {
+        ...base,
+        iconBg: 'bg-rose-50',
+        iconBorder: 'border-rose-100',
+        iconColor: 'text-rose-500',
+        labelColor: 'text-rose-600',
+        valueColor: 'text-rose-600',
+        chipBorder: 'border-rose-100',
+        hoverBg: 'hover:bg-rose-50',
+        focusRing: 'focus-visible:ring-2 focus-visible:ring-rose-100',
+        dotColor: 'bg-rose-400',
+      };
+    case 'white':
+      return {
+        ...base,
+        iconBg: 'bg-white',
+        iconBorder: 'border-slate-200',
+        iconColor: 'text-slate-500',
+        labelColor: 'text-slate-600',
+        valueColor: 'text-slate-600',
+        chipBorder: 'border-slate-200',
+        hoverBg: 'hover:bg-slate-50',
+        focusRing: 'focus-visible:ring-2 focus-visible:ring-slate-200',
+        dotColor: 'bg-slate-300',
+      };
+    case 'green':
+      return {
+        ...base,
+        iconBg: 'bg-emerald-50',
+        iconBorder: 'border-emerald-100',
+        iconColor: 'text-emerald-500',
+        labelColor: 'text-emerald-600',
+        valueColor: 'text-emerald-600',
+        chipBorder: 'border-emerald-100',
+        hoverBg: 'hover:bg-emerald-50',
+        focusRing: 'focus-visible:ring-2 focus-visible:ring-emerald-100',
+        dotColor: 'bg-emerald-400',
+      };
+    case 'yellow':
+      return {
+        ...base,
+        iconBg: 'bg-amber-50',
+        iconBorder: 'border-amber-100',
+        iconColor: 'text-amber-500',
+        labelColor: 'text-amber-600',
+        valueColor: 'text-amber-600',
+        chipBorder: 'border-amber-100',
+        hoverBg: 'hover:bg-amber-50',
+        focusRing: 'focus-visible:ring-2 focus-visible:ring-amber-100',
+        dotColor: 'bg-amber-400',
+      };
+    case 'spot':
+      return {
+        ...base,
+        iconBg: 'bg-rose-50',
+        iconBorder: 'border-rose-100',
+        iconColor: 'text-rose-500',
+        labelColor: 'text-rose-600',
+        valueColor: 'text-rose-600',
+        chipBorder: 'border-rose-100',
+        hoverBg: 'hover:bg-rose-50',
+        focusRing: 'focus-visible:ring-2 focus-visible:ring-rose-100',
+        dotColor: 'bg-rose-400',
+        patternClass: symbolInfo?.pattern ? 'pattern-bg' : '',
+      };
+    default:
+      return base;
+  }
+};
+
+const buildFieldPalette = (key) => ({ ...FIELD_PALETTES.default, ...(FIELD_PALETTES[key] || {}) });
+
 const useCalendarFade = (
   calendarContainerRef,
   { dependencies = [], externalRef, scrollContainerRef } = {}
@@ -173,54 +318,131 @@ const RecordCard = ({
     scrollContainerRef,
   });
 
+  const symbolPalette = getSymbolPalette(details.symbolInfo);
+  const getFieldPalette = buildFieldPalette;
+  const symbolValue = details?.symbolInfo?.value;
+  const hasSymbolValue = symbolValue && symbolValue !== 'none';
+
   const fieldRows = [
     {
-      key: 'temperature',
-      label: 'Temperatura',
-      icon: Thermometer,
-      value: details.hasTemperature ? `${details.displayTemp}°C` : null,
-      badge: details.showCorrectedIndicator ? (
-        <Badge className="rounded-full border border-amber-200 bg-amber-50 text-[0.65rem] font-semibold uppercase tracking-wide text-amber-600">
-          Corregida
-        </Badge>
-      ) : null,
-    },
-    {
-      key: 'time',
-      label: 'Hora',
-      icon: Clock,
-      value: details.timeValue || null,
+      key: 'primaryDetails',
+      grouped: true,
+      items: [
+        {
+          key: 'temperature',
+          inlineKey: 'temperature',
+          palette: getFieldPalette('temperature'),
+          icon: Thermometer,
+          title: details.hasTemperature ? `${details.displayTemp}°C` : '—',
+          hasValue: details.hasTemperature,
+          badge: details.showCorrectedIndicator ? (
+            <Badge className="rounded-full border border-amber-200 bg-amber-50 text-[0.65rem] font-semibold uppercase tracking-wide text-amber-600">
+              Corregida
+            </Badge>
+          ) : null,
+        },
+        {
+          key: 'time',
+          inlineKey: 'time',
+          palette: getFieldPalette('time'),
+          icon: Clock,
+          title: details.timeValue || '—',
+          hasValue: Boolean(details.timeValue),
+        },
+        {
+          key: 'fertilitySymbol',
+          inlineKey: 'fertilitySymbol',
+          palette: symbolPalette,
+          subtitle: null,
+          title: symbolLabel || 'Sin símbolo',
+          hasValue: Boolean(hasSymbolValue),
+          renderIcon: () => (
+            <span
+              className={`flex h-9 w-9 items-center justify-center rounded-full border ${symbolPalette.iconBorder} ${symbolPalette.iconBg}`}
+            >
+              <span className={`h-3 w-3 rounded-full ${symbolPalette.dotColor} ${symbolPalette.patternClass || ''}`} />
+            </span>
+          ),
+        },
+      ],
     },
     {
       key: 'mucusSensation',
-      label: 'Sensación',
       icon: Droplets,
       value: details.mucusSensation || null,
+      palette: getFieldPalette('mucusSensation'),
     },
     {
       key: 'mucusAppearance',
-      label: 'Apariencia',
       icon: Circle,
       value: details.mucusAppearance || null,
+      palette: getFieldPalette('mucusAppearance'),
     },
     {
       key: 'observations',
-      label: 'Observaciones',
       icon: Edit3,
       value: details.observationsText?.trim() ? details.observationsText : null,
       isMultiline: true,
-    },
-    {
-      key: 'fertilitySymbol',
-      label: 'Símbolo',
-      icon: FileText,
-      value: symbolLabel || null,
+      palette: getFieldPalette('observations'),
     },
   ];
 
   const renderFieldRow = (field, index) => {
+    if (field.grouped) {
+      return (
+        <React.Fragment key={field.key}>
+          {index > 0 && <div className="border-t border-slate-100 my-2" />}
+          <div className="flex flex-wrap gap-2">
+            {field.items.map((item) => {
+              const palette = item.palette || getFieldPalette(item.key);
+              const Icon = item.icon;
+              const hasValue = item.hasValue ?? Boolean(item.title);
+              const displayValue = item.title || '—';
+
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  className={`flex min-w-[9rem] flex-1 items-center gap-3 rounded-2xl border ${palette.chipBorder} ${palette.chipBg} px-3 py-2 text-left transition-colors ${palette.hoverBg} focus:outline-none ${palette.focusRing}`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    event.preventDefault();
+                    if (typeof onInlineEdit === 'function') {
+                      onInlineEdit(item.inlineKey || item.key);
+                    }
+                  }}
+                >
+                  {item.renderIcon ? (
+                    item.renderIcon()
+                  ) : (
+                    <span className={`flex h-9 w-9 items-center justify-center rounded-full border ${palette.iconBorder} ${palette.iconBg}`}>
+                      {Icon && <Icon className={`h-4 w-4 ${palette.iconColor}`} />}
+                    </span>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    {item.subtitle && (
+                      <span className={`text-[0.65rem] font-semibold uppercase tracking-wide ${palette.labelColor}`}>
+                        {item.subtitle}
+                      </span>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <span className={`text-sm font-semibold ${hasValue ? palette.valueColor : 'text-slate-400'}`}>
+                        {displayValue}
+                      </span>
+                      {item.badge && <span className="shrink-0">{item.badge}</span>}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </React.Fragment>
+      );
+    }
+
+    const palette = field.palette || getFieldPalette(field.key);
     const Icon = field.icon;
-    const valueClass = field.value ? 'text-slate-600' : 'text-slate-400';
+    const valueClass = field.value ? palette.valueColor : 'text-slate-400';
     const valueText = field.value ?? '—';
 
     return (
@@ -228,7 +450,7 @@ const RecordCard = ({
         {index > 0 && <div className="border-t border-slate-100 my-2" />}
         <button
           type="button"
-          className={`flex w-full items-start justify-between gap-4 rounded-xl px-2 py-1 text-left transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 ${
+          className={`flex w-full items-start justify-between gap-4 rounded-2xl border ${palette.chipBorder} ${palette.chipBg} px-3 py-2 text-left transition-colors ${palette.hoverBg} focus:outline-none ${palette.focusRing} ${
             field.isMultiline ? 'items-start' : 'items-center'
           }`}
           onClick={(event) => {
@@ -240,10 +462,10 @@ const RecordCard = ({
           }}
         >
           <div className="flex items-center gap-3">
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100">
-              <Icon className="h-4 w-4 text-slate-500" />
+            <span className={`flex h-9 w-9 items-center justify-center rounded-full border ${palette.iconBorder} ${palette.iconBg}`}>
+              <Icon className={`h-4 w-4 ${palette.iconColor}`} />
             </span>
-            <span className="text-sm font-semibold text-slate-700">{field.label}</span>
+            <span className={`text-sm font-semibold ${palette.labelColor}`}>{field.label}</span>
           </div>
           <div
             className={`flex min-w-0 flex-1 justify-end gap-2 ${
@@ -291,9 +513,10 @@ const RecordCard = ({
         />
         <div className="ml-auto flex items-center">
           <div
-            className={`flex h-5 w-5 items-center justify-center rounded-full border border-slate-500 shadow-inner ${details.symbolInfo.color} ${details.symbolInfo.pattern ? 'pattern-bg' : ''}`}
+            className={`flex h-6 w-6 items-center justify-center rounded-full border ${symbolPalette.dotColor} ${symbolPalette.patternClass} shadow-inner`}
             title={symbolLabel}
-          ></div>
+          >            
+          </div>
         </div>
       </div>
       <AnimatePresence initial={false}>
@@ -303,10 +526,10 @@ const RecordCard = ({
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.25, ease: 'easeInOut' }}
-            className="mt-3 overflow-hidden"
+            className="mt-2 overflow-hidden"
           >
-            <div className="rounded-3xl border border-slate-200 bg-white/80 p-6 shadow-sm">
-              <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <div className="rounded-3xl border border-slate-200 bg-white/80 p-2 shadow-sm">
+              <div className="flex flex-wrap items-center gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <PeakBadge peakStatus={details.peakStatus} isPeakDay={details.isPeakDay} size="small" />
                 {details.record?.ignored && (
                   <Badge className="rounded-full border border-slate-200 bg-slate-100 text-[0.65rem] font-semibold uppercase tracking-wide text-slate-600">
@@ -314,10 +537,10 @@ const RecordCard = ({
                   </Badge>
                 )}
               </div>
-              <div className="mt-4 space-y-2">
+              <div className="mt-2 space-y-2">
                 {fieldRows.map((field, index) => renderFieldRow(field, index))}
               </div>
-              <div className="mt-5 flex flex-wrap items-center justify-end gap-2">
+              <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
                 <Button
                   type="button"
                   variant="outline"
@@ -454,29 +677,33 @@ const FieldBadges = ({
   isPeakDay,
 }) => {
   const badgeBase =
-    'flex items-center justify-center w-5 h-5 rounded-full border border-slate-200 bg-slate-100 text-slate-500 text-[0.65rem] shadow-sm transition-transform duration-200';
+    'flex items-center justify-center w-6 h-6 rounded-full text-[0.65rem] shadow-sm transition-transform duration-200';
+  const temperaturePalette = buildFieldPalette('temperature');
+  const sensationPalette = buildFieldPalette('mucusSensation');
+  const appearancePalette = buildFieldPalette('mucusAppearance');
+  const observationsPalette = buildFieldPalette('observations');
 
   return (
     <div className="flex items-center gap-1.5">
       <PeakBadge peakStatus={peakStatus} isPeakDay={isPeakDay} />
       {hasTemperature && (
-        <span className={badgeBase}>
-          <Thermometer className="h-3 w-3" />
+        <span className={`${badgeBase} border ${temperaturePalette.iconBorder} ${temperaturePalette.iconBg}`}>
+          <Thermometer className={`h-3 w-3 ${temperaturePalette.iconColor}`} />
         </span>
       )}
       {hasMucusSensation && (
-        <span className={badgeBase}>
-          <Droplets className="h-3 w-3" />
+        <span className={`${badgeBase} border ${sensationPalette.iconBorder} ${sensationPalette.iconBg}`}>
+          <Droplets className={`h-3 w-3 ${sensationPalette.iconColor}`} />
         </span>
       )}
       {hasMucusAppearance && (
-        <span className={badgeBase}>
-          <Circle className="h-3 w-3" />
+        <span className={`${badgeBase} border ${appearancePalette.iconBorder} ${appearancePalette.iconBg}`}>
+          <Circle className={`h-3 w-3 ${appearancePalette.iconColor}`} />
         </span>
       )}
       {hasObservations && (
-        <span className={badgeBase}>
-          <Edit3 className="h-3 w-3" />
+        <span className={`${badgeBase} border ${observationsPalette.iconBorder} ${observationsPalette.iconBg}`}>
+          <Edit3 className={`h-3 w-3 ${observationsPalette.iconColor}`} />
         </span>
       )}
     </div>
