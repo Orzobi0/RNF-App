@@ -165,12 +165,104 @@ const RecordCard = ({
   isCalendarOpen,
   scrollMarginTop,
   scrollContainerRef,
+  onInlineEdit,
 }) => {
   const { setRefs, opacity } = useCalendarFade(calendarContainerRef, {
     dependencies: [isExpanded, isCalendarOpen],
     externalRef: dayRef,
     scrollContainerRef,
   });
+
+  const fieldRows = [
+    {
+      key: 'temperature',
+      label: 'Temperatura',
+      icon: Thermometer,
+      value: details.hasTemperature ? `${details.displayTemp}°C` : null,
+      badge: details.showCorrectedIndicator ? (
+        <Badge className="rounded-full border border-amber-200 bg-amber-50 text-[0.65rem] font-semibold uppercase tracking-wide text-amber-600">
+          Corregida
+        </Badge>
+      ) : null,
+    },
+    {
+      key: 'time',
+      label: 'Hora',
+      icon: Clock,
+      value: details.timeValue || null,
+    },
+    {
+      key: 'mucusSensation',
+      label: 'Sensación',
+      icon: Droplets,
+      value: details.mucusSensation || null,
+    },
+    {
+      key: 'mucusAppearance',
+      label: 'Apariencia',
+      icon: Circle,
+      value: details.mucusAppearance || null,
+    },
+    {
+      key: 'observations',
+      label: 'Observaciones',
+      icon: Edit3,
+      value: details.observationsText?.trim() ? details.observationsText : null,
+      isMultiline: true,
+    },
+    {
+      key: 'fertilitySymbol',
+      label: 'Símbolo',
+      icon: FileText,
+      value: symbolLabel || null,
+    },
+  ];
+
+  const renderFieldRow = (field, index) => {
+    const Icon = field.icon;
+    const valueClass = field.value ? 'text-slate-600' : 'text-slate-400';
+    const valueText = field.value ?? '—';
+
+    return (
+      <React.Fragment key={field.key}>
+        {index > 0 && <div className="border-t border-slate-100 my-2" />}
+        <button
+          type="button"
+          className={`flex w-full items-start justify-between gap-4 rounded-xl px-2 py-1 text-left transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 ${
+            field.isMultiline ? 'items-start' : 'items-center'
+          }`}
+          onClick={(event) => {
+            event.stopPropagation();
+            event.preventDefault();
+            if (typeof onInlineEdit === 'function') {
+              onInlineEdit(field.key);
+            }
+          }}
+        >
+          <div className="flex items-center gap-3">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100">
+              <Icon className="h-4 w-4 text-slate-500" />
+            </span>
+            <span className="text-sm font-semibold text-slate-700">{field.label}</span>
+          </div>
+          <div
+            className={`flex min-w-0 flex-1 justify-end gap-2 ${
+              field.isMultiline ? 'items-start' : 'items-center'
+            }`}
+          >
+            <span
+              className={`text-sm ${valueClass} ${
+                field.isMultiline ? 'max-w-[70%] whitespace-pre-line text-right leading-snug' : 'truncate'
+              }`}
+            >
+              {valueText}
+            </span>
+            {field.badge && <span className="shrink-0">{field.badge}</span>}
+          </div>
+        </button>
+      </React.Fragment>
+    );
+  };
 
   return (
     <motion.div
@@ -213,92 +305,45 @@ const RecordCard = ({
             transition={{ duration: 0.25, ease: 'easeInOut' }}
             className="mt-3 overflow-hidden"
           >
-            <div className="flex flex-col gap-1 rounded-3xl border border-rose-100 bg-white/95 p-4 shadow-inner sm:p-5">
-              <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-rose-500">
-                <PeakBadge
-                  peakStatus={details.peakStatus}
-                  isPeakDay={details.isPeakDay}
-                  size="small"
-                  className="shadow-inner"
-                />
-                <span className="rounded-full bg-rose-50 px-3 py-1.5 text-[0.65rem]">{symbolLabel || '-'}</span>
+            <div className="rounded-3xl border border-slate-200 bg-white/80 p-6 shadow-sm">
+              <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <PeakBadge peakStatus={details.peakStatus} isPeakDay={details.isPeakDay} size="small" />
+                {details.record?.ignored && (
+                  <Badge className="rounded-full border border-slate-200 bg-slate-100 text-[0.65rem] font-semibold uppercase tracking-wide text-slate-600">
+                    Ignorada
+                  </Badge>
+                )}
               </div>
-              <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
-                <div className="flex flex-wrap items-center gap-3 text-xs text-slate-700 md:col-span-2">
-                  <div className="flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-3 py-1.5 text-orange-600">
-                    <Thermometer className="h-4 w-4" />
-                    <span className="font-semibold">{details.hasTemperature ? `${details.displayTemp}°C` : '-'}</span>
-                    {details.showCorrectedIndicator && (
-                      <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[0.6rem] font-semibold uppercase tracking-wide">
-                        Corregida
-                      </span>
-                    )}
-                  </div>
-                  {details.timeValue && (
-                    <div className="flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-amber-600">
-                      <Clock className="h-4 w-4" />
-                      <span>{details.timeValue}</span>
-                    </div>
-                  )}
-                  {details.record.ignored && (
-                    <Badge className="rounded-full border border-orange-200 bg-orange-100 text-orange-600">Ignorada</Badge>
-                  )}
-                </div>
-                <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
-                  <div className="flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-sky-600">
-                    <Droplets className="h-4 w-4" />
-                    <span className="font-medium">{details.mucusSensation || 'Sin sensación'}</span>
-                  </div>
-                  <div className="flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-emerald-600">
-                    <Circle className="h-4 w-4" />
-                    <span className="font-medium">{details.mucusAppearance || 'Sin apariencia'}</span>
-                  </div>
-                
-                </div>
-                <div className="col-span-1 flex flex-col gap-2 sm:col-span-2 md:col-span-3 sm:flex-row sm:items-start sm:gap-3">
-                  <div className="rounded-3xl border border-violet-200 bg-violet-50/80 px-3 py-1.5 text-xs text-violet-700 flex-1">
-                    <div className="flex items-center gap-2">
-                      <div className="flex h-4 w-4 items-center justify-center rounded-full bg-violet-400 text-white shadow-md">
-                        <Edit3 className="h-3 w-3" />
-                      </div>
-                      <div className="flex-1 space-y-1">
-                        <span className="font-semibold-medium"></span>
-                        <p className="whitespace-pre-line font-medium text-sm leading-snug text-violet-600">
-                          {details.observationsText || 'Sin observaciones'}
-                        </p>
-                      </div>
-
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-2 sm:flex-nowrap">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="rounded-full border-rose-200 text-rose-600 hover:bg-rose-50"
-                      disabled={isProcessing}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onEdit(details.record);
-                      }}
-                      aria-label="Editar registro"
-                    >
-                      <Edit2 className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="rounded-full border-rose-200 text-rose-600 hover:bg-rose-50"
-                      disabled={isProcessing}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onDelete(details.record.id);
-                      }}
-                      aria-label="Eliminar registro"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
+              <div className="mt-4 space-y-2">
+                {fieldRows.map((field, index) => renderFieldRow(field, index))}
+              </div>
+              <div className="mt-5 flex flex-wrap items-center justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-full border-rose-200 text-rose-600 hover:bg-rose-50"
+                  disabled={isProcessing}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onEdit(details.record);
+                  }}
+                  aria-label="Editar registro"
+                >
+                  <Edit2 className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-full border-rose-200 text-rose-600 hover:bg-rose-50"
+                  disabled={isProcessing}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onDelete(details.record.id);
+                  }}
+                  aria-label="Eliminar registro"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
               </div>
             </div>
           </motion.div>
@@ -359,24 +404,24 @@ const formatTemperatureDisplay = (value) => {
 const PeakBadge = ({ peakStatus, isPeakDay, size = 'default', className = '' }) => {
   let label = null;
   let title = '';
-  let bgClass = 'bg-pink-500';
+  let colorClasses = 'border border-slate-200 bg-slate-100 text-slate-500';
 
   if (isPeakDay || peakStatus === 'P') {
     label = '✖';
     title = 'Día pico';
-    bgClass = 'bg-pink-500';
+    colorClasses = 'border border-rose-200 bg-rose-100 text-rose-600';
   } else if (peakStatus === '1') {
     label = '+1';
     title = 'Post día pico +1';
-    bgClass = 'bg-pink-500/90';
+    colorClasses = 'border border-rose-200 bg-rose-50 text-rose-500';
   } else if (peakStatus === '2') {
     label = '+2';
     title = 'Post día pico +2';
-    bgClass = 'bg-pink-500/80';
+    colorClasses = 'border border-rose-200 bg-rose-50 text-rose-500';
   } else if (peakStatus === '3') {
     label = '+3';
     title = 'Post día pico +3';
-    bgClass = 'bg-pink-500/70';
+    colorClasses = 'border border-rose-200 bg-rose-50 text-rose-500';
   }
 
   if (!label) {
@@ -393,7 +438,7 @@ const PeakBadge = ({ peakStatus, isPeakDay, size = 'default', className = '' }) 
       role="img"
       aria-label={title}
       title={title}
-      className={`flex items-center justify-center rounded-full font-semibold text-white shadow-sm shadow-rose-200/50 transition-transform duration-200 ${sizeClasses} ${bgClass} ${className}`}
+      className={`flex items-center justify-center rounded-full font-semibold shadow-sm shadow-rose-200/40 transition-transform duration-200 ${sizeClasses} ${colorClasses} ${className}`}
     >
       {label}
     </span>
@@ -409,31 +454,31 @@ const FieldBadges = ({
   isPeakDay,
 }) => {
   const badgeBase =
-    'flex items-center justify-center w-5 h-5 rounded-full text-white shadow-sm shadow-rose-200/50 transition-transform duration-200';
+    'flex items-center justify-center w-5 h-5 rounded-full border border-slate-200 bg-slate-100 text-slate-500 text-[0.65rem] shadow-sm transition-transform duration-200';
 
   return (
     <div className="flex items-center gap-1.5">
       <PeakBadge peakStatus={peakStatus} isPeakDay={isPeakDay} />
       {hasTemperature && (
-        <span className={`${badgeBase} bg-orange-400/90`}>
+        <span className={badgeBase}>
           <Thermometer className="h-3 w-3" />
         </span>
       )}
       {hasMucusSensation && (
-        <span className={`${badgeBase} bg-sky-500/90`}>
+        <span className={badgeBase}>
           <Droplets className="h-3 w-3" />
         </span>
       )}
       {hasMucusAppearance && (
-        <span className={`${badgeBase} bg-emerald-500/90`}>
+        <span className={badgeBase}>
           <Circle className="h-3 w-3" />
         </span>
       )}
       {hasObservations && (
-        <span className={`${badgeBase} bg-violet-500/90`}>
+        <span className={badgeBase}>
           <Edit3 className="h-3 w-3" />
         </span>
-      )}     
+      )}
     </div>
   );
 };
@@ -464,6 +509,7 @@ const RecordsPage = () => {
   const [selectedDate, setSelectedDate] = useState(null);
   const [expandedIsoDate, setExpandedIsoDate] = useState(null);
   const [defaultFormIsoDate, setDefaultFormIsoDate] = useState(null);
+  const [focusedField, setFocusedField] = useState(null);
   const [isCalendarOpen, setIsCalendarOpen] = useState(true);
   const [expandedEmptyGroups, setExpandedEmptyGroups] = useState([]);
   const calendarContainerRef = useRef(null);
@@ -1060,23 +1106,35 @@ const RecordsPage = () => {
     setShowForm(false);
     setEditingRecord(null);
     setDefaultFormIsoDate(null);
+    setFocusedField(null);
   }, []);
 
-  const handleEdit = (record) => {
-    if (!record) return;
-    setEditingRecord(record);
-    setDefaultFormIsoDate(record.isoDate ?? null);
-    if (record.isoDate) {
-      hasUserSelectedDateRef.current = false;
-      setSelectedDate(record.isoDate);
-      setExpandedIsoDate(record.isoDate);
-    }
-    setShowForm(true);
-  };
+  const openRecordForm = useCallback(
+    (record, fieldName = null) => {
+      if (!record) return;
+
+      setEditingRecord(record);
+      setDefaultFormIsoDate(record.isoDate ?? null);
+      setFocusedField(fieldName);
+
+      if (record.isoDate) {
+        hasUserSelectedDateRef.current = false;
+        setSelectedDate(record.isoDate);
+        setExpandedIsoDate(record.isoDate);
+      }
+
+      setShowForm(true);
+    },
+    []
+  );
+
+  const handleEdit = useCallback((record) => openRecordForm(record), [openRecordForm]);
+
+  const handleInlineEdit = useCallback((record, fieldName) => openRecordForm(record, fieldName), [openRecordForm]);
 
   const handleDeleteRequest = (recordId) => {
-    const record = currentCycle.data.find(r => r.id === recordId);
-    setRecordToDelete(record);
+    const record = currentCycle?.data?.find((r) => r.id === recordId);
+    setRecordToDelete(record || null);
   };
 
   const handleDateSelect = useCallback((record) => {
@@ -1108,6 +1166,7 @@ const RecordsPage = () => {
     setExpandedIsoDate(null);
     setEditingRecord(null);
     setDefaultFormIsoDate(isoDate);
+    setFocusedField(null);
     setShowForm(true);
   }, []);
 
@@ -1119,6 +1178,7 @@ const RecordsPage = () => {
         setShowForm(false);
         setEditingRecord(null);
         setDefaultFormIsoDate(null);
+        setFocusedField(null);
       }
     } catch (error) {
       toast({ title: 'Error', description: 'No se pudo guardar el registro', variant: 'destructive' });
@@ -1501,6 +1561,7 @@ const RecordsPage = () => {
                   isCalendarOpen={isCalendarOpen}
                   scrollMarginTop={calendarScrollMargin}
                   scrollContainerRef={recordsScrollRef}
+                  onInlineEdit={(fieldName) => handleInlineEdit(details.record, fieldName)}
                 />
               );
             })
@@ -1531,6 +1592,7 @@ const RecordsPage = () => {
             cycleData={currentCycle.data}
             onDateSelect={handleDateSelect}
             defaultIsoDate={defaultFormIsoDate}
+            focusedField={focusedField}
           />
         </DialogContent>
       </Dialog>
