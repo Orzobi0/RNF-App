@@ -1,17 +1,442 @@
-import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import React, {
+  useState,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useLayoutEffect,
+} from 'react';
 import CycleDatesEditor from '@/components/CycleDatesEditor';
-import RecordsList from '@/components/RecordsList';
 import DataEntryForm from '@/components/DataEntryForm';
 import DeletionDialog from '@/components/DeletionDialog';
 import { useCycleData } from '@/hooks/useCycleData';
 import { useToast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
-import { Edit, Plus, FileText } from 'lucide-react';
-import { format, parseISO, isValid, max, isBefore, isAfter, startOfDay } from 'date-fns';
+import { Badge } from '@/components/ui/badge';
+import {
+  Edit,
+  Plus,
+  FileText,
+  Edit2,
+  Trash2,
+  Thermometer,
+  Droplets,
+  Edit3,
+  Clock,
+  CalendarDays,
+  ChevronDown,
+  Circle,
+} from 'lucide-react';
+import {
+  format,
+  parseISO,
+  isValid,
+  max,
+  isBefore,
+  isAfter,
+  startOfDay,
+  differenceInCalendarDays,
+  addDays,
+} from 'date-fns';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { motion } from 'framer-motion';
+import {
+  motion,
+  AnimatePresence,
+  useScroll,
+  useMotionValue,
+  useMotionValueEvent,
+} from 'framer-motion';
 import { Calendar } from '@/components/ui/calendar';
 import { es } from 'date-fns/locale';
+import { FERTILITY_SYMBOL_OPTIONS } from '@/config/fertilitySymbols';
+import computePeakStatuses from '@/lib/computePeakStatuses';
+
+const getSymbolInfo = (symbolValue) =>
+  FERTILITY_SYMBOL_OPTIONS.find((symbol) => symbol.value === symbolValue) || FERTILITY_SYMBOL_OPTIONS[0];
+const CALENDAR_BOUNDARY_OFFSET = 10;
+
+const useCalendarFade = (
+  calendarContainerRef,
+  { dependencies = [], externalRef, scrollContainerRef } = {}
+) => {
+  const localRef = useRef(null);
+
+  const rawOpacity = useMotionValue(1);
+  const opacity = rawOpacity;
+  const { scrollY } = useScroll();
+
+  const updateOpacity = useCallback(() => {
+    const element = localRef.current;
+    const calendarRect = calendarContainerRef?.current?.getBoundingClientRect();
+
+    if (!element || !calendarRect) {
+      rawOpacity.set(1);
+      return;
+    }
+
+    const fadeBoundary = calendarRect.bottom + CALENDAR_BOUNDARY_OFFSET;
+    const rect = element.getBoundingClientRect();
+    
+    if (rect.bottom <= fadeBoundary) {
+      rawOpacity.set(0);
+      return;
+    }
+
+    rawOpacity.set(1);
+
+  }, [calendarContainerRef, rawOpacity]);
+
+  useMotionValueEvent(scrollY, 'change', updateOpacity);
+
+    useEffect(() => {
+    const container = scrollContainerRef?.current;
+    if (!container) {
+      return undefined;
+    }
+
+    const handleScroll = () => updateOpacity();
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    updateOpacity();
+
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+    };
+  }, [scrollContainerRef, updateOpacity, ...dependencies]);
+
+  const setRefs = useCallback(
+    (node) => {
+      localRef.current = node;
+
+      if (typeof externalRef === 'function') {
+        externalRef(node);
+      } else if (externalRef && typeof externalRef === 'object') {
+        externalRef.current = node;
+      }
+
+      if (node) {
+        requestAnimationFrame(() => updateOpacity());
+      }
+    },
+    [externalRef, updateOpacity]
+  );
+
+  useEffect(() => {
+    updateOpacity();
+
+    const handleResize = () => updateOpacity();
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [updateOpacity, ...dependencies]);
+
+  useEffect(() => {
+    const node = localRef.current;
+    if (!node || typeof ResizeObserver === 'undefined') {
+      return undefined;
+    }
+
+    const observer = new ResizeObserver(() => updateOpacity());
+    observer.observe(node);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [updateOpacity, ...dependencies]);
+
+  return { setRefs, opacity };
+};
+
+const RecordCard = ({
+  isoDate,
+  dayRef,
+  onToggle,
+  isSelected,
+  displayDate,
+  cycleDay,
+  details,
+  symbolLabel,
+  isExpanded,
+  onEdit,
+  onDelete,
+  isProcessing,
+  calendarContainerRef,
+  isCalendarOpen,
+  scrollMarginTop,
+  scrollContainerRef,
+}) => {
+  const { setRefs, opacity } = useCalendarFade(calendarContainerRef, {
+    dependencies: [isExpanded, isCalendarOpen],
+    externalRef: dayRef,
+    scrollContainerRef,
+  });
+
+  return (
+    <motion.div
+      layout
+      ref={setRefs}
+      onClick={() => onToggle(isoDate)}
+      className={`group relative flex w-full cursor-pointer flex-col rounded-3xl border border-rose-100 bg-white/75 px-4 py-4 shadow-sm backdrop-blur-md transition-all duration-300 hover:shadow-lg sm:px-6 ${
+        isSelected ? 'bg-white/90 ring-2 ring-rose-400 shadow-rose-200/70' : ''
+      }`}
+      whileHover={{ translateY: -2 }}
+      style={{ opacity, scrollMarginTop }}
+    >
+      <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex items-center gap-1 text-sm font-semibold text-slate-700">
+          <CalendarDays className="h-4 w-4 text-rose-400" />
+          {displayDate}
+        </div>
+        <span className="text-sm font-semibold text-rose-600 ">D{cycleDay}</span>
+        <FieldBadges
+          hasTemperature={details.hasTemperature}
+          hasMucusSensation={details.hasMucusSensation}
+          hasMucusAppearance={details.hasMucusAppearance}
+          hasObservations={details.hasObservations}
+          peakStatus={details.peakStatus}
+          isPeakDay={details.isPeakDay}
+        />
+        <div className="ml-auto flex items-center">
+          <div
+            className={`flex h-5 w-5 items-center justify-center rounded-full border border-slate-500 shadow-inner ${details.symbolInfo.color} ${details.symbolInfo.pattern ? 'pattern-bg' : ''}`}
+            title={symbolLabel}
+          ></div>
+        </div>
+      </div>
+      <AnimatePresence initial={false}>
+        {isExpanded && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.25, ease: 'easeInOut' }}
+            className="mt-3 overflow-hidden"
+          >
+            <div className="flex flex-col gap-1 rounded-3xl border border-rose-100 bg-white/95 p-4 shadow-inner sm:p-5">
+              <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-rose-500">
+                <PeakBadge
+                  peakStatus={details.peakStatus}
+                  isPeakDay={details.isPeakDay}
+                  size="small"
+                  className="shadow-inner"
+                />
+                <span className="rounded-full bg-rose-50 px-3 py-1.5 text-[0.65rem]">{symbolLabel || '-'}</span>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+                <div className="flex flex-wrap items-center gap-3 text-xs text-slate-700 md:col-span-2">
+                  <div className="flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-3 py-1.5 text-orange-600">
+                    <Thermometer className="h-4 w-4" />
+                    <span className="font-semibold">{details.hasTemperature ? `${details.displayTemp}°C` : '-'}</span>
+                    {details.showCorrectedIndicator && (
+                      <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[0.6rem] font-semibold uppercase tracking-wide">
+                        Corregida
+                      </span>
+                    )}
+                  </div>
+                  {details.timeValue && (
+                    <div className="flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-amber-600">
+                      <Clock className="h-4 w-4" />
+                      <span>{details.timeValue}</span>
+                    </div>
+                  )}
+                  {details.record.ignored && (
+                    <Badge className="rounded-full border border-orange-200 bg-orange-100 text-orange-600">Ignorada</Badge>
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
+                  <div className="flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-sky-600">
+                    <Droplets className="h-4 w-4" />
+                    <span className="font-medium">{details.mucusSensation || 'Sin sensación'}</span>
+                  </div>
+                  <div className="flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-emerald-600">
+                    <Circle className="h-4 w-4" />
+                    <span className="font-medium">{details.mucusAppearance || 'Sin apariencia'}</span>
+                  </div>
+                
+                </div>
+                <div className="col-span-1 flex flex-col gap-2 sm:col-span-2 md:col-span-3 sm:flex-row sm:items-start sm:gap-3">
+                  <div className="rounded-3xl border border-violet-200 bg-violet-50/80 px-3 py-1.5 text-xs text-violet-700 flex-1">
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-4 w-4 items-center justify-center rounded-full bg-violet-400 text-white shadow-md">
+                        <Edit3 className="h-3 w-3" />
+                      </div>
+                      <div className="flex-1 space-y-1">
+                        <span className="font-semibold-medium"></span>
+                        <p className="whitespace-pre-line font-medium text-sm leading-snug text-violet-600">
+                          {details.observationsText || 'Sin observaciones'}
+                        </p>
+                      </div>
+
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2 sm:flex-nowrap">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="rounded-full border-rose-200 text-rose-600 hover:bg-rose-50"
+                      disabled={isProcessing}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onEdit(details.record);
+                      }}
+                      aria-label="Editar registro"
+                    >
+                      <Edit2 className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="rounded-full border-rose-200 text-rose-600 hover:bg-rose-50"
+                      disabled={isProcessing}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onDelete(details.record.id);
+                      }}
+                      aria-label="Eliminar registro"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+};
+
+const EmptyGroupRow = ({
+  id,
+  days,
+  toggleEmptyGroup,
+  isExpandedGroup,
+  hasSelectedInGroup,
+  calendarContainerRef,
+  isCalendarOpen,
+  children,
+  scrollMarginTop,
+  scrollContainerRef,
+}) => {
+  const { setRefs, opacity } = useCalendarFade(calendarContainerRef, {
+    dependencies: [isExpandedGroup, isCalendarOpen, days.length],
+    scrollContainerRef,
+  });
+
+  return (
+    <motion.button
+      type="button"
+      ref={setRefs}
+      onClick={() => toggleEmptyGroup(id)}
+      className={`flex w-full items-center justify-between rounded-full border border-dashed border-rose-200/70 bg-white/40 px-4 py-3 text-sm font-medium text-slate-500 backdrop-blur-sm transition-all duration-200 hover:border-rose-300 hover:bg-white/70 ${
+        hasSelectedInGroup ? 'ring-2 ring-rose-300 text-rose-500 shadow-rose-200/70' : ''
+      }`}
+      whileHover={{ scale: 1.01 }}
+      whileTap={{ scale: 0.99 }}
+      aria-expanded={isExpandedGroup}
+      style={{ opacity, scrollMarginTop }}
+    >
+      {children}
+    </motion.button>
+  );
+};
+
+const formatTemperatureDisplay = (value) => {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+
+  const numeric = Number(String(value).replace(',', '.'));
+  if (Number.isNaN(numeric)) {
+    return null;
+  }
+
+  return numeric.toFixed(2);
+};
+
+const PeakBadge = ({ peakStatus, isPeakDay, size = 'default', className = '' }) => {
+  let label = null;
+  let title = '';
+  let bgClass = 'bg-pink-500';
+
+  if (isPeakDay || peakStatus === 'P') {
+    label = '✖';
+    title = 'Día pico';
+    bgClass = 'bg-pink-500';
+  } else if (peakStatus === '1') {
+    label = '+1';
+    title = 'Post día pico +1';
+    bgClass = 'bg-pink-500/90';
+  } else if (peakStatus === '2') {
+    label = '+2';
+    title = 'Post día pico +2';
+    bgClass = 'bg-pink-500/80';
+  } else if (peakStatus === '3') {
+    label = '+3';
+    title = 'Post día pico +3';
+    bgClass = 'bg-pink-500/70';
+  }
+
+  if (!label) {
+    return null;
+  }
+
+  const sizeClasses =
+    size === 'small'
+      ? 'h-6 w-6 text-[0.65rem]'
+      : 'h-7 w-7 text-xs';
+
+  return (
+    <span
+      role="img"
+      aria-label={title}
+      title={title}
+      className={`flex items-center justify-center rounded-full font-semibold text-white shadow-sm shadow-rose-200/50 transition-transform duration-200 ${sizeClasses} ${bgClass} ${className}`}
+    >
+      {label}
+    </span>
+  );
+};
+
+const FieldBadges = ({
+  hasTemperature,
+  hasMucusSensation,
+  hasMucusAppearance,
+  hasObservations,
+  peakStatus,
+  isPeakDay,
+}) => {
+  const badgeBase =
+    'flex items-center justify-center w-5 h-5 rounded-full text-white shadow-sm shadow-rose-200/50 transition-transform duration-200';
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <PeakBadge peakStatus={peakStatus} isPeakDay={isPeakDay} />
+      {hasTemperature && (
+        <span className={`${badgeBase} bg-orange-400/90`}>
+          <Thermometer className="h-3 w-3" />
+        </span>
+      )}
+      {hasMucusSensation && (
+        <span className={`${badgeBase} bg-sky-500/90`}>
+          <Droplets className="h-3 w-3" />
+        </span>
+      )}
+      {hasMucusAppearance && (
+        <span className={`${badgeBase} bg-emerald-500/90`}>
+          <Circle className="h-3 w-3" />
+        </span>
+      )}
+      {hasObservations && (
+        <span className={`${badgeBase} bg-violet-500/90`}>
+          <Edit3 className="h-3 w-3" />
+        </span>
+      )}     
+    </div>
+  );
+};
 
 const RecordsPage = () => {
   const {
@@ -37,8 +462,120 @@ const RecordsPage = () => {
   const [showOverlapDialog, setShowOverlapDialog] = useState(false);
   const [isUpdatingStartDate, setIsUpdatingStartDate] = useState(false);
   const [selectedDate, setSelectedDate] = useState(null);
-  const listContainerRef = useRef(null);
+  const [expandedIsoDate, setExpandedIsoDate] = useState(null);
+  const [defaultFormIsoDate, setDefaultFormIsoDate] = useState(null);
+  const [isCalendarOpen, setIsCalendarOpen] = useState(true);
+  const [expandedEmptyGroups, setExpandedEmptyGroups] = useState([]);
+  const calendarContainerRef = useRef(null);
+  const recordsScrollRef = useRef(null);
+  const dayRefs = useRef({});
   const hasUserSelectedDateRef = useRef(false);
+  const calendarHeightRef = useRef(0);
+  const [calendarHeight, setCalendarHeight] = useState(0);
+
+  const registerDayRef = useCallback(
+    (isoDate) => (node) => {
+      if (!isoDate) return;
+      if (node) {
+        dayRefs.current[isoDate] = node;
+      } else {
+        delete dayRefs.current[isoDate];
+      }
+    },
+    []
+  );
+
+  const updateCalendarMetrics = useCallback(() => {
+    const element = calendarContainerRef.current;
+
+    if (!element) {
+      calendarHeightRef.current = 0;
+      setCalendarHeight(0);
+      return;
+    }
+
+    const rect = element.getBoundingClientRect();
+    const measuredHeight = rect.height;
+
+    calendarHeightRef.current = measuredHeight;
+    setCalendarHeight((prev) => (Math.abs(prev - measuredHeight) > 0.5 ? measuredHeight : prev));
+  }, []);
+
+  useLayoutEffect(() => {
+    let animationFrame = window.requestAnimationFrame(updateCalendarMetrics);
+
+    const handleResize = () => {
+      if (animationFrame) {
+        window.cancelAnimationFrame(animationFrame);
+      }
+      animationFrame = window.requestAnimationFrame(updateCalendarMetrics);
+    };
+
+    window.addEventListener('resize', handleResize);
+
+    let observer;
+
+    if (typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(() => {
+        if (animationFrame) {
+          window.cancelAnimationFrame(animationFrame);
+        }
+        animationFrame = window.requestAnimationFrame(updateCalendarMetrics);
+      });
+
+      if (calendarContainerRef.current) {
+        observer.observe(calendarContainerRef.current);
+      }
+    }
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+
+      if (observer) {
+        observer.disconnect();
+      }
+
+      if (animationFrame) {
+        window.cancelAnimationFrame(animationFrame);
+      }
+    };
+  }, [updateCalendarMetrics]);
+
+  const ensureElementBelowCalendar = useCallback(
+    (element, { behavior = 'smooth', forceAlignTop = false } = {}) => {
+      const container = recordsScrollRef.current;
+
+      if (!element || !container) {
+        return;
+      }
+
+      const containerRect = container.getBoundingClientRect();
+      const elementRect = element.getBoundingClientRect();
+
+      const elementTop = elementRect.top - containerRect.top + container.scrollTop;
+      const elementBottom = elementTop + elementRect.height;
+      const viewTop = container.scrollTop;
+      const viewBottom = viewTop + container.clientHeight;
+
+      if (forceAlignTop || elementTop < viewTop) {
+        container.scrollTo({ top: Math.max(elementTop - 12, 0), behavior });
+        return;
+      }
+
+      if (elementBottom > viewBottom) {
+        const newTop = Math.max(elementBottom - container.clientHeight + 12, 0);
+        container.scrollTo({ top: newTop, behavior });
+      }
+    },
+    []
+  );
+
+  const boundaryPx = useMemo(
+    () => Math.max(Math.round(calendarHeight + CALENDAR_BOUNDARY_OFFSET), CALENDAR_BOUNDARY_OFFSET),
+    [calendarHeight]
+  );
+
+    const calendarScrollMargin = useMemo(() => boundaryPx, [boundaryPx]);
 
   useEffect(() => {
     setDraftStartDate(currentCycle?.startDate || '');
@@ -60,22 +597,76 @@ const RecordsPage = () => {
   useEffect(() => {
     if (!sortedRecordDates.length) {
       setSelectedDate(null);
+      setExpandedIsoDate(null);
       return;
     }
 
     if (!selectedDate || !sortedRecordDates.includes(selectedDate)) {
+      hasUserSelectedDateRef.current = false;
       setSelectedDate(sortedRecordDates[0]);
     }
   }, [sortedRecordDates, selectedDate]);
 
   useEffect(() => {
-    if (selectedDate && listContainerRef.current && hasUserSelectedDateRef.current) {
-      listContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (!selectedDate || !hasUserSelectedDateRef.current) {
+      return;
     }
-  }, [selectedDate]);
+
+    const targetNode = dayRefs.current[selectedDate];
+    if (!targetNode) {
+      return;
+    }
+    
+      const rafId = window.requestAnimationFrame(() => {
+      ensureElementBelowCalendar(targetNode, { behavior: 'smooth', forceAlignTop: true });
+      hasUserSelectedDateRef.current = false;
+    });
+
+      return () => {
+      window.cancelAnimationFrame(rafId);
+    };
+  }, [selectedDate, expandedEmptyGroups, isCalendarOpen, ensureElementBelowCalendar]);
 
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'auto' });
+    if (!expandedIsoDate) {
+      return;
+    }
+
+    const targetNode = dayRefs.current[expandedIsoDate];
+    if (!targetNode) {
+      return;
+    }
+
+    const rafId = window.requestAnimationFrame(() => {
+      ensureElementBelowCalendar(targetNode, { behavior: 'smooth' });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(rafId);
+    };
+  }, [expandedIsoDate, ensureElementBelowCalendar, isCalendarOpen, calendarHeight]);
+
+  useEffect(() => {
+    const priorityIso = expandedIsoDate || selectedDate;
+    if (!priorityIso) {
+      return;
+    }
+
+    const targetNode = dayRefs.current[priorityIso];
+    if (!targetNode) {
+      return;
+    }
+
+    ensureElementBelowCalendar(targetNode, { behavior: 'auto' });
+  }, [calendarHeight, isCalendarOpen, expandedIsoDate, selectedDate, ensureElementBelowCalendar]);
+
+  useEffect(() => {
+    const container = recordsScrollRef.current;
+    if (!container) {
+      return;
+    }
+
+    container.scrollTo({ top: 0, behavior: 'auto' });
   }, []);
 
 
@@ -92,6 +683,86 @@ const RecordsPage = () => {
   }, [currentCycle?.data]);
 
   const recordDateSet = useMemo(() => new Set(sortedRecordDates), [sortedRecordDates]);
+
+  const peakStatuses = useMemo(() => computePeakStatuses(currentCycle?.data ?? []), [currentCycle?.data]);
+
+  const recordDetailsByIso = useMemo(() => {
+    const details = new Map();
+    if (!currentCycle?.data?.length) {
+      return details;
+    }
+
+    currentCycle.data.forEach((record) => {
+      if (!record?.isoDate) return;
+
+      const selectedMeasurement =
+        record.measurements?.find((measurement) => measurement?.selected) ||
+        (record.temperature_chart || record.temperature_raw
+          ? {
+              temperature: record.temperature_chart ?? record.temperature_raw,
+              temperature_corrected: record.temperature_corrected ?? null,
+              time: record.timestamp ? format(parseISO(record.timestamp), 'HH:mm') : null,
+              use_corrected: record.use_corrected ?? false,
+            }
+          : null);
+
+      const usesCorrected = selectedMeasurement?.use_corrected ?? record.use_corrected ?? false;
+      const correctedTemp =
+        selectedMeasurement?.temperature_corrected ?? record.temperature_corrected ?? null;
+      const rawTemp =
+        selectedMeasurement?.temperature ?? record.temperature_chart ?? record.temperature_raw ?? null;
+      const resolvedTemp =
+        usesCorrected && correctedTemp !== null && correctedTemp !== undefined && correctedTemp !== ''
+          ? correctedTemp
+          : rawTemp ?? correctedTemp;
+
+      const displayTemp = formatTemperatureDisplay(resolvedTemp);
+      const hasTemperature = displayTemp !== null;
+      const showCorrectedIndicator =
+        usesCorrected && correctedTemp !== null && correctedTemp !== undefined && correctedTemp !== '';
+
+      let timeValue = null;
+      if (selectedMeasurement?.time) {
+        timeValue = selectedMeasurement.time;
+      } else if (record.timestamp && isValid(parseISO(record.timestamp))) {
+        timeValue = format(parseISO(record.timestamp), 'HH:mm');
+      }
+
+      const mucusSensation = record.mucusSensation ?? record.mucus_sensation ?? '';
+      const mucusAppearance = record.mucusAppearance ?? record.mucus_appearance ?? '';
+      const hasMucusSensation = Boolean(mucusSensation);
+      const hasMucusAppearance = Boolean(mucusAppearance);
+      const hasMucus = hasMucusSensation || hasMucusAppearance;
+      const observationsText = record.observations || '';
+      const hasObservations = Boolean(observationsText);
+
+      const peakStatus = peakStatuses[record.isoDate] || null;
+      const isPeakDay = record.peak_marker === 'peak' || peakStatus === 'P';
+
+      const symbolInfo = getSymbolInfo(record.fertility_symbol);
+
+      details.set(record.isoDate, {
+        record,
+        symbolInfo,
+        hasTemperature,
+        displayTemp,
+        showCorrectedIndicator,
+        timeValue,
+        hasMucus,
+        hasMucusSensation,
+        hasMucusAppearance,
+        mucusSensation,
+        mucusAppearance,
+        hasObservations,
+        observationsText,
+        peakStatus,
+        isPeakDay,
+      });
+    });
+
+    return details;
+  }, [currentCycle?.data, peakStatuses]);
+
 
   const cycleRange = useMemo(() => {
     if (!currentCycle?.startDate) return null;
@@ -140,16 +811,130 @@ const RecordsPage = () => {
     return modifiers;
   }, [cycleRange, recordDateObjects, recordDateSet]);
 
+  const cycleDays = useMemo(() => {
+    if (!currentCycle?.startDate) return [];
+
+    const startDate = parseISO(currentCycle.startDate);
+    if (!isValid(startDate)) {
+      return [];
+    }
+
+    const cycleStartDay = startOfDay(startDate);
+    const today = startOfDay(new Date());
+
+    let rangeEnd = cycleRange?.to ? startOfDay(cycleRange.to) : today;
+    if (isAfter(rangeEnd, today)) {
+      rangeEnd = today;
+    }
+    if (isBefore(rangeEnd, cycleStartDay)) {
+      rangeEnd = cycleStartDay;
+    }
+
+    const totalDays = differenceInCalendarDays(rangeEnd, cycleStartDay) + 1;
+    if (totalDays <= 0) {
+      return [];
+    }
+
+    const days = [];
+    for (let offset = totalDays - 1; offset >= 0; offset -= 1) {
+      const currentDate = addDays(cycleStartDay, offset);
+      const isoDate = format(currentDate, 'yyyy-MM-dd');
+      const cycleDay = differenceInCalendarDays(currentDate, cycleStartDay) + 1;
+      const details = recordDetailsByIso.get(isoDate) || null;
+
+      days.push({
+        isoDate,
+        date: currentDate,
+        cycleDay,
+        details,
+      });
+    }
+
+    return days;
+  }, [currentCycle?.startDate, cycleRange, recordDetailsByIso]);
+
+  const processedCycleDays = useMemo(() => {
+    if (!cycleDays.length) {
+      return { items: [], isoToGroup: {} };
+    }
+
+    const items = [];
+    const isoToGroup = {};
+
+    for (let index = 0; index < cycleDays.length;) {
+      const day = cycleDays[index];
+      if (day.details) {
+        items.push({ type: 'record', day });
+        index += 1;
+        continue;
+      }
+
+      let runEnd = index;
+      while (runEnd < cycleDays.length && !cycleDays[runEnd].details) {
+        runEnd += 1;
+      }
+
+      const runLength = runEnd - index;
+
+      if (runLength > 3) {
+        const groupDays = cycleDays.slice(index, runEnd);
+        const groupId = `${groupDays[0].isoDate}_${groupDays[groupDays.length - 1].isoDate}`;
+        groupDays.forEach(({ isoDate }) => {
+          isoToGroup[isoDate] = groupId;
+        });
+        items.push({
+          type: 'empty-group',
+          id: groupId,
+          days: groupDays,
+        });
+      } else {
+        for (let offset = index; offset < runEnd; offset += 1) {
+          items.push({ type: 'empty-day', day: cycleDays[offset] });
+        }
+      }
+
+      index = runEnd;
+    }
+
+    return { items, isoToGroup };
+  }, [cycleDays]);
+
+  const { items: cycleDisplayItems, isoToGroup: isoToGroupMap } = processedCycleDays;
+
+  const toggleEmptyGroup = useCallback((groupId) => {
+    if (!groupId) return;
+    setExpandedEmptyGroups((prev) =>
+      prev.includes(groupId) ? prev.filter((id) => id !== groupId) : [...prev, groupId]
+    );
+  }, []);
+
+  useEffect(() => {
+    if (!selectedDate) return;
+    const groupId = isoToGroupMap[selectedDate];
+    if (!groupId) return;
+
+    setExpandedEmptyGroups((prev) => (prev.includes(groupId) ? prev : [...prev, groupId]));
+  }, [selectedDate, isoToGroupMap]);
+
   const handleCalendarSelect = useCallback(
-    (day, modifiers) => {
+    (day) => {
       if (!day) return;
       const iso = format(day, 'yyyy-MM-dd');
-      if (modifiers?.hasRecord || recordDateSet.has(iso)) {
-        hasUserSelectedDateRef.current = true;
-        setSelectedDate(iso);
+
+      if (cycleRange) {
+        if (isBefore(day, cycleRange.from) || isAfter(day, cycleRange.to)) {
+          return;
+        }
+      }
+
+      hasUserSelectedDateRef.current = true;
+      setSelectedDate(iso);
+
+      if (!recordDetailsByIso.has(iso)) {
+        setExpandedIsoDate(null);
       }
     },
-    [recordDateSet]
+    [cycleRange, recordDetailsByIso]
   );
 
   const resetStartDateFlow = useCallback(() => {
@@ -274,10 +1059,18 @@ const RecordsPage = () => {
   const handleCloseForm = useCallback(() => {
     setShowForm(false);
     setEditingRecord(null);
+    setDefaultFormIsoDate(null);
   }, []);
 
   const handleEdit = (record) => {
+    if (!record) return;
     setEditingRecord(record);
+    setDefaultFormIsoDate(record.isoDate ?? null);
+    if (record.isoDate) {
+      hasUserSelectedDateRef.current = false;
+      setSelectedDate(record.isoDate);
+      setExpandedIsoDate(record.isoDate);
+    }
     setShowForm(true);
   };
 
@@ -290,6 +1083,34 @@ const RecordsPage = () => {
     setEditingRecord(record);
   }, []);
 
+  const handleToggleRecord = useCallback((isoDate, hasRecord) => {
+    if (!isoDate) {
+      return;
+    }
+
+    hasUserSelectedDateRef.current = false;
+    setSelectedDate(isoDate);
+
+    if (!hasRecord) {
+      return;
+    }
+
+    setExpandedIsoDate((prev) => (prev === isoDate ? null : isoDate));
+  }, []);
+
+  const handleAddRecordForDay = useCallback((isoDate) => {
+    if (!isoDate) {
+      return;
+    }
+
+    hasUserSelectedDateRef.current = false;
+    setSelectedDate(isoDate);
+    setExpandedIsoDate(null);
+    setEditingRecord(null);
+    setDefaultFormIsoDate(isoDate);
+    setShowForm(true);
+  }, []);
+
   const handleSave = async (data, { keepFormOpen = false } = {}) => {
     setIsProcessing(true);
     try {
@@ -297,11 +1118,15 @@ const RecordsPage = () => {
       if (!keepFormOpen) {
         setShowForm(false);
         setEditingRecord(null);
+        setDefaultFormIsoDate(null);
       }
     } catch (error) {
       toast({ title: 'Error', description: 'No se pudo guardar el registro', variant: 'destructive' });
     } finally {
       setIsProcessing(false);
+      if (keepFormOpen) {
+        setDefaultFormIsoDate(data?.isoDate ?? null);
+      }
     }
   };
 
@@ -309,8 +1134,16 @@ const RecordsPage = () => {
     if (!recordToDelete) return;
     setIsProcessing(true);
     try {
+      const deletedIso = recordToDelete.isoDate;
       await deleteRecord(recordToDelete.id);
       setRecordToDelete(null);
+      setDefaultFormIsoDate(null);
+      if (deletedIso) {
+        setExpandedIsoDate((prev) => (prev === deletedIso ? null : prev));
+        if (selectedDate === deletedIso) {
+          setSelectedDate(deletedIso);
+        }
+      }
     } catch {
       toast({ title: 'Error', description: 'No se pudo eliminar el registro', variant: 'destructive' });
     } finally {
@@ -358,124 +1191,322 @@ const RecordsPage = () => {
         }}
       />
       
-      <div className="max-w-4xl mx-auto px-4 py-6 relative z-10">
-        {/* Header */}
-        <motion.div
-          className="flex flex-col gap-4 mb-6"
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-        >
-          <div className="flex flex-wrap items-center gap-3 justify-between sm:justify-start">
-            <div className="flex items-center gap-3">
-              <FileText className="h-8 w-8 text-pink-500" />
-              <h1 className="text-3xl sm:text-4xl font-bold text-slate-700">Mis Registros</h1>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                onClick={openStartDateEditor}
-                className="border-pink-200 rounded-full text-pink-600 hover:bg-pink-50"
-                disabled={isProcessing || isUpdatingStartDate}
-                aria-label="Editar fecha de inicio"
+      <div className="max-w-4xl mx-auto px-4 relative z-10">
+        <div ref={calendarContainerRef} className="sticky top-1 z-50">
+          <div className="relative overflow-hidden rounded-xl ring-1 ring-rose-100/70">
+            <div className="space-y-2 p-2 sm:p-3 relative z-10">
+              {/* Header */}
+              <motion.div
+                className="flex flex-col gap-4"
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
               >
-                <Edit className="h-4 w-4" />
-                <span className="sr-only">Editar fecha de inicio</span>
-              </Button>
-              <Button
-                type="button"
-                size="icon"
-                onClick={() => { setEditingRecord(null); setShowForm(true); }}
-                className="rounded-full bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white shadow-lg"
-                disabled={isProcessing}
-                style={{ filter: 'drop-shadow(0 6px 12px rgba(236, 72, 153, 0.3))' }}
-                aria-label="Añadir registro"
+                <div className="flex flex-wrap items-center gap-1 justify-between sm:justify-start">
+                  <div className="flex items-center gap-1">
+                    <FileText className="h-8 w-8 text-pink-500" />
+                    <button
+                      type="button"
+                      onClick={() => setIsCalendarOpen((prev) => !prev)}
+                      className="group flex items-center gap-1 rounded-full px-2 py-1 text-left shadow-sm transition-all hover:border-rose-300 hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:ring-offset-2 focus-visible:ring-offset-rose-50"
+                      aria-expanded={isCalendarOpen}
+                      aria-controls="records-calendar"
+                    >
+                      <span className="text-2xl sm:text-2xl font-bold text-slate-700">Mis Registros</span>
+                      <span className="flex items-center gap-2">
+                        <motion.span
+                          animate={{ rotate: isCalendarOpen ? 180 : 0 }}
+                          className="flex h-7 w-7 items-center justify-center rounded-full bg-rose-50 text-rose-400 shadow-inner"
+                        >
+                          <ChevronDown className="h-4 w-4" />
+                        </motion.span>
+                      </span>
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={openStartDateEditor}
+                      className="border-pink-200 rounded-full text-pink-600 hover:bg-pink-500"
+                      disabled={isProcessing || isUpdatingStartDate}
+                      aria-label="Editar fecha de inicio"
+                    >
+                      <Edit className="h-4 w-4" />
+                      <span className="sr-only">Editar fecha de inicio</span>
+                    </Button>
+                    <Button
+                      type="button"
+                      size="icon"
+                      onClick={() => {
+                        const fallbackIso = cycleDays.length ? cycleDays[0].isoDate : currentCycle.startDate;
+                        const targetIso = selectedDate || fallbackIso || null;
+                        setEditingRecord(null);
+                        setDefaultFormIsoDate(targetIso);
+                        hasUserSelectedDateRef.current = false;
+                        if (targetIso) {
+                          setSelectedDate(targetIso);
+                          setExpandedIsoDate(null);
+                        }
+                        setShowForm(true);
+                      }}
+                      className="rounded-full bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white shadow-lg"
+                      disabled={isProcessing}
+                      style={{ filter: 'drop-shadow(0 6px 12px rgba(236, 72, 153, 0.3))' }}
+                      aria-label="Añadir registro"
+                    >
+                      <Plus className="h-4 w-4" />
+                      <span className="sr-only">Añadir registro</span>
+                    </Button>
+                  </div>
+                </div>
+              </motion.div>
+            
+            {showStartDateEditor && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
               >
-                <Plus className="h-4 w-4" />
-                <span className="sr-only">Añadir registro</span>
-              </Button>
+                <CycleDatesEditor
+                  cycle={currentCycle}
+                  startDate={draftStartDate}
+                  endDate={currentCycle.endDate}
+                  onStartDateChange={(value) => setDraftStartDate(value)}
+                  onSave={handleSaveStartDate}
+                  onCancel={closeStartDateEditor}
+                  isProcessing={isUpdatingStartDate}
+                  dateError={startDateError}
+                  includeEndDate={false}
+                  showOverlapDialog={showOverlapDialog}
+                  overlapCycle={overlapCycle}
+                  onConfirmOverlap={handleConfirmOverlapStart}
+                  onCancelOverlap={handleCancelOverlapStart}
+                  onClearError={() => setStartDateError('')}
+                  saveLabel="Guardar cambios"
+                  title="Editar fecha de inicio"
+                  description="Actualiza la fecha de inicio del ciclo actual. Los registros se reorganizarán automáticamente."
+                />
+              </motion.div>
+            )}
+            <AnimatePresence initial={false}>
+              {isCalendarOpen && (
+                <motion.div
+                  key="records-calendar"
+                  id="records-calendar"
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.3 }}
+                  className="flex justify-center"
+                >
+                  <Calendar
+                    mode="single"
+                    locale={es}
+                    defaultMonth={
+                      selectedDate && isValid(parseISO(selectedDate))
+                        ? parseISO(selectedDate)
+                        : cycleRange?.to
+                    }
+                    selected={selectedDate && isValid(parseISO(selectedDate)) ? parseISO(selectedDate) : undefined}
+                    onDayClick={handleCalendarSelect}
+                    modifiers={calendarModifiers}
+                    className="w-full max-w-md sm:max-w-lg rounded-lg bg-white/40 p-2 sm:p-3 mx-auto backdrop-blur-sm [&_button]:text-slate-900 [&_button:hover]:bg-rose-100 [&_button[aria-selected=true]]:bg-rose-500"
+                    classNames={{
+                      day_selected:
+                        'border border-rose-500 text-white hover:bg-rose-500 hover:text-white focus:bg-rose-500 focus:text-white',
+                      day_today: 'bg-rose-200 text-rose-700 font-semibold',
+                    }}
+                    modifiersClassNames={{
+                      hasRecord:
+                        "relative font-semibold after:absolute after:bottom-1.5 after:left-1/2 after:-translate-x-1/2 after:w-1.5 after:h-1.5 after:rounded-full after:bg-rose-500 after:content-['']",
+                      outsideCycle: 'text-slate-300 opacity-50 hover:text-slate-300 hover:bg-transparent',
+                      insideCycleNoRecord:
+                        'text-slate-900 hover:text-slate-900 hover:bg-rose-50',
+                    }}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
             </div>
+            
           </div>
-        </motion.div>
-        {showStartDateEditor && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4 }}
-          >
-            <CycleDatesEditor
-              cycle={currentCycle}
-              startDate={draftStartDate}
-              endDate={currentCycle.endDate}
-              onStartDateChange={(value) => setDraftStartDate(value)}
-              onSave={handleSaveStartDate}
-              onCancel={closeStartDateEditor}
-              isProcessing={isUpdatingStartDate}
-              dateError={startDateError}
-              includeEndDate={false}
-              showOverlapDialog={showOverlapDialog}
-              overlapCycle={overlapCycle}
-              onConfirmOverlap={handleConfirmOverlapStart}
-              onCancelOverlap={handleCancelOverlapStart}
-              onClearError={() => setStartDateError('')}
-              saveLabel="Guardar cambios"
-              title="Editar fecha de inicio"
-              description="Actualiza la fecha de inicio del ciclo actual. Los registros se reorganizarán automáticamente."
-            />
-          </motion.div>
-        )}
-
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.05 }}
-          className="mb-5 flex justify-center"
-        >
-          <Calendar
-            mode="single"
-            locale={es}
-            defaultMonth={
-              selectedDate && isValid(parseISO(selectedDate))
-                ? parseISO(selectedDate)
-                : cycleRange?.to
-            }
-            selected={selectedDate && isValid(parseISO(selectedDate)) ? parseISO(selectedDate) : undefined}
-            onDayClick={handleCalendarSelect}
-            modifiers={calendarModifiers}
-            className="w-full max-w-md sm:max-w-lg rounded-2xl border border-pink-100 shadow-sm bg-white/60 backdrop-blur-sm p-3 mx-auto [&_button]:text-slate-900 [&_button:hover]:bg-rose-100 [&_button[aria-selected=true]]:bg-rose-500"
-            classNames={{
-              day_selected:
-                'border border-rose-500 text-white hover:bg-rose-500 hover:text-white focus:bg-rose-500 focus:text-white',
-              day_today: 'bg-rose-200 text-rose-700 font-semibold',
-            }}
-            modifiersClassNames={{
-              hasRecord:
-                "relative font-semibold after:absolute after:bottom-1.5 after:left-1/2 after:-translate-x-1/2 after:w-1.5 after:h-1.5 after:rounded-full after:bg-rose-500 after:content-['']",
-              outsideCycle: 'text-slate-300 opacity-50 hover:text-slate-300 hover:bg-transparent',
-              insideCycleNoRecord:
-                'text-slate-900 hover:text-slate-900 hover:bg-rose-50',
-            }}
-          />
-        </motion.div>
+        </div>
 
 
         {/* Records List */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
-          ref={listContainerRef}
+        <div
+          ref={recordsScrollRef}
+          className="sticky mt-4 overflow-y-auto overscroll-contain"
+          style={{
+            top: boundaryPx,
+            maxHeight: `calc(100dvh - ${boundaryPx}px)`,
+            WebkitOverflowScrolling: 'touch',
+          }}
         >
-          <RecordsList
-            records={currentCycle.data}
-            onEdit={handleEdit}
-            onDelete={handleDeleteRequest}
-            isProcessing={isProcessing}
-            selectedDate={selectedDate}
-          />
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+            className="relative space-y-1 pt-2 pb-10"
+          >
+         
+          {cycleDays.length === 0 ? (
+            <motion.div
+              className="py-12 text-center"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              <div className="mx-auto max-w-md rounded-3xl border border-rose-100 bg-white/80 p-8 shadow-lg backdrop-blur-sm">
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-rose-100 text-rose-500 shadow-inner">
+                  <FileText className="h-8 w-8" />
+                </div>
+                <h3 className="text-lg font-semibold text-slate-700">Aún no hay días para mostrar</h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  Actualiza la fecha de inicio del ciclo o añade tu primer registro para comenzar a ver el historial.
+                </p>
+              </div>
+            </motion.div>
+          ) : (
+            cycleDisplayItems.map((item) => {
+              if (item.type === 'empty-group') {
+                const { id, days } = item;
+                if (!days.length) {
+                  return null;
+                }
+
+                const newestDay = days[0];
+                const oldestDay = days[days.length - 1];
+                const rangeStartLabel = format(oldestDay.date, 'dd/MM', { locale: es });
+                const rangeEndLabel = format(newestDay.date, 'dd/MM', { locale: es });
+                const isExpandedGroup = expandedEmptyGroups.includes(id);
+                const hasSelectedInGroup = selectedDate
+                  ? days.some((day) => day.isoDate === selectedDate)
+                  : false;
+
+                return (
+                  <motion.div key={id} layout className="space-y-2">
+                    <EmptyGroupRow
+                      id={id}
+                      days={days}
+                      toggleEmptyGroup={toggleEmptyGroup}
+                      isExpandedGroup={isExpandedGroup}
+                      hasSelectedInGroup={hasSelectedInGroup}
+                      calendarContainerRef={calendarContainerRef}
+                      isCalendarOpen={isCalendarOpen}
+                      scrollMarginTop={calendarScrollMargin}
+                      scrollContainerRef={recordsScrollRef}
+                    >
+                      <div className="flex items-center gap-2">
+                        <CalendarDays className="h-4 w-4 text-rose-300" />
+                        <span>{`${rangeStartLabel} --- ${rangeEndLabel} sin registro`}</span>
+                      </div>
+                      <motion.span
+                        animate={{ rotate: isExpandedGroup ? 180 : 0 }}
+                        className="rounded-full bg-rose-50 p-1 text-rose-400 shadow-inner"
+                      >
+                        <ChevronDown className="h-4 w-4" />
+                      </motion.span>
+                    </EmptyGroupRow>
+                    <AnimatePresence initial={false}>
+                      {isExpandedGroup && (
+                        <motion.div
+                          key={`${id}-items`}
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ duration: 0.2, ease: 'easeInOut' }}
+                          className="space-y-2 pl-4 sm:pl-6"
+                        >
+                          {days.map(({ isoDate, date, cycleDay }) => {
+                            const isSelectedDay = selectedDate === isoDate;
+                            const displayDate = format(date, 'dd/MM/yyyy', { locale: es });
+                            return (
+                              <motion.button
+                                key={isoDate}
+                                type="button"
+                                ref={registerDayRef(isoDate)}
+                                onClick={() => handleAddRecordForDay(isoDate)}
+                                className={`flex w-full items-center justify-between rounded-full border border-dashed border-rose-200/70 bg-white/40 px-4 py-3 text-sm font-medium text-slate-500 backdrop-blur-sm transition-all duration-200 hover:border-rose-300 hover:bg-white/70 ${
+                                  isSelectedDay ? 'ring-2 ring-rose-300 text-rose-500 shadow-rose-200/70' : ''
+                                }`}
+                                whileHover={{ scale: 1.01 }}
+                                whileTap={{ scale: 0.99 }}
+                                style={{ scrollMarginTop: calendarScrollMargin }}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <CalendarDays className="h-4 w-4 text-rose-300" />
+                                  <span>{`${displayDate} D${cycleDay} - Sin registro`}</span>
+                                </div>
+                                <span className="text-xs font-semibold uppercase tracking-wide text-rose-400">
+                                  Añadir
+                                </span>
+                              </motion.button>
+                            );
+                          })}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </motion.div>
+                );
+              }
+
+              const { isoDate, date, cycleDay, details } = item.day;
+              const hasRecord = Boolean(details);
+              const isSelected = selectedDate === isoDate;
+              const isExpanded = hasRecord && expandedIsoDate === isoDate;
+              const displayDate = format(date, 'dd/MM/yyyy', { locale: es });
+              const symbolLabel = details?.symbolInfo?.label || '';
+              
+              if (!hasRecord) {
+                return (
+                  <motion.button
+                    key={isoDate}
+                    type="button"
+                    ref={registerDayRef(isoDate)}
+                    onClick={() => handleAddRecordForDay(isoDate)}
+                    className={`flex w-full items-center justify-between rounded-full border border-dashed border-rose-200/70 bg-white/40 px-4 py-3 text-sm font-medium text-slate-500 backdrop-blur-sm transition-all duration-200 hover:border-rose-300 hover:bg-white/70 ${
+                      isSelected ? 'ring-2 ring-rose-300 text-rose-500 shadow-rose-200/70' : ''
+                    }`}
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.99 }}
+                    style={{ scrollMarginTop: calendarScrollMargin }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <CalendarDays className="h-4 w-4 text-rose-300" />
+                      <span>{`${displayDate} D${cycleDay} - Sin registro`}</span>
+                    </div>
+                    <span className="text-xs font-semibold uppercase tracking-wide text-rose-400">Añadir</span>
+                  </motion.button>
+                );
+              }
+
+              return (
+                <RecordCard
+                  key={isoDate}
+                  isoDate={isoDate}
+                  dayRef={registerDayRef(isoDate)}
+                  onToggle={(date) => handleToggleRecord(date, true)}
+                  isSelected={isSelected}
+                  displayDate={displayDate}
+                  cycleDay={cycleDay}
+                  details={details}
+                  symbolLabel={symbolLabel}
+                  isExpanded={isExpanded}
+                  onEdit={handleEdit}
+                  onDelete={handleDeleteRequest}
+                  isProcessing={isProcessing}
+                  calendarContainerRef={calendarContainerRef}
+                  isCalendarOpen={isCalendarOpen}
+                  scrollMarginTop={calendarScrollMargin}
+                  scrollContainerRef={recordsScrollRef}
+                />
+              );
+            })
+          )}
         </motion.div>
+        </div>
       </div>
 
       <Dialog
@@ -499,6 +1530,7 @@ const RecordsPage = () => {
             isEditing={!!editingRecord}
             cycleData={currentCycle.data}
             onDateSelect={handleDateSelect}
+            defaultIsoDate={defaultFormIsoDate}
           />
         </DialogContent>
       </Dialog>

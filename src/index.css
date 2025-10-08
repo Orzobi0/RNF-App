@@ -5,7 +5,7 @@
     @layer base {
       :root {
         /* Altura de la barra inferior y variante con safe-area */
-        --bottom-nav-height: 3.5rem;
+        --bottom-nav-height: 4.2rem;
         --bottom-nav-safe: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom));
         --background: 210 22.2% 96.5%;
         --foreground: 215 27.9% 16.9%;

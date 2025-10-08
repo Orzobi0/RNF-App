@@ -8,7 +8,18 @@ import { useDataEntryForm } from '@/hooks/useDataEntryForm';
 import useBackClose from '@/hooks/useBackClose';
 import { parseISO } from 'date-fns';
 
-const DataEntryForm = ({ onSubmit, initialData, onCancel, cycleStartDate, cycleEndDate, isProcessing, isEditing = false, cycleData = [], onDateSelect }) => {
+const DataEntryForm = ({
+  onSubmit,
+  initialData,
+  onCancel,
+  cycleStartDate,
+  cycleEndDate,
+  isProcessing,
+  isEditing = false,
+  cycleData = [],
+  onDateSelect,
+  defaultIsoDate,
+}) => {
   const formRef = useRef(null);
   useBackClose(Boolean(onCancel), onCancel);
 
@@ -50,7 +61,16 @@ const DataEntryForm = ({ onSubmit, initialData, onCancel, cycleStartDate, cycleE
     existingPeakIsoDate,
     handleSubmit,
     submitCurrentState,
-  } = useDataEntryForm(onSubmit, initialData, isEditing, cycleStartDate, cycleEndDate, cycleData, onDateSelect);
+  } = useDataEntryForm(
+    onSubmit,
+    initialData,
+    isEditing,
+    cycleStartDate,
+    cycleEndDate,
+    cycleData,
+    onDateSelect,
+    defaultIsoDate,
+  );
    const recordedDates = useMemo(
     () => cycleData.map((r) => parseISO(r.isoDate)),
     [cycleData]

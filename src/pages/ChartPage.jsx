@@ -385,24 +385,64 @@ const ChartPage = () => {
 
 
   const handleToggleFullScreen = async () => {
+    const rootElement = document.documentElement;
+    const screenOrientation =
+      typeof window !== 'undefined' ? window.screen?.orientation : null;
+
     if (!isFullScreen) {
+      let enteredFullScreen = false;
+      let hasRequestFullScreen = false;
+
       try {
-        await document.documentElement.requestFullscreen();
-        await screen.orientation.lock('landscape');
-        setOrientation('landscape');
-        setIsFullScreen(true);
+        const requestFullScreen =
+          rootElement.requestFullscreen ||
+          rootElement.webkitRequestFullscreen ||
+          rootElement.mozRequestFullScreen ||
+          rootElement.msRequestFullscreen;
+
+        hasRequestFullScreen = Boolean(requestFullScreen);
+
+        if (requestFullScreen) {
+          await requestFullScreen.call(rootElement);
+          enteredFullScreen = true;
+        }
       } catch (err) {
         console.error(err);
       }
+      if (screenOrientation?.lock) {
+        try {
+          await screenOrientation.lock('landscape');
+        } catch (err) {
+          console.error(err);
+        }
+      }
+
+      setOrientation('landscape');
+      setIsFullScreen(enteredFullScreen || !hasRequestFullScreen);
+      
     } else {
-      try {
-        await screen.orientation.unlock();
-      } catch (err) {
-        console.error(err);
+      if (screenOrientation?.unlock) {
+        try {
+          await screenOrientation.unlock();
+        } catch (err) {
+          console.error(err);
+        }
       }
       try {
-        if (document.fullscreenElement) {
-          await document.exitFullscreen();
+        const exitFullScreen =
+          document.exitFullscreen ||
+          document.webkitExitFullscreen ||
+          document.mozCancelFullScreen ||
+          document.msExitFullscreen;
+
+        const isAnyElementFullScreen =
+          document.fullscreenElement ||
+          document.webkitFullscreenElement ||
+          document.mozFullScreenElement ||
+          document.msFullscreenElement;
+
+        if (exitFullScreen && isAnyElementFullScreen) {
+          await exitFullScreen.call(document);
         }
       } catch (err) {
         console.error(err);
@@ -430,7 +470,7 @@ const ChartPage = () => {
           >
             <Link to={`/cycle/${targetCycle.id}`} className="flex items-center gap-1">
               <ArrowLeft className="h-4 w-4" />
-              <span className="hidden sm:inline">Registros</span>
+              <span className="hidden sm:inline"></span>
             </Link>
           </Button>
         )}

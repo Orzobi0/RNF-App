@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useEffect, useRef, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useCycleData } from '@/hooks/useCycleData';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Archive, Eye, Plus, Trash2, Calendar, BarChart3 } from 'lucide-react';
+import { Archive, Plus, Calendar, BarChart3 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import EditCycleDatesDialog from '@/components/EditCycleDatesDialog';
 import DeletionDialog from '@/components/DeletionDialog';
@@ -13,11 +13,14 @@ import { useToast } from '@/components/ui/use-toast';
 
 const ArchivedCyclesPage = () => {
   const { currentCycle, archivedCycles, isLoading, addArchivedCycle, updateCycleDates, deleteCycle, checkCycleOverlap, forceUpdateCycleStart } = useCycleData();
-  const { toast } = useToast();  
+  const { toast } = useToast();
+  const navigate = useNavigate(); 
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editingCycle, setEditingCycle] = useState(null);
   const [cycleToDelete, setCycleToDelete] = useState(null);
   const [isDeletingCycle, setIsDeletingCycle] = useState(false);
+  const longPressTimeoutRef = useRef(null);
+  const longPressTriggeredRef = useRef(false);
 
   const handleAddCycle = async ({ startDate, endDate }) => {
     try {
@@ -66,6 +69,40 @@ const ArchivedCyclesPage = () => {
       setIsDeletingCycle(false);
     }
   };
+
+  const navigateToCycle = (cycle) => {
+    navigate(cycle.isCurrent ? '/' : `/cycle/${cycle.id}`);
+  };
+
+  const startLongPressDetection = (cycle) => {
+    longPressTriggeredRef.current = false;
+    if (longPressTimeoutRef.current) {
+      clearTimeout(longPressTimeoutRef.current);
+    }
+    longPressTimeoutRef.current = setTimeout(() => {
+      longPressTriggeredRef.current = true;
+      handleDeleteCycleRequest(cycle);
+    }, 1500);
+  };
+
+  const cancelLongPressDetection = (cycle, shouldNavigate = true) => {
+    if (longPressTimeoutRef.current) {
+      clearTimeout(longPressTimeoutRef.current);
+      longPressTimeoutRef.current = null;
+    }
+
+    if (!longPressTriggeredRef.current && shouldNavigate) {
+      navigateToCycle(cycle);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (longPressTimeoutRef.current) {
+        clearTimeout(longPressTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const allCycles = currentCycle.id
     ? [{ ...currentCycle, isCurrent: true, needsCompletion: !currentCycle.endDate }, ...archivedCycles]
@@ -173,7 +210,7 @@ const ArchivedCyclesPage = () => {
 
         {/* Cycles List */}
         <motion.div
-          className="space-y-4"
+          className="space-y-3"
           variants={{
             hidden: { opacity: 0 },
             show: {
@@ -193,15 +230,28 @@ const ArchivedCyclesPage = () => {
             const recordCount = cycle.data ? cycle.data.length : 0;
 
             return (
-              <motion.div
+              <motion.button
                 key={cycle.id}
-                className="bg-white/80 backdrop-blur-md border border-pink-200/50 shadow-lg hover:shadow-xl transition-all duration-300 hover:bg-white/90 rounded-xl"
+                type="button"
+                className="w-full bg-white/80 backdrop-blur-md border border-pink-200/50 shadow-lg hover:shadow-xl transition-all duration-300 hover:bg-white/90 rounded-xl active:scale-[0.98] cursor-pointer select-none"
                 variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }}
+                onMouseDown={() => startLongPressDetection(cycle)}
+                onMouseUp={() => cancelLongPressDetection(cycle)}
+                onMouseLeave={() => cancelLongPressDetection(cycle, false)}
+                onTouchStart={() => startLongPressDetection(cycle)}
+                onTouchEnd={() => cancelLongPressDetection(cycle)}
+                onTouchMove={() => cancelLongPressDetection(cycle, false)}
+                onClick={(event) => {
+                  event.preventDefault();
+                  if (!longPressTriggeredRef.current) {
+                    navigateToCycle(cycle);
+                  }
+                }}
               >
-                <div className="p-5">
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
+                <div className="p-4">
+                  
                     {/* Información del ciclo */}
-                    <div className="flex items-start space-x-4 flex-1">
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
                       {/* Icono del ciclo */}
                       <div className="flex flex-col items-center">
                         <div className="w-12 h-12 bg-gradient-to-br from-pink-100 to-rose-100 rounded-full flex items-center justify-center flex-shrink-0">
@@ -211,14 +261,14 @@ const ArchivedCyclesPage = () => {
 
                       {/* Detalles del ciclo */}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center flex-wrap gap-2 mb-2">
+                        <div className="flex items-center flex-wrap gap-2 mb-1.5">
                           <h2 className="text-lg font-semibold text-slate-700">
                             {format(parseISO(cycle.startDate), "dd/MM/yyyy", { locale: es })} - {endDate}
                           </h2>
                           
                         </div>
                         
-                        <div className="flex items-center space-x-4 text-sm text-slate-600">
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-slate-600">
                           <div className="flex items-center space-x-1">
                             <BarChart3 className="w-4 h-4 text-slate-500" />
                             <span>{recordCount} registro{recordCount !== 1 ? 's' : ''}</span>
@@ -240,32 +290,10 @@ const ArchivedCyclesPage = () => {
                           )}
                         </div>
                       </div>
+ 
                     </div>
-
-                    {/* Botones de acción */}
-                    <div className="flex gap-2 mt-4 sm:mt-0 w-full sm:w-auto">
-                      <Button
-                        asChild
-                        variant="outline"
-                        size="sm"
-                        className="flex-1 sm:flex-none border-pink-300 text-pink-600 hover:bg-pink-50 hover:border-pink-400"
-                      >
-                        <Link to={cycle.isCurrent ? `/` : `/cycle/${cycle.id}`}>
-                          <Eye className="mr-2 h-4 w-4" /> Ver
-                        </Link>
-                      </Button>
-                      <Button
-                        variant="default"
-                        size="sm"
-                        className="flex-1 sm:flex-none bg-rose-500 text-white hover:bg-rose-600"
-                        onClick={() => handleDeleteCycleRequest(cycle)}
-                      >
-                        <Trash2 className="mr-2 h-4 w-4" /> Eliminar
-                      </Button>
-                    </div>
-                  </div>
                 </div>
-              </motion.div>
+              </motion.button>
             );
           })}
         </motion.div>
