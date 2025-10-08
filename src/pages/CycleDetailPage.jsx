@@ -9,7 +9,7 @@ import { useCycleData } from '@/hooks/useCycleData';
 import { useToast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { ArrowLeft, Edit, Trash2, BarChart3 } from 'lucide-react';
+import { ArrowLeft, BarChart3, Pencil, Plus, Trash2 } from 'lucide-react';
 import { differenceInDays, startOfDay, parseISO, format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -325,90 +325,107 @@ const CycleDetailPage = () => {
       />
       <div className="relative z-10 px-4 py-6">
         <div className="w-full max-w-4xl mx-auto">
-          <div className="mb-4">
-            <div className="flex flex-wrap items-center gap-2 mb-3">
-              <Button
-                asChild
-                className="bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow hover:from-pink-600 hover:to-rose-600"
-              >
-                <Link to="/archived-cycles">
-                  <ArrowLeft className="mr-2 h-4 w-4" /> Mis Ciclos
-                </Link>
-              </Button>
-              <Button
-                asChild
-                variant="outline"
-                size="icon"
-                className="border-pink-300 text-pink-600 hover:bg-pink-50 hover:border-pink-400"
-              >
-                <Link to={`/chart/${cycleData.id}`} aria-label="Ver gráfica del ciclo">
-                  <BarChart3 className="h-4 w-4" />
-                </Link>
-              </Button>
-              <Button
-                onClick={handleAddRecord}
-                size="icon"
-                className="bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white shadow"
-                aria-label="Añadir registro al ciclo"
-              >
-                <Edit className="h-4 w-4" />
-              </Button>
-            </div>
-            <div className="text-center">
-              <button
-                type="button"
-                onClick={handleToggleActions}
-                className={`text-2xl sm:text-3xl font-bold text-rose-700 transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:ring-offset-2 ${showCycleActions ? 'text-rose-700 underline underline-offset-4 decoration-rose-400' : 'hover:text-rose-600 hover:underline hover:underline-offset-4'}`}
-              >
-                Detalle de ciclo ({format(parseISO(cycleData.startDate), 'dd/MM/yyyy')} -{' '}
-                {cycleData.endDate ? format(parseISO(cycleData.endDate), 'dd/MM/yyyy') : 'En curso'})
-              </button>
+          <div className="space-y-4 mb-6">
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <Button
+                  asChild
+                  className="bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow hover:from-pink-600 hover:to-rose-600"
+                >
+                  <Link to="/archived-cycles">
+                    <ArrowLeft className="mr-2 h-4 w-4" /> Mis Ciclos
+                  </Link>
+                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    asChild
+                    variant="outline"
+                    size="icon"
+                    className="border-pink-300 text-pink-600 hover:bg-pink-50 hover:border-pink-400"
+                  >
+                    <Link to={`/chart/${cycleData.id}`} aria-label="Ver gráfica del ciclo">
+                      <BarChart3 className="h-4 w-4" />
+                    </Link>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={handleToggleActions}
+                    aria-pressed={showCycleActions}
+                    aria-label={showCycleActions ? 'Ocultar opciones del ciclo' : 'Editar ciclo'}
+                    className={`border-pink-300 text-pink-600 hover:bg-pink-50 hover:border-pink-400 ${showCycleActions ? 'bg-pink-50' : ''}`}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    onClick={handleAddRecord}
+                    size="icon"
+                    className="bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white shadow"
+                    aria-label="Añadir registro al ciclo"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                  
+                </div>
+              </div>
+              <div className="rounded-3xl p-4 ">
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-1">
+                    <h2 className="text-2xl sm:text-3xl font-bold text-rose-700">
+                      Detalle de ciclo ({format(parseISO(cycleData.startDate), 'dd/MM/yyyy')} -{' '}
+                      {cycleData.endDate ? format(parseISO(cycleData.endDate), 'dd/MM/yyyy') : 'En curso'})
+                    </h2>
+                    
+                  </div>
+                  {showCycleActions && (
+                    <div className="space-y-4">
+                      <CycleDatesEditor
+                        cycle={cycleData}
+                        startDate={draftStartDate}
+                        endDate={draftEndDate}
+                        onStartDateChange={(value) => setDraftStartDate(value)}
+                        onEndDateChange={(value) => setDraftEndDate(value)}
+                        onSave={handleSaveDates}
+                        onCancel={handleCancelEdit}
+                        isProcessing={isProcessing}
+                        dateError={dateError}
+                        includeEndDate
+                        showOverlapDialog={showOverlapDialog}
+                        overlapCycle={overlapCycle}
+                        onConfirmOverlap={handleConfirmOverlap}
+                        onCancelOverlap={handleCancelOverlap}
+                        onClearError={() => setDateError('')}
+                        className="w-full"
+                      />
+                      <div className="rounded-2xl border border-rose-100 bg-white p-5 shadow">
+                        <h3 className="text-lg font-semibold text-rose-700 mb-2">Eliminar ciclo</h3>
+                        <p className="text-sm text-slate-600 mb-3">
+                          Esta acción no se puede deshacer. Se eliminarán todos los registros asociados.
+                        </p>
+                        <Button
+                          onClick={handleDeleteCycleRequest}
+                          disabled={isProcessing}
+                          className="w-full sm:w-auto bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white shadow-md"
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" /> Eliminar ciclo
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
 
-          {showCycleActions && (
-            <div className="mb-6 mx-auto w-full max-w-xl">
-              <CycleDatesEditor
-                cycle={cycleData}
-                startDate={draftStartDate}
-                endDate={draftEndDate}
-                onStartDateChange={(value) => setDraftStartDate(value)}
-                onEndDateChange={(value) => setDraftEndDate(value)}
-                onSave={handleSaveDates}
-                onCancel={handleCancelEdit}
-                isProcessing={isProcessing}
-                dateError={dateError}
-                includeEndDate
-                showOverlapDialog={showOverlapDialog}
-                overlapCycle={overlapCycle}
-                onConfirmOverlap={handleConfirmOverlap}
-                onCancelOverlap={handleCancelOverlap}
-                onClearError={() => setDateError('')}
-                className="w-full mb-4"
-              />
-              <div className="rounded-2xl border border-rose-100 bg-white/90 p-5 shadow-lg">
-                <h3 className="text-lg font-semibold text-rose-700 mb-2">Eliminar ciclo</h3>
-                <p className="text-sm text-slate-600 mb-3">
-                  Esta acción no se puede deshacer. Se eliminarán todos los registros asociados.
-                </p>
-                <Button
-                  onClick={handleDeleteCycleRequest}
-                  disabled={isProcessing}
-                  className="w-full sm:w-auto bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white shadow-md"
-                >
-                  <Trash2 className="mr-2 h-4 w-4" /> Eliminar ciclo
-                </Button>
-              </div>
-            </div>
-          )}
-
-
-          <RecordsList
-            records={cycleData.data}
-            onEdit={handleEditRecord}
-            onDelete={handleDeleteRequest}
-            isProcessing={isProcessing}
-          />
+          <div className="mt-6">
+            <RecordsList
+              records={cycleData.data}
+              onEdit={handleEditRecord}
+              onDelete={handleDeleteRequest}
+              isProcessing={isProcessing}
+            />
+          </div>
 
           <Dialog
             open={showForm}

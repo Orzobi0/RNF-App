@@ -470,7 +470,7 @@ const ChartPage = () => {
           >
             <Link to={`/cycle/${targetCycle.id}`} className="flex items-center gap-1">
               <ArrowLeft className="h-4 w-4" />
-              <span className="hidden sm:inline">Registros</span>
+              <span className="hidden sm:inline"></span>
             </Link>
           </Button>
         )}

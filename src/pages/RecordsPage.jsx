@@ -205,77 +205,81 @@ const RecordCard = ({
                 />
                 <span className="rounded-full bg-rose-50 px-3 py-1.5 text-[0.65rem]">{symbolLabel || '-'}</span>
               </div>
-              <div className="flex flex-wrap items-center gap-3 text-xs text-slate-700">
-                <div className="flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-3 py-1.5 text-orange-600">
-                  <Thermometer className="h-4 w-4" />
-                  <span className="font-semibold">{details.hasTemperature ? `${details.displayTemp}°C` : '-'}</span>
-                  {details.showCorrectedIndicator && (
-                    <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[0.6rem] font-semibold uppercase tracking-wide">
-                      Corregida
-                    </span>
+              <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+                <div className="flex flex-wrap items-center gap-3 text-xs text-slate-700 md:col-span-2">
+                  <div className="flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-3 py-1.5 text-orange-600">
+                    <Thermometer className="h-4 w-4" />
+                    <span className="font-semibold">{details.hasTemperature ? `${details.displayTemp}°C` : '-'}</span>
+                    {details.showCorrectedIndicator && (
+                      <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[0.6rem] font-semibold uppercase tracking-wide">
+                        Corregida
+                      </span>
+                    )}
+                  </div>
+                  {details.timeValue && (
+                    <div className="flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-amber-600">
+                      <Clock className="h-4 w-4" />
+                      <span>{details.timeValue}</span>
+                    </div>
+                  )}
+                  {details.record.ignored && (
+                    <Badge className="rounded-full border border-orange-200 bg-orange-100 text-orange-600">Ignorada</Badge>
                   )}
                 </div>
-                {details.timeValue && (
-                  <div className="flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-amber-600">
-                    <Clock className="h-4 w-4" />
-                    <span>{details.timeValue}</span>
+                <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
+                  <div className="flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-sky-600">
+                    <Droplets className="h-4 w-4" />
+                    <span className="font-medium">{details.mucusSensation || 'Sin sensación'}</span>
                   </div>
-                )}
-                {details.record.ignored && (
-                  <Badge className="rounded-full border border-orange-200 bg-orange-100 text-orange-600">Ignorada</Badge>
-                )}
-              </div>
-              <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
-                <div className="flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-sky-600">
-                  <Droplets className="h-4 w-4" />
-                  <span className="font-medium">{details.mucusSensation || 'Sin sensación'}</span>
+                  <div className="flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-emerald-600">
+                    <Circle className="h-4 w-4" />
+                    <span className="font-medium">{details.mucusAppearance || 'Sin apariencia'}</span>
+                  </div>
+                
                 </div>
-                <div className="flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-emerald-600">
-                  <Circle className="h-4 w-4" />
-                  <span className="font-medium">{details.mucusAppearance || 'Sin apariencia'}</span>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="rounded-3xl border border-violet-200 bg-violet-50/80 px-3 py-1.5 text-xs text-violet-700 flex-1">
-                  <div className="flex items-center gap-2">
-                    <div className="flex h-4 w-4 items-center justify-center rounded-full bg-violet-400 text-white shadow-md">
-                      <Edit3 className="h-3 w-3" />
-                    </div>
-                    <div className="flex-1 space-y-1">
-                      <span className="font-semibold-medium"></span>
-                      <p className="whitespace-pre-line font-medium text-sm leading-snug text-violet-600">
-                        {details.observationsText || 'Sin observaciones'}
-                      </p>
+                <div className="col-span-1 flex flex-col gap-2 sm:col-span-2 md:col-span-3 sm:flex-row sm:items-start sm:gap-3">
+                  <div className="rounded-3xl border border-violet-200 bg-violet-50/80 px-3 py-1.5 text-xs text-violet-700 flex-1">
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-4 w-4 items-center justify-center rounded-full bg-violet-400 text-white shadow-md">
+                        <Edit3 className="h-3 w-3" />
+                      </div>
+                      <div className="flex-1 space-y-1">
+                        <span className="font-semibold-medium"></span>
+                        <p className="whitespace-pre-line font-medium text-sm leading-snug text-violet-600">
+                          {details.observationsText || 'Sin observaciones'}
+                        </p>
+                      </div>
+
                     </div>
                   </div>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="rounded-full border-rose-200 text-rose-600 hover:bg-rose-50"
-                    disabled={isProcessing}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onEdit(details.record);
-                    }}
-                    aria-label="Editar registro"
-                  >
-                    <Edit2 className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="rounded-full border-rose-200 text-rose-600 hover:bg-rose-50"
-                    disabled={isProcessing}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onDelete(details.record.id);
-                    }}
-                    aria-label="Eliminar registro"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  <div className="flex flex-wrap gap-2 sm:flex-nowrap">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="rounded-full border-rose-200 text-rose-600 hover:bg-rose-50"
+                      disabled={isProcessing}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onEdit(details.record);
+                      }}
+                      aria-label="Editar registro"
+                    >
+                      <Edit2 className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="rounded-full border-rose-200 text-rose-600 hover:bg-rose-50"
+                      disabled={isProcessing}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onDelete(details.record.id);
+                      }}
+                      aria-label="Eliminar registro"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>

@@ -489,9 +489,12 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
 
               {/* Puntos de progreso */}
               <motion.g
-                transition={{ type: 'spring', stiffness: 140, damping: 18 }}
+                transition={{ type: 'spring', stiffness: 100, damping: 22 }}
                 initial={false}
-                style={{ transformOrigin: `${center}px ${center}px`, transformBox: 'fill-box' }}
+                animate={{ 
+                  rotate: -(wheelOffset * 360) / totalDots 
+                }}
+                style={{ transformOrigin: 'center', transformBox: 'view-box' }}
               >
                 {dots.map((dot, index) => (
                   <g key={index}>
