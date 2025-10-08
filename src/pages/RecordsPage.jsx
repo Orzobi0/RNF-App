@@ -1,4 +1,11 @@
-import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import React, {
+  useState,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useLayoutEffect,
+} from 'react';
 import CycleDatesEditor from '@/components/CycleDatesEditor';
 import DataEntryForm from '@/components/DataEntryForm';
 import DeletionDialog from '@/components/DeletionDialog';
@@ -46,9 +53,7 @@ import computePeakStatuses from '@/lib/computePeakStatuses';
 
 const getSymbolInfo = (symbolValue) =>
   FERTILITY_SYMBOL_OPTIONS.find((symbol) => symbol.value === symbolValue) || FERTILITY_SYMBOL_OPTIONS[0];
-const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
-
-const CALENDAR_FADE_OFFSET = 48;
+const CALENDAR_BOUNDARY_OFFSET = 16;
 
 const useCalendarFade = (calendarContainerRef, { dependencies = [], externalRef } = {}) => {
   const localRef = useRef(null);
@@ -66,23 +71,15 @@ const useCalendarFade = (calendarContainerRef, { dependencies = [], externalRef 
       return;
     }
 
-    const fadeBoundary = calendarRect.bottom + CALENDAR_FADE_OFFSET;
+    const fadeBoundary = calendarRect.bottom + CALENDAR_BOUNDARY_OFFSET;
     const rect = element.getBoundingClientRect();
-    const height = rect.height || 1;
-
-    if (rect.top >= fadeBoundary) {
-      rawOpacity.set(1);
-      return;
-    }
-
+    
     if (rect.bottom <= fadeBoundary) {
       rawOpacity.set(0);
       return;
     }
 
-    const distance = rect.bottom - fadeBoundary;
-    const threshold = height * 0.1; // solo el 10% superior del elemento
-    rawOpacity.set(clamp(distance / threshold, 0, 1));
+    rawOpacity.set(1);
 
   }, [calendarContainerRef, rawOpacity]);
 
@@ -148,6 +145,7 @@ const RecordCard = ({
   isProcessing,
   calendarContainerRef,
   isCalendarOpen,
+  scrollMarginTop,
 }) => {
   const { setRefs, opacity } = useCalendarFade(calendarContainerRef, {
     dependencies: [isExpanded, isCalendarOpen],
@@ -163,7 +161,7 @@ const RecordCard = ({
         isSelected ? 'bg-white/90 ring-2 ring-rose-400 shadow-rose-200/70' : ''
       }`}
       whileHover={{ translateY: -2 }}
-      style={{ opacity }}
+      style={{ opacity, scrollMarginTop }}
     >
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-1 text-sm font-semibold text-slate-700">
@@ -299,6 +297,7 @@ const EmptyGroupRow = ({
   calendarContainerRef,
   isCalendarOpen,
   children,
+  scrollMarginTop,
 }) => {
   const { setRefs, opacity } = useCalendarFade(calendarContainerRef, {
     dependencies: [isExpandedGroup, isCalendarOpen, days.length],
@@ -315,7 +314,7 @@ const EmptyGroupRow = ({
       whileHover={{ scale: 1.01 }}
       whileTap={{ scale: 0.99 }}
       aria-expanded={isExpandedGroup}
-      style={{ opacity }}
+      style={{ opacity, scrollMarginTop }}
     >
       {children}
     </motion.button>
@@ -448,6 +447,8 @@ const RecordsPage = () => {
   const calendarContainerRef = useRef(null);
   const dayRefs = useRef({});
   const hasUserSelectedDateRef = useRef(false);
+  const calendarHeightRef = useRef(0);
+  const [calendarHeight, setCalendarHeight] = useState(0);
 
   const registerDayRef = useCallback(
     (isoDate) => (node) => {
@@ -459,6 +460,95 @@ const RecordsPage = () => {
       }
     },
     []
+  );
+
+  const updateCalendarMetrics = useCallback(() => {
+    const element = calendarContainerRef.current;
+
+    if (!element) {
+      calendarHeightRef.current = 0;
+      setCalendarHeight(0);
+      return;
+    }
+
+    const rect = element.getBoundingClientRect();
+    const measuredHeight = rect.height;
+
+    calendarHeightRef.current = measuredHeight;
+    setCalendarHeight((prev) => (Math.abs(prev - measuredHeight) > 0.5 ? measuredHeight : prev));
+  }, []);
+
+  useLayoutEffect(() => {
+    let animationFrame = window.requestAnimationFrame(updateCalendarMetrics);
+
+    const handleResize = () => {
+      if (animationFrame) {
+        window.cancelAnimationFrame(animationFrame);
+      }
+      animationFrame = window.requestAnimationFrame(updateCalendarMetrics);
+    };
+
+    window.addEventListener('resize', handleResize);
+
+    let observer;
+
+    if (typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(() => {
+        if (animationFrame) {
+          window.cancelAnimationFrame(animationFrame);
+        }
+        animationFrame = window.requestAnimationFrame(updateCalendarMetrics);
+      });
+
+      if (calendarContainerRef.current) {
+        observer.observe(calendarContainerRef.current);
+      }
+    }
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+
+      if (observer) {
+        observer.disconnect();
+      }
+
+      if (animationFrame) {
+        window.cancelAnimationFrame(animationFrame);
+      }
+    };
+  }, [updateCalendarMetrics]);
+
+  const ensureElementBelowCalendar = useCallback(
+    (element, { behavior = 'smooth', forceAlignTop = false } = {}) => {
+      if (!element) {
+        return;
+      }
+
+      const calendarRect = calendarContainerRef.current?.getBoundingClientRect();
+      const boundaryFromCalendar = calendarRect ? calendarRect.bottom + CALENDAR_BOUNDARY_OFFSET : null;
+      const boundary = boundaryFromCalendar ?? calendarHeightRef.current + CALENDAR_BOUNDARY_OFFSET;
+
+      const rect = element.getBoundingClientRect();
+      const targetTop = Math.max(window.scrollY + rect.top - boundary, 0);
+
+      if (forceAlignTop || rect.top < boundary) {
+        window.scrollTo({ top: targetTop, behavior });
+        return;
+      }
+
+      const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+
+      if (rect.bottom > viewportHeight) {
+        const overflow = rect.bottom - viewportHeight + CALENDAR_BOUNDARY_OFFSET;
+        window.scrollTo({ top: Math.max(window.scrollY + overflow, 0), behavior });
+      }
+    },
+    []
+  );
+
+  const calendarScrollMargin = useMemo(
+    () => Math.max(calendarHeight + CALENDAR_BOUNDARY_OFFSET, CALENDAR_BOUNDARY_OFFSET),
+    [calendarHeight]
   );
 
   useEffect(() => {
@@ -500,37 +590,49 @@ const RecordsPage = () => {
     if (!targetNode) {
       return;
     }
-    const handleScrollIntoView = () => {
-      const calendarRect = calendarContainerRef.current?.getBoundingClientRect();
-      const targetRect = targetNode.getBoundingClientRect();
-
-      if (!calendarRect) {
-        targetNode.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        hasUserSelectedDateRef.current = false;
-        return;
-      }
-
-      const additionalSpacing = CALENDAR_FADE_OFFSET + 12;
-      const desiredOffset = calendarRect.bottom + additionalSpacing;
-      const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
-
-      const isAboveCalendar = targetRect.top < desiredOffset;
-      const isBelowViewport = targetRect.bottom > viewportHeight;
-
-      if (isAboveCalendar || isBelowViewport) {
-        const targetScrollTop = Math.max(window.scrollY + targetRect.top - desiredOffset, 0);
-        window.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
-      }
-
+    
+      const rafId = window.requestAnimationFrame(() => {
+      ensureElementBelowCalendar(targetNode, { behavior: 'smooth', forceAlignTop: true });
       hasUserSelectedDateRef.current = false;
-    };
+    });
 
-    const rafId = window.requestAnimationFrame(handleScrollIntoView);
+      return () => {
+      window.cancelAnimationFrame(rafId);
+    };
+  }, [selectedDate, expandedEmptyGroups, isCalendarOpen, ensureElementBelowCalendar]);
+
+  useEffect(() => {
+    if (!expandedIsoDate) {
+      return;
+    }
+
+    const targetNode = dayRefs.current[expandedIsoDate];
+    if (!targetNode) {
+      return;
+    }
+
+    const rafId = window.requestAnimationFrame(() => {
+      ensureElementBelowCalendar(targetNode, { behavior: 'smooth' });
+    });
 
     return () => {
       window.cancelAnimationFrame(rafId);
     };
-  }, [selectedDate, expandedEmptyGroups, isCalendarOpen]);
+  }, [expandedIsoDate, ensureElementBelowCalendar, isCalendarOpen, calendarHeight]);
+
+  useEffect(() => {
+    const priorityIso = expandedIsoDate || selectedDate;
+    if (!priorityIso) {
+      return;
+    }
+
+    const targetNode = dayRefs.current[priorityIso];
+    if (!targetNode) {
+      return;
+    }
+
+    ensureElementBelowCalendar(targetNode, { behavior: 'auto' });
+  }, [calendarHeight, isCalendarOpen, expandedIsoDate, selectedDate, ensureElementBelowCalendar]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'auto' });
@@ -1059,9 +1161,9 @@ const RecordsPage = () => {
       />
       
       <div className="max-w-4xl mx-auto px-4 relative z-10">
-        <div ref={calendarContainerRef} className="sticky top-1 z-20">
-          <div className="relative overflow-hidden rounded-xl  backdrop-blur-sm">
-            <div className="space-y-3 p-3 sm:p-4">
+        <div ref={calendarContainerRef} className="sticky top-1 z-50">
+          <div className="relative overflow-hidden rounded-xl ring-1 ring-rose-100/70">
+            <div className="space-y-3 p-3 sm:p-4 relative z-10">
               {/* Header */}
               <motion.div
                 className="flex flex-col gap-4"
@@ -1197,6 +1299,8 @@ const RecordsPage = () => {
                 )}
               </AnimatePresence>
             </div>
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-3" />
+            <div className="pointer-events-none absolute inset-x-4 bottom-0 h-px  z-10" />
           </div>
         </div>
 
@@ -1252,6 +1356,7 @@ const RecordsPage = () => {
                       hasSelectedInGroup={hasSelectedInGroup}
                       calendarContainerRef={calendarContainerRef}
                       isCalendarOpen={isCalendarOpen}
+                      scrollMarginTop={calendarScrollMargin}
                     >
                       <div className="flex items-center gap-2">
                         <CalendarDays className="h-4 w-4 text-rose-300" />
@@ -1288,6 +1393,7 @@ const RecordsPage = () => {
                                 }`}
                                 whileHover={{ scale: 1.01 }}
                                 whileTap={{ scale: 0.99 }}
+                                style={{ scrollMarginTop: calendarScrollMargin }}
                               >
                                 <div className="flex items-center gap-2">
                                   <CalendarDays className="h-4 w-4 text-rose-300" />
@@ -1325,6 +1431,7 @@ const RecordsPage = () => {
                     }`}
                     whileHover={{ scale: 1.01 }}
                     whileTap={{ scale: 0.99 }}
+                    style={{ scrollMarginTop: calendarScrollMargin }}
                   >
                     <div className="flex items-center gap-2">
                       <CalendarDays className="h-4 w-4 text-rose-300" />
@@ -1352,6 +1459,7 @@ const RecordsPage = () => {
                   isProcessing={isProcessing}
                   calendarContainerRef={calendarContainerRef}
                   isCalendarOpen={isCalendarOpen}
+                  scrollMarginTop={calendarScrollMargin}
                 />
               );
             })
