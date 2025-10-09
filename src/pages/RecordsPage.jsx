@@ -336,8 +336,12 @@ const RecordCard = ({
           title: details.hasTemperature ? `${details.displayTemp}°C` : '—',
           hasValue: details.hasTemperature,
           badge: details.showCorrectedIndicator ? (
-            <Badge className="rounded-full border border-amber-200 bg-amber-50 text-[0.65rem] font-semibold uppercase tracking-wide text-amber-600">
-              Corregida
+            <Badge
+              className="flex items-center justify-center rounded-full border border-amber-200 bg-amber-50 text-[0.65rem] font-semibold uppercase tracking-wide text-amber-500"
+              title="Temperatura corregida"
+            >
+              <span aria-hidden="true">•</span>
+              <span className="sr-only">Temperatura corregida</span>
             </Badge>
           ) : null,
         },
@@ -358,9 +362,9 @@ const RecordCard = ({
           hasValue: Boolean(hasSymbolValue),
           renderIcon: () => (
             <span
-              className={`flex h-9 w-9 items-center justify-center rounded-full border ${symbolPalette.iconBorder} ${symbolPalette.iconBg}`}
+              className={`flex h-8 w-8 items-center justify-center rounded-full border ${symbolPalette.iconBorder} ${symbolPalette.iconBg}`}
             >
-              <span className={`h-3 w-3 rounded-full ${symbolPalette.dotColor} ${symbolPalette.patternClass || ''}`} />
+              <span className={`h-2.5 w-2.5 rounded-full ${symbolPalette.dotColor} ${symbolPalette.patternClass || ''}`} />
             </span>
           ),
         },
@@ -391,8 +395,8 @@ const RecordCard = ({
     if (field.grouped) {
       return (
         <React.Fragment key={field.key}>
-          {index > 0 && <div className="border-t border-slate-100 my-2" />}
-          <div className="flex flex-wrap gap-2">
+          {index > 0 && <div className="my-1.5 border-t border-slate-100" />}
+          <div className="flex flex-wrap gap-1.5">
             {field.items.map((item) => {
               const palette = item.palette || getFieldPalette(item.key);
               const Icon = item.icon;
@@ -403,7 +407,7 @@ const RecordCard = ({
                 <button
                   key={item.key}
                   type="button"
-                  className={`flex min-w-[9rem] flex-1 items-center gap-3 rounded-2xl border ${palette.chipBorder} ${palette.chipBg} px-3 py-2 text-left transition-colors ${palette.hoverBg} focus:outline-none ${palette.focusRing}`}
+                  className={`flex min-w-[8rem] flex-1 items-center gap-2.5 rounded-xl border ${palette.chipBorder} ${palette.chipBg} px-2.5 py-1.5 text-left transition-colors ${palette.hoverBg} focus:outline-none ${palette.focusRing}`}
                   onClick={(event) => {
                     event.stopPropagation();
                     event.preventDefault();
@@ -415,7 +419,7 @@ const RecordCard = ({
                   {item.renderIcon ? (
                     item.renderIcon()
                   ) : (
-                    <span className={`flex h-9 w-9 items-center justify-center rounded-full border ${palette.iconBorder} ${palette.iconBg}`}>
+                    <span className={`flex h-8 w-8 items-center justify-center rounded-full border ${palette.iconBorder} ${palette.iconBg}`}>
                       {Icon && <Icon className={`h-4 w-4 ${palette.iconColor}`} />}
                     </span>
                   )}
@@ -425,8 +429,8 @@ const RecordCard = ({
                         {item.subtitle}
                       </span>
                     )}
-                    <div className="flex items-center gap-2">
-                      <span className={`text-sm font-semibold ${hasValue ? palette.valueColor : 'text-slate-400'}`}>
+                    <div className="flex items-center gap-1.5">
+                      <span className={`text-sm font-semibold leading-tight ${hasValue ? palette.valueColor : 'text-slate-400'}`}>
                         {displayValue}
                       </span>
                       {item.badge && <span className="shrink-0">{item.badge}</span>}
@@ -447,12 +451,10 @@ const RecordCard = ({
 
     return (
       <React.Fragment key={field.key}>
-        {index > 0 && <div className="border-t border-slate-100 my-2" />}
+        {index > 0 && <div className="my-1.5 border-t border-slate-100" />}
         <button
           type="button"
-          className={`flex w-full items-start justify-between gap-4 rounded-2xl border ${palette.chipBorder} ${palette.chipBg} px-3 py-2 text-left transition-colors ${palette.hoverBg} focus:outline-none ${palette.focusRing} ${
-            field.isMultiline ? 'items-start' : 'items-center'
-          }`}
+          className={`flex w-full items-start gap-3 rounded-xl border ${palette.chipBorder} ${palette.chipBg} px-2.5 py-1.5 text-left transition-colors ${palette.hoverBg} focus:outline-none ${palette.focusRing}`}
           onClick={(event) => {
             event.stopPropagation();
             event.preventDefault();
@@ -461,26 +463,19 @@ const RecordCard = ({
             }
           }}
         >
-          <div className="flex items-center gap-3">
-            <span className={`flex h-9 w-9 items-center justify-center rounded-full border ${palette.iconBorder} ${palette.iconBg}`}>
+          <div className={`flex min-w-0 flex-1 items-start gap-2.5 ${field.isMultiline ? 'pt-0.5' : ''}`}>
+            <span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border ${palette.iconBorder} ${palette.iconBg}`}>
               <Icon className={`h-4 w-4 ${palette.iconColor}`} />
             </span>
-            <span className={`text-sm font-semibold ${palette.labelColor}`}>{field.label}</span>
+            <div className="min-w-0 flex-1">
+              <span
+                className={`block text-sm leading-snug ${valueClass} ${field.isMultiline ? 'whitespace-pre-line' : 'truncate'}`}
+              >
+                {valueText}
+              </span>
+            </div>
           </div>
-          <div
-            className={`flex min-w-0 flex-1 justify-end gap-2 ${
-              field.isMultiline ? 'items-start' : 'items-center'
-            }`}
-          >
-            <span
-              className={`text-sm ${valueClass} ${
-                field.isMultiline ? 'max-w-[70%] whitespace-pre-line text-right leading-snug' : 'truncate'
-              }`}
-            >
-              {valueText}
-            </span>
-            {field.badge && <span className="shrink-0">{field.badge}</span>}
-          </div>
+          {field.badge && <span className="shrink-0 self-center">{field.badge}</span>}
         </button>
       </React.Fragment>
     );
@@ -491,7 +486,7 @@ const RecordCard = ({
       layout
       ref={setRefs}
       onClick={() => onToggle(isoDate)}
-      className={`group relative flex w-full cursor-pointer flex-col rounded-3xl border border-rose-100 bg-white/75 px-4 py-4 shadow-sm backdrop-blur-md transition-all duration-300 hover:shadow-lg sm:px-6 ${
+      className={`group relative flex w-full cursor-pointer flex-col rounded-3xl border border-rose-100 bg-white/75 px-4 py-3 shadow-sm backdrop-blur-md transition-all duration-300 hover:shadow-lg sm:px-5 ${
         isSelected ? 'bg-white/90 ring-2 ring-rose-400 shadow-rose-200/70' : ''
       }`}
       whileHover={{ translateY: -2 }}
@@ -526,21 +521,25 @@ const RecordCard = ({
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.25, ease: 'easeInOut' }}
-            className="mt-2 overflow-hidden"
+            className="mt-1.5 overflow-hidden"
           >
             <div className="rounded-3xl border border-slate-200 bg-white/80 p-2 shadow-sm">
-              <div className="flex flex-wrap items-center gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <div className="flex flex-wrap items-center gap-1 text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
                 <PeakBadge peakStatus={details.peakStatus} isPeakDay={details.isPeakDay} size="small" />
                 {details.record?.ignored && (
-                  <Badge className="rounded-full border border-slate-200 bg-slate-100 text-[0.65rem] font-semibold uppercase tracking-wide text-slate-600">
-                    Ignorada
+                  <Badge
+                    className="flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 text-[0.65rem] font-semibold uppercase tracking-wide text-slate-400"
+                    title="Registro ignorado"
+                  >
+                    <span aria-hidden="true" className="h-2 w-2 rounded-full bg-slate-300" />
+                    <span className="sr-only">Registro ignorado</span>
                   </Badge>
                 )}
               </div>
-              <div className="mt-2 space-y-2">
+              <div className="mt-1.5 space-y-1.5">
                 {fieldRows.map((field, index) => renderFieldRow(field, index))}
               </div>
-              <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
+              <div className="mt-1.5 flex flex-wrap items-center justify-end gap-1.5">
                 <Button
                   type="button"
                   variant="outline"
@@ -677,7 +676,7 @@ const FieldBadges = ({
   isPeakDay,
 }) => {
   const badgeBase =
-    'flex items-center justify-center w-6 h-6 rounded-full text-[0.65rem] shadow-sm transition-transform duration-200';
+    'flex items-center justify-center w-5 h-5 rounded-full text-[0.6rem] shadow-sm transition-transform duration-200';
   const temperaturePalette = buildFieldPalette('temperature');
   const sensationPalette = buildFieldPalette('mucusSensation');
   const appearancePalette = buildFieldPalette('mucusAppearance');
@@ -688,22 +687,22 @@ const FieldBadges = ({
       <PeakBadge peakStatus={peakStatus} isPeakDay={isPeakDay} />
       {hasTemperature && (
         <span className={`${badgeBase} border ${temperaturePalette.iconBorder} ${temperaturePalette.iconBg}`}>
-          <Thermometer className={`h-3 w-3 ${temperaturePalette.iconColor}`} />
+          <Thermometer className={`h-2.5 w-2.5 ${temperaturePalette.iconColor}`} />
         </span>
       )}
       {hasMucusSensation && (
         <span className={`${badgeBase} border ${sensationPalette.iconBorder} ${sensationPalette.iconBg}`}>
-          <Droplets className={`h-3 w-3 ${sensationPalette.iconColor}`} />
+          <Droplets className={`h-2.5 w-2.5 ${sensationPalette.iconColor}`} />
         </span>
       )}
       {hasMucusAppearance && (
         <span className={`${badgeBase} border ${appearancePalette.iconBorder} ${appearancePalette.iconBg}`}>
-          <Circle className={`h-3 w-3 ${appearancePalette.iconColor}`} />
+          <Circle className={`h-2.5 w-2.5 ${appearancePalette.iconColor}`} />
         </span>
       )}
       {hasObservations && (
         <span className={`${badgeBase} border ${observationsPalette.iconBorder} ${observationsPalette.iconBg}`}>
-          <Edit3 className={`h-3 w-3 ${observationsPalette.iconColor}`} />
+          <Edit3 className={`h-2.5 w-2.5 ${observationsPalette.iconColor}`} />
         </span>
       )}
     </div>
