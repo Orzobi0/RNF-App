@@ -325,7 +325,7 @@ const RecordCard = ({
 
   const fieldRows = [
     {
-      key: 'primaryDetails',
+      key: 'temperatureTime',
       grouped: true,
       items: [
         {
@@ -353,34 +353,49 @@ const RecordCard = ({
           title: details.timeValue || '—',
           hasValue: Boolean(details.timeValue),
         },
+        ],
+    },
+    {
+      key: 'sensationAppearance',
+      grouped: true,
+      items: [
         {
-          key: 'fertilitySymbol',
-          inlineKey: 'fertilitySymbol',
-          palette: symbolPalette,
-          subtitle: null,
-          title: symbolLabel || 'Sin símbolo',
-          hasValue: Boolean(hasSymbolValue),
-          renderIcon: () => (
-            <span
-              className={`flex h-8 w-8 items-center justify-center rounded-full border ${symbolPalette.iconBorder} ${symbolPalette.iconBg}`}
-            >
-              <span className={`h-2.5 w-2.5 rounded-full ${symbolPalette.dotColor} ${symbolPalette.patternClass || ''}`} />
-            </span>
-          ),
+          key: 'mucusSensation',
+          inlineKey: 'mucusSensation',
+          palette: getFieldPalette('mucusSensation'),
+          icon: Droplets,
+          title: details.mucusSensation || '—',
+          hasValue: Boolean(details.mucusSensation),
+        },
+        {
+          key: 'mucusAppearance',
+          inlineKey: 'mucusAppearance',
+          palette: getFieldPalette('mucusAppearance'),
+          icon: Circle,
+          title: details.mucusAppearance || '—',
+          hasValue: Boolean(details.mucusAppearance),
         },
       ],
     },
     {
-      key: 'mucusSensation',
-      icon: Droplets,
-      value: details.mucusSensation || null,
-      palette: getFieldPalette('mucusSensation'),
-    },
-    {
-      key: 'mucusAppearance',
-      icon: Circle,
-      value: details.mucusAppearance || null,
-      palette: getFieldPalette('mucusAppearance'),
+      key: 'symbolInfo',
+      grouped: true,
+      items: [
+        {
+          key: 'fertilitySymbol',
+          inlineKey: 'fertilitySymbol',
+          palette: symbolPalette,
+          title: symbolLabel || 'Sin símbolo',
+          hasValue: Boolean(hasSymbolValue),
+          renderIcon: () => (
+            <span
+              className={`flex h-6 w-6 items-center justify-center rounded-full border ${symbolPalette.iconBorder} ${symbolPalette.iconBg}`}
+            >
+            </span>
+          ),
+          fullWidth: true,
+        },
+      ],
     },
     {
       key: 'observations',
@@ -401,7 +416,7 @@ const RecordCard = ({
               const palette = item.palette || getFieldPalette(item.key);
               const Icon = item.icon;
               const hasValue = item.hasValue ?? Boolean(item.title);
-              const displayValue = item.title || '—';
+              const displayValue = item.title || '-';
 
               return (
                 <button
@@ -419,16 +434,11 @@ const RecordCard = ({
                   {item.renderIcon ? (
                     item.renderIcon()
                   ) : (
-                    <span className={`flex h-8 w-8 items-center justify-center rounded-full border ${palette.iconBorder} ${palette.iconBg}`}>
-                      {Icon && <Icon className={`h-4 w-4 ${palette.iconColor}`} />}
+                    <span className={`flex h-6 w-6 items-center justify-center rounded-full border ${palette.iconBorder} ${palette.iconBg}`}>
+                      {Icon && <Icon className={`h-3 w-3 ${palette.iconColor}`} />}
                     </span>
                   )}
                   <div className="min-w-0 flex-1">
-                    {item.subtitle && (
-                      <span className={`text-[0.65rem] font-semibold uppercase tracking-wide ${palette.labelColor}`}>
-                        {item.subtitle}
-                      </span>
-                    )}
                     <div className="flex items-center gap-1.5">
                       <span className={`text-sm font-semibold leading-tight ${hasValue ? palette.valueColor : 'text-slate-400'}`}>
                         {displayValue}
@@ -464,8 +474,8 @@ const RecordCard = ({
           }}
         >
           <div className={`flex min-w-0 flex-1 items-start gap-2.5 ${field.isMultiline ? 'pt-0.5' : ''}`}>
-            <span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border ${palette.iconBorder} ${palette.iconBg}`}>
-              <Icon className={`h-4 w-4 ${palette.iconColor}`} />
+            <span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${palette.iconBorder} ${palette.iconBg}`}>
+              <Icon className={`h-3 w-3 ${palette.iconColor}`} />
             </span>
             <div className="min-w-0 flex-1">
               <span
