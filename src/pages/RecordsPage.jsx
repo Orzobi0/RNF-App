@@ -378,9 +378,19 @@ const RecordCard = ({
       ],
     },
     {
-      key: 'symbolInfo',
+      key: 'observationsAndSymbol',
       grouped: true,
       items: [
+        {
+          key: 'observations',
+          inlineKey: 'observations',
+          palette: getFieldPalette('observations'),
+          icon: Edit3,
+          title: details.observationsText?.trim() ? details.observationsText : '—',
+          hasValue: Boolean(details.observationsText?.trim()),
+          isMultiline: true,
+          minWidthClass: 'min-w-[10rem]',
+        },
         {
           key: 'fertilitySymbol',
           inlineKey: 'fertilitySymbol',
@@ -389,20 +399,35 @@ const RecordCard = ({
           hasValue: Boolean(hasSymbolValue),
           renderIcon: () => (
             <span
-              className={`flex h-6 w-6 items-center justify-center rounded-full border ${symbolPalette.iconBorder} ${symbolPalette.iconBg}`}
+              className={`flex h-5 w-5 items-center justify-center rounded-full border ${symbolPalette.iconBorder} ${symbolPalette.iconBg}`}
             >
             </span>
           ),
-          fullWidth: true,
+          minWidthClass: 'min-w-[8rem]',
+        },
+        {
+          key: 'editAction',
+          isAction: true,
+          icon: Edit2,
+          ariaLabel: 'Editar registro',
+          onClick: (event) => {
+            event.stopPropagation();
+            onEdit(details.record);
+          },
+          disabled: isProcessing,
+        },
+        {
+          key: 'deleteAction',
+          isAction: true,
+          icon: Trash2,
+          ariaLabel: 'Eliminar registro',
+          onClick: (event) => {
+            event.stopPropagation();
+            onDelete(details.record.id);
+          },
+          disabled: isProcessing,
         },
       ],
-    },
-    {
-      key: 'observations',
-      icon: Edit3,
-      value: details.observationsText?.trim() ? details.observationsText : null,
-      isMultiline: true,
-      palette: getFieldPalette('observations'),
     },
   ];
 
@@ -413,16 +438,38 @@ const RecordCard = ({
           {index > 0 && <div className="my-1.5 border-t border-slate-100" />}
           <div className="flex flex-wrap gap-1.5">
             {field.items.map((item) => {
+              if (item.isAction) {
+                const Icon = item.icon;
+
+                return (
+                  <button
+                    key={item.key}
+                    type="button"
+                    className="flex h-8 w-8 items-center justify-center rounded-full border border-rose-200 bg-white/80 text-rose-600 shadow-sm transition-colors hover:bg-rose-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 disabled:cursor-not-allowed disabled:opacity-60"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      item.onClick?.(event);
+                    }}
+                    aria-label={item.ariaLabel}
+                    disabled={item.disabled}
+                  >
+                    <Icon className="h-4 w-4" />
+                  </button>
+                );
+              }
+
               const palette = item.palette || getFieldPalette(item.key);
               const Icon = item.icon;
               const hasValue = item.hasValue ?? Boolean(item.title);
               const displayValue = item.title || '-';
+              const minWidthClass = item.minWidthClass || 'min-w-[8rem]';
 
               return (
                 <button
                   key={item.key}
                   type="button"
-                  className={`flex min-w-[8rem] flex-1 items-center gap-2.5 rounded-xl border ${palette.chipBorder} ${palette.chipBg} px-2.5 py-1.5 text-left transition-colors ${palette.hoverBg} focus:outline-none ${palette.focusRing}`}
+                  className={`flex ${minWidthClass} flex-1 items-center gap-2.5 rounded-2xl border ${palette.chipBorder} ${palette.chipBg} px-2.5 py-1.5 text-left transition-colors ${palette.hoverBg} focus:outline-none ${palette.focusRing}`}
                   onClick={(event) => {
                     event.stopPropagation();
                     event.preventDefault();
@@ -439,8 +486,12 @@ const RecordCard = ({
                     </span>
                   )}
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <span className={`text-sm font-semibold leading-tight ${hasValue ? palette.valueColor : 'text-slate-400'}`}>
+                    <div className="flex items-start gap-1.5">
+                      <span
+                        className={`text-sm font-semibold leading-tight ${
+                          hasValue ? palette.valueColor : 'text-slate-400'
+                        } ${item.isMultiline ? 'whitespace-pre-line break-words' : 'truncate'}`}
+                      >
                         {displayValue}
                       </span>
                       {item.badge && <span className="shrink-0">{item.badge}</span>}
@@ -464,7 +515,7 @@ const RecordCard = ({
         {index > 0 && <div className="my-1.5 border-t border-slate-100" />}
         <button
           type="button"
-          className={`flex w-full items-start gap-3 rounded-xl border ${palette.chipBorder} ${palette.chipBg} px-2.5 py-1.5 text-left transition-colors ${palette.hoverBg} focus:outline-none ${palette.focusRing}`}
+          className={`flex w-full items-start gap-3 rounded-2xl border ${palette.chipBorder} ${palette.chipBg} px-2.5 py-1.5 text-left transition-colors ${palette.hoverBg} focus:outline-none ${palette.focusRing}`}
           onClick={(event) => {
             event.stopPropagation();
             event.preventDefault();
@@ -496,7 +547,7 @@ const RecordCard = ({
       layout
       ref={setRefs}
       onClick={() => onToggle(isoDate)}
-      className={`group relative flex w-full cursor-pointer flex-col rounded-3xl border border-rose-100 bg-white/75 px-4 py-3 shadow-sm backdrop-blur-md transition-all duration-300 hover:shadow-lg sm:px-5 ${
+      className={`group relative flex w-full cursor-pointer flex-col rounded-2xl border border-rose-100 bg-white/75 px-4 py-3 shadow-sm backdrop-blur-md transition-all duration-300 hover:shadow-lg sm:px-5 ${
         isSelected ? 'bg-white/90 ring-2 ring-rose-400 shadow-rose-200/70' : ''
       }`}
       whileHover={{ translateY: -2 }}
@@ -533,9 +584,12 @@ const RecordCard = ({
             transition={{ duration: 0.25, ease: 'easeInOut' }}
             className="mt-1.5 overflow-hidden"
           >
-            <div className="rounded-3xl border border-slate-200 bg-white/80 p-2 shadow-sm">
+            <div className="rounded-2xl border border-slate-200 bg-white/80 p-2 shadow-sm">
               <div className="flex flex-wrap items-center gap-1 text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
                 <PeakBadge peakStatus={details.peakStatus} isPeakDay={details.isPeakDay} size="small" />
+                {(details.isPeakDay || details.peakStatus === 'P') && (
+                  <span className="text-rose-600">Día pico</span>
+                )}
                 {details.record?.ignored && (
                   <Badge
                     className="flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 text-[0.65rem] font-semibold uppercase tracking-wide text-slate-400"
@@ -549,34 +603,7 @@ const RecordCard = ({
               <div className="mt-1.5 space-y-1.5">
                 {fieldRows.map((field, index) => renderFieldRow(field, index))}
               </div>
-              <div className="mt-1.5 flex flex-wrap items-center justify-end gap-1.5">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="rounded-full border-rose-200 text-rose-600 hover:bg-rose-50"
-                  disabled={isProcessing}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onEdit(details.record);
-                  }}
-                  aria-label="Editar registro"
-                >
-                  <Edit2 className="h-4 w-4" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="rounded-full border-rose-200 text-rose-600 hover:bg-rose-50"
-                  disabled={isProcessing}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onDelete(details.record.id);
-                  }}
-                  aria-label="Eliminar registro"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
+              
             </div>
           </motion.div>
         )}
@@ -607,7 +634,7 @@ const EmptyGroupRow = ({
       type="button"
       ref={setRefs}
       onClick={() => toggleEmptyGroup(id)}
-      className={`flex w-full items-center justify-between rounded-full border border-dashed border-rose-200/70 bg-white/40 px-4 py-3 text-sm font-medium text-slate-500 backdrop-blur-sm transition-all duration-200 hover:border-rose-300 hover:bg-white/70 ${
+      className={`flex w-full items-center justify-between rounded-2xl border border-dashed border-rose-300 bg-white/40 px-4 py-3 text-sm font-medium text-slate-500 backdrop-blur-sm transition-all duration-200 hover:border-rose-500 hover:bg-white/70 ${
         hasSelectedInGroup ? 'ring-2 ring-rose-300 text-rose-500 shadow-rose-200/70' : ''
       }`}
       whileHover={{ scale: 1.01 }}
@@ -662,8 +689,8 @@ const PeakBadge = ({ peakStatus, isPeakDay, size = 'default', className = '' }) 
 
   const sizeClasses =
     size === 'small'
-      ? 'h-6 w-6 text-[0.65rem]'
-      : 'h-7 w-7 text-xs';
+      ? 'h-5 w-5 text-[0.6rem]'
+      : 'h-6 w-6 text-xs';
 
   return (
     <span
@@ -694,7 +721,7 @@ const FieldBadges = ({
 
   return (
     <div className="flex items-center gap-1.5">
-      <PeakBadge peakStatus={peakStatus} isPeakDay={isPeakDay} />
+      <PeakBadge peakStatus={peakStatus} isPeakDay={isPeakDay} size="small"/>
       {hasTemperature && (
         <span className={`${badgeBase} border ${temperaturePalette.iconBorder} ${temperaturePalette.iconBg}`}>
           <Thermometer className={`h-2.5 w-2.5 ${temperaturePalette.iconColor}`} />
@@ -1489,7 +1516,7 @@ const RecordsPage = () => {
       
       <div className="max-w-4xl mx-auto px-4 relative z-10">
         <div ref={calendarContainerRef} className="sticky top-1 z-50">
-          <div className="relative overflow-hidden rounded-xl ring-1 ring-rose-100/70">
+          <div className="relative overflow-hidden rounded-2xl ring-1 ring-rose-100/70">
             <div className="space-y-2 p-2 sm:p-3 relative z-10">
               {/* Header */}
               <motion.div
@@ -1608,7 +1635,7 @@ const RecordsPage = () => {
                     selected={selectedDate && isValid(parseISO(selectedDate)) ? parseISO(selectedDate) : undefined}
                     onDayClick={handleCalendarSelect}
                     modifiers={calendarModifiers}
-                    className="w-full max-w-md sm:max-w-lg rounded-lg bg-white/40 p-2 sm:p-3 mx-auto backdrop-blur-sm [&_button]:text-slate-900 [&_button:hover]:bg-rose-100 [&_button[aria-selected=true]]:bg-rose-500"
+                    className="w-full max-w-sm sm:max-w-md rounded-lg bg-white/40 p-2 sm:p-3 mx-auto backdrop-blur-sm [&_button]:text-slate-900 [&_button:hover]:bg-rose-100 [&_button[aria-selected=true]]:bg-rose-500"
                     classNames={{
                       day_selected:
                         'border border-rose-500 text-white hover:bg-rose-500 hover:text-white focus:bg-rose-500 focus:text-white',
@@ -1654,7 +1681,7 @@ const RecordsPage = () => {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
             >
-              <div className="mx-auto max-w-md rounded-3xl border border-rose-100 bg-white/80 p-8 shadow-lg backdrop-blur-sm">
+              <div className="mx-auto max-w-md rounded-2xl border border-rose-100 bg-white/80 p-8 shadow-lg backdrop-blur-sm">
                 <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-rose-100 text-rose-500 shadow-inner">
                   <FileText className="h-8 w-8" />
                 </div>
@@ -1700,7 +1727,7 @@ const RecordsPage = () => {
                       </div>
                       <motion.span
                         animate={{ rotate: isExpandedGroup ? 180 : 0 }}
-                        className="rounded-full bg-rose-50 p-1 text-rose-400 shadow-inner"
+                        className="rounded-2xl bg-rose-50 p-1 text-rose-400 shadow-inner"
                       >
                         <ChevronDown className="h-4 w-4" />
                       </motion.span>
@@ -1724,7 +1751,7 @@ const RecordsPage = () => {
                                 type="button"
                                 ref={registerDayRef(isoDate)}
                                 onClick={() => handleAddRecordForDay(isoDate)}
-                                className={`flex w-full items-center justify-between rounded-full border border-dashed border-rose-200/70 bg-white/40 px-4 py-3 text-sm font-medium text-slate-500 backdrop-blur-sm transition-all duration-200 hover:border-rose-300 hover:bg-white/70 ${
+                                className={`flex w-full items-center justify-between rounded-2xl border border-dashed border-rose-300 bg-white/40 px-4 py-3 text-sm font-medium text-slate-500 backdrop-blur-sm transition-all duration-200 hover:border-rose-500 hover:bg-white/70 ${
                                   isSelectedDay ? 'ring-2 ring-rose-300 text-rose-500 shadow-rose-200/70' : ''
                                 }`}
                                 whileHover={{ scale: 1.01 }}
@@ -1762,7 +1789,7 @@ const RecordsPage = () => {
                     type="button"
                     ref={registerDayRef(isoDate)}
                     onClick={() => handleAddRecordForDay(isoDate)}
-                    className={`flex w-full items-center justify-between rounded-full border border-dashed border-rose-200/70 bg-white/40 px-4 py-3 text-sm font-medium text-slate-500 backdrop-blur-sm transition-all duration-200 hover:border-rose-300 hover:bg-white/70 ${
+                    className={`flex w-full items-center justify-between rounded-2xl border border-dashed border-rose-300 bg-white/40 px-4 py-3 text-sm font-medium text-slate-500 backdrop-blur-sm transition-all duration-200 hover:border-rose-500 hover:bg-white/70 ${
                       isSelected ? 'ring-2 ring-rose-300 text-rose-500 shadow-rose-200/70' : ''
                     }`}
                     whileHover={{ scale: 1.01 }}
