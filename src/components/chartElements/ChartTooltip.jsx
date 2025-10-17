@@ -59,6 +59,62 @@ const ChartTooltip = ({
   const temp = point.temperature_chart ?? point.displayTemperature ?? null;
   const symbolInfo = getSymbolAppearance(point.fertility_symbol);
   const dateToFormat = point.timestamp || point.isoDate;
+
+  const normalizeTimeString = (value) => {
+    if (value === null || value === undefined) return null;
+    const trimmed = String(value).trim();
+    return trimmed.length ? trimmed : null;
+  };
+
+  const formatTimestampTime = (timestampValue) => {
+    if (!timestampValue) return null;
+    try {
+      const parsed = parseISO(timestampValue);
+      const timeValue = parsed.getTime();
+      if (Number.isNaN(timeValue)) return null;
+      return format(parsed, 'HH:mm');
+    } catch (error) {
+      return null;
+    }
+  };
+
+  const extractMeasurementTime = () => {
+    if (!Array.isArray(point.measurements) || point.measurements.length === 0) {
+      return null;
+    }
+
+    const measurements = point.measurements.filter(Boolean);
+    if (!measurements.length) return null;
+
+    const ordered = [
+      ...measurements.filter((measurement) => measurement?.selected),
+      ...measurements.filter((measurement) => !measurement?.selected),
+    ];
+
+    for (const measurement of ordered) {
+      const correctedPreferred = measurement?.use_corrected
+        ? normalizeTimeString(measurement?.time_corrected)
+        : null;
+      const candidateTime =
+        correctedPreferred ??
+        normalizeTimeString(measurement?.time_corrected) ??
+        normalizeTimeString(measurement?.time);
+      if (candidateTime) {
+        return candidateTime;
+      }
+    }
+
+    return null;
+  };
+
+  const measurementTime = extractMeasurementTime();
+  const directTimeCandidates = [
+    point.use_corrected ? normalizeTimeString(point.time_corrected) : null,
+    normalizeTimeString(point.time_corrected),
+    normalizeTimeString(point.time),
+  ];
+  const fallbackTime = directTimeCandidates.find(Boolean) ?? formatTimestampTime(point.timestamp);
+  const temperatureTime = measurementTime ?? fallbackTime;
   const mucusSensation = point.mucus_sensation ?? point.mucusSensation ?? '';
   const mucusAppearance = point.mucus_appearance ?? point.mucusAppearance ?? '';
   const observations = point.observations ?? '';
@@ -307,17 +363,23 @@ const ChartTooltip = ({
                         <Thermometer className="w-4 h-4 text-white" />
                       </div>
                       <div className="flex-1">
-
-                        <div className="flex items-baseline gap-2">
-                          <span className="text-md font-bold text-gray-800">
-                            {parseFloat(temp).toFixed(2)}
-                          </span>
-                          <span className="text-md text-gray-600">°C</span>
-                          {point.use_corrected && (
-                            <div
-                              className="w-2 h-2 bg-amber-500 rounded-full shadow-[0_0_4px_rgba(245,158,11,0.65)]"
-                              title="Temperatura corregida"
-                            ></div>
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-baseline gap-2">
+                            <span className="text-md font-bold text-gray-800">
+                              {parseFloat(temp).toFixed(2)}
+                            </span>
+                            <span className="text-md text-gray-600">°C</span>
+                            {point.use_corrected && (
+                              <div
+                                className="w-2 h-2 bg-amber-500 rounded-full shadow-[0_0_4px_rgba(245,158,11,0.65)]"
+                                title="Temperatura corregida"
+                              ></div>
+                            )}
+                          </div>
+                          {temperatureTime && (
+                            <span className="text-sm font-medium text-gray-500 whitespace-nowrap">
+                              {temperatureTime}
+                            </span>
                           )}
                         </div>
                       </div>
