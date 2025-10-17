@@ -306,6 +306,7 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
   };
 
   const dots = createProgressDots();
+  const wheelRotationDegrees = (wheelOffset * 360) / totalDots;
 
   const stepAngleRadians = (2 * Math.PI) / totalDots;
   const seamAngle = -Math.PI / 2 - stepAngleRadians / 2;
@@ -491,8 +492,8 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
               <motion.g
                 transition={{ type: 'spring', stiffness: 100, damping: 22 }}
                 initial={false}
-                animate={{ 
-                  rotate: -(wheelOffset * 360) / totalDots 
+                animate={{
+                  rotate: -wheelRotationDegrees
                 }}
                 style={{ transformOrigin: 'center', transformBox: 'view-box' }}
               >
@@ -568,6 +569,7 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
                           pointerEvents: 'none',
                           filter: 'drop-shadow(0 2px 4px rgba(244, 114, 182, 0.35))'
                         }}
+                        transform={`rotate(${wheelRotationDegrees} ${dot.x} ${dot.y})`}
                         initial={{ scale: 0.2, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
                         transition={{
@@ -588,6 +590,7 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
                         fontWeight="800"
                         fill="#7f1d1d"
                         style={{ pointerEvents: 'none' }}
+                        transform={`rotate(${wheelRotationDegrees} ${dot.x} ${dot.y})`}
                         initial={{ scale: 0.2, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
                         transition={{

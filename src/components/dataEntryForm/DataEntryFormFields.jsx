@@ -23,7 +23,7 @@ import {
   Plus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { format, addDays, startOfDay, parseISO, addHours, parse } from 'date-fns';
+import { format, startOfDay, parseISO, addHours, parse } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { FERTILITY_SYMBOL_OPTIONS } from '@/config/fertilitySymbols';
 
@@ -101,8 +101,10 @@ const DataEntryFormFields = ({
     }
   };
   const cycleStart = startOfDay(parseISO(cycleStartDate));
-  const cycleEnd = cycleEndDate ? startOfDay(parseISO(cycleEndDate)) : addDays(cycleStart, 45);
-  const disabledDateRanges = [{ before: cycleStart }, { after: cycleEnd }];
+  const cycleEnd = cycleEndDate ? startOfDay(parseISO(cycleEndDate)) : null;
+  const disabledDateRanges = cycleEnd
+    ? [{ before: cycleStart }, { after: cycleEnd }]
+    : [{ before: cycleStart }];
   const selectedIsoDate = date ? format(date, 'yyyy-MM-dd') : null;
   const isCurrentPeak = peakTag === 'peak';
   const hasOtherPeak = existingPeakIsoDate && existingPeakIsoDate !== selectedIsoDate;

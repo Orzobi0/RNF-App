@@ -169,15 +169,15 @@ const getSymbolPalette = (symbolInfo = {}) => {
     case 'yellow':
       return {
         ...base,
-        iconBg: 'bg-amber-50',
-        iconBorder: 'border-amber-100',
-        iconColor: 'text-amber-500',
-        labelColor: 'text-amber-600',
-        valueColor: 'text-amber-600',
-        chipBorder: 'border-amber-100',
-        hoverBg: 'hover:bg-amber-50',
-        focusRing: 'focus-visible:ring-2 focus-visible:ring-amber-100',
-        dotColor: 'bg-amber-400',
+        iconBg: 'bg-yellow-50',
+        iconBorder: 'border-yellow-100',
+        iconColor: 'text-yellow-500',
+        labelColor: 'text-yellow-600',
+        valueColor: 'text-yellow-600',
+        chipBorder: 'border-yellow-100',
+        hoverBg: 'hover:bg-yellow-50',
+        focusRing: 'focus-visible:ring-2 focus-visible:ring-yellow-100',
+        dotColor: 'bg-yellow-300',
       };
     case 'spot':
       return {
@@ -389,7 +389,7 @@ const RecordCard = ({
           title: details.observationsText?.trim() ? details.observationsText : '—',
           hasValue: Boolean(details.observationsText?.trim()),
           isMultiline: true,
-          minWidthClass: 'min-w-[10rem]',
+          minWidthClass: 'min-w-[9rem]',
         },
         {
           key: 'fertilitySymbol',
@@ -397,13 +397,7 @@ const RecordCard = ({
           palette: symbolPalette,
           title: symbolLabel || 'Sin símbolo',
           hasValue: Boolean(hasSymbolValue),
-          renderIcon: () => (
-            <span
-              className={`flex h-5 w-5 items-center justify-center rounded-full border ${symbolPalette.iconBorder} ${symbolPalette.iconBg}`}
-            >
-            </span>
-          ),
-          minWidthClass: 'min-w-[8rem]',
+          minWidthClass: 'min-w-[7.5rem]',
         },
         {
           key: 'editAction',
@@ -437,11 +431,11 @@ const RecordCard = ({
         <React.Fragment key={field.key}>
           {index > 0 && <div className="my-1.5 border-t border-slate-100" />}
           <div className="flex flex-wrap gap-1.5">
-            {field.items.map((item) => {
-              if (item.isAction) {
-                const Icon = item.icon;
+          {field.items.map((item) => {
+            if (item.isAction) {
+              const Icon = item.icon;
 
-                return (
+              return (
                   <button
                     key={item.key}
                     type="button"
@@ -464,12 +458,24 @@ const RecordCard = ({
               const hasValue = item.hasValue ?? Boolean(item.title);
               const displayValue = item.title || '-';
               const minWidthClass = item.minWidthClass || 'min-w-[8rem]';
+              const iconElement = item.renderIcon
+                ? item.renderIcon()
+                : Icon
+                  ? (
+                      <span
+                        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${palette.iconBorder} ${palette.iconBg}`}
+                      >
+                        <Icon className={`h-3 w-3 ${palette.iconColor}`} />
+                      </span>
+                    )
+                  : null;
+              const gapClass = iconElement ? 'gap-2.5' : 'gap-1.5';
 
               return (
                 <button
                   key={item.key}
                   type="button"
-                  className={`flex ${minWidthClass} flex-1 items-center gap-2.5 rounded-2xl border ${palette.chipBorder} ${palette.chipBg} px-2.5 py-1.5 text-left transition-colors ${palette.hoverBg} focus:outline-none ${palette.focusRing}`}
+                  className={`flex ${minWidthClass} flex-1 items-center ${gapClass} rounded-2xl border ${palette.chipBorder} ${palette.chipBg} px-2.5 py-1.5 text-left transition-colors ${palette.hoverBg} focus:outline-none ${palette.focusRing}`}
                   onClick={(event) => {
                     event.stopPropagation();
                     event.preventDefault();
@@ -478,13 +484,7 @@ const RecordCard = ({
                     }
                   }}
                 >
-                  {item.renderIcon ? (
-                    item.renderIcon()
-                  ) : (
-                    <span className={`flex h-6 w-6 items-center justify-center rounded-full border ${palette.iconBorder} ${palette.iconBg}`}>
-                      {Icon && <Icon className={`h-3 w-3 ${palette.iconColor}`} />}
-                    </span>
-                  )}
+                  {iconElement}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start gap-1.5">
                       <span
@@ -509,6 +509,16 @@ const RecordCard = ({
     const Icon = field.icon;
     const valueClass = field.value ? palette.valueColor : 'text-slate-400';
     const valueText = field.value ?? '—';
+    const iconElement = Icon
+      ? (
+          <span
+            className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${palette.iconBorder} ${palette.iconBg}`}
+          >
+            <Icon className={`h-3 w-3 ${palette.iconColor}`} />
+          </span>
+        )
+      : null;
+    const contentGapClass = iconElement ? 'gap-2.5' : 'gap-1.5';
 
     return (
       <React.Fragment key={field.key}>
@@ -524,10 +534,8 @@ const RecordCard = ({
             }
           }}
         >
-          <div className={`flex min-w-0 flex-1 items-start gap-2.5 ${field.isMultiline ? 'pt-0.5' : ''}`}>
-            <span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${palette.iconBorder} ${palette.iconBg}`}>
-              <Icon className={`h-3 w-3 ${palette.iconColor}`} />
-            </span>
+          <div className={`flex min-w-0 flex-1 items-start ${contentGapClass} ${field.isMultiline ? 'pt-0.5' : ''}`}>
+            {iconElement}
             <div className="min-w-0 flex-1">
               <span
                 className={`block text-sm leading-snug ${valueClass} ${field.isMultiline ? 'whitespace-pre-line' : 'truncate'}`}
@@ -547,7 +555,7 @@ const RecordCard = ({
       layout
       ref={setRefs}
       onClick={() => onToggle(isoDate)}
-      className={`group relative flex w-full cursor-pointer flex-col rounded-2xl border border-rose-100 bg-white/75 px-4 py-3 shadow-sm backdrop-blur-md transition-all duration-300 hover:shadow-lg sm:px-5 ${
+      className={`group relative mx-0.5 flex w-full cursor-pointer flex-col rounded-2xl border border-rose-100 bg-white/75 px-4 py-3 shadow-sm backdrop-blur-md transition-all duration-300 hover:shadow-lg sm:mx-1 sm:px-5 ${
         isSelected ? 'bg-white/90 ring-2 ring-rose-400 shadow-rose-200/70' : ''
       }`}
       whileHover={{ translateY: -2 }}
@@ -1672,7 +1680,7 @@ const RecordsPage = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.1 }}
-            className="relative space-y-1 pt-2 pb-10"
+            className="relative space-y-2 px-1.5 pt-2 pb-10 sm:px-2"
           >
          
           {cycleDays.length === 0 ? (
