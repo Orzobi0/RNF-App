@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -18,9 +18,39 @@ const AuthPage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [isOnline, setIsOnline] = useState(
+    typeof navigator === 'undefined' ? true : navigator.onLine
+  );
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (isLogin && !isOnline) {
+      toast({
+        title: 'Sin conexión',
+        description: 'No hay conexión a internet. Inténtalo de nuevo cuando vuelva la señal.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
     setLoading(true);
     try {
       if (isLogin) {
@@ -38,11 +68,19 @@ const AuthPage = () => {
         navigate('/');
       }
     } catch (error) {
-      toast({
-        title: isLogin ? 'Error al iniciar sesión' : 'Error al registrarse',
-        description: error.message,
-        variant: 'destructive'
-      });
+      if (error?.code === 'network-offline') {
+        toast({
+          title: 'Sin conexión',
+          description: 'No hay conexión a internet. Inténtalo de nuevo cuando vuelva la señal.',
+          variant: 'destructive'
+        });
+      } else {
+        toast({
+          title: isLogin ? 'Error al iniciar sesión' : 'Error al registrarse',
+          description: error.message,
+          variant: 'destructive'
+        });
+      }
       setLoading(false);
     }
   };
@@ -83,8 +121,16 @@ const AuthPage = () => {
           </motion.h1>
           <p className="text-gray-600 text-lg">{isLogin ? 'Inicia sesión para continuar' : 'Crea tu cuenta'}</p>
         </div>
+        <p className="mt-2 text-sm text-gray-500">
+            Si ya habías iniciado sesión, la app conservará tus datos y podrás usarlos sin conexión. Los cambios nuevos se sincronizarán automáticamente cuando vuelva internet.
+          </p>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {!isOnline && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800" role="alert">
+              No hay conexión a internet. Podrás usar la app en modo lectura. Inicia sesión cuando la conexión se recupere.
+            </div>
+          )}
           <div className="space-y-2">
             <Label htmlFor="email" className="flex items-center text-gray-700 text-lg">
               <Mail className="mr-2 h-5 w-5 text-pink-400" /> Correo Electrónico
@@ -166,7 +212,7 @@ const AuthPage = () => {
 
           <Button
             type="submit"
-            disabled={loading}
+            disabled={loading || (isLogin && !isOnline)}
             className="w-full bg-gradient-to-r from-pink-500 to-fuchsia-600 hover:from-pink-600 hover:to-fuchsia-700 text-white font-semibold py-3 text-lg shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105 flex items-center justify-center"
           >
             {loading ? (

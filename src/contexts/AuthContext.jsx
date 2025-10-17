@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { auth, db } from '@/lib/firebaseClient';
+import { auth, authPersistenceReady, db } from '@/lib/firebaseClient';
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
@@ -14,7 +14,9 @@ import {
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { useToast } from '@/components/ui/use-toast';
 
-    const AuthContext = createContext(null);
+const AuthContext = createContext(null);
+
+const isNavigatorOnline = () => (typeof navigator === 'undefined' ? true : navigator.onLine);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -23,46 +25,87 @@ export const AuthProvider = ({ children }) => {
   const { toast } = useToast();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        setUser({
-          id: firebaseUser.uid,
-          uid: firebaseUser.uid,
-          email: firebaseUser.email,
-          displayName: firebaseUser.displayName,
-          photoURL: firebaseUser.photoURL,
-        });
-        const prefRef = doc(db, `users/${firebaseUser.uid}/preferences`, 'display');
-        try {
-          const prefSnap = await getDoc(prefRef);
-          if (prefSnap.exists()) {
-            setPreferences(prefSnap.data());
-          } else {
-            setPreferences({ theme: 'light', units: 'metric' });
-          }
-        } catch (error) {
-          console.error('Failed to load preferences', error);
-          setPreferences({ theme: 'light', units: 'metric' });
+    let unsubscribe = null;
+    let isMounted = true;
+
+    authPersistenceReady
+      .then(() => {
+        if (!isMounted) {
+          return;
         }
-      } else {
-        setUser(null);
-        setPreferences(null);
+
+        unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+          if (!isMounted) {
+            return;
+          }
+
+          if (firebaseUser) {
+            setUser({
+              id: firebaseUser.uid,
+              uid: firebaseUser.uid,
+              email: firebaseUser.email,
+              displayName: firebaseUser.displayName,
+              photoURL: firebaseUser.photoURL
+            });
+            const prefRef = doc(db, `users/${firebaseUser.uid}/preferences`, 'display');
+            try {
+              const prefSnap = await getDoc(prefRef);
+              if (prefSnap.exists()) {
+                setPreferences(prefSnap.data());
+              } else {
+                setPreferences({ theme: 'light', units: 'metric' });
+              }
+            } catch (error) {
+              console.error('Failed to load preferences', error);
+              setPreferences({ theme: 'light', units: 'metric' });
+            }
+          } else {
+            setUser(null);
+            setPreferences(null);
+          }
+
+          setLoadingAuth(false);
+        });
+      })
+      .catch((error) => {
+        console.error('Failed to initialize auth persistence listener.', error);
+        if (isMounted) {
+          setLoadingAuth(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
       }
-        setLoadingAuth(false);
-    });
-    return () => unsubscribe();
+        };
   }, []);
 
   const login = async (email, password) => {
+    await authPersistenceReady;
+
+    if (!isNavigatorOnline()) {
+      const offlineError = new Error('Sin conexión a internet.');
+      offlineError.code = 'network-offline';
+      throw offlineError;
+    }
+
     try {
       await signInWithEmailAndPassword(auth, email, password);
     } catch (error) {
-      toast({ title: 'Error al iniciar sesión', description: error.message, variant: 'destructive' });
+      if (error?.code === 'auth/network-request-failed') {
+        const offlineError = new Error(error.message ?? 'Sin conexión a internet.');
+        offlineError.code = 'network-offline';
+        throw offlineError;
+      }
+
       throw error;
     }
   };
 
   const register = async (email, password) => {
+    await authPersistenceReady;
     try {
       await createUserWithEmailAndPassword(auth, email, password);
     } catch (error) {
@@ -72,6 +115,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const resetPassword = async (email) => {
+    await authPersistenceReady;
     try {
       await sendPasswordResetEmail(auth, email);
     } catch (error) {
@@ -81,6 +125,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = async () => {
+    await authPersistenceReady;
     try {
       await signOut(auth);
       setUser(null);
@@ -111,17 +156,17 @@ export const AuthProvider = ({ children }) => {
       throw error;
     }
   };
-const savePreferences = async (prefs) => {
-  if (!auth.currentUser) return;
-  const prefRef = doc(db, `users/${auth.currentUser.uid}/preferences`, 'display');
-  try {
-    await setDoc(prefRef, prefs);
-    setPreferences(prefs);
-  } catch (error) {
-    console.error('Failed to save preferences', error);
-    toast({ title: 'Error al guardar preferencias', description: error.message, variant: 'destructive' });
-  }
-};
+  const savePreferences = async (prefs) => {
+    if (!auth.currentUser) return;
+    const prefRef = doc(db, `users/${auth.currentUser.uid}/preferences`, 'display');
+    try {
+      await setDoc(prefRef, prefs);
+      setPreferences(prefs);
+    } catch (error) {
+      console.error('Failed to save preferences', error);
+      toast({ title: 'Error al guardar preferencias', description: error.message, variant: 'destructive' });
+    }
+  };
 
   const updateProfileInfo = async (profile) => {
     if (!auth.currentUser) return;
@@ -160,12 +205,13 @@ const savePreferences = async (prefs) => {
         savePreferences,
         updateProfile: updateProfileInfo,
         deleteAccount,
-        loadingAuth,
-      }}>
+        loadingAuth
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
 };
 
-    export const useAuth = () => useContext(AuthContext);
+export const useAuth = () => useContext(AuthContext);
   
