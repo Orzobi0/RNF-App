@@ -23,7 +23,7 @@ import {
   Plus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { format, addDays, startOfDay, parseISO, addHours, parse } from 'date-fns';
+import { format, startOfDay, parseISO, addHours, parse } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { FERTILITY_SYMBOL_OPTIONS } from '@/config/fertilitySymbols';
 
@@ -101,8 +101,10 @@ const DataEntryFormFields = ({
     }
   };
   const cycleStart = startOfDay(parseISO(cycleStartDate));
-  const cycleEnd = cycleEndDate ? startOfDay(parseISO(cycleEndDate)) : addDays(cycleStart, 45);
-  const disabledDateRanges = [{ before: cycleStart }, { after: cycleEnd }];
+  const cycleEnd = cycleEndDate ? startOfDay(parseISO(cycleEndDate)) : null;
+  const disabledDateRanges = cycleEnd
+    ? [{ before: cycleStart }, { after: cycleEnd }]
+    : [{ before: cycleStart }];
   const selectedIsoDate = date ? format(date, 'yyyy-MM-dd') : null;
   const isCurrentPeak = peakTag === 'peak';
   const hasOtherPeak = existingPeakIsoDate && existingPeakIsoDate !== selectedIsoDate;
@@ -244,6 +246,7 @@ const DataEntryFormFields = ({
             </div>
             <div className="grid grid-cols-2 gap-2">
               <Input
+                data-field={idx === 0 ? 'temperature' : undefined}
                 type="number"
                 step="0.01"
                 min="34.0"
@@ -256,6 +259,7 @@ const DataEntryFormFields = ({
                 disabled={isProcessing}
               />
               <Input
+                data-field={idx === 0 ? 'time' : undefined}
                 type="time"
                 value={m.time}
                 onChange={(e) => updateMeasurement(idx, 'time', e.target.value)}
@@ -429,7 +433,10 @@ const DataEntryFormFields = ({
             )}
           </div>
           <Select value={fertilitySymbol} onValueChange={setFertilitySymbol} disabled={isProcessing}>
-            <SelectTrigger className="w-full bg-white border-slate-200 text-gray-800 hover:bg-white">
+            <SelectTrigger
+              className="w-full bg-white border-slate-200 text-gray-800 hover:bg-white"
+              data-field="fertilitySymbol"
+            >
               <SelectValue placeholder="Selecciona un símbolo" />
             </SelectTrigger>
             <SelectContent className="bg-white border-slate-200 text-gray-800">
@@ -457,6 +464,7 @@ const DataEntryFormFields = ({
           Sensación del moco
         </Label>
         <Input
+          data-field="mucusSensation"
           id="mucusSensation"
           value={mucusSensation}
           onChange={(e) => setMucusSensation(e.target.value)}
@@ -470,6 +478,7 @@ const DataEntryFormFields = ({
           Apariencia del moco
         </Label>
         <Input
+          data-field="mucusAppearance"
           id="mucusAppearance"
           value={mucusAppearance}
           onChange={(e) => setMucusAppearance(e.target.value)}
@@ -484,6 +493,7 @@ const DataEntryFormFields = ({
           Observaciones
         </Label>
         <Textarea
+          data-field="observations"
           id="observations"
           value={observations}
           onChange={(e) => setObservations(e.target.value)}

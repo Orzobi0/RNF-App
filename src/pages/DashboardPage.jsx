@@ -306,6 +306,25 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
   };
 
   const dots = createProgressDots();
+  const wheelRotationDegrees = (wheelOffset * 360) / totalDots;
+
+  const rotationRadians = (-wheelRotationDegrees * Math.PI) / 180;
+  const cosRotation = Math.cos(rotationRadians);
+  const sinRotation = Math.sin(rotationRadians);
+
+  const rotatePoint = useCallback(
+    (x, y) => {
+      const dx = x - center;
+      const dy = y - center;
+
+      return {
+        x: center + dx * cosRotation - dy * sinRotation,
+        y: center + dx * sinRotation + dy * cosRotation,
+      };
+    },
+    [center, cosRotation, sinRotation]
+  );
+
 
   const stepAngleRadians = (2 * Math.PI) / totalDots;
   const seamAngle = -Math.PI / 2 - stepAngleRadians / 2;
@@ -491,8 +510,8 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
               <motion.g
                 transition={{ type: 'spring', stiffness: 100, damping: 22 }}
                 initial={false}
-                animate={{ 
-                  rotate: -(wheelOffset * 360) / totalDots 
+                animate={{
+                  rotate: -wheelRotationDegrees
                 }}
                 style={{ transformOrigin: 'center', transformBox: 'view-box' }}
               >
@@ -543,9 +562,9 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
                     initial={{ scale: 0, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     transition={{
-                      duration: 0.6,
-                      delay: 0.8 + index * 0.02,
-                      type: 'spring',
+                      duration: 0.2,
+                      delay: 0.1,
+                      type: 'tween',
                       stiffness: 400,
                       damping: 25
                     }}
@@ -554,57 +573,60 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
                       cursor: 'pointer'
                     }}
                   />
-                {dot.peakStatus && (
-                    <g>
-                    {dot.peakStatus === 'P' ? (
-                      <motion.text
-                        x={dot.x}
-                        y={dot.y + 4}
-                        textAnchor="middle"
-                        fontSize="14"
-                        fontWeight="900"
-                        fill="#ec4899"
-                        style={{
-                          pointerEvents: 'none',
-                          filter: 'drop-shadow(0 2px 4px rgba(244, 114, 182, 0.35))'
-                        }}
-                        initial={{ scale: 0.2, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        transition={{
-                          delay: 0.95 + index * 0.02,
-                          type: 'spring',
-                          stiffness: 320,
-                          damping: 22
-                        }}
-                      >
-                        ✖
-                      </motion.text>
-                    ) : (
-                      <motion.text
-                        x={dot.x}
-                        y={dot.y + 4}
-                        textAnchor="middle"
-                        fontSize="12"
-                        fontWeight="800"
-                        fill="#7f1d1d"
-                        style={{ pointerEvents: 'none' }}
-                        initial={{ scale: 0.2, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        transition={{
-                          delay: 0.95 + index * 0.02,
-                          type: 'spring',
-                          stiffness: 320,
-                          damping: 22
-                        }}
-                      >
-                        {dot.peakStatus}
-                      </motion.text>
-                    )}
-                  </g>
-                )}
                 </g>
                 ))}
               </motion.g>
+
+              {dots.map((dot, index) => {
+                if (!dot.peakStatus) {
+                  return null;
+                }
+
+                const { x: labelX, y: labelY } = rotatePoint(dot.x, dot.y);
+                const baseProps = {
+                  key: `peak-${index}`,
+                  x: labelX,
+                  y: labelY + 4,
+                  textAnchor: 'middle',
+                  initial: { scale: 0.2, opacity: 0 },
+                  animate: { scale: 1, opacity: 1 },
+                  transition: {
+                    delay: 0.95 + index * 0.02,
+                    type: 'spring',
+                    stiffness: 320,
+                    damping: 22,
+                  },
+                };
+
+                if (dot.peakStatus === 'P') {
+                  return (
+                    <motion.text
+                      {...baseProps}
+                      fontSize="14"
+                      fontWeight="900"
+                      fill="#ec4899"
+                      style={{
+                        pointerEvents: 'none',
+                        filter: 'drop-shadow(0 2px 4px rgba(244, 114, 182, 0.35))',
+                      }}
+                    >
+                      ✖
+                    </motion.text>
+                  );
+                }
+
+                return (
+                  <motion.text
+                    {...baseProps}
+                    fontSize="12"
+                    fontWeight="800"
+                    fill="#7f1d1d"
+                    style={{ pointerEvents: 'none' }}
+                  >
+                    {dot.peakStatus}
+                  </motion.text>
+                );
+              })}
             </svg>
                         {activePoint && (
               <div onClick={(e) => e.stopPropagation()}>
@@ -666,7 +688,7 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <div className="flex flex-col items-center gap-1">
-                <span className="text-xs font-semibold text-rose-600 tracking-wide uppercase">Rueda del ciclo</span>
+                
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-medium text-rose-500">
                     Día {wheelOffset + 1}
@@ -711,8 +733,8 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
               boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.7)'
             }}
           >
-            
-            <h3 className="font-bold mb-6 text-gray-800 flex items-center gap-2 justify-center text-xs tracking-wide uppercase">
+
+            <h3 className="font-bold mb-4 text-gray-800 flex items-center gap-2 justify-center text-xs tracking-wide uppercase">
             Símbolos
             </h3>
             

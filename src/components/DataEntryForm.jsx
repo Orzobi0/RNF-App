@@ -19,6 +19,7 @@ const DataEntryForm = ({
   cycleData = [],
   onDateSelect,
   defaultIsoDate,
+  focusedField,
 }) => {
   const formRef = useRef(null);
   useBackClose(Boolean(onCancel), onCancel);
@@ -36,6 +37,32 @@ const DataEntryForm = ({
     form.addEventListener('focusin', handleFocus);
     return () => form.removeEventListener('focusin', handleFocus);
   }, []);
+
+  useEffect(() => {
+    if (!focusedField) {
+      return;
+    }
+
+    const form = formRef.current;
+    if (!form) {
+      return;
+    }
+
+    const focusTarget = form.querySelector(`[data-field="${focusedField}"]`);
+
+    if (focusTarget) {
+      requestAnimationFrame(() => {
+        if (typeof focusTarget.scrollIntoView === 'function') {
+          focusTarget.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        if (typeof focusTarget.focus === 'function') {
+          focusTarget.focus();
+        }
+      });
+    }
+  }, [focusedField]);
+
 
   const {
     date,

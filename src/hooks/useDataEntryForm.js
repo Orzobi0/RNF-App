@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
-import { format, startOfDay, parseISO, addDays } from 'date-fns';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { format, startOfDay, parseISO } from 'date-fns';
 import { useToast } from '@/components/ui/use-toast';
 import { FERTILITY_SYMBOLS } from '@/config/fertilitySymbols';
 
@@ -37,13 +37,6 @@ export const useDataEntryForm = (
 
     if (cycleEnd && candidate > cycleEnd) {
       candidate = cycleEnd;
-    }
-
-    if (!cycleEnd && cycleStart) {
-      const maxAllowedDate = addDays(cycleStart, 45);
-      if (candidate > maxAllowedDate) {
-        candidate = maxAllowedDate;
-      }
     }
 
     return candidate;
@@ -102,7 +95,16 @@ export const useDataEntryForm = (
   }, [cycleData]);
   const { toast } = useToast();
 
+  const previousInitialDataRef = useRef(initialData);
+  const previousDefaultIsoRef = useRef(defaultIsoDate);
+
   useEffect(() => {
+    const hadInitialData = Boolean(previousInitialDataRef.current);
+    const defaultIsoChanged = previousDefaultIsoRef.current !== defaultIsoDate;
+
+    previousInitialDataRef.current = initialData;
+    previousDefaultIsoRef.current = defaultIsoDate;
+
     if (initialData) {
       setDate(parseISO(initialData.isoDate));
       if (initialData.measurements && Array.isArray(initialData.measurements)) {
@@ -142,7 +144,9 @@ export const useDataEntryForm = (
       setObservations('');
       setIgnored(false);
       setPeakTag(null);
-      setDate(getDefaultDate());
+      if (!hadInitialData || defaultIsoChanged) {
+        setDate(getDefaultDate());
+      }
     }
   }, [initialData, defaultIsoDate]);
 
@@ -167,13 +171,6 @@ export const useDataEntryForm = (
 
       if (cycleEnd && adjustedDate > cycleEnd) {
         adjustedDate = cycleEnd;
-      }
-
-      if (!cycleEnd && cycleStart) {
-        const maxAllowedDate = addDays(cycleStart, 45);
-        if (adjustedDate > maxAllowedDate) {
-          adjustedDate = maxAllowedDate;
-        }
       }
 
       return adjustedDate;
@@ -243,8 +240,8 @@ export const useDataEntryForm = (
     const cycleStart = startOfDay(parseISO(cycleStartDate));
     const cycleEnd = cycleEndDate
       ? startOfDay(parseISO(cycleEndDate))
-      : addDays(cycleStart, 45);
-    if (date < cycleStart || date > cycleEnd) {
+      : null;
+    if (date < cycleStart || (cycleEnd && date > cycleEnd)) {
       toast({
         title: 'Error',
         description: 'La fecha debe estar dentro del ciclo.',

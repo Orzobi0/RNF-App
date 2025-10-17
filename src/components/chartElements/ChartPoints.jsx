@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { parseISO, startOfDay, isAfter } from 'date-fns';
+import { parseISO, startOfDay, isAfter, isSameDay } from 'date-fns';
 import { getSymbolAppearance } from '@/config/fertilitySymbols';
 
 // Colores consistentes con la dashboard pero con mejor contraste para el chart
@@ -23,6 +23,7 @@ const PEAK_EMOJI_COLOR = '#ec4899';
 const PEAK_TEXT_SHADOW = 'drop-shadow(0 2px 4px rgba(244, 114, 182, 0.35))';
 const HIGH_SEQUENCE_NUMBER_COLOR = '#be185d';
 const BASELINE_NUMBER_COLOR = '#2563eb';
+const TODAY_HIGHLIGHT_COLOR = '#be185d';
 
 
 /** Quita ceros iniciales a día/mes */
@@ -130,6 +131,7 @@ const ChartPoints = ({
   const MotionG = reduceMotion ? 'g' : motion.g;
 
   const totalPoints = Array.isArray(data) ? data.length : 0;
+  const today = useMemo(() => startOfDay(new Date()), []);
 
   const highSequenceOrderMap = useMemo(() => {
     if (!showInterpretation) {
@@ -323,7 +325,7 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
           correctedTemp != null &&
           Math.abs(correctedTemp - rawTemp) > 0.01;
         const rawY = showCorrectionIndicator ? getY(rawTemp) : null;  
-        const textFill = isFullScreen ? "#374151" : "#6B7280";
+        const baseTextFill = isFullScreen ? "#374151" : "#6B7280";
         const hasTemp = point[temperatureField] != null;
         const hasAnyRecord = hasTemp
           || point.mucus_sensation
@@ -373,6 +375,11 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
               onClick: (e) => onPointInteraction(point, index, e)
             }
           : {};
+
+        const isTodayPoint = point.isoDate
+          ? isSameDay(parseISO(point.isoDate), today)
+          : false;
+        const highlightedTextFill = isTodayPoint ? TODAY_HIGHLIGHT_COLOR : baseTextFill;
 
         const hasHighOrder = highSequenceOrderMap.has(index);
         const highOrder = hasHighOrder ? highSequenceOrderMap.get(index) : null;
@@ -486,7 +493,7 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
                   }
                   stroke={
                     point.use_corrected
-                      ? '#F59E0B'
+                      ? '#941616'
                       : point.ignored
                         ? '#94A3B8'
                         : isPeakTemperaturePoint
@@ -586,14 +593,14 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
               )}
 
             {/* Fecha con estilo mejorado */}
-            <text 
-              x={x} 
-              y={dateRowY} 
+            <text
+              x={x}
+              y={dateRowY}
               textAnchor="middle"
               fontSize={responsiveFontSize(1.05)}
               fontWeight="900"
-              fill={textFill}
-              style={{ 
+              fill={highlightedTextFill}
+              style={{
                 fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
                 filter: 'drop-shadow(0 1px 1px rgba(255, 255, 255, 0.8))'
               }}
@@ -602,14 +609,14 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
             </text>
 
             {/* Día del ciclo con estilo mejorado */}
-            <text 
-              x={x} 
-              y={cycleDayRowY} 
+            <text
+              x={x}
+              y={cycleDayRowY}
               textAnchor="middle"
               fontSize={responsiveFontSize(1)}
               fontWeight="900"
-              fill={textFill}
-              style={{ 
+              fill={highlightedTextFill}
+              style={{
                 fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
                 filter: 'drop-shadow(0 1px 1px rgba(255, 255, 255, 0.8))'
               }}
@@ -703,7 +710,7 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
                       ? PEAK_EMOJI_COLOR
                       : isPostPeakMarker
                         ? POST_PEAK_MARKER_COLOR
-                        : textFill
+                        : baseTextFill
                   }
                   fontWeight={isPeakMarker ? '900' : isPostPeakMarker ? '800' : '500'}
                   style={{

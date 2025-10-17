@@ -675,15 +675,32 @@ const FertilityChart = ({
 
           {activeIndex !== null && highlightX !== null && dayWidth > 0 && (
             <g pointerEvents="none">
-              <line
-                x1={highlightX}
-                y1={0}
-                x2={highlightX}
-                y2={chartHeight}
-                stroke="rgba(235, 171, 204,0.15)"
-                strokeWidth={Math.max(3, Math.min(14, dayWidth * 0.4))}
-                strokeLinecap="round"
-              />
+              {(() => {
+                const chartAreaBottomY = chartHeight - padding.bottom;
+                const thinStrokeWidth = Math.max(3, Math.min(14, dayWidth * 0.4));
+                const thickStrokeWidth = Math.max(thinStrokeWidth * 2, textRowHeight * 0.85);
+
+                return (
+                  <>
+                    <line
+                      x1={highlightX}
+                      y1={0}
+                      x2={highlightX}
+                      y2={chartAreaBottomY}
+                      stroke="rgba(235, 171, 204,0.15)"
+                      strokeWidth={thinStrokeWidth}                      
+                    />
+                    <line
+                      x1={highlightX}
+                      y1={chartAreaBottomY}
+                      x2={highlightX}
+                      y2={chartHeight}
+                      stroke="rgba(235, 171, 204,0.15)"
+                      strokeWidth={thickStrokeWidth}                      
+                    />
+                  </>
+                );
+              })()}
             </g>
           )}
 
