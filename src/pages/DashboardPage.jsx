@@ -544,9 +544,9 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
                     initial={{ scale: 0, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     transition={{
-                      duration: 0.6,
-                      delay: 0.8 + index * 0.02,
-                      type: 'spring',
+                      duration: 0.2,
+                      delay: 0.1,
+                      type: 'tween',
                       stiffness: 400,
                       damping: 25
                     }}
@@ -568,8 +568,7 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
                         style={{
                           pointerEvents: 'none',
                           filter: 'drop-shadow(0 2px 4px rgba(244, 114, 182, 0.35))'
-                        }}
-                        transform={`rotate(${wheelRotationDegrees} ${dot.x} ${dot.y})`}
+                        }}                        
                         initial={{ scale: 0.2, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
                         transition={{
@@ -590,7 +589,6 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
                         fontWeight="800"
                         fill="#7f1d1d"
                         style={{ pointerEvents: 'none' }}
-                        transform={`rotate(${wheelRotationDegrees} ${dot.x} ${dot.y})`}
                         initial={{ scale: 0.2, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
                         transition={{
