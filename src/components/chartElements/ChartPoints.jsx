@@ -486,7 +486,7 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
                   }
                   stroke={
                     point.use_corrected
-                      ? '#F59E0B'
+                      ? '#941616'
                       : point.ignored
                         ? '#94A3B8'
                         : isPeakTemperaturePoint
