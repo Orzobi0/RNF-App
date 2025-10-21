@@ -151,7 +151,7 @@ const getSymbolPalette = (symbolInfo = {}) => {
         chipBorder: 'border-slate-200',
         hoverBg: 'hover:bg-slate-50',
         focusRing: 'focus-visible:ring-2 focus-visible:ring-slate-200',
-        dotColor: 'bg-slate-300',
+        dotColor: 'bg-white',
       };
     case 'green':
       return {
@@ -577,7 +577,7 @@ const RecordCard = ({
         />
         <div className="ml-auto flex items-center">
           <div
-            className={`flex h-6 w-6 items-center justify-center rounded-full border ${symbolPalette.dotColor} ${symbolPalette.patternClass} shadow-inner`}
+            className={`flex h-6 w-6 items-center justify-center rounded-full border border-slate-400/60 ${symbolPalette.dotColor} ${symbolPalette.patternClass} shadow-inner`}
             title={symbolLabel}
           >            
           </div>
@@ -1672,7 +1672,7 @@ const RecordsPage = () => {
           className="sticky mt-4 overflow-y-auto overscroll-contain"
           style={{
             top: boundaryPx,
-            maxHeight: `calc(100dvh - ${boundaryPx}px)`,
+            maxHeight: `max(0px, calc(100dvh - ${boundaryPx}px - var(--bottom-nav-safe)))`,
             WebkitOverflowScrolling: 'touch',
           }}
         >

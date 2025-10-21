@@ -14,6 +14,21 @@ const cloneData = (data) => {
   return JSON.parse(JSON.stringify(data));
 };
 
+const normalizeCachedPayload = (data) => {
+  if (!data) {
+    return null;
+  }
+
+  const pendingOperations = Array.isArray(data.pendingOperations)
+    ? data.pendingOperations
+    : [];
+
+  return {
+    ...data,
+    pendingOperations
+  };
+};
+
 const openDatabase = () =>
   new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
@@ -60,7 +75,7 @@ export const getCachedCycleData = async (userId) => {
   if (isIndexedDBSupported()) {
     try {
       const result = await runStoreOperation('readonly', (store) => store.get(userId));
-      return result ?? null;
+      return normalizeCachedPayload(result ?? null);
     } catch (error) {
       console.error('Failed to retrieve cached cycle data.', error);
     }
@@ -69,7 +84,8 @@ export const getCachedCycleData = async (userId) => {
   if (isLocalStorageSupported()) {
     try {
       const raw = localStorage.getItem(`${STORAGE_KEY_PREFIX}${userId}`);
-      return raw ? JSON.parse(raw) : null;
+      const parsed = raw ? JSON.parse(raw) : null;
+      return normalizeCachedPayload(parsed);
     } catch (error) {
       console.error('Failed to read cached cycle data from localStorage.', error);
     }
@@ -81,7 +97,10 @@ export const getCachedCycleData = async (userId) => {
 export const saveCycleDataToCache = async (userId, data) => {
   if (!userId) return;
 
-  const payload = cloneData(data);
+  const payload = cloneData({
+    ...data,
+    pendingOperations: Array.isArray(data?.pendingOperations) ? data.pendingOperations : []
+  });
 
   if (isIndexedDBSupported()) {
     try {
@@ -99,6 +118,18 @@ export const saveCycleDataToCache = async (userId, data) => {
       console.error('Failed to persist cycle data cache in localStorage.', error);
     }
   }
+};
+
+export const mergeCycleDataCache = async (userId, partialData = {}) => {
+  if (!userId) return null;
+
+  const existing = (await getCachedCycleData(userId)) ?? {};
+  const merged = {
+    ...existing,
+    ...partialData
+  };
+  await saveCycleDataToCache(userId, merged);
+  return merged;
 };
 
 export const clearCycleDataCache = async (userId) => {

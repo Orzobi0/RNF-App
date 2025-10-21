@@ -1,11 +1,12 @@
 // src/lib/firebaseClient.js
-import { initializeApp } from 'firebase/app';
+import { getApp, getApps, initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 import {
+  browserLocalPersistence,
   getAuth,
-  setPersistence,
   indexedDBLocalPersistence,
-  browserLocalPersistence
+  inMemoryPersistence,
+  initializeAuth
 } from 'firebase/auth';
 
 const firebaseConfig = {
@@ -17,25 +18,59 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-const app = initializeApp(firebaseConfig);
+const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 export const db = getFirestore(app);
-export const auth = getAuth(app);
 
-const configureAuthPersistence = async () => {
+let authInstance = null;
+
+let resolveAuthReady;
+let rejectAuthReady;
+export const authPersistenceReady = new Promise((resolve, reject) => {
+  resolveAuthReady = resolve;
+  rejectAuthReady = reject;
+});
+
+const initializeClientAuth = () => {
+  if (authInstance) {
+    return authInstance;
+  }
+
+  if (typeof window === 'undefined') {
+    authInstance = getAuth(app);
+    resolveAuthReady(authInstance);
+    return authInstance;
+  }
+
   try {
-    await setPersistence(auth, indexedDBLocalPersistence);
+    authInstance = initializeAuth(app, {
+      persistence: [indexedDBLocalPersistence, browserLocalPersistence]
+    });
+    resolveAuthReady(authInstance);
   } catch (error) {
-    console.warn('IndexedDB persistence unavailable, falling back to local storage.', error);
-    try {
-      await setPersistence(auth, browserLocalPersistence);
-    } catch (fallbackError) {
-      console.error('Failed to configure Firebase Auth persistence.', fallbackError);
+    if (error?.code === 'auth/already-initialized') {
+      authInstance = getAuth(app);
+      resolveAuthReady(authInstance);
+    } else {
+      console.warn(
+        'IndexedDB or local storage persistence unavailable. Falling back to in-memory persistence.',
+        error
+      );
+      try {
+        authInstance = initializeAuth(app, { persistence: [inMemoryPersistence] });
+        console.warn(
+          'Firebase Auth is running with in-memory persistence. The session will not survive a reload.'
+        );
+        resolveAuthReady(authInstance);
+      } catch (fallbackError) {
+        console.error('Failed to initialize Firebase Auth persistence.', fallbackError);
+        rejectAuthReady(fallbackError);
+      }
     }
   }
+  
+  return authInstance;
 };
 
-if (typeof window !== 'undefined') {
-  configureAuthPersistence().catch((error) => {
-    console.error('Unexpected error configuring Firebase Auth persistence.', error);
-  });
-}
+export const auth = initializeClientAuth();
+
+export const getFirebaseAuth = () => authInstance ?? getAuth(app);
