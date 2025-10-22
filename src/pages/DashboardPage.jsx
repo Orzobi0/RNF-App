@@ -952,45 +952,110 @@ const ModernFertilityDashboard = () => {
   const [overlapCycle, setOverlapCycle] = useState(null);
   const [showOverlapDialog, setShowOverlapDialog] = useState(false);
   const [isUpdatingStartDate, setIsUpdatingStartDate] = useState(false);
-  const { user } = useAuth();
+  const { user, preferences, savePreferences } = useAuth();
   const [isCpmDialogOpen, setIsCpmDialogOpen] = useState(false);
   const [manualCpmInput, setManualCpmInput] = useState('');
   const [manualCpmError, setManualCpmError] = useState('');
   const [manualCpmValue, setManualCpmValue] = useState(null);
   const [isManualCpm, setIsManualCpm] = useState(false);
 
+  const manualCpmRestoreAttemptedRef = useRef(false);
+
   const manualCpmStorageKey = useMemo(
     () => (user?.uid ? `rnf_manual_cpm_${user.uid}` : null),
     [user?.uid]
   );
 
+  useEffect(() => {
+    manualCpmRestoreAttemptedRef.current = false;
+  }, [manualCpmStorageKey]);
+
   const persistManualCpm = useCallback(
-    (value) => {
-      if (!manualCpmStorageKey || typeof window === 'undefined') {
+    async (value) => {
+      if (!user?.uid || !savePreferences) {
         return;
       }
 
+      const payload =
+        value === null || value === undefined
+          ? { manualCpm: null }
+          : { manualCpm: Number(value) };
+
       try {
-        if (value === null || value === undefined) {
-          localStorage.removeItem(manualCpmStorageKey);
-        } else {
-          localStorage.setItem(manualCpmStorageKey, JSON.stringify({ value }));
+        await savePreferences(payload);
+
+        if (manualCpmStorageKey && typeof window !== 'undefined') {
+          if (payload.manualCpm === null) {
+            localStorage.removeItem(manualCpmStorageKey);
+          } else {
+            localStorage.setItem(
+              manualCpmStorageKey,
+              JSON.stringify({ value: payload.manualCpm })
+            );
+          }
         }
       } catch (error) {
-        console.error('Failed to persist manual CPM value', error);
+        console.error('Failed to persist manual CPM value in profile', error);
+        throw error;
       }
     },
-    [manualCpmStorageKey]
+    [manualCpmStorageKey, savePreferences, user?.uid]
   );
 
   useEffect(() => {
     if (!manualCpmStorageKey) {
       setManualCpmValue(null);
       setIsManualCpm(false);
+      manualCpmRestoreAttemptedRef.current = false;
+      return;
+    }
+
+    const manualFromProfile = preferences?.manualCpm;
+
+    if (typeof manualFromProfile === 'number' && Number.isFinite(manualFromProfile)) {
+      setManualCpmValue(manualFromProfile);
+      setIsManualCpm(true);
+
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(manualCpmStorageKey, JSON.stringify({ value: manualFromProfile }));
+        } catch (error) {
+          console.error('Failed to sync manual CPM value to local storage', error);
+        }
+      }
+      return;
+    }
+
+    if (manualFromProfile === null) {
+      setManualCpmValue(null);
+      setIsManualCpm(false);
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.removeItem(manualCpmStorageKey);
+        } catch (error) {
+          console.error('Failed to clear manual CPM value from local storage', error);
+        }
+      }
+    }
+  }, [manualCpmStorageKey, preferences?.manualCpm]);
+
+  useEffect(() => {
+    if (!manualCpmStorageKey || manualCpmRestoreAttemptedRef.current) {
+      return;
+    }
+
+    if (!user?.uid) {
+      return;
+    }
+
+    const manualFromProfile = preferences?.manualCpm;
+    if (manualFromProfile !== undefined) {
+      manualCpmRestoreAttemptedRef.current = true;
       return;
     }
 
     if (typeof window === 'undefined') {
+      manualCpmRestoreAttemptedRef.current = true;
       return;
     }
 
@@ -1001,16 +1066,18 @@ const ModernFertilityDashboard = () => {
         if (parsed && typeof parsed.value === 'number' && Number.isFinite(parsed.value)) {
           setManualCpmValue(parsed.value);
           setIsManualCpm(true);
-          return;
+          persistManualCpm(parsed.value).catch((error) =>
+            console.error('Failed to migrate manual CPM value to profile storage', error)
+          );
         }
       }
     } catch (error) {
-      console.error('Failed to read manual CPM value from storage', error);
+      console.error('Failed to restore manual CPM value from local storage', error);
+    } finally {
+      manualCpmRestoreAttemptedRef.current = true;
     }
 
-    setManualCpmValue(null);
-    setIsManualCpm(false);
-  }, [manualCpmStorageKey]);
+    }, [manualCpmStorageKey, persistManualCpm, preferences?.manualCpm, user?.uid]);
 
   useEffect(() => {
     setDraftStartDate(currentCycle?.startDate || '');
@@ -1150,7 +1217,7 @@ const ModernFertilityDashboard = () => {
     setManualCpmError('');
   }, []);
 
-  const handleSaveManualCpm = useCallback(() => {
+  const handleSaveManualCpm = useCallback(async () => {
     const trimmed = manualCpmInput.trim();
 
     if (!trimmed) {
@@ -1166,20 +1233,44 @@ const ModernFertilityDashboard = () => {
       return;
     }
 
+    const previousValue = manualCpmValue;
+    const previousIsManual = isManualCpm;
+
     setManualCpmValue(parsed);
     setIsManualCpm(true);
-    persistManualCpm(parsed);
-    setIsCpmDialogOpen(false);
-  }, [manualCpmInput, persistManualCpm]);
+    
+  try {
+      await persistManualCpm(parsed);
+      setIsCpmDialogOpen(false);
+      toast({ title: 'CPM actualizado', description: 'El CPM manual se guardó en tu perfil.' });
+    } catch (error) {
+      console.error('Failed to save manual CPM value', error);
+      setManualCpmValue(previousValue);
+      setIsManualCpm(previousIsManual);
+      setManualCpmError('No se pudo guardar el CPM. Inténtalo de nuevo.');
+    }
+  }, [isManualCpm, manualCpmInput, manualCpmValue, persistManualCpm, toast]);
 
-  const handleResetManualCpm = useCallback(() => {
+  const handleResetManualCpm = useCallback(async () => {
+    const previousValue = manualCpmValue;
+    const previousIsManual = isManualCpm;
+
     setManualCpmValue(null);
     setIsManualCpm(false);
-    persistManualCpm(null);
     setManualCpmInput('');
     setManualCpmError('');
-    setIsCpmDialogOpen(false);
-  }, [persistManualCpm]);
+    
+    try {
+      await persistManualCpm(null);
+      setIsCpmDialogOpen(false);
+      toast({ title: 'CPM restablecido', description: 'El cálculo automático volverá a mostrarse.' });
+    } catch (error) {
+      console.error('Failed to reset manual CPM value', error);
+      setManualCpmValue(previousValue);
+      setIsManualCpm(previousIsManual);
+      setManualCpmError('No se pudo restablecer el CPM. Inténtalo de nuevo.');
+    }
+  }, [isManualCpm, manualCpmValue, persistManualCpm, toast]);
 
   const resetStartDateFlow = useCallback(() => {
     setPendingStartDate(null);

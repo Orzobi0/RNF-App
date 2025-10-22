@@ -33,16 +33,17 @@ export const AuthProvider = ({ children }) => {
           photoURL: firebaseUser.photoURL,
         });
         const prefRef = doc(db, `users/${firebaseUser.uid}/preferences`, 'display');
+        const defaultPreferences = { theme: 'light', units: 'metric', manualCpm: null };
         try {
           const prefSnap = await getDoc(prefRef);
           if (prefSnap.exists()) {
-            setPreferences(prefSnap.data());
+            setPreferences({ ...defaultPreferences, ...prefSnap.data() });
           } else {
-            setPreferences({ theme: 'light', units: 'metric' });
+            setPreferences(defaultPreferences);
           }
         } catch (error) {
           console.error('Failed to load preferences', error);
-          setPreferences({ theme: 'light', units: 'metric' });
+          setPreferences(defaultPreferences);
         }
       } else {
         setUser(null);
@@ -115,11 +116,12 @@ const savePreferences = async (prefs) => {
   if (!auth.currentUser) return;
   const prefRef = doc(db, `users/${auth.currentUser.uid}/preferences`, 'display');
   try {
-    await setDoc(prefRef, prefs);
-    setPreferences(prefs);
+    await setDoc(prefRef, prefs, { merge: true });
+    setPreferences((previous) => ({ ...(previous ?? {}), ...prefs }));
   } catch (error) {
     console.error('Failed to save preferences', error);
     toast({ title: 'Error al guardar preferencias', description: error.message, variant: 'destructive' });
+    throw error;
   }
 };
 

@@ -430,7 +430,7 @@ const RecordCard = ({
     if (field.grouped) {
       return (
         <React.Fragment key={field.key}>
-          <div className="flex flex-wrap items-stretch gap-1">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
             {field.items.map((item) => {
               if (item.isAction) {
                 const Icon = item.icon;
@@ -439,7 +439,7 @@ const RecordCard = ({
                   <button
                     key={item.key}
                     type="button"
-                    className="flex h-[1.5rem] w-[1.5rem] shrink-0 items-center justify-center rounded-full border border-rose-200 bg-white/80 text-rose-600 shadow-sm transition-colors hover:bg-rose-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-rose-500 transition-colors hover:bg-rose-50 hover:text-rose-600 focus:outline-none focus-visible:ring-1 focus-visible:ring-rose-300 disabled:cursor-not-allowed disabled:opacity-60"
                     onClick={(event) => {
                       event.preventDefault();
                       event.stopPropagation();
@@ -448,7 +448,7 @@ const RecordCard = ({
                     aria-label={item.ariaLabel}
                     disabled={item.disabled}
                   >
-                    <Icon className="h-3 w-3" />
+                    <Icon className="h-4 w-4" />
                   </button>
                 );
               }
@@ -462,20 +462,18 @@ const RecordCard = ({
                 ? item.renderIcon()
                 : Icon
                   ? (
-                      <span
-                        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${palette.iconBorder} ${palette.iconBg}`}
-                      >
-                        <Icon className={`h-3 w-3 ${palette.iconColor}`} />
-                      </span>
+                      <Icon className={`h-4 w-4 shrink-0 ${palette.iconColor}`} />
                     )
                   : null;
-              const gapClass = iconElement ? 'gap-2.5' : 'gap-1.5';
+              const gapClass = iconElement ? 'gap-2' : 'gap-1.5';
 
               return (
                 <button
                   key={item.key}
                   type="button"
-                  className={`flex ${minWidthClass} flex-1 items-center ${gapClass} rounded-2xl border ${palette.chipBorder} ${palette.chipBg} px-2.5 py-1.5 text-left transition-colors ${palette.hoverBg} focus:outline-none ${palette.focusRing}`}
+                  className={`flex ${minWidthClass} flex-1 items-center ${gapClass} rounded-md px-1.5 py-1 text-left text-sm transition-colors ${
+                    palette.hoverBg
+                  } focus:outline-none focus-visible:ring-1 focus-visible:ring-rose-300`}
                   onClick={(event) => {
                     event.stopPropagation();
                     event.preventDefault();
@@ -509,23 +507,17 @@ const RecordCard = ({
     const Icon = field.icon;
     const valueClass = field.value ? palette.valueColor : 'text-slate-400';
     const valueText = field.value ?? '—';
-    const iconElement = Icon
-      ? (
-          <span
-            className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${palette.iconBorder} ${palette.iconBg}`}
-          >
-            <Icon className={`h-3 w-3 ${palette.iconColor}`} />
-          </span>
-        )
-      : null;
-    const contentGapClass = iconElement ? 'gap-2.5' : 'gap-1.5';
+    const iconElement = Icon ? <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${palette.iconColor}`} /> : null;
+    const contentGapClass = iconElement ? 'gap-2' : 'gap-1.5';
 
     return (
       <React.Fragment key={field.key}>
         {index > 0 && <div className="my-1.5 border-t border-slate-100" />}
         <button
           type="button"
-          className={`flex w-full items-start gap-3 rounded-2xl border ${palette.chipBorder} ${palette.chipBg} px-2.5 py-1.5 text-left transition-colors ${palette.hoverBg} focus:outline-none ${palette.focusRing}`}
+          className={`flex w-full items-start gap-3 rounded-md px-1.5 py-1.5 text-left text-sm transition-colors ${
+            palette.hoverBg
+          } focus:outline-none focus-visible:ring-1 focus-visible:ring-rose-300`}
           onClick={(event) => {
             event.stopPropagation();
             event.preventDefault();
@@ -608,7 +600,7 @@ const RecordCard = ({
                   </Badge>
                 )}
               </div>
-              <div className="mt-1.5 space-y-1.5">
+              <div className="mt-1.5 space-y-1">
                 {fieldRows.map((field, index) => renderFieldRow(field, index))}
               </div>
               

@@ -92,13 +92,10 @@ const ChartTooltip = ({
     ];
 
     for (const measurement of ordered) {
-      const correctedPreferred = measurement?.use_corrected
-        ? normalizeTimeString(measurement?.time_corrected)
-        : null;
-      const candidateTime =
-        correctedPreferred ??
-        normalizeTimeString(measurement?.time_corrected) ??
-        normalizeTimeString(measurement?.time);
+      const useCorrected = Boolean(measurement?.use_corrected);
+      const candidateTime = useCorrected
+        ? normalizeTimeString(measurement?.time_corrected) ?? normalizeTimeString(measurement?.time)
+        : normalizeTimeString(measurement?.time);
       if (candidateTime) {
         return candidateTime;
       }
@@ -108,11 +105,9 @@ const ChartTooltip = ({
   };
 
   const measurementTime = extractMeasurementTime();
-  const directTimeCandidates = [
-    point.use_corrected ? normalizeTimeString(point.time_corrected) : null,
-    normalizeTimeString(point.time_corrected),
-    normalizeTimeString(point.time),
-  ];
+  const directTimeCandidates = point.use_corrected
+    ? [normalizeTimeString(point.time_corrected), normalizeTimeString(point.time)]
+    : [normalizeTimeString(point.time)];
   const fallbackTime = directTimeCandidates.find(Boolean) ?? formatTimestampTime(point.timestamp);
   const temperatureTime = measurementTime ?? fallbackTime;
   const mucusSensation = point.mucus_sensation ?? point.mucusSensation ?? '';
