@@ -151,7 +151,7 @@ const getSymbolPalette = (symbolInfo = {}) => {
         chipBorder: 'border-slate-200',
         hoverBg: 'hover:bg-slate-50',
         focusRing: 'focus-visible:ring-2 focus-visible:ring-slate-200',
-        dotColor: 'bg-slate-300',
+        dotColor: 'bg-white',
       };
     case 'green':
       return {
@@ -577,7 +577,7 @@ const RecordCard = ({
         />
         <div className="ml-auto flex items-center">
           <div
-            className={`flex h-6 w-6 items-center justify-center rounded-full border ${symbolPalette.dotColor} ${symbolPalette.patternClass} shadow-inner`}
+            className={`flex h-6 w-6 items-center justify-center rounded-full border border-slate-400 ${symbolPalette.dotColor} ${symbolPalette.patternClass} shadow-inner`}
             title={symbolLabel}
           >            
           </div>
@@ -1522,8 +1522,11 @@ const RecordsPage = () => {
         }}
       />
       
-      <div className="max-w-4xl mx-auto px-4 relative z-10">
-        <div ref={calendarContainerRef} className="sticky top-1 z-50">
+      <div className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-6 px-4 relative z-10 lg:grid-cols-[minmax(18rem,24rem)_minmax(0,1fr)] lg:items-start">
+        <div
+          ref={calendarContainerRef}
+          className="sticky top-1 z-50 lg:col-start-1 lg:max-w-lg"
+        >
           <div className="relative overflow-hidden rounded-2xl ring-1 ring-rose-100/70">
             <div className="space-y-2 p-2 sm:p-3 relative z-10">
               {/* Header */}
@@ -1669,10 +1672,10 @@ const RecordsPage = () => {
         {/* Records List */}
         <div
           ref={recordsScrollRef}
-          className="sticky mt-4 overflow-y-auto overscroll-contain"
+          className="sticky mt-4 overflow-y-auto overscroll-contain lg:col-start-2"
           style={{
             top: boundaryPx,
-            maxHeight: `calc(100dvh - ${boundaryPx}px)`,
+            maxHeight: `calc(100dvh - ${boundaryPx}px - var(--bottom-nav-safe, 0px))`,
             WebkitOverflowScrolling: 'touch',
           }}
         >
@@ -1680,7 +1683,7 @@ const RecordsPage = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.1 }}
-            className="relative space-y-2 px-1.5 pt-2 pb-10 sm:px-2"
+            className="relative space-y-2 px-1.5 pt-2 pb-[calc(var(--bottom-nav-safe,0px))] sm:px-2 lg:px-4"
           >
          
           {cycleDays.length === 0 ? (
