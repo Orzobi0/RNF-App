@@ -1,6 +1,10 @@
 // src/lib/firebaseClient.js
 import { initializeApp } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
+import {
+  getFirestore,
+  enableIndexedDbPersistence,
+  enableMultiTabIndexedDbPersistence,
+} from 'firebase/firestore';
 import {
   getAuth,
   setPersistence,
@@ -35,6 +39,26 @@ const configureAuthPersistence = async () => {
 };
 
 if (typeof window !== 'undefined') {
+  enableMultiTabIndexedDbPersistence(db).catch((error) => {
+    if (error.code === 'failed-precondition') {
+      enableIndexedDbPersistence(db).catch((singleTabError) => {
+        if (singleTabError.code === 'failed-precondition') {
+          console.warn(
+            'Firestore persistence could not be enabled because multiple tabs are open and multi-tab persistence failed.'
+          );
+        } else if (singleTabError.code === 'unimplemented') {
+          console.warn('Firestore persistence is not available in this environment.', singleTabError);
+        } else {
+          console.error('Failed to enable Firestore offline persistence.', singleTabError);
+        }
+      });
+    } else if (error.code === 'unimplemented') {
+      console.warn('Firestore persistence is not available in this environment.', error);
+    } else {
+      console.error('Unexpected error enabling multi-tab persistence for Firestore.', error);
+    }
+  });
+
   configureAuthPersistence().catch((error) => {
     console.error('Unexpected error configuring Firebase Auth persistence.', error);
   });
