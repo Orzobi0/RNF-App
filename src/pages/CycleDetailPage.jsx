@@ -308,14 +308,14 @@ const CycleDetailPage = () => {
 
   if ((cycleDataHookIsLoading && !cycleData) || !cycleData) {
     return (
-      <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 px-4 py-8 text-center text-pink-600">
+      <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 px-4 py-8 text-center text-pink-600">
         <p>Cargando detalles del ciclo...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-[100dvh] bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 relative">
+    <div className="relative flex h-full flex-col bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100">
       <div
         className="pointer-events-none absolute inset-0"
         style={{

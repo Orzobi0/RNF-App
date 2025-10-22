@@ -201,7 +201,7 @@ const SettingsPage = () => {
   };
 
   return (
-    <div className="min-h-[calc(100dvh-var(--bottom-nav-safe))] bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 relative overflow-hidden flex flex-col">
+    <div className="relative flex h-full flex-col overflow-hidden bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100">
       <div
         className="pointer-events-none absolute inset-0"
         style={{
@@ -210,7 +210,7 @@ const SettingsPage = () => {
         }}
       />
 
-      <div className="max-w-2xl mx-auto px-4 py-6 relative z-10 flex flex-col flex-1 min-h-full box-border">
+      <div className="relative z-10 mx-auto flex w-full max-w-2xl flex-1 flex-col box-border px-4 py-6">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -224,7 +224,7 @@ const SettingsPage = () => {
 
         <div className="mt-6 flex flex-1 flex-col gap-6">
           <div className="space-y-4">
-            <div className="bg-white/80 backdrop-blur p-4 rounded-xl shadow flex items-center justify-between">
+            <div className="bg-white/80 backdrop-blur p-4 rounded-3xl shadow flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-500">Correo</p>
                 <p className="font-medium text-slate-700 break-all">{user?.email}</p>
@@ -240,7 +240,7 @@ const SettingsPage = () => {
               </Button>
             </div>
                  
-            <div className="bg-white/80 backdrop-blur p-4 rounded-xl shadow flex items-center justify-between">
+            <div className="bg-white/80 backdrop-blur p-4 rounded-3xl shadow flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-500">Contraseña</p>
                 <p className="font-medium text-slate-700">********</p>
@@ -251,11 +251,11 @@ const SettingsPage = () => {
             </div>
           </div>
           
-          <div className="bg-white/80 backdrop-blur p-4 rounded-xl shadow flex items-center justify-between">
+          <div className="bg-white/80 backdrop-blur p-4 rounded-3xl shadow flex items-center justify-between">
             <div>
               <p className="text-sm text-slate-500">Exportar datos</p>
               <p className="font-medium text-slate-700">
-                Descarga tus ciclos actuales y archivados
+                Descarga tus ciclos
               </p>
             </div>
             <Button onClick={() => setShowExportDialog(true)} className="ml-4">
@@ -264,10 +264,10 @@ const SettingsPage = () => {
           </div>
         </div>
 
-                  <div className="bg-white/80 backdrop-blur p-4 rounded-xl shadow flex items-center justify-between">
+                  <div className="bg-white/80 backdrop-blur p-4 rounded-3xl shadow flex items-center justify-between">
             <div>
               <p className="text-sm text-slate-500">Sesión</p>
-              <p className="font-medium text-slate-700">Cerrar sesión de tu cuenta actual</p>
+              <p className="font-medium text-slate-700">Cerrar sesión de tu cuenta</p>
             </div>
             <Button
               variant="destructive"

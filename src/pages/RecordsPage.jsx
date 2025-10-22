@@ -11,7 +11,7 @@ import DataEntryForm from '@/components/DataEntryForm';
 import DeletionDialog from '@/components/DeletionDialog';
 import { useCycleData } from '@/hooks/useCycleData';
 import { useToast } from '@/components/ui/use-toast';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
   Edit,
@@ -50,6 +50,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { es } from 'date-fns/locale';
 import { FERTILITY_SYMBOL_OPTIONS } from '@/config/fertilitySymbols';
 import computePeakStatuses from '@/lib/computePeakStatuses';
+import { cn } from '@/lib/utils';
 
 const getSymbolInfo = (symbolValue) =>
   FERTILITY_SYMBOL_OPTIONS.find((symbol) => symbol.value === symbolValue) || FERTILITY_SYMBOL_OPTIONS[0];
@@ -151,7 +152,7 @@ const getSymbolPalette = (symbolInfo = {}) => {
         chipBorder: 'border-slate-200',
         hoverBg: 'hover:bg-slate-50',
         focusRing: 'focus-visible:ring-2 focus-visible:ring-slate-200',
-        dotColor: 'bg-slate-300',
+        dotColor: 'bg-white',
       };
     case 'green':
       return {
@@ -336,13 +337,13 @@ const RecordCard = ({
           title: details.hasTemperature ? `${details.displayTemp}°C` : '—',
           hasValue: details.hasTemperature,
           badge: details.showCorrectedIndicator ? (
-            <Badge
-              className="flex items-center justify-center rounded-full border border-amber-200 bg-amber-50 text-[0.65rem] font-semibold uppercase tracking-wide text-amber-500"
+            <span
+              className="flex h-2.5 w-2.5 items-center justify-center text-amber-500"
               title="Temperatura corregida"
             >
-              <span aria-hidden="true">•</span>
+              <span aria-hidden="true" className="text-base leading-none">•</span>
               <span className="sr-only">Temperatura corregida</span>
-            </Badge>
+            </span>
           ) : null,
         },
         {
@@ -429,17 +430,16 @@ const RecordCard = ({
     if (field.grouped) {
       return (
         <React.Fragment key={field.key}>
-          {index > 0 && <div className="my-1.5 border-t border-slate-100" />}
-          <div className="flex flex-wrap gap-1.5">
-          {field.items.map((item) => {
-            if (item.isAction) {
-              const Icon = item.icon;
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+            {field.items.map((item) => {
+              if (item.isAction) {
+                const Icon = item.icon;
 
-              return (
+                return (
                   <button
                     key={item.key}
                     type="button"
-                    className="flex h-8 w-8 items-center justify-center rounded-full border border-rose-200 bg-white/80 text-rose-600 shadow-sm transition-colors hover:bg-rose-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-rose-500 transition-colors hover:bg-rose-50 hover:text-rose-600 focus:outline-none focus-visible:ring-1 focus-visible:ring-rose-300 disabled:cursor-not-allowed disabled:opacity-60"
                     onClick={(event) => {
                       event.preventDefault();
                       event.stopPropagation();
@@ -462,20 +462,18 @@ const RecordCard = ({
                 ? item.renderIcon()
                 : Icon
                   ? (
-                      <span
-                        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${palette.iconBorder} ${palette.iconBg}`}
-                      >
-                        <Icon className={`h-3 w-3 ${palette.iconColor}`} />
-                      </span>
+                      <Icon className={`h-4 w-4 shrink-0 ${palette.iconColor}`} />
                     )
                   : null;
-              const gapClass = iconElement ? 'gap-2.5' : 'gap-1.5';
+              const gapClass = iconElement ? 'gap-2' : 'gap-1.5';
 
               return (
                 <button
                   key={item.key}
                   type="button"
-                  className={`flex ${minWidthClass} flex-1 items-center ${gapClass} rounded-2xl border ${palette.chipBorder} ${palette.chipBg} px-2.5 py-1.5 text-left transition-colors ${palette.hoverBg} focus:outline-none ${palette.focusRing}`}
+                  className={`flex ${minWidthClass} flex-1 items-center ${gapClass} rounded-md px-1.5 py-1 text-left text-sm transition-colors ${
+                    palette.hoverBg
+                  } focus:outline-none focus-visible:ring-1 focus-visible:ring-rose-300`}
                   onClick={(event) => {
                     event.stopPropagation();
                     event.preventDefault();
@@ -509,23 +507,17 @@ const RecordCard = ({
     const Icon = field.icon;
     const valueClass = field.value ? palette.valueColor : 'text-slate-400';
     const valueText = field.value ?? '—';
-    const iconElement = Icon
-      ? (
-          <span
-            className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${palette.iconBorder} ${palette.iconBg}`}
-          >
-            <Icon className={`h-3 w-3 ${palette.iconColor}`} />
-          </span>
-        )
-      : null;
-    const contentGapClass = iconElement ? 'gap-2.5' : 'gap-1.5';
+    const iconElement = Icon ? <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${palette.iconColor}`} /> : null;
+    const contentGapClass = iconElement ? 'gap-2' : 'gap-1.5';
 
     return (
       <React.Fragment key={field.key}>
         {index > 0 && <div className="my-1.5 border-t border-slate-100" />}
         <button
           type="button"
-          className={`flex w-full items-start gap-3 rounded-2xl border ${palette.chipBorder} ${palette.chipBg} px-2.5 py-1.5 text-left transition-colors ${palette.hoverBg} focus:outline-none ${palette.focusRing}`}
+          className={`flex w-full items-start gap-3 rounded-md px-1.5 py-1.5 text-left text-sm transition-colors ${
+            palette.hoverBg
+          } focus:outline-none focus-visible:ring-1 focus-visible:ring-rose-300`}
           onClick={(event) => {
             event.stopPropagation();
             event.preventDefault();
@@ -577,7 +569,7 @@ const RecordCard = ({
         />
         <div className="ml-auto flex items-center">
           <div
-            className={`flex h-6 w-6 items-center justify-center rounded-full border ${symbolPalette.dotColor} ${symbolPalette.patternClass} shadow-inner`}
+            className={`flex h-6 w-6 items-center justify-center rounded-full border border-slate-400 ${symbolPalette.dotColor} ${symbolPalette.patternClass} shadow-inner`}
             title={symbolLabel}
           >            
           </div>
@@ -608,7 +600,7 @@ const RecordCard = ({
                   </Badge>
                 )}
               </div>
-              <div className="mt-1.5 space-y-1.5">
+              <div className="mt-1.5 space-y-1">
                 {fieldRows.map((field, index) => renderFieldRow(field, index))}
               </div>
               
@@ -873,15 +865,17 @@ const RecordsPage = () => {
       const elementBottom = elementTop + elementRect.height;
       const viewTop = container.scrollTop;
       const viewBottom = viewTop + container.clientHeight;
+      const alignTopTarget = Math.max(elementTop - 12, 0);
 
       if (forceAlignTop || elementTop < viewTop) {
-        container.scrollTo({ top: Math.max(elementTop - 12, 0), behavior });
+        container.scrollTo({ top: alignTopTarget, behavior });
         return;
       }
 
       if (elementBottom > viewBottom) {
-        const newTop = Math.max(elementBottom - container.clientHeight + 12, 0);
-        container.scrollTo({ top: newTop, behavior });
+        const alignBottomTarget = Math.max(elementBottom - container.clientHeight + 12, 0);
+        const shouldAlignTop = elementRect.height <= container.clientHeight;
+        container.scrollTo({ top: shouldAlignTop ? alignTopTarget : alignBottomTarget, behavior });
       }
     },
     []
@@ -955,7 +949,7 @@ const RecordsPage = () => {
     }
 
     const rafId = window.requestAnimationFrame(() => {
-      ensureElementBelowCalendar(targetNode, { behavior: 'smooth' });
+      ensureElementBelowCalendar(targetNode, { behavior: 'smooth', forceAlignTop: true });
     });
 
     return () => {
@@ -1127,6 +1121,27 @@ const RecordsPage = () => {
     }
     return modifiers;
   }, [cycleRange, recordDateObjects, recordDateSet]);
+
+  const calendarClassNames = useMemo(
+    () => ({
+      months:
+        'flex flex-col items-center sm:flex-row sm:items-center sm:justify-center space-y-3 sm:space-x-4 sm:space-y-0',
+      month: 'space-y-3',
+      table: 'w-full border-collapse space-y-0.5',
+      row: 'flex w-full mt-1.5',
+      head_cell: 'text-muted-foreground rounded-md w-8 font-medium text-[0.75rem]',
+      cell:
+        'h-8 w-8 text-center text-sm p-0 relative [&:has([aria-selected])]:bg-transparent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20',
+      day: cn(
+        buttonVariants({ variant: 'ghost', size: 'icon' }),
+        '!h-8 !w-8 !p-0 font-medium text-slate-700 aria-selected:opacity-100'
+      ),
+      day_selected:
+        'border border-rose-400 text-white hover:bg-rose-300 hover:text-white focus:bg-rose-300 focus:text-white',
+      day_today: 'bg-rose-200 text-rose-700 font-semibold',
+    }),
+    []
+  );
 
   const cycleDays = useMemo(() => {
     if (!currentCycle?.startDate) return [];
@@ -1484,7 +1499,7 @@ const RecordsPage = () => {
 
   if (isLoading && !currentCycle?.id) {
     return (
-      <div className="min-h-[100dvh] bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 flex items-center justify-center">
+      <div className="relative flex h-full flex-col items-center justify-center bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100">
         <div
           className="pointer-events-none absolute inset-0"
           style={{
@@ -1499,7 +1514,7 @@ const RecordsPage = () => {
 
   if (!currentCycle?.id) {
     return (
-      <div className="min-h-[100dvh] bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 flex items-center justify-center">
+      <div className="relative flex h-full flex-col items-center justify-center bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100">
         <div
           className="pointer-events-none absolute inset-0"
           style={{
@@ -1513,7 +1528,7 @@ const RecordsPage = () => {
   }
 
   return (
-    <div className="min-h-[100dvh] bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 relative">
+    <div className="relative flex h-full flex-col bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100">
       <div
         className="pointer-events-none absolute inset-0"
         style={{
@@ -1522,10 +1537,13 @@ const RecordsPage = () => {
         }}
       />
       
-      <div className="max-w-4xl mx-auto px-4 relative z-10">
-        <div ref={calendarContainerRef} className="sticky top-1 z-50">
+      <div className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-6 px-4 relative z-10">
+        <div
+          ref={calendarContainerRef}
+          className="sticky top-1 z-50 w-full max-w-lg mx-auto"
+        >
           <div className="relative overflow-hidden rounded-2xl ring-1 ring-rose-100/70">
-            <div className="space-y-2 p-2 sm:p-3 relative z-10">
+            <div className="space-y-1.5 p-2 sm:p-2.5 relative z-10">
               {/* Header */}
               <motion.div
                 className="flex flex-col gap-4"
@@ -1539,7 +1557,7 @@ const RecordsPage = () => {
                     <button
                       type="button"
                       onClick={() => setIsCalendarOpen((prev) => !prev)}
-                      className="group flex items-center gap-1 rounded-full px-2 py-1 text-left shadow-sm transition-all hover:border-rose-300 hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:ring-offset-2 focus-visible:ring-offset-rose-50"
+                      className="group flex items-center gap-1 rounded-full px-2 py-1 text-left shadow-sm transition-all hover:border-rose-800 hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:ring-offset-2 focus-visible:ring-offset-rose-50"
                       aria-expanded={isCalendarOpen}
                       aria-controls="records-calendar"
                     >
@@ -1643,15 +1661,11 @@ const RecordsPage = () => {
                     selected={selectedDate && isValid(parseISO(selectedDate)) ? parseISO(selectedDate) : undefined}
                     onDayClick={handleCalendarSelect}
                     modifiers={calendarModifiers}
-                    className="w-full max-w-sm sm:max-w-md rounded-lg bg-white/40 p-2 sm:p-3 mx-auto backdrop-blur-sm [&_button]:text-slate-900 [&_button:hover]:bg-rose-100 [&_button[aria-selected=true]]:bg-rose-500"
-                    classNames={{
-                      day_selected:
-                        'border border-rose-500 text-white hover:bg-rose-500 hover:text-white focus:bg-rose-500 focus:text-white',
-                      day_today: 'bg-rose-200 text-rose-700 font-semibold',
-                    }}
+                    className="w-full max-w-xs sm:max-w-sm rounded-3xl bg-white/40 !p-2 sm:!p-2.5 mx-auto backdrop-blur-sm [&_button]:text-slate-900 [&_button:hover]:bg-rose-100 [&_button[aria-selected=true]]:bg-rose-400"
+                    classNames={calendarClassNames}
                     modifiersClassNames={{
                       hasRecord:
-                        "relative font-semibold after:absolute after:bottom-1.5 after:left-1/2 after:-translate-x-1/2 after:w-1.5 after:h-1.5 after:rounded-full after:bg-rose-500 after:content-['']",
+                        "relative font-semibold after:absolute after:bottom-0.5 after:left-1/2 after:-translate-x-1/2 after:w-1.5 after:h-1.5 after:rounded-full after:bg-rose-400 after:content-['']",
                       outsideCycle: 'text-slate-300 opacity-50 hover:text-slate-300 hover:bg-transparent',
                       insideCycleNoRecord:
                         'text-slate-900 hover:text-slate-900 hover:bg-rose-50',
@@ -1669,10 +1683,10 @@ const RecordsPage = () => {
         {/* Records List */}
         <div
           ref={recordsScrollRef}
-          className="sticky mt-4 overflow-y-auto overscroll-contain"
+          className="sticky overflow-y-auto overscroll-contain w-full max-w-4xl mx-auto"
           style={{
             top: boundaryPx,
-            maxHeight: `calc(100dvh - ${boundaryPx}px)`,
+            maxHeight: `calc(100dvh - ${boundaryPx}px - var(--bottom-nav-safe, 0px))`,
             WebkitOverflowScrolling: 'touch',
           }}
         >
@@ -1680,7 +1694,7 @@ const RecordsPage = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.1 }}
-            className="relative space-y-2 px-1.5 pt-2 pb-10 sm:px-2"
+            className="relative space-y-2 px-1.5 pt-2 pb-[calc(var(--bottom-nav-safe,0px))] sm:px-2 lg:px-4"
           >
          
           {cycleDays.length === 0 ? (
@@ -1689,7 +1703,7 @@ const RecordsPage = () => {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
             >
-              <div className="mx-auto max-w-md rounded-2xl border border-rose-100 bg-white/80 p-8 shadow-lg backdrop-blur-sm">
+              <div className="mx-auto max-w-md rounded-3xl border border-rose-100 bg-white/80 p-8 shadow-lg backdrop-blur-sm">
                 <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-rose-100 text-rose-500 shadow-inner">
                   <FileText className="h-8 w-8" />
                 </div>

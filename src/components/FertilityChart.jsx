@@ -416,6 +416,21 @@ const FertilityChart = ({
     ? `${baseFullClass} min-h-full ${rotatedContainer ? 'flex items-stretch justify-start overflow-y-auto overflow-x-hidden' : 'flex items-center justify-start overflow-x-auto overflow-y-hidden'}`
     : `${baseFullClass} overflow-x-auto overflow-y-hidden border border-pink-100/50`;
   const showLegend = !isFullScreen || orientation === 'portrait';
+
+  const interpretationFeatherSize = 14;
+  const horizontalMaskGradient = `linear-gradient(to right, transparent, rgba(0,0,0,0.95) ${interpretationFeatherSize}px, rgba(0,0,0,0.95) calc(100% - ${interpretationFeatherSize}px), transparent)`;
+  const verticalMaskGradient = `linear-gradient(to bottom, transparent, rgba(0,0,0,0.95) ${interpretationFeatherSize}px, rgba(0,0,0,0.95) calc(100% - ${interpretationFeatherSize}px), transparent)`;
+  const interpretationMaskStyle = {
+    maskImage: `${horizontalMaskGradient}, ${verticalMaskGradient}`,
+    maskMode: 'alpha',
+    maskRepeat: 'no-repeat',
+    maskSize: '100% 100%',
+    maskComposite: 'intersect',
+    WebkitMaskImage: `${horizontalMaskGradient}, ${verticalMaskGradient}`,
+    WebkitMaskRepeat: 'no-repeat',
+    WebkitMaskSize: '100% 100%',
+    WebkitMaskComposite: 'source-in'
+  };
   return (
       <motion.div className="relative w-full h-full" initial={false}>
       {/* Leyenda izquierda mejorada */}
@@ -572,6 +587,7 @@ const FertilityChart = ({
                     opacity={0.75}
                     pointerEvents="none"
                     clipPath={`url(#${temperatureBelowClipId})`}
+                    style={interpretationMaskStyle}
                   />
                 ) : (
                   <rect
@@ -582,6 +598,7 @@ const FertilityChart = ({
                     fill="url(#peakInfertilityPattern)"
                     opacity={0.75}
                     pointerEvents="none"
+                    style={interpretationMaskStyle}
                   />
                 )
               )}
@@ -596,6 +613,7 @@ const FertilityChart = ({
                     opacity={0.7}
                     pointerEvents="none"
                     clipPath={`url(#${temperatureAboveClipId})`}
+                    style={interpretationMaskStyle}
                   />
                 ) : (
                   <rect
@@ -606,6 +624,7 @@ const FertilityChart = ({
                     fill="url(#temperatureInfertilityPattern)"
                     opacity={0.7}
                     pointerEvents="none"
+                    style={interpretationMaskStyle}
                   />
                 )
               )}
@@ -618,6 +637,7 @@ const FertilityChart = ({
                   fill="url(#absoluteInfertilityPattern)"
                   opacity={0.5}
                   pointerEvents="none"
+                  style={interpretationMaskStyle}
                 />
               )}
             </>

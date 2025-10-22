@@ -2,8 +2,8 @@ import { useEffect, useLayoutEffect, useRef, useState, useMemo, useCallback } fr
 import { parseISO, differenceInCalendarDays } from 'date-fns';
 import computePeakStatuses from '@/lib/computePeakStatuses';
 
-const DEFAULT_TEMP_MIN = 35.5;
-const DEFAULT_TEMP_MAX = 37.5;
+const DEFAULT_TEMP_MIN = 35.8;
+const DEFAULT_TEMP_MAX = 37.2;
 
 export const computeOvulationMetrics = (processedData = []) => {
   const isValid = (p) => p && p.displayTemperature != null && !p.ignored;
@@ -524,23 +524,47 @@ export const useFertilityChart = (
   }, [rawOvulationDetails, peakDayIndex, peakInfertilityStartIndex]);
 
       const { tempMin, tempMax } = useMemo(() => {
-        const recordedTemps = validDataForLine.map(d => d.displayTemperature).filter(t => t !== null && t !== undefined);
+        const recordedTemps = validDataForLine
+          .map((d) => d.displayTemperature)
+          .filter((t) => t !== null && t !== undefined);
+
         if (recordedTemps.length === 0) {
           return { tempMin: DEFAULT_TEMP_MIN, tempMax: DEFAULT_TEMP_MAX };
         }
-        let min = Math.min(...recordedTemps, DEFAULT_TEMP_MIN);
-        let max = Math.max(...recordedTemps, DEFAULT_TEMP_MAX);
 
-        min = Math.floor(min * 2) / 2; 
-        max = Math.ceil(max * 2) / 2; 
+        const desiredRange = DEFAULT_TEMP_MAX - DEFAULT_TEMP_MIN;
 
-        if (max - min < 2.0) {
+        const actualMin = Math.min(...recordedTemps);
+        const actualMax = Math.max(...recordedTemps);
+
+        let min = Math.min(actualMin, DEFAULT_TEMP_MIN);
+        let max = Math.max(actualMax, DEFAULT_TEMP_MAX);
+
+        const roundDownTenth = (value) => Math.floor(value * 10) / 10;
+        const roundUpTenth = (value) => Math.ceil(value * 10) / 10;
+
+        min = roundDownTenth(min);
+        max = roundUpTenth(max);
+
+        if (max - min < desiredRange) {
           const mid = (min + max) / 2;
-          min = mid - 1.0;
-          max = mid + 1.0;
+          min = roundDownTenth(mid - desiredRange / 2);
+          max = roundUpTenth(mid + desiredRange / 2);
         }
         
-        return { tempMin: min, tempMax: max };
+        
+        if (Math.abs(min - actualMin) < 1e-9) {
+          min = roundDownTenth(min - 0.1);
+        }
+
+        if (Math.abs(max - actualMax) < 1e-9) {
+          max = roundUpTenth(max + 0.1);
+        }
+
+        return {
+          tempMin: parseFloat(min.toFixed(1)),
+          tempMax: parseFloat(max.toFixed(1)),
+        };
       }, [validDataForLine]);
       
       const tempRange = tempMax - tempMin;
