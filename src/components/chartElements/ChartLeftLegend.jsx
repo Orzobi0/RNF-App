@@ -33,7 +33,7 @@ const ChartLeftLegend = ({
       tempTicks.push(parseFloat(t.toFixed(1)));
     }
   } else {
-    for (let t = 35.0; t <= 37.5 + 1e-9; t += 0.5) {
+    for (let t = 35.8; t <= 37.2 + 1e-9; t += 0.1) {
       tempTicks.push(parseFloat(t.toFixed(1)));
     }
   }

@@ -822,42 +822,45 @@ const CycleOverviewCard = ({ cycleData,
                   <div className="font-bold text-pink-800 text-xs">CPM</div>
                   <div className="w-1 h-1 bg-pink-400 rounded-full" />
                 </div>
-                <div className="relative flex flex-col items-center gap-2">
-                  <div className="relative">
-                    <div
-                      className="w-16 h-16 flex items-center justify-center rounded-full bg-white/80 backdrop-blur-sm border border-pink-100/70 shadow-lg shadow-rose-100/60"
-                    >
-                      <span className="text-lg font-semibold text-pink-700">
-                        {formattedCpmValue}
-                      </span>
-                    </div>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <button
-                          type="button"
-                          className="absolute -top-1 -right-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-white text-pink-600 shadow ring-1 ring-pink-100 transition hover:bg-pink-50 focus:outline-none focus:ring-2 focus:ring-rose-300"
-                          aria-label="Información sobre el CPM"
-                        >
-                          <HelpCircle className="h-3.5 w-3.5" />
-                        </button>
-                      </PopoverTrigger>
-                      <PopoverContent
-                        align="center"
-                        side="top"
-                        sideOffset={8}
-                        className="max-w-xs rounded-3xl border border-slate-200 bg-slate-200/95 p-3 text-[11px] leading-relaxed text-slate-800 shadow-xl"
+                <div className="relative w-full">
+                  <div className="flex w-full items-center justify-between gap-3 pr-8">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="flex h-16 w-16 items-center justify-center rounded-full bg-white/80 backdrop-blur-sm border border-pink-100/70 shadow-2xl shadow-rose-400/80"
                       >
-                        <p>{cpmInfoText}</p>
-                      </PopoverContent>
-                    </Popover>
+                        <span className="text-lg font-semibold text-pink-700">
+                          {formattedCpmValue}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleOpenCpmDialog}
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-pink-100 bg-white/80 text-pink-700 shadow-sm transition hover:bg-white focus:outline-none focus:ring-2 focus:ring-rose-300 focus:ring-offset-2 focus:ring-offset-transparent"
+                      aria-label="Editar CPM"
+                    >
+                      <Edit className="h-4 w-4" />
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleOpenCpmDialog}
-                    className="inline-flex items-center gap-1 rounded-full border border-pink-100 bg-white/70 px-3 py-1 text-[11px] font-semibold text-pink-700 shadow-sm transition hover:bg-white focus:outline-none focus:ring-2 focus:ring-rose-300 focus:ring-offset-2 focus:ring-offset-transparent"
-                  >
-                    <Edit className="h-3 w-3" />                    
-                  </button>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        className="absolute top-0 right-0 inline-flex h-6 w-6 items-center justify-center rounded-full bg-white text-pink-600 shadow ring-1 ring-pink-100 transition hover:bg-pink-50 focus:outline-none focus:ring-2 focus:ring-rose-300"
+                        aria-label="Información sobre el CPM"
+                      >
+                        <HelpCircle className="h-3.5 w-3.5" />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      align="end"
+                      side="top"
+                      sideOffset={8}
+                      className="w-fit max-w-[180px] rounded-xl border border-slate-200 bg-slate-600/90 px-3 py-1.5 text-[10px] leading-snug text-white shadow-xl"
+                    >
+                      <p>{cpmInfoText}</p>
+                    </PopoverContent>
+                  </Popover>
                 </div>
               </div>
               {/* T-8 con diseño mejorado */}
