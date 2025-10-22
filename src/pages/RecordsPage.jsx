@@ -1646,10 +1646,10 @@ const RecordsPage = () => {
                     selected={selectedDate && isValid(parseISO(selectedDate)) ? parseISO(selectedDate) : undefined}
                     onDayClick={handleCalendarSelect}
                     modifiers={calendarModifiers}
-                    className="w-full max-w-sm sm:max-w-md rounded-lg bg-white/40 p-2 sm:p-3 mx-auto backdrop-blur-sm [&_button]:text-slate-900 [&_button:hover]:bg-rose-100 [&_button[aria-selected=true]]:bg-rose-500"
+                    className="w-full max-w-xs sm:max-w-md rounded-2xl bg-white/40 p-2 sm:p-3 mx-auto backdrop-blur-sm [&_button]:text-slate-900 [&_button:hover]:bg-rose-100 [&_button[aria-selected=true]]:bg-rose-500"
                     classNames={{
                       day_selected:
-                        'border border-rose-500 text-white hover:bg-rose-500 hover:text-white focus:bg-rose-500 focus:text-white',
+                        'border border-rose-400 text-white hover:bg-rose-300 hover:text-white focus:bg-rose-300 focus:text-white',
                       day_today: 'bg-rose-200 text-rose-700 font-semibold',
                     }}
                     modifiersClassNames={{
@@ -1672,7 +1672,7 @@ const RecordsPage = () => {
         {/* Records List */}
         <div
           ref={recordsScrollRef}
-          className="sticky mt-4 overflow-y-auto overscroll-contain lg:col-start-2"
+          className="sticky overflow-y-auto overscroll-contain lg:col-start-2"
           style={{
             top: boundaryPx,
             maxHeight: `calc(100dvh - ${boundaryPx}px - var(--bottom-nav-safe, 0px))`,
