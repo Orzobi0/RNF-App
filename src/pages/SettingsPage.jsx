@@ -201,7 +201,7 @@ const SettingsPage = () => {
   };
 
   return (
-    <div className="min-h-[calc(100dvh-var(--bottom-nav-safe))] bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 relative overflow-hidden flex flex-col">
+    <div className="relative flex h-full flex-col overflow-hidden bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100">
       <div
         className="pointer-events-none absolute inset-0"
         style={{
@@ -210,7 +210,7 @@ const SettingsPage = () => {
         }}
       />
 
-      <div className="max-w-2xl mx-auto px-4 py-6 relative z-10 flex flex-col flex-1 min-h-full box-border">
+      <div className="relative z-10 mx-auto flex w-full max-w-2xl flex-1 flex-col box-border px-4 py-6">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}

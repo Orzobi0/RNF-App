@@ -1484,7 +1484,7 @@ const RecordsPage = () => {
 
   if (isLoading && !currentCycle?.id) {
     return (
-      <div className="min-h-[100dvh] bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 flex items-center justify-center">
+      <div className="relative flex h-full flex-col items-center justify-center bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100">
         <div
           className="pointer-events-none absolute inset-0"
           style={{
@@ -1499,7 +1499,7 @@ const RecordsPage = () => {
 
   if (!currentCycle?.id) {
     return (
-      <div className="min-h-[100dvh] bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 flex items-center justify-center">
+      <div className="relative flex h-full flex-col items-center justify-center bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100">
         <div
           className="pointer-events-none absolute inset-0"
           style={{
@@ -1513,7 +1513,7 @@ const RecordsPage = () => {
   }
 
   return (
-    <div className="min-h-[100dvh] bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 relative">
+    <div className="relative flex h-full flex-col bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100">
       <div
         className="pointer-events-none absolute inset-0"
         style={{

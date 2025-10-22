@@ -112,7 +112,7 @@ const ArchivedCyclesPage = () => {
 
   if (isLoading && !hasCachedCycles) {
     return (
-      <div className="min-h-[100dvh] bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 flex items-center justify-center">
+      <div className="relative flex h-full flex-col items-center justify-center bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100">
         <div
           className="pointer-events-none absolute inset-0"
           style={{
@@ -127,7 +127,7 @@ const ArchivedCyclesPage = () => {
 
   if (!allCycles || allCycles.length === 0) {
     return (
-      <div className="min-h-[100dvh] bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 relative">
+      <div className="relative flex h-full flex-col bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100">
         <div
           className="pointer-events-none absolute inset-0"
           style={{
@@ -135,7 +135,7 @@ const ArchivedCyclesPage = () => {
               'radial-gradient(65% 55% at 50% 32%, rgba(244,114,182,0.18) 0%, rgba(244,114,182,0.12) 35%, rgba(244,114,182,0.06) 60%, rgba(244,114,182,0) 100%)'
           }}
         />
-        <div className="flex items-center justify-center min-h-[100dvh] px-4">
+        <div className="flex flex-1 items-center justify-center px-4">
           <motion.div
             className="text-center text-slate-600 flex flex-col items-center max-w-md"
             initial={{ opacity: 0, y: 20 }}
@@ -178,7 +178,7 @@ const ArchivedCyclesPage = () => {
   );
 
   return (
-    <div className="min-h-[100dvh] bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 relative">
+    <div className="relative flex h-full flex-col bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100">
       <div
         className="pointer-events-none absolute inset-0"
         style={{
