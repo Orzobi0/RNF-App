@@ -11,7 +11,7 @@ import DataEntryForm from '@/components/DataEntryForm';
 import DeletionDialog from '@/components/DeletionDialog';
 import { useCycleData } from '@/hooks/useCycleData';
 import { useToast } from '@/components/ui/use-toast';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
   Edit,
@@ -50,6 +50,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { es } from 'date-fns/locale';
 import { FERTILITY_SYMBOL_OPTIONS } from '@/config/fertilitySymbols';
 import computePeakStatuses from '@/lib/computePeakStatuses';
+import { cn } from '@/lib/utils';
 
 const getSymbolInfo = (symbolValue) =>
   FERTILITY_SYMBOL_OPTIONS.find((symbol) => symbol.value === symbolValue) || FERTILITY_SYMBOL_OPTIONS[0];
@@ -873,15 +874,17 @@ const RecordsPage = () => {
       const elementBottom = elementTop + elementRect.height;
       const viewTop = container.scrollTop;
       const viewBottom = viewTop + container.clientHeight;
+      const alignTopTarget = Math.max(elementTop - 12, 0);
 
       if (forceAlignTop || elementTop < viewTop) {
-        container.scrollTo({ top: Math.max(elementTop - 12, 0), behavior });
+        container.scrollTo({ top: alignTopTarget, behavior });
         return;
       }
 
       if (elementBottom > viewBottom) {
-        const newTop = Math.max(elementBottom - container.clientHeight + 12, 0);
-        container.scrollTo({ top: newTop, behavior });
+        const alignBottomTarget = Math.max(elementBottom - container.clientHeight + 12, 0);
+        const shouldAlignTop = elementRect.height <= container.clientHeight;
+        container.scrollTo({ top: shouldAlignTop ? alignTopTarget : alignBottomTarget, behavior });
       }
     },
     []
@@ -955,7 +958,7 @@ const RecordsPage = () => {
     }
 
     const rafId = window.requestAnimationFrame(() => {
-      ensureElementBelowCalendar(targetNode, { behavior: 'smooth' });
+      ensureElementBelowCalendar(targetNode, { behavior: 'smooth', forceAlignTop: true });
     });
 
     return () => {
@@ -1127,6 +1130,27 @@ const RecordsPage = () => {
     }
     return modifiers;
   }, [cycleRange, recordDateObjects, recordDateSet]);
+
+  const calendarClassNames = useMemo(
+    () => ({
+      months:
+        'flex flex-col items-center sm:flex-row sm:items-center sm:justify-center space-y-3 sm:space-x-4 sm:space-y-0',
+      month: 'space-y-3',
+      table: 'w-full border-collapse space-y-0.5',
+      row: 'flex w-full mt-1.5',
+      head_cell: 'text-muted-foreground rounded-md w-8 font-medium text-[0.75rem]',
+      cell:
+        'h-8 w-8 text-center text-sm p-0 relative [&:has([aria-selected])]:bg-transparent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20',
+      day: cn(
+        buttonVariants({ variant: 'ghost', size: 'icon' }),
+        '!h-8 !w-8 !p-0 font-medium text-slate-700 aria-selected:opacity-100'
+      ),
+      day_selected:
+        'border border-rose-400 text-white hover:bg-rose-300 hover:text-white focus:bg-rose-300 focus:text-white',
+      day_today: 'bg-rose-200 text-rose-700 font-semibold',
+    }),
+    []
+  );
 
   const cycleDays = useMemo(() => {
     if (!currentCycle?.startDate) return [];
@@ -1522,13 +1546,13 @@ const RecordsPage = () => {
         }}
       />
       
-      <div className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-6 px-4 relative z-10 lg:grid-cols-[minmax(18rem,24rem)_minmax(0,1fr)] lg:items-start">
+      <div className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-6 px-4 relative z-10">
         <div
           ref={calendarContainerRef}
-          className="sticky top-1 z-50 lg:col-start-1 lg:max-w-lg"
+          className="sticky top-1 z-50 w-full max-w-lg mx-auto"
         >
           <div className="relative overflow-hidden rounded-2xl ring-1 ring-rose-100/70">
-            <div className="space-y-2 p-2 sm:p-3 relative z-10">
+            <div className="space-y-1.5 p-2 sm:p-2.5 relative z-10">
               {/* Header */}
               <motion.div
                 className="flex flex-col gap-4"
@@ -1542,7 +1566,7 @@ const RecordsPage = () => {
                     <button
                       type="button"
                       onClick={() => setIsCalendarOpen((prev) => !prev)}
-                      className="group flex items-center gap-1 rounded-full px-2 py-1 text-left shadow-sm transition-all hover:border-rose-300 hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:ring-offset-2 focus-visible:ring-offset-rose-50"
+                      className="group flex items-center gap-1 rounded-full px-2 py-1 text-left shadow-sm transition-all hover:border-rose-800 hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:ring-offset-2 focus-visible:ring-offset-rose-50"
                       aria-expanded={isCalendarOpen}
                       aria-controls="records-calendar"
                     >
@@ -1646,15 +1670,11 @@ const RecordsPage = () => {
                     selected={selectedDate && isValid(parseISO(selectedDate)) ? parseISO(selectedDate) : undefined}
                     onDayClick={handleCalendarSelect}
                     modifiers={calendarModifiers}
-                    className="w-full max-w-xs sm:max-w-md rounded-2xl bg-white/40 p-2 sm:p-3 mx-auto backdrop-blur-sm [&_button]:text-slate-900 [&_button:hover]:bg-rose-100 [&_button[aria-selected=true]]:bg-rose-500"
-                    classNames={{
-                      day_selected:
-                        'border border-rose-400 text-white hover:bg-rose-300 hover:text-white focus:bg-rose-300 focus:text-white',
-                      day_today: 'bg-rose-200 text-rose-700 font-semibold',
-                    }}
+                    className="w-full max-w-xs sm:max-w-sm rounded-3xl bg-white/40 !p-2 sm:!p-2.5 mx-auto backdrop-blur-sm [&_button]:text-slate-900 [&_button:hover]:bg-rose-100 [&_button[aria-selected=true]]:bg-rose-400"
+                    classNames={calendarClassNames}
                     modifiersClassNames={{
                       hasRecord:
-                        "relative font-semibold after:absolute after:bottom-1.5 after:left-1/2 after:-translate-x-1/2 after:w-1.5 after:h-1.5 after:rounded-full after:bg-rose-500 after:content-['']",
+                        "relative font-semibold after:absolute after:bottom-0.5 after:left-1/2 after:-translate-x-1/2 after:w-1.5 after:h-1.5 after:rounded-full after:bg-rose-400 after:content-['']",
                       outsideCycle: 'text-slate-300 opacity-50 hover:text-slate-300 hover:bg-transparent',
                       insideCycleNoRecord:
                         'text-slate-900 hover:text-slate-900 hover:bg-rose-50',
@@ -1672,7 +1692,7 @@ const RecordsPage = () => {
         {/* Records List */}
         <div
           ref={recordsScrollRef}
-          className="sticky overflow-y-auto overscroll-contain lg:col-start-2"
+          className="sticky overflow-y-auto overscroll-contain w-full max-w-4xl mx-auto"
           style={{
             top: boundaryPx,
             maxHeight: `calc(100dvh - ${boundaryPx}px - var(--bottom-nav-safe, 0px))`,
@@ -1692,7 +1712,7 @@ const RecordsPage = () => {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
             >
-              <div className="mx-auto max-w-md rounded-2xl border border-rose-100 bg-white/80 p-8 shadow-lg backdrop-blur-sm">
+              <div className="mx-auto max-w-md rounded-3xl border border-rose-100 bg-white/80 p-8 shadow-lg backdrop-blur-sm">
                 <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-rose-100 text-rose-500 shadow-inner">
                   <FileText className="h-8 w-8" />
                 </div>

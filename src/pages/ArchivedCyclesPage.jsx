@@ -201,7 +201,7 @@ const ArchivedCyclesPage = () => {
           </h1>
           <Button 
             onClick={() => setShowAddDialog(true)} 
-            className="bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white shadow-lg"
+            className="rounded-3xl bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white shadow-lg"
             style={{ filter: 'drop-shadow(0 6px 12px rgba(236, 72, 153, 0.3))' }}
           >
             <Plus className="mr-2 h-4 w-4" /> Añadir Ciclo
@@ -233,7 +233,7 @@ const ArchivedCyclesPage = () => {
               <motion.button
                 key={cycle.id}
                 type="button"
-                className="w-full bg-white/80 backdrop-blur-md border border-pink-200/50 shadow-lg hover:shadow-xl transition-all duration-300 hover:bg-white/90 rounded-xl active:scale-[0.98] cursor-pointer select-none"
+                className="w-full bg-white/80 backdrop-blur-md border border-pink-200/50 shadow-lg hover:shadow-xl transition-all duration-300 hover:bg-white/90 rounded-3xl active:scale-[0.98] cursor-pointer select-none"
                 variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }}
                 onMouseDown={() => startLongPressDetection(cycle)}
                 onMouseUp={() => cancelLongPressDetection(cycle)}
