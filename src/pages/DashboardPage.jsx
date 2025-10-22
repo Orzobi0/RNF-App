@@ -210,6 +210,7 @@ const CycleOverviewCard = ({ cycleData,
           main: '#f8fafc',
           light: '#ffe4e6',
           glow: 'rgba(248, 250, 252, 0.3)',
+          border: 'none'
         };
       case 'green':
         return {
@@ -237,7 +238,8 @@ const CycleOverviewCard = ({ cycleData,
         return {
           main: '#d1d5db',
           light: '#f8fafc',
-          glow: 'rgba(209, 213, 219, 0.3)'
+          glow: 'rgba(209, 213, 219, 0.3)',
+          border: 'none'
         };
     }
   };
@@ -545,7 +547,7 @@ const CycleOverviewCard = ({ cycleData,
                       cy={dot.y + 0.3}
                       r={dot.isToday ? 11 : 10}
                       fill="rgba(0, 0, 0, 0.2)"
-                      opacity={0.5}
+                      opacity={1}
                     />
                   )}
                   {/* Anillo pulsante para el día actual */}
@@ -822,46 +824,37 @@ const CycleOverviewCard = ({ cycleData,
                   <div className="font-bold text-pink-800 text-xs">CPM</div>
                   <div className="w-1 h-1 bg-pink-400 rounded-full" />
                 </div>
-                <div className="relative w-full">
-                  <div className="flex w-full items-center justify-between gap-3 pr-8">
-                    <div className="flex items-center gap-3">
-                      <div
-                        className="flex h-16 w-16 items-center justify-center rounded-full bg-white/80 backdrop-blur-sm border border-pink-100/70 shadow-2xl shadow-rose-400/80"
-                      >
-                        <span className="text-lg font-semibold text-pink-700">
-                          {formattedCpmValue}
-                        </span>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleOpenCpmDialog}
-                      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-pink-100 bg-white/80 text-pink-700 shadow-sm transition hover:bg-white focus:outline-none focus:ring-2 focus:ring-rose-300 focus:ring-offset-2 focus:ring-offset-transparent"
-                      aria-label="Editar CPM"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </button>
-                  </div>
+                <div className="flex w-full items-center justify-center gap-4">
                   <Popover>
                     <PopoverTrigger asChild>
                       <button
                         type="button"
-                        className="absolute top-0 right-0 inline-flex h-6 w-6 items-center justify-center rounded-full bg-white text-pink-600 shadow ring-1 ring-pink-100 transition hover:bg-pink-50 focus:outline-none focus:ring-2 focus:ring-rose-300"
+                        className="relative flex h-20 w-20 flex-col items-center justify-center rounded-full border border-pink-100/70 bg-white/80 text-pink-700 shadow-2xl shadow-rose-400/80 backdrop-blur-sm transition hover:bg-white focus:outline-none focus:ring-2 focus:ring-rose-300 focus:ring-offset-2 focus:ring-offset-transparent"
                         aria-label="Información sobre el CPM"
                       >
-                        <HelpCircle className="h-3.5 w-3.5" />
+                        <span className="text-lg font-semibold">{formattedCpmValue}</span>
+                        
                       </button>
                     </PopoverTrigger>
                     <PopoverContent
-                      align="end"
+                      align="center"
                       side="top"
-                      sideOffset={8}
-                      className="w-fit max-w-[180px] rounded-xl border border-slate-200 bg-slate-600/90 px-3 py-1.5 text-[10px] leading-snug text-white shadow-xl"
+                      sideOffset={10}
+                      className="w-fit max-w-[200px] rounded-xl bg-slate-600/90 px-3 py-2.5 text-[10px] leading-snug text-white shadow-xl"
                     >
                       <p>{cpmInfoText}</p>
                     </PopoverContent>
                   </Popover>
+                  
                 </div>
+                <button
+                    type="button"
+                    onClick={handleOpenCpmDialog}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-pink-100 bg-white/80 text-pink-700 shadow-sm transition hover:bg-white focus:outline-none focus:ring-2 focus:ring-rose-300 focus:ring-offset-2 focus:ring-offset-transparent"
+                    aria-label="Editar CPM"
+                  >
+                    <Edit className="h-4 w-4" />
+                  </button>
               </div>
               {/* T-8 con diseño mejorado */}
               <div className="text-center">
