@@ -7,18 +7,39 @@ import {
   Edit,
   ChevronLeft,
   ChevronRight,
+  HelpCircle,
 } from 'lucide-react';
 import CycleDatesEditor from '@/components/CycleDatesEditor';
 import DataEntryForm from '@/components/DataEntryForm';
 import { useToast } from '@/components/ui/use-toast';
 import NewCycleDialog from '@/components/NewCycleDialog';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { useCycleData } from '@/hooks/useCycleData';
 import { addDays, differenceInDays, format, isAfter, parseISO, startOfDay } from 'date-fns';
 import ChartTooltip from '@/components/chartElements/ChartTooltip';
 import computePeakStatuses from '@/lib/computePeakStatuses';
+import { useAuth } from '@/contexts/AuthContext';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
-const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate, onEditStartDate = () => {} }) => {
+const CycleOverviewCard = ({ cycleData,
+  onEdit,
+  onTogglePeak,
+  currentPeakIsoDate,
+  onEditStartDate = () => {},
+  formattedCpmValue = '-',
+  cpmInfoText = 'Sin datos',
+  handleOpenCpmDialog = () => {},
+}) => {
   const records = cycleData.records || [];
   const [activePoint, setActivePoint] = useState(null);
   const [tooltipPosition, setTooltipPosition] = useState({ clientX: 0, clientY: 0 });
@@ -797,12 +818,46 @@ const CycleOverviewCard = ({ cycleData, onEdit, onTogglePeak, currentPeakIsoDate
               {/* CPM con diseño mejorado */}
               <div className="text-center">
                 <div className="flex items-center justify-center gap-1 mb-1.5">
-                  <div className="w-1 h-1 bg-pink-400 rounded-full"/>
+                  <div className="w-1 h-1 bg-pink-400 rounded-full" />
                   <div className="font-bold text-pink-800 text-xs">CPM</div>
-                  <div className="w-1 h-1 bg-pink-400 rounded-full"/>
+                  <div className="w-1 h-1 bg-pink-400 rounded-full" />
                 </div>
-                <div className="bg-white/60 backdrop-blur-sm px-3 py-1.5 rounded-full border border-gray-200/50 shadow-sm">
-                  <span className="text-xs text-gray-600 font-medium">Sin datos</span>
+                <div className="relative flex flex-col items-center gap-2">
+                  <div className="relative">
+                    <div
+                      className="w-16 h-16 flex items-center justify-center rounded-full bg-white/80 backdrop-blur-sm border border-pink-100/70 shadow-lg shadow-rose-100/60"
+                    >
+                      <span className="text-lg font-semibold text-pink-700">
+                        {formattedCpmValue}
+                      </span>
+                    </div>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          className="absolute -top-1 -right-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-white text-pink-600 shadow ring-1 ring-pink-100 transition hover:bg-pink-50 focus:outline-none focus:ring-2 focus:ring-rose-300"
+                          aria-label="Información sobre el CPM"
+                        >
+                          <HelpCircle className="h-3.5 w-3.5" />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent
+                        align="center"
+                        side="top"
+                        sideOffset={8}
+                        className="max-w-xs rounded-3xl border border-slate-200 bg-slate-200/95 p-3 text-[11px] leading-relaxed text-slate-800 shadow-xl"
+                      >
+                        <p>{cpmInfoText}</p>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleOpenCpmDialog}
+                    className="inline-flex items-center gap-1 rounded-full border border-pink-100 bg-white/70 px-3 py-1 text-[11px] font-semibold text-pink-700 shadow-sm transition hover:bg-white focus:outline-none focus:ring-2 focus:ring-rose-300 focus:ring-offset-2 focus:ring-offset-transparent"
+                  >
+                    <Edit className="h-3 w-3" />                    
+                  </button>
                 </div>
               </div>
               {/* T-8 con diseño mejorado */}
@@ -880,6 +935,7 @@ const FloatingActionButton = ({ onAddRecord, onAddCycle }) => {
 const ModernFertilityDashboard = () => {
   const {
     currentCycle,
+    archivedCycles,
     addOrUpdateDataPoint,
     startNewCycle,
     isLoading,
@@ -896,10 +952,234 @@ const ModernFertilityDashboard = () => {
   const [overlapCycle, setOverlapCycle] = useState(null);
   const [showOverlapDialog, setShowOverlapDialog] = useState(false);
   const [isUpdatingStartDate, setIsUpdatingStartDate] = useState(false);
+  const { user } = useAuth();
+  const [isCpmDialogOpen, setIsCpmDialogOpen] = useState(false);
+  const [manualCpmInput, setManualCpmInput] = useState('');
+  const [manualCpmError, setManualCpmError] = useState('');
+  const [manualCpmValue, setManualCpmValue] = useState(null);
+  const [isManualCpm, setIsManualCpm] = useState(false);
+
+  const manualCpmStorageKey = useMemo(
+    () => (user?.uid ? `rnf_manual_cpm_${user.uid}` : null),
+    [user?.uid]
+  );
+
+  const persistManualCpm = useCallback(
+    (value) => {
+      if (!manualCpmStorageKey || typeof window === 'undefined') {
+        return;
+      }
+
+      try {
+        if (value === null || value === undefined) {
+          localStorage.removeItem(manualCpmStorageKey);
+        } else {
+          localStorage.setItem(manualCpmStorageKey, JSON.stringify({ value }));
+        }
+      } catch (error) {
+        console.error('Failed to persist manual CPM value', error);
+      }
+    },
+    [manualCpmStorageKey]
+  );
+
+  useEffect(() => {
+    if (!manualCpmStorageKey) {
+      setManualCpmValue(null);
+      setIsManualCpm(false);
+      return;
+    }
+
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    try {
+      const stored = localStorage.getItem(manualCpmStorageKey);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed && typeof parsed.value === 'number' && Number.isFinite(parsed.value)) {
+          setManualCpmValue(parsed.value);
+          setIsManualCpm(true);
+          return;
+        }
+      }
+    } catch (error) {
+      console.error('Failed to read manual CPM value from storage', error);
+    }
+
+    setManualCpmValue(null);
+    setIsManualCpm(false);
+  }, [manualCpmStorageKey]);
 
   useEffect(() => {
     setDraftStartDate(currentCycle?.startDate || '');
   }, [currentCycle?.startDate]);
+
+  const computedCpmData = useMemo(() => {
+    const combinedCycles = [];
+
+    if (Array.isArray(archivedCycles) && archivedCycles.length > 0) {
+      archivedCycles.forEach((cycle, index) => {
+        combinedCycles.push({
+          ...cycle,
+          displayName: cycle.name || `Ciclo archivado ${index + 1}`,
+          source: 'archived',
+        });
+      });
+    }
+
+    if (currentCycle?.id) {
+      combinedCycles.push({
+        ...currentCycle,
+        displayName: currentCycle.name || 'Ciclo actual',
+        source: 'current',
+      });
+    }
+
+    const completedCycles = combinedCycles
+      .map((cycle) => {
+        if (!cycle.startDate || !cycle.endDate) {
+          return null;
+        }
+
+        try {
+          const start = parseISO(cycle.startDate);
+          const end = parseISO(cycle.endDate);
+
+          if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+            return null;
+          }
+
+          if (isAfter(start, end)) {
+            return null;
+          }
+
+          const duration = differenceInDays(startOfDay(end), startOfDay(start)) + 1;
+
+          if (!Number.isFinite(duration) || duration <= 0) {
+            return null;
+          }
+
+          return {
+            ...cycle,
+            duration,
+          };
+        } catch (error) {
+          console.error('Failed to compute cycle duration for CPM calculation', error);
+          return null;
+        }
+      })
+      .filter(Boolean);
+
+    const totalCycles = completedCycles.length;
+
+    if (totalCycles < 6) {
+      return {
+        value: null,
+        cycleCount: totalCycles,
+        shortestCycle: null,
+        deduction: null,
+      };
+    }
+
+    const sortedByDuration = [...completedCycles].sort((a, b) => a.duration - b.duration);
+    const shortestCycle = sortedByDuration[0];
+    const deduction = totalCycles >= 12 ? 20 : 21;
+    const value = shortestCycle.duration - deduction;
+
+    return {
+      value,
+      cycleCount: totalCycles,
+      shortestCycle,
+      deduction,
+    };
+  }, [archivedCycles, currentCycle]);
+
+  const formattedCpmValue = useMemo(() => {
+    const valueToFormat = isManualCpm ? manualCpmValue : computedCpmData.value;
+
+    if (typeof valueToFormat !== 'number' || !Number.isFinite(valueToFormat)) {
+      return '-';
+    }
+
+    return valueToFormat.toLocaleString('es-ES', { maximumFractionDigits: 2 });
+  }, [computedCpmData.value, isManualCpm, manualCpmValue]);
+
+  const cpmInfoText = useMemo(() => {
+    if (isManualCpm) {
+      return 'Incorporado manualmente';
+    }
+
+    if (computedCpmData.cycleCount < 6) {
+      return 'Sin ciclos suficientes';
+    }
+
+    const cycleName =
+      computedCpmData.shortestCycle?.displayName ||
+      computedCpmData.shortestCycle?.name ||
+      'Ciclo sin nombre';
+
+    const duration = computedCpmData.shortestCycle?.duration;
+    const durationText =
+      typeof duration === 'number' && Number.isFinite(duration)
+        ? `${duration} días`
+        : 'duración desconocida';
+
+    return `Calculado con ${computedCpmData.cycleCount} ciclos. ${cycleName} (${durationText}).`;
+  }, [computedCpmData, isManualCpm]);
+
+  const handleOpenCpmDialog = useCallback(() => {
+    const baseValue = isManualCpm
+      ? manualCpmValue
+      : typeof computedCpmData.value === 'number' && Number.isFinite(computedCpmData.value)
+        ? computedCpmData.value
+        : '';
+
+    setManualCpmInput(baseValue === '' ? '' : String(baseValue));
+    setManualCpmError('');
+    setIsCpmDialogOpen(true);
+  }, [computedCpmData.value, isManualCpm, manualCpmValue]);
+
+  const handleCloseCpmDialog = useCallback(() => {
+    setIsCpmDialogOpen(false);
+  }, []);
+
+  const handleManualCpmInputChange = useCallback((event) => {
+    setManualCpmInput(event.target.value);
+    setManualCpmError('');
+  }, []);
+
+  const handleSaveManualCpm = useCallback(() => {
+    const trimmed = manualCpmInput.trim();
+
+    if (!trimmed) {
+      setManualCpmError('Introduce un valor numérico válido.');
+      return;
+    }
+
+    const normalized = trimmed.replace(',', '.');
+    const parsed = Number.parseFloat(normalized);
+
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      setManualCpmError('Introduce un valor numérico válido mayor o igual a 0.');
+      return;
+    }
+
+    setManualCpmValue(parsed);
+    setIsManualCpm(true);
+    persistManualCpm(parsed);
+    setIsCpmDialogOpen(false);
+  }, [manualCpmInput, persistManualCpm]);
+
+  const handleResetManualCpm = useCallback(() => {
+    setManualCpmValue(null);
+    setIsManualCpm(false);
+    persistManualCpm(null);
+    setManualCpmInput('');
+    setManualCpmError('');
+    setIsCpmDialogOpen(false);
+  }, [persistManualCpm]);
 
   const resetStartDateFlow = useCallback(() => {
     setPendingStartDate(null);
@@ -1217,7 +1497,66 @@ const ModernFertilityDashboard = () => {
             onTogglePeak={handleTogglePeak}
             currentPeakIsoDate={currentPeakIsoDate}
             onEditStartDate={handleOpenStartDateEditor}
-          />
+            formattedCpmValue={formattedCpmValue}
+            cpmInfoText={cpmInfoText}
+            handleOpenCpmDialog={handleOpenCpmDialog}
+/>
+          <Dialog
+            open={isCpmDialogOpen}
+            onOpenChange={(open) => {
+              if (!open) {
+                handleCloseCpmDialog();
+              }
+            }}
+          >
+            <DialogContent className="w-[90vw] max-w-sm rounded-3xl border border-pink-100 bg-white/95 text-gray-800 shadow-xl">
+              <DialogHeader className="space-y-2 text-left">
+                <DialogTitle>Editar CPM</DialogTitle>
+                <DialogDescription>
+                  Personaliza el CPM introduciendo un valor manual. Si no se establece, se calculará automáticamente
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <Label htmlFor="manual-cpm-input" className="text-xs text-gray-600">
+                    CPM manual
+                  </Label>
+                  <Input
+                    id="manual-cpm-input"
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="0.1"
+                    value={manualCpmInput}
+                    onChange={handleManualCpmInputChange}
+                    placeholder="Introduce un valor"
+                  />
+                  {manualCpmError && (
+                    <p className="text-xs text-red-500">{manualCpmError}</p>
+                  )}
+                </div>
+              </div>
+              <DialogFooter className="sm:flex-row sm:items-center sm:justify-between">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={handleResetManualCpm}
+                  disabled={!isManualCpm}
+                  className="text-pink-600 hover:text-pink-700 disabled:text-gray-400"
+                >
+                  Restablecer automático
+                </Button>
+                <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
+                  <Button type="button" variant="secondary" onClick={handleCloseCpmDialog}>
+                    Cancelar
+                  </Button>
+                  <Button type="button" onClick={handleSaveManualCpm}>
+                    Guardar
+                  </Button>
+                </div>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
           <Dialog
             open={showStartDateEditor}
             onOpenChange={(open) => {

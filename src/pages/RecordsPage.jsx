@@ -337,13 +337,13 @@ const RecordCard = ({
           title: details.hasTemperature ? `${details.displayTemp}°C` : '—',
           hasValue: details.hasTemperature,
           badge: details.showCorrectedIndicator ? (
-            <Badge
-              className="flex items-center justify-center rounded-full border border-amber-200 bg-amber-50 text-[0.65rem] font-semibold uppercase tracking-wide text-amber-500"
+            <span
+              className="flex h-2.5 w-2.5 items-center justify-center text-amber-500"
               title="Temperatura corregida"
             >
-              <span aria-hidden="true">•</span>
+              <span aria-hidden="true" className="text-base leading-none">•</span>
               <span className="sr-only">Temperatura corregida</span>
-            </Badge>
+            </span>
           ) : null,
         },
         {
@@ -430,17 +430,16 @@ const RecordCard = ({
     if (field.grouped) {
       return (
         <React.Fragment key={field.key}>
-          {index > 0 && <div className="my-1.5 border-t border-slate-100" />}
-          <div className="flex flex-wrap gap-1.5">
-          {field.items.map((item) => {
-            if (item.isAction) {
-              const Icon = item.icon;
+          <div className="flex flex-wrap items-stretch gap-1">
+            {field.items.map((item) => {
+              if (item.isAction) {
+                const Icon = item.icon;
 
-              return (
+                return (
                   <button
                     key={item.key}
                     type="button"
-                    className="flex h-8 w-8 items-center justify-center rounded-full border border-rose-200 bg-white/80 text-rose-600 shadow-sm transition-colors hover:bg-rose-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="flex h-[1.5rem] w-[1.5rem] shrink-0 items-center justify-center rounded-full border border-rose-200 bg-white/80 text-rose-600 shadow-sm transition-colors hover:bg-rose-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 disabled:cursor-not-allowed disabled:opacity-60"
                     onClick={(event) => {
                       event.preventDefault();
                       event.stopPropagation();
@@ -449,7 +448,7 @@ const RecordCard = ({
                     aria-label={item.ariaLabel}
                     disabled={item.disabled}
                   >
-                    <Icon className="h-4 w-4" />
+                    <Icon className="h-3 w-3" />
                   </button>
                 );
               }
