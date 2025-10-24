@@ -5,6 +5,7 @@ import {
   FilePlus,
   CalendarPlus,
   Edit,
+  Pencil,
   ChevronLeft,
   ChevronRight,
   HelpCircle,
@@ -833,7 +834,7 @@ const CycleOverviewCard = ({ cycleData,
                     <div className="absolute inset-0 rounded-full border-2 border-pink-300/0 group-hover:border-pink-300/30 transition-all duration-300 animate-pulse" />
                     
                     {/* Icono de edición pequeño */}
-                    <Edit className="absolute top-1 right-1 w-2.5 h-2.5 text-pink-400/60 group-hover:text-pink-500/80 transition-colors" />
+                    <Pencil className="absolute top-1 right-1 w-2 h-2 text-pink-400/60 group-hover:text-pink-500/80 transition-colors" />
                     
                     {/* Valor del CPM */}
                     <span className="text-lg font-bold group-hover:scale-110 transition-transform duration-200">{formattedCpmValue}</span>
