@@ -3,6 +3,21 @@ import { Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import OverlapWarningDialog from '@/components/OverlapWarningDialog';
 
+const formatDateDisplay = (dateString) => {
+  if (!dateString) return '';
+
+  const parsedDate = new Date(dateString);
+  if (Number.isNaN(parsedDate.getTime())) {
+    return dateString;
+  }
+
+  const day = String(parsedDate.getDate()).padStart(2, '0');
+  const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
+  const year = String(parsedDate.getFullYear());
+
+  return `${day}/${month}/${year}`;
+};
+
 const CycleDatesEditor = ({
   cycle,
   startDate,
@@ -30,8 +45,11 @@ const CycleDatesEditor = ({
   deleteLabel = 'Eliminar ciclo',
   isDeletingCycle = false,
 }) => {
-  const currentRangeLabel = cycle?.startDate
-    ? `Fecha actual: ${cycle.startDate}${includeEndDate ? ` — ${cycle.endDate || 'En curso'}` : ''}`
+  const formattedStartDate = cycle?.startDate ? formatDateDisplay(cycle.startDate) : null;
+  const formattedEndDate = cycle?.endDate ? formatDateDisplay(cycle.endDate) : 'En curso';
+
+  const currentRangeLabel = formattedStartDate
+    ? `Fecha actual: ${formattedStartDate}${includeEndDate ? ` — ${formattedEndDate}` : ''}`
     : null;
   const handleStartChange = (event) => {
     if (onClearError) {
@@ -62,24 +80,24 @@ const CycleDatesEditor = ({
             {currentRangeLabel && (
               <p className="text-xs text-slate-500 mt-1">{currentRangeLabel}</p>
             )}
-            <div className={`grid ${includeEndDate ? 'grid-cols-1 sm:grid-cols-2 gap-4' : 'grid-cols-1 gap-4'}`}>
-              <label className="flex flex-col text-sm text-slate-700">
+            <div className={`grid ${includeEndDate ? 'grid-cols-2 gap-4' : 'grid-cols-1 gap-4'}`}>
+              <label className="flex h-full flex-col text-sm text-slate-700">
                 Inicio del ciclo
                 <input
                   type="date"
                   value={startDate || ''}
                   onChange={handleStartChange}
-                  className="mt-1 rounded-lg border border-rose-200 bg-rose-50/60 px-3 py-2 text-slate-800 focus:border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-300"
+                  className="mt-1 w-full rounded-lg border border-rose-200 bg-rose-50/60 px-3 py-2 text-slate-800 focus:border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-300"
                 />
               </label>
               {includeEndDate && (
-                <label className="flex flex-col text-sm text-slate-700">
+                <label className="flex h-full flex-col text-sm text-slate-700">
                   Fin del ciclo
                   <input
                     type="date"
                     value={endDate || ''}
                     onChange={handleEndChange}
-                    className="mt-1 rounded-lg border border-rose-200 bg-rose-50/60 px-3 py-2 text-slate-800 focus:border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-300"
+                    className="mt-1 w-full rounded-lg border border-rose-200 bg-rose-50/60 px-3 py-2 text-slate-800 focus:border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-300"
                   />
                 </label>
               )}

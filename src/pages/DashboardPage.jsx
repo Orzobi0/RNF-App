@@ -955,6 +955,7 @@ const ModernFertilityDashboard = () => {
   const [manualT8Error, setManualT8Error] = useState('');
   const [manualT8Value, setManualT8Value] = useState(null);
   const [isManualT8, setIsManualT8] = useState(false);
+  const [showT8Details, setShowT8Details] = useState(false);
 
   const manualCpmRestoreAttemptedRef = useRef(false);
   const manualT8RestoreAttemptedRef = useRef(false);
@@ -1423,9 +1424,12 @@ const ModernFertilityDashboard = () => {
         continue;
       }
 
+      const t8Day = Math.max(1, riseDay - 8);
+
       validCycles.push({
         cycleId: cycle.id,
         riseDay,
+        t8Day,
         displayName: cycle.displayName || cycle.name || 'Ciclo sin nombre',
       });
     }
@@ -1438,20 +1442,25 @@ const ModernFertilityDashboard = () => {
         cycleCount,
         earliestCycle: null,
         cyclesConsidered: [],
+        canCompute: false,
+        rawValue: null,
       };
     }
 
     const earliestCycle = validCycles.reduce((earliest, current) =>
-      current.riseDay < earliest.riseDay ? current : earliest
+      current.t8Day < earliest.t8Day ? current : earliest
     );
 
-    const value = Math.max(1, earliestCycle.riseDay - 8);
+    const computedValue = earliestCycle.t8Day;
+    const canCompute = cycleCount >= 6;
 
     return {
-      value,
+      value: canCompute ? computedValue : null,
       cycleCount,
       earliestCycle,
       cyclesConsidered: validCycles,
+      canCompute,
+      rawValue: computedValue,
     };
   }, [combinedCycles]);
 
@@ -1499,14 +1508,10 @@ const ModernFertilityDashboard = () => {
     return `Calculado con ${computedCpmData.cycleCount} ciclos. ${cycleName} (${durationText}).`;
   }, [computedCpmData, isManualCpm]);
 
-  const t8InfoText = useMemo(() => {
-    if (isManualT8) {
-      return 'Incorporado manualmente';
-    }
-
-    if (computedT8Data.cycleCount === 0) {
-      return 'Sin ciclos suficientes con ovulación confirmada.';
-    }
+  const t8Info = useMemo(() => {
+    const cycleCount = computedT8Data.cycleCount;
+    const cyclesLabel = `${cycleCount} ciclo${cycleCount === 1 ? '' : 's'}`;
+    const requiredCycles = 6;
 
     const cycleName =
       computedT8Data.earliestCycle?.displayName ||
@@ -1519,7 +1524,40 @@ const ModernFertilityDashboard = () => {
         ? `Día ${riseDay}`
         : 'día desconocido';
 
-    return `Calculado con ${computedT8Data.cycleCount} ciclos. ${cycleName} (${dayText}).`;
+    const t8Day = computedT8Data.earliestCycle?.t8Day;
+    const t8Text =
+      typeof t8Day === 'number' && Number.isFinite(t8Day)
+        ? `T-8 Día ${t8Day}`
+        : null;
+
+    let prefix;
+    let suffix;
+    let status;
+
+    if (cycleCount === 0) {
+      prefix = isManualT8 ? 'Valor manual. Datos automáticos:' : 'Datos automáticos:';
+      suffix = '';
+      status = 'Aún no hay ciclos con ovulación confirmada por temperatura.';
+    } else if (!computedT8Data.canCompute) {
+      prefix = isManualT8
+        ? 'Valor manual. Datos automáticos disponibles:'
+        : 'Datos automáticos disponibles:';
+      suffix = ` (se necesitan ${requiredCycles}).`;
+      status = `Hay ${cyclesLabel} con ovulación confirmada por temperatura.`;
+    } else {
+      prefix = isManualT8 ? 'Valor manual. Cálculo automático con' : 'Calculado con';
+      suffix = '.';
+      status = `${cycleName} (${dayText}${t8Text ? ` → ${t8Text}` : ''}).`;
+    }
+
+    return {
+      prefix,
+      suffix,
+      highlightLabel: cyclesLabel,
+      status,
+      cycleCount,
+      requiredCycles,
+    };
   }, [computedT8Data, isManualT8]);
 
   const handleOpenCpmDialog = useCallback(() => {
@@ -1607,11 +1645,13 @@ const ModernFertilityDashboard = () => {
 
     setManualT8Input(baseValue === '' ? '' : String(baseValue));
     setManualT8Error('');
+    setShowT8Details(false);
     setIsT8DialogOpen(true);
   }, [computedT8Data.value, isManualT8, manualT8Value]);
 
   const handleCloseT8Dialog = useCallback(() => {
     setIsT8DialogOpen(false);
+    setShowT8Details(false);
   }, []);
 
   const handleManualT8InputChange = useCallback((event) => {
@@ -2082,7 +2122,46 @@ const ModernFertilityDashboard = () => {
                     <HelpCircle className="mt-0.5 h-4 w-4 text-rose-500" />
                     <div className="space-y-1">
                       <p className="text-xs font-semibold text-rose-700">Origen del dato</p>
-                      <p className="leading-snug text-rose-600">{t8InfoText}</p>
+                      <p className="leading-snug text-rose-600">
+                        {t8Info.prefix}{' '}
+                        <button
+                          type="button"
+                          onClick={() => setShowT8Details((previous) => !previous)}
+                          className="inline-flex items-center font-semibold text-rose-700 underline decoration-rose-300 underline-offset-2 transition hover:text-rose-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70 rounded-sm"
+                          aria-expanded={showT8Details}
+                        >
+                          {t8Info.highlightLabel}
+                        </button>
+                        {t8Info.suffix}
+                      </p>
+                      <p className="text-[11px] text-rose-500">{t8Info.status}</p>
+                      {showT8Details && (
+                        <div className="mt-2 space-y-2">
+                          {computedT8Data.cyclesConsidered.length > 0 ? (
+                            <ul className="space-y-1">
+                              {computedT8Data.cyclesConsidered.map((cycle, index) => {
+                                const key = cycle.cycleId || `${cycle.displayName}-${cycle.riseDay}-${index}`;
+                                return (
+                                  <li
+                                    key={key}
+                                    className="rounded-xl border border-rose-100 bg-white/70 px-3 py-2 text-left shadow-sm"
+                                  >
+                                    <p className="text-xs font-semibold text-rose-700">{cycle.displayName}</p>
+                                    <p className="text-[11px] text-rose-500">
+                                      Día de subida: {cycle.riseDay}{' '}
+                                      • T-8: Día {cycle.t8Day}
+                                    </p>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          ) : (
+                            <p className="text-[11px] text-rose-500">
+                              Aún no hay ciclos con ovulación confirmada por temperatura.
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
