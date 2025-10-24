@@ -30,6 +30,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { computeOvulationMetrics } from '@/hooks/useFertilityChart';
 
 const CycleOverviewCard = ({ cycleData,
   onEdit,
@@ -39,6 +40,8 @@ const CycleOverviewCard = ({ cycleData,
   formattedCpmValue = '-',
   cpmInfoText = 'Sin datos',
   handleOpenCpmDialog = () => {},
+  formattedT8Value = '-',
+  handleOpenT8Dialog = () => {},
 }) => {
   const records = cycleData.records || [];
   const [activePoint, setActivePoint] = useState(null);
@@ -844,12 +847,20 @@ const CycleOverviewCard = ({ cycleData,
               {/* T-8 con diseño mejorado */}
               <div className="text-center">
                 <div className="flex items-center justify-center gap-1 mb-1.5">
-                  <div className="w-1 h-1 bg-pink-400 rounded-full"/>
+                  <div className="w-1 h-1 bg-pink-400 rounded-full" />
                   <div className="font-bold text-pink-800 text-xs">T-8</div>
-                  <div className="w-1 h-1 bg-pink-400 rounded-full"/>
+                  <div className="w-1 h-1 bg-pink-400 rounded-full" />
                 </div>
-                <div className="bg-white/60 backdrop-blur-sm px-3 py-1.5 rounded-full border border-gray-200/50 shadow-sm">
-                  <span className="text-xs text-gray-600 font-medium">Sin datos</span>
+                <div className="flex w-full items-center justify-center gap-4">
+                  <button
+                    type="button"
+                    onClick={handleOpenT8Dialog}
+                    className="group relative flex h-16 w-16 flex-col items-center justify-center rounded-full bg-gradient-to-br from-white via-pink-50/30 to-rose-50/40 text-pink-700 shadow-lg backdrop-blur-xl transition-all duration-300 hover:shadow-xl hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-rose-400 focus:ring-offset-2 focus:ring-offset-transparent border border-pink-200/40"
+                  >
+                    <div className="absolute inset-0 rounded-full border-2 border-pink-300/0 group-hover:border-pink-300/30 transition-all duration-300 animate-pulse" />
+                    <Pencil className="absolute top-1 right-1 w-2 h-2 text-pink-400/60 group-hover:text-pink-500/80 transition-colors" />
+                    <span className="text-lg font-bold group-hover:scale-110 transition-transform duration-200">{formattedT8Value}</span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -939,17 +950,31 @@ const ModernFertilityDashboard = () => {
   const [manualCpmError, setManualCpmError] = useState('');
   const [manualCpmValue, setManualCpmValue] = useState(null);
   const [isManualCpm, setIsManualCpm] = useState(false);
+  const [isT8DialogOpen, setIsT8DialogOpen] = useState(false);
+  const [manualT8Input, setManualT8Input] = useState('');
+  const [manualT8Error, setManualT8Error] = useState('');
+  const [manualT8Value, setManualT8Value] = useState(null);
+  const [isManualT8, setIsManualT8] = useState(false);
 
   const manualCpmRestoreAttemptedRef = useRef(false);
+  const manualT8RestoreAttemptedRef = useRef(false);
 
   const manualCpmStorageKey = useMemo(
     () => (user?.uid ? `rnf_manual_cpm_${user.uid}` : null),
+    [user?.uid]
+  );
+  const manualT8StorageKey = useMemo(
+    () => (user?.uid ? `rnf_manual_t8_${user.uid}` : null),
     [user?.uid]
   );
 
   useEffect(() => {
     manualCpmRestoreAttemptedRef.current = false;
   }, [manualCpmStorageKey]);
+  useEffect(() => {
+    manualT8RestoreAttemptedRef.current = false;
+  }, [manualT8StorageKey]);
+
 
   const persistManualCpm = useCallback(
     async (value) => {
@@ -983,6 +1008,37 @@ const ModernFertilityDashboard = () => {
     [manualCpmStorageKey, savePreferences, user?.uid]
   );
 
+  const persistManualT8 = useCallback(
+    async (value) => {
+      if (!user?.uid || !savePreferences) {
+        return;
+      }
+
+      const payload =
+        value === null || value === undefined
+          ? { manualT8: null }
+          : { manualT8: Number(value) };
+
+      try {
+        await savePreferences(payload);
+
+        if (manualT8StorageKey && typeof window !== 'undefined') {
+          if (payload.manualT8 === null) {
+            localStorage.removeItem(manualT8StorageKey);
+          } else {
+            localStorage.setItem(
+              manualT8StorageKey,
+              JSON.stringify({ value: payload.manualT8 })
+            );
+          }
+        }
+      } catch (error) {
+        console.error('Failed to persist manual T-8 value in profile', error);
+        throw error;
+      }
+    },
+    [manualT8StorageKey, savePreferences, user?.uid]
+  );
   useEffect(() => {
     if (!manualCpmStorageKey) {
       setManualCpmValue(null);
@@ -1020,6 +1076,42 @@ const ModernFertilityDashboard = () => {
     }
   }, [manualCpmStorageKey, preferences?.manualCpm]);
 
+  useEffect(() => {
+    if (!manualT8StorageKey) {
+      setManualT8Value(null);
+      setIsManualT8(false);
+      manualT8RestoreAttemptedRef.current = false;
+      return;
+    }
+
+    const manualFromProfile = preferences?.manualT8;
+
+    if (typeof manualFromProfile === 'number' && Number.isFinite(manualFromProfile)) {
+      setManualT8Value(manualFromProfile);
+      setIsManualT8(true);
+
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(manualT8StorageKey, JSON.stringify({ value: manualFromProfile }));
+        } catch (error) {
+          console.error('Failed to sync manual T-8 value to local storage', error);
+        }
+      }
+      return;
+    }
+
+    if (manualFromProfile === null) {
+      setManualT8Value(null);
+      setIsManualT8(false);
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.removeItem(manualT8StorageKey);
+        } catch (error) {
+          console.error('Failed to clear manual T-8 value from local storage', error);
+        }
+      }
+    }
+  }, [manualT8StorageKey, preferences?.manualT8]);
   useEffect(() => {
     if (!manualCpmStorageKey || manualCpmRestoreAttemptedRef.current) {
       return;
@@ -1061,15 +1153,54 @@ const ModernFertilityDashboard = () => {
     }, [manualCpmStorageKey, persistManualCpm, preferences?.manualCpm, user?.uid]);
 
   useEffect(() => {
+    if (!manualT8StorageKey || manualT8RestoreAttemptedRef.current) {
+      return;
+    }
+
+    if (!user?.uid) {
+      return;
+    }
+
+    const manualFromProfile = preferences?.manualT8;
+    if (manualFromProfile !== undefined) {
+      manualT8RestoreAttemptedRef.current = true;
+      return;
+    }
+
+    if (typeof window === 'undefined') {
+      manualT8RestoreAttemptedRef.current = true;
+      return;
+    }
+
+    try {
+      const stored = localStorage.getItem(manualT8StorageKey);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed && typeof parsed.value === 'number' && Number.isFinite(parsed.value)) {
+          setManualT8Value(parsed.value);
+          setIsManualT8(true);
+          persistManualT8(parsed.value).catch((error) =>
+            console.error('Failed to migrate manual T-8 value to profile storage', error)
+          );
+        }
+      }
+    } catch (error) {
+      console.error('Failed to restore manual T-8 value from local storage', error);
+    } finally {
+      manualT8RestoreAttemptedRef.current = true;
+    }
+  }, [manualT8StorageKey, persistManualT8, preferences?.manualT8, user?.uid]);
+
+  useEffect(() => {
     setDraftStartDate(currentCycle?.startDate || '');
   }, [currentCycle?.startDate]);
 
-  const computedCpmData = useMemo(() => {
-    const combinedCycles = [];
+  const combinedCycles = useMemo(() => {
+    const cycles = [];
 
     if (Array.isArray(archivedCycles) && archivedCycles.length > 0) {
       archivedCycles.forEach((cycle, index) => {
-        combinedCycles.push({
+        cycles.push({
           ...cycle,
           displayName: cycle.name || `Ciclo archivado ${index + 1}`,
           source: 'archived',
@@ -1078,13 +1209,17 @@ const ModernFertilityDashboard = () => {
     }
 
     if (currentCycle?.id) {
-      combinedCycles.push({
+      cycles.push({
         ...currentCycle,
         displayName: currentCycle.name || 'Ciclo actual',
         source: 'current',
       });
     }
+    
+    return cycles;
+  }, [archivedCycles, currentCycle]);
 
+  const computedCpmData = useMemo(() => {
     const completedCycles = combinedCycles
       .map((cycle) => {
         if (!cycle.startDate || !cycle.endDate) {
@@ -1142,7 +1277,183 @@ const ModernFertilityDashboard = () => {
       shortestCycle,
       deduction,
     };
-  }, [archivedCycles, currentCycle]);
+  }, [combinedCycles]);
+
+  const computedT8Data = useMemo(() => {
+    const normalizeTempValue = (value) => {
+      if (value === null || value === undefined || value === '') {
+        return null;
+      }
+
+      const parsed = Number.parseFloat(String(value).replace(',', '.'));
+      return Number.isFinite(parsed) ? parsed : null;
+    };
+
+    const getMeasurementTemp = (measurement) => {
+      if (!measurement) {
+        return null;
+      }
+
+      const raw = normalizeTempValue(measurement.temperature);
+      const corrected = normalizeTempValue(measurement.temperature_corrected);
+
+      if (measurement.use_corrected && corrected !== null) {
+        return corrected;
+      }
+
+      if (raw !== null) {
+        return raw;
+      }
+
+      if (corrected !== null) {
+        return corrected;
+      }
+
+      return null;
+    };
+
+    const getDisplayTemperature = (entry) => {
+      const directSources = [
+        entry?.temperature_chart,
+        entry?.temperature_raw,
+        entry?.temperature_corrected,
+      ];
+
+      for (const candidate of directSources) {
+        const normalized = normalizeTempValue(candidate);
+        if (normalized !== null) {
+          return normalized;
+        }
+      }
+
+      if (Array.isArray(entry?.measurements)) {
+        const selectedMeasurement = entry.measurements.find(
+          (measurement) => measurement && measurement.selected && getMeasurementTemp(measurement) !== null
+        );
+        const fallbackMeasurement =
+          selectedMeasurement || entry.measurements.find((measurement) => getMeasurementTemp(measurement) !== null);
+
+        if (fallbackMeasurement) {
+          const measurementTemp = getMeasurementTemp(fallbackMeasurement);
+          if (measurementTemp !== null) {
+            return measurementTemp;
+          }
+        }
+      }
+
+      return null;
+    };
+
+    const parseStartDate = (isoDate) => {
+      if (!isoDate) {
+        return null;
+      }
+
+      try {
+        const parsed = parseISO(isoDate);
+        return Number.isNaN(parsed.getTime()) ? null : parsed;
+      } catch (error) {
+        return null;
+      }
+    };
+
+    const sortedCycles = combinedCycles
+      .filter((cycle) => cycle && cycle.startDate && Array.isArray(cycle.data) && cycle.data.length > 0)
+      .sort((a, b) => {
+        const startA = parseStartDate(a.startDate);
+        const startB = parseStartDate(b.startDate);
+
+        if (!startA && !startB) {
+          return 0;
+        }
+
+        if (!startA) {
+          return 1;
+        }
+
+        if (!startB) {
+          return -1;
+        }
+
+        return startB - startA;
+      });
+
+    const validCycles = [];
+
+    for (const cycle of sortedCycles) {
+      if (validCycles.length >= 12) {
+        break;
+      }
+
+      const processedEntries = cycle.data
+        .filter((entry) => entry && entry.isoDate)
+        .map((entry) => ({
+          ...entry,
+          displayTemperature: getDisplayTemperature(entry),
+        }));
+
+      if (processedEntries.length === 0) {
+        continue;
+      }
+
+      const { ovulationDetails } = computeOvulationMetrics(processedEntries);
+
+      if (!ovulationDetails?.confirmed) {
+        continue;
+      }
+
+      const ovulationIndex = Number.isInteger(ovulationDetails?.ovulationIndex)
+        ? ovulationDetails.ovulationIndex
+        : Number.isInteger(ovulationDetails?.confirmationIndex)
+          ? ovulationDetails.confirmationIndex
+          : null;
+
+      if (
+        ovulationIndex == null ||
+        ovulationIndex < 0 ||
+        ovulationIndex >= processedEntries.length
+      ) {
+        continue;
+      }
+
+      const ovulationEntry = processedEntries[ovulationIndex];
+      const riseDay = Number(ovulationEntry?.cycleDay);
+
+      if (!Number.isFinite(riseDay) || riseDay <= 0) {
+        continue;
+      }
+
+      validCycles.push({
+        cycleId: cycle.id,
+        riseDay,
+        displayName: cycle.displayName || cycle.name || 'Ciclo sin nombre',
+      });
+    }
+
+    const cycleCount = validCycles.length;
+
+    if (cycleCount === 0) {
+      return {
+        value: null,
+        cycleCount,
+        earliestCycle: null,
+        cyclesConsidered: [],
+      };
+    }
+
+    const earliestCycle = validCycles.reduce((earliest, current) =>
+      current.riseDay < earliest.riseDay ? current : earliest
+    );
+
+    const value = Math.max(1, earliestCycle.riseDay - 8);
+
+    return {
+      value,
+      cycleCount,
+      earliestCycle,
+      cyclesConsidered: validCycles,
+    };
+  }, [combinedCycles]);
 
   const formattedCpmValue = useMemo(() => {
     const valueToFormat = isManualCpm ? manualCpmValue : computedCpmData.value;
@@ -1153,6 +1464,17 @@ const ModernFertilityDashboard = () => {
 
     return valueToFormat.toLocaleString('es-ES', { maximumFractionDigits: 2 });
   }, [computedCpmData.value, isManualCpm, manualCpmValue]);
+
+  const formattedT8Value = useMemo(() => {
+    const valueToFormat = isManualT8 ? manualT8Value : computedT8Data.value;
+
+    if (typeof valueToFormat !== 'number' || !Number.isFinite(valueToFormat)) {
+      return '-';
+    }
+
+    const rounded = Math.round(valueToFormat);
+    return rounded.toLocaleString('es-ES', { maximumFractionDigits: 0 });
+  }, [computedT8Data.value, isManualT8, manualT8Value]);
 
   const cpmInfoText = useMemo(() => {
     if (isManualCpm) {
@@ -1176,6 +1498,29 @@ const ModernFertilityDashboard = () => {
 
     return `Calculado con ${computedCpmData.cycleCount} ciclos. ${cycleName} (${durationText}).`;
   }, [computedCpmData, isManualCpm]);
+
+  const t8InfoText = useMemo(() => {
+    if (isManualT8) {
+      return 'Incorporado manualmente';
+    }
+
+    if (computedT8Data.cycleCount === 0) {
+      return 'Sin ciclos suficientes con ovulación confirmada.';
+    }
+
+    const cycleName =
+      computedT8Data.earliestCycle?.displayName ||
+      computedT8Data.earliestCycle?.name ||
+      'Ciclo sin nombre';
+
+    const riseDay = computedT8Data.earliestCycle?.riseDay;
+    const dayText =
+      typeof riseDay === 'number' && Number.isFinite(riseDay)
+        ? `Día ${riseDay}`
+        : 'día desconocido';
+
+    return `Calculado con ${computedT8Data.cycleCount} ciclos. ${cycleName} (${dayText}).`;
+  }, [computedT8Data, isManualT8]);
 
   const handleOpenCpmDialog = useCallback(() => {
     const baseValue = isManualCpm
@@ -1252,6 +1597,82 @@ const ModernFertilityDashboard = () => {
       setManualCpmError('No se pudo restablecer el CPM. Inténtalo de nuevo.');
     }
   }, [isManualCpm, manualCpmValue, persistManualCpm, toast]);
+
+  const handleOpenT8Dialog = useCallback(() => {
+    const baseValue = isManualT8
+      ? manualT8Value
+      : typeof computedT8Data.value === 'number' && Number.isFinite(computedT8Data.value)
+        ? computedT8Data.value
+        : '';
+
+    setManualT8Input(baseValue === '' ? '' : String(baseValue));
+    setManualT8Error('');
+    setIsT8DialogOpen(true);
+  }, [computedT8Data.value, isManualT8, manualT8Value]);
+
+  const handleCloseT8Dialog = useCallback(() => {
+    setIsT8DialogOpen(false);
+  }, []);
+
+  const handleManualT8InputChange = useCallback((event) => {
+    setManualT8Input(event.target.value);
+    setManualT8Error('');
+  }, []);
+
+  const handleSaveManualT8 = useCallback(async () => {
+    const trimmed = manualT8Input.trim();
+
+    if (!trimmed) {
+      setManualT8Error('Introduce un número entero válido.');
+      return;
+    }
+
+    const normalized = trimmed.replace(',', '.');
+    const parsed = Number.parseInt(normalized, 10);
+
+    if (!Number.isFinite(parsed) || parsed < 1) {
+      setManualT8Error('Introduce un número entero mayor o igual a 1.');
+      return;
+    }
+
+    const previousValue = manualT8Value;
+    const previousIsManual = isManualT8;
+
+    setManualT8Value(parsed);
+    setIsManualT8(true);
+
+    try {
+      await persistManualT8(parsed);
+      setIsT8DialogOpen(false);
+      toast({ title: 'T-8 actualizado', description: 'El T-8 manual se guardó en tu perfil.' });
+    } catch (error) {
+      console.error('Failed to save manual T-8 value', error);
+      setManualT8Value(previousValue);
+      setIsManualT8(previousIsManual);
+      setManualT8Error('No se pudo guardar el T-8. Inténtalo de nuevo.');
+    }
+  }, [isManualT8, manualT8Input, manualT8Value, persistManualT8, toast]);
+
+  const handleResetManualT8 = useCallback(async () => {
+    const previousValue = manualT8Value;
+    const previousIsManual = isManualT8;
+
+    setManualT8Value(null);
+    setIsManualT8(false);
+    setManualT8Input('');
+    setManualT8Error('');
+
+    try {
+      await persistManualT8(null);
+      setIsT8DialogOpen(false);
+      toast({ title: 'T-8 restablecido', description: 'El cálculo automático volverá a mostrarse.' });
+    } catch (error) {
+      console.error('Failed to reset manual T-8 value', error);
+      setManualT8Value(previousValue);
+      setIsManualT8(previousIsManual);
+      setManualT8Error('No se pudo restablecer el T-8. Inténtalo de nuevo.');
+    }
+  }, [isManualT8, manualT8Value, persistManualT8, toast]);
 
   const resetStartDateFlow = useCallback(() => {
     setPendingStartDate(null);
@@ -1572,7 +1993,9 @@ const ModernFertilityDashboard = () => {
             formattedCpmValue={formattedCpmValue}
             cpmInfoText={cpmInfoText}
             handleOpenCpmDialog={handleOpenCpmDialog}
-/>
+            formattedT8Value={formattedT8Value}
+            handleOpenT8Dialog={handleOpenT8Dialog}
+          />
           <Dialog
             open={isCpmDialogOpen}
             onOpenChange={(open) => {
@@ -1632,6 +2055,71 @@ const ModernFertilityDashboard = () => {
                     Cancelar
                   </Button>
                   <Button type="button" onClick={handleSaveManualCpm}>
+                    Guardar
+                  </Button>
+                </div>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+          <Dialog
+            open={isT8DialogOpen}
+            onOpenChange={(open) => {
+              if (!open) {
+                handleCloseT8Dialog();
+              }
+            }}
+          >
+            <DialogContent className="w-[90vw] max-w-sm rounded-3xl border border-pink-100 bg-white/95 text-gray-800 shadow-xl">
+              <DialogHeader className="space-y-2 text-left">
+                <DialogTitle>Editar T-8</DialogTitle>
+                <DialogDescription>
+                  Personaliza el T-8 introduciendo un valor manual. Si no se establece, se calculará automáticamente.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3">
+                <div className="rounded-2xl border border-rose-100 bg-rose-50/70 px-3 py-2.5 text-[11px] text-rose-900">
+                  <div className="flex items-start gap-2">
+                    <HelpCircle className="mt-0.5 h-4 w-4 text-rose-500" />
+                    <div className="space-y-1">
+                      <p className="text-xs font-semibold text-rose-700">Origen del dato</p>
+                      <p className="leading-snug text-rose-600">{t8InfoText}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="manual-t8-input" className="text-xs text-gray-600">
+                    T-8 manual
+                  </Label>
+                  <Input
+                    id="manual-t8-input"
+                    type="number"
+                    inputMode="numeric"
+                    min="1"
+                    step="1"
+                    value={manualT8Input}
+                    onChange={handleManualT8InputChange}
+                    placeholder="Introduce un valor"
+                  />
+                  {manualT8Error && (
+                    <p className="text-xs text-red-500">{manualT8Error}</p>
+                  )}
+                </div>
+              </div>
+              <DialogFooter className="sm:flex-row sm:items-center sm:justify-between">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={handleResetManualT8}
+                  disabled={!isManualT8}
+                  className="text-pink-600 hover:text-pink-700 disabled:text-gray-400"
+                >
+                  Restablecer automático
+                </Button>
+                <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
+                  <Button type="button" variant="secondary" onClick={handleCloseT8Dialog}>
+                    Cancelar
+                  </Button>
+                  <Button type="button" onClick={handleSaveManualT8}>
                     Guardar
                   </Button>
                 </div>
