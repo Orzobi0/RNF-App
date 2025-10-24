@@ -762,6 +762,11 @@ export const RecordsExperience = ({
   forceUpdateCycleStart: forceUpdateCycleStartProp,
   refreshData: refreshDataProp,
   afterRecordsContent = null,
+  onRequestDeleteCycle = null,
+  dateEditorDeleteTitle = 'Eliminar ciclo',
+  dateEditorDeleteDescription = 'Esta acción no se puede deshacer. Se eliminarán todos los registros asociados.',
+  dateEditorDeleteLabel = 'Eliminar ciclo',
+  isDeletingCycle = false,
 } = {}) => {
   const {
     currentCycle: contextCurrentCycle,
@@ -1333,6 +1338,13 @@ export const RecordsExperience = ({
     setDraftEndDate(cycle?.endDate || '');
   }, [cycle?.startDate, cycle?.endDate, resetStartDateFlow]);
 
+  const handleDeleteCycleFromEditor = useCallback(() => {
+    if (onRequestDeleteCycle) {
+      closeStartDateEditor();
+      onRequestDeleteCycle();
+    }
+  }, [closeStartDateEditor, onRequestDeleteCycle]);
+
   const handleCancelOverlapStart = useCallback(() => {
     resetStartDateFlow();
   }, [resetStartDateFlow]);
@@ -1682,26 +1694,26 @@ export const RecordsExperience = ({
               >
                 <div className="flex flex-wrap items-center gap-1 justify-between sm:justify-start">
                   <div className="flex items-center gap-1">
-                    <HeaderIcon className="h-8 w-8 text-pink-500" />
+                    <HeaderIcon className="h-7 w-7 text-pink-500" />
                     <button
                       type="button"
                       onClick={() => setIsCalendarOpen((prev) => !prev)}
-                      className="group flex items-center gap-1 rounded-full px-2 py-1 text-left shadow-sm transition-all hover:border-rose-800 hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:ring-offset-2 focus-visible:ring-offset-rose-50"
+                      className="group flex items-center gap-1 rounded-full px-1 py-1 text-left transition-all hover:border-rose-800 hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:ring-offset-2 focus-visible:ring-offset-rose-50"
                       aria-expanded={isCalendarOpen}
                       aria-controls="records-calendar"
                     >
                       <span className="text-2xl sm:text-2xl font-bold text-slate-700">{headerTitle}</span>
-                      <span className="flex items-center gap-2">
+                      <span className="flex items-center gap-1">
                         <motion.span
                           animate={{ rotate: isCalendarOpen ? 180 : 0 }}
-                          className="flex h-7 w-7 items-center justify-center rounded-full bg-rose-50 text-rose-400 shadow-inner"
+                          className="flex h-7 w-7 items-center justify-center rounded-full bg-rose-50 text-rose-400"
                         >
                           <ChevronDown className="h-4 w-4" />
                         </motion.span>
                       </span>
                     </button>
                   </div>
-                  <div className="flex items-center gap-2">{resolvedHeaderActions}</div>
+                  <div className="flex items-center gap-1">{resolvedHeaderActions}</div>
                 </div>
               </motion.div>
             
@@ -1734,6 +1746,11 @@ export const RecordsExperience = ({
                       ? 'Actualiza las fechas del ciclo. Los registros se reorganizarán automáticamente.'
                       : 'Actualiza la fecha de inicio del ciclo actual. Los registros se reorganizarán automáticamente.'
                   }
+                  onDeleteCycle={onRequestDeleteCycle ? handleDeleteCycleFromEditor : undefined}
+                  deleteTitle={dateEditorDeleteTitle}
+                  deleteDescription={dateEditorDeleteDescription}
+                  deleteLabel={dateEditorDeleteLabel}
+                  isDeletingCycle={isDeletingCycle}
                 />
               </motion.div>
             )}

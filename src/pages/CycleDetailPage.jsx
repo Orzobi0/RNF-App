@@ -4,7 +4,7 @@ import DeletionDialog from '@/components/DeletionDialog';
 import { useCycleData } from '@/hooks/useCycleData';
 import { useToast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, BarChart3, Pencil, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, BarChart3, Pencil, Plus } from 'lucide-react';
 import { differenceInDays, startOfDay, parseISO, format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 import { RecordsExperience } from '@/pages/RecordsPage.jsx';
@@ -181,77 +181,65 @@ const CycleDetailPage = () => {
     }
     }, [cycleData?.id, deleteCycle, navigate, toast, user]);
 
-  const topAccessory = useCallback(
-    ({ openDateEditor, openAddRecord, isProcessing, isUpdatingDates }) => (
-      <>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Button
-            asChild
-            className="bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow hover:from-pink-600 hover:to-rose-600"
-          >
-            <Link to="/archived-cycles">
-              <ArrowLeft className="mr-2 h-4 w-4" /> Mis ciclos
-            </Link>
-          </Button>
-          <div className="flex items-center gap-2">
-            <Button
-              asChild
-              variant="outline"
-              size="icon"
-              className="border-pink-300 text-pink-600 hover:bg-pink-50 hover:border-pink-400"
-            >
-              <Link to={`/chart/${cycleId}`} aria-label="Ver gráfica del ciclo">
-                <BarChart3 className="h-4 w-4" />
-              </Link>
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              onClick={openDateEditor}
-              aria-pressed={isUpdatingDates}
-              className="border-pink-300 text-pink-600 hover:bg-pink-50 hover:border-pink-400"
-              disabled={isUpdatingDates}
-              aria-label="Editar fechas del ciclo"
-            >
-              <Pencil className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              size="icon"
-              onClick={openAddRecord}
-              className="bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white shadow"
-              disabled={isProcessing}
-              aria-label="Añadir registro al ciclo"
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-        <div className="rounded-3xl bg-white/60 p-4 border border-rose-100 shadow-sm">
-          <h2 className="text-2xl sm:text-3xl font-bold text-rose-700">
-            {cycleData?.name ? `${cycleData.name} · ` : ''}{cycleRangeLabel}
-          </h2>
-        </div>
-      </>
-    ),
-    [cycleData?.name, cycleRangeLabel, cycleId]
-  );
-
-  const afterRecordsContent = (
-    <div className="rounded-2xl border border-rose-100 bg-white p-5 shadow">
-      <h3 className="text-lg font-semibold text-rose-700 mb-2">Eliminar ciclo</h3>
-      <p className="text-sm text-slate-600 mb-3">
-        Esta acción no se puede deshacer. Se eliminarán todos los registros asociados.
-      </p>
+  const topAccessory = useCallback(() => (
+    <div className="flex items-center gap-3">
       <Button
-        onClick={handleDeleteCycleRequest}
-        disabled={isDeletingCycle}
-        className="w-full sm:w-auto bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white shadow-md"
+        asChild
+        variant="outline"
+        size="icon"
+        className="shrink-0 rounded-full border-pink-300 text-pink-600 hover:bg-pink-50 hover:border-pink-400"
       >
-        <Trash2 className="mr-2 h-4 w-4" /> Eliminar ciclo
+        <Link to="/archived-cycles" aria-label="Volver a mis ciclos">
+          <ArrowLeft className="h-4 w-4" />
+          <span className="sr-only">Mis ciclos</span>
+        </Link>
       </Button>
+      <div className="items-center justify-center px-4 py-3">
+        <h2 className="text-2xl font-semibold text-rose-700 truncate">
+          {cycleData?.name ? `${cycleData.name} · ` : ''}{cycleRangeLabel}
+        </h2>
+      </div>
     </div>
+    ), [cycleData?.name, cycleRangeLabel]);
+
+  const headerActions = useCallback(
+    ({ openDateEditor, openAddRecord, isProcessing, isUpdatingDates }) => (
+      <div className="flex items-center gap-1">
+        <Button
+          asChild
+          variant="outline"
+          size="icon"
+          className="border-pink-300 text-pink-600 rounded-full hover:bg-pink-50 hover:border-pink-400"
+        >
+          <Link to={`/chart/${cycleId}`} aria-label="Ver gráfica del ciclo">
+            <BarChart3 className="h-4 w-4" />
+          </Link>
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          onClick={openDateEditor}
+          aria-pressed={isUpdatingDates}
+          className="border-pink-300 text-pink-600 rounded-full hover:bg-pink-50 hover:border-pink-400"
+          disabled={isUpdatingDates}
+          aria-label="Editar fechas del ciclo"
+        >
+          <Pencil className="h-4 w-4" />
+        </Button>
+        <Button
+          type="button"
+          size="icon"
+          onClick={openAddRecord}
+          className="rounded-full bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white shadow"
+          disabled={isProcessing}
+          aria-label="Añadir registro al ciclo"
+        >
+          <Plus className="h-4 w-4" />
+        </Button>
+      </div>
+    ),
+    [cycleId]
   );
 
   if ((cycleDataHookIsLoading && !cycleData) || !cycleData) {
@@ -281,10 +269,16 @@ const CycleDetailPage = () => {
         forceUpdateCycleStart={handleForceUpdateCycleStartForCycle}
         refreshData={handleRefreshData}
         includeEndDate
-        headerActions={() => null}
+        headerActions={headerActions}
         topAccessory={topAccessory}
-        afterRecordsContent={afterRecordsContent}
         headerTitle="Mis registros"
+        onRequestDeleteCycle={handleDeleteCycleRequest}
+        isDeletingCycle={isDeletingCycle}
+        dateEditorDeleteDescription={
+          cycleRangeLabel
+            ? `Se eliminará el ciclo ${cycleRangeLabel} y todos sus registros asociados.`
+            : 'Se eliminará este ciclo y todos sus registros asociados.'
+        }
       />
       <DeletionDialog
         isOpen={showCycleDeleteDialog}

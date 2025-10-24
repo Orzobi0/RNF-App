@@ -1,4 +1,5 @@
 import React from 'react';
+import { Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import OverlapWarningDialog from '@/components/OverlapWarningDialog';
 
@@ -23,6 +24,11 @@ const CycleDatesEditor = ({
   cancelLabel = 'Cancelar',
   onClearError,
   className = 'mb-6 mx-auto w-full max-w-xl',
+  onDeleteCycle,
+  deleteTitle = 'Eliminar ciclo',
+  deleteDescription = 'Esta acción no se puede deshacer. Se eliminarán todos los registros asociados.',
+  deleteLabel = 'Eliminar ciclo',
+  isDeletingCycle = false,
 }) => {
   const currentRangeLabel = cycle?.startDate
     ? `Fecha actual: ${cycle.startDate}${includeEndDate ? ` — ${cycle.endDate || 'En curso'}` : ''}`
@@ -97,6 +103,23 @@ const CycleDatesEditor = ({
                 {saveLabel}
               </Button>
             </div>
+            {onDeleteCycle && (
+              <div className="mt-6 rounded-xl border border-rose-100 bg-rose-50/70 p-4 text-left">
+                <h3 className="text-base font-semibold text-rose-700 mb-2">{deleteTitle}</h3>
+                {deleteDescription && (
+                  <p className="text-sm text-slate-600 mb-3">{deleteDescription}</p>
+                )}
+                <Button
+                  type="button"
+                  onClick={onDeleteCycle}
+                  disabled={isProcessing || isDeletingCycle}
+                  className="w-full sm:w-auto bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white shadow-md"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  {deleteLabel}
+                </Button>
+              </div>
+            )}
           </div>
         </form>
       </div>
