@@ -4,6 +4,7 @@ import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  sendEmailVerification,
   sendPasswordResetEmail,
   signOut,
   updateEmail as firebaseUpdateEmail,
@@ -65,7 +66,12 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (email, password) => {
     try {
-      await createUserWithEmailAndPassword(auth, email, password);
+      const { user } = await createUserWithEmailAndPassword(auth, email, password);
+      const actionCodeSettings = {
+        url: `${window.location.origin}/auth`,
+      };
+      await sendEmailVerification(user, actionCodeSettings);
+      await signOut(auth);
     } catch (error) {
       toast({ title: 'Error al registrarse', description: error.message, variant: 'destructive' });
       throw error;
