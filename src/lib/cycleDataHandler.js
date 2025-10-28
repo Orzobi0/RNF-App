@@ -136,6 +136,7 @@ export const fetchCurrentCycleDB = async (userId) => {
     id: cycleDoc.id,
     startDate: cycleDoc.start_date,
     endDate: cycleDoc.end_date,
+    ignoredForAutoCalculations: Boolean(cycleDoc.ignored_auto_calculations),
     data: entriesData,
   };
 };
@@ -173,6 +174,7 @@ export const fetchArchivedCyclesDB = async (userId, currentStartDate) => {
         startDate: cycle.start_date,
         endDate: cycle.end_date,
         needsCompletion: !cycle.end_date,
+        ignoredForAutoCalculations: Boolean(cycle.ignored_auto_calculations),
         data: entriesData,
       };
     })
@@ -205,6 +207,7 @@ export const fetchCycleByIdDB = async (userId, cycleId) => {
     id: cycleId,
     startDate: cycleData.start_date,
     endDate: cycleData.end_date,
+    ignoredForAutoCalculations: Boolean(cycleData.ignored_auto_calculations),
     data: entriesData,
   };
 };
@@ -228,6 +231,7 @@ export const createNewCycleDB = async (userId, startDate) => {
   const docRef = await addDoc(collection(db, `users/${userId}/cycles`), {
     user_id: userId,
     start_date: startDate,
+    ignored_auto_calculations: false,
     end_date: null,
   });
   return { id: docRef.id, start_date: startDate };
@@ -422,6 +426,11 @@ export const updateCycleDatesDB = async (cycleId, userId, startDate, endDate, va
 
   await updateDoc(cycleRef, updatePayload);
   };
+
+  export const updateCycleIgnoreAutoCalculations = async (userId, cycleId, shouldIgnore) => {
+  const cycleRef = doc(db, `users/${userId}/cycles/${cycleId}`);
+  await updateDoc(cycleRef, { ignored_auto_calculations: shouldIgnore });
+};
 
 export const forceUpdateCycleStart = async (userId, currentCycleId, newStartDate) => {
   const cyclesRef = collection(db, `users/${userId}/cycles`);

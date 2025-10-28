@@ -13,6 +13,7 @@ import {
   fetchCurrentCycleDB,
   fetchArchivedCyclesDB,
   updateCycleDatesDB,
+  updateCycleIgnoreAutoCalculations,
   deleteCycleDB,
   forceUpdateCycleStart as forceUpdateCycleStartDB
 } from '@/lib/cycleDataHandler';
@@ -20,7 +21,13 @@ import { getCachedCycleData, saveCycleDataToCache, clearCycleDataCache } from '@
 
 const CycleDataContext = createContext(null);
 
-const defaultCycleState = { id: null, startDate: null, endDate: null, data: [] };
+const defaultCycleState = {
+  id: null,
+  startDate: null,
+  endDate: null,
+  data: [],
+  ignoredForAutoCalculations: false,
+};
 
 const filterEntriesByEndDate = (entries, endDate) => {
   if (!endDate) return entries;
@@ -403,6 +410,54 @@ export const CycleDataProvider = ({ children }) => {
     [user, currentCycle, archivedCycles, loadCycleData]
   );
 
+  const setCycleIgnoreForAutoCalculations = useCallback(
+    async (cycleIdToUpdate, shouldIgnore) => {
+      if (!user?.uid || !cycleIdToUpdate) {
+        return;
+      }
+
+      const previousCurrentCycle = currentCycle;
+      const previousArchivedCycles = archivedCycles;
+
+      const updateCycle = (cycle) => {
+        if (!cycle || cycle.id !== cycleIdToUpdate) {
+          return cycle;
+        }
+
+        if (cycle.ignoredForAutoCalculations === shouldIgnore) {
+          return cycle;
+        }
+
+        return { ...cycle, ignoredForAutoCalculations: shouldIgnore };
+      };
+
+      setCurrentCycle((prevCycle) => updateCycle(prevCycle));
+      setArchivedCycles((prevCycles) => prevCycles.map((cycle) => updateCycle(cycle)));
+
+      try {
+        await updateCycleIgnoreAutoCalculations(user.uid, cycleIdToUpdate, shouldIgnore);
+
+        loadCycleData({ silent: true }).catch((error) =>
+          console.error(
+            'Background cycle data refresh failed after updating ignore configuration:',
+            error
+          )
+        );
+      } catch (error) {
+        console.error('Error updating cycle ignore configuration:', error);
+        setCurrentCycle(previousCurrentCycle);
+        setArchivedCycles(previousArchivedCycles);
+        toast({
+          title: 'Error',
+          description: 'No se pudo actualizar la configuración del ciclo.',
+          variant: 'destructive',
+        });
+        throw error;
+      }
+    },
+    [user, currentCycle, archivedCycles, loadCycleData, toast]
+  );
+
   const startNewCycle = useCallback(
     async (selectedStartDate) => {
       if (!user?.uid) return;
@@ -431,7 +486,13 @@ export const CycleDataProvider = ({ children }) => {
 
         const newStartDate = format(startDateObj, 'yyyy-MM-dd');
         const newCycle = await createNewCycleDB(user.uid, newStartDate);
-        setCurrentCycle({ id: newCycle.id, startDate: newCycle.start_date, endDate: null, data: [] });
+        setCurrentCycle({
+          id: newCycle.id,
+          startDate: newCycle.start_date,
+          endDate: null,
+          data: [],
+          ignoredForAutoCalculations: false,
+        });
         await loadCycleData({ silent: true });
       } catch (error) {
         console.error('Error starting new cycle:', error);
@@ -596,6 +657,7 @@ export const CycleDataProvider = ({ children }) => {
     getCycleById,
     refreshData,
     toggleIgnoreRecord,
+    setCycleIgnoreForAutoCalculations,
     addArchivedCycle,
     deleteCycle
   };

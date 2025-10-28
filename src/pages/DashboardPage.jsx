@@ -938,6 +938,7 @@ const ModernFertilityDashboard = () => {
     checkCycleOverlap,
     forceUpdateCycleStart,
     refreshData,
+    setCycleIgnoreForAutoCalculations,
   } = useCycleData();
   const { toast } = useToast();
   const [showStartDateEditor, setShowStartDateEditor] = useState(false);
@@ -960,6 +961,7 @@ const ModernFertilityDashboard = () => {
   const [manualT8Value, setManualT8Value] = useState(null);
   const [isManualT8, setIsManualT8] = useState(false);
   const [showT8Details, setShowT8Details] = useState(false);
+  const [pendingIgnoredCycleIds, setPendingIgnoredCycleIds] = useState([]);
 
   const manualCpmRestoreAttemptedRef = useRef(false);
   const manualT8RestoreAttemptedRef = useRef(false);
@@ -1239,6 +1241,7 @@ const ModernFertilityDashboard = () => {
           displayName: cycle.name || dateRangeLabel || `Ciclo archivado ${index + 1}`,
           dateRangeLabel,
           source: 'archived',
+          ignoredForAutoCalculations: Boolean(cycle.ignoredForAutoCalculations),
         });
       });
     }
@@ -1250,6 +1253,7 @@ const ModernFertilityDashboard = () => {
         displayName: currentCycle.name || dateRangeLabel || 'Ciclo actual',
         dateRangeLabel,
         source: 'current',
+        ignoredForAutoCalculations: Boolean(currentCycle.ignoredForAutoCalculations),
       });
     }
     
@@ -1284,6 +1288,7 @@ const ModernFertilityDashboard = () => {
           return {
             ...cycle,
             duration,
+            ignoredForAutoCalculations: Boolean(cycle.ignoredForAutoCalculations),
           };
         } catch (error) {
           console.error('Failed to compute cycle duration for CPM calculation', error);
@@ -1303,30 +1308,46 @@ const ModernFertilityDashboard = () => {
       return aDuration - bDuration;
     });
 
-    const totalCycles = sortedByDuration.length;
+    const annotatedCycles = sortedByDuration.map((cycle) => {
+      const isIgnored = Boolean(cycle.ignoredForAutoCalculations);
+      return {
+        ...cycle,
+        isIgnored,
+        isIncluded: !isIgnored,
+      };
+    });
 
-    if (totalCycles < 6) {
+    const includedCycles = annotatedCycles.filter((cycle) => cycle.isIncluded);
+    const ignoredCount = annotatedCycles.length - includedCycles.length;
+    const includedCount = includedCycles.length;
+
+    if (includedCount < 6) {
       return {
         value: null,
-        cycleCount: totalCycles,
+        cycleCount: includedCount,
         shortestCycle: null,
         deduction: null,
         canCompute: false,
-        cyclesConsidered: sortedByDuration,
+        cyclesConsidered: annotatedCycles,
+        ignoredCount,
       };
     }
 
-    const shortestCycle = sortedByDuration[0];
-    const deduction = totalCycles >= 12 ? 20 : 21;
-    const value = shortestCycle.duration - deduction;
+    const shortestCycle = includedCycles[0] ?? null;
+    const deduction = includedCount >= 12 ? 20 : 21;
+    const computedValue =
+      typeof shortestCycle?.duration === 'number' && Number.isFinite(shortestCycle.duration)
+        ? shortestCycle.duration - deduction
+        : null;
 
     return {
-      value,
-      cycleCount: totalCycles,
+      value: computedValue,
+      cycleCount: includedCount,
       shortestCycle,
       deduction,
-      canCompute: true,
-      cyclesConsidered: sortedByDuration,
+      canCompute: computedValue !== null,
+      cyclesConsidered: annotatedCycles,
+      ignoredCount,
     };
   }, [combinedCycles]);
 
@@ -1429,12 +1450,10 @@ const ModernFertilityDashboard = () => {
         return startB - startA;
       });
 
-    const validCycles = [];
+    const consideredCycles = [];
+    const includedCycles = [];
 
     for (const cycle of sortedCycles) {
-      if (validCycles.length >= 12) {
-        break;
-      }
 
       const processedEntries = cycle.data
         .filter((entry) => entry && entry.isoDate)
@@ -1475,30 +1494,45 @@ const ModernFertilityDashboard = () => {
       }
 
       const t8Day = Math.max(1, riseDay - 8);
+      const isIgnored = Boolean(cycle.ignoredForAutoCalculations);
 
-      validCycles.push({
+      const cycleInfo = {
         cycleId: cycle.id,
         riseDay,
         t8Day,
         displayName: cycle.displayName || cycle.name || 'Ciclo sin nombre',
         dateRangeLabel: cycle.dateRangeLabel,
-      });
+        isIgnored,
+        isIncluded: !isIgnored,
+        ignoredForAutoCalculations: isIgnored,
+      };
+
+      consideredCycles.push(cycleInfo);
+
+      if (!isIgnored && includedCycles.length < 12) {
+        includedCycles.push(cycleInfo);
+      }
     }
 
-    const cycleCount = validCycles.length;
+    const cycleCount = includedCycles.length;
+    const ignoredCount = consideredCycles.reduce(
+      (total, cycle) => total + (cycle.isIgnored ? 1 : 0),
+      0
+    );
 
     if (cycleCount === 0) {
       return {
         value: null,
         cycleCount,
         earliestCycle: null,
-        cyclesConsidered: [],
+        cyclesConsidered: consideredCycles,
         canCompute: false,
         rawValue: null,
+        ignoredCount,
       };
     }
 
-    const earliestCycle = validCycles.reduce((earliest, current) =>
+    const earliestCycle = includedCycles.reduce((earliest, current) =>
       current.t8Day < earliest.t8Day ? current : earliest
     );
 
@@ -1509,9 +1543,10 @@ const ModernFertilityDashboard = () => {
       value: canCompute ? computedValue : null,
       cycleCount,
       earliestCycle,
-      cyclesConsidered: validCycles,
+      cyclesConsidered: consideredCycles,
       canCompute,
       rawValue: computedValue,
+      ignoredCount,
     };
   }, [combinedCycles]);
 
@@ -1543,6 +1578,7 @@ const ModernFertilityDashboard = () => {
     const sourceLabel = isManualCpm ? 'Manual' : 'Automático';
     const cycles = computedCpmData.cyclesConsidered ?? [];
     const canCompute = Boolean(computedCpmData.canCompute);
+    const ignoredCount = computedCpmData.ignoredCount ?? 0;
     const deduction =
       typeof computedCpmData.deduction === 'number' && Number.isFinite(computedCpmData.deduction)
         ? computedCpmData.deduction
@@ -1556,9 +1592,14 @@ const ModernFertilityDashboard = () => {
     let summary;
 
     if (cycleCount === 0) {
-      summary = 'Aún no hay ciclos finalizados con fecha de finalización.';
+      summary = ignoredCount > 0
+        ? 'Todos los ciclos disponibles están ignorados para el cálculo automático.'
+        : 'Aún no hay ciclos finalizados con fecha de finalización.';
     } else if (!canCompute) {
       summary = `Hay ${cyclesLabel} finalizado${cycleCount === 1 ? '' : 's'}. Se necesitan ${requiredCycles} para calcular el CPM automáticamente.`;
+      if (ignoredCount > 0) {
+        summary += ` (${ignoredCount} ciclo${ignoredCount === 1 ? '' : 's'} ignorado${ignoredCount === 1 ? '' : 's'}).`;
+      }
     } else {
       const cycleName =
         shortestCycle?.dateRangeLabel ||
@@ -1579,8 +1620,13 @@ const ModernFertilityDashboard = () => {
         parts.push(`Deducción aplicada: ${deduction} días.`);
       }
 
-    if (automaticValue !== null) {
+      if (automaticValue !== null) {
         parts.push(`Resultado: ${automaticValue} días.`);
+      }
+      if (ignoredCount > 0) {
+        parts.push(
+          `${ignoredCount} ciclo${ignoredCount === 1 ? '' : 's'} ignorado${ignoredCount === 1 ? '' : 's'}.`
+        );
       }
 
       summary = parts.join(' ');
@@ -1598,6 +1644,7 @@ const ModernFertilityDashboard = () => {
       deduction,
       shortestCycle,
       value: automaticValue,
+      ignoredCount,
     };
   }, [computedCpmData, isManualCpm]);
 
@@ -1608,6 +1655,7 @@ const ModernFertilityDashboard = () => {
     const cyclesLabel = `${cycleCount} ciclo${cycleCount === 1 ? '' : 's'}`;
     const requiredCycles = 6;
     const sourceLabel = isManualT8 ? 'Manual' : 'Automático';
+    const ignoredCount = computedT8Data.ignoredCount ?? 0;
 
     const cycleName =
       computedT8Data.earliestCycle?.displayName ||
@@ -1629,11 +1677,20 @@ const ModernFertilityDashboard = () => {
     let summary;
 
     if (cycleCount === 0) {
-      summary = 'Aún no hay ciclos con ovulación confirmada por temperatura.';
+      summary = ignoredCount > 0
+        ? 'Los ciclos disponibles están ignorados para el cálculo automático.'
+        : 'Aún no hay ciclos con ovulación confirmada por temperatura.';
     } else if (!computedT8Data.canCompute) {
       summary = `Hay ${cyclesLabel} con ovulación confirmada por temperatura (se necesitan ${requiredCycles}).`;
+      if (ignoredCount > 0) {
+        summary += ` ${ignoredCount} ciclo${ignoredCount === 1 ? '' : 's'} ignorado${ignoredCount === 1 ? '' : 's'}.`;
+      }
     } else {
-      summary = `${cycleName} (${dayText}${t8Text ? ` → ${t8Text}` : ''}).`;
+      const parts = [`${cycleName} (${dayText}${t8Text ? ` → ${t8Text}` : ''}).`];
+      if (ignoredCount > 0) {
+        parts.push(`${ignoredCount} ciclo${ignoredCount === 1 ? '' : 's'} ignorado${ignoredCount === 1 ? '' : 's'}.`);
+      }
+      summary = parts.join(' ');
     }
 
     return {
@@ -1642,6 +1699,7 @@ const ModernFertilityDashboard = () => {
       highlightLabel: cyclesLabel,
       cycleCount,
       requiredCycles,
+      ignoredCount,
     };
   }, [computedT8Data, isManualT8]);
 
@@ -1661,6 +1719,33 @@ const ModernFertilityDashboard = () => {
       navigate(`/cycle/${cycleId}`);
     }
   }, [currentCycle?.id, navigate]);
+
+  const handleToggleCycleIgnore = useCallback(
+    async (cycleId, shouldIgnore) => {
+      if (!cycleId) {
+        return;
+      }
+
+      setPendingIgnoredCycleIds((previous) =>
+        previous.includes(cycleId) ? previous : [...previous, cycleId]
+      );
+
+      try {
+        await setCycleIgnoreForAutoCalculations(cycleId, shouldIgnore);
+        toast({
+          title: shouldIgnore ? 'Ciclo ignorado' : 'Ciclo incluido',
+          description: shouldIgnore
+            ? 'El ciclo se excluyó del cálculo automático.'
+            : 'El ciclo se volvió a incluir en el cálculo automático.',
+        });
+      } catch (error) {
+        // El contexto ya maneja el mensaje de error.
+      } finally {
+        setPendingIgnoredCycleIds((previous) => previous.filter((id) => id !== cycleId));
+      }
+    },
+    [setCycleIgnoreForAutoCalculations, toast]
+  );
 
   const handleOpenCpmDialog = useCallback(() => {
     const baseValue = isManualCpm
@@ -2204,18 +2289,46 @@ const ModernFertilityDashboard = () => {
                                 : 'duración desconocida';
                             const isShortest = Boolean(cpmInfo.shortestCycle && cpmInfo.shortestCycle === cycle);
 
-                            return (
-                              <li key={key}>
-                                <button
-                                  type="button"
-                                  onClick={() => handleNavigateToCycleDetails(cycle)}
-                                  className="w-full rounded-xl border border-rose-100 bg-white/70 px-3 py-2 text-left shadow-sm transition hover:border-rose-200 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70"
-                                >
-                                  <div className="flex items-center justify-between gap-2">
-                                    <p className="text-xs font-semibold text-rose-700">
-                                      {cycle.dateRangeLabel || cycle.displayName || cycle.name || 'Ciclo sin nombre'}
-                                    </p>
-                                    <ChevronRight className="h-4 w-4 text-rose-400" aria-hidden="true" />
+                            const cycleId = cycle.cycleId || cycle.id;
+                            const isIgnored = Boolean(cycle.isIgnored || cycle.ignoredForAutoCalculations);
+                            const isPending = cycleId ? pendingIgnoredCycleIds.includes(cycleId) : false;
+                            const toggleLabel = isPending
+                              ? 'Guardando…'
+                              : isIgnored
+                                ? 'Incluir'
+                                : 'Ignorar';
+
+                                return (
+                                  <li key={key}>
+                                <div className="rounded-2xl border border-rose-100 bg-white/50 px-3 py-2 shadow-sm transition hover:border-rose-200 hover:bg-white">
+                                  <div className="flex items-start gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleNavigateToCycleDetails(cycle)}
+                                      className="flex-1 rounded-2xl px-1 py-0.5 text-left transition hover:bg-white/60 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70"
+                                    >
+                                      <div className="flex items-center justify-between gap-2">
+                                        <p className="text-xs font-semibold text-rose-700">
+                                          {cycle.dateRangeLabel || cycle.displayName || cycle.name || 'Ciclo sin nombre'}
+                                        </p>
+                                        <ChevronRight className="h-4 w-4 text-rose-400" aria-hidden="true" />
+                                      </div>
+                                    </button>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      disabled={!cycleId || isPending}
+                                      onClick={() => cycleId && handleToggleCycleIgnore(cycleId, !isIgnored)}
+                                      className="shrink-0 text-[11px]"
+                                      title={
+                                        isIgnored
+                                          ? 'Incluir ciclo en el cálculo automático'
+                                          : 'Ignorar ciclo para el cálculo automático'
+                                      }
+                                    >
+                                      {toggleLabel}
+                                    </Button>
                                   </div>
                                   <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-[11px] text-rose-500">
                                     <span>Duración: {durationText}</span>
@@ -2225,7 +2338,12 @@ const ModernFertilityDashboard = () => {
                                       </span>
                                     )}
                                   </div>
-                                </button>
+                                {isIgnored && (
+                                    <p className="mt-1 text-[11px] text-rose-400">
+                                      Ignorado para el cálculo automático.
+                                    </p>
+                                  )}
+                                </div>
                               </li>
                             );
                           })}
@@ -2326,24 +2444,62 @@ const ModernFertilityDashboard = () => {
                                   typeof cycle.riseDay === 'number' && Number.isFinite(cycle.riseDay)
                                     ? cycle.riseDay
                                     : '—';
-                                return (
-                                  <li key={key}>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleNavigateToCycleDetails(cycle)}
-                                      className="w-full rounded-xl border border-rose-100 bg-white/70 px-3 py-2 text-left shadow-sm transition hover:border-rose-200 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70"
-                                    >
-                                      <div className="flex items-center justify-between gap-2">
-                                        <p className="text-xs font-semibold text-rose-700">
-                                          {cycle.dateRangeLabel || cycle.displayName || cycle.name || 'Ciclo sin nombre'}
-                                        </p>
-                                        <ChevronRight className="h-4 w-4 text-rose-400" aria-hidden="true" />
-                                      </div>
-                                      <p className="text-[11px] text-rose-500">Día de subida: {riseDayText}</p>
-                                    </button>
-                                  </li>
-                                );
-                              })}
+                                const cycleId = cycle.cycleId || cycle.id;
+                                const isIgnored = Boolean(cycle.isIgnored || cycle.ignoredForAutoCalculations);
+                                const isPending = cycleId ? pendingIgnoredCycleIds.includes(cycleId) : false;
+                                const toggleLabel = isPending
+                                  ? 'Guardando…'
+                                  : isIgnored
+                                    ? 'Incluir'
+                                    : 'Ignorar';
+
+                              return (
+                                <li key={key}>
+                                  <div className="rounded-2xl border border-rose-100 bg-white/40 px-3 py-2 shadow-sm transition hover:border-rose-200 hover:bg-white">
+                                    <div className="flex items-start gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleNavigateToCycleDetails(cycle)}
+                                        className="flex-1 rounded-2xl px-1 py-0.5 text-left transition hover:bg-white/60 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70"
+                                      >
+                                        <div className="flex items-center justify-between gap-2">
+                                          <p className="text-xs font-semibold text-rose-700">
+                                            {cycle.dateRangeLabel || cycle.displayName || cycle.name || 'Ciclo sin nombre'}
+                                          </p>
+                                          <ChevronRight className="h-4 w-4 text-rose-400" aria-hidden="true" />
+                                        </div>
+                                      </button>
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={!cycleId || isPending}
+                                        onClick={() => cycleId && handleToggleCycleIgnore(cycleId, !isIgnored)}
+                                        className="shrink-0 text-[11px]"
+                                        title={
+                                          isIgnored
+                                            ? 'Incluir ciclo en el cálculo automático'
+                                            : 'Ignorar ciclo para el cálculo automático'
+                                        }
+                                      >
+                                        {toggleLabel}
+                                      </Button>
+                                    </div>
+                                    <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-[11px] text-rose-500">
+                                      <span>Día de subida: {riseDayText}</span>
+                                      {Number.isFinite(cycle.t8Day) && (
+                                        <span>T-8: Día {cycle.t8Day}</span>
+                                      )}
+                                    </div>
+                                    {isIgnored && (
+                                      <p className="mt-1 text-[11px] text-rose-400">
+                                        Ignorado para el cálculo automático.
+                                      </p>
+                                    )}
+                                  </div>
+                                </li>
+                              );
+                          })}
                             </ul>
                           ) : (
                             <p className="text-[11px] text-rose-500">
