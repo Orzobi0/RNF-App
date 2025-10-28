@@ -1512,6 +1512,7 @@ const ModernFertilityDashboard = () => {
     const cycleCount = computedT8Data.cycleCount;
     const cyclesLabel = `${cycleCount} ciclo${cycleCount === 1 ? '' : 's'}`;
     const requiredCycles = 6;
+    const sourceLabel = isManualT8 ? 'Manual' : 'Automático';
 
     const cycleName =
       computedT8Data.earliestCycle?.displayName ||
@@ -1530,31 +1531,20 @@ const ModernFertilityDashboard = () => {
         ? `T-8 Día ${t8Day}`
         : null;
 
-    let prefix;
-    let suffix;
-    let status;
+    let summary;
 
     if (cycleCount === 0) {
-      prefix = isManualT8 ? 'Valor manual. Datos automáticos:' : 'Datos automáticos:';
-      suffix = '';
-      status = 'Aún no hay ciclos con ovulación confirmada por temperatura.';
+      summary = 'Aún no hay ciclos con ovulación confirmada por temperatura.';
     } else if (!computedT8Data.canCompute) {
-      prefix = isManualT8
-        ? 'Valor manual. Datos automáticos disponibles:'
-        : 'Datos automáticos disponibles:';
-      suffix = ` (se necesitan ${requiredCycles}).`;
-      status = `Hay ${cyclesLabel} con ovulación confirmada por temperatura.`;
+      summary = `Hay ${cyclesLabel} con ovulación confirmada por temperatura (se necesitan ${requiredCycles}).`;
     } else {
-      prefix = isManualT8 ? 'Valor manual. Cálculo automático con' : 'Calculado con';
-      suffix = '.';
-      status = `${cycleName} (${dayText}${t8Text ? ` → ${t8Text}` : ''}).`;
+      summary = `${cycleName} (${dayText}${t8Text ? ` → ${t8Text}` : ''}).`;
     }
 
     return {
-      prefix,
-      suffix,
+      sourceLabel,
+      summary,
       highlightLabel: cyclesLabel,
-      status,
       cycleCount,
       requiredCycles,
     };
@@ -2121,9 +2111,14 @@ const ModernFertilityDashboard = () => {
                   <div className="flex items-start gap-2">
                     <HelpCircle className="mt-0.5 h-4 w-4 text-rose-500" />
                     <div className="space-y-1">
-                      <p className="text-xs font-semibold text-rose-700">Origen del dato</p>
-                      <p className="leading-snug text-rose-600">
-                        {t8Info.prefix}{' '}
+                      <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-rose-700">
+                        <span>Origen del dato</span>
+                        <span className="rounded-full bg-white/70 px-2 py-0.5 text-[11px] font-semibold text-rose-600">
+                          {t8Info.sourceLabel}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1 text-xs text-rose-600">
+                        <span className="font-semibold">Datos disponibles:</span>
                         <button
                           type="button"
                           onClick={() => setShowT8Details((previous) => !previous)}
@@ -2132,25 +2127,27 @@ const ModernFertilityDashboard = () => {
                         >
                           {t8Info.highlightLabel}
                         </button>
-                        {t8Info.suffix}
-                      </p>
-                      <p className="text-[11px] text-rose-500">{t8Info.status}</p>
+                        </div>
+                      <p className="text-[11px] text-rose-500">{t8Info.summary}</p>
                       {showT8Details && (
                         <div className="mt-2 space-y-2">
                           {computedT8Data.cyclesConsidered.length > 0 ? (
                             <ul className="space-y-1">
                               {computedT8Data.cyclesConsidered.map((cycle, index) => {
                                 const key = cycle.cycleId || `${cycle.displayName}-${cycle.riseDay}-${index}`;
+                                const riseDayText =
+                                  typeof cycle.riseDay === 'number' && Number.isFinite(cycle.riseDay)
+                                    ? cycle.riseDay
+                                    : '—';
                                 return (
                                   <li
                                     key={key}
                                     className="rounded-xl border border-rose-100 bg-white/70 px-3 py-2 text-left shadow-sm"
                                   >
-                                    <p className="text-xs font-semibold text-rose-700">{cycle.displayName}</p>
-                                    <p className="text-[11px] text-rose-500">
-                                      Día de subida: {cycle.riseDay}{' '}
-                                      • T-8: Día {cycle.t8Day}
+                                    <p className="text-xs font-semibold text-rose-700">
+                                      {cycle.displayName || cycle.name || 'Ciclo sin nombre'}
                                     </p>
+                                    <p className="text-[11px] text-rose-500">Día de subida: {riseDayText}</p>
                                   </li>
                                 );
                               })}
