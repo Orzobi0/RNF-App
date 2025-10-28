@@ -217,15 +217,25 @@ export const createNewCycleDB = async (userId, startDate) => {
   const cyclesSnap = await getDocs(cyclesRef);
   const newStart = parseISO(startDate);
 
-  const overlaps = cyclesSnap.docs.some((docSnap) => {
+  const overlapDoc = cyclesSnap.docs.find((docSnap) => {
     const data = docSnap.data();
     const start = data.start_date ? parseISO(data.start_date) : null;
     const end = data.end_date ? parseISO(data.end_date) : null;
-    return start && newStart >= start && (!end || newStart <= end);
+    if (!start || !newStart) return false;
+    const comparableEnd = end ?? new Date('9999-12-31');
+    return newStart >= start && newStart <= comparableEnd;
   });
 
-  if (overlaps) {
-    throw new Error('Cycle dates overlap with an existing cycle');
+  if (overlapDoc) {
+    const overlapInfo = {
+      id: overlapDoc.id,
+      startDate: overlapDoc.data().start_date,
+      endDate: overlapDoc.data().end_date,
+    };
+    const error = new Error('Cycle dates overlap with an existing cycle');
+    error.code = 'cycle-overlap';
+    error.conflictCycle = overlapInfo;
+    throw error;
   }
 
   const docRef = await addDoc(collection(db, `users/${userId}/cycles`), {
@@ -424,7 +434,7 @@ export const updateCycleDatesDB = async (cycleId, userId, startDate, endDate, va
     const error = new Error('Cycle dates overlap with an existing cycle');
     error.code = 'cycle-overlap';
     error.conflictCycle = overlapInfo;
-    throw erro
+    throw error;
   }
 
   const updatePayload = {};

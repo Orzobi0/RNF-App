@@ -9,7 +9,10 @@ const APPEARANCE_COLOR = '#2E7D32';
 const OBSERVATION_COLOR = '#6A1B9A';
 
 const ROW_BACKGROUND_FILL = 'rgba(255, 255, 255, 0.8)';
-const ROW_BACKGROUND_FILL_SOFT = 'rgba(255, 255, 255, 0.3)';
+const ROW_BACKGROUND_FILL_SOFT_sens = '#EFF6FF';
+const ROW_BACKGROUND_FILL_SOFT_apa = '#ECFDF5';
+const ROW_BACKGROUND_FILL_SOFT_obs = '#F5F3FF';
+const ROW_TINT_ALPHA = 0.35;
 const SENSATION_BORDER_COLOR = 'rgba(14, 165, 233, 0.18)';
 const APPEARANCE_BORDER_COLOR = 'rgba(16, 185, 129, 0.18)';
 const OBSERVATION_BORDER_COLOR = 'rgba(139, 92, 246, 0.18)';
@@ -243,8 +246,8 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
             y={mucusSensationRowY - rowBlockHeight / 2}
             width={rowWidth}
             height={rowBlockHeight}
-            fill={ROW_BACKGROUND_FILL_SOFT}
-            stroke={SENSATION_BORDER_COLOR}
+            fill={ROW_BACKGROUND_FILL_SOFT_sens}
+            fillOpacity={ROW_TINT_ALPHA}
             strokeWidth={1.5}
             rx={6}
             style={{ filter: ROW_SHADOW }}
@@ -254,8 +257,8 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
             y={mucusAppearanceRowY - rowBlockHeight / 2}
             width={rowWidth}
             height={rowBlockHeight}
-            fill={ROW_BACKGROUND_FILL_SOFT}
-            stroke={APPEARANCE_BORDER_COLOR}
+            fill={ROW_BACKGROUND_FILL_SOFT_apa}
+            fillOpacity={ROW_TINT_ALPHA}
             strokeWidth={1.5}
             rx={6}
             style={{ filter: ROW_SHADOW }}
@@ -265,8 +268,8 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
             y={observationsRowY - rowBlockHeight / 2}
             width={rowWidth}
             height={rowBlockHeight}
-            fill={ROW_BACKGROUND_FILL_SOFT}
-            stroke={OBSERVATION_BORDER_COLOR}
+            fill={ROW_BACKGROUND_FILL_SOFT_obs}
+            fillOpacity={ROW_TINT_ALPHA}
             strokeWidth={1.5}
             rx={6}
             style={{ filter: ROW_SHADOW }}

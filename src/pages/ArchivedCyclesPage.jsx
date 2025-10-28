@@ -14,24 +14,60 @@ import { useToast } from '@/components/ui/use-toast';
 const ArchivedCyclesPage = () => {
   const { currentCycle, archivedCycles, isLoading, addArchivedCycle, updateCycleDates, deleteCycle, checkCycleOverlap, forceUpdateCycleStart } = useCycleData();
   const { toast } = useToast();
-  const navigate = useNavigate(); 
+  const navigate = useNavigate();
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editingCycle, setEditingCycle] = useState(null);
   const [cycleToDelete, setCycleToDelete] = useState(null);
   const [isDeletingCycle, setIsDeletingCycle] = useState(false);
+  const [addCycleError, setAddCycleError] = useState(null);
+  const [editCycleError, setEditCycleError] = useState(null);
   const longPressTimeoutRef = useRef(null);
   const longPressTriggeredRef = useRef(false);
+
+  const formatConflictMessage = (conflictCycle) => {
+    if (!conflictCycle) {
+      return 'Las fechas ingresadas se superponen con otro ciclo.';
+    }
+
+    const formatDate = (date) => {
+      if (!date) return null;
+      try {
+        return format(parseISO(date), 'dd/MM/yyyy');
+      } catch (error) {
+        console.error('Error parsing conflict date', error);
+        return date;
+      }
+    };
+
+    const start = formatDate(conflictCycle.startDate) ?? 'sin fecha de inicio';
+    const end = conflictCycle.endDate ? formatDate(conflictCycle.endDate) : 'en curso';
+    return `Las fechas ingresadas se superponen con el ciclo del ${start} al ${end}.`;
+  };
+
+  const openAddDialog = () => {
+    setAddCycleError(null);
+    setShowAddDialog(true);
+  };
+
+  const closeAddDialog = () => {
+    setShowAddDialog(false);
+    setAddCycleError(null);
+  };
 
   const handleAddCycle = async ({ startDate, endDate }) => {
     try {
       await addArchivedCycle(startDate, endDate);
-      setShowAddDialog(false);
+      closeAddDialog();
     } catch (error) {
-      // error handled via toast
+      const message = error.code === 'cycle-overlap'
+        ? formatConflictMessage(error.conflictCycle)
+        : 'No se pudo crear el ciclo.';
+      setAddCycleError({ message, conflictCycle: error.conflictCycle || null });
     }
   };
 
   const handleEditCycle = (cycle) => {
+    setEditCycleError(null);
     setEditingCycle(cycle);
   };
 
@@ -47,8 +83,12 @@ const ArchivedCyclesPage = () => {
         await updateCycleDates(editingCycle.id, startDate, endDate);
       }
       setEditingCycle(null);
+      setEditCycleError(null);
     } catch (error) {
-      // error handled via toast in updateCycleDates
+      const message = error.code === 'cycle-overlap'
+        ? formatConflictMessage(error.conflictCycle)
+        : 'No se pudieron actualizar las fechas.';
+      setEditCycleError({ message, conflictCycle: error.conflictCycle || null });
     }
   };
 
@@ -152,8 +192,8 @@ const ArchivedCyclesPage = () => {
                 <Button asChild className="bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white shadow-lg">
                   <Link to="/">Volver al Ciclo Actual</Link>
                 </Button>
-                <Button 
-                  onClick={() => setShowAddDialog(true)} 
+                <Button
+                  onClick={openAddDialog}
                   className="bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white shadow-lg"
                 >
                   <Plus className="mr-2 h-4 w-4" /> Crear Ciclo
@@ -164,10 +204,13 @@ const ArchivedCyclesPage = () => {
         </div>
         <EditCycleDatesDialog
           isOpen={showAddDialog}
-          onClose={() => setShowAddDialog(false)}
+          onClose={closeAddDialog}
           onConfirm={handleAddCycle}
           title="Añadir Ciclo Anterior"
           description="Ingresa las fechas de un ciclo previo para añadir registros."
+          errorMessage={addCycleError?.message}
+          conflictCycle={addCycleError?.conflictCycle}
+          onResetError={() => setAddCycleError(null)}
         />
       </div>
     );
@@ -199,8 +242,8 @@ const ArchivedCyclesPage = () => {
             <Archive className="mr-3 h-8 w-8 text-pink-500" />
             Mis Ciclos
           </h1>
-          <Button 
-            onClick={() => setShowAddDialog(true)} 
+          <Button
+            onClick={openAddDialog}
             className="rounded-3xl bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white shadow-lg"
             style={{ filter: 'drop-shadow(0 6px 12px rgba(236, 72, 153, 0.3))' }}
           >
@@ -302,15 +345,21 @@ const ArchivedCyclesPage = () => {
       {/* Dialogs */}
       <EditCycleDatesDialog
         isOpen={showAddDialog}
-        onClose={() => setShowAddDialog(false)}
+        onClose={closeAddDialog}
         onConfirm={handleAddCycle}
         title="Añadir Ciclo Anterior"
         description="Ingresa las fechas de un ciclo previo para añadir registros."
+        errorMessage={addCycleError?.message}
+        conflictCycle={addCycleError?.conflictCycle}
+        onResetError={() => setAddCycleError(null)}
       />
       
       <EditCycleDatesDialog
         isOpen={!!editingCycle}
-        onClose={() => setEditingCycle(null)}
+        onClose={() => {
+          setEditingCycle(null);
+          setEditCycleError(null);
+        }}
         onConfirm={handleUpdateCycle}
         initialStartDate={editingCycle?.startDate}
         initialEndDate={editingCycle?.endDate}
@@ -318,6 +367,9 @@ const ArchivedCyclesPage = () => {
         checkOverlap={checkCycleOverlap}
         title="Editar Fechas del Ciclo"
         description="Actualiza las fechas del ciclo."
+        errorMessage={editCycleError?.message}
+        conflictCycle={editCycleError?.conflictCycle}
+        onResetError={() => setEditCycleError(null)}
       />
       <DeletionDialog
         isOpen={!!cycleToDelete}
