@@ -10,6 +10,7 @@ import {
   ChevronRight,
   HelpCircle,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import CycleDatesEditor from '@/components/CycleDatesEditor';
 import DataEntryForm from '@/components/DataEntryForm';
 import { useToast } from '@/components/ui/use-toast';
@@ -24,6 +25,7 @@ import {
 } from '@/components/ui/dialog';
 import { useCycleData } from '@/hooks/useCycleData';
 import { addDays, differenceInDays, format, isAfter, parseISO, startOfDay } from 'date-fns';
+import { es } from 'date-fns/locale';
 import ChartTooltip from '@/components/chartElements/ChartTooltip';
 import computePeakStatuses from '@/lib/computePeakStatuses';
 import { useAuth } from '@/contexts/AuthContext';
@@ -925,6 +927,7 @@ const FloatingActionButton = ({ onAddRecord, onAddCycle }) => {
 };
 
 const ModernFertilityDashboard = () => {
+  const navigate = useNavigate();
   const {
     currentCycle,
     archivedCycles,
@@ -1196,29 +1199,61 @@ const ModernFertilityDashboard = () => {
     setDraftStartDate(currentCycle?.startDate || '');
   }, [currentCycle?.startDate]);
 
+  const formatCycleDateRange = useCallback((cycle) => {
+    if (!cycle?.startDate) {
+      return null;
+    }
+
+    try {
+      const start = parseISO(cycle.startDate);
+      if (Number.isNaN(start.getTime())) {
+        return null;
+      }
+
+      const startLabel = format(start, 'dd/MM/yyyy', { locale: es });
+      if (!cycle.endDate) {
+        return `${startLabel} - En curso`;
+      }
+
+      const end = parseISO(cycle.endDate);
+      if (Number.isNaN(end.getTime())) {
+        return startLabel;
+      }
+
+      const endLabel = format(end, 'dd/MM/yyyy', { locale: es });
+      return `${startLabel} - ${endLabel}`;
+    } catch (error) {
+      return null;
+    }
+  }, []);
+
   const combinedCycles = useMemo(() => {
     const cycles = [];
 
     if (Array.isArray(archivedCycles) && archivedCycles.length > 0) {
       archivedCycles.forEach((cycle, index) => {
+        const dateRangeLabel = formatCycleDateRange(cycle);
         cycles.push({
           ...cycle,
-          displayName: cycle.name || `Ciclo archivado ${index + 1}`,
+          displayName: cycle.name || dateRangeLabel || `Ciclo archivado ${index + 1}`,
+          dateRangeLabel,
           source: 'archived',
         });
       });
     }
 
     if (currentCycle?.id) {
+      const dateRangeLabel = formatCycleDateRange(currentCycle);
       cycles.push({
         ...currentCycle,
-        displayName: currentCycle.name || 'Ciclo actual',
+        displayName: currentCycle.name || dateRangeLabel || 'Ciclo actual',
+        dateRangeLabel,
         source: 'current',
       });
     }
     
     return cycles;
-  }, [archivedCycles, currentCycle]);
+  }, [archivedCycles, currentCycle, formatCycleDateRange]);
 
   const computedCpmData = useMemo(() => {
     const completedCycles = combinedCycles
@@ -1431,6 +1466,7 @@ const ModernFertilityDashboard = () => {
         riseDay,
         t8Day,
         displayName: cycle.displayName || cycle.name || 'Ciclo sin nombre',
+        dateRangeLabel: cycle.dateRangeLabel,
       });
     }
 
@@ -1549,6 +1585,23 @@ const ModernFertilityDashboard = () => {
       requiredCycles,
     };
   }, [computedT8Data, isManualT8]);
+
+  const handleNavigateToCycleDetails = useCallback((cycle) => {
+    if (!cycle) {
+      return;
+    }
+
+    const cycleId = cycle.cycleId || cycle.id;
+
+    if (cycleId) {
+      if (currentCycle?.id && cycleId === currentCycle.id) {
+        navigate('/');
+        return;
+      }
+
+      navigate(`/cycle/${cycleId}`);
+    }
+  }, [currentCycle?.id, navigate]);
 
   const handleOpenCpmDialog = useCallback(() => {
     const baseValue = isManualCpm
@@ -2140,14 +2193,20 @@ const ModernFertilityDashboard = () => {
                                     ? cycle.riseDay
                                     : '—';
                                 return (
-                                  <li
-                                    key={key}
-                                    className="rounded-xl border border-rose-100 bg-white/70 px-3 py-2 text-left shadow-sm"
-                                  >
-                                    <p className="text-xs font-semibold text-rose-700">
-                                      {cycle.displayName || cycle.name || 'Ciclo sin nombre'}
-                                    </p>
-                                    <p className="text-[11px] text-rose-500">Día de subida: {riseDayText}</p>
+                                  <li key={key}>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleNavigateToCycleDetails(cycle)}
+                                      className="w-full rounded-xl border border-rose-100 bg-white/70 px-3 py-2 text-left shadow-sm transition hover:border-rose-200 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70"
+                                    >
+                                      <div className="flex items-center justify-between gap-2">
+                                        <p className="text-xs font-semibold text-rose-700">
+                                          {cycle.dateRangeLabel || cycle.displayName || cycle.name || 'Ciclo sin nombre'}
+                                        </p>
+                                        <ChevronRight className="h-4 w-4 text-rose-400" aria-hidden="true" />
+                                      </div>
+                                      <p className="text-[11px] text-rose-500">Día de subida: {riseDayText}</p>
+                                    </button>
                                   </li>
                                 );
                               })}
