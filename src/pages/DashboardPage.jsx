@@ -2298,18 +2298,18 @@ const ModernFertilityDashboard = () => {
                                 ? 'Incluir'
                                 : 'Ignorar';
 
-                                const cardClasses = `rounded-2xl border px-3 py-2 shadow-sm transition hover:border-rose-200 hover:bg-white ${
+                            const cardClasses = `rounded-2xl border px-3 py-2 shadow-sm transition hover:border-rose-200 hover:bg-white ${
                               isIgnored ? 'border-rose-200 bg-rose-50/80 opacity-80' : 'border-rose-100 bg-white/50'
                             }`;
 
                             return (
                               <li key={key}>
-                                <div className={cardClasses}>
-                                  <div className="flex items-start gap-2">
+                                <div className="flex items-stretch gap-2">
+                                  <div className={`${cardClasses} flex-1`}>
                                     <button
                                       type="button"
                                       onClick={() => handleNavigateToCycleDetails(cycle)}
-                                      className="flex-1 rounded-2xl px-1 py-0.5 text-left transition hover:bg-white/60 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70"
+                                      className="block w-full rounded-2xl px-1 py-0.5 text-left transition hover:bg-white/60 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70"
                                     >
                                       <div className="flex items-center justify-between gap-2">
                                         <p className="text-xs font-semibold text-rose-700">
@@ -2318,35 +2318,35 @@ const ModernFertilityDashboard = () => {
                                         <ChevronRight className="h-4 w-4 text-rose-400" aria-hidden="true" />
                                       </div>
                                     </button>
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      size="xs"
-                                      disabled={!cycleId || isPending}
-                                      onClick={() => cycleId && handleToggleCycleIgnore(cycleId, !isIgnored)}
-                                      className="shrink-0 text-[11px]"
-                                      title={
-                                        isIgnored
-                                          ? 'Incluir ciclo en el cálculo automático'
-                                          : 'Ignorar ciclo para el cálculo automático'
-                                      }
-                                    >
-                                      {toggleLabel}
-                                    </Button>
-                                  </div>
-                                  <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-[11px] text-rose-500">
-                                    <span>Duración: {durationText}</span>
-                                    {isShortest && (
-                                      <span className="rounded-full bg-rose-100 px-2 py-0.5 font-semibold text-rose-600">
-                                        Ciclo más corto
-                                      </span>
+                                    <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-[11px] text-rose-500">
+                                      <span>Duración: {durationText}</span>
+                                      {isShortest && (
+                                        <span className="rounded-full bg-rose-100 px-2 py-0.5 font-semibold text-rose-600">
+                                          Ciclo más corto
+                                        </span>
+                                      )}
+                                    </div>
+                                    {isIgnored && (
+                                      <p className="mt-1 text-[11px] text-rose-400">
+                                        Ignorado para el cálculo automático.
+                                      </p>
                                     )}
                                   </div>
-                                  {isIgnored && (
-                                    <p className="mt-1 text-[11px] text-rose-400">
-                                      Ignorado para el cálculo automático.
-                                    </p>
-                                  )}
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="xs"
+                                    disabled={!cycleId || isPending}
+                                    onClick={() => cycleId && handleToggleCycleIgnore(cycleId, !isIgnored)}
+                                    className="shrink-0 self-center text-[10px]"
+                                    title={
+                                      isIgnored
+                                        ? 'Incluir ciclo en el cálculo automático'
+                                        : 'Ignorar ciclo para el cálculo automático'
+                                    }
+                                  >
+                                    {toggleLabel}
+                                  </Button>
                                 </div>
                               </li>
                             );
@@ -2457,18 +2457,18 @@ const ModernFertilityDashboard = () => {
                                     ? 'Incluir'
                                     : 'Ignorar';
 
-                              const cardClasses = `rounded-2xl border px-3 py-2 shadow-sm transition hover:border-rose-200 hover:bg-white ${
+                                const cardClasses = `rounded-2xl border px-3 py-2 shadow-sm transition hover:border-rose-200 hover:bg-white ${
                                   isIgnored ? 'border-rose-200 bg-rose-50/80 opacity-80' : 'border-rose-100 bg-white/40'
                                 }`;
 
                                 return (
                                   <li key={key}>
-                                    <div className={cardClasses}>
-                                      <div className="flex items-start gap-2">
+                                    <div className="flex items-stretch gap-2">
+                                      <div className={`${cardClasses} flex-1`}>
                                         <button
                                           type="button"
                                           onClick={() => handleNavigateToCycleDetails(cycle)}
-                                          className="flex-1 rounded-2xl px-1 py-0.5 text-left transition hover:bg-white/60 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70"
+                                          className="block w-full rounded-2xl px-1 py-0.5 text-left transition hover:bg-white/60 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70"
                                         >
                                           <div className="flex items-center justify-between gap-2">
                                             <p className="text-xs font-semibold text-rose-700">
@@ -2477,36 +2477,36 @@ const ModernFertilityDashboard = () => {
                                             <ChevronRight className="h-4 w-4 text-rose-400" aria-hidden="true" />
                                           </div>
                                         </button>
-                                        <Button
-                                          type="button"
-                                          variant="outline"
-                                          size="xs"
-                                          disabled={!cycleId || isPending}
-                                          onClick={() => cycleId && handleToggleCycleIgnore(cycleId, !isIgnored)}
-                                          className="shrink-0 text-[11px]"
-                                          title={
-                                            isIgnored
-                                              ? 'Incluir ciclo en el cálculo automático'
-                                              : 'Ignorar ciclo para el cálculo automático'
-                                          }
-                                        >
-                                          {toggleLabel}
-                                        </Button>
-                                      </div>
-                                      <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-rose-500">
-                                        <span>Día de subida: {riseDayText}</span>
-                                        {Number.isFinite(cycle.t8Day) && (
-                                          <span>T-8: Día {cycle.t8Day}</span>
+                                        <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-rose-500">
+                                          <span>Día de subida: {riseDayText}</span>
+                                          {Number.isFinite(cycle.t8Day) && (
+                                            <span>T-8: Día {cycle.t8Day}</span>
+                                          )}
+                                        </div>
+                                        {isIgnored && (
+                                          <p className="mt-1 text-[11px] text-rose-400">
+                                            Ignorado para el cálculo automático.
+                                          </p>
                                         )}
                                       </div>
-                                      {isIgnored && (
-                                        <p className="mt-1 text-[11px] text-rose-400">
-                                          Ignorado para el cálculo automático.
-                                        </p>
-                                    )}
-                                  </div>
-                                </li>
-                              );
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="xs"
+                                        disabled={!cycleId || isPending}
+                                        onClick={() => cycleId && handleToggleCycleIgnore(cycleId, !isIgnored)}
+                                        className="shrink-0 self-center text-[10px]"
+                                        title={
+                                          isIgnored
+                                            ? 'Incluir ciclo en el cálculo automático'
+                                            : 'Ignorar ciclo para el cálculo automático'
+                                        }
+                                      >
+                                        {toggleLabel}
+                                      </Button>
+                                    </div>
+                                  </li>
+                                );
                           })}
                             </ul>
                           ) : (

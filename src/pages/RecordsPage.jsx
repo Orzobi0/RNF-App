@@ -953,19 +953,6 @@ export const RecordsExperience = ({
   }, [cycle?.data]);
 
   useEffect(() => {
-    if (!sortedRecordDates.length) {
-      setSelectedDate(null);
-      setExpandedIsoDate(null);
-      return;
-    }
-
-    if (!selectedDate || !sortedRecordDates.includes(selectedDate)) {
-      hasUserSelectedDateRef.current = false;
-      setSelectedDate(sortedRecordDates[0]);
-    }
-  }, [sortedRecordDates, selectedDate]);
-
-  useEffect(() => {
     if (!selectedDate || !hasUserSelectedDateRef.current) {
       return;
     }
@@ -1232,6 +1219,54 @@ export const RecordsExperience = ({
     return days;
   }, [cycle?.startDate, cycleRange, recordDetailsByIso]);
 
+  const cycleDayIsoSet = useMemo(
+    () => new Set(cycleDays.map((day) => day.isoDate)),
+    [cycleDays]
+  );
+
+  const defaultSelectedIso = useMemo(() => {
+    const cycleEndIso = cycleRange?.to
+      ? format(startOfDay(cycleRange.to), 'yyyy-MM-dd')
+      : null;
+
+    if (includeEndDate) {
+      return cycleEndIso ?? sortedRecordDates[0] ?? null;
+    }
+
+    if (sortedRecordDates.length) {
+      return sortedRecordDates[0];
+    }
+
+    return cycleEndIso;
+  }, [includeEndDate, cycleRange, sortedRecordDates]);
+
+  useEffect(() => {
+    if (selectedDate && cycleDayIsoSet.has(selectedDate)) {
+      return;
+    }
+
+    if (!defaultSelectedIso) {
+      if (selectedDate !== null) {
+        setSelectedDate(null);
+        setExpandedIsoDate(null);
+      }
+      return;
+    }
+
+    if (selectedDate !== defaultSelectedIso) {
+      setSelectedDate(defaultSelectedIso);
+
+      if (!recordDetailsByIso.has(defaultSelectedIso)) {
+        setExpandedIsoDate(null);
+      }
+    }
+  }, [
+    selectedDate,
+    cycleDayIsoSet,
+    defaultSelectedIso,
+    recordDetailsByIso,
+  ]);
+
   const processedCycleDays = useMemo(() => {
     if (!cycleDays.length) {
       return { items: [], isoToGroup: {} };
@@ -1306,6 +1341,13 @@ export const RecordsExperience = ({
         }
       }
 
+      const groupId = isoToGroupMap[iso];
+      if (groupId) {
+        setExpandedEmptyGroups((prev) =>
+          prev.includes(groupId) ? prev : [...prev, groupId]
+        );
+      }
+
       hasUserSelectedDateRef.current = true;
       setSelectedDate(iso);
 
@@ -1313,7 +1355,7 @@ export const RecordsExperience = ({
         setExpandedIsoDate(null);
       }
     },
-    [cycleRange, recordDetailsByIso]
+    [cycleRange, isoToGroupMap, recordDetailsByIso]
   );
 
   const resetStartDateFlow = useCallback(() => {
@@ -1774,6 +1816,7 @@ export const RecordsExperience = ({
                         : cycleRange?.to
                     }
                     selected={selectedDate && isValid(parseISO(selectedDate)) ? parseISO(selectedDate) : undefined}
+                    onSelect={handleCalendarSelect}
                     onDayClick={handleCalendarSelect}
                     modifiers={calendarModifiers}
                     className="w-full max-w-xs sm:max-w-sm rounded-3xl bg-white/40 !p-2 sm:!p-2.5 mx-auto backdrop-blur-sm [&_button]:text-slate-900 [&_button:hover]:bg-rose-100 [&_button[aria-selected=true]]:bg-rose-400"
