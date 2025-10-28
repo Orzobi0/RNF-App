@@ -1411,7 +1411,11 @@ export const RecordsExperience = ({
 
     try {
       const overlap = checkCycleOverlap
-        ? await checkCycleOverlap(cycle.id, draftStartDate)
+        ? await checkCycleOverlap(
+            cycle.id,
+            draftStartDate,
+            includeEndDate ? draftEndDate || undefined : undefined
+          )
         : null;
 
       if (overlap) {

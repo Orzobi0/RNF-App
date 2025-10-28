@@ -408,16 +408,23 @@ export const updateCycleDatesDB = async (cycleId, userId, startDate, endDate, va
     return proposedStartDate <= endDateComparable && start <= proposedEndComparable;
   });
 
+  const overlapInfo = overlapDoc
+    ? {
+        id: overlapDoc.id,
+        startDate: overlapDoc.data().start_date,
+        endDate: overlapDoc.data().end_date,
+      }
+    : null;
+
   if (validateOnly) {
-    if (overlapDoc) {
-      const data = overlapDoc.data();
-      return { overlap: { id: overlapDoc.id, startDate: data.start_date, endDate: data.end_date } };
-    }
-    return { overlap: null };
+    return { overlap: overlapInfo };
   }
 
   if (overlapDoc) {
-    throw new Error('Cycle dates overlap with an existing cycle');
+    const error = new Error('Cycle dates overlap with an existing cycle');
+    error.code = 'cycle-overlap';
+    error.conflictCycle = overlapInfo;
+    throw erro
   }
 
   const updatePayload = {};

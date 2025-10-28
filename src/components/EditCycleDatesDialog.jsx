@@ -51,7 +51,11 @@ const EditCycleDatesDialog = ({
       ? { startDate, endDate }
       : { startDate };
       if (checkOverlap && cycleId && startDate) {
-      const overlap = await checkOverlap(cycleId, startDate);
+      const overlap = await checkOverlap(
+        cycleId,
+        startDate,
+        includeEndDate ? endDate || undefined : undefined
+      );
       if (overlap) {
         setOverlapCycle(overlap);
         setPendingPayload(payload);
