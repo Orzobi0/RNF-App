@@ -953,6 +953,7 @@ const ModernFertilityDashboard = () => {
   const [manualCpmError, setManualCpmError] = useState('');
   const [manualCpmValue, setManualCpmValue] = useState(null);
   const [isManualCpm, setIsManualCpm] = useState(false);
+  const [showCpmDetails, setShowCpmDetails] = useState(false);
   const [isT8DialogOpen, setIsT8DialogOpen] = useState(false);
   const [manualT8Input, setManualT8Input] = useState('');
   const [manualT8Error, setManualT8Error] = useState('');
@@ -1291,7 +1292,18 @@ const ModernFertilityDashboard = () => {
       })
       .filter(Boolean);
 
-    const totalCycles = completedCycles.length;
+    const sortedByDuration = [...completedCycles].sort((a, b) => {
+      const aDuration = typeof a.duration === 'number' && Number.isFinite(a.duration)
+        ? a.duration
+        : Number.POSITIVE_INFINITY;
+      const bDuration = typeof b.duration === 'number' && Number.isFinite(b.duration)
+        ? b.duration
+        : Number.POSITIVE_INFINITY;
+
+      return aDuration - bDuration;
+    });
+
+    const totalCycles = sortedByDuration.length;
 
     if (totalCycles < 6) {
       return {
@@ -1299,10 +1311,11 @@ const ModernFertilityDashboard = () => {
         cycleCount: totalCycles,
         shortestCycle: null,
         deduction: null,
+        canCompute: false,
+        cyclesConsidered: sortedByDuration,
       };
     }
 
-    const sortedByDuration = [...completedCycles].sort((a, b) => a.duration - b.duration);
     const shortestCycle = sortedByDuration[0];
     const deduction = totalCycles >= 12 ? 20 : 21;
     const value = shortestCycle.duration - deduction;
@@ -1312,6 +1325,8 @@ const ModernFertilityDashboard = () => {
       cycleCount: totalCycles,
       shortestCycle,
       deduction,
+      canCompute: true,
+      cyclesConsidered: sortedByDuration,
     };
   }, [combinedCycles]);
 
@@ -1521,28 +1536,72 @@ const ModernFertilityDashboard = () => {
     return rounded.toLocaleString('es-ES', { maximumFractionDigits: 0 });
   }, [computedT8Data.value, isManualT8, manualT8Value]);
 
-  const cpmInfoText = useMemo(() => {
-    if (isManualCpm) {
-      return 'Incorporado manualmente';
+  const cpmInfo = useMemo(() => {
+    const cycleCount = computedCpmData.cycleCount ?? 0;
+    const cyclesLabel = `${cycleCount} ciclo${cycleCount === 1 ? '' : 's'}`;
+    const requiredCycles = 6;
+    const sourceLabel = isManualCpm ? 'Manual' : 'Automático';
+    const cycles = computedCpmData.cyclesConsidered ?? [];
+    const canCompute = Boolean(computedCpmData.canCompute);
+    const deduction =
+      typeof computedCpmData.deduction === 'number' && Number.isFinite(computedCpmData.deduction)
+        ? computedCpmData.deduction
+        : null;
+    const shortestCycle = computedCpmData.shortestCycle ?? null;
+    const automaticValue =
+      typeof computedCpmData.value === 'number' && Number.isFinite(computedCpmData.value)
+        ? computedCpmData.value
+        : null;
+
+    let summary;
+
+    if (cycleCount === 0) {
+      summary = 'Aún no hay ciclos finalizados con fecha de finalización.';
+    } else if (!canCompute) {
+      summary = `Hay ${cyclesLabel} finalizado${cycleCount === 1 ? '' : 's'}. Se necesitan ${requiredCycles} para calcular el CPM automáticamente.`;
+    } else {
+      const cycleName =
+        shortestCycle?.dateRangeLabel ||
+        shortestCycle?.displayName ||
+        shortestCycle?.name ||
+        'Ciclo sin nombre';
+      const durationText =
+        typeof shortestCycle?.duration === 'number' && Number.isFinite(shortestCycle.duration)
+          ? `${shortestCycle.duration} días`
+          : 'duración desconocida';
+
+      const parts = [
+        `Calculado con ${cyclesLabel}.`,
+        `Ciclo más corto: ${cycleName} (${durationText}).`,
+      ];
+
+    if (deduction !== null) {
+        parts.push(`Deducción aplicada: ${deduction} días.`);
+      }
+
+    if (automaticValue !== null) {
+        parts.push(`Resultado: ${automaticValue} días.`);
+      }
+
+      summary = parts.join(' ');
     }
 
-    if (computedCpmData.cycleCount < 6) {
-      return 'Sin ciclos suficientes';
-    }
-
-    const cycleName =
-      computedCpmData.shortestCycle?.displayName ||
-      computedCpmData.shortestCycle?.name ||
-      'Ciclo sin nombre';
-
-    const duration = computedCpmData.shortestCycle?.duration;
-    const durationText =
-      typeof duration === 'number' && Number.isFinite(duration)
-        ? `${duration} días`
-        : 'duración desconocida';
-
-    return `Calculado con ${computedCpmData.cycleCount} ciclos. ${cycleName} (${durationText}).`;
+    return {
+      sourceLabel,
+      summary,
+      highlightLabel: cyclesLabel,
+      cycleCount,
+      requiredCycles,
+      canCompute,
+      detailsAvailable: cycles.length > 0,
+      cycles,
+      deduction,
+      shortestCycle,
+      value: automaticValue,
+    };
   }, [computedCpmData, isManualCpm]);
+
+  const cpmInfoText = cpmInfo.summary;
 
   const t8Info = useMemo(() => {
     const cycleCount = computedT8Data.cycleCount;
@@ -1612,10 +1671,12 @@ const ModernFertilityDashboard = () => {
 
     setManualCpmInput(baseValue === '' ? '' : String(baseValue));
     setManualCpmError('');
+    setShowCpmDetails(false);
     setIsCpmDialogOpen(true);
   }, [computedCpmData.value, isManualCpm, manualCpmValue]);
 
   const handleCloseCpmDialog = useCallback(() => {
+    setShowCpmDetails(false);
     setIsCpmDialogOpen(false);
   }, []);
 
@@ -2098,11 +2159,84 @@ const ModernFertilityDashboard = () => {
                 <div className="rounded-2xl border border-rose-100 bg-rose-50/70 px-3 py-2.5 text-[11px] text-rose-900">
                   <div className="flex items-start gap-2">
                     <HelpCircle className="mt-0.5 h-4 w-4 text-rose-500" />
-                    <div className="space-y-1">
-                      <p className="text-xs font-semibold text-rose-700">Origen del dato</p>
-                      <p className="leading-snug text-rose-600">{cpmInfoText}</p>
+                    <div className="flex-1 space-y-2">
+                      <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-rose-700">
+                        <span>Origen del dato</span>
+                        <span className="rounded-full bg-white/70 px-2 py-0.5 text-[11px] font-semibold text-rose-600">
+                          {cpmInfo.sourceLabel}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1 text-xs text-rose-600">
+                        <span className="font-semibold">Datos disponibles:</span>
+                        {cpmInfo.detailsAvailable ? (
+                          <button
+                            type="button"
+                            onClick={() => setShowCpmDetails((previous) => !previous)}
+                            className="inline-flex items-center font-semibold text-rose-700 underline decoration-rose-300 underline-offset-2 transition hover:text-rose-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70 rounded-sm"
+                            aria-expanded={showCpmDetails}
+                          >
+                            {cpmInfo.highlightLabel}
+                          </button>
+                        ) : (
+                          <span className="text-rose-500">{cpmInfo.highlightLabel}</span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-rose-500">{cpmInfo.summary}</p>
+                      {cpmInfo.canCompute && cpmInfo.deduction !== null && (
+                        <p className="text-[11px] text-rose-500">
+                          Deducción aplicada: {cpmInfo.deduction} días.
+                        </p>
+                      )}
                     </div>
                   </div>
+                  {showCpmDetails && cpmInfo.detailsAvailable && (
+                    <div className="mt-2 space-y-2">
+                      {cpmInfo.cycles.length > 0 ? (
+                        <ul className="space-y-1">
+                          {cpmInfo.cycles.map((cycle, index) => {
+                            const key =
+                              cycle.cycleId ||
+                              cycle.id ||
+                              `${cycle.displayName || cycle.name || cycle.startDate || 'cycle'}-${index}`;
+                            const durationText =
+                              typeof cycle.duration === 'number' && Number.isFinite(cycle.duration)
+                                ? `${cycle.duration} días`
+                                : 'duración desconocida';
+                            const isShortest = Boolean(cpmInfo.shortestCycle && cpmInfo.shortestCycle === cycle);
+
+                            return (
+                              <li key={key}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleNavigateToCycleDetails(cycle)}
+                                  className="w-full rounded-xl border border-rose-100 bg-white/70 px-3 py-2 text-left shadow-sm transition hover:border-rose-200 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70"
+                                >
+                                  <div className="flex items-center justify-between gap-2">
+                                    <p className="text-xs font-semibold text-rose-700">
+                                      {cycle.dateRangeLabel || cycle.displayName || cycle.name || 'Ciclo sin nombre'}
+                                    </p>
+                                    <ChevronRight className="h-4 w-4 text-rose-400" aria-hidden="true" />
+                                  </div>
+                                  <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-[11px] text-rose-500">
+                                    <span>Duración: {durationText}</span>
+                                    {isShortest && (
+                                      <span className="rounded-full bg-rose-100 px-2 py-0.5 font-semibold text-rose-600">
+                                        Ciclo más corto
+                                      </span>
+                                    )}
+                                  </div>
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      ) : (
+                        <p className="text-[11px] text-rose-500">
+                          Aún no hay ciclos finalizados con fecha de finalización.
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="manual-cpm-input" className="text-xs text-gray-600">
