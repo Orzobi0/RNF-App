@@ -5,10 +5,12 @@ import {
   FilePlus,
   CalendarPlus,
   Edit,
+  Pencil,
   ChevronLeft,
   ChevronRight,
   HelpCircle,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import CycleDatesEditor from '@/components/CycleDatesEditor';
 import DataEntryForm from '@/components/DataEntryForm';
 import { useToast } from '@/components/ui/use-toast';
@@ -23,12 +25,14 @@ import {
 } from '@/components/ui/dialog';
 import { useCycleData } from '@/hooks/useCycleData';
 import { addDays, differenceInDays, format, isAfter, parseISO, startOfDay } from 'date-fns';
+import { es } from 'date-fns/locale';
 import ChartTooltip from '@/components/chartElements/ChartTooltip';
 import computePeakStatuses from '@/lib/computePeakStatuses';
 import { useAuth } from '@/contexts/AuthContext';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { computeOvulationMetrics } from '@/hooks/useFertilityChart';
 
 const CycleOverviewCard = ({ cycleData,
   onEdit,
@@ -38,6 +42,8 @@ const CycleOverviewCard = ({ cycleData,
   formattedCpmValue = '-',
   cpmInfoText = 'Sin datos',
   handleOpenCpmDialog = () => {},
+  formattedT8Value = '-',
+  handleOpenT8Dialog = () => {},
 }) => {
   const records = cycleData.records || [];
   const [activePoint, setActivePoint] = useState(null);
@@ -833,7 +839,7 @@ const CycleOverviewCard = ({ cycleData,
                     <div className="absolute inset-0 rounded-full border-2 border-pink-300/0 group-hover:border-pink-300/30 transition-all duration-300 animate-pulse" />
                     
                     {/* Icono de edición pequeño */}
-                    <Edit className="absolute top-1 right-1 w-2.5 h-2.5 text-pink-400/60 group-hover:text-pink-500/80 transition-colors" />
+                    <Pencil className="absolute top-1 right-1 w-2 h-2 text-pink-400/60 group-hover:text-pink-500/80 transition-colors" />
                     
                     {/* Valor del CPM */}
                     <span className="text-lg font-bold group-hover:scale-110 transition-transform duration-200">{formattedCpmValue}</span>
@@ -843,12 +849,20 @@ const CycleOverviewCard = ({ cycleData,
               {/* T-8 con diseño mejorado */}
               <div className="text-center">
                 <div className="flex items-center justify-center gap-1 mb-1.5">
-                  <div className="w-1 h-1 bg-pink-400 rounded-full"/>
+                  <div className="w-1 h-1 bg-pink-400 rounded-full" />
                   <div className="font-bold text-pink-800 text-xs">T-8</div>
-                  <div className="w-1 h-1 bg-pink-400 rounded-full"/>
+                  <div className="w-1 h-1 bg-pink-400 rounded-full" />
                 </div>
-                <div className="bg-white/60 backdrop-blur-sm px-3 py-1.5 rounded-full border border-gray-200/50 shadow-sm">
-                  <span className="text-xs text-gray-600 font-medium">Sin datos</span>
+                <div className="flex w-full items-center justify-center gap-4">
+                  <button
+                    type="button"
+                    onClick={handleOpenT8Dialog}
+                    className="group relative flex h-16 w-16 flex-col items-center justify-center rounded-full bg-gradient-to-br from-white via-pink-50/30 to-rose-50/40 text-pink-700 shadow-lg backdrop-blur-xl transition-all duration-300 hover:shadow-xl hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-rose-400 focus:ring-offset-2 focus:ring-offset-transparent border border-pink-200/40"
+                  >
+                    <div className="absolute inset-0 rounded-full border-2 border-pink-300/0 group-hover:border-pink-300/30 transition-all duration-300 animate-pulse" />
+                    <Pencil className="absolute top-1 right-1 w-2 h-2 text-pink-400/60 group-hover:text-pink-500/80 transition-colors" />
+                    <span className="text-lg font-bold group-hover:scale-110 transition-transform duration-200">{formattedT8Value}</span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -913,6 +927,7 @@ const FloatingActionButton = ({ onAddRecord, onAddCycle }) => {
 };
 
 const ModernFertilityDashboard = () => {
+  const navigate = useNavigate();
   const {
     currentCycle,
     archivedCycles,
@@ -923,6 +938,7 @@ const ModernFertilityDashboard = () => {
     checkCycleOverlap,
     forceUpdateCycleStart,
     refreshData,
+    setCycleIgnoreForAutoCalculations,
   } = useCycleData();
   const { toast } = useToast();
   const [showStartDateEditor, setShowStartDateEditor] = useState(false);
@@ -938,17 +954,34 @@ const ModernFertilityDashboard = () => {
   const [manualCpmError, setManualCpmError] = useState('');
   const [manualCpmValue, setManualCpmValue] = useState(null);
   const [isManualCpm, setIsManualCpm] = useState(false);
+  const [showCpmDetails, setShowCpmDetails] = useState(false);
+  const [isT8DialogOpen, setIsT8DialogOpen] = useState(false);
+  const [manualT8Input, setManualT8Input] = useState('');
+  const [manualT8Error, setManualT8Error] = useState('');
+  const [manualT8Value, setManualT8Value] = useState(null);
+  const [isManualT8, setIsManualT8] = useState(false);
+  const [showT8Details, setShowT8Details] = useState(false);
+  const [pendingIgnoredCycleIds, setPendingIgnoredCycleIds] = useState([]);
 
   const manualCpmRestoreAttemptedRef = useRef(false);
+  const manualT8RestoreAttemptedRef = useRef(false);
 
   const manualCpmStorageKey = useMemo(
     () => (user?.uid ? `rnf_manual_cpm_${user.uid}` : null),
+    [user?.uid]
+  );
+  const manualT8StorageKey = useMemo(
+    () => (user?.uid ? `rnf_manual_t8_${user.uid}` : null),
     [user?.uid]
   );
 
   useEffect(() => {
     manualCpmRestoreAttemptedRef.current = false;
   }, [manualCpmStorageKey]);
+  useEffect(() => {
+    manualT8RestoreAttemptedRef.current = false;
+  }, [manualT8StorageKey]);
+
 
   const persistManualCpm = useCallback(
     async (value) => {
@@ -982,6 +1015,37 @@ const ModernFertilityDashboard = () => {
     [manualCpmStorageKey, savePreferences, user?.uid]
   );
 
+  const persistManualT8 = useCallback(
+    async (value) => {
+      if (!user?.uid || !savePreferences) {
+        return;
+      }
+
+      const payload =
+        value === null || value === undefined
+          ? { manualT8: null }
+          : { manualT8: Number(value) };
+
+      try {
+        await savePreferences(payload);
+
+        if (manualT8StorageKey && typeof window !== 'undefined') {
+          if (payload.manualT8 === null) {
+            localStorage.removeItem(manualT8StorageKey);
+          } else {
+            localStorage.setItem(
+              manualT8StorageKey,
+              JSON.stringify({ value: payload.manualT8 })
+            );
+          }
+        }
+      } catch (error) {
+        console.error('Failed to persist manual T-8 value in profile', error);
+        throw error;
+      }
+    },
+    [manualT8StorageKey, savePreferences, user?.uid]
+  );
   useEffect(() => {
     if (!manualCpmStorageKey) {
       setManualCpmValue(null);
@@ -1019,6 +1083,42 @@ const ModernFertilityDashboard = () => {
     }
   }, [manualCpmStorageKey, preferences?.manualCpm]);
 
+  useEffect(() => {
+    if (!manualT8StorageKey) {
+      setManualT8Value(null);
+      setIsManualT8(false);
+      manualT8RestoreAttemptedRef.current = false;
+      return;
+    }
+
+    const manualFromProfile = preferences?.manualT8;
+
+    if (typeof manualFromProfile === 'number' && Number.isFinite(manualFromProfile)) {
+      setManualT8Value(manualFromProfile);
+      setIsManualT8(true);
+
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(manualT8StorageKey, JSON.stringify({ value: manualFromProfile }));
+        } catch (error) {
+          console.error('Failed to sync manual T-8 value to local storage', error);
+        }
+      }
+      return;
+    }
+
+    if (manualFromProfile === null) {
+      setManualT8Value(null);
+      setIsManualT8(false);
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.removeItem(manualT8StorageKey);
+        } catch (error) {
+          console.error('Failed to clear manual T-8 value from local storage', error);
+        }
+      }
+    }
+  }, [manualT8StorageKey, preferences?.manualT8]);
   useEffect(() => {
     if (!manualCpmStorageKey || manualCpmRestoreAttemptedRef.current) {
       return;
@@ -1060,30 +1160,107 @@ const ModernFertilityDashboard = () => {
     }, [manualCpmStorageKey, persistManualCpm, preferences?.manualCpm, user?.uid]);
 
   useEffect(() => {
+    if (!manualT8StorageKey || manualT8RestoreAttemptedRef.current) {
+      return;
+    }
+
+    if (!user?.uid) {
+      return;
+    }
+
+    const manualFromProfile = preferences?.manualT8;
+    if (manualFromProfile !== undefined) {
+      manualT8RestoreAttemptedRef.current = true;
+      return;
+    }
+
+    if (typeof window === 'undefined') {
+      manualT8RestoreAttemptedRef.current = true;
+      return;
+    }
+
+    try {
+      const stored = localStorage.getItem(manualT8StorageKey);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed && typeof parsed.value === 'number' && Number.isFinite(parsed.value)) {
+          setManualT8Value(parsed.value);
+          setIsManualT8(true);
+          persistManualT8(parsed.value).catch((error) =>
+            console.error('Failed to migrate manual T-8 value to profile storage', error)
+          );
+        }
+      }
+    } catch (error) {
+      console.error('Failed to restore manual T-8 value from local storage', error);
+    } finally {
+      manualT8RestoreAttemptedRef.current = true;
+    }
+  }, [manualT8StorageKey, persistManualT8, preferences?.manualT8, user?.uid]);
+
+  useEffect(() => {
     setDraftStartDate(currentCycle?.startDate || '');
   }, [currentCycle?.startDate]);
 
-  const computedCpmData = useMemo(() => {
-    const combinedCycles = [];
+  const formatCycleDateRange = useCallback((cycle) => {
+    if (!cycle?.startDate) {
+      return null;
+    }
+
+    try {
+      const start = parseISO(cycle.startDate);
+      if (Number.isNaN(start.getTime())) {
+        return null;
+      }
+
+      const startLabel = format(start, 'dd/MM/yyyy', { locale: es });
+      if (!cycle.endDate) {
+        return `${startLabel} - En curso`;
+      }
+
+      const end = parseISO(cycle.endDate);
+      if (Number.isNaN(end.getTime())) {
+        return startLabel;
+      }
+
+      const endLabel = format(end, 'dd/MM/yyyy', { locale: es });
+      return `${startLabel} - ${endLabel}`;
+    } catch (error) {
+      return null;
+    }
+  }, []);
+
+  const combinedCycles = useMemo(() => {
+    const cycles = [];
 
     if (Array.isArray(archivedCycles) && archivedCycles.length > 0) {
       archivedCycles.forEach((cycle, index) => {
-        combinedCycles.push({
+        const dateRangeLabel = formatCycleDateRange(cycle);
+        cycles.push({
           ...cycle,
-          displayName: cycle.name || `Ciclo archivado ${index + 1}`,
+          displayName: cycle.name || dateRangeLabel || `Ciclo archivado ${index + 1}`,
+          dateRangeLabel,
           source: 'archived',
+          ignoredForAutoCalculations: Boolean(cycle.ignoredForAutoCalculations),
         });
       });
     }
 
     if (currentCycle?.id) {
-      combinedCycles.push({
+      const dateRangeLabel = formatCycleDateRange(currentCycle);
+      cycles.push({
         ...currentCycle,
-        displayName: currentCycle.name || 'Ciclo actual',
+        displayName: currentCycle.name || dateRangeLabel || 'Ciclo actual',
+        dateRangeLabel,
         source: 'current',
+        ignoredForAutoCalculations: Boolean(currentCycle.ignoredForAutoCalculations),
       });
     }
+    
+    return cycles;
+  }, [archivedCycles, currentCycle, formatCycleDateRange]);
 
+  const computedCpmData = useMemo(() => {
     const completedCycles = combinedCycles
       .map((cycle) => {
         if (!cycle.startDate || !cycle.endDate) {
@@ -1111,6 +1288,7 @@ const ModernFertilityDashboard = () => {
           return {
             ...cycle,
             duration,
+            ignoredForAutoCalculations: Boolean(cycle.ignoredForAutoCalculations),
           };
         } catch (error) {
           console.error('Failed to compute cycle duration for CPM calculation', error);
@@ -1119,29 +1297,258 @@ const ModernFertilityDashboard = () => {
       })
       .filter(Boolean);
 
-    const totalCycles = completedCycles.length;
+    const sortedByDuration = [...completedCycles].sort((a, b) => {
+      const aDuration = typeof a.duration === 'number' && Number.isFinite(a.duration)
+        ? a.duration
+        : Number.POSITIVE_INFINITY;
+      const bDuration = typeof b.duration === 'number' && Number.isFinite(b.duration)
+        ? b.duration
+        : Number.POSITIVE_INFINITY;
 
-    if (totalCycles < 6) {
+      return aDuration - bDuration;
+    });
+
+    const annotatedCycles = sortedByDuration.map((cycle) => {
+      const isIgnored = Boolean(cycle.ignoredForAutoCalculations);
+      return {
+        ...cycle,
+        isIgnored,
+        isIncluded: !isIgnored,
+      };
+    });
+
+    const includedCycles = annotatedCycles.filter((cycle) => cycle.isIncluded);
+    const ignoredCount = annotatedCycles.length - includedCycles.length;
+    const includedCount = includedCycles.length;
+
+    if (includedCount < 6) {
       return {
         value: null,
-        cycleCount: totalCycles,
+        cycleCount: includedCount,
         shortestCycle: null,
         deduction: null,
+        canCompute: false,
+        cyclesConsidered: annotatedCycles,
+        ignoredCount,
       };
     }
 
-    const sortedByDuration = [...completedCycles].sort((a, b) => a.duration - b.duration);
-    const shortestCycle = sortedByDuration[0];
-    const deduction = totalCycles >= 12 ? 20 : 21;
-    const value = shortestCycle.duration - deduction;
+    const shortestCycle = includedCycles[0] ?? null;
+    const deduction = includedCount >= 12 ? 20 : 21;
+    const computedValue =
+      typeof shortestCycle?.duration === 'number' && Number.isFinite(shortestCycle.duration)
+        ? shortestCycle.duration - deduction
+        : null;
 
     return {
-      value,
-      cycleCount: totalCycles,
+      value: computedValue,
+      cycleCount: includedCount,
       shortestCycle,
       deduction,
+      canCompute: computedValue !== null,
+      cyclesConsidered: annotatedCycles,
+      ignoredCount,
     };
-  }, [archivedCycles, currentCycle]);
+  }, [combinedCycles]);
+
+  const computedT8Data = useMemo(() => {
+    const normalizeTempValue = (value) => {
+      if (value === null || value === undefined || value === '') {
+        return null;
+      }
+
+      const parsed = Number.parseFloat(String(value).replace(',', '.'));
+      return Number.isFinite(parsed) ? parsed : null;
+    };
+
+    const getMeasurementTemp = (measurement) => {
+      if (!measurement) {
+        return null;
+      }
+
+      const raw = normalizeTempValue(measurement.temperature);
+      const corrected = normalizeTempValue(measurement.temperature_corrected);
+
+      if (measurement.use_corrected && corrected !== null) {
+        return corrected;
+      }
+
+      if (raw !== null) {
+        return raw;
+      }
+
+      if (corrected !== null) {
+        return corrected;
+      }
+
+      return null;
+    };
+
+    const getDisplayTemperature = (entry) => {
+      const directSources = [
+        entry?.temperature_chart,
+        entry?.temperature_raw,
+        entry?.temperature_corrected,
+      ];
+
+      for (const candidate of directSources) {
+        const normalized = normalizeTempValue(candidate);
+        if (normalized !== null) {
+          return normalized;
+        }
+      }
+
+      if (Array.isArray(entry?.measurements)) {
+        const selectedMeasurement = entry.measurements.find(
+          (measurement) => measurement && measurement.selected && getMeasurementTemp(measurement) !== null
+        );
+        const fallbackMeasurement =
+          selectedMeasurement || entry.measurements.find((measurement) => getMeasurementTemp(measurement) !== null);
+
+        if (fallbackMeasurement) {
+          const measurementTemp = getMeasurementTemp(fallbackMeasurement);
+          if (measurementTemp !== null) {
+            return measurementTemp;
+          }
+        }
+      }
+
+      return null;
+    };
+
+    const parseStartDate = (isoDate) => {
+      if (!isoDate) {
+        return null;
+      }
+
+      try {
+        const parsed = parseISO(isoDate);
+        return Number.isNaN(parsed.getTime()) ? null : parsed;
+      } catch (error) {
+        return null;
+      }
+    };
+
+    const sortedCycles = combinedCycles
+      .filter((cycle) => cycle && cycle.startDate && Array.isArray(cycle.data) && cycle.data.length > 0)
+      .sort((a, b) => {
+        const startA = parseStartDate(a.startDate);
+        const startB = parseStartDate(b.startDate);
+
+        if (!startA && !startB) {
+          return 0;
+        }
+
+        if (!startA) {
+          return 1;
+        }
+
+        if (!startB) {
+          return -1;
+        }
+
+        return startB - startA;
+      });
+
+    const consideredCycles = [];
+    const includedCycles = [];
+
+    for (const cycle of sortedCycles) {
+
+      const processedEntries = cycle.data
+        .filter((entry) => entry && entry.isoDate)
+        .map((entry) => ({
+          ...entry,
+          displayTemperature: getDisplayTemperature(entry),
+        }));
+
+      if (processedEntries.length === 0) {
+        continue;
+      }
+
+      const { ovulationDetails } = computeOvulationMetrics(processedEntries);
+
+      if (!ovulationDetails?.confirmed) {
+        continue;
+      }
+
+      const ovulationIndex = Number.isInteger(ovulationDetails?.ovulationIndex)
+        ? ovulationDetails.ovulationIndex
+        : Number.isInteger(ovulationDetails?.confirmationIndex)
+          ? ovulationDetails.confirmationIndex
+          : null;
+
+      if (
+        ovulationIndex == null ||
+        ovulationIndex < 0 ||
+        ovulationIndex >= processedEntries.length
+      ) {
+        continue;
+      }
+
+      const ovulationEntry = processedEntries[ovulationIndex];
+      const riseDay = Number(ovulationEntry?.cycleDay);
+
+      if (!Number.isFinite(riseDay) || riseDay <= 0) {
+        continue;
+      }
+
+      const t8Day = Math.max(1, riseDay - 8);
+      const isIgnored = Boolean(cycle.ignoredForAutoCalculations);
+
+      const cycleInfo = {
+        cycleId: cycle.id,
+        riseDay,
+        t8Day,
+        displayName: cycle.displayName || cycle.name || 'Ciclo sin nombre',
+        dateRangeLabel: cycle.dateRangeLabel,
+        isIgnored,
+        isIncluded: !isIgnored,
+        ignoredForAutoCalculations: isIgnored,
+      };
+
+      consideredCycles.push(cycleInfo);
+
+      if (!isIgnored && includedCycles.length < 12) {
+        includedCycles.push(cycleInfo);
+      }
+    }
+
+    const cycleCount = includedCycles.length;
+    const ignoredCount = consideredCycles.reduce(
+      (total, cycle) => total + (cycle.isIgnored ? 1 : 0),
+      0
+    );
+
+    if (cycleCount === 0) {
+      return {
+        value: null,
+        cycleCount,
+        earliestCycle: null,
+        cyclesConsidered: consideredCycles,
+        canCompute: false,
+        rawValue: null,
+        ignoredCount,
+      };
+    }
+
+    const earliestCycle = includedCycles.reduce((earliest, current) =>
+      current.t8Day < earliest.t8Day ? current : earliest
+    );
+
+    const computedValue = earliestCycle.t8Day;
+    const canCompute = cycleCount >= 6;
+
+    return {
+      value: canCompute ? computedValue : null,
+      cycleCount,
+      earliestCycle,
+      cyclesConsidered: consideredCycles,
+      canCompute,
+      rawValue: computedValue,
+      ignoredCount,
+    };
+  }, [combinedCycles]);
 
   const formattedCpmValue = useMemo(() => {
     const valueToFormat = isManualCpm ? manualCpmValue : computedCpmData.value;
@@ -1153,28 +1560,192 @@ const ModernFertilityDashboard = () => {
     return valueToFormat.toLocaleString('es-ES', { maximumFractionDigits: 2 });
   }, [computedCpmData.value, isManualCpm, manualCpmValue]);
 
-  const cpmInfoText = useMemo(() => {
-    if (isManualCpm) {
-      return 'Incorporado manualmente';
+  const formattedT8Value = useMemo(() => {
+    const valueToFormat = isManualT8 ? manualT8Value : computedT8Data.value;
+
+    if (typeof valueToFormat !== 'number' || !Number.isFinite(valueToFormat)) {
+      return '-';
     }
 
-    if (computedCpmData.cycleCount < 6) {
-      return 'Sin ciclos suficientes';
+    const rounded = Math.round(valueToFormat);
+    return rounded.toLocaleString('es-ES', { maximumFractionDigits: 0 });
+  }, [computedT8Data.value, isManualT8, manualT8Value]);
+
+  const cpmInfo = useMemo(() => {
+    const cycleCount = computedCpmData.cycleCount ?? 0;
+    const cyclesLabel = `${cycleCount} ciclo${cycleCount === 1 ? '' : 's'}`;
+    const requiredCycles = 6;
+    const sourceLabel = isManualCpm ? 'Manual' : 'Automático';
+    const cycles = computedCpmData.cyclesConsidered ?? [];
+    const canCompute = Boolean(computedCpmData.canCompute);
+    const ignoredCount = computedCpmData.ignoredCount ?? 0;
+    const deduction =
+      typeof computedCpmData.deduction === 'number' && Number.isFinite(computedCpmData.deduction)
+        ? computedCpmData.deduction
+        : null;
+    const shortestCycle = computedCpmData.shortestCycle ?? null;
+    const automaticValue =
+      typeof computedCpmData.value === 'number' && Number.isFinite(computedCpmData.value)
+        ? computedCpmData.value
+        : null;
+
+    let summary;
+
+    if (cycleCount === 0) {
+      summary = ignoredCount > 0
+        ? 'Todos los ciclos disponibles están ignorados para el cálculo automático.'
+        : 'Aún no hay ciclos finalizados con fecha de finalización.';
+    } else if (!canCompute) {
+      summary = `Hay ${cyclesLabel} finalizado${cycleCount === 1 ? '' : 's'}. Se necesitan ${requiredCycles} para calcular el CPM automáticamente.`;
+      if (ignoredCount > 0) {
+        summary += ` (${ignoredCount} ciclo${ignoredCount === 1 ? '' : 's'} ignorado${ignoredCount === 1 ? '' : 's'}).`;
+      }
+    } else {
+      const cycleName =
+        shortestCycle?.dateRangeLabel ||
+        shortestCycle?.displayName ||
+        shortestCycle?.name ||
+        'Ciclo sin nombre';
+      const durationText =
+        typeof shortestCycle?.duration === 'number' && Number.isFinite(shortestCycle.duration)
+          ? `${shortestCycle.duration} días`
+          : 'duración desconocida';
+
+      const parts = [
+        `Calculado con ${cyclesLabel}.`,
+        `Ciclo más corto: ${cycleName} (${durationText}).`,
+      ];
+
+    if (deduction !== null) {
+        parts.push(`Deducción aplicada: ${deduction} días.`);
+      }
+
+      if (automaticValue !== null) {
+        parts.push(`Resultado: ${automaticValue} días.`);
+      }
+      if (ignoredCount > 0) {
+        parts.push(
+          `${ignoredCount} ciclo${ignoredCount === 1 ? '' : 's'} ignorado${ignoredCount === 1 ? '' : 's'}.`
+        );
+      }
+
+      summary = parts.join(' ');
     }
+
+    return {
+      sourceLabel,
+      summary,
+      highlightLabel: cyclesLabel,
+      cycleCount,
+      requiredCycles,
+      canCompute,
+      detailsAvailable: cycles.length > 0,
+      cycles,
+      deduction,
+      shortestCycle,
+      value: automaticValue,
+      ignoredCount,
+    };
+  }, [computedCpmData, isManualCpm]);
+
+  const cpmInfoText = cpmInfo.summary;
+
+  const t8Info = useMemo(() => {
+    const cycleCount = computedT8Data.cycleCount;
+    const cyclesLabel = `${cycleCount} ciclo${cycleCount === 1 ? '' : 's'}`;
+    const requiredCycles = 6;
+    const sourceLabel = isManualT8 ? 'Manual' : 'Automático';
+    const ignoredCount = computedT8Data.ignoredCount ?? 0;
 
     const cycleName =
-      computedCpmData.shortestCycle?.displayName ||
-      computedCpmData.shortestCycle?.name ||
+      computedT8Data.earliestCycle?.displayName ||
+      computedT8Data.earliestCycle?.name ||
       'Ciclo sin nombre';
 
-    const duration = computedCpmData.shortestCycle?.duration;
-    const durationText =
-      typeof duration === 'number' && Number.isFinite(duration)
-        ? `${duration} días`
-        : 'duración desconocida';
+    const riseDay = computedT8Data.earliestCycle?.riseDay;
+    const dayText =
+      typeof riseDay === 'number' && Number.isFinite(riseDay)
+        ? `Día ${riseDay}`
+        : 'día desconocido';
 
-    return `Calculado con ${computedCpmData.cycleCount} ciclos. ${cycleName} (${durationText}).`;
-  }, [computedCpmData, isManualCpm]);
+    const t8Day = computedT8Data.earliestCycle?.t8Day;
+    const t8Text =
+      typeof t8Day === 'number' && Number.isFinite(t8Day)
+        ? `T-8 Día ${t8Day}`
+        : null;
+
+    let summary;
+
+    if (cycleCount === 0) {
+      summary = ignoredCount > 0
+        ? 'Los ciclos disponibles están ignorados para el cálculo automático.'
+        : 'Aún no hay ciclos con ovulación confirmada por temperatura.';
+    } else if (!computedT8Data.canCompute) {
+      summary = `Hay ${cyclesLabel} con ovulación confirmada por temperatura (se necesitan ${requiredCycles}).`;
+      if (ignoredCount > 0) {
+        summary += ` ${ignoredCount} ciclo${ignoredCount === 1 ? '' : 's'} ignorado${ignoredCount === 1 ? '' : 's'}.`;
+      }
+    } else {
+      const parts = [`${cycleName} (${dayText}${t8Text ? ` → ${t8Text}` : ''}).`];
+      if (ignoredCount > 0) {
+        parts.push(`${ignoredCount} ciclo${ignoredCount === 1 ? '' : 's'} ignorado${ignoredCount === 1 ? '' : 's'}.`);
+      }
+      summary = parts.join(' ');
+    }
+
+    return {
+      sourceLabel,
+      summary,
+      highlightLabel: cyclesLabel,
+      cycleCount,
+      requiredCycles,
+      ignoredCount,
+    };
+  }, [computedT8Data, isManualT8]);
+
+  const handleNavigateToCycleDetails = useCallback((cycle) => {
+    if (!cycle) {
+      return;
+    }
+
+    const cycleId = cycle.cycleId || cycle.id;
+
+    if (cycleId) {
+      if (currentCycle?.id && cycleId === currentCycle.id) {
+        navigate('/');
+        return;
+      }
+
+      navigate(`/cycle/${cycleId}`);
+    }
+  }, [currentCycle?.id, navigate]);
+
+  const handleToggleCycleIgnore = useCallback(
+    async (cycleId, shouldIgnore) => {
+      if (!cycleId) {
+        return;
+      }
+
+      setPendingIgnoredCycleIds((previous) =>
+        previous.includes(cycleId) ? previous : [...previous, cycleId]
+      );
+
+      try {
+        await setCycleIgnoreForAutoCalculations(cycleId, shouldIgnore);
+        toast({
+          title: shouldIgnore ? 'Ciclo ignorado' : 'Ciclo incluido',
+          description: shouldIgnore
+            ? 'El ciclo se excluyó del cálculo automático.'
+            : 'El ciclo se volvió a incluir en el cálculo automático.',
+        });
+      } catch (error) {
+        // El contexto ya maneja el mensaje de error.
+      } finally {
+        setPendingIgnoredCycleIds((previous) => previous.filter((id) => id !== cycleId));
+      }
+    },
+    [setCycleIgnoreForAutoCalculations, toast]
+  );
 
   const handleOpenCpmDialog = useCallback(() => {
     const baseValue = isManualCpm
@@ -1185,10 +1756,12 @@ const ModernFertilityDashboard = () => {
 
     setManualCpmInput(baseValue === '' ? '' : String(baseValue));
     setManualCpmError('');
+    setShowCpmDetails(false);
     setIsCpmDialogOpen(true);
   }, [computedCpmData.value, isManualCpm, manualCpmValue]);
 
   const handleCloseCpmDialog = useCallback(() => {
+    setShowCpmDetails(false);
     setIsCpmDialogOpen(false);
   }, []);
 
@@ -1251,6 +1824,84 @@ const ModernFertilityDashboard = () => {
       setManualCpmError('No se pudo restablecer el CPM. Inténtalo de nuevo.');
     }
   }, [isManualCpm, manualCpmValue, persistManualCpm, toast]);
+
+  const handleOpenT8Dialog = useCallback(() => {
+    const baseValue = isManualT8
+      ? manualT8Value
+      : typeof computedT8Data.value === 'number' && Number.isFinite(computedT8Data.value)
+        ? computedT8Data.value
+        : '';
+
+    setManualT8Input(baseValue === '' ? '' : String(baseValue));
+    setManualT8Error('');
+    setShowT8Details(false);
+    setIsT8DialogOpen(true);
+  }, [computedT8Data.value, isManualT8, manualT8Value]);
+
+  const handleCloseT8Dialog = useCallback(() => {
+    setIsT8DialogOpen(false);
+    setShowT8Details(false);
+  }, []);
+
+  const handleManualT8InputChange = useCallback((event) => {
+    setManualT8Input(event.target.value);
+    setManualT8Error('');
+  }, []);
+
+  const handleSaveManualT8 = useCallback(async () => {
+    const trimmed = manualT8Input.trim();
+
+    if (!trimmed) {
+      setManualT8Error('Introduce un número entero válido.');
+      return;
+    }
+
+    const normalized = trimmed.replace(',', '.');
+    const parsed = Number.parseInt(normalized, 10);
+
+    if (!Number.isFinite(parsed) || parsed < 1) {
+      setManualT8Error('Introduce un número entero mayor o igual a 1.');
+      return;
+    }
+
+    const previousValue = manualT8Value;
+    const previousIsManual = isManualT8;
+
+    setManualT8Value(parsed);
+    setIsManualT8(true);
+
+    try {
+      await persistManualT8(parsed);
+      setIsT8DialogOpen(false);
+      toast({ title: 'T-8 actualizado', description: 'El T-8 manual se guardó en tu perfil.' });
+    } catch (error) {
+      console.error('Failed to save manual T-8 value', error);
+      setManualT8Value(previousValue);
+      setIsManualT8(previousIsManual);
+      setManualT8Error('No se pudo guardar el T-8. Inténtalo de nuevo.');
+    }
+  }, [isManualT8, manualT8Input, manualT8Value, persistManualT8, toast]);
+
+  const handleResetManualT8 = useCallback(async () => {
+    const previousValue = manualT8Value;
+    const previousIsManual = isManualT8;
+
+    setManualT8Value(null);
+    setIsManualT8(false);
+    setManualT8Input('');
+    setManualT8Error('');
+
+    try {
+      await persistManualT8(null);
+      setIsT8DialogOpen(false);
+      toast({ title: 'T-8 restablecido', description: 'El cálculo automático volverá a mostrarse.' });
+    } catch (error) {
+      console.error('Failed to reset manual T-8 value', error);
+      setManualT8Value(previousValue);
+      setIsManualT8(previousIsManual);
+      setManualT8Error('No se pudo restablecer el T-8. Inténtalo de nuevo.');
+    }
+  }, [isManualT8, manualT8Value, persistManualT8, toast]);
 
   const resetStartDateFlow = useCallback(() => {
     setPendingStartDate(null);
@@ -1571,7 +2222,9 @@ const ModernFertilityDashboard = () => {
             formattedCpmValue={formattedCpmValue}
             cpmInfoText={cpmInfoText}
             handleOpenCpmDialog={handleOpenCpmDialog}
-/>
+            formattedT8Value={formattedT8Value}
+            handleOpenT8Dialog={handleOpenT8Dialog}
+          />
           <Dialog
             open={isCpmDialogOpen}
             onOpenChange={(open) => {
@@ -1591,11 +2244,121 @@ const ModernFertilityDashboard = () => {
                 <div className="rounded-2xl border border-rose-100 bg-rose-50/70 px-3 py-2.5 text-[11px] text-rose-900">
                   <div className="flex items-start gap-2">
                     <HelpCircle className="mt-0.5 h-4 w-4 text-rose-500" />
-                    <div className="space-y-1">
-                      <p className="text-xs font-semibold text-rose-700">Origen del dato</p>
-                      <p className="leading-snug text-rose-600">{cpmInfoText}</p>
+                    <div className="flex-1 space-y-2">
+                      <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-rose-700">
+                        <span>Origen del dato</span>
+                        <span className="rounded-full bg-white/70 px-2 py-0.5 text-[11px] font-semibold text-rose-600">
+                          {cpmInfo.sourceLabel}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1 text-xs text-rose-600">
+                        <span className="font-semibold">Datos disponibles:</span>
+                        {cpmInfo.detailsAvailable ? (
+                          <button
+                            type="button"
+                            onClick={() => setShowCpmDetails((previous) => !previous)}
+                            className="inline-flex items-center font-semibold text-rose-700 underline decoration-rose-300 underline-offset-2 transition hover:text-rose-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70 rounded-sm"
+                            aria-expanded={showCpmDetails}
+                          >
+                            {cpmInfo.highlightLabel}
+                          </button>
+                        ) : (
+                          <span className="text-rose-500">{cpmInfo.highlightLabel}</span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-rose-500">{cpmInfo.summary}</p>
+                      {cpmInfo.canCompute && cpmInfo.deduction !== null && (
+                        <p className="text-[11px] text-rose-500">
+                          Deducción aplicada: {cpmInfo.deduction} días.
+                        </p>
+                      )}
                     </div>
                   </div>
+                  {showCpmDetails && cpmInfo.detailsAvailable && (
+                    <div className="mt-2 space-y-2">
+                      {cpmInfo.cycles.length > 0 ? (
+                        <ul className="space-y-1">
+                          {cpmInfo.cycles.map((cycle, index) => {
+                            const key =
+                              cycle.cycleId ||
+                              cycle.id ||
+                              `${cycle.displayName || cycle.name || cycle.startDate || 'cycle'}-${index}`;
+                            const durationText =
+                              typeof cycle.duration === 'number' && Number.isFinite(cycle.duration)
+                                ? `${cycle.duration} días`
+                                : 'duración desconocida';
+                            const isShortest = Boolean(cpmInfo.shortestCycle && cpmInfo.shortestCycle === cycle);
+
+                            const cycleId = cycle.cycleId || cycle.id;
+                            const isIgnored = Boolean(cycle.isIgnored || cycle.ignoredForAutoCalculations);
+                            const isPending = cycleId ? pendingIgnoredCycleIds.includes(cycleId) : false;
+                            const toggleLabel = isPending
+                              ? 'Guardando…'
+                              : isIgnored
+                                ? 'Incluir'
+                                : 'Ignorar';
+
+                            const cardClasses = `rounded-2xl border px-3 py-2 shadow-sm transition hover:border-rose-200 hover:bg-white ${
+                              isIgnored ? 'border-rose-200 bg-rose-50/80 opacity-80' : 'border-rose-100 bg-white/50'
+                            }`;
+
+                            return (
+                              <li key={key}>
+                                <div className="flex items-stretch gap-2">
+                                  <div className={`${cardClasses} flex-1`}>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleNavigateToCycleDetails(cycle)}
+                                      className="block w-full rounded-2xl px-1 py-0.5 text-left transition hover:bg-white/60 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70"
+                                    >
+                                      <div className="flex items-center justify-between gap-2">
+                                        <p className="text-xs font-semibold text-rose-700">
+                                          {cycle.dateRangeLabel || cycle.displayName || cycle.name || 'Ciclo sin nombre'}
+                                        </p>
+                                        <ChevronRight className="h-4 w-4 text-rose-400" aria-hidden="true" />
+                                      </div>
+                                    </button>
+                                    <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-[11px] text-rose-500">
+                                      <span>Duración: {durationText}</span>
+                                      {isShortest && (
+                                        <span className="rounded-full bg-rose-100 px-2 py-0.5 font-semibold text-rose-600">
+                                          Ciclo más corto
+                                        </span>
+                                      )}
+                                    </div>
+                                    {isIgnored && (
+                                      <p className="mt-1 text-[11px] text-rose-400">
+                                        Ignorado para el cálculo automático.
+                                      </p>
+                                    )}
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="xs"
+                                    disabled={!cycleId || isPending}
+                                    onClick={() => cycleId && handleToggleCycleIgnore(cycleId, !isIgnored)}
+                                    className="shrink-0 self-center text-[10px]"
+                                    title={
+                                      isIgnored
+                                        ? 'Incluir ciclo en el cálculo automático'
+                                        : 'Ignorar ciclo para el cálculo automático'
+                                    }
+                                  >
+                                    {toggleLabel}
+                                  </Button>
+                                </div>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      ) : (
+                        <p className="text-[11px] text-rose-500">
+                          Aún no hay ciclos finalizados con fecha de finalización.
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="manual-cpm-input" className="text-xs text-gray-600">
@@ -1631,6 +2394,165 @@ const ModernFertilityDashboard = () => {
                     Cancelar
                   </Button>
                   <Button type="button" onClick={handleSaveManualCpm}>
+                    Guardar
+                  </Button>
+                </div>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+          <Dialog
+            open={isT8DialogOpen}
+            onOpenChange={(open) => {
+              if (!open) {
+                handleCloseT8Dialog();
+              }
+            }}
+          >
+            <DialogContent className="w-[90vw] max-w-sm rounded-3xl border border-pink-100 bg-white/95 text-gray-800 shadow-xl">
+              <DialogHeader className="space-y-2 text-left">
+                <DialogTitle>Editar T-8</DialogTitle>
+                <DialogDescription>
+                  Personaliza el T-8 introduciendo un valor manual. Si no se establece, se calculará automáticamente.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3">
+                <div className="rounded-2xl border border-rose-100 bg-rose-50/70 px-3 py-2.5 text-[11px] text-rose-900">
+                  <div className="flex items-start gap-2">
+                    <HelpCircle className="mt-0.5 h-4 w-4 text-rose-500" />
+                    <div className="space-y-1">
+                      <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-rose-700">
+                        <span>Origen del dato</span>
+                        <span className="rounded-full bg-white/70 px-2 py-0.5 text-[11px] font-semibold text-rose-600">
+                          {t8Info.sourceLabel}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1 text-xs text-rose-600">
+                        <span className="font-semibold">Datos disponibles:</span>
+                        <button
+                          type="button"
+                          onClick={() => setShowT8Details((previous) => !previous)}
+                          className="inline-flex items-center font-semibold text-rose-700 underline decoration-rose-300 underline-offset-2 transition hover:text-rose-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70 rounded-sm"
+                          aria-expanded={showT8Details}
+                        >
+                          {t8Info.highlightLabel}
+                        </button>
+                        </div>
+                      <p className="text-[11px] text-rose-500">{t8Info.summary}</p>
+                      {showT8Details && (
+                        <div className="mt-2 space-y-2">
+                          {computedT8Data.cyclesConsidered.length > 0 ? (
+                            <ul className="space-y-1">
+                              {computedT8Data.cyclesConsidered.map((cycle, index) => {
+                                const key = cycle.cycleId || `${cycle.displayName}-${cycle.riseDay}-${index}`;
+                                const riseDayText =
+                                  typeof cycle.riseDay === 'number' && Number.isFinite(cycle.riseDay)
+                                    ? cycle.riseDay
+                                    : '—';
+                                const cycleId = cycle.cycleId || cycle.id;
+                                const isIgnored = Boolean(cycle.isIgnored || cycle.ignoredForAutoCalculations);
+                                const isPending = cycleId ? pendingIgnoredCycleIds.includes(cycleId) : false;
+                                const toggleLabel = isPending
+                                  ? 'Guardando…'
+                                  : isIgnored
+                                    ? 'Incluir'
+                                    : 'Ignorar';
+
+                                const cardClasses = `rounded-2xl border px-3 py-2 shadow-sm transition hover:border-rose-200 hover:bg-white ${
+                                  isIgnored ? 'border-rose-200 bg-rose-50/80 opacity-80' : 'border-rose-100 bg-white/40'
+                                }`;
+
+                                return (
+                                  <li key={key}>
+                                    <div className="flex items-stretch gap-2">
+                                      <div className={`${cardClasses} flex-1`}>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleNavigateToCycleDetails(cycle)}
+                                          className="block w-full rounded-2xl px-1 py-0.5 text-left transition hover:bg-white/60 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70"
+                                        >
+                                          <div className="flex items-center justify-between gap-2">
+                                            <p className="text-xs font-semibold text-rose-700">
+                                              {cycle.dateRangeLabel || cycle.displayName || cycle.name || 'Ciclo sin nombre'}
+                                            </p>
+                                            <ChevronRight className="h-4 w-4 text-rose-400" aria-hidden="true" />
+                                          </div>
+                                        </button>
+                                        <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-rose-500">
+                                          <span>Día de subida: {riseDayText}</span>
+                                          {Number.isFinite(cycle.t8Day) && (
+                                            <span>T-8: Día {cycle.t8Day}</span>
+                                          )}
+                                        </div>
+                                        {isIgnored && (
+                                          <p className="mt-1 text-[11px] text-rose-400">
+                                            Ignorado para el cálculo automático.
+                                          </p>
+                                        )}
+                                      </div>
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="xs"
+                                        disabled={!cycleId || isPending}
+                                        onClick={() => cycleId && handleToggleCycleIgnore(cycleId, !isIgnored)}
+                                        className="shrink-0 self-center text-[10px]"
+                                        title={
+                                          isIgnored
+                                            ? 'Incluir ciclo en el cálculo automático'
+                                            : 'Ignorar ciclo para el cálculo automático'
+                                        }
+                                      >
+                                        {toggleLabel}
+                                      </Button>
+                                    </div>
+                                  </li>
+                                );
+                          })}
+                            </ul>
+                          ) : (
+                            <p className="text-[11px] text-rose-500">
+                              Aún no hay ciclos con ovulación confirmada por temperatura.
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="manual-t8-input" className="text-xs text-gray-600">
+                    T-8 manual
+                  </Label>
+                  <Input
+                    id="manual-t8-input"
+                    type="number"
+                    inputMode="numeric"
+                    min="1"
+                    step="1"
+                    value={manualT8Input}
+                    onChange={handleManualT8InputChange}
+                    placeholder="Introduce un valor"
+                  />
+                  {manualT8Error && (
+                    <p className="text-xs text-red-500">{manualT8Error}</p>
+                  )}
+                </div>
+              </div>
+              <DialogFooter className="sm:flex-row sm:items-center sm:justify-between">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={handleResetManualT8}
+                  disabled={!isManualT8}
+                  className="text-pink-600 hover:text-pink-700 disabled:text-gray-400"
+                >
+                  Restablecer automático
+                </Button>
+                <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
+                  <Button type="button" variant="secondary" onClick={handleCloseT8Dialog}>
+                    Cancelar
+                  </Button>
+                  <Button type="button" onClick={handleSaveManualT8}>
                     Guardar
                   </Button>
                 </div>

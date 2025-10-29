@@ -48,26 +48,6 @@ const ChartLeftLegend = ({
       className="font-sans pointer-events-none"
     >
       <defs>
-        {/* Gradiente premium para el fondo */}
-        <linearGradient id="legendBgGradientChart" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="rgba(255, 228, 230, 1)" />
-          <stop offset="30%" stopColor="rgba(255, 229, 235, 1)  " />
-          <stop offset="70%" stopColor="rgba(255, 241, 242, 1)" />
-          <stop offset="100%" stopColor="rgba(255, 236, 240, 0.6)" />
-        </linearGradient>
-        
-        {/* Gradiente decorativo */}
-        <linearGradient id="legendAccentGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stopColor="#F472B6" />
-          <stop offset="50%" stopColor="#EC4899" />
-          <stop offset="100%" stopColor="#E91E63" />
-        </linearGradient>
-        
-        {/* Filtros mejorados */}
-        <filter id="legendShadowChart" x="-20%" y="-20%" width="140%" height="140%">
-          <feDropShadow dx="0" dy="3" stdDeviation="4" floodColor="rgba(244, 114, 182, 0.2)" />
-        </filter>
-        
         <filter id="textShadowLegend" x="-50%" y="-50%" width="200%" height="200%">
           <feDropShadow dx="0" dy="1" stdDeviation="1" floodColor="rgba(255, 255, 255, 0.9)" />
         </filter>
@@ -79,9 +59,11 @@ const ChartLeftLegend = ({
         y={bottomY + textRowHeight * 0.5}
         width={padding.left}
         height={textRowHeight * (isFullScreen ? 9.5 : 8)}
-        fill="url(#legendBgGradientChart)"
+        fill="rgba(255, 255, 255, 0.3)"
+        stroke="rgba(255, 228, 230, 0.9)"
+        strokeWidth={1}
         rx={12}
-        style={{ filter: 'url(#legendShadowChart)' }}
+        style={{ filter: 'drop-shadow(0 1px 2px rgba(244, 63, 94, 0.08))' }}
       />
 
 

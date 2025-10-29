@@ -31,12 +31,18 @@ const AuthPage = () => {
         if (password !== confirmPassword) {
           toast({ title: 'Error de registro', description: 'Las contraseñas no coinciden.', variant: 'destructive' });
           setLoading(false);
-                    return;
+          return;
         }
         await register(email, password);
-        toast({ title: 'Registro exitoso', description: 'Tu cuenta ha sido creada.' });
-        navigate('/');
+        toast({
+          title: 'Verificación requerida',
+          description: 'Hemos enviado un correo de verificación. Revisa tu bandeja de entrada para activar tu cuenta.',
+        });
+        setIsLogin(true);
+        setPassword('');
+        setConfirmPassword('');
       }
+      setLoading(false);
     } catch (error) {
       toast({
         title: isLogin ? 'Error al iniciar sesión' : 'Error al registrarse',

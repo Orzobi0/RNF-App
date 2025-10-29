@@ -13,14 +13,22 @@ import {
   fetchCurrentCycleDB,
   fetchArchivedCyclesDB,
   updateCycleDatesDB,
+  updateCycleIgnoreAutoCalculations,
   deleteCycleDB,
-  forceUpdateCycleStart as forceUpdateCycleStartDB
+  forceUpdateCycleStart as forceUpdateCycleStartDB,
+  forceShiftNextCycleStart as forceShiftNextCycleStartDB
 } from '@/lib/cycleDataHandler';
 import { getCachedCycleData, saveCycleDataToCache, clearCycleDataCache } from '@/lib/cycleCache';
 
 const CycleDataContext = createContext(null);
 
-const defaultCycleState = { id: null, startDate: null, endDate: null, data: [] };
+const defaultCycleState = {
+  id: null,
+  startDate: null,
+  endDate: null,
+  data: [],
+  ignoredForAutoCalculations: false,
+};
 
 const filterEntriesByEndDate = (entries, endDate) => {
   if (!endDate) return entries;
@@ -403,6 +411,54 @@ export const CycleDataProvider = ({ children }) => {
     [user, currentCycle, archivedCycles, loadCycleData]
   );
 
+  const setCycleIgnoreForAutoCalculations = useCallback(
+    async (cycleIdToUpdate, shouldIgnore) => {
+      if (!user?.uid || !cycleIdToUpdate) {
+        return;
+      }
+
+      const previousCurrentCycle = currentCycle;
+      const previousArchivedCycles = archivedCycles;
+
+      const updateCycle = (cycle) => {
+        if (!cycle || cycle.id !== cycleIdToUpdate) {
+          return cycle;
+        }
+
+        if (cycle.ignoredForAutoCalculations === shouldIgnore) {
+          return cycle;
+        }
+
+        return { ...cycle, ignoredForAutoCalculations: shouldIgnore };
+      };
+
+      setCurrentCycle((prevCycle) => updateCycle(prevCycle));
+      setArchivedCycles((prevCycles) => prevCycles.map((cycle) => updateCycle(cycle)));
+
+      try {
+        await updateCycleIgnoreAutoCalculations(user.uid, cycleIdToUpdate, shouldIgnore);
+
+        loadCycleData({ silent: true }).catch((error) =>
+          console.error(
+            'Background cycle data refresh failed after updating ignore configuration:',
+            error
+          )
+        );
+      } catch (error) {
+        console.error('Error updating cycle ignore configuration:', error);
+        setCurrentCycle(previousCurrentCycle);
+        setArchivedCycles(previousArchivedCycles);
+        toast({
+          title: 'Error',
+          description: 'No se pudo actualizar la configuración del ciclo.',
+          variant: 'destructive',
+        });
+        throw error;
+      }
+    },
+    [user, currentCycle, archivedCycles, loadCycleData, toast]
+  );
+
   const startNewCycle = useCallback(
     async (selectedStartDate) => {
       if (!user?.uid) return;
@@ -431,7 +487,13 @@ export const CycleDataProvider = ({ children }) => {
 
         const newStartDate = format(startDateObj, 'yyyy-MM-dd');
         const newCycle = await createNewCycleDB(user.uid, newStartDate);
-        setCurrentCycle({ id: newCycle.id, startDate: newCycle.start_date, endDate: null, data: [] });
+        setCurrentCycle({
+          id: newCycle.id,
+          startDate: newCycle.start_date,
+          endDate: null,
+          data: [],
+          ignoredForAutoCalculations: false,
+        });
         await loadCycleData({ silent: true });
       } catch (error) {
         console.error('Error starting new cycle:', error);
@@ -451,6 +513,29 @@ export const CycleDataProvider = ({ children }) => {
     [user, currentCycle, loadCycleData, toast]
   );
 
+  const buildOverlapDescription = useCallback((conflictCycle) => {
+    if (!conflictCycle) {
+      return 'Las fechas coinciden con otro ciclo.';
+    }
+
+    const { startDate, endDate } = conflictCycle;
+
+    const formatDate = (date) => {
+      if (!date) return null;
+      try {
+        return format(parseISO(date), 'dd/MM/yyyy');
+      } catch (error) {
+        console.error('Failed to format overlap date', error);
+        return date;
+      }
+    };
+
+    const formattedStart = formatDate(startDate) ?? 'sin fecha de inicio';
+    const formattedEnd = endDate ? formatDate(endDate) : 'en curso';
+
+    return `Las fechas coinciden con el ciclo del ${formattedStart} al ${formattedEnd}.`;
+  }, []);
+
   const addArchivedCycle = useCallback(
     async (startDate, endDate) => {
       if (!user?.uid) return;
@@ -462,13 +547,22 @@ export const CycleDataProvider = ({ children }) => {
       setIsLoading(true);
       try {
         const newCycle = await createNewCycleDB(user.uid, startDate);
-        await updateCycleDatesDB(newCycle.id, user.uid, undefined, endDate);
+        try {
+          await updateCycleDatesDB(newCycle.id, user.uid, undefined, endDate);
+        } catch (updateError) {
+          try {
+            await deleteCycleDB(user.uid, newCycle.id);
+          } catch (cleanupError) {
+            console.error('Failed to clean up cycle after overlap error:', cleanupError);
+          }
+          throw updateError;
+        }
         await loadCycleData({ silent: true });
       } catch (error) {
         console.error('Error adding archived cycle:', error);
         const description =
-          error.message && error.message.includes('overlap')
-            ? 'Las fechas coinciden con otro ciclo.'
+          error.code === 'cycle-overlap'
+            ? buildOverlapDescription(error.conflictCycle)
             : 'No se pudo crear el ciclo.';
         toast({ title: 'Error', description, variant: 'destructive' });
         throw error;
@@ -476,7 +570,7 @@ export const CycleDataProvider = ({ children }) => {
         setIsLoading(false);
       }
     },
-    [user, loadCycleData, toast]
+    [user, loadCycleData, toast, buildOverlapDescription]
   );
 
   const deleteCycle = useCallback(
@@ -499,10 +593,16 @@ export const CycleDataProvider = ({ children }) => {
   );
 
   const checkCycleOverlap = useCallback(
-    async (cycleIdToCheck, newStartDate) => {
+    async (cycleIdToCheck, newStartDate, newEndDate) => {
       if (!user?.uid) return null;
       try {
-        const result = await updateCycleDatesDB(cycleIdToCheck, user.uid, newStartDate, undefined, true);
+        const result = await updateCycleDatesDB(
+          cycleIdToCheck,
+          user.uid,
+          newStartDate,
+          newEndDate,
+          true
+        );
         return result.overlap;
       } catch (error) {
         console.error('Error checking cycle overlap:', error);
@@ -530,8 +630,8 @@ export const CycleDataProvider = ({ children }) => {
       } catch (error) {
         console.error('Error updating cycle dates:', error);
         const description =
-          error.message && error.message.includes('overlap')
-            ? 'Las fechas coinciden con otro ciclo.'
+          error.code === 'cycle-overlap'
+            ? buildOverlapDescription(error.conflictCycle)
             : 'No se pudieron actualizar las fechas.';
         toast({ title: 'Error', description, variant: 'destructive' });
         throw error;
@@ -539,12 +639,20 @@ export const CycleDataProvider = ({ children }) => {
         setIsLoading(false);
       }
     },
-    [user, loadCycleData, toast]
+    [user, loadCycleData, toast, buildOverlapDescription]
   );
 
   const forceUpdateCycleStart = useCallback(
     (cycleIdToUpdate, newStartDate) => updateCycleDates(cycleIdToUpdate, newStartDate, undefined, true),
     [updateCycleDates]
+  );
+
+  const forceShiftNextCycleStart = useCallback(
+    async (cycleIdToUpdate, newEndDate, newStartDate) => {
+      if (!user?.uid || !cycleIdToUpdate || !newEndDate) return;
+      await forceShiftNextCycleStartDB(user.uid, cycleIdToUpdate, newEndDate, newStartDate);
+    },
+    [user]
   );
 
   const getCycleById = useCallback(
@@ -591,11 +699,13 @@ export const CycleDataProvider = ({ children }) => {
     startNewCycle,
     updateCycleDates,
     forceUpdateCycleStart,
+    forceShiftNextCycleStart,
     checkCycleOverlap,
     isLoading,
     getCycleById,
     refreshData,
     toggleIgnoreRecord,
+    setCycleIgnoreForAutoCalculations,
     addArchivedCycle,
     deleteCycle
   };

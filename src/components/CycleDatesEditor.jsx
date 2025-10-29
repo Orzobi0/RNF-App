@@ -1,6 +1,22 @@
 import React from 'react';
+import { Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import OverlapWarningDialog from '@/components/OverlapWarningDialog';
+
+const formatDateDisplay = (dateString) => {
+  if (!dateString) return '';
+
+  const parsedDate = new Date(dateString);
+  if (Number.isNaN(parsedDate.getTime())) {
+    return dateString;
+  }
+
+  const day = String(parsedDate.getDate()).padStart(2, '0');
+  const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
+  const year = String(parsedDate.getFullYear());
+
+  return `${day}/${month}/${year}`;
+};
 
 const CycleDatesEditor = ({
   cycle,
@@ -23,9 +39,17 @@ const CycleDatesEditor = ({
   cancelLabel = 'Cancelar',
   onClearError,
   className = 'mb-6 mx-auto w-full max-w-xl',
+  onDeleteCycle,
+  deleteTitle = 'Eliminar ciclo',
+  deleteDescription = 'Esta acción no se puede deshacer. Se eliminarán todos los registros asociados.',
+  deleteLabel = 'Eliminar ciclo',
+  isDeletingCycle = false,
 }) => {
-  const currentRangeLabel = cycle?.startDate
-    ? `Fecha actual: ${cycle.startDate}${includeEndDate ? ` — ${cycle.endDate || 'En curso'}` : ''}`
+  const formattedStartDate = cycle?.startDate ? formatDateDisplay(cycle.startDate) : null;
+  const formattedEndDate = cycle?.endDate ? formatDateDisplay(cycle.endDate) : 'En curso';
+
+  const currentRangeLabel = formattedStartDate
+    ? `Fecha actual: ${formattedStartDate}${includeEndDate ? ` — ${formattedEndDate}` : ''}`
     : null;
   const handleStartChange = (event) => {
     if (onClearError) {
@@ -56,24 +80,24 @@ const CycleDatesEditor = ({
             {currentRangeLabel && (
               <p className="text-xs text-slate-500 mt-1">{currentRangeLabel}</p>
             )}
-            <div className={`grid ${includeEndDate ? 'grid-cols-1 sm:grid-cols-2 gap-4' : 'grid-cols-1 gap-4'}`}>
-              <label className="flex flex-col text-sm text-slate-700">
+            <div className={`grid ${includeEndDate ? 'grid-cols-2 gap-4' : 'grid-cols-1 gap-4'}`}>
+              <label className="flex h-full flex-col text-sm text-slate-700">
                 Inicio del ciclo
                 <input
                   type="date"
                   value={startDate || ''}
                   onChange={handleStartChange}
-                  className="mt-1 rounded-lg border border-rose-200 bg-rose-50/60 px-3 py-2 text-slate-800 focus:border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-300"
+                  className="mt-1 w-full rounded-lg border border-rose-200 bg-rose-50/60 px-3 py-2 text-slate-800 focus:border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-300"
                 />
               </label>
               {includeEndDate && (
-                <label className="flex flex-col text-sm text-slate-700">
+                <label className="flex h-full flex-col text-sm text-slate-700">
                   Fin del ciclo
                   <input
                     type="date"
                     value={endDate || ''}
                     onChange={handleEndChange}
-                    className="mt-1 rounded-lg border border-rose-200 bg-rose-50/60 px-3 py-2 text-slate-800 focus:border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-300"
+                    className="mt-1 w-full rounded-lg border border-rose-200 bg-rose-50/60 px-3 py-2 text-slate-800 focus:border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-300"
                   />
                 </label>
               )}
@@ -97,6 +121,23 @@ const CycleDatesEditor = ({
                 {saveLabel}
               </Button>
             </div>
+            {onDeleteCycle && (
+              <div className="mt-6 rounded-xl border border-rose-100 bg-rose-50/70 p-4 text-left">
+                <h3 className="text-base font-semibold text-rose-700 mb-2">{deleteTitle}</h3>
+                {deleteDescription && (
+                  <p className="text-sm text-slate-600 mb-3">{deleteDescription}</p>
+                )}
+                <Button
+                  type="button"
+                  onClick={onDeleteCycle}
+                  disabled={isProcessing || isDeletingCycle}
+                  className="w-full sm:w-auto bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white shadow-md"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  {deleteLabel}
+                </Button>
+              </div>
+            )}
           </div>
         </form>
       </div>

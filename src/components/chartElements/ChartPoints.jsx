@@ -7,13 +7,16 @@ import { getSymbolAppearance } from '@/config/fertilitySymbols';
 const SENSATION_COLOR = '#1565C0';
 const APPEARANCE_COLOR = '#2E7D32';
 const OBSERVATION_COLOR = '#6A1B9A';
-// Gradientes suaves inspirados en el estilo de las burbujas de la UI
-const SENSATION_BG_START = '#EFF6FF'; // from-blue-50
-const SENSATION_BG_END = '#EEF2FF';   // to-indigo-50
-const APPEARANCE_BG_START = '#ECFDF5'; // from-emerald-50
-const APPEARANCE_BG_END = '#F0FDFA';   // to-teal-50
-const OBSERVATION_BG_START = '#F5F3FF'; // from-violet-50
-const OBSERVATION_BG_END = '#FAF5FF';   // to-purple-50
+
+const ROW_BACKGROUND_FILL = 'rgba(255, 255, 255, 0.8)';
+const ROW_BACKGROUND_FILL_SOFT_sens = '#EFF6FF';
+const ROW_BACKGROUND_FILL_SOFT_apa = '#ECFDF5';
+const ROW_BACKGROUND_FILL_SOFT_obs = '#F5F3FF';
+const ROW_TINT_ALPHA = 0.2;
+const SENSATION_BORDER_COLOR = 'rgba(14, 165, 233, 0.18)';
+const APPEARANCE_BORDER_COLOR = 'rgba(16, 185, 129, 0.18)';
+const OBSERVATION_BORDER_COLOR = 'rgba(139, 92, 246, 0.18)';
+const ROW_SHADOW = 'drop-shadow(0 1px 2px rgba(15, 23, 42, 0.08))';
 const CORRECTION_LINE_COLOR = 'rgba(148, 163, 184, 0.35)';
 const CORRECTION_POINT_FILL = 'rgba(226, 232, 240, 0.6)';
 const CORRECTION_POINT_STROKE = 'rgba(148, 163, 184, 0.5)';
@@ -208,26 +211,12 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
         
         <filter id="pointGlow" x="-50%" y="-50%" width="200%" height="200%">
           <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-          <feMerge> 
+          <feMerge>
             <feMergeNode in="coloredBlur"/>
             <feMergeNode in="SourceGraphic"/>
           </feMerge>
         </filter>
-        
-        <linearGradient id="sensationGradientChart" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor={SENSATION_BG_START} />
-          <stop offset="100%" stopColor={SENSATION_BG_END} />
-        </linearGradient>
-        
-        <linearGradient id="appearanceGradientChart" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor={APPEARANCE_BG_START} />
-          <stop offset="100%" stopColor={APPEARANCE_BG_END} />
-        </linearGradient>
-        
-        <linearGradient id="observationGradientChart" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor={OBSERVATION_BG_START} />
-          <stop offset="100%" stopColor={OBSERVATION_BG_END} />
-        </linearGradient>
+
 
         <radialGradient id="tempPointGradientChart" cx="30%" cy="30%">
           <stop offset="0%" stopColor="#FCE7F3" />
@@ -249,7 +238,7 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
         </radialGradient>
       </defs>
 
-      {/* Sombras de filas con diseño mejorado -- ocultas en modo compacto */}
+      {/* Fondos de filas sutiles alineados con las tarjetas -- ocultos en modo compacto */}
       {!compact && (
         <g>
           <rect
@@ -257,27 +246,33 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
             y={mucusSensationRowY - rowBlockHeight / 2}
             width={rowWidth}
             height={rowBlockHeight}
-            fill="url(#sensationGradientChart)"
-            rx={4}
-            style={{ filter: 'url(#rowShadowChart)' }}
+            fill={ROW_BACKGROUND_FILL_SOFT_sens}
+            fillOpacity={ROW_TINT_ALPHA}
+            strokeWidth={1.5}
+            rx={6}
+            style={{ filter: ROW_SHADOW }}
           />
           <rect
             x={padding.left}
             y={mucusAppearanceRowY - rowBlockHeight / 2}
             width={rowWidth}
             height={rowBlockHeight}
-            fill="url(#appearanceGradientChart)"
-            rx={4}
-            style={{ filter: 'url(#rowShadowChart)' }}
+            fill={ROW_BACKGROUND_FILL_SOFT_apa}
+            fillOpacity={ROW_TINT_ALPHA}
+            strokeWidth={1.5}
+            rx={6}
+            style={{ filter: ROW_SHADOW }}
           />
           <rect
             x={padding.left}
             y={observationsRowY - rowBlockHeight / 2}
             width={rowWidth}
             height={rowBlockHeight}
-            fill="url(#observationGradientChart)"
-            rx={4}
-            style={{ filter: 'url(#rowShadowChart)' }}
+            fill={ROW_BACKGROUND_FILL_SOFT_obs}
+            fillOpacity={ROW_TINT_ALPHA}
+            strokeWidth={1.5}
+            rx={6}
+            style={{ filter: ROW_SHADOW }}
           />
         </g>
       )}

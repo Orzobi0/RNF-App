@@ -746,26 +746,80 @@ const FieldBadges = ({
   );
 };
 
-const RecordsPage = () => {
+export const RecordsExperience = ({
+  cycle: cycleProp,
+  headerTitle = 'Mis Registros',
+  headerIcon: HeaderIcon = FileText,
+  headerActions,
+  topAccessory,
+  includeEndDate = false,
+  initialCalendarOpen = true,
+  addOrUpdateDataPoint: addOrUpdateDataPointProp,
+  deleteRecord: deleteRecordProp,
+  isLoading: isLoadingProp,
+  updateCycleDates: updateCycleDatesProp,
+  checkCycleOverlap: checkCycleOverlapProp,
+  forceShiftNextCycleStart: forceShiftNextCycleStartProp,
+  forceUpdateCycleStart: forceUpdateCycleStartProp,
+  refreshData: refreshDataProp,
+  afterRecordsContent = null,
+  onRequestDeleteCycle = null,
+  dateEditorDeleteTitle = 'Eliminar ciclo',
+  dateEditorDeleteDescription = 'Esta acción no se puede deshacer. Se eliminarán todos los registros asociados.',
+  dateEditorDeleteLabel = 'Eliminar ciclo',
+  isDeletingCycle = false,
+} = {}) => {
   const {
-    currentCycle,
-    addOrUpdateDataPoint,
-    deleteRecord,
-    isLoading,
-    updateCycleDates,
-    checkCycleOverlap,
-    forceUpdateCycleStart,
-    refreshData,
+    currentCycle: contextCurrentCycle,
+    addOrUpdateDataPoint: contextAddOrUpdateDataPoint,
+    deleteRecord: contextDeleteRecord,
+    isLoading: contextIsLoading,
+    updateCycleDates: contextUpdateCycleDates,
+    checkCycleOverlap: contextCheckCycleOverlap,
+    forceUpdateCycleStart: contextForceUpdateCycleStart,
+    forceShiftNextCycleStart: contextForceShiftNextCycleStart,
+    refreshData: contextRefreshData,
   } = useCycleData();
+  const cycle = cycleProp ?? contextCurrentCycle;
+  const isLoading = isLoadingProp ?? contextIsLoading;
+  const addOrUpdateDataPoint = addOrUpdateDataPointProp
+    ? addOrUpdateDataPointProp
+    : async (data, editingRecord) => {
+        if (!cycle?.id) return;
+        return contextAddOrUpdateDataPoint(data, editingRecord, cycle.id);
+      };
+  const deleteRecord = deleteRecordProp
+    ? deleteRecordProp
+    : async (recordId) => {
+        if (!cycle?.id) return;
+        return contextDeleteRecord(recordId, cycle.id);
+      };
+  const updateCycleDates = updateCycleDatesProp
+    ? updateCycleDatesProp
+    : async (cycleId, startDate, endDate) =>
+        contextUpdateCycleDates(cycleId ?? cycle?.id, startDate, endDate);
+  const checkCycleOverlap = checkCycleOverlapProp ?? contextCheckCycleOverlap;
+  const forceUpdateCycleStart = forceUpdateCycleStartProp
+    ? forceUpdateCycleStartProp
+    : async (cycleId, startDate) =>
+        contextForceUpdateCycleStart(cycleId ?? cycle?.id, startDate);
+    const forceShiftNextCycleStart = forceShiftNextCycleStartProp
+    ? forceShiftNextCycleStartProp
+    : async (cycleId, newEndDate, newStartDate) =>
+        contextForceShiftNextCycleStart(cycleId ?? cycle?.id, newEndDate, newStartDate);
+  const refreshData = refreshDataProp ?? contextRefreshData;
   const { toast } = useToast();
   const [showForm, setShowForm] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [recordToDelete, setRecordToDelete] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showStartDateEditor, setShowStartDateEditor] = useState(false);
-  const [draftStartDate, setDraftStartDate] = useState(() => currentCycle?.startDate || '');
+  const [draftStartDate, setDraftStartDate] = useState(() => cycle?.startDate || '');
+  const [draftEndDate, setDraftEndDate] = useState(() => cycle?.endDate || '');
   const [startDateError, setStartDateError] = useState('');
   const [pendingStartDate, setPendingStartDate] = useState(null);
+  const [pendingEndDate, setPendingEndDate] = useState(null);
+  const [pendingIncludeEndDate, setPendingIncludeEndDate] = useState(false);
   const [overlapCycle, setOverlapCycle] = useState(null);
   const [showOverlapDialog, setShowOverlapDialog] = useState(false);
   const [isUpdatingStartDate, setIsUpdatingStartDate] = useState(false);
@@ -773,7 +827,7 @@ const RecordsPage = () => {
   const [expandedIsoDate, setExpandedIsoDate] = useState(null);
   const [defaultFormIsoDate, setDefaultFormIsoDate] = useState(null);
   const [focusedField, setFocusedField] = useState(null);
-  const [isCalendarOpen, setIsCalendarOpen] = useState(true);
+  const [isCalendarOpen, setIsCalendarOpen] = useState(initialCalendarOpen);
   const [expandedEmptyGroups, setExpandedEmptyGroups] = useState([]);
   const calendarContainerRef = useRef(null);
   const recordsScrollRef = useRef(null);
@@ -889,13 +943,14 @@ const RecordsPage = () => {
     const calendarScrollMargin = useMemo(() => boundaryPx, [boundaryPx]);
 
   useEffect(() => {
-    setDraftStartDate(currentCycle?.startDate || '');
-  }, [currentCycle?.startDate]);
+    setDraftStartDate(cycle?.startDate || '');
+    setDraftEndDate(cycle?.endDate || '');
+  }, [cycle?.startDate, cycle?.endDate]);
 
   const sortedRecordDates = useMemo(() => {
-    if (!currentCycle?.data?.length) return [];
+    if (!cycle?.data?.length) return [];
 
-    return [...currentCycle.data]
+    return [...cycle.data]
       .filter((record) => record?.isoDate)
       .sort((a, b) => {
         const dateA = parseISO(a.isoDate);
@@ -903,20 +958,7 @@ const RecordsPage = () => {
         return dateB - dateA;
       })
       .map((record) => record.isoDate);
-  }, [currentCycle?.data]);
-
-  useEffect(() => {
-    if (!sortedRecordDates.length) {
-      setSelectedDate(null);
-      setExpandedIsoDate(null);
-      return;
-    }
-
-    if (!selectedDate || !sortedRecordDates.includes(selectedDate)) {
-      hasUserSelectedDateRef.current = false;
-      setSelectedDate(sortedRecordDates[0]);
-    }
-  }, [sortedRecordDates, selectedDate]);
+  }, [cycle?.data]);
 
   useEffect(() => {
     if (!selectedDate || !hasUserSelectedDateRef.current) {
@@ -982,28 +1024,28 @@ const RecordsPage = () => {
 
 
   const recordDateObjects = useMemo(() => {
-    if (!currentCycle?.data?.length) return [];
+    if (!cycle?.data?.length) return [];
 
-    return currentCycle.data
+    return cycle.data
       .map((record) => {
         if (!record?.isoDate) return null;
         const parsed = parseISO(record.isoDate);
         return isValid(parsed) ? parsed : null;
       })
       .filter(Boolean);
-  }, [currentCycle?.data]);
+  }, [cycle?.data]);
 
   const recordDateSet = useMemo(() => new Set(sortedRecordDates), [sortedRecordDates]);
 
-  const peakStatuses = useMemo(() => computePeakStatuses(currentCycle?.data ?? []), [currentCycle?.data]);
+  const peakStatuses = useMemo(() => computePeakStatuses(cycle?.data ?? []), [cycle?.data]);
 
   const recordDetailsByIso = useMemo(() => {
     const details = new Map();
-    if (!currentCycle?.data?.length) {
+    if (!cycle?.data?.length) {
       return details;
     }
 
-    currentCycle.data.forEach((record) => {
+    cycle.data.forEach((record) => {
       if (!record?.isoDate) return;
 
       const selectedMeasurement =
@@ -1072,18 +1114,18 @@ const RecordsPage = () => {
     });
 
     return details;
-  }, [currentCycle?.data, peakStatuses]);
+  }, [cycle?.data, peakStatuses]);
 
 
   const cycleRange = useMemo(() => {
-    if (!currentCycle?.startDate) return null;
-    const start = parseISO(currentCycle.startDate);
+    if (!cycle?.startDate) return null;
+    const start = parseISO(cycle.startDate);
     if (!isValid(start)) return null;
 
     let end;
 
-    if (currentCycle?.endDate) {
-      end = parseISO(currentCycle.endDate);
+    if (cycle?.endDate) {
+      end = parseISO(cycle.endDate);
     } else {
       const today = startOfDay(new Date());
       const candidates = [start, today];
@@ -1100,7 +1142,7 @@ const RecordsPage = () => {
     }
 
     return { from: start, to: end };
-  }, [currentCycle?.startDate, currentCycle?.endDate, recordDateObjects]);
+  }, [cycle?.startDate, cycle?.endDate, recordDateObjects]);
 
   const calendarModifiers = useMemo(() => {
     const modifiers = {};
@@ -1144,9 +1186,9 @@ const RecordsPage = () => {
   );
 
   const cycleDays = useMemo(() => {
-    if (!currentCycle?.startDate) return [];
+    if (!cycle?.startDate) return [];
 
-    const startDate = parseISO(currentCycle.startDate);
+    const startDate = parseISO(cycle.startDate);
     if (!isValid(startDate)) {
       return [];
     }
@@ -1183,7 +1225,55 @@ const RecordsPage = () => {
     }
 
     return days;
-  }, [currentCycle?.startDate, cycleRange, recordDetailsByIso]);
+  }, [cycle?.startDate, cycleRange, recordDetailsByIso]);
+
+  const cycleDayIsoSet = useMemo(
+    () => new Set(cycleDays.map((day) => day.isoDate)),
+    [cycleDays]
+  );
+
+  const defaultSelectedIso = useMemo(() => {
+    const cycleEndIso = cycleRange?.to
+      ? format(startOfDay(cycleRange.to), 'yyyy-MM-dd')
+      : null;
+
+    if (includeEndDate) {
+      return cycleEndIso ?? sortedRecordDates[0] ?? null;
+    }
+
+    if (sortedRecordDates.length) {
+      return sortedRecordDates[0];
+    }
+
+    return cycleEndIso;
+  }, [includeEndDate, cycleRange, sortedRecordDates]);
+
+  useEffect(() => {
+    if (selectedDate && cycleDayIsoSet.has(selectedDate)) {
+      return;
+    }
+
+    if (!defaultSelectedIso) {
+      if (selectedDate !== null) {
+        setSelectedDate(null);
+        setExpandedIsoDate(null);
+      }
+      return;
+    }
+
+    if (selectedDate !== defaultSelectedIso) {
+      setSelectedDate(defaultSelectedIso);
+
+      if (!recordDetailsByIso.has(defaultSelectedIso)) {
+        setExpandedIsoDate(null);
+      }
+    }
+  }, [
+    selectedDate,
+    cycleDayIsoSet,
+    defaultSelectedIso,
+    recordDetailsByIso,
+  ]);
 
   const processedCycleDays = useMemo(() => {
     if (!cycleDays.length) {
@@ -1259,6 +1349,13 @@ const RecordsPage = () => {
         }
       }
 
+      const groupId = isoToGroupMap[iso];
+      if (groupId) {
+        setExpandedEmptyGroups((prev) =>
+          prev.includes(groupId) ? prev : [...prev, groupId]
+        );
+      }
+
       hasUserSelectedDateRef.current = true;
       setSelectedDate(iso);
 
@@ -1266,28 +1363,39 @@ const RecordsPage = () => {
         setExpandedIsoDate(null);
       }
     },
-    [cycleRange, recordDetailsByIso]
+    [cycleRange, isoToGroupMap, recordDetailsByIso]
   );
 
   const resetStartDateFlow = useCallback(() => {
     setPendingStartDate(null);
+    setPendingEndDate(null);
+    setPendingIncludeEndDate(false);
     setOverlapCycle(null);
     setShowOverlapDialog(false);
   }, []);
 
   const openStartDateEditor = useCallback(() => {
-    setDraftStartDate(currentCycle?.startDate || '');
+    setDraftStartDate(cycle?.startDate || '');
+    setDraftEndDate(cycle?.endDate || '');
     setStartDateError('');
     resetStartDateFlow();
     setShowStartDateEditor(true);
-  }, [currentCycle?.startDate, resetStartDateFlow]);
+  }, [cycle?.startDate, cycle?.endDate, resetStartDateFlow]);
 
   const closeStartDateEditor = useCallback(() => {
     setShowStartDateEditor(false);
     setStartDateError('');
     resetStartDateFlow();
-    setDraftStartDate(currentCycle?.startDate || '');
-  }, [currentCycle?.startDate, resetStartDateFlow]);
+    setDraftStartDate(cycle?.startDate || '');
+    setDraftEndDate(cycle?.endDate || '');
+  }, [cycle?.startDate, cycle?.endDate, resetStartDateFlow]);
+
+  const handleDeleteCycleFromEditor = useCallback(() => {
+    if (onRequestDeleteCycle) {
+      closeStartDateEditor();
+      onRequestDeleteCycle();
+    }
+  }, [closeStartDateEditor, onRequestDeleteCycle]);
 
   const handleCancelOverlapStart = useCallback(() => {
     resetStartDateFlow();
@@ -1299,7 +1407,12 @@ const RecordsPage = () => {
       return;
     }
 
-    if (!currentCycle?.id) {
+    if (includeEndDate && draftEndDate && draftEndDate < draftStartDate) {
+      setStartDateError('La fecha de fin no puede ser anterior al inicio');
+      return;
+    }
+
+    if (!cycle?.id) {
       return;
     }
 
@@ -1308,30 +1421,41 @@ const RecordsPage = () => {
 
     try {
       const overlap = checkCycleOverlap
-        ? await checkCycleOverlap(currentCycle.id, draftStartDate)
+        ? await checkCycleOverlap(
+            cycle.id,
+            draftStartDate,
+            includeEndDate ? draftEndDate || undefined : undefined
+          )
         : null;
 
       if (overlap) {
         setPendingStartDate(draftStartDate);
+        const resolvedEndDate = includeEndDate ? draftEndDate || undefined : undefined;
+        setPendingEndDate(resolvedEndDate ?? null);
+        setPendingIncludeEndDate(!!includeEndDate);
         setOverlapCycle(overlap);
         setShowOverlapDialog(true);
         setIsUpdatingStartDate(false);
         return;
       }
 
-      await updateCycleDates(currentCycle.id, draftStartDate);
+      await updateCycleDates(
+        cycle.id,
+        draftStartDate,
+        includeEndDate ? draftEndDate || undefined : undefined
+      );
       await refreshData({ silent: true });
       toast({
-        title: 'Fecha de inicio actualizada',
-        description: 'El ciclo se ha ajustado a la nueva fecha de inicio.',
+        title: 'Fechas actualizadas',
+        description: 'El ciclo se ha ajustado a las nuevas fechas.',
       });
       closeStartDateEditor();
     } catch (error) {
       console.error('Error updating start date from records page:', error);
-      setStartDateError('No se pudo actualizar la fecha de inicio');
+      setStartDateError('No se pudieron actualizar las fechas');
       toast({
         title: 'Error',
-        description: 'No se pudo actualizar la fecha de inicio.',
+        description: 'No se pudieron actualizar las fechas.',
         variant: 'destructive',
       });
     } finally {
@@ -1339,7 +1463,9 @@ const RecordsPage = () => {
     }
   }, [
     draftStartDate,
-    currentCycle?.id,
+    draftEndDate,
+    includeEndDate,
+    cycle?.id,
     checkCycleOverlap,
     updateCycleDates,
     refreshData,
@@ -1348,7 +1474,7 @@ const RecordsPage = () => {
   ]);
 
   const handleConfirmOverlapStart = useCallback(async () => {
-    if (!currentCycle?.id || !pendingStartDate) {
+    if (!cycle?.id || !pendingStartDate) {
       resetStartDateFlow();
       return;
     }
@@ -1357,19 +1483,49 @@ const RecordsPage = () => {
     setShowOverlapDialog(false);
 
     try {
-      await forceUpdateCycleStart(currentCycle.id, pendingStartDate);
+      const currentStartDate = cycle.startDate;
+      const currentEndDate = cycle.endDate ?? undefined;
+      const hasStartChange = pendingStartDate !== currentStartDate;
+      const startMovesEarlier =
+        hasStartChange &&
+        pendingStartDate &&
+        currentStartDate &&
+        isBefore(parseISO(pendingStartDate), parseISO(currentStartDate));
+
+      const resolvedPendingEnd = pendingIncludeEndDate
+        ? pendingEndDate ?? undefined
+        : undefined;
+      const hasEndChange =
+        pendingIncludeEndDate &&
+        pendingEndDate !== null &&
+        resolvedPendingEnd !== currentEndDate;
+
+      if (startMovesEarlier) {
+        await forceUpdateCycleStart(cycle.id, pendingStartDate);
+      }
+      
+      if (hasEndChange && resolvedPendingEnd && forceShiftNextCycleStart) {
+        const effectiveStartDate = hasStartChange ? pendingStartDate : currentStartDate;
+        await forceShiftNextCycleStart(cycle.id, resolvedPendingEnd, effectiveStartDate);
+      }
+
+      await updateCycleDates(
+        cycle.id,
+        hasStartChange ? pendingStartDate : undefined,
+        resolvedPendingEnd
+      );
       await refreshData({ silent: true });
       toast({
-        title: 'Fecha de inicio actualizada',
-        description: 'El ciclo se ha ajustado a la nueva fecha de inicio.',
+        title: 'Fechas actualizadas',
+        description: 'El ciclo se ha ajustado a las nuevas fechas.',
       });
       closeStartDateEditor();
     } catch (error) {
-      console.error('Error forcing start date from records page:', error);
-      setStartDateError('No se pudo actualizar la fecha de inicio');
+      console.error('Error adjusting cycle dates from records page:', error);
+      setStartDateError('No se pudieron actualizar las fechas');
       toast({
         title: 'Error',
-        description: 'No se pudo actualizar la fecha de inicio.',
+        description: 'No se pudieron actualizar las fechas.',
         variant: 'destructive',
       });
     } finally {
@@ -1377,9 +1533,15 @@ const RecordsPage = () => {
       resetStartDateFlow();
     }
   }, [
-    currentCycle?.id,
+    cycle?.id,
+    cycle?.startDate,
+    cycle?.endDate,
     pendingStartDate,
+    pendingIncludeEndDate,
+    pendingEndDate,
     forceUpdateCycleStart,
+    forceShiftNextCycleStart,
+    updateCycleDates,
     refreshData,
     toast,
     closeStartDateEditor,
@@ -1419,7 +1581,7 @@ const RecordsPage = () => {
   const handleInlineEdit = useCallback((record, fieldName) => openRecordForm(record, fieldName), [openRecordForm]);
 
   const handleDeleteRequest = (recordId) => {
-    const record = currentCycle?.data?.find((r) => r.id === recordId);
+    const record = cycle?.data?.find((r) => r.id === recordId);
     setRecordToDelete(record || null);
   };
 
@@ -1455,6 +1617,23 @@ const RecordsPage = () => {
     setFocusedField(null);
     setShowForm(true);
   }, []);
+
+  const handleOpenAddRecord = useCallback(() => {
+    const fallbackIso = cycleDays.length ? cycleDays[0].isoDate : cycle?.startDate || null;
+    const targetIso = selectedDate || fallbackIso || null;
+
+    setEditingRecord(null);
+    setDefaultFormIsoDate(targetIso);
+    setFocusedField(null);
+    hasUserSelectedDateRef.current = false;
+
+    if (targetIso) {
+      setSelectedDate(targetIso);
+      setExpandedIsoDate(null);
+    }
+
+    setShowForm(true);
+  }, [cycleDays, cycle?.startDate, selectedDate]);
 
   const handleSave = async (data, { keepFormOpen = false } = {}) => {
     setIsProcessing(true);
@@ -1497,7 +1676,57 @@ const RecordsPage = () => {
     }
   };
 
-  if (isLoading && !currentCycle?.id) {
+  const headerActionProps = {
+    openDateEditor: openStartDateEditor,
+    openAddRecord: handleOpenAddRecord,
+    isProcessing,
+    isUpdatingDates: isUpdatingStartDate,
+    cycle,
+  };
+
+  const resolvedHeaderActions =
+    typeof headerActions === 'function'
+      ? headerActions(headerActionProps)
+      : (
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={openStartDateEditor}
+              className="border-pink-200 rounded-full text-pink-600 hover:bg-pink-500"
+              disabled={isProcessing || isUpdatingStartDate}
+              aria-label={includeEndDate ? 'Editar fechas del ciclo' : 'Editar fecha de inicio'}
+            >
+              <Edit className="h-4 w-4" />
+              <span className="sr-only">{includeEndDate ? 'Editar fechas del ciclo' : 'Editar fecha de inicio'}</span>
+            </Button>
+            <Button
+              type="button"
+              size="icon"
+              onClick={handleOpenAddRecord}
+              className="rounded-full bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white shadow-lg"
+              disabled={isProcessing}
+              style={{ filter: 'drop-shadow(0 6px 12px rgba(236, 72, 153, 0.3))' }}
+              aria-label="Añadir registro"
+            >
+              <Plus className="h-4 w-4" />
+              <span className="sr-only">Añadir registro</span>
+            </Button>
+          </>
+        );
+
+  const resolvedTopAccessory =
+    typeof topAccessory === 'function'
+      ? topAccessory({
+          ...headerActionProps,
+          toggleCalendar: () => setIsCalendarOpen((prev) => !prev),
+          openCalendar: () => setIsCalendarOpen(true),
+          closeCalendar: () => setIsCalendarOpen(false),
+        })
+      : topAccessory ?? null;
+
+  if (isLoading && !cycle?.id) {
     return (
       <div className="relative flex h-full flex-col items-center justify-center bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100">
         <div
@@ -1512,7 +1741,7 @@ const RecordsPage = () => {
     );
   }
 
-  if (!currentCycle?.id) {
+  if (!cycle?.id) {
     return (
       <div className="relative flex h-full flex-col items-center justify-center bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100">
         <div
@@ -1529,6 +1758,7 @@ const RecordsPage = () => {
 
   return (
     <div className="relative flex h-full flex-col bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100">
+      {resolvedTopAccessory && <div className="space-y-4">{resolvedTopAccessory}</div>}
       <div
         className="pointer-events-none absolute inset-0"
         style={{
@@ -1553,62 +1783,26 @@ const RecordsPage = () => {
               >
                 <div className="flex flex-wrap items-center gap-1 justify-between sm:justify-start">
                   <div className="flex items-center gap-1">
-                    <FileText className="h-8 w-8 text-pink-500" />
+                    <HeaderIcon className="h-7 w-7 text-pink-500" />
                     <button
                       type="button"
                       onClick={() => setIsCalendarOpen((prev) => !prev)}
-                      className="group flex items-center gap-1 rounded-full px-2 py-1 text-left shadow-sm transition-all hover:border-rose-800 hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:ring-offset-2 focus-visible:ring-offset-rose-50"
+                      className="group flex items-center gap-1 rounded-full px-1 py-1 text-left transition-all hover:border-rose-800 hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:ring-offset-2 focus-visible:ring-offset-rose-50"
                       aria-expanded={isCalendarOpen}
                       aria-controls="records-calendar"
                     >
-                      <span className="text-2xl sm:text-2xl font-bold text-slate-700">Mis Registros</span>
-                      <span className="flex items-center gap-2">
+                      <span className="text-2xl sm:text-2xl font-bold text-slate-700">{headerTitle}</span>
+                      <span className="flex items-center gap-1">
                         <motion.span
                           animate={{ rotate: isCalendarOpen ? 180 : 0 }}
-                          className="flex h-7 w-7 items-center justify-center rounded-full bg-rose-50 text-rose-400 shadow-inner"
+                          className="flex h-7 w-7 items-center justify-center rounded-full bg-rose-50 text-rose-400"
                         >
                           <ChevronDown className="h-4 w-4" />
                         </motion.span>
                       </span>
                     </button>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      onClick={openStartDateEditor}
-                      className="border-pink-200 rounded-full text-pink-600 hover:bg-pink-500"
-                      disabled={isProcessing || isUpdatingStartDate}
-                      aria-label="Editar fecha de inicio"
-                    >
-                      <Edit className="h-4 w-4" />
-                      <span className="sr-only">Editar fecha de inicio</span>
-                    </Button>
-                    <Button
-                      type="button"
-                      size="icon"
-                      onClick={() => {
-                        const fallbackIso = cycleDays.length ? cycleDays[0].isoDate : currentCycle.startDate;
-                        const targetIso = selectedDate || fallbackIso || null;
-                        setEditingRecord(null);
-                        setDefaultFormIsoDate(targetIso);
-                        hasUserSelectedDateRef.current = false;
-                        if (targetIso) {
-                          setSelectedDate(targetIso);
-                          setExpandedIsoDate(null);
-                        }
-                        setShowForm(true);
-                      }}
-                      className="rounded-full bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white shadow-lg"
-                      disabled={isProcessing}
-                      style={{ filter: 'drop-shadow(0 6px 12px rgba(236, 72, 153, 0.3))' }}
-                      aria-label="Añadir registro"
-                    >
-                      <Plus className="h-4 w-4" />
-                      <span className="sr-only">Añadir registro</span>
-                    </Button>
-                  </div>
+                  <div className="flex items-center gap-1">{resolvedHeaderActions}</div>
                 </div>
               </motion.div>
             
@@ -1619,23 +1813,33 @@ const RecordsPage = () => {
                 transition={{ duration: 0.4 }}
               >
                 <CycleDatesEditor
-                  cycle={currentCycle}
+                  cycle={cycle}
                   startDate={draftStartDate}
-                  endDate={currentCycle.endDate}
+                  endDate={includeEndDate ? draftEndDate : cycle?.endDate}
                   onStartDateChange={(value) => setDraftStartDate(value)}
+                  onEndDateChange={includeEndDate ? (value) => setDraftEndDate(value) : undefined}
                   onSave={handleSaveStartDate}
                   onCancel={closeStartDateEditor}
                   isProcessing={isUpdatingStartDate}
                   dateError={startDateError}
-                  includeEndDate={false}
+                  includeEndDate={includeEndDate}
                   showOverlapDialog={showOverlapDialog}
                   overlapCycle={overlapCycle}
                   onConfirmOverlap={handleConfirmOverlapStart}
                   onCancelOverlap={handleCancelOverlapStart}
                   onClearError={() => setStartDateError('')}
-                  saveLabel="Guardar cambios"
-                  title="Editar fecha de inicio"
-                  description="Actualiza la fecha de inicio del ciclo actual. Los registros se reorganizarán automáticamente."
+                  saveLabel={includeEndDate ? 'Guardar fechas' : 'Guardar cambios'}
+                  title={includeEndDate ? 'Editar fechas del ciclo' : 'Editar fecha de inicio'}
+                  description={
+                    includeEndDate
+                      ? 'Actualiza las fechas del ciclo. Los registros se reorganizarán automáticamente.'
+                      : 'Actualiza la fecha de inicio del ciclo actual. Los registros se reorganizarán automáticamente.'
+                  }
+                  onDeleteCycle={onRequestDeleteCycle ? handleDeleteCycleFromEditor : undefined}
+                  deleteTitle={dateEditorDeleteTitle}
+                  deleteDescription={dateEditorDeleteDescription}
+                  deleteLabel={dateEditorDeleteLabel}
+                  isDeletingCycle={isDeletingCycle}
                 />
               </motion.div>
             )}
@@ -1659,6 +1863,7 @@ const RecordsPage = () => {
                         : cycleRange?.to
                     }
                     selected={selectedDate && isValid(parseISO(selectedDate)) ? parseISO(selectedDate) : undefined}
+                    onSelect={handleCalendarSelect}
                     onDayClick={handleCalendarSelect}
                     modifiers={calendarModifiers}
                     className="w-full max-w-xs sm:max-w-sm rounded-3xl bg-white/40 !p-2 sm:!p-2.5 mx-auto backdrop-blur-sm [&_button]:text-slate-900 [&_button:hover]:bg-rose-100 [&_button[aria-selected=true]]:bg-rose-400"
@@ -1852,6 +2057,7 @@ const RecordsPage = () => {
             })
           )}
         </motion.div>
+        {afterRecordsContent && <div className="pt-4 space-y-4">{afterRecordsContent}</div>}
         </div>
       </div>
 
@@ -1870,11 +2076,11 @@ const RecordsPage = () => {
             onSubmit={handleSave}
             onCancel={handleCloseForm}
             initialData={editingRecord}
-            cycleStartDate={currentCycle.startDate}
-            cycleEndDate={currentCycle.endDate}
+            cycleStartDate={cycle?.startDate}
+            cycleEndDate={cycle?.endDate}
             isProcessing={isProcessing}
             isEditing={!!editingRecord}
-            cycleData={currentCycle.data}
+            cycleData={cycle?.data}
             onDateSelect={handleDateSelect}
             defaultIsoDate={defaultFormIsoDate}
             focusedField={focusedField}
@@ -1898,5 +2104,6 @@ const RecordsPage = () => {
     </div>
   );
 };
+const RecordsPage = () => <RecordsExperience />;
 
 export default RecordsPage;
