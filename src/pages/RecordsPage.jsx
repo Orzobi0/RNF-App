@@ -759,6 +759,7 @@ export const RecordsExperience = ({
   isLoading: isLoadingProp,
   updateCycleDates: updateCycleDatesProp,
   checkCycleOverlap: checkCycleOverlapProp,
+  forceShiftNextCycleStart: forceShiftNextCycleStartProp,
   forceUpdateCycleStart: forceUpdateCycleStartProp,
   refreshData: refreshDataProp,
   afterRecordsContent = null,
@@ -776,6 +777,7 @@ export const RecordsExperience = ({
     updateCycleDates: contextUpdateCycleDates,
     checkCycleOverlap: contextCheckCycleOverlap,
     forceUpdateCycleStart: contextForceUpdateCycleStart,
+    forceShiftNextCycleStart: contextForceShiftNextCycleStart,
     refreshData: contextRefreshData,
   } = useCycleData();
   const cycle = cycleProp ?? contextCurrentCycle;
@@ -801,6 +803,10 @@ export const RecordsExperience = ({
     ? forceUpdateCycleStartProp
     : async (cycleId, startDate) =>
         contextForceUpdateCycleStart(cycleId ?? cycle?.id, startDate);
+    const forceShiftNextCycleStart = forceShiftNextCycleStartProp
+    ? forceShiftNextCycleStartProp
+    : async (cycleId, newEndDate, newStartDate) =>
+        contextForceShiftNextCycleStart(cycleId ?? cycle?.id, newEndDate, newStartDate);
   const refreshData = refreshDataProp ?? contextRefreshData;
   const { toast } = useToast();
   const [showForm, setShowForm] = useState(false);
@@ -812,6 +818,8 @@ export const RecordsExperience = ({
   const [draftEndDate, setDraftEndDate] = useState(() => cycle?.endDate || '');
   const [startDateError, setStartDateError] = useState('');
   const [pendingStartDate, setPendingStartDate] = useState(null);
+  const [pendingEndDate, setPendingEndDate] = useState(null);
+  const [pendingIncludeEndDate, setPendingIncludeEndDate] = useState(false);
   const [overlapCycle, setOverlapCycle] = useState(null);
   const [showOverlapDialog, setShowOverlapDialog] = useState(false);
   const [isUpdatingStartDate, setIsUpdatingStartDate] = useState(false);
@@ -1360,6 +1368,8 @@ export const RecordsExperience = ({
 
   const resetStartDateFlow = useCallback(() => {
     setPendingStartDate(null);
+    setPendingEndDate(null);
+    setPendingIncludeEndDate(false);
     setOverlapCycle(null);
     setShowOverlapDialog(false);
   }, []);
@@ -1420,6 +1430,9 @@ export const RecordsExperience = ({
 
       if (overlap) {
         setPendingStartDate(draftStartDate);
+        const resolvedEndDate = includeEndDate ? draftEndDate || undefined : undefined;
+        setPendingEndDate(resolvedEndDate ?? null);
+        setPendingIncludeEndDate(!!includeEndDate);
         setOverlapCycle(overlap);
         setShowOverlapDialog(true);
         setIsUpdatingStartDate(false);
@@ -1470,10 +1483,37 @@ export const RecordsExperience = ({
     setShowOverlapDialog(false);
 
     try {
-      await forceUpdateCycleStart(cycle.id, pendingStartDate);
-      if (includeEndDate) {
-        await updateCycleDates(cycle.id, undefined, draftEndDate || undefined);
+      const currentStartDate = cycle.startDate;
+      const currentEndDate = cycle.endDate ?? undefined;
+      const hasStartChange = pendingStartDate !== currentStartDate;
+      const startMovesEarlier =
+        hasStartChange &&
+        pendingStartDate &&
+        currentStartDate &&
+        isBefore(parseISO(pendingStartDate), parseISO(currentStartDate));
+
+      const resolvedPendingEnd = pendingIncludeEndDate
+        ? pendingEndDate ?? undefined
+        : undefined;
+      const hasEndChange =
+        pendingIncludeEndDate &&
+        pendingEndDate !== null &&
+        resolvedPendingEnd !== currentEndDate;
+
+      if (startMovesEarlier) {
+        await forceUpdateCycleStart(cycle.id, pendingStartDate);
       }
+      
+      if (hasEndChange && resolvedPendingEnd && forceShiftNextCycleStart) {
+        const effectiveStartDate = hasStartChange ? pendingStartDate : currentStartDate;
+        await forceShiftNextCycleStart(cycle.id, resolvedPendingEnd, effectiveStartDate);
+      }
+
+      await updateCycleDates(
+        cycle.id,
+        hasStartChange ? pendingStartDate : undefined,
+        resolvedPendingEnd
+      );
       await refreshData({ silent: true });
       toast({
         title: 'Fechas actualizadas',
@@ -1481,7 +1521,7 @@ export const RecordsExperience = ({
       });
       closeStartDateEditor();
     } catch (error) {
-      console.error('Error forcing start date from records page:', error);
+      console.error('Error adjusting cycle dates from records page:', error);
       setStartDateError('No se pudieron actualizar las fechas');
       toast({
         title: 'Error',
@@ -1494,10 +1534,13 @@ export const RecordsExperience = ({
     }
   }, [
     cycle?.id,
+    cycle?.startDate,
+    cycle?.endDate,
     pendingStartDate,
+    pendingIncludeEndDate,
+    pendingEndDate,
     forceUpdateCycleStart,
-    includeEndDate,
-    draftEndDate,
+    forceShiftNextCycleStart,
     updateCycleDates,
     refreshData,
     toast,
