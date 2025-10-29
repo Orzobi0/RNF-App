@@ -12,7 +12,17 @@ import DeletionDialog from '@/components/DeletionDialog';
 import { useToast } from '@/components/ui/use-toast';
 
 const ArchivedCyclesPage = () => {
-  const { currentCycle, archivedCycles, isLoading, addArchivedCycle, updateCycleDates, deleteCycle, checkCycleOverlap, forceUpdateCycleStart } = useCycleData();
+  const {
+    currentCycle,
+    archivedCycles,
+    isLoading,
+    addArchivedCycle,
+    updateCycleDates,
+    deleteCycle,
+    checkCycleOverlap,
+    forceUpdateCycleStart,
+    forceShiftNextCycleStart,
+  } = useCycleData();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -74,11 +84,25 @@ const ArchivedCyclesPage = () => {
   const handleUpdateCycle = async ({ startDate, endDate, force }) => {
     if (!editingCycle) return;
     try {
-      if (force) {
+      const currentStartDate = editingCycle.startDate;
+      const currentEndDate = editingCycle.endDate;
+      const hasStartChange = startDate !== undefined && startDate !== currentStartDate;
+      const hasEndChange = endDate !== undefined && endDate !== currentEndDate;
+
+      const startMovesEarlier =
+        hasStartChange && currentStartDate && startDate && parseISO(startDate) < parseISO(currentStartDate);
+
+      const effectiveStartDate = hasStartChange ? startDate : currentStartDate;
+      const effectiveEndDate = hasEndChange ? endDate : currentEndDate;
+
+      if (force && startMovesEarlier) {
         await forceUpdateCycleStart(editingCycle.id, startDate);
         if (endDate !== undefined) {
           await updateCycleDates(editingCycle.id, undefined, endDate);
         }
+        } else if (force && effectiveEndDate) {
+        await forceShiftNextCycleStart(editingCycle.id, effectiveEndDate, effectiveStartDate);
+        await updateCycleDates(editingCycle.id, startDate, endDate);
       } else {
         await updateCycleDates(editingCycle.id, startDate, endDate);
       }

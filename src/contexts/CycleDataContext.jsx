@@ -15,7 +15,8 @@ import {
   updateCycleDatesDB,
   updateCycleIgnoreAutoCalculations,
   deleteCycleDB,
-  forceUpdateCycleStart as forceUpdateCycleStartDB
+  forceUpdateCycleStart as forceUpdateCycleStartDB,
+  forceShiftNextCycleStart as forceShiftNextCycleStartDB
 } from '@/lib/cycleDataHandler';
 import { getCachedCycleData, saveCycleDataToCache, clearCycleDataCache } from '@/lib/cycleCache';
 
@@ -646,6 +647,14 @@ export const CycleDataProvider = ({ children }) => {
     [updateCycleDates]
   );
 
+  const forceShiftNextCycleStart = useCallback(
+    async (cycleIdToUpdate, newEndDate, newStartDate) => {
+      if (!user?.uid || !cycleIdToUpdate || !newEndDate) return;
+      await forceShiftNextCycleStartDB(user.uid, cycleIdToUpdate, newEndDate, newStartDate);
+    },
+    [user]
+  );
+
   const getCycleById = useCallback(
     async (cycleIdToFetch) => {
       if (!user?.uid) return null;
@@ -690,6 +699,7 @@ export const CycleDataProvider = ({ children }) => {
     startNewCycle,
     updateCycleDates,
     forceUpdateCycleStart,
+    forceShiftNextCycleStart,
     checkCycleOverlap,
     isLoading,
     getCycleById,

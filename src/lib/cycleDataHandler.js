@@ -449,6 +449,120 @@ export const updateCycleDatesDB = async (cycleId, userId, startDate, endDate, va
   await updateDoc(cycleRef, { ignored_auto_calculations: shouldIgnore });
 };
 
+export const forceShiftNextCycleStart = async (
+  userId,
+  currentCycleId,
+  newEndDate,
+  currentCycleStartDate
+) => {
+  if (!newEndDate) return;
+
+  const cyclesRef = collection(db, `users/${userId}/cycles`);
+  const cyclesSnap = await getDocs(cyclesRef);
+
+  const currentDoc = cyclesSnap.docs.find((docSnap) => docSnap.id === currentCycleId);
+  if (!currentDoc) return;
+
+  const currentData = currentDoc.data();
+  const effectiveCurrentStart = currentCycleStartDate || currentData.start_date || null;
+  const currentStart = effectiveCurrentStart ? parseISO(effectiveCurrentStart) : null;
+
+  const sortedNextCycles = cyclesSnap.docs
+    .filter((docSnap) => docSnap.id !== currentCycleId)
+    .map((docSnap) => ({ id: docSnap.id, data: docSnap.data() }))
+    .filter(({ data }) => data.start_date)
+    .sort(
+      (a, b) => parseISO(a.data.start_date).getTime() - parseISO(b.data.start_date).getTime()
+    );
+
+  const comparisonBase = currentStart ?? parseISO(newEndDate);
+  const nextCycle = sortedNextCycles.find(({ data }) => {
+    try {
+      const startDate = parseISO(data.start_date);
+      return startDate > comparisonBase;
+    } catch (error) {
+      console.error('Error parsing next cycle start date', error);
+      return false;
+    }
+  });
+
+  if (!nextCycle) return;
+
+  const nextCycleStart = parseISO(nextCycle.data.start_date);
+  const nextCycleEnd = nextCycle.data.end_date ? parseISO(nextCycle.data.end_date) : null;
+  const parsedNewEnd = parseISO(newEndDate);
+
+  let proposedStart = addDays(parsedNewEnd, 1);
+  if (nextCycleStart && proposedStart < nextCycleStart) {
+    proposedStart = nextCycleStart;
+  }
+  if (nextCycleEnd && proposedStart > nextCycleEnd) {
+    proposedStart = nextCycleEnd;
+  }
+
+  const newStartIso = format(proposedStart, 'yyyy-MM-dd');
+
+  const nextEntriesRef = collection(db, `users/${userId}/cycles/${nextCycle.id}/entries`);
+  const nextEntriesSnap = await getDocs(nextEntriesRef);
+
+  const currentCycleStartIso = effectiveCurrentStart || currentData.start_date;
+
+  await Promise.all(
+    nextEntriesSnap.docs.map(async (entryDoc) => {
+      const entryData = entryDoc.data();
+      const timestamp = entryData.timestamp
+        ? parseISO(entryData.timestamp)
+        : entryData.iso_date
+        ? parseISO(entryData.iso_date)
+        : null;
+
+      if (!timestamp) {
+        return;
+      }
+
+      const entryIsoDate = format(timestamp, 'yyyy-MM-dd');
+
+      if (timestamp < proposedStart) {
+        const newData = {
+          ...entryData,
+          cycle_day: generateCycleDaysForRecord(entryIsoDate, currentCycleStartIso),
+        };
+        const newEntryRef = doc(
+          db,
+          `users/${userId}/cycles/${currentCycleId}/entries/${entryDoc.id}`
+        );
+        await setDoc(newEntryRef, newData);
+
+        const measurementsRef = collection(
+          db,
+          `users/${userId}/cycles/${nextCycle.id}/entries/${entryDoc.id}/measurements`
+        );
+        const measurementsSnap = await getDocs(measurementsRef);
+
+        await Promise.all(
+          measurementsSnap.docs.map(async (measurementDoc) => {
+            const newMeasurementRef = doc(
+              db,
+              `users/${userId}/cycles/${currentCycleId}/entries/${entryDoc.id}/measurements/${measurementDoc.id}`
+            );
+            await setDoc(newMeasurementRef, measurementDoc.data());
+            await deleteDoc(measurementDoc.ref);
+          })
+        );
+
+        await deleteDoc(entryDoc.ref);
+      } else {
+        await updateDoc(entryDoc.ref, {
+          cycle_day: generateCycleDaysForRecord(entryIsoDate, newStartIso),
+        });
+      }
+    })
+  );
+
+  const nextCycleRef = doc(db, `users/${userId}/cycles/${nextCycle.id}`);
+  await updateDoc(nextCycleRef, { start_date: newStartIso });
+};
+
 export const forceUpdateCycleStart = async (userId, currentCycleId, newStartDate) => {
   const cyclesRef = collection(db, `users/${userId}/cycles`);
   const cyclesSnap = await getDocs(cyclesRef);
@@ -460,7 +574,7 @@ export const forceUpdateCycleStart = async (userId, currentCycleId, newStartDate
     const start = data.start_date ? parseISO(data.start_date) : null;
     const end = data.end_date ? parseISO(data.end_date) : null;
     if (!start || !end) return false;
-    return end >= newStart;
+    return start <= newStart && end >= newStart;
   });
 
   if (previousDoc) {
