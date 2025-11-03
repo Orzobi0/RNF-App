@@ -3,12 +3,17 @@ import FertilityChart from '@/components/FertilityChart';
 import { useCycleData } from '@/hooks/useCycleData';
 import { differenceInDays, format, parseISO, startOfDay } from 'date-fns';
 import generatePlaceholders from '@/lib/generatePlaceholders';
-import { RotateCcw, Eye, EyeOff, ArrowLeft } from 'lucide-react';
+import { RotateCcw, Eye, EyeOff, ArrowLeft, Settings } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import DataEntryForm from '@/components/DataEntryForm';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import { useParams, Link } from 'react-router-dom';
+
+const CHART_SETTINGS_STORAGE_KEY = 'fertility-chart-settings';
+const DEFAULT_CHART_SETTINGS = { showRelationsRow: false };
 
 const ChartPage = () => {
   const { cycleId } = useParams();
@@ -89,6 +94,37 @@ const ChartPage = () => {
   const [editingRecord, setEditingRecord] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showInterpretation, setShowInterpretation] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [chartSettings, setChartSettings] = useState(() => {
+    if (typeof window === 'undefined') {
+      return DEFAULT_CHART_SETTINGS;
+    }
+    try {
+      const stored = window.localStorage.getItem(CHART_SETTINGS_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return { ...DEFAULT_CHART_SETTINGS, ...parsed };
+      }
+    } catch (error) {
+      console.warn('No se pudieron cargar los ajustes del gráfico.', error);
+    }
+    return DEFAULT_CHART_SETTINGS;
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    try {
+      window.localStorage.setItem(
+        CHART_SETTINGS_STORAGE_KEY,
+        JSON.stringify(chartSettings)
+      );
+    } catch (error) {
+      console.warn('No se pudieron guardar los ajustes del gráfico.', error);
+    }
+  }, [chartSettings]);
+
   const ignoreNextClickRef = useRef(false);
   const isPlaceholderRecord = Boolean(
     editingRecord && String(editingRecord.id || '').startsWith('placeholder-')
@@ -242,6 +278,12 @@ const ChartPage = () => {
       console.error('Error toggling ignore state:', error);
     }
   };
+  const handleRelationsSettingChange = (checked) => {
+    setChartSettings((prev) => ({
+      ...prev,
+      showRelationsRow: checked === true,
+    }));
+  };
   const handleTogglePeak = async (record, shouldMarkAsPeak = true) => {
     if (!targetCycle?.id || !record?.isoDate) {
       return;
@@ -320,6 +362,7 @@ const ChartPage = () => {
         mucusAppearance: record.mucus_appearance ?? record.mucusAppearance ?? '',
         fertility_symbol: record.fertility_symbol ?? 'none',
         observations: record.observations ?? '',
+        had_relations: record.had_relations ?? record.hadRelations ?? false,
         ignored: record.ignored ?? false,
         peak_marker: markAsPeak ? 'peak' : null,
       };
@@ -475,6 +518,15 @@ const ChartPage = () => {
           </Button>
         )}
         <Button
+          onClick={() => setSettingsOpen(true)}
+          variant="ghost"
+          size="icon"
+          className="absolute top-4 right-36 z-10 p-2 rounded-full bg-white/80 text-slate-700 hover:bg-[#E27DBF]/20"
+          aria-label="Ajustes del gráfico"
+        >
+          <Settings className="h-4 w-4" />
+        </Button>
+        <Button
           onClick={handleInterpretationClick}
           onPointerUp={handleInterpretationPointerUp}
           variant="ghost"
@@ -504,7 +556,41 @@ const ChartPage = () => {
           reduceMotion={true}
           forceLandscape={orientation === 'landscape'}
           currentPeakIsoDate={currentPeakIsoDate}
+          showRelationsRow={chartSettings.showRelationsRow}
         />
+        <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+          <DialogContent className="bg-white/95 border border-rose-100/60 shadow-xl">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-semibold text-rose-700">Ajustes del gráfico</DialogTitle>
+              <DialogDescription className="text-sm text-rose-500">
+                Personaliza la visualización de filas adicionales en la gráfica.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="flex items-start justify-between gap-3 rounded-2xl border border-rose-100 bg-rose-50/70 p-3">
+                <div className="max-w-xs">
+                  <Label htmlFor="toggle-relations-row" className="text-sm font-semibold text-rose-700">
+                    Mostrar fila de Relaciones (RS)
+                  </Label>
+                  <p className="mt-1 text-xs text-rose-500">
+                    Añade una fila extra bajo observaciones con un corazón en los días registrados.
+                  </p>
+                </div>
+                <Checkbox
+                  id="toggle-relations-row"
+                  checked={chartSettings.showRelationsRow}
+                  onCheckedChange={handleRelationsSettingChange}
+                  className="mt-1"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setSettingsOpen(false)}>
+                Cerrar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
         <Dialog open={showForm} onOpenChange={(open) => { if (!open) handleCloseForm(); }}>
           <DialogContent
             hideClose

@@ -21,6 +21,7 @@ const FertilityChart = ({
   reduceMotion = false,
   forceLandscape = false,
   currentPeakIsoDate = null,
+  showRelationsRow = false,
 }) => {
   const {
     chartRef,
@@ -48,7 +49,16 @@ const FertilityChart = ({
     firstHighIndex,
     ovulationDetails,
     hasTemperatureData,
-  } = useFertilityChart(data, isFullScreen, orientation, onToggleIgnore, cycleId, visibleDays, forceLandscape);
+  } = useFertilityChart(
+    data,
+    isFullScreen,
+    orientation,
+    onToggleIgnore,
+    cycleId,
+    visibleDays,
+    forceLandscape,
+    showRelationsRow
+  );
   const uniqueIdRef = useRef(null);
   if (!uniqueIdRef.current) {
     const randomSuffix = Math.random().toString(36).slice(2, 10);
@@ -449,6 +459,7 @@ const FertilityChart = ({
             responsiveFontSize={responsiveFontSize}
             textRowHeight={textRowHeight}
             isFullScreen={isFullScreen}
+            showRelationsRow={showRelationsRow}
           />
         </div>
       )}
@@ -747,6 +758,7 @@ const FertilityChart = ({
             baselineStartIndex={baselineStartIndex}
             firstHighIndex={firstHighIndex}
             baselineIndices={baselineIndices}
+            showRelationsRow={showRelationsRow}
           />
 
         </motion.svg>

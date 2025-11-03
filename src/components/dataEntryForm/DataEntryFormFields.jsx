@@ -21,6 +21,7 @@ import {
   ChevronDown,
   Circle,
   Plus,
+  Heart,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, startOfDay, parseISO, addHours, parse } from 'date-fns';
@@ -44,6 +45,8 @@ const DataEntryFormFields = ({
   setFertilitySymbol,
   observations,
   setObservations,
+  hadRelations,
+  setHadRelations,
   ignored,
   setIgnored,
   peakTag,
@@ -173,6 +176,17 @@ const DataEntryFormFields = ({
       keepFormOpen: true,
       skipReset: true,
     });
+  };
+  const relationsButtonClasses = cn(
+    'inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-colors shadow-sm',
+    hadRelations
+      ? 'border-rose-400 bg-rose-50 text-rose-600 hover:bg-rose-100'
+      : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-100'
+  );
+
+  const handleRelationsToggle = () => {
+    if (isProcessing) return;
+    setHadRelations((prev) => !prev);
   };
 
   return (
@@ -454,8 +468,22 @@ const DataEntryFormFields = ({
                 </SelectItem>
               ))}
             </SelectContent>
-          </Select>       
+          </Select>
+          <div className="flex items-center justify-between pt-2">
+            <span className="text-xs font-semibold text-slate-600">Relaciones (RS)</span>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className={relationsButtonClasses}
+              onClick={handleRelationsToggle}
+              disabled={isProcessing}
+            >
+              <Heart className={`h-4 w-4 ${hadRelations ? 'text-rose-500' : 'text-slate-400'}`} />
+              {hadRelations ? 'Marcado' : 'Marcar'}
+            </Button>       
           </div>
+        </div>
       </div>
       {/* Sensación y apariencia */}
       <div className="space-y-2 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-3 border border-blue-300/50">

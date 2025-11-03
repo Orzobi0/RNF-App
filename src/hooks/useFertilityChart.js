@@ -297,7 +297,8 @@ export const useFertilityChart = (
   onToggleIgnore,
   cycleId,
   visibleDays = 5,
-  forceLandscape = false
+  forceLandscape = false,
+  showRelationsRow = false
 ) => {
       const chartRef = useRef(null);
       const tooltipRef = useRef(null);
@@ -585,8 +586,9 @@ export const useFertilityChart = (
       const textRowHeight = responsiveFontSize(isFullScreen ? 1.6 : 2.5);
       const isLandscapeVisual = forceLandscape || orientation === 'landscape';
       // En horizontal mostramos todas las filas (sensación, apariencia y observaciones)
-      // por lo que reservamos más altura bajo la gráfica. Mantenemos portrait como estaba.
-      const numTextRowsBelowChart = isLandscapeVisual ? 9 : 5; 
+       // por lo que reservamos más altura bajo la gráfica. Ajustamos si hay filas extra.
+      const extraRowsHeight = showRelationsRow ? (isFullScreen ? 2 : 1.5) : 0;
+      const numTextRowsBelowChart = (isLandscapeVisual ? 9 : 5) + extraRowsHeight;
       const totalTextRowsHeight = textRowHeight * numTextRowsBelowChart;
 
       const padding = { 

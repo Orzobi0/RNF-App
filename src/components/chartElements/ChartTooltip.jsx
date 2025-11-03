@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { XCircle, EyeOff, Eye, Edit3, Thermometer, Droplets, Circle } from 'lucide-react';
+import { XCircle, EyeOff, Eye, Edit3, Thermometer, Droplets, Circle, Heart } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { getSymbolAppearance } from '@/config/fertilitySymbols';
@@ -113,11 +113,12 @@ const ChartTooltip = ({
   const mucusSensation = point.mucus_sensation ?? point.mucusSensation ?? '';
   const mucusAppearance = point.mucus_appearance ?? point.mucusAppearance ?? '';
   const observations = point.observations ?? '';
+  const hasRelations = Boolean(point.had_relations ?? point.hadRelations);
   const hasSymbol = symbolInfo && symbolInfo.value !== 'none';
   const hasTemperature = temp != null;
   const hasMucusInfo = Boolean((mucusSensation && mucusSensation.trim()) || (mucusAppearance && mucusAppearance.trim()));
   const hasObservations = Boolean(observations && observations.trim());
-  const hasAnyData = hasTemperature || hasSymbol || hasMucusInfo || hasObservations;
+  const hasAnyData = hasTemperature || hasSymbol || hasMucusInfo || hasObservations || hasRelations;
   const showEmptyState = !hasAnyData;
   const peakStatus = point.peakStatus || (point.peak_marker === 'peak' ? 'P' : null);
   const peakLabels = {
@@ -459,6 +460,23 @@ const ChartTooltip = ({
                           <span className="text-sm font-semibold text-violet-800">
                             {observations}
                           </span>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                  {hasRelations && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.35 }}
+                      className="bg-gradient-to-r from-rose-50 to-pink-50 rounded-xl p-1 border border-rose-100/60"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-6 h-6 bg-gradient-to-br from-rose-500 to-pink-500 rounded-lg flex items-center justify-center shadow-md">
+                          <Heart className="w-4 h-4 text-white" />
+                        </div>
+                        <div className="flex-1 text-left">
+                          <span className="text-sm font-semibold text-rose-700">Relaciones registradas</span>
                         </div>
                       </div>
                     </motion.div>

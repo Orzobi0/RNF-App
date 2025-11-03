@@ -81,6 +81,8 @@ const DataEntryForm = ({
     setFertilitySymbol,
     observations,
     setObservations,
+    hadRelations,
+    setHadRelations,
     ignored,
     setIgnored,
     peakTag,
@@ -150,6 +152,8 @@ const DataEntryForm = ({
         setFertilitySymbol={setFertilitySymbol}
         observations={observations}
         setObservations={setObservations}
+        hadRelations={hadRelations}
+        setHadRelations={setHadRelations}
         ignored={ignored}
         setIgnored={setIgnored}
         peakTag={peakTag}

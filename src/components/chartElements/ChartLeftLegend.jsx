@@ -1,10 +1,12 @@
 import React from 'react';
+import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 
 // Colores consistentes con la dashboard
 const SENSATION_COLOR = '#1565C0';
 const APPEARANCE_COLOR = '#2E7D32';
 const OBSERVATION_COLOR = '#6A1B9A';
+const RELATIONS_COLOR = '#be123c';
 
 const ChartLeftLegend = ({
   padding,
@@ -15,7 +17,8 @@ const ChartLeftLegend = ({
   getY,
   responsiveFontSize,
   textRowHeight,
-  isFullScreen
+  isFullScreen,
+  showRelationsRow = false,
 }) => {
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -40,6 +43,21 @@ const ChartLeftLegend = ({
 
   const bottomY = chartHeight - padding.bottom;
   const rowBlockHeight = textRowHeight * (isFullScreen ? 2 : 1.5);
+  const extraLegendHeight = showRelationsRow ? rowBlockHeight : 0;
+  const legendRows = useMemo(() => {
+    const baseRows = [
+      { label: 'Fecha', row: 1, color: isFullScreen ? '#374151' : '#374151', icon: null },
+      { label: 'Día', row: 2, color: isFullScreen ? '#374151' : '#374151', icon: null },
+      { label: 'Símbolo', row: 3, color: isFullScreen ? '#374151' : '#374151', icon: null },
+      { label: 'Sens.', row: isFullScreen ? 5 : 4.5, color: SENSATION_COLOR, icon: '◊' },
+      { label: 'Apar.', row: isFullScreen ? 7 : 6, color: APPEARANCE_COLOR, icon: '○' },
+      { label: 'Observ.', row: isFullScreen ? 9 : 7.5, color: OBSERVATION_COLOR, icon: '✦' },
+    ];
+    if (showRelationsRow) {
+      baseRows.push({ label: 'RS', row: isFullScreen ? 11 : 9, color: RELATIONS_COLOR, icon: '❤' });
+    }
+    return baseRows;
+  }, [isFullScreen, showRelationsRow]);
 
   return (
     <svg
@@ -58,7 +76,7 @@ const ChartLeftLegend = ({
         x={0}
         y={bottomY + textRowHeight * 0.5}
         width={padding.left}
-        height={textRowHeight * (isFullScreen ? 9.5 : 8)}
+        height={textRowHeight * (isFullScreen ? 9.5 : 8) + extraLegendHeight}
         fill="rgba(255, 255, 255, 0.3)"
         stroke="rgba(255, 228, 230, 0.9)"
         strokeWidth={1}
@@ -101,14 +119,7 @@ const ChartLeftLegend = ({
 
       {/* Etiquetas de filas con diseño mejorado */}
       <motion.g variants={itemVariants}>
-        {[
-          { label: 'Fecha', row: 1, color: isFullScreen ? '#374151' : '#374151', icon: null },
-          { label: 'Día', row: 2, color: isFullScreen ? '#374151' : '#374151', icon: null },
-          { label: 'Símbolo', row: 3, color: isFullScreen ? '#374151' : '#374151', icon: null },
-          { label: 'Sens.', row: isFullScreen ? 5 : 4.5, color: SENSATION_COLOR, icon: '◊' },
-          { label: 'Apar.', row: isFullScreen ? 7 : 6, color: APPEARANCE_COLOR, icon: '○' },
-          { label: 'Observ.', row: isFullScreen ? 9 : 7.5, color: OBSERVATION_COLOR, icon: '✦' }
-        ].map(({ label, row, color, icon }) => (
+        {legendRows.map(({ label, row, color, icon }) => (
           <g key={label}>
             {/* Indicador visual para las categorías de datos */}
             {icon && (

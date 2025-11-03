@@ -281,6 +281,9 @@ export const CycleDataProvider = ({ children }) => {
           fertilitySymbolValue !== undefined &&
           fertilitySymbolValue !== '' &&
           fertilitySymbolValue !== 'none';
+          const hadRelationsValue = Boolean(
+          newData.had_relations ?? newData.hadRelations ?? false
+        );
         const isPeakMarked = newData.peak_marker === 'peak';
 
         const isPayloadEmpty =
@@ -289,6 +292,7 @@ export const CycleDataProvider = ({ children }) => {
           mucusAppearanceValue === '' &&
           !hasFertilitySymbol &&
           observationsValue === '' &&
+          !hadRelationsValue &&
           !isPeakMarked;
 
         const recordPayload = {
@@ -300,6 +304,7 @@ export const CycleDataProvider = ({ children }) => {
           mucus_appearance: newData.mucusAppearance || null,
           fertility_symbol: newData.fertility_symbol === 'none' ? null : newData.fertility_symbol,
           observations: newData.observations || null,
+          had_relations: hadRelationsValue,
           ignored: targetRecord ? (newData.ignored ?? targetRecord.ignored) : newData.ignored || false,
           peak_marker: peakMarkerProvided
             ? newData.peak_marker ?? null
