@@ -408,10 +408,34 @@ export const useFertilityChart = (
             newHeight = parentH;
           }
           
-          setDimensions({ width: newWidth, height: newHeight });
+        
+          let adjustedHeight = newHeight;
+
+          if (showRelationsRow) {
+            const baseFontSize = 9;
+            const computeResponsiveFontSize = (multiplier = 1) => {
+              if (!isFullScreen) return baseFontSize * multiplier;
+
+              const smallerDim = Math.min(newWidth, newHeight);
+              const safeLength = Math.max(1, data.length);
+              const denominator = safeLength > 0 ? 40 / multiplier : 40;
+
+              return Math.max(
+                8,
+                Math.min(baseFontSize * multiplier, smallerDim / denominator)
+              );
+            };
+
+            const relationsRowsMultiplier = isFullScreen ? 2 : 1.5;
+            const relationsRowHeight = computeResponsiveFontSize(isFullScreen ? 1.6 : 2.5);
+
+            adjustedHeight += relationsRowHeight * relationsRowsMultiplier;
+          }
+
+          setDimensions({ width: newWidth, height: adjustedHeight });
         };
 
-        updateDimensions(); 
+        updateDimensions();
         window.addEventListener('resize', updateDimensions);
         
         let resizeObserver;
@@ -427,7 +451,7 @@ export const useFertilityChart = (
             resizeObserver.disconnect();
           }
         };
-      }, [isFullScreen, data.length, visibleDays, orientation, forceLandscape]);
+      }, [isFullScreen, data.length, visibleDays, orientation, forceLandscape, showRelationsRow]);
 
   const validDataForLine = useMemo(
     () =>
