@@ -13,7 +13,7 @@ const RelationsRow = ({
   isFullScreen,
 }) => {
   const baseHeight = (isFullScreen ? 2 : 1.5) * textRowHeight;
-  const rowHeight = Math.max(baseHeight, 32);
+  const rowHeight = Math.max(baseHeight, 28);
   const safePadding = padding || { left: 0, right: 0 };
   const safeWidth = Number.isFinite(chartWidth) && chartWidth > 0 ? chartWidth : 0;
   const heartSize = Math.max(rowHeight * 0.55, 18);

@@ -450,7 +450,6 @@ const FertilityChart = ({
         ref={chartRef}
         className={`relative p-0 ${isFullScreen ? '' : 'rounded-2xl'} ${containerClass}`}
         style={{
-          paddingBottom: '0.5rem',
           touchAction: 'auto',
           boxShadow: isFullScreen
             ? 'inset 0 1px 3px rgba(244, 114, 182, 0.1)'
