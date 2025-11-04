@@ -6,7 +6,6 @@ import { motion } from 'framer-motion';
 const SENSATION_COLOR = '#1565C0';
 const APPEARANCE_COLOR = '#2E7D32';
 const OBSERVATION_COLOR = '#6A1B9A';
-const RELATIONS_COLOR = '#be123c';
 
 const ChartLeftLegend = ({
   padding,
@@ -18,7 +17,6 @@ const ChartLeftLegend = ({
   responsiveFontSize,
   textRowHeight,
   isFullScreen,
-  showRelationsRow = false,
 }) => {
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -42,8 +40,6 @@ const ChartLeftLegend = ({
   }
 
   const bottomY = chartHeight - padding.bottom;
-  const rowBlockHeight = textRowHeight * (isFullScreen ? 2 : 1.5);
-  const extraLegendHeight = showRelationsRow ? rowBlockHeight : 0;
   const legendRows = useMemo(() => {
     const baseRows = [
       { label: 'Fecha', row: 1, color: isFullScreen ? '#374151' : '#374151', icon: null },
@@ -53,11 +49,8 @@ const ChartLeftLegend = ({
       { label: 'Apar.', row: isFullScreen ? 7 : 6, color: APPEARANCE_COLOR, icon: '○' },
       { label: 'Observ.', row: isFullScreen ? 9 : 7.5, color: OBSERVATION_COLOR, icon: '✦' },
     ];
-    if (showRelationsRow) {
-      baseRows.push({ label: 'RS', row: isFullScreen ? 11 : 9, color: RELATIONS_COLOR});
-    }
     return baseRows;
-  }, [isFullScreen, showRelationsRow]);
+  }, [isFullScreen]);
 
   return (
     <svg
@@ -76,7 +69,7 @@ const ChartLeftLegend = ({
         x={0}
         y={bottomY + textRowHeight * 0.5}
         width={padding.left}
-        height={textRowHeight * (isFullScreen ? 9.5 : 8) + extraLegendHeight}
+        height={textRowHeight * (isFullScreen ? 9.5 : 8)}
         fill="rgba(255, 255, 255, 0.3)"
         stroke="rgba(255, 228, 230, 0.9)"
         strokeWidth={1}

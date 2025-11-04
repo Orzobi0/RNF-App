@@ -7,13 +7,10 @@ import { getSymbolAppearance } from '@/config/fertilitySymbols';
 const SENSATION_COLOR = '#1565C0';
 const APPEARANCE_COLOR = '#2E7D32';
 const OBSERVATION_COLOR = '#6A1B9A';
-const RELATIONS_COLOR = '#be123c';
 
-const ROW_BACKGROUND_FILL = 'rgba(255, 255, 255, 0.8)';
 const ROW_BACKGROUND_FILL_SOFT_sens = '#EFF6FF';
 const ROW_BACKGROUND_FILL_SOFT_apa = '#ECFDF5';
 const ROW_BACKGROUND_FILL_SOFT_obs = '#F5F3FF';
-const ROW_BACKGROUND_FILL_SOFT_rel = '#FFE4E6';
 const ROW_TINT_ALPHA = 0.2;
 const SENSATION_BORDER_COLOR = 'rgba(14, 165, 233, 0.18)';
 const APPEARANCE_BORDER_COLOR = 'rgba(16, 185, 129, 0.18)';
@@ -96,7 +93,6 @@ const ChartPoints = ({
   ovulationDetails = null,
   firstHighIndex = null,
   baselineIndices = [],
-  showRelationsRow = false,
 }) => {
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -130,7 +126,6 @@ const ChartPoints = ({
   const mucusSensationRowY = bottomY + textRowHeight * (isFullScreen ? 5 : 4.5);
   const mucusAppearanceRowY = bottomY + textRowHeight * (isFullScreen ? 7 : 6);
   const observationsRowY = bottomY + textRowHeight * (isFullScreen ? 9 : 7.5);
-  const relationsRowY = bottomY + textRowHeight * (isFullScreen ? 11 : 9);
   const rowWidth = chartWidth - padding.left - padding.right;
 
   const rowBlockHeight = textRowHeight * (isFullScreen ? 2 : 1.5);
@@ -278,19 +273,6 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
             rx={6}
             style={{ filter: ROW_SHADOW }}
           />
-          {showRelationsRow && (
-            <rect
-              x={padding.left}
-              y={relationsRowY - rowBlockHeight / 2}
-              width={rowWidth}
-              height={rowBlockHeight}
-              fill={ROW_BACKGROUND_FILL_SOFT_rel}
-              fillOpacity={ROW_TINT_ALPHA}
-              strokeWidth={1.5}
-              rx={6}
-              style={{ filter: ROW_SHADOW }}
-            />
-          )}
         </g>
       )}
 
@@ -403,7 +385,6 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
         const numberStrokeWidth = Math.max(0.5, numberFontSize * 0.18);
         const highNumberY = y - numberFontSize * (isFullScreen ? 2.6 : 1.8);
         const baselineNumberY = y + numberFontSize * (isFullScreen ? 1.9 : 1.6);
-        const relationsFontSize = responsiveFontSize(isFullScreen ? 1 : 1.4);
 
 
         // Límites de texto
@@ -796,22 +777,6 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
             </text>
             )}
 
-            {showRelationsRow && !compact && (
-              <text
-                x={x}
-                y={relationsRowY}
-                textAnchor="middle"
-                fontSize={relationsFontSize}
-                fontWeight={hasRelations ? '800' : '500'}
-                fill={hasRelations ? RELATIONS_COLOR : baseTextFill}
-                style={{
-                  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                  filter: 'drop-shadow(0 1px 2px rgba(255, 255, 255, 0.9))'
-                }}
-              >
-                {hasRelations ? '❤' : '–'}
-              </text>
-            )}
           </MotionG>
         );
       })}

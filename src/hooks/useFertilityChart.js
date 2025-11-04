@@ -297,8 +297,7 @@ export const useFertilityChart = (
   onToggleIgnore,
   cycleId,
   visibleDays = 5,
-  forceLandscape = false,
-  showRelationsRow = false
+  forceLandscape = false
 ) => {
       const chartRef = useRef(null);
       const tooltipRef = useRef(null);
@@ -409,30 +408,7 @@ export const useFertilityChart = (
           }
           
         
-          let adjustedHeight = newHeight;
-
-          if (showRelationsRow) {
-            const baseFontSize = 9;
-            const computeResponsiveFontSize = (multiplier = 1) => {
-              if (!isFullScreen) return baseFontSize * multiplier;
-
-              const smallerDim = Math.min(newWidth, newHeight);
-              const safeLength = Math.max(1, data.length);
-              const denominator = safeLength > 0 ? 40 / multiplier : 40;
-
-              return Math.max(
-                8,
-                Math.min(baseFontSize * multiplier, smallerDim / denominator)
-              );
-            };
-
-            const relationsRowsMultiplier = isFullScreen ? 2 : 1.5;
-            const relationsRowHeight = computeResponsiveFontSize(isFullScreen ? 1.6 : 2.5);
-
-            adjustedHeight += relationsRowHeight * relationsRowsMultiplier;
-          }
-
-          setDimensions({ width: newWidth, height: adjustedHeight });
+          setDimensions({ width: newWidth, height: newHeight });
         };
 
         updateDimensions();
@@ -451,7 +427,7 @@ export const useFertilityChart = (
             resizeObserver.disconnect();
           }
         };
-      }, [isFullScreen, data.length, visibleDays, orientation, forceLandscape, showRelationsRow]);
+      }, [isFullScreen, data.length, visibleDays, orientation, forceLandscape]);
 
   const validDataForLine = useMemo(
     () =>
@@ -611,8 +587,7 @@ export const useFertilityChart = (
       const isLandscapeVisual = forceLandscape || orientation === 'landscape';
       // En horizontal mostramos todas las filas (sensación, apariencia y observaciones)
        // por lo que reservamos más altura bajo la gráfica. Ajustamos si hay filas extra.
-      const extraRowsHeight = showRelationsRow ? (isFullScreen ? 2 : 1.5) : 0;
-      const numTextRowsBelowChart = (isLandscapeVisual ? 9 : 5) + extraRowsHeight;
+      const numTextRowsBelowChart = isLandscapeVisual ? 9 : 5;
       const totalTextRowsHeight = textRowHeight * numTextRowsBelowChart;
 
       const padding = { 

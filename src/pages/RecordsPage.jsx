@@ -367,9 +367,10 @@ const RecordCard = ({
       key: 'relations',
       inlineKey: 'relations',
       palette: getFieldPalette('relations'),
-      icon: Heart,
+      iconOnly: true,
+      renderIcon: () => (<Heart className="h-4 w-4 shrink-0 text-rose-500 fill-current" />),
       hasValue: true,
-      minWidthClass: 'min-w-[5rem]',
+      minWidthClass: 'min-w-[2rem]',
       flexClass: 'flex-none shrink-0',
     });
   }
@@ -501,6 +502,36 @@ const RecordCard = ({
                     )
                   : null;
               const gapClass = iconElement ? 'gap-2' : 'gap-1.5';
+              if (item.iconOnly) {
+  const palette = item.palette || getFieldPalette(item.key);
+  const Icon = item.icon;
+  const iconElement = item.renderIcon
+    ? item.renderIcon()
+    : Icon
+      ? (<Icon className={`h-4 w-4 shrink-0 ${palette.iconColor}`} />)
+      : null;
+
+  const minWidthClass = item.minWidthClass || 'min-w-[2rem]';
+  const flexClass = item.flexClass || 'flex-none';
+
+  return (
+    <button
+      key={item.key}
+      type="button"
+      className={`flex ${minWidthClass} ${flexClass} items-center justify-center rounded-md px-1.5 py-1 text-sm transition-colors ${palette.hoverBg} focus:outline-none focus-visible:ring-1 focus-visible:ring-rose-300`}
+      onClick={(event) => {
+        event.stopPropagation();
+        event.preventDefault();
+        if (typeof onInlineEdit === 'function') {
+          onInlineEdit(item.inlineKey || item.key);
+        }
+      }}
+      aria-label="Relaciones"
+    >
+      {iconElement}
+    </button>
+  );
+}
 
               return (
                 <button
@@ -517,7 +548,7 @@ const RecordCard = ({
                     }
                   }}
                 >
-                  {iconElement}
+                {iconElement}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start gap-1.5">
                       <span

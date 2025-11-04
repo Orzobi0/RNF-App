@@ -6,6 +6,7 @@ import ChartPoints from '@/components/chartElements/ChartPoints';
 import ChartTooltip from '@/components/chartElements/ChartTooltip';
 import ChartLeftLegend from '@/components/chartElements/ChartLeftLegend';
 import { useFertilityChart } from '@/hooks/useFertilityChart';
+import RelationsRow from '@/components/chartElements/RelationsRow';
 
 const FertilityChart = ({
   data,
@@ -56,8 +57,7 @@ const FertilityChart = ({
     onToggleIgnore,
     cycleId,
     visibleDays,
-    forceLandscape,
-    showRelationsRow
+    forceLandscape
   );
   const uniqueIdRef = useRef(null);
   if (!uniqueIdRef.current) {
@@ -424,8 +424,8 @@ const FertilityChart = ({
   const baseFullClass = 'w-full h-full bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100';
   const scrollBehaviorClass = 'h-full max-h-full overflow-auto overscroll-contain [-webkit-overflow-scrolling:touch] [scrollbar-gutter:stable_both-edges]';
   const layoutClass = rotatedContainer
-    ? 'flex items-stretch justify-start'
-    : 'flex items-center justify-start';
+    ? 'flex flex-col items-stretch justify-start'
+    : 'flex flex-col items-center justify-start';
   const containerClass = isFullScreen
     ? `${baseFullClass} min-h-full ${layoutClass} ${scrollBehaviorClass}`
     : `${baseFullClass} ${layoutClass} ${scrollBehaviorClass} border border-pink-100/50`;
@@ -463,7 +463,6 @@ const FertilityChart = ({
             responsiveFontSize={responsiveFontSize}
             textRowHeight={textRowHeight}
             isFullScreen={isFullScreen}
-            showRelationsRow={showRelationsRow}
           />
         </div>
       )}
@@ -473,6 +472,7 @@ const FertilityChart = ({
         ref={chartRef}
         className={`relative p-0 ${isFullScreen ? '' : 'rounded-2xl'} ${containerClass}`}
         style={{
+          paddingBottom: '0.5rem',
           boxShadow: isFullScreen
             ? 'inset 0 1px 3px rgba(244, 114, 182, 0.1)'
             : '0 8px 32px rgba(244, 114, 182, 0.12), 0 2px 8px rgba(244, 114, 182, 0.08)',
@@ -762,10 +762,20 @@ const FertilityChart = ({
             baselineStartIndex={baselineStartIndex}
             firstHighIndex={firstHighIndex}
             baselineIndices={baselineIndices}
-            showRelationsRow={showRelationsRow}
           />
 
         </motion.svg>
+
+        {showRelationsRow && (
+          <RelationsRow
+            allDataPoints={allDataPoints}
+            getX={getX}
+            padding={padding}
+            chartWidth={chartWidth}
+            textRowHeight={textRowHeight}
+            isFullScreen={isFullScreen}
+          />
+        )}
 
         {/* Tooltip mejorado */}
         {activePoint && (
