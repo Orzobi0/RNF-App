@@ -505,9 +505,8 @@ const ChartPage = () => {
       <div
         className={
           isFullScreen
-            ? 'fixed inset-0 z-50 h-[100dvh] w-[100dvw] overflow-hidden'
-            : 'relative w-full h-full overflow-hidden'
-        }
+            ? 'fixed inset-0 z-50 h-[100dvh] w-[100dvw] overflow-y-auto overflow-x-hidden'
+            : 'relative w-full h-full overflow-y-auto overflow-x-hidden'}
         style={containerStyle}
       >
         {showBackToCycleRecords && !isFullScreen && (
@@ -563,24 +562,33 @@ const ChartPage = () => {
           currentPeakIsoDate={currentPeakIsoDate}
           showRelationsRow={chartSettings.showRelationsRow}
         />
-        <div
-          className={`absolute inset-y-0 right-0 z-20 w-72 sm:w-80 transform transition-transform duration-300 ease-in-out ${
-            settingsOpen ? 'translate-x-0 pointer-events-auto' : 'translate-x-full pointer-events-none'
-          }`}
-          aria-hidden={!settingsOpen}
-        >
-          <div className="flex h-full flex-col gap-6 border-l border-rose-100/60 bg-white/95 p-6 shadow-xl">
+        
+        {/* Backdrop */}
+        {settingsOpen && (
+            <div className="fixed inset-0 z-40 bg-black/30"
+            onClick={() => setSettingsOpen(false)}
+            aria-hidden="true"
+            />
+            )}
+            {/* Drawer fijo */}
+            <div className={`fixed top-0 right-0 z-50 h-dvh w-72 sm:w-80 transform transition-transform duration-300 ease-in-out ${
+              settingsOpen ? 'translate-x-0' : 'translate-x-full'
+            }`}
+            role="dialog"
+            aria-modal="true"
+            >
+            <div className="flex h-full flex-col gap-6 border-l border-rose-100/60 bg-white p-6 shadow-xl">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-lg font-semibold text-rose-700">Ajustes del gráfico</h2>
-                <p className="text-sm text-rose-500">
+                <h2 className="text-lg font-semibold text-slate-700">Ajustes del gráfico</h2>
+                <p className="text-sm text-slate-500">
                   Personaliza la visualización de filas adicionales en la gráfica.
                 </p>
               </div>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 text-rose-400 hover:text-rose-600"
+                className="h-8 w-8 text-slate-400 hover:text-slate-600"
                 onClick={() => setSettingsOpen(false)}
                 aria-label="Cerrar ajustes del gráfico"
               >
@@ -588,14 +596,11 @@ const ChartPage = () => {
               </Button>
             </div>
             <div className="space-y-4 overflow-y-auto">
-              <div className="flex items-start justify-between gap-3 rounded-2xl border border-rose-100 bg-rose-50/70 p-3">
+              <div className="flex items-start justify-between gap-3 p-3">
                 <div className="max-w-xs">
-                  <Label htmlFor="toggle-relations-row" className="text-sm font-semibold text-rose-700">
+                  <Label htmlFor="toggle-relations-row" className="text-sm font-semibold text-slate-700">
                     Mostrar fila de Relaciones (RS)
-                  </Label>
-                  <p className="mt-1 text-xs text-rose-500">
-                    Añade una fila extra bajo observaciones con un corazón en los días registrados.
-                  </p>
+                  </Label>                  
                 </div>
                 <Checkbox
                   id="toggle-relations-row"
@@ -604,7 +609,7 @@ const ChartPage = () => {
                   className="mt-1"
                 />
               </div>
-            </div>
+            </div> 
             </div>
         </div>
         <Dialog open={showForm} onOpenChange={(open) => { if (!open) handleCloseForm(); }}>

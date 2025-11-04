@@ -422,13 +422,9 @@ const FertilityChart = ({
   // Clase del contenedor de scroll ajustada para rotación artificial
   const rotatedContainer = applyRotation;
   const baseFullClass = 'w-full h-full bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100';
-  const scrollBehaviorClass = 'h-full max-h-full overflow-auto overscroll-contain [-webkit-overflow-scrolling:touch] [scrollbar-gutter:stable_both-edges]';
-  const layoutClass = rotatedContainer
-    ? 'flex flex-col items-stretch justify-start'
-    : 'flex flex-col items-center justify-start';
   const containerClass = isFullScreen
-    ? `${baseFullClass} min-h-full ${layoutClass} ${scrollBehaviorClass}`
-    : `${baseFullClass} ${layoutClass} ${scrollBehaviorClass} border border-pink-100/50`;
+    ? `${baseFullClass} min-h-full ${rotatedContainer ? 'overflow-y-auto overflow-x-hidden' : 'overflow-x-auto overflow-y-visible'}`
+    : `${baseFullClass} overflow-x-auto overflow-y-visible border border-pink-100/50`;
   const showLegend = !isFullScreen || orientation === 'portrait';
 
   const interpretationFeatherSize = 14;
@@ -447,25 +443,7 @@ const FertilityChart = ({
   };
   return (
       <motion.div className="relative w-full h-full" initial={false}>
-      {/* Leyenda izquierda mejorada */}
-      {showLegend && (
-        <div
-          className="absolute left-0 top-0 h-full bg-transparent pointer-events-none z-10"
-          style={{ width: padding.left }}
-        >
-          <ChartLeftLegend
-            padding={padding}
-            chartHeight={chartHeight}
-            tempMin={tempMin}
-            tempMax={tempMax}
-            tempRange={tempRange}
-            getY={getY}
-            responsiveFontSize={responsiveFontSize}
-            textRowHeight={textRowHeight}
-            isFullScreen={isFullScreen}
-          />
-        </div>
-      )}
+      
 
       {/* Contenedor principal del gráfico */}
       <motion.div
@@ -473,6 +451,7 @@ const FertilityChart = ({
         className={`relative p-0 ${isFullScreen ? '' : 'rounded-2xl'} ${containerClass}`}
         style={{
           paddingBottom: '0.5rem',
+          touchAction: 'auto',
           boxShadow: isFullScreen
             ? 'inset 0 1px 3px rgba(244, 114, 182, 0.1)'
             : '0 8px 32px rgba(244, 114, 182, 0.12), 0 2px 8px rgba(244, 114, 182, 0.08)',
@@ -495,7 +474,26 @@ const FertilityChart = ({
             Cargando...
           </div>
         )}
-        
+        <div className="inline-block" style={{ width: chartWidth, height: chartHeight }}>
+          {/* Leyenda izquierda mejorada */}
+      {showLegend && (
+        <div
+          className="absolute left-0 top-0 h-full bg-transparent pointer-events-none z-10"
+          style={{ width: padding.left }}
+        >
+          <ChartLeftLegend
+            padding={padding}
+            chartHeight={chartHeight}
+            tempMin={tempMin}
+            tempMax={tempMax}
+            tempRange={tempRange}
+            getY={getY}
+            responsiveFontSize={responsiveFontSize}
+            textRowHeight={textRowHeight}
+            isFullScreen={isFullScreen}
+          />
+        </div>
+      )}
         <motion.svg
           width={chartWidth}
           height={chartHeight}
@@ -765,6 +763,7 @@ const FertilityChart = ({
           />
 
         </motion.svg>
+        </div>
 
         {showRelationsRow && (
           <RelationsRow

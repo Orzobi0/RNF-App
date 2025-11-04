@@ -27,7 +27,7 @@ const RelationsRow = ({
       .map((point, index) => {
         const hasRelations = Boolean(point?.had_relations ?? point?.hadRelations);
         if (!hasRelations) return null;
-        const x = getX(index);
+        const x = getX(index) - (padding?.left ?? 0);
         if (!Number.isFinite(x)) return null;
         const isoDate = point?.isoDate || `day-${index}`;
         return {
@@ -47,6 +47,7 @@ const RelationsRow = ({
         minHeight: rowHeight,
         ...widthStyle,
         flexShrink: 0,
+        position: 'relative',
       }}
     >
       <div
