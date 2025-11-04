@@ -26,6 +26,7 @@ import {
   CalendarDays,
   ChevronDown,
   Circle,
+  Heart,
 } from 'lucide-react';
 import {
   format,
@@ -117,6 +118,16 @@ const FIELD_PALETTES = {
     chipBorder: 'border-violet-100',
     hoverBg: 'hover:bg-violet-50',
     focusRing: 'focus-visible:ring-2 focus-visible:ring-violet-100',
+  },
+  relations: {
+    iconBg: 'bg-rose-50',
+    iconBorder: 'border-rose-100',
+    iconColor: 'text-rose-500',
+    labelColor: 'text-rose-600',
+    valueColor: 'text-rose-600',
+    chipBorder: 'border-rose-100',
+    hoverBg: 'hover:bg-rose-50',
+    focusRing: 'focus-visible:ring-2 focus-visible:ring-rose-100',
   },
 };
 
@@ -323,6 +334,70 @@ const RecordCard = ({
   const getFieldPalette = buildFieldPalette;
   const symbolValue = details?.symbolInfo?.value;
   const hasSymbolValue = symbolValue && symbolValue !== 'none';
+  const hasRelations = Boolean(details?.hasRelations);
+
+  const observationsMinWidth = hasRelations ? 'min-w-[8rem]' : 'min-w-[9rem]';
+  const symbolMinWidth = hasRelations ? 'min-w-[6rem]' : 'min-w-[7.5rem]';
+
+  const observationItems = [
+    {
+      key: 'observations',
+      inlineKey: 'observations',
+      palette: getFieldPalette('observations'),
+      icon: Edit3,
+      title: details.observationsText?.trim() ? details.observationsText : '—',
+      hasValue: Boolean(details.observationsText?.trim()),
+      isMultiline: true,
+      minWidthClass: observationsMinWidth,
+      flexClass: 'flex-1 min-w-0',
+    },
+    {
+      key: 'fertilitySymbol',
+      inlineKey: 'fertilitySymbol',
+      palette: symbolPalette,
+      title: symbolLabel || 'Sin símbolo',
+      hasValue: Boolean(hasSymbolValue),
+      minWidthClass: symbolMinWidth,
+      flexClass: 'flex-none shrink-0',
+    },
+  ];
+
+  if (hasRelations) {
+    observationItems.push({
+      key: 'relations',
+      inlineKey: 'relations',
+      palette: getFieldPalette('relations'),
+      icon: Heart,
+      hasValue: true,
+      minWidthClass: 'min-w-[5rem]',
+      flexClass: 'flex-none shrink-0',
+    });
+  }
+
+  observationItems.push(
+    {
+      key: 'editAction',
+      isAction: true,
+      icon: Edit2,
+      ariaLabel: 'Editar registro',
+      onClick: (event) => {
+        event.stopPropagation();
+        onEdit(details.record);
+      },
+      disabled: isProcessing,
+    },
+    {
+      key: 'deleteAction',
+      isAction: true,
+      icon: Trash2,
+      ariaLabel: 'Eliminar registro',
+      onClick: (event) => {
+        event.stopPropagation();
+        onDelete(details.record.id);
+      },
+      disabled: isProcessing,
+    }
+  );
 
   const fieldRows = [
     {
@@ -381,48 +456,7 @@ const RecordCard = ({
     {
       key: 'observationsAndSymbol',
       grouped: true,
-      items: [
-        {
-          key: 'observations',
-          inlineKey: 'observations',
-          palette: getFieldPalette('observations'),
-          icon: Edit3,
-          title: details.observationsText?.trim() ? details.observationsText : '—',
-          hasValue: Boolean(details.observationsText?.trim()),
-          isMultiline: true,
-          minWidthClass: 'min-w-[9rem]',
-        },
-        {
-          key: 'fertilitySymbol',
-          inlineKey: 'fertilitySymbol',
-          palette: symbolPalette,
-          title: symbolLabel || 'Sin símbolo',
-          hasValue: Boolean(hasSymbolValue),
-          minWidthClass: 'min-w-[7.5rem]',
-        },
-        {
-          key: 'editAction',
-          isAction: true,
-          icon: Edit2,
-          ariaLabel: 'Editar registro',
-          onClick: (event) => {
-            event.stopPropagation();
-            onEdit(details.record);
-          },
-          disabled: isProcessing,
-        },
-        {
-          key: 'deleteAction',
-          isAction: true,
-          icon: Trash2,
-          ariaLabel: 'Eliminar registro',
-          onClick: (event) => {
-            event.stopPropagation();
-            onDelete(details.record.id);
-          },
-          disabled: isProcessing,
-        },
-      ],
+      items: observationItems,
     },
   ];
 
@@ -430,7 +464,7 @@ const RecordCard = ({
     if (field.grouped) {
       return (
         <React.Fragment key={field.key}>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
             {field.items.map((item) => {
               if (item.isAction) {
                 const Icon = item.icon;
@@ -458,6 +492,7 @@ const RecordCard = ({
               const hasValue = item.hasValue ?? Boolean(item.title);
               const displayValue = item.title || '-';
               const minWidthClass = item.minWidthClass || 'min-w-[8rem]';
+              const flexClass = item.flexClass || 'flex-1';
               const iconElement = item.renderIcon
                 ? item.renderIcon()
                 : Icon
@@ -471,7 +506,7 @@ const RecordCard = ({
                 <button
                   key={item.key}
                   type="button"
-                  className={`flex ${minWidthClass} flex-1 items-center ${gapClass} rounded-md px-1.5 py-1 text-left text-sm transition-colors ${
+                  className={`flex ${minWidthClass} ${flexClass} items-center ${gapClass} rounded-md px-1.5 py-1 text-left text-sm transition-colors ${
                     palette.hoverBg
                   } focus:outline-none focus-visible:ring-1 focus-visible:ring-rose-300`}
                   onClick={(event) => {
@@ -1089,6 +1124,8 @@ export const RecordsExperience = ({
       const observationsText = record.observations || '';
       const hasObservations = Boolean(observationsText);
 
+      const hasRelations = Boolean(record.had_relations ?? record.hadRelations ?? false);
+
       const peakStatus = peakStatuses[record.isoDate] || null;
       const isPeakDay = record.peak_marker === 'peak' || peakStatus === 'P';
 
@@ -1108,6 +1145,7 @@ export const RecordsExperience = ({
         mucusAppearance,
         hasObservations,
         observationsText,
+        hasRelations,
         peakStatus,
         isPeakDay,
       });

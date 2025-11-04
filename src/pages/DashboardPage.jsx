@@ -9,6 +9,9 @@ import {
   ChevronLeft,
   ChevronRight,
   HelpCircle,
+  Ban,
+  CheckCircle2,
+  Loader2,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import CycleDatesEditor from '@/components/CycleDatesEditor';
@@ -2292,11 +2295,6 @@ const ModernFertilityDashboard = () => {
                             const cycleId = cycle.cycleId || cycle.id;
                             const isIgnored = Boolean(cycle.isIgnored || cycle.ignoredForAutoCalculations);
                             const isPending = cycleId ? pendingIgnoredCycleIds.includes(cycleId) : false;
-                            const toggleLabel = isPending
-                              ? 'Guardando…'
-                              : isIgnored
-                                ? 'Incluir'
-                                : 'Ignorar';
 
                             const cardClasses = `rounded-2xl border px-3 py-2 shadow-sm transition hover:border-rose-200 hover:bg-white ${
                               isIgnored ? 'border-rose-200 bg-rose-50/80 opacity-80' : 'border-rose-100 bg-white/50'
@@ -2338,14 +2336,29 @@ const ModernFertilityDashboard = () => {
                                     size="xs"
                                     disabled={!cycleId || isPending}
                                     onClick={() => cycleId && handleToggleCycleIgnore(cycleId, !isIgnored)}
-                                    className="shrink-0 self-center text-[10px]"
+                                    className="shrink-0 self-center h-8 w-8 p-0"
                                     title={
                                       isIgnored
                                         ? 'Incluir ciclo en el cálculo automático'
                                         : 'Ignorar ciclo para el cálculo automático'
                                     }
+                                    aria-label={
+                                      isIgnored
+                                        ? 'Incluir ciclo en el cálculo automático'
+                                        : 'Ignorar ciclo para el cálculo automático'
+                                    }
+                                    aria-pressed={isIgnored}
                                   >
-                                    {toggleLabel}
+                                    {isPending ? (
+                                      <>
+                                        <Loader2 className="h-4 w-4 animate-spin text-rose-500" aria-hidden="true" />
+                                        <span className="sr-only">Guardando…</span>
+                                      </>
+                                    ) : isIgnored ? (
+                                      <Ban className="h-4 w-4 text-rose-500" aria-hidden="true" />
+                                    ) : (
+                                      <CheckCircle2 className="h-4 w-4 text-rose-500" aria-hidden="true" />
+                                    )}
                                   </Button>
                                 </div>
                               </li>
@@ -2451,11 +2464,6 @@ const ModernFertilityDashboard = () => {
                                 const cycleId = cycle.cycleId || cycle.id;
                                 const isIgnored = Boolean(cycle.isIgnored || cycle.ignoredForAutoCalculations);
                                 const isPending = cycleId ? pendingIgnoredCycleIds.includes(cycleId) : false;
-                                const toggleLabel = isPending
-                                  ? 'Guardando…'
-                                  : isIgnored
-                                    ? 'Incluir'
-                                    : 'Ignorar';
 
                                 const cardClasses = `rounded-2xl border px-3 py-2 shadow-sm transition hover:border-rose-200 hover:bg-white ${
                                   isIgnored ? 'border-rose-200 bg-rose-50/80 opacity-80' : 'border-rose-100 bg-white/40'
@@ -2492,17 +2500,24 @@ const ModernFertilityDashboard = () => {
                                       <Button
                                         type="button"
                                         variant="outline"
-                                        size="xs"
+                                        size="icon"
                                         disabled={!cycleId || isPending}
                                         onClick={() => cycleId && handleToggleCycleIgnore(cycleId, !isIgnored)}
-                                        className="shrink-0 self-center text-[10px]"
-                                        title={
-                                          isIgnored
-                                            ? 'Incluir ciclo en el cálculo automático'
-                                            : 'Ignorar ciclo para el cálculo automático'
-                                        }
+                                        className="shrink-0 self-center h-8 w-8 p-0"
+                                        title={isIgnored ? 'Incluir ciclo en el cálculo automático' : 'Ignorar ciclo para el cálculo automático'}
+                                        aria-label={isIgnored ? 'Incluir ciclo en el cálculo automático' : 'Ignorar ciclo para el cálculo automático'}
+                                        aria-pressed={isIgnored}
                                       >
-                                        {toggleLabel}
+                                        {isPending ? (
+                                           <>
+                                           <Loader2 className="h-4 w-4 animate-spin text-rose-500" aria-hidden="true" />
+                                           <span className="sr-only">Guardando…</span>
+                                            </>
+                                            ) : isIgnored ? (
+                                            <Ban className="h-4 w-4 text-rose-500" aria-hidden="true" />
+                                            ) : (
+                                              <CheckCircle2 className="h-4 w-4 text-rose-500" aria-hidden="true" />
+                                              )}
                                       </Button>
                                     </div>
                                   </li>

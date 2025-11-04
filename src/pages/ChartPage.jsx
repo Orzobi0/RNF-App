@@ -6,7 +6,7 @@ import generatePlaceholders from '@/lib/generatePlaceholders';
 import { RotateCcw, Eye, EyeOff, ArrowLeft, Settings } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import DataEntryForm from '@/components/DataEntryForm';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
@@ -248,16 +248,21 @@ const ChartPage = () => {
   const baseStyle = {
     background: 'linear-gradient(135deg, #FFFAFC 0%, #f7eaef 100%)'
   };
+  const NAVBAR_SAFE_VAR = 'var(--bottom-nav-safe)';
   const containerStyle = isFullScreen
-    ? baseStyle
+    ? {
+        ...baseStyle,
+        height: '100dvh',
+        maxHeight: '100dvh',
+        paddingTop: 'env(safe-area-inset-top)',
+        paddingBottom: 'env(safe-area-inset-bottom)'
+        }
     : {
         ...baseStyle,
-        height:
-          orientation === 'landscape'
-            ? 'calc(min(100dvh, 100dvw) - var(--bottom-nav-safe))'
-            : 'calc(100dvh - var(--bottom-nav-safe))',
-        maxHeight: '100vh',
-        paddingBottom: 'env(safe-area-inset-bottom)'
+        height: `calc(100dvh - ${NAVBAR_SAFE_VAR})`,
+        maxHeight: `calc(100dvh - ${NAVBAR_SAFE_VAR})`,
+        paddingTop: 'env(safe-area-inset-top)',
+        paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.75rem)'
       };
 
   const handleEdit = (record) => {
@@ -500,8 +505,8 @@ const ChartPage = () => {
       <div
         className={
           isFullScreen
-            ? 'fixed inset-0 z-50 h-[100dvh] w-[100dvw] overflow-x-auto overflow-y-auto'
-            : 'relative w-full overflow-x-auto overflow-y-auto'
+            ? 'fixed inset-0 z-50 h-[100dvh] w-[100dvw] overflow-hidden'
+            : 'relative w-full h-full overflow-hidden'
         }
         style={containerStyle}
       >
@@ -518,7 +523,7 @@ const ChartPage = () => {
           </Button>
         )}
         <Button
-          onClick={() => setSettingsOpen(true)}
+          onClick={() => setSettingsOpen((prev) => !prev)}
           variant="ghost"
           size="icon"
           className="absolute top-4 right-36 z-10 p-2 rounded-full bg-white/80 text-slate-700 hover:bg-[#E27DBF]/20"
@@ -558,15 +563,31 @@ const ChartPage = () => {
           currentPeakIsoDate={currentPeakIsoDate}
           showRelationsRow={chartSettings.showRelationsRow}
         />
-        <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-          <DialogContent className="bg-white/95 border border-rose-100/60 shadow-xl">
-            <DialogHeader>
-              <DialogTitle className="text-lg font-semibold text-rose-700">Ajustes del gráfico</DialogTitle>
-              <DialogDescription className="text-sm text-rose-500">
-                Personaliza la visualización de filas adicionales en la gráfica.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
+        <div
+          className={`absolute inset-y-0 right-0 z-20 w-72 sm:w-80 transform transition-transform duration-300 ease-in-out ${
+            settingsOpen ? 'translate-x-0 pointer-events-auto' : 'translate-x-full pointer-events-none'
+          }`}
+          aria-hidden={!settingsOpen}
+        >
+          <div className="flex h-full flex-col gap-6 border-l border-rose-100/60 bg-white/95 p-6 shadow-xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold text-rose-700">Ajustes del gráfico</h2>
+                <p className="text-sm text-rose-500">
+                  Personaliza la visualización de filas adicionales en la gráfica.
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-rose-400 hover:text-rose-600"
+                onClick={() => setSettingsOpen(false)}
+                aria-label="Cerrar ajustes del gráfico"
+              >
+                ×
+              </Button>
+            </div>
+            <div className="space-y-4 overflow-y-auto">
               <div className="flex items-start justify-between gap-3 rounded-2xl border border-rose-100 bg-rose-50/70 p-3">
                 <div className="max-w-xs">
                   <Label htmlFor="toggle-relations-row" className="text-sm font-semibold text-rose-700">
@@ -584,13 +605,8 @@ const ChartPage = () => {
                 />
               </div>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setSettingsOpen(false)}>
-                Cerrar
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+            </div>
+        </div>
         <Dialog open={showForm} onOpenChange={(open) => { if (!open) handleCloseForm(); }}>
           <DialogContent
             hideClose

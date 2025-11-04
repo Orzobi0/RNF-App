@@ -54,7 +54,7 @@ const ChartLeftLegend = ({
       { label: 'Observ.', row: isFullScreen ? 9 : 7.5, color: OBSERVATION_COLOR, icon: '✦' },
     ];
     if (showRelationsRow) {
-      baseRows.push({ label: 'RS', row: isFullScreen ? 11 : 9, color: RELATIONS_COLOR, icon: '❤' });
+      baseRows.push({ label: 'RS', row: isFullScreen ? 11 : 9, color: RELATIONS_COLOR});
     }
     return baseRows;
   }, [isFullScreen, showRelationsRow]);

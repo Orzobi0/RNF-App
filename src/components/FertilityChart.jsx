@@ -422,9 +422,13 @@ const FertilityChart = ({
   // Clase del contenedor de scroll ajustada para rotación artificial
   const rotatedContainer = applyRotation;
   const baseFullClass = 'w-full h-full bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100';
+  const scrollBehaviorClass = 'h-full max-h-full overflow-auto overscroll-contain [-webkit-overflow-scrolling:touch] [scrollbar-gutter:stable_both-edges]';
+  const layoutClass = rotatedContainer
+    ? 'flex items-stretch justify-start'
+    : 'flex items-center justify-start';
   const containerClass = isFullScreen
-    ? `${baseFullClass} min-h-full ${rotatedContainer ? 'flex items-stretch justify-start overflow-y-auto overflow-x-hidden' : 'flex items-center justify-start overflow-x-auto overflow-y-hidden'}`
-    : `${baseFullClass} overflow-x-auto overflow-y-hidden border border-pink-100/50`;
+    ? `${baseFullClass} min-h-full ${layoutClass} ${scrollBehaviorClass}`
+    : `${baseFullClass} ${layoutClass} ${scrollBehaviorClass} border border-pink-100/50`;
   const showLegend = !isFullScreen || orientation === 'portrait';
 
   const interpretationFeatherSize = 14;
