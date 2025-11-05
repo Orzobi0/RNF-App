@@ -65,17 +65,7 @@ const ChartLeftLegend = ({
       </defs>
 
       {/* Fondo premium para las etiquetas de filas */}
-      <rect
-        x={0}
-        y={bottomY + textRowHeight * 0.5}
-        width={padding.left}
-        height={textRowHeight * (isFullScreen ? 9.5 : 8)}
-        fill="rgba(255, 255, 255, 0.3)"
-        stroke="rgba(255, 228, 230, 0.9)"
-        strokeWidth={1}
-        rx={12}
-        style={{ filter: 'drop-shadow(0 1px 2px rgba(244, 63, 94, 0.08))' }}
-      />
+
 
 
 

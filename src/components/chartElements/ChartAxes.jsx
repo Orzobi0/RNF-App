@@ -51,7 +51,12 @@ const ChartAxes = ({
           <stop offset="50%" stopColor="#fff5f7" />
           <stop offset="100%" stopColor="#fff1f3" />
         </linearGradient>
-        
+        {/* AÑADE ESTE NUEVO GRADIENTE */}
+<linearGradient id="dataZoneGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+  <stop offset="0%" stopColor="rgba(255, 255, 255, 0.6)" />
+  <stop offset="20%" stopColor="rgba(255, 250, 252, 0.75)" />
+  <stop offset="100%" stopColor="rgba(254, 242, 244, 0.85)" />
+</linearGradient>
         <linearGradient id="tempLineGradientChart" x1="0%" y1="0%" x2="100%" y2="0%">
           <stop offset="0%" stopColor="#f472b6" />
           <stop offset="30%" stopColor="#ec4899" />
@@ -100,7 +105,32 @@ const ChartAxes = ({
         rx={12}
         style={{ filter: 'drop-shadow(0 4px 12px rgba(244, 114, 182, 0.1))' }}
       />
+{/* Fondo del área de gráfica con borde rosado sutil */}
+<rect
+  x={padding.left}
+  y={padding.top}
+  width={chartWidth - padding.left - padding.right}
+  height={chartHeight - padding.top - padding.bottom}
+  fill="white"
+  stroke="url(#tempLineGradientChart)"
+  strokeWidth="1"
+  strokeOpacity="0.2"
+  rx="12"
+  style={{ filter: 'url(#softShadow)' }}
+/>
 
+{/* AÑADE ESTO AQUÍ - Fondo sutil para zona de datos inferior */}
+<rect
+  x={padding.left}
+  y={chartHeight - padding.bottom}
+  width={chartWidth - padding.left - padding.right}
+  height={padding.bottom}
+  fill="url(#dataZoneGradient)"
+  rx="8"
+  style={{ 
+    filter: 'drop-shadow(0 -1px 2px rgba(244, 114, 182, 0.05))'
+  }}
+/>
       {/* Líneas de cuadrícula con estilo mejorado */}
       {tempTicks.map((temp, i) => {
         const y = getY(temp);
