@@ -245,8 +245,8 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
             y={mucusSensationRowY - rowBlockHeight / 2}
             width={rowWidth}
             height={rowBlockHeight}
-            fill={ROW_BACKGROUND_FILL_SOFT_sens}
-            fillOpacity={ROW_TINT_ALPHA}
+            fill="#fff1f3"
+            opacity="0.5"
             strokeWidth={1.5}
             rx={6}
             style={{ filter: ROW_SHADOW }}
@@ -256,8 +256,8 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
             y={mucusAppearanceRowY - rowBlockHeight / 2}
             width={rowWidth}
             height={rowBlockHeight}
-            fill={ROW_BACKGROUND_FILL_SOFT_apa}
-            fillOpacity={ROW_TINT_ALPHA}
+            fill="#fff1f3"
+            opacity="0.5"
             strokeWidth={1.5}
             rx={6}
             style={{ filter: ROW_SHADOW }}
@@ -267,8 +267,8 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
             y={observationsRowY - rowBlockHeight / 2}
             width={rowWidth}
             height={rowBlockHeight}
-            fill={ROW_BACKGROUND_FILL_SOFT_obs}
-            fillOpacity={ROW_TINT_ALPHA}
+            fill="#fff1f3"
+            opacity="0.5"
             strokeWidth={1.5}
             rx={6}
             style={{ filter: ROW_SHADOW }}
@@ -507,6 +507,7 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
                   onClick={(e) => onPointInteraction(point, index, e)}
                 />
                 
+                
                 {/* Punto central brillante */}
                 {!point.ignored && (
                   <circle
@@ -535,7 +536,7 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
                 )}
 
 
-{showInterpretation &&
+                {showInterpretation &&
                   hasTemp &&
                   !point.ignored &&
                   hasHighOrder && (

@@ -246,7 +246,7 @@ const ChartPage = () => {
     scrollStart = Math.max(0, endIndex - visibleDays);
   }
   const baseStyle = {
-    background: 'linear-gradient(135deg, #FFFAFC 0%, #f7eaef 100%)'
+    background: 'linear-gradient(to br, #fff1f2 0%, #fce7f3 50%, #ffe4e6 100%)'
   };
   const NAVBAR_SAFE_VAR = 'var(--bottom-nav-safe)';
   const containerStyle = isFullScreen
@@ -525,7 +525,7 @@ const ChartPage = () => {
           onClick={() => setSettingsOpen((prev) => !prev)}
           variant="ghost"
           size="icon"
-          className="absolute top-4 right-36 z-10 p-2 rounded-full bg-white/80 text-slate-700 hover:bg-[#E27DBF]/20"
+          className="absolute top-4 right-36 z-10 p-2 rounded-full bg-white/80 shadow-lg shadow-slate-300/50 text-slate-700 hover:bg-[#E27DBF]/20"
           aria-label="Ajustes del gráfico"
         >
           <Settings className="h-4 w-4" />
@@ -535,16 +535,18 @@ const ChartPage = () => {
           onPointerUp={handleInterpretationPointerUp}
           variant="ghost"
           size="icon"
-          className={`absolute top-4 right-20 z-10 p-2 rounded-full transition-colors ${showInterpretation ? 'bg-[#E27DBF] text-white hover:bg-[#d46ab3]' : 'bg-white/80 text-slate-700 hover:bg-[#E27DBF]/20'}`}
+          className={`absolute top-4 right-20 z-10 p-2 rounded-full transition-colors ${showInterpretation 
+            ? 'bg-gradient-to-br from-pink-500 to-rose-500 text-white shadow-lg shadow-pink-300/50 border-pink-400' 
+            : 'bg-white/80 text-slate-600 hover:bg-pink-50/80 shadow-md border-pink-200/50'}`}
         >
           {showInterpretation ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
         </Button>
         <Button
           onClick={handleToggleFullScreen}
-          className="absolute top-4 right-4 z-10 bg-white/80 hover:bg-white text-gray-700 p-2 rounded-full shadow"
+          className="absolute top-4 right-4 z-10 bg-white/80 rounded-full text-slate-600 hover:bg-pink-50/80 shadow-md border border-pink-200/50 backdrop-blur-sm"
           aria-label={isFullScreen ? 'Salir de pantalla completa' : 'Rotar gráfico'}
         >
-          <RotateCcw className="w-5 h-5" />
+          <RotateCcw className="w-4 h-4" />
         </Button>
         <FertilityChart
           data={mergedData}

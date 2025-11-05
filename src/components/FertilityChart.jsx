@@ -510,9 +510,8 @@ const FertilityChart = ({
             </linearGradient>
             
             <linearGradient id="tempAreaGradientChart" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="rgba(244,114,182,0.25)" />
-              <stop offset="50%" stopColor="rgba(236,72,153,0.15)" />
-              <stop offset="100%" stopColor="rgba(233,30,99,0.05)" />
+              <stop offset="0%" stopColor="rgba(244, 114, 182, 0.18)" />
+              <stop offset="100%" stopColor="rgba(244, 114, 182, 0.02)" />
             </linearGradient>
 
             {/* Patrón unificado para spotting */}

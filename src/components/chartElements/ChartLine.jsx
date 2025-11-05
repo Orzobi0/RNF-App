@@ -39,10 +39,10 @@ const ChartLine = ({ data, allDataPoints, getX, getY, baselineY, temperatureFiel
       {/* Definiciones para gradientes y filtros mejorados */}
       <defs>
         <linearGradient id="tempLineGradientChart" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#F472B6" />
-          <stop offset="30%" stopColor="#EC4899" />
-          <stop offset="70%" stopColor="#E91E63" />
-          <stop offset="100%" stopColor="#C2185B" />
+          <stop offset="0%" stopColor="#f472b6" />
+          <stop offset="30%" stopColor="#ec4899" />
+          <stop offset="70%" stopColor="#db2777" />
+          <stop offset="100%" stopColor="#be185d" />
         </linearGradient>
         
         <linearGradient id="tempLineGradientChartGlow" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -130,7 +130,7 @@ const ChartLine = ({ data, allDataPoints, getX, getY, baselineY, temperatureFiel
             d={pathD}
             fill="none"
             stroke="url(#tempLineGradientChart)"
-            strokeWidth="4"
+            strokeWidth="3"
             strokeLinecap="round"
             strokeLinejoin="round"
             style={{ filter: 'url(#lineShadow)' }}

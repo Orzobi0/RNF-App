@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { XCircle, EyeOff, Eye, Edit3, Thermometer, Droplets, Circle, Heart } from 'lucide-react';
+import { XCircle, EyeOff, Eye, Edit3, Thermometer, Droplets, Circle, Heart, X } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { getSymbolAppearance } from '@/config/fertilitySymbols';
@@ -48,7 +48,6 @@ const ChartTooltip = ({
   let y = flipVertical
     ? position.clientY
     : position.clientY + 10;
-
 
   if (x + tooltipWidth > chartWidth) x = chartWidth - tooltipWidth - 10;
   if (y + tooltipHeight > chartHeight) y = chartHeight - tooltipHeight - 10;
@@ -133,29 +132,46 @@ const ChartTooltip = ({
   const isSameAsCurrent = hasExistingPeak && point.isoDate === currentPeakIsoDate;
   const isPeakDay = isSameAsCurrent || peakStatus === 'P' || point.peak_marker === 'peak';
   const isDifferentPeakCandidate = hasExistingPeak && !isPeakDay;
-  const peakButtonLabel = 'Día pico';
-  const peakButtonAriaLabel = isPeakDay  
-    ? 'Quitar día pico'
-    : hasExistingPeak
-      ? 'Actualizar día pico'
-      : 'Marcar día pico';
-  const peakButtonTone = isPeakDay
-    ? 'bg-rose-600 text-white border border-rose-600 hover:bg-rose-700 focus-visible:ring-rose-400'
-    : isDifferentPeakCandidate
-      ? 'bg-amber-400 text-amber-900 border border-amber-300 hover:bg-amber-500 hover:text-white focus-visible:ring-amber-300'
-      : 'bg-rose-500 text-white border border-rose-500 hover:bg-rose-600 focus-visible:ring-rose-300';
+
+  // --- NUEVO: Modo de botón Día Pico (asignar / actualizar / quitar) ---
+  const peakMode = isPeakDay ? 'remove' : hasExistingPeak ? 'update' : 'assign';
+  const peakButtonLabel =
+    peakMode === 'assign' ? 'Asignar día pico' :
+    peakMode === 'update' ? 'Actualizar día pico' :
+    'Quitar día pico';
+
+  const peakButtonAriaLabel = peakButtonLabel;
+
   const peakButtonBaseClasses = [
     'flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-xl text-sm font-semibold sm:text-sm',
     'transition-all duration-200 shadow-sm hover:shadow-md',
-    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300',
+    'focus-visible:outline-none focus-visible:ring-2'
   ].join(' ');
+
+  const peakToneMap = {
+    assign: 'bg-rose-500 text-white border border-rose-500 hover:bg-rose-600 focus-visible:ring-rose-300',
+    update: 'bg-amber-400 text-amber-900 border border-amber-300 hover:bg-amber-500 hover:text-white focus-visible:ring-amber-300',
+    remove: 'bg-white text-rose-700 border border-rose-300 hover:bg-rose-50 focus-visible:ring-rose-200'
+  };
+
+const peakCircleBase = 'w-8 h-8 rounded-2xl flex items-center justify-center transition-all active:scale-95 focus-visible:outline-none';
+const peakToneIconOnly = {
+  assign: 'bg-rose-500 text-white border-2 border-rose-600 hover:bg-rose-600 ring-2 ring-rose-400/80 ring-offset-1 shadow-[0_6px_14px_-2px_rgba(244,63,94,0.55)]',
+  update: 'bg-amber-400 text-amber-900 border-2 border-amber-500 hover:bg-amber-500 hover:text-white ring-2 ring-amber-500/70 ring-offset-1 shadow-[0_6px_14px_-2px_rgba(245,158,11,0.55)]',
+  remove: 'bg-white text-rose-700 border-2 border-rose-400 hover:bg-rose-50 ring-2 ring-rose-300/80 ring-offset-1 shadow-[0_6px_14px_-2px_rgba(244,63,94,0.35)]'
+}[peakMode];
+const peakCircleBtnClassName = [
+  peakCircleBase,
+  peakToneIconOnly,
+  peakActionPending ? 'opacity-70 cursor-not-allowed' : null
+].filter(Boolean).join(' ');
+
   const peakButtonClassName = [
     peakButtonBaseClasses,
-    peakButtonTone,
+    peakToneMap[peakMode],
     peakActionPending ? 'opacity-70 cursor-not-allowed' : null,
-  ]
-    .filter(Boolean)
-    .join(' ');
+  ].filter(Boolean).join(' ');
+  // --- FIN NUEVO ---
 
   const handlePeakToggle = async () => {
     if (!onTogglePeak || peakActionPending) return;
@@ -203,7 +219,7 @@ const ChartTooltip = ({
           text: 'text-green-700',
           glow: 'shadow-green-200/50'
         };
-    case 'yellow':
+      case 'yellow':
         return {
           bg: 'bg-yellow-400',
           light: 'bg-yellow-50',
@@ -249,306 +265,316 @@ const ChartTooltip = ({
         className="origin-top-left"
         style={{ transform: `scale(${scale})`, width: baseWidth, minHeight: baseMinHeight }}
       >
-{/* Contenedor principal con diseño premium inspirado en la dashboard */}
+        {/* Contenedor principal */}
         <div className="relative bg-gradient-to-br from-white/98 to-rose-50/95 backdrop-blur-xl rounded-3xl border border-pink-100 shadow-2xl overflow-hidden">
-        
-        
-        {/* Botón de cerrar más pequeño */}
-        <Button
+
+          {/* Botón de cerrar */}
+          <Button
           variant="ghost"
           size="icon"
           onClick={onClose}
-          className="absolute top-2 right-2 text-gray-400 hover:text-pink-600 hover:bg-pink-50/80 rounded-full w-6 h-6 transition-all duration-200"
-        >
-          <XCircle size={20} />
-        </Button>
+            className="absolute top-2 right-2 z-20 text-gray-400 hover:text-pink-600 hover:bg-pink-50/80 rounded-full w-6 h-6 transition-all duration-200"
+          >
+            <XCircle size={20} />
+          </Button>
 
-        <div className="p-2">
-          {/* Header con fecha y día del ciclo */}
-          <div className="mb-2">
-            <div className="flex items-center gap-3 mb-1">
+          {/* Icono discreto de relaciones, bajo la X */}
+          {hasRelations && (
+            <div
+              className="absolute right-3 top-9 pointer-events-none"
+              aria-hidden="true"
+              title="Relaciones registradas"
+            >
+              <div className="w-4 h-4 rounded-full bg-rose-100/90 border border-rose-200 flex items-center justify-center shadow-sm">
+                <Heart className="w-4 h-4 text-rose-600" fill="currentColor" />
+              </div>
+            </div>
+          )}
+
+          <div className="p-2">
+            {/* Header con fecha y día del ciclo */}
+            <div className="mb-2 relative">
               <div className="w-5 h-5 bg-gradient-to-br from-pink-500 to-rose-500 rounded-full absolute top-2 left-2 flex items-center justify-center shadow-lg">
                 <Circle className="w-2 h-2 text-white" fill="currentColor" />
               </div>
-              <div>
-                <h3 className="font-bold text-center text-lg text-gray-800">
-                  {dateToFormat
-                    ? format(parseISO(dateToFormat), 'dd/MM', { locale: es })
-                    : 'Fecha'}
-                </h3>
-                <p className="text-sm text-pink-600 font-medium">
-                  Día {point.cycleDay || 'N/A'} del ciclo
-                </p>
-                {peakLabel && (
-                  <div className="mt-1 flex justify-center">
-                    <Badge className="bg-rose-100 text-rose-600 border border-rose-200 px-2 py-0 text-[11px]">
-                      {peakLabel}
-                    </Badge>
-                  </div>
-                )}
+
+              {/* Reservar espacio a la izquierda para que el texto no se pegue al punto */}
+              <div className="flex items-center mb-1 pl-8">
+                <div>
+                  <h3 className="font-bold text-left text-lg text-gray-800 tabular-nums tracking-wide">
+                    {dateToFormat
+                      ? format(parseISO(dateToFormat), 'dd/MM', { locale: es })
+                      : 'Fecha'}
+                  </h3>
+                  <p className="text-sm text-pink-600 font-medium">
+                    Día {point.cycleDay || 'N/A'} del ciclo
+                  </p>
+                  {peakLabel && (
+                    <div className="mt-1 flex justify-center">
+                      <Badge className="bg-rose-100 text-rose-600 border border-rose-200 px-2 py-0 text-[11px]">
+                        {peakLabel}
+                      </Badge>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
 
-          {showEmptyState ? (
-            <div className="pt-1 space-y-3">
-              <motion.div
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className="rounded-xl border border-dashed border-pink-200 bg-pink-50/60 p-2 text-center"
-                
-              >
-                <p className="text-sm font-semibold text-pink-600">Sin datos registrados para este día.</p>
-              </motion.div>
-              
-              {onEdit && (
+            {showEmptyState ? (
+              <div className="pt-1 space-y-3">
                 <motion.div
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.15 }}
-                  className="flex justify-center"
+                  transition={{ delay: 0.1 }}
+                  className="rounded-xl border border-dashed border-pink-200 bg-pink-50/60 p-2 text-center"
                 >
-
-                  <Button
-                    onClick={handleEditClick}
-                    variant="outline"
-                    size="sm"
-                    className="flex items-center gap-1.5 px-2 py-1.5 bg-white/80 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 border-gray-200 hover:border-blue-300 text-gray-700 hover:text-blue-700 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md text-xs"
-                  >
-                    <Edit3 className="h-4 w-4" />
-                    <span className="font-medium">Añadir datos</span>
-                  </Button>
-                  </motion.div>
-              )}
-              {canTogglePeak && (
-                <motion.div
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2 }}
-                  className="flex justify-center"
-                >
-                  <Button
-                    onClick={handlePeakToggle}
-                    variant={isPeakDay ? 'outline' : 'default'}
-                    size="sm"
-                    disabled={peakActionPending}
-                    className={peakButtonClassName}
-                    aria-label={peakButtonAriaLabel}
-                    title={peakButtonAriaLabel}
-                    aria-pressed={isPeakDay}
-                  >
-                    <span className="font-medium">{peakButtonLabel}</span>
-                  </Button>
+                  <p className="text-sm font-semibold text-pink-600">Sin datos registrados para este día.</p>
                 </motion.div>
-              )}
-            </div>
-          ) : (
-            <>
-              <div className="space-y-1">
-                {/* Temperatura */}
-                {hasTemperature && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.1 }}
-                    className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-1 border border-amber-100/50"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-6 h-6 bg-gradient-to-br from-amber-500 to-orange-600 rounded-lg flex items-center justify-center shadow-md">
-                        <Thermometer className="w-4 h-4 text-white" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex items-baseline gap-2">
-                            <span className="text-md font-bold text-gray-800">
-                              {parseFloat(temp).toFixed(2)}
-                            </span>
-                            <span className="text-md text-gray-600">°C</span>
-                            {point.use_corrected && (
-                              <div
-                                className="w-2 h-2 bg-amber-500 rounded-full shadow-[0_0_4px_rgba(245,158,11,0.65)]"
-                                title="Temperatura corregida"
-                              ></div>
-                            )}
-                          </div>
-                          {temperatureTime && (
-                            <span className="text-sm font-medium text-gray-500 whitespace-nowrap">
-                              {temperatureTime}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
 
-                {/* Símbolo de fertilidad */}
-                {hasSymbol && (
+                {onEdit && (
                   <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.15 }}
-                    className={`${symbolColors.light} rounded-xl p-1 ${symbolColors.border} border`}
+                    className="flex justify-center"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className={`w-6 h-6 ${symbolColors.bg} rounded-lg flex items-center justify-center shadow-lg ${symbolColors.glow} shadow-lg`}>
-                        <div className="w-2 h-2 bg-white/90 rounded-full shadow-sm"></div>
-                      </div>
-                      <div className="flex-1 text-left">
-                        <span className={`text-md font-semibold ${symbolColors.text}`}>
-                          {symbolInfo.label}
-                        </span>
-                      </div>
-                    </div>
+                    <Button
+                      onClick={handleEditClick}
+                      variant="outline"
+                      size="sm"
+                      className="flex items-center gap-1.5 px-2 py-1.5 bg-white/80 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 border-gray-200 hover:border-blue-300 text-gray-700 hover:text-blue-700 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md text-xs"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                      <span className="font-medium">Añadir datos</span>
+                    </Button>
                   </motion.div>
                 )}
-                {/* Información de mucus */}
-                <div className="grid grid-cols-1 gap-1">
-                  {/* Sensación */}
+                {canTogglePeak && (
                   <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.2 }}
-                    className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-1 border border-blue-100/50"
+                    className="flex justify-center"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-md">
-                        <Droplets className="w-4 h-4 text-white" />
-                      </div>
-                      <div className="flex-1 text-left">
-
-                        <span className="text-md font-semibold text-blue-800">
-                          {mucusSensation || '-'}
-                        </span>
-                      </div>
+                    <Button
+                      onClick={handlePeakToggle}
+                      disabled={peakActionPending}
+                      className={peakCircleBtnClassName}
+                      aria-label={peakMode === 'assign' ? 'Asignar día pico' : peakMode === 'update' ? 'Actualizar día pico' : 'Quitar día pico'}
+                      title={peakMode === 'assign' ? 'Asignar día pico' : peakMode === 'update' ? 'Actualizar día pico' : 'Quitar día pico'}
+                    >
+                    <div className="flex flex-col items-center leading-none">
+                      <X
+                        className="w-4 h-4 text-current shrink-0 drop-shadow-[0_0_2px_rgba(0,0,0,0.35)]"
+                        strokeWidth={2.3}
+                        color="currentColor"
+                      />
+                      <span className="mt-0.5 text-[9px] font-semibold text-current opacity-90 tracking-tight">
+                        Pico
+                      </span>
                     </div>
-                  </motion.div>
+                    </Button>
 
-                  {/* Apariencia */}
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.25 }}
-                    className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl p-1 border border-emerald-100/50"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-6 h-6 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center shadow-md">
-                        <Circle className="w-4 h-4 text-white" />
-                      </div>
-                      <div className="flex-1 text-left">
-
-                        <span className="text-md font-semibold text-green-800">
-                          {mucusAppearance || '-'}
-                        </span>
-                      </div>
-                    </div>
                   </motion.div>
-                  {/* Observaciones */}
-                  {hasObservations && (
+                )}
+              </div>
+            ) : (
+              <>
+                <div className="space-y-1">
+                  {/* Temperatura */}
+                  {hasTemperature && (
                     <motion.div
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
-                      transition={{ delay: 0.3 }}
-                      className="bg-gradient-to-r from-violet-50 to-purple-50 rounded-xl p-1 border border-violet-100/50"
+                      transition={{ delay: 0.1 }}
+                      className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-1 border border-amber-100/50"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-6 h-6 bg-gradient-to-br from-violet-500 to-purple-600 rounded-lg flex items-center justify-center shadow-md">
-                          <Edit3 className="w-4 h-4 text-white" />
+                        <div className="w-6 h-6 bg-gradient-to-br from-amber-500 to-orange-600 rounded-lg flex items-center justify-center shadow-md">
+                          <Thermometer className="w-4 h-4 text-white" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-baseline gap-2">
+                              <span className="text-md font-bold text-gray-800">
+                                {parseFloat(temp).toFixed(2)}
+                              </span>
+                              <span className="text-md text-gray-600">°C</span>
+                              {point.use_corrected && (
+                                <div
+                                  className="w-2 h-2 bg-amber-500 rounded-full shadow-[0_0_4px_rgba(245,158,11,0.65)]"
+                                  title="Temperatura corregida"
+                                ></div>
+                              )}
+                            </div>
+                            {temperatureTime && (
+                              <span className="text-sm font-medium text-gray-500 whitespace-nowrap">
+                                {temperatureTime}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* Símbolo de fertilidad */}
+                  {hasSymbol && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.15 }}
+                      className={`${symbolColors.light} rounded-xl p-1 ${symbolColors.border} border`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-6 h-6 ${symbolColors.bg} rounded-lg flex items-center justify-center shadow-lg ${symbolColors.glow} shadow-lg`}>
+                          <div className="w-2 h-2 bg-white/90 rounded-full shadow-sm"></div>
                         </div>
                         <div className="flex-1 text-left">
-                          <span className="text-sm font-semibold text-violet-800">
-                            {observations}
+                          <span className={`text-md font-semibold ${symbolColors.text}`}>
+                            {symbolInfo.label}
                           </span>
                         </div>
                       </div>
                     </motion.div>
                   )}
-                  {hasRelations && (
+
+                  {/* Información de mucus */}
+                  <div className="grid grid-cols-1 gap-1">
+                    {/* Sensación */}
                     <motion.div
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
-                      transition={{ delay: 0.35 }}
-                      className="bg-gradient-to-r from-rose-50 to-pink-50 rounded-xl p-1 border border-rose-100/60"
+                      transition={{ delay: 0.2 }}
+                      className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-1 border border-blue-100/50"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-6 h-6 bg-gradient-to-br from-rose-500 to-pink-500 rounded-lg flex items-center justify-center shadow-md">
-                          <Heart className="w-4 h-4 text-white" />
+                        <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-md">
+                          <Droplets className="w-4 h-4 text-white" />
                         </div>
                         <div className="flex-1 text-left">
-                          <span className="text-sm font-semibold text-rose-700">Relaciones registradas</span>
+                          <span className="text-md font-semibold text-blue-800">
+                            {mucusSensation || '-'}
+                          </span>
                         </div>
                       </div>
                     </motion.div>
-                  )}
-                </div>
-              </div>
-              {/* Botones de acción */}
-              {(onEdit || (onToggleIgnore && !isPlaceholder && point.id) || (canTogglePeak && !isPlaceholder)) && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 }}
-                  className="flex justify-center gap-2 pt-2 border-t border-gray-100"
-                >
-                  {onEdit && (
-                    <Button
-                      onClick={handleEditClick}
-                      variant="outline"
-                      size="sm"
-                      className="flex items-center gap-1.5 px-2 py-1.5 bg-white/80 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 border-gray-200 hover:border-blue-300 text-gray-700 hover:text-blue-700 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md text-sm"
-                    >
-                      <Edit3 className="h-4 w-4" />
-                      <span className="font-medium">{isPlaceholder ? 'Añadir datos' : ''}</span>
-                    </Button>
-                  )}
-                  {canTogglePeak && !isPlaceholder && (
-                    <Button
-                    onClick={handlePeakToggle}
-                    variant={isPeakDay ? 'outline' : 'default'}
-                    size="sm"
-                    disabled={peakActionPending}
-                    className={peakButtonClassName}
-                    aria-label={peakButtonAriaLabel}
-                    title={peakButtonAriaLabel}
-                    aria-pressed={isPeakDay}
-                  >
-                    <span className="font-medium text-xs sm:text-sm">{peakButtonLabel}</span>
-                  </Button>
-                  )}
 
-                  {onToggleIgnore && !isPlaceholder && point.id && (
-                    <Button
-                      onClick={() => onToggleIgnore(point.id)}
-                      variant="outline"
-                      size="sm"
-                      className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md text-sm ${
-                        point.ignored
-                          ? 'bg-green-50 hover:bg-green-100 border-green-200 hover:border-green-300 text-green-700'
-                          : 'bg-red-50 hover:bg-red-100 border-red-200 hover:border-red-300 text-red-700'
-                      }`}
+                    {/* Apariencia */}
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.25 }}
+                      className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl p-1 border border-emerald-100/50"
                     >
-                      {point.ignored ? (
-                        <>
-                          <Eye className="h-4 w-4" />
-                          <span className="font-medium"></span>
-                        </>
-                      ) : (
-                        <>
-                          <EyeOff className="h-4 w-4" />
-                          <span className="font-medium"></span>
-                        </>
-                      )}
-                    </Button>
-                  )}
-                </motion.div>
-              )}
+                      <div className="flex items-center gap-3">
+                        <div className="w-6 h-6 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center shadow-md">
+                          <Circle className="w-4 h-4 text-white" />
+                        </div>
+                        <div className="flex-1 text-left">
+                          <span className="text-md font-semibold text-green-800">
+                            {mucusAppearance || '-'}
+                          </span>
+                        </div>
+                      </div>
+                    </motion.div>
+
+                    {/* Observaciones */}
+                    {hasObservations && (
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 0.3 }}
+                        className="bg-gradient-to-r from-violet-50 to-purple-50 rounded-xl p-1 border border-violet-100/50"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-6 h-6 bg-gradient-to-br from-violet-500 to-purple-600 rounded-lg flex items-center justify-center shadow-md">
+                            <Edit3 className="w-4 h-4 text-white" />
+                          </div>
+                          <div className="flex-1 text-left">
+                            <span className="text-sm font-semibold text-violet-800">
+                              {observations}
+                            </span>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                    {/* (Seguimos usando el icono discreto de RS en el header) */}
+                  </div>
+                </div>
+
+                {/* Botones de acción */}
+{(onEdit || (onToggleIgnore && !isPlaceholder && point.id) || (canTogglePeak && !isPlaceholder)) && (
+  <motion.div
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ delay: 0.3 }}
+    className="flex items-center justify-between pt-2 border-t border-gray-100"
+  >
+    {/* Izquierda: Día Pico (sin cambios funcionales) */}
+    {canTogglePeak && !isPlaceholder && (
+      <Button
+        onClick={handlePeakToggle}
+        disabled={peakActionPending}
+        className={peakCircleBtnClassName + ' shrink-0'}
+        aria-label={peakMode === 'assign' ? 'Asignar día pico' : peakMode === 'update' ? 'Actualizar día pico' : 'Quitar día pico'}
+        title={peakMode === 'assign' ? 'Asignar día pico' : peakMode === 'update' ? 'Actualizar día pico' : 'Quitar día pico'}
+      >
+        <div className="flex flex-col items-center leading-none">
+          <X
+            className="w-4 h-4 text-current shrink-0 drop-shadow-[0_0_2px_rgba(0,0,0,0.35)]"
+            strokeWidth={2.3}
+            color="currentColor"
+          />
+          <span className="mt-0.5 text-[9px] font-semibold text-current opacity-90 tracking-tight">
+            Pico
+          </span>
+        </div>
+      </Button>
+    )}
+
+    {/* Derecha: Editar / Ignorar separados por un divisor sutil */}
+    <div className="flex items-center gap-1.5 sm:gap-2 ml-3 pl-3 border-l border-gray-200/70">
+      {onEdit && (
+        <Button
+          onClick={handleEditClick}
+          size="sm"
+          className="h-8 px-2.5 bg-white/80 text-gray-700 rounded-full border border-gray-200/70 shadow-[0_1px_2px_rgba(0,0,0,0.04)] hover:bg-white hover:shadow focus-visible:ring-2 focus-visible:ring-blue-200 transition-all"
+        >
+          <Edit3 className="h-4 w-4 mr-1.5" />
+          <span className="font-medium">{isPlaceholder ? 'Añadir datos' : ''}</span>
+        </Button>
+      )}
+
+      {onToggleIgnore && !isPlaceholder && point.id && (
+        <Button
+          onClick={() => onToggleIgnore(point.id)}
+          size="sm"
+          className={`h-8 px-2.5 rounded-full border transition-all shadow-[0_1px_2px_rgba(0,0,0,0.04)] focus-visible:ring-2 ${
+            point.ignored
+              ? 'bg-white text-green-700 border-green-200 hover:bg-green-50 hover:border-green-300 focus-visible:ring-green-200'
+              : 'bg-white text-gray-700 border-gray-200 hover:bg-red-50 hover:text-red-700 hover:border-red-300 focus-visible:ring-red-200'
+          }`}
+        >
+          {point.ignored ? (
+            <>
+              <Eye className="h-4 w-4 mr-1.5" />
             </>
-          )}      
+          ) : (
+            <>
+              <EyeOff className="h-4 w-4 mr-1.5" />
+            </>
+          )}
+        </Button>
+      )}
+    </div>
+  </motion.div>
+)}
+
+              </>
+            )}
           </div>
-        
-                   
-      </div>
+        </div>
       </div>
 
       {/* Sombra adicional para profundidad */}
