@@ -771,6 +771,7 @@ const FertilityChart = ({
             chartWidth={chartWidth}
             textRowHeight={textRowHeight}
             isFullScreen={isFullScreen}
+            responsiveFontSize={responsiveFontSize}
           />
         )}
 

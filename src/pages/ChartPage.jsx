@@ -262,7 +262,7 @@ const ChartPage = () => {
         height: `calc(100dvh - ${NAVBAR_SAFE_VAR})`,
         maxHeight: `calc(100dvh - ${NAVBAR_SAFE_VAR})`,
         paddingTop: 'env(safe-area-inset-top)',
-        paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.75rem)'
+        paddingBottom: 'env(safe-area-inset-bottom)'
       };
 
   const handleEdit = (record) => {

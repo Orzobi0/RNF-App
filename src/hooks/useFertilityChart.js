@@ -585,15 +585,25 @@ export const useFertilityChart = (
       // en orientación vertical.
       const textRowHeight = Math.round(responsiveFontSize(isFullScreen ? 1.6 : 2));
       const isLandscapeVisual = forceLandscape || orientation === 'landscape';
-      const lastLegendRow = isFullScreen ? 9 : 7;
-      const extraRows = isLandscapeVisual ? 0.5 : 0.4;
-      const totalTextRowsHeight = Math.round(textRowHeight * (lastLegendRow + extraRows));
+      // Cálculo exacto para que la fila de Observ. "bese" el borde inferior del SVG.
+      // Observaciones está en rowIndex = 9 (fullscreen) o 7.5 (no fullscreen).
+      // rowBlockHeight/2 equivale a 1 (fullscreen) o 0.75 (no fullscreen).
+      const obsRowIndex = isFullScreen ? 9 : 7.5;
+      const halfBlock = isFullScreen ? 1 : 0.75;
+      const bottomRowsExact = Math.round(textRowHeight * (obsRowIndex + halfBlock));
 
-      const padding = { 
-        top: isFullScreen ? Math.max(isLandscapeVisual ? 6 : 12, chartHeight * (isLandscapeVisual ? 0.015 : 0.03)) : 12, 
-        right: isFullScreen ? Math.max(isLandscapeVisual ? 35 : 30, chartWidth * (isLandscapeVisual ? 0.02 : 0.05)) : 50, 
-        bottom: (isFullScreen ? (isLandscapeVisual ? 0 : Math.max(8, chartHeight * 0.02)) : 20) + totalTextRowsHeight, 
-        left: isFullScreen ? Math.max(isLandscapeVisual ? 45 : 20, chartWidth * (isLandscapeVisual ? 0.02 : 0.05)) : 50
+        const padding = { 
+        top: isFullScreen
+          ? Math.max(isLandscapeVisual ? 6 : 12, chartHeight * (isLandscapeVisual ? 0.015 : 0.03))
+          : 12, 
+        right: isFullScreen
+          ? Math.max(isLandscapeVisual ? 35 : 30, chartWidth * (isLandscapeVisual ? 0.02 : 0.05))
+          : 50, 
+        // 👇 Ajuste exacto. Si quieres que quede "pegadísimo", puedes restar 1px.
+        bottom: Math.max(0, bottomRowsExact - 1),
+        left: isFullScreen
+          ? Math.max(isLandscapeVisual ? 45 : 20, chartWidth * (isLandscapeVisual ? 0.02 : 0.05))
+          : 50
       };
       
       const getY = (temp) => {
