@@ -369,7 +369,7 @@ const peakCircleBtnClassName = [
                         strokeWidth={2.3}
                         color="currentColor"
                       />
-                      <span className="mt-0.5 text-[9px] font-semibold text-current opacity-90 tracking-tight">
+                      <span className="text-[9px] font-semibold text-current opacity-90 tracking-tight">
                         Pico
                       </span>
                     </div>

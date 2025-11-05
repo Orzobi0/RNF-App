@@ -319,7 +319,7 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
           correctedTemp != null &&
           Math.abs(correctedTemp - rawTemp) > 0.01;
         const rawY = showCorrectionIndicator ? getY(rawTemp) : null;  
-        const baseTextFill = isFullScreen ? "#374151" : "#6B7280";
+        const baseTextFill = isFullScreen ? "#60666f" : "#60666f";
         const hasTemp = point[temperatureField] != null;
         const hasRelations = Boolean(point.had_relations ?? point.hadRelations);
         const hasAnyRecord = hasTemp
@@ -434,7 +434,7 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
                     <circle
                       cx={x}
                       cy={rawY}
-                      r={3.5}
+                      r={3}
                       fill={CORRECTION_POINT_FILL}
                       stroke={CORRECTION_POINT_STROKE}
                       strokeWidth={1}
@@ -442,44 +442,18 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
                     <circle
                       cx={x}
                       cy={rawY}
-                      r={1.2}
+                      r={1}
                       fill="rgba(255, 255, 255, 0.6)"
                     />
                   </g>
                 )}
 
-                {/* Aura del punto con efecto glow */}
-                <circle
-                  cx={x}
-                  cy={y}
-                  r={isPeakTemperaturePoint ? 2 : 1.5}
-                  fill={isPeakTemperaturePoint ? 'rgba(59, 130, 246, 0.28)' : 'rgba(244, 114, 182, 0.2)'}
-                  opacity={0.85}
-                  style={{ filter: 'url(#pointGlow)' }}
-                />
-                
-                {/* Anillo decorativo exterior */}
-                <circle
-                  cx={x}
-                  cy={y}
-                  r={isPeakTemperaturePoint ? 4.2 : 3.5}
-                  fill="none"
-                  stroke={
-                    point.ignored
-                      ? 'rgba(148, 163, 184, 0.4)'
-                      : isPeakTemperaturePoint
-                        ? 'rgba(37, 99, 235, 0.55)'
-                        : 'rgba(244, 114, 182, 0.3)'
-                  }
-                  strokeWidth={isPeakTemperaturePoint ? 2 : 1.5}
-                  opacity={isPeakTemperaturePoint ? 0.9 : 0.6}
-                />
-                
+               
                 {/* Punto principal con gradiente mejorado */}
                 <circle
                   cx={x}
                   cy={y}
-                  r={isPeakTemperaturePoint ? 4.6 : 4}
+                  r={isPeakTemperaturePoint ? 4 : 3.5}
                   fill={
                     point.ignored
                       ? 'url(#tempPointIgnoredGradient)'
@@ -522,19 +496,6 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
                     }}
                   />
                 )}
-
-                {isPeakTemperaturePoint && (
-                  <circle
-                    cx={x}
-                    cy={y}
-                    r={6.5}
-                    fill="none"
-                    stroke="rgba(37, 99, 235, 0.35)"
-                    strokeWidth={1.2}
-                    strokeDasharray="4 3"
-                  />
-                )}
-
 
                 {showInterpretation &&
                   hasTemp &&

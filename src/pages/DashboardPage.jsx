@@ -147,6 +147,20 @@ const CycleOverviewCard = ({ cycleData,
     [clampOffset, hasOverflow]
   );
 
+  const rafRef = useRef(0);
+const pendingDeltaRef = useRef(0);
+
+const changeOffsetRaf = useCallback((delta) => {
+  if (!hasOverflow || delta === 0) return;
+  pendingDeltaRef.current += delta;
+  if (rafRef.current) return;
+  rafRef.current = requestAnimationFrame(() => {
+    const step = Math.sign(pendingDeltaRef.current);
+    setWheelOffset(prev => clampOffset(prev + step));
+    pendingDeltaRef.current = 0;
+    rafRef.current = 0;
+  });
+}, [hasOverflow, clampOffset]);
   const handleWheelScroll = useCallback(
     (event) => {
       if (!hasOverflow) {
@@ -162,7 +176,7 @@ const CycleOverviewCard = ({ cycleData,
         return;
       }
 
-      changeOffset(delta > 0 ? 1 : -1);
+      changeOffsetRaf(delta > 0 ? 1 : -1);
     },
     [changeOffset, hasOverflow]
   );
@@ -193,7 +207,7 @@ const CycleOverviewCard = ({ cycleData,
         return;
       }
 
-      changeOffset(deltaX < 0 ? 1 : -1);
+      changeOffsetRaf(deltaX < 0 ? 1 : -1);
       touchStartXRef.current = currentX;
     },
     [changeOffset, hasOverflow]
@@ -301,7 +315,7 @@ const CycleOverviewCard = ({ cycleData,
       
       let colors = day <= cycleData.currentDay && recordWithCycleDay
         ? getSymbolColor(recordWithCycleDay.fertility_symbol)
-        : { main: '#b5b6ba', light: '#c8cacf', glow: 'rgba(229, 231, 235, 0.3)' };
+        : { main: '#c1abb6', light: '#c8cacf', glow: 'rgba(229, 231, 235, 0.3)' };
 
       const isToday = day === cycleData.currentDay;
       if (isToday) {
@@ -491,9 +505,9 @@ const CycleOverviewCard = ({ cycleData,
             ref={circleRef}
             className="relative inline-flex items-center justify-center mb-4"
             style={{ width: viewBoxSize, height: viewBoxSize }}
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ type: 'spring', stiffness: 200, damping: 15, delay: 0.3 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}
             onWheel={handleWheelScroll}
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
@@ -515,6 +529,10 @@ const CycleOverviewCard = ({ cycleData,
                 <stop offset="100%" stopColor="rgba(190,24,93,0.10)" />
                 </radialGradient>
               </defs>
+              <filter id="dotShadow" x="-30%" y="-30%" width="160%" height="160%" colorInterpolationFilters="sRGB">
+  <feDropShadow dx="0" dy="0.8" stdDeviation="0.8" floodColor="#000" floodOpacity="0.22" />
+</filter>
+
               {/* Círculo base sutil */}
               <circle
                 cx={center}
@@ -539,25 +557,37 @@ const CycleOverviewCard = ({ cycleData,
 
               {/* Puntos de progreso */}
               <motion.g
-                transition={{ type: 'spring', stiffness: 100, damping: 22 }}
-                initial={false}
-                animate={{
-                  rotate: -wheelRotationDegrees
-                }}
-                style={{ transformOrigin: 'center', transformBox: 'view-box' }}
-              >
+  transition={{ type: 'tween', duration: 0.18, ease: [0.2, 0.8, 0.2, 1] }}
+  initial={false}
+  animate={{ rotate: -wheelRotationDegrees }}
+  style={{
+    transformOrigin: 'center',
+    transformBox: 'view-box',
+    willChange: 'transform' // hint a la GPU
+  }}
+>
                 {dots.map((dot, index) => (
                   <g key={index}>
-                  {/* Sombra del punto */}
-                  {!(dot.isToday && !dot.hasRecord) && dot.isActive && (
-                    <circle
-                      cx={dot.x + 0.3}
-                      cy={dot.y + 0.3}
-                      r={dot.isToday ? 11 : 10}
-                      fill="rgba(0, 0, 0, 0.2)"
-                      opacity={1}
-                    />
-                  )}
+{/* Punto principal con sombra real */}
+<g filter={dot.isActive ? 'url(#dotShadow)' : undefined}>
+  <motion.circle
+    cx={dot.x}
+    cy={dot.y}
+    r={dot.isToday ? 11 : 10}
+    fill={
+      dot.colors.pattern
+        || (dot.isActive ? dot.colors.main : 'rgba(255,255,255,0.001)')
+    }
+    stroke={dot.colors.border === 'none' ? 'none' : dot.colors.border || 'rgba(158,158,158,0.4)'}
+    strokeWidth={dot.colors.border === 'none' ? 0 : (dot.isToday ? 1.8 : (dot.colors.border ? 0.6 : 0.8))}
+    onClick={(e) => handleDotClick(dot, e)}
+    initial={false}
+    animate={{ scale: 1, opacity: 1 }}
+    transition={{ duration: 0.15 }}
+    style={{ cursor: 'pointer' }}
+  />
+</g>
+
                   {/* Anillo pulsante para el día actual */}
                   {dot.isToday && (
                     <circle
@@ -572,38 +602,6 @@ const CycleOverviewCard = ({ cycleData,
                     />
                   )}
 
-                  {/* Punto principal */}
-                  <motion.circle
-                    cx={dot.x}
-                    cy={dot.y}
-                    r={dot.isToday ? 11 : 10}
-                    fill={
-                      dot.colors.pattern
-                        || (dot.isActive && dot.hasRecord
-                          ? dot.colors.main
-                          : 'rgba(255,255,255,0.001)')
-                    }
-                    stroke={dot.colors.border === 'none' ? 'none' : dot.colors.border || 'rgba(158,158,158,0.4)'}
-                    strokeWidth={dot.colors.border === 'none'
-                      ? 0
-                      : (dot.isToday
-                        ? 1.8
-                        : (dot.colors.border ? 0.6 : 0.8))}
-                    onClick={(e) => handleDotClick(dot, e)}
-                    initial={{ scale: 0, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    transition={{
-                      duration: 0.2,
-                      delay: 0.1,
-                      type: 'tween',
-                      stiffness: 400,
-                      damping: 25
-                    }}
-                    style={{
-                      filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.2))',
-                      cursor: 'pointer'
-                    }}
-                  />
                 </g>
                 ))}
               </motion.g>
@@ -614,48 +612,33 @@ const CycleOverviewCard = ({ cycleData,
                 }
 
                 const { x: labelX, y: labelY } = rotatePoint(dot.x, dot.y);
-                const baseProps = {
-                  key: `peak-${index}`,
-                  x: labelX,
-                  y: labelY + 4,
-                  textAnchor: 'middle',
-                  initial: { scale: 0.2, opacity: 0 },
-                  animate: { scale: 1, opacity: 1 },
-                  transition: {
-                    delay: 0.95 + index * 0.02,
-                    type: 'spring',
-                    stiffness: 320,
-                    damping: 22,
-                  },
-                };
 
                 if (dot.peakStatus === 'P') {
                   return (
-                    <motion.text
-                      {...baseProps}
+                    <text
+                      x={labelX}
+                      y={labelY + 4}
+                      textAnchor="middle"
                       fontSize="14"
                       fontWeight="900"
                       fill="#ec4899"
-                      style={{
-                        pointerEvents: 'none',
-                        filter: 'drop-shadow(0 2px 4px rgba(244, 114, 182, 0.35))',
-                      }}
+                      style={{ pointerEvents: 'none' }}
                     >
                       ✖
-                    </motion.text>
+                    </text>
                   );
                 }
 
                 return (
-                  <motion.text
-                    {...baseProps}
-                    fontSize="12"
-                    fontWeight="800"
-                    fill="#7f1d1d"
-                    style={{ pointerEvents: 'none' }}
-                  >
-                    {dot.peakStatus}
-                  </motion.text>
+                  <text x={labelX} 
+                  y={labelY + 4} 
+                  textAnchor="middle" 
+                  fontSize="12" 
+                  fontWeight="800" 
+                  fill="#7f1d1d" 
+                  style={{ pointerEvents: 'none' }}>
+                  {dot.peakStatus}
+                </text>
                 );
               })}
             </svg>
@@ -679,9 +662,9 @@ const CycleOverviewCard = ({ cycleData,
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
               <motion.div
                 className="text-center  backdrop-blur-md rounded-full p-4"
-                initial={{ opacity: 0, scale: 0.5 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 1, type: 'spring', stiffness: 200 }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.2, delay: 0.2, ease: 'easeOut' }}
                 style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}
               >
                 <span className="text-5xl font-bold text-pink-700 block">
@@ -697,7 +680,7 @@ const CycleOverviewCard = ({ cycleData,
                 className="mt-2 px-2.5 py-1  backdrop-blur-sm rounded-full border border-pink-200"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 1.3 }}
+                transition={{ duration: 0.2, delay: 0.25, ease: 'easeOut' }}
                 style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.1))' }}
               >
                 <span className="text-md font-medium text-pink-900">
@@ -712,7 +695,7 @@ const CycleOverviewCard = ({ cycleData,
             <div className="flex items-center justify-center gap-3">
               <button
                 type="button"
-                className="p-2 rounded-full bg-white/60 text-rose-500 shadow-sm border border-rose-200/60 transition hover:bg-white"
+                className="p-2 rounded-full text-rose-500 shadow-sm border border-rose-200/60 transition hover:bg-white"
                 onClick={() => changeOffset(-1)}
                 disabled={wheelOffset === 0}
               >
@@ -735,13 +718,13 @@ const CycleOverviewCard = ({ cycleData,
                   max={maxOffset}
                   value={wheelOffset}
                   onChange={(event) => setWheelOffset(clampOffset(Number(event.target.value)))}
-                  className="w-44 accent-rose-500"
+                  className="w-40 accent-rose-500"
                 />
               </div>
               <button
                 type="button"
-                className="p-2 rounded-full bg-white/60 text-rose-500 shadow-sm border border-rose-200/60 transition hover:bg-white"
-                onClick={() => changeOffset(1)}
+                className="p-2 rounded-full text-rose-500 shadow-sm border border-rose-200/60 transition hover:bg-white"
+                onClick={() => changeOffsetRaf(1)}
                 disabled={wheelOffset === maxOffset}
               >
                 <ChevronRight className="w-4 h-4" />

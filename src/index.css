@@ -87,3 +87,20 @@
       background-size: 6px 6px;
       background-position: 0 0;
     }
+/* contenedor general de la rueda */
+.cycle-wheel { contain: paint; } /* aísla repintados */
+
+/* anillo que rota */
+.cycle-wheel__ring{
+  transform: translateZ(0) rotate(var(--rot, 0deg));
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+/* cada punto del día */
+.cycle-wheel__dot{
+  transform: translate3d(var(--x,0), var(--y,0), 0) scale(var(--s,1));
+  transition: transform 220ms cubic-bezier(.2,.8,.2,1), opacity 220ms linear;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+}

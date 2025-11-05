@@ -44,22 +44,7 @@ const ChartLine = ({ data, allDataPoints, getX, getY, baselineY, temperatureFiel
           <stop offset="70%" stopColor="#db2777" />
           <stop offset="100%" stopColor="#be185d" />
         </linearGradient>
-        
-        <linearGradient id="tempLineGradientChartGlow" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="rgba(244, 114, 182, 0.6)" />
-          <stop offset="30%" stopColor="rgba(236, 72, 153, 0.7)" />
-          <stop offset="70%" stopColor="rgba(233, 30, 99, 0.8)" />
-          <stop offset="100%" stopColor="rgba(194, 24, 91, 0.6)" />
-        </linearGradient>
-        
-        <filter id="lineGlow" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
-          <feMerge> 
-            <feMergeNode in="coloredBlur"/>
-            <feMergeNode in="SourceGraphic"/>
-          </feMerge>
-        </filter>
-        
+                
         <filter id="lineShadow" x="-50%" y="-50%" width="200%" height="200%">
           <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="rgba(244, 114, 182, 0.4)" />
         </filter>
@@ -140,7 +125,7 @@ const ChartLine = ({ data, allDataPoints, getX, getY, baselineY, temperatureFiel
             d={pathD}
             fill="none"
             stroke="url(#tempLineGradientChart)"
-            strokeWidth="4"
+            strokeWidth="3"
             strokeLinecap="round"
             strokeLinejoin="round"
             style={{ filter: 'url(#lineShadow)' }}
@@ -151,33 +136,6 @@ const ChartLine = ({ data, allDataPoints, getX, getY, baselineY, temperatureFiel
         )
       )}
 
-      {/* Línea central brillante para efecto premium */}
-      {hasContinuousSegment && (
-        reduceMotion ? (
-          <path
-            d={pathD}
-            fill="none"
-            stroke="rgba(255, 255, 255, 0.6)"
-            strokeWidth="0.3"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            opacity={0.8}
-          />
-        ) : (
-          <motion.path
-            d={pathD}
-            fill="none"
-            stroke="rgba(255, 255, 255, 0.6)"
-            strokeWidth="0.3"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            opacity={0.8}
-            initial={{ pathLength: 0, opacity: 0 }}
-            animate={{ pathLength: 1, opacity: 0.8 }}
-            transition={{ duration: 1.2, ease: "easeInOut", delay: 0.6 }}
-          />
-        )
-      )}
     </>
   );
 };

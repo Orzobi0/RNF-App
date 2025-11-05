@@ -96,7 +96,8 @@ const ChartLeftLegend = ({
               textAnchor="end"
               fontSize={responsiveFontSize(isMajor ? 1.15 : 1)}
               fontWeight={isMajor ? "800" : "700"}
-              fill={isMajor ? "#E91E63" : "#EC4899"}
+              fill={isMajor ? "#be185d" : "#db2777"}
+opacity={isMajor ? 1 : 0.85}
               style={{ 
                 filter: 'url(#textShadowLegend)',
                 fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
