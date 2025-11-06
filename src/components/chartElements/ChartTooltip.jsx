@@ -326,57 +326,55 @@ const peakCircleBtnClassName = [
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.1 }}
-                  className="rounded-xl border border-dashed border-pink-200 bg-pink-50/60 p-2 text-center"
+                  className="rounded-2xl border border-dashed border-pink-200 bg-pink-50/60 p-2 text-center"
                 >
                   <p className="text-sm font-semibold text-pink-600">Sin datos registrados para este día.</p>
                 </motion.div>
 
-                {onEdit && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.15 }}
-                    className="flex justify-center"
-                  >
+                {(canTogglePeak || onEdit) && (
+                <motion.div
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="flex items-center w-full justify-between pt-2 border-t border-gray-100"
+                >
+                  {/* Izquierda: Día Pico */}
+                  {canTogglePeak && (
+                    <Button
+                      onClick={handlePeakToggle}
+                      disabled={peakActionPending}
+                      className={peakCircleBtnClassName + ' shrink-0'}
+                      aria-label={peakMode === 'assign' ? 'Asignar día pico' : peakMode === 'update' ? 'Actualizar día pico' : 'Quitar día pico'}
+                      title={peakMode === 'assign' ? 'Asignar día pico' : peakMode === 'update' ? 'Actualizar día pico' : 'Quitar día pico'}
+                    >
+                      <div className="flex flex-col items-center leading-none">
+                        <X
+                          className="w-4 h-4 text-current shrink-0 drop-shadow-[0_0_2px_rgba(0,0,0,0.35)]"
+                          strokeWidth={2.3}
+                          color="currentColor"
+                        />
+                        <span className="text-[9px] font-semibold text-current opacity-90 tracking-tight">
+                          Pico
+                        </span>
+                      </div>
+                    </Button>
+                  )}
+
+                  {/* Derecha: Añadir datos */}
+                  {onEdit && (
                     <Button
                       onClick={handleEditClick}
                       variant="outline"
                       size="sm"
-                      className="flex items-center gap-1.5 px-2 py-1.5 bg-white/80 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 border-gray-200 hover:border-blue-300 text-gray-700 hover:text-blue-700 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md text-xs"
+                      className="flex items-center gap-1.5 px-2 py-1.5 bg-white/80 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 border-gray-200 hover:border-blue-300 text-gray-700 hover:text-blue-700 rounded-full transition-all duration-200 shadow-sm hover:shadow-md text-xs"
                     >
                       <Edit3 className="h-4 w-4" />
                       <span className="font-medium">Añadir datos</span>
                     </Button>
-                  </motion.div>
-                )}
-                {canTogglePeak && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2 }}
-                    className="flex justify-center"
-                  >
-                    <Button
-                      onClick={handlePeakToggle}
-                      disabled={peakActionPending}
-                      className={peakCircleBtnClassName}
-                      aria-label={peakMode === 'assign' ? 'Asignar día pico' : peakMode === 'update' ? 'Actualizar día pico' : 'Quitar día pico'}
-                      title={peakMode === 'assign' ? 'Asignar día pico' : peakMode === 'update' ? 'Actualizar día pico' : 'Quitar día pico'}
-                    >
-                    <div className="flex flex-col items-center leading-none">
-                      <X
-                        className="w-4 h-4 text-current shrink-0 drop-shadow-[0_0_2px_rgba(0,0,0,0.35)]"
-                        strokeWidth={2.3}
-                        color="currentColor"
-                      />
-                      <span className="text-[9px] font-semibold text-current opacity-90 tracking-tight">
-                        Pico
-                      </span>
-                    </div>
-                    </Button>
+                  )}
+                </motion.div>
+              )}
 
-                  </motion.div>
-                )}
               </div>
             ) : (
               <>
@@ -387,7 +385,7 @@ const peakCircleBtnClassName = [
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: 0.1 }}
-                      className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-1 border border-amber-100/50"
+                      className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl p-1 border border-amber-100/50"
                     >
                       <div className="flex items-center gap-3">
                         <div className="w-6 h-6 bg-gradient-to-br from-amber-500 to-orange-600 rounded-lg flex items-center justify-center shadow-md">
@@ -424,7 +422,7 @@ const peakCircleBtnClassName = [
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: 0.15 }}
-                      className={`${symbolColors.light} rounded-xl p-1 ${symbolColors.border} border`}
+                      className={`${symbolColors.light} rounded-3xl p-1 ${symbolColors.border} border`}
                     >
                       <div className="flex items-center gap-3">
                         <div className={`w-6 h-6 ${symbolColors.bg} rounded-lg flex items-center justify-center shadow-lg ${symbolColors.glow} shadow-lg`}>
@@ -446,7 +444,7 @@ const peakCircleBtnClassName = [
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: 0.2 }}
-                      className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-1 border border-blue-100/50"
+                      className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-3xl p-1 border border-blue-100/50"
                     >
                       <div className="flex items-center gap-3">
                         <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-md">
@@ -465,7 +463,7 @@ const peakCircleBtnClassName = [
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: 0.25 }}
-                      className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl p-1 border border-emerald-100/50"
+                      className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-3xl p-1 border border-emerald-100/50"
                     >
                       <div className="flex items-center gap-3">
                         <div className="w-6 h-6 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center shadow-md">
@@ -485,7 +483,7 @@ const peakCircleBtnClassName = [
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         transition={{ delay: 0.3 }}
-                        className="bg-gradient-to-r from-violet-50 to-purple-50 rounded-xl p-1 border border-violet-100/50"
+                        className="bg-gradient-to-r from-violet-50 to-purple-50 rounded-3xl p-1 border border-violet-100/50"
                       >
                         <div className="flex items-center gap-3">
                           <div className="w-6 h-6 bg-gradient-to-br from-violet-500 to-purple-600 rounded-lg flex items-center justify-center shadow-md">

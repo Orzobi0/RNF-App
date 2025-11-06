@@ -26,9 +26,19 @@ export const SECTION_METADATA = Object.freeze({
   },
 });
 
-export const toggleSection = (current, target) => {
-  if (!target) return null;
-  return current === target ? null : target;
+export const toggleSection = (current = [], target) => {
+  if (!target) {
+    return Array.isArray(current) ? current : [];
+  }
+
+  const normalizedCurrent = Array.isArray(current) ? current : current ? [current] : [];
+  const isActive = normalizedCurrent.includes(target);
+
+  if (isActive) {
+    return normalizedCurrent.filter((key) => key !== target);
+  }
+
+  return [...normalizedCurrent, target];
 };
 
 export const getToggleFeedback = (type, previousValue, nextValue) => {

@@ -69,8 +69,13 @@ const DataEntryFormFields = ({
 }) => {
   const [open, setOpen] = useState(false);
   const [correctionIndex, setCorrectionIndex] = useState(null);
-  const [activeSection, setActiveSection] = useState(null);
+  const [openSections, setOpenSections] = useState([]);
   const [statusMessages, setStatusMessages] = useState({ peak: null, relations: null });
+
+  useEffect(() => {
+    setOpenSections([]);
+    setStatusMessages({ peak: null, relations: null });
+  }, [date]);
 
   useEffect(() => {
     if (correctionIndex !== null) {
@@ -129,18 +134,18 @@ const DataEntryFormFields = ({
         : 'Quitar día pico';
 
   const peakButtonBaseClasses = [
-    'flex items-center justify-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold uppercase tracking-wide transition-all duration-200 shadow-sm',
+    'flex items-center justify-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold uppercase tracking-wide transition-all duration-200 shadow-sm disabled:cursor-not-allowed disabled:opacity-60',
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1',
     'min-h-[44px] min-w-[44px]'
   ];
 
   const peakToneMap = {
     assign:
-      'bg-rose-500 text-white border border-rose-500 hover:bg-rose-600 focus-visible:ring-rose-300 shadow-[0_6px_14px_-2px_rgba(244,63,94,0.45)]',
+      'bg-rose-500 text-white border border-rose-500 rounded-full hover:bg-rose-600 focus-visible:ring-rose-300 shadow-[0_6px_14px_-2px_rgba(244,63,94,0.45)]',
     update:
-      'bg-amber-400 text-amber-900 border border-amber-300 hover:bg-amber-500 hover:text-white focus-visible:ring-amber-300 shadow-[0_6px_14px_-2px_rgba(245,158,11,0.45)]',
+      'bg-white text-amber-600 border border-amber-400 rounded-full hover:bg-amber-500 hover:text-white focus-visible:ring-amber-300 shadow-[0_6px_14px_-2px_rgba(245,158,11,0.45)]',
     remove:
-      'bg-white text-rose-700 border border-rose-300 hover:bg-rose-50 focus-visible:ring-rose-200 shadow-[0_6px_14px_-2px_rgba(244,63,94,0.25)]',
+      'bg-white text-rose-700 border border-rose-300 rounded-full hover:bg-rose-50 focus-visible:ring-rose-200 shadow-[0_6px_14px_-2px_rgba(244,63,94,0.25)]',
   };
 
   const peakButtonClasses = cn(...peakButtonBaseClasses, peakToneMap[peakMode]);
@@ -210,29 +215,43 @@ const DataEntryFormFields = ({
     });
   };
   const relationsButtonClasses = cn(
-    'inline-flex h-11 min-w-[44px] items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition-all duration-200 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1',
+    'inline-flex h-11 min-w-[44px] items-center justify-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition-all duration-200 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-60',
     hadRelations
       ? 'border-rose-400 bg-rose-50 text-rose-600 hover:bg-rose-100 focus-visible:ring-rose-200'
       : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-100 focus-visible:ring-slate-200'
   );
 
-  const handleRelationsToggle = () => {
-    if (isProcessing) return;
-    setHadRelations((prev) => {
-      const nextValue = !prev;
-      const message = getToggleFeedback('relations', prev, nextValue);
+  const handleRelationsToggle = async () => {
+    if (isProcessing || typeof submitCurrentState !== 'function' || !selectedIsoDate) {
+      return;
+    }
+
+    const previousValue = hadRelations;
+    const nextValue = !previousValue;
+
+    setHadRelations(nextValue);
+
+    try {
+      await submitCurrentState({
+        overrideHadRelations: nextValue,
+        keepFormOpen: true,
+        skipReset: true,
+      });
+
+      const message = getToggleFeedback('relations', previousValue, nextValue);
       if (message) {
         setStatusMessages((current) => ({
           ...current,
           relations: message,
         }));
       }
-      return nextValue;
-    });
+      } catch (error) {
+      setHadRelations(previousValue);
+    }
   };
 
   const handleSectionToggle = (key) => {
-    setActiveSection((current) => toggleSection(current, key));
+    setOpenSections((current) => toggleSection(current, key));
   };
 
   const sectionOrder = useMemo(
@@ -243,6 +262,85 @@ const DataEntryFormFields = ({
       { ...SECTION_METADATA.appearance, icon: Circle },
       { ...SECTION_METADATA.observations, icon: Edit3 },
     ],
+    []
+  );
+
+  const filledBySection = useMemo(() => {
+    const hasTemperature = measurements.some((measurement) => {
+      if (!measurement) return false;
+      const baseTemp = measurement.temperature;
+      const correctedTemp = measurement.temperature_corrected;
+      return [baseTemp, correctedTemp].some((value) => {
+        if (value === undefined || value === null) return false;
+        return String(value).trim() !== '';
+      });
+    });
+
+    const hasSymbol = (() => {
+      if (typeof fertilitySymbol === 'string') {
+        const trimmed = fertilitySymbol.trim();
+        if (!trimmed) return false;
+        return trimmed !== 'none';
+      }
+      return Boolean(fertilitySymbol);
+    })();
+    const hasSensation = Boolean(mucusSensation && mucusSensation.trim());
+    const hasAppearance = Boolean(mucusAppearance && mucusAppearance.trim());
+    const hasObservations = Boolean(observations && observations.trim());
+
+    return {
+      temperature: hasTemperature,
+      symbol: hasSymbol,
+      sensation: hasSensation,
+      appearance: hasAppearance,
+      observations: hasObservations,
+    };
+  }, [
+    fertilitySymbol,
+    measurements,
+    mucusAppearance,
+    mucusSensation,
+    observations,
+  ]);
+
+  const sectionStyles = useMemo(
+    () => ({
+      temperature: {
+        activeBorder: 'border-orange-300',
+        activeBg: 'bg-orange-50',
+        activeText: 'text-orange-600',
+        filledText: 'text-orange-500',
+        focusRing: 'focus-visible:ring-orange-200',
+      },
+      symbol: {
+        activeBorder: 'border-slate-300',
+        activeBg: 'bg-slate-100',
+        activeText: 'text-slate-600',
+        filledText: 'text-slate-600',
+        focusRing: 'focus-visible:ring-slate-200',
+      },
+      sensation: {
+        activeBorder: 'border-sky-300',
+        activeBg: 'bg-sky-50',
+        activeText: 'text-sky-600',
+        filledText: 'text-sky-500',
+        focusRing: 'focus-visible:ring-sky-200',
+      },
+      appearance: {
+        activeBorder: 'border-emerald-300',
+        activeBg: 'bg-emerald-50',
+        activeText: 'text-emerald-600',
+        filledText: 'text-emerald-500',
+        focusRing: 'focus-visible:ring-emerald-200',
+      },
+      observations: {
+        activeBorder: 'border-violet-300',
+        activeBg: 'bg-violet-50',
+        activeText: 'text-violet-600',
+        filledText: 'text-violet-500',
+        focusRing: 'focus-visible:ring-violet-200',
+      },
+    }),
     []
   );
 
@@ -450,24 +548,10 @@ const DataEntryFormFields = ({
         return (
           <div className="space-y-3 rounded-2xl border border-slate-300/60 bg-gradient-to-r from-stone-100 to-slate-100 p-3 shadow-sm">
             <div className="flex flex-col gap-3">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <Label htmlFor="fertilitySymbol" className="flex items-center text-slate-800 text-sm font-semibold">
-                  <Sprout className="mr-2 h-5 w-5 text-slate-500" />
-                  Símbolo de Fertilidad
-                </Label>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  aria-pressed={isPeakDay}
-                  aria-label={peakButtonLabel}
-                  disabled={isProcessing || !selectedIsoDate}
-                  onClick={togglePeakTag}
-                  className={peakButtonClasses}
-                >
-                  Día pico
-                </Button>
-              </div>
+              <Label htmlFor="fertilitySymbol" className="flex items-center text-slate-800 text-sm font-semibold">
+                <Sprout className="mr-2 h-5 w-5 text-slate-500" />
+                Símbolo de Fertilidad
+              </Label>
               <Select value={fertilitySymbol} onValueChange={setFertilitySymbol} disabled={isProcessing}>
                 <SelectTrigger
                   className="w-full bg-white border-slate-200 text-gray-800 hover:bg-white"
@@ -576,7 +660,12 @@ const DataEntryFormFields = ({
               mode="single"
               selected={date}
               onSelect={(selectedDate) => {
-                setDate(startOfDay(selectedDate || new Date()));
+                if (!selectedDate) {
+                  setOpen(false);
+                  return;
+                }
+
+                setDate(startOfDay(selectedDate));
                 setOpen(false);
               }}
               initialFocus
@@ -593,36 +682,52 @@ const DataEntryFormFields = ({
         </Popover>
       </div>
 
-      <div className="mt-4 rounded-2xl border border-slate-200 bg-white/80 p-2 shadow-sm">
+      <div className="mt-4 p-0 bg-transparent border-0 shadow-none">
         <div className="flex items-center justify-between gap-1 sm:gap-2">
           {sectionOrder.map((section) => {
             const Icon = section.icon;
-            const isActive = activeSection === section.key;
+            const isActive = openSections.includes(section.key);
+            const styles = sectionStyles[section.key] || {};
+            const isFilled = filledBySection[section.key];
             return (
               <button
                 key={section.key}
                 type="button"
                 onClick={() => handleSectionToggle(section.key)}
                 className={cn(
-                  'flex h-12 w-12 items-center justify-center rounded-xl border text-slate-500 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1',
+                  'flex h-11 w-11 items-center justify-center rounded-full border transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
+                  styles.focusRing,
                   isActive
-                    ? 'border-rose-400 bg-rose-50 text-rose-600 shadow-inner'
-                    : 'border-transparent bg-transparent hover:bg-slate-100',
+                    ? cn(styles.activeBorder, styles.activeBg, styles.activeText, 'shadow-inner')
+                    : cn('border-transparent bg-transparent hover:bg-slate-100',
+                        isFilled ? styles.filledText : 'text-slate-500'
+                      ),
+                  !isActive && !isFilled && 'text-slate-500',
                   'min-h-[44px] min-w-[44px]'
                 )}
                 aria-label={section.ariaLabel}
                 aria-expanded={isActive}
                 aria-controls={`${section.key}-panel`}
               >
-              <Icon className="h-5 w-5" aria-hidden="true" />
+              <Icon
+                  className={cn(
+                    'h-5 w-5',
+                    isActive
+                      ? styles.activeText
+                      : isFilled
+                        ? styles.filledText
+                        : 'text-slate-500'
+                  )}
+                  aria-hidden="true"
+                />
                 <span className="sr-only">{section.srLabel}</span>
               </button>
             );
           })}
         </div>
       </div>
-      <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="mt-3 space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <button
             type="button"
             onClick={togglePeakTag}
@@ -633,48 +738,52 @@ const DataEntryFormFields = ({
           >
             Día pico
           </button>
-          {statusMessages.peak && (
-            <span className="text-xs font-medium text-rose-600" role="status" aria-live="polite">
-              {statusMessages.peak}
-            </span>
-          )}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             className={relationsButtonClasses}
             onClick={handleRelationsToggle}
-            disabled={isProcessing}
+            disabled={isProcessing || !selectedIsoDate}
             aria-pressed={hadRelations}
             aria-label={hadRelations ? 'Desmarcar relaciones sexuales' : 'Marcar relaciones sexuales'}
           >
-            <Heart className={cn('h-4 w-4', hadRelations ? 'text-rose-500 fill-current' : 'text-slate-400')} aria-hidden="true" />
             <span className="text-xs font-semibold uppercase tracking-wide">RS</span>
+            <Heart className={cn('h-4 w-4', hadRelations ? 'text-rose-500 fill-current' : 'text-slate-400')} aria-hidden="true" />
           </button>
-          {statusMessages.relations && (
-            <span className="text-xs font-medium text-rose-600" role="status" aria-live="polite">
-              {statusMessages.relations}
-            </span>
-          )}
         </div>
+        {(statusMessages.peak || statusMessages.relations) && (
+          <div className="flex flex-col gap-1">
+            {statusMessages.peak && (
+              <span className="text-xs font-medium text-rose-600" role="status" aria-live="polite">
+                {statusMessages.peak}
+              </span>
+            )}
+            {statusMessages.relations && (
+              <span className="text-xs font-medium text-rose-600" role="status" aria-live="polite">
+                {statusMessages.relations}
+              </span>
+            )}
+          </div>
+        )}
       </div>
       <div className="mt-3">
-        <AnimatePresence initial={false} mode="wait">
-          {activeSection && (
-            <motion.div
-              key={activeSection}
-              id={`${activeSection}-panel`}
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.25, ease: 'easeInOut' }}
-              className="overflow-hidden"
-            >
-              <div className="pt-3">
-                {renderSectionContent(activeSection)}
-              </div>
-            </motion.div>
-          )}
+        <AnimatePresence initial={false}>
+          {sectionOrder
+            .filter((section) => openSections.includes(section.key))
+            .map((section) => (
+              <motion.div
+                key={section.key}
+                id={`${section.key}-panel`}
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.25, ease: 'easeInOut' }}
+                className="overflow-hidden"
+              >
+                <div className="pt-3">
+                  {renderSectionContent(section.key)}
+                </div>
+              </motion.div>
+            ))}
         </AnimatePresence>
       </div>
 
