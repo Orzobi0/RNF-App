@@ -206,6 +206,7 @@ const ChartPage = () => {
 
   const CYCLE_DURATION_DAYS = 28;
   const VISIBLE_DAYS_FULLSCREEN_PORTRAIT = 10;
+  const VISIBLE_DAYS_FULLSCREEN_LANDSCAPE = 25;
 
   const cycleStartDate = parseISO(targetCycle.startDate);
   const cycleEntries = targetCycle.data || [];
@@ -232,8 +233,13 @@ const ChartPage = () => {
     return existingRecord ? { ...existingRecord, date: placeholder.date } : placeholder;
   });
 
-  const visibleDays =
-    orientation === 'portrait' ? VISIBLE_DAYS_FULLSCREEN_PORTRAIT : CYCLE_DURATION_DAYS;
+  const visibleDays = isFullScreen
+    ? (orientation === 'portrait'
+        ? VISIBLE_DAYS_FULLSCREEN_PORTRAIT
+        : VISIBLE_DAYS_FULLSCREEN_LANDSCAPE)
+    : (orientation === 'portrait'
+      ? VISIBLE_DAYS_FULLSCREEN_PORTRAIT
+      : CYCLE_DURATION_DAYS);
   let scrollStart = 0;
 
   if (orientation !== 'landscape') {
