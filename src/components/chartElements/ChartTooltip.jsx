@@ -544,27 +544,7 @@ const peakCircleBtnClassName = [
         </Button>
       )}
 
-      {onToggleIgnore && !isPlaceholder && point.id && (
-        <Button
-          onClick={() => onToggleIgnore(point.id)}
-          size="sm"
-          className={`h-8 px-2.5 rounded-full border transition-all shadow-[0_1px_2px_rgba(0,0,0,0.04)] focus-visible:ring-2 ${
-            point.ignored
-              ? 'bg-white text-green-700 border-green-200 hover:bg-green-50 hover:border-green-300 focus-visible:ring-green-200'
-              : 'bg-white text-gray-700 border-gray-200 hover:bg-red-50 hover:text-red-700 hover:border-red-300 focus-visible:ring-red-200'
-          }`}
-        >
-          {point.ignored ? (
-            <>
-              <Eye className="h-4 w-4 mr-1.5" />
-            </>
-          ) : (
-            <>
-              <EyeOff className="h-4 w-4 mr-1.5" />
-            </>
-          )}
-        </Button>
-      )}
+
     </div>
   </motion.div>
 )}

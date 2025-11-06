@@ -10,10 +10,81 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useParams, Link } from 'react-router-dom';
 
 const CHART_SETTINGS_STORAGE_KEY = 'fertility-chart-settings';
-const DEFAULT_CHART_SETTINGS = { showRelationsRow: false };
+
+const createDefaultFertilityStartConfig = () => ({
+  methods: { alemanas: true, oms: true, creighton: true },
+  calculators: { cpm: true, t8: true },
+  postpartum: false,
+  combineMode: 'conservador',
+});
+
+const DEFAULT_CHART_SETTINGS = {
+  showRelationsRow: false,
+  fertilityStartConfig: createDefaultFertilityStartConfig(),
+};
+
+const FERTILITY_METHOD_OPTIONS = [
+  { key: 'alemanas', label: 'Alemanas' },
+  { key: 'oms', label: 'OMS' },
+  { key: 'creighton', label: 'Creighton' },
+];
+
+const FERTILITY_CALCULATOR_OPTIONS = [
+  { key: 'cpm', label: 'CPM' },
+  { key: 't8', label: 'T-8' },
+];
+
+const COMBINE_MODE_LABELS = {
+  conservador: 'Conservador',
+  consenso: 'Consenso',
+  permisivo: 'Permisivo',
+};
+
+const mergeFertilityStartConfig = (incoming) => {
+  const base = createDefaultFertilityStartConfig();
+  const merged = {
+    methods: { ...base.methods },
+    calculators: { ...base.calculators },
+    postpartum: base.postpartum,
+    combineMode: base.combineMode,
+  };
+
+  if (incoming && typeof incoming === 'object') {
+    Object.keys(merged.methods).forEach((key) => {
+      if (typeof incoming?.methods?.[key] === 'boolean') {
+        merged.methods[key] = incoming.methods[key];
+      }
+    });
+
+    Object.keys(merged.calculators).forEach((key) => {
+      if (typeof incoming?.calculators?.[key] === 'boolean') {
+        merged.calculators[key] = incoming.calculators[key];
+      }
+    });
+
+    if (Object.prototype.hasOwnProperty.call(COMBINE_MODE_LABELS, incoming.combineMode)) {
+      merged.combineMode = incoming.combineMode;
+    }
+
+    if (typeof incoming.postpartum === 'boolean') {
+      merged.postpartum = incoming.postpartum;
+    } else if (incoming.postpartum != null) {
+      merged.postpartum = Boolean(incoming.postpartum);
+    }
+  }
+
+  return merged;
+};
 
 const ChartPage = () => {
   const { cycleId } = useParams();
@@ -85,6 +156,19 @@ const ChartPage = () => {
   const showLoading = isViewingCurrentCycle
     ? isLoading && !currentCycle?.id
     : externalLoading || (isLoading && !archivedMatch && !fetchedCycle);
+    const fertilityCalculatorCycles = useMemo(() => {
+    const cycles = [];
+    if (Array.isArray(archivedCycles) && archivedCycles.length > 0) {
+      cycles.push(...archivedCycles);
+    }
+    if (currentCycle?.id) {
+      cycles.push(currentCycle);
+    }
+    if (targetCycle?.id && !cycles.some((cycle) => cycle?.id === targetCycle.id)) {
+      cycles.push(targetCycle);
+    }
+    return cycles;
+  }, [archivedCycles, currentCycle, targetCycle]);
   // Orientación controlada por UI, independiente del dispositivo
   const [orientation, setOrientation] = useState(
     typeof window !== 'undefined' && window.innerWidth > window.innerHeight ? 'landscape' : 'portrait'
@@ -96,34 +180,55 @@ const ChartPage = () => {
   const [showInterpretation, setShowInterpretation] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [chartSettings, setChartSettings] = useState(() => {
+    const defaults = {
+      showRelationsRow: DEFAULT_CHART_SETTINGS.showRelationsRow,
+      fertilityStartConfig: mergeFertilityStartConfig(DEFAULT_CHART_SETTINGS.fertilityStartConfig),
+    };
+
     if (typeof window === 'undefined') {
-      return DEFAULT_CHART_SETTINGS;
+      return defaults;
     }
     try {
       const stored = window.localStorage.getItem(CHART_SETTINGS_STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        return { ...DEFAULT_CHART_SETTINGS, ...parsed };
+        const merged = {
+          ...defaults,
+          ...parsed,
+        };
+        if (typeof parsed?.showRelationsRow === 'boolean') {
+          merged.showRelationsRow = parsed.showRelationsRow;
+        } else if (parsed?.showRelationsRow != null) {
+          merged.showRelationsRow = Boolean(parsed.showRelationsRow);
+        }
+        merged.fertilityStartConfig = mergeFertilityStartConfig(parsed?.fertilityStartConfig);
+        return merged;
       }
     } catch (error) {
       console.warn('No se pudieron cargar los ajustes del gráfico.', error);
     }
-    return DEFAULT_CHART_SETTINGS;
+    
+    return defaults;
   });
+  const fertilityConfig = useMemo(
+    () => mergeFertilityStartConfig(chartSettings.fertilityStartConfig),
+    [chartSettings.fertilityStartConfig]
+  );
 
   useEffect(() => {
     if (typeof window === 'undefined') {
       return;
     }
     try {
+      const payload = { ...chartSettings, fertilityStartConfig: fertilityConfig };
       window.localStorage.setItem(
         CHART_SETTINGS_STORAGE_KEY,
-        JSON.stringify(chartSettings)
+        JSON.stringify(payload)
       );
     } catch (error) {
       console.warn('No se pudieron guardar los ajustes del gráfico.', error);
     }
-  }, [chartSettings]);
+  }, [chartSettings, fertilityConfig]);
 
   const ignoreNextClickRef = useRef(false);
   const isPlaceholderRecord = Boolean(
@@ -294,6 +399,78 @@ const ChartPage = () => {
       ...prev,
       showRelationsRow: checked === true,
     }));
+  };
+  const handleFertilityMethodChange = (methodKey, checked) => {
+    setChartSettings((prev) => {
+      const currentConfig = prev.fertilityStartConfig ?? createDefaultFertilityStartConfig();
+      const nextValue = checked === true;
+      if (currentConfig.methods?.[methodKey] === nextValue) {
+        return prev;
+      }
+      return {
+        ...prev,
+        fertilityStartConfig: {
+          ...currentConfig,
+          methods: {
+            ...currentConfig.methods,
+            [methodKey]: nextValue,
+          },
+        },
+      };
+    });
+  };
+  const handleFertilityCalculatorChange = (calculatorKey, checked) => {
+    setChartSettings((prev) => {
+      const currentConfig = prev.fertilityStartConfig ?? createDefaultFertilityStartConfig();
+      const nextValue = checked === true;
+      if (currentConfig.calculators?.[calculatorKey] === nextValue) {
+        return prev;
+      }
+      return {
+        ...prev,
+        fertilityStartConfig: {
+          ...currentConfig,
+          calculators: {
+            ...currentConfig.calculators,
+            [calculatorKey]: nextValue,
+          },
+        },
+      };
+    });
+  };
+  const handleCombineModeChange = (value) => {
+    if (!Object.prototype.hasOwnProperty.call(COMBINE_MODE_LABELS, value)) {
+      return;
+    }
+    setChartSettings((prev) => {
+      const currentConfig = prev.fertilityStartConfig ?? createDefaultFertilityStartConfig();
+      if (currentConfig.combineMode === value) {
+        return prev;
+      }
+      return {
+        ...prev,
+        fertilityStartConfig: {
+          ...currentConfig,
+          combineMode: value,
+        },
+      };
+    });
+  };
+  const handlePostpartumChange = (checked) => {
+    setChartSettings((prev) => {
+      const currentConfig = prev.fertilityStartConfig ?? createDefaultFertilityStartConfig();
+      const nextValue = checked === true;
+      if (currentConfig.postpartum === nextValue) {
+        return prev;
+      }
+      return {
+        ...prev,
+        fertilityStartConfig: {
+          ...currentConfig,
+          postpartum: nextValue,
+        },
+      };
+    });
   };
   const handleTogglePeak = async (record, shouldMarkAsPeak = true) => {
     if (!targetCycle?.id || !record?.isoDate) {
@@ -569,6 +746,8 @@ const ChartPage = () => {
           forceLandscape={orientation === 'landscape'}
           currentPeakIsoDate={currentPeakIsoDate}
           showRelationsRow={chartSettings.showRelationsRow}
+          fertilityStartConfig={fertilityConfig}
+          fertilityCalculatorCycles={fertilityCalculatorCycles}
         />
         
         {/* Backdrop */}
@@ -603,12 +782,15 @@ const ChartPage = () => {
                 ×
               </Button>
             </div>
-            <div className="space-y-4 overflow-y-auto">
-              <div className="flex items-start justify-between gap-3 p-3">
+            <div className="space-y-4 overflow-y-auto pr-1">
+              <div className="rounded-xl border border-rose-100/70 bg-rose-50/40 p-4 flex items-start justify-between gap-3">
                 <div className="max-w-xs">
                   <Label htmlFor="toggle-relations-row" className="text-sm font-semibold text-slate-700">
                     Mostrar fila de Relaciones (RS)
-                  </Label>                  
+                  </Label>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Añade una fila dedicada a las relaciones sexuales debajo de la gráfica.
+                  </p>                 
                 </div>
                 <Checkbox
                   id="toggle-relations-row"
@@ -616,6 +798,83 @@ const ChartPage = () => {
                   onCheckedChange={handleRelationsSettingChange}
                   className="mt-1"
                 />
+              </div>
+            
+              <div className="rounded-xl border border-purple-100/70 bg-purple-50/40 p-4 space-y-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-700">Perfiles sintotérmicos</h3>
+                  <p className="text-xs text-slate-500">
+                    Activa los métodos que quieras considerar para detectar el inicio fértil.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  {FERTILITY_METHOD_OPTIONS.map((option) => (
+                    <div key={option.key} className="flex items-center justify-between gap-3">
+                      <span className="text-sm text-slate-700">{option.label}</span>
+                      <Checkbox
+                        checked={Boolean(fertilityConfig.methods?.[option.key])}
+                        onCheckedChange={(checked) => handleFertilityMethodChange(option.key, checked)}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-amber-100/70 bg-amber-50/40 p-4 space-y-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-700">Calculadoras complementarias</h3>
+                  <p className="text-xs text-slate-500">
+                    CPM y T-8 se combinan con los perfiles activos, salvo que actives el modo posparto.
+                  </p>
+                </div>
+                {fertilityConfig.postpartum && (
+                  <p className="text-xs font-medium text-rose-500">
+                    El modo posparto está activo: CPM y T-8 se omiten del cálculo final.
+                  </p>
+                )}
+                <div className="space-y-2">
+                  {FERTILITY_CALCULATOR_OPTIONS.map((option) => (
+                    <div key={option.key} className="flex items-center justify-between gap-3">
+                      <span className="text-sm text-slate-700">{option.label}</span>
+                      <Checkbox
+                        checked={Boolean(fertilityConfig.calculators?.[option.key])}
+                        onCheckedChange={(checked) => handleFertilityCalculatorChange(option.key, checked)}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-sky-100/70 bg-sky-50/40 p-4 space-y-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-700">Modo de combinación</h3>
+                  <p className="text-xs text-slate-500">
+                    Determina cómo se elige el inicio fértil a partir de los candidatos disponibles.
+                  </p>
+                </div>
+                <Select value={fertilityConfig.combineMode} onValueChange={handleCombineModeChange}>
+                  <SelectTrigger className="w-full bg-white/80 border-slate-200 text-sm text-slate-700">
+                    <SelectValue placeholder="Selecciona un modo" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-slate-200 text-slate-700">
+                    {Object.entries(COMBINE_MODE_LABELS).map(([value, label]) => (
+                      <SelectItem key={value} value={value} className="text-sm">
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="flex items-start justify-between gap-3 pt-1">
+                  <div className="max-w-[65%]">
+                    <p className="text-sm font-semibold text-slate-700">Modo posparto</p>
+                    <p className="text-xs text-slate-500">Ignora automáticamente CPM y T-8.</p>
+                  </div>
+                  <Checkbox
+                    checked={Boolean(fertilityConfig.postpartum)}
+                    onCheckedChange={handlePostpartumChange}
+                    className="mt-1"
+                  />
+                </div>
               </div>
             </div> 
             </div>

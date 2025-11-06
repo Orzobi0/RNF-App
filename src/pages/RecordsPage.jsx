@@ -1997,8 +1997,8 @@ export const RecordsExperience = ({
 
                 const newestDay = days[0];
                 const oldestDay = days[days.length - 1];
-                const rangeStartLabel = format(oldestDay.date, 'dd/MM', { locale: es });
-                const rangeEndLabel = format(newestDay.date, 'dd/MM', { locale: es });
+                const rangeStartLabel = format(newestDay.date, 'dd/MM', { locale: es });
+                const rangeEndLabel = format(oldestDay.date, 'dd/MM', { locale: es });
                 const isExpandedGroup = expandedEmptyGroups.includes(id);
                 const hasSelectedInGroup = selectedDate
                   ? days.some((day) => day.isoDate === selectedDate)
@@ -2019,7 +2019,7 @@ export const RecordsExperience = ({
                     >
                       <div className="flex items-center gap-2">
                         <CalendarDays className="h-4 w-4 text-rose-300" />
-                        <span>{`${rangeStartLabel} --- ${rangeEndLabel} sin registro`}</span>
+                        <span>{`${rangeStartLabel} -- ${rangeEndLabel} sin registro`}</span>
                       </div>
                       <motion.span
                         animate={{ rotate: isExpandedGroup ? 180 : 0 }}

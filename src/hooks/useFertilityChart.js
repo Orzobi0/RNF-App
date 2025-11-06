@@ -1,6 +1,18 @@
 import { useEffect, useLayoutEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { parseISO, differenceInCalendarDays } from 'date-fns';
 import computePeakStatuses from '@/lib/computePeakStatuses';
+import {
+  computeCpmCandidateFromCycles,
+  computeFertilityStartOutput,
+  computeT8CandidateFromCycles,
+} from '@/lib/fertilityStart';
+
+const DEFAULT_FERTILITY_START_CONFIG = {
+  methods: { alemanas: true, oms: true, creighton: true },
+  calculators: { cpm: true, t8: true },
+  postpartum: false,
+  combineMode: 'conservador',
+};
 
 const DEFAULT_TEMP_MIN = 35.8;
 const DEFAULT_TEMP_MAX = 37.2;
@@ -297,7 +309,9 @@ export const useFertilityChart = (
   onToggleIgnore,
   cycleId,
   visibleDays = 5,
-  forceLandscape = false
+  forceLandscape = false,
+  fertilityStartConfig = null,
+  calculatorCycles = []
 ) => {
       const chartRef = useRef(null);
       const tooltipRef = useRef(null);
@@ -444,6 +458,52 @@ export const useFertilityChart = (
   const allDataPoints = useMemo(() => processedData.filter((d) => d && d.isoDate), [processedData]);
   const hasTemperatureData = validDataForLine.length > 0;
 
+  const normalizedFertilityConfig = useMemo(() => {
+    const config = fertilityStartConfig ?? {};
+    const ensureBoolean = (value, fallback) =>
+      typeof value === 'boolean' ? value : fallback;
+    const methods = {
+      alemanas: ensureBoolean(
+        config?.methods?.alemanas,
+        DEFAULT_FERTILITY_START_CONFIG.methods.alemanas
+      ),
+      oms: ensureBoolean(
+        config?.methods?.oms,
+        DEFAULT_FERTILITY_START_CONFIG.methods.oms
+      ),
+      creighton: ensureBoolean(
+        config?.methods?.creighton,
+        DEFAULT_FERTILITY_START_CONFIG.methods.creighton
+      ),
+    };
+    const calculators = {
+      cpm: ensureBoolean(
+        config?.calculators?.cpm,
+        DEFAULT_FERTILITY_START_CONFIG.calculators.cpm
+      ),
+      t8: ensureBoolean(
+        config?.calculators?.t8,
+        DEFAULT_FERTILITY_START_CONFIG.calculators.t8
+      ),
+    };
+    const validModes = new Set(['conservador', 'consenso', 'permisivo']);
+    const combineMode = validModes.has(config?.combineMode)
+      ? config.combineMode
+      : DEFAULT_FERTILITY_START_CONFIG.combineMode;
+    const postpartum = Boolean(config?.postpartum);
+    return { methods, calculators, combineMode, postpartum };
+  }, [fertilityStartConfig]);
+
+  const fertilityCalculatorCandidates = useMemo(() => {
+    const cycles = Array.isArray(calculatorCycles) ? calculatorCycles : [];
+    if (!cycles.length) {
+      return [];
+    }
+    const cpmCandidate = computeCpmCandidateFromCycles(cycles);
+    const t8Candidate = computeT8CandidateFromCycles(cycles, computeOvulationMetrics);
+    return [cpmCandidate, t8Candidate].filter(Boolean);
+  }, [calculatorCycles]);
+
   const peakDayIndex = useMemo(() => {
     if (!allDataPoints.length) return null;
     for (let idx = 0; idx < allDataPoints.length; idx += 1) {
@@ -523,6 +583,16 @@ export const useFertilityChart = (
       peakInfertilityStartIndex,
     };
   }, [rawOvulationDetails, peakDayIndex, peakInfertilityStartIndex]);
+
+  const fertilityStart = useMemo(
+    () =>
+      computeFertilityStartOutput({
+        processedData,
+        config: normalizedFertilityConfig,
+        calculatorCandidates: fertilityCalculatorCandidates,
+      }),
+    [processedData, normalizedFertilityConfig, fertilityCalculatorCandidates]
+  );
 
       const { tempMin, tempMax } = useMemo(() => {
         const recordedTemps = validDataForLine
@@ -727,6 +797,7 @@ export const useFertilityChart = (
         baselineIndices,
         firstHighIndex,
         ovulationDetails,
+        fertilityStart,
         hasTemperatureData,
         graphBottomInset,
       };

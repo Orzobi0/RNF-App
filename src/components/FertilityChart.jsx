@@ -23,6 +23,8 @@ const FertilityChart = ({
   forceLandscape = false,
   currentPeakIsoDate = null,
   showRelationsRow = false,
+  fertilityStartConfig = null,
+  fertilityCalculatorCycles = [],
 }) => {
   const {
     chartRef,
@@ -49,6 +51,7 @@ const FertilityChart = ({
     baselineIndices,
     firstHighIndex,
     ovulationDetails,
+    fertilityStart,
     hasTemperatureData,
     graphBottomInset,
   } = useFertilityChart(
@@ -58,7 +61,9 @@ const FertilityChart = ({
     onToggleIgnore,
     cycleId,
     visibleDays,
-    forceLandscape
+    forceLandscape,
+    fertilityStartConfig,
+    fertilityCalculatorCycles
   );
   const uniqueIdRef = useRef(null);
   if (!uniqueIdRef.current) {
@@ -155,6 +160,14 @@ const FertilityChart = ({
     }
     return Math.max(temperatureInfertilityStartIndex, peakInfertilityStartIndex);
   }, [temperatureInfertilityStartIndex, peakInfertilityStartIndex])
+
+  const fertileStartFinalIndex = useMemo(
+    () =>
+      Number.isInteger(fertilityStart?.fertileStartFinalIndex)
+        ? fertilityStart.fertileStartFinalIndex
+        : null,
+    [fertilityStart]
+  );
 
   const chartAreaHeight = Math.max(chartHeight - padding.top - padding.bottom - (graphBottomInset || 0), 0);
   const temperatureBelowClipId = `${uniqueId}-temperature-below`;
@@ -297,6 +310,46 @@ const FertilityChart = ({
     padding.right,
     padding.top,
     validDataMap,
+  ]);
+const relativeInfertilityBounds = useMemo(() => {
+    if (
+      !showInterpretation ||
+      fertileStartFinalIndex == null ||
+      fertileStartFinalIndex <= 0 ||
+      chartAreaHeight <= 0
+    ) {
+      return null;
+    }
+    const endIndex = fertileStartFinalIndex - 1;
+    if (endIndex < 0) return null;
+    return getSegmentBounds(0, endIndex);
+  }, [
+    showInterpretation,
+    fertileStartFinalIndex,
+    chartAreaHeight,
+    getSegmentBounds,
+  ]);
+
+  const fertilePhaseBounds = useMemo(() => {
+    if (!showInterpretation || fertileStartFinalIndex == null || chartAreaHeight <= 0) {
+      return null;
+    }
+    const startIndex = fertileStartFinalIndex;
+    const endIndex =
+      absoluteInfertilityStartIndex != null
+        ? absoluteInfertilityStartIndex - 1
+        : allDataPoints.length - 1;
+    if (endIndex < startIndex) {
+      return null;
+    }
+    return getSegmentBounds(startIndex, endIndex);
+  }, [
+    showInterpretation,
+    fertileStartFinalIndex,
+    chartAreaHeight,
+    absoluteInfertilityStartIndex,
+    allDataPoints.length,
+    getSegmentBounds,
   ]);
 
   const temperatureInfertilityBounds = useMemo(() => {
@@ -518,6 +571,17 @@ const FertilityChart = ({
               <stop offset="0%" stopColor="rgba(244, 114, 182, 0.18)" />
               <stop offset="100%" stopColor="rgba(244, 114, 182, 0.02)" />
             </linearGradient>
+            <pattern id="relativeInfertilityPattern" patternUnits="userSpaceOnUse" width="12" height="12">
+              <rect width="12" height="12" fill="rgba(221, 214, 254, 0.45)" />
+              <path d="M0 12 L12 0" stroke="rgba(124, 58, 237, 0.45)" strokeWidth="1.2" />
+              <path d="M0 6 L6 0" stroke="rgba(147, 51, 234, 0.35)" strokeWidth="1" />
+            </pattern>
+            <pattern id="fertilePhasePattern" patternUnits="userSpaceOnUse" width="16" height="16">
+              <rect width="16" height="16" fill="rgba(253, 230, 138, 0.45)" />
+              <path d="M0 0 L0 16" stroke="rgba(217, 119, 6, 0.5)" strokeWidth="1.2" />
+              <path d="M8 0 L8 16" stroke="rgba(245, 158, 11, 0.35)" strokeWidth="1.2" />
+              <path d="M4 0 L4 16" stroke="rgba(217, 119, 6, 0.25)" strokeWidth="0.8" />
+            </pattern>
 
             {/* Patrón unificado para spotting */}
             <pattern id="spotting-pattern-chart" patternUnits="userSpaceOnUse" width="6" height="6">
@@ -595,6 +659,30 @@ const FertilityChart = ({
           />
           {showInterpretation && (
             <>
+            {relativeInfertilityBounds && (
+              <rect
+                x={relativeInfertilityBounds.x}
+                y={padding.top}
+                width={relativeInfertilityBounds.width}
+                height={chartAreaHeight}
+                fill="url(#relativeInfertilityPattern)"
+                opacity={0.45}
+                pointerEvents="none"
+                style={interpretationMaskStyle}
+              />
+            )}
+            {fertilePhaseBounds && (
+              <rect
+                x={fertilePhaseBounds.x}
+                y={padding.top}
+                width={fertilePhaseBounds.width}
+                height={chartAreaHeight}
+                fill="url(#fertilePhasePattern)"
+                opacity={0.6}
+                pointerEvents="none"
+                style={interpretationMaskStyle}
+              />
+            )}
             {peakInfertilityBounds && (
                 hasTemperatureData && temperatureAreaPaths.below ? (
                   <rect
