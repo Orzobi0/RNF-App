@@ -50,6 +50,7 @@ const FertilityChart = ({
     firstHighIndex,
     ovulationDetails,
     hasTemperatureData,
+    graphBottomInset,
   } = useFertilityChart(
     data,
     isFullScreen,
@@ -81,6 +82,8 @@ const FertilityChart = ({
 
   const chartWidth = dimensions.width;
   const chartHeight = dimensions.height;
+  const graphBottomY = chartHeight - padding.bottom - (graphBottomInset || 0);
+  const rowsZoneHeight = Math.max(chartHeight - graphBottomY, 0);
   const baselineY = baselineTemp != null ? getY(baselineTemp) : null;
   const hasPotentialRise = baselineTemp != null && Number.isFinite(firstHighIndex);
   const confirmedRise = Boolean(ovulationDetails?.confirmed);
@@ -153,7 +156,7 @@ const FertilityChart = ({
     return Math.max(temperatureInfertilityStartIndex, peakInfertilityStartIndex);
   }, [temperatureInfertilityStartIndex, peakInfertilityStartIndex])
 
-  const chartAreaHeight = Math.max(chartHeight - padding.top - padding.bottom, 0);
+  const chartAreaHeight = Math.max(chartHeight - padding.top - padding.bottom - (graphBottomInset || 0), 0);
   const temperatureBelowClipId = `${uniqueId}-temperature-below`;
   const temperatureAboveClipId = `${uniqueId}-temperature-above`;
   const getDayLeftEdge = useCallback(
@@ -230,7 +233,7 @@ const FertilityChart = ({
       return { below: null, above: null };
     }
 
-    const bottomY = chartHeight - padding.bottom;
+    const bottomY = graphBottomY;
     const topY = padding.top;
     const validPoints = allDataPoints
       .map((point, index) => {
@@ -490,6 +493,8 @@ const FertilityChart = ({
             responsiveFontSize={responsiveFontSize}
             textRowHeight={textRowHeight}
             isFullScreen={isFullScreen}
+            graphBottomY={graphBottomY}
+            rowsZoneHeight={rowsZoneHeight}
           />
         </div>
       )}
@@ -584,6 +589,9 @@ const FertilityChart = ({
             isFullScreen={isFullScreen}
             showLeftLabels={!showLegend}
             reduceMotion={reduceMotion}
+            graphBottomY={graphBottomY}
+            chartAreaHeight={Math.max(chartHeight - padding.top - padding.bottom - (graphBottomInset || 0), 0)}
+            rowsZoneHeight={rowsZoneHeight}
           />
           {showInterpretation && (
             <>
@@ -686,7 +694,7 @@ const FertilityChart = ({
             allDataPoints={allDataPoints}
             getX={getX}
             getY={getY}
-            baselineY={chartHeight - padding.bottom}
+            baselineY={graphBottomY}
             temperatureField="displayTemperature"
             reduceMotion={reduceMotion}
           />
@@ -707,7 +715,7 @@ const FertilityChart = ({
           {activeIndex !== null && highlightX !== null && dayWidth > 0 && (
             <g pointerEvents="none">
               {(() => {
-                const chartAreaBottomY = chartHeight - padding.bottom;
+                const chartAreaBottomY = graphBottomY;
                 const thinStrokeWidth = Math.max(3, Math.min(14, dayWidth * 0.4));
                 const thickStrokeWidth = Math.max(thinStrokeWidth * 2, textRowHeight * 0.85);
 
@@ -751,6 +759,8 @@ const FertilityChart = ({
             chartWidth={chartWidth}
             temperatureField="displayTemperature"
             textRowHeight={textRowHeight}
+            graphBottomY={graphBottomY}
+            rowsZoneHeight={rowsZoneHeight}
             compact={false}
             reduceMotion={reduceMotion}
             showInterpretation={showInterpretation}
@@ -758,6 +768,7 @@ const FertilityChart = ({
             baselineStartIndex={baselineStartIndex}
             firstHighIndex={firstHighIndex}
             baselineIndices={baselineIndices}
+            graphBottomLift={graphBottomInset}
           />
 
         </motion.svg>

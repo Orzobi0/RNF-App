@@ -93,6 +93,9 @@ const ChartPoints = ({
   ovulationDetails = null,
   firstHighIndex = null,
   baselineIndices = [],
+  graphBottomLift = 0,
+  graphBottomY,
+  rowsZoneHeight,
 }) => {
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -118,17 +121,27 @@ const ChartPoints = ({
     }
   };
 
-  // filas base
-  const bottomY = chartHeight - padding.bottom;
-  const dateRowY = bottomY + textRowHeight * 1;
-  const cycleDayRowY = bottomY + textRowHeight * 2;
-  const symbolRowYBase = bottomY + textRowHeight * 3;
-  const mucusSensationRowY = bottomY + textRowHeight * (isFullScreen ? 5 : 4.5);
-  const mucusAppearanceRowY = bottomY + textRowHeight * (isFullScreen ? 7 : 6);
-  const observationsRowY = bottomY + textRowHeight * (isFullScreen ? 9 : 7.5);
-  const rowWidth = chartWidth - padding.left - padding.right;
+  // --- Filas ancladas al final del área de gráfico (graphBottomY) y estiradas hasta abajo ---
+  const rowsTopY = graphBottomY; // el “techo” de las filas es justo donde acaba la gráfica
+  const obsRowIndex = isFullScreen ? 9 : 7.5;
+  const halfBlock = isFullScreen ? 1 : 0.75;
+  // altura ideal para que Observ. siga tocando el borde inferior
+  const autoRowH = Math.max(
+    1,
+    Math.floor(rowsZoneHeight / (obsRowIndex + halfBlock))
+  );
+  // no reducimos por debajo del tamaño base (legibilidad), pero sí estiramos
+  const rowH = Math.max(textRowHeight, autoRowH);
 
-  const rowBlockHeight = textRowHeight * (isFullScreen ? 2 : 1.5);
+  const dateRowY = rowsTopY + rowH * 1;
+  const cycleDayRowY = rowsTopY + rowH * 2;
+  const symbolRowYBase = rowsTopY + rowH * 3;
+  const mucusSensationRowY = rowsTopY + rowH * (isFullScreen ? 5 : 4.5);
+  const mucusAppearanceRowY = rowsTopY + rowH * (isFullScreen ? 7 : 6);
+  const observationsRowY = rowsTopY + rowH * (isFullScreen ? 9 : 7.5);
+
+  const rowWidth = chartWidth - padding.left - padding.right;
+  const rowBlockHeight = rowH * (isFullScreen ? 2 : 1.5);
 
   const MotionG = reduceMotion ? 'g' : motion.g;
 
@@ -290,7 +303,7 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
             <text
               key={label}
               x={padding.left - responsiveFontSize(0.5)}
-              y={bottomY + textRowHeight * row}
+              y={rowsTopY + rowH * row}
               textAnchor="end"
               fontSize={responsiveFontSize(1.05)}
               fontWeight="700"
@@ -310,7 +323,7 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
         const x = getX(index);
         const y = point[temperatureField] != null
           ? getY(point[temperatureField])
-          : bottomY;
+          : rowsTopY;
         const rawTemp = point.temperature_raw;
         const correctedTemp = point.temperature_corrected;
         const showCorrectionIndicator =

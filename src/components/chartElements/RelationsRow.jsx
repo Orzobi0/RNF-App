@@ -20,7 +20,7 @@ const RelationsRow = ({
   const safePadding = padding || { left: 0, right: 0 };
   const safeWidth = Number.isFinite(chartWidth) && chartWidth > 0 ? chartWidth : 0;
   // Corazón más discreto: clamp entre 14–20 px, proporcional a la altura como el resto
-  const heartSize = Math.min(Math.max(rowHeight * 0.46, 14), 20);
+  const heartSize = Math.min(Math.max(rowHeight * 0.46, 14), 15);
   const widthStyle = safeWidth > 0
     ? { width: safeWidth, minWidth: safeWidth }
     : { width: '100%', minWidth: '100%' };

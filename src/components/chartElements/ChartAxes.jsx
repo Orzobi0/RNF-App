@@ -15,7 +15,10 @@ const ChartAxes = ({
   responsiveFontSize,
   isFullScreen,
   showLeftLabels = false,
-  reduceMotion = false
+  reduceMotion = false,
+  graphBottomY,
+  chartAreaHeight,
+  rowsZoneHeight,
 }) => {
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -99,7 +102,7 @@ const ChartAxes = ({
         x={padding.left}
         y={padding.top}
         width={chartWidth - padding.left - padding.right}
-        height={chartHeight - padding.top - padding.bottom}
+        height={chartAreaHeight}
         fill="url(#bgGradientChart)"
         opacity={2}
         rx={12}
@@ -110,7 +113,7 @@ const ChartAxes = ({
   x={padding.left}
   y={padding.top}
   width={chartWidth - padding.left - padding.right}
-  height={chartHeight - padding.top - padding.bottom}
+  height={chartAreaHeight}
   fill="white"
   stroke="url(#tempLineGradientChart)"
   strokeWidth="1"
@@ -122,9 +125,9 @@ const ChartAxes = ({
 {/* AÑADE ESTO AQUÍ - Fondo sutil para zona de datos inferior */}
 <rect
   x={padding.left}
-  y={chartHeight - padding.bottom}
+  y={graphBottomY}
   width={chartWidth - padding.left - padding.right}
-  height={padding.bottom}
+  height={rowsZoneHeight}
   fill="url(#dataZoneGradient)"
   rx="8"
   style={{ 
@@ -205,7 +208,7 @@ const ChartAxes = ({
             x1={x}
             y1={padding.top}
             x2={x}
-            y2={chartHeight - padding.bottom}
+            y2={graphBottomY}
             stroke="#fce7f3"
             strokeWidth="1"
             opacity="0.6"
@@ -219,7 +222,7 @@ const ChartAxes = ({
           x={padding.left}
           y={padding.top}
           width={chartWidth - padding.left - padding.right}
-          height={chartHeight - padding.top - padding.bottom}
+          height={chartAreaHeight}
           fill="none"
           stroke="url(#tempLineGradientChart)"
           strokeWidth="2"
@@ -230,7 +233,7 @@ const ChartAxes = ({
           x={padding.left + 1}
           y={padding.top + 1}
           width={chartWidth - padding.left - padding.right - 2}
-          height={chartHeight - padding.top - padding.bottom - 2}
+          height={chartAreaHeight - 2}
           fill="none"
           stroke="white"
           strokeWidth="0.5"

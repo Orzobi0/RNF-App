@@ -606,11 +606,18 @@ export const useFertilityChart = (
           : 50
       };
       
+      // --- Levanta el suelo del área del gráfico (sin mover filas) ---
+      // Ajusta cuántas "filas" quieres ganar de aire bajo el gráfico:
+      const GRAPH_BOTTOM_LIFT_ROWS = 4; // p.ej. 0.8 filas; prueba 0.6–1.2
+      const graphBottomInset = Math.max(0, Math.round(textRowHeight * GRAPH_BOTTOM_LIFT_ROWS));
+      const graphBottomY = chartHeight - padding.bottom - graphBottomInset;
+
       const getY = (temp) => {
-        if (temp === null || temp === undefined || tempRange === 0) return chartHeight - padding.bottom; 
-        const graphHeight = chartHeight - padding.top - padding.bottom;
-        if (graphHeight <=0) return chartHeight - padding.bottom;
-        return chartHeight - padding.bottom - ((temp - tempMin) / tempRange) * graphHeight;
+        const effectiveHeight = chartHeight - padding.top - padding.bottom - graphBottomInset;
+        if (temp === null || temp === undefined || tempRange === 0 || effectiveHeight <= 0) {
+          return graphBottomY;
+        }
+        return graphBottomY - ((temp - tempMin) / tempRange) * effectiveHeight;
       };
 
       const getX = (index) => {
@@ -721,5 +728,6 @@ export const useFertilityChart = (
         firstHighIndex,
         ovulationDetails,
         hasTemperatureData,
+        graphBottomInset,
       };
     };

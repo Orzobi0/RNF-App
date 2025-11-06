@@ -17,6 +17,8 @@ const ChartLeftLegend = ({
   responsiveFontSize,
   textRowHeight,
   isFullScreen,
+  graphBottomY,
+  rowsZoneHeight,
 }) => {
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -39,7 +41,12 @@ const ChartLeftLegend = ({
     }
   }
 
-  const bottomY = chartHeight - padding.bottom;
+  // Ancla y estirado igual que las filas del chart
+  const rowsTopY = graphBottomY;
+  const obsRowIndex = isFullScreen ? 9 : 7.5;
+  const halfBlock = isFullScreen ? 1 : 0.75;
+  const autoRowH = Math.max(1, Math.floor(rowsZoneHeight / (obsRowIndex + halfBlock)));
+  const rowH = Math.max(textRowHeight, autoRowH);
   const legendRows = useMemo(() => {
     const baseRows = [
       { label: 'Fecha', row: 1, color: isFullScreen ? '#374151' : '#374151', icon: null },
@@ -87,7 +94,7 @@ const ChartLeftLegend = ({
               fontSize={responsiveFontSize(isMajor ? 1.15 : 1)}
               fontWeight={isMajor ? "800" : "700"}
               fill={isMajor ? "#be185d" : "#db2777"}
-opacity={isMajor ? 1 : 0.85}
+              opacity={isMajor ? 1 : 0.85}
               style={{ 
                 filter: 'url(#textShadowLegend)',
                 fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
@@ -109,7 +116,7 @@ opacity={isMajor ? 1 : 0.85}
             {icon && (
               <text
                 x={padding.left - responsiveFontSize(2.8)}
-                y={bottomY + textRowHeight * row}
+                y={rowsTopY + rowH * row}
                 textAnchor="middle"
                 fontSize={responsiveFontSize(0.8)}
                 fontWeight="600"
@@ -126,7 +133,7 @@ opacity={isMajor ? 1 : 0.85}
             
             <text
               x={padding.left - responsiveFontSize(0.8)}
-              y={bottomY + textRowHeight * row}
+              y={rowsTopY + rowH * row}
               textAnchor="end"
               fontSize={responsiveFontSize(1.05)}
               fontWeight="800"
