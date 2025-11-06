@@ -311,7 +311,8 @@ export const useFertilityChart = (
   visibleDays = 5,
   forceLandscape = false,
   fertilityStartConfig = null,
-  calculatorCycles = []
+  calculatorCycles = [],
+  externalCalculatorCandidates = null
 ) => {
       const chartRef = useRef(null);
       const tooltipRef = useRef(null);
@@ -495,6 +496,26 @@ export const useFertilityChart = (
   }, [fertilityStartConfig]);
 
   const fertilityCalculatorCandidates = useMemo(() => {
+    if (Array.isArray(externalCalculatorCandidates) && externalCalculatorCandidates.length > 0) {
+      return externalCalculatorCandidates
+        .map((candidate) => {
+          if (!candidate) return null;
+          const { source, day, reason } = candidate;
+          if (source !== 'CPM' && source !== 'T8') {
+            return null;
+          }
+          const numericDay = Number(day);
+          if (!Number.isFinite(numericDay)) {
+            return null;
+          }
+          return {
+            source,
+            day: numericDay,
+            reason: typeof reason === 'string' ? reason : '',
+          };
+        })
+        .filter(Boolean);
+    }
     const cycles = Array.isArray(calculatorCycles) ? calculatorCycles : [];
     if (!cycles.length) {
       return [];
@@ -502,7 +523,7 @@ export const useFertilityChart = (
     const cpmCandidate = computeCpmCandidateFromCycles(cycles);
     const t8Candidate = computeT8CandidateFromCycles(cycles, computeOvulationMetrics);
     return [cpmCandidate, t8Candidate].filter(Boolean);
-  }, [calculatorCycles]);
+  }, [externalCalculatorCandidates, calculatorCycles]);
 
   const peakDayIndex = useMemo(() => {
     if (!allDataPoints.length) return null;

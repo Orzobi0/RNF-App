@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useLocation } from 'react-router-dom';
 
 const CHART_SETTINGS_STORAGE_KEY = 'fertility-chart-settings';
 
@@ -66,9 +66,11 @@ const mergeFertilityStartConfig = (incoming) => {
       }
     });
 
+    let hasExplicitCalculatorValues = false;
     Object.keys(merged.calculators).forEach((key) => {
       if (typeof incoming?.calculators?.[key] === 'boolean') {
         merged.calculators[key] = incoming.calculators[key];
+        hasExplicitCalculatorValues = true;
       }
     });
 
@@ -81,6 +83,26 @@ const mergeFertilityStartConfig = (incoming) => {
     } else if (incoming.postpartum != null) {
       merged.postpartum = Boolean(incoming.postpartum);
     }
+    
+    if (!hasExplicitCalculatorValues) {
+      const { alemanas, oms, creighton } = merged.methods;
+      if (alemanas) {
+        merged.calculators.cpm = true;
+        merged.calculators.t8 = true;
+      } else if (oms || creighton) {
+        merged.calculators.cpm = false;
+        merged.calculators.t8 = false;
+      }
+    }
+  } else {
+    const { alemanas, oms, creighton } = merged.methods;
+    if (alemanas) {
+      merged.calculators.cpm = true;
+      merged.calculators.t8 = true;
+    } else if (oms || creighton) {
+      merged.calculators.cpm = false;
+      merged.calculators.t8 = false;
+    }
   }
 
   return merged;
@@ -88,6 +110,7 @@ const mergeFertilityStartConfig = (incoming) => {
 
 const ChartPage = () => {
   const { cycleId } = useParams();
+  const location = useLocation();
   const {
     currentCycle,
     archivedCycles,
@@ -156,7 +179,8 @@ const ChartPage = () => {
   const showLoading = isViewingCurrentCycle
     ? isLoading && !currentCycle?.id
     : externalLoading || (isLoading && !archivedMatch && !fetchedCycle);
-    const fertilityCalculatorCycles = useMemo(() => {
+    
+  const fertilityCalculatorCycles = useMemo(() => {
     const cycles = [];
     if (Array.isArray(archivedCycles) && archivedCycles.length > 0) {
       cycles.push(...archivedCycles);
@@ -407,15 +431,25 @@ const ChartPage = () => {
       if (currentConfig.methods?.[methodKey] === nextValue) {
         return prev;
       }
+      const updatedConfig = {
+        ...currentConfig,
+        methods: {
+          ...currentConfig.methods,
+          [methodKey]: nextValue,
+        },
+      };
+
+      if (methodKey === 'alemanas' && nextValue) {
+        updatedConfig.calculators = {
+          ...currentConfig.calculators,
+          cpm: true,
+          t8: true,
+        };
+      }
+
       return {
         ...prev,
-        fertilityStartConfig: {
-          ...currentConfig,
-          methods: {
-            ...currentConfig.methods,
-            [methodKey]: nextValue,
-          },
-        },
+        fertilityStartConfig: updatedConfig,
       };
     });
   };
@@ -472,6 +506,38 @@ const ChartPage = () => {
       };
     });
   };
+  
+  const locationStateCandidates = location?.state?.fertilityCalculatorCandidates;
+  const cycleCandidates = targetCycle?.fertilityCalculatorCandidates;
+  const externalFertilityCalculatorCandidates = useMemo(() => {
+    const sourceArray = [
+      Array.isArray(locationStateCandidates) ? locationStateCandidates : null,
+      Array.isArray(cycleCandidates) ? cycleCandidates : null,
+    ].find((candidates) => Array.isArray(candidates) && candidates.length > 0);
+
+    if (!sourceArray) {
+      return null;
+    }
+
+    return sourceArray
+      .map((candidate) => {
+        if (!candidate) return null;
+        const { source, day, reason } = candidate;
+        if (source !== 'CPM' && source !== 'T8') {
+          return null;
+        }
+        const numericDay = Number(day);
+        if (!Number.isFinite(numericDay)) {
+          return null;
+        }
+        return {
+          source,
+          day: numericDay,
+          reason: typeof reason === 'string' ? reason : '',
+        };
+      })
+      .filter(Boolean);
+  }, [locationStateCandidates, cycleCandidates]);
   const handleTogglePeak = async (record, shouldMarkAsPeak = true) => {
     if (!targetCycle?.id || !record?.isoDate) {
       return;
@@ -748,6 +814,7 @@ const ChartPage = () => {
           showRelationsRow={chartSettings.showRelationsRow}
           fertilityStartConfig={fertilityConfig}
           fertilityCalculatorCycles={fertilityCalculatorCycles}
+          fertilityCalculatorCandidates={externalFertilityCalculatorCandidates}
         />
         
         {/* Backdrop */}

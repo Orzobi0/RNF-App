@@ -25,6 +25,7 @@ const FertilityChart = ({
   showRelationsRow = false,
   fertilityStartConfig = null,
   fertilityCalculatorCycles = [],
+  fertilityCalculatorCandidates = null,
 }) => {
   const {
     chartRef,
@@ -63,7 +64,8 @@ const FertilityChart = ({
     visibleDays,
     forceLandscape,
     fertilityStartConfig,
-    fertilityCalculatorCycles
+    fertilityCalculatorCycles,
+    fertilityCalculatorCandidates
   );
   const uniqueIdRef = useRef(null);
   if (!uniqueIdRef.current) {
