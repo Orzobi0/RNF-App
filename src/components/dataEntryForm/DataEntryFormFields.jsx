@@ -348,7 +348,7 @@ const DataEntryFormFields = ({
     switch (key) {
       case 'temperature':
         return (
-          <div className="space-y-3 rounded-2xl border border-amber-300/60 bg-gradient-to-r from-amber-50 to-orange-50 p-3 shadow-sm">
+          <div className="space-y-3 rounded-3xl border border-amber-300/60 bg-gradient-to-r from-amber-50 to-orange-50 p-3 shadow-sm">
             {measurements.map((m, idx) => {
               const measurementSelectId = `measurement_select_${idx}`;
               return (
@@ -546,7 +546,7 @@ const DataEntryFormFields = ({
         );
       case 'symbol':
         return (
-          <div className="space-y-3 rounded-2xl border border-slate-300/60 bg-gradient-to-r from-stone-100 to-slate-100 p-3 shadow-sm">
+          <div className="space-y-3 rounded-3xl border border-slate-300/60 bg-gradient-to-r from-stone-100 to-slate-100 p-3 shadow-sm">
             <div className="flex flex-col gap-3">
               <Label htmlFor="fertilitySymbol" className="flex items-center text-slate-800 text-sm font-semibold">
                 <Sprout className="mr-2 h-5 w-5 text-slate-500" />
@@ -580,7 +580,7 @@ const DataEntryFormFields = ({
         );
       case 'sensation':
         return (
-          <div className="space-y-2 rounded-2xl border border-blue-300/60 bg-gradient-to-r from-blue-50 to-indigo-50 p-3 shadow-sm">
+          <div className="space-y-2 rounded-3xl border border-blue-300/60 bg-gradient-to-r from-blue-50 to-indigo-50 p-3 shadow-sm">
             <Label htmlFor="mucusSensation" className="flex items-center text-slate-800 text-sm font-semibold">
               <Droplets className="mr-2 h-5 w-5 text-sky-600" />
               Sensación del moco
@@ -597,7 +597,7 @@ const DataEntryFormFields = ({
         );
       case 'appearance':
         return (
-          <div className="space-y-2 rounded-2xl border border-emerald-300/60 bg-gradient-to-r from-emerald-50 to-teal-50 p-3 shadow-sm">
+          <div className="space-y-2 rounded-3xl border border-emerald-300/60 bg-gradient-to-r from-emerald-50 to-teal-50 p-3 shadow-sm">
             <Label htmlFor="mucusAppearance" className="flex items-center text-slate-800 text-sm font-semibold">
               <Circle className="mr-2 h-5 w-5 text-emerald-600" />
               Apariencia del moco
@@ -614,7 +614,7 @@ const DataEntryFormFields = ({
         );
       case 'observations':
         return (
-          <div className="space-y-2 rounded-2xl border border-violet-300/60 bg-gradient-to-r from-violet-50 to-purple-50 p-3 shadow-sm">
+          <div className="space-y-2 rounded-3xl border border-violet-300/60 bg-gradient-to-r from-violet-50 to-purple-50 p-3 shadow-sm">
             <Label htmlFor="observations" className="flex items-center text-slate-800 text-sm font-semibold">
               <Edit3 className="mr-2 h-5 w-5 text-violet-600" />
               Observaciones
@@ -636,7 +636,7 @@ const DataEntryFormFields = ({
 
   return (
     <>
-      <div className="space-y-2 rounded-xl border border-pink-300/50 bg-gradient-to-r from-pink-50 to-rose-50 p-3">
+      <div className="space-y-2 rounded-3xl border border-pink-300/50 bg-gradient-to-r from-pink-50 to-rose-50 p-3">
         <Label htmlFor="date" className="flex items-center text-pink-700 text-sm font-semibold">
           <CalendarDays className="mr-2 h-5 w-5 text-pink-400" />
           Fecha del Registro
@@ -646,7 +646,7 @@ const DataEntryFormFields = ({
             <Button
               variant="outline"
               className={cn(
-                'w-full justify-start text-left font-normal bg-white/70 border-pink-200 text-gray-800 hover:bg-white',
+                'w-full justify-start text-left font-normal bg-white/70 border-pink-200 text-gray-800 hover:bg-white/70 hover:text-gray-800',
                 !date && 'text-muted-foreground'
               )}
               disabled={isProcessing}
@@ -695,10 +695,10 @@ const DataEntryFormFields = ({
                 type="button"
                 onClick={() => handleSectionToggle(section.key)}
                 className={cn(
-                  'flex h-11 w-11 items-center justify-center rounded-full border transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
+                  'flex h-11 w-11 items-center justify-center rounded-full border-2 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
                   styles.focusRing,
                   isActive
-                    ? cn(styles.activeBorder, styles.activeBg, styles.activeText, 'shadow-inner')
+                    ? cn('shadow-inner', styles.activeBorder, styles.activeBg, styles.activeText)
                     : cn('border-transparent bg-transparent hover:bg-slate-100',
                         isFilled ? styles.filledText : 'text-slate-500'
                       ),

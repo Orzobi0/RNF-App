@@ -695,7 +695,7 @@ const changeOffsetRaf = useCallback((delta) => {
             <div className="flex items-center justify-center gap-3">
               <button
                 type="button"
-                className="p-2 rounded-full text-rose-500 shadow-sm border border-rose-200/60 transition hover:bg-white"
+                className="p-2 rounded-full text-rose-500 shadow-xs transition hover:border hover:border-rose-500/20"
                 onClick={() => changeOffset(-1)}
                 disabled={wheelOffset === 0}
               >
@@ -723,7 +723,7 @@ const changeOffsetRaf = useCallback((delta) => {
               </div>
               <button
                 type="button"
-                className="p-2 rounded-full text-rose-500 shadow-sm border border-rose-200/60 transition hover:bg-white"
+                className="p-2 rounded-full text-rose-500 shadow-xs transition hover:border hover:border-rose-500/20"
                 onClick={() => changeOffsetRaf(1)}
                 disabled={wheelOffset === maxOffset}
               >
