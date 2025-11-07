@@ -130,6 +130,16 @@ const detectSymbol = ({ appearance, observations, fertilitySymbol }) => {
   return 'none';
 };
 
+const normalizePeakStatus = (value) => {
+  if (value == null) return '';
+  const s = String(value).trim().toUpperCase();
+  if (s === 'P' || s === 'PEAK') return 'P';
+  if (s === '1' || s === 'P1' || s === 'P+1') return '1';
+  if (s === '2' || s === 'P2' || s === 'P+2') return '2';
+  if (s === '3' || s === 'P3' || s === 'P+3') return '3';
+  return '';
+};
+
 const ensureLevelBounds = (value) => {
   if (!Number.isFinite(value)) return 0;
   if (value < 0) return 0;
@@ -158,11 +168,11 @@ const buildNormalizedDay = (day, bipBaseline, index) => {
     fertilitySymbol: day?.fertility_symbol,
   });
 
+  const rawSymbol = symbol;
   let symbolDetected = symbol;
   if (symbolDetected === 'white') {
     // Indicador suave de presencia de moco
     M = Math.max(M, 1);
-    symbolDetected = 'none';
   }
 
   if (symbolDetected === 'M') {
@@ -203,6 +213,7 @@ const buildNormalizedDay = (day, bipBaseline, index) => {
     S,
     M,
     symbolDetected,
+    rawSymbol,
     scoreCore,
     scoreFertil,
     hasChangeBIP,
@@ -244,13 +255,13 @@ const findAlemanasCandidate = (days) => {
     const day = days[i];
     if (!day) continue;
     if (day.symbolDetected === 'M+') {
-      return { source: 'Alemanas', day: i + 1, reason: 'M+' };
+      return { source: 'Alemanas', day: i + 1, reason: 'M+', kind: 'profile' };
     }
     if (day.scoreFertil >= 0.8) {
-      return { source: 'Alemanas', day: i + 1, reason: 'score>=0.8' };
+      return { source: 'Alemanas', day: i + 1, reason: 'score>=0.8', kind: 'profile' };
     }
     if (day.hasChangeBIP) {
-      return { source: 'Alemanas', day: i + 1, reason: 'cambioBIP' };
+      return { source: 'Alemanas', day: i + 1, reason: 'cambioBIP', kind: 'profile' };
     }
   }
   return null;
@@ -261,16 +272,16 @@ const findOmsCandidate = (days) => {
     const day = days[i];
     if (!day) continue;
     if (day.M >= 2) {
-      return { source: 'OMS', day: i + 1, reason: 'M>=2' };
+      return { source: 'OMS', day: i + 1, reason: 'M>=2', kind: 'profile' };
     }
     if (day.S >= 2) {
-      return { source: 'OMS', day: i + 1, reason: 'S>=2' };
+      return { source: 'OMS', day: i + 1, reason: 'S>=2', kind: 'profile' };
     }
     if (day.symbolDetected === 'M+') {
-      return { source: 'OMS', day: i + 1, reason: 'M+' };
+      return { source: 'OMS', day: i + 1, reason: 'M+', kind: 'profile' };
     }
     if (day.hasChangeBIP) {
-      return { source: 'OMS', day: i + 1, reason: 'cambioBIP' };
+      return { source: 'OMS', day: i + 1, reason: 'M+', kind: 'profile' };
     }
   }
   return null;
@@ -281,35 +292,47 @@ const findCreightonCandidate = (days) => {
     const day = days[i];
     if (!day) continue;
     if (day.symbolDetected === 'M+') {
-      return { source: 'Creighton', day: i + 1, reason: 'M+' };
+      return { source: 'Creighton', day: i + 1, reason: 'M+', kind: 'profile' };
     }
     if (day.symbolDetected === 'M' || day.M >= 2) {
-      return { source: 'Creighton', day: i + 1, reason: 'M>=2' };
+      return { source: 'Creighton', day: i + 1, reason: 'M>=2', kind: 'profile' };
     }
     if (day.hasChangeBIP) {
-      return { source: 'Creighton', day: i + 1, reason: 'cambioBIP' };
+      return { source: 'Creighton', day: i + 1, reason: 'cambioBIP', kind: 'profile' };
     }
   }
   return null;
 };
 
 const aggregateCandidates = (candidates, mode) => {
-  const validCandidates = candidates.filter(
-    (candidate) => candidate && Number.isFinite(candidate.day)
-  );
+  const validCandidates = candidates
+    .filter((candidate) => candidate && Number.isFinite(candidate.day))
+    .map((candidate) => ({ ...candidate }));
 
   if (validCandidates.length === 0) {
-    return { status: 'indeterminado', usedCandidates: [], notes: ['Sin candidatos disponibles'] };
+    return {
+      status: 'indeterminado',
+      selectedDay: null,
+      selectedMode: mode,
+      usedCandidates: [],
+      notes: ['Sin candidatos disponibles'],
+    };
   }
 
-  const days = validCandidates.map((candidate) => Math.round(candidate.day));
+  const sortedCandidates = [...validCandidates].sort((a, b) => {
+    const aDay = Number.isFinite(a.day) ? a.day : Number.POSITIVE_INFINITY;
+    const bDay = Number.isFinite(b.day) ? b.day : Number.POSITIVE_INFINITY;
+    return aDay - bDay;
+  });
+
+  const dayNumbers = sortedCandidates.map((candidate) => Math.round(candidate.day));
 
   let selectedDay = null;
   if (mode === 'permisivo') {
-    selectedDay = Math.max(...days);
+    selectedDay = Math.max(...dayNumbers);
   } else if (mode === 'consenso') {
     const frequency = new Map();
-    days.forEach((day) => {
+    dayNumbers.forEach((day) => {
       const current = frequency.get(day) ?? 0;
       frequency.set(day, current + 1);
     });
@@ -323,14 +346,15 @@ const aggregateCandidates = (candidates, mode) => {
     });
     selectedDay = earliestDay;
   } else {
-    selectedDay = Math.min(...days);
+    selectedDay = Math.min(...dayNumbers);
   }
 
   return {
     status: selectedDay != null ? 'ok' : 'indeterminado',
     selectedDay: selectedDay ?? null,
     selectedMode: mode,
-    usedCandidates: validCandidates,
+    usedCandidates: sortedCandidates,
+    notes: [],
   };
 };
 
@@ -346,20 +370,26 @@ export const computeFertilityStartOutput = ({
     combineMode = 'conservador',
   } = config || {};
 
-  const { days } = normalizeCycleDays(processedData);
+  const { days, bipScore } = normalizeCycleDays(processedData);
 
   const candidates = [];
+  const pushCandidate = (candidate) => {
+    if (!candidate || !Number.isFinite(candidate.day)) return;
+    candidates.push({
+      originalSource: candidate.originalSource ?? candidate.source,
+      ...candidate,
+      kind: candidate.kind ?? 'profile',
+    });
+  };
+
   if (methods.alemanas) {
-    const candidate = findAlemanasCandidate(days);
-    if (candidate) candidates.push(candidate);
+    pushCandidate(findAlemanasCandidate(days));
   }
   if (methods.oms) {
-    const candidate = findOmsCandidate(days);
-    if (candidate) candidates.push(candidate);
+    pushCandidate(findOmsCandidate(days));
   }
   if (methods.creighton) {
-    const candidate = findCreightonCandidate(days);
-    if (candidate) candidates.push(candidate);
+    pushCandidate(findCreightonCandidate(days));
   }
 
   const notes = [];
@@ -370,11 +400,18 @@ export const computeFertilityStartOutput = ({
   if (!postpartum) {
     calculatorCandidates.forEach((candidate) => {
       if (!candidate) return;
+      const normalizedSource = typeof candidate.source === 'string'
+        ? candidate.source.toUpperCase().replace(/-/g, '')
+        : '';
       const include =
-        (candidate.source === 'CPM' && calculators.cpm) ||
-        (candidate.source === 'T8' && calculators.t8);
+        (normalizedSource === 'CPM' && calculators.cpm) ||
+        (normalizedSource === 'T8' && calculators.t8);
       if (include) {
-        candidates.push(candidate);
+        pushCandidate({
+          ...candidate,
+          source: normalizedSource,
+          kind: 'calculator',
+        });
       }
     });
   }
@@ -383,26 +420,86 @@ export const computeFertilityStartOutput = ({
     notes.push('Ningún perfil sintotérmico seleccionado.');
   }
 
+  const candidatesBeforeAggregate = candidates.map((candidate) => ({ ...candidate }));
+
   const aggregate = aggregateCandidates(candidates, combineMode);
   aggregate.notes = Array.from(new Set([...(aggregate.notes ?? []), ...notes].filter(Boolean)));
 
-  let selectedIndex = null;
-  if (aggregate.status === 'ok' && Number.isFinite(aggregate.selectedDay)) {
-    const boundedDay = Math.max(1, Math.round(aggregate.selectedDay));
-    const maxDay = processedData.length > 0 ? processedData.length : boundedDay;
-    const adjustedDay = Math.min(boundedDay, maxDay);
-    if (adjustedDay !== aggregate.selectedDay) {
-      const note = `El día calculado (${aggregate.selectedDay}) supera la duración del ciclo. Se usa ${adjustedDay}.`;
-      aggregate.notes = Array.from(new Set([...(aggregate.notes ?? []), note]));
-      aggregate.selectedDay = adjustedDay;
+  const clampSelectedDay = (day) => {
+    if (!Number.isFinite(day)) return null;
+    const bounded = Math.max(1, Math.round(day));
+    if (processedData.length > 0) {
+      return Math.min(bounded, processedData.length);
     }
-    selectedIndex = adjustedDay - 1;
+    return bounded;
+  };
+
+  let selectedDay = Number.isFinite(aggregate.selectedDay)
+    ? clampSelectedDay(aggregate.selectedDay)
+    : null;
+  if (selectedDay != null && selectedDay !== aggregate.selectedDay) {
+    const note = `El día calculado (${aggregate.selectedDay}) supera la duración del ciclo. Se usa ${selectedDay}.`;
+    aggregate.notes = Array.from(new Set([...(aggregate.notes ?? []), note]));
+    aggregate.selectedDay = selectedDay;
   }
 
+  let explicitStartDay = null;
+  if (Array.isArray(days) && days.length > 0) {
+    const whiteIndex = days.findIndex((day) => day?.rawSymbol === 'white');
+    if (whiteIndex >= 0) {
+      explicitStartDay = whiteIndex;
+    }
+  }
+
+  if (Array.isArray(processedData) && processedData.length > 0) {
+    for (let idx = 0; idx < processedData.length; idx += 1) {
+      const entry = processedData[idx];
+      const normalized = normalizePeakStatus(
+        entry?.normalizedPeakStatus ?? entry?.peakStatus ?? entry?.peak_marker
+      );
+      if (normalized === 'P') {
+        explicitStartDay = explicitStartDay != null
+          ? Math.min(explicitStartDay, idx)
+          : idx;
+        break;
+      }
+    }
+  }
+
+  if (
+    explicitStartDay != null &&
+    (selectedDay == null || explicitStartDay + 1 < selectedDay)
+  ) {
+    const overrideDay = clampSelectedDay(explicitStartDay + 1);
+    if (overrideDay != null) {
+      aggregate.selectedDay = overrideDay;
+      aggregate.selectedMode = 'marcador';
+      aggregate.status = 'ok';
+      aggregate.notes = Array.from(
+        new Set([...(aggregate.notes ?? []), 'Inicio fértil ajustado por marcador explícito.'])
+      );
+      selectedDay = overrideDay;
+    }
+  } else {
+    selectedDay = aggregate.selectedDay ?? null;
+  }
+
+  let fertileStartFinalIndex = null;
+  if (selectedDay != null && selectedDay >= 1) {
+    fertileStartFinalIndex = selectedDay - 1;
+  }
+
+  const debug = {
+    bipScore,
+    explicitStartDay,
+    candidatesBeforeAggregate,
+  };
+
   return {
-    fertileStartFinalIndex: selectedIndex,
-    candidates,
+    fertileStartFinalIndex,
+    candidates: candidatesBeforeAggregate,
     aggregate,
+    debug,
   };
 };
 
@@ -456,6 +553,7 @@ export const computeCpmCandidateFromCycles = (cycles = []) => {
     source: 'CPM',
     day: Math.max(1, Math.round(rawDay)),
     reason: `ciclo_mas_corto=${shortest.duration}`,
+    kind: 'calculator',
   };
 };
 
@@ -576,6 +674,7 @@ export const computeT8CandidateFromCycles = (cycles = [], computeOvulationMetric
     source: 'T8',
     day: Math.max(1, Math.round(earliest.t8Day)),
     reason: `t8=${earliest.t8Day}`,
+    kind: 'calculator',
   };
 };
 

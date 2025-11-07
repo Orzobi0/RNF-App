@@ -274,10 +274,19 @@ const evaluateHighSequence = ({
       const firstSequenceIndex = evaluation.highSequenceIndices?.length
         ? evaluation.highSequenceIndices[0]
         : null;
+        const boundedConfirmation = Number.isInteger(evaluation.confirmationIndex)
+        ? Math.max(0, Math.min(evaluation.confirmationIndex, processedData.length - 1))
+        : null;
+      let infertileStartIndex = null;
+      if (boundedConfirmation != null) {
+        const candidate = boundedConfirmation + 1;
+        infertileStartIndex = Math.max(0, Math.min(candidate, processedData.length - 1));
+      }
+
       confirmedDetails = {
         confirmed: true,
-        confirmationIndex: evaluation.confirmationIndex,
-        infertileStartIndex: evaluation.confirmationIndex,
+        confirmationIndex: boundedConfirmation,
+        infertileStartIndex,
         rule: evaluation.rule,
         highSequenceIndices: evaluation.highSequenceIndices ?? evaluation.usedIndices,
         usedIndices: evaluation.usedIndices,
@@ -326,16 +335,16 @@ export const useFertilityChart = (
         setActiveIndex(null);
       }, []);
 
- // Normaliza los códigos de pico que vienen de computePeakStatuses
- const normalizePeakStatus = (value) => {
-   if (value == null) return '';
-   const s = String(value).trim().toUpperCase();
-   if (s === '3' || s === 'P3' || s === 'P+3') return '3';
-   if (s === '2' || s === 'P2' || s === 'P+2') return '2';
-   if (s === '1' || s === 'P1' || s === 'P+1') return '1';
-   if (s === 'P' || s === 'PEAK') return 'P';
-   return s;
- };
+      // Normaliza los códigos de pico que vienen de computePeakStatuses
+      const normalizePeakStatus = (value) => {
+        if (value == null) return '';
+        const s = String(value).trim().toUpperCase();
+        if (s === 'P' || s === 'PEAK') return 'P';
+        if (s === '1' || s === 'P1' || s === 'P+1') return '1';
+        if (s === '2' || s === 'P2' || s === 'P+2') return '2';
+        if (s === '3' || s === 'P3' || s === 'P+3') return '3';
+        return '';
+      };
 
       const peakStatusByIsoDate = useMemo(() => computePeakStatuses(data), [data]);
       const processedData = useMemo(() => {
@@ -387,11 +396,17 @@ export const useFertilityChart = (
               resolvedValue = getMeasurementTemp(fallbackMeasurement);
             }
           }
-          const isoDate = d?.isoDate;  
+          const isoDate = d?.isoDate;
+          const peakMarker = d?.peak_marker ?? d?.peakStatus ?? null;
+          const resolvedPeakStatus = isoDate
+            ? peakStatusByIsoDate[isoDate] ?? peakMarker
+            : peakMarker;
+          const normalizedPeakStatus = normalizePeakStatus(resolvedPeakStatus); 
           return {
             ...d,
             displayTemperature: normalizeTemp(resolvedValue),
-            peakStatus: isoDate ? peakStatusByIsoDate[isoDate] || null : null,
+            peakStatus: resolvedPeakStatus ?? null,
+            normalizedPeakStatus,
           };
         });
       }, [data, peakStatusByIsoDate]);
@@ -469,6 +484,42 @@ export const useFertilityChart = (
   const allDataPoints = useMemo(() => processedData.filter((d) => d && d.isoDate), [processedData]);
   const hasTemperatureData = validDataForLine.length > 0;
 
+  const hasAnyObservation = useMemo(() => {
+    if (!Array.isArray(processedData) || processedData.length === 0) {
+      return false;
+    }
+    return processedData.some((day) => {
+      if (!day) return false;
+      if (day.displayTemperature != null) return true;
+
+      const hasMucusInfo = ['mucusAppearance', 'mucus_appearance', 'mucusSensation', 'mucus_sensation']
+        .some((field) => {
+          const value = day?.[field];
+          return value != null && String(value).trim() !== '';
+        });
+      if (hasMucusInfo) return true;
+
+      const hasSymbol = (() => {
+        const symbol = day?.fertility_symbol ?? day?.fertilitySymbol;
+        if (symbol == null) return false;
+        return String(symbol).trim() !== '';
+      })();
+      if (hasSymbol) return true;
+
+      const hasObservationText = (() => {
+        const observation = day?.observations ?? day?.notes;
+        if (observation == null) return false;
+        return String(observation).trim() !== '';
+      })();
+      if (hasObservationText) return true;
+
+      const normalizedPeak = normalizePeakStatus(
+        day?.normalizedPeakStatus ?? day?.peakStatus ?? day?.peak_marker
+      );
+      return normalizedPeak !== '';
+    });
+  }, [processedData]);
+
   const normalizedFertilityConfig = useMemo(() => {
     const config = fertilityStartConfig ?? {};
     const ensureBoolean = (value, fallback) =>
@@ -511,7 +562,10 @@ export const useFertilityChart = (
         .map((candidate) => {
           if (!candidate) return null;
           const { source, day, reason } = candidate;
-          if (source !== 'CPM' && source !== 'T8') {
+          const normalizedSource = typeof source === 'string'
+            ? source.toUpperCase().replace(/-/g, '')
+            : '';
+          if (normalizedSource !== 'CPM' && normalizedSource !== 'T8') {
             return null;
           }
           const numericDay = Number(day);
@@ -519,9 +573,11 @@ export const useFertilityChart = (
             return null;
           }
           return {
-            source,
+            source: normalizedSource,
+            originalSource: source ?? normalizedSource,
             day: numericDay,
             reason: typeof reason === 'string' ? reason : '',
+            kind: 'calculator',
           };
         })
         .filter(Boolean);
@@ -535,44 +591,102 @@ export const useFertilityChart = (
     return [cpmCandidate, t8Candidate].filter(Boolean);
   }, [externalCalculatorCandidates, calculatorCycles]);
 
-  const peakDayIndex = useMemo(() => {
-    if (!allDataPoints.length) return null;
-    const idx = allDataPoints.findIndex(d => normalizePeakStatus(d?.peakStatus) === 'P');
-      return idx >= 0 ? idx : null;
-  }, [allDataPoints]);
-
-  const peakInfertilityStartIndex = useMemo(() => {
-    if (!allDataPoints.length) return null;
-  const thirdDayIndex = allDataPoints.findIndex(d => normalizePeakStatus(d?.peakStatus) === '3');
-
-    if (thirdDayIndex != null) {
-    const candidate = thirdDayIndex + 1;
-    if (candidate >= allDataPoints.length) {
-      return thirdDayIndex;
-    }
-    return candidate;
+  const { peakDayIndex, thirdDayIndex, peakInfertilityStartIndex } = useMemo(() => {
+    if (!allDataPoints.length) {
+      return { peakDayIndex: null, thirdDayIndex: null, peakInfertilityStartIndex: null };
     }
 
-    if (peakDayIndex == null) return null;
+    const normalizedStatuses = allDataPoints.map((entry) =>
+      entry?.normalizedPeakStatus ?? normalizePeakStatus(entry?.peakStatus ?? entry?.peak_marker)
+    );
 
-    const peakEntry = allDataPoints[peakDayIndex];
-    if (!peakEntry?.isoDate) return null;
+  let detectedPeakIndex = null;
+    let detectedThirdIndex = null;
+    normalizedStatuses.forEach((status, idx) => {
+      if (status === 'P' && detectedPeakIndex == null) {
+        detectedPeakIndex = idx;
+      }
+      if (status === '3') {
+        detectedThirdIndex = idx;
+      }
+    });
+
+    const lastIndex = allDataPoints.length - 1;
+
+    if (detectedThirdIndex != null && detectedThirdIndex >= 0) {
+      const candidate = detectedThirdIndex + 1;
+      const startIndex = Math.min(candidate, lastIndex);
+      return {
+        peakDayIndex: detectedPeakIndex,
+        thirdDayIndex: detectedThirdIndex,
+        peakInfertilityStartIndex: startIndex,
+      };
+    }
+    
+    if (detectedPeakIndex == null || detectedPeakIndex < 0) {
+      return { peakDayIndex: null, thirdDayIndex: null, peakInfertilityStartIndex: null };
+    }
+
+    let hasFollowUpMarkers = false;
+    for (let idx = detectedPeakIndex + 1; idx < normalizedStatuses.length; idx += 1) {
+      const status = normalizedStatuses[idx];
+      if (status === '1' || status === '2' || status === '3') {
+        hasFollowUpMarkers = true;
+        break;
+      }
+    }
+
+    if (hasFollowUpMarkers) {
+      return {
+        peakDayIndex: detectedPeakIndex,
+        thirdDayIndex: null,
+        peakInfertilityStartIndex: null,
+      };
+    }
+
+    const peakEntry = allDataPoints[detectedPeakIndex];
+    if (!peakEntry?.isoDate) {
+      return {
+        peakDayIndex: detectedPeakIndex,
+        thirdDayIndex: null,
+        peakInfertilityStartIndex: null,
+      };
+    }
+
     const peakDate = parseISO(peakEntry.isoDate);
-
-    for (let idx = peakDayIndex + 1; idx < allDataPoints.length; idx += 1) {
+    if (Number.isNaN(peakDate?.getTime?.())) {
+      return {
+        peakDayIndex: detectedPeakIndex,
+        thirdDayIndex: null,
+        peakInfertilityStartIndex: null,
+      };
+    }
+    for (let idx = detectedPeakIndex + 1; idx < allDataPoints.length; idx += 1) {
       const entry = allDataPoints[idx];
       if (!entry?.isoDate) {
         continue;
       }
 
-      const daysFromPeak = differenceInCalendarDays(parseISO(entry.isoDate), peakDate);
+    const currentDate = parseISO(entry.isoDate);
+      if (Number.isNaN(currentDate?.getTime?.())) {
+        continue;
+      }
+      const daysFromPeak = differenceInCalendarDays(currentDate, peakDate);
       if (daysFromPeak >= 4) {
-        return idx;
+        const currentDate = parseISO(entry.isoDate);
+      if (Number.isNaN(currentDate?.getTime?.())) {
+        continue;
+      }
+      const daysFromPeak = differenceInCalendarDays(currentDate, peakDate);
       }
     }
 
-    return null;
-  }, [allDataPoints, peakDayIndex]);
+    return {
+      peakDayIndex: detectedPeakIndex,
+      thirdDayIndex: null,
+      peakInfertilityStartIndex: null,
+    };
+  }, [allDataPoints]);
 
   const {
     baselineTemp,
@@ -598,10 +712,24 @@ export const useFertilityChart = (
 
     return {
       ...baseDetails,
+      baselineTemp,
+      baselineIndices,
+      baselineStartIndex,
+      firstHighIndex,
       peakDayIndex,
       peakInfertilityStartIndex,
+      thirdDayIndex,
     };
-  }, [rawOvulationDetails, peakDayIndex, peakInfertilityStartIndex]);
+  }, [
+    rawOvulationDetails,
+    baselineTemp,
+    baselineIndices,
+    baselineStartIndex,
+    firstHighIndex,
+    peakDayIndex,
+    peakInfertilityStartIndex,
+    thirdDayIndex,
+  ]);
 
   const fertilityStart = useMemo(
     () =>
@@ -818,6 +946,7 @@ export const useFertilityChart = (
         ovulationDetails,
         fertilityStart,
         hasTemperatureData,
+        hasAnyObservation,
         graphBottomInset,
       };
     };

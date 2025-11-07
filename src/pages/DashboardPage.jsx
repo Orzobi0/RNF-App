@@ -37,6 +37,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { computeOvulationMetrics } from '@/hooks/useFertilityChart';
+import { saveUserMetricsSnapshot } from '@/lib/userMetrics';
 
 const CycleOverviewCard = ({
   cycleData,
@@ -1039,6 +1040,7 @@ const ModernFertilityDashboard = () => {
 
   const manualCpmRestoreAttemptedRef = useRef(false);
   const manualT8RestoreAttemptedRef = useRef(false);
+  const automaticMetricsSnapshotRef = useRef(null);
 
   const manualCpmStorageKey = useMemo(
     () => (user?.uid ? `rnf_manual_cpm_${user.uid}` : null),
@@ -1064,9 +1066,36 @@ const ModernFertilityDashboard = () => {
     manualT8RestoreAttemptedRef.current = false;
   }, [manualT8StorageKey]);
 
-useEffect(() => {
+  useEffect(() => {
     if (!manualCpmBaseStorageKey) {
       setManualCpmBaseValue(null);
+      return;
+    }
+
+    const baseFromProfile = preferences?.manualCpmBase;
+    if (baseFromProfile !== undefined) {
+      if (typeof baseFromProfile === 'number' && Number.isFinite(baseFromProfile)) {
+        setManualCpmBaseValue(baseFromProfile);
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem(
+              manualCpmBaseStorageKey,
+              JSON.stringify({ value: baseFromProfile })
+            );
+          } catch (error) {
+            console.error('Failed to sync manual CPM base value to local storage', error);
+          }
+        }
+      } else {
+        setManualCpmBaseValue(null);
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.removeItem(manualCpmBaseStorageKey);
+          } catch (error) {
+            console.error('Failed to clear manual CPM base value from local storage', error);
+          }
+        }
+      }
       return;
     }
 
@@ -1089,11 +1118,38 @@ useEffect(() => {
     } catch (error) {
       console.error('Failed to restore manual CPM base value from local storage', error);
     }
-  }, [manualCpmBaseStorageKey]);
+  }, [manualCpmBaseStorageKey, preferences?.manualCpmBase]);
 
   useEffect(() => {
     if (!manualT8BaseStorageKey) {
       setManualT8BaseValue(null);
+      return;
+    }
+
+    const baseFromProfile = preferences?.manualT8Base;
+    if (baseFromProfile !== undefined) {
+      if (typeof baseFromProfile === 'number' && Number.isFinite(baseFromProfile)) {
+        setManualT8BaseValue(baseFromProfile);
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem(
+              manualT8BaseStorageKey,
+              JSON.stringify({ value: baseFromProfile })
+            );
+          } catch (error) {
+            console.error('Failed to sync manual T-8 base value to local storage', error);
+          }
+        }
+      } else {
+        setManualT8BaseValue(null);
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.removeItem(manualT8BaseStorageKey);
+          } catch (error) {
+            console.error('Failed to clear manual T-8 base value from local storage', error);
+          }
+        }
+      }
       return;
     }
 
@@ -1116,19 +1172,30 @@ useEffect(() => {
     } catch (error) {
       console.error('Failed to restore manual T-8 base value from local storage', error);
     }
-  }, [manualT8BaseStorageKey]);
+  }, [manualT8BaseStorageKey, preferences?.manualT8Base]);
 
 
   const persistManualCpm = useCallback(
-    async (value) => {
+    async ({ finalValue, baseValue }) => {
       if (!user?.uid || !savePreferences) {
         return;
       }
 
-      const payload =
-        value === null || value === undefined
-          ? { manualCpm: null }
-          : { manualCpm: Number(value) };
+      const normalizedFinal =
+        finalValue === null || finalValue === undefined
+          ? null
+          : Number(finalValue);
+      const normalizedBase =
+        baseValue === undefined
+          ? undefined
+          : baseValue === null || baseValue === undefined
+            ? null
+            : Number(baseValue);
+
+      const payload = { manualCpm: normalizedFinal };
+      if (normalizedBase !== undefined) {
+        payload.manualCpmBase = normalizedBase;
+      }
 
       try {
         await savePreferences(payload);
@@ -1143,24 +1210,65 @@ useEffect(() => {
             );
           }
         }
+        if (
+          normalizedBase !== undefined &&
+          manualCpmBaseStorageKey &&
+          typeof window !== 'undefined'
+        ) {
+          if (normalizedBase === null) {
+            localStorage.removeItem(manualCpmBaseStorageKey);
+          } else {
+            localStorage.setItem(
+              manualCpmBaseStorageKey,
+              JSON.stringify({ value: normalizedBase })
+            );
+          }
+        }
+
+        await saveUserMetricsSnapshot(user.uid, {
+          manual: {
+            cpm: {
+              value: normalizedFinal,
+              base: normalizedBase === undefined ? manualCpmBaseValue : normalizedBase,
+            },
+          },
+          manualUpdatedAt: new Date().toISOString(),
+        });
       } catch (error) {
         console.error('Failed to persist manual CPM value in profile', error);
         throw error;
       }
     },
-    [manualCpmStorageKey, savePreferences, user?.uid]
+    [
+      manualCpmBaseStorageKey,
+      manualCpmBaseValue,
+      manualCpmStorageKey,
+      savePreferences,
+      user?.uid,
+    ]
   );
 
   const persistManualT8 = useCallback(
-    async (value) => {
+    async ({ finalValue, baseValue }) => {
       if (!user?.uid || !savePreferences) {
         return;
       }
 
-      const payload =
-        value === null || value === undefined
-          ? { manualT8: null }
-          : { manualT8: Number(value) };
+      const normalizedFinal =
+        finalValue === null || finalValue === undefined
+          ? null
+          : Number(finalValue);
+      const normalizedBase =
+        baseValue === undefined
+          ? undefined
+          : baseValue === null || baseValue === undefined
+            ? null
+            : Number(baseValue);
+
+      const payload = { manualT8: normalizedFinal };
+      if (normalizedBase !== undefined) {
+        payload.manualT8Base = normalizedBase;
+      }
 
       try {
         await savePreferences(payload);
@@ -1175,12 +1283,43 @@ useEffect(() => {
             );
           }
         }
+        if (
+          normalizedBase !== undefined &&
+          manualT8BaseStorageKey &&
+          typeof window !== 'undefined'
+        ) {
+          if (normalizedBase === null) {
+            localStorage.removeItem(manualT8BaseStorageKey);
+          } else {
+            localStorage.setItem(
+              manualT8BaseStorageKey,
+              JSON.stringify({ value: normalizedBase })
+            );
+          }
+        }
+
+        await saveUserMetricsSnapshot(user.uid, {
+          manual: {
+            t8: {
+              value: normalizedFinal,
+              riseDay:
+                normalizedBase === undefined ? manualT8BaseValue : normalizedBase,
+            },
+          },
+          manualUpdatedAt: new Date().toISOString(),
+        });
       } catch (error) {
         console.error('Failed to persist manual T-8 value in profile', error);
         throw error;
       }
     },
-    [manualT8StorageKey, savePreferences, user?.uid]
+    [
+      manualT8BaseStorageKey,
+      manualT8BaseValue,
+      manualT8StorageKey,
+      savePreferences,
+      user?.uid,
+    ]
   );
   useEffect(() => {
     if (!manualCpmStorageKey) {
@@ -1282,7 +1421,39 @@ useEffect(() => {
         if (parsed && typeof parsed.value === 'number' && Number.isFinite(parsed.value)) {
           setManualCpmValue(parsed.value);
           setIsManualCpm(true);
-          persistManualCpm(parsed.value).catch((error) =>
+      
+          let baseValueFromStorage = manualCpmBaseValue;
+          try {
+            if (manualCpmBaseStorageKey) {
+              const baseStored = localStorage.getItem(manualCpmBaseStorageKey);
+              if (baseStored) {
+                const baseParsed = JSON.parse(baseStored);
+                if (
+                  baseParsed &&
+                  typeof baseParsed.value === 'number' &&
+                  Number.isFinite(baseParsed.value)
+                ) {
+                  baseValueFromStorage = baseParsed.value;
+                } else {
+                  baseValueFromStorage = null;
+                }
+              }
+            }
+          } catch (baseError) {
+            console.error('Failed to read manual CPM base value from local storage', baseError);
+          }
+
+          setManualCpmBaseValue(
+            typeof baseValueFromStorage === 'number' &&
+              Number.isFinite(baseValueFromStorage)
+              ? baseValueFromStorage
+              : null
+          );
+
+          persistManualCpm({
+            finalValue: parsed.value,
+            baseValue: baseValueFromStorage,
+          }).catch((error) =>
             console.error('Failed to migrate manual CPM value to profile storage', error)
           );
         }
@@ -1293,7 +1464,14 @@ useEffect(() => {
       manualCpmRestoreAttemptedRef.current = true;
     }
 
-    }, [manualCpmStorageKey, persistManualCpm, preferences?.manualCpm, user?.uid]);
+    }, [
+      manualCpmBaseStorageKey,
+      manualCpmBaseValue,
+      manualCpmStorageKey,
+      persistManualCpm,
+      preferences?.manualCpm,
+      user?.uid,
+    ]);
 
   useEffect(() => {
     if (!manualT8StorageKey || manualT8RestoreAttemptedRef.current) {
@@ -1322,7 +1500,38 @@ useEffect(() => {
         if (parsed && typeof parsed.value === 'number' && Number.isFinite(parsed.value)) {
           setManualT8Value(parsed.value);
           setIsManualT8(true);
-          persistManualT8(parsed.value).catch((error) =>
+          let baseValueFromStorage = manualT8BaseValue;
+          try {
+            if (manualT8BaseStorageKey) {
+              const baseStored = localStorage.getItem(manualT8BaseStorageKey);
+              if (baseStored) {
+                const baseParsed = JSON.parse(baseStored);
+                if (
+                  baseParsed &&
+                  typeof baseParsed.value === 'number' &&
+                  Number.isFinite(baseParsed.value)
+                ) {
+                  baseValueFromStorage = baseParsed.value;
+                } else {
+                  baseValueFromStorage = null;
+                }
+              }
+            }
+          } catch (baseError) {
+            console.error('Failed to read manual T-8 base value from local storage', baseError);
+          }
+
+          setManualT8BaseValue(
+            typeof baseValueFromStorage === 'number' &&
+              Number.isFinite(baseValueFromStorage)
+              ? baseValueFromStorage
+              : null
+          );
+
+          persistManualT8({
+            finalValue: parsed.value,
+            baseValue: baseValueFromStorage,
+          }).catch((error) =>
             console.error('Failed to migrate manual T-8 value to profile storage', error)
           );
         }
@@ -1332,7 +1541,14 @@ useEffect(() => {
     } finally {
       manualT8RestoreAttemptedRef.current = true;
     }
-  }, [manualT8StorageKey, persistManualT8, preferences?.manualT8, user?.uid]);
+  }, [
+    manualT8BaseStorageKey,
+    manualT8BaseValue,
+    manualT8StorageKey,
+    persistManualT8,
+    preferences?.manualT8,
+    user?.uid,
+  ]);
 
   useEffect(() => {
     setDraftStartDate(currentCycle?.startDate || '');
@@ -1685,6 +1901,85 @@ useEffect(() => {
       ignoredCount,
     };
   }, [combinedCycles]);
+  useEffect(() => {
+    if (!user?.uid) {
+      automaticMetricsSnapshotRef.current = null;
+      return;
+    }
+
+    const safeNumber = (value) =>
+      typeof value === 'number' && Number.isFinite(value) ? value : null;
+
+    const sanitizeCpmCycle = (cycle) => {
+      if (!cycle) {
+        return null;
+      }
+
+      return {
+        id: cycle.id ?? null,
+        name: cycle.name ?? null,
+        displayName: cycle.displayName ?? null,
+        startDate: cycle.startDate ?? null,
+        endDate: cycle.endDate ?? null,
+        duration: safeNumber(cycle.duration),
+        source: cycle.source ?? null,
+        dateRangeLabel: cycle.dateRangeLabel ?? null,
+      };
+    };
+
+    const sanitizeT8Cycle = (cycle) => {
+      if (!cycle) {
+        return null;
+      }
+
+      return {
+        id: cycle.id ?? null,
+        name: cycle.name ?? null,
+        displayName: cycle.displayName ?? null,
+        startDate: cycle.startDate ?? null,
+        endDate: cycle.endDate ?? null,
+        riseDay: safeNumber(cycle.riseDay),
+        t8Day: safeNumber(cycle.t8Day),
+        source: cycle.source ?? null,
+        dateRangeLabel: cycle.dateRangeLabel ?? null,
+      };
+    };
+
+    const metricsPayload = {
+      automatic: {
+        cpm: {
+          value: safeNumber(computedCpmData?.value),
+          cycleCount: safeNumber(computedCpmData?.cycleCount) ?? 0,
+          ignoredCount: safeNumber(computedCpmData?.ignoredCount) ?? 0,
+          deduction: safeNumber(computedCpmData?.deduction),
+          canCompute: Boolean(computedCpmData?.canCompute),
+          shortestCycle: sanitizeCpmCycle(computedCpmData?.shortestCycle),
+        },
+        t8: {
+          value: safeNumber(computedT8Data?.value),
+          cycleCount: safeNumber(computedT8Data?.cycleCount) ?? 0,
+          ignoredCount: safeNumber(computedT8Data?.ignoredCount) ?? 0,
+          canCompute: Boolean(computedT8Data?.canCompute),
+          riseDay: safeNumber(computedT8Data?.earliestCycle?.riseDay),
+          earliestCycle: sanitizeT8Cycle(computedT8Data?.earliestCycle),
+        },
+      },
+    };
+
+    const serialized = JSON.stringify(metricsPayload);
+    if (automaticMetricsSnapshotRef.current === serialized) {
+      return;
+    }
+
+    automaticMetricsSnapshotRef.current = serialized;
+
+    saveUserMetricsSnapshot(user.uid, {
+      ...metricsPayload,
+      automaticUpdatedAt: new Date().toISOString(),
+    }).catch((error) => {
+      console.error('Failed to persist automatic metrics snapshot', error);
+    });
+  }, [computedCpmData, computedT8Data, user?.uid]);
 
   const cpmInfo = useMemo(() => {
     const cycleCount = computedCpmData.cycleCount ?? 0;
@@ -2271,17 +2566,12 @@ useEffect(() => {
  );
 
  try {
-   await persistManualCpm(finalValueToPersist);
+      await persistManualCpm({
+        finalValue: finalValueToPersist,
+        baseValue: baseValueToPersist,
+      });
 
-   if (manualCpmBaseStorageKey && typeof window !== 'undefined') {
-     if (typeof baseValueToPersist === 'number' && Number.isFinite(baseValueToPersist)) {
-       localStorage.setItem(manualCpmBaseStorageKey, JSON.stringify({ value: baseValueToPersist }));
-     } else {
-       localStorage.removeItem(manualCpmBaseStorageKey);
-     }
-   }
-
-   setIsCpmDialogOpen(false);
+      setIsCpmDialogOpen(false);
    toast({ title: 'CPM actualizado', description: 'El CPM manual se guardó en tu perfil.' });
  } catch (error) {
       console.error('Failed to save manual CPM value', error);
@@ -2321,14 +2611,7 @@ useEffect(() => {
 
     
     try {
-      await persistManualCpm(null);
-      if (manualCpmBaseStorageKey && typeof window !== 'undefined') {
-        try {
-          localStorage.removeItem(manualCpmBaseStorageKey);
-        } catch (error) {
-          console.error('Failed to clear manual CPM base value from local storage', error);
-        }
-      }
+      await persistManualCpm({ finalValue: null, baseValue: null });
       setIsCpmDialogOpen(false);
       toast({ title: 'CPM restablecido', description: 'El cálculo automático volverá a mostrarse.' });
     } catch (error) {
@@ -2338,14 +2621,7 @@ useEffect(() => {
       setIsManualCpm(previousIsManual);
       setManualCpmFinalError('No se pudo restablecer el CPM. Inténtalo de nuevo.');
     }
-  }, [
-    isManualCpm,
-    manualCpmBaseStorageKey,
-    manualCpmBaseValue,
-    manualCpmValue,
-    persistManualCpm,
-    toast,
-  ]);
+  }, [isManualCpm, manualCpmBaseValue, manualCpmValue, persistManualCpm, toast]);
 
   const handleOpenT8Dialog = useCallback(() => {
     const automaticBase =
@@ -2512,22 +2788,10 @@ useEffect(() => {
     );
 
     try {
-      await persistManualT8(finalValueToPersist);
-
-      if (manualT8BaseStorageKey && typeof window !== 'undefined') {
-        try {
-          if (typeof baseValueToPersist === 'number' && Number.isFinite(baseValueToPersist)) {
-            localStorage.setItem(
-              manualT8BaseStorageKey,
-              JSON.stringify({ value: baseValueToPersist })
-            );
-          } else {
-            localStorage.removeItem(manualT8BaseStorageKey);
-          }
-        } catch (error) {
-          console.error('Failed to persist manual T-8 base value in local storage', error);
-        }
-      }
+      await persistManualT8({
+        finalValue: finalValueToPersist,
+        baseValue: baseValueToPersist,
+      });
 
       setIsT8DialogOpen(false);
       toast({ title: 'T-8 actualizado', description: 'El T-8 manual se guardó en tu perfil.' });
@@ -2542,7 +2806,6 @@ useEffect(() => {
     isManualT8,
     manualT8BaseError,
     manualT8BaseInput,
-    manualT8BaseStorageKey,
     manualT8BaseValue,
     manualT8EditedSide,
     manualT8FinalError,
@@ -2567,14 +2830,7 @@ useEffect(() => {
     setManualT8EditedSide(null);
 
     try {
-      await persistManualT8(null);
-      if (manualT8BaseStorageKey && typeof window !== 'undefined') {
-        try {
-          localStorage.removeItem(manualT8BaseStorageKey);
-        } catch (error) {
-          console.error('Failed to clear manual T-8 base value from local storage', error);
-        }
-      }
+      await persistManualT8({ finalValue: null, baseValue: null });
       setIsT8DialogOpen(false);
       toast({ title: 'T-8 restablecido', description: 'El cálculo automático volverá a mostrarse.' });
     } catch (error) {
@@ -2584,14 +2840,7 @@ useEffect(() => {
       setIsManualT8(previousIsManual);
       setManualT8BaseValue(previousBaseValue);
     }
-  }, [
-    isManualT8,
-    manualT8BaseStorageKey,
-    manualT8BaseValue,
-    manualT8Value,
-    persistManualT8,
-    toast,
-  ]);
+  }, [isManualT8, manualT8BaseValue, manualT8Value, persistManualT8, toast]);
 
   const resetStartDateFlow = useCallback(() => {
     setPendingStartDate(null);

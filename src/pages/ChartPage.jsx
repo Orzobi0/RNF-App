@@ -689,36 +689,142 @@ const ChartPage = () => {
     }
   };
 
-const handleShowPhaseInfo = useCallback(
+  const handleShowPhaseInfo = useCallback(
     (info = {}) => {
-      const rawMessage = typeof info?.message === 'string' ? info.message.trim() : '';
-      const missingSymptom = info?.reasons?.missingSymptom;
-      let resolvedMessage = rawMessage;
+      const reasons = info?.reasons || {};
+      const lines = [];
 
-      if (!resolvedMessage) {
-        if (info?.phase === 'relativeInfertile') {
-          resolvedMessage = 'Rel. infértil (CPM/T-8)';
-        } else if (info?.phase === 'fertile') {
-          resolvedMessage = 'Fase fértil';
-        } else if (info?.phase === 'postOvulatory') {
-          if (info?.status === 'absolute') {
-            resolvedMessage = 'Infertilidad absoluta (confirmada por moco + temperatura).';
-          } else if (info?.status === 'pending') {
-            resolvedMessage =
-              missingSymptom === 'temperature'
-                ? 'Infertilidad post-ovulatoria (pendiente). Falta temperatura para confirmar.'
-                : 'Infertilidad post-ovulatoria (pendiente). Falta moco para confirmar.';
-          }
+      if (reasons?.type === 'relative') {
+        const fertileIndex = Number.isInteger(reasons.fertileStartFinalIndex)
+          ? reasons.fertileStartFinalIndex
+          : null;
+        const fertileDay = fertileIndex != null ? fertileIndex + 1 : null;
+        const lastRelativeDay = fertileDay != null ? fertileDay - 1 : null;
+        if (lastRelativeDay != null && lastRelativeDay >= 1) {
+          lines.push(`Desde D1 hasta D${lastRelativeDay}.`);
+        } else {
+          lines.push('Desde D1 sin evidencias de fertilidad.');
         }
+
+        const aggregate = reasons.aggregate ?? {};
+        const selectedDay = Number.isFinite(aggregate.selectedDay)
+          ? aggregate.selectedDay
+          : fertileDay ?? '—';
+        const modeLabelMap = {
+          conservador: 'modo conservador',
+          consenso: 'modo consenso',
+          permisivo: 'modo permisivo',
+          marcador: 'marcador explícito',
+        };
+        const modeLabel = aggregate.selectedMode
+          ? modeLabelMap[aggregate.selectedMode] ?? aggregate.selectedMode
+          : 'modo indeterminado';
+        lines.push(`Inicio fértil elegido: día ${selectedDay} por ${modeLabel}.`);
+
+        const candidates = Array.isArray(aggregate.usedCandidates)
+          ? aggregate.usedCandidates
+          : [];
+        if (candidates.length) {
+          const formatted = candidates
+            .map((candidate) => {
+              const source = candidate?.source ?? candidate?.originalSource ?? '—';
+              const dayLabel = Number.isFinite(candidate?.day)
+                ? `D${candidate.day}`
+                : 'día —';
+              const reason = candidate?.reason ? candidate.reason : 'sin motivo';
+              return `${source} → ${dayLabel} (${reason})`;
+            })
+            .join('; ');
+          lines.push(`Candidatos: ${formatted}.`);
+        } else {
+          lines.push('Candidatos: sin candidatos válidos.');
+        }
+
+        if (Number.isFinite(reasons.bipScore)) {
+          lines.push(`BIP inicial: ${reasons.bipScore.toFixed(1)}.`);
+        }
+
+        const aggNotes = Array.isArray(aggregate.notes)
+          ? aggregate.notes.filter(Boolean)
+          : [];
+        if (aggNotes.length) {
+          lines.push(`Notas: ${aggNotes.join('; ')}.`);
+        }
+      } else if (reasons?.type === 'fertile') {
+        const startDay = Number.isInteger(reasons.startIndex)
+          ? reasons.startIndex + 1
+          : '—';
+        const endDay = Number.isInteger(reasons.endIndex)
+          ? reasons.endIndex + 1
+          : '—';
+        lines.push(`Fértil de D${startDay} a D${endDay}.`);
+
+        const sourceLabelMap = {
+          marker: 'marcador explícito',
+          profiles: 'perfiles sintotérmicos',
+          calculator: 'calculadora CPM/T-8',
+        };
+        const sourceLabel = sourceLabelMap[reasons.source] || 'origen indeterminado';
+        lines.push(`Origen: ${sourceLabel}.`);
+
+        const notes = Array.isArray(reasons.notes) ? reasons.notes.filter(Boolean) : [];
+        if (notes.length) {
+          lines.push(`Notas: ${notes.join('; ')}.`);
+        }
+
+        const debugCandidates = Array.isArray(reasons.details?.candidatesBeforeAggregate)
+          ? reasons.details.candidatesBeforeAggregate
+          : [];
+        if (debugCandidates.length) {
+          const formatted = debugCandidates
+            .map((candidate) => {
+              const source = candidate?.source ?? candidate?.originalSource ?? '—';
+              const dayLabel = Number.isFinite(candidate?.day)
+                ? `D${candidate.day}`
+                : 'día —';
+              const reason = candidate?.reason ? candidate.reason : 'sin motivo';
+              return `${source} → ${dayLabel} (${reason})`;
+            })
+            .join('; ');
+          lines.push(`Candidatos evaluados: ${formatted}.`);
+        }
+      } else if (reasons?.type === 'post') {
+        if (info?.message) {
+          lines.push(info.message);
+        }
+        const mucus = reasons.mucus ?? {};
+        if (mucus.startIndex != null) {
+          const descriptor = mucus.thirdDayIndex != null ? '3° día' : 'P+4';
+          lines.push(`Moco: ${descriptor} → inicio en D${mucus.startIndex + 1}.`);
+        } else {
+          lines.push('Moco: pendiente.');
+        }
+        const temperature = reasons.temperature ?? {};
+        if (temperature.startIndex != null) {
+          const ruleLabel = temperature.rule || 'regla desconocida';
+          const confirmationDay = Number.isInteger(temperature.confirmationIndex)
+            ? `D${temperature.confirmationIndex + 1}`
+            : '—';
+          lines.push(
+            `Temperatura: ${ruleLabel}, confirmación ${confirmationDay}, infertilidad desde D${temperature.startIndex + 1}.`
+          );
+        } else {
+          lines.push('Temperatura: pendiente.');
+        }
+        } else if (info?.phase === 'nodata') {
+        lines.push('Sin datos suficientes. Añade temperatura, P o moco para interpretar.');
+      } else if (info?.message) {
+        lines.push(info.message);
       }
 
-      if (!resolvedMessage) {
+      if (!lines.length) {
         return;
       }
-
+      const [title, ...rest] = lines;
       toast({
-        title: resolvedMessage,
-        duration: 5000,
+        title,
+        description: rest.length ? rest.join('\n') : undefined,
+        duration: 6000,
       });
     },
     [toast]

@@ -55,6 +55,7 @@ const FertilityChart = ({
     ovulationDetails,
     fertilityStart,
     hasTemperatureData,
+    hasAnyObservation,
     graphBottomInset,
   } = useFertilityChart(
     data,
@@ -250,52 +251,94 @@ const FertilityChart = ({
       : 0;
 
     const postOvulatoryPhaseInfo = useMemo(() => {
-    if (!showInterpretation) return null;
+    if (!showInterpretation || !hasAnyObservation) return null;
 
-    const hasTemperatureClosure = Number.isFinite(temperatureInfertilityStartIndex);
-    const hasMucusClosure = Number.isFinite(peakInfertilityStartIndex);
+    const temperatureDetails = {
+      confirmed: Boolean(ovulationDetails?.confirmed),
+      rule: ovulationDetails?.rule ?? null,
+      baselineTemp: ovulationDetails?.baselineTemp ?? null,
+      baselineIndices: Array.isArray(ovulationDetails?.baselineIndices)
+        ? ovulationDetails.baselineIndices
+        : [],
+      firstHighIndex: Number.isInteger(ovulationDetails?.firstHighIndex)
+        ? ovulationDetails.firstHighIndex
+        : null,
+      highSequenceIndices: Array.isArray(ovulationDetails?.highSequenceIndices)
+        ? ovulationDetails.highSequenceIndices
+        : [],
+      confirmationIndex: Number.isInteger(ovulationDetails?.confirmationIndex)
+        ? ovulationDetails.confirmationIndex
+        : null,
+      startIndex: Number.isInteger(temperatureInfertilityStartIndex)
+        ? temperatureInfertilityStartIndex
+        : null,
+    };
+
+    const mucusDetails = {
+      peakDayIndex: Number.isInteger(ovulationDetails?.peakDayIndex)
+        ? ovulationDetails.peakDayIndex
+        : null,
+      thirdDayIndex: Number.isInteger(ovulationDetails?.thirdDayIndex)
+        ? ovulationDetails.thirdDayIndex
+        : null,
+      startIndex: Number.isInteger(peakInfertilityStartIndex)
+        ? peakInfertilityStartIndex
+        : null,
+    };
+
+    const hasTemperatureClosure = temperatureDetails.startIndex != null;
+    const hasMucusClosure = mucusDetails.startIndex != null;
 
     if (!hasTemperatureClosure && !hasMucusClosure) {
       return null;
     }
 
+    let startIndex = null;
+    let status = 'pending';
+    let message = '';
+
     if (hasTemperatureClosure && hasMucusClosure) {
-      const startIndex = Math.max(
-        temperatureInfertilityStartIndex,
-        peakInfertilityStartIndex
-      );
-      return {
-        phase: 'postOvulatory',
-        status: 'absolute',
-        startIndex,
-        reasons: { temperature: true, mucus: true },
-        message: 'Infertilidad absoluta (confirmada por moco + temperatura).',
-      };
+      startIndex = Math.max(temperatureDetails.startIndex, mucusDetails.startIndex);
+      status = 'absolute';
+      const mucusRuleLabel = mucusDetails.thirdDayIndex != null ? '3° día' : 'P+4';
+      const confirmationDay = temperatureDetails.confirmationIndex != null
+        ? `D${temperatureDetails.confirmationIndex + 1}`
+        : '—';
+      const formattedBaseline = Number.isFinite(temperatureDetails.baselineTemp)
+        ? `${temperatureDetails.baselineTemp.toFixed(1)}°C`
+        : '—';
+      const ruleLabel = temperatureDetails.rule || 'regla desconocida';
+      message = `Cierre absoluto: moco (${mucusRuleLabel}) y temperatura (regla ${ruleLabel}). Baseline ${formattedBaseline}, confirmación en ${confirmationDay}.`;
+    } else if (hasTemperatureClosure) {
+      startIndex = temperatureDetails.startIndex;
+      const ruleLabel = temperatureDetails.rule || 'regla desconocida';
+      const confirmationDay = temperatureDetails.confirmationIndex != null
+        ? `D${temperatureDetails.confirmationIndex + 1}`
+        : '—';
+      message = `Cierre pendiente: falta moco. Temperatura con regla ${ruleLabel} confirmada en ${confirmationDay}.`;
+    } else {
+      startIndex = mucusDetails.startIndex;
+      const mucusRuleLabel = mucusDetails.thirdDayIndex != null ? '3° día' : 'P+4';
+      message = `Cierre pendiente: falta temperatura. Moco vía ${mucusRuleLabel}.`;
     }
-
-    const startIndex = hasTemperatureClosure
-      ? temperatureInfertilityStartIndex
-      : peakInfertilityStartIndex;
-    if (!Number.isFinite(startIndex)) {
-      return null;
-    }
-
-      const missingSymptom = hasTemperatureClosure ? 'mucus' : 'temperature';
-    const message =
-      missingSymptom === 'temperature'
-        ? 'Infertilidad post-ovulatoria (pendiente). Falta temperatura para confirmar.'
-        : 'Infertilidad post-ovulatoria (pendiente). Falta moco para confirmar.';
 
     return {
       phase: 'postOvulatory',
-      status: 'pending',
+      status,
       startIndex,
-      reasons: { missingSymptom },
+      reasons: {
+        type: 'post',
+        status,
+        mucus: mucusDetails,
+        temperature: temperatureDetails,
+      },
       message,
     };
 
   }, [
     showInterpretation,
+    hasAnyObservation,
+    ovulationDetails,
     temperatureInfertilityStartIndex,
     peakInfertilityStartIndex,
   ]);
@@ -313,7 +356,27 @@ const FertilityChart = ({
     const segments = [];
     const lastIndex = allDataPoints.length - 1;
 
-    if (Number.isInteger(fertileStartFinalIndex) && fertileStartFinalIndex > 0) {
+    const hasFertileStart = Number.isInteger(fertileStartFinalIndex);
+    const hasPostPhase = Number.isFinite(postOvulatoryPhaseInfo?.startIndex);
+
+    if (!hasFertileStart && !hasPostPhase && !hasAnyObservation) {
+      const bounds = getSegmentBounds(0, lastIndex);
+      if (bounds) {
+        segments.push({
+          key: 'nodata',
+          phase: 'nodata',
+          status: 'default',
+          bounds,
+          startIndex: 0,
+          endIndex: lastIndex,
+          message: 'Sin datos suficientes',
+          reasons: { type: 'nodata' },
+        });
+      }
+      return segments;
+    }
+
+    if (hasFertileStart && fertileStartFinalIndex > 0) {
       const endIndex = Math.min(fertileStartFinalIndex - 1, lastIndex);
       if (endIndex >= 0) {
         const bounds = getSegmentBounds(0, endIndex);
@@ -325,14 +388,19 @@ const FertilityChart = ({
             bounds,
             startIndex: 0,
             endIndex,
-            message: 'Rel. infértil (CPM/T-8)',
-            reasons: { source: 'cpm-t8' },
+             message: 'Rel. infértil',
+            reasons: {
+              type: 'relative',
+              fertileStartFinalIndex,
+              aggregate: fertilityStart?.aggregate ?? null,
+              bipScore: fertilityStart?.debug?.bipScore ?? null,
+            },
           });
         }
       }
     }
 
-    const fertileStartIndex = Number.isInteger(fertileStartFinalIndex)
+    const fertileStartIndex = hasFertileStart
       ? Math.max(fertileStartFinalIndex, 0)
       : 0;
 
@@ -345,6 +413,20 @@ const FertilityChart = ({
     if (fertileEndIndex >= fertileStartIndex) {
       const bounds = getSegmentBounds(fertileStartIndex, fertileEndIndex);
       if (bounds) {
+        const explicitDay = Number.isInteger(fertilityStart?.debug?.explicitStartDay)
+          ? fertilityStart.debug.explicitStartDay
+          : null;
+        const usedCandidates = fertilityStart?.aggregate?.usedCandidates ?? [];
+        const hasProfileSource = usedCandidates.some((candidate) => candidate?.kind === 'profile');
+        const hasCalculatorSource = usedCandidates.some((candidate) => candidate?.kind === 'calculator');
+        let fertileSource = null;
+        if (hasFertileStart && explicitDay != null && explicitDay === fertileStartFinalIndex) {
+          fertileSource = 'marker';
+        } else if (hasProfileSource) {
+          fertileSource = 'profiles';
+        } else if (hasCalculatorSource) {
+          fertileSource = 'calculator';
+        }
         segments.push({
           key: 'fertile',
           phase: 'fertile',
@@ -353,7 +435,14 @@ const FertilityChart = ({
           startIndex: fertileStartIndex,
           endIndex: fertileEndIndex,
           message: 'Fértil',
-          reasons: null,
+          reasons: {
+            type: 'fertile',
+            startIndex: fertileStartIndex,
+            endIndex: fertileEndIndex,
+            source: fertileSource,
+            details: fertilityStart?.debug ?? null,
+            notes: fertilityStart?.aggregate?.notes ?? [],
+          },
         });
       }
     }
@@ -389,7 +478,9 @@ const FertilityChart = ({
     interpretationBandHeight,
     allDataPoints.length,
     fertileStartFinalIndex,
+    fertilityStart,
     postOvulatoryPhaseInfo,
+    hasAnyObservation,
     getSegmentBounds,
   ]);
   const relativePhaseGradientId = `${uniqueId}-phase-relative-gradient`;
