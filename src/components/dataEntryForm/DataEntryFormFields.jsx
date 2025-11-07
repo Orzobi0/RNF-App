@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -71,10 +71,12 @@ const DataEntryFormFields = ({
   const [correctionIndex, setCorrectionIndex] = useState(null);
   const [openSections, setOpenSections] = useState([]);
   const [statusMessages, setStatusMessages] = useState({ peak: null, relations: null });
+  const initializedSectionsRef = useRef(false);
 
   useEffect(() => {
     setOpenSections([]);
     setStatusMessages({ peak: null, relations: null });
+    initializedSectionsRef.current = false;
   }, [date]);
 
   useEffect(() => {
@@ -85,12 +87,7 @@ const DataEntryFormFields = ({
     const existingCorrectionIndex = measurements.findIndex((measurement) => {
       if (!measurement) return false;
 
-      const hasCorrectedTemperature =
-        measurement.temperature_corrected !== undefined &&
-        measurement.temperature_corrected !== null &&
-        String(measurement.temperature_corrected).trim() !== '';
-
-      return Boolean(measurement.use_corrected) || hasCorrectedTemperature;
+      return Boolean(measurement.use_corrected);
     });
 
     if (existingCorrectionIndex !== -1) {
@@ -194,6 +191,10 @@ const DataEntryFormFields = ({
   const handleUseCorrectedChange = (index, checked) => {
     const nextValue = checked === true;
     updateMeasurement(index, 'use_corrected', nextValue);
+
+    if (!nextValue && correctionIndex === index) {
+      setCorrectionIndex(null);
+    }
 
     if (!isEditing || isProcessing || typeof submitCurrentState !== 'function') {
       return;
@@ -302,6 +303,39 @@ const DataEntryFormFields = ({
     mucusSensation,
     observations,
   ]);
+
+  useEffect(() => {
+    if (!isEditing) {
+      initializedSectionsRef.current = false;
+      return;
+    }
+
+    if (initializedSectionsRef.current) {
+      return;
+    }
+
+    const filledKeys = sectionOrder
+      .map((section) => section.key)
+      .filter((key) => filledBySection[key]);
+
+    if (filledKeys.length === 0) {
+      return;
+    }
+
+    setOpenSections((current) => {
+      const next = Array.from(new Set([...current, ...filledKeys]));
+      return next;
+    });
+
+    initializedSectionsRef.current = true;
+  }, [filledBySection, isEditing, sectionOrder]);
+
+  useEffect(() => {
+    if (!isEditing) {
+      initializedSectionsRef.current = false;
+      setOpenSections([]);
+    }
+  }, [isEditing]);
 
   const sectionStyles = useMemo(
     () => ({

@@ -1,4 +1,11 @@
-import React, { useState, useLayoutEffect, useRef, useEffect, useMemo } from 'react';
+import React, {
+  useState,
+  useLayoutEffect,
+  useRef,
+  useEffect,
+  useMemo,
+  useCallback,
+} from 'react';
 import FertilityChart from '@/components/FertilityChart';
 import { useCycleData } from '@/hooks/useCycleData';
 import { differenceInDays, format, parseISO, startOfDay } from 'date-fns';
@@ -10,6 +17,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
+import { useToast } from '@/components/ui/use-toast';
 import {
   Select,
   SelectContent,
@@ -111,6 +119,7 @@ const mergeFertilityStartConfig = (incoming) => {
 const ChartPage = () => {
   const { cycleId } = useParams();
   const location = useLocation();
+  const { toast } = useToast();
   const {
     currentCycle,
     archivedCycles,
@@ -680,6 +689,40 @@ const ChartPage = () => {
     }
   };
 
+const handleShowPhaseInfo = useCallback(
+    (info = {}) => {
+      const rawMessage = typeof info?.message === 'string' ? info.message.trim() : '';
+      const missingSymptom = info?.reasons?.missingSymptom;
+      let resolvedMessage = rawMessage;
+
+      if (!resolvedMessage) {
+        if (info?.phase === 'relativeInfertile') {
+          resolvedMessage = 'Rel. infértil (CPM/T-8)';
+        } else if (info?.phase === 'fertile') {
+          resolvedMessage = 'Fase fértil';
+        } else if (info?.phase === 'postOvulatory') {
+          if (info?.status === 'absolute') {
+            resolvedMessage = 'Infertilidad absoluta (confirmada por moco + temperatura).';
+          } else if (info?.status === 'pending') {
+            resolvedMessage =
+              missingSymptom === 'temperature'
+                ? 'Infertilidad post-ovulatoria (pendiente). Falta temperatura para confirmar.'
+                : 'Infertilidad post-ovulatoria (pendiente). Falta moco para confirmar.';
+          }
+        }
+      }
+
+      if (!resolvedMessage) {
+        return;
+      }
+
+      toast({
+        title: resolvedMessage,
+        duration: 5000,
+      });
+    },
+    [toast]
+  );
 
   const handleToggleFullScreen = async () => {
     const rootElement = document.documentElement;
@@ -815,6 +858,7 @@ const ChartPage = () => {
           fertilityStartConfig={fertilityConfig}
           fertilityCalculatorCycles={fertilityCalculatorCycles}
           fertilityCalculatorCandidates={externalFertilityCalculatorCandidates}
+          onShowPhaseInfo={handleShowPhaseInfo}
         />
         
         {/* Backdrop */}

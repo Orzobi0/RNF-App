@@ -35,18 +35,19 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { computeOvulationMetrics } from '@/hooks/useFertilityChart';
 
-const CycleOverviewCard = ({ cycleData,
+const CycleOverviewCard = ({
+  cycleData,
   onEdit,
   onTogglePeak,
   currentPeakIsoDate,
   onEditStartDate = () => {},
-  formattedCpmValue = '-',
-  cpmInfoText = 'Sin datos',
   handleOpenCpmDialog = () => {},
-  formattedT8Value = '-',
   handleOpenT8Dialog = () => {},
+  cpmMetric = {},
+  t8Metric = {},
 }) => {
   const records = cycleData.records || [];
   const [activePoint, setActivePoint] = useState(null);
@@ -465,6 +466,67 @@ const changeOffsetRaf = useCallback((delta) => {
     };
   }, [activePoint]);
 
+  const renderMetricCard = (metric, onClick) => {
+    if (!metric) {
+      return null;
+    }
+
+    const {
+      title = '',
+      baseText = '—',
+      finalText = '—',
+      microCopy = 'Sin datos disponibles',
+      microCopyMuted = false,
+      modeLabel = 'Auto',
+      microCopyId,
+    } = metric;
+
+    const resolvedTitle = title || 'Métrica';
+
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className="group w-full rounded-2xl border border-pink-200/40 bg-white/70 p-4 text-left shadow-sm transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70"
+        aria-describedby={microCopyId}
+        aria-label={`Editar ${resolvedTitle}`}
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-1 min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-wide text-pink-600">
+              {resolvedTitle}
+            </p>
+            <p className="text-xl sm:text-2xl font-bold leading-tight text-gray-800 break-words">
+              {baseText}
+            </p>
+          </div>
+          <div className="flex sm:flex-col flex-row items-center gap-2 sm:items-end">
+            <Badge
+              className={`rounded-full border border-pink-200/60 px-2 py-0.5 text-[11px] font-semibold ${
+                modeLabel === 'Manual'
+                  ? 'bg-rose-100 text-rose-600'
+                  : 'bg-white/80 text-rose-500'
+              }`}
+            >
+              {modeLabel}
+            </Badge>
+            <div className="sm:text-right text-left">
+              <p className="text-base sm:text-lg font-semibold text-pink-700 whitespace-nowrap">
+                {finalText}
+              </p>
+            </div>
+          </div>
+        </div>
+        <p
+          id={microCopyId}
+          className={`mt-3 text-[11px] sm:text-xs ${microCopyMuted ? 'text-gray-400' : 'text-rose-500'} transition-colors`}
+        >
+          {microCopy}
+        </p>
+      </button>
+    );
+  };
+
   return (
     <div className="relative flex flex-1 flex-col overflow-y-hidden">
       {/* Fecha actual - Parte superior con padding reducido */}
@@ -793,7 +855,7 @@ const changeOffsetRaf = useCallback((delta) => {
 
           {/* Información del ciclo con diseño tipo card premium */}
           <motion.div
-            className="relative bg-gradient-to-br from-pink-50/70 to-rose-50/50 backdrop-blur-md rounded-3xl p-4 border border-pink-200/40"
+            className="relative bg-gradient-to-br from-pink-50/70 to-rose-50/50 backdrop-blur-md rounded-3xl p-3 border border-pink-200/40"
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.4, delay: 0.6 }}
@@ -802,55 +864,73 @@ const changeOffsetRaf = useCallback((delta) => {
               boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.8)'
             }}
           >
-            <h3 className="font-bold mb-3 text-gray-800 flex items-center gap-2 justify-center text-xs tracking-wide uppercase">
+            <h3 className="font-bold mb-2 text-gray-800 flex items-center gap-2 justify-center text-[11px] tracking-wide uppercase">
               
               Cálculo
             </h3>
             
-            <div className="space-y-3">
-              {/* CPM con diseño mejorado */}
-              <div className="text-center">
-                <div className="flex items-center justify-center gap-1 mb-1.5">
-                  <div className="w-1 h-1 bg-pink-400 rounded-full" />
-                  <div className="font-bold text-pink-800 text-xs">CPM</div>
-                  <div className="w-1 h-1 bg-pink-400 rounded-full" />
+            <div className="grid grid-cols-2 gap-y-3">
+              {/* Fila 1 - Ciclo más corto / CPM */}
+              <button
+                type="button"
+                onClick={handleOpenCpmDialog}
+                className="flex flex-col items-center gap-1.5"
+                aria-label="Editar CPM (Ciclo más corto)"
+              >
+                <span className="text-[10px] font-medium text-gray-700">Ciclo más corto</span>
+                <div className="h-12 flex items-end">
+                  <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/70 shadow-sm w-12 h-12 text-base font-bold text-rose-700">
+                    {cpmMetric?.baseFormatted ?? '—'}
+                  </div>
                 </div>
-                <div className="flex w-full items-center justify-center gap-4">
-                  <button
-                    type="button"
-                    onClick={handleOpenCpmDialog}
-                    className="group relative flex h-16 w-16 flex-col items-center justify-center rounded-full bg-gradient-to-br from-white via-pink-50/30 to-rose-50/40 text-pink-700 shadow-lg backdrop-blur-xl transition-all duration-300 hover:shadow-xl hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-rose-400 focus:ring-offset-2 focus:ring-offset-transparent border border-pink-200/40"
-                  >
-                    {/* Anillo pulsante sutil */}
-                    <div className="absolute inset-0 rounded-full border-2 border-pink-300/0 group-hover:border-pink-300/30 transition-all duration-300 animate-pulse" />
-                    
-                    {/* Icono de edición pequeño */}
-                    <Pencil className="absolute top-1 right-1 w-2 h-2 text-pink-400/60 group-hover:text-pink-500/80 transition-colors" />
-                    
-                    {/* Valor del CPM */}
-                    <span className="text-lg font-bold group-hover:scale-110 transition-transform duration-200">{formattedCpmValue}</span>
-                  </button>
+              </button>
+              <button
+                type="button"
+                onClick={handleOpenCpmDialog}
+                className="flex flex-col items-center gap-0.5"
+                aria-label="Editar CPM (resultado)"
+              >
+                <span className="text-[10px] font-medium text-gray-700">CPM</span>
+                <div className="h-12 flex items-end">
+                  <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/80 shadow-sm w-10 h-10 text-sm font-semibold text-rose-700">
+                    {cpmMetric?.finalFormatted ?? '—'}
+                  </div>
                 </div>
-              </div>
-              {/* T-8 con diseño mejorado */}
-              <div className="text-center">
-                <div className="flex items-center justify-center gap-1 mb-1.5">
-                  <div className="w-1 h-1 bg-pink-400 rounded-full" />
-                  <div className="font-bold text-pink-800 text-xs">T-8</div>
-                  <div className="w-1 h-1 bg-pink-400 rounded-full" />
+                <span className="text-[9px] font-semibold text-rose-600 mt-0.5">
+                  {cpmMetric?.modeLabel ?? 'Auto'}
+                </span>
+              </button>
+
+              {/* Fila 2 - Día de subida / T-8 */}
+              <button
+                type="button"
+                onClick={handleOpenT8Dialog}
+                className="flex flex-col items-center gap-1.5"
+                aria-label="Editar T-8 (Día de subida)"
+              >
+                <span className="text-[10px] font-medium text-gray-700">Día de subida</span>
+                <div className="h-12 flex items-end">
+                  <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/70 shadow-sm w-12 h-12 text-base font-bold text-rose-700">
+                    {t8Metric?.baseFormatted ?? '—'}
+                  </div>
                 </div>
-                <div className="flex w-full items-center justify-center gap-4">
-                  <button
-                    type="button"
-                    onClick={handleOpenT8Dialog}
-                    className="group relative flex h-16 w-16 flex-col items-center justify-center rounded-full bg-gradient-to-br from-white via-pink-50/30 to-rose-50/40 text-pink-700 shadow-lg backdrop-blur-xl transition-all duration-300 hover:shadow-xl hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-rose-400 focus:ring-offset-2 focus:ring-offset-transparent border border-pink-200/40"
-                  >
-                    <div className="absolute inset-0 rounded-full border-2 border-pink-300/0 group-hover:border-pink-300/30 transition-all duration-300 animate-pulse" />
-                    <Pencil className="absolute top-1 right-1 w-2 h-2 text-pink-400/60 group-hover:text-pink-500/80 transition-colors" />
-                    <span className="text-lg font-bold group-hover:scale-110 transition-transform duration-200">{formattedT8Value}</span>
-                  </button>
+              </button>
+              <button
+                type="button"
+                onClick={handleOpenT8Dialog}
+                className="flex flex-col items-center gap-0.5"
+                aria-label="Editar T-8 (resultado)"
+              >
+                <span className="text-[10px] font-medium text-gray-700">T-8</span>
+                <div className="h-12 flex items-end">
+                  <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/80 shadow-sm w-10 h-10 text-sm font-semibold text-rose-700">
+                    {t8Metric?.finalFormatted ?? '—'}
+                  </div>
                 </div>
-              </div>
+                <span className="text-[9px] font-semibold text-rose-600 mt-0.5">
+                  {t8Metric?.modeLabel ?? 'Auto'}
+                </span>
+              </button>
             </div>
             
             {/* Decoración sutil en la esquina */}
@@ -866,7 +946,7 @@ const FloatingActionButton = ({ onAddRecord, onAddCycle }) => {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="fixed bottom-[calc(var(--bottom-nav-height)+1rem)] right-6 flex flex-col items-end space-y-3 z-50">
+    <div className="fixed mt-2 right-6 flex flex-col items-end space-y-3 z-50">
       {open && (
         <>
           <motion.button
@@ -936,14 +1016,22 @@ const ModernFertilityDashboard = () => {
   const [isUpdatingStartDate, setIsUpdatingStartDate] = useState(false);
   const { user, preferences, savePreferences } = useAuth();
   const [isCpmDialogOpen, setIsCpmDialogOpen] = useState(false);
-  const [manualCpmInput, setManualCpmInput] = useState('');
-  const [manualCpmError, setManualCpmError] = useState('');
+  const [manualCpmBaseInput, setManualCpmBaseInput] = useState('');
+  const [manualCpmFinalInput, setManualCpmFinalInput] = useState('');
+  const [manualCpmBaseError, setManualCpmBaseError] = useState('');
+  const [manualCpmFinalError, setManualCpmFinalError] = useState('');
+  const [manualCpmEditedSide, setManualCpmEditedSide] = useState(null);
+  const [manualCpmBaseValue, setManualCpmBaseValue] = useState(null);
   const [manualCpmValue, setManualCpmValue] = useState(null);
   const [isManualCpm, setIsManualCpm] = useState(false);
   const [showCpmDetails, setShowCpmDetails] = useState(false);
   const [isT8DialogOpen, setIsT8DialogOpen] = useState(false);
-  const [manualT8Input, setManualT8Input] = useState('');
-  const [manualT8Error, setManualT8Error] = useState('');
+  const [manualT8BaseInput, setManualT8BaseInput] = useState('');
+  const [manualT8FinalInput, setManualT8FinalInput] = useState('');
+  const [manualT8BaseError, setManualT8BaseError] = useState('');
+  const [manualT8FinalError, setManualT8FinalError] = useState('');
+  const [manualT8EditedSide, setManualT8EditedSide] = useState(null);
+  const [manualT8BaseValue, setManualT8BaseValue] = useState(null);
   const [manualT8Value, setManualT8Value] = useState(null);
   const [isManualT8, setIsManualT8] = useState(false);
   const [showT8Details, setShowT8Details] = useState(false);
@@ -956,8 +1044,16 @@ const ModernFertilityDashboard = () => {
     () => (user?.uid ? `rnf_manual_cpm_${user.uid}` : null),
     [user?.uid]
   );
+  const manualCpmBaseStorageKey = useMemo(
+    () => (user?.uid ? `rnf_manual_cpm_base_${user.uid}` : null),
+    [user?.uid]
+  );
   const manualT8StorageKey = useMemo(
     () => (user?.uid ? `rnf_manual_t8_${user.uid}` : null),
+    [user?.uid]
+  );
+  const manualT8BaseStorageKey = useMemo(
+    () => (user?.uid ? `rnf_manual_t8_base_${user.uid}` : null),
     [user?.uid]
   );
 
@@ -967,6 +1063,60 @@ const ModernFertilityDashboard = () => {
   useEffect(() => {
     manualT8RestoreAttemptedRef.current = false;
   }, [manualT8StorageKey]);
+
+useEffect(() => {
+    if (!manualCpmBaseStorageKey) {
+      setManualCpmBaseValue(null);
+      return;
+    }
+
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    try {
+      const stored = localStorage.getItem(manualCpmBaseStorageKey);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed && typeof parsed.value === 'number' && Number.isFinite(parsed.value)) {
+          setManualCpmBaseValue(parsed.value);
+        } else {
+          setManualCpmBaseValue(null);
+        }
+      } else {
+        setManualCpmBaseValue(null);
+      }
+    } catch (error) {
+      console.error('Failed to restore manual CPM base value from local storage', error);
+    }
+  }, [manualCpmBaseStorageKey]);
+
+  useEffect(() => {
+    if (!manualT8BaseStorageKey) {
+      setManualT8BaseValue(null);
+      return;
+    }
+
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    try {
+      const stored = localStorage.getItem(manualT8BaseStorageKey);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed && typeof parsed.value === 'number' && Number.isFinite(parsed.value)) {
+          setManualT8BaseValue(parsed.value);
+        } else {
+          setManualT8BaseValue(null);
+        }
+      } else {
+        setManualT8BaseValue(null);
+      }
+    } catch (error) {
+      console.error('Failed to restore manual T-8 base value from local storage', error);
+    }
+  }, [manualT8BaseStorageKey]);
 
 
   const persistManualCpm = useCallback(
@@ -1536,27 +1686,6 @@ const ModernFertilityDashboard = () => {
     };
   }, [combinedCycles]);
 
-  const formattedCpmValue = useMemo(() => {
-    const valueToFormat = isManualCpm ? manualCpmValue : computedCpmData.value;
-
-    if (typeof valueToFormat !== 'number' || !Number.isFinite(valueToFormat)) {
-      return '-';
-    }
-
-    return valueToFormat.toLocaleString('es-ES', { maximumFractionDigits: 2 });
-  }, [computedCpmData.value, isManualCpm, manualCpmValue]);
-
-  const formattedT8Value = useMemo(() => {
-    const valueToFormat = isManualT8 ? manualT8Value : computedT8Data.value;
-
-    if (typeof valueToFormat !== 'number' || !Number.isFinite(valueToFormat)) {
-      return '-';
-    }
-
-    const rounded = Math.round(valueToFormat);
-    return rounded.toLocaleString('es-ES', { maximumFractionDigits: 0 });
-  }, [computedT8Data.value, isManualT8, manualT8Value]);
-
   const cpmInfo = useMemo(() => {
     const cycleCount = computedCpmData.cycleCount ?? 0;
     const cyclesLabel = `${cycleCount} ciclo${cycleCount === 1 ? '' : 's'}`;
@@ -1634,8 +1763,6 @@ const ModernFertilityDashboard = () => {
     };
   }, [computedCpmData, isManualCpm]);
 
-  const cpmInfoText = cpmInfo.summary;
-
   const t8Info = useMemo(() => {
     const cycleCount = computedT8Data.cycleCount;
     const cyclesLabel = `${cycleCount} ciclo${cycleCount === 1 ? '' : 's'}`;
@@ -1689,6 +1816,246 @@ const ModernFertilityDashboard = () => {
     };
   }, [computedT8Data, isManualT8]);
 
+  const formatNumber = useCallback((value, options) => {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      return null;
+    }
+
+    return value.toLocaleString('es-ES', options);
+  }, []);
+
+  const cpmDeductionValue = useMemo(() => {
+    if (
+      typeof computedCpmData.deduction === 'number' &&
+      Number.isFinite(computedCpmData.deduction)
+    ) {
+      return computedCpmData.deduction;
+    }
+
+    const cycleCount = computedCpmData.cycleCount ?? 0;
+    return cycleCount >= 12 ? 20 : 21;
+  }, [computedCpmData.cycleCount, computedCpmData.deduction]);
+
+  const cpmMetric = useMemo(() => {
+    const automaticBase =
+      typeof computedCpmData.shortestCycle?.duration === 'number' &&
+      Number.isFinite(computedCpmData.shortestCycle.duration)
+        ? computedCpmData.shortestCycle.duration
+        : null;
+    const automaticFinal =
+      typeof computedCpmData.value === 'number' && Number.isFinite(computedCpmData.value)
+        ? computedCpmData.value
+        : null;
+
+    const baseValue = isManualCpm ? manualCpmBaseValue : automaticBase;
+    const finalValue = isManualCpm ? manualCpmValue : automaticFinal;
+
+    const baseFormatted = formatNumber(baseValue, { maximumFractionDigits: 0 });
+    const finalFormatted = formatNumber(finalValue, { maximumFractionDigits: 2 });
+
+    const baseText = `Ciclo más corto: ${baseFormatted ?? '—'}`;
+    const finalText = `CPM = ${finalFormatted ?? '—'}`;
+
+    let microCopy = 'Sin datos disponibles';
+    let microCopyMuted = true;
+
+    if (typeof finalValue === 'number' && Number.isFinite(finalValue)) {
+      if (isManualCpm) {
+        if (typeof manualCpmBaseValue === 'number' && Number.isFinite(manualCpmBaseValue)) {
+          const baseLabel =
+            formatNumber(manualCpmBaseValue, { maximumFractionDigits: 0 }) ??
+            `${manualCpmBaseValue}`;
+          microCopy = `${baseLabel} − ${cpmDeductionValue}`;
+          microCopyMuted = false;
+        } else {
+          microCopy = 'Valor definido manualmente';
+          microCopyMuted = true;
+        }
+      } else if (typeof automaticBase === 'number' && Number.isFinite(automaticBase)) {
+        const baseLabel =
+          formatNumber(automaticBase, { maximumFractionDigits: 0 }) ?? `${automaticBase}`;
+        microCopy = `${baseLabel} − ${cpmDeductionValue}`;
+        microCopyMuted = false;
+      }
+    }
+
+    if (typeof finalValue !== 'number' || !Number.isFinite(finalValue)) {
+      microCopy = 'Sin datos disponibles';
+      microCopyMuted = true;
+    }
+
+    return {
+      title: 'CPM',
+      baseText,
+      finalText,
+      microCopy,
+      microCopyMuted,
+      modeLabel: isManualCpm ? 'Manual' : 'Auto',
+      microCopyId: 'cpm-metric-microcopy',
+      baseValue,          
+      finalValue,         
+      baseFormatted,      
+      finalFormatted,     
+      isManual: isManualCpm,
+    };
+  }, [
+    computedCpmData,
+    cpmDeductionValue,
+    formatNumber,
+    isManualCpm,
+    manualCpmBaseValue,
+    manualCpmValue,
+  ]);
+
+  const t8Metric = useMemo(() => {
+    const automaticRiseDay =
+      typeof computedT8Data.earliestCycle?.riseDay === 'number' &&
+      Number.isFinite(computedT8Data.earliestCycle.riseDay)
+        ? computedT8Data.earliestCycle.riseDay
+        : null;
+    const automaticFinal =
+      typeof computedT8Data.value === 'number' && Number.isFinite(computedT8Data.value)
+        ? computedT8Data.value
+        : null;
+
+    const baseValue = isManualT8 ? manualT8BaseValue : automaticRiseDay;
+    const finalValue = isManualT8 ? manualT8Value : automaticFinal;
+
+    const baseFormatted = formatNumber(baseValue, { maximumFractionDigits: 0 });
+    const finalFormatted = formatNumber(finalValue, { maximumFractionDigits: 0 });
+
+    const baseText = `Día de subida: ${baseFormatted ?? '—'}`;
+    const finalText = `T-8 = ${finalFormatted ?? '—'}`;
+
+    let microCopy = 'Sin datos disponibles';
+    let microCopyMuted = true;
+
+    if (typeof finalValue === 'number' && Number.isFinite(finalValue)) {
+      if (isManualT8) {
+        if (typeof manualT8BaseValue === 'number' && Number.isFinite(manualT8BaseValue)) {
+          const baseLabel =
+            formatNumber(manualT8BaseValue, { maximumFractionDigits: 0 }) ??
+            `${manualT8BaseValue}`;
+          microCopy = `${baseLabel} − 8`;
+          microCopyMuted = false;
+        } else {
+          microCopy = 'Valor definido manualmente';
+          microCopyMuted = true;
+        }
+      } else if (
+        typeof automaticRiseDay === 'number' &&
+        Number.isFinite(automaticRiseDay)
+      ) {
+        const baseLabel =
+          formatNumber(automaticRiseDay, { maximumFractionDigits: 0 }) ?? `${automaticRiseDay}`;
+        microCopy = `${baseLabel} − 8`;
+        microCopyMuted = false;
+      }
+    }
+
+    if (typeof finalValue !== 'number' || !Number.isFinite(finalValue)) {
+      microCopy = 'Sin datos disponibles';
+      microCopyMuted = true;
+    }
+
+    return {
+      title: 'T-8',
+      baseText,
+      finalText,
+      microCopy,
+      microCopyMuted,
+      modeLabel: isManualT8 ? 'Manual' : 'Auto',
+      microCopyId: 't8-metric-microcopy',
+      baseValue,          
+      finalValue,        
+      baseFormatted,      
+      finalFormatted,     
+      isManual: isManualT8,
+    };
+  }, [
+    computedT8Data,
+    formatNumber,
+    isManualT8,
+    manualT8BaseValue,
+    manualT8Value,
+  ]);
+
+  const resolvedManualCpmSide = useMemo(() => {
+    if (manualCpmEditedSide) {
+      return manualCpmEditedSide;
+    }
+
+    if (manualCpmFinalInput.trim()) {
+      return 'final';
+    }
+
+    if (manualCpmBaseInput.trim()) {
+      return 'base';
+    }
+
+    return null;
+  }, [manualCpmBaseInput, manualCpmEditedSide, manualCpmFinalInput]);
+
+  const isManualCpmSaveDisabled = useMemo(() => {
+    if (manualCpmBaseError || manualCpmFinalError) {
+      return true;
+    }
+
+    if (resolvedManualCpmSide === 'base') {
+      return manualCpmBaseInput.trim() === '' || manualCpmFinalInput.trim() === '';
+    }
+
+    if (resolvedManualCpmSide === 'final') {
+      return manualCpmFinalInput.trim() === '';
+    }
+
+    return true;
+  }, [
+    manualCpmBaseError,
+    manualCpmBaseInput,
+    manualCpmFinalError,
+    manualCpmFinalInput,
+    resolvedManualCpmSide,
+  ]);
+
+  const resolvedManualT8Side = useMemo(() => {
+    if (manualT8EditedSide) {
+      return manualT8EditedSide;
+    }
+
+    if (manualT8FinalInput.trim()) {
+      return 'final';
+    }
+
+    if (manualT8BaseInput.trim()) {
+      return 'base';
+    }
+
+    return null;
+  }, [manualT8BaseInput, manualT8EditedSide, manualT8FinalInput]);
+
+  const isManualT8SaveDisabled = useMemo(() => {
+    if (manualT8BaseError || manualT8FinalError) {
+      return true;
+    }
+
+    if (resolvedManualT8Side === 'base') {
+      return manualT8BaseInput.trim() === '' || manualT8FinalInput.trim() === '';
+    }
+
+    if (resolvedManualT8Side === 'final') {
+      return manualT8FinalInput.trim() === '';
+    }
+
+    return true;
+  }, [
+    manualT8BaseError,
+    manualT8BaseInput,
+    manualT8FinalError,
+    manualT8FinalInput,
+    resolvedManualT8Side,
+  ]);
+
   const handleNavigateToCycleDetails = useCallback((cycle) => {
     if (!cycle) {
       return;
@@ -1734,160 +2101,497 @@ const ModernFertilityDashboard = () => {
   );
 
   const handleOpenCpmDialog = useCallback(() => {
-    const baseValue = isManualCpm
-      ? manualCpmValue
-      : typeof computedCpmData.value === 'number' && Number.isFinite(computedCpmData.value)
+    const automaticBase =
+      typeof computedCpmData.shortestCycle?.duration === 'number' &&
+      Number.isFinite(computedCpmData.shortestCycle.duration)
+        ? computedCpmData.shortestCycle.duration
+        : null;
+    const automaticFinal =
+      typeof computedCpmData.value === 'number' && Number.isFinite(computedCpmData.value)
         ? computedCpmData.value
-        : '';
+        : null;
 
-    setManualCpmInput(baseValue === '' ? '' : String(baseValue));
-    setManualCpmError('');
+    const initialBase = isManualCpm ? manualCpmBaseValue : automaticBase;
+    const initialFinal = isManualCpm ? manualCpmValue : automaticFinal;
+
+    setManualCpmBaseInput(
+      typeof initialBase === 'number' && Number.isFinite(initialBase) ? String(initialBase) : ''
+    );
+    setManualCpmFinalInput(
+      typeof initialFinal === 'number' && Number.isFinite(initialFinal) ? String(initialFinal) : ''
+    );
+    setManualCpmBaseError('');
+    setManualCpmFinalError('');
+    setManualCpmEditedSide(
+      isManualCpm
+        ? typeof manualCpmBaseValue === 'number' && Number.isFinite(manualCpmBaseValue)
+          ? 'base'
+          : typeof manualCpmValue === 'number' && Number.isFinite(manualCpmValue)
+            ? 'final'
+            : null
+        : null
+    );
     setShowCpmDetails(false);
     setIsCpmDialogOpen(true);
-  }, [computedCpmData.value, isManualCpm, manualCpmValue]);
+  }, [computedCpmData, isManualCpm, manualCpmBaseValue, manualCpmValue]);
 
   const handleCloseCpmDialog = useCallback(() => {
     setShowCpmDetails(false);
     setIsCpmDialogOpen(false);
   }, []);
 
-  const handleManualCpmInputChange = useCallback((event) => {
-    setManualCpmInput(event.target.value);
-    setManualCpmError('');
-  }, []);
+  const handleManualCpmBaseInputChange = useCallback(
+    (event) => {
+      const { value } = event.target;
+      setManualCpmBaseInput(value);
+      setManualCpmEditedSide('base');
+      setManualCpmBaseError('');
+      setManualCpmFinalError('');
 
-  const handleSaveManualCpm = useCallback(async () => {
-    const trimmed = manualCpmInput.trim();
+      if (!value.trim()) {
+        setManualCpmFinalInput('');
+        return;
+      }
 
-    if (!trimmed) {
-      setManualCpmError('Introduce un valor numérico válido.');
+  const parsed = Number.parseInt(value, 10);
+
+      if (!Number.isFinite(parsed)) {
+        setManualCpmBaseError('Introduce un número entero válido.');
+        setManualCpmFinalInput('');
+        return;
+      }
+
+    const result = parsed - cpmDeductionValue;
+
+      if (result < 0) {
+        setManualCpmBaseError('El resultado debe ser ≥ 0 días');
+        setManualCpmFinalInput('');
+        return;
+      }
+
+      setManualCpmFinalInput(String(result));
+    },
+    [cpmDeductionValue]
+  );
+
+  const handleManualCpmFinalInputChange = useCallback((event) => {
+    const { value } = event.target;
+    setManualCpmFinalInput(value);
+    setManualCpmEditedSide('final');
+    setManualCpmFinalError('');
+    setManualCpmBaseError('');
+
+    if (!value.trim()) {
       return;
     }
 
-    const normalized = trimmed.replace(',', '.');
+    const normalized = value.replace(',', '.');
     const parsed = Number.parseFloat(normalized);
 
     if (!Number.isFinite(parsed) || parsed < 0) {
-      setManualCpmError('Introduce un valor numérico válido mayor o igual a 0.');
+      setManualCpmFinalError('El CPM debe ser ≥ 0 días');
+    }
+  }, []);
+
+  const handleSaveManualCpm = useCallback(async () => {
+    if (manualCpmBaseError || manualCpmFinalError) {
       return;
     }
 
+    const trimmedBase = manualCpmBaseInput.trim();
+    const trimmedFinal = manualCpmFinalInput.trim();
+    const activeSide =
+      manualCpmEditedSide ?? (trimmedFinal ? 'final' : trimmedBase ? 'base' : null);
+
+    if (!activeSide) {
+      setManualCpmFinalError('Introduce un valor.');
+      return;
+    }
+
+    let baseValueToPersist = manualCpmBaseValue;
+    let finalValueToPersist;
+
+    if (activeSide === 'base') {
+      if (!trimmedBase) {
+        setManualCpmBaseError('Introduce un número entero válido.');
+        return;
+      }
+
+      const parsedBase = Number.parseInt(trimmedBase, 10);
+
+      if (!Number.isFinite(parsedBase)) {
+        setManualCpmBaseError('Introduce un número entero válido.');
+        return;
+      }
+
+      const computedFinal = parsedBase - cpmDeductionValue;
+
+      if (computedFinal < 0) {
+        setManualCpmBaseError('El resultado debe ser ≥ 0 días');
+        return;
+      }
+
+      baseValueToPersist = parsedBase;
+      finalValueToPersist = computedFinal;
+      setManualCpmFinalInput(String(computedFinal));
+      setManualCpmFinalError('');
+    } else {
+      if (!trimmedFinal) {
+        setManualCpmFinalError('Introduce un valor.');
+        return;
+      }
+
+      const normalized = trimmedFinal.replace(',', '.');
+      const parsedFinal = Number.parseFloat(normalized);
+
+      if (!Number.isFinite(parsedFinal) || parsedFinal < 0) {
+        setManualCpmFinalError('El CPM debe ser ≥ 0 días');
+        return;
+      }
+
+      finalValueToPersist = parsedFinal;
+
+      const parsedBase = Number.parseInt(trimmedBase, 10);
+      if (Number.isFinite(parsedBase) && parsedBase - cpmDeductionValue >= 0) {
+        baseValueToPersist = parsedBase;
+      } else if (!trimmedBase) {
+        baseValueToPersist = null;
+      }
+    }
     const previousValue = manualCpmValue;
     const previousIsManual = isManualCpm;
+    const previousBaseValue = manualCpmBaseValue;
 
-    setManualCpmValue(parsed);
-    setIsManualCpm(true);
-    
-  try {
-      await persistManualCpm(parsed);
-      setIsCpmDialogOpen(false);
-      toast({ title: 'CPM actualizado', description: 'El CPM manual se guardó en tu perfil.' });
-    } catch (error) {
+ setManualCpmValue(finalValueToPersist);
+ setIsManualCpm(true);
+ setManualCpmBaseValue(
+   typeof baseValueToPersist === 'number' && Number.isFinite(baseValueToPersist)
+     ? baseValueToPersist
+     : null
+ );
+
+ try {
+   await persistManualCpm(finalValueToPersist);
+
+   if (manualCpmBaseStorageKey && typeof window !== 'undefined') {
+     if (typeof baseValueToPersist === 'number' && Number.isFinite(baseValueToPersist)) {
+       localStorage.setItem(manualCpmBaseStorageKey, JSON.stringify({ value: baseValueToPersist }));
+     } else {
+       localStorage.removeItem(manualCpmBaseStorageKey);
+     }
+   }
+
+   setIsCpmDialogOpen(false);
+   toast({ title: 'CPM actualizado', description: 'El CPM manual se guardó en tu perfil.' });
+ } catch (error) {
       console.error('Failed to save manual CPM value', error);
       setManualCpmValue(previousValue);
+      setManualCpmBaseValue(previousBaseValue);
       setIsManualCpm(previousIsManual);
-      setManualCpmError('No se pudo guardar el CPM. Inténtalo de nuevo.');
+      setManualCpmFinalError('No se pudo guardar el CPM. Inténtalo de nuevo.');
     }
-  }, [isManualCpm, manualCpmInput, manualCpmValue, persistManualCpm, toast]);
+  }, [
+    cpmDeductionValue,
+    isManualCpm,
+    manualCpmBaseError,
+    manualCpmBaseInput,
+    manualCpmBaseStorageKey,
+    manualCpmBaseValue,
+    manualCpmEditedSide,
+    manualCpmFinalError,
+    manualCpmFinalInput,
+    manualCpmValue,
+    persistManualCpm,
+    toast,
+  ]);
 
   const handleResetManualCpm = useCallback(async () => {
     const previousValue = manualCpmValue;
     const previousIsManual = isManualCpm;
+    const previousBaseValue = manualCpmBaseValue;
 
     setManualCpmValue(null);
+    setManualCpmBaseValue(null);
     setIsManualCpm(false);
-    setManualCpmInput('');
-    setManualCpmError('');
+    setManualCpmBaseInput('');
+    setManualCpmFinalInput('');
+    setManualCpmBaseError('');
+    setManualCpmFinalError('');
+    setManualCpmEditedSide(null);
+
     
     try {
       await persistManualCpm(null);
+      if (manualCpmBaseStorageKey && typeof window !== 'undefined') {
+        try {
+          localStorage.removeItem(manualCpmBaseStorageKey);
+        } catch (error) {
+          console.error('Failed to clear manual CPM base value from local storage', error);
+        }
+      }
       setIsCpmDialogOpen(false);
       toast({ title: 'CPM restablecido', description: 'El cálculo automático volverá a mostrarse.' });
     } catch (error) {
       console.error('Failed to reset manual CPM value', error);
       setManualCpmValue(previousValue);
+      setManualCpmBaseValue(previousBaseValue);
       setIsManualCpm(previousIsManual);
-      setManualCpmError('No se pudo restablecer el CPM. Inténtalo de nuevo.');
+      setManualCpmFinalError('No se pudo restablecer el CPM. Inténtalo de nuevo.');
     }
-  }, [isManualCpm, manualCpmValue, persistManualCpm, toast]);
+  }, [
+    isManualCpm,
+    manualCpmBaseStorageKey,
+    manualCpmBaseValue,
+    manualCpmValue,
+    persistManualCpm,
+    toast,
+  ]);
 
   const handleOpenT8Dialog = useCallback(() => {
-    const baseValue = isManualT8
-      ? manualT8Value
-      : typeof computedT8Data.value === 'number' && Number.isFinite(computedT8Data.value)
+    const automaticBase =
+      typeof computedT8Data.earliestCycle?.riseDay === 'number' &&
+      Number.isFinite(computedT8Data.earliestCycle.riseDay)
+        ? computedT8Data.earliestCycle.riseDay
+        : null;
+    const automaticFinal =
+      typeof computedT8Data.value === 'number' && Number.isFinite(computedT8Data.value)
         ? computedT8Data.value
-        : '';
+        : null;
 
-    setManualT8Input(baseValue === '' ? '' : String(baseValue));
-    setManualT8Error('');
+    const initialBase = isManualT8 ? manualT8BaseValue : automaticBase;
+    const initialFinal = isManualT8 ? manualT8Value : automaticFinal;
+
+    setManualT8BaseInput(
+      typeof initialBase === 'number' && Number.isFinite(initialBase) ? String(initialBase) : ''
+    );
+    setManualT8FinalInput(
+      typeof initialFinal === 'number' && Number.isFinite(initialFinal) ? String(initialFinal) : ''
+    );
+    setManualT8BaseError('');
+    setManualT8FinalError('');
+    setManualT8EditedSide(
+      isManualT8
+        ? typeof manualT8BaseValue === 'number' && Number.isFinite(manualT8BaseValue)
+          ? 'base'
+          : typeof manualT8Value === 'number' && Number.isFinite(manualT8Value)
+            ? 'final'
+            : null
+        : null
+    );
     setShowT8Details(false);
     setIsT8DialogOpen(true);
-  }, [computedT8Data.value, isManualT8, manualT8Value]);
+  }, [computedT8Data, isManualT8, manualT8BaseValue, manualT8Value]);
 
   const handleCloseT8Dialog = useCallback(() => {
     setIsT8DialogOpen(false);
     setShowT8Details(false);
   }, []);
 
-  const handleManualT8InputChange = useCallback((event) => {
-    setManualT8Input(event.target.value);
-    setManualT8Error('');
-  }, []);
+  const handleManualT8BaseInputChange = useCallback((event) => {
+    const { value } = event.target;
+    setManualT8BaseInput(value);
+    setManualT8EditedSide('base');
+    setManualT8BaseError('');
+    setManualT8FinalError('');
 
-  const handleSaveManualT8 = useCallback(async () => {
-    const trimmed = manualT8Input.trim();
-
-    if (!trimmed) {
-      setManualT8Error('Introduce un número entero válido.');
+    if (!value.trim()) {
+      setManualT8FinalInput('');
       return;
     }
 
-    const normalized = trimmed.replace(',', '.');
-    const parsed = Number.parseInt(normalized, 10);
+    const parsed = Number.parseInt(value, 10);
+
+    if (!Number.isFinite(parsed)) {
+      setManualT8BaseError('Introduce un número entero válido.');
+      setManualT8FinalInput('');
+      return;
+    }
+
+    if (parsed < 9) {
+      setManualT8BaseError('El T-8 debe ser ≥ 1');
+      setManualT8FinalInput('');
+      return;
+    }
+
+    const computedFinal = Math.max(1, parsed - 8);
+    setManualT8FinalInput(String(computedFinal));
+  }, []);
+
+  const handleManualT8FinalInputChange = useCallback((event) => {
+    const { value } = event.target;
+    setManualT8FinalInput(value);
+    setManualT8EditedSide('final');
+    setManualT8FinalError('');
+    setManualT8BaseError('');
+
+    if (!value.trim()) {
+      return;
+    }
+
+    const parsed = Number.parseInt(value, 10);
 
     if (!Number.isFinite(parsed) || parsed < 1) {
-      setManualT8Error('Introduce un número entero mayor o igual a 1.');
+      setManualT8FinalError('El T-8 debe ser ≥ 1');
+    }
+  }, []);
+
+  const handleSaveManualT8 = useCallback(async () => {
+    if (manualT8BaseError || manualT8FinalError) {
       return;
+    }
+
+    const trimmedBase = manualT8BaseInput.trim();
+    const trimmedFinal = manualT8FinalInput.trim();
+    const activeSide =
+      manualT8EditedSide ?? (trimmedFinal ? 'final' : trimmedBase ? 'base' : null);
+
+    if (!activeSide) {
+      setManualT8FinalError('Introduce un valor.');
+      return;
+    }
+
+    let baseValueToPersist = manualT8BaseValue;
+    let finalValueToPersist;
+
+    if (activeSide === 'base') {
+      if (!trimmedBase) {
+        setManualT8BaseError('Introduce un número entero válido.');
+        return;
+      }
+
+      const parsedBase = Number.parseInt(trimmedBase, 10);
+
+      if (!Number.isFinite(parsedBase)) {
+        setManualT8BaseError('Introduce un número entero válido.');
+        return;
+      }
+
+      if (parsedBase < 9) {
+        setManualT8BaseError('El T-8 debe ser ≥ 1');
+        return;
+      }
+
+      const computedFinal = Math.max(1, parsedBase - 8);
+      baseValueToPersist = parsedBase;
+      finalValueToPersist = computedFinal;
+      setManualT8FinalInput(String(computedFinal));
+      setManualT8FinalError('');
+    } else {
+      if (!trimmedFinal) {
+        setManualT8FinalError('Introduce un valor.');
+        return;
+      }
+
+      const parsedFinal = Number.parseInt(trimmedFinal, 10);
+
+      if (!Number.isFinite(parsedFinal) || parsedFinal < 1) {
+        setManualT8FinalError('El T-8 debe ser ≥ 1');
+        return;
+      }
+
+      finalValueToPersist = parsedFinal;
+
+      const parsedBase = Number.parseInt(trimmedBase, 10);
+      if (Number.isFinite(parsedBase) && parsedBase >= 9) {
+        baseValueToPersist = parsedBase;
+      } else if (!trimmedBase) {
+        baseValueToPersist = null;
+      }
     }
 
     const previousValue = manualT8Value;
     const previousIsManual = isManualT8;
+    const previousBaseValue = manualT8BaseValue;
 
-    setManualT8Value(parsed);
+    setManualT8Value(finalValueToPersist);
     setIsManualT8(true);
+    setManualT8BaseValue(
+      typeof baseValueToPersist === 'number' && Number.isFinite(baseValueToPersist)
+        ? baseValueToPersist
+        : null
+    );
 
     try {
-      await persistManualT8(parsed);
+      await persistManualT8(finalValueToPersist);
+
+      if (manualT8BaseStorageKey && typeof window !== 'undefined') {
+        try {
+          if (typeof baseValueToPersist === 'number' && Number.isFinite(baseValueToPersist)) {
+            localStorage.setItem(
+              manualT8BaseStorageKey,
+              JSON.stringify({ value: baseValueToPersist })
+            );
+          } else {
+            localStorage.removeItem(manualT8BaseStorageKey);
+          }
+        } catch (error) {
+          console.error('Failed to persist manual T-8 base value in local storage', error);
+        }
+      }
+
       setIsT8DialogOpen(false);
       toast({ title: 'T-8 actualizado', description: 'El T-8 manual se guardó en tu perfil.' });
     } catch (error) {
       console.error('Failed to save manual T-8 value', error);
       setManualT8Value(previousValue);
+      setManualT8BaseValue(previousBaseValue);
       setIsManualT8(previousIsManual);
-      setManualT8Error('No se pudo guardar el T-8. Inténtalo de nuevo.');
+      setManualT8FinalError('No se pudo guardar el T-8. Inténtalo de nuevo.');
     }
-  }, [isManualT8, manualT8Input, manualT8Value, persistManualT8, toast]);
+  }, [
+    isManualT8,
+    manualT8BaseError,
+    manualT8BaseInput,
+    manualT8BaseStorageKey,
+    manualT8BaseValue,
+    manualT8EditedSide,
+    manualT8FinalError,
+    manualT8FinalInput,
+    manualT8Value,
+    persistManualT8,
+    toast,
+  ]);
 
   const handleResetManualT8 = useCallback(async () => {
     const previousValue = manualT8Value;
     const previousIsManual = isManualT8;
+    const previousBaseValue = manualT8BaseValue;
 
     setManualT8Value(null);
+    setManualT8BaseValue(null);
     setIsManualT8(false);
-    setManualT8Input('');
-    setManualT8Error('');
+    setManualT8BaseInput('');
+    setManualT8FinalInput('');
+    setManualT8BaseError('');
+    setManualT8FinalError('');
+    setManualT8EditedSide(null);
 
     try {
       await persistManualT8(null);
+      if (manualT8BaseStorageKey && typeof window !== 'undefined') {
+        try {
+          localStorage.removeItem(manualT8BaseStorageKey);
+        } catch (error) {
+          console.error('Failed to clear manual T-8 base value from local storage', error);
+        }
+      }
       setIsT8DialogOpen(false);
       toast({ title: 'T-8 restablecido', description: 'El cálculo automático volverá a mostrarse.' });
     } catch (error) {
       console.error('Failed to reset manual T-8 value', error);
       setManualT8Value(previousValue);
+      setManualT8BaseValue(previousBaseValue);
       setIsManualT8(previousIsManual);
-      setManualT8Error('No se pudo restablecer el T-8. Inténtalo de nuevo.');
+      setManualT8BaseValue(previousBaseValue);
     }
-  }, [isManualT8, manualT8Value, persistManualT8, toast]);
+  }, [
+    isManualT8,
+    manualT8BaseStorageKey,
+    manualT8BaseValue,
+    manualT8Value,
+    persistManualT8,
+    toast,
+  ]);
 
   const resetStartDateFlow = useCallback(() => {
     setPendingStartDate(null);
@@ -2135,7 +2839,7 @@ const ModernFertilityDashboard = () => {
 
   if (!currentCycle?.id) {
     return (
-      <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br ffrom-rose-100 via-pink-100 to-rose-100">
+      <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100">
         <div className="text-center space-y-4">
           <p className="text-gray-600 text-lg">No hay ciclo activo.</p>
           <button
@@ -2205,11 +2909,10 @@ const ModernFertilityDashboard = () => {
             onTogglePeak={handleTogglePeak}
             currentPeakIsoDate={currentPeakIsoDate}
             onEditStartDate={handleOpenStartDateEditor}
-            formattedCpmValue={formattedCpmValue}
-            cpmInfoText={cpmInfoText}
             handleOpenCpmDialog={handleOpenCpmDialog}
-            formattedT8Value={formattedT8Value}
             handleOpenT8Dialog={handleOpenT8Dialog}
+            cpmMetric={cpmMetric}
+            t8Metric={t8Metric}
           />
           <Dialog
             open={isCpmDialogOpen}
@@ -2356,22 +3059,58 @@ const ModernFertilityDashboard = () => {
                     </div>
                   )}
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="manual-cpm-input" className="text-xs text-gray-600">
-                    CPM manual
-                  </Label>
-                  <Input
-                    id="manual-cpm-input"
-                    type="number"
-                    inputMode="decimal"
-                    min="0"
-                    step="0.1"
-                    value={manualCpmInput}
-                    onChange={handleManualCpmInputChange}
-                    placeholder="Introduce un valor"
-                  />
-                  {manualCpmError && (
-                    <p className="text-xs text-red-500">{manualCpmError}</p>
+                <div className="space-y-3">
+                  <div className="flex flex-col gap-3 sm:flex-row">
+                    <div className="flex-1 space-y-1.5">
+                      <Label htmlFor="manual-cpm-base" className="text-xs text-gray-600">
+                        Ciclo más corto
+                      </Label>
+                      <Input
+                        id="manual-cpm-base"
+                        type="number"
+                        inputMode="numeric"
+                        step="1"
+                        min="0"
+                        value={manualCpmBaseInput}
+                        onChange={handleManualCpmBaseInputChange}
+                        placeholder="Introduce un entero"
+                        aria-describedby={manualCpmEditedSide ? 'manual-cpm-helper' : undefined}
+                      />
+                      {manualCpmBaseError && (
+                        <p className="text-xs text-red-500">{manualCpmBaseError}</p>
+                      )}
+                    </div>
+                    <div className="flex-1 space-y-1.5">
+                      <Label htmlFor="manual-cpm-final" className="text-xs text-gray-600">
+                        CPM (final)
+                      </Label>
+                      <Input
+                        id="manual-cpm-final"
+                        type="number"
+                        inputMode="decimal"
+                        step="0.1"
+                        min="0"
+                        value={manualCpmFinalInput}
+                        onChange={handleManualCpmFinalInputChange}
+                        placeholder="Introduce el valor"
+                        aria-describedby={manualCpmEditedSide ? 'manual-cpm-helper' : undefined}
+                      />
+                      {manualCpmFinalError && (
+                        <p className="text-xs text-red-500">{manualCpmFinalError}</p>
+                      )}
+                    </div>
+                  </div>
+                  {manualCpmEditedSide && (
+                    <div className="flex justify-center">
+                      <span
+                        id="manual-cpm-helper"
+                        className="rounded-full bg-rose-50 px-3 py-1 text-xs font-medium text-rose-600"
+                      >
+                        {manualCpmEditedSide === 'base'
+                          ? 'Usando Ciclo más corto como base'
+                          : 'Usando CPM (final)'}
+                      </span>
+                    </div>
                   )}
                 </div>
               </div>
@@ -2389,7 +3128,7 @@ const ModernFertilityDashboard = () => {
                   <Button type="button" variant="secondary" onClick={handleCloseCpmDialog}>
                     Cancelar
                   </Button>
-                  <Button type="button" onClick={handleSaveManualCpm}>
+                  <Button type="button" onClick={handleSaveManualCpm} disabled={isManualCpmSaveDisabled}>
                     Guardar
                   </Button>
                 </div>
@@ -2517,22 +3256,58 @@ const ModernFertilityDashboard = () => {
                     </div>
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="manual-t8-input" className="text-xs text-gray-600">
-                    T-8 manual
-                  </Label>
-                  <Input
-                    id="manual-t8-input"
-                    type="number"
-                    inputMode="numeric"
-                    min="1"
-                    step="1"
-                    value={manualT8Input}
-                    onChange={handleManualT8InputChange}
-                    placeholder="Introduce un valor"
-                  />
-                  {manualT8Error && (
-                    <p className="text-xs text-red-500">{manualT8Error}</p>
+                <div className="space-y-3">
+                  <div className="flex flex-col gap-3 sm:flex-row">
+                    <div className="flex-1 space-y-1.5">
+                      <Label htmlFor="manual-t8-base" className="text-xs text-gray-600">
+                        Día de subida
+                      </Label>
+                      <Input
+                        id="manual-t8-base"
+                        type="number"
+                        inputMode="numeric"
+                        step="1"
+                        min="1"
+                        value={manualT8BaseInput}
+                        onChange={handleManualT8BaseInputChange}
+                        placeholder="Introduce un entero"
+                        aria-describedby={manualT8EditedSide ? 'manual-t8-helper' : undefined}
+                      />
+                      {manualT8BaseError && (
+                        <p className="text-xs text-red-500">{manualT8BaseError}</p>
+                      )}
+                    </div>
+                    <div className="flex-1 space-y-1.5">
+                      <Label htmlFor="manual-t8-final" className="text-xs text-gray-600">
+                        T-8 (final)
+                      </Label>
+                      <Input
+                        id="manual-t8-final"
+                        type="number"
+                        inputMode="numeric"
+                        step="1"
+                        min="1"
+                        value={manualT8FinalInput}
+                        onChange={handleManualT8FinalInputChange}
+                        placeholder="Introduce el valor"
+                        aria-describedby={manualT8EditedSide ? 'manual-t8-helper' : undefined}
+                      />
+                      {manualT8FinalError && (
+                        <p className="text-xs text-red-500">{manualT8FinalError}</p>
+                      )}
+                    </div>
+                  </div>
+                  {manualT8EditedSide && (
+                    <div className="flex justify-center">
+                      <span
+                        id="manual-t8-helper"
+                        className="rounded-full bg-rose-50 px-3 py-1 text-xs font-medium text-rose-600"
+                      >
+                        {manualT8EditedSide === 'base'
+                          ? 'Usando Día de subida como base'
+                          : 'Usando T-8 (final)'}
+                      </span>
+                    </div>
                   )}
                 </div>
               </div>
@@ -2550,7 +3325,7 @@ const ModernFertilityDashboard = () => {
                   <Button type="button" variant="secondary" onClick={handleCloseT8Dialog}>
                     Cancelar
                   </Button>
-                  <Button type="button" onClick={handleSaveManualT8}>
+                  <Button type="button" onClick={handleSaveManualT8} disabled={isManualT8SaveDisabled}>
                     Guardar
                   </Button>
                 </div>

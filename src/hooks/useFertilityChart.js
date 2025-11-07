@@ -326,6 +326,16 @@ export const useFertilityChart = (
         setActiveIndex(null);
       }, []);
 
+ // Normaliza los códigos de pico que vienen de computePeakStatuses
+ const normalizePeakStatus = (value) => {
+   if (value == null) return '';
+   const s = String(value).trim().toUpperCase();
+   if (s === '3' || s === 'P3' || s === 'P+3') return '3';
+   if (s === '2' || s === 'P2' || s === 'P+2') return '2';
+   if (s === '1' || s === 'P1' || s === 'P+1') return '1';
+   if (s === 'P' || s === 'PEAK') return 'P';
+   return s;
+ };
 
       const peakStatusByIsoDate = useMemo(() => computePeakStatuses(data), [data]);
       const processedData = useMemo(() => {
@@ -527,25 +537,13 @@ export const useFertilityChart = (
 
   const peakDayIndex = useMemo(() => {
     if (!allDataPoints.length) return null;
-    for (let idx = 0; idx < allDataPoints.length; idx += 1) {
-      if (allDataPoints[idx]?.peakStatus === 'P') {
-        return idx;
-      }
-    }
-    return null;
+    const idx = allDataPoints.findIndex(d => normalizePeakStatus(d?.peakStatus) === 'P');
+      return idx >= 0 ? idx : null;
   }, [allDataPoints]);
 
   const peakInfertilityStartIndex = useMemo(() => {
     if (!allDataPoints.length) return null;
-    
-
-    let thirdDayIndex = null;
-    for (let idx = 0; idx < allDataPoints.length; idx += 1) {
-      if (allDataPoints[idx]?.peakStatus === '3') {
-        thirdDayIndex = idx;
-        break;
-      }
-    }
+  const thirdDayIndex = allDataPoints.findIndex(d => normalizePeakStatus(d?.peakStatus) === '3');
 
     if (thirdDayIndex != null) {
     const candidate = thirdDayIndex + 1;
