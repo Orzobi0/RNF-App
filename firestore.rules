@@ -6,6 +6,9 @@ service cloud.firestore {
       match /preferences/{prefId} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
+      match /metrics/{metricsId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
       match /cycles/{cycleId} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
         match /entries/{entryId} {

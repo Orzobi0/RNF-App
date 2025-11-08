@@ -17,6 +17,8 @@ import {
   Clock,
   Check,
   X,
+  RefreshCw,
+  MinusCircle,
   ChevronUp,
   ChevronDown,
   Circle,
@@ -27,7 +29,7 @@ import {
 import { cn } from '@/lib/utils';
 import { format, startOfDay, parseISO, addHours, parse } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { FERTILITY_SYMBOL_OPTIONS } from '@/config/fertilitySymbols';
+import { FERTILITY_SYMBOL_OPTIONS, getFertilitySymbolTheme } from '@/config/fertilitySymbols';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   computePeakState,
@@ -123,12 +125,34 @@ const DataEntryFormFields = ({
     selectedIsoDate,
   });
 
-  const peakButtonLabel =
-    peakMode === 'assign'
-      ? 'Asignar día pico'
-      : peakMode === 'update'
-        ? 'Actualizar día pico'
-        : 'Quitar día pico';
+    // Mapeo de icono por modo (coherente con la convención de la gráfica)
+    const PeakIconMap = {
+      assign: X,           // “marcar” (X)
+      update: RefreshCw,   // “actualizar/mover”
+      remove: MinusCircle, // “quitar”
+    };
+    const PeakIcon = PeakIconMap[peakMode] || X;
+
+    // Etiqueta accesible dinámica con fechas precisas
+    const peakAriaLabel = (() => {
+      if (!selectedIsoDate || !date) return 'Selecciona una fecha para marcar el día pico';
+      const selectedFull = format(date, 'dd/MM/yyyy');
+      const existingFull = existingPeakIsoDate
+        ? format(parseISO(existingPeakIsoDate), 'dd/MM/yyyy')
+        : null;
+      if (peakMode === 'assign') {
+        return `Marcar día pico en ${selectedFull}`;
+      }
+      if (peakMode === 'update') {
+        return existingFull
+          ? `Mover día pico a ${selectedFull} (desde ${existingFull})`
+          : `Mover día pico a ${selectedFull}`;
+      }
+      // remove
+      return existingFull
+        ? `Quitar día pico del ${existingFull}`
+        : `Quitar día pico`;
+    })();
 
   const peakButtonBaseClasses = [
     'flex items-center justify-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold uppercase tracking-wide transition-all duration-200 shadow-sm disabled:cursor-not-allowed disabled:opacity-60',
@@ -578,22 +602,39 @@ const DataEntryFormFields = ({
             })}
           </div>
         );
-      case 'symbol':
+      case 'symbol': {
+        const symbolTheme = getFertilitySymbolTheme(fertilitySymbol);
         return (
-          <div className="space-y-3 rounded-3xl border border-slate-300/60 bg-gradient-to-r from-stone-100 to-slate-100 p-3 shadow-sm">
+          <div
+            className={cn(
+              'space-y-3 rounded-3xl border bg-gradient-to-r p-3 shadow-sm transition-colors duration-300',
+              symbolTheme.panelBorder,
+              symbolTheme.panelBackground
+            )}
+          >
             <div className="flex flex-col gap-3">
               <Label htmlFor="fertilitySymbol" className="flex items-center text-slate-800 text-sm font-semibold">
-                <Sprout className="mr-2 h-5 w-5 text-slate-500" />
+                <Sprout
+                  className={cn('mr-2 h-5 w-5 transition-colors duration-300', symbolTheme.icon)}
+                />
                 Símbolo de Fertilidad
               </Label>
               <Select value={fertilitySymbol} onValueChange={setFertilitySymbol} disabled={isProcessing}>
                 <SelectTrigger
-                  className="w-full bg-white border-slate-200 text-gray-800 hover:bg-white"
+                  className={cn(
+                    'w-full border bg-white text-gray-800 transition-colors duration-200',
+                    symbolTheme.triggerBorder,
+                    symbolTheme.triggerHover,
+                    symbolTheme.triggerActive,
+                    symbolTheme.triggerFocus
+                  )}
                   data-field="fertilitySymbol"
                 >
                   <SelectValue placeholder="Selecciona un símbolo" />
                 </SelectTrigger>
-                <SelectContent className="bg-white border-slate-200 text-gray-800">
+                <SelectContent
+                  className={cn('bg-white text-gray-800', symbolTheme.contentBorder)}
+                >
                   {FERTILITY_SYMBOL_OPTIONS.map((symbol) => (
                     <SelectItem key={symbol.value} value={symbol.value} className="cursor-pointer">
                       <div className="flex items-center">
@@ -612,6 +653,7 @@ const DataEntryFormFields = ({
             </div>
           </div>
         );
+        }
       case 'sensation':
         return (
           <div className="space-y-2 rounded-3xl border border-blue-300/60 bg-gradient-to-r from-blue-50 to-indigo-50 p-3 shadow-sm">
@@ -767,10 +809,11 @@ const DataEntryFormFields = ({
             onClick={togglePeakTag}
             className={peakButtonClasses}
             aria-pressed={isPeakDay}
-            aria-label={peakButtonLabel}
+            aria-label={peakAriaLabel}
             disabled={isProcessing || !selectedIsoDate}
           >
-            Día pico
+            <PeakIcon className="h-4 w-4" aria-hidden="true" />
+            <span className="text-xs font-semibold uppercase tracking-wide">Pico</span>
           </button>
           <button
             type="button"
@@ -784,6 +827,11 @@ const DataEntryFormFields = ({
             <Heart className={cn('h-4 w-4', hadRelations ? 'text-rose-500 fill-current' : 'text-slate-400')} aria-hidden="true" />
           </button>
         </div>
+        {existingPeakIsoDate && (
+          <div className="text-[11px] text-slate-500" aria-live="polite">
+            Día pico: {format(parseISO(existingPeakIsoDate), 'dd/MM')}
+          </div>
+        )}
         {(statusMessages.peak || statusMessages.relations) && (
           <div className="flex flex-col gap-1">
             {statusMessages.peak && (
