@@ -17,7 +17,6 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { useToast } from '@/components/ui/use-toast';
 import {
   Select,
   SelectContent,
@@ -56,6 +55,277 @@ const COMBINE_MODE_LABELS = {
   conservador: 'Conservador',
   consenso: 'Consenso',
   permisivo: 'Permisivo',
+};
+
+const formatDayLabel = (day) => {
+  if (!Number.isFinite(day)) {
+    return 'día —';
+  }
+  const normalized = Math.max(1, Math.round(day));
+  return `D${normalized}`;
+};
+
+const buildContextualEnding = (context, day) => {
+  const normalizedDay = Number.isFinite(day) ? Math.round(day) : null;
+  if (context !== 'relative') {
+    return normalizedDay != null
+      ? `la fase fértil comienza en ${formatDayLabel(normalizedDay)}`
+      : 'se abre la fase fértil';
+  }
+  if (normalizedDay == null || normalizedDay <= 1) {
+    return 'la fase relativamente infértil finaliza al inicio del ciclo';
+  }
+  const previousDay = formatDayLabel(normalizedDay - 1);
+  return `la fase relativamente infértil termina en ${previousDay}`;
+};
+
+const describeCandidateReason = (candidate, { context, selectedDay }) => {
+  if (!candidate) return null;
+  const normalizedSource = (candidate.source || candidate.originalSource || '')
+    .toString()
+    .toUpperCase();
+  const reason = typeof candidate.reason === 'string' ? candidate.reason.toLowerCase() : '';
+  const targetDay = Number.isFinite(candidate.day) ? Math.round(candidate.day) : Number.isFinite(selectedDay) ? Math.round(selectedDay) : null;
+  const ending = buildContextualEnding(context, targetDay);
+
+  if (normalizedSource === 'CPM') {
+    const match = candidate.reason && candidate.reason.match(/ciclo_mas_corto=(\d+)/i);
+    const shortest = match ? Number.parseInt(match[1], 10) : null;
+    if (Number.isFinite(shortest)) {
+      return `Inicio por CPM: el ciclo más corto registrado es de ${shortest} días, por lo que ${ending}.`;
+    }
+    return `Inicio por CPM: ${ending}.`;
+  }
+
+  if (normalizedSource === 'T8') {
+    const match = candidate.reason && candidate.reason.match(/t8=(\d+)/i);
+    const projected = match ? Number.parseInt(match[1], 10) : null;
+    if (Number.isFinite(projected)) {
+      return `Inicio por T-8: la proyección sitúa la apertura fértil en ${formatDayLabel(projected)}, así que ${ending}.`;
+    }
+    return `Inicio por T-8: ${ending}.`;
+  }
+
+  const sourceLabel = candidate.source || candidate.originalSource || 'perfil sintotérmico';
+  if (reason.includes('m+')) {
+    return `Se registró un símbolo M+ en ${formatDayLabel(targetDay)}, por lo que ${ending}.`;
+  }
+  if (reason.includes('m>=2')) {
+    return `El aspecto del moco alcanzó nivel 2 en ${formatDayLabel(targetDay)}, por lo que ${ending}.`;
+  }
+  if (reason.includes('s>=2')) {
+    return `La sensación alcanzó nivel 2 en ${formatDayLabel(targetDay)}, por lo que ${ending}.`;
+  }
+  if (reason.includes('score>=0.8')) {
+    return `El moco superó el umbral fértil en ${formatDayLabel(targetDay)}, por lo que ${ending}.`;
+  }
+  if (reason.includes('cambiobip')) {
+    return `Se detectó un cambio respecto al patrón básico infértil en ${formatDayLabel(targetDay)}, por lo que ${ending}.`;
+  }
+  return `${sourceLabel} marca el inicio fértil en ${formatDayLabel(targetDay)}, por lo que ${ending}.`;
+};
+
+const translateAggregateNote = (note, { explicitStartDay }) => {
+  if (!note) return null;
+  const normalized = note.toLowerCase();
+  if (normalized.includes('calculadoras cpm/t-8 omitidas')) {
+    return 'Se omitieron CPM y T-8 porque el modo posparto está activo.';
+  }
+  if (normalized.includes('inicio fértil ajustado por marcador explícito')) {
+    if (Number.isInteger(explicitStartDay)) {
+      return `Marcaste manualmente el inicio fértil en ${formatDayLabel(explicitStartDay + 1)}.`;
+    }
+    return 'Marcaste manualmente el inicio fértil.';
+  }
+  if (normalized.includes('sin candidatos disponibles')) {
+    return 'No hay suficientes datos para estimar el inicio fértil automáticamente.';
+  }
+  return note;
+};
+
+const getSelectedCandidates = (aggregate, selectedDay) => {
+  if (!aggregate) return [];
+  const usedCandidates = Array.isArray(aggregate.usedCandidates) ? aggregate.usedCandidates : [];
+  if (!usedCandidates.length) {
+    return [];
+  }
+  if (!Number.isFinite(selectedDay)) {
+    return usedCandidates;
+  }
+  // Si el resultado se ha forzado por marcador, no mostramos candidatos de perfiles/calculadoras.
+  if (aggregate?.selectedMode === 'marcador') {
+    return [];
+  }
+  const roundedDay = Math.round(selectedDay);
+  const matches = usedCandidates.filter((candidate) => Math.round(candidate?.day ?? NaN) === roundedDay);
+  return matches.length ? matches : usedCandidates;
+};
+
+const dedupeTexts = (texts = []) => {
+  const seen = new Set();
+  return texts.filter((text) => {
+    if (!text) return false;
+    const trimmed = text.trim();
+    if (!trimmed || seen.has(trimmed)) {
+      return false;
+    }
+    seen.add(trimmed);
+    return true;
+  });
+};
+
+const buildRelativePhaseInfo = (info) => {
+  const { reasons = {}, message } = info || {};
+  const title = message || 'Relativamente infértil';
+  const lines = [];
+  const fertileIndex = Number.isInteger(reasons.fertileStartFinalIndex)
+    ? reasons.fertileStartFinalIndex
+    : null;
+  const lastRelativeDay = fertileIndex != null ? fertileIndex : null;
+  if (lastRelativeDay != null && lastRelativeDay >= 1) {
+    lines.push(`Comprende del día 1 al ${formatDayLabel(lastRelativeDay)}.`);
+  } else {
+    lines.push('Sin signos fértiles detectados en los primeros días.');
+  }
+
+  const aggregate = reasons.aggregate || {};
+  const selectedDay = Number.isFinite(aggregate.selectedDay)
+    ? Math.round(aggregate.selectedDay)
+    : fertileIndex != null
+      ? fertileIndex + 1
+      : null;
+  const candidates = getSelectedCandidates(aggregate, selectedDay);
+  const candidateDescriptions = dedupeTexts(
+    candidates.map((candidate) => describeCandidateReason(candidate, { context: 'relative', selectedDay }))
+  );
+  lines.push(...candidateDescriptions);
+
+  const explicitStartDay = Number.isInteger(reasons.details?.explicitStartDay)
+    ? reasons.details.explicitStartDay
+    : null;
+  if (explicitStartDay != null) {
+    lines.push(`Se detectó un marcador explícito de fertilidad en ${formatDayLabel(explicitStartDay + 1)}.`);
+  }
+
+  const aggregateNotes = Array.isArray(aggregate.notes) ? aggregate.notes : [];
+  const translatedNotes = dedupeTexts(
+    aggregateNotes
+      .map((note) => translateAggregateNote(note, { explicitStartDay }))
+      .filter(Boolean)
+  );
+  lines.push(...translatedNotes);
+
+  return { title, lines: dedupeTexts(lines) };
+};
+
+const buildFertilePhaseInfo = (info) => {
+  const { reasons = {}, message } = info || {};
+  const title = message || 'Fértil';
+  const lines = [];
+  const startDay = Number.isInteger(reasons.startIndex) ? reasons.startIndex + 1 : null;
+  const endDay = Number.isInteger(reasons.endIndex) ? reasons.endIndex + 1 : null;
+  if (startDay != null && endDay != null) {
+    lines.push(`Comprende de ${formatDayLabel(startDay)} a ${formatDayLabel(endDay)}.`);
+  } else if (startDay != null) {
+    lines.push(`Comienza en ${formatDayLabel(startDay)}.`);
+  }
+
+  const aggregate = reasons.aggregate || {};
+  const selectedDay = Number.isFinite(aggregate.selectedDay)
+    ? Math.round(aggregate.selectedDay)
+    : startDay;
+  const candidates = getSelectedCandidates(aggregate, selectedDay);
+  const candidateDescriptions = dedupeTexts(
+    candidates.map((candidate) => describeCandidateReason(candidate, { context: 'fertile', selectedDay }))
+  );
+  lines.push(...candidateDescriptions);
+
+  const explicitStartDay = Number.isInteger(reasons.details?.explicitStartDay)
+    ? reasons.details.explicitStartDay
+    : null;
+  if (explicitStartDay != null) {
+    lines.push(`Se marcó manualmente el inicio fértil en ${formatDayLabel(explicitStartDay + 1)}.`);
+  }
+
+  const noteSources = Array.isArray(reasons.notes) ? reasons.notes : [];
+  const translatedNotes = dedupeTexts(
+    noteSources
+      .map((note) => translateAggregateNote(note, { explicitStartDay }))
+      .filter(Boolean)
+  );
+  lines.push(...translatedNotes);
+
+  return { title, lines: dedupeTexts(lines) };
+};
+
+const buildPostPhaseInfo = (info) => {
+  const { reasons = {}, message, status, startIndex } = info || {};
+  const title = message || (status === 'absolute' ? 'Infertilidad absoluta' : 'Infertilidad');
+  const lines = [];
+  const startDay = Number.isInteger(startIndex) ? startIndex + 1 : null;
+  if (startDay != null) {
+    lines.push(`Comienza en ${formatDayLabel(startDay)}.`);
+  }
+
+  const temperature = reasons.temperature || {};
+  if (Number.isInteger(temperature.startIndex)) {
+    const startLabel = formatDayLabel(temperature.startIndex + 1);
+    const ruleLabel = temperature.rule ? `regla ${temperature.rule}` : 'temperatura';
+    const confirmationLabel = Number.isInteger(temperature.confirmationIndex)
+      ? formatDayLabel(temperature.confirmationIndex + 1)
+      : null;
+    if (confirmationLabel) {
+      lines.push(`Temperatura: ${ruleLabel} confirmada en ${confirmationLabel} → infertilidad desde ${startLabel}.`);
+    } else {
+      lines.push(`Temperatura: ${ruleLabel} → infertilidad desde ${startLabel}.`);
+    }
+  } else {
+    lines.push('Temperatura: pendiente de confirmación.');
+  }
+
+  const mucus = reasons.mucus || {};
+  if (Number.isInteger(mucus.startIndex)) {
+    const descriptor = mucus.thirdDayIndex != null ? '3.º día' : 'P+4';
+    const startLabel = formatDayLabel(mucus.startIndex + 1);
+    lines.push(`Moco: cierre por ${descriptor} → infertilidad desde ${startLabel}.`);
+  } else {
+    lines.push('Moco: pendiente de completar.');
+  }
+
+  if (status === 'absolute') {
+    lines.push('Ambos indicadores están confirmados, por lo que hay infertilidad absoluta.');
+  }
+
+  return { title, lines: dedupeTexts(lines) };
+};
+
+const buildNoDataInfo = (info) => {
+  const title = info?.message || 'Sin datos suficientes';
+  return {
+    title,
+    lines: ['Añade temperatura, P o moco para obtener la interpretación del ciclo.'],
+  };
+};
+
+const buildPhaseInfoBubbleContent = (info) => {
+  if (!info) return null;
+  if (info.phase === 'relativeInfertile') {
+    return buildRelativePhaseInfo(info);
+  }
+  if (info.phase === 'fertile') {
+    return buildFertilePhaseInfo(info);
+  }
+  if (info.phase === 'postOvulatory') {
+    return buildPostPhaseInfo(info);
+  }
+  if (info.phase === 'nodata') {
+    return buildNoDataInfo(info);
+  }
+  const fallbackTitle = info.message || 'Interpretación';
+  return {
+    title: fallbackTitle,
+    lines: info.message ? [info.message] : ['Sin información adicional.'],
+  };
 };
 
 const mergeFertilityStartConfig = (incoming) => {
@@ -119,7 +389,6 @@ const mergeFertilityStartConfig = (incoming) => {
 const ChartPage = () => {
   const { cycleId } = useParams();
   const location = useLocation();
-  const { toast } = useToast();
   const {
     currentCycle,
     archivedCycles,
@@ -132,11 +401,28 @@ const ChartPage = () => {
   const [fetchedCycle, setFetchedCycle] = useState(null);
   const [externalLoading, setExternalLoading] = useState(false);
   const [notFound, setNotFound] = useState(false);
+  const [phaseInfoBubble, setPhaseInfoBubble] = useState(null);
+  const phaseInfoTimeoutRef = useRef(null);
 
   const isViewingCurrentCycle = !cycleId || cycleId === currentCycle.id;
   const archivedMatch = !isViewingCurrentCycle
     ? archivedCycles.find((cycle) => cycle.id === cycleId)
     : null;
+
+    const closePhaseInfoBubble = useCallback(() => {
+    if (phaseInfoTimeoutRef.current) {
+      clearTimeout(phaseInfoTimeoutRef.current);
+      phaseInfoTimeoutRef.current = null;
+    }
+    setPhaseInfoBubble(null);
+  }, []);
+
+  useEffect(() => () => {
+    if (phaseInfoTimeoutRef.current) {
+      clearTimeout(phaseInfoTimeoutRef.current);
+      phaseInfoTimeoutRef.current = null;
+    }
+  }, []);
 
   useEffect(() => {
     if (isViewingCurrentCycle) {
@@ -247,6 +533,12 @@ const ChartPage = () => {
     () => mergeFertilityStartConfig(chartSettings.fertilityStartConfig),
     [chartSettings.fertilityStartConfig]
   );
+
+   useEffect(() => {
+    if (!showInterpretation) {
+      closePhaseInfoBubble();
+    }
+  }, [showInterpretation, closePhaseInfoBubble]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -689,146 +981,20 @@ const ChartPage = () => {
     }
   };
 
-  const handleShowPhaseInfo = useCallback(
-    (info = {}) => {
-      const reasons = info?.reasons || {};
-      const lines = [];
-
-      if (reasons?.type === 'relative') {
-        const fertileIndex = Number.isInteger(reasons.fertileStartFinalIndex)
-          ? reasons.fertileStartFinalIndex
-          : null;
-        const fertileDay = fertileIndex != null ? fertileIndex + 1 : null;
-        const lastRelativeDay = fertileDay != null ? fertileDay - 1 : null;
-        if (lastRelativeDay != null && lastRelativeDay >= 1) {
-          lines.push(`Desde D1 hasta D${lastRelativeDay}.`);
-        } else {
-          lines.push('Desde D1 sin evidencias de fertilidad.');
-        }
-
-        const aggregate = reasons.aggregate ?? {};
-        const selectedDay = Number.isFinite(aggregate.selectedDay)
-          ? aggregate.selectedDay
-          : fertileDay ?? '—';
-        const modeLabelMap = {
-          conservador: 'modo conservador',
-          consenso: 'modo consenso',
-          permisivo: 'modo permisivo',
-          marcador: 'marcador explícito',
-        };
-        const modeLabel = aggregate.selectedMode
-          ? modeLabelMap[aggregate.selectedMode] ?? aggregate.selectedMode
-          : 'modo indeterminado';
-        lines.push(`Inicio fértil elegido: día ${selectedDay} por ${modeLabel}.`);
-
-        const candidates = Array.isArray(aggregate.usedCandidates)
-          ? aggregate.usedCandidates
-          : [];
-        if (candidates.length) {
-          const formatted = candidates
-            .map((candidate) => {
-              const source = candidate?.source ?? candidate?.originalSource ?? '—';
-              const dayLabel = Number.isFinite(candidate?.day)
-                ? `D${candidate.day}`
-                : 'día —';
-              const reason = candidate?.reason ? candidate.reason : 'sin motivo';
-              return `${source} → ${dayLabel} (${reason})`;
-            })
-            .join('; ');
-          lines.push(`Candidatos: ${formatted}.`);
-        } else {
-          lines.push('Candidatos: sin candidatos válidos.');
-        }
-
-        if (Number.isFinite(reasons.bipScore)) {
-          lines.push(`BIP inicial: ${reasons.bipScore.toFixed(1)}.`);
-        }
-
-        const aggNotes = Array.isArray(aggregate.notes)
-          ? aggregate.notes.filter(Boolean)
-          : [];
-        if (aggNotes.length) {
-          lines.push(`Notas: ${aggNotes.join('; ')}.`);
-        }
-      } else if (reasons?.type === 'fertile') {
-        const startDay = Number.isInteger(reasons.startIndex)
-          ? reasons.startIndex + 1
-          : '—';
-        const endDay = Number.isInteger(reasons.endIndex)
-          ? reasons.endIndex + 1
-          : '—';
-        lines.push(`Fértil de D${startDay} a D${endDay}.`);
-
-        const sourceLabelMap = {
-          marker: 'marcador explícito',
-          profiles: 'perfiles sintotérmicos',
-          calculator: 'calculadora CPM/T-8',
-        };
-        const sourceLabel = sourceLabelMap[reasons.source] || 'origen indeterminado';
-        lines.push(`Origen: ${sourceLabel}.`);
-
-        const notes = Array.isArray(reasons.notes) ? reasons.notes.filter(Boolean) : [];
-        if (notes.length) {
-          lines.push(`Notas: ${notes.join('; ')}.`);
-        }
-
-        const debugCandidates = Array.isArray(reasons.details?.candidatesBeforeAggregate)
-          ? reasons.details.candidatesBeforeAggregate
-          : [];
-        if (debugCandidates.length) {
-          const formatted = debugCandidates
-            .map((candidate) => {
-              const source = candidate?.source ?? candidate?.originalSource ?? '—';
-              const dayLabel = Number.isFinite(candidate?.day)
-                ? `D${candidate.day}`
-                : 'día —';
-              const reason = candidate?.reason ? candidate.reason : 'sin motivo';
-              return `${source} → ${dayLabel} (${reason})`;
-            })
-            .join('; ');
-          lines.push(`Candidatos evaluados: ${formatted}.`);
-        }
-      } else if (reasons?.type === 'post') {
-        if (info?.message) {
-          lines.push(info.message);
-        }
-        const mucus = reasons.mucus ?? {};
-        if (mucus.startIndex != null) {
-          const descriptor = mucus.thirdDayIndex != null ? '3° día' : 'P+4';
-          lines.push(`Moco: ${descriptor} → inicio en D${mucus.startIndex + 1}.`);
-        } else {
-          lines.push('Moco: pendiente.');
-        }
-        const temperature = reasons.temperature ?? {};
-        if (temperature.startIndex != null) {
-          const ruleLabel = temperature.rule || 'regla desconocida';
-          const confirmationDay = Number.isInteger(temperature.confirmationIndex)
-            ? `D${temperature.confirmationIndex + 1}`
-            : '—';
-          lines.push(
-            `Temperatura: ${ruleLabel}, confirmación ${confirmationDay}, infertilidad desde D${temperature.startIndex + 1}.`
-          );
-        } else {
-          lines.push('Temperatura: pendiente.');
-        }
-        } else if (info?.phase === 'nodata') {
-        lines.push('Sin datos suficientes. Añade temperatura, P o moco para interpretar.');
-      } else if (info?.message) {
-        lines.push(info.message);
-      }
-
-      if (!lines.length) {
-        return;
-      }
-      const [title, ...rest] = lines;
-      toast({
-        title,
-        description: rest.length ? rest.join('\n') : undefined,
-        duration: 6000,
-      });
-    },
-    [toast]
-  );
+  const handleShowPhaseInfo = useCallback((info = {}) => {
+    const content = buildPhaseInfoBubbleContent(info);
+    if (!content || !Array.isArray(content.lines) || content.lines.length === 0) {
+      return;
+    }
+    if (phaseInfoTimeoutRef.current) {
+      clearTimeout(phaseInfoTimeoutRef.current);
+    }
+    setPhaseInfoBubble(content);
+    phaseInfoTimeoutRef.current = setTimeout(() => {
+      setPhaseInfoBubble(null);
+      phaseInfoTimeoutRef.current = null;
+    }, 10000);
+  }, []);
 
   const handleToggleFullScreen = async () => {
     const rootElement = document.documentElement;
@@ -967,6 +1133,26 @@ const ChartPage = () => {
           onShowPhaseInfo={handleShowPhaseInfo}
         />
         
+        {phaseInfoBubble && (
+          <div className="pointer-events-none fixed inset-x-0 bottom-6 z-50 flex justify-center px-4">
+            <div className="pointer-events-auto relative w-full max-w-md rounded-3xl border border-rose-100/70 bg-white/95 px-6 py-5 shadow-2xl shadow-rose-200/50 backdrop-blur">
+              <button
+                type="button"
+                onClick={closePhaseInfoBubble}
+                className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full bg-rose-50 text-rose-500 transition hover:bg-rose-100"
+                aria-label="Cerrar información de fase"
+              >
+                ×
+              </button>
+              <h3 className="text-base font-semibold text-slate-800">{phaseInfoBubble.title}</h3>
+              <div className="mt-3 space-y-2 text-sm leading-snug text-slate-600">
+                {phaseInfoBubble.lines.map((line, index) => (
+                  <p key={index}>{line}</p>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
         {/* Backdrop */}
         {settingsOpen && (
             <div className="fixed inset-0 z-40 bg-black/30"

@@ -300,26 +300,13 @@ const FertilityChart = ({
     if (hasTemperatureClosure && hasMucusClosure) {
       startIndex = Math.max(temperatureDetails.startIndex, mucusDetails.startIndex);
       status = 'absolute';
-      const mucusRuleLabel = mucusDetails.thirdDayIndex != null ? '3° día' : 'P+4';
-      const confirmationDay = temperatureDetails.confirmationIndex != null
-        ? `D${temperatureDetails.confirmationIndex + 1}`
-        : '—';
-      const formattedBaseline = Number.isFinite(temperatureDetails.baselineTemp)
-        ? `${temperatureDetails.baselineTemp.toFixed(1)}°C`
-        : '—';
-      const ruleLabel = temperatureDetails.rule || 'regla desconocida';
-      message = `Cierre absoluto: moco (${mucusRuleLabel}) y temperatura (regla ${ruleLabel}). Baseline ${formattedBaseline}, confirmación en ${confirmationDay}.`;
+      message = 'Infertilidad absoluta';
     } else if (hasTemperatureClosure) {
       startIndex = temperatureDetails.startIndex;
-      const ruleLabel = temperatureDetails.rule || 'regla desconocida';
-      const confirmationDay = temperatureDetails.confirmationIndex != null
-        ? `D${temperatureDetails.confirmationIndex + 1}`
-        : '—';
-      message = `Cierre pendiente: falta moco. Temperatura con regla ${ruleLabel} confirmada en ${confirmationDay}.`;
+      message = 'Infertilidad';
     } else {
       startIndex = mucusDetails.startIndex;
-      const mucusRuleLabel = mucusDetails.thirdDayIndex != null ? '3° día' : 'P+4';
-      message = `Cierre pendiente: falta temperatura. Moco vía ${mucusRuleLabel}.`;
+      message = 'Infertilidad';
     }
 
     return {
@@ -388,12 +375,13 @@ const FertilityChart = ({
             bounds,
             startIndex: 0,
             endIndex,
-             message: 'Rel. infértil',
+            message: 'Relativamente infértil',
             reasons: {
               type: 'relative',
               fertileStartFinalIndex,
               aggregate: fertilityStart?.aggregate ?? null,
               bipScore: fertilityStart?.debug?.bipScore ?? null,
+              details: fertilityStart?.debug ?? null,
             },
           });
         }
@@ -442,6 +430,7 @@ const FertilityChart = ({
             source: fertileSource,
             details: fertilityStart?.debug ?? null,
             notes: fertilityStart?.aggregate?.notes ?? [],
+            aggregate: fertilityStart?.aggregate ?? null,
           },
         });
       }

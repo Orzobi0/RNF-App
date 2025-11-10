@@ -261,7 +261,7 @@ const findAlemanasCandidate = (days) => {
       return { source: 'Alemanas', day: i + 1, reason: 'score>=0.8', kind: 'profile' };
     }
     if (day.hasChangeBIP) {
-      return { source: 'Alemanas', day: i + 1, reason: 'cambioBIP', kind: 'profile' };
+      return { source: 'OMS', day: i + 1, reason: 'cambioBIP', kind: 'profile' };
     }
   }
   return null;

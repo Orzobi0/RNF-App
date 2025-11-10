@@ -125,6 +125,11 @@ const DataEntryFormFields = ({
     selectedIsoDate,
   });
 
+  const fertilitySymbolTheme = useMemo(
+    () => getFertilitySymbolTheme(fertilitySymbol),
+    [fertilitySymbol]
+  );
+
     // Mapeo de icono por modo (coherente con la convención de la gráfica)
     const PeakIconMap = {
       assign: X,           // “marcar” (X)
@@ -369,13 +374,14 @@ const DataEntryFormFields = ({
         activeText: 'text-orange-600',
         filledText: 'text-orange-500',
         focusRing: 'focus-visible:ring-orange-200',
+        defaultText: 'text-slate-500',
       },
       symbol: {
-        activeBorder: 'border-slate-300',
-        activeBg: 'bg-slate-100',
-        activeText: 'text-slate-600',
-        filledText: 'text-slate-600',
-        focusRing: 'focus-visible:ring-slate-200',
+        activeBorder: fertilitySymbolTheme.triggerBorder,
+        activeBg: fertilitySymbolTheme.buttonActiveBg,
+        activeText: fertilitySymbolTheme.icon,
+        filledText: fertilitySymbolTheme.icon,
+        focusRing: fertilitySymbolTheme.triggerFocus,
       },
       sensation: {
         activeBorder: 'border-sky-300',
@@ -383,6 +389,7 @@ const DataEntryFormFields = ({
         activeText: 'text-sky-600',
         filledText: 'text-sky-500',
         focusRing: 'focus-visible:ring-sky-200',
+        defaultText: 'text-slate-500',
       },
       appearance: {
         activeBorder: 'border-emerald-300',
@@ -390,6 +397,7 @@ const DataEntryFormFields = ({
         activeText: 'text-emerald-600',
         filledText: 'text-emerald-500',
         focusRing: 'focus-visible:ring-emerald-200',
+        defaultText: 'text-slate-500',
       },
       observations: {
         activeBorder: 'border-violet-300',
@@ -397,9 +405,10 @@ const DataEntryFormFields = ({
         activeText: 'text-violet-600',
         filledText: 'text-violet-500',
         focusRing: 'focus-visible:ring-violet-200',
+        defaultText: 'text-slate-500',
       },
     }),
-    []
+    [fertilitySymbolTheme]
   );
 
   const renderSectionContent = (key) => {
@@ -603,7 +612,7 @@ const DataEntryFormFields = ({
           </div>
         );
       case 'symbol': {
-        const symbolTheme = getFertilitySymbolTheme(fertilitySymbol);
+        const symbolTheme = fertilitySymbolTheme;
         return (
           <div
             className={cn(
@@ -765,6 +774,7 @@ const DataEntryFormFields = ({
             const isActive = openSections.includes(section.key);
             const styles = sectionStyles[section.key] || {};
             const isFilled = filledBySection[section.key];
+            const isSymbol = section.key === 'symbol';
             return (
               <button
                 key={section.key}
@@ -772,11 +782,16 @@ const DataEntryFormFields = ({
                 onClick={() => handleSectionToggle(section.key)}
                 className={cn(
                   'flex h-11 w-11 items-center justify-center rounded-full border-2 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
-                  styles.focusRing,
+                  isSymbol ? fertilitySymbolTheme.triggerFocus : styles.focusRing,
                   isActive
-                    ? cn('shadow-inner', styles.activeBorder, styles.activeBg, styles.activeText)
+                     ? cn('shadow-inner',
+                        isSymbol ? fertilitySymbolTheme.triggerBorder : styles.activeBorder,
+                        styles.activeBg,
+                        styles.activeText
+                      )
                     : cn('border-transparent bg-transparent hover:bg-slate-100',
-                        isFilled ? styles.filledText : 'text-slate-500'
+                        isFilled ? styles.filledText : 'text-slate-500',
+                        isSymbol ? fertilitySymbolTheme.buttonHoverBg : 'hover:bg-slate-100'
                       ),
                   !isActive && !isFilled && 'text-slate-500',
                   'min-h-[44px] min-w-[44px]'
@@ -785,14 +800,14 @@ const DataEntryFormFields = ({
                 aria-expanded={isActive}
                 aria-controls={`${section.key}-panel`}
               >
-              <Icon
+            <Icon
                   className={cn(
-                    'h-5 w-5',
+                    'h-5 w-5 transition-colors duration-200',
                     isActive
                       ? styles.activeText
                       : isFilled
                         ? styles.filledText
-                        : 'text-slate-500'
+                        : styles.defaultText || 'text-slate-500'
                   )}
                   aria-hidden="true"
                 />
