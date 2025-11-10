@@ -247,6 +247,60 @@ const peakCircleBtnClassName = [
   };
 
   const symbolColors = getSymbolColors(point.fertility_symbol);
+  const classification = point.classification ?? null;
+  const classificationLabelMap = {
+    INFERTIL: 'Infértil',
+    FERTIL_COMIENZO: 'Fértil (comienzo)',
+    FERTIL_ALTA: 'Fértil (alta)',
+  };
+  const classificationToneMap = {
+    INFERTIL: 'bg-emerald-50/90 border border-emerald-200 text-emerald-700',
+    FERTIL_COMIENZO: 'bg-rose-50/90 border border-rose-200 text-rose-700',
+    FERTIL_ALTA: 'bg-rose-100/90 border border-rose-300 text-rose-900',
+  };
+  const classificationBasisLabelMap = {
+    sensation: 'Sensación',
+    appearance: 'Apariencia',
+    default: 'Sin datos',
+  };
+  const filteredClassificationDetails = (() => {
+    if (!classification?.details) return [];
+    const details = classification.details.filter(Boolean);
+    if (!classification.near_peak_hint) {
+      return details;
+    }
+    return details.filter((detail) => !/ovulacion proxima/i.test(detail));
+  })();
+  const classificationBlock = classification ? (
+    <motion.div
+      initial={{ opacity: 0, y: -6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.05 }}
+      className={`mb-2 rounded-2xl p-2 ${classificationToneMap[classification.phase] || 'bg-slate-50 border border-slate-200 text-slate-600'} shadow-sm`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <Badge className="rounded-xl bg-white/60 px-2 py-0.5 text-[11px] font-semibold text-current shadow-none border border-current/30">
+          {classificationLabelMap[classification.phase] ?? 'Clasificación'}
+        </Badge>
+        <span className="text-[11px] font-medium text-slate-500">
+          Base: {classificationBasisLabelMap[classification.basis] ?? 'Sin datos'}
+        </span>
+      </div>
+      <p className="mt-1 text-xs font-semibold text-slate-700 leading-snug">
+        {classification.reason}
+      </p>
+      {classification.near_peak_hint && (
+        <p className="mt-1 text-xs font-semibold text-rose-600 leading-snug">
+          Ovulación próxima (spotting + moco fértil alto)
+        </p>
+      )}
+      {filteredClassificationDetails.slice(0, 2).map((detail, index) => (
+        <p key={index} className="mt-0.5 text-[11px] text-slate-600 leading-snug">
+          • {detail}
+        </p>
+      ))}
+    </motion.div>
+  ) : null;
 
   return (
     <motion.div
@@ -292,6 +346,7 @@ const peakCircleBtnClassName = [
           )}
 
           <div className="p-2">
+            {classificationBlock}
             {/* Header con fecha y día del ciclo */}
             <div className="mb-2 relative">
               <div className="w-5 h-5 bg-gradient-to-br from-pink-500 to-rose-500 rounded-full absolute top-2 left-2 flex items-center justify-center shadow-lg">

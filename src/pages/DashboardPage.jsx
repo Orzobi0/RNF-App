@@ -38,6 +38,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { computeOvulationMetrics } from '@/hooks/useFertilityChart';
 import { saveUserMetricsSnapshot } from '@/lib/userMetrics';
+import classifyMucusDay from '@/lib/mucusClassification';
 
 const CycleOverviewCard = ({
   cycleData,
@@ -279,7 +280,11 @@ const changeOffsetRaf = useCallback((delta) => {
 
       if (Number.isFinite(numericDay) && numericDay > 0) {
         if (!map.has(numericDay)) {
-          map.set(numericDay, record);
+          map.set(numericDay, {
+            ...record,
+            cycleDay: record.cycleDay ?? numericDay,
+            classification: record.classification ?? classifyMucusDay(record),
+          });
         }
         return map;
       }
@@ -293,7 +298,11 @@ const changeOffsetRaf = useCallback((delta) => {
         const calculatedDay = differenceInDays(parsedIso, cycleStartDate) + 1;
 
         if (Number.isFinite(calculatedDay) && calculatedDay > 0 && !map.has(calculatedDay)) {
-          map.set(calculatedDay, { ...record, cycleDay: calculatedDay });
+          map.set(calculatedDay, {
+            ...record,
+            cycleDay: calculatedDay,
+            classification: record.classification ?? classifyMucusDay(record),
+          });
         }
       } catch (error) {
         console.error('Error mapping record by day for wheel:', error);
@@ -420,8 +429,8 @@ const changeOffsetRaf = useCallback((delta) => {
           temperature_chart: null,
           displayTemperature: null,
           ignored: false,
-          peakStatus: dot.peakStatus,
-          peak_marker: dot.peakStatus === 'P' ? 'peak' : null,
+          peakStatus: dot.peakStatus ?? null,
+          peak_marker: null,
         }
       : null;
 
@@ -429,9 +438,7 @@ const changeOffsetRaf = useCallback((delta) => {
       ? {
           ...dot.record,
           cycleDay: dot.record.cycleDay ?? dot.day,
-          peakStatus: dot.peakStatus,
-          peak_marker:
-            dot.record.peak_marker ?? (dot.peakStatus === 'P' ? 'peak' : null),
+          peakStatus: dot.peakStatus ?? null,
         }
       : placeholderRecord;
     if (targetRecord && currentPeakIsoDate && targetRecord.isoDate === currentPeakIsoDate) {
@@ -2999,9 +3006,7 @@ const ModernFertilityDashboard = () => {
         return Number.isFinite(parsed) ? parsed : null;
       };
 
-      const markAsPeak = shouldMarkAsPeak ?? !(
-        record.peak_marker === 'peak' || record.peakStatus === 'P'
-      );
+      const markAsPeak = shouldMarkAsPeak ?? record.peak_marker !== 'peak';
 
       try {
         const fallbackTime = record.timestamp

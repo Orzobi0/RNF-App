@@ -215,6 +215,24 @@ const buildRelativePhaseInfo = (info) => {
   );
   lines.push(...translatedNotes);
 
+   const classificationSummary = reasons.classificationSummary;
+  if (classificationSummary?.totalDays > 0) {
+    const infertileCount = classificationSummary.counts?.INFERTIL ?? 0;
+    if (infertileCount > 0) {
+      const topTerm = classificationSummary.topSensationTerms?.[0] || classificationSummary.topAppearanceTerms?.[0] || null;
+      if (topTerm?.value) {
+        lines.push(`Predomina "${topTerm.value}" (${infertileCount} día${infertileCount === 1 ? '' : 's'}).`);
+      } else {
+        lines.push(`Sensaciones secas registradas en ${infertileCount} día${infertileCount === 1 ? '' : 's'}.`);
+      }
+    }
+
+    const fertileHints = (classificationSummary.counts?.FERTIL_COMIENZO ?? 0) + (classificationSummary.counts?.FERTIL_ALTA ?? 0);
+    if (fertileHints > 0) {
+      lines.push(`Este tramo incluye ${fertileHints} día${fertileHints === 1 ? '' : 's'} con indicios fértiles.`);
+    }
+  }
+
   return { title, lines: dedupeTexts(lines) };
 };
 
@@ -254,6 +272,40 @@ const buildFertilePhaseInfo = (info) => {
       .filter(Boolean)
   );
   lines.push(...translatedNotes);
+
+  const classificationSummary = reasons.classificationSummary;
+  if (classificationSummary?.totalDays > 0) {
+    const startCount = classificationSummary.counts?.FERTIL_COMIENZO ?? 0;
+    const highCount = classificationSummary.counts?.FERTIL_ALTA ?? 0;
+    if (startCount + highCount > 0) {
+      lines.push(
+        `Distribución del moco fértil: ${highCount} día${highCount === 1 ? '' : 's'} de alta, ${startCount} de inicio.`
+      );
+    }
+
+    const topReason = classificationSummary.topReasons?.[0];
+    if (topReason?.value) {
+      lines.push(`Motivo más frecuente: ${topReason.value}.`);
+    }
+
+    const topSensation = classificationSummary.topSensationTerms?.[0];
+    if (topSensation?.value) {
+      lines.push(`Sensación destacada: ${topSensation.value}.`);
+    }
+
+    const topAppearance = classificationSummary.topAppearanceTerms?.[0];
+    if (topAppearance?.value) {
+      lines.push(`Apariencia destacada: ${topAppearance.value}.`);
+    }
+
+    if (classificationSummary.nearPeakDays > 0) {
+      lines.push(
+        `Ovulación próxima: ${classificationSummary.nearPeakDays === 1
+          ? '1 día'
+          : `${classificationSummary.nearPeakDays} días`} con spotting y moco fértil alto.`
+      );
+    }
+  }
 
   return { title, lines: dedupeTexts(lines) };
 };
@@ -852,9 +904,7 @@ const ChartPage = () => {
       return Number.isFinite(parsed) ? parsed : null;
     };
 
-    const markAsPeak = shouldMarkAsPeak ?? !(
-      record.peak_marker === 'peak' || record.peakStatus === 'P'
-    );
+    const markAsPeak = shouldMarkAsPeak ?? record.peak_marker !== 'peak';
 
     setIsProcessing(true);
     try {

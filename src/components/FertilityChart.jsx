@@ -57,6 +57,7 @@ const FertilityChart = ({
     hasTemperatureData,
     hasAnyObservation,
     graphBottomInset,
+    classificationTimeline,
   } = useFertilityChart(
     data,
     isFullScreen,
@@ -75,6 +76,87 @@ const FertilityChart = ({
     uniqueIdRef.current = `fertility-chart-${cycleId ?? 'default'}-${randomSuffix}`;
   }
   const uniqueId = uniqueIdRef.current;
+
+  const summarizeClassificationRange = useCallback(
+    (startIndex, endIndex) => {
+      if (
+        !Array.isArray(classificationTimeline) ||
+        classificationTimeline.length === 0 ||
+        !Number.isFinite(startIndex) ||
+        !Number.isFinite(endIndex)
+      ) {
+        return null;
+      }
+
+      const normalizedStart = Math.max(0, Math.min(Math.floor(startIndex), classificationTimeline.length - 1));
+      const normalizedEnd = Math.max(
+        normalizedStart,
+        Math.min(Math.floor(endIndex), classificationTimeline.length - 1)
+      );
+
+      const counts = { INFERTIL: 0, FERTIL_COMIENZO: 0, FERTIL_ALTA: 0 };
+      const basisCounts = { sensation: 0, appearance: 0, default: 0 };
+      const reasonCounts = new Map();
+      const sensationTerms = new Map();
+      const appearanceTerms = new Map();
+
+      let totalDays = 0;
+      let nearPeakDays = 0;
+
+      for (let idx = normalizedStart; idx <= normalizedEnd; idx += 1) {
+        const entry = classificationTimeline[idx];
+        const classification = entry?.classification;
+        if (!classification) continue;
+
+        totalDays += 1;
+        if (classification.phase && Object.prototype.hasOwnProperty.call(counts, classification.phase)) {
+          counts[classification.phase] += 1;
+        }
+
+        const basisKey = classification.basis && Object.prototype.hasOwnProperty.call(basisCounts, classification.basis)
+          ? classification.basis
+          : 'default';
+        basisCounts[basisKey] += 1;
+
+        if (classification.reason) {
+          const currentReasonCount = reasonCounts.get(classification.reason) ?? 0;
+          reasonCounts.set(classification.reason, currentReasonCount + 1);
+        }
+
+        const sensationList = classification.matchedTerms?.sensation ?? [];
+        sensationList.forEach((term) => {
+          const current = sensationTerms.get(term) ?? 0;
+          sensationTerms.set(term, current + 1);
+        });
+
+        const appearanceList = classification.matchedTerms?.appearance ?? [];
+        appearanceList.forEach((term) => {
+          const current = appearanceTerms.get(term) ?? 0;
+          appearanceTerms.set(term, current + 1);
+        });
+
+        if (classification.near_peak_hint) {
+          nearPeakDays += 1;
+        }
+      }
+
+      const toSortedArray = (map) =>
+        Array.from(map.entries())
+          .sort((a, b) => b[1] - a[1])
+          .map(([value, occurrences]) => ({ value, count: occurrences }));
+
+      return {
+        totalDays,
+        counts,
+        basisCounts,
+        nearPeakDays,
+        topReasons: toSortedArray(reasonCounts),
+        topSensationTerms: toSortedArray(sensationTerms),
+        topAppearanceTerms: toSortedArray(appearanceTerms),
+      };
+    },
+    [classificationTimeline]
+  );
 
   if (!allDataPoints || allDataPoints.length === 0) {
     return (
@@ -368,6 +450,7 @@ const FertilityChart = ({
       if (endIndex >= 0) {
         const bounds = getSegmentBounds(0, endIndex);
         if (bounds) {
+          const classificationSummary = summarizeClassificationRange(0, endIndex);
           segments.push({
             key: 'relative',
             phase: 'relativeInfertile',
@@ -382,6 +465,7 @@ const FertilityChart = ({
               aggregate: fertilityStart?.aggregate ?? null,
               bipScore: fertilityStart?.debug?.bipScore ?? null,
               details: fertilityStart?.debug ?? null,
+              classificationSummary,
             },
           });
         }
@@ -415,6 +499,23 @@ const FertilityChart = ({
         } else if (hasCalculatorSource) {
           fertileSource = 'calculator';
         }
+        const classificationSummary = summarizeClassificationRange(
+          fertileStartIndex,
+          fertileEndIndex
+        );
+        const startCount = classificationSummary?.counts?.FERTIL_COMIENZO ?? 0;
+        const highCount = classificationSummary?.counts?.FERTIL_ALTA ?? 0;
+        const fertileDays = startCount + highCount;
+        let fertileMessage = 'Fértil';
+        if (fertileDays > 0) {
+          if (highCount > startCount) {
+            fertileMessage = 'Fértil (alta)';
+          } else if (startCount > highCount) {
+            fertileMessage = 'Fértil (comienzo)';
+          }
+        }
+        const intensityRatio = fertileDays > 0 ? highCount / fertileDays : 0;
+        const fillOpacity = 0.22 + Math.min(0.4, Math.max(0, intensityRatio * 0.35));
         segments.push({
           key: 'fertile',
           phase: 'fertile',
@@ -422,7 +523,7 @@ const FertilityChart = ({
           bounds,
           startIndex: fertileStartIndex,
           endIndex: fertileEndIndex,
-          message: 'Fértil',
+          message: fertileMessage,
           reasons: {
             type: 'fertile',
             startIndex: fertileStartIndex,
@@ -431,7 +532,9 @@ const FertilityChart = ({
             details: fertilityStart?.debug ?? null,
             notes: fertilityStart?.aggregate?.notes ?? [],
             aggregate: fertilityStart?.aggregate ?? null,
+            classificationSummary,
           },
+          fillOpacity,
         });
       }
     }
@@ -471,6 +574,7 @@ const FertilityChart = ({
     postOvulatoryPhaseInfo,
     hasAnyObservation,
     getSegmentBounds,
+    summarizeClassificationRange,
   ]);
   const relativePhaseGradientId = `${uniqueId}-phase-relative-gradient`;
   const fertilePhaseGradientId = `${uniqueId}-phase-fertile-gradient`;
@@ -616,20 +720,20 @@ const FertilityChart = ({
             </linearGradient>
             
             <linearGradient id={relativePhaseGradientId} x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="hsl(var(--accent))" stopOpacity="0" />
-              <stop offset="100%" stopColor="hsl(var(--accent))" stopOpacity="0.28" />
+              <stop offset="0%" stopColor="rgba(220, 252, 231, 0.05)" />
+              <stop offset="100%" stopColor="rgba(34, 197, 94, 0.32)" />
             </linearGradient>
             <linearGradient id={fertilePhaseGradientId} x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0" />
-              <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0.26" />
+              <stop offset="0%" stopColor="rgba(252, 231, 243, 0.18)" />
+              <stop offset="100%" stopColor="rgba(236, 72, 153, 0.45)" />
             </linearGradient>
             <linearGradient id={postPendingGradientId} x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="hsl(var(--secondary))" stopOpacity="0" />
-              <stop offset="100%" stopColor="hsl(var(--secondary))" stopOpacity="0.45" />
+              <stop offset="0%" stopColor="rgba(187, 247, 208, 0.08)" />
+              <stop offset="100%" stopColor="rgba(22, 163, 74, 0.52)" />
             </linearGradient>
             <linearGradient id={postAbsoluteGradientId} x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="hsl(var(--secondary))" stopOpacity="0" />
-              <stop offset="100%" stopColor="hsl(var(--secondary))" stopOpacity="0.7" />
+              <stop offset="0%" stopColor="rgba(22, 163, 74, 0.15)" />
+              <stop offset="100%" stopColor="rgba(21, 128, 61, 0.7)" />
             </linearGradient>
             <pattern
               id={postPendingPatternId}
@@ -714,6 +818,9 @@ const FertilityChart = ({
                     }
                     return `url(#${fertilePhaseGradientId})`;
                   })();
+                  const fillValue = segment.fill ?? fillId;
+                  const fillOpacity =
+                    typeof segment.fillOpacity === 'number' ? segment.fillOpacity : undefined;
                   const fontSize = responsiveFontSize(1.1);
                   const isNarrow = segment.bounds.width < 120;
                   const availableWidth = Math.max(segment.bounds.width - 16, 0);
@@ -759,7 +866,8 @@ const FertilityChart = ({
                         y={rectY}
                         width={segment.bounds.width}
                         height={rectHeight}
-                        fill={fillId}
+                        fill={fillValue}
+                        fillOpacity={fillOpacity}
                         pointerEvents="none"
                       />
                       <text

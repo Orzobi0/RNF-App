@@ -6,6 +6,7 @@ import {
   computeFertilityStartOutput,
   computeT8CandidateFromCycles,
 } from '@/lib/fertilityStart';
+import classifyMucusDay, { buildClassificationTimeline } from '@/lib/mucusClassification';
 
 const DEFAULT_FERTILITY_START_CONFIG = {
   methods: { alemanas: true, oms: true, creighton: true },
@@ -397,19 +398,26 @@ export const useFertilityChart = (
             }
           }
           const isoDate = d?.isoDate;
-          const peakMarker = d?.peak_marker ?? d?.peakStatus ?? null;
+          const peakMarker = d?.peak_marker === 'peak' ? 'peak' : null;
           const resolvedPeakStatus = isoDate
-            ? peakStatusByIsoDate[isoDate] ?? peakMarker
-            : peakMarker;
-          const normalizedPeakStatus = normalizePeakStatus(resolvedPeakStatus); 
+            ? peakStatusByIsoDate[isoDate] ?? null
+            : null;
+          const normalizedPeakStatus = normalizePeakStatus(resolvedPeakStatus);
+          const classification = classifyMucusDay(d);
           return {
             ...d,
             displayTemperature: normalizeTemp(resolvedValue),
             peakStatus: resolvedPeakStatus ?? null,
             normalizedPeakStatus,
+            classification,
           };
         });
       }, [data, peakStatusByIsoDate]);
+
+      const classificationTimeline = useMemo(
+        () => buildClassificationTimeline(processedData),
+        [processedData]
+      );
 
       useLayoutEffect(() => {
         const updateDimensions = () => {
@@ -735,6 +743,7 @@ export const useFertilityChart = (
     () =>
       computeFertilityStartOutput({
         processedData,
+        classificationTimeline,
         config: normalizedFertilityConfig,
         calculatorCandidates: fertilityCalculatorCandidates,
       }),
