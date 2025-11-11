@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { XCircle, EyeOff, Eye, Edit3, Thermometer, Droplets, Circle, Heart, X } from 'lucide-react';
+import { XCircle, EyeOff, Eye, Edit3, Thermometer, Droplets, Circle, Heart, Sparkles, X } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { getSymbolAppearance } from '@/config/fertilitySymbols';
@@ -109,6 +109,10 @@ const ChartTooltip = ({
     : [normalizeTimeString(point.time)];
   const fallbackTime = directTimeCandidates.find(Boolean) ?? formatTimestampTime(point.timestamp);
   const temperatureTime = measurementTime ?? fallbackTime;
+  const fertilityAssessment = point.fertilityAssessment ?? null;
+  const showFertilityStatus = Boolean(fertilityAssessment?.isFertile);
+  const fertilityLabel = fertilityAssessment?.label ?? null;
+  const fertilitySummary = fertilityAssessment?.summaryText ?? null;
   const mucusSensation = point.mucus_sensation ?? point.mucusSensation ?? '';
   const mucusAppearance = point.mucus_appearance ?? point.mucusAppearance ?? '';
   const observations = point.observations ?? '';
@@ -318,13 +322,43 @@ const peakCircleBtnClassName = [
                   )}
                 </div>
               </div>
-            </div>
+              </div>
 
-            {showEmptyState ? (
-              <div className="pt-1 space-y-3">
-                <motion.div
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
+            {showFertilityStatus && (fertilityLabel || fertilitySummary) && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.05 }}
+              className="mb-2 bg-gradient-to-r from-emerald-50 to-lime-50 rounded-3xl p-1.5 border border-emerald-200/70 shadow-sm"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-6 h-6 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center shadow-md">
+                  <Sparkles className="w-4 h-4 text-white" />
+                </div>
+                <div className="flex-1 text-left">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700/80">
+                    Estado fértil
+                  </p>
+                  {fertilityLabel && (
+                    <p className="text-sm font-semibold text-emerald-900">
+                      {fertilityLabel}
+                    </p>
+                  )}
+                  {fertilitySummary && (
+                    <p className="text-xs text-emerald-800/80 leading-snug">
+                      {fertilitySummary}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {showEmptyState ? (
+            <div className="pt-1 space-y-3">
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.1 }}
                   className="rounded-2xl border border-dashed border-pink-200 bg-pink-50/60 p-2 text-center"
                 >

@@ -767,6 +767,17 @@ const ChartPage = () => {
         const sourceLabel = sourceLabelMap[reasons.source] || 'origen indeterminado';
         lines.push(`Origen: ${sourceLabel}.`);
 
+        const statusSummary = reasons.statusSummary ?? null;
+        if (statusSummary?.label || statusSummary?.summaryText) {
+          const labelText = statusSummary.label ?? 'Estado actual';
+          const detailText = statusSummary.summaryText ?? '';
+          lines.push(
+            detailText
+              ? `Estado actual: ${labelText} — ${detailText}.`
+              : `Estado actual: ${labelText}.`
+          );
+        }
+
         const notes = Array.isArray(reasons.notes) ? reasons.notes.filter(Boolean) : [];
         if (notes.length) {
           lines.push(`Notas: ${notes.join('; ')}.`);

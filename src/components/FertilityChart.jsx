@@ -442,6 +442,9 @@ const FertilityChart = ({
             source: fertileSource,
             details: fertilityStart?.debug ?? null,
             notes: fertilityStart?.aggregate?.notes ?? [],
+            statusSummary: fertilityStart?.currentAssessment ?? null,
+            dailyAssessments: fertilityStart?.dailyAssessments ?? [],
+            window: fertilityStart?.fertileWindow ?? null,
           },
         });
       }

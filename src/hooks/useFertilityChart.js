@@ -403,13 +403,34 @@ export const useFertilityChart = (
             : peakMarker;
           const normalizedPeakStatus = normalizePeakStatus(resolvedPeakStatus); 
           return {
-            ...d,
-            displayTemperature: normalizeTemp(resolvedValue),
-            peakStatus: resolvedPeakStatus ?? null,
-            normalizedPeakStatus,
-          };
-        });
-      }, [data, peakStatusByIsoDate]);
+        ...d,
+        displayTemperature: normalizeTemp(resolvedValue),
+        peakStatus: resolvedPeakStatus ?? null,
+        normalizedPeakStatus,
+      };
+    });
+  }, [data, peakStatusByIsoDate]);
+
+  const todayIndex = useMemo(() => {
+    if (!Array.isArray(processedData) || processedData.length === 0) {
+      return null;
+    }
+    const today = new Date();
+    let lastIndex = null;
+    processedData.forEach((entry, idx) => {
+      if (!entry?.isoDate) return;
+      try {
+        const parsed = parseISO(entry.isoDate);
+        if (Number.isNaN(parsed?.getTime?.())) return;
+        if (differenceInCalendarDays(parsed, today) <= 0) {
+          lastIndex = idx;
+        }
+      } catch (error) {
+        // ignore parsing issues
+      }
+    });
+    return lastIndex;
+  }, [processedData]);
 
       useLayoutEffect(() => {
         const updateDimensions = () => {
@@ -481,7 +502,7 @@ export const useFertilityChart = (
       ),
     [processedData]
   );
-  const allDataPoints = useMemo(() => processedData.filter((d) => d && d.isoDate), [processedData]);
+  const rawAllDataPoints = useMemo(() => processedData.filter((d) => d && d.isoDate), [processedData]);
   const hasTemperatureData = validDataForLine.length > 0;
 
   const hasAnyObservation = useMemo(() => {
@@ -592,11 +613,11 @@ export const useFertilityChart = (
   }, [externalCalculatorCandidates, calculatorCycles]);
 
   const { peakDayIndex, thirdDayIndex, peakInfertilityStartIndex } = useMemo(() => {
-    if (!allDataPoints.length) {
+    if (!rawAllDataPoints.length) {
       return { peakDayIndex: null, thirdDayIndex: null, peakInfertilityStartIndex: null };
     }
 
-    const normalizedStatuses = allDataPoints.map((entry) =>
+    const normalizedStatuses = rawAllDataPoints.map((entry) =>
       entry?.normalizedPeakStatus ?? normalizePeakStatus(entry?.peakStatus ?? entry?.peak_marker)
     );
 
@@ -611,7 +632,7 @@ export const useFertilityChart = (
       }
     });
 
-    const lastIndex = allDataPoints.length - 1;
+    const lastIndex = rawAllDataPoints.length - 1;
 
     if (detectedThirdIndex != null && detectedThirdIndex >= 0) {
       const candidate = detectedThirdIndex + 1;
@@ -644,7 +665,7 @@ export const useFertilityChart = (
       };
     }
 
-    const peakEntry = allDataPoints[detectedPeakIndex];
+    const peakEntry = rawAllDataPoints[detectedPeakIndex];
     if (!peakEntry?.isoDate) {
       return {
         peakDayIndex: detectedPeakIndex,
@@ -661,8 +682,8 @@ export const useFertilityChart = (
         peakInfertilityStartIndex: null,
       };
     }
-    for (let idx = detectedPeakIndex + 1; idx < allDataPoints.length; idx += 1) {
-      const entry = allDataPoints[idx];
+    for (let idx = detectedPeakIndex + 1; idx < rawAllDataPoints.length; idx += 1) {
+      const entry = rawAllDataPoints[idx];
       if (!entry?.isoDate) {
         continue;
       }
@@ -686,7 +707,7 @@ export const useFertilityChart = (
       thirdDayIndex: null,
       peakInfertilityStartIndex: null,
     };
-  }, [allDataPoints]);
+  }, [rawAllDataPoints]);
 
   const {
     baselineTemp,
@@ -737,8 +758,38 @@ export const useFertilityChart = (
         processedData,
         config: normalizedFertilityConfig,
         calculatorCandidates: fertilityCalculatorCandidates,
+        context: {
+          highSequenceIndices: ovulationDetails?.highSequenceIndices ?? [],
+          peakDayIndex,
+          postPeakStartIndex: peakInfertilityStartIndex,
+          todayIndex,
+        },
       }),
-    [processedData, normalizedFertilityConfig, fertilityCalculatorCandidates]
+    [
+      processedData,
+      normalizedFertilityConfig,
+      fertilityCalculatorCandidates,
+      ovulationDetails?.highSequenceIndices,
+      peakDayIndex,
+      peakInfertilityStartIndex,
+      todayIndex,
+    ]
+  );
+
+  const processedDataWithAssessments = useMemo(
+    () =>
+      processedData.map((entry, index) => {
+        if (!entry) return entry;
+        const assessment = fertilityStart?.dailyAssessments?.[index] ?? null;
+        if (!assessment) return entry;
+        return { ...entry, fertilityAssessment: assessment };
+      }),
+    [processedData, fertilityStart]
+  );
+
+  const allDataPoints = useMemo(
+    () => processedDataWithAssessments.filter((d) => d && d.isoDate),
+    [processedDataWithAssessments]
   );
 
       const { tempMin, tempMax } = useMemo(() => {
@@ -923,7 +974,7 @@ export const useFertilityChart = (
         activePoint,
         activeIndex,
         tooltipPosition,
-        processedData,
+        processedData: processedDataWithAssessments,
         validDataForLine,
         allDataPoints,
         tempMin,

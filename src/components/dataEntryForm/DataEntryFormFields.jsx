@@ -410,7 +410,7 @@ const DataEntryFormFields = ({
             {measurements.map((m, idx) => {
               const measurementSelectId = `measurement_select_${idx}`;
               return (
-                <div key={idx} className="space-y-3 rounded-xl border border-amber-200/60 bg-white/70 p-3">
+                <div key={idx} className="space-y-3 rounded-3xl border border-amber-200/60 bg-white/70 p-3">
                   <div className="flex items-start justify-between gap-2">
                     <Label className="flex items-center text-amber-800 text-sm font-semibold">
                       <Thermometer className="mr-2 h-5 w-5 text-orange-500" />
@@ -536,7 +536,7 @@ const DataEntryFormFields = ({
                   </div>
 
                   {correctionIndex === idx && (
-                    <div className="mt-2 space-y-2 rounded-lg border border-amber-200 bg-white/80 p-3">
+                    <div className="mt-2 space-y-2 rounded-3xl border border-amber-200 bg-white/80 p-3">
                       <div className="flex flex-wrap items-center gap-2">
                         <Input
                           type="number"
