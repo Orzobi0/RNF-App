@@ -10,14 +10,13 @@ import FertilityChart from '@/components/FertilityChart';
 import { useCycleData } from '@/hooks/useCycleData';
 import { differenceInDays, format, parseISO, startOfDay } from 'date-fns';
 import generatePlaceholders from '@/lib/generatePlaceholders';
-import { RotateCcw, Eye, EyeOff, ArrowLeft, Settings } from 'lucide-react';
+import { RotateCcw, Eye, EyeOff, ArrowLeft, Settings, X } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import DataEntryForm from '@/components/DataEntryForm';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { useToast } from '@/components/ui/use-toast';
 import {
   Select,
   SelectContent,
@@ -26,9 +25,160 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useParams, Link, useLocation } from 'react-router-dom';
+import Overlay from '@/components/ui/Overlay';
 
 const CHART_SETTINGS_STORAGE_KEY = 'fertility-chart-settings';
 
+const normalizeDay = (value) => {
+  if (Number.isFinite(value)) {
+    return Math.round(value);
+  }
+  return null;
+};
+
+const pickCandidateByDay = (candidates, selectedDay) => {
+  if (!Array.isArray(candidates) || candidates.length === 0) return null;
+  if (selectedDay == null) {
+    return candidates[0];
+  }
+  const normalizedDay = normalizeDay(selectedDay);
+  const match = candidates.find((candidate) => normalizeDay(candidate?.day) === normalizedDay);
+  return match || candidates[0];
+};
+
+const deriveRelativeReason = (aggregate) => {
+  if (!aggregate) return 'por cambio en sensación/moco';
+  const usedCandidates = Array.isArray(aggregate.usedCandidates) ? aggregate.usedCandidates : [];
+  const selectedDay = normalizeDay(aggregate.selectedDay);
+
+  const hasT8Candidate = usedCandidates.some((candidate) => {
+    if (!candidate) return false;
+    const candidateDay = normalizeDay(candidate.day);
+    if (selectedDay != null && candidateDay !== selectedDay) return false;
+    const source = String(candidate.source ?? '').toUpperCase();
+    return candidate.kind === 'calculator' && (source === 'T8' || source === 'T-8');
+  });
+
+  if (hasT8Candidate) {
+    return 'por T−8';
+  }
+
+  const hasCalculator = usedCandidates.some((candidate) => {
+    if (!candidate) return false;
+    const candidateDay = normalizeDay(candidate.day);
+    if (selectedDay != null && candidateDay !== selectedDay) return false;
+    return candidate.kind === 'calculator';
+  });
+
+  if (hasCalculator) {
+    return 'por T−8';
+  }
+
+  return 'por cambio en sensación/moco';
+};
+
+const deriveFertileMotivo = (reasons = {}) => {
+  const statusSummary = reasons.statusSummary ?? null;
+  const reasonParts = statusSummary?.reasonParts ?? {};
+
+  if (reasonParts.symbol === 'white') {
+    return 'marcador white';
+  }
+  if (reasonParts.sensation) {
+    return 'cambio en sensación';
+  }
+  if (reasonParts.appearance) {
+    return 'cambio en moco';
+  }
+
+  const aggregate = reasons.aggregate ?? null;
+  const usedCandidates = Array.isArray(aggregate?.usedCandidates) ? aggregate.usedCandidates : [];
+  const selectedDay = normalizeDay(aggregate?.selectedDay);
+  const details = reasons.details ?? {};
+  const explicitStartDay = Number.isFinite(details?.explicitStartDay)
+    ? details.explicitStartDay + 1
+    : null;
+
+  if (aggregate?.selectedMode === 'marcador' || (explicitStartDay != null && explicitStartDay === selectedDay)) {
+    return 'marcador white';
+  }
+
+  const matchingCandidate = pickCandidateByDay(usedCandidates, selectedDay);
+
+  const hasT8Candidate = usedCandidates.some((candidate) => {
+    if (!candidate) return false;
+    const source = String(candidate.source ?? '').toUpperCase();
+    return candidate.kind === 'calculator' && (source === 'T8' || source === 'T-8');
+  });
+
+  if (matchingCandidate?.kind === 'calculator' || hasT8Candidate) {
+    return 'T−8';
+  }
+
+  const candidateReason = String(matchingCandidate?.reason ?? '').toUpperCase();
+
+  if (candidateReason.includes('WHITE')) {
+    return 'marcador white';
+  }
+  if (candidateReason.includes('M')) {
+    return 'cambio en moco';
+  }
+  if (candidateReason.includes('S') || candidateReason.includes('BIP')) {
+    return 'cambio en sensación';
+  }
+
+  const hasMucusCandidate = usedCandidates.some((candidate) => {
+    const reason = String(candidate?.reason ?? '').toUpperCase();
+    return reason.includes('M');
+  });
+  if (hasMucusCandidate) {
+    return 'cambio en moco';
+  }
+
+  const hasSensationCandidate = usedCandidates.some((candidate) => {
+    const reason = String(candidate?.reason ?? '').toUpperCase();
+    return reason.includes('S') || reason.includes('BIP');
+  });
+  if (hasSensationCandidate) {
+    return 'cambio en sensación';
+  }
+
+  return null;
+};
+
+const formatClosureDetail = (reasons = {}) => {
+  const mucus = reasons.mucus ?? {};
+  const temperature = reasons.temperature ?? {};
+  const hasMucus = Number.isInteger(mucus.startIndex);
+  const hasTemperature = Number.isInteger(temperature.startIndex);
+  const mucusLabel = mucus.thirdDayIndex != null ? 'P+3' : 'P+4';
+  const rule = typeof temperature.rule === 'string' ? temperature.rule : '';
+  const normalizedRule = rule.toLowerCase();
+
+  if (hasMucus && hasTemperature) {
+    if (normalizedRule.includes('oms')) {
+      return `${mucusLabel} y T+3 (OMS)`;
+    }
+    if (normalizedRule.includes('aleman')) {
+      return `${mucusLabel} y T+3 (Alemanas)`;
+    }
+    const ruleSuffix = rule ? ` (${rule})` : '';
+    return `${mucusLabel} y T+3${ruleSuffix}`;
+  }
+
+  if (hasTemperature) {
+    if (normalizedRule.includes('oms') || normalizedRule.includes('aleman')) {
+      return `T+3 (${rule})`;
+    }
+    return `T+3 (${rule || 'temperatura'})`;
+  }
+
+  if (hasMucus) {
+    return `${mucusLabel} (moco)`;
+  }
+
+  return 'criterio indeterminado';
+};
 const createDefaultFertilityStartConfig = () => ({
   methods: { alemanas: true, oms: true, creighton: true },
   calculators: { cpm: true, t8: true },
@@ -119,7 +269,6 @@ const mergeFertilityStartConfig = (incoming) => {
 const ChartPage = () => {
   const { cycleId } = useParams();
   const location = useLocation();
-  const { toast } = useToast();
   const {
     currentCycle,
     archivedCycles,
@@ -237,6 +386,7 @@ const ChartPage = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showInterpretation, setShowInterpretation] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [phaseOverlay, setPhaseOverlay] = useState(null);
   const [chartSettings, setChartSettings] = useState(() => {
     const defaults = {
       showRelationsRow: DEFAULT_CHART_SETTINGS.showRelationsRow,
@@ -697,6 +847,9 @@ const ChartPage = () => {
   const toggleInterpretation = () => {
     setShowInterpretation((v) => !v);
   };
+    const closePhaseOverlay = useCallback(() => {
+    setPhaseOverlay(null);
+  }, []);
   const handleInterpretationClick = (event) => {
     event.preventDefault();
     if (ignoreNextClickRef.current) {
@@ -716,154 +869,81 @@ const ChartPage = () => {
 
   const handleShowPhaseInfo = useCallback(
     (info = {}) => {
-      const reasons = info?.reasons || {};
-      const lines = [];
+      if (!info) return;
+      const phase = info.phase ?? null;
+      const reasons = info.reasons ?? {};
 
-      if (reasons?.type === 'relative') {
-        const fertileIndex = Number.isInteger(reasons.fertileStartFinalIndex)
-          ? reasons.fertileStartFinalIndex
-          : null;
-        const fertileDay = fertileIndex != null ? fertileIndex + 1 : null;
-        const lastRelativeDay = fertileDay != null ? fertileDay - 1 : null;
-        if (lastRelativeDay != null && lastRelativeDay >= 1) {
-          lines.push(`Desde D1 hasta D${lastRelativeDay}.`);
-        } else {
-          lines.push('Desde D1 sin evidencias de fertilidad.');
+      let header = null;
+      let title = '';
+      let body = '';
+      let reasonsList = [];
+      let note = null;
+
+      if (phase === 'relativeInfertile') {
+        title = 'Inicio de fase relativamente infértil';
+        body = 'Inicio de ciclo; a la espera de cambio en sensación, moco o cálculo.';
+        const aggregate = reasons?.aggregate ?? null;
+        const reasonText = deriveRelativeReason(aggregate);
+        if (reasonText) {
+          reasonsList = [reasonText];
         }
 
-        const aggregate = reasons.aggregate ?? {};
-        const selectedDay = Number.isFinite(aggregate.selectedDay)
-          ? aggregate.selectedDay
-          : fertileDay ?? '—';
-        const modeLabelMap = {
-          conservador: 'modo conservador',
-          consenso: 'modo consenso',
-          permisivo: 'modo permisivo',
-          marcador: 'marcador explícito',
-        };
-        const modeLabel = aggregate.selectedMode
-          ? modeLabelMap[aggregate.selectedMode] ?? aggregate.selectedMode
-          : 'modo indeterminado';
-        lines.push(`Inicio fértil elegido: día ${selectedDay} por ${modeLabel}.`);
-
-        const candidates = Array.isArray(aggregate.usedCandidates)
-          ? aggregate.usedCandidates
-          : [];
-        if (candidates.length) {
-          const formatted = candidates
-            .map((candidate) => {
-              const source = candidate?.source ?? candidate?.originalSource ?? '—';
-              const dayLabel = Number.isFinite(candidate?.day)
-                ? `D${candidate.day}`
-                : 'día —';
-              const reason = candidate?.reason ? candidate.reason : 'sin motivo';
-              return `${source} → ${dayLabel} (${reason})`;
-            })
-            .join('; ');
-          lines.push(`Candidatos: ${formatted}.`);
-        } else {
-          lines.push('Candidatos: sin candidatos válidos.');
+        } else if (phase === 'fertile') {
+        title = 'Inicio de fase fértil';
+        const motive = deriveFertileMotivo(reasons);
+        body = motive ? `Inicio de fase fértil por ${motive}.` : 'Inicio de fase fértil.';
+        const statusSummary = reasons?.statusSummary ?? null;
+        if (Array.isArray(statusSummary?.reasonsList) && statusSummary.reasonsList.length > 0) {
+          reasonsList = statusSummary.reasonsList;
+        } else if (motive) {
+          reasonsList = [`Motivo principal: ${motive}.`];
         }
 
-        if (Number.isFinite(reasons.bipScore)) {
-          lines.push(`BIP inicial: ${reasons.bipScore.toFixed(1)}.`);
+        if (statusSummary?.note) {
+          note = statusSummary.note;
         }
 
-        const aggNotes = Array.isArray(aggregate.notes)
-          ? aggregate.notes.filter(Boolean)
-          : [];
-        if (aggNotes.length) {
-          lines.push(`Notas: ${aggNotes.join('; ')}.`);
+        if (typeof statusSummary?.header === 'string' && statusSummary.header.trim().length > 0) {
+          header = statusSummary.header;
         }
-      } else if (reasons?.type === 'fertile') {
-        const startDay = Number.isInteger(reasons.startIndex)
-          ? reasons.startIndex + 1
-          : '—';
-        const endDay = Number.isInteger(reasons.endIndex)
-          ? reasons.endIndex + 1
-          : '—';
-        lines.push(`Fértil de D${startDay} a D${endDay}.`);
-
-        const sourceLabelMap = {
-          marker: 'marcador explícito',
-          profiles: 'perfiles sintotérmicos',
-          calculator: 'calculadora CPM/T-8',
-        };
-        const sourceLabel = sourceLabelMap[reasons.source] || 'origen indeterminado';
-        lines.push(`Origen: ${sourceLabel}.`);
-
-        const statusSummary = reasons.statusSummary ?? null;
-        if (statusSummary?.label || statusSummary?.summaryText) {
-          const labelText = statusSummary.label ?? 'Estado actual';
-          const detailText = statusSummary.summaryText ?? '';
-          lines.push(
-            detailText
-              ? `Estado actual: ${labelText} — ${detailText}.`
-              : `Estado actual: ${labelText}.`
-          );
-        }
-
-        const notes = Array.isArray(reasons.notes) ? reasons.notes.filter(Boolean) : [];
-        if (notes.length) {
-          lines.push(`Notas: ${notes.join('; ')}.`);
-        }
-
-        const debugCandidates = Array.isArray(reasons.details?.candidatesBeforeAggregate)
-          ? reasons.details.candidatesBeforeAggregate
-          : [];
-        if (debugCandidates.length) {
-          const formatted = debugCandidates
-            .map((candidate) => {
-              const source = candidate?.source ?? candidate?.originalSource ?? '—';
-              const dayLabel = Number.isFinite(candidate?.day)
-                ? `D${candidate.day}`
-                : 'día —';
-              const reason = candidate?.reason ? candidate.reason : 'sin motivo';
-              return `${source} → ${dayLabel} (${reason})`;
-            })
-            .join('; ');
-          lines.push(`Candidatos evaluados: ${formatted}.`);
-        }
-      } else if (reasons?.type === 'post') {
+      } else if (phase === 'postOvulatory') {
+        const hasTemperature = Number.isInteger(reasons?.temperature?.startIndex);
+        const hasMucus = Number.isInteger(reasons?.mucus?.startIndex);
+        title = hasTemperature && hasMucus ? 'Infertilidad absoluta' : 'Infertilidad';
+        const detail = formatClosureDetail(reasons);
+        body = `Alcanzada la fase de infertilidad por ${detail}.`;
         if (info?.message) {
-          lines.push(info.message);
+          reasonsList = [info.message];
         }
-        const mucus = reasons.mucus ?? {};
-        if (mucus.startIndex != null) {
-          const descriptor = mucus.thirdDayIndex != null ? '3° día' : 'P+4';
-          lines.push(`Moco: ${descriptor} → inicio en D${mucus.startIndex + 1}.`);
-        } else {
-          lines.push('Moco: pendiente.');
+        if (reasons?.status === 'pending') {
+          note = 'Pendiente completar el segundo criterio.';
         }
-        const temperature = reasons.temperature ?? {};
-        if (temperature.startIndex != null) {
-          const ruleLabel = temperature.rule || 'regla desconocida';
-          const confirmationDay = Number.isInteger(temperature.confirmationIndex)
-            ? `D${temperature.confirmationIndex + 1}`
-            : '—';
-          lines.push(
-            `Temperatura: ${ruleLabel}, confirmación ${confirmationDay}, infertilidad desde D${temperature.startIndex + 1}.`
-          );
-        } else {
-          lines.push('Temperatura: pendiente.');
-        }
-        } else if (info?.phase === 'nodata') {
-        lines.push('Sin datos suficientes. Añade temperatura, P o moco para interpretar.');
+        } else if (phase === 'nodata') {
+        title = 'Sin datos suficientes';
+        body = 'Añade registros de sensación, moco o temperatura para interpretar el ciclo.';
       } else if (info?.message) {
-        lines.push(info.message);
-      }
-
-      if (!lines.length) {
+        title = info.message;
+      } else {
         return;
       }
-      const [title, ...rest] = lines;
-      toast({
+
+      if (!title) {
+        return;
+      }
+      
+      if (!header && typeof info?.message === 'string' && info.message.trim().length > 0) {
+        header = info.message;
+      }
+
+      setPhaseOverlay({
+        header,
         title,
-        description: rest.length ? rest.join('\n') : undefined,
-        duration: 6000,
+        body,
+        reasons: reasonsList,
+        note,
       });
     },
-    [toast]
+    [setPhaseOverlay]
   );
 
   const handleToggleFullScreen = async () => {
@@ -1137,6 +1217,51 @@ const ChartPage = () => {
             </div> 
             </div>
         </div>
+        <Overlay
+          isOpen={Boolean(phaseOverlay)}
+          onClose={closePhaseOverlay}
+          ariaLabel="Detalle de interpretación del ciclo"
+          containerClassName="p-6"
+        >
+          {phaseOverlay && (
+            <div className="space-y-4 text-left">
+              <div className="flex items-start justify-between gap-4">
+                <div className="space-y-1">
+                  {phaseOverlay.header && (
+                    <p className="text-xs font-semibold uppercase tracking-wide text-pink-600">
+                      {phaseOverlay.header}
+                    </p>
+                  )}
+                  <h2 className="text-lg font-semibold text-slate-800">
+                    {phaseOverlay.title}
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={closePhaseOverlay}
+                  className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-200"
+                  aria-label="Cerrar detalle de interpretación"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              {phaseOverlay.body && (
+                <p className="text-sm leading-relaxed text-slate-600">{phaseOverlay.body}</p>
+              )}
+              {Array.isArray(phaseOverlay.reasons) && phaseOverlay.reasons.length > 0 && (
+                <ul className="list-disc space-y-1 pl-5 text-sm text-slate-600">
+                  {phaseOverlay.reasons.map((reason, index) => (
+                    <li key={`${reason}-${index}`}>{reason}</li>
+                  ))}
+                </ul>
+              )}
+              {phaseOverlay.note && (
+                <p className="text-xs text-slate-500">{phaseOverlay.note}</p>
+              )}
+            </div>
+          )}
+        </Overlay>
+
         <Dialog open={showForm} onOpenChange={(open) => { if (!open) handleCloseForm(); }}>
           <DialogContent
             hideClose

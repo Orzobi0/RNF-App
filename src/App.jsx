@@ -1,5 +1,6 @@
 import React, { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { ErrorBoundary } from '@/components/dev/ErrorBoundary';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { CycleDataProvider } from '@/contexts/CycleDataContext.jsx';
 const AuthPage = lazy(() => import('@/pages/AuthPage'));
@@ -135,7 +136,7 @@ function App() {
       <UpdateNotification />
       <AuthProvider>
         <CycleDataProvider>
-          <AppContent />
+          <ErrorBoundary><AppContent /></ErrorBoundary>
         </CycleDataProvider>
         <Toaster />
       </AuthProvider>

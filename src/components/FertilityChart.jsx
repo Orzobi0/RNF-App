@@ -308,7 +308,7 @@ const FertilityChart = ({
         ? `${temperatureDetails.baselineTemp.toFixed(1)}°C`
         : '—';
       const ruleLabel = temperatureDetails.rule || 'regla desconocida';
-      message = `Cierre absoluto: moco (${mucusRuleLabel}) y temperatura (regla ${ruleLabel}). Baseline ${formattedBaseline}, confirmación en ${confirmationDay}.`;
+      message = `Infertilidad absoluta`;
     } else if (hasTemperatureClosure) {
       startIndex = temperatureDetails.startIndex;
       const ruleLabel = temperatureDetails.rule || 'regla desconocida';
@@ -445,6 +445,7 @@ const FertilityChart = ({
             statusSummary: fertilityStart?.currentAssessment ?? null,
             dailyAssessments: fertilityStart?.dailyAssessments ?? [],
             window: fertilityStart?.fertileWindow ?? null,
+            aggregate: fertilityStart?.aggregate ?? null,
           },
         });
       }
@@ -838,17 +839,19 @@ const FertilityChart = ({
             reduceMotion={reduceMotion}
           />
           {temperatureRiseHighlightPath && (
-            <path
-              d={temperatureRiseHighlightPath}
-              fill="none"
-              stroke="#cc0e93"
-              strokeWidth={6}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              opacity={0.85}
-              style={{ filter: 'drop-shadow(0 2px 6px rgba(206, 14, 147, 0.4))' }}
-              pointerEvents="none"
-            />
+            <g pointerEvents="none">
+
+              {/* Línea principal */}
+              <path
+                d={temperatureRiseHighlightPath}
+                fill="none"
+                stroke="#cc0e93"
+                strokeWidth={4}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                opacity={0.9}
+              />
+            </g>
           )}
 
           {activeIndex !== null && highlightX !== null && dayWidth > 0 && (

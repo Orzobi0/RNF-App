@@ -6,6 +6,7 @@ import { XCircle, EyeOff, Eye, Edit3, Thermometer, Droplets, Circle, Heart, Spar
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { getSymbolAppearance } from '@/config/fertilitySymbols';
+import Overlay from '@/components/ui/Overlay';
 
 const ChartTooltip = ({
   point,
@@ -30,12 +31,14 @@ const ChartTooltip = ({
   const tooltipRef = useRef(null);
   const [tooltipHeight, setTooltipHeight] = useState(tooltipMinHeight);
   const [peakActionPending, setPeakActionPending] = useState(false);
+  const [isFertilityOverlayOpen, setIsFertilityOverlayOpen] = useState(false);
 
   useEffect(() => {
     if (tooltipRef.current) {
       setTooltipHeight(tooltipRef.current.offsetHeight);
     }
     setPeakActionPending(false);
+    setIsFertilityOverlayOpen(false);
   }, [point]);
 
   const flipHorizontal = position.clientX > chartWidth * 0.66;
@@ -358,46 +361,70 @@ const peakCircleBtnClassName = [
               </div>
               </div>
 
-            {showFertilityStatus && (
-              <motion.div
-                initial={{ opacity: 0, y: -8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.05 }}
-                className={`mb-2 bg-gradient-to-r ${statusTone.container} rounded-3xl p-1.5 shadow-sm`}
-              >
-                <div className="flex items-start gap-3">
-                  <div
-                    className={`w-6 h-6 bg-gradient-to-br ${statusTone.icon} rounded-lg flex items-center justify-center shadow-md`}
-                  >
-                    <Sparkles className="w-4 h-4 text-white" />
+            {showFertilityStatus && fertilityTitle && (
+              <>
+                <motion.button
+                  type="button"
+                  onClick={() => setIsFertilityOverlayOpen(true)}
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.05 }}
+                  className={`mb-2 w-full bg-gradient-to-r ${statusTone.container} rounded-3xl p-2 shadow-sm outline-none transition-transform hover:shadow-md focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-pink-200 active:scale-95`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`w-7 h-7 bg-gradient-to-br ${statusTone.icon} rounded-xl flex items-center justify-center shadow-md`}
+                    >
+                      <Sparkles className="w-4 h-4 text-white" />
+                    </div>
+                    <p className={`flex-1 text-left text-sm font-semibold ${statusTone.title}`}>
+                      {fertilityTitle}
+                    </p>
                   </div>
-                  <div className="flex-1 text-left space-y-0.5">
-                    {fertilityHeader && (
-                      <p className={`text-[11px] font-semibold uppercase tracking-wide ${statusTone.header}`}>
-                        {fertilityHeader}
-                      </p>
-                    )}
-                    {fertilityTitle && (
-                      <p className={`text-sm font-semibold ${statusTone.title}`}>
-                        {fertilityTitle}
-                      </p>
-                    )}
+                  </motion.button>
+
+                <Overlay
+                  isOpen={isFertilityOverlayOpen}
+                  onClose={() => setIsFertilityOverlayOpen(false)}
+                  ariaLabel="Detalle de la evaluación de fertilidad"
+                  containerClassName="p-6"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="space-y-1">
+                      {fertilityHeader && (
+                        <p className={`text-xs font-semibold uppercase tracking-wide ${statusTone.header}`}>
+                          {fertilityHeader}
+                        </p>
+                      )}
+                      <p className={`text-lg font-semibold ${statusTone.title}`}>{fertilityTitle}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsFertilityOverlayOpen(false)}
+                      className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-200"
+                      aria-label="Cerrar detalle de fertilidad"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+                  <div className="mt-4 space-y-3 text-left">
+                      
                     {fertilityBody && (
-                      <p className={`text-xs leading-snug ${statusTone.body}`}>
-                        {fertilityBody}
-                      </p>
+                      <p className={`text-sm leading-relaxed ${statusTone.body}`}>{fertilityBody}</p>
                     )}
                     {fertilityReasons.length > 0 && (
-                      <p className={`text-[11px] italic ${statusTone.body}`}>
-                        {fertilityReasons.join(' · ')}
-                      </p>
+                      <ul className="list-disc space-y-1 pl-5 text-sm text-slate-600">
+                        {fertilityReasons.map((reason, index) => (
+                          <li key={`${reason}-${index}`}>{reason}</li>
+                        ))}
+                      </ul>
                     )}
                     {fertilityNote && (
-                      <p className="text-[10px] text-slate-500 leading-snug">{fertilityNote}</p>
+                      <p className="text-xs text-slate-500">{fertilityNote}</p>
                     )}
                   </div>
-                </div>
-              </motion.div>
+                </Overlay>
+              </>
             )}
 
           {showEmptyState ? (

@@ -37,7 +37,7 @@ import {
   toggleSection,
   SECTION_METADATA,
 } from '@/components/dataEntryForm/sectionLogic';
-
+const RADIUS = { field: 'rounded-3xl', dropdown: 'rounded-3xl' };
 const DataEntryFormFields = ({
   date,
   setDate,
@@ -442,7 +442,7 @@ const DataEntryFormFields = ({
                       onChange={(e) => updateMeasurement(idx, 'temperature', e.target.value)}
                       onInput={(e) => updateMeasurement(idx, 'temperature', e.target.value)}
                       placeholder="36.50"
-                      className="bg-white/70 border-amber-200 text-gray-800 placeholder-gray-400 focus:border-orange-500 focus:ring-orange-500 text-base"
+                      className={cn("bg-white/70 border-amber-200 text-gray-800 placeholder-gray-400 focus:border-orange-500 focus:ring-orange-500 text-base", RADIUS.field)}
                       disabled={isProcessing}
                     />
                     <Input
@@ -450,7 +450,7 @@ const DataEntryFormFields = ({
                       type="time"
                       value={m.time}
                       onChange={(e) => updateMeasurement(idx, 'time', e.target.value)}
-                      className="bg-white/70 border-amber-200 text-gray-800 placeholder-gray-400 focus:border-orange-500 focus:ring-orange-500 text-base"
+                      className={cn("bg-white/70 border-amber-200 text-gray-800 placeholder-gray-400 focus:border-orange-500 focus:ring-orange-500 text-base", RADIUS.field)}
                       disabled={isProcessing}
                     />
                   </div>
@@ -462,7 +462,7 @@ const DataEntryFormFields = ({
                         size="sm"
                         variant="outline"
                         disabled={isProcessing}
-                        className="bg-slate-200 text-slate-600"
+                        className="bg-slate-200/50 text-slate-600 rounded-3xl"
                         onClick={() => {
                           if (correctionIndex === idx) {
                             setCorrectionIndex(null);
@@ -531,7 +531,7 @@ const DataEntryFormFields = ({
                       aria-label="Añadir una nueva medición"
                     >
                       <Plus className="h-3.5 w-3.5" />
-                      Añadir medición
+                      Medición
                     </Button>
                   </div>
 
@@ -551,7 +551,7 @@ const DataEntryFormFields = ({
                               updateMeasurement(idx, 'use_corrected', true);
                             }
                           }}
-                          className="bg-white/70 border-amber-200 text-gray-800 placeholder-gray-400 focus:border-orange-500 focus:ring-orange-500 text-base"
+                          className={cn("bg-white/70 border-amber-200 text-gray-800 placeholder-gray-400 focus:border-orange-500 focus:ring-orange-500 text-base", RADIUS.field)}
                           disabled={isProcessing}
                         />
                         <Button
@@ -626,17 +626,18 @@ const DataEntryFormFields = ({
                     symbolTheme.triggerBorder,
                     symbolTheme.triggerHover,
                     symbolTheme.triggerActive,
-                    symbolTheme.triggerFocus
+                    symbolTheme.triggerFocus,
+                    RADIUS.field
                   )}
                   data-field="fertilitySymbol"
                 >
                   <SelectValue placeholder="Selecciona un símbolo" />
                 </SelectTrigger>
                 <SelectContent
-                  className={cn('bg-white text-gray-800', symbolTheme.contentBorder)}
+                  className={cn('bg-white text-gray-800', symbolTheme.contentBorder, RADIUS.dropdown)}
                 >
                   {FERTILITY_SYMBOL_OPTIONS.map((symbol) => (
-                    <SelectItem key={symbol.value} value={symbol.value} className="cursor-pointer">
+                    <SelectItem key={symbol.value} value={symbol.value} className="cursor-pointer rounded-lg">
                       <div className="flex items-center">
                         <span
                           className={cn(
@@ -666,7 +667,7 @@ const DataEntryFormFields = ({
               id="mucusSensation"
               value={mucusSensation}
               onChange={(e) => setMucusSensation(e.target.value)}
-              className="bg-white/70 border-blue-200 text-gray-800 placeholder-gray-400 focus:border-blue-500 focus:ring-blue-500 text-base"
+              className={cn("bg-white/70 border-blue-200 text-gray-800 placeholder-gray-400 focus:border-blue-500 focus:ring-blue-500 text-base", RADIUS.field)}
               disabled={isProcessing}
             />
           </div>
@@ -683,7 +684,7 @@ const DataEntryFormFields = ({
               id="mucusAppearance"
               value={mucusAppearance}
               onChange={(e) => setMucusAppearance(e.target.value)}
-              className="bg-white/70 border-emerald-200 text-gray-800 placeholder-gray-400 focus:border-emerald-500 focus:ring-emerald-500 text-base"
+              className={cn("bg-white/70 border-emerald-200 text-gray-800 placeholder-gray-400 focus:border-emerald-500 focus:ring-emerald-500 text-base", RADIUS.field)}
               disabled={isProcessing}
             />
           </div>
@@ -700,7 +701,7 @@ const DataEntryFormFields = ({
               id="observations"
               value={observations}
               onChange={(e) => setObservations(e.target.value)}
-              className="min-h-[40px] resize-none bg-white/70 border-violet-200 text-gray-800 placeholder-gray-400 focus:border-violet-500 focus:ring-violet-500 text-base"
+              className={cn("min-h-[40px] resize-none bg-white/70 border-violet-200 text-gray-800 placeholder-gray-400 focus:border-violet-500 focus:ring-violet-500 text-base", RADIUS.field)}
               disabled={isProcessing}
             />
           </div>
@@ -731,7 +732,7 @@ const DataEntryFormFields = ({
               {date ? format(date, 'PPP', { locale: es }) : <span>Selecciona una fecha</span>}
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-auto p-0 bg-white border-pink-200 text-gray-800" align="start">
+          <PopoverContent className="w-auto p-0 bg-white border-pink-200 text-gray-800 rounded-3xl" align="start">
             <Calendar
               mode="single"
               selected={date}

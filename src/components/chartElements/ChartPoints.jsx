@@ -231,10 +231,10 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
 
 
         <radialGradient id="tempPointGradientChart" cx="30%" cy="30%">
-          <stop offset="0%" stopColor="#FCE7F3" />
-          <stop offset="40%" stopColor="#F472B6" />
-          <stop offset="80%" stopColor="#E91E63" />
-          <stop offset="100%" stopColor="#C2185B" />
+          <stop offset="0%" stopColor="#FDF2F8" />
+          <stop offset="50%" stopColor="#F9A8D4" />
+          <stop offset="85%" stopColor="#EC4899" />
+          <stop offset="100%" stopColor="#DB2777" />
         </radialGradient>
 
         <radialGradient id="tempPointIgnoredGradient" cx="30%" cy="30%">
@@ -243,10 +243,10 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
           <stop offset="100%" stopColor="#E2E8F0" />
         </radialGradient>
         <radialGradient id="ovulationPointGradient" cx="30%" cy="30%">
-          <stop offset="0%" stopColor="#bfdbfe" />
-          <stop offset="45%" stopColor="#60a5fa" />
-          <stop offset="85%" stopColor="#2563eb" />
-          <stop offset="100%" stopColor="#1d4ed8" />
+          <stop offset="0%" stopColor="#dbeafe" />
+          <stop offset="50%" stopColor="#93c5fd" />
+          <stop offset="85%" stopColor="#3b82f6" />
+          <stop offset="100%" stopColor="#2563eb" />
         </radialGradient>
       </defs>
 
@@ -466,7 +466,7 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
                 <circle
                   cx={x}
                   cy={y}
-                  r={isPeakTemperaturePoint ? 4 : 3.5}
+                  r={isPeakTemperaturePoint ? 3.5 : 2.8}
                   fill={
                     point.ignored
                       ? 'url(#tempPointIgnoredGradient)'
@@ -483,11 +483,11 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
                           ? '#1d4ed8'
                           : '#E91E63'
                   }
-                  strokeWidth={point.ignored ? 2 : isPeakTemperaturePoint ? 3.2 : 3}
+                  strokeWidth={point.ignored ? 1.5 : isPeakTemperaturePoint ? 2.2 : 2}
                   style={{
                     filter: isPeakTemperaturePoint
-                      ? 'drop-shadow(0 3px 8px rgba(37, 99, 235, 0.45))'
-                      : 'drop-shadow(0 3px 6px rgba(244, 114, 182, 0.4))',
+                      ? 'drop-shadow(0 2px 4px rgba(37, 99, 235, 0.3))'
+                      : 'drop-shadow(0 2px 3px rgba(244, 114, 182, 0.25))',
                     cursor: 'pointer'
                   }}
                   pointerEvents="all"
@@ -500,7 +500,7 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
                   <circle
                     cx={x}
                     cy={y}
-                    r={isPeakTemperaturePoint ? 1.8 : 1.5}
+                    r={isPeakTemperaturePoint ? 1.2 : 0.9}
                     fill={isPeakTemperaturePoint ? 'rgba(239, 246, 255, 0.95)' : 'rgba(255, 255, 255, 0.9)'}
                     style={{
                       filter: isPeakTemperaturePoint
