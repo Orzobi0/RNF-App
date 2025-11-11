@@ -110,9 +110,43 @@ const ChartTooltip = ({
   const fallbackTime = directTimeCandidates.find(Boolean) ?? formatTimestampTime(point.timestamp);
   const temperatureTime = measurementTime ?? fallbackTime;
   const fertilityAssessment = point.fertilityAssessment ?? null;
-  const showFertilityStatus = Boolean(fertilityAssessment?.isFertile);
-  const fertilityLabel = fertilityAssessment?.label ?? null;
-  const fertilitySummary = fertilityAssessment?.summaryText ?? null;
+  const showFertilityStatus = Boolean(fertilityAssessment);
+  const fertilityHeader = fertilityAssessment?.header ?? null;
+  const fertilityTitle = fertilityAssessment?.title ?? fertilityAssessment?.label ?? null;
+  const fertilityBody = fertilityAssessment?.body ?? fertilityAssessment?.summaryText ?? null;
+  const fertilityReasons = Array.isArray(fertilityAssessment?.reasonsList)
+    ? fertilityAssessment.reasonsList
+    : [];
+  const fertilityNote = fertilityAssessment?.note ?? null;
+  const fertilityState = fertilityAssessment?.state ?? null;
+  const statusTone = (() => {
+    switch (fertilityState) {
+      case 'waiting':
+        return {
+          container: 'from-amber-50 to-yellow-50 border border-amber-200/70',
+          header: 'text-amber-700/80',
+          title: 'text-amber-900',
+          body: 'text-amber-800/80',
+          icon: 'from-amber-500 to-orange-500',
+        };
+      case 'infertil':
+        return {
+          container: 'from-slate-50 to-slate-100 border border-slate-200/80',
+          header: 'text-slate-600',
+          title: 'text-slate-800',
+          body: 'text-slate-600',
+          icon: 'from-slate-500 to-slate-600',
+        };
+      default:
+        return {
+          container: 'from-emerald-50 to-lime-50 border border-emerald-200/70',
+          header: 'text-emerald-700/80',
+          title: 'text-emerald-900',
+          body: 'text-emerald-800/80',
+          icon: 'from-emerald-500 to-teal-600',
+        };
+    }
+  })();
   const mucusSensation = point.mucus_sensation ?? point.mucusSensation ?? '';
   const mucusAppearance = point.mucus_appearance ?? point.mucusAppearance ?? '';
   const observations = point.observations ?? '';
@@ -324,35 +358,47 @@ const peakCircleBtnClassName = [
               </div>
               </div>
 
-            {showFertilityStatus && (fertilityLabel || fertilitySummary) && (
-            <motion.div
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.05 }}
-              className="mb-2 bg-gradient-to-r from-emerald-50 to-lime-50 rounded-3xl p-1.5 border border-emerald-200/70 shadow-sm"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-6 h-6 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center shadow-md">
-                  <Sparkles className="w-4 h-4 text-white" />
+            {showFertilityStatus && (
+              <motion.div
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.05 }}
+                className={`mb-2 bg-gradient-to-r ${statusTone.container} rounded-3xl p-1.5 shadow-sm`}
+              >
+                <div className="flex items-start gap-3">
+                  <div
+                    className={`w-6 h-6 bg-gradient-to-br ${statusTone.icon} rounded-lg flex items-center justify-center shadow-md`}
+                  >
+                    <Sparkles className="w-4 h-4 text-white" />
+                  </div>
+                  <div className="flex-1 text-left space-y-0.5">
+                    {fertilityHeader && (
+                      <p className={`text-[11px] font-semibold uppercase tracking-wide ${statusTone.header}`}>
+                        {fertilityHeader}
+                      </p>
+                    )}
+                    {fertilityTitle && (
+                      <p className={`text-sm font-semibold ${statusTone.title}`}>
+                        {fertilityTitle}
+                      </p>
+                    )}
+                    {fertilityBody && (
+                      <p className={`text-xs leading-snug ${statusTone.body}`}>
+                        {fertilityBody}
+                      </p>
+                    )}
+                    {fertilityReasons.length > 0 && (
+                      <p className={`text-[11px] italic ${statusTone.body}`}>
+                        {fertilityReasons.join(' · ')}
+                      </p>
+                    )}
+                    {fertilityNote && (
+                      <p className="text-[10px] text-slate-500 leading-snug">{fertilityNote}</p>
+                    )}
+                  </div>
                 </div>
-                <div className="flex-1 text-left">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700/80">
-                    Estado fértil
-                  </p>
-                  {fertilityLabel && (
-                    <p className="text-sm font-semibold text-emerald-900">
-                      {fertilityLabel}
-                    </p>
-                  )}
-                  {fertilitySummary && (
-                    <p className="text-xs text-emerald-800/80 leading-snug">
-                      {fertilitySummary}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-          )}
+              </motion.div>
+            )}
 
           {showEmptyState ? (
             <div className="pt-1 space-y-3">

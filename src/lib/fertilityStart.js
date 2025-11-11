@@ -1,3 +1,5 @@
+import { differenceInCalendarDays, parseISO } from 'date-fns';
+
 const SCORE_MAP = {
   0: 0,
   1: 0.4,
@@ -614,9 +616,12 @@ export const computeFertilityStartOutput = ({
   } = config || {};
 
   const {
-    highSequenceIndices = [],
     peakDayIndex = null,
     postPeakStartIndex = null,
+    peakThirdDayIndex = null,
+    temperatureInfertileStartIndex = null,
+    temperatureConfirmationIndex = null,
+    temperatureRule = null,
     todayIndex = null,
   } = context || {};
 
@@ -819,32 +824,6 @@ export const computeFertilityStartOutput = ({
     }
   }
 
-  const highSequenceSet = new Set(
-    Array.isArray(highSequenceIndices)
-      ? highSequenceIndices
-          .map((idx) =>
-            Number.isInteger(idx) && idx >= 0 ? Math.min(idx, Math.max(lastIndex ?? 0, 0)) : null
-          )
-          .filter((idx) => idx != null)
-      : []
-  );
-
-  const describeScoreLevel = (score) => {
-    if (score >= 0.95) return { label: 'Fertilidad muy alta', shortLabel: 'Muy alta' };
-    if (score >= 0.8) return { label: 'Fertilidad alta', shortLabel: 'Alta' };
-    if (score >= 0.6) return { label: 'Fertilidad media', shortLabel: 'Media' };
-    if (score >= 0.4) return { label: 'Fertilidad baja', shortLabel: 'Baja' };
-    return { label: 'Fertilidad baja', shortLabel: 'Baja' };
-  };
-
-  const getSymbolReason = (symbol) => {
-    if (symbol === 'M+') return 'M+';
-    if (symbol === 'M') return 'M';
-    if (symbol === 'F') return 'FER';
-    if (symbol === 'white') return 'white';
-    return null;
-  };
-
   const formatPeakDelta = (delta) => {
     if (delta === 0) return 'P';
     if (delta === -1) return 'P−1';
@@ -854,184 +833,338 @@ export const computeFertilityStartOutput = ({
     return null;
   };
 
-  const referencePeakIndex = isValidIndex(effectivePeakIndex)
-    ? effectivePeakIndex
-    : null;
+  const clampIndexWithin = (idx) => {
+    if (!Number.isInteger(idx)) return null;
+    if (lastIndex == null || lastIndex < 0) return idx >= 0 ? idx : null;
+    if (idx < 0) return null;
+    if (idx > lastIndex) return lastIndex;
+    return idx;
+  };
 
-  const dailyAssessments = [];
-  let previousAssessment = null;
+  const parseEntryDate = (idx) => {
+    if (!Number.isInteger(idx)) return null;
+    if (idx < 0 || idx >= processedData.length) return null;
+    const iso = processedData[idx]?.isoDate;
+    if (!iso) return null;
+    try {
+      const parsed = parseISO(iso);
+      return Number.isNaN(parsed?.getTime?.()) ? null : parsed;
+    } catch (error) {
+      return null;
+    }
+  };
 
-  for (let i = 0; i < days.length; i += 1) {
+  const findStatusIndex = (status) => {
+    if (!status) return null;
+    for (let idx = 0; idx < days.length; idx += 1) {
+      if (days[idx]?.normalizedPeakStatus === status) {
+        return idx;
+      }
+    }
+    return null;
+  };
+
+  let pPlus3Index = findStatusIndex('3');
+  if (pPlus3Index == null && Number.isInteger(peakThirdDayIndex)) {
+    pPlus3Index = clampIndexWithin(peakThirdDayIndex);
+  }
+  if (pPlus3Index == null && Number.isInteger(postPeakStartIndex)) {
+    pPlus3Index = clampIndexWithin(postPeakStartIndex - 1);
+  }
+
+    let pPlus4Index = null;
+  if (pPlus3Index != null) {
+    const candidate = clampIndexWithin(pPlus3Index + 1);
+    if (candidate != null) {
+      pPlus4Index = candidate;
+    }
+      }
+
+  const peakIndexForDiff = clampIndexWithin(effectivePeakIndex);
+  const peakDate = parseEntryDate(peakIndexForDiff);
+  if (peakDate) {
+    for (let idx = peakIndexForDiff + 1; idx < processedData.length; idx += 1) {
+      const currentDate = parseEntryDate(idx);
+      if (!currentDate) continue;
+      const diff = differenceInCalendarDays(currentDate, peakDate);
+      if (pPlus3Index == null && diff >= 3) {
+        pPlus3Index = clampIndexWithin(idx);
+      }
+      if (pPlus4Index == null && diff >= 4) {
+        pPlus4Index = clampIndexWithin(idx);
+      }
+      if (pPlus3Index != null && pPlus4Index != null) {
+        break;
+      }
+    }
+
+  }
+
+  const temperatureConfirmationIdx = clampIndexWithin(temperatureConfirmationIndex);
+  const temperatureInfertileIdx = clampIndexWithin(temperatureInfertileStartIndex);
+  let tPlus3Index = temperatureConfirmationIdx;
+  if (tPlus3Index == null && temperatureInfertileIdx != null) {
+    const candidate = clampIndexWithin(temperatureInfertileIdx - 1);
+    if (candidate != null && candidate >= 0) tPlus3Index = candidate;
+  }
+  if (pPlus4Index == null && pPlus3Index != null) {
+    const candidate = clampIndexWithin(pPlus3Index + 1);
+    if (candidate != null) pPlus4Index = candidate;
+  }
+
+  const waitingStartIndex = pPlus3Index != null ? pPlus3Index : null;
+
+  let closureAlemanIndex = null;
+  if (pPlus3Index != null && tPlus3Index != null) {
+    closureAlemanIndex = Math.max(pPlus3Index, tPlus3Index);
+  }
+
+    let closureOmsIndex = null;
+  if (pPlus4Index != null && tPlus3Index != null) {
+    closureOmsIndex = Math.max(pPlus4Index, tPlus3Index);
+  }
+
+  let closureDetail = null;
+  let closureIndex = null;
+  if (closureAlemanIndex != null || closureOmsIndex != null) {
+    const alemanCandidate = closureAlemanIndex != null ? closureAlemanIndex : Number.NEGATIVE_INFINITY;
+    const omsCandidate = closureOmsIndex != null ? closureOmsIndex : Number.NEGATIVE_INFINITY;
+    closureIndex = Math.max(alemanCandidate, omsCandidate);
+    if (closureOmsIndex != null && (closureAlemanIndex == null || closureOmsIndex >= closureAlemanIndex)) {
+      closureDetail = 'P+4 y T+3 (OMS)';
+    } else if (closureAlemanIndex != null) {
+      closureDetail = 'P+3 y T+3 (Alemanes)';
+    }
+    }
+
+    if (closureIndex != null && fertileStartIndex != null) {
+    const boundedClosure = clampIndexWithin(closureIndex);
+    if (boundedClosure != null) {
+      fertileEndIndex = Math.max(fertileStartIndex, boundedClosure);
+    }
+    }
+
+    const windowEndIndex = fertileEndIndex != null
+    ? fertileEndIndex
+    : lastIndex != null
+      ? lastIndex
+      : null;
+
+    const PROFILE_LABELS = {
+    conservador: 'modo conservador',
+    consenso: 'modo consenso',
+    permisivo: 'modo permisivo',
+    marcador: 'marcador explícito',
+  };
+
+    const profileMode = aggregate?.selectedMode ?? combineMode ?? 'conservador';
+  const profileLabel = PROFILE_LABELS[profileMode] ?? profileMode;
+  const fertileHeaderText = `Fase fértil abierta (perfil: ${profileLabel}).`;
+
+  const infertileTitle = 'Fase infértil';
+  const infertileDetailText = closureDetail ?? 'criterio indeterminado';
+  const infertileBody = `Ventana cerrada por doble criterio: ${infertileDetailText}.`;
+  const referencePeakIndex = clampIndexWithin(effectivePeakIndex);
+
+    const dailyAssessments = new Array(days.length).fill(null);
+  let lastRecordedLevel = null;
+  let gapCount = 0;
+
+  const buildReasonsList = (day) => {
+    if (!day) return [];
+    const reasons = [];
+    if (Number.isFinite(day.M) && day.M > 0) {
+      const descriptor = day.descriptors?.appearance;
+      reasons.push(`M${day.M}${descriptor ? ` (${descriptor})` : ''}`);
+    }
+    if (Number.isFinite(day.S) && day.S > 0) {
+      const descriptor = day.descriptors?.sensation;
+      reasons.push(`S${day.S}${descriptor ? ` (${descriptor})` : ''}`);
+    }
+    if (day.symbolDetected && day.symbolDetected !== 'none') {
+      if (day.symbolDetected === 'white') {
+        reasons.push('white');
+      } else {
+        reasons.push(`símbolo ${day.symbolDetected}`);
+      }
+    }
+
+    if (day.hasChangeBIP) {
+      reasons.push('cambio BIP');
+    }
+    return reasons;
+      };
+    const levelStateMap = ['inicio', 'aumento', 'alta', 'muyAlta'];
+
+    for (let i = 0; i < days.length; i += 1) {
     const day = days[i];
     if (!day) {
-      dailyAssessments.push(null);
+      dailyAssessments[i] = null;
       continue;
-    }
-
-    const baseScore = clamp(day.scoreFertil ?? 0);
-    let methodScore = baseScore;
-
-    if (methods.alemanas && day.hasChangeBIP) {
-      methodScore = clamp(methodScore + 0.2);
-    }
-    if (methods.creighton && (day.symbolDetected === 'M' || day.M >= 2)) {
-      methodScore = clamp(methodScore + 0.1);
     }
 
     const isWithinFertile =
       fertileStartIndex != null &&
-      fertileEndIndex != null &&
+      windowEndIndex != null &&
       i >= fertileStartIndex &&
-      i <= fertileEndIndex;
+      i <= windowEndIndex;
 
     if (!isWithinFertile) {
-      dailyAssessments.push(null);
+      gapCount = 0;
+      lastRecordedLevel = null;
+
+      if (windowEndIndex != null && i > windowEndIndex) {
+        const hasRecord = Boolean(day.entryFlags?.hasAny);
+        const note = !hasRecord ? 'Sin registro hoy; estimación basada en días adyacentes.' : null;
+        dailyAssessments[i] = {
+          index: i,
+          state: 'infertil',
+          title: infertileTitle,
+          header: infertileTitle,
+          body: infertileBody,
+          detail: closureDetail,
+          hasRecord,
+          inherited: false,
+          note,
+          isFertile: false,
+          label: infertileTitle,
+          summaryText: infertileBody,
+          reasonsList: [],
+          reasonsText: '',
+        };
+      }
       continue;
     }
 
-    const deltaFromPeak = referencePeakIndex != null ? i - referencePeakIndex : null;
-    let contextBonus = 0;
-    const contextTokens = [];
-
-    if (highSequenceSet.has(i)) {
-      contextBonus = Math.max(contextBonus, 0.1);
-      contextTokens.push('secuencia alta');
-    }
-
-    if (deltaFromPeak != null) {
-      const formatted = formatPeakDelta(deltaFromPeak);
-      if (formatted) {
-        if (deltaFromPeak === 0 || deltaFromPeak === -1 || deltaFromPeak === -2) {
-          contextBonus = Math.max(contextBonus, 0.1);
-        } else if (deltaFromPeak === 1 || deltaFromPeak === 2) {
-          contextBonus = Math.max(contextBonus, 0.05);
-        }
-        contextTokens.push(formatted);
-      }
-    }
-
-    const contextAdjustedScore = clamp(methodScore + contextBonus);
-
-    let finalScore = contextAdjustedScore;
     const hasRecord = Boolean(day.entryFlags?.hasAny);
 
-    let symbolReason = getSymbolReason(day.symbolDetected);
-    let appearanceReason = day.descriptors?.appearance ?? null;
-    let sensationReason = day.descriptors?.sensation ?? null;
-    let inherited = false;
-
-    const combinedContext = [...contextTokens];
-
-    if (day.hasChangeBIP) {
-      combinedContext.push('BIP');
+    let rawLevel = 0;
+    if (
+      day.normalizedPeakStatus === 'P' ||
+      day.symbolDetected === 'M+' ||
+      day.symbolDetected === 'F' ||
+      day.S >= 3 ||
+      day.M >= 3
+    ) {
+      rawLevel = 3;
+    } else if (day.M >= 2 || day.S >= 2 || day.symbolDetected === 'M') {
+      rawLevel = 2;
+    } else if (day.M >= 1 || day.S >= 1 || day.hasChangeBIP) {
+      rawLevel = 1;
     }
 
-    if (!hasRecord) {
-      inherited = true;
-      const prev = previousAssessment && previousAssessment.isFertile ? previousAssessment : null;
-      if (prev) {
-        finalScore = clamp(Math.max(prev.score - 0.05, 0.4));
-        symbolReason = symbolReason ?? prev.reasonParts?.symbol ?? null;
-        appearanceReason = appearanceReason ?? prev.reasonParts?.appearance ?? null;
-        sensationReason = sensationReason ?? prev.reasonParts?.sensation ?? null;
-        combinedContext.push(...(prev.reasonParts?.context ?? []), 'sin registro');
-      } else {
-        finalScore = Math.max(0.4, finalScore || 0);
-        combinedContext.push('sin registro');
-      }
+    if (hasRecord) {
+      gapCount = 0;
+      lastRecordedLevel = rawLevel;
     } else {
-      finalScore = Math.max(0.4, finalScore);
+      gapCount += 1;
     }
+    const strongSigns =
+      day.M >= 2 || day.symbolDetected === 'M+' || day.symbolDetected === 'F' || day.S >= 3;
 
-    if (deltaFromPeak != null) {
-      if (deltaFromPeak === 0) {
-        finalScore = Math.max(finalScore, 0.98);
-      } else if (deltaFromPeak === -1 || deltaFromPeak === -2) {
-        finalScore = Math.max(finalScore, 0.9);
-      } else if (deltaFromPeak === 1 || deltaFromPeak === 2) {
-        finalScore = Math.max(finalScore, 0.85);
-      } else if (deltaFromPeak >= 3) {
-        const hasStrongSigns =
-          day.M >= 2 || day.symbolDetected === 'M+' || day.symbolDetected === 'F';
-        if (!hasStrongSigns) {
-          finalScore = Math.min(finalScore, 0.45);
-        }
+    const isWaitingCandidate =
+      waitingStartIndex != null &&
+      i >= waitingStartIndex &&
+      (tPlus3Index == null || i <= tPlus3Index);
+
+    let effectiveLevel = rawLevel;
+    let state = null;
+
+    if (isWaitingCandidate && !strongSigns) {
+      state = 'waiting';
+    } else {
+      if (!hasRecord) {
+        const baseLevel = lastRecordedLevel != null ? lastRecordedLevel : rawLevel;
+        const degradeSteps = Math.floor(gapCount / 2);
+        effectiveLevel = Math.max(0, baseLevel - degradeSteps);
       }
+      const levelIndex = Math.max(0, Math.min(3, effectiveLevel));
+      state = levelStateMap[levelIndex];
     }
 
-    finalScore = clamp(finalScore);
+    const reasonsList = buildReasonsList(day);
+    const reasonsText = reasonsList.join('; ');
+    const deltaFromPeak = referencePeakIndex != null ? i - referencePeakIndex : null;
+    const deltaLabel = deltaFromPeak != null ? formatPeakDelta(deltaFromPeak) : null;
+    const note = !hasRecord ? 'Sin registro hoy; estimación basada en días adyacentes.' : null;
 
-    const levelInfo = describeScoreLevel(finalScore);
+    let title;
+    let body;
 
-    const mainBlocks = [];
-    if (symbolReason) {
-      mainBlocks.push(symbolReason);
+    switch (state) {
+      case 'waiting':
+        title = 'Fertilidad en espera de confirmación por temperatura';
+        body = 'Final de moco alcanzado (≥P+3). Ventana mantenida hasta confirmación térmica (T+3).';
+        break;
+      case 'aumento':
+        title = 'Aumento de fertilidad';
+        body = reasonsText ? `Signos en aumento: ${reasonsText}.` : 'Signos en aumento.';
+        break;
+      case 'alta':
+        title = 'Fertilidad alta';
+        body = reasonsText ? `Signos fértiles claros (${reasonsText}).` : 'Signos fértiles claros.';
+        break;
+      case 'muyAlta': {
+        title = 'Fertilidad muy alta';
+        const deltaSuffix = deltaLabel ? ` (${deltaLabel})` : '';
+        body = `Día de máxima fertilidad${deltaSuffix}.`;
+        body += reasonsText ? ` Signos pico: ${reasonsText}.` : ' Signos pico presentes.';
+        break;
+      }
+      case 'inicio':
+      default:
+        title = 'Inicio de fase fértil';
+        body = 'Se inicia la ventana fértil. Signos ausentes o muy leves.';
+        break;
     }
-
-    const textureParts = [];
-    if (appearanceReason) {
-      textureParts.push(appearanceReason);
-    }
-    if (sensationReason) {
-      textureParts.push(sensationReason);
-    }
-
-    if (textureParts.length === 2) {
-      mainBlocks.push(`${textureParts[0]} y ${textureParts[1]}`);
-    } else if (textureParts.length === 1) {
-      mainBlocks.push(textureParts[0]);
-    }
-
-    if (symbolReason === 'white' && mainBlocks.length === 1) {
-      mainBlocks[0] = 'white sin otros signos';
-    }
-
-    const distinctContext = Array.from(new Set(combinedContext.filter(Boolean)));
-    const summarySections = [];
-    if (mainBlocks.length) {
-      summarySections.push(mainBlocks.join(', '));
-    }
-    if (distinctContext.length) {
-      summarySections.push(distinctContext.join(', '));
-    }
-
-    const summaryText = `${levelInfo.shortLabel}${summarySections.length ? ` (${summarySections.join('; ')})` : ''}`;
 
     const assessment = {
       index: i,
-      score: finalScore,
-      label: levelInfo.label,
-      shortLabel: levelInfo.shortLabel,
-      summaryText,
-      isFertile: true,
+      state,
+      level: state === 'waiting' ? rawLevel : effectiveLevel,
+      title,
+      header: fertileHeaderText,
+      body,
+      reasonsList,
+      reasonsText,
       hasRecord,
-      inherited,
+      inherited: !hasRecord,
+      note,
+      isFertile: true,
+      label: title,
+      summaryText: body,
+      delta: deltaLabel,
       reasonParts: {
-        symbol: symbolReason,
-        appearance: appearanceReason,
-        sensation: sensationReason,
-        context: distinctContext,
-      },
-      scoreDetails: {
-        base: baseScore,
-        methodAdjusted: methodScore,
-        contextAdjusted: contextAdjustedScore,
-        contextBonus,
+        symbol: day.symbolDetected ?? null,
+        appearance: day.descriptors?.appearance ?? null,
+        sensation: day.descriptors?.sensation ?? null,
       },
     };
 
-    dailyAssessments.push(assessment);
-    previousAssessment = assessment;
+    dailyAssessments[i] = assessment;
+  }
+
+  if (windowEndIndex != null) {
+    fertileEndIndex = windowEndIndex;
   }
 
   let currentAssessment = null;
-  if (Number.isInteger(todayIndex)) {
-    for (let idx = Math.min(Math.max(todayIndex, 0), dailyAssessments.length - 1); idx >= 0; idx -= 1) {
+  if (Number.isInteger(todayIndex) && dailyAssessments.length > 0) {
+    const startIdx = Math.min(Math.max(todayIndex, 0), dailyAssessments.length - 1);
+    let fallbackAssessment = null;
+    for (let idx = startIdx; idx >= 0; idx -= 1) {
       const candidate = dailyAssessments[idx];
-      if (candidate && candidate.isFertile) {
+      if (!candidate) continue;
+      if (!fallbackAssessment) {
+        fallbackAssessment = candidate;
+      }
+      if (candidate.isFertile) {
         currentAssessment = candidate;
         break;
       }
+    }
+    if (!currentAssessment && fallbackAssessment) {
+      currentAssessment = fallbackAssessment;
     }
   }
   const debug = {
@@ -1039,13 +1172,28 @@ export const computeFertilityStartOutput = ({
     explicitStartDay,
     effectivePeakIndex,
     candidatesBeforeAggregate,
+    closureDetail,
+    waitingStartIndex,
+    pPlus3Index,
+    pPlus4Index,
+    temperatureConfirmationIndex: tPlus3Index,
+    temperatureInfertileIndex: temperatureInfertileIdx,
+    temperatureRule: temperatureRule ?? null,
   };
 
   return {
     fertileStartFinalIndex,
     fertileWindow:
       fertileStartIndex != null && fertileEndIndex != null
-        ? { startIndex: fertileStartIndex, endIndex: fertileEndIndex }
+        ? {
+            startIndex: fertileStartIndex,
+            endIndex: fertileEndIndex,
+            waitingStartIndex,
+            closureDetail,
+            temperatureConfirmationIndex: tPlus3Index,
+            temperatureInfertileStartIndex: temperatureInfertileIdx,
+            temperatureRule: temperatureRule ?? null,
+          }
         : null,
     dailyAssessments,
     currentAssessment,

@@ -182,12 +182,12 @@ const CycleDetailPage = () => {
     }, [cycleData?.id, deleteCycle, navigate, toast, user]);
 
   const topAccessory = useCallback(() => (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-1">
       <Button
         asChild
         variant="outline"
         size="icon"
-        className="shrink-0 rounded-full border-pink-300 text-pink-600 hover:bg-pink-50 hover:border-pink-400"
+        className="shrink-0 ml-2 rounded-full border-pink-300 text-pink-600 hover:bg-pink-50 hover:border-pink-400"
       >
         <Link to="/archived-cycles" aria-label="Volver a mis ciclos">
           <ArrowLeft className="h-4 w-4" />
