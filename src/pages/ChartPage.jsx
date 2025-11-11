@@ -188,7 +188,32 @@ const ChartPage = () => {
   const showLoading = isViewingCurrentCycle
     ? isLoading && !currentCycle?.id
     : externalLoading || (isLoading && !archivedMatch && !fetchedCycle);
+  
     
+  const archivedCycleTitle = useMemo(() => {
+    if (!showBackToCycleRecords || !targetCycle?.startDate) {
+      return '';
+    }
+
+    const formatDate = (date) => {
+      if (!date) return null;
+      try {
+        return format(parseISO(date), 'dd/MM/yyyy');
+      } catch (error) {
+        console.error('Error formatting cycle date', error);
+        return date;
+      }
+    };
+
+    const start = formatDate(targetCycle.startDate);
+    const end = formatDate(targetCycle.endDate) ?? 'Sin fecha de fin';
+
+    if (!start) {
+      return '';
+    }
+
+    return `Ciclo ${start} - ${end}`;
+  }, [showBackToCycleRecords, targetCycle?.startDate, targetCycle?.endDate]);
   const fertilityCalculatorCycles = useMemo(() => {
     const cycles = [];
     if (Array.isArray(archivedCycles) && archivedCycles.length > 0) {
@@ -926,15 +951,20 @@ const ChartPage = () => {
           >
             <Link to={`/cycle/${targetCycle.id}`} className="flex items-center gap-1">
               <ArrowLeft className="h-4 w-4" />
-              <span className="hidden sm:inline"></span>
+              {archivedCycleTitle && (
+                <span className="ml-1 text-xs font-semibold text-slate-700 sm:text-sm">
+                  {archivedCycleTitle}
+                </span>
+              )}
             </Link>
           </Button>
+          
         )}
         <Button
           onClick={() => setSettingsOpen((prev) => !prev)}
           variant="ghost"
           size="icon"
-          className="absolute top-4 right-36 z-10 p-2 rounded-full bg-white/80 shadow-lg shadow-slate-300/50 text-slate-700 hover:bg-[#E27DBF]/20"
+          className="absolute top-16 right-4 z-10 p-2 rounded-full bg-white/80 shadow-lg shadow-slate-300/50 text-slate-700 hover:bg-[#E27DBF]/20"
           aria-label="Ajustes del gráfico"
         >
           <Settings className="h-4 w-4" />

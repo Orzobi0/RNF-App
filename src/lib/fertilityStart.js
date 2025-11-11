@@ -110,12 +110,14 @@ const SENSATION_PATTERNS = [
     level: 3,
     descriptor: 'lubricada',
   },
+  { patterns: ['empapad\\w*'], level: 2, descriptor: 'empapada' },
   { patterns: ['mojad\\w*'], level: 2, descriptor: 'mojada' },
   {
     patterns: ['resbalad\\w*', 'desliz\\w*'],
     level: 2,
     descriptor: 'resbaladiza',
   },
+  { patterns: ['resbalos\\w*'], level: 2, descriptor: 'resbalosa' },
   { patterns: ['humed\\w*'], level: 1, descriptor: 'húmeda' },
   {
     patterns: ['pegajos\\w*', 'viscos\\w*'],
@@ -307,15 +309,21 @@ const detectAppearanceLevel = (rawValue) => {
   return { level: 0, reason: null, descriptor: null, hasInput };
 };
 
+const escapeRegex = (value) =>
+  String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 const detectSymbol = ({ appearance, observations, fertilitySymbol }) => {
   const sources = [appearance, observations, fertilitySymbol].map((value) =>
     String(value || '').toUpperCase()
   );
 
-  const matchesToken = (token) =>
-    sources.some((text) =>
-      new RegExp(`(^|\\s)${token}(?=$|\\s|[.,;:])`).test(text)
-    );
+  const matchesToken = (token) => {
+    if (!token) return false;
+    const escapedToken = escapeRegex(token);
+    const boundaryPattern = `(?:^|[^\\p{L}\\p{N}])${escapedToken}(?=$|[^\\p{L}\\p{N}])`;
+    const regex = new RegExp(boundaryPattern, 'u');
+    return sources.some((text) => regex.test(text));
+  };
 
   if (matchesToken('M\+')) {
     return 'M+';
@@ -614,6 +622,67 @@ export const computeFertilityStartOutput = ({
 
   const { days, bipScore } = normalizeCycleDays(processedData);
 
+  const totalDays = Array.isArray(days) ? days.length : 0;
+  const isValidIndex = (idx) =>
+    Number.isInteger(idx) && idx >= 0 && idx < totalDays;
+
+  const findLastStatusIndex = (status) => {
+    if (!status || totalDays === 0) return null;
+    for (let idx = totalDays - 1; idx >= 0; idx -= 1) {
+      if (days[idx]?.normalizedPeakStatus === status) {
+        return idx;
+      }
+    }
+    return null;
+  };
+
+  let effectivePeakIndex = isValidIndex(peakDayIndex) ? peakDayIndex : null;
+
+  if (effectivePeakIndex == null) {
+    const explicitPeakIndex = findLastStatusIndex('P');
+    if (isValidIndex(explicitPeakIndex)) {
+      effectivePeakIndex = explicitPeakIndex;
+    }
+  }
+
+  if (effectivePeakIndex == null) {
+    const inferenceOffsets = [
+      { status: '1', offset: 1 },
+      { status: '2', offset: 2 },
+      { status: '3', offset: 3 },
+    ];
+    for (const { status, offset } of inferenceOffsets) {
+      const statusIndex = findLastStatusIndex(status);
+      if (statusIndex == null) continue;
+      const candidate = statusIndex - offset;
+      if (isValidIndex(candidate)) {
+        effectivePeakIndex = candidate;
+        break;
+      }
+    }
+  }
+
+  if (effectivePeakIndex == null && totalDays > 0) {
+    let bestIndex = null;
+    let bestScore = -Infinity;
+    for (let idx = 0; idx < totalDays; idx += 1) {
+      const day = days[idx];
+      if (!day) continue;
+      const score = Number.isFinite(day.scoreFertil) ? day.scoreFertil : null;
+      if (score == null) continue;
+      if (
+        score > bestScore ||
+        (score === bestScore && (bestIndex == null || idx > bestIndex))
+      ) {
+        bestScore = score;
+        bestIndex = idx;
+      }
+    }
+    if (bestIndex != null) {
+      effectivePeakIndex = bestIndex;
+    }
+  }
+
   const candidates = [];
   const pushCandidate = (candidate) => {
     if (!candidate || !Number.isFinite(candidate.day)) return;
@@ -741,6 +810,10 @@ export const computeFertilityStartOutput = ({
     if (Number.isInteger(postPeakStartIndex)) {
       const candidate = Math.max(fertileStartIndex, Math.min(postPeakStartIndex - 1, lastIndex));
       fertileEndIndex = candidate >= fertileStartIndex ? candidate : fertileStartIndex;
+      } else if (isValidIndex(effectivePeakIndex)) {
+      const peakBound = Math.min(lastIndex, effectivePeakIndex + 2);
+      const candidate = Math.max(fertileStartIndex, peakBound);
+      fertileEndIndex = candidate >= fertileStartIndex ? candidate : fertileStartIndex;
     } else {
       fertileEndIndex = lastIndex;
     }
@@ -781,6 +854,10 @@ export const computeFertilityStartOutput = ({
     return null;
   };
 
+  const referencePeakIndex = isValidIndex(effectivePeakIndex)
+    ? effectivePeakIndex
+    : null;
+
   const dailyAssessments = [];
   let previousAssessment = null;
 
@@ -812,6 +889,7 @@ export const computeFertilityStartOutput = ({
       continue;
     }
 
+    const deltaFromPeak = referencePeakIndex != null ? i - referencePeakIndex : null;
     let contextBonus = 0;
     const contextTokens = [];
 
@@ -820,13 +898,12 @@ export const computeFertilityStartOutput = ({
       contextTokens.push('secuencia alta');
     }
 
-    if (Number.isInteger(peakDayIndex)) {
-      const delta = i - peakDayIndex;
-      const formatted = formatPeakDelta(delta);
+    if (deltaFromPeak != null) {
+      const formatted = formatPeakDelta(deltaFromPeak);
       if (formatted) {
-        if (delta === 0 || delta === -1 || delta === -2) {
+        if (deltaFromPeak === 0 || deltaFromPeak === -1 || deltaFromPeak === -2) {
           contextBonus = Math.max(contextBonus, 0.1);
-        } else if (delta === 1 || delta === 2) {
+        } else if (deltaFromPeak === 1 || deltaFromPeak === 2) {
           contextBonus = Math.max(contextBonus, 0.05);
         }
         contextTokens.push(formatted);
@@ -865,6 +942,24 @@ export const computeFertilityStartOutput = ({
     } else {
       finalScore = Math.max(0.4, finalScore);
     }
+
+    if (deltaFromPeak != null) {
+      if (deltaFromPeak === 0) {
+        finalScore = Math.max(finalScore, 0.98);
+      } else if (deltaFromPeak === -1 || deltaFromPeak === -2) {
+        finalScore = Math.max(finalScore, 0.9);
+      } else if (deltaFromPeak === 1 || deltaFromPeak === 2) {
+        finalScore = Math.max(finalScore, 0.85);
+      } else if (deltaFromPeak >= 3) {
+        const hasStrongSigns =
+          day.M >= 2 || day.symbolDetected === 'M+' || day.symbolDetected === 'F';
+        if (!hasStrongSigns) {
+          finalScore = Math.min(finalScore, 0.45);
+        }
+      }
+    }
+
+    finalScore = clamp(finalScore);
 
     const levelInfo = describeScoreLevel(finalScore);
 
@@ -942,6 +1037,7 @@ export const computeFertilityStartOutput = ({
   const debug = {
     bipScore,
     explicitStartDay,
+    effectivePeakIndex,
     candidatesBeforeAggregate,
   };
 
