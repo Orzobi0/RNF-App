@@ -29,7 +29,11 @@ import {
 import { cn } from '@/lib/utils';
 import { format, startOfDay, parseISO, addHours, parse } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { FERTILITY_SYMBOL_OPTIONS, getFertilitySymbolTheme } from '@/config/fertilitySymbols';
+import {
+  FERTILITY_SYMBOL_OPTIONS,
+  getFertilitySymbolDockStyles,
+  getFertilitySymbolTheme,
+} from '@/config/fertilitySymbols';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   computePeakState,
@@ -201,8 +205,13 @@ const DataEntryFormFields = ({
       triggerHapticFeedback();
       registerActiveSection(key);
       pendingScrollTargetRef.current = key;
+      
+      if (isViewAll) {
+        scrollToSectionStart(key);
+        return;
+      }
     },
-    [registerActiveSection, triggerHapticFeedback]
+    [isViewAll, registerActiveSection, scrollToSectionStart, triggerHapticFeedback]
   );
 
   const handleViewAllToggle = useCallback(() => {
@@ -560,27 +569,24 @@ const DataEntryFormFields = ({
     }
   }, [isEditing]);
 
-  const sectionStyles = useMemo(
-    () => ({
+  const sectionStyles = useMemo(() => {
+    const symbolDockStyles = getFertilitySymbolDockStyles(fertilitySymbol);
+    return {
       temperature: {
         activeBorder: 'border-orange-300',
         activeBg: 'bg-orange-50',
         activeText: 'text-orange-600',
         filledText: 'text-orange-500',
+        idleText: 'text-slate-500',
         focusRing: 'focus-visible:ring-orange-200',
       },
-      symbol: {
-        activeBorder: 'border-slate-300',
-        activeBg: 'bg-slate-100',
-        activeText: 'text-slate-600',
-        filledText: 'text-slate-600',
-        focusRing: 'focus-visible:ring-slate-200',
-      },
+      symbol: symbolDockStyles,
       sensation: {
         activeBorder: 'border-sky-300',
         activeBg: 'bg-sky-50',
         activeText: 'text-sky-600',
         filledText: 'text-sky-500',
+        idleText: 'text-slate-500',
         focusRing: 'focus-visible:ring-sky-200',
       },
       appearance: {
@@ -588,6 +594,7 @@ const DataEntryFormFields = ({
         activeBg: 'bg-emerald-50',
         activeText: 'text-emerald-600',
         filledText: 'text-emerald-500',
+        idleText: 'text-slate-500',
         focusRing: 'focus-visible:ring-emerald-200',
       },
       observations: {
@@ -595,11 +602,11 @@ const DataEntryFormFields = ({
         activeBg: 'bg-violet-50',
         activeText: 'text-violet-600',
         filledText: 'text-violet-500',
+        idleText: 'text-slate-500',
         focusRing: 'focus-visible:ring-violet-200',
       },
-    }),
-    []
-  );
+    };
+  }, [fertilitySymbol]);
 
   const renderSectionContent = (key) => {
     switch (key) {
@@ -973,6 +980,8 @@ const DataEntryFormFields = ({
               const isActive = !isViewAll && isExpanded;
               const styles = sectionStyles[section.key] || {};
               const isFilled = filledBySection[section.key];
+              const idleTextClass = styles.idleText ?? 'text-slate-500';
+              const filledTextClass = styles.filledText ?? idleTextClass;
               return (
                 <button
                   key={section.key}
@@ -989,8 +998,8 @@ const DataEntryFormFields = ({
                           styles.activeText
                         )
                       : cn(
-                          'border-transparent bg-transparent text-slate-500 hover:bg-slate-100',
-                          isFilled ? styles.filledText : 'text-slate-500'
+                          'border-transparent bg-transparent hover:bg-slate-100',
+                          isFilled ? filledTextClass : idleTextClass
                         ),
                     !isActive && isViewAll && 'opacity-70',
                     'min-h-[44px] min-w-[44px]'
@@ -1006,8 +1015,8 @@ const DataEntryFormFields = ({
                       isActive
                         ? styles.activeText
                         : isFilled
-                        ? styles.filledText
-                        : 'text-slate-500'
+                        ? filledTextClass
+                        : idleTextClass
                   )}
                     aria-hidden="true"
                   />

@@ -90,3 +90,61 @@ export const getFertilitySymbolTheme = (symbolValue) => {
       };
   }
 };
+export const getFertilitySymbolDockStyles = (symbolValue) => {
+  switch (symbolValue) {
+    case 'red':
+      return {
+        activeBorder: 'border-rose-300',
+        activeBg: 'bg-rose-50',
+        activeText: 'text-rose-600',
+        filledText: 'text-rose-500',
+        idleText: 'text-rose-400',
+        focusRing: 'focus-visible:ring-rose-200',
+      };
+    case 'green':
+      return {
+        activeBorder: 'border-emerald-300',
+        activeBg: 'bg-emerald-50',
+        activeText: 'text-emerald-600',
+        filledText: 'text-emerald-500',
+        idleText: 'text-emerald-400',
+        focusRing: 'focus-visible:ring-emerald-200',
+      };
+    case 'yellow':
+      return {
+        activeBorder: 'border-amber-300',
+        activeBg: 'bg-amber-50',
+        activeText: 'text-amber-600',
+        filledText: 'text-amber-500',
+        idleText: 'text-amber-500',
+        focusRing: 'focus-visible:ring-amber-200',
+      };
+    case 'spot':
+      return {
+        activeBorder: 'border-rose-300',
+        activeBg: 'bg-rose-50',
+        activeText: 'text-rose-600',
+        filledText: 'text-rose-500',
+        idleText: 'text-rose-400',
+        focusRing: 'focus-visible:ring-rose-200',
+      };
+    case 'white':
+      return {
+        activeBorder: 'border-slate-300',
+        activeBg: 'bg-white',
+        activeText: 'text-slate-600',
+        filledText: 'text-slate-500',
+        idleText: 'text-slate-500',
+        focusRing: 'focus-visible:ring-slate-200',
+      };
+    default:
+      return {
+        activeBorder: 'border-slate-300',
+        activeBg: 'bg-slate-100',
+        activeText: 'text-slate-600',
+        filledText: 'text-slate-600',
+        idleText: 'text-slate-500',
+        focusRing: 'focus-visible:ring-slate-200',
+      };
+  }
+};
