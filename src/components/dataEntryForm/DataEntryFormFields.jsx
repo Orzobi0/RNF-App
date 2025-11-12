@@ -97,6 +97,7 @@ const DataEntryFormFields = ({
   const dockRef = useRef(null);
   const sectionsContainerRef = useRef(null);
   const pendingScrollTargetRef = useRef(null);
+  const userCollapsedRef = useRef(false);
   const lastActivePerDateRef = useRef(new Map());
 
   const openSectionKeys = useMemo(
@@ -108,6 +109,30 @@ const DataEntryFormFields = ({
   const cycleEnd = cycleEndDate ? startOfDay(parseISO(cycleEndDate)) : null;
   const disabledDateRanges = cycleEnd ? [{ before: cycleStart }, { after: cycleEnd }] : [{ before: cycleStart }];
   const selectedIsoDate = date ? format(date, 'yyyy-MM-dd') : null;
+ const [dockOffset, setDockOffset] = useState(0);
+
+ const recomputeDockOffset = useCallback(() => {
+   const dock = dockRef.current;
+   if (!dock) return;
+   const rect = dock.getBoundingClientRect();
+   const computedTop = parseFloat(getComputedStyle(dock).top || '0');
+   const safeTop = Number.isNaN(computedTop) ? 0 : computedTop;
+   setDockOffset((rect?.height || 0) + safeTop + 12); // 12px de margen
+ }, []);
+
+ useEffect(() => {
+   recomputeDockOffset();
+   const ro = new ResizeObserver(() => recomputeDockOffset());
+   if (dockRef.current) ro.observe(dockRef.current);
+   const onResize = () => recomputeDockOffset();
+   window.addEventListener('resize', onResize);
+   window.addEventListener('orientationchange', onResize);
+   return () => {
+     ro.disconnect();
+     window.removeEventListener('resize', onResize);
+     window.removeEventListener('orientationchange', onResize);
+   };
+ }, [recomputeDockOffset]);
 
   const triggerHapticFeedback = useCallback(() => {
     if (typeof window === 'undefined') {
@@ -125,6 +150,7 @@ const DataEntryFormFields = ({
         return;
       }
 
+      userCollapsedRef.current = false;
       setActiveSection((current) => (current === key ? current : key));
 
       const storageKey = selectedIsoDate ?? DEFAULT_SECTION_STORAGE_KEY;
@@ -134,49 +160,59 @@ const DataEntryFormFields = ({
   );
 
   useEffect(() => {
+    if (!sectionKeys.length) {
+      if (activeSection !== null) {
+        setActiveSection(null);
+      }
+      return;
+    }
+
     if (activeSection && sectionKeys.includes(activeSection)) {
       return;
     }
 
-    if (!sectionKeys.length) {
+    if (!isViewAll && userCollapsedRef.current) {
+      if (activeSection !== null) {
+        setActiveSection(null);
+      }
       return;
     }
 
-    const fallback = sectionKeys[0];
-    if (fallback) {
-      registerActiveSection(fallback);
+    const storageKey = selectedIsoDate ?? DEFAULT_SECTION_STORAGE_KEY;
+    const storedSection = lastActivePerDateRef.current.get(storageKey);
+    const fallbackSection =
+      (storedSection && sectionKeys.includes(storedSection) && storedSection) || sectionKeys[0] || null;
+
+    if (!fallbackSection) {
+      if (activeSection !== null) {
+        setActiveSection(null);
+      }
+      return;
     }
-  }, [activeSection, registerActiveSection, sectionKeys]);
+  
+    registerActiveSection(fallbackSection);
+  }, [
+    activeSection,
+    isViewAll,
+    registerActiveSection,
+    sectionKeys,
+    selectedIsoDate,
+  ]);
 
-  const scrollToSectionStart = useCallback(
-    (sectionKey) => {
-      if (typeof window === 'undefined' || !sectionKey) {
-        return;
-      }
-
-      const container = sectionsContainerRef.current;
-      if (!container) {
-        return;
-      }
-
-      const sectionNode = container.querySelector(`[data-section="${sectionKey}"]`);
-      if (!(sectionNode instanceof HTMLElement)) {
-        return;
-      }
-
-      const targetRect = sectionNode.getBoundingClientRect();
-      const dockRect = dockRef.current?.getBoundingClientRect();
-      const dockTop = dockRect ? Math.max(dockRect.top, 0) : 0;
-      const desiredOffset = dockTop + (dockRect?.height ?? 0) + 12;
-      const scrollTarget = window.scrollY + targetRect.top - desiredOffset;
-
-      window.scrollTo({
-        top: scrollTarget < 0 ? 0 : scrollTarget,
-        behavior: 'smooth',
-      });
-    },
-    []
-  );
+ const scrollToSectionStart = useCallback((sectionKey) => {
+   if (typeof window === 'undefined' || !sectionKey) return;
+   const container = sectionsContainerRef.current;
+   if (!container) return;
+   const node = container.querySelector(`[data-section="${sectionKey}"]`);
+   if (!(node instanceof HTMLElement)) return;
+   const run = () => node.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' });
+   // doble rAF: garantiza layout estable en iOS antes de medir/scroll
+   if ('requestAnimationFrame' in window) {
+     requestAnimationFrame(() => requestAnimationFrame(run));
+   } else {
+     setTimeout(run, 50);
+   }
+ }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -203,21 +239,44 @@ const DataEntryFormFields = ({
       }
 
       triggerHapticFeedback();
-      registerActiveSection(key);
-      pendingScrollTargetRef.current = key;
+
+ if (isViewAll) {
+   pendingScrollTargetRef.current = key;
+   registerActiveSection(key);
+   scrollToSectionStart(key);
+   return;
+ }
       
-      if (isViewAll) {
-        scrollToSectionStart(key);
-        return;
-      }
+      setActiveSection((current) => {
+        if (current === key) {
+          userCollapsedRef.current = true;
+          pendingScrollTargetRef.current = null;
+          return null;
+        }
+
+        userCollapsedRef.current = false;
+        pendingScrollTargetRef.current = key;
+        const storageKey = selectedIsoDate ?? DEFAULT_SECTION_STORAGE_KEY;
+        lastActivePerDateRef.current.set(storageKey, key);
+        return key;
+      });
     },
-    [isViewAll, registerActiveSection, scrollToSectionStart, triggerHapticFeedback]
+    [
+      isViewAll,
+      registerActiveSection,
+      scrollToSectionStart,
+      selectedIsoDate,
+      triggerHapticFeedback,
+    ]
   );
 
   const handleViewAllToggle = useCallback(() => {
     triggerHapticFeedback();
 
     const nextViewAll = !isViewAll;
+    if (nextViewAll) {
+      userCollapsedRef.current = false;
+    }
     setIsViewAll(nextViewAll);
 
     const storageKey = selectedIsoDate ?? DEFAULT_SECTION_STORAGE_KEY;
@@ -245,6 +304,8 @@ const DataEntryFormFields = ({
     setStatusMessages({ peak: null, relations: null });
     initializedSectionsRef.current = false;
   
+    userCollapsedRef.current = false;
+
     if (!sectionKeys.length) {
       return;
     }
@@ -1096,6 +1157,7 @@ const DataEntryFormFields = ({
             .filter((section) => openSectionKeys.includes(section.key))
             .map((section) => (
               <motion.div
+                style={{ scrollMarginTop: dockOffset }}
                 key={section.key}
                 id={`${section.key}-panel`}
                 data-section={section.key}
