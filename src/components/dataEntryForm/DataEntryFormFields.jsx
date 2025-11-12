@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -34,9 +34,10 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
   computePeakState,
   getToggleFeedback,
-  toggleSection,
   SECTION_METADATA,
 } from '@/components/dataEntryForm/sectionLogic';
+const VIEW_ALL_STORAGE_KEY_PREFIX = 'dataEntryForm:viewAll:';
+const DEFAULT_SECTION_STORAGE_KEY = '__default__';
 const RADIUS = { field: 'rounded-3xl', dropdown: 'rounded-3xl' };
 const DataEntryFormFields = ({
   date,
@@ -71,15 +72,228 @@ const DataEntryFormFields = ({
 }) => {
   const [open, setOpen] = useState(false);
   const [correctionIndex, setCorrectionIndex] = useState(null);
-  const [openSections, setOpenSections] = useState([]);
   const [statusMessages, setStatusMessages] = useState({ peak: null, relations: null });
   const initializedSectionsRef = useRef(false);
 
+  const sectionOrder = useMemo(
+    () => [
+      { ...SECTION_METADATA.temperature, icon: Thermometer },
+      { ...SECTION_METADATA.symbol, icon: Sprout },
+      { ...SECTION_METADATA.sensation, icon: Droplets },
+      { ...SECTION_METADATA.appearance, icon: Circle },
+      { ...SECTION_METADATA.observations, icon: Edit3 },
+    ],
+    []
+  );
+
+  const sectionKeys = useMemo(() => sectionOrder.map((section) => section.key), [sectionOrder]);
+
+  const [isViewAll, setIsViewAll] = useState(false);
+  const [activeSection, setActiveSection] = useState(() => sectionKeys[0] ?? null);
+  const dockRef = useRef(null);
+  const sectionsContainerRef = useRef(null);
+  const pendingScrollTargetRef = useRef(null);
+  const lastActivePerDateRef = useRef(new Map());
+
+  const openSectionKeys = useMemo(
+    () => (isViewAll ? sectionKeys : activeSection ? [activeSection] : []),
+    [isViewAll, sectionKeys, activeSection]
+  );
+
+  const cycleStart = startOfDay(parseISO(cycleStartDate));
+  const cycleEnd = cycleEndDate ? startOfDay(parseISO(cycleEndDate)) : null;
+  const disabledDateRanges = cycleEnd ? [{ before: cycleStart }, { after: cycleEnd }] : [{ before: cycleStart }];
+  const selectedIsoDate = date ? format(date, 'yyyy-MM-dd') : null;
+
+  const triggerHapticFeedback = useCallback(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    if (window.navigator?.vibrate) {
+      window.navigator.vibrate(10);
+    }
+  }, []);
+
+  const registerActiveSection = useCallback(
+    (key) => {
+      if (!key) {
+        return;
+      }
+
+      setActiveSection((current) => (current === key ? current : key));
+
+      const storageKey = selectedIsoDate ?? DEFAULT_SECTION_STORAGE_KEY;
+      lastActivePerDateRef.current.set(storageKey, key);
+    },
+    [selectedIsoDate]
+  );
+
   useEffect(() => {
-    setOpenSections([]);
+    if (activeSection && sectionKeys.includes(activeSection)) {
+      return;
+    }
+
+    if (!sectionKeys.length) {
+      return;
+    }
+
+    const fallback = sectionKeys[0];
+    if (fallback) {
+      registerActiveSection(fallback);
+    }
+  }, [activeSection, registerActiveSection, sectionKeys]);
+
+  const scrollToSectionStart = useCallback(
+    (sectionKey) => {
+      if (typeof window === 'undefined' || !sectionKey) {
+        return;
+      }
+
+      const container = sectionsContainerRef.current;
+      if (!container) {
+        return;
+      }
+
+      const sectionNode = container.querySelector(`[data-section="${sectionKey}"]`);
+      if (!(sectionNode instanceof HTMLElement)) {
+        return;
+      }
+
+      const targetRect = sectionNode.getBoundingClientRect();
+      const dockRect = dockRef.current?.getBoundingClientRect();
+      const dockTop = dockRect ? Math.max(dockRect.top, 0) : 0;
+      const desiredOffset = dockTop + (dockRect?.height ?? 0) + 12;
+      const scrollTarget = window.scrollY + targetRect.top - desiredOffset;
+
+      window.scrollTo({
+        top: scrollTarget < 0 ? 0 : scrollTarget,
+        behavior: 'smooth',
+      });
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const target = pendingScrollTargetRef.current;
+    if (!target) {
+      return;
+    }
+
+    pendingScrollTargetRef.current = null;
+    const timeoutId = window.setTimeout(() => {
+      scrollToSectionStart(target);
+    }, 80);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [openSectionKeys, scrollToSectionStart]);
+
+  const handleSectionToggle = useCallback(
+    (key) => {
+      if (!key) {
+        return;
+      }
+
+      triggerHapticFeedback();
+      registerActiveSection(key);
+      pendingScrollTargetRef.current = key;
+    },
+    [registerActiveSection, triggerHapticFeedback]
+  );
+
+  const handleViewAllToggle = useCallback(() => {
+    triggerHapticFeedback();
+
+    const nextViewAll = !isViewAll;
+    setIsViewAll(nextViewAll);
+
+    const storageKey = selectedIsoDate ?? DEFAULT_SECTION_STORAGE_KEY;
+    const storedActive = lastActivePerDateRef.current.get(storageKey);
+    const defaultTarget = storedActive ?? activeSection ?? sectionKeys[0];
+
+    if (nextViewAll) {
+      pendingScrollTargetRef.current = defaultTarget;
+      return;
+    }
+
+    const fallback = defaultTarget ?? sectionKeys[0];
+    registerActiveSection(fallback);
+    pendingScrollTargetRef.current = fallback;
+  }, [
+    activeSection,
+    isViewAll,
+    registerActiveSection,
+    sectionKeys,
+    selectedIsoDate,
+    triggerHapticFeedback,
+  ]);
+
+  useEffect(() => {
     setStatusMessages({ peak: null, relations: null });
     initializedSectionsRef.current = false;
-  }, [date]);
+  
+    if (!sectionKeys.length) {
+      return;
+    }
+
+    const storageKey = selectedIsoDate ?? DEFAULT_SECTION_STORAGE_KEY;
+    const storedSection = lastActivePerDateRef.current.get(storageKey);
+    const fallbackSection = storedSection ?? sectionKeys[0];
+
+    if (!storedSection && fallbackSection) {
+      lastActivePerDateRef.current.set(storageKey, fallbackSection);
+    }
+
+    if (!fallbackSection) {
+      return;
+    }
+
+    setActiveSection((current) => (current === fallbackSection ? current : fallbackSection));
+  }, [date, sectionKeys, selectedIsoDate]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    if (!selectedIsoDate) {
+      setIsViewAll(false);
+      return;
+    }
+
+    const storageKey = `${VIEW_ALL_STORAGE_KEY_PREFIX}${selectedIsoDate}`;
+
+    try {
+      const stored = window.localStorage.getItem(storageKey);
+      if (stored === 'true') {
+        setIsViewAll(true);
+      } else if (stored === 'false') {
+        setIsViewAll(false);
+      } else {
+        setIsViewAll(false);
+      }
+    } catch (error) {
+      setIsViewAll(false);
+    }
+  }, [selectedIsoDate]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !selectedIsoDate) {
+      return;
+    }
+
+    const storageKey = `${VIEW_ALL_STORAGE_KEY_PREFIX}${selectedIsoDate}`;
+
+    try {
+      window.localStorage.setItem(storageKey, isViewAll ? 'true' : 'false');
+    } catch (error) {
+      // ignore storage failures silently
+    }
+  }, [isViewAll, selectedIsoDate]);
 
   useEffect(() => {
     if (correctionIndex !== null) {
@@ -114,10 +328,6 @@ const DataEntryFormFields = ({
       updateMeasurement(index, 'use_corrected', true);
     }
   };
-  const cycleStart = startOfDay(parseISO(cycleStartDate));
-  const cycleEnd = cycleEndDate ? startOfDay(parseISO(cycleEndDate)) : null;
-  const disabledDateRanges = cycleEnd ? [{ before: cycleStart }, { after: cycleEnd }] : [{ before: cycleStart }];
-  const selectedIsoDate = date ? format(date, 'yyyy-MM-dd') : null;
   
   const { mode: peakMode, isPeakDay } = computePeakState({
     peakTag,
@@ -240,10 +450,9 @@ const DataEntryFormFields = ({
     });
   };
   const relationsButtonClasses = cn(
-    'inline-flex h-11 min-w-[44px] items-center justify-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition-all duration-200 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-60',
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-transparent disabled:cursor-not-allowed disabled:opacity-60',
     hadRelations
-      ? 'border-rose-400 bg-rose-50 text-rose-600 hover:bg-rose-100 focus-visible:ring-rose-200'
-      : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-100 focus-visible:ring-slate-200'
+      ? 'text-rose-600' : 'text-slate-600'
   );
 
   const handleRelationsToggle = async () => {
@@ -274,21 +483,6 @@ const DataEntryFormFields = ({
       setHadRelations(previousValue);
     }
   };
-
-  const handleSectionToggle = (key) => {
-    setOpenSections((current) => toggleSection(current, key));
-  };
-
-  const sectionOrder = useMemo(
-    () => [
-      { ...SECTION_METADATA.temperature, icon: Thermometer },
-      { ...SECTION_METADATA.symbol, icon: Sprout },
-      { ...SECTION_METADATA.sensation, icon: Droplets },
-      { ...SECTION_METADATA.appearance, icon: Circle },
-      { ...SECTION_METADATA.observations, icon: Edit3 },
-    ],
-    []
-  );
 
   const filledBySection = useMemo(() => {
     const hasTemperature = measurements.some((measurement) => {
@@ -338,26 +532,31 @@ const DataEntryFormFields = ({
       return;
     }
 
-    const filledKeys = sectionOrder
-      .map((section) => section.key)
-      .filter((key) => filledBySection[key]);
+    const filledKeys = sectionKeys.filter((key) => filledBySection[key]);
 
     if (filledKeys.length === 0) {
+      initializedSectionsRef.current = true;
       return;
     }
 
-    setOpenSections((current) => {
-      const next = Array.from(new Set([...current, ...filledKeys]));
-      return next;
-    });
+    const preferredSection = filledKeys.includes(activeSection)
+      ? activeSection
+      : filledKeys[0];
 
+    registerActiveSection(preferredSection);
+    pendingScrollTargetRef.current = preferredSection;
     initializedSectionsRef.current = true;
-  }, [filledBySection, isEditing, sectionOrder]);
+  }, [
+    activeSection,
+    filledBySection,
+    isEditing,
+    registerActiveSection,
+    sectionKeys,
+  ]);
 
   useEffect(() => {
     if (!isEditing) {
       initializedSectionsRef.current = false;
-      setOpenSections([]);
     }
   }, [isEditing]);
 
@@ -759,48 +958,82 @@ const DataEntryFormFields = ({
         </Popover>
       </div>
 
-      <div className="mt-4 p-0 bg-transparent border-0 shadow-none">
-        <div className="flex items-center justify-between gap-1 sm:gap-2">
-          {sectionOrder.map((section) => {
-            const Icon = section.icon;
-            const isActive = openSections.includes(section.key);
-            const styles = sectionStyles[section.key] || {};
-            const isFilled = filledBySection[section.key];
-            return (
-              <button
-                key={section.key}
-                type="button"
-                onClick={() => handleSectionToggle(section.key)}
-                className={cn(
-                  'flex h-11 w-11 items-center justify-center rounded-full border-2 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
-                  styles.focusRing,
-                  isActive
-                    ? cn('shadow-inner', styles.activeBorder, styles.activeBg, styles.activeText)
-                    : cn('border-transparent bg-transparent hover:bg-slate-100',
-                        isFilled ? styles.filledText : 'text-slate-500'
-                      ),
-                  !isActive && !isFilled && 'text-slate-500',
-                  'min-h-[44px] min-w-[44px]'
-                )}
-                aria-label={section.ariaLabel}
-                aria-expanded={isActive}
-                aria-controls={`${section.key}-panel`}
-              >
-              <Icon
+      <div className="mt-4">
+        <div
+          ref={dockRef}
+          className={cn(
+            'sticky top-4 z-20 flex w-full items-center gap-2 rounded-3xl border border-pink-200/70 bg-white/80 px-2 py-2 shadow-sm transition-opacity duration-200 backdrop-blur supports-[backdrop-filter]:backdrop-blur-lg sm:top-6',
+            isViewAll ? 'opacity-80' : 'opacity-100'
+          )}
+        >
+          <div className="flex flex-1 items-center gap-1 sm:gap-2">
+            {sectionOrder.map((section) => {
+              const Icon = section.icon;
+              const isExpanded = openSectionKeys.includes(section.key);
+              const isActive = !isViewAll && isExpanded;
+              const styles = sectionStyles[section.key] || {};
+              const isFilled = filledBySection[section.key];
+              return (
+                <button
+                  key={section.key}
+                  type="button"
+                  onClick={() => handleSectionToggle(section.key)}
                   className={cn(
-                    'h-5 w-5',
+                    'flex h-11 w-11 items-center justify-center rounded-full border-2 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
+                    styles.focusRing,
                     isActive
-                      ? styles.activeText
-                      : isFilled
+                      ? cn(
+                          'shadow-inner scale-105',
+                          styles.activeBorder,
+                          styles.activeBg,
+                          styles.activeText
+                        )
+                      : cn(
+                          'border-transparent bg-transparent text-slate-500 hover:bg-slate-100',
+                          isFilled ? styles.filledText : 'text-slate-500'
+                        ),
+                    !isActive && isViewAll && 'opacity-70',
+                    'min-h-[44px] min-w-[44px]'
+                  )}
+                  aria-label={section.ariaLabel}
+                  aria-expanded={isExpanded}
+                  aria-controls={`${section.key}-panel`}
+                  data-active={isActive}
+                >
+                  <Icon
+                    className={cn(
+                      'h-5 w-5 transition-colors duration-200',
+                      isActive
+                        ? styles.activeText
+                        : isFilled
                         ? styles.filledText
                         : 'text-slate-500'
                   )}
-                  aria-hidden="true"
-                />
-                <span className="sr-only">{section.srLabel}</span>
-              </button>
-            );
-          })}
+                    aria-hidden="true"
+                  />
+                  <span className="sr-only">{section.srLabel}</span>
+                </button>
+              );
+            })}
+          </div>
+          <button
+            type="button"
+            onClick={handleViewAllToggle}
+            className={cn(
+              'ml-auto inline-flex min-h-[32px] min-w-[32px] items-center justify-center rounded-full border px-3 text-xs font-semibold uppercase tracking-wide transition-all duration-200',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-pink-200',
+              isViewAll
+                ? 'border-pink-200 bg-pink-50/80 text-pink-600 shadow-inner'
+                : 'border-slate-300 bg-transparent text-slate-500 hover:border-slate-400 hover:text-slate-700'
+            )}
+            aria-pressed={isViewAll}
+            aria-label={isViewAll ? 'Compactar secciones' : 'Ver todas las secciones'}
+          >
+            <span className="text-lg leading-none" aria-hidden="true">
+              {isViewAll ? '⇤' : '⇵'}
+              </span>
+              <span className="sr-only">{isViewAll ? 'Compactar' : 'Todo'}</span>
+          </button>
         </div>
       </div>
       <div className="mt-3 space-y-2">
@@ -824,8 +1057,8 @@ const DataEntryFormFields = ({
             aria-pressed={hadRelations}
             aria-label={hadRelations ? 'Desmarcar relaciones sexuales' : 'Marcar relaciones sexuales'}
           >
-            <span className="text-xs font-semibold uppercase tracking-wide">RS</span>
             <Heart className={cn('h-4 w-4', hadRelations ? 'text-rose-500 fill-current' : 'text-slate-400')} aria-hidden="true" />
+            <span className="text-xs font-semibold uppercase tracking-wide">RS</span>
           </button>
         </div>
         {existingPeakIsoDate && (
@@ -848,18 +1081,19 @@ const DataEntryFormFields = ({
           </div>
         )}
       </div>
-      <div className="mt-3">
+      <div className="mt-3" ref={sectionsContainerRef}>
         <AnimatePresence initial={false}>
           {sectionOrder
-            .filter((section) => openSections.includes(section.key))
+            .filter((section) => openSectionKeys.includes(section.key))
             .map((section) => (
               <motion.div
                 key={section.key}
                 id={`${section.key}-panel`}
+                data-section={section.key}
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.25, ease: 'easeInOut' }}
+                transition={{ duration: 0.18, ease: 'easeInOut' }}
                 className="overflow-hidden"
               >
                 <div className="pt-3">

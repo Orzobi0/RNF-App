@@ -233,7 +233,12 @@ export const useDataEntryForm = (
   };
 
   const buildSubmissionPayload = (options = {}) => {
-    const { overrideMeasurements, overrideIgnored, peakTagOverride } = options;
+    const {
+      overrideMeasurements,
+      overrideIgnored,
+      peakTagOverride,
+      overrideHadRelations,
+    } = options;
     if (!date) {
       toast({
         title: 'Error',
@@ -274,6 +279,15 @@ export const useDataEntryForm = (
       ? overrideMeasurements
       : measurements;
 
+      const hadRelationsOverrideProvided = Object.prototype.hasOwnProperty.call(
+      options,
+      'overrideHadRelations'
+    );
+
+    const effectiveHadRelations = hadRelationsOverrideProvided
+      ? !!overrideHadRelations
+      : hadRelations;
+
     return {
       isoDate,
       measurements: measurementsSource.map((m) => ({
@@ -288,7 +302,7 @@ export const useDataEntryForm = (
       mucusAppearance,
       fertility_symbol: fertilitySymbol,
       observations,
-      had_relations: hadRelations,
+      had_relations: effectiveHadRelations,
       ignored:
         Object.prototype.hasOwnProperty.call(options, 'overrideIgnored')
           ? !!overrideIgnored
