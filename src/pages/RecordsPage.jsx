@@ -1240,18 +1240,154 @@ export const RecordsExperience = ({
       month: 'space-y-3',
       table: 'w-full border-collapse space-y-0.5',
       row: 'flex w-full mt-1.5',
-      head_cell: 'text-muted-foreground rounded-md w-8 font-medium text-[0.75rem]',
+      head_cell: 'text-muted-foreground rounded-md w-9 font-medium text-[0.75rem]',
       cell:
-        'h-8 w-8 text-center text-sm p-0 relative [&:has([aria-selected])]:bg-transparent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20',
+        'relative h-9 w-9 text-center text-sm p-0 focus-within:relative focus-within:z-20',
       day: cn(
         buttonVariants({ variant: 'ghost', size: 'icon' }),
-        '!h-8 !w-8 !p-0 font-medium text-slate-700 aria-selected:opacity-100'
+        'relative flex !h-9 !w-9 rounded-full flex-col items-center justify-center !p-0 font-medium text-slate-700 aria-selected:opacity-100'
       ),
       day_selected:
-        'border border-rose-400 text-white hover:bg-rose-300 hover:text-white focus:bg-rose-300 focus:text-white',
-      day_today: 'bg-rose-200 text-rose-700 font-semibold',
+        'rounded-full border border-rose-400 text-white hover:bg-rose-300 hover:text-white focus:bg-rose-300 focus:text-white',
+      day_today: 'rounded-full bg-rose-200 text-rose-700 font-semibold',
     }),
     []
+  );
+
+  const calendarLabels = useMemo(
+    () => ({
+      labelDay: (day) => {
+        const iso = format(day, 'yyyy-MM-dd');
+        const details = recordDetailsByIso.get(iso);
+        const baseLabel = format(day, 'd MMM', { locale: es });
+
+        if (!details) {
+          return baseLabel;
+        }
+
+        const infoParts = [];
+        if (details.hasTemperature && details.hasMucus) {
+          infoParts.push('temperatura y moco');
+        } else if (details.hasTemperature) {
+          infoParts.push('temperatura');
+        } else if (details.hasMucus) {
+          infoParts.push('moco');
+        }
+
+        if (details.hasRelations) {
+          infoParts.push('RS');
+        }
+
+        if (details.peakStatus) {
+          const peakLabel =
+            details.peakStatus === 'P'
+              ? 'pico ✖'
+              : `pico +${details.peakStatus}`;
+          infoParts.push(peakLabel);
+        }
+
+        if (!infoParts.length) {
+          return baseLabel;
+        }
+
+        return `${baseLabel}: ${infoParts.join('; ')}`;
+      },
+    }),
+    [recordDetailsByIso]
+  );
+
+  const renderCalendarDay = useCallback(
+    ({ date, activeModifiers }) => {
+      const iso = format(date, 'yyyy-MM-dd');
+      const details = recordDetailsByIso.get(iso);
+
+      const hasTemperature = details?.hasTemperature ?? false;
+      const hasMucus = details?.hasMucus ?? false;
+      const hasRelations = details?.hasRelations ?? false;
+      const peakStatus = details?.peakStatus ?? null;
+      const symbolInfo = details?.symbolInfo;
+      const symbolValue = symbolInfo?.value;
+      const showSymbolBar = symbolValue && symbolValue !== 'none';
+
+      const temperatureDotClass = cn(
+        'h-[3.5px] w-[3.5px] rounded-full',
+        hasTemperature
+          ? 'bg-amber-500 shadow-[0_0_0_0.75px_rgba(255,255,255,0.85)]'
+          : 'bg-transparent'
+      );
+      const mucusDotClass = cn(
+        'h-[3.5px] w-[3.5px] rounded-full',
+        hasMucus
+          ? 'bg-teal-500 shadow-[0_0_0_0.75px_rgba(255,255,255,0.85)]'
+          : 'bg-transparent'
+      );
+
+      const numberClass = cn(
+        'relative text-[0.8rem] leading-none',
+        activeModifiers.selected
+          ? 'text-white'
+          : activeModifiers.outside || activeModifiers.outsideCycle
+          ? 'text-slate-300'
+          : 'text-slate-700'
+      );
+
+      const peakBadgeContent =
+        peakStatus === 'P' ? '✖' : peakStatus ? `+${peakStatus}` : null;
+
+      const symbolBarClass = cn(
+        'pointer-events-none absolute bottom-0 left-0 right-0 h-[2px] rounded-sm',
+        symbolInfo?.pattern === 'spotting-pattern'
+          ? 'calendar-spotting-bar'
+          : symbolInfo?.color ?? '',
+        symbolValue === 'white' ? 'border border-slate-300/70 bg-white' : ''
+      );
+
+      return (
+        <div className="relative flex h-full w-full flex-col items-center justify-center">
+          <span className={numberClass} aria-hidden="true">
+            {format(date, 'd')}
+            {hasRelations && (
+              <Heart
+                className="absolute -bottom-[1px] -right-[1px] h-[8px] w-[8px] text-rose-500 drop-shadow-[0_0_1px_rgba(255,255,255,0.95)]"
+                stroke="white"
+                strokeWidth={1.5}
+                fill="currentColor"
+                aria-hidden="true"
+              />
+            )}
+          </span>
+          <div
+            className="mt-[2px] flex h-[6px] items-center justify-center gap-[2px]"
+            aria-hidden="true"
+          >
+            <span className={temperatureDotClass} />
+            <span className={mucusDotClass} />
+          </div>
+          {peakStatus && (
+            <span
+              aria-hidden="true"
+              className={cn(
+                'pointer-events-none absolute inset-[1px] rounded-full',
+                activeModifiers.selected ? 'border-white/80' : 'border-rose-300'
+              )}
+            />
+          )}
+          {peakBadgeContent && (
+            <span
+              aria-hidden="true"
+              className={cn(
+                'pointer-events-none absolute -top-[1px] right-[1px] rounded-sm px-[2px] text-[0.55rem] font-semibold leading-none text-rose-500 shadow-[0_0_0_1px_rgba(255,255,255,0.9)]',
+                activeModifiers.selected ? 'bg-rose-100/90 text-rose-700' : 'bg-white/90'
+              )}
+            >
+              {peakBadgeContent}
+            </span>
+          )}
+          {showSymbolBar && <span aria-hidden="true" className={symbolBarClass} />}
+        </div>
+      );
+    },
+    [recordDetailsByIso]
   );
 
   const cycleDays = useMemo(() => {
@@ -1935,11 +2071,13 @@ export const RecordsExperience = ({
                     onSelect={handleCalendarSelect}
                     onDayClick={handleCalendarSelect}
                     modifiers={calendarModifiers}
-                    className="w-full max-w-xs sm:max-w-sm rounded-3xl bg-white/40 !p-2 sm:!p-2.5 mx-auto backdrop-blur-sm [&_button]:text-slate-900 [&_button:hover]:bg-rose-100 [&_button[aria-selected=true]]:bg-rose-400"
+                    labels={calendarLabels}
+                    components={{ DayContent: renderCalendarDay }}
+                    className="w-full max-w-xs sm:max-w-sm rounded-3xl bg-white/40 !p-2 sm:!p-2.5 mx-auto backdrop-blur-sm [&_button]:text-slate-900 [&_button:hover]:bg-rose-100 [&_button[aria-selected=true]]:bg-rose-400 [&_button[aria-selected=true]]:rounded-full"
+                    
                     classNames={calendarClassNames}
                     modifiersClassNames={{
-                      hasRecord:
-                        "relative font-semibold after:absolute after:bottom-0.5 after:left-1/2 after:-translate-x-1/2 after:w-1.5 after:h-1.5 after:rounded-full after:bg-rose-400 after:content-['']",
+                      hasRecord: 'font-semibold text-slate-900',
                       outsideCycle: 'text-slate-300 opacity-50 hover:text-slate-300 hover:bg-transparent',
                       insideCycleNoRecord:
                         'text-slate-900 hover:text-slate-900 hover:bg-rose-50',

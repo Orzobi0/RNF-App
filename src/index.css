@@ -80,6 +80,12 @@
       background-position: 0 0;
     }
 
+    .calendar-spotting-bar {
+      background-color: #ef4444;
+      background-image: radial-gradient(circle, rgba(255, 255, 255, 0.85) 0.8px, transparent 0.8px);
+      background-size: 4px 4px;
+      background-position: 0 0;
+    }
 
     #spotting-pattern-chart {
       background-color: #ef4444;

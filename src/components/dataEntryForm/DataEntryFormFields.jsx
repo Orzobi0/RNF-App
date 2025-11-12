@@ -98,6 +98,7 @@ const DataEntryFormFields = ({
   const sectionsContainerRef = useRef(null);
   const pendingScrollTargetRef = useRef(null);
   const userCollapsedRef = useRef(false);
+  const lastPointerWasTouchRef = useRef(false);
   const lastActivePerDateRef = useRef(new Map());
 
   const openSectionKeys = useMemo(
@@ -269,7 +270,32 @@ const DataEntryFormFields = ({
       triggerHapticFeedback,
     ]
   );
+  // 🔹 Si el pointer es táctil, ejecutamos aquí y marcamos para ignorar el click sintetizado
+  const handleSectionPointerDown = useCallback(
+    (event, key) => {
+      if (!key) return;
+      if (event.pointerType === 'touch') {
+        lastPointerWasTouchRef.current = true;
+        handleSectionToggle(key);
+      } else {
+        lastPointerWasTouchRef.current = false;
+      }
+    },
+    [handleSectionToggle]
+  );
 
+  // 🔹 En escritorio/ratón se usa click; en táctil lo ignoramos (ya lo hicimos en pointerdown)
+  const handleSectionClick = useCallback(
+    (key) => {
+      if (!key) return;
+      if (lastPointerWasTouchRef.current) {
+        lastPointerWasTouchRef.current = false;
+        return;
+      }
+      handleSectionToggle(key);
+    },
+    [handleSectionToggle]
+  );
   const handleViewAllToggle = useCallback(() => {
     triggerHapticFeedback();
 
@@ -1047,9 +1073,10 @@ const DataEntryFormFields = ({
                 <button
                   key={section.key}
                   type="button"
-                  onClick={() => handleSectionToggle(section.key)}
+                  onPointerDown={(e) => handleSectionPointerDown(e, section.key)}
+                  onClick={() => handleSectionClick(section.key)}
                   className={cn(
-                    'flex h-11 w-11 items-center justify-center rounded-full border-2 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
+                    'flex h-11 w-11 items-center justify-center rounded-full border-2 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 touch-manipulation',
                     styles.focusRing,
                     isActive
                       ? cn(
