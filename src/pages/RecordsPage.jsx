@@ -1307,24 +1307,26 @@ export const RecordsExperience = ({
       const peakStatus = details?.peakStatus ?? null;
       const symbolInfo = details?.symbolInfo;
       const symbolValue = symbolInfo?.value;
-      const showSymbolBar = symbolValue && symbolValue !== 'none';
+      const isSelected = activeModifiers.selected;
 
       const temperatureDotClass = cn(
-        'h-[3.5px] w-[3.5px] rounded-full',
-        hasTemperature
-          ? 'bg-amber-500 shadow-[0_0_0_0.75px_rgba(255,255,255,0.85)]'
-          : 'bg-transparent'
+        'h-[3.5px] w-[3.5px] rounded-full transition-shadow',
+        hasTemperature ? 'bg-amber-500' : 'bg-transparent',
+        hasTemperature && isSelected
+          ? 'shadow-[0_0_0_0.75px_rgba(255,255,255,0.95)]'
+          : ''
       );
       const mucusDotClass = cn(
-        'h-[3.5px] w-[3.5px] rounded-full',
-        hasMucus
-          ? 'bg-teal-500 shadow-[0_0_0_0.75px_rgba(255,255,255,0.85)]'
-          : 'bg-transparent'
+        'h-[3.5px] w-[3.5px] rounded-full transition-shadow',
+        hasMucus ? 'bg-teal-500' : 'bg-transparent',
+        hasMucus && isSelected
+          ? 'shadow-[0_0_0_0.75px_rgba(255,255,255,0.95)]'
+          : ''
       );
 
       const numberClass = cn(
         'relative text-[0.8rem] leading-none',
-        activeModifiers.selected
+        isSelected
           ? 'text-white'
           : activeModifiers.outside || activeModifiers.outsideCycle
           ? 'text-slate-300'
@@ -1334,58 +1336,70 @@ export const RecordsExperience = ({
       const peakBadgeContent =
         peakStatus === 'P' ? '✖' : peakStatus ? `+${peakStatus}` : null;
 
-      const symbolBarClass = cn(
-        'pointer-events-none absolute bottom-0 left-0 right-0 h-[2px] rounded-sm',
-        symbolInfo?.pattern === 'spotting-pattern'
-          ? 'calendar-spotting-bar'
-          : symbolInfo?.color ?? '',
-        symbolValue === 'white' ? 'border border-slate-300/70 bg-white' : ''
-      );
+      const shouldShowSymbolDot = symbolValue && symbolValue !== 'none';
+      const symbolDotClass = shouldShowSymbolDot
+        ? cn(
+            'h-[6px] w-[6px] rounded-full border border-transparent',
+            symbolInfo?.pattern === 'spotting-pattern'
+              ? 'calendar-spotting-dot'
+              : symbolInfo?.color ?? '',
+            symbolValue === 'white' ? 'border border-slate-300/80' : ''
+          )
+        : null;
 
       return (
-        <div className="relative flex h-full w-full flex-col items-center justify-center">
-          <span className={numberClass} aria-hidden="true">
-            {format(date, 'd')}
-            {hasRelations && (
-              <Heart
-                className="absolute -bottom-[1px] -right-[1px] h-[8px] w-[8px] text-rose-500 drop-shadow-[0_0_1px_rgba(255,255,255,0.95)]"
-                stroke="white"
-                strokeWidth={1.5}
-                fill="currentColor"
-                aria-hidden="true"
-              />
-            )}
-          </span>
-          <div
-            className="mt-[2px] flex h-[6px] items-center justify-center gap-[2px]"
-            aria-hidden="true"
-          >
-            <span className={temperatureDotClass} />
-            <span className={mucusDotClass} />
-          </div>
-          {peakStatus && (
-            <span
-              aria-hidden="true"
-              className={cn(
-                'pointer-events-none absolute inset-[1px] rounded-full',
-                activeModifiers.selected ? 'border-white/80' : 'border-rose-300'
-              )}
-            />
-          )}
-          {peakBadgeContent && (
-            <span
-              aria-hidden="true"
-              className={cn(
-                'pointer-events-none absolute -top-[1px] right-[1px] rounded-sm px-[2px] text-[0.55rem] font-semibold leading-none text-rose-500 shadow-[0_0_0_1px_rgba(255,255,255,0.9)]',
-                activeModifiers.selected ? 'bg-rose-100/90 text-rose-700' : 'bg-white/90'
-              )}
-            >
-              {peakBadgeContent}
-            </span>
-          )}
-          {showSymbolBar && <span aria-hidden="true" className={symbolBarClass} />}
-        </div>
-      );
+  <div className="relative flex h-full w-full flex-col items-center justify-center">
+    {/* Número centrado */}
+    {/* Número con overlays encima (mismo “renglón”) */}
+<span className="relative inline-flex items-center justify-center leading-none">
+  <span className={numberClass}>{format(date, 'd')}</span>
+
+  {/* Corazón: esquina inferior-izq del propio número */}
+  {hasRelations && (
+    <Heart
+      className="pointer-events-none absolute -left-[3px] bottom-[-2px] h-[7px] w-[7px] text-rose-500 z-10"
+      stroke={isSelected ? 'white' : 'none'}
+      strokeWidth={1.25}
+      fill="currentColor"
+      aria-hidden="true"
+    />
+  )}
+
+  {/* Dot del símbolo: esquina inferior-dcha del propio número */}
+  {symbolDotClass && (
+    <span
+      className={cn(
+        symbolDotClass,
+        'pointer-events-none absolute -right-[3px] bottom-[-1px] z-10',
+        isSelected ? 'shadow-[0_0_0_0.75px_rgba(255,255,255,0.95)]' : ''
+      )}
+      aria-hidden="true"
+    />
+  )}
+</span>
+
+
+    {/* Dots inferiores: temperatura y moco (con halo solo si está seleccionado) */}
+    <div className="mt-[2px] flex h-[6px] items-center justify-center gap-[2px]" aria-hidden="true">
+      <span className={temperatureDotClass} />
+      <span className={mucusDotClass} />
+    </div>
+
+    {/* Badge pico (✖/+1..+3) en esquina superior derecha */}
+    {peakBadgeContent && (
+      <span
+        aria-hidden="true"
+        className={cn(
+          'pointer-events-none absolute -top-[1px] right-[1px] rounded-sm px-[2px] text-[0.55rem] font-semibold leading-none text-rose-500 shadow-[0_0_0_1px_rgba(255,255,255,0.9)]',
+          isSelected ? 'bg-rose-100/90 text-rose-700' : 'bg-white/90'
+        )}
+      >
+        {peakBadgeContent}
+      </span>
+    )}
+  </div>
+);
+
     },
     [recordDetailsByIso]
   );

@@ -250,7 +250,7 @@ const FertilityChart = ({
       ? Math.max(graphBottomY - interpretationBandTop, 0)
       : 0;
 
-    const postOvulatoryPhaseInfo = useMemo(() => {
+  const postOvulatoryPhaseInfo = useMemo(() => {
     if (!showInterpretation || !hasAnyObservation) return null;
 
     const temperatureDetails = {
@@ -296,19 +296,15 @@ const FertilityChart = ({
     let startIndex = null;
     let status = 'pending';
     let message = '';
+    let label = 'Infértil';
+    let tooltip = 'Infértil (postovulatoria pendiente, a la espera del segundo criterio)';
 
     if (hasTemperatureClosure && hasMucusClosure) {
       startIndex = Math.max(temperatureDetails.startIndex, mucusDetails.startIndex);
       status = 'absolute';
-      const mucusRuleLabel = mucusDetails.thirdDayIndex != null ? '3° día' : 'P+4';
-      const confirmationDay = temperatureDetails.confirmationIndex != null
-        ? `D${temperatureDetails.confirmationIndex + 1}`
-        : '—';
-      const formattedBaseline = Number.isFinite(temperatureDetails.baselineTemp)
-        ? `${temperatureDetails.baselineTemp.toFixed(1)}°C`
-        : '—';
-      const ruleLabel = temperatureDetails.rule || 'regla desconocida';
-      message = `Infertilidad absoluta`;
+      label = 'Infertilidad absoluta';
+      tooltip = 'Infertilidad absoluta (postovulatoria con doble criterio alcanzado)';
+      message = 'Infertilidad absoluta';
     } else if (hasTemperatureClosure) {
       startIndex = temperatureDetails.startIndex;
       const ruleLabel = temperatureDetails.rule || 'regla desconocida';
@@ -333,8 +329,9 @@ const FertilityChart = ({
         temperature: temperatureDetails,
       },
       message,
+      label,
+      tooltip,
     };
-
   }, [
     showInterpretation,
     hasAnyObservation,
@@ -369,6 +366,8 @@ const FertilityChart = ({
           bounds,
           startIndex: 0,
           endIndex: lastIndex,
+          displayLabel: 'Sin datos suficientes',
+          tooltip: 'Sin datos suficientes',
           message: 'Sin datos suficientes',
           reasons: { type: 'nodata' },
         });
@@ -388,7 +387,9 @@ const FertilityChart = ({
             bounds,
             startIndex: 0,
             endIndex,
-             message: 'Rel. infértil',
+            displayLabel: 'Relativamente infértil',
+            tooltip: 'Relativamente infértil (fase relativamente infértil preovulatoria)',
+            message: 'Relativamente infértil',
             reasons: {
               type: 'relative',
               fertileStartFinalIndex,
@@ -434,6 +435,8 @@ const FertilityChart = ({
           bounds,
           startIndex: fertileStartIndex,
           endIndex: fertileEndIndex,
+          displayLabel: 'Fértil',
+          tooltip: 'Fértil',
           message: 'Fértil',
           reasons: {
             type: 'fertile',
@@ -468,6 +471,8 @@ const FertilityChart = ({
           bounds,
           startIndex: postOvulatoryPhaseInfo.startIndex,
           endIndex: lastIndex,
+          displayLabel: postOvulatoryPhaseInfo.label,
+          tooltip: postOvulatoryPhaseInfo.tooltip,
           message: postOvulatoryPhaseInfo.message,
           reasons: postOvulatoryPhaseInfo.reasons,
         });
@@ -490,8 +495,23 @@ const FertilityChart = ({
   const relativePhaseGradientId = `${uniqueId}-phase-relative-gradient`;
   const fertilePhaseGradientId = `${uniqueId}-phase-fertile-gradient`;
   const postPendingGradientId = `${uniqueId}-phase-post-pending-gradient`;
-  const postPendingPatternId = `${uniqueId}-phase-post-pending-pattern`;
   const postAbsoluteGradientId = `${uniqueId}-phase-post-absolute-gradient`;
+  const getSegmentTextColor = (segment) => {
+    if (segment.phase === 'relativeInfertile') {
+      return '#065F46';
+    }
+    if (segment.phase === 'fertile') {
+      return '#9D174D';
+    }
+    if (segment.phase === 'postOvulatory') {
+      return segment.status === 'pending' ? '#075985' : '#1E3A8A';
+    }
+    if (segment.phase === 'nodata') {
+      return '#475569';
+    }
+    return 'hsl(var(--foreground))';
+  };
+  const phaseTextShadow = '0 1px 1px var(--phase-text-shadow, rgba(15, 23, 42, 0.2))';
 
   const temperatureRiseHighlightPath = useMemo(() => {
     if (!showInterpretation || !ovulationDetails?.confirmed) return null;
@@ -631,38 +651,37 @@ const FertilityChart = ({
             </linearGradient>
             
             <linearGradient id={relativePhaseGradientId} x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="hsl(var(--accent))" stopOpacity="0" />
-              <stop offset="100%" stopColor="hsl(var(--accent))" stopOpacity="0.28" />
+              <stop offset="0%" stopColor="var(--phase-rel)" stopOpacity="0" />
+              <stop
+                offset="100%"
+                stopColor="var(--phase-rel)"
+                stopOpacity="var(--phase-rel-stop, 0.28)"
+              />
             </linearGradient>
             <linearGradient id={fertilePhaseGradientId} x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0" />
-              <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0.26" />
+              <stop offset="0%" stopColor="var(--phase-fertile)" stopOpacity="0" />
+              <stop
+                offset="100%"
+                stopColor="var(--phase-fertile)"
+                stopOpacity="var(--phase-fertile-stop, 0.27)"
+              />
             </linearGradient>
             <linearGradient id={postPendingGradientId} x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="hsl(var(--secondary))" stopOpacity="0" />
-              <stop offset="100%" stopColor="hsl(var(--secondary))" stopOpacity="0.45" />
+              <stop offset="0%" stopColor="var(--phase-post)" stopOpacity="0" />
+              <stop
+                offset="100%"
+                stopColor="var(--phase-post)"
+                stopOpacity="var(--phase-post-stop, 0.45)"
+              />
             </linearGradient>
             <linearGradient id={postAbsoluteGradientId} x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="hsl(var(--secondary))" stopOpacity="0" />
-              <stop offset="100%" stopColor="hsl(var(--secondary))" stopOpacity="0.7" />
+              <stop offset="0%" stopColor="var(--phase-post-abs)" stopOpacity="0" />
+              <stop
+                offset="100%"
+                stopColor="var(--phase-post-abs)"
+                stopOpacity="var(--phase-post-abs-stop, 0.7)"
+              />
             </linearGradient>
-            <pattern
-              id={postPendingPatternId}
-              patternUnits="objectBoundingBox"
-              patternContentUnits="objectBoundingBox"
-              width="1"
-              height="1"
-            >
-              <rect x="0" y="0" width="1" height="1" fill={`url(#${postPendingGradientId})`} />
-              <g stroke="hsl(var(--secondary))" strokeWidth="0.02" strokeOpacity="0.35">
-                <line x1="-0.3" y1="1" x2="0.1" y2="0" />
-                <line x1="0" y1="1" x2="0.4" y2="0" />
-                <line x1="0.3" y1="1" x2="0.7" y2="0" />
-                <line x1="0.6" y1="1" x2="1" y2="0" />
-                <line x1="0.9" y1="1" x2="1.3" y2="0" />
-              </g>
-            </pattern>
-
             {/* Patrón unificado para spotting */}
             <pattern id="spotting-pattern-chart" patternUnits="userSpaceOnUse" width="6" height="6">
               <rect width="6" height="6" fill="#ef4444" />
@@ -718,23 +737,30 @@ const FertilityChart = ({
                 {interpretationSegments.map((segment) => {
                   const rectY = interpretationBandTop;
                   const rectHeight = interpretationBandHeight;
-                  const fillId = (() => {
+                  const backgroundFill = (() => {
                     if (segment.phase === 'postOvulatory') {
                       return segment.status === 'pending'
-                        ? `url(#${postPendingPatternId})`
+                        ? `url(#${postPendingGradientId})`
                         : `url(#${postAbsoluteGradientId})`;
+
                     }
                     if (segment.key === 'relative') {
                       return `url(#${relativePhaseGradientId})`;
                     }
                     return `url(#${fertilePhaseGradientId})`;
                   })();
-                  const fontSize = responsiveFontSize(1.1);
+                  const rectFill =
+                    segment.phase === 'nodata'
+                      ? 'rgba(203, 213, 225, 0.2)'
+                      : backgroundFill;
+                  const minFontSize = isFullScreen ? 14 : 13;
+                  const fontSize = Math.max(responsiveFontSize(1.1), minFontSize);
                   const isNarrow = segment.bounds.width < 120;
                   const availableWidth = Math.max(segment.bounds.width - 16, 0);
-                  const approxCharWidth = Math.max(fontSize * 0.6, 1);
+                  const approxCharWidth = Math.max(fontSize * 0.58, 1);
                   const maxChars = Math.max(1, Math.floor(availableWidth / approxCharWidth));
-                  let displayText = segment.message;
+                  const tooltipText = segment.tooltip ?? segment.displayLabel ?? segment.message ?? '';
+                  let displayText = segment.displayLabel ?? segment.message ?? '';
                   if (isNarrow && displayText.length > maxChars) {
                     const sliceLength = Math.max(maxChars - 1, 1);
                     const truncated = displayText.slice(0, sliceLength).trimEnd();
@@ -745,6 +771,7 @@ const FertilityChart = ({
                     : segment.bounds.x + segment.bounds.width / 2;
                   const textAnchor = isNarrow ? 'start' : 'middle';
                   const textY = rectY + rectHeight / 2;
+                  const textFillColor = getSegmentTextColor(segment);
                   const handleActivate = (event) => {
                     if (typeof event?.stopPropagation === 'function') {
                       event.stopPropagation();
@@ -757,6 +784,7 @@ const FertilityChart = ({
                         message: segment.message,
                         startIndex: segment.startIndex,
                         endIndex: segment.endIndex,
+                        label: segment.displayLabel ?? segment.message ?? null,
                       });
                     }
                   };
@@ -774,26 +802,26 @@ const FertilityChart = ({
                         y={rectY}
                         width={segment.bounds.width}
                         height={rectHeight}
-                        fill={fillId}
+                        fill={rectFill}
                         pointerEvents="none"
                       />
                       <text
                         x={textX}
                         y={textY}
-                        fill="hsl(var(--foreground))"
+                        fill={textFillColor}
                         fontSize={fontSize}
-                        fontWeight={500}
+                        fontWeight={600}
                         dominantBaseline="middle"
                         textAnchor={textAnchor}
                         role="button"
-                        aria-label={segment.message}
+                        aria-label={tooltipText}
                         tabIndex={0}
                         onClick={handleActivate}
                         onKeyDown={handleKeyDown}
-                        style={{ cursor: 'pointer', userSelect: 'none' }}
+                        style={{ cursor: 'pointer', userSelect: 'none', lineHeight: 1.2, textShadow: phaseTextShadow }}
                         pointerEvents="auto"
                       >
-                        <title>{segment.message}</title>
+                        <title>{tooltipText}</title>
                         {displayText}
                       </text>
                     </g>
