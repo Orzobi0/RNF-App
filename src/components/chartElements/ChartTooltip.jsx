@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { PeakModeButton } from '@/components/ui/peak-mode-button';
 import { XCircle, EyeOff, Eye, Edit3, Thermometer, Droplets, Circle, Heart, Sparkles, X } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -182,37 +183,6 @@ const ChartTooltip = ({
     'Quitar día pico';
 
   const peakButtonAriaLabel = peakButtonLabel;
-
-  const peakButtonBaseClasses = [
-    'flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-xl text-sm font-semibold sm:text-sm',
-    'transition-all duration-200 shadow-sm hover:shadow-md',
-    'focus-visible:outline-none focus-visible:ring-2'
-  ].join(' ');
-
-  const peakToneMap = {
-    assign: 'bg-rose-500 text-white border border-rose-500 hover:bg-rose-600 focus-visible:ring-rose-300',
-    update: 'bg-amber-400 text-amber-900 border border-amber-300 hover:bg-amber-500 hover:text-white focus-visible:ring-amber-300',
-    remove: 'bg-white text-rose-700 border border-rose-300 hover:bg-rose-50 focus-visible:ring-rose-200'
-  };
-
-const peakCircleBase = 'w-8 h-8 rounded-2xl flex items-center justify-center transition-all active:scale-95 focus-visible:outline-none';
-const peakToneIconOnly = {
-  assign: 'bg-rose-500 text-white border-2 border-rose-600 hover:bg-rose-600 ring-2 ring-rose-400/80 ring-offset-1 shadow-[0_6px_14px_-2px_rgba(244,63,94,0.55)]',
-  update: 'bg-amber-400 text-amber-900 border-2 border-amber-500 hover:bg-amber-500 hover:text-white ring-2 ring-amber-500/70 ring-offset-1 shadow-[0_6px_14px_-2px_rgba(245,158,11,0.55)]',
-  remove: 'bg-white text-rose-700 border-2 border-rose-400 hover:bg-rose-50 ring-2 ring-rose-300/80 ring-offset-1 shadow-[0_6px_14px_-2px_rgba(244,63,94,0.35)]'
-}[peakMode];
-const peakCircleBtnClassName = [
-  peakCircleBase,
-  peakToneIconOnly,
-  peakActionPending ? 'opacity-70 cursor-not-allowed' : null
-].filter(Boolean).join(' ');
-
-  const peakButtonClassName = [
-    peakButtonBaseClasses,
-    peakToneMap[peakMode],
-    peakActionPending ? 'opacity-70 cursor-not-allowed' : null,
-  ].filter(Boolean).join(' ');
-  // --- FIN NUEVO ---
 
   const handlePeakToggle = async () => {
     if (!onTogglePeak || peakActionPending) return;
@@ -447,24 +417,15 @@ const peakCircleBtnClassName = [
                 >
                   {/* Izquierda: Día Pico */}
                   {canTogglePeak && (
-                    <Button
+                    <PeakModeButton
+                      mode={peakMode}
+                      size="sm"
                       onClick={handlePeakToggle}
-                      disabled={peakActionPending}
-                      className={peakCircleBtnClassName + ' shrink-0'}
-                      aria-label={peakMode === 'assign' ? 'Asignar día pico' : peakMode === 'update' ? 'Actualizar día pico' : 'Quitar día pico'}
-                      title={peakMode === 'assign' ? 'Asignar día pico' : peakMode === 'update' ? 'Actualizar día pico' : 'Quitar día pico'}
-                    >
-                      <div className="flex flex-col items-center leading-none">
-                        <X
-                          className="w-4 h-4 text-current shrink-0 drop-shadow-[0_0_2px_rgba(0,0,0,0.35)]"
-                          strokeWidth={2.3}
-                          color="currentColor"
-                        />
-                        <span className="text-[9px] font-semibold text-current opacity-90 tracking-tight">
-                          Pico
-                        </span>
-                      </div>
-                    </Button>
+                      pending={peakActionPending}
+                      aria-label={peakButtonAriaLabel}
+                      title={peakButtonLabel}
+                      className="shrink-0"
+                    />
                   )}
 
                   {/* Derecha: Añadir datos */}
@@ -618,24 +579,15 @@ const peakCircleBtnClassName = [
   >
     {/* Izquierda: Día Pico (sin cambios funcionales) */}
     {canTogglePeak && !isPlaceholder && (
-      <Button
+      <PeakModeButton
+        mode={peakMode}
+        size="sm"
         onClick={handlePeakToggle}
-        disabled={peakActionPending}
-        className={peakCircleBtnClassName + ' shrink-0'}
-        aria-label={peakMode === 'assign' ? 'Asignar día pico' : peakMode === 'update' ? 'Actualizar día pico' : 'Quitar día pico'}
-        title={peakMode === 'assign' ? 'Asignar día pico' : peakMode === 'update' ? 'Actualizar día pico' : 'Quitar día pico'}
-      >
-        <div className="flex flex-col items-center leading-none">
-          <X
-            className="w-4 h-4 text-current shrink-0 drop-shadow-[0_0_2px_rgba(0,0,0,0.35)]"
-            strokeWidth={2.3}
-            color="currentColor"
-          />
-          <span className="mt-0.5 text-[9px] font-semibold text-current opacity-90 tracking-tight">
-            Pico
-          </span>
-        </div>
-      </Button>
+        pending={peakActionPending}
+        aria-label={peakButtonAriaLabel}
+        title={peakButtonLabel}
+        className="shrink-0"
+      />
     )}
 
     {/* Derecha: Editar / Ignorar separados por un divisor sutil */}

@@ -820,7 +820,7 @@ const changeOffsetRaf = useCallback((delta) => {
               {[
                 { label: 'Menstrual', color: '#ef4444' },
                 { label: 'Moco (Fértil)', color: '#f8fafc', stroke: '#c2c6cc' },
-                { label: 'Seco (Rel. Infértil)', color: '#22c55e' },
+                { label: 'Seco', color: '#22c55e' },
                 { label: 'Moco (No fértil)', color: '#facc15', stroke: '#fef08a' },
                 { label: 'Spotting', color: '#ef4444', stroke: '#fee2e2', pattern: true },
                 { label: 'Hoy', isToday: true }

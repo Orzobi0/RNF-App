@@ -17,8 +17,6 @@ import {
   Clock,
   Check,
   X,
-  RefreshCw,
-  MinusCircle,
   ChevronUp,
   ChevronDown,
   Circle,
@@ -27,6 +25,7 @@ import {
   Edit3,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { PeakModeButton } from '@/components/ui/peak-mode-button';
 import { format, startOfDay, parseISO, addHours, parse } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
@@ -431,14 +430,6 @@ const DataEntryFormFields = ({
     selectedIsoDate,
   });
 
-    // Mapeo de icono por modo (coherente con la convención de la gráfica)
-    const PeakIconMap = {
-      assign: X,           // “marcar” (X)
-      update: RefreshCw,   // “actualizar/mover”
-      remove: MinusCircle, // “quitar”
-    };
-    const PeakIcon = PeakIconMap[peakMode] || X;
-
     // Etiqueta accesible dinámica con fechas precisas
     const peakAriaLabel = (() => {
       if (!selectedIsoDate || !date) return 'Selecciona una fecha para marcar el día pico';
@@ -459,23 +450,6 @@ const DataEntryFormFields = ({
         ? `Quitar día pico del ${existingFull}`
         : `Quitar día pico`;
     })();
-
-  const peakButtonBaseClasses = [
-    'flex items-center justify-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold uppercase tracking-wide transition-all duration-200 shadow-sm disabled:cursor-not-allowed disabled:opacity-60',
-    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1',
-    'min-h-[44px] min-w-[44px]'
-  ];
-
-  const peakToneMap = {
-    assign:
-      'bg-rose-500 text-white border border-rose-500 rounded-full hover:bg-rose-600 focus-visible:ring-rose-300 shadow-[0_6px_14px_-2px_rgba(244,63,94,0.45)]',
-    update:
-      'bg-white text-amber-600 border border-amber-400 rounded-full hover:bg-amber-500 hover:text-white focus-visible:ring-amber-300 shadow-[0_6px_14px_-2px_rgba(245,158,11,0.45)]',
-    remove:
-      'bg-white text-rose-700 border border-rose-300 rounded-full hover:bg-rose-50 focus-visible:ring-rose-200 shadow-[0_6px_14px_-2px_rgba(244,63,94,0.25)]',
-  };
-
-  const peakButtonClasses = cn(...peakButtonBaseClasses, peakToneMap[peakMode]);
 
   const togglePeakTag = async () => {
     if (isProcessing || typeof submitCurrentState !== 'function' || !selectedIsoDate) {
@@ -1135,17 +1109,14 @@ const DataEntryFormFields = ({
       </div>
       <div className="mt-3 space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <button
-            type="button"
+          <PeakModeButton
+            mode={peakMode}
+            size="md"
             onClick={togglePeakTag}
-            className={peakButtonClasses}
             aria-pressed={isPeakDay}
             aria-label={peakAriaLabel}
             disabled={isProcessing || !selectedIsoDate}
-          >
-            <PeakIcon className="h-4 w-4" aria-hidden="true" />
-            <span className="text-xs font-semibold uppercase tracking-wide">Pico</span>
-          </button>
+          />
           <button
             type="button"
             className={relationsButtonClasses}

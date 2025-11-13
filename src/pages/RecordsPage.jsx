@@ -1240,16 +1240,16 @@ export const RecordsExperience = ({
       month: 'space-y-3',
       table: 'w-full border-collapse space-y-0.5',
       row: 'flex w-full mt-1.5',
-      head_cell: 'text-muted-foreground rounded-md w-9 font-medium text-[0.75rem]',
+      head_cell: 'text-muted-foreground rounded-md w-11 font-medium text-[0.8rem]',
       cell:
-        'relative h-9 w-9 text-center text-sm p-0 focus-within:relative focus-within:z-20',
+        'relative h-11 w-11 text-center text-sm p-0 focus-within:relative focus-within:z-20',
       day: cn(
         buttonVariants({ variant: 'ghost', size: 'icon' }),
-        'relative flex !h-9 !w-9 rounded-full flex-col items-center justify-center !p-0 font-medium text-slate-700 aria-selected:opacity-100'
+        'relative flex !h-11 !w-11 rounded-full flex-col items-center justify-center !p-0 font-medium text-slate-700 aria-selected:opacity-100'
       ),
       day_selected:
         'rounded-full border border-rose-400 text-white hover:bg-rose-300 hover:text-white focus:bg-rose-300 focus:text-white',
-      day_today: 'rounded-full bg-rose-200 text-rose-700 font-semibold',
+      day_today: 'rounded-full ring-1 ring-rose-300 text-rose-700 font-semibold bg-transparent',
     }),
     []
   );
@@ -1310,14 +1310,14 @@ export const RecordsExperience = ({
       const isSelected = activeModifiers.selected;
 
       const temperatureDotClass = cn(
-        'h-[3.5px] w-[3.5px] rounded-full transition-shadow',
+        'h-[0.32rem] w-[0.32rem] rounded-full transition-shadow',
         hasTemperature ? 'bg-amber-500' : 'bg-transparent',
         hasTemperature && isSelected
           ? 'shadow-[0_0_0_0.75px_rgba(255,255,255,0.95)]'
           : ''
       );
       const mucusDotClass = cn(
-        'h-[3.5px] w-[3.5px] rounded-full transition-shadow',
+        'h-[0.32rem] w-[0.32rem] rounded-full transition-shadow',
         hasMucus ? 'bg-teal-500' : 'bg-transparent',
         hasMucus && isSelected
           ? 'shadow-[0_0_0_0.75px_rgba(255,255,255,0.95)]'
@@ -1325,7 +1325,7 @@ export const RecordsExperience = ({
       );
 
       const numberClass = cn(
-        'relative text-[0.8rem] leading-none',
+        'relative text-[1rem] leading-none',
         isSelected
           ? 'text-white'
           : activeModifiers.outside || activeModifiers.outsideCycle
@@ -1339,7 +1339,7 @@ export const RecordsExperience = ({
       const shouldShowSymbolDot = symbolValue && symbolValue !== 'none';
       const symbolDotClass = shouldShowSymbolDot
         ? cn(
-            'h-[6px] w-[6px] rounded-full border border-transparent',
+            'h-[0.45rem] w-[0.45rem] rounded-full border border-transparent',
             symbolInfo?.pattern === 'spotting-pattern'
               ? 'calendar-spotting-dot'
               : symbolInfo?.color ?? '',
@@ -1354,23 +1354,12 @@ export const RecordsExperience = ({
 <span className="relative inline-flex items-center justify-center leading-none">
   <span className={numberClass}>{format(date, 'd')}</span>
 
-  {/* Corazón: esquina inferior-izq del propio número */}
-  {hasRelations && (
-    <Heart
-      className="pointer-events-none absolute -left-[3px] bottom-[-2px] h-[7px] w-[7px] text-rose-500 z-10"
-      stroke={isSelected ? 'white' : 'none'}
-      strokeWidth={1.25}
-      fill="currentColor"
-      aria-hidden="true"
-    />
-  )}
-
   {/* Dot del símbolo: esquina inferior-dcha del propio número */}
   {symbolDotClass && (
     <span
       className={cn(
         symbolDotClass,
-        'pointer-events-none absolute -right-[3px] bottom-[-1px] z-10',
+        'pointer-events-none absolute -right-[0.16rem] bottom-[-0.06rem] h-[0.4rem] w-[0.4rem] z-10',
         isSelected ? 'shadow-[0_0_0_0.75px_rgba(255,255,255,0.95)]' : ''
       )}
       aria-hidden="true"
@@ -1380,7 +1369,7 @@ export const RecordsExperience = ({
 
 
     {/* Dots inferiores: temperatura y moco (con halo solo si está seleccionado) */}
-    <div className="mt-[2px] flex h-[6px] items-center justify-center gap-[2px]" aria-hidden="true">
+    <div className="mt-[0.22rem] flex h-[0.6rem] items-center justify-center gap-[0.2rem]" aria-hidden="true">
       <span className={temperatureDotClass} />
       <span className={mucusDotClass} />
     </div>
@@ -2087,7 +2076,7 @@ export const RecordsExperience = ({
                     modifiers={calendarModifiers}
                     labels={calendarLabels}
                     components={{ DayContent: renderCalendarDay }}
-                    className="w-full max-w-xs sm:max-w-sm rounded-3xl bg-white/40 !p-2 sm:!p-2.5 mx-auto backdrop-blur-sm [&_button]:text-slate-900 [&_button:hover]:bg-rose-100 [&_button[aria-selected=true]]:bg-rose-400 [&_button[aria-selected=true]]:rounded-full"
+                    className="w-full max-w-sm rounded-3xl bg-white/40 !p-2.5 mx-auto backdrop-blur-sm [&_button]:text-slate-900 [&_button:hover]:bg-rose-100 [&_button[aria-selected=true]]:bg-rose-400 [&_button[aria-selected=true]]:rounded-full"
                     
                     classNames={calendarClassNames}
                     modifiersClassNames={{
