@@ -354,26 +354,36 @@ const FertilityChart = ({
     const lastIndex = allDataPoints.length - 1;
 
     const hasFertileStart = Number.isInteger(fertileStartFinalIndex);
-    const hasPostPhase = Number.isFinite(postOvulatoryPhaseInfo?.startIndex);
+const hasPostPhase = Number.isFinite(postOvulatoryPhaseInfo?.startIndex);
 
-    if (!hasFertileStart && !hasPostPhase && !hasAnyObservation) {
-      const bounds = getSegmentBounds(0, lastIndex);
-      if (bounds) {
-        segments.push({
-          key: 'nodata',
-          phase: 'nodata',
-          status: 'default',
-          bounds,
-          startIndex: 0,
-          endIndex: lastIndex,
-          displayLabel: 'Sin datos suficientes',
-          tooltip: 'Sin datos suficientes',
-          message: 'Sin datos suficientes',
-          reasons: { type: 'nodata' },
-        });
-      }
-      return segments;
-    }
+// Mientras NO haya ni inicio fértil (CPM / T-8 / perfiles / marcador)
+// ni fase postovulatoria, todo lo registrado se considera
+// fase relativamente infértil (preovulatoria).
+if (!hasFertileStart && !hasPostPhase) {
+  const bounds = getSegmentBounds(0, lastIndex);
+  if (bounds) {
+    segments.push({
+      key: 'relative-default',
+      phase: 'relativeInfertile',
+      status: 'default',
+      bounds,
+      startIndex: 0,
+      endIndex: lastIndex,
+      displayLabel: 'Relativamente infértil',
+      tooltip:
+        'Relativamente infértil (preovulatoria: sin día fértil por CPM/T-8 ni signos de moco fértil)',
+      message: 'Relativamente infértil',
+      reasons: {
+        type: 'relative',
+        fertileStartFinalIndex: null,
+        aggregate: fertilityStart?.aggregate ?? null,
+        bipScore: fertilityStart?.debug?.bipScore ?? null,
+      },
+    });
+  }
+  return segments;
+}
+
 
     if (hasFertileStart && fertileStartFinalIndex > 0) {
       const endIndex = Math.min(fertileStartFinalIndex - 1, lastIndex);
@@ -738,21 +748,34 @@ const FertilityChart = ({
                   const rectY = interpretationBandTop;
                   const rectHeight = interpretationBandHeight;
                   const backgroundFill = (() => {
-                    if (segment.phase === 'postOvulatory') {
-                      return segment.status === 'pending'
-                        ? `url(#${postPendingGradientId})`
-                        : `url(#${postAbsoluteGradientId})`;
+                  // Postovulatoria
+                  if (segment.phase === 'postOvulatory') {
+                    return segment.status === 'pending'
+                      ? `url(#${postPendingGradientId})`
+                      : `url(#${postAbsoluteGradientId})`;
+                  }
 
-                    }
-                    if (segment.key === 'relative') {
-                      return `url(#${relativePhaseGradientId})`;
-                    }
+                  // Relativamente infértil (tanto el segmento "relative" como el "relative-default")
+                  if (segment.phase === 'relativeInfertile') {
+                    return `url(#${relativePhaseGradientId})`;
+                  }
+
+                  // Fértil
+                  if (segment.phase === 'fertile') {
                     return `url(#${fertilePhaseGradientId})`;
-                  })();
-                  const rectFill =
-                    segment.phase === 'nodata'
-                      ? 'rgba(203, 213, 225, 0.2)'
-                      : backgroundFill;
+                  }
+
+                  // Nodata u otros → gris suave
+                  if (segment.phase === 'nodata') {
+                    return 'rgba(203, 213, 225, 0.2)';
+                  }
+
+                  // Fallback: trata cualquier cosa rara como fértil
+                  return `url(#${fertilePhaseGradientId})`;
+                })();
+
+                const rectFill = backgroundFill;
+
                   const minFontSize = isFullScreen ? 14 : 13;
                   const fontSize = Math.max(responsiveFontSize(1.1), minFontSize);
                   const isNarrow = segment.bounds.width < 120;
