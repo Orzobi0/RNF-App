@@ -614,92 +614,45 @@ export const useFertilityChart = (
 
   const { peakDayIndex, thirdDayIndex, peakInfertilityStartIndex } = useMemo(() => {
     if (!rawAllDataPoints.length) {
-      return { peakDayIndex: null, thirdDayIndex: null, peakInfertilityStartIndex: null };
+      return {
+        peakDayIndex: null,
+        thirdDayIndex: null,
+        peakInfertilityStartIndex: null,
+      };
     }
 
     const normalizedStatuses = rawAllDataPoints.map((entry) =>
       entry?.normalizedPeakStatus ?? normalizePeakStatus(entry?.peakStatus ?? entry?.peak_marker)
     );
 
-  let detectedPeakIndex = null;
+    let detectedPeakIndex = null;
     let detectedThirdIndex = null;
+
     normalizedStatuses.forEach((status, idx) => {
       if (status === 'P' && detectedPeakIndex == null) {
         detectedPeakIndex = idx;
       }
-      if (status === '3') {
+      if (status === '3' && detectedThirdIndex == null) {
         detectedThirdIndex = idx;
       }
     });
 
-    const lastIndex = rawAllDataPoints.length - 1;
+    if (detectedPeakIndex == null) {
+      return {
+        peakDayIndex: null,
+        thirdDayIndex: null,
+        peakInfertilityStartIndex: null,
+      };
+    }
 
-    if (detectedThirdIndex != null && detectedThirdIndex >= 0) {
-      const candidate = detectedThirdIndex + 1;
-      const startIndex = Math.min(candidate, lastIndex);
+    if (detectedThirdIndex != null) {
+      const lastIndex = rawAllDataPoints.length - 1;
+      const startIdx = Math.min(detectedThirdIndex + 1, lastIndex);
       return {
         peakDayIndex: detectedPeakIndex,
         thirdDayIndex: detectedThirdIndex,
-        peakInfertilityStartIndex: startIndex,
+        peakInfertilityStartIndex: startIdx,
       };
-    }
-    
-    if (detectedPeakIndex == null || detectedPeakIndex < 0) {
-      return { peakDayIndex: null, thirdDayIndex: null, peakInfertilityStartIndex: null };
-    }
-
-    let hasFollowUpMarkers = false;
-    for (let idx = detectedPeakIndex + 1; idx < normalizedStatuses.length; idx += 1) {
-      const status = normalizedStatuses[idx];
-      if (status === '1' || status === '2' || status === '3') {
-        hasFollowUpMarkers = true;
-        break;
-      }
-    }
-
-    if (hasFollowUpMarkers) {
-      return {
-        peakDayIndex: detectedPeakIndex,
-        thirdDayIndex: null,
-        peakInfertilityStartIndex: null,
-      };
-    }
-
-    const peakEntry = rawAllDataPoints[detectedPeakIndex];
-    if (!peakEntry?.isoDate) {
-      return {
-        peakDayIndex: detectedPeakIndex,
-        thirdDayIndex: null,
-        peakInfertilityStartIndex: null,
-      };
-    }
-
-    const peakDate = parseISO(peakEntry.isoDate);
-    if (Number.isNaN(peakDate?.getTime?.())) {
-      return {
-        peakDayIndex: detectedPeakIndex,
-        thirdDayIndex: null,
-        peakInfertilityStartIndex: null,
-      };
-    }
-    for (let idx = detectedPeakIndex + 1; idx < rawAllDataPoints.length; idx += 1) {
-      const entry = rawAllDataPoints[idx];
-      if (!entry?.isoDate) {
-        continue;
-      }
-
-    const currentDate = parseISO(entry.isoDate);
-      if (Number.isNaN(currentDate?.getTime?.())) {
-        continue;
-      }
-      const daysFromPeak = differenceInCalendarDays(currentDate, peakDate);
-      if (daysFromPeak >= 4) {
-        const currentDate = parseISO(entry.isoDate);
-      if (Number.isNaN(currentDate?.getTime?.())) {
-        continue;
-      }
-      const daysFromPeak = differenceInCalendarDays(currentDate, peakDate);
-      }
     }
 
     return {

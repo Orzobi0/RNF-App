@@ -28,7 +28,7 @@ import {
   addMonths,
 } from 'date-fns';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { motion, AnimatePresence, useAnimation } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Calendar } from '@/components/ui/calendar';
 import { es } from 'date-fns/locale';
 import { FERTILITY_SYMBOL_OPTIONS } from '@/config/fertilitySymbols';
@@ -41,8 +41,9 @@ const CALENDAR_BOUNDARY_OFFSET = 10;
 const CALENDAR_SWIPE_OFFSET = 60;
 const CALENDAR_SWIPE_VELOCITY = 400;
 const CALENDAR_EXIT_OFFSET = 120;
-const CALENDAR_DRAG_CONSTRAINTS = { left: -80, right: 80 };
-const CALENDAR_SNAP_TRANSITION = { type: 'spring', stiffness: 260, damping: 30 };
+const CALENDAR_DRAG_LIMIT = 85;
+const CALENDAR_DRAG_ACTIVATION_THRESHOLD = 5;
+const CALENDAR_SNAP_DURATION = 160;
 // Formatea la temperatura para la UI. Devuelve null si el valor no es numérico.
 const formatTemperatureDisplay = (value) => {
   if (value === null || value === undefined || value === '') return null;
@@ -380,18 +381,18 @@ export const RecordsExperience = ({
       months:
         'flex flex-col items-center sm:flex-row sm:items-center sm:justify-center space-y-3 sm:space-x-4 sm:space-y-0',
       month: 'space-y-3',
-      table: 'w-full border-collapse space-y-0.5',
+      table: 'records-calendar-day-grid w-full border-collapse space-y-0.5',
       row: 'flex w-full mt-1.5',
       head_cell: 'text-muted-foreground rounded-md w-11 font-medium text-[0.8rem]',
       cell:
         'relative h-11 w-11 text-center text-sm p-0 focus-within:relative focus-within:z-20',
       day: cn(
         buttonVariants({ variant: 'ghost', size: 'icon' }),
-        'relative flex !h-11 !w-11 rounded-full flex-col items-center justify-center !p-0 font-medium text-slate-700 aria-selected:opacity-100'
+        'relative flex !h-11 !w-11 rounded-2xl flex-col items-center justify-center !p-0 font-medium text-slate-700 aria-selected:opacity-100'
       ),
       day_selected:
-        'rounded-full border border-rose-400 text-rose-600 focus:ring-2 focus:ring-rose-300 focus:ring-offset-2',
-      day_today: 'rounded-full ring-1 ring-rose-300 text-rose-700 font-semibold bg-transparent',
+        'rounded-2xl border border-rose-400 text-rose-600 focus:ring-2 focus:ring-rose-300 focus:ring-offset-2',
+      day_today: 'rounded-2xl ring-1 ring-rose-300 text-rose-700 font-semibold bg-transparent',
     }),
     []
   );
@@ -406,9 +407,77 @@ export const RecordsExperience = ({
     return startOfDay(new Date());
   });
 
-  const calendarControls = useAnimation();
   const calendarAnimationRef = useRef(false);
 
+   const calendarDragAnimationFrameRef = useRef(null);
+  const calendarSwipeStateRef = useRef({
+    active: false,
+    startX: 0,
+    pointerId: null,
+    startTime: 0,
+    dragging: false,
+  });
+  const calendarSwipeCleanupRef = useRef(null);
+  const calendarSwipeContainerRef = useRef(null);
+  const calendarDayGridRef = useRef(null);
+  const calendarDragXRef = useRef(0);
+  const [calendarDragX, setCalendarDragX] = useState(0);
+  const [isCalendarDragging, setIsCalendarDragging] = useState(false);
+
+  const updateCalendarDragX = useCallback((value) => {
+    calendarDragXRef.current = value;
+    setCalendarDragX(value);
+  }, []);
+
+  const waitForNextFrame = useCallback(
+    () =>
+      new Promise((resolve) => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(resolve);
+        });
+      }),
+    []
+  );
+
+  const animateDragTo = useCallback(
+    (target, { duration = CALENDAR_SNAP_DURATION } = {}) => {
+      if (calendarDragAnimationFrameRef.current) {
+        cancelAnimationFrame(calendarDragAnimationFrameRef.current);
+        calendarDragAnimationFrameRef.current = null;
+      }
+
+      const start = calendarDragXRef.current;
+      const diff = target - start;
+
+      if (Math.abs(diff) < 0.5 || duration <= 0) {
+        updateCalendarDragX(target);
+        return Promise.resolve();
+      }
+
+      return new Promise((resolve) => {
+        const easeOut = (t) => 1 - Math.pow(1 - t, 3);
+        const startTime = performance.now();
+
+        const step = (now) => {
+          const elapsed = now - startTime;
+          const progress = Math.min(1, elapsed / duration);
+          const nextValue = start + diff * easeOut(progress);
+          updateCalendarDragX(nextValue);
+
+          if (progress < 1) {
+            calendarDragAnimationFrameRef.current = requestAnimationFrame(step);
+            return;
+          }
+
+          calendarDragAnimationFrameRef.current = null;
+          resolve();
+        };
+
+        calendarDragAnimationFrameRef.current = requestAnimationFrame(step);
+      });
+    },
+    [updateCalendarDragX]
+  );
   const calendarLabels = useMemo(
     () => ({
       labelDay: (day) => {
@@ -682,6 +751,25 @@ export const RecordsExperience = ({
     [cycleRange]
   );
 
+  useEffect(() => {
+    if (!isCalendarOpen) {
+      calendarDayGridRef.current = null;
+      updateCalendarDragX(0);
+      setIsCalendarDragging(false);
+      return;
+    }
+
+    const container = calendarSwipeContainerRef.current;
+    if (!container) {
+      return;
+    }
+
+    const gridElement = container.querySelector('.records-calendar-day-grid');
+    if (gridElement) {
+      calendarDayGridRef.current = gridElement;
+    }
+  }, [currentCalendarMonth, isCalendarOpen, updateCalendarDragX]);
+
     const animateCalendarMonthChange = useCallback(
     async (direction) => {
       if (calendarAnimationRef.current) {
@@ -690,49 +778,30 @@ export const RecordsExperience = ({
 
       calendarAnimationRef.current = true;
 
+const gridElement = calendarDayGridRef.current;
+const measuredWidth = gridElement?.getBoundingClientRect()?.width ?? 0;
+const fallback = direction === 'next' ? -CALENDAR_EXIT_OFFSET : CALENDAR_EXIT_OFFSET;
+const exitTarget = measuredWidth
+  ? direction === 'next'
+    ? -measuredWidth
+    : measuredWidth
+  : fallback;
+const enterStart = -exitTarget;
+
+
+
       try {
-        // Cambiamos el mes (solo cambia el contenido, el “marco” del calendario es el mismo)
+        await animateDragTo(exitTarget, { duration: CALENDAR_SNAP_DURATION });
         changeCalendarMonth(direction);
 
-        // Volvemos el calendario suavemente a x = 0
-        await calendarControls.start({
-          x: 0,
-          transition: CALENDAR_SNAP_TRANSITION,
-        });
+        updateCalendarDragX(enterStart);
+        await waitForNextFrame();
+        await animateDragTo(0, { duration: CALENDAR_SNAP_DURATION });
       } finally {
         calendarAnimationRef.current = false;
       }
     },
-    [calendarControls, changeCalendarMonth]
-  );
-
-
-    const handleCalendarDragEnd = useCallback(
-    async (_, info) => {
-      if (calendarAnimationRef.current) {
-        return;
-      }
-
-      const offsetX = info.offset.x;
-      const velocityX = info.velocity.x;
-
-      if (offsetX <= -CALENDAR_SWIPE_OFFSET || velocityX <= -CALENDAR_SWIPE_VELOCITY) {
-        await animateCalendarMonthChange('next');
-        return;
-      }
-
-      if (offsetX >= CALENDAR_SWIPE_OFFSET || velocityX >= CALENDAR_SWIPE_VELOCITY) {
-        await animateCalendarMonthChange('prev');
-        return;
-      }
-
-      // No ha llegado al umbral → vuelve a sitio sin cambiar de mes
-      await calendarControls.start({
-        x: 0,
-        transition: CALENDAR_SNAP_TRANSITION,
-      });
-    },
-    [animateCalendarMonthChange, calendarControls]
+    [animateDragTo, changeCalendarMonth, updateCalendarDragX, waitForNextFrame]
   );
 
 
@@ -742,6 +811,19 @@ export const RecordsExperience = ({
     setPendingIncludeEndDate(false);
     setOverlapCycle(null);
     setShowOverlapDialog(false);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (calendarDragAnimationFrameRef.current) {
+        cancelAnimationFrame(calendarDragAnimationFrameRef.current);
+        calendarDragAnimationFrameRef.current = null;
+      }
+      if (calendarSwipeCleanupRef.current) {
+        calendarSwipeCleanupRef.current();
+        calendarSwipeCleanupRef.current = null;
+      }
+    };
   }, []);
 
   const openStartDateEditor = useCallback(() => {
@@ -766,6 +848,100 @@ export const RecordsExperience = ({
       onRequestDeleteCycle();
     }
   }, [closeStartDateEditor, onRequestDeleteCycle]);
+
+  const handleCalendarPointerDown = useCallback(
+    (event) => {
+      if (!isCalendarOpen || calendarAnimationRef.current) {
+        return;
+      }
+
+      if (event.pointerType === 'mouse' && event.button !== 0) {
+        return;
+      }
+
+      const gridTarget = event.target.closest('.records-calendar-day-grid');
+      if (!gridTarget) {
+        return;
+      }
+
+      const state = calendarSwipeStateRef.current;
+      state.active = true;
+      state.pointerId = event.pointerId;
+      state.startX = event.clientX;
+      state.startTime = performance.now();
+      state.dragging = false;
+
+      const handlePointerMove = (moveEvent) => {
+        if (!state.active || moveEvent.pointerId !== state.pointerId) {
+          return;
+        }
+
+        const delta = moveEvent.clientX - state.startX;
+        if (!state.dragging && Math.abs(delta) > CALENDAR_DRAG_ACTIVATION_THRESHOLD) {
+          state.dragging = true;
+          setIsCalendarDragging(true);
+        }
+
+        if (!state.dragging) {
+          return;
+        }
+
+        const limited = Math.max(-CALENDAR_DRAG_LIMIT, Math.min(CALENDAR_DRAG_LIMIT, delta));
+        moveEvent.preventDefault();
+        updateCalendarDragX(limited);
+      };
+
+      const handlePointerUp = async (upEvent) => {
+        if (!state.active || upEvent.pointerId !== state.pointerId) {
+          return;
+        }
+
+        calendarSwipeCleanupRef.current?.();
+        calendarSwipeCleanupRef.current = null;
+        state.active = false;
+
+        const totalDelta = upEvent.clientX - state.startX;
+        const elapsed = performance.now() - state.startTime;
+        const velocity = elapsed > 0 ? (totalDelta / elapsed) * 1000 : 0;
+        const movedEnoughNext = totalDelta <= -CALENDAR_SWIPE_OFFSET || velocity <= -CALENDAR_SWIPE_VELOCITY;
+        const movedEnoughPrev = totalDelta >= CALENDAR_SWIPE_OFFSET || velocity >= CALENDAR_SWIPE_VELOCITY;
+        const wasDragging = state.dragging;
+        state.dragging = false;
+        setIsCalendarDragging(false);
+
+        if (calendarAnimationRef.current) {
+          await animateDragTo(0, { duration: CALENDAR_SNAP_DURATION });
+          return;
+        }
+
+        if (wasDragging && movedEnoughNext) {
+          await animateCalendarMonthChange('next');
+          return;
+        }
+
+        if (wasDragging && movedEnoughPrev) {
+          await animateCalendarMonthChange('prev');
+          return;
+        }
+
+        await animateDragTo(0, { duration: CALENDAR_SNAP_DURATION });
+      };
+
+      const cleanup = () => {
+        window.removeEventListener('pointermove', handlePointerMove, { capture: true });
+        window.removeEventListener('pointerup', handlePointerUp, { capture: true });
+        window.removeEventListener('pointercancel', handlePointerUp, { capture: true });
+      };
+
+      calendarSwipeCleanupRef.current?.();
+      calendarSwipeCleanupRef.current = cleanup;
+
+      window.addEventListener('pointermove', handlePointerMove, { capture: true, passive: false });
+      window.addEventListener('pointerup', handlePointerUp, { capture: true });
+      window.addEventListener('pointercancel', handlePointerUp, { capture: true });
+    },
+    [animateCalendarMonthChange, animateDragTo, isCalendarOpen, updateCalendarDragX]
+  );
 
   const handleCancelOverlapStart = useCallback(() => {
     resetStartDateFlow();
@@ -1198,15 +1374,15 @@ export const RecordsExperience = ({
                   transition={{ duration: 0.3 }}
                   className="flex justify-center"
                 >
-                  <motion.div
-                    drag="x"
-                    dragMomentum={false}
-                    dragElastic={0.2}
-                    dragConstraints={CALENDAR_DRAG_CONSTRAINTS}
-                    onDragEnd={handleCalendarDragEnd}
-                    animate={calendarControls}
-                    className="flex w-full justify-center"
-                    style={{ touchAction: 'pan-y' }}
+                  <div
+                    ref={calendarSwipeContainerRef}
+                    onPointerDown={handleCalendarPointerDown}
+                    data-calendar-dragging={isCalendarDragging ? 'true' : 'false'}
+                    className={cn(
+                      'w-full max-w-sm rounded-3xl bg-white/40 mx-auto backdrop-blur-sm overflow-hidden [&_.records-calendar-day-grid]:will-change-transform [&_.records-calendar-day-grid]:transition-transform [&_.records-calendar-day-grid]:duration-200 [&_.records-calendar-day-grid]:ease-out [&_.records-calendar-day-grid]:[transform:translateX(var(--calendar-drag-x,0px))] data-[calendar-dragging=true]:[&_.records-calendar-day-grid]:duration-0 data-[calendar-dragging=true]:[&_.records-calendar-day-grid]:ease-linear',
+                      isCalendarDragging ? 'cursor-grabbing select-none' : 'cursor-grab'
+                    )}
+                    style={{ touchAction: 'pan-y', '--calendar-drag-x': `${calendarDragX}px` }}
                   >
                     <Calendar
                       mode="single"
@@ -1219,7 +1395,7 @@ export const RecordsExperience = ({
                       modifiers={calendarModifiers}
                       labels={calendarLabels}
                       components={{ DayContent: renderCalendarDay }}
-                      className="w-full max-w-sm rounded-3xl bg-white/40 !p-2.5 mx-auto backdrop-blur-sm [&_button]:text-slate-900 [&_button:hover]:bg-rose-100 [&_button[aria-selected=true]]:bg-rose-200 [&_button[aria-selected=true]]:rounded-full"
+                      className="w-full !p-2.5 [&_button]:text-slate-900 [&_button:hover]:bg-rose-200 [&_button[aria-selected=true]]:bg-rose-200 [&_button[aria-selected=true]]:rounded-2xl"
 
                       classNames={calendarClassNames}
                       modifiersClassNames={{
@@ -1229,7 +1405,7 @@ export const RecordsExperience = ({
                           'text-slate-900 hover:text-slate-900 hover:bg-rose-50',
                       }}
                     />
-                  </motion.div>
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>

@@ -431,6 +431,60 @@ const hasPostPhase = Number.isFinite(postOvulatoryPhaseInfo?.startIndex);
       return segments;
     }
 
+     // Caso: NO hay inicio fértil pero SÍ hay fase postovulatoria
+    if (!hasFertileStart && hasPostPhase) {
+      const postStart = postOvulatoryPhaseInfo.startIndex;
+      const preEnd = Math.min(postStart - 1, phaseRenderLimit);
+
+      // Banda previa: “Sin ventana fértil identificable”
+      if (preEnd >= 0) {
+        const bounds = getSegmentBounds(0, preEnd);
+        if (bounds) {
+          segments.push({
+            key: 'no-fertile-window',
+            phase: 'nodata',
+            status: 'no-fertile-window',
+            bounds,
+            startIndex: 0,
+            endIndex: preEnd,
+            displayLabel: 'Sin ventana fértil identificable',
+            tooltip: 'Sin ventana fértil identificable',
+            message: 'Sin ventana fértil identificable',
+            reasons: {
+              type: 'nofertile',
+              status: 'no-fertile-window',
+              message:
+                'No se ha identificado un inicio fértil claro en este ciclo (ni por moco, ni por calculadora, ni por marcador explícito).',
+            },
+          });
+        }
+      }
+
+      // Banda postovulatoria normal
+      if (
+        Number.isFinite(postOvulatoryPhaseInfo.startIndex) &&
+        postOvulatoryPhaseInfo.startIndex <= lastIndex
+      ) {
+        const bounds = getSegmentBounds(postOvulatoryPhaseInfo.startIndex, lastIndex);
+        if (bounds) {
+          segments.push({
+            key: 'post',
+            phase: postOvulatoryPhaseInfo.phase,
+            status: postOvulatoryPhaseInfo.status,
+            bounds,
+            startIndex: postOvulatoryPhaseInfo.startIndex,
+            endIndex: lastIndex,
+            displayLabel: postOvulatoryPhaseInfo.label,
+            tooltip: postOvulatoryPhaseInfo.tooltip,
+            message: postOvulatoryPhaseInfo.message,
+            reasons: postOvulatoryPhaseInfo.reasons,
+          });
+        }
+      }
+
+      return segments;
+    }
+
 
     if (hasFertileStart && fertileStartFinalIndex > 0) {
       const endIndex = Math.min(fertileStartFinalIndex - 1, phaseRenderLimit);

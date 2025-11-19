@@ -1050,8 +1050,16 @@ const ChartPage = () => {
           note = 'Pendiente completar el segundo criterio.';
         }
         } else if (phase === 'nodata') {
-        title = 'Sin datos suficientes';
-        body = 'Añade registros de sensación, moco o temperatura para interpretar el ciclo.';
+        const status = reasons?.status ?? info?.status ?? null;
+
+        if (status === 'no-fertile-window') {
+          title = 'Sin ventana fértil identificable';
+          body =
+            'No se ha identificado un inicio fértil claro en este ciclo (ni por moco, ni por calculadora, ni por marcador explícito).';
+        } else {
+          title = 'Sin datos suficientes';
+          body = 'Añade registros de sensación, moco o temperatura para interpretar el ciclo.';
+        }
       } else if (info?.message) {
         title = info.message;
       } else {
