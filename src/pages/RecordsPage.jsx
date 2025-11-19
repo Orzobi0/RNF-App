@@ -25,6 +25,7 @@ import {
   startOfDay,
   differenceInCalendarDays,
   addDays,
+  addMonths,
 } from 'date-fns';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -390,6 +391,23 @@ export const RecordsExperience = ({
     []
   );
 
+  const [currentCalendarMonth, setCurrentCalendarMonth] = useState(() => {
+    if (selectedDate && isValid(parseISO(selectedDate))) {
+      return parseISO(selectedDate);
+    }
+    if (cycleRange?.to) {
+      return cycleRange.to;
+    }
+    return startOfDay(new Date());
+  });
+
+  const calendarSwipeStateRef = useRef({
+    startX: 0,
+    startY: 0,
+    isSwiping: false,
+    hasTriggered: false,
+  });
+
   const calendarLabels = useMemo(
     () => ({
       labelDay: (day) => {
@@ -482,7 +500,7 @@ export const RecordsExperience = ({
             symbolInfo?.color ?? '',
             symbolInfo?.pattern === 'spotting-pattern' ? 'calendar-spotting-dot' : '',
             symbolValue === 'white' ? 'ring-1 ring-slate-300/70' : '',
-            isSelected ? 'opacity-80' : 'opacity-25'
+            isSelected ? 'opacity-50' : 'opacity-25'
           )
         : null;
 
@@ -629,6 +647,81 @@ export const RecordsExperience = ({
     },
     [cycleRange]
   );
+
+  useEffect(() => {
+    if (!selectedDate) {
+      return;
+    }
+
+    const parsed = parseISO(selectedDate);
+    if (!isValid(parsed)) {
+      return;
+    }
+
+    setCurrentCalendarMonth((prev) => {
+      if (
+        prev &&
+        prev.getFullYear() === parsed.getFullYear() &&
+        prev.getMonth() === parsed.getMonth()
+      ) {
+        return prev;
+      }
+      return parsed;
+    });
+  }, [selectedDate]);
+
+  const changeCalendarMonth = useCallback(
+    (direction) => {
+      setCurrentCalendarMonth((prev) => {
+        const base = prev ?? (cycleRange?.to ?? startOfDay(new Date()));
+        const offset = direction === 'next' ? 1 : -1;
+        return addMonths(base, offset);
+      });
+    },
+    [cycleRange]
+  );
+
+  const handleCalendarTouchStart = useCallback((event) => {
+    if (!event.touches || event.touches.length !== 1) {
+      return;
+    }
+
+    const touch = event.touches[0];
+    calendarSwipeStateRef.current = {
+      startX: touch.clientX,
+      startY: touch.clientY,
+      isSwiping: true,
+      hasTriggered: false,
+    };
+  }, []);
+
+  const handleCalendarTouchMove = useCallback(
+    (event) => {
+      const state = calendarSwipeStateRef.current;
+      if (!state.isSwiping || !event.touches || event.touches.length !== 1) {
+        return;
+      }
+
+      const touch = event.touches[0];
+      const deltaX = touch.clientX - state.startX;
+      const deltaY = touch.clientY - state.startY;
+
+      if (Math.abs(deltaX) < 20 || Math.abs(deltaX) < Math.abs(deltaY)) {
+        return;
+      }
+
+      if (Math.abs(deltaX) > 50 && !state.hasTriggered) {
+        changeCalendarMonth(deltaX < 0 ? 'next' : 'prev');
+        state.hasTriggered = true;
+        state.isSwiping = false;
+      }
+    },
+    [changeCalendarMonth]
+  );
+
+  const handleCalendarTouchEnd = useCallback(() => {
+    calendarSwipeStateRef.current.isSwiping = false;
+  }, []);
 
   const resetStartDateFlow = useCallback(() => {
     setPendingStartDate(null);
@@ -1091,15 +1184,16 @@ export const RecordsExperience = ({
                   exit={{ opacity: 0, y: -10 }}
                   transition={{ duration: 0.3 }}
                   className="flex justify-center"
+                  onTouchStart={handleCalendarTouchStart}
+                  onTouchMove={handleCalendarTouchMove}
+                  onTouchEnd={handleCalendarTouchEnd}
+                  onTouchCancel={handleCalendarTouchEnd}
                 >
                   <Calendar
                     mode="single"
                     locale={es}
-                    defaultMonth={
-                      selectedDate && isValid(parseISO(selectedDate))
-                        ? parseISO(selectedDate)
-                        : cycleRange?.to
-                    }
+                    month={currentCalendarMonth ?? undefined}
+                    onMonthChange={setCurrentCalendarMonth}
                     selected={selectedDate && isValid(parseISO(selectedDate)) ? parseISO(selectedDate) : undefined}
                     onSelect={handleCalendarSelect}
                     onDayClick={handleCalendarSelect}

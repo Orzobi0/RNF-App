@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/select';
 import { useParams, Link, useLocation } from 'react-router-dom';
 import Overlay from '@/components/ui/Overlay';
+import { useAuth } from '@/contexts/AuthContext';
 
 const CHART_SETTINGS_STORAGE_KEY = 'fertility-chart-settings';
 
@@ -44,6 +45,22 @@ const pickCandidateByDay = (candidates, selectedDay) => {
   const normalizedDay = normalizeDay(selectedDay);
   const match = candidates.find((candidate) => normalizeDay(candidate?.day) === normalizedDay);
   return match || candidates[0];
+};
+
+const normalizeCalculatorSource = (source) => {
+  if (!source) return '';
+  return String(source).toUpperCase().replace(/-/g, '');
+};
+
+const formatCalculatorSourceLabel = (source) => {
+  const normalized = normalizeCalculatorSource(source);
+  if (normalized === 'T8') {
+    return 'T-8';
+  }
+  if (normalized === 'CPM') {
+    return 'CPM';
+  }
+  return source ?? '';
 };
 
 const deriveRelativeReason = (aggregate) => {
@@ -337,6 +354,12 @@ const ChartPage = () => {
   const showLoading = isViewingCurrentCycle
     ? isLoading && !currentCycle?.id
     : externalLoading || (isLoading && !archivedMatch && !fetchedCycle);
+
+  const { preferences } = useAuth();
+  const manualCpmPreference = preferences?.manualCpm;
+  const manualCpmBasePreference = preferences?.manualCpmBase;
+  const manualT8Preference = preferences?.manualT8;
+  const manualT8BasePreference = preferences?.manualT8Base;
   
     
   const archivedCycleTitle = useMemo(() => {
@@ -693,7 +716,7 @@ const ChartPage = () => {
   
   const locationStateCandidates = location?.state?.fertilityCalculatorCandidates;
   const cycleCandidates = targetCycle?.fertilityCalculatorCandidates;
-  const externalFertilityCalculatorCandidates = useMemo(() => {
+  const storedFertilityCalculatorCandidates = useMemo(() => {
     const sourceArray = [
       Array.isArray(locationStateCandidates) ? locationStateCandidates : null,
       Array.isArray(cycleCandidates) ? cycleCandidates : null,
@@ -722,6 +745,82 @@ const ChartPage = () => {
       })
       .filter(Boolean);
   }, [locationStateCandidates, cycleCandidates]);
+  
+  const manualCalculatorCandidates = useMemo(() => {
+    const candidates = [];
+    const addManualCandidate = (source, finalValue, baseValue) => {
+      const numericDay = Number(finalValue);
+      if (!Number.isFinite(numericDay) || numericDay <= 0) {
+        return;
+      }
+
+      const numericBase = Number(baseValue);
+      const hasBase = Number.isFinite(numericBase) && numericBase > 0;
+      const formattedBase = hasBase
+        ? Number.isInteger(numericBase)
+          ? `${numericBase}`
+          : `${Number(numericBase.toFixed(2))}`
+        : null;
+      const baseLabel = hasBase
+        ? source === 'CPM'
+          ? `ciclo base: ${formattedBase} días`
+          : `base ${formatCalculatorSourceLabel(source)}: ${formattedBase}`
+        : null;
+      const reason = baseLabel
+        ? `Manual desde dashboard (${baseLabel})`
+        : 'Manual desde dashboard';
+
+      candidates.push({
+        source,
+        day: Math.max(1, numericDay),
+        reason,
+        kind: 'calculator',
+        isManual: true,
+        manualBase: hasBase ? numericBase : null,
+      });
+    };
+
+    addManualCandidate('CPM', manualCpmPreference, manualCpmBasePreference);
+    addManualCandidate('T8', manualT8Preference, manualT8BasePreference);
+
+    return candidates;
+  }, [manualCpmPreference, manualCpmBasePreference, manualT8Preference, manualT8BasePreference]);
+
+  const combinedFertilityCalculatorCandidates = useMemo(() => {
+    const existing = Array.isArray(storedFertilityCalculatorCandidates)
+      ? storedFertilityCalculatorCandidates
+      : null;
+
+    if (!manualCalculatorCandidates.length) {
+      return existing;
+    }
+
+    const manualMap = new Map();
+    manualCalculatorCandidates.forEach((candidate) => {
+      const key = normalizeCalculatorSource(candidate?.source);
+      if (!key) return;
+      manualMap.set(key, candidate);
+    });
+
+    const combined = [];
+    if (Array.isArray(existing)) {
+      existing.forEach((candidate) => {
+        const key = normalizeCalculatorSource(candidate?.source);
+        if (key && manualMap.has(key)) {
+          combined.push(manualMap.get(key));
+          manualMap.delete(key);
+        } else {
+          combined.push(candidate);
+        }
+      });
+    }
+
+    manualMap.forEach((candidate) => {
+      combined.push(candidate);
+    });
+
+    return combined.length > 0 ? combined : existing;
+  }, [storedFertilityCalculatorCandidates, manualCalculatorCandidates]);
   const handleTogglePeak = async (record, shouldMarkAsPeak = true) => {
     if (!targetCycle?.id || !record?.isoDate) {
       return;
@@ -906,6 +1005,38 @@ const ChartPage = () => {
         if (typeof statusSummary?.header === 'string' && statusSummary.header.trim().length > 0) {
           header = statusSummary.header;
         }
+      
+        const aggregate = reasons?.aggregate ?? null;
+        if (aggregate) {
+          const manualCandidates = Array.isArray(aggregate.usedCandidates)
+            ? aggregate.usedCandidates
+            : [];
+          const selectedCandidate = pickCandidateByDay(manualCandidates, aggregate.selectedDay);
+          const manualSource = (() => {
+            if (!selectedCandidate) return null;
+            const normalizedSource = normalizeCalculatorSource(
+              selectedCandidate.source ?? selectedCandidate.originalSource
+            );
+            const isCalculator = selectedCandidate.kind === 'calculator';
+            const isManualCandidate = Boolean(selectedCandidate.isManual);
+            const reasonText = String(selectedCandidate.reason ?? '').toLowerCase();
+            const detectedManual =
+              isManualCandidate ||
+              (isCalculator && normalizedSource && reasonText.includes('manual'));
+            if (!isCalculator || !detectedManual) {
+              return null;
+            }
+            return formatCalculatorSourceLabel(
+              selectedCandidate.source ?? selectedCandidate.originalSource ?? normalizedSource
+            );
+          })();
+
+          if (manualSource) {
+            const manualBody = `Selección ajustada manualmente (${manualSource}).`;
+            body = body ? `${body} ${manualBody}` : manualBody;
+            reasonsList = [...reasonsList, `Valor manual activo en ${manualSource}.`];
+          }
+        }
       } else if (phase === 'postOvulatory') {
         const hasTemperature = Number.isInteger(reasons?.temperature?.startIndex);
         const hasMucus = Number.isInteger(reasons?.mucus?.startIndex);
@@ -1084,7 +1215,7 @@ const ChartPage = () => {
           showRelationsRow={chartSettings.showRelationsRow}
           fertilityStartConfig={fertilityConfig}
           fertilityCalculatorCycles={fertilityCalculatorCycles}
-          fertilityCalculatorCandidates={externalFertilityCalculatorCandidates}
+          fertilityCalculatorCandidates={combinedFertilityCalculatorCandidates}
           onShowPhaseInfo={handleShowPhaseInfo}
           isArchivedCycle={!isViewingCurrentCycle}
           cycleEndDate={targetCycle?.endDate ?? null}
