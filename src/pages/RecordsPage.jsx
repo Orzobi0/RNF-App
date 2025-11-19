@@ -28,7 +28,7 @@ import {
   addMonths,
 } from 'date-fns';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useAnimation } from 'framer-motion';
 import { Calendar } from '@/components/ui/calendar';
 import { es } from 'date-fns/locale';
 import { FERTILITY_SYMBOL_OPTIONS } from '@/config/fertilitySymbols';
@@ -38,6 +38,11 @@ import { cn } from '@/lib/utils';
 const getSymbolInfo = (symbolValue) =>
   FERTILITY_SYMBOL_OPTIONS.find((symbol) => symbol.value === symbolValue) || FERTILITY_SYMBOL_OPTIONS[0];
 const CALENDAR_BOUNDARY_OFFSET = 10;
+const CALENDAR_SWIPE_OFFSET = 60;
+const CALENDAR_SWIPE_VELOCITY = 400;
+const CALENDAR_EXIT_OFFSET = 120;
+const CALENDAR_DRAG_CONSTRAINTS = { left: -80, right: 80 };
+const CALENDAR_SNAP_TRANSITION = { type: 'spring', stiffness: 260, damping: 30 };
 // Formatea la temperatura para la UI. Devuelve null si el valor no es numérico.
 const formatTemperatureDisplay = (value) => {
   if (value === null || value === undefined || value === '') return null;
@@ -401,12 +406,8 @@ export const RecordsExperience = ({
     return startOfDay(new Date());
   });
 
-  const calendarSwipeStateRef = useRef({
-    startX: 0,
-    startY: 0,
-    isSwiping: false,
-    hasTriggered: false,
-  });
+  const calendarControls = useAnimation();
+  const calendarAnimationRef = useRef(false);
 
   const calendarLabels = useMemo(
     () => ({
@@ -681,47 +682,59 @@ export const RecordsExperience = ({
     [cycleRange]
   );
 
-  const handleCalendarTouchStart = useCallback((event) => {
-    if (!event.touches || event.touches.length !== 1) {
-      return;
-    }
-
-    const touch = event.touches[0];
-    calendarSwipeStateRef.current = {
-      startX: touch.clientX,
-      startY: touch.clientY,
-      isSwiping: true,
-      hasTriggered: false,
-    };
-  }, []);
-
-  const handleCalendarTouchMove = useCallback(
-    (event) => {
-      const state = calendarSwipeStateRef.current;
-      if (!state.isSwiping || !event.touches || event.touches.length !== 1) {
+    const animateCalendarMonthChange = useCallback(
+    async (direction) => {
+      if (calendarAnimationRef.current) {
         return;
       }
 
-      const touch = event.touches[0];
-      const deltaX = touch.clientX - state.startX;
-      const deltaY = touch.clientY - state.startY;
+      calendarAnimationRef.current = true;
 
-      if (Math.abs(deltaX) < 20 || Math.abs(deltaX) < Math.abs(deltaY)) {
-        return;
-      }
+      try {
+        // Cambiamos el mes (solo cambia el contenido, el “marco” del calendario es el mismo)
+        changeCalendarMonth(direction);
 
-      if (Math.abs(deltaX) > 50 && !state.hasTriggered) {
-        changeCalendarMonth(deltaX < 0 ? 'next' : 'prev');
-        state.hasTriggered = true;
-        state.isSwiping = false;
+        // Volvemos el calendario suavemente a x = 0
+        await calendarControls.start({
+          x: 0,
+          transition: CALENDAR_SNAP_TRANSITION,
+        });
+      } finally {
+        calendarAnimationRef.current = false;
       }
     },
-    [changeCalendarMonth]
+    [calendarControls, changeCalendarMonth]
   );
 
-  const handleCalendarTouchEnd = useCallback(() => {
-    calendarSwipeStateRef.current.isSwiping = false;
-  }, []);
+
+    const handleCalendarDragEnd = useCallback(
+    async (_, info) => {
+      if (calendarAnimationRef.current) {
+        return;
+      }
+
+      const offsetX = info.offset.x;
+      const velocityX = info.velocity.x;
+
+      if (offsetX <= -CALENDAR_SWIPE_OFFSET || velocityX <= -CALENDAR_SWIPE_VELOCITY) {
+        await animateCalendarMonthChange('next');
+        return;
+      }
+
+      if (offsetX >= CALENDAR_SWIPE_OFFSET || velocityX >= CALENDAR_SWIPE_VELOCITY) {
+        await animateCalendarMonthChange('prev');
+        return;
+      }
+
+      // No ha llegado al umbral → vuelve a sitio sin cambiar de mes
+      await calendarControls.start({
+        x: 0,
+        transition: CALENDAR_SNAP_TRANSITION,
+      });
+    },
+    [animateCalendarMonthChange, calendarControls]
+  );
+
 
   const resetStartDateFlow = useCallback(() => {
     setPendingStartDate(null);
@@ -1184,32 +1197,39 @@ export const RecordsExperience = ({
                   exit={{ opacity: 0, y: -10 }}
                   transition={{ duration: 0.3 }}
                   className="flex justify-center"
-                  onTouchStart={handleCalendarTouchStart}
-                  onTouchMove={handleCalendarTouchMove}
-                  onTouchEnd={handleCalendarTouchEnd}
-                  onTouchCancel={handleCalendarTouchEnd}
                 >
-                  <Calendar
-                    mode="single"
-                    locale={es}
-                    month={currentCalendarMonth ?? undefined}
-                    onMonthChange={setCurrentCalendarMonth}
-                    selected={selectedDate && isValid(parseISO(selectedDate)) ? parseISO(selectedDate) : undefined}
-                    onSelect={handleCalendarSelect}
-                    onDayClick={handleCalendarSelect}
-                    modifiers={calendarModifiers}
-                    labels={calendarLabels}
-                    components={{ DayContent: renderCalendarDay }}
-                    className="w-full max-w-sm rounded-3xl bg-white/40 !p-2.5 mx-auto backdrop-blur-sm [&_button]:text-slate-900 [&_button:hover]:bg-rose-100 [&_button[aria-selected=true]]:bg-rose-200 [&_button[aria-selected=true]]:rounded-full"
-                    
-                    classNames={calendarClassNames}
-                    modifiersClassNames={{
-                      hasRecord: 'font-semibold text-slate-900',
-                      outsideCycle: 'text-slate-300 opacity-50 hover:text-slate-300 hover:bg-transparent',
-                      insideCycleNoRecord:
-                        'text-slate-900 hover:text-slate-900 hover:bg-rose-50',
-                    }}
-                  />
+                  <motion.div
+                    drag="x"
+                    dragMomentum={false}
+                    dragElastic={0.2}
+                    dragConstraints={CALENDAR_DRAG_CONSTRAINTS}
+                    onDragEnd={handleCalendarDragEnd}
+                    animate={calendarControls}
+                    className="flex w-full justify-center"
+                    style={{ touchAction: 'pan-y' }}
+                  >
+                    <Calendar
+                      mode="single"
+                      locale={es}
+                      month={currentCalendarMonth ?? undefined}
+                      onMonthChange={setCurrentCalendarMonth}
+                      selected={selectedDate && isValid(parseISO(selectedDate)) ? parseISO(selectedDate) : undefined}
+                      onSelect={handleCalendarSelect}
+                      onDayClick={handleCalendarSelect}
+                      modifiers={calendarModifiers}
+                      labels={calendarLabels}
+                      components={{ DayContent: renderCalendarDay }}
+                      className="w-full max-w-sm rounded-3xl bg-white/40 !p-2.5 mx-auto backdrop-blur-sm [&_button]:text-slate-900 [&_button:hover]:bg-rose-100 [&_button[aria-selected=true]]:bg-rose-200 [&_button[aria-selected=true]]:rounded-full"
+
+                      classNames={calendarClassNames}
+                      modifiersClassNames={{
+                        hasRecord: 'font-semibold text-slate-900',
+                        outsideCycle: 'text-slate-300 opacity-50 hover:text-slate-300 hover:bg-transparent',
+                        insideCycleNoRecord:
+                          'text-slate-900 hover:text-slate-900 hover:bg-rose-50',
+                      }}
+                    />
+                  </motion.div>
                 </motion.div>
               )}
             </AnimatePresence>
