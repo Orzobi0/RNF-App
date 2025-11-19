@@ -1086,6 +1086,8 @@ const ChartPage = () => {
           fertilityCalculatorCycles={fertilityCalculatorCycles}
           fertilityCalculatorCandidates={externalFertilityCalculatorCandidates}
           onShowPhaseInfo={handleShowPhaseInfo}
+          isArchivedCycle={!isViewingCurrentCycle}
+          cycleEndDate={targetCycle?.endDate ?? null}
         />
         
         {/* Backdrop */}

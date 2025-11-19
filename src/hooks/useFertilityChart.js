@@ -1005,5 +1005,6 @@ export const useFertilityChart = (
         hasTemperatureData,
         hasAnyObservation,
         graphBottomInset,
+        todayIndex,
       };
     };

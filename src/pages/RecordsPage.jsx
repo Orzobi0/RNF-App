@@ -384,7 +384,7 @@ export const RecordsExperience = ({
         'relative flex !h-11 !w-11 rounded-full flex-col items-center justify-center !p-0 font-medium text-slate-700 aria-selected:opacity-100'
       ),
       day_selected:
-        'rounded-full border border-rose-400 text-white hover:bg-rose-300 hover:text-white focus:bg-rose-300 focus:text-white',
+        'rounded-full border border-rose-400 text-rose-600 focus:ring-2 focus:ring-rose-300 focus:ring-offset-2',
       day_today: 'rounded-full ring-1 ring-rose-300 text-rose-700 font-semibold bg-transparent',
     }),
     []
@@ -444,7 +444,7 @@ export const RecordsExperience = ({
       const symbolInfo = details?.symbolInfo;
       const symbolValue = symbolInfo?.value;
       const isSelected = activeModifiers.selected;
-{/* Punto de temperatura */}
+      {/* Punto de temperatura */}
       const temperatureDotClass = cn(
         'h-[0.5rem] w-[0.5rem] rounded-full transition-shadow',
         hasTemperature ? 'bg-amber-500' : 'bg-transparent',
@@ -460,49 +460,39 @@ export const RecordsExperience = ({
           ? 'shadow-[0_0_0_0.75px_rgba(255,255,255,0.95)]'
           : ''
       );
-{/* Tamaño número */}
+      {/* Tamaño número */}
+      const shouldShowSymbolBackground = Boolean(symbolValue && symbolValue !== 'none');
       const numberClass = cn(
-        'relative text-[1.15rem] leading-none',
-        isSelected
-          ? 'text-white'
-          : activeModifiers.outside || activeModifiers.outsideCycle
+        'relative z-10 text-[1.15rem] leading-none',
+        activeModifiers.outside || activeModifiers.outsideCycle
           ? 'text-slate-300'
+          : isSelected
+          ? shouldShowSymbolBackground
+            ? 'text-white'
+            : 'text-rose-600'
           : 'text-slate-700'
       );
 
       const peakBadgeContent =
         peakStatus === 'P' ? '✖' : peakStatus ? `+${peakStatus}` : null;
 
-      const shouldShowSymbolDot = symbolValue && symbolValue !== 'none';
-      const symbolDotClass = shouldShowSymbolDot
+      const symbolBackgroundClass = shouldShowSymbolBackground
         ? cn(
-            'h-[0.6rem] w-[0.6rem] rounded-full border border-transparent',
-            symbolInfo?.pattern === 'spotting-pattern'
-              ? 'calendar-spotting-dot'
-              : symbolInfo?.color ?? '',
-            symbolValue === 'white' ? 'border border-slate-300/80' : ''
+            'pointer-events-none absolute inset-0 rounded-full transition-opacity',
+            symbolInfo?.color ?? '',
+            symbolInfo?.pattern === 'spotting-pattern' ? 'calendar-spotting-dot' : '',
+            symbolValue === 'white' ? 'ring-1 ring-slate-300/70' : '',
+            isSelected ? 'opacity-80' : 'opacity-25'
           )
         : null;
 
       return (
   <div className="relative flex h-full w-full flex-col items-center justify-center">
-    {/* Número centrado */}
-    {/* Número con overlays encima (mismo “renglón”) */}
-<span className="relative inline-flex items-center justify-center leading-none">
-  <span className={numberClass}>{format(date, 'd')}</span>
-
-  {/* Dot del símbolo: esquina inferior-dcha del propio número */}
-  {symbolDotClass && (
-    <span
-      className={cn(
-        symbolDotClass,
-        'pointer-events-none absolute -right-[-0.2rem] bottom-[1.15rem] h-[0.6rem] w-[0.6rem] z-10',
-        isSelected ? 'shadow-[0_0_0_0.75px_rgba(255,255,255,0.95)]' : ''
-      )}
-      aria-hidden="true"
-    />
-  )}
-</span>
+    {/* Número centrado con posible fondo de símbolo */}
+    <span className="relative inline-flex h-8 w-8 items-center justify-center leading-none -mt-[1px]">
+      {symbolBackgroundClass && <span className={symbolBackgroundClass} aria-hidden="true" />}
+      <span className={numberClass}>{format(date, 'd')}</span>
+    </span>
 
 
     {/* Dots inferiores: temperatura y moco (con halo solo si está seleccionado) */}
@@ -1116,7 +1106,7 @@ export const RecordsExperience = ({
                     modifiers={calendarModifiers}
                     labels={calendarLabels}
                     components={{ DayContent: renderCalendarDay }}
-                    className="w-full max-w-sm rounded-3xl bg-white/40 !p-2.5 mx-auto backdrop-blur-sm [&_button]:text-slate-900 [&_button:hover]:bg-rose-100 [&_button[aria-selected=true]]:bg-rose-400 [&_button[aria-selected=true]]:rounded-full"
+                    className="w-full max-w-sm rounded-3xl bg-white/40 !p-2.5 mx-auto backdrop-blur-sm [&_button]:text-slate-900 [&_button:hover]:bg-rose-100 [&_button[aria-selected=true]]:bg-rose-200 [&_button[aria-selected=true]]:rounded-full"
                     
                     classNames={calendarClassNames}
                     modifiersClassNames={{

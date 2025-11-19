@@ -27,6 +27,8 @@ const FertilityChart = ({
   fertilityCalculatorCycles = [],
   fertilityCalculatorCandidates = null,
   onShowPhaseInfo = null,
+  isArchivedCycle = false,
+  cycleEndDate = null,
 }) => {
   const {
     chartRef,
@@ -57,6 +59,7 @@ const FertilityChart = ({
     hasTemperatureData,
     hasAnyObservation,
     graphBottomInset,
+    todayIndex,
   } = useFertilityChart(
     data,
     isFullScreen,
@@ -243,6 +246,42 @@ const FertilityChart = ({
       padding.right,
     ]
   );
+  
+  const totalLastIndex = allDataPoints.length > 0 ? allDataPoints.length - 1 : null;
+
+  const archivedPhaseEndIndex = useMemo(() => {
+    if (!isArchivedCycle || !cycleEndDate || totalLastIndex == null) {
+      return null;
+    }
+    const normalizedEnd = typeof cycleEndDate === 'string' ? cycleEndDate : null;
+    if (!normalizedEnd) return null;
+    const matchingIndex = allDataPoints.findIndex((point) => point?.isoDate === normalizedEnd);
+    if (matchingIndex >= 0) {
+      return Math.min(matchingIndex, totalLastIndex);
+    }
+    for (let idx = allDataPoints.length - 1; idx >= 0; idx -= 1) {
+      const iso = allDataPoints[idx]?.isoDate;
+      if (typeof iso === 'string' && iso <= normalizedEnd) {
+        return Math.min(idx, totalLastIndex);
+      }
+    }
+    return null;
+  }, [isArchivedCycle, cycleEndDate, allDataPoints, totalLastIndex]);
+
+  const relativeFertileLimitIndex = useMemo(() => {
+    if (totalLastIndex == null) {
+      return null;
+    }
+    if (isArchivedCycle) {
+      return Number.isInteger(archivedPhaseEndIndex)
+        ? Math.min(archivedPhaseEndIndex, totalLastIndex)
+        : totalLastIndex;
+    }
+    if (Number.isInteger(todayIndex)) {
+      return Math.min(todayIndex, totalLastIndex);
+    }
+    return totalLastIndex;
+  }, [archivedPhaseEndIndex, isArchivedCycle, todayIndex, totalLastIndex]);
   const interpretationBandTop =
     chartAreaHeight > 0 ? padding.top + chartAreaHeight * 0.5 : null;
   const interpretationBandHeight =
@@ -352,41 +391,49 @@ const FertilityChart = ({
     }
     const segments = [];
     const lastIndex = allDataPoints.length - 1;
+    const phaseRenderLimit =
+      Number.isInteger(relativeFertileLimitIndex) && relativeFertileLimitIndex >= 0
+        ? Math.min(relativeFertileLimitIndex, lastIndex)
+        : lastIndex;
 
     const hasFertileStart = Number.isInteger(fertileStartFinalIndex);
 const hasPostPhase = Number.isFinite(postOvulatoryPhaseInfo?.startIndex);
 
-// Mientras NO haya ni inicio fértil (CPM / T-8 / perfiles / marcador)
-// ni fase postovulatoria, todo lo registrado se considera
-// fase relativamente infértil (preovulatoria).
-if (!hasFertileStart && !hasPostPhase) {
-  const bounds = getSegmentBounds(0, lastIndex);
-  if (bounds) {
-    segments.push({
-      key: 'relative-default',
-      phase: 'relativeInfertile',
-      status: 'default',
-      bounds,
-      startIndex: 0,
-      endIndex: lastIndex,
-      displayLabel: 'Relativamente infértil',
-      tooltip:
-        'Relativamente infértil (preovulatoria: sin día fértil por CPM/T-8 ni signos de moco fértil)',
-      message: 'Relativamente infértil',
-      reasons: {
-        type: 'relative',
-        fertileStartFinalIndex: null,
-        aggregate: fertilityStart?.aggregate ?? null,
-        bipScore: fertilityStart?.debug?.bipScore ?? null,
-      },
-    });
-  }
-  return segments;
-}
+    // Mientras NO haya ni inicio fértil (CPM / T-8 / perfiles / marcador)
+    // ni fase postovulatoria, todo lo registrado se considera
+    // fase relativamente infértil (preovulatoria).
+    if (!hasFertileStart && !hasPostPhase) {
+      const relativeDefaultEnd = Math.min(phaseRenderLimit, lastIndex);
+      if (relativeDefaultEnd < 0) {
+        return segments;
+      }
+      const bounds = getSegmentBounds(0, relativeDefaultEnd);
+      if (bounds) {
+        segments.push({
+          key: 'relative-default',
+          phase: 'relativeInfertile',
+          status: 'default',
+          bounds,
+          startIndex: 0,
+          endIndex: relativeDefaultEnd,
+          displayLabel: 'Relativamente infértil',
+          tooltip:
+            'Relativamente infértil (preovulatoria: sin día fértil por CPM/T-8 ni signos de moco fértil)',
+          message: 'Relativamente infértil',
+          reasons: {
+            type: 'relative',
+            fertileStartFinalIndex: null,
+            aggregate: fertilityStart?.aggregate ?? null,
+            bipScore: fertilityStart?.debug?.bipScore ?? null,
+          },
+        });
+      }
+      return segments;
+    }
 
 
     if (hasFertileStart && fertileStartFinalIndex > 0) {
-      const endIndex = Math.min(fertileStartFinalIndex - 1, lastIndex);
+      const endIndex = Math.min(fertileStartFinalIndex - 1, phaseRenderLimit);
       if (endIndex >= 0) {
         const bounds = getSegmentBounds(0, endIndex);
         if (bounds) {
@@ -421,8 +468,10 @@ if (!hasFertileStart && !hasPostPhase) {
         ? Math.min(postPhaseStart - 1, lastIndex)
         : lastIndex;
 
-    if (fertileEndIndex >= fertileStartIndex) {
-      const bounds = getSegmentBounds(fertileStartIndex, fertileEndIndex);
+    const fertileSegmentEnd = Math.min(fertileEndIndex, phaseRenderLimit);
+
+    if (fertileSegmentEnd >= fertileStartIndex) {
+      const bounds = getSegmentBounds(fertileStartIndex, fertileSegmentEnd);
       if (bounds) {
         const explicitDay = Number.isInteger(fertilityStart?.debug?.explicitStartDay)
           ? fertilityStart.debug.explicitStartDay
@@ -444,14 +493,14 @@ if (!hasFertileStart && !hasPostPhase) {
           status: 'default',
           bounds,
           startIndex: fertileStartIndex,
-          endIndex: fertileEndIndex,
+          endIndex: fertileSegmentEnd,
           displayLabel: 'Fértil',
           tooltip: 'Fértil',
           message: 'Fértil',
           reasons: {
             type: 'fertile',
             startIndex: fertileStartIndex,
-            endIndex: fertileEndIndex,
+            endIndex: fertileSegmentEnd,
             source: fertileSource,
             details: fertilityStart?.debug ?? null,
             notes: fertilityStart?.aggregate?.notes ?? [],
@@ -501,6 +550,7 @@ if (!hasFertileStart && !hasPostPhase) {
     postOvulatoryPhaseInfo,
     hasAnyObservation,
     getSegmentBounds,
+    relativeFertileLimitIndex,
   ]);
   const relativePhaseGradientId = `${uniqueId}-phase-relative-gradient`;
   const fertilePhaseGradientId = `${uniqueId}-phase-fertile-gradient`;
