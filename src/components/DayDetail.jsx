@@ -1,48 +1,32 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Thermometer, Clock, Droplets, Circle, Edit2, Trash2, Loader2 } from 'lucide-react';
-import PeakBadge from '@/components/PeakBadge';
+import {
+  Edit2,
+  Heart,
+  Loader2,
+  Trash2,
+  Thermometer,
+  Clock,
+  Droplets,
+  Circle,
+  FileText,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-
-const DetailSection = ({ icon: Icon, label, value, helper, badge = null }) => (
-  <div
-    className="flex items-start gap-3 rounded-2xl border border-white/60 bg-white/70 px-3 py-3 text-sm shadow-inner"
-    role="group"
-    aria-label={label}
-  >
-    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-50 text-rose-500">
-      <Icon className="h-4 w-4" aria-hidden="true" />
-    </div>
-    <div className="min-w-0 flex-1">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="text-base font-semibold text-slate-800">{value}</p>
-      {helper && <p className="text-xs text-slate-500">{helper}</p>}
-    </div>
-    {badge}
-  </div>
-);
 
 const DayDetail = ({
   isoDate,
   cycleDay,
   details,
-  peakStatus,
-  isPeakDay,
+  peakStatus, // se mantiene por compatibilidad aunque no se use
+  isPeakDay,  // se mantiene por compatibilidad aunque no se use
   onEdit,
   onDelete,
   onAdd,
   isProcessing,
 }) => {
-  const [isObservationsExpanded, setIsObservationsExpanded] = useState(false);
-
   const hasRecord = Boolean(details?.record);
-
-  useEffect(() => {
-    setIsObservationsExpanded(false);
-  }, [isoDate]);
 
   const formattedDate = useMemo(() => {
     if (!isoDate) return null;
@@ -53,42 +37,10 @@ const DayDetail = ({
     }
   }, [isoDate]);
 
-  const weekdayLabel = useMemo(() => {
-    if (!isoDate) return null;
-    try {
-      const date = parseISO(isoDate);
-      return format(date, 'EEEE', { locale: es });
-    } catch (error) {
-      return null;
-    }
-  }, [isoDate]);
-
-  const observationsText = details?.observationsText?.trim() || '';
-  const estimatedObservationLines = useMemo(() => {
-    if (!observationsText) return 0;
-    return observationsText
-      .split(/\r?\n/)
-      .map((line) => Math.max(1, Math.ceil(line.length / 60)))
-      .reduce((sum, lines) => sum + lines, 0);
-  }, [observationsText]);
-
-  const shouldShowObservationToggle = observationsText && estimatedObservationLines > 6;
-
-  const collapsedObservationStyle = useMemo(
-    () => ({
-      display: '-webkit-box',
-      WebkitLineClamp: 6,
-      WebkitBoxOrient: 'vertical',
-      overflow: 'hidden',
-    }),
-    []
-  );
-
   const symbolLabel = details?.symbolInfo?.label || 'Sin símbolo';
-  const symbolValue = details?.symbolInfo?.value;
-  const symbolDotClass = details?.symbolInfo?.pattern === 'spotting-pattern'
-    ? 'spotting-pattern-icon'
-    : details?.symbolInfo?.color || 'bg-slate-200';
+  const symbolValue = details?.symbolInfo?.value || 'none';
+  const symbolPatternClass =
+    details?.symbolInfo?.pattern === 'spotting-pattern' ? 'spotting-pattern-icon' : '';
 
   const handleEdit = () => {
     if (!details?.record || !onEdit) return;
@@ -105,141 +57,225 @@ const DayDetail = ({
     onAdd(isoDate);
   };
 
-  const renderContent = () => {
-    if (!isoDate) {
-      return (
-        <div className="rounded-2xl border border-dashed border-rose-200 bg-white/60 p-6 text-center text-sm text-slate-500">
-          Selecciona un día del calendario para ver el detalle.
-        </div>
-      );
+  const renderChipValue = (value, options = {}) => {
+    if (value && typeof value === 'string' && value.trim().length > 0) {
+      return value;
     }
-
-    if (!hasRecord) {
-      return (
-        <div className="rounded-2xl border border-dashed border-rose-200 bg-white/70 p-6 text-center">
-          <p className="text-sm text-slate-500">Este día aún no tiene un registro.</p>
-          <Button className="mt-4 w-full" onClick={handleAdd} disabled={isProcessing}>
-            {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Añadir registro
-          </Button>
-        </div>
-      );
+    if (typeof value === 'number') {
+      return value;
     }
-
-    return (
-      <div className="space-y-4">
-        {details.record?.ignored && (
-          <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-600">
-            Registro ignorado
-          </Badge>
-        )}
-
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <DetailSection
-            icon={Thermometer}
-            label="Temperatura"
-            value={details.hasTemperature ? `${details.displayTemp} °C` : '—'}
-            badge={
-              details.showCorrectedIndicator ? (
-                <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-amber-600">
-                  Corregida
-                </span>
-              ) : null
-            }
-          />
-          <DetailSection
-            icon={Clock}
-            label="Hora"
-            value={details.timeValue ? details.timeValue : '—'}
-          />
-        </div>
-
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <DetailSection
-            icon={Droplets}
-            label="Sensación"
-            value={details.hasMucusSensation ? details.mucusSensation : '—'}
-          />
-          <DetailSection
-            icon={Circle}
-            label="Apariencia"
-            value={details.hasMucusAppearance ? details.mucusAppearance : '—'}
-          />
-        </div>
-
-        <div className="rounded-2xl border border-white/60 bg-white/70 px-4 py-3 shadow-inner">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Observaciones</p>
-          <p
-            className={cn('mt-1 text-sm text-slate-700 whitespace-pre-line', !isObservationsExpanded && shouldShowObservationToggle && 'pr-1')}
-            style={!isObservationsExpanded && shouldShowObservationToggle ? collapsedObservationStyle : undefined}
-          >
-            {observationsText || '—'}
-          </p>
-          {shouldShowObservationToggle && (
-            <button
-              type="button"
-              className="mt-2 text-sm font-semibold text-rose-500 hover:text-rose-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 rounded-full px-3 py-1"
-              onClick={() => setIsObservationsExpanded((prev) => !prev)}
-            >
-              {isObservationsExpanded ? 'Ver menos' : 'Ver más'}
-            </button>
-          )}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-white/60 bg-white/70 px-4 py-3 shadow-inner">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white">
-            <span className={cn('h-6 w-6 rounded-full border border-slate-200', symbolDotClass)} aria-hidden="true" />
-          </div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Símbolo</p>
-            <p className="text-base font-semibold text-slate-800">{symbolLabel}</p>
-            {symbolValue === 'none' && <p className="text-xs text-slate-500">Sin símbolo asignado</p>}
-          </div>
-        </div>
-
-        <div className="flex flex-wrap justify-end gap-3 pt-2">
-          <Button
-            type="button"
-            variant="outline"
-            className="gap-2"
-            onClick={handleEdit}
-            disabled={isProcessing}
-          >
-            {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Edit2 className="h-4 w-4" />}
-            Editar
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            className="gap-2 text-rose-600 hover:bg-rose-50"
-            onClick={handleDelete}
-            disabled={isProcessing}
-          >
-            {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-            Eliminar
-          </Button>
-        </div>
-      </div>
-    );
+    return options.placeholder || '—';
   };
 
+  const temperatureValue = details?.hasTemperature ? `${details.displayTemp} °C` : '—';
+  const timeValue = details?.timeValue || '—';
+  const hasTimeValue = Boolean(details?.timeValue);
+  const mucusSensationValue = details?.hasMucusSensation ? details.mucusSensation : '—';
+  const mucusAppearanceValue = details?.hasMucusAppearance ? details.mucusAppearance : '—';
+  const observationsValue = details?.observationsText?.trim();
+  const hasRelations = Boolean(details?.hasRelations);
+
+  const getSymbolClasses = () => {
+    switch (symbolValue) {
+      case 'red':
+        return 'bg-rose-50 border-rose-100';
+      case 'green':
+        return 'bg-emerald-50 border-emerald-100';
+      case 'yellow':
+        return 'bg-yellow-50 border-yellow-100';
+      case 'spot':
+        return 'bg-rose-50 border-rose-100';
+      case 'white':
+        return 'bg-white border-slate-300';
+      default:
+        return 'bg-slate-50 border-slate-200';
+    }
+  };
+
+  // Estado vacío: sin día seleccionado
+  if (!isoDate) {
+    return (
+      <div className="w-full rounded-2xl border border-rose-100/80 bg-white/70 p-4 text-center text-sm text-slate-500 shadow-sm">
+        Selecciona un día en el calendario para ver o añadir un registro.
+      </div>
+    );
+  }
+
+  // Base para todos los chips (tamaño algo mayor y altura fija)
+  const chipBaseClass =
+    'flex items-center gap-2 rounded-xl border px-3 py-2 text-sm min-h-[3rem]';
+
+  // Tarjeta compacta pero más alta, usando el espacio disponible
   return (
-    <div className="rounded-3xl border border-white/60 bg-white/80 p-4 shadow-lg sm:p-6">
-      <div className="sticky top-0 z-10 flex flex-wrap items-center gap-3 border-b border-rose-100/60 bg-white/90 pb-3">
-        <div className="min-w-0">
-          <p className="text-lg font-semibold text-slate-800">
-            {formattedDate || 'Sin fecha seleccionada'}
-          </p>
-          {weekdayLabel && <p className="text-sm capitalize text-slate-500">{weekdayLabel}</p>}
-        </div>
+    <div className="w-full rounded-2xl border border-rose-100 bg-white/90 p-4 sm:p-5 shadow-md backdrop-blur-sm">
+      {/* Cabecera: fecha + día de ciclo + símbolo + acciones */}
+      <div className="flex items-center gap-2">
+        <p className="text-base font-semibold text-slate-800 sm:text-lg">
+          {formattedDate}
+          {cycleDay ? ` · D${cycleDay}` : ''}
+        </p>
         <div className="ml-auto flex items-center gap-2">
-          {cycleDay && (
-            <span className="rounded-full bg-rose-50 px-3 py-1 text-sm font-semibold text-rose-500">D{cycleDay}</span>
+          <div
+            className={cn(
+              'flex h-7 w-7 items-center justify-center rounded-full border shadow-inner',
+              getSymbolClasses(),
+              symbolPatternClass
+            )}
+            title={symbolLabel}
+            aria-label={symbolLabel}
+          />
+          {hasRecord ? (
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-full text-rose-500 hover:bg-rose-50"
+                onClick={handleEdit}
+                disabled={isProcessing}
+              >
+                {isProcessing ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Edit2 className="h-4 w-4" />
+                )}
+                <span className="sr-only">Editar registro</span>
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-full text-rose-500 hover:bg-rose-50"
+                onClick={handleDelete}
+                disabled={isProcessing}
+              >
+                {isProcessing ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4" />
+                )}
+                <span className="sr-only">Eliminar registro</span>
+              </Button>
+            </>
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="rounded-full border-rose-200 px-3 text-xs font-semibold text-rose-500"
+              onClick={handleAdd}
+              disabled={isProcessing}
+            >
+              {isProcessing && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}
+              Añadir registro
+            </Button>
           )}
-          <PeakBadge peakStatus={peakStatus} isPeakDay={isPeakDay} />
         </div>
       </div>
-      <div className="pt-4">{renderContent()}</div>
+
+      {/* Cuerpo: 3 filas, más grandes y estructuradas */}
+      <div className="mt-4 space-y-3">
+        {/* Fila 1: temperatura + hora (dos columnas fijas) */}
+        <div className="grid grid-cols-2 gap-3">
+          <div
+            className={cn(
+              chipBaseClass,
+              details?.hasTemperature
+                ? 'border-orange-100 bg-orange-50 text-orange-800'
+                : 'border-orange-50 bg-orange-50 text-slate-400'
+            )}
+          >
+            <Thermometer className="h-5 w-5 opacity-80" />
+            <div className="flex items-center gap-1">
+              <span className="font-semibold">
+                {renderChipValue(temperatureValue)}
+              </span>
+              {details?.showCorrectedIndicator && (
+                <span
+                  className="h-2 w-2 rounded-full bg-amber-500"
+                  aria-label="Temperatura corregida"
+                />
+              )}
+            </div>
+          </div>
+          <div
+            className={cn(
+              chipBaseClass,
+              hasTimeValue
+                ? 'border-slate-200 bg-slate-50 text-slate-800'
+                : 'border-slate-200 bg-slate-50 text-slate-400'
+            )}
+          >
+            <Clock className="h-5 w-5 opacity-80" />
+            <span className="font-semibold">
+              {renderChipValue(timeValue)}
+            </span>
+          </div>
+        </div>
+
+        {/* Fila 2: moco (sensación mitad izquierda, apariencia mitad derecha) */}
+        <div className="grid grid-cols-2 gap-3">
+          <div
+            className={cn(
+              chipBaseClass,
+              details?.hasMucusSensation
+                ? 'border-sky-100 bg-sky-50 text-sky-800'
+                : 'border-sky-50 bg-sky-50 text-slate-400'
+            )}
+          >
+            <Droplets className="h-5 w-5 opacity-80" />
+            <span className="font-semibold">
+              {renderChipValue(mucusSensationValue)}
+            </span>
+          </div>
+          <div
+            className={cn(
+              chipBaseClass,
+              details?.hasMucusAppearance
+                ? 'border-emerald-100 bg-emerald-50 text-emerald-800'
+                : 'border-emerald-50 bg-emerald-50 text-slate-400'
+            )}
+          >
+            <Circle className="h-5 w-5 opacity-80" />
+            <span className="font-semibold">
+              {renderChipValue(mucusAppearanceValue)}
+            </span>
+          </div>
+        </div>
+
+        {/* Fila 3: observaciones (ancho fijo, siempre igual) + RS */}
+        <div className="flex items-center gap-3">
+          <div
+            className={cn(
+              chipBaseClass,
+              'flex-1 min-w-0',
+              observationsValue
+                ? 'border-violet-100 bg-violet-50 text-violet-800'
+                : 'border-violet-100 bg-violet-50 text-slate-400'
+            )}
+          >
+            <FileText className="h-5 w-5 opacity-80" />
+            <span className="truncate">
+              {renderChipValue(observationsValue, { placeholder: '-' })}
+            </span>
+          </div>
+          <div
+            className={cn(
+              'flex h-10 w-10 items-center justify-center rounded-full border transition-colors',
+              hasRelations ? 'border-rose-200 bg-rose-50' : 'border-slate-200 bg-white'
+            )}
+            title={hasRelations ? 'Hubo relaciones' : 'Sin relaciones'}
+            aria-label={hasRelations ? 'Hubo relaciones' : 'Sin relaciones'}
+          >
+            <Heart
+              className={cn(
+                'h-4 w-4',
+                hasRelations ? 'text-rose-500' : 'text-slate-300'
+              )}
+            />
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

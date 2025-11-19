@@ -947,46 +947,49 @@ const FloatingActionButton = ({ onAddRecord, onAddCycle }) => {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="fixed mt-2 right-6 flex flex-col items-end space-y-3 z-50">
+    <div className="fixed right-4 top-12 md:top-6 flex flex-col-reverse items-end space-y-2 z-50">
       {open && (
-        <>
-          <motion.button
-            onClick={onAddCycle}
-            className="flex items-center gap-3 px-4 h-12 rounded-full bg-gradient-to-br from-purple-500 to-indigo-500 text-white shadow-lg"
-            whileTap={{ scale: 0.95 }}
-            whileHover={{ scale: 1.05 }}
-            initial={{ opacity: 0, y: 20, scale: 0.8 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            style={{ filter: 'drop-shadow(0 6px 12px rgba(147, 51, 234, 0.3))' }}
-          >
-            <CalendarPlus className="h-5 w-5" />
-            <span className="text-sm font-medium tracking-tight">Nuevo ciclo</span>
-          </motion.button>
-          <motion.button
-            onClick={onAddRecord}
-            className="flex items-center gap-3 px-4 h-12 rounded-full bg-gradient-to-br from-pink-500 to-rose-500 text-white shadow-lg"
-            whileTap={{ scale: 0.80 }}
-            whileHover={{ scale: 1.05 }}
-            initial={{ opacity: 0, y: 20, scale: 0.8 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            style={{ filter: 'drop-shadow(0 6px 12px rgba(236, 72, 153, 0.3))' }}
-          >
-            <FilePlus className="h-5 w-5" />
-            <span className="text-sm font-medium tracking-tight">Añadir registro</span>
-          </motion.button>
-        </>
-      )}
+  <div className="flex flex-col space-y-2 mt-1">
+    <motion.button
+      onClick={onAddRecord}
+      className="flex items-center gap-1 px-4 h-12 rounded-full bg-gradient-to-br from-pink-500 to-rose-500 text-white shadow-lg"
+      whileTap={{ scale: 0.80 }}
+      whileHover={{ scale: 1.05 }}
+      initial={{ opacity: 0, y: 20, scale: 0.8 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      style={{ filter: 'drop-shadow(0 6px 12px rgba(236, 72, 153, 0.3))' }}
+    >
+      <FilePlus className="h-5 w-5" />
+      <span className="text-sm font-medium tracking-tight">Añadir registro</span>
+    </motion.button>
+    <motion.button
+      onClick={onAddCycle}
+      className="flex items-center gap-3 px-4 h-12 rounded-full bg-gradient-to-br from-purple-500 to-indigo-500 text-white shadow-lg"
+      whileTap={{ scale: 0.95 }}
+      whileHover={{ scale: 1.05 }}
+      initial={{ opacity: 0, y: 20, scale: 0.8 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      style={{ filter: 'drop-shadow(0 6px 12px rgba(147, 51, 234, 0.3))' }}
+    >
+      <CalendarPlus className="h-5 w-5" />
+      <span className="text-sm font-medium tracking-tight">Nuevo ciclo</span>
+    </motion.button>
+
+    
+  </div>
+)}
+
       <motion.button
         onClick={() => setOpen(!open)}
-        className="w-14 h-14 bg-gradient-to-br from-pink-500 to-rose-500 text-white rounded-full shadow-lg flex items-center justify-center"
+        className="w-12 h-12 bg-gradient-to-br from-pink-500 to-rose-500 text-white rounded-full shadow-lg flex items-center justify-center"
         whileTap={{ scale: 0.95 }}
         whileHover={{ scale: 1.05 }}
         initial={{ scale: 0 }}
         animate={{ scale: 1 }}
-        style={{ filter: 'drop-shadow(0 6px 16px rgba(236, 72, 153, 0.4))' }}
+        style={{ filter: 'drop-shadow(0 4px 12px rgba(236, 72, 153, 0.35))' }}
       >
         <motion.span animate={{ rotate: open ? 135 : 0 }} transition={{ type: 'spring', stiffness: 260, damping: 20 }}>
-          <Plus className="h-6 w-6" />
+          <Plus className="h-5 w-5" />
         </motion.span>
       </motion.button>
     </div>
