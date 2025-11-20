@@ -202,7 +202,7 @@ const RecordsList = ({ records, onEdit, onDelete, isProcessing, selectedDate }) 
                 <div className="flex space-x-1">
                   <Button
                     type="button"
-                    onClick={() => onEdit(record)}
+                    onClick={() => onEdit(record, null)}
                     variant="outline"
                     size="sm"
                     className="h-8 w-8 p-0 bg-slate-100 border-pink-300 text-pink-600 hover:bg-pink-50 hover:border-pink-400"

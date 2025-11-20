@@ -406,6 +406,7 @@ const ChartPage = () => {
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
+  const [initialSectionKey, setInitialSectionKey] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showInterpretation, setShowInterpretation] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -607,8 +608,9 @@ const ChartPage = () => {
         paddingBottom: 'env(safe-area-inset-bottom)'
       };
 
-  const handleEdit = (record) => {
+  const handleEdit = (record, sectionKey = null) => {
     setEditingRecord(record);
+    setInitialSectionKey(sectionKey ?? null);
     setShowForm(true);
   };
 
@@ -929,6 +931,7 @@ const ChartPage = () => {
       if (!keepFormOpen) {
         setShowForm(false);
         setEditingRecord(null);
+        setInitialSectionKey(null);
       }
     } finally {
       setIsProcessing(false);
@@ -938,6 +941,7 @@ const ChartPage = () => {
   const handleCloseForm = () => {
     setShowForm(false);
     setEditingRecord(null);
+    setInitialSectionKey(null);
   };
 
   const handleDateSelect = (record) => {
@@ -1418,6 +1422,7 @@ const ChartPage = () => {
               isEditing={!!editingRecord && !isPlaceholderRecord}
               cycleData={targetCycle.data}
               onDateSelect={handleDateSelect}
+              initialSectionKey={initialSectionKey}
             />
           </DialogContent>
         </Dialog>

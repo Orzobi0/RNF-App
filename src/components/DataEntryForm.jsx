@@ -20,6 +20,7 @@ const DataEntryForm = ({
   onDateSelect,
   defaultIsoDate,
   focusedField,
+  initialSectionKey = null,
 }) => {
   const formRef = useRef(null);
   useBackClose(Boolean(onCancel), onCancel);
@@ -166,6 +167,7 @@ const DataEntryForm = ({
         cycleEndDate={cycleEndDate}
         recordedDates={recordedDates}
         submitCurrentState={submitCurrentState}
+        initialSectionKey={initialSectionKey}
       />
       <DataEntryFormActions
         onCancel={onCancel}

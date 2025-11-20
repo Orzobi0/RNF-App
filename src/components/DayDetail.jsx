@@ -44,7 +44,7 @@ const DayDetail = ({
 
   const handleEdit = () => {
     if (!details?.record || !onEdit) return;
-    onEdit(details.record);
+    onEdit(details.record, null);
   };
 
   const handleDelete = () => {
@@ -262,7 +262,7 @@ const DayDetail = ({
           <div
             className={cn(
               'flex h-10 w-10 items-center justify-center rounded-full border transition-colors',
-              hasRelations ? 'border-rose-200 bg-rose-50' : 'border-slate-200 bg-white'
+              hasRelations ? 'border-rose-500 bg-rose-50' : 'border-slate-200 bg-white'
             )}
             title={hasRelations ? 'Hubo relaciones' : 'Sin relaciones'}
             aria-label={hasRelations ? 'Hubo relaciones' : 'Sin relaciones'}
@@ -270,7 +270,7 @@ const DayDetail = ({
             <Heart
               className={cn(
                 'h-4 w-4',
-                hasRelations ? 'text-rose-500' : 'text-slate-300'
+                hasRelations ? 'text-rose-500 fill-current' : 'text-slate-300'
               )}
             />
           </div>

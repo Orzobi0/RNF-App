@@ -2966,6 +2966,7 @@ const ModernFertilityDashboard = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showNewCycleDialog, setShowNewCycleDialog] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
+  const [initialSectionKey, setInitialSectionKey] = useState(null);
   const isPlaceholderRecord = Boolean(
     editingRecord && String(editingRecord.id || '').startsWith('placeholder-')
   );
@@ -2977,14 +2978,16 @@ const ModernFertilityDashboard = () => {
   const handleCloseForm = useCallback(() => {
     setShowForm(false);
     setEditingRecord(null);
+    setInitialSectionKey(null);
   }, []);
 
   const handleDateSelect = useCallback((record) => {
     setEditingRecord(record);
   }, []);
 
-  const handleEdit = useCallback((record) => {
+  const handleEdit = useCallback((record, sectionKey = null) => {
     setEditingRecord(record);
+    setInitialSectionKey(sectionKey ?? null);
     setShowForm(true);
   }, []);
 
@@ -3107,6 +3110,7 @@ const ModernFertilityDashboard = () => {
           onConfirm={async (selectedStartDate) => {
             await startNewCycle(selectedStartDate);
             setShowNewCycleDialog(false);
+            setInitialSectionKey(null);
             setShowForm(true);
           }}
         />
@@ -3126,6 +3130,7 @@ const ModernFertilityDashboard = () => {
       if (!keepFormOpen) {
         setShowForm(false);
         setEditingRecord(null);
+        setInitialSectionKey(null);
       }
     } finally {
       setIsProcessing(false);
@@ -3135,6 +3140,7 @@ const ModernFertilityDashboard = () => {
   const handleConfirmNewCycle = async (selectedStartDate) => {
     await startNewCycle(selectedStartDate);
     setShowNewCycleDialog(false);
+    setInitialSectionKey(null);
     setShowForm(true);
   };
 
@@ -3645,12 +3651,17 @@ const ModernFertilityDashboard = () => {
             isEditing={!!editingRecord && !isPlaceholderRecord}
             cycleData={currentCycle.data}
             onDateSelect={handleDateSelect}
+            initialSectionKey={initialSectionKey}
           />
         </DialogContent>
       </Dialog>
 
       <FloatingActionButton
-        onAddRecord={() => { setEditingRecord(null); setShowForm(true); }}
+        onAddRecord={() => {
+          setEditingRecord(null);
+          setInitialSectionKey(null);
+          setShowForm(true);
+        }}
         onAddCycle={() => setShowNewCycleDialog(true)}
       />
 

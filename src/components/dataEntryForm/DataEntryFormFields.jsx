@@ -72,6 +72,7 @@ const DataEntryFormFields = ({
   cycleEndDate,
   recordedDates = [],
   submitCurrentState,
+  initialSectionKey = null,
 }) => {
   const [open, setOpen] = useState(false);
   const [correctionIndex, setCorrectionIndex] = useState(null);
@@ -99,6 +100,7 @@ const DataEntryFormFields = ({
   const userCollapsedRef = useRef(false);
   const lastPointerWasTouchRef = useRef(false);
   const lastActivePerDateRef = useRef(new Map());
+  const previousIsoDateRef = useRef(null);
 
   const openSectionKeys = useMemo(
     () => (isViewAll ? sectionKeys : activeSection ? [activeSection] : []),
@@ -332,23 +334,39 @@ const DataEntryFormFields = ({
     userCollapsedRef.current = false;
 
     if (!sectionKeys.length) {
+      setActiveSection((current) => (current === null ? current : null));
       return;
     }
 
     const storageKey = selectedIsoDate ?? DEFAULT_SECTION_STORAGE_KEY;
     const storedSection = lastActivePerDateRef.current.get(storageKey);
-    const fallbackSection = storedSection ?? sectionKeys[0];
+    const isStoredValid = storedSection && sectionKeys.includes(storedSection);
 
-    if (!storedSection && fallbackSection) {
-      lastActivePerDateRef.current.set(storageKey, fallbackSection);
+    const previousIsoDate = previousIsoDateRef.current;
+    const dateChanged = previousIsoDate !== selectedIsoDate;
+    previousIsoDateRef.current = selectedIsoDate;
+
+    const hasInitialSection = Boolean(initialSectionKey && sectionKeys.includes(initialSectionKey));
+    const shouldUseInitial = dateChanged && hasInitialSection;
+
+    let fallbackSection = null;
+
+    if (shouldUseInitial) {
+      fallbackSection = initialSectionKey;
+    } else if (isStoredValid) {
+      fallbackSection = storedSection;
+    } else {
+      fallbackSection = sectionKeys[0];
     }
 
     if (!fallbackSection) {
+      setActiveSection((current) => (current === null ? current : null));
       return;
     }
 
+    lastActivePerDateRef.current.set(storageKey, fallbackSection);
     setActiveSection((current) => (current === fallbackSection ? current : fallbackSection));
-  }, [date, sectionKeys, selectedIsoDate]);
+  }, [date, sectionKeys, selectedIsoDate, initialSectionKey]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {

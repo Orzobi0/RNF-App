@@ -137,6 +137,7 @@ export const RecordsExperience = ({
   const [selectedDate, setSelectedDate] = useState(null);
   const [defaultFormIsoDate, setDefaultFormIsoDate] = useState(null);
   const [focusedField, setFocusedField] = useState(null);
+  const [initialSectionKey, setInitialSectionKey] = useState(null);
   const [isCalendarOpen, setIsCalendarOpen] = useState(initialCalendarOpen);
   const calendarContainerRef = useRef(null);
   const recordsScrollRef = useRef(null);
@@ -1101,15 +1102,17 @@ const enterStart = -exitTarget;
     setEditingRecord(null);
     setDefaultFormIsoDate(null);
     setFocusedField(null);
+    setInitialSectionKey(null);
   }, []);
 
   const openRecordForm = useCallback(
-    (record, fieldName = null) => {
+    (record, fieldName = null, sectionKey = null) => {
       if (!record) return;
 
       setEditingRecord(record);
       setDefaultFormIsoDate(record.isoDate ?? null);
       setFocusedField(fieldName);
+      setInitialSectionKey(sectionKey ?? null);
 
       if (record.isoDate) {
         setSelectedDate(record.isoDate);
@@ -1120,7 +1123,10 @@ const enterStart = -exitTarget;
     []
   );
 
-  const handleEdit = useCallback((record) => openRecordForm(record), [openRecordForm]);
+  const handleEdit = useCallback(
+    (record, sectionKey = null) => openRecordForm(record, null, sectionKey),
+    [openRecordForm]
+  );
 
   const handleDeleteRequest = (recordId) => {
     const record = cycle?.data?.find((r) => r.id === recordId);
@@ -1140,6 +1146,7 @@ const enterStart = -exitTarget;
     setEditingRecord(null);
     setDefaultFormIsoDate(isoDate);
     setFocusedField(null);
+    setInitialSectionKey(null);
     setShowForm(true);
   }, []);
 
@@ -1150,6 +1157,7 @@ const enterStart = -exitTarget;
     setEditingRecord(null);
     setDefaultFormIsoDate(targetIso);
     setFocusedField(null);
+    setInitialSectionKey(null);
 
     if (targetIso) {
       setSelectedDate(targetIso);
@@ -1167,6 +1175,7 @@ const enterStart = -exitTarget;
         setEditingRecord(null);
         setDefaultFormIsoDate(null);
         setFocusedField(null);
+        setInitialSectionKey(null);
       }
     } catch (error) {
       toast({ title: 'Error', description: 'No se pudo guardar el registro', variant: 'destructive' });
@@ -1489,6 +1498,7 @@ const enterStart = -exitTarget;
             onDateSelect={handleDateSelect}
             defaultIsoDate={defaultFormIsoDate}
             focusedField={focusedField}
+            initialSectionKey={initialSectionKey}
           />
         </DialogContent>
       </Dialog>

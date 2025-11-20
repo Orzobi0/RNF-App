@@ -198,8 +198,12 @@ const ChartTooltip = ({
   };
 
   const handleEditClick = () => {
+    handleSectionEdit();
+  };
+
+  const handleSectionEdit = (sectionKey) => {
     if (!onEdit) return;
-    onEdit(point);
+    onEdit(point, sectionKey);
     if (onClose) onClose();
   };
 
@@ -449,11 +453,14 @@ const ChartTooltip = ({
                 <div className="space-y-1">
                   {/* Temperatura */}
                   {hasTemperature && (
-                    <motion.div
+                    <motion.button
+                      type="button"
+                      onClick={() => handleSectionEdit('temperature')}
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: 0.1 }}
-                      className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl p-1 border border-amber-100/50"
+                      className="w-full text-left bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl p-1 border border-amber-100/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-200"
+                      disabled={!onEdit}
                     >
                       <div className="flex items-center gap-3">
                         <div className="w-6 h-6 bg-gradient-to-br from-amber-500 to-orange-600 rounded-lg flex items-center justify-center shadow-md">
@@ -481,16 +488,19 @@ const ChartTooltip = ({
                           </div>
                         </div>
                       </div>
-                    </motion.div>
+                    </motion.button>
                   )}
 
                   {/* Símbolo de fertilidad */}
                   {hasSymbol && (
-                    <motion.div
+                    <motion.button
+                      type="button"
+                      onClick={() => handleSectionEdit('symbol')}
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: 0.15 }}
-                      className={`${symbolColors.light} rounded-3xl p-1 ${symbolColors.border} border`}
+                      className={`w-full text-left ${symbolColors.light} rounded-3xl p-1 ${symbolColors.border} border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-pink-200`}
+                      disabled={!onEdit}
                     >
                       <div className="flex items-center gap-3">
                         <div className={`w-6 h-6 ${symbolColors.bg} rounded-lg flex items-center justify-center shadow-lg ${symbolColors.glow} shadow-lg`}>
@@ -502,17 +512,20 @@ const ChartTooltip = ({
                           </span>
                         </div>
                       </div>
-                    </motion.div>
+                    </motion.button>
                   )}
 
                   {/* Información de mucus */}
                   <div className="grid grid-cols-1 gap-1">
                     {/* Sensación */}
-                    <motion.div
+                    <motion.button
+                      type="button"
+                      onClick={() => handleSectionEdit('sensation')}
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: 0.2 }}
-                      className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-3xl p-1 border border-blue-100/50"
+                      className="w-full text-left bg-gradient-to-r from-blue-50 to-indigo-50 rounded-3xl p-1 border border-blue-100/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-200"
+                      disabled={!onEdit}
                     >
                       <div className="flex items-center gap-3">
                         <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-md">
@@ -524,14 +537,17 @@ const ChartTooltip = ({
                           </span>
                         </div>
                       </div>
-                    </motion.div>
+                    </motion.button>
 
                     {/* Apariencia */}
-                    <motion.div
+                    <motion.button
+                      type="button"
+                      onClick={() => handleSectionEdit('appearance')}
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: 0.25 }}
-                      className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-3xl p-1 border border-emerald-100/50"
+                      className="w-full text-left bg-gradient-to-r from-emerald-50 to-teal-50 rounded-3xl p-1 border border-emerald-100/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-emerald-200"
+                      disabled={!onEdit}
                     >
                       <div className="flex items-center gap-3">
                         <div className="w-6 h-6 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center shadow-md">
@@ -543,15 +559,18 @@ const ChartTooltip = ({
                           </span>
                         </div>
                       </div>
-                    </motion.div>
+                    </motion.button>
 
                     {/* Observaciones */}
                     {hasObservations && (
-                      <motion.div
+                      <motion.button
+                        type="button"
+                        onClick={() => handleSectionEdit('observations')}
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         transition={{ delay: 0.3 }}
-                        className="bg-gradient-to-r from-violet-50 to-purple-50 rounded-3xl p-1 border border-violet-100/50"
+                        className="w-full text-left bg-gradient-to-r from-violet-50 to-purple-50 rounded-3xl p-1 border border-violet-100/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-violet-200"
+                        disabled={!onEdit}
                       >
                         <div className="flex items-center gap-3">
                           <div className="w-6 h-6 bg-gradient-to-br from-violet-500 to-purple-600 rounded-lg flex items-center justify-center shadow-md">
@@ -563,7 +582,7 @@ const ChartTooltip = ({
                             </span>
                           </div>
                         </div>
-                      </motion.div>
+                      </motion.button>
                     )}
                     {/* (Seguimos usando el icono discreto de RS en el header) */}
                   </div>
