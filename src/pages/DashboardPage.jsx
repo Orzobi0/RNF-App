@@ -3503,12 +3503,7 @@ const ModernFertilityDashboard = () => {
                         {cpmInfo.highlightLabel}
                       </span>
                     </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-1 text-xs text-rose-600">
-                      <span className="font-semibold">Origen del dato:</span>
-                      <span className="rounded-full bg-white/70 px-2 py-0.5 text-[11px] font-semibold text-rose-600">
-                        {cpmInfo.sourceLabel}
-                      </span>
-                    </div>
+
                     <p className="mt-1 text-[11px] text-rose-500">{cpmInfo.summary}</p>
                     {cpmInfo.detailsAvailable ? (
                       <button
@@ -3638,12 +3633,7 @@ const ModernFertilityDashboard = () => {
                   <div className="flex items-start justify-between gap-2">
                     <div className="space-y-1">
                       <p className="text-sm font-semibold text-rose-900">Valor manual</p>
-                      <span className="text-[11px] font-semibold text-rose-500">
-                        Automático actual: {cpmAutomaticValueLabel === '—' ? '—' : `${cpmAutomaticValueLabel} días`}
-                      </span>
-                      <p className="text-[10px] text-rose-600">Si defines un valor manual, se usará siempre que sea válido.</p>
-                    </div>
-                    
+                    </div>                    
                       <span
                       className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 ${
                         cpmSelection === 'manual' ? 'border-rose-400 bg-rose-400' : 'border-rose-300 bg-white'
@@ -3656,7 +3646,7 @@ const ModernFertilityDashboard = () => {
                   <div className="mt-3 grid grid-cols-2 gap-2">
                     <div className="space-y-1.5">
                       <Label htmlFor="manual-cpm-base" className="text-xs text-gray-600">
-                        Ciclo más corto (manual)
+                        Ciclo más corto
                       </Label>
                       <Input
                         id="manual-cpm-base"
@@ -3673,7 +3663,7 @@ const ModernFertilityDashboard = () => {
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="manual-cpm-final" className="text-xs text-gray-600">
-                        CPM manual (final)
+                        CPM obtenido
                       </Label>
                       <Input
                         id="manual-cpm-final"
@@ -3790,7 +3780,6 @@ const ModernFertilityDashboard = () => {
                     >
                       {cpmSelection === 'none' && <span className="h-2.5 w-2.5 rounded-full bg-white" />}
                     </span>
-
                   </div>
                   </div>
                   </div>
