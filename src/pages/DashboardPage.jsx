@@ -12,6 +12,7 @@ import {
   Ban,
   CheckCircle2,
   Loader2,
+  AlertTriangle,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import CycleDatesEditor from '@/components/CycleDatesEditor';
@@ -1029,6 +1030,8 @@ const ModernFertilityDashboard = () => {
   const [manualCpmValue, setManualCpmValue] = useState(null);
   const [isManualCpm, setIsManualCpm] = useState(false);
   const [showCpmDetails, setShowCpmDetails] = useState(false);
+  const [pendingCpmAction, setPendingCpmAction] = useState(null);
+  const [isConfirmingCpmAction, setIsConfirmingCpmAction] = useState(false);
   const [isT8DialogOpen, setIsT8DialogOpen] = useState(false);
   const [manualT8BaseInput, setManualT8BaseInput] = useState('');
   const [manualT8FinalInput, setManualT8FinalInput] = useState('');
@@ -1039,6 +1042,8 @@ const ModernFertilityDashboard = () => {
   const [manualT8Value, setManualT8Value] = useState(null);
   const [isManualT8, setIsManualT8] = useState(false);
   const [showT8Details, setShowT8Details] = useState(false);
+  const [pendingT8Action, setPendingT8Action] = useState(null);
+  const [isConfirmingT8Action, setIsConfirmingT8Action] = useState(false);
   const [pendingIgnoredCycleIds, setPendingIgnoredCycleIds] = useState([]);
 
   const manualCpmRestoreAttemptedRef = useRef(false);
@@ -2438,11 +2443,15 @@ const ModernFertilityDashboard = () => {
         : null
     );
     setShowCpmDetails(false);
+    setPendingCpmAction(null);
+    setIsConfirmingCpmAction(false);
     setIsCpmDialogOpen(true);
   }, [computedCpmData, isManualCpm, manualCpmBaseValue, manualCpmValue]);
 
   const handleCloseCpmDialog = useCallback(() => {
     setShowCpmDetails(false);
+    setPendingCpmAction(null);
+    setIsConfirmingCpmAction(false);
     setIsCpmDialogOpen(false);
   }, []);
 
@@ -2664,6 +2673,26 @@ const ModernFertilityDashboard = () => {
     }
   }, [isManualCpm, manualCpmBaseValue, manualCpmValue, persistManualCpm, toast]);
 
+  const handleConfirmCpmAction = useCallback(
+    async (action) => {
+      if (!action) return;
+
+      setIsConfirmingCpmAction(true);
+
+      try {
+        if (action === 'delete') {
+          await handleDeleteManualCpm();
+        } else {
+          await handleResetManualCpm();
+        }
+      } finally {
+        setPendingCpmAction(null);
+        setIsConfirmingCpmAction(false);
+      }
+    },
+    [handleDeleteManualCpm, handleResetManualCpm]
+  );
+
   const handleOpenT8Dialog = useCallback(() => {
     const automaticBase =
       typeof computedT8Data.earliestCycle?.riseDay === 'number' &&
@@ -2696,12 +2725,16 @@ const ModernFertilityDashboard = () => {
         : null
     );
     setShowT8Details(false);
+    setPendingT8Action(null);
+    setIsConfirmingT8Action(false);
     setIsT8DialogOpen(true);
   }, [computedT8Data, isManualT8, manualT8BaseValue, manualT8Value]);
 
   const handleCloseT8Dialog = useCallback(() => {
     setIsT8DialogOpen(false);
     setShowT8Details(false);
+    setPendingT8Action(null);
+    setIsConfirmingT8Action(false);
   }, []);
 
   const handleManualT8BaseInputChange = useCallback((event) => {
@@ -2912,6 +2945,26 @@ const ModernFertilityDashboard = () => {
       setManualT8BaseError('No se pudo borrar el T-8. Inténtalo de nuevo.');
     }
   }, [isManualT8, manualT8BaseValue, manualT8Value, persistManualT8, toast]);
+
+  const handleConfirmT8Action = useCallback(
+    async (action) => {
+      if (!action) return;
+
+      setIsConfirmingT8Action(true);
+
+      try {
+        if (action === 'delete') {
+          await handleDeleteManualT8();
+        } else {
+          await handleResetManualT8();
+        }
+      } finally {
+        setPendingT8Action(null);
+        setIsConfirmingT8Action(false);
+      }
+    },
+    [handleDeleteManualT8, handleResetManualT8]
+  );
 
   const resetStartDateFlow = useCallback(() => {
     setPendingStartDate(null);
@@ -3434,7 +3487,7 @@ const ModernFertilityDashboard = () => {
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={handleDeleteManualCpm}
+                      onClick={() => setPendingCpmAction('delete')}
                       disabled={!canDeleteManualCpm}
                       className="h-8 shrink-0 rounded-full border border-rose-200 px-3 text-xs text-rose-600 hover:bg-rose-50 hover:text-rose-700"
                     >
@@ -3454,16 +3507,54 @@ const ModernFertilityDashboard = () => {
                       </span>
                     </div>
                   )}
+                  
+                  {pendingCpmAction && (
+                    <div className="rounded-2xl border border-rose-100 bg-white/80 px-3 py-3 shadow-sm">
+                      <div className="flex items-start gap-3">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 text-amber-500" aria-hidden="true" />
+                        <div className="space-y-2 text-left">
+                          <p className="text-xs font-semibold text-rose-700">
+                            {pendingCpmAction === 'delete'
+                              ? 'Confirmar borrado de CPM manual'
+                              : 'Restablecer cálculo automático'}
+                          </p>
+                          <p className="text-[11px] text-rose-600">
+                            {pendingCpmAction === 'delete'
+                              ? 'Se eliminará el CPM manual guardado y podrás introducir un nuevo valor o dejar que se calcule automáticamente.'
+                              : 'El CPM manual se borrará y volverás a ver el valor calculado automáticamente con tus ciclos.'}
+                          </p>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              onClick={() => setPendingCpmAction(null)}
+                              className="h-8 rounded-full px-3 text-xs"
+                            >
+                              Cancelar
+                            </Button>
+                            <Button
+                              type="button"
+                              onClick={() => handleConfirmCpmAction(pendingCpmAction)}
+                              disabled={isConfirmingCpmAction}
+                              className="h-8 rounded-full px-4 text-xs"
+                            >
+                              {isConfirmingCpmAction ? 'Aplicando…' : 'Confirmar'}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 </div>
-                              <DialogFooter className="mt-2 flex flex-col gap-3">
+                  <DialogFooter className="mt-2 flex flex-col gap-3">
                   <div className="flex w-full items-center justify-between gap-2">
                     {/* Izquierda: Restablecer automático */}
                     <Button
                       type="button"
                       variant="ghost"
-                      onClick={handleResetManualCpm}
+                      onClick={() => setPendingCpmAction('reset')}
                       disabled={!isManualCpm}
                       className="h-8 rounded-full px-3 text-xs text-pink-600 hover:text-pink-700 disabled:text-gray-400"
                     >
@@ -3665,7 +3756,7 @@ const ModernFertilityDashboard = () => {
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={handleDeleteManualT8}
+                      onClick={() => setPendingT8Action('delete')}
                       disabled={!canDeleteManualT8}
                       className="h-8 shrink-0 rounded-full border border-rose-200 px-3 text-xs text-rose-600 hover:bg-rose-50 hover:text-rose-700"
                     >
@@ -3685,16 +3776,53 @@ const ModernFertilityDashboard = () => {
                       </span>
                     </div>
                   )}
+                  {pendingT8Action && (
+                    <div className="rounded-2xl border border-rose-100 bg-white/80 px-3 py-3 shadow-sm">
+                      <div className="flex items-start gap-3">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 text-amber-500" aria-hidden="true" />
+                        <div className="space-y-2 text-left">
+                          <p className="text-xs font-semibold text-rose-700">
+                            {pendingT8Action === 'delete'
+                              ? 'Confirmar borrado de T-8 manual'
+                              : 'Restablecer cálculo automático'}
+                          </p>
+                          <p className="text-[11px] text-rose-600">
+                            {pendingT8Action === 'delete'
+                              ? 'Se eliminará el T-8 manual guardado y podrás introducir un nuevo valor o dejar que se calcule automáticamente.'
+                              : 'El T-8 manual se borrará y volverás a ver el valor calculado automáticamente con tus ciclos.'}
+                          </p>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              onClick={() => setPendingT8Action(null)}
+                              className="h-8 rounded-full px-3 text-xs"
+                            >
+                              Cancelar
+                            </Button>
+                            <Button
+                              type="button"
+                              onClick={() => handleConfirmT8Action(pendingT8Action)}
+                              disabled={isConfirmingT8Action}
+                              className="h-8 rounded-full px-4 text-xs"
+                            >
+                              {isConfirmingT8Action ? 'Aplicando…' : 'Confirmar'}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
                 </div>
 
-                              </div>
-                              <DialogFooter className="mt-2 flex flex-col gap-3">
+                  <DialogFooter className="mt-2 flex flex-col gap-3">
                   <div className="flex w-full items-center justify-between gap-2">
                     {/* Izquierda: Restablecer automático */}
                     <Button
                       type="button"
                       variant="ghost"
-                      onClick={handleResetManualT8}
+                      onClick={() => setPendingT8Action('reset')}
                       disabled={!isManualT8}
                       className="h-8 rounded-full px-3 text-xs text-pink-600 hover:text-pink-700 disabled:text-gray-400"
                     >

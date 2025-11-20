@@ -353,6 +353,7 @@ const DataEntryFormFields = ({
 
     if (shouldPreferInitial) {
       fallbackSection = initialSectionKey;
+      initializedSectionsRef.current = true;
     } else if (isStoredValid) {
       fallbackSection = storedSection;
     } else {
