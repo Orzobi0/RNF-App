@@ -1124,7 +1124,7 @@ const enterStart = -exitTarget;
   );
 
   const handleEdit = useCallback(
-    (record, sectionKey = null) => openRecordForm(record, null, sectionKey),
+    (record, sectionKey = null, fieldName = null) => openRecordForm(record, fieldName, sectionKey),
     [openRecordForm]
   );
 
@@ -1137,7 +1137,7 @@ const enterStart = -exitTarget;
     setEditingRecord(record);
   }, []);
 
-  const handleAddRecordForDay = useCallback((isoDate) => {
+  const handleAddRecordForDay = useCallback((isoDate, sectionKey = null, fieldName = null) => {
     if (!isoDate) {
       return;
     }
@@ -1145,8 +1145,8 @@ const enterStart = -exitTarget;
     setSelectedDate(isoDate);
     setEditingRecord(null);
     setDefaultFormIsoDate(isoDate);
-    setFocusedField(null);
-    setInitialSectionKey(null);
+    setFocusedField(fieldName);
+    setInitialSectionKey(sectionKey);
     setShowForm(true);
   }, []);
 
@@ -1166,6 +1166,55 @@ const enterStart = -exitTarget;
     setShowForm(true);
   }, [cycleDays, cycle?.startDate, selectedDate]);
 
+  const buildRecordPayloadForDate = useCallback(
+    (isoDate, overrides = {}) => {
+      const existingRecord = cycle?.data?.find((record) => record.isoDate === isoDate) || null;
+      const baseTime = existingRecord?.timestamp && isValid(parseISO(existingRecord.timestamp))
+        ? format(parseISO(existingRecord.timestamp), 'HH:mm')
+        : format(new Date(), 'HH:mm');
+
+      const measurements = existingRecord?.measurements?.length
+        ? existingRecord.measurements.map((measurement, idx) => {
+            const measurementTime =
+              measurement?.time ||
+              (measurement?.timestamp && isValid(parseISO(measurement.timestamp))
+                ? format(parseISO(measurement.timestamp), 'HH:mm')
+                : baseTime);
+
+            return {
+              temperature: measurement?.temperature ?? measurement?.temperature_raw ?? '',
+              temperature_corrected: measurement?.temperature_corrected ?? '',
+              time: measurementTime,
+              time_corrected: measurement?.time_corrected || measurementTime,
+              use_corrected: Boolean(measurement?.use_corrected),
+              selected: Boolean(measurement?.selected ?? idx === 0),
+            };
+          })
+        : [
+            {
+              temperature: '',
+              temperature_corrected: '',
+              time: baseTime,
+              time_corrected: baseTime,
+              use_corrected: false,
+              selected: true,
+            },
+          ];
+
+      return {
+        isoDate,
+        measurements,
+        mucusSensation: existingRecord?.mucusSensation ?? existingRecord?.mucus_sensation ?? '',
+        mucusAppearance: existingRecord?.mucusAppearance ?? existingRecord?.mucus_appearance ?? '',
+        fertility_symbol: existingRecord?.fertility_symbol ?? existingRecord?.fertilitySymbol ?? 'none',
+        observations: existingRecord?.observations ?? '',
+        peak_marker: existingRecord?.peak_marker ?? null,
+        ignored: existingRecord?.ignored ?? false,
+        ...overrides,
+      };
+    },
+    [cycle?.data]
+  );
   const handleSave = async (data, { keepFormOpen = false } = {}) => {
     setIsProcessing(true);
     try {
@@ -1186,6 +1235,32 @@ const enterStart = -exitTarget;
       }
     }
   };
+
+
+   const handleToggleRelations = useCallback(
+    async (isoDate) => {
+      if (!isoDate) {
+        return;
+      }
+
+      const existingRecord = cycle?.data?.find((record) => record.isoDate === isoDate) || null;
+      const hasRelations = Boolean(existingRecord?.had_relations ?? existingRecord?.hadRelations ?? false);
+      const payload = buildRecordPayloadForDate(isoDate, {
+        had_relations: !hasRelations,
+        hadRelations: !hasRelations,
+      });
+
+      setIsProcessing(true);
+      try {
+        await addOrUpdateDataPoint(payload, existingRecord);
+      } catch (error) {
+        toast({ title: 'Error', description: 'No se pudo actualizar RS', variant: 'destructive' });
+      } finally {
+        setIsProcessing(false);
+      }
+    },
+    [addOrUpdateDataPoint, buildRecordPayloadForDate, cycle?.data, toast]
+  );
 
   const confirmDelete = async () => {
     if (!recordToDelete) return;
@@ -1467,6 +1542,7 @@ const enterStart = -exitTarget;
               onEdit={handleEdit}
               onDelete={handleDeleteRequest}
               onAdd={handleAddRecordForDay}
+              onToggleRelations={handleToggleRelations}
               isProcessing={isProcessing}
             />
           )}

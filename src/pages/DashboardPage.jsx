@@ -2283,6 +2283,66 @@ const ModernFertilityDashboard = () => {
     manualT8Value,
   ]);
 
+  const cpmAutomaticValueLabel =
+    formatNumber(cpmInfo.value, { maximumFractionDigits: 1 }) ??
+    (typeof cpmInfo.value === 'number' && Number.isFinite(cpmInfo.value)
+      ? `${cpmInfo.value}`
+      : '—');
+  const cpmManualValueLabel =
+    formatNumber(manualCpmValue, { maximumFractionDigits: 1 }) ??
+    (typeof manualCpmValue === 'number' && Number.isFinite(manualCpmValue)
+      ? `${manualCpmValue}`
+      : '—');
+  const cpmStatusMode = isManualCpm
+    ? 'manual'
+    : cpmInfo.canCompute && typeof cpmInfo.value === 'number' && Number.isFinite(cpmInfo.value)
+      ? 'auto'
+      : 'none';
+  const cpmStatusValueLabel =
+    cpmStatusMode === 'manual'
+      ? `CPM manual: ${cpmManualValueLabel}`
+      : cpmStatusMode === 'auto'
+        ? `CPM automático: ${cpmAutomaticValueLabel}`
+        : '—';
+  const cpmStatusHelperText =
+    cpmStatusMode === 'manual'
+      ? 'Se usa el valor que has introducido manualmente.'
+      : cpmStatusMode === 'auto'
+        ? 'Se usa el valor calculado con tus ciclos.'
+        : 'Este dato no se tendrá en cuenta en la interpretación.';
+  const cpmStatusChipLabel =
+    cpmStatusMode === 'manual' ? 'Manual' : cpmStatusMode === 'auto' ? 'Automático' : 'Sin usar';
+
+  const t8AutomaticValueLabel =
+    formatNumber(computedT8Data.value, { maximumFractionDigits: 0 }) ??
+    (typeof computedT8Data.value === 'number' && Number.isFinite(computedT8Data.value)
+      ? `${computedT8Data.value}`
+      : '—');
+  const t8ManualValueLabel =
+    formatNumber(manualT8Value, { maximumFractionDigits: 0 }) ??
+    (typeof manualT8Value === 'number' && Number.isFinite(manualT8Value)
+      ? `${manualT8Value}`
+      : '—');
+  const t8StatusMode = isManualT8
+    ? 'manual'
+    : computedT8Data.canCompute && typeof computedT8Data.value === 'number' && Number.isFinite(computedT8Data.value)
+      ? 'auto'
+      : 'none';
+  const t8StatusValueLabel =
+    t8StatusMode === 'manual'
+      ? `T-8 manual: Día ${t8ManualValueLabel}`
+      : t8StatusMode === 'auto'
+        ? `T-8 automático: Día ${t8AutomaticValueLabel}`
+        : '—';
+  const t8StatusHelperText =
+    t8StatusMode === 'manual'
+      ? 'Se usa el valor que has introducido manualmente.'
+      : t8StatusMode === 'auto'
+        ? 'Se usa el valor calculado con tus ciclos.'
+        : 'Este dato no se tendrá en cuenta en la interpretación.';
+  const t8StatusChipLabel =
+    t8StatusMode === 'manual' ? 'Manual' : t8StatusMode === 'auto' ? 'Automático' : 'Sin usar';
+
   const resolvedManualCpmSide = useMemo(() => {
     if (manualCpmEditedSide) {
       return manualCpmEditedSide;
@@ -3305,146 +3365,200 @@ const ModernFertilityDashboard = () => {
               <DialogHeader className="space-y-2 text-left">
                 <DialogTitle>Editar CPM</DialogTitle>
                 <DialogDescription>
-                  Personaliza el CPM introduciendo un valor manual. Si no se establece, se calculará automáticamente
+                  Puedes usar el valor calculado automáticamente o fijar un valor manual.
                 </DialogDescription>
               </DialogHeader>
-              <div className="space-y-3">
-                <div className="rounded-2xl border border-rose-100 bg-rose-50/70 px-3 py-2.5 text-[11px] text-rose-900">
-                  <div className="flex items-start gap-2">
-                    <HelpCircle className="mt-0.5 h-4 w-4 text-rose-500" />
-                    <div className="flex-1 space-y-2">
+              <div className="space-y-4">
+                <div className="rounded-2xl border border-rose-100 bg-rose-50/70 px-3 py-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-rose-600">Estado actual</p>
+                      <p className="text-lg font-semibold text-rose-900">{cpmStatusValueLabel}</p>
+                      <p className="text-[11px] text-rose-600">{cpmStatusHelperText}</p>
+                    </div>
+                    <span
+                      className={`rounded-full px-3 py-1 text-[11px] font-semibold ${
+                        cpmStatusMode === 'manual'
+                          ? 'bg-rose-100 text-rose-700'
+                          : cpmStatusMode === 'auto'
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : 'bg-gray-100 text-gray-600'
+                      }`}
+                    >
+                      {cpmStatusChipLabel}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
+                  <div className="flex-1 space-y-3 rounded-2xl border border-rose-100 bg-white/80 px-3 py-3 shadow-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-semibold text-rose-900">Cálculo automático</p>
+                      <span className="text-[11px] font-semibold text-rose-600">
+                        {cpmInfo.canCompute && cpmInfo.value !== null
+                          ? `CPM automático: ${cpmAutomaticValueLabel} días`
+                          : 'No disponible todavía'}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-rose-600">Basado en tus ciclos completados.</p>
+                    {cpmInfo.deduction !== null && (
+                      <p className="text-[11px] text-rose-600">Deducción aplicada: {cpmInfo.deduction} días.</p>
+                    )}
+
+                    <div className="rounded-2xl border border-rose-100 bg-rose-50/70 px-3 py-2.5 text-[11px] text-rose-900">
                       <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-rose-700">
-                        <span>Origen del dato</span>
+                        <span>Datos disponibles</span>
+                        <span className="rounded-full bg-white/70 px-2 py-0.5 text-[11px] font-semibold text-rose-600">
+                          {cpmInfo.highlightLabel}
+                        </span>
+                      </div>
+                      <div className="mt-1 flex flex-wrap items-center gap-1 text-xs text-rose-600">
+                        <span className="font-semibold">Origen del dato:</span>
                         <span className="rounded-full bg-white/70 px-2 py-0.5 text-[11px] font-semibold text-rose-600">
                           {cpmInfo.sourceLabel}
                         </span>
                       </div>
-                      <div className="flex flex-wrap items-center gap-1 text-xs text-rose-600">
-                        <span className="font-semibold">Datos disponibles:</span>
-                        {cpmInfo.detailsAvailable ? (
-                          <button
-                            type="button"
-                            onClick={() => setShowCpmDetails((previous) => !previous)}
-                            className="inline-flex items-center font-semibold text-rose-700 underline decoration-rose-300 underline-offset-2 transition hover:text-rose-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70 rounded-sm"
-                            aria-expanded={showCpmDetails}
-                          >
-                            {cpmInfo.highlightLabel}
-                          </button>
-                        ) : (
-                          <span className="text-rose-500">{cpmInfo.highlightLabel}</span>
-                        )}
-                      </div>
-                      <p className="text-[11px] text-rose-500">{cpmInfo.summary}</p>
-                      {cpmInfo.canCompute && cpmInfo.deduction !== null && (
-                        <p className="text-[11px] text-rose-500">
-                          Deducción aplicada: {cpmInfo.deduction} días.
-                        </p>
+                      <p className="mt-1 text-[11px] text-rose-500">{cpmInfo.summary}</p>
+                      {cpmInfo.detailsAvailable ? (
+                        <button
+                          type="button"
+                          onClick={() => setShowCpmDetails((previous) => !previous)}
+                          className="mt-2 inline-flex items-center text-[11px] font-semibold text-rose-700 underline decoration-rose-300 underline-offset-2 transition hover:text-rose-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70 rounded-sm"
+                          aria-expanded={showCpmDetails}
+                        >
+                          Ver ciclos utilizados
+                        </button>
+                      ) : (
+                        <p className="mt-1 text-[11px] text-rose-500">Aún no hay ciclos finalizados con fecha de finalización.</p>
+                      )}
+                    {showCpmDetails && cpmInfo.detailsAvailable && (
+                        <div className="mt-2 space-y-2">
+                          {cpmInfo.cycles.length > 0 ? (
+                            <ul className="space-y-1">
+                              {cpmInfo.cycles.map((cycle, index) => {
+                                const key =
+                                  cycle.cycleId ||
+                                  cycle.id ||
+                                  `${cycle.displayName || cycle.name || cycle.startDate || 'cycle'}-${index}`;
+                                const durationText =
+                                  typeof cycle.duration === 'number' && Number.isFinite(cycle.duration)
+                                    ? `${cycle.duration} días`
+                                    : 'duración desconocida';
+                                const isShortest = Boolean(cpmInfo.shortestCycle && cpmInfo.shortestCycle === cycle);
+
+                                const cycleId = cycle.cycleId || cycle.id;
+                                const isIgnored = Boolean(cycle.isIgnored || cycle.ignoredForAutoCalculations);
+                                const isPending = cycleId ? pendingIgnoredCycleIds.includes(cycleId) : false;
+
+                                const cardClasses = `rounded-2xl border px-3 py-2 shadow-sm transition hover:border-rose-200 hover:bg-white ${
+                                  isIgnored ? 'border-rose-200 bg-rose-50/80 opacity-80' : 'border-rose-100 bg-white/50'
+                                }`;
+
+                                return (
+                                  <li key={key}>
+                                    <div className="flex items-stretch gap-2">
+                                      <div className={`${cardClasses} flex-1`}>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleNavigateToCycleDetails(cycle)}
+                                          className="block w-full rounded-2xl px-1 py-0.5 text-left transition hover:bg-white/60 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70"
+                                        >
+                                          <div className="flex items-center justify-between gap-2">
+                                            <p className="text-xs font-semibold text-rose-700">
+                                              {cycle.dateRangeLabel || cycle.displayName || cycle.name || 'Ciclo sin nombre'}
+                                            </p>
+                                            <ChevronRight className="h-4 w-4 text-rose-400" aria-hidden="true" />
+                                          </div>
+                                        </button>
+                                        <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-[11px] text-rose-500">
+                                          <span>Duración: {durationText}</span>
+                                          {isShortest && (
+                                            <span className="rounded-full bg-rose-100 px-2 py-0.5 font-semibold text-rose-600">
+                                              Ciclo más corto
+                                            </span>
+                                          )}
+                                        </div>
+                                        {isIgnored && (
+                                          <p className="mt-1 text-[11px] text-rose-400">
+                                            Ignorado para el cálculo automático.
+                                          </p>
+                                        )}
+                                      </div>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="xs"
+                                        disabled={!cycleId || isPending}
+                                        onClick={() => cycleId && handleToggleCycleIgnore(cycleId, !isIgnored)}
+                                        className="shrink-0 self-center h-8 w-8 p-0 bg-transparent border-transparent"
+                                        title={
+                                          isIgnored
+                                            ? 'Incluir ciclo en el cálculo automático'
+                                            : 'Ignorar ciclo para el cálculo automático'
+                                        }
+                                        aria-label={
+                                          isIgnored
+                                            ? 'Incluir ciclo en el cálculo automático'
+                                            : 'Ignorar ciclo para el cálculo automático'
+                                        }
+                                        aria-pressed={isIgnored}
+                                      >
+                                        {isPending ? (
+                                          <>
+                                            <Loader2 className="h-4 w-4 animate-spin text-rose-500" aria-hidden="true" />
+                                            <span className="sr-only">Guardando…</span>
+                                          </>
+                                        ) : isIgnored ? (
+                                          <Ban className="h-4 w-4 text-rose-500" aria-hidden="true" />
+                                        ) : (
+                                          <CheckCircle2 className="h-4 w-4 text-green-800/70" aria-hidden="true" />
+                                        )}
+                                      </Button>
+                                    </div>
+                                    </li>
+                                );
+                              })}
+                            </ul>
+                          ) : (
+                            <p className="text-[11px] text-rose-500">
+                              Aún no hay ciclos finalizados con fecha de finalización.
+                            </p>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>
-                  {showCpmDetails && cpmInfo.detailsAvailable && (
-                    <div className="mt-2 space-y-2">
-                      {cpmInfo.cycles.length > 0 ? (
-                        <ul className="space-y-1">
-                          {cpmInfo.cycles.map((cycle, index) => {
-                            const key =
-                              cycle.cycleId ||
-                              cycle.id ||
-                              `${cycle.displayName || cycle.name || cycle.startDate || 'cycle'}-${index}`;
-                            const durationText =
-                              typeof cycle.duration === 'number' && Number.isFinite(cycle.duration)
-                                ? `${cycle.duration} días`
-                                : 'duración desconocida';
-                            const isShortest = Boolean(cpmInfo.shortestCycle && cpmInfo.shortestCycle === cycle);
-
-                            const cycleId = cycle.cycleId || cycle.id;
-                            const isIgnored = Boolean(cycle.isIgnored || cycle.ignoredForAutoCalculations);
-                            const isPending = cycleId ? pendingIgnoredCycleIds.includes(cycleId) : false;
-
-                            const cardClasses = `rounded-2xl border px-3 py-2 shadow-sm transition hover:border-rose-200 hover:bg-white ${
-                              isIgnored ? 'border-rose-200 bg-rose-50/80 opacity-80' : 'border-rose-100 bg-white/50'
-                            }`;
-
-                            return (
-                              <li key={key}>
-                                <div className="flex items-stretch gap-2">
-                                  <div className={`${cardClasses} flex-1`}>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleNavigateToCycleDetails(cycle)}
-                                      className="block w-full rounded-2xl px-1 py-0.5 text-left transition hover:bg-white/60 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70"
-                                    >
-                                      <div className="flex items-center justify-between gap-2">
-                                        <p className="text-xs font-semibold text-rose-700">
-                                          {cycle.dateRangeLabel || cycle.displayName || cycle.name || 'Ciclo sin nombre'}
-                                        </p>
-                                        <ChevronRight className="h-4 w-4 text-rose-400" aria-hidden="true" />
-                                      </div>
-                                    </button>
-                                    <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-[11px] text-rose-500">
-                                      <span>Duración: {durationText}</span>
-                                      {isShortest && (
-                                        <span className="rounded-full bg-rose-100 px-2 py-0.5 font-semibold text-rose-600">
-                                          Ciclo más corto
-                                        </span>
-                                      )}
-                                    </div>
-                                    {isIgnored && (
-                                      <p className="mt-1 text-[11px] text-rose-400">
-                                        Ignorado para el cálculo automático.
-                                      </p>
-                                    )}
-                                  </div>
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="xs"
-                                    disabled={!cycleId || isPending}
-                                    onClick={() => cycleId && handleToggleCycleIgnore(cycleId, !isIgnored)}
-                                    className="shrink-0 self-center h-8 w-8 p-0 bg-transparent border-transparent"
-                                    title={
-                                      isIgnored
-                                        ? 'Incluir ciclo en el cálculo automático'
-                                        : 'Ignorar ciclo para el cálculo automático'
-                                    }
-                                    aria-label={
-                                      isIgnored
-                                        ? 'Incluir ciclo en el cálculo automático'
-                                        : 'Ignorar ciclo para el cálculo automático'
-                                    }
-                                    aria-pressed={isIgnored}
-                                  >
-                                    {isPending ? (
-                                      <>
-                                        <Loader2 className="h-4 w-4 animate-spin text-rose-500" aria-hidden="true" />
-                                        <span className="sr-only">Guardando…</span>
-                                      </>
-                                    ) : isIgnored ? (
-                                      <Ban className="h-4 w-4 text-rose-500" aria-hidden="true" />
-                                    ) : (
-                                      <CheckCircle2 className="h-4 w-4 text-green-800/70" aria-hidden="true" />
-                                    )}
-                                  </Button>
-                                </div>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      ) : (
-                        <p className="text-[11px] text-rose-500">
-                          Aún no hay ciclos finalizados con fecha de finalización.
-                        </p>
-                      )}
-                    </div>
-                  )}
+                  <div className="flex justify-end sm:w-36 sm:flex-col sm:justify-center">
+                    <Button
+                      type="button"
+                      onClick={() => !cpmInfo.canCompute ? null : handleResetManualCpm()}
+                      disabled={!cpmInfo.canCompute || !isManualCpm}
+                      className={`w-full sm:w-auto rounded-full px-4 text-sm ${
+                        !isManualCpm
+                          ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                          : 'border border-rose-200 text-rose-700 hover:bg-rose-50'
+                      }`}
+                    >
+                      {!isManualCpm ? 'Seleccionado' : 'Seleccionar'}
+                    </Button>
+                    {!cpmInfo.canCompute && (
+                      <p className="mt-2 text-[11px] text-rose-500">Necesitas al menos {cpmInfo.requiredCycles} ciclos para calcularlo.</p>
+                    )}
+                  </div>
                 </div>
-                <div className="space-y-3">
-                  {/* Fila: dos celdas + botón Borrar a la derecha (si entra) */}
-                  <div className="flex flex-wrap items-end gap-2">
-                    <div className="flex-1 grid grid-cols-2 gap-2">
+                
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
+                  <div className="flex-1 space-y-3 rounded-2xl border border-rose-100 bg-white/80 px-3 py-3 shadow-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-semibold text-rose-900">Valor manual</p>
+                      <span className="text-[11px] font-semibold text-rose-500">
+                        Automático actual: {cpmAutomaticValueLabel === '—' ? '—' : `${cpmAutomaticValueLabel} días`}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
                       <div className="space-y-1.5">
                         <Label htmlFor="manual-cpm-base" className="text-xs text-gray-600">
-                          Ciclo más corto
+                          Ciclo más corto (manual)
                         </Label>
                         <Input
                           id="manual-cpm-base"
@@ -3461,10 +3575,9 @@ const ModernFertilityDashboard = () => {
                           <p className="text-xs text-red-500">{manualCpmBaseError}</p>
                         )}
                       </div>
-
                       <div className="space-y-1.5">
                         <Label htmlFor="manual-cpm-final" className="text-xs text-gray-600">
-                          CPM (final)
+                          CPM manual (final)
                         </Label>
                         <Input
                           id="manual-cpm-final"
@@ -3483,109 +3596,155 @@ const ModernFertilityDashboard = () => {
                       </div>
                     </div>
 
-                    {/* Botón Borrar, a la derecha si cabe; si no, baja a la siguiente línea */}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setPendingCpmAction('delete')}
-                      disabled={!canDeleteManualCpm}
-                      className="h-8 shrink-0 rounded-full border border-rose-200 px-3 text-xs text-rose-600 hover:bg-rose-50 hover:text-rose-700"
-                    >
-                      Borrar
-                    </Button>
-                  </div>
-
-                  {manualCpmEditedSide && (
-                    <div className="flex justify-center">
-                      <span
-                        id="manual-cpm-helper"
-                        className="rounded-full bg-rose-50 px-3 py-1 text-xs font-medium text-rose-600"
+                    <div className="flex flex-wrap items-end gap-2">
+                      <div className="flex-1 text-[11px] text-rose-600">
+                        {typeof manualCpmValue === 'number' && Number.isFinite(manualCpmValue) ? (
+                          <p>Valor manual guardado: {cpmManualValueLabel} días.</p>
+                        ) : (
+                          <p>Todavía no has guardado un valor manual.</p>
+                        )}
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setPendingCpmAction('delete')}
+                        disabled={!canDeleteManualCpm}
+                        className="h-8 shrink-0 rounded-full border border-rose-200 px-3 text-xs text-rose-600 hover:bg-rose-50 hover:text-rose-700"
                       >
-                        {manualCpmEditedSide === 'base'
-                          ? 'Usando Ciclo más corto como base'
-                          : 'Usando CPM (final)'}
-                      </span>
+                        Borrar
+                      </Button>
                     </div>
-                  )}
                   
-                  {pendingCpmAction && (
-                    <div className="rounded-2xl border border-rose-100 bg-white/80 px-3 py-3 shadow-sm">
-                      <div className="flex items-start gap-3">
-                        <AlertTriangle className="mt-0.5 h-4 w-4 text-amber-500" aria-hidden="true" />
-                        <div className="space-y-2 text-left">
-                          <p className="text-xs font-semibold text-rose-700">
-                            {pendingCpmAction === 'delete'
-                              ? 'Confirmar borrado de CPM manual'
-                              : 'Restablecer cálculo automático'}
-                          </p>
-                          <p className="text-[11px] text-rose-600">
-                            {pendingCpmAction === 'delete'
-                              ? 'Se eliminará el CPM manual guardado y podrás introducir un nuevo valor o dejar que se calcule automáticamente.'
-                              : 'El CPM manual se borrará y volverás a ver el valor calculado automáticamente con tus ciclos.'}
-                          </p>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              onClick={() => setPendingCpmAction(null)}
-                              className="h-8 rounded-full px-3 text-xs"
-                            >
-                              Cancelar
-                            </Button>
-                            <Button
-                              type="button"
-                              onClick={() => handleConfirmCpmAction(pendingCpmAction)}
-                              disabled={isConfirmingCpmAction}
-                              className="h-8 rounded-full px-4 text-xs"
-                            >
-                              {isConfirmingCpmAction ? 'Aplicando…' : 'Confirmar'}
-                            </Button>
+                    {manualCpmEditedSide && (
+                      <div className="flex justify-center">
+                        <span
+                          id="manual-cpm-helper"
+                          className="rounded-full bg-rose-50 px-3 py-1 text-xs font-medium text-rose-600"
+                        >
+                          {manualCpmEditedSide === 'base'
+                            ? 'Usando Ciclo más corto como base'
+                            : 'Usando CPM (final)'}
+                        </span>
+                      </div>
+                    )}
+
+                    {pendingCpmAction && (
+                      <div className="rounded-2xl border border-rose-100 bg-white/80 px-3 py-3 shadow-sm">
+                        <div className="flex items-start gap-3">
+                          <AlertTriangle className="mt-0.5 h-4 w-4 text-amber-500" aria-hidden="true" />
+                          <div className="space-y-2 text-left">
+                            <p className="text-xs font-semibold text-rose-700">
+                              {pendingCpmAction === 'delete'
+                                ? 'Confirmar borrado de CPM manual'
+                                : 'Restablecer cálculo automático'}
+                            </p>
+                            <p className="text-[11px] text-rose-600">
+                              {pendingCpmAction === 'delete'
+                                ? 'Se eliminará el CPM manual guardado y podrás introducir un nuevo valor o dejar que se calcule automáticamente.'
+                                : 'El CPM manual se borrará y volverás a ver el valor calculado automáticamente con tus ciclos.'}
+                            </p>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                onClick={() => setPendingCpmAction(null)}
+                                className="h-8 rounded-full px-3 text-xs"
+                              >
+                                Cancelar
+                              </Button>
+                              <Button
+                                type="button"
+                                onClick={() => handleConfirmCpmAction(pendingCpmAction)}
+                                disabled={isConfirmingCpmAction}
+                                className="h-8 rounded-full px-4 text-xs"
+                              >
+                                {isConfirmingCpmAction ? 'Aplicando…' : 'Confirmar'}
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-
-                </div>
-                  <DialogFooter className="mt-2 flex flex-col gap-3">
-                  <div className="flex w-full items-center justify-between gap-2">
-                    {/* Izquierda: Restablecer automático */}
+                    )}
+                  </div>
+                  <div className="flex justify-end sm:w-36 sm:flex-col sm:justify-center">
                     <Button
                       type="button"
-                      variant="ghost"
-                      onClick={() => setPendingCpmAction('reset')}
-                      disabled={!isManualCpm}
-                      className="h-8 rounded-full px-3 text-xs text-pink-600 hover:text-pink-700 disabled:text-gray-400"
+                      onClick={handleSaveManualCpm}
+                      disabled={isManualCpmSaveDisabled}
+                      className={`w-full sm:w-auto rounded-full px-4 text-sm ${
+                        isManualCpm
+                          ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                          : 'border border-rose-200 text-rose-700 hover:bg-rose-50'
+                      }`}
                     >
-                      Restablecer automático
+                      {isManualCpm ? 'Seleccionado' : 'Seleccionar'}
                     </Button>
+                    {isManualCpmSaveDisabled && !isManualCpm && (
+                      <p className="mt-2 text-[11px] text-rose-500">Introduce un valor válido antes de seleccionar.</p>
+                    )}
+                  </div>
+                </div>
 
-                    {/* Derecha: Cancelar + Guardar */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-col gap-2 rounded-2xl border border-dashed border-rose-200 bg-white/70 px-3 py-3 text-left">
+                  <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-rose-900">No usar ningún valor</p>
+                      <p className="text-[11px] text-rose-600">
+                        Puedes dejar este dato sin usar. No se tendrá en cuenta en la interpretación del ciclo.
+                      </p>
+                    </div>
+                    <div className="flex justify-end sm:w-36 sm:flex-col">
                       <Button
                         type="button"
-                        variant="secondary"
-                        onClick={handleCloseCpmDialog}
-                        className="h-8 rounded-full px-4 text-xs"
+                        variant="outline"
+                        onClick={() => setPendingCpmAction('delete')}
+                        disabled={!manualCpmValue && !isManualCpm}
+                        className={`w-full sm:w-auto rounded-full px-4 text-sm ${
+                          !manualCpmValue && !isManualCpm
+                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                            : ''
+                        }`}
                       >
-                        Cancelar
-                      </Button>
-                      <Button
-                        type="button"
-                        onClick={handleSaveManualCpm}
-                        disabled={isManualCpmSaveDisabled}
-                        className="h-8 rounded-full px-4 text-xs"
-                      >
-                        Guardar
+                        {!manualCpmValue && !isManualCpm ? 'Seleccionado' : 'Seleccionar'}
                       </Button>
                     </div>
                   </div>
-                </DialogFooter>
-
-
+                </div>
+              </div>
+              <DialogFooter className="mt-4 flex flex-col gap-3">
+                <div className="flex w-full items-center justify-between gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setPendingCpmAction('reset')}
+                    disabled={!isManualCpm}
+                    className="h-8 rounded-full px-3 text-xs text-pink-600 hover:text-pink-700 disabled:text-gray-400"
+                  >
+                    Restablecer automático
+                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={handleCloseCpmDialog}
+                      className="h-8 rounded-full px-4 text-xs"
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={handleSaveManualCpm}
+                      disabled={isManualCpmSaveDisabled}
+                      className="h-8 rounded-full px-4 text-xs"
+                    >
+                      Guardar
+                    </Button>
+                  </div>
+                </div>
+              </DialogFooter>
             </DialogContent>
           </Dialog>
+
           <Dialog
             open={isT8DialogOpen}
             onOpenChange={(open) => {
@@ -3598,33 +3757,72 @@ const ModernFertilityDashboard = () => {
               <DialogHeader className="space-y-2 text-left">
                 <DialogTitle>Editar T-8</DialogTitle>
                 <DialogDescription>
-                  Personaliza el T-8 introduciendo un valor manual. Si no se establece, se calculará automáticamente.
+                  Puedes usar el valor calculado automáticamente o fijar un valor manual.
                 </DialogDescription>
               </DialogHeader>
-              <div className="space-y-3">
-                <div className="rounded-2xl border border-rose-100 bg-rose-50/70 px-3 py-2.5 text-[11px] text-rose-900">
-                  <div className="flex items-start gap-2">
-                    <HelpCircle className="mt-0.5 h-4 w-4 text-rose-500" />
+              <div className="space-y-4">
+                <div className="rounded-2xl border border-rose-100 bg-rose-50/70 px-3 py-3">
+                  <div className="flex items-start justify-between gap-3">
                     <div className="space-y-1">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-rose-600">Estado actual</p>
+                      <p className="text-lg font-semibold text-rose-900">{t8StatusValueLabel}</p>
+                      <p className="text-[11px] text-rose-600">{t8StatusHelperText}</p>
+                    </div>
+                    <span
+                      className={`rounded-full px-3 py-1 text-[11px] font-semibold ${
+                        t8StatusMode === 'manual'
+                          ? 'bg-rose-100 text-rose-700'
+                          : t8StatusMode === 'auto'
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : 'bg-gray-100 text-gray-600'
+                      }`}
+                    >
+                      {t8StatusChipLabel}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
+                  <div className="flex-1 space-y-3 rounded-2xl border border-rose-100 bg-white/80 px-3 py-3 shadow-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-semibold text-rose-900">Cálculo automático</p>
+                      <span className="text-[11px] font-semibold text-rose-600">
+                        {computedT8Data.canCompute && computedT8Data.value !== null
+                          ? `T-8 automático: Día ${t8AutomaticValueLabel}`
+                          : 'No disponible todavía'}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-rose-600">Basado en tus ciclos completados.</p>
+
+                    <div className="rounded-2xl border border-rose-100 bg-rose-50/70 px-3 py-2.5 text-[11px] text-rose-900">
                       <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-rose-700">
-                        <span>Origen del dato</span>
+                        <span>Datos disponibles</span>
+                        <span className="rounded-full bg-white/70 px-2 py-0.5 text-[11px] font-semibold text-rose-600">
+                          {t8Info.highlightLabel}
+                        </span>
+                      </div>
+                      <div className="mt-1 flex flex-wrap items-center gap-1 text-xs text-rose-600">
+                        <span className="font-semibold">Origen del dato:</span>
                         <span className="rounded-full bg-white/70 px-2 py-0.5 text-[11px] font-semibold text-rose-600">
                           {t8Info.sourceLabel}
                         </span>
                       </div>
-                      <div className="flex flex-wrap items-center gap-1 text-xs text-rose-600">
-                        <span className="font-semibold">Datos disponibles:</span>
+                      <p className="mt-1 text-[11px] text-rose-500">{t8Info.summary}</p>
+                      {computedT8Data.cycleCount > 0 ? (
                         <button
                           type="button"
                           onClick={() => setShowT8Details((previous) => !previous)}
-                          className="inline-flex items-center font-semibold text-rose-700 underline decoration-rose-300 underline-offset-2 transition hover:text-rose-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70 rounded-sm"
+                          className="mt-2 inline-flex items-center text-[11px] font-semibold text-rose-700 underline decoration-rose-300 underline-offset-2 transition hover:text-rose-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70 rounded-sm"
                           aria-expanded={showT8Details}
                         >
-                          {t8Info.highlightLabel}
+                          Ver ciclos utilizados
                         </button>
-                        </div>
-                      <p className="text-[11px] text-rose-500">{t8Info.summary}</p>
-                      {showT8Details && (
+                        ) : (
+                        <p className="mt-1 text-[11px] text-rose-500">
+                          Aún no hay ciclos con ovulación confirmada por temperatura.
+                        </p>
+                      )}
+                      {showT8Details && computedT8Data.cycleCount > 0 && (
                         <div className="mt-2 space-y-2">
                           {computedT8Data.cyclesConsidered.length > 0 ? (
                             <ul className="space-y-1">
@@ -3682,20 +3880,20 @@ const ModernFertilityDashboard = () => {
                                         aria-pressed={isIgnored}
                                       >
                                         {isPending ? (
-                                           <>
-                                           <Loader2 className="h-4 w-4 animate-spin text-rose-500" aria-hidden="true" />
-                                           <span className="sr-only">Guardando…</span>
-                                            </>
-                                            ) : isIgnored ? (
-                                            <Ban className="h-4 w-4 text-rose-500" aria-hidden="true" />
-                                            ) : (
-                                              <CheckCircle2 className="h-4 w-4 text-green-800/70" aria-hidden="true" />
-                                              )}
+                                          <>
+                                            <Loader2 className="h-4 w-4 animate-spin text-rose-500" aria-hidden="true" />
+                                            <span className="sr-only">Guardando…</span>
+                                          </>
+                                        ) : isIgnored ? (
+                                          <Ban className="h-4 w-4 text-rose-500" aria-hidden="true" />
+                                        ) : (
+                                          <CheckCircle2 className="h-4 w-4 text-green-800/70" aria-hidden="true" />
+                                        )}
                                       </Button>
                                     </div>
                                   </li>
                                 );
-                          })}
+                              })}
                             </ul>
                           ) : (
                             <p className="text-[11px] text-rose-500">
@@ -3706,14 +3904,37 @@ const ModernFertilityDashboard = () => {
                       )}
                     </div>
                   </div>
+                  <div className="flex justify-end sm:w-36 sm:flex-col sm:justify-center">
+                    <Button
+                      type="button"
+                      onClick={() => !computedT8Data.canCompute ? null : handleResetManualT8()}
+                      disabled={!computedT8Data.canCompute || !isManualT8}
+                      className={`w-full sm:w-auto rounded-full px-4 text-sm ${
+                        !isManualT8
+                          ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                          : 'border border-rose-200 text-rose-700 hover:bg-rose-50'
+                      }`}
+                    >
+                      {!isManualT8 ? 'Seleccionado' : 'Seleccionar'}
+                    </Button>
+                    {!computedT8Data.canCompute && (
+                      <p className="mt-2 text-[11px] text-rose-500">Necesitas al menos {t8Info.requiredCycles} ciclos para calcularlo.</p>
+                    )}
+                  </div>
                 </div>
-                <div className="space-y-3">
-                  {/* Fila: dos celdas + botón Borrar a la derecha (si entra) */}
-                  <div className="flex flex-wrap items-end gap-2">
-                    <div className="flex-1 grid grid-cols-2 gap-2">
+
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
+                  <div className="flex-1 space-y-3 rounded-2xl border border-rose-100 bg-white/80 px-3 py-3 shadow-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-semibold text-rose-900">Valor manual</p>
+                      <span className="text-[11px] font-semibold text-rose-500">
+                        Automático actual: {t8AutomaticValueLabel === '—' ? '—' : `Día ${t8AutomaticValueLabel}`}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
                       <div className="space-y-1.5">
                         <Label htmlFor="manual-t8-base" className="text-xs text-gray-600">
-                          Día de subida
+                          Día de subida manual
                         </Label>
                         <Input
                           id="manual-t8-base"
@@ -3733,7 +3954,7 @@ const ModernFertilityDashboard = () => {
 
                       <div className="space-y-1.5">
                         <Label htmlFor="manual-t8-final" className="text-xs text-gray-600">
-                          T-8 (final)
+                          T-8 manual (final)
                         </Label>
                         <Input
                           id="manual-t8-final"
@@ -3752,106 +3973,154 @@ const ModernFertilityDashboard = () => {
                       </div>
                     </div>
 
-                    {/* Botón Borrar, alineado a la derecha si puede */}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setPendingT8Action('delete')}
-                      disabled={!canDeleteManualT8}
-                      className="h-8 shrink-0 rounded-full border border-rose-200 px-3 text-xs text-rose-600 hover:bg-rose-50 hover:text-rose-700"
-                    >
-                      Borrar
-                    </Button>
-                  </div>
-
-                  {manualT8EditedSide && (
-                    <div className="flex justify-center">
-                      <span
-                        id="manual-t8-helper"
-                        className="rounded-full bg-rose-50 px-3 py-1 text-xs font-medium text-rose-600"
+                    <div className="flex flex-wrap items-end gap-2">
+                      <div className="flex-1 text-[11px] text-rose-600">
+                        {typeof manualT8Value === 'number' && Number.isFinite(manualT8Value) ? (
+                          <p>Valor manual guardado: Día {t8ManualValueLabel}.</p>
+                        ) : (
+                          <p>Todavía no has guardado un valor manual.</p>
+                        )}
+                        <p className="text-[11px] text-rose-500">
+                          Si seleccionas «Valor manual», RNF usará este número en lugar del cálculo automático.
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setPendingT8Action('delete')}
+                        disabled={!canDeleteManualT8}
+                        className="h-8 shrink-0 rounded-full border border-rose-200 px-3 text-xs text-rose-600 hover:bg-rose-50 hover:text-rose-700"
                       >
-                        {manualT8EditedSide === 'base'
-                          ? 'Usando Día de subida como base'
-                          : 'Usando T-8 (final)'}
-                      </span>
+                        Borrar
+                      </Button>
                     </div>
-                  )}
-                  {pendingT8Action && (
-                    <div className="rounded-2xl border border-rose-100 bg-white/80 px-3 py-3 shadow-sm">
-                      <div className="flex items-start gap-3">
-                        <AlertTriangle className="mt-0.5 h-4 w-4 text-amber-500" aria-hidden="true" />
-                        <div className="space-y-2 text-left">
-                          <p className="text-xs font-semibold text-rose-700">
-                            {pendingT8Action === 'delete'
-                              ? 'Confirmar borrado de T-8 manual'
-                              : 'Restablecer cálculo automático'}
-                          </p>
-                          <p className="text-[11px] text-rose-600">
-                            {pendingT8Action === 'delete'
-                              ? 'Se eliminará el T-8 manual guardado y podrás introducir un nuevo valor o dejar que se calcule automáticamente.'
-                              : 'El T-8 manual se borrará y volverás a ver el valor calculado automáticamente con tus ciclos.'}
-                          </p>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              onClick={() => setPendingT8Action(null)}
-                              className="h-8 rounded-full px-3 text-xs"
-                            >
-                              Cancelar
-                            </Button>
-                            <Button
-                              type="button"
-                              onClick={() => handleConfirmT8Action(pendingT8Action)}
-                              disabled={isConfirmingT8Action}
-                              className="h-8 rounded-full px-4 text-xs"
-                            >
-                              {isConfirmingT8Action ? 'Aplicando…' : 'Confirmar'}
-                            </Button>
+                  
+                    {manualT8EditedSide && (
+                      <div className="flex justify-center">
+                        <span
+                          id="manual-t8-helper"
+                          className="rounded-full bg-rose-50 px-3 py-1 text-xs font-medium text-rose-600"
+                        >
+                          {manualT8EditedSide === 'base'
+                            ? 'Usando Día de subida como base'
+                            : 'Usando T-8 (final)'}
+                        </span>
+                      </div>
+                    )}
+                    {pendingT8Action && (
+                      <div className="rounded-2xl border border-rose-100 bg-white/80 px-3 py-3 shadow-sm">
+                        <div className="flex items-start gap-3">
+                          <AlertTriangle className="mt-0.5 h-4 w-4 text-amber-500" aria-hidden="true" />
+                          <div className="space-y-2 text-left">
+                            <p className="text-xs font-semibold text-rose-700">
+                              {pendingT8Action === 'delete'
+                                ? 'Confirmar borrado de T-8 manual'
+                                : 'Restablecer cálculo automático'}
+                            </p>
+                            <p className="text-[11px] text-rose-600">
+                              {pendingT8Action === 'delete'
+                                ? 'Se eliminará el T-8 manual guardado y podrás introducir un nuevo valor o dejar que se calcule automáticamente.'
+                                : 'El T-8 manual se borrará y volverás a ver el valor calculado automáticamente con tus ciclos.'}
+                            </p>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                onClick={() => setPendingT8Action(null)}
+                                className="h-8 rounded-full px-3 text-xs"
+                              >
+                                Cancelar
+                              </Button>
+                              <Button
+                                type="button"
+                                onClick={() => handleConfirmT8Action(pendingT8Action)}
+                                disabled={isConfirmingT8Action}
+                                className="h-8 rounded-full px-4 text-xs"
+                              >
+                                {isConfirmingT8Action ? 'Aplicando…' : 'Confirmar'}
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-                </div>
-
-                  <DialogFooter className="mt-2 flex flex-col gap-3">
-                  <div className="flex w-full items-center justify-between gap-2">
-                    {/* Izquierda: Restablecer automático */}
+                    )}
+                  </div>
+                  <div className="flex justify-end sm:w-36 sm:flex-col sm:justify-center">
                     <Button
                       type="button"
-                      variant="ghost"
-                      onClick={() => setPendingT8Action('reset')}
-                      disabled={!isManualT8}
-                      className="h-8 rounded-full px-3 text-xs text-pink-600 hover:text-pink-700 disabled:text-gray-400"
+                      onClick={handleSaveManualT8}
+                      disabled={isManualT8SaveDisabled}
+                      className={`w-full sm:w-auto rounded-full px-4 text-sm ${
+                        isManualT8
+                          ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                          : 'border border-rose-200 text-rose-700 hover:bg-rose-50'
+                      }`}
                     >
-                      Restablecer automático
+                      {isManualT8 ? 'Seleccionado' : 'Seleccionar'}
                     </Button>
+                    {isManualT8SaveDisabled && !isManualT8 && (
+                      <p className="mt-2 text-[11px] text-rose-500">Introduce un valor válido antes de seleccionar.</p>
+                    )}
+                  </div>
+                </div>
 
-                    {/* Derecha: Cancelar + Guardar */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-col gap-2 rounded-2xl border border-dashed border-rose-200 bg-white/70 px-3 py-3 text-left">
+                  <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-rose-900">No usar ningún valor</p>
+                      <p className="text-[11px] text-rose-600">
+                        Puedes dejar este dato sin usar. No se tendrá en cuenta en la interpretación del ciclo.
+                      </p>
+                    </div>
+                    <div className="flex justify-end sm:w-36 sm:flex-col">
                       <Button
                         type="button"
-                        variant="secondary"
-                        onClick={handleCloseT8Dialog}
-                        className="h-8 rounded-full px-4 text-xs"
+                        variant="outline"
+                        onClick={() => setPendingT8Action('delete')}
+                        disabled={!manualT8Value && !isManualT8}
+                        className={`w-full sm:w-auto rounded-full px-4 text-sm ${
+                          !manualT8Value && !isManualT8
+                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                            : ''
+                        }`}
                       >
-                        Cancelar
-                      </Button>
-                      <Button
-                        type="button"
-                        onClick={handleSaveManualT8}
-                        disabled={isManualT8SaveDisabled}
-                        className="h-8 rounded-full px-4 text-xs"
-                      >
-                        Guardar
+                        {!manualT8Value && !isManualT8 ? 'Seleccionado' : 'Seleccionar'}
                       </Button>
                     </div>
                   </div>
-                </DialogFooter>
-
-
+                </div>
+              </div>
+              <DialogFooter className="mt-4 flex flex-col gap-3">
+                <div className="flex w-full items-center justify-between gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setPendingT8Action('reset')}
+                    disabled={!isManualT8}
+                    className="h-8 rounded-full px-3 text-xs text-pink-600 hover:text-pink-700 disabled:text-gray-400"
+                  >
+                    Restablecer automático
+                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={handleCloseT8Dialog}
+                      className="h-8 rounded-full px-4 text-xs"
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={handleSaveManualT8}
+                      disabled={isManualT8SaveDisabled}
+                      className="h-8 rounded-full px-4 text-xs"
+                    >
+                      Guardar
+                    </Button>
+                  </div>
+                </div>
+              </DialogFooter>
             </DialogContent>
           </Dialog>
           <Dialog

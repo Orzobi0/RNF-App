@@ -24,6 +24,7 @@ const DayDetail = ({
   onEdit,
   onDelete,
   onAdd,
+  onToggleRelations,
   isProcessing,
 }) => {
   const hasRecord = Boolean(details?.record);
@@ -55,6 +56,22 @@ const DayDetail = ({
   const handleAdd = () => {
     if (!isoDate || !onAdd) return;
     onAdd(isoDate);
+  };
+
+  const handleSectionOpen = (sectionKey, fieldName = null) => {
+    if (details?.record && onEdit) {
+      onEdit(details.record, sectionKey, fieldName);
+      return;
+    }
+
+    if (isoDate && onAdd) {
+      onAdd(isoDate, sectionKey, fieldName);
+    }
+  };
+
+  const handleRelationsToggle = () => {
+    if (!isoDate || !onToggleRelations) return;
+    onToggleRelations(isoDate);
   };
 
   const renderChipValue = (value, options = {}) => {
@@ -115,9 +132,11 @@ const DayDetail = ({
           {cycleDay ? ` · D${cycleDay}` : ''}
         </p>
         <div className="ml-auto flex items-center gap-2">
-          <div
+          <button
+            type="button"
+            onClick={() => handleSectionOpen('symbol', 'fertilitySymbol')}
             className={cn(
-              'flex h-7 w-7 items-center justify-center rounded-full border shadow-inner',
+              'flex h-7 w-7 items-center justify-center rounded-full border shadow-inner transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200',
               getSymbolClasses(),
               symbolPatternClass
             )}
@@ -177,9 +196,12 @@ const DayDetail = ({
       <div className="mt-4 space-y-3">
         {/* Fila 1: temperatura + hora (dos columnas fijas) */}
         <div className="grid grid-cols-2 gap-3">
-          <div
+          <button
+            type="button"
+            onClick={() => handleSectionOpen('temperature', 'temperature')}
             className={cn(
               chipBaseClass,
+              'text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200',
               details?.hasTemperature
                 ? 'border-orange-100 bg-orange-50 text-orange-800'
                 : 'border-orange-50 bg-orange-50 text-slate-400'
@@ -197,10 +219,13 @@ const DayDetail = ({
                 />
               )}
             </div>
-          </div>
-          <div
+          </button>
+          <button
+            type="button"
+            onClick={() => handleSectionOpen('temperature', 'time')}
             className={cn(
               chipBaseClass,
+              'text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200',
               hasTimeValue
                 ? 'border-slate-200 bg-slate-50 text-slate-800'
                 : 'border-slate-200 bg-slate-50 text-slate-400'
@@ -210,14 +235,17 @@ const DayDetail = ({
             <span className="font-semibold">
               {renderChipValue(timeValue)}
             </span>
-          </div>
+          </button>
         </div>
 
         {/* Fila 2: moco (sensación mitad izquierda, apariencia mitad derecha) */}
         <div className="grid grid-cols-2 gap-3">
-          <div
+          <button
+            type="button"
+            onClick={() => handleSectionOpen('sensation', 'mucusSensation')}
             className={cn(
               chipBaseClass,
+              'text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200',
               details?.hasMucusSensation
                 ? 'border-sky-100 bg-sky-50 text-sky-800'
                 : 'border-sky-50 bg-sky-50 text-slate-400'
@@ -227,10 +255,13 @@ const DayDetail = ({
             <span className="font-semibold">
               {renderChipValue(mucusSensationValue)}
             </span>
-          </div>
-          <div
+          </button>
+          <button
+            type="button"
+            onClick={() => handleSectionOpen('appearance', 'mucusAppearance')}
             className={cn(
               chipBaseClass,
+              'text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200',
               details?.hasMucusAppearance
                 ? 'border-emerald-100 bg-emerald-50 text-emerald-800'
                 : 'border-emerald-50 bg-emerald-50 text-slate-400'
@@ -240,15 +271,17 @@ const DayDetail = ({
             <span className="font-semibold">
               {renderChipValue(mucusAppearanceValue)}
             </span>
-          </div>
+          </button>
         </div>
 
         {/* Fila 3: observaciones (ancho fijo, siempre igual) + RS */}
         <div className="flex items-center gap-3">
-          <div
+          <button
+            type="button"
+            onClick={() => handleSectionOpen('observations', 'observations')}
             className={cn(
               chipBaseClass,
-              'flex-1 min-w-0',
+              'flex-1 min-w-0 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200',
               observationsValue
                 ? 'border-violet-100 bg-violet-50 text-violet-800'
                 : 'border-violet-100 bg-violet-50 text-slate-400'
@@ -258,11 +291,15 @@ const DayDetail = ({
             <span className="truncate">
               {renderChipValue(observationsValue, { placeholder: '-' })}
             </span>
-          </div>
-          <div
+          </button>
+          <button
+            type="button"
+            onClick={handleRelationsToggle}
+            disabled={isProcessing}
             className={cn(
-              'flex h-10 w-10 items-center justify-center rounded-full border transition-colors',
-              hasRelations ? 'border-rose-500 bg-rose-50' : 'border-slate-200 bg-white'
+              'flex h-10 w-10 items-center justify-center rounded-full border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200',
+              hasRelations ? 'border-rose-500 bg-rose-50' : 'border-slate-200 bg-white',
+              isProcessing && 'opacity-70 cursor-not-allowed'
             )}
             title={hasRelations ? 'Hubo relaciones' : 'Sin relaciones'}
             aria-label={hasRelations ? 'Hubo relaciones' : 'Sin relaciones'}
@@ -273,7 +310,7 @@ const DayDetail = ({
                 hasRelations ? 'text-rose-500 fill-current' : 'text-slate-300'
               )}
             />
-          </div>
+          </button>
         </div>
       </div>
     </div>
