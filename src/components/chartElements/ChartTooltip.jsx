@@ -114,7 +114,10 @@ const ChartTooltip = ({
   const fallbackTime = directTimeCandidates.find(Boolean) ?? formatTimestampTime(point.timestamp);
   const temperatureTime = measurementTime ?? fallbackTime;
   const fertilityAssessment = point.fertilityAssessment ?? null;
-  const showFertilityStatus = Boolean(fertilityAssessment);
+  const showFertilityStatus =
+    Boolean(fertilityAssessment) &&
+    fertilityAssessment?.showFertilityStatus !== false &&
+    !point.isFutureDay;
   const fertilityHeader = fertilityAssessment?.header ?? null;
   const fertilityTitle = fertilityAssessment?.title ?? fertilityAssessment?.label ?? null;
   const fertilityBody = fertilityAssessment?.body ?? fertilityAssessment?.summaryText ?? null;

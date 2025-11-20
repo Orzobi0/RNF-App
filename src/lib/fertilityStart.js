@@ -1,4 +1,4 @@
-import { differenceInCalendarDays, parseISO } from 'date-fns';
+import { differenceInCalendarDays, format, parseISO } from 'date-fns';
 
 const SCORE_MAP = {
   0: 0,
@@ -854,6 +854,16 @@ export const computeFertilityStartOutput = ({
     }
   };
 
+  const formatDateLabel = (idx) => {
+    const date = parseEntryDate(idx);
+    if (!date) return null;
+    try {
+      return format(date, 'dd/MM');
+    } catch (error) {
+      return null;
+    }
+  };
+
   const findStatusIndex = (status) => {
     if (!status) return null;
     for (let idx = 0; idx < days.length; idx += 1) {
@@ -950,25 +960,55 @@ export const computeFertilityStartOutput = ({
       ? lastIndex
       : null;
 
-    const PROFILE_LABELS = {
+  const PROFILE_LABELS = {
     conservador: 'modo conservador',
     consenso: 'modo consenso',
     permisivo: 'modo permisivo',
     marcador: 'marcador explícito',
   };
 
-    const profileMode = aggregate?.selectedMode ?? combineMode ?? 'conservador';
-  const profileLabel = PROFILE_LABELS[profileMode] ?? profileMode;
-  const fertileHeaderText = `Fase fértil abierta (perfil: ${profileLabel}).`;
+  const profileMode = aggregate?.selectedMode ?? combineMode ?? 'conservador';
+  const usedCandidates = aggregate?.usedCandidates ?? [];
+  const hasProfileSource = usedCandidates.some((candidate) => candidate?.kind === 'profile');
+  const hasCalculatorSource = usedCandidates.some((candidate) => candidate?.kind === 'calculator');
+  const hasMucusObservations = days.some(
+    (day) => day?.entryFlags?.hasAppearance || day?.entryFlags?.hasSensation || day?.symbolDetected
+  );
 
-  const infertileTitle = 'Fase infértil';
+  let fertileHeaderText = `Fase fértil abierta (perfil: ${PROFILE_LABELS[profileMode] ?? profileMode}).`;
+  if (profileMode === 'marcador') {
+    fertileHeaderText = 'Fase fértil abierta (ajustada por tus marcadores).';
+  } else if (hasProfileSource && hasMucusObservations) {
+    fertileHeaderText = 'Fase fértil abierta (basada en tus observaciones de moco).';
+  } else if (hasCalculatorSource && !hasProfileSource) {
+    fertileHeaderText = 'Inicio fértil estimado por calculadora (según tus ciclos anteriores).';
+  }
+
+  const infertileTitleAbsolute = 'Fase de infertilidad absoluta confirmada(postovulatoria)';
   const infertileDetailText = closureDetail ?? 'criterio indeterminado';
-  const infertileBody = `Ventana cerrada por doble criterio: ${infertileDetailText}.`;
+  const infertileBodyAbsolute = `Ventana cerrada por doble criterio: ${infertileDetailText}.`;
   const referencePeakIndex = clampIndexWithin(effectivePeakIndex);
 
-    const dailyAssessments = new Array(days.length).fill(null);
+  const hasMucusClosure = pPlus3Index != null || pPlus4Index != null;
+  const hasTemperatureClosure = tPlus3Index != null;
+  const hasAbsoluteClosure = hasMucusClosure && hasTemperatureClosure;
+
+  const peakDateLabel = formatDateLabel(referencePeakIndex);
+  const temperatureDateLabel = formatDateLabel(tPlus3Index);
+  const infertileTitleMucus = 'Fase de infertilidad postovulatoria (método moco)';
+  const infertileBodyMucus = peakDateLabel
+    ? `Fase de infertilidad alcanzada por determinación de día pico el ${peakDateLabel}.`
+    : 'Fase de infertilidad alcanzada por determinación de día pico.';
+  const infertileTitleTemperature = 'Ovulación confirmada por temperatura';
+  const infertileBodyTemperature = temperatureDateLabel
+    ? `Ovulación confirmada por temperatura el ${temperatureDateLabel}. La fase de infertilidad absoluta está pendiente de determinar día pico (si se registra).`
+    : 'Ovulación confirmada por temperatura. La fase de infertilidad absoluta está pendiente de determinar día pico (si se registra).';
+
+  const dailyAssessments = new Array(days.length).fill(null);
   let lastRecordedLevel = null;
   let gapCount = 0;
+  let lastStrongIndex = null;
+  const stateOrder = { inicio: 0, aumento: 1, alta: 2, muyAlta: 3 };
 
   const buildReasonsList = (day) => {
     if (!day) return [];
@@ -1008,17 +1048,38 @@ export const computeFertilityStartOutput = ({
       windowEndIndex != null &&
       i >= fertileStartIndex &&
       i <= windowEndIndex;
+    const isFutureDay = Number.isInteger(todayIndex) && todayIndex != null ? i > todayIndex : false;
 
     if (!isWithinFertile) {
       gapCount = 0;
       lastRecordedLevel = null;
 
       if (windowEndIndex != null && i > windowEndIndex) {
+        if (!hasMucusClosure && !hasTemperatureClosure) {
+          dailyAssessments[i] = null;
+          continue;
+        }
+
         const hasRecord = Boolean(day.entryFlags?.hasAny);
         const note = !hasRecord ? 'Sin registro hoy; estimación basada en días adyacentes.' : null;
+        let infertileTitle = infertileTitleAbsolute;
+        let infertileBody = infertileBodyAbsolute;
+        let infertileStatus = 'absolute';
+
+        if (!hasAbsoluteClosure && hasMucusClosure) {
+          infertileTitle = infertileTitleMucus;
+          infertileBody = infertileBodyMucus;
+          infertileStatus = 'mucus';
+        } else if (!hasAbsoluteClosure && hasTemperatureClosure) {
+          infertileTitle = infertileTitleTemperature;
+          infertileBody = infertileBodyTemperature;
+          infertileStatus = 'temperature';
+        }
+
         dailyAssessments[i] = {
           index: i,
           state: 'infertil',
+          status: infertileStatus,
           title: infertileTitle,
           header: infertileTitle,
           body: infertileBody,
@@ -1031,6 +1092,7 @@ export const computeFertilityStartOutput = ({
           summaryText: infertileBody,
           reasonsList: [],
           reasonsText: '',
+          showFertilityStatus: !isFutureDay,
         };
       }
       continue;
@@ -1088,6 +1150,27 @@ export const computeFertilityStartOutput = ({
     const deltaLabel = deltaFromPeak != null ? formatPeakDelta(deltaFromPeak) : null;
     const note = !hasRecord ? 'Sin registro hoy; estimación basada en días adyacentes.' : null;
 
+    if (state !== 'waiting') {
+      if (deltaFromPeak === 0 || deltaFromPeak === 1 || deltaFromPeak === 2) {
+        state = 'muyAlta';
+        effectiveLevel = Math.max(effectiveLevel, 3);
+      } else if (deltaFromPeak === 3) {
+        if (stateOrder[state] < stateOrder.alta) {
+          state = 'alta';
+        }
+        effectiveLevel = Math.max(effectiveLevel, 2);
+      } else if (lastStrongIndex != null && i - lastStrongIndex <= 3) {
+        if (stateOrder[state] < stateOrder.aumento) {
+          state = 'aumento';
+        }
+        effectiveLevel = Math.max(effectiveLevel, 1);
+      }
+    }
+
+    if (state === 'alta' || state === 'muyAlta' || strongSigns) {
+      lastStrongIndex = i;
+    }
+
     let title;
     let body;
 
@@ -1113,9 +1196,22 @@ export const computeFertilityStartOutput = ({
       }
       case 'inicio':
       default:
-        title = 'Inicio de fase fértil';
-        body = 'Se inicia la ventana fértil. Signos ausentes o muy leves.';
+        title = 'Ventana fértil abierta';
+        body = 'Hoy sin signos destacables, a la espera de registrar más datos.';
         break;
+    }
+
+    if (!hasRecord) {
+      if (state === 'alta') {
+        title = 'Fertilidad estimada alta';
+        body = `${body} Sin datos apuntados este día; se estima en base a días cercanos.`;
+      } else if (state === 'muyAlta') {
+        title = 'Fertilidad estimada muy alta';
+        body = `${body} Sin datos apuntados este día; se estima en base a días cercanos.`;
+      } else if (state === 'aumento' || state === 'inicio') {
+        title = 'Ventana fértil abierta (sin registro hoy)';
+        body = `${body} Sin datos apuntados este día; se estima en base a días cercanos.`;
+      }
     }
 
     const assessment = {
@@ -1134,6 +1230,7 @@ export const computeFertilityStartOutput = ({
       label: title,
       summaryText: body,
       delta: deltaLabel,
+      showFertilityStatus: !isFutureDay,
       reasonParts: {
         symbol: day.symbolDetected ?? null,
         appearance: day.descriptors?.appearance ?? null,

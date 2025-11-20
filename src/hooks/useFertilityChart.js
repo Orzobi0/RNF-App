@@ -739,11 +739,15 @@ export const useFertilityChart = (
     () =>
       processedData.map((entry, index) => {
         if (!entry) return entry;
+        const isFutureDay = Number.isInteger(todayIndex) ? index > todayIndex : false;
         const assessment = fertilityStart?.dailyAssessments?.[index] ?? null;
-        if (!assessment) return entry;
-        return { ...entry, fertilityAssessment: assessment };
+        const mergedAssessment = assessment
+          ? { ...assessment, showFertilityStatus: assessment.showFertilityStatus !== false && !isFutureDay }
+          : null;
+        if (!mergedAssessment) return { ...entry, isFutureDay };
+        return { ...entry, fertilityAssessment: mergedAssessment, isFutureDay };
       }),
-    [processedData, fertilityStart]
+    [processedData, fertilityStart, todayIndex]
   );
 
   const allDataPoints = useMemo(

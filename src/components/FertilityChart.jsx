@@ -335,8 +335,8 @@ const FertilityChart = ({
     let startIndex = null;
     let status = 'pending';
     let message = '';
-    let label = 'Infértil';
-    let tooltip = 'Infértil (postovulatoria pendiente, a la espera del segundo criterio)';
+    let label = 'Postovulatoria (pendiente)';
+    let tooltip = 'Postovulatoria pendiente, a la espera del segundo criterio.';
 
     if (hasTemperatureClosure && hasMucusClosure) {
       startIndex = Math.max(temperatureDetails.startIndex, mucusDetails.startIndex);
@@ -350,11 +350,15 @@ const FertilityChart = ({
       const confirmationDay = temperatureDetails.confirmationIndex != null
         ? `D${temperatureDetails.confirmationIndex + 1}`
         : '—';
-      message = `Cierre pendiente: falta moco. Temperatura con regla ${ruleLabel} confirmada en ${confirmationDay}.`;
+      message = `Postovulatoria (pendiente): falta moco. Temperatura con regla ${ruleLabel} confirmada en ${confirmationDay}.`;
+      tooltip = message;
+      label = 'Postovulatoria (temperatura)';
     } else {
       startIndex = mucusDetails.startIndex;
       const mucusRuleLabel = mucusDetails.thirdDayIndex != null ? '3° día' : 'P+4';
-      message = `Cierre pendiente: falta temperatura. Moco vía ${mucusRuleLabel}.`;
+      message = `Postovulatoria (pendiente): falta temperatura (método moco alcanzado vía ${mucusRuleLabel}).`;
+      tooltip = message;
+      label = 'Postovulatoria (moco)';
     }
 
     return {
@@ -465,7 +469,11 @@ const hasPostPhase = Number.isFinite(postOvulatoryPhaseInfo?.startIndex);
         Number.isFinite(postOvulatoryPhaseInfo.startIndex) &&
         postOvulatoryPhaseInfo.startIndex <= lastIndex
       ) {
-        const bounds = getSegmentBounds(postOvulatoryPhaseInfo.startIndex, lastIndex);
+        const postEnd =
+          postOvulatoryPhaseInfo.status === 'absolute'
+            ? lastIndex
+            : Math.min(lastIndex, phaseRenderLimit);
+        const bounds = getSegmentBounds(postOvulatoryPhaseInfo.startIndex, postEnd);
         if (bounds) {
           segments.push({
             key: 'post',
@@ -473,7 +481,7 @@ const hasPostPhase = Number.isFinite(postOvulatoryPhaseInfo?.startIndex);
             status: postOvulatoryPhaseInfo.status,
             bounds,
             startIndex: postOvulatoryPhaseInfo.startIndex,
-            endIndex: lastIndex,
+            endIndex: postEnd,
             displayLabel: postOvulatoryPhaseInfo.label,
             tooltip: postOvulatoryPhaseInfo.tooltip,
             message: postOvulatoryPhaseInfo.message,
@@ -572,10 +580,11 @@ const hasPostPhase = Number.isFinite(postOvulatoryPhaseInfo?.startIndex);
       Number.isFinite(postOvulatoryPhaseInfo.startIndex) &&
       postOvulatoryPhaseInfo.startIndex <= lastIndex
     ) {
-      const bounds = getSegmentBounds(
-        postOvulatoryPhaseInfo.startIndex,
-        lastIndex
-      );
+      const postEnd =
+        postOvulatoryPhaseInfo.status === 'absolute'
+          ? lastIndex
+          : Math.min(lastIndex, phaseRenderLimit);
+      const bounds = getSegmentBounds(postOvulatoryPhaseInfo.startIndex, postEnd);
       if (bounds) {
         segments.push({
           key: 'post',
@@ -583,7 +592,7 @@ const hasPostPhase = Number.isFinite(postOvulatoryPhaseInfo?.startIndex);
           status: postOvulatoryPhaseInfo.status,
           bounds,
           startIndex: postOvulatoryPhaseInfo.startIndex,
-          endIndex: lastIndex,
+          endIndex: postEnd,
           displayLabel: postOvulatoryPhaseInfo.label,
           tooltip: postOvulatoryPhaseInfo.tooltip,
           message: postOvulatoryPhaseInfo.message,
