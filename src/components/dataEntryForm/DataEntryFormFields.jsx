@@ -347,11 +347,11 @@ const DataEntryFormFields = ({
     previousIsoDateRef.current = selectedIsoDate;
 
     const hasInitialSection = Boolean(initialSectionKey && sectionKeys.includes(initialSectionKey));
-    const shouldUseInitial = dateChanged && hasInitialSection;
+    const shouldPreferInitial = hasInitialSection && (dateChanged || initialSectionKey !== storedSection);
 
     let fallbackSection = null;
 
-    if (shouldUseInitial) {
+    if (shouldPreferInitial) {
       fallbackSection = initialSectionKey;
     } else if (isStoredValid) {
       fallbackSection = storedSection;
@@ -366,6 +366,7 @@ const DataEntryFormFields = ({
 
     lastActivePerDateRef.current.set(storageKey, fallbackSection);
     setActiveSection((current) => (current === fallbackSection ? current : fallbackSection));
+    pendingScrollTargetRef.current = fallbackSection;
   }, [date, sectionKeys, selectedIsoDate, initialSectionKey]);
 
   useEffect(() => {

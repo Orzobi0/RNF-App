@@ -2316,6 +2316,10 @@ const ModernFertilityDashboard = () => {
     resolvedManualCpmSide,
   ]);
 
+  const canDeleteManualCpm = useMemo(() => {
+    return Boolean(isManualCpm || manualCpmBaseInput.trim() || manualCpmFinalInput.trim());
+  }, [isManualCpm, manualCpmBaseInput, manualCpmFinalInput]);
+
   const resolvedManualT8Side = useMemo(() => {
     if (manualT8EditedSide) {
       return manualT8EditedSide;
@@ -2353,6 +2357,10 @@ const ModernFertilityDashboard = () => {
     manualT8FinalInput,
     resolvedManualT8Side,
   ]);
+
+  const canDeleteManualT8 = useMemo(() => {
+    return Boolean(isManualT8 || manualT8BaseInput.trim() || manualT8FinalInput.trim());
+  }, [isManualT8, manualT8BaseInput, manualT8FinalInput]);
 
   const handleNavigateToCycleDetails = useCallback((cycle) => {
     if (!cycle) {
@@ -2626,6 +2634,36 @@ const ModernFertilityDashboard = () => {
     }
   }, [isManualCpm, manualCpmBaseValue, manualCpmValue, persistManualCpm, toast]);
 
+  const handleDeleteManualCpm = useCallback(async () => {
+    const previousValue = manualCpmValue;
+    const previousIsManual = isManualCpm;
+    const previousBaseValue = manualCpmBaseValue;
+
+    setManualCpmValue(null);
+    setManualCpmBaseValue(null);
+    setIsManualCpm(false);
+    setManualCpmBaseInput('');
+    setManualCpmFinalInput('');
+    setManualCpmBaseError('');
+    setManualCpmFinalError('');
+    setManualCpmEditedSide(null);
+
+    try {
+      await persistManualCpm({ finalValue: null, baseValue: null });
+      toast({
+        title: 'CPM borrado',
+        description:
+          'El valor manual se eliminó. Puedes guardar un nuevo valor o continuar con el cálculo automático.',
+      });
+    } catch (error) {
+      console.error('Failed to delete manual CPM value', error);
+      setManualCpmValue(previousValue);
+      setManualCpmBaseValue(previousBaseValue);
+      setIsManualCpm(previousIsManual);
+      setManualCpmFinalError('No se pudo borrar el CPM. Inténtalo de nuevo.');
+    }
+  }, [isManualCpm, manualCpmBaseValue, manualCpmValue, persistManualCpm, toast]);
+
   const handleOpenT8Dialog = useCallback(() => {
     const automaticBase =
       typeof computedT8Data.earliestCycle?.riseDay === 'number' &&
@@ -2842,6 +2880,36 @@ const ModernFertilityDashboard = () => {
       setManualT8BaseValue(previousBaseValue);
       setIsManualT8(previousIsManual);
       setManualT8BaseValue(previousBaseValue);
+    }
+  }, [isManualT8, manualT8BaseValue, manualT8Value, persistManualT8, toast]);
+
+  const handleDeleteManualT8 = useCallback(async () => {
+    const previousValue = manualT8Value;
+    const previousIsManual = isManualT8;
+    const previousBaseValue = manualT8BaseValue;
+
+    setManualT8Value(null);
+    setManualT8BaseValue(null);
+    setIsManualT8(false);
+    setManualT8BaseInput('');
+    setManualT8FinalInput('');
+    setManualT8BaseError('');
+    setManualT8FinalError('');
+    setManualT8EditedSide(null);
+
+    try {
+      await persistManualT8({ finalValue: null, baseValue: null });
+      toast({
+        title: 'T-8 borrado',
+        description:
+          'El valor manual se eliminó. Puedes guardar un nuevo valor o continuar con el cálculo automático.',
+      });
+    } catch (error) {
+      console.error('Failed to delete manual T-8 value', error);
+      setManualT8Value(previousValue);
+      setManualT8BaseValue(previousBaseValue);
+      setIsManualT8(previousIsManual);
+      setManualT8BaseError('No se pudo borrar el T-8. Inténtalo de nuevo.');
     }
   }, [isManualT8, manualT8BaseValue, manualT8Value, persistManualT8, toast]);
 
@@ -3280,7 +3348,7 @@ const ModernFertilityDashboard = () => {
                                     size="xs"
                                     disabled={!cycleId || isPending}
                                     onClick={() => cycleId && handleToggleCycleIgnore(cycleId, !isIgnored)}
-                                    className="shrink-0 self-center h-8 w-8 p-0"
+                                    className="shrink-0 self-center h-8 w-8 p-0 bg-transparent border-transparent"
                                     title={
                                       isIgnored
                                         ? 'Incluir ciclo en el cálculo automático'
@@ -3301,7 +3369,7 @@ const ModernFertilityDashboard = () => {
                                     ) : isIgnored ? (
                                       <Ban className="h-4 w-4 text-rose-500" aria-hidden="true" />
                                     ) : (
-                                      <CheckCircle2 className="h-4 w-4 text-rose-500" aria-hidden="true" />
+                                      <CheckCircle2 className="h-4 w-4 text-green-800/70" aria-hidden="true" />
                                     )}
                                   </Button>
                                 </div>
@@ -3318,46 +3386,62 @@ const ModernFertilityDashboard = () => {
                   )}
                 </div>
                 <div className="space-y-3">
-                  <div className="flex flex-col gap-3 sm:flex-row">
-                    <div className="flex-1 space-y-1.5">
-                      <Label htmlFor="manual-cpm-base" className="text-xs text-gray-600">
-                        Ciclo más corto
-                      </Label>
-                      <Input
-                        id="manual-cpm-base"
-                        type="number"
-                        inputMode="numeric"
-                        step="1"
-                        min="0"
-                        value={manualCpmBaseInput}
-                        onChange={handleManualCpmBaseInputChange}
-                        placeholder="Introduce un entero"
-                        aria-describedby={manualCpmEditedSide ? 'manual-cpm-helper' : undefined}
-                      />
-                      {manualCpmBaseError && (
-                        <p className="text-xs text-red-500">{manualCpmBaseError}</p>
-                      )}
+                  {/* Fila: dos celdas + botón Borrar a la derecha (si entra) */}
+                  <div className="flex flex-wrap items-end gap-2">
+                    <div className="flex-1 grid grid-cols-2 gap-2">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="manual-cpm-base" className="text-xs text-gray-600">
+                          Ciclo más corto
+                        </Label>
+                        <Input
+                          id="manual-cpm-base"
+                          type="number"
+                          inputMode="numeric"
+                          step="1"
+                          min="0"
+                          value={manualCpmBaseInput}
+                          onChange={handleManualCpmBaseInputChange}
+                          placeholder="Introduce un entero"
+                          aria-describedby={manualCpmEditedSide ? 'manual-cpm-helper' : undefined}
+                        />
+                        {manualCpmBaseError && (
+                          <p className="text-xs text-red-500">{manualCpmBaseError}</p>
+                        )}
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label htmlFor="manual-cpm-final" className="text-xs text-gray-600">
+                          CPM (final)
+                        </Label>
+                        <Input
+                          id="manual-cpm-final"
+                          type="number"
+                          inputMode="decimal"
+                          step="0.1"
+                          min="0"
+                          value={manualCpmFinalInput}
+                          onChange={handleManualCpmFinalInputChange}
+                          placeholder="Introduce el valor"
+                          aria-describedby={manualCpmEditedSide ? 'manual-cpm-helper' : undefined}
+                        />
+                        {manualCpmFinalError && (
+                          <p className="text-xs text-red-500">{manualCpmFinalError}</p>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex-1 space-y-1.5">
-                      <Label htmlFor="manual-cpm-final" className="text-xs text-gray-600">
-                        CPM (final)
-                      </Label>
-                      <Input
-                        id="manual-cpm-final"
-                        type="number"
-                        inputMode="decimal"
-                        step="0.1"
-                        min="0"
-                        value={manualCpmFinalInput}
-                        onChange={handleManualCpmFinalInputChange}
-                        placeholder="Introduce el valor"
-                        aria-describedby={manualCpmEditedSide ? 'manual-cpm-helper' : undefined}
-                      />
-                      {manualCpmFinalError && (
-                        <p className="text-xs text-red-500">{manualCpmFinalError}</p>
-                      )}
-                    </div>
+
+                    {/* Botón Borrar, a la derecha si cabe; si no, baja a la siguiente línea */}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleDeleteManualCpm}
+                      disabled={!canDeleteManualCpm}
+                      className="h-8 shrink-0 rounded-full border border-rose-200 px-3 text-xs text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                    >
+                      Borrar
+                    </Button>
                   </div>
+
                   {manualCpmEditedSide && (
                     <div className="flex justify-center">
                       <span
@@ -3371,26 +3455,44 @@ const ModernFertilityDashboard = () => {
                     </div>
                   )}
                 </div>
-              </div>
-              <DialogFooter className="sm:flex-row sm:items-center sm:justify-between">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={handleResetManualCpm}
-                  disabled={!isManualCpm}
-                  className="text-pink-600 hover:text-pink-700 disabled:text-gray-400"
-                >
-                  Restablecer automático
-                </Button>
-                <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
-                  <Button type="button" variant="secondary" onClick={handleCloseCpmDialog}>
-                    Cancelar
-                  </Button>
-                  <Button type="button" onClick={handleSaveManualCpm} disabled={isManualCpmSaveDisabled}>
-                    Guardar
-                  </Button>
+
                 </div>
-              </DialogFooter>
+                              <DialogFooter className="mt-2 flex flex-col gap-3">
+                  <div className="flex w-full items-center justify-between gap-2">
+                    {/* Izquierda: Restablecer automático */}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={handleResetManualCpm}
+                      disabled={!isManualCpm}
+                      className="h-8 rounded-full px-3 text-xs text-pink-600 hover:text-pink-700 disabled:text-gray-400"
+                    >
+                      Restablecer automático
+                    </Button>
+
+                    {/* Derecha: Cancelar + Guardar */}
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={handleCloseCpmDialog}
+                        className="h-8 rounded-full px-4 text-xs"
+                      >
+                        Cancelar
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={handleSaveManualCpm}
+                        disabled={isManualCpmSaveDisabled}
+                        className="h-8 rounded-full px-4 text-xs"
+                      >
+                        Guardar
+                      </Button>
+                    </div>
+                  </div>
+                </DialogFooter>
+
+
             </DialogContent>
           </Dialog>
           <Dialog
@@ -3483,7 +3585,7 @@ const ModernFertilityDashboard = () => {
                                         size="icon"
                                         disabled={!cycleId || isPending}
                                         onClick={() => cycleId && handleToggleCycleIgnore(cycleId, !isIgnored)}
-                                        className="shrink-0 self-center h-8 w-8 p-0"
+                                        className="shrink-0 self-center h-8 w-8 p-0 bg-transparent border-transparent"
                                         title={isIgnored ? 'Incluir ciclo en el cálculo automático' : 'Ignorar ciclo para el cálculo automático'}
                                         aria-label={isIgnored ? 'Incluir ciclo en el cálculo automático' : 'Ignorar ciclo para el cálculo automático'}
                                         aria-pressed={isIgnored}
@@ -3496,7 +3598,7 @@ const ModernFertilityDashboard = () => {
                                             ) : isIgnored ? (
                                             <Ban className="h-4 w-4 text-rose-500" aria-hidden="true" />
                                             ) : (
-                                              <CheckCircle2 className="h-4 w-4 text-rose-500" aria-hidden="true" />
+                                              <CheckCircle2 className="h-4 w-4 text-green-800/70" aria-hidden="true" />
                                               )}
                                       </Button>
                                     </div>
@@ -3515,46 +3617,62 @@ const ModernFertilityDashboard = () => {
                   </div>
                 </div>
                 <div className="space-y-3">
-                  <div className="flex flex-col gap-3 sm:flex-row">
-                    <div className="flex-1 space-y-1.5">
-                      <Label htmlFor="manual-t8-base" className="text-xs text-gray-600">
-                        Día de subida
-                      </Label>
-                      <Input
-                        id="manual-t8-base"
-                        type="number"
-                        inputMode="numeric"
-                        step="1"
-                        min="1"
-                        value={manualT8BaseInput}
-                        onChange={handleManualT8BaseInputChange}
-                        placeholder="Introduce un entero"
-                        aria-describedby={manualT8EditedSide ? 'manual-t8-helper' : undefined}
-                      />
-                      {manualT8BaseError && (
-                        <p className="text-xs text-red-500">{manualT8BaseError}</p>
-                      )}
+                  {/* Fila: dos celdas + botón Borrar a la derecha (si entra) */}
+                  <div className="flex flex-wrap items-end gap-2">
+                    <div className="flex-1 grid grid-cols-2 gap-2">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="manual-t8-base" className="text-xs text-gray-600">
+                          Día de subida
+                        </Label>
+                        <Input
+                          id="manual-t8-base"
+                          type="number"
+                          inputMode="numeric"
+                          step="1"
+                          min="1"
+                          value={manualT8BaseInput}
+                          onChange={handleManualT8BaseInputChange}
+                          placeholder="Introduce un entero"
+                          aria-describedby={manualT8EditedSide ? 'manual-t8-helper' : undefined}
+                        />
+                        {manualT8BaseError && (
+                          <p className="text-xs text-red-500">{manualT8BaseError}</p>
+                        )}
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label htmlFor="manual-t8-final" className="text-xs text-gray-600">
+                          T-8 (final)
+                        </Label>
+                        <Input
+                          id="manual-t8-final"
+                          type="number"
+                          inputMode="numeric"
+                          step="1"
+                          min="1"
+                          value={manualT8FinalInput}
+                          onChange={handleManualT8FinalInputChange}
+                          placeholder="Introduce el valor"
+                          aria-describedby={manualT8EditedSide ? 'manual-t8-helper' : undefined}
+                        />
+                        {manualT8FinalError && (
+                          <p className="text-xs text-red-500">{manualT8FinalError}</p>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex-1 space-y-1.5">
-                      <Label htmlFor="manual-t8-final" className="text-xs text-gray-600">
-                        T-8 (final)
-                      </Label>
-                      <Input
-                        id="manual-t8-final"
-                        type="number"
-                        inputMode="numeric"
-                        step="1"
-                        min="1"
-                        value={manualT8FinalInput}
-                        onChange={handleManualT8FinalInputChange}
-                        placeholder="Introduce el valor"
-                        aria-describedby={manualT8EditedSide ? 'manual-t8-helper' : undefined}
-                      />
-                      {manualT8FinalError && (
-                        <p className="text-xs text-red-500">{manualT8FinalError}</p>
-                      )}
-                    </div>
+
+                    {/* Botón Borrar, alineado a la derecha si puede */}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleDeleteManualT8}
+                      disabled={!canDeleteManualT8}
+                      className="h-8 shrink-0 rounded-full border border-rose-200 px-3 text-xs text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                    >
+                      Borrar
+                    </Button>
                   </div>
+
                   {manualT8EditedSide && (
                     <div className="flex justify-center">
                       <span
@@ -3568,26 +3686,44 @@ const ModernFertilityDashboard = () => {
                     </div>
                   )}
                 </div>
-              </div>
-              <DialogFooter className="sm:flex-row sm:items-center sm:justify-between">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={handleResetManualT8}
-                  disabled={!isManualT8}
-                  className="text-pink-600 hover:text-pink-700 disabled:text-gray-400"
-                >
-                  Restablecer automático
-                </Button>
-                <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
-                  <Button type="button" variant="secondary" onClick={handleCloseT8Dialog}>
-                    Cancelar
-                  </Button>
-                  <Button type="button" onClick={handleSaveManualT8} disabled={isManualT8SaveDisabled}>
-                    Guardar
-                  </Button>
-                </div>
-              </DialogFooter>
+
+                              </div>
+                              <DialogFooter className="mt-2 flex flex-col gap-3">
+                  <div className="flex w-full items-center justify-between gap-2">
+                    {/* Izquierda: Restablecer automático */}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={handleResetManualT8}
+                      disabled={!isManualT8}
+                      className="h-8 rounded-full px-3 text-xs text-pink-600 hover:text-pink-700 disabled:text-gray-400"
+                    >
+                      Restablecer automático
+                    </Button>
+
+                    {/* Derecha: Cancelar + Guardar */}
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={handleCloseT8Dialog}
+                        className="h-8 rounded-full px-4 text-xs"
+                      >
+                        Cancelar
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={handleSaveManualT8}
+                        disabled={isManualT8SaveDisabled}
+                        className="h-8 rounded-full px-4 text-xs"
+                      >
+                        Guardar
+                      </Button>
+                    </div>
+                  </div>
+                </DialogFooter>
+
+
             </DialogContent>
           </Dialog>
           <Dialog
