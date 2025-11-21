@@ -38,6 +38,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { computeOvulationMetrics } from '@/hooks/useFertilityChart';
 import { saveUserMetricsSnapshot } from '@/lib/userMetrics';
+import { MANUAL_CPM_DEDUCTION, buildCpmMetric } from '@/lib/metrics/cpm';
+import { buildT8Metric } from '@/lib/metrics/t8';
 
 const CycleOverviewCard = ({
   cycleData,
@@ -2128,190 +2130,31 @@ const ModernFertilityDashboard = () => {
     return value.toLocaleString('es-ES', options);
   }, []);
 
-  const cpmDeductionValue = useMemo(() => {
-    if (
-      typeof computedCpmData.deduction === 'number' &&
-      Number.isFinite(computedCpmData.deduction)
-    ) {
-      return computedCpmData.deduction;
-    }
+    const cpmMetric = useMemo(
+    () =>
+      buildCpmMetric({
+        computedCpmData,
+        cpmSelection,
+        isManualCpm,
+        manualCpmBaseValue,
+        manualCpmValue,
+        formatNumber,
+      }),
+    [computedCpmData, cpmSelection, formatNumber, isManualCpm, manualCpmBaseValue, manualCpmValue]
+  );
 
-    const cycleCount = computedCpmData.cycleCount ?? 0;
-    return cycleCount >= 12 ? 20 : 21;
-  }, [computedCpmData.cycleCount, computedCpmData.deduction]);
-
-  const shouldUseManualCpm = isManualCpm && cpmSelection === 'manual';
-  const shouldUseAutoCpm = cpmSelection === 'auto';
-  const isCpmIgnored = cpmSelection === 'none';
-
-  const cpmMetric = useMemo(() => {
-    const automaticBase =
-      typeof computedCpmData.shortestCycle?.duration === 'number' &&
-      Number.isFinite(computedCpmData.shortestCycle.duration)
-        ? computedCpmData.shortestCycle.duration
-        : null;
-    const automaticFinal =
-      typeof computedCpmData.value === 'number' && Number.isFinite(computedCpmData.value)
-        ? computedCpmData.value
-        : null;
-
-  const baseValue = shouldUseManualCpm
-      ? manualCpmBaseValue
-      : shouldUseAutoCpm
-        ? automaticBase
-        : null;
-    const finalValue = shouldUseManualCpm
-      ? manualCpmValue
-      : shouldUseAutoCpm
-        ? automaticFinal
-        : null;
-
-    const baseFormatted = formatNumber(baseValue, { maximumFractionDigits: 0 });
-    const finalFormatted = formatNumber(finalValue, { maximumFractionDigits: 2 });
-
-    const baseText = `Ciclo más corto: ${baseFormatted ?? '—'}`;
-    const finalText = `CPM = ${finalFormatted ?? '—'}`;
-
-    let microCopy = 'Sin datos disponibles';
-    let microCopyMuted = true;
-
-    if (typeof finalValue === 'number' && Number.isFinite(finalValue)) {
-      if (shouldUseManualCpm) {
-        if (typeof manualCpmBaseValue === 'number' && Number.isFinite(manualCpmBaseValue)) {
-          const baseLabel =
-            formatNumber(manualCpmBaseValue, { maximumFractionDigits: 0 }) ??
-            `${manualCpmBaseValue}`;
-          microCopy = `${baseLabel} − ${cpmDeductionValue}`;
-          microCopyMuted = false;
-        } else {
-          microCopy = 'Valor definido manualmente';
-          microCopyMuted = true;
-        }
-      } else if (shouldUseAutoCpm && typeof automaticBase === 'number' && Number.isFinite(automaticBase)) {
-        const baseLabel =
-          formatNumber(automaticBase, { maximumFractionDigits: 0 }) ?? `${automaticBase}`;
-        microCopy = `${baseLabel} − ${cpmDeductionValue}`;
-        microCopyMuted = false;
-      }
-    }
-
-    if (typeof finalValue !== 'number' || !Number.isFinite(finalValue)) {
-      microCopy = 'Sin datos disponibles';
-      microCopyMuted = true;
-    }
-
-    return {
-      title: 'CPM',
-      baseText,
-      finalText,
-      microCopy,
-      microCopyMuted,
-      modeLabel: isCpmIgnored ? 'Sin usar' : shouldUseManualCpm ? 'Manual' : 'Auto',
-      microCopyId: 'cpm-metric-microcopy',
-      baseValue,
-      finalValue,
-      baseFormatted,
-      finalFormatted,
-      isManual: shouldUseManualCpm,
-    };
-  }, [
-    computedCpmData,
-    cpmDeductionValue,
-    formatNumber,
-    isCpmIgnored,
-    manualCpmBaseValue,
-    manualCpmValue,
-    shouldUseAutoCpm,
-    shouldUseManualCpm,
-  ]);
-
-  const shouldUseManualT8 = isManualT8 && t8Selection === 'manual';
-  const shouldUseAutoT8 = t8Selection === 'auto';
-  const isT8Ignored = t8Selection === 'none';
-
-  const t8Metric = useMemo(() => {
-    const automaticRiseDay =
-      typeof computedT8Data.earliestCycle?.riseDay === 'number' &&
-      Number.isFinite(computedT8Data.earliestCycle.riseDay)
-        ? computedT8Data.earliestCycle.riseDay
-        : null;
-    const automaticFinal =
-      typeof computedT8Data.value === 'number' && Number.isFinite(computedT8Data.value)
-        ? computedT8Data.value
-        : null;
-
-  const baseValue = shouldUseManualT8
-      ? manualT8BaseValue
-      : shouldUseAutoT8
-        ? automaticRiseDay
-        : null;
-    const finalValue = shouldUseManualT8
-      ? manualT8Value
-      : shouldUseAutoT8
-        ? automaticFinal
-        : null;
-
-    const baseFormatted = formatNumber(baseValue, { maximumFractionDigits: 0 });
-    const finalFormatted = formatNumber(finalValue, { maximumFractionDigits: 0 });
-
-    const baseText = `Día de subida: ${baseFormatted ?? '—'}`;
-    const finalText = `T-8 = ${finalFormatted ?? '—'}`;
-
-    let microCopy = 'Sin datos disponibles';
-    let microCopyMuted = true;
-
-    if (typeof finalValue === 'number' && Number.isFinite(finalValue)) {
-      if (shouldUseManualT8) {
-        if (typeof manualT8BaseValue === 'number' && Number.isFinite(manualT8BaseValue)) {
-          const baseLabel =
-            formatNumber(manualT8BaseValue, { maximumFractionDigits: 0 }) ??
-            `${manualT8BaseValue}`;
-          microCopy = `${baseLabel} − 8`;
-          microCopyMuted = false;
-        } else {
-          microCopy = 'Valor definido manualmente';
-          microCopyMuted = true;
-        }
-      } else if (
-        shouldUseAutoT8 &&
-        typeof automaticRiseDay === 'number' &&
-        Number.isFinite(automaticRiseDay)
-      ) {
-        const baseLabel =
-          formatNumber(automaticRiseDay, { maximumFractionDigits: 0 }) ?? `${automaticRiseDay}`;
-        microCopy = `${baseLabel} − 8`;
-        microCopyMuted = false;
-      }
-    }
-
-    if (typeof finalValue !== 'number' || !Number.isFinite(finalValue)) {
-      microCopy = 'Sin datos disponibles';
-      microCopyMuted = true;
-    }
-
-    return {
-      title: 'T-8',
-      baseText,
-      finalText,
-      microCopy,
-      microCopyMuted,
-      modeLabel: isT8Ignored ? 'Sin usar' : shouldUseManualT8 ? 'Manual' : 'Auto',
-      microCopyId: 't8-metric-microcopy',
-      baseValue,
-      finalValue,
-      baseFormatted,
-      finalFormatted,
-      isManual: shouldUseManualT8,
-    };
-  }, [
-    computedT8Data,
-    formatNumber,
-    isT8Ignored,
-    manualT8BaseValue,
-    manualT8Value,
-    shouldUseAutoT8,
-    shouldUseManualT8,
-  ]);
+  const t8Metric = useMemo(
+    () =>
+      buildT8Metric({
+        computedT8Data,
+        t8Selection,
+        isManualT8,
+        manualT8BaseValue,
+        manualT8Value,
+        formatNumber,
+      }),
+    [computedT8Data, formatNumber, isManualT8, manualT8BaseValue, manualT8Value, t8Selection]
+  );
 
   const cpmAutomaticValueLabel =
     formatNumber(cpmInfo.value, { maximumFractionDigits: 1 }) ??
@@ -2570,15 +2413,15 @@ const ModernFertilityDashboard = () => {
         return;
       }
 
-  const parsed = Number.parseInt(value, 10);
+      const parsedBase = Number.parseInt(value, 10);
 
-      if (!Number.isFinite(parsed)) {
+      if (!Number.isFinite(parsedBase)) {
         setManualCpmBaseError('Introduce un número entero válido.');
         setManualCpmFinalInput('');
         return;
       }
 
-    const result = parsed - cpmDeductionValue;
+      const result = parsedBase - MANUAL_CPM_DEDUCTION;
 
       if (result < 0) {
         setManualCpmBaseError('El resultado debe ser ≥ 0 días');
@@ -2588,48 +2431,49 @@ const ModernFertilityDashboard = () => {
 
       setManualCpmFinalInput(String(result));
     },
-    [cpmDeductionValue]
+    []
   );
 
   const handleManualCpmFinalInputChange = useCallback(
-  (event) => {
-    const { value } = event.target;
+    (event) => {
+      const { value } = event.target;
 
-    setManualCpmFinalInput(value);
-    setManualCpmEditedSide('final');
-    setManualCpmFinalError('');
-    setManualCpmBaseError('');
+      setManualCpmFinalInput(value);
+      setManualCpmEditedSide('final');
+      setManualCpmFinalError('');
+      setManualCpmBaseError('');
 
-    if (!value.trim()) {
-      // si borran el CPM, borramos el ciclo más corto calculado
-      setManualCpmBaseInput('');
-      return;
-    }
+      if (!value.trim()) {
+        // si borran el CPM, borramos el ciclo más corto calculado
+        setManualCpmBaseInput('');
+        return;
+      }
 
-    // permitimos coma o punto
-    const normalized = value.replace(',', '.');
-    const parsed = Number.parseFloat(normalized);
+      // permitimos coma o punto
+      const normalized = value.replace(',', '.');
+      const parsed = Number.parseFloat(normalized);
 
-    if (!Number.isFinite(parsed)) {
-      setManualCpmFinalError('Introduce un número válido.');
-      setManualCpmBaseInput('');
-      return;
-    }
+      if (!Number.isFinite(parsed)) {
+        setManualCpmFinalError('Introduce un número válido.');
+        setManualCpmBaseInput('');
+        return;
+      }
 
-    if (parsed < 0) {
-      setManualCpmFinalError('El CPM debe ser ≥ 0');
-      setManualCpmBaseInput('');
-      return;
-    }
 
-    // si el CPM es X, el ciclo más corto es X + deducción
-    const base = parsed + cpmDeductionValue;
+      if (parsed < 0) {
+        setManualCpmFinalError('El CPM debe ser ≥ 0');
+        setManualCpmBaseInput('');
+        return;
+      }
+
+    // si el CPM es X, el ciclo más corto es X + deducción (20) y lo redondeamos a entero
+    const base = parsed + MANUAL_CPM_DEDUCTION;
     const baseRounded = Math.round(base);
 
     setManualCpmBaseInput(String(baseRounded));
-  },
-  [cpmDeductionValue]
-);
+    },
+    []
+  );
 
 
   const handleSaveManualCpm = useCallback(async () => {
@@ -2663,7 +2507,7 @@ const ModernFertilityDashboard = () => {
         return;
       }
 
-      const computedFinal = parsedBase - cpmDeductionValue;
+      const computedFinal = parsedBase - MANUAL_CPM_DEDUCTION;
 
       if (computedFinal < 0) {
         setManualCpmBaseError('El resultado debe ser ≥ 0 días');
@@ -2691,7 +2535,7 @@ const ModernFertilityDashboard = () => {
       finalValueToPersist = parsedFinal;
 
       const parsedBase = Number.parseInt(trimmedBase, 10);
-      if (Number.isFinite(parsedBase) && parsedBase - cpmDeductionValue >= 0) {
+      if (Number.isFinite(parsedBase) && parsedBase - MANUAL_CPM_DEDUCTION >= 0) {
         baseValueToPersist = parsedBase;
       } else if (!trimmedBase) {
         baseValueToPersist = null;
@@ -2701,23 +2545,23 @@ const ModernFertilityDashboard = () => {
     const previousIsManual = isManualCpm;
     const previousBaseValue = manualCpmBaseValue;
 
- setManualCpmValue(finalValueToPersist);
- setIsManualCpm(true);
- setManualCpmBaseValue(
-   typeof baseValueToPersist === 'number' && Number.isFinite(baseValueToPersist)
-     ? baseValueToPersist
-     : null
- );
+    setManualCpmValue(finalValueToPersist);
+    setIsManualCpm(true);
+    setManualCpmBaseValue(
+      typeof baseValueToPersist === 'number' && Number.isFinite(baseValueToPersist)
+        ? baseValueToPersist
+        : null
+    );
 
- try {
+    try {
       await persistManualCpm({
         finalValue: finalValueToPersist,
         baseValue: baseValueToPersist,
       });
 
       setIsCpmDialogOpen(false);
-   toast({ title: 'CPM actualizado', description: 'El CPM manual se guardó en tu perfil.' });
- } catch (error) {
+      toast({ title: 'CPM actualizado', description: 'El CPM manual se guardó en tu perfil.' });
+    } catch (error) {
       console.error('Failed to save manual CPM value', error);
       setManualCpmValue(previousValue);
       setManualCpmBaseValue(previousBaseValue);
@@ -2725,11 +2569,9 @@ const ModernFertilityDashboard = () => {
       setManualCpmFinalError('No se pudo guardar el CPM. Inténtalo de nuevo.');
     }
   }, [
-    cpmDeductionValue,
     isManualCpm,
     manualCpmBaseError,
     manualCpmBaseInput,
-    manualCpmBaseStorageKey,
     manualCpmBaseValue,
     manualCpmEditedSide,
     manualCpmFinalError,
