@@ -9,6 +9,9 @@ import {
   ChevronLeft,
   ChevronRight,
   HelpCircle,
+  Ban,
+  CheckCircle2,
+  Loader2,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import CycleDatesEditor from '@/components/CycleDatesEditor';
@@ -32,18 +35,20 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { computeOvulationMetrics } from '@/hooks/useFertilityChart';
+import { saveUserMetricsSnapshot } from '@/lib/userMetrics';
 
-const CycleOverviewCard = ({ cycleData,
+const CycleOverviewCard = ({
+  cycleData,
   onEdit,
   onTogglePeak,
   currentPeakIsoDate,
   onEditStartDate = () => {},
-  formattedCpmValue = '-',
-  cpmInfoText = 'Sin datos',
   handleOpenCpmDialog = () => {},
-  formattedT8Value = '-',
   handleOpenT8Dialog = () => {},
+  cpmMetric = {},
+  t8Metric = {},
 }) => {
   const records = cycleData.records || [];
   const [activePoint, setActivePoint] = useState(null);
@@ -144,6 +149,20 @@ const CycleOverviewCard = ({ cycleData,
     [clampOffset, hasOverflow]
   );
 
+  const rafRef = useRef(0);
+const pendingDeltaRef = useRef(0);
+
+const changeOffsetRaf = useCallback((delta) => {
+  if (!hasOverflow || delta === 0) return;
+  pendingDeltaRef.current += delta;
+  if (rafRef.current) return;
+  rafRef.current = requestAnimationFrame(() => {
+    const step = Math.sign(pendingDeltaRef.current);
+    setWheelOffset(prev => clampOffset(prev + step));
+    pendingDeltaRef.current = 0;
+    rafRef.current = 0;
+  });
+}, [hasOverflow, clampOffset]);
   const handleWheelScroll = useCallback(
     (event) => {
       if (!hasOverflow) {
@@ -159,7 +178,7 @@ const CycleOverviewCard = ({ cycleData,
         return;
       }
 
-      changeOffset(delta > 0 ? 1 : -1);
+      changeOffsetRaf(delta > 0 ? 1 : -1);
     },
     [changeOffset, hasOverflow]
   );
@@ -190,7 +209,7 @@ const CycleOverviewCard = ({ cycleData,
         return;
       }
 
-      changeOffset(deltaX < 0 ? 1 : -1);
+      changeOffsetRaf(deltaX < 0 ? 1 : -1);
       touchStartXRef.current = currentX;
     },
     [changeOffset, hasOverflow]
@@ -298,7 +317,7 @@ const CycleOverviewCard = ({ cycleData,
       
       let colors = day <= cycleData.currentDay && recordWithCycleDay
         ? getSymbolColor(recordWithCycleDay.fertility_symbol)
-        : { main: '#b5b6ba', light: '#c8cacf', glow: 'rgba(229, 231, 235, 0.3)' };
+        : { main: '#c1abb6', light: '#c8cacf', glow: 'rgba(229, 231, 235, 0.3)' };
 
       const isToday = day === cycleData.currentDay;
       if (isToday) {
@@ -448,6 +467,67 @@ const CycleOverviewCard = ({ cycleData,
     };
   }, [activePoint]);
 
+  const renderMetricCard = (metric, onClick) => {
+    if (!metric) {
+      return null;
+    }
+
+    const {
+      title = '',
+      baseText = '—',
+      finalText = '—',
+      microCopy = 'Sin datos disponibles',
+      microCopyMuted = false,
+      modeLabel = 'Auto',
+      microCopyId,
+    } = metric;
+
+    const resolvedTitle = title || 'Métrica';
+
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className="group w-full rounded-2xl border border-pink-200/40 bg-white/70 p-4 text-left shadow-sm transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70"
+        aria-describedby={microCopyId}
+        aria-label={`Editar ${resolvedTitle}`}
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-1 min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-wide text-pink-600">
+              {resolvedTitle}
+            </p>
+            <p className="text-xl sm:text-2xl font-bold leading-tight text-gray-800 break-words">
+              {baseText}
+            </p>
+          </div>
+          <div className="flex sm:flex-col flex-row items-center gap-2 sm:items-end">
+            <Badge
+              className={`rounded-full border border-pink-200/60 px-2 py-0.5 text-[11px] font-semibold ${
+                modeLabel === 'Manual'
+                  ? 'bg-rose-100 text-rose-600'
+                  : 'bg-white/80 text-rose-500'
+              }`}
+            >
+              {modeLabel}
+            </Badge>
+            <div className="sm:text-right text-left">
+              <p className="text-base sm:text-lg font-semibold text-pink-700 whitespace-nowrap">
+                {finalText}
+              </p>
+            </div>
+          </div>
+        </div>
+        <p
+          id={microCopyId}
+          className={`mt-3 text-[11px] sm:text-xs ${microCopyMuted ? 'text-gray-400' : 'text-rose-500'} transition-colors`}
+        >
+          {microCopy}
+        </p>
+      </button>
+    );
+  };
+
   return (
     <div className="relative flex flex-1 flex-col overflow-y-hidden">
       {/* Fecha actual - Parte superior con padding reducido */}
@@ -488,9 +568,9 @@ const CycleOverviewCard = ({ cycleData,
             ref={circleRef}
             className="relative inline-flex items-center justify-center mb-4"
             style={{ width: viewBoxSize, height: viewBoxSize }}
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ type: 'spring', stiffness: 200, damping: 15, delay: 0.3 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}
             onWheel={handleWheelScroll}
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
@@ -512,6 +592,10 @@ const CycleOverviewCard = ({ cycleData,
                 <stop offset="100%" stopColor="rgba(190,24,93,0.10)" />
                 </radialGradient>
               </defs>
+              <filter id="dotShadow" x="-30%" y="-30%" width="160%" height="160%" colorInterpolationFilters="sRGB">
+  <feDropShadow dx="0" dy="0.8" stdDeviation="0.8" floodColor="#000" floodOpacity="0.22" />
+</filter>
+
               {/* Círculo base sutil */}
               <circle
                 cx={center}
@@ -536,25 +620,37 @@ const CycleOverviewCard = ({ cycleData,
 
               {/* Puntos de progreso */}
               <motion.g
-                transition={{ type: 'spring', stiffness: 100, damping: 22 }}
-                initial={false}
-                animate={{
-                  rotate: -wheelRotationDegrees
-                }}
-                style={{ transformOrigin: 'center', transformBox: 'view-box' }}
-              >
+  transition={{ type: 'tween', duration: 0.18, ease: [0.2, 0.8, 0.2, 1] }}
+  initial={false}
+  animate={{ rotate: -wheelRotationDegrees }}
+  style={{
+    transformOrigin: 'center',
+    transformBox: 'view-box',
+    willChange: 'transform' // hint a la GPU
+  }}
+>
                 {dots.map((dot, index) => (
                   <g key={index}>
-                  {/* Sombra del punto */}
-                  {!(dot.isToday && !dot.hasRecord) && dot.isActive && (
-                    <circle
-                      cx={dot.x + 0.3}
-                      cy={dot.y + 0.3}
-                      r={dot.isToday ? 11 : 10}
-                      fill="rgba(0, 0, 0, 0.2)"
-                      opacity={1}
-                    />
-                  )}
+{/* Punto principal con sombra real */}
+<g filter={dot.isActive ? 'url(#dotShadow)' : undefined}>
+  <motion.circle
+    cx={dot.x}
+    cy={dot.y}
+    r={dot.isToday ? 11 : 10}
+    fill={
+      dot.colors.pattern
+        || (dot.isActive ? dot.colors.main : 'rgba(255,255,255,0.001)')
+    }
+    stroke={dot.colors.border === 'none' ? 'none' : dot.colors.border || 'rgba(158,158,158,0.4)'}
+    strokeWidth={dot.colors.border === 'none' ? 0 : (dot.isToday ? 1.8 : (dot.colors.border ? 0.6 : 0.8))}
+    onClick={(e) => handleDotClick(dot, e)}
+    initial={false}
+    animate={{ scale: 1, opacity: 1 }}
+    transition={{ duration: 0.15 }}
+    style={{ cursor: 'pointer' }}
+  />
+</g>
+
                   {/* Anillo pulsante para el día actual */}
                   {dot.isToday && (
                     <circle
@@ -569,38 +665,6 @@ const CycleOverviewCard = ({ cycleData,
                     />
                   )}
 
-                  {/* Punto principal */}
-                  <motion.circle
-                    cx={dot.x}
-                    cy={dot.y}
-                    r={dot.isToday ? 11 : 10}
-                    fill={
-                      dot.colors.pattern
-                        || (dot.isActive && dot.hasRecord
-                          ? dot.colors.main
-                          : 'rgba(255,255,255,0.001)')
-                    }
-                    stroke={dot.colors.border === 'none' ? 'none' : dot.colors.border || 'rgba(158,158,158,0.4)'}
-                    strokeWidth={dot.colors.border === 'none'
-                      ? 0
-                      : (dot.isToday
-                        ? 1.8
-                        : (dot.colors.border ? 0.6 : 0.8))}
-                    onClick={(e) => handleDotClick(dot, e)}
-                    initial={{ scale: 0, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    transition={{
-                      duration: 0.2,
-                      delay: 0.1,
-                      type: 'tween',
-                      stiffness: 400,
-                      damping: 25
-                    }}
-                    style={{
-                      filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.2))',
-                      cursor: 'pointer'
-                    }}
-                  />
                 </g>
                 ))}
               </motion.g>
@@ -611,48 +675,33 @@ const CycleOverviewCard = ({ cycleData,
                 }
 
                 const { x: labelX, y: labelY } = rotatePoint(dot.x, dot.y);
-                const baseProps = {
-                  key: `peak-${index}`,
-                  x: labelX,
-                  y: labelY + 4,
-                  textAnchor: 'middle',
-                  initial: { scale: 0.2, opacity: 0 },
-                  animate: { scale: 1, opacity: 1 },
-                  transition: {
-                    delay: 0.95 + index * 0.02,
-                    type: 'spring',
-                    stiffness: 320,
-                    damping: 22,
-                  },
-                };
 
                 if (dot.peakStatus === 'P') {
                   return (
-                    <motion.text
-                      {...baseProps}
+                    <text
+                      x={labelX}
+                      y={labelY + 4}
+                      textAnchor="middle"
                       fontSize="14"
                       fontWeight="900"
                       fill="#ec4899"
-                      style={{
-                        pointerEvents: 'none',
-                        filter: 'drop-shadow(0 2px 4px rgba(244, 114, 182, 0.35))',
-                      }}
+                      style={{ pointerEvents: 'none' }}
                     >
                       ✖
-                    </motion.text>
+                    </text>
                   );
                 }
 
                 return (
-                  <motion.text
-                    {...baseProps}
-                    fontSize="12"
-                    fontWeight="800"
-                    fill="#7f1d1d"
-                    style={{ pointerEvents: 'none' }}
-                  >
-                    {dot.peakStatus}
-                  </motion.text>
+                  <text x={labelX} 
+                  y={labelY + 4} 
+                  textAnchor="middle" 
+                  fontSize="12" 
+                  fontWeight="800" 
+                  fill="#7f1d1d" 
+                  style={{ pointerEvents: 'none' }}>
+                  {dot.peakStatus}
+                </text>
                 );
               })}
             </svg>
@@ -676,9 +725,9 @@ const CycleOverviewCard = ({ cycleData,
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
               <motion.div
                 className="text-center  backdrop-blur-md rounded-full p-4"
-                initial={{ opacity: 0, scale: 0.5 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 1, type: 'spring', stiffness: 200 }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.2, delay: 0.2, ease: 'easeOut' }}
                 style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}
               >
                 <span className="text-5xl font-bold text-pink-700 block">
@@ -694,7 +743,7 @@ const CycleOverviewCard = ({ cycleData,
                 className="mt-2 px-2.5 py-1  backdrop-blur-sm rounded-full border border-pink-200"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 1.3 }}
+                transition={{ duration: 0.2, delay: 0.25, ease: 'easeOut' }}
                 style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.1))' }}
               >
                 <span className="text-md font-medium text-pink-900">
@@ -709,7 +758,7 @@ const CycleOverviewCard = ({ cycleData,
             <div className="flex items-center justify-center gap-3">
               <button
                 type="button"
-                className="p-2 rounded-full bg-white/60 text-rose-500 shadow-sm border border-rose-200/60 transition hover:bg-white"
+                className="p-2 rounded-full text-rose-500 shadow-xs transition hover:border hover:border-rose-500/20"
                 onClick={() => changeOffset(-1)}
                 disabled={wheelOffset === 0}
               >
@@ -732,13 +781,13 @@ const CycleOverviewCard = ({ cycleData,
                   max={maxOffset}
                   value={wheelOffset}
                   onChange={(event) => setWheelOffset(clampOffset(Number(event.target.value)))}
-                  className="w-44 accent-rose-500"
+                  className="w-40 accent-rose-500"
                 />
               </div>
               <button
                 type="button"
-                className="p-2 rounded-full bg-white/60 text-rose-500 shadow-sm border border-rose-200/60 transition hover:bg-white"
-                onClick={() => changeOffset(1)}
+                className="p-2 rounded-full text-rose-500 shadow-xs transition hover:border hover:border-rose-500/20"
+                onClick={() => changeOffsetRaf(1)}
                 disabled={wheelOffset === maxOffset}
               >
                 <ChevronRight className="w-4 h-4" />
@@ -771,7 +820,7 @@ const CycleOverviewCard = ({ cycleData,
               {[
                 { label: 'Menstrual', color: '#ef4444' },
                 { label: 'Moco (Fértil)', color: '#f8fafc', stroke: '#c2c6cc' },
-                { label: 'Seco (Rel. Infértil)', color: '#22c55e' },
+                { label: 'Seco', color: '#22c55e' },
                 { label: 'Moco (No fértil)', color: '#facc15', stroke: '#fef08a' },
                 { label: 'Spotting', color: '#ef4444', stroke: '#fee2e2', pattern: true },
                 { label: 'Hoy', isToday: true }
@@ -807,7 +856,7 @@ const CycleOverviewCard = ({ cycleData,
 
           {/* Información del ciclo con diseño tipo card premium */}
           <motion.div
-            className="relative bg-gradient-to-br from-pink-50/70 to-rose-50/50 backdrop-blur-md rounded-3xl p-4 border border-pink-200/40"
+            className="relative bg-gradient-to-br from-pink-50/70 to-rose-50/50 backdrop-blur-md rounded-3xl p-3 border border-pink-200/40"
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.4, delay: 0.6 }}
@@ -816,55 +865,73 @@ const CycleOverviewCard = ({ cycleData,
               boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.8)'
             }}
           >
-            <h3 className="font-bold mb-3 text-gray-800 flex items-center gap-2 justify-center text-xs tracking-wide uppercase">
+            <h3 className="font-bold mb-2 text-gray-800 flex items-center gap-2 justify-center text-[11px] tracking-wide uppercase">
               
               Cálculo
             </h3>
             
-            <div className="space-y-3">
-              {/* CPM con diseño mejorado */}
-              <div className="text-center">
-                <div className="flex items-center justify-center gap-1 mb-1.5">
-                  <div className="w-1 h-1 bg-pink-400 rounded-full" />
-                  <div className="font-bold text-pink-800 text-xs">CPM</div>
-                  <div className="w-1 h-1 bg-pink-400 rounded-full" />
+            <div className="grid grid-cols-2 gap-y-3">
+              {/* Fila 1 - Ciclo más corto / CPM */}
+              <button
+                type="button"
+                onClick={handleOpenCpmDialog}
+                className="flex flex-col items-center gap-1.5"
+                aria-label="Editar CPM (Ciclo más corto)"
+              >
+                <span className="text-[10px] font-medium text-gray-700">Ciclo más corto</span>
+                <div className="h-12 flex items-end">
+                  <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/70 shadow-sm w-12 h-12 text-base font-bold text-rose-700">
+                    {cpmMetric?.baseFormatted ?? '—'}
+                  </div>
                 </div>
-                <div className="flex w-full items-center justify-center gap-4">
-                  <button
-                    type="button"
-                    onClick={handleOpenCpmDialog}
-                    className="group relative flex h-16 w-16 flex-col items-center justify-center rounded-full bg-gradient-to-br from-white via-pink-50/30 to-rose-50/40 text-pink-700 shadow-lg backdrop-blur-xl transition-all duration-300 hover:shadow-xl hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-rose-400 focus:ring-offset-2 focus:ring-offset-transparent border border-pink-200/40"
-                  >
-                    {/* Anillo pulsante sutil */}
-                    <div className="absolute inset-0 rounded-full border-2 border-pink-300/0 group-hover:border-pink-300/30 transition-all duration-300 animate-pulse" />
-                    
-                    {/* Icono de edición pequeño */}
-                    <Pencil className="absolute top-1 right-1 w-2 h-2 text-pink-400/60 group-hover:text-pink-500/80 transition-colors" />
-                    
-                    {/* Valor del CPM */}
-                    <span className="text-lg font-bold group-hover:scale-110 transition-transform duration-200">{formattedCpmValue}</span>
-                  </button>
+              </button>
+              <button
+                type="button"
+                onClick={handleOpenCpmDialog}
+                className="flex flex-col items-center gap-0.5"
+                aria-label="Editar CPM (resultado)"
+              >
+                <span className="text-[10px] font-medium text-gray-700">CPM</span>
+                <div className="h-12 flex items-end">
+                  <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/80 shadow-sm w-10 h-10 text-sm font-semibold text-rose-700">
+                    {cpmMetric?.finalFormatted ?? '—'}
+                  </div>
                 </div>
-              </div>
-              {/* T-8 con diseño mejorado */}
-              <div className="text-center">
-                <div className="flex items-center justify-center gap-1 mb-1.5">
-                  <div className="w-1 h-1 bg-pink-400 rounded-full" />
-                  <div className="font-bold text-pink-800 text-xs">T-8</div>
-                  <div className="w-1 h-1 bg-pink-400 rounded-full" />
+                <span className="text-[9px] font-semibold text-rose-600 mt-0.5">
+                  {cpmMetric?.modeLabel ?? 'Auto'}
+                </span>
+              </button>
+
+              {/* Fila 2 - Día de subida / T-8 */}
+              <button
+                type="button"
+                onClick={handleOpenT8Dialog}
+                className="flex flex-col items-center gap-1.5"
+                aria-label="Editar T-8 (Día de subida)"
+              >
+                <span className="text-[10px] font-medium text-gray-700">Día de subida</span>
+                <div className="h-12 flex items-end">
+                  <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/70 shadow-sm w-12 h-12 text-base font-bold text-rose-700">
+                    {t8Metric?.baseFormatted ?? '—'}
+                  </div>
                 </div>
-                <div className="flex w-full items-center justify-center gap-4">
-                  <button
-                    type="button"
-                    onClick={handleOpenT8Dialog}
-                    className="group relative flex h-16 w-16 flex-col items-center justify-center rounded-full bg-gradient-to-br from-white via-pink-50/30 to-rose-50/40 text-pink-700 shadow-lg backdrop-blur-xl transition-all duration-300 hover:shadow-xl hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-rose-400 focus:ring-offset-2 focus:ring-offset-transparent border border-pink-200/40"
-                  >
-                    <div className="absolute inset-0 rounded-full border-2 border-pink-300/0 group-hover:border-pink-300/30 transition-all duration-300 animate-pulse" />
-                    <Pencil className="absolute top-1 right-1 w-2 h-2 text-pink-400/60 group-hover:text-pink-500/80 transition-colors" />
-                    <span className="text-lg font-bold group-hover:scale-110 transition-transform duration-200">{formattedT8Value}</span>
-                  </button>
+              </button>
+              <button
+                type="button"
+                onClick={handleOpenT8Dialog}
+                className="flex flex-col items-center gap-0.5"
+                aria-label="Editar T-8 (resultado)"
+              >
+                <span className="text-[10px] font-medium text-gray-700">T-8</span>
+                <div className="h-12 flex items-end">
+                  <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/80 shadow-sm w-10 h-10 text-sm font-semibold text-rose-700">
+                    {t8Metric?.finalFormatted ?? '—'}
+                  </div>
                 </div>
-              </div>
+                <span className="text-[9px] font-semibold text-rose-600 mt-0.5">
+                  {t8Metric?.modeLabel ?? 'Auto'}
+                </span>
+              </button>
             </div>
             
             {/* Decoración sutil en la esquina */}
@@ -880,46 +947,49 @@ const FloatingActionButton = ({ onAddRecord, onAddCycle }) => {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="fixed bottom-[calc(var(--bottom-nav-height)+1rem)] right-6 flex flex-col items-end space-y-3 z-50">
+    <div className="fixed right-4 top-12 md:top-6 flex flex-col-reverse items-end space-y-2 z-50">
       {open && (
-        <>
-          <motion.button
-            onClick={onAddCycle}
-            className="flex items-center gap-3 px-4 h-12 rounded-full bg-gradient-to-br from-purple-500 to-indigo-500 text-white shadow-lg"
-            whileTap={{ scale: 0.95 }}
-            whileHover={{ scale: 1.05 }}
-            initial={{ opacity: 0, y: 20, scale: 0.8 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            style={{ filter: 'drop-shadow(0 6px 12px rgba(147, 51, 234, 0.3))' }}
-          >
-            <CalendarPlus className="h-5 w-5" />
-            <span className="text-sm font-medium tracking-tight">Nuevo ciclo</span>
-          </motion.button>
-          <motion.button
-            onClick={onAddRecord}
-            className="flex items-center gap-3 px-4 h-12 rounded-full bg-gradient-to-br from-pink-500 to-rose-500 text-white shadow-lg"
-            whileTap={{ scale: 0.80 }}
-            whileHover={{ scale: 1.05 }}
-            initial={{ opacity: 0, y: 20, scale: 0.8 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            style={{ filter: 'drop-shadow(0 6px 12px rgba(236, 72, 153, 0.3))' }}
-          >
-            <FilePlus className="h-5 w-5" />
-            <span className="text-sm font-medium tracking-tight">Añadir registro</span>
-          </motion.button>
-        </>
-      )}
+  <div className="flex flex-col space-y-2 mt-1">
+    <motion.button
+      onClick={onAddRecord}
+      className="flex items-center gap-1 px-4 h-12 rounded-full bg-gradient-to-br from-pink-500 to-rose-500 text-white shadow-lg"
+      whileTap={{ scale: 0.80 }}
+      whileHover={{ scale: 1.05 }}
+      initial={{ opacity: 0, y: 20, scale: 0.8 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      style={{ filter: 'drop-shadow(0 6px 12px rgba(236, 72, 153, 0.3))' }}
+    >
+      <FilePlus className="h-5 w-5" />
+      <span className="text-sm font-medium tracking-tight">Añadir registro</span>
+    </motion.button>
+    <motion.button
+      onClick={onAddCycle}
+      className="flex items-center gap-3 px-4 h-12 rounded-full bg-gradient-to-br from-purple-500 to-indigo-500 text-white shadow-lg"
+      whileTap={{ scale: 0.95 }}
+      whileHover={{ scale: 1.05 }}
+      initial={{ opacity: 0, y: 20, scale: 0.8 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      style={{ filter: 'drop-shadow(0 6px 12px rgba(147, 51, 234, 0.3))' }}
+    >
+      <CalendarPlus className="h-5 w-5" />
+      <span className="text-sm font-medium tracking-tight">Nuevo ciclo</span>
+    </motion.button>
+
+    
+  </div>
+)}
+
       <motion.button
         onClick={() => setOpen(!open)}
-        className="w-14 h-14 bg-gradient-to-br from-pink-500 to-rose-500 text-white rounded-full shadow-lg flex items-center justify-center"
+        className="w-12 h-12 bg-gradient-to-br from-pink-500 to-rose-500 text-white rounded-full shadow-lg flex items-center justify-center"
         whileTap={{ scale: 0.95 }}
         whileHover={{ scale: 1.05 }}
         initial={{ scale: 0 }}
         animate={{ scale: 1 }}
-        style={{ filter: 'drop-shadow(0 6px 16px rgba(236, 72, 153, 0.4))' }}
+        style={{ filter: 'drop-shadow(0 4px 12px rgba(236, 72, 153, 0.35))' }}
       >
         <motion.span animate={{ rotate: open ? 135 : 0 }} transition={{ type: 'spring', stiffness: 260, damping: 20 }}>
-          <Plus className="h-6 w-6" />
+          <Plus className="h-5 w-5" />
         </motion.span>
       </motion.button>
     </div>
@@ -950,28 +1020,51 @@ const ModernFertilityDashboard = () => {
   const [isUpdatingStartDate, setIsUpdatingStartDate] = useState(false);
   const { user, preferences, savePreferences } = useAuth();
   const [isCpmDialogOpen, setIsCpmDialogOpen] = useState(false);
-  const [manualCpmInput, setManualCpmInput] = useState('');
-  const [manualCpmError, setManualCpmError] = useState('');
+  const [manualCpmBaseInput, setManualCpmBaseInput] = useState('');
+  const [manualCpmFinalInput, setManualCpmFinalInput] = useState('');
+  const [manualCpmBaseError, setManualCpmBaseError] = useState('');
+  const [manualCpmFinalError, setManualCpmFinalError] = useState('');
+  const [manualCpmEditedSide, setManualCpmEditedSide] = useState(null);
+  const [manualCpmBaseValue, setManualCpmBaseValue] = useState(null);
   const [manualCpmValue, setManualCpmValue] = useState(null);
   const [isManualCpm, setIsManualCpm] = useState(false);
+  const [cpmSelection, setCpmSelection] = useState('auto');
   const [showCpmDetails, setShowCpmDetails] = useState(false);
+  const [showCpmDeleteDialog, setShowCpmDeleteDialog] = useState(false);
+  const [isDeletingManualCpm, setIsDeletingManualCpm] = useState(false);
   const [isT8DialogOpen, setIsT8DialogOpen] = useState(false);
-  const [manualT8Input, setManualT8Input] = useState('');
-  const [manualT8Error, setManualT8Error] = useState('');
+  const [manualT8BaseInput, setManualT8BaseInput] = useState('');
+  const [manualT8FinalInput, setManualT8FinalInput] = useState('');
+  const [manualT8BaseError, setManualT8BaseError] = useState('');
+  const [manualT8FinalError, setManualT8FinalError] = useState('');
+  const [manualT8EditedSide, setManualT8EditedSide] = useState(null);
+  const [manualT8BaseValue, setManualT8BaseValue] = useState(null);
   const [manualT8Value, setManualT8Value] = useState(null);
   const [isManualT8, setIsManualT8] = useState(false);
+  const [t8Selection, setT8Selection] = useState('auto');
   const [showT8Details, setShowT8Details] = useState(false);
+  const [showT8DeleteDialog, setShowT8DeleteDialog] = useState(false);
+  const [isDeletingManualT8, setIsDeletingManualT8] = useState(false);
   const [pendingIgnoredCycleIds, setPendingIgnoredCycleIds] = useState([]);
 
   const manualCpmRestoreAttemptedRef = useRef(false);
   const manualT8RestoreAttemptedRef = useRef(false);
+  const automaticMetricsSnapshotRef = useRef(null);
 
   const manualCpmStorageKey = useMemo(
     () => (user?.uid ? `rnf_manual_cpm_${user.uid}` : null),
     [user?.uid]
   );
+  const manualCpmBaseStorageKey = useMemo(
+    () => (user?.uid ? `rnf_manual_cpm_base_${user.uid}` : null),
+    [user?.uid]
+  );
   const manualT8StorageKey = useMemo(
     () => (user?.uid ? `rnf_manual_t8_${user.uid}` : null),
+    [user?.uid]
+  );
+  const manualT8BaseStorageKey = useMemo(
+    () => (user?.uid ? `rnf_manual_t8_base_${user.uid}` : null),
     [user?.uid]
   );
 
@@ -982,17 +1075,136 @@ const ModernFertilityDashboard = () => {
     manualT8RestoreAttemptedRef.current = false;
   }, [manualT8StorageKey]);
 
+  useEffect(() => {
+    if (!manualCpmBaseStorageKey) {
+      setManualCpmBaseValue(null);
+      return;
+    }
+
+    const baseFromProfile = preferences?.manualCpmBase;
+    if (baseFromProfile !== undefined) {
+      if (typeof baseFromProfile === 'number' && Number.isFinite(baseFromProfile)) {
+        setManualCpmBaseValue(baseFromProfile);
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem(
+              manualCpmBaseStorageKey,
+              JSON.stringify({ value: baseFromProfile })
+            );
+          } catch (error) {
+            console.error('Failed to sync manual CPM base value to local storage', error);
+          }
+        }
+      } else {
+        setManualCpmBaseValue(null);
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.removeItem(manualCpmBaseStorageKey);
+          } catch (error) {
+            console.error('Failed to clear manual CPM base value from local storage', error);
+          }
+        }
+      }
+      return;
+    }
+
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    try {
+      const stored = localStorage.getItem(manualCpmBaseStorageKey);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed && typeof parsed.value === 'number' && Number.isFinite(parsed.value)) {
+          setManualCpmBaseValue(parsed.value);
+        } else {
+          setManualCpmBaseValue(null);
+        }
+      } else {
+        setManualCpmBaseValue(null);
+      }
+    } catch (error) {
+      console.error('Failed to restore manual CPM base value from local storage', error);
+    }
+  }, [manualCpmBaseStorageKey, preferences?.manualCpmBase]);
+
+  useEffect(() => {
+    if (!manualT8BaseStorageKey) {
+      setManualT8BaseValue(null);
+      return;
+    }
+
+    const baseFromProfile = preferences?.manualT8Base;
+    if (baseFromProfile !== undefined) {
+      if (typeof baseFromProfile === 'number' && Number.isFinite(baseFromProfile)) {
+        setManualT8BaseValue(baseFromProfile);
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem(
+              manualT8BaseStorageKey,
+              JSON.stringify({ value: baseFromProfile })
+            );
+          } catch (error) {
+            console.error('Failed to sync manual T-8 base value to local storage', error);
+          }
+        }
+      } else {
+        setManualT8BaseValue(null);
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.removeItem(manualT8BaseStorageKey);
+          } catch (error) {
+            console.error('Failed to clear manual T-8 base value from local storage', error);
+          }
+        }
+      }
+      return;
+    }
+
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    try {
+      const stored = localStorage.getItem(manualT8BaseStorageKey);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed && typeof parsed.value === 'number' && Number.isFinite(parsed.value)) {
+          setManualT8BaseValue(parsed.value);
+        } else {
+          setManualT8BaseValue(null);
+        }
+      } else {
+        setManualT8BaseValue(null);
+      }
+    } catch (error) {
+      console.error('Failed to restore manual T-8 base value from local storage', error);
+    }
+  }, [manualT8BaseStorageKey, preferences?.manualT8Base]);
+
 
   const persistManualCpm = useCallback(
-    async (value) => {
+    async ({ finalValue, baseValue }) => {
       if (!user?.uid || !savePreferences) {
         return;
       }
 
-      const payload =
-        value === null || value === undefined
-          ? { manualCpm: null }
-          : { manualCpm: Number(value) };
+      const normalizedFinal =
+        finalValue === null || finalValue === undefined
+          ? null
+          : Number(finalValue);
+      const normalizedBase =
+        baseValue === undefined
+          ? undefined
+          : baseValue === null || baseValue === undefined
+            ? null
+            : Number(baseValue);
+
+      const payload = { manualCpm: normalizedFinal };
+      if (normalizedBase !== undefined) {
+        payload.manualCpmBase = normalizedBase;
+      }
 
       try {
         await savePreferences(payload);
@@ -1007,24 +1219,65 @@ const ModernFertilityDashboard = () => {
             );
           }
         }
+        if (
+          normalizedBase !== undefined &&
+          manualCpmBaseStorageKey &&
+          typeof window !== 'undefined'
+        ) {
+          if (normalizedBase === null) {
+            localStorage.removeItem(manualCpmBaseStorageKey);
+          } else {
+            localStorage.setItem(
+              manualCpmBaseStorageKey,
+              JSON.stringify({ value: normalizedBase })
+            );
+          }
+        }
+
+        await saveUserMetricsSnapshot(user.uid, {
+          manual: {
+            cpm: {
+              value: normalizedFinal,
+              base: normalizedBase === undefined ? manualCpmBaseValue : normalizedBase,
+            },
+          },
+          manualUpdatedAt: new Date().toISOString(),
+        });
       } catch (error) {
         console.error('Failed to persist manual CPM value in profile', error);
         throw error;
       }
     },
-    [manualCpmStorageKey, savePreferences, user?.uid]
+    [
+      manualCpmBaseStorageKey,
+      manualCpmBaseValue,
+      manualCpmStorageKey,
+      savePreferences,
+      user?.uid,
+    ]
   );
 
   const persistManualT8 = useCallback(
-    async (value) => {
+    async ({ finalValue, baseValue }) => {
       if (!user?.uid || !savePreferences) {
         return;
       }
 
-      const payload =
-        value === null || value === undefined
-          ? { manualT8: null }
-          : { manualT8: Number(value) };
+      const normalizedFinal =
+        finalValue === null || finalValue === undefined
+          ? null
+          : Number(finalValue);
+      const normalizedBase =
+        baseValue === undefined
+          ? undefined
+          : baseValue === null || baseValue === undefined
+            ? null
+            : Number(baseValue);
+
+      const payload = { manualT8: normalizedFinal };
+      if (normalizedBase !== undefined) {
+        payload.manualT8Base = normalizedBase;
+      }
 
       try {
         await savePreferences(payload);
@@ -1039,12 +1292,43 @@ const ModernFertilityDashboard = () => {
             );
           }
         }
+        if (
+          normalizedBase !== undefined &&
+          manualT8BaseStorageKey &&
+          typeof window !== 'undefined'
+        ) {
+          if (normalizedBase === null) {
+            localStorage.removeItem(manualT8BaseStorageKey);
+          } else {
+            localStorage.setItem(
+              manualT8BaseStorageKey,
+              JSON.stringify({ value: normalizedBase })
+            );
+          }
+        }
+
+        await saveUserMetricsSnapshot(user.uid, {
+          manual: {
+            t8: {
+              value: normalizedFinal,
+              riseDay:
+                normalizedBase === undefined ? manualT8BaseValue : normalizedBase,
+            },
+          },
+          manualUpdatedAt: new Date().toISOString(),
+        });
       } catch (error) {
         console.error('Failed to persist manual T-8 value in profile', error);
         throw error;
       }
     },
-    [manualT8StorageKey, savePreferences, user?.uid]
+    [
+      manualT8BaseStorageKey,
+      manualT8BaseValue,
+      manualT8StorageKey,
+      savePreferences,
+      user?.uid,
+    ]
   );
   useEffect(() => {
     if (!manualCpmStorageKey) {
@@ -1146,7 +1430,39 @@ const ModernFertilityDashboard = () => {
         if (parsed && typeof parsed.value === 'number' && Number.isFinite(parsed.value)) {
           setManualCpmValue(parsed.value);
           setIsManualCpm(true);
-          persistManualCpm(parsed.value).catch((error) =>
+      
+          let baseValueFromStorage = manualCpmBaseValue;
+          try {
+            if (manualCpmBaseStorageKey) {
+              const baseStored = localStorage.getItem(manualCpmBaseStorageKey);
+              if (baseStored) {
+                const baseParsed = JSON.parse(baseStored);
+                if (
+                  baseParsed &&
+                  typeof baseParsed.value === 'number' &&
+                  Number.isFinite(baseParsed.value)
+                ) {
+                  baseValueFromStorage = baseParsed.value;
+                } else {
+                  baseValueFromStorage = null;
+                }
+              }
+            }
+          } catch (baseError) {
+            console.error('Failed to read manual CPM base value from local storage', baseError);
+          }
+
+          setManualCpmBaseValue(
+            typeof baseValueFromStorage === 'number' &&
+              Number.isFinite(baseValueFromStorage)
+              ? baseValueFromStorage
+              : null
+          );
+
+          persistManualCpm({
+            finalValue: parsed.value,
+            baseValue: baseValueFromStorage,
+          }).catch((error) =>
             console.error('Failed to migrate manual CPM value to profile storage', error)
           );
         }
@@ -1157,7 +1473,14 @@ const ModernFertilityDashboard = () => {
       manualCpmRestoreAttemptedRef.current = true;
     }
 
-    }, [manualCpmStorageKey, persistManualCpm, preferences?.manualCpm, user?.uid]);
+    }, [
+      manualCpmBaseStorageKey,
+      manualCpmBaseValue,
+      manualCpmStorageKey,
+      persistManualCpm,
+      preferences?.manualCpm,
+      user?.uid,
+    ]);
 
   useEffect(() => {
     if (!manualT8StorageKey || manualT8RestoreAttemptedRef.current) {
@@ -1186,7 +1509,38 @@ const ModernFertilityDashboard = () => {
         if (parsed && typeof parsed.value === 'number' && Number.isFinite(parsed.value)) {
           setManualT8Value(parsed.value);
           setIsManualT8(true);
-          persistManualT8(parsed.value).catch((error) =>
+          let baseValueFromStorage = manualT8BaseValue;
+          try {
+            if (manualT8BaseStorageKey) {
+              const baseStored = localStorage.getItem(manualT8BaseStorageKey);
+              if (baseStored) {
+                const baseParsed = JSON.parse(baseStored);
+                if (
+                  baseParsed &&
+                  typeof baseParsed.value === 'number' &&
+                  Number.isFinite(baseParsed.value)
+                ) {
+                  baseValueFromStorage = baseParsed.value;
+                } else {
+                  baseValueFromStorage = null;
+                }
+              }
+            }
+          } catch (baseError) {
+            console.error('Failed to read manual T-8 base value from local storage', baseError);
+          }
+
+          setManualT8BaseValue(
+            typeof baseValueFromStorage === 'number' &&
+              Number.isFinite(baseValueFromStorage)
+              ? baseValueFromStorage
+              : null
+          );
+
+          persistManualT8({
+            finalValue: parsed.value,
+            baseValue: baseValueFromStorage,
+          }).catch((error) =>
             console.error('Failed to migrate manual T-8 value to profile storage', error)
           );
         }
@@ -1196,7 +1550,14 @@ const ModernFertilityDashboard = () => {
     } finally {
       manualT8RestoreAttemptedRef.current = true;
     }
-  }, [manualT8StorageKey, persistManualT8, preferences?.manualT8, user?.uid]);
+  }, [
+    manualT8BaseStorageKey,
+    manualT8BaseValue,
+    manualT8StorageKey,
+    persistManualT8,
+    preferences?.manualT8,
+    user?.uid,
+  ]);
 
   useEffect(() => {
     setDraftStartDate(currentCycle?.startDate || '');
@@ -1549,27 +1910,85 @@ const ModernFertilityDashboard = () => {
       ignoredCount,
     };
   }, [combinedCycles]);
-
-  const formattedCpmValue = useMemo(() => {
-    const valueToFormat = isManualCpm ? manualCpmValue : computedCpmData.value;
-
-    if (typeof valueToFormat !== 'number' || !Number.isFinite(valueToFormat)) {
-      return '-';
+  useEffect(() => {
+    if (!user?.uid) {
+      automaticMetricsSnapshotRef.current = null;
+      return;
     }
 
-    return valueToFormat.toLocaleString('es-ES', { maximumFractionDigits: 2 });
-  }, [computedCpmData.value, isManualCpm, manualCpmValue]);
+    const safeNumber = (value) =>
+      typeof value === 'number' && Number.isFinite(value) ? value : null;
 
-  const formattedT8Value = useMemo(() => {
-    const valueToFormat = isManualT8 ? manualT8Value : computedT8Data.value;
+    const sanitizeCpmCycle = (cycle) => {
+      if (!cycle) {
+        return null;
+      }
 
-    if (typeof valueToFormat !== 'number' || !Number.isFinite(valueToFormat)) {
-      return '-';
+      return {
+        id: cycle.id ?? null,
+        name: cycle.name ?? null,
+        displayName: cycle.displayName ?? null,
+        startDate: cycle.startDate ?? null,
+        endDate: cycle.endDate ?? null,
+        duration: safeNumber(cycle.duration),
+        source: cycle.source ?? null,
+        dateRangeLabel: cycle.dateRangeLabel ?? null,
+      };
+    };
+
+    const sanitizeT8Cycle = (cycle) => {
+      if (!cycle) {
+        return null;
+      }
+
+      return {
+        id: cycle.id ?? null,
+        name: cycle.name ?? null,
+        displayName: cycle.displayName ?? null,
+        startDate: cycle.startDate ?? null,
+        endDate: cycle.endDate ?? null,
+        riseDay: safeNumber(cycle.riseDay),
+        t8Day: safeNumber(cycle.t8Day),
+        source: cycle.source ?? null,
+        dateRangeLabel: cycle.dateRangeLabel ?? null,
+      };
+    };
+
+    const metricsPayload = {
+      automatic: {
+        cpm: {
+          value: safeNumber(computedCpmData?.value),
+          cycleCount: safeNumber(computedCpmData?.cycleCount) ?? 0,
+          ignoredCount: safeNumber(computedCpmData?.ignoredCount) ?? 0,
+          deduction: safeNumber(computedCpmData?.deduction),
+          canCompute: Boolean(computedCpmData?.canCompute),
+          shortestCycle: sanitizeCpmCycle(computedCpmData?.shortestCycle),
+        },
+        t8: {
+          value: safeNumber(computedT8Data?.value),
+          cycleCount: safeNumber(computedT8Data?.cycleCount) ?? 0,
+          ignoredCount: safeNumber(computedT8Data?.ignoredCount) ?? 0,
+          canCompute: Boolean(computedT8Data?.canCompute),
+          riseDay: safeNumber(computedT8Data?.earliestCycle?.riseDay),
+          earliestCycle: sanitizeT8Cycle(computedT8Data?.earliestCycle),
+        },
+      },
+    };
+
+    const serialized = JSON.stringify(metricsPayload);
+    if (automaticMetricsSnapshotRef.current === serialized) {
+      return;
     }
 
-    const rounded = Math.round(valueToFormat);
-    return rounded.toLocaleString('es-ES', { maximumFractionDigits: 0 });
-  }, [computedT8Data.value, isManualT8, manualT8Value]);
+    automaticMetricsSnapshotRef.current = serialized;
+
+    saveUserMetricsSnapshot(user.uid, {
+      ...metricsPayload,
+      automaticUpdatedAt: new Date().toISOString(),
+    }).catch((error) => {
+      console.error('Failed to persist automatic metrics snapshot', error);
+    });
+  }, [computedCpmData, computedT8Data, user?.uid]);
 
   const cpmInfo = useMemo(() => {
     const cycleCount = computedCpmData.cycleCount ?? 0;
@@ -1648,8 +2067,6 @@ const ModernFertilityDashboard = () => {
     };
   }, [computedCpmData, isManualCpm]);
 
-  const cpmInfoText = cpmInfo.summary;
-
   const t8Info = useMemo(() => {
     const cycleCount = computedT8Data.cycleCount;
     const cyclesLabel = `${cycleCount} ciclo${cycleCount === 1 ? '' : 's'}`;
@@ -1703,6 +2120,345 @@ const ModernFertilityDashboard = () => {
     };
   }, [computedT8Data, isManualT8]);
 
+  const formatNumber = useCallback((value, options) => {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      return null;
+    }
+
+    return value.toLocaleString('es-ES', options);
+  }, []);
+
+  const cpmDeductionValue = useMemo(() => {
+    if (
+      typeof computedCpmData.deduction === 'number' &&
+      Number.isFinite(computedCpmData.deduction)
+    ) {
+      return computedCpmData.deduction;
+    }
+
+    const cycleCount = computedCpmData.cycleCount ?? 0;
+    return cycleCount >= 12 ? 20 : 21;
+  }, [computedCpmData.cycleCount, computedCpmData.deduction]);
+
+  const shouldUseManualCpm = isManualCpm && cpmSelection === 'manual';
+  const shouldUseAutoCpm = cpmSelection === 'auto';
+  const isCpmIgnored = cpmSelection === 'none';
+
+  const cpmMetric = useMemo(() => {
+    const automaticBase =
+      typeof computedCpmData.shortestCycle?.duration === 'number' &&
+      Number.isFinite(computedCpmData.shortestCycle.duration)
+        ? computedCpmData.shortestCycle.duration
+        : null;
+    const automaticFinal =
+      typeof computedCpmData.value === 'number' && Number.isFinite(computedCpmData.value)
+        ? computedCpmData.value
+        : null;
+
+  const baseValue = shouldUseManualCpm
+      ? manualCpmBaseValue
+      : shouldUseAutoCpm
+        ? automaticBase
+        : null;
+    const finalValue = shouldUseManualCpm
+      ? manualCpmValue
+      : shouldUseAutoCpm
+        ? automaticFinal
+        : null;
+
+    const baseFormatted = formatNumber(baseValue, { maximumFractionDigits: 0 });
+    const finalFormatted = formatNumber(finalValue, { maximumFractionDigits: 2 });
+
+    const baseText = `Ciclo más corto: ${baseFormatted ?? '—'}`;
+    const finalText = `CPM = ${finalFormatted ?? '—'}`;
+
+    let microCopy = 'Sin datos disponibles';
+    let microCopyMuted = true;
+
+    if (typeof finalValue === 'number' && Number.isFinite(finalValue)) {
+      if (shouldUseManualCpm) {
+        if (typeof manualCpmBaseValue === 'number' && Number.isFinite(manualCpmBaseValue)) {
+          const baseLabel =
+            formatNumber(manualCpmBaseValue, { maximumFractionDigits: 0 }) ??
+            `${manualCpmBaseValue}`;
+          microCopy = `${baseLabel} − ${cpmDeductionValue}`;
+          microCopyMuted = false;
+        } else {
+          microCopy = 'Valor definido manualmente';
+          microCopyMuted = true;
+        }
+      } else if (shouldUseAutoCpm && typeof automaticBase === 'number' && Number.isFinite(automaticBase)) {
+        const baseLabel =
+          formatNumber(automaticBase, { maximumFractionDigits: 0 }) ?? `${automaticBase}`;
+        microCopy = `${baseLabel} − ${cpmDeductionValue}`;
+        microCopyMuted = false;
+      }
+    }
+
+    if (typeof finalValue !== 'number' || !Number.isFinite(finalValue)) {
+      microCopy = 'Sin datos disponibles';
+      microCopyMuted = true;
+    }
+
+    return {
+      title: 'CPM',
+      baseText,
+      finalText,
+      microCopy,
+      microCopyMuted,
+      modeLabel: isCpmIgnored ? 'Sin usar' : shouldUseManualCpm ? 'Manual' : 'Auto',
+      microCopyId: 'cpm-metric-microcopy',
+      baseValue,
+      finalValue,
+      baseFormatted,
+      finalFormatted,
+      isManual: shouldUseManualCpm,
+    };
+  }, [
+    computedCpmData,
+    cpmDeductionValue,
+    formatNumber,
+    isCpmIgnored,
+    manualCpmBaseValue,
+    manualCpmValue,
+    shouldUseAutoCpm,
+    shouldUseManualCpm,
+  ]);
+
+  const shouldUseManualT8 = isManualT8 && t8Selection === 'manual';
+  const shouldUseAutoT8 = t8Selection === 'auto';
+  const isT8Ignored = t8Selection === 'none';
+
+  const t8Metric = useMemo(() => {
+    const automaticRiseDay =
+      typeof computedT8Data.earliestCycle?.riseDay === 'number' &&
+      Number.isFinite(computedT8Data.earliestCycle.riseDay)
+        ? computedT8Data.earliestCycle.riseDay
+        : null;
+    const automaticFinal =
+      typeof computedT8Data.value === 'number' && Number.isFinite(computedT8Data.value)
+        ? computedT8Data.value
+        : null;
+
+  const baseValue = shouldUseManualT8
+      ? manualT8BaseValue
+      : shouldUseAutoT8
+        ? automaticRiseDay
+        : null;
+    const finalValue = shouldUseManualT8
+      ? manualT8Value
+      : shouldUseAutoT8
+        ? automaticFinal
+        : null;
+
+    const baseFormatted = formatNumber(baseValue, { maximumFractionDigits: 0 });
+    const finalFormatted = formatNumber(finalValue, { maximumFractionDigits: 0 });
+
+    const baseText = `Día de subida: ${baseFormatted ?? '—'}`;
+    const finalText = `T-8 = ${finalFormatted ?? '—'}`;
+
+    let microCopy = 'Sin datos disponibles';
+    let microCopyMuted = true;
+
+    if (typeof finalValue === 'number' && Number.isFinite(finalValue)) {
+      if (shouldUseManualT8) {
+        if (typeof manualT8BaseValue === 'number' && Number.isFinite(manualT8BaseValue)) {
+          const baseLabel =
+            formatNumber(manualT8BaseValue, { maximumFractionDigits: 0 }) ??
+            `${manualT8BaseValue}`;
+          microCopy = `${baseLabel} − 8`;
+          microCopyMuted = false;
+        } else {
+          microCopy = 'Valor definido manualmente';
+          microCopyMuted = true;
+        }
+      } else if (
+        shouldUseAutoT8 &&
+        typeof automaticRiseDay === 'number' &&
+        Number.isFinite(automaticRiseDay)
+      ) {
+        const baseLabel =
+          formatNumber(automaticRiseDay, { maximumFractionDigits: 0 }) ?? `${automaticRiseDay}`;
+        microCopy = `${baseLabel} − 8`;
+        microCopyMuted = false;
+      }
+    }
+
+    if (typeof finalValue !== 'number' || !Number.isFinite(finalValue)) {
+      microCopy = 'Sin datos disponibles';
+      microCopyMuted = true;
+    }
+
+    return {
+      title: 'T-8',
+      baseText,
+      finalText,
+      microCopy,
+      microCopyMuted,
+      modeLabel: isT8Ignored ? 'Sin usar' : shouldUseManualT8 ? 'Manual' : 'Auto',
+      microCopyId: 't8-metric-microcopy',
+      baseValue,
+      finalValue,
+      baseFormatted,
+      finalFormatted,
+      isManual: shouldUseManualT8,
+    };
+  }, [
+    computedT8Data,
+    formatNumber,
+    isT8Ignored,
+    manualT8BaseValue,
+    manualT8Value,
+    shouldUseAutoT8,
+    shouldUseManualT8,
+  ]);
+
+  const cpmAutomaticValueLabel =
+    formatNumber(cpmInfo.value, { maximumFractionDigits: 1 }) ??
+    (typeof cpmInfo.value === 'number' && Number.isFinite(cpmInfo.value)
+      ? `${cpmInfo.value}`
+      : '—');
+  const cpmManualValueLabel =
+    formatNumber(manualCpmValue, { maximumFractionDigits: 1 }) ??
+    (typeof manualCpmValue === 'number' && Number.isFinite(manualCpmValue)
+      ? `${manualCpmValue}`
+      : '—');
+  const cpmStatusMode =
+    cpmSelection === 'manual' && isManualCpm
+      ? 'manual'
+      : cpmSelection === 'auto'
+        ? 'auto'
+        : 'none';
+  const cpmStatusValueLabel =
+    cpmStatusMode === 'manual'
+      ? `CPM manual: ${cpmManualValueLabel}`
+      : cpmStatusMode === 'auto'
+        ? `CPM automático: ${cpmAutomaticValueLabel}`
+        : '—';
+  const cpmStatusHelperText =
+    cpmStatusMode === 'manual'
+      ? 'Se usa el valor que has introducido manualmente.'
+      : cpmStatusMode === 'auto'
+        ? 'Se usa el valor calculado con tus ciclos.'
+        : 'Este dato no se tendrá en cuenta en la interpretación.';
+  const cpmStatusChipLabel =
+    cpmStatusMode === 'manual' ? 'Manual' : cpmStatusMode === 'auto' ? 'Automático' : 'Sin usar';
+
+  const t8AutomaticValueLabel =
+    formatNumber(computedT8Data.value, { maximumFractionDigits: 0 }) ??
+    (typeof computedT8Data.value === 'number' && Number.isFinite(computedT8Data.value)
+      ? `${computedT8Data.value}`
+      : '—');
+  const t8ManualValueLabel =
+    formatNumber(manualT8Value, { maximumFractionDigits: 0 }) ??
+    (typeof manualT8Value === 'number' && Number.isFinite(manualT8Value)
+      ? `${manualT8Value}`
+      : '—');
+  const t8StatusMode =
+    t8Selection === 'manual' && isManualT8
+      ? 'manual'
+      : t8Selection === 'auto'
+        ? 'auto'
+        : 'none';
+  const t8StatusValueLabel =
+    t8StatusMode === 'manual'
+      ? `T-8 manual: Día ${t8ManualValueLabel}`
+      : t8StatusMode === 'auto'
+        ? `T-8 automático: Día ${t8AutomaticValueLabel}`
+        : '—';
+  const t8StatusHelperText =
+    t8StatusMode === 'manual'
+      ? 'Se usa el valor que has introducido manualmente.'
+      : t8StatusMode === 'auto'
+        ? 'Se usa el valor calculado con tus ciclos.'
+        : 'Este dato no se tendrá en cuenta en la interpretación.';
+  const t8StatusChipLabel =
+    t8StatusMode === 'manual' ? 'Manual' : t8StatusMode === 'auto' ? 'Automático' : 'Sin usar';
+
+  const resolvedManualCpmSide = useMemo(() => {
+    if (manualCpmEditedSide) {
+      return manualCpmEditedSide;
+    }
+
+    if (manualCpmFinalInput.trim()) {
+      return 'final';
+    }
+
+    if (manualCpmBaseInput.trim()) {
+      return 'base';
+    }
+
+    return null;
+  }, [manualCpmBaseInput, manualCpmEditedSide, manualCpmFinalInput]);
+
+  const isManualCpmSaveDisabled = useMemo(() => {
+    if (manualCpmBaseError || manualCpmFinalError) {
+      return true;
+    }
+
+    if (resolvedManualCpmSide === 'base') {
+      return manualCpmBaseInput.trim() === '' || manualCpmFinalInput.trim() === '';
+    }
+
+    if (resolvedManualCpmSide === 'final') {
+      return manualCpmFinalInput.trim() === '';
+    }
+
+    return true;
+  }, [
+    manualCpmBaseError,
+    manualCpmBaseInput,
+    manualCpmFinalError,
+    manualCpmFinalInput,
+    resolvedManualCpmSide,
+  ]);
+
+  const canDeleteManualCpm = useMemo(() => {
+    return Boolean(isManualCpm || manualCpmBaseInput.trim() || manualCpmFinalInput.trim());
+  }, [isManualCpm, manualCpmBaseInput, manualCpmFinalInput]);
+
+  const resolvedManualT8Side = useMemo(() => {
+    if (manualT8EditedSide) {
+      return manualT8EditedSide;
+    }
+
+    if (manualT8FinalInput.trim()) {
+      return 'final';
+    }
+
+    if (manualT8BaseInput.trim()) {
+      return 'base';
+    }
+
+    return null;
+  }, [manualT8BaseInput, manualT8EditedSide, manualT8FinalInput]);
+
+  const isManualT8SaveDisabled = useMemo(() => {
+    if (manualT8BaseError || manualT8FinalError) {
+      return true;
+    }
+
+    if (resolvedManualT8Side === 'base') {
+      return manualT8BaseInput.trim() === '' || manualT8FinalInput.trim() === '';
+    }
+
+    if (resolvedManualT8Side === 'final') {
+      return manualT8FinalInput.trim() === '';
+    }
+
+    return true;
+  }, [
+    manualT8BaseError,
+    manualT8BaseInput,
+    manualT8FinalError,
+    manualT8FinalInput,
+    resolvedManualT8Side,
+  ]);
+
+  const canDeleteManualT8 = useMemo(() => {
+    return Boolean(isManualT8 || manualT8BaseInput.trim() || manualT8FinalInput.trim());
+  }, [isManualT8, manualT8BaseInput, manualT8FinalInput]);
+
   const handleNavigateToCycleDetails = useCallback((cycle) => {
     if (!cycle) {
       return;
@@ -1747,161 +2503,543 @@ const ModernFertilityDashboard = () => {
     [setCycleIgnoreForAutoCalculations, toast]
   );
 
-  const handleOpenCpmDialog = useCallback(() => {
-    const baseValue = isManualCpm
-      ? manualCpmValue
-      : typeof computedCpmData.value === 'number' && Number.isFinite(computedCpmData.value)
-        ? computedCpmData.value
-        : '';
+  const handleCardKeyDown = useCallback((event, action) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      action();
+    }
+  }, []);
 
-    setManualCpmInput(baseValue === '' ? '' : String(baseValue));
-    setManualCpmError('');
+  const handleOpenCpmDialog = useCallback(() => {
+    const automaticBase =
+      typeof computedCpmData.shortestCycle?.duration === 'number' &&
+      Number.isFinite(computedCpmData.shortestCycle.duration)
+        ? computedCpmData.shortestCycle.duration
+        : null;
+    const automaticFinal =
+      typeof computedCpmData.value === 'number' && Number.isFinite(computedCpmData.value)
+        ? computedCpmData.value
+        : null;
+
+    const initialBase = isManualCpm ? manualCpmBaseValue : automaticBase;
+    const initialFinal = isManualCpm ? manualCpmValue : automaticFinal;
+
+    setManualCpmBaseInput(
+      typeof initialBase === 'number' && Number.isFinite(initialBase) ? String(initialBase) : ''
+    );
+    setManualCpmFinalInput(
+      typeof initialFinal === 'number' && Number.isFinite(initialFinal) ? String(initialFinal) : ''
+    );
+    setManualCpmBaseError('');
+    setManualCpmFinalError('');
+    setManualCpmEditedSide(
+      isManualCpm
+        ? typeof manualCpmBaseValue === 'number' && Number.isFinite(manualCpmBaseValue)
+          ? 'base'
+          : typeof manualCpmValue === 'number' && Number.isFinite(manualCpmValue)
+            ? 'final'
+            : null
+        : null
+    );
     setShowCpmDetails(false);
+    setCpmSelection((previous) => {
+      if (isManualCpm) return 'manual';
+      if (previous === 'none') return 'none';
+      return 'auto';
+    });
     setIsCpmDialogOpen(true);
-  }, [computedCpmData.value, isManualCpm, manualCpmValue]);
+  }, [cpmInfo.canCompute, computedCpmData, isManualCpm, manualCpmBaseValue, manualCpmValue]);
 
   const handleCloseCpmDialog = useCallback(() => {
     setShowCpmDetails(false);
+    setShowCpmDeleteDialog(false);
+    setIsDeletingManualCpm(false);
     setIsCpmDialogOpen(false);
   }, []);
 
-  const handleManualCpmInputChange = useCallback((event) => {
-    setManualCpmInput(event.target.value);
-    setManualCpmError('');
-  }, []);
+  const handleManualCpmBaseInputChange = useCallback(
+    (event) => {
+      const { value } = event.target;
+      setManualCpmBaseInput(value);
+      setManualCpmEditedSide('base');
+      setManualCpmBaseError('');
+      setManualCpmFinalError('');
 
-  const handleSaveManualCpm = useCallback(async () => {
-    const trimmed = manualCpmInput.trim();
+      if (!value.trim()) {
+        setManualCpmFinalInput('');
+        return;
+      }
 
-    if (!trimmed) {
-      setManualCpmError('Introduce un valor numérico válido.');
+  const parsed = Number.parseInt(value, 10);
+
+      if (!Number.isFinite(parsed)) {
+        setManualCpmBaseError('Introduce un número entero válido.');
+        setManualCpmFinalInput('');
+        return;
+      }
+
+    const result = parsed - cpmDeductionValue;
+
+      if (result < 0) {
+        setManualCpmBaseError('El resultado debe ser ≥ 0 días');
+        setManualCpmFinalInput('');
+        return;
+      }
+
+      setManualCpmFinalInput(String(result));
+    },
+    [cpmDeductionValue]
+  );
+
+  const handleManualCpmFinalInputChange = useCallback(
+  (event) => {
+    const { value } = event.target;
+
+    setManualCpmFinalInput(value);
+    setManualCpmEditedSide('final');
+    setManualCpmFinalError('');
+    setManualCpmBaseError('');
+
+    if (!value.trim()) {
+      // si borran el CPM, borramos el ciclo más corto calculado
+      setManualCpmBaseInput('');
       return;
     }
 
-    const normalized = trimmed.replace(',', '.');
+    // permitimos coma o punto
+    const normalized = value.replace(',', '.');
     const parsed = Number.parseFloat(normalized);
 
-    if (!Number.isFinite(parsed) || parsed < 0) {
-      setManualCpmError('Introduce un valor numérico válido mayor o igual a 0.');
+    if (!Number.isFinite(parsed)) {
+      setManualCpmFinalError('Introduce un número válido.');
+      setManualCpmBaseInput('');
       return;
     }
 
+    if (parsed < 0) {
+      setManualCpmFinalError('El CPM debe ser ≥ 0');
+      setManualCpmBaseInput('');
+      return;
+    }
+
+    // si el CPM es X, el ciclo más corto es X + deducción
+    const base = parsed + cpmDeductionValue;
+    const baseRounded = Math.round(base);
+
+    setManualCpmBaseInput(String(baseRounded));
+  },
+  [cpmDeductionValue]
+);
+
+
+  const handleSaveManualCpm = useCallback(async () => {
+    if (manualCpmBaseError || manualCpmFinalError) {
+      return;
+    }
+
+    const trimmedBase = manualCpmBaseInput.trim();
+    const trimmedFinal = manualCpmFinalInput.trim();
+    const activeSide =
+      manualCpmEditedSide ?? (trimmedFinal ? 'final' : trimmedBase ? 'base' : null);
+
+    if (!activeSide) {
+      setManualCpmFinalError('Introduce un valor.');
+      return;
+    }
+
+    let baseValueToPersist = manualCpmBaseValue;
+    let finalValueToPersist;
+
+    if (activeSide === 'base') {
+      if (!trimmedBase) {
+        setManualCpmBaseError('Introduce un número entero válido.');
+        return;
+      }
+
+      const parsedBase = Number.parseInt(trimmedBase, 10);
+
+      if (!Number.isFinite(parsedBase)) {
+        setManualCpmBaseError('Introduce un número entero válido.');
+        return;
+      }
+
+      const computedFinal = parsedBase - cpmDeductionValue;
+
+      if (computedFinal < 0) {
+        setManualCpmBaseError('El resultado debe ser ≥ 0 días');
+        return;
+      }
+
+      baseValueToPersist = parsedBase;
+      finalValueToPersist = computedFinal;
+      setManualCpmFinalInput(String(computedFinal));
+      setManualCpmFinalError('');
+    } else {
+      if (!trimmedFinal) {
+        setManualCpmFinalError('Introduce un valor.');
+        return;
+      }
+
+      const normalized = trimmedFinal.replace(',', '.');
+      const parsedFinal = Number.parseFloat(normalized);
+
+      if (!Number.isFinite(parsedFinal) || parsedFinal < 0) {
+        setManualCpmFinalError('El CPM debe ser ≥ 0 días');
+        return;
+      }
+
+      finalValueToPersist = parsedFinal;
+
+      const parsedBase = Number.parseInt(trimmedBase, 10);
+      if (Number.isFinite(parsedBase) && parsedBase - cpmDeductionValue >= 0) {
+        baseValueToPersist = parsedBase;
+      } else if (!trimmedBase) {
+        baseValueToPersist = null;
+      }
+    }
     const previousValue = manualCpmValue;
     const previousIsManual = isManualCpm;
+    const previousBaseValue = manualCpmBaseValue;
 
-    setManualCpmValue(parsed);
-    setIsManualCpm(true);
-    
-  try {
-      await persistManualCpm(parsed);
+ setManualCpmValue(finalValueToPersist);
+ setIsManualCpm(true);
+ setManualCpmBaseValue(
+   typeof baseValueToPersist === 'number' && Number.isFinite(baseValueToPersist)
+     ? baseValueToPersist
+     : null
+ );
+
+ try {
+      await persistManualCpm({
+        finalValue: finalValueToPersist,
+        baseValue: baseValueToPersist,
+      });
+
       setIsCpmDialogOpen(false);
-      toast({ title: 'CPM actualizado', description: 'El CPM manual se guardó en tu perfil.' });
-    } catch (error) {
+   toast({ title: 'CPM actualizado', description: 'El CPM manual se guardó en tu perfil.' });
+ } catch (error) {
       console.error('Failed to save manual CPM value', error);
       setManualCpmValue(previousValue);
+      setManualCpmBaseValue(previousBaseValue);
       setIsManualCpm(previousIsManual);
-      setManualCpmError('No se pudo guardar el CPM. Inténtalo de nuevo.');
+      setManualCpmFinalError('No se pudo guardar el CPM. Inténtalo de nuevo.');
     }
-  }, [isManualCpm, manualCpmInput, manualCpmValue, persistManualCpm, toast]);
+  }, [
+    cpmDeductionValue,
+    isManualCpm,
+    manualCpmBaseError,
+    manualCpmBaseInput,
+    manualCpmBaseStorageKey,
+    manualCpmBaseValue,
+    manualCpmEditedSide,
+    manualCpmFinalError,
+    manualCpmFinalInput,
+    manualCpmValue,
+    persistManualCpm,
+    toast,
+  ]);
 
-  const handleResetManualCpm = useCallback(async () => {
+  const handleDeleteManualCpm = useCallback(async () => {
     const previousValue = manualCpmValue;
     const previousIsManual = isManualCpm;
+    const previousBaseValue = manualCpmBaseValue;
 
     setManualCpmValue(null);
+    setManualCpmBaseValue(null);
     setIsManualCpm(false);
-    setManualCpmInput('');
-    setManualCpmError('');
-    
+    setManualCpmBaseInput('');
+    setManualCpmFinalInput('');
+    setManualCpmBaseError('');
+    setManualCpmFinalError('');
+    setManualCpmEditedSide(null);
+
     try {
-      await persistManualCpm(null);
-      setIsCpmDialogOpen(false);
-      toast({ title: 'CPM restablecido', description: 'El cálculo automático volverá a mostrarse.' });
+      await persistManualCpm({ finalValue: null, baseValue: null });
+      toast({
+        title: 'CPM borrado',
+        description:
+          'El valor manual se eliminó. Puedes guardar un nuevo valor o continuar con el cálculo automático.',
+      });
     } catch (error) {
-      console.error('Failed to reset manual CPM value', error);
+      console.error('Failed to delete manual CPM value', error);
       setManualCpmValue(previousValue);
+      setManualCpmBaseValue(previousBaseValue);
       setIsManualCpm(previousIsManual);
-      setManualCpmError('No se pudo restablecer el CPM. Inténtalo de nuevo.');
+      setManualCpmFinalError('No se pudo borrar el CPM. Inténtalo de nuevo.');
     }
-  }, [isManualCpm, manualCpmValue, persistManualCpm, toast]);
+  }, [isManualCpm, manualCpmBaseValue, manualCpmValue, persistManualCpm, toast]);
+
+  const handleConfirmCpmDelete = useCallback(
+    async () => {
+      setIsDeletingManualCpm(true);
+
+
+      try {
+        await handleDeleteManualCpm();
+        setShowCpmDeleteDialog(false);
+      } finally {
+        setIsDeletingManualCpm(false);
+      }
+    },
+    [handleDeleteManualCpm]
+  );
+
+  const handleSelectCpmMode = useCallback(
+    (mode) => {
+      setCpmSelection(mode);
+    },
+    []
+  );
 
   const handleOpenT8Dialog = useCallback(() => {
-    const baseValue = isManualT8
-      ? manualT8Value
-      : typeof computedT8Data.value === 'number' && Number.isFinite(computedT8Data.value)
+    const automaticBase =
+      typeof computedT8Data.earliestCycle?.riseDay === 'number' &&
+      Number.isFinite(computedT8Data.earliestCycle.riseDay)
+        ? computedT8Data.earliestCycle.riseDay
+        : null;
+    const automaticFinal =
+      typeof computedT8Data.value === 'number' && Number.isFinite(computedT8Data.value)
         ? computedT8Data.value
-        : '';
+        : null;
 
-    setManualT8Input(baseValue === '' ? '' : String(baseValue));
-    setManualT8Error('');
+    const initialBase = isManualT8 ? manualT8BaseValue : automaticBase;
+    const initialFinal = isManualT8 ? manualT8Value : automaticFinal;
+
+    setManualT8BaseInput(
+      typeof initialBase === 'number' && Number.isFinite(initialBase) ? String(initialBase) : ''
+    );
+    setManualT8FinalInput(
+      typeof initialFinal === 'number' && Number.isFinite(initialFinal) ? String(initialFinal) : ''
+    );
+    setManualT8BaseError('');
+    setManualT8FinalError('');
+    setManualT8EditedSide(
+      isManualT8
+        ? typeof manualT8BaseValue === 'number' && Number.isFinite(manualT8BaseValue)
+          ? 'base'
+          : typeof manualT8Value === 'number' && Number.isFinite(manualT8Value)
+            ? 'final'
+            : null
+        : null
+    );
     setShowT8Details(false);
+    setT8Selection((previous) => {
+      if (isManualT8) return 'manual';
+      if (previous === 'none') return 'none';
+      return 'auto';
+    });
     setIsT8DialogOpen(true);
-  }, [computedT8Data.value, isManualT8, manualT8Value]);
+  }, [computedT8Data, isManualT8, manualT8BaseValue, manualT8Value]);
 
   const handleCloseT8Dialog = useCallback(() => {
     setIsT8DialogOpen(false);
     setShowT8Details(false);
+    setShowT8DeleteDialog(false);
+    setIsDeletingManualT8(false);
   }, []);
 
-  const handleManualT8InputChange = useCallback((event) => {
-    setManualT8Input(event.target.value);
-    setManualT8Error('');
-  }, []);
+  const handleManualT8BaseInputChange = useCallback((event) => {
+    const { value } = event.target;
+    setManualT8BaseInput(value);
+    setManualT8EditedSide('base');
+    setManualT8BaseError('');
+    setManualT8FinalError('');
 
-  const handleSaveManualT8 = useCallback(async () => {
-    const trimmed = manualT8Input.trim();
-
-    if (!trimmed) {
-      setManualT8Error('Introduce un número entero válido.');
+    if (!value.trim()) {
+      setManualT8FinalInput('');
       return;
     }
 
-    const normalized = trimmed.replace(',', '.');
-    const parsed = Number.parseInt(normalized, 10);
+    const parsed = Number.parseInt(value, 10);
+
+    if (!Number.isFinite(parsed)) {
+      setManualT8BaseError('Introduce un número entero válido.');
+      setManualT8FinalInput('');
+      return;
+    }
+
+    if (parsed < 9) {
+      setManualT8BaseError('El T-8 debe ser ≥ 1');
+      setManualT8FinalInput('');
+      return;
+    }
+
+    const computedFinal = Math.max(1, parsed - 8);
+    setManualT8FinalInput(String(computedFinal));
+  }, []);
+
+  const handleManualT8FinalInputChange = useCallback((event) => {
+    const { value } = event.target;
+    setManualT8FinalInput(value);
+    setManualT8EditedSide('final');
+    setManualT8FinalError('');
+    setManualT8BaseError('');
+
+    if (!value.trim()) {
+      return;
+    }
+
+    const parsed = Number.parseInt(value, 10);
 
     if (!Number.isFinite(parsed) || parsed < 1) {
-      setManualT8Error('Introduce un número entero mayor o igual a 1.');
+      setManualT8FinalError('El T-8 debe ser ≥ 1');
+    }
+  }, []);
+
+  const handleSaveManualT8 = useCallback(async () => {
+    if (manualT8BaseError || manualT8FinalError) {
       return;
+    }
+
+    const trimmedBase = manualT8BaseInput.trim();
+    const trimmedFinal = manualT8FinalInput.trim();
+    const activeSide =
+      manualT8EditedSide ?? (trimmedFinal ? 'final' : trimmedBase ? 'base' : null);
+
+    if (!activeSide) {
+      setManualT8FinalError('Introduce un valor.');
+      return;
+    }
+
+    let baseValueToPersist = manualT8BaseValue;
+    let finalValueToPersist;
+
+    if (activeSide === 'base') {
+      if (!trimmedBase) {
+        setManualT8BaseError('Introduce un número entero válido.');
+        return;
+      }
+
+      const parsedBase = Number.parseInt(trimmedBase, 10);
+
+      if (!Number.isFinite(parsedBase)) {
+        setManualT8BaseError('Introduce un número entero válido.');
+        return;
+      }
+
+      if (parsedBase < 9) {
+        setManualT8BaseError('El T-8 debe ser ≥ 1');
+        return;
+      }
+
+      const computedFinal = Math.max(1, parsedBase - 8);
+      baseValueToPersist = parsedBase;
+      finalValueToPersist = computedFinal;
+      setManualT8FinalInput(String(computedFinal));
+      setManualT8FinalError('');
+    } else {
+      if (!trimmedFinal) {
+        setManualT8FinalError('Introduce un valor.');
+        return;
+      }
+
+      const parsedFinal = Number.parseInt(trimmedFinal, 10);
+
+      if (!Number.isFinite(parsedFinal) || parsedFinal < 1) {
+        setManualT8FinalError('El T-8 debe ser ≥ 1');
+        return;
+      }
+
+      finalValueToPersist = parsedFinal;
+
+      const parsedBase = Number.parseInt(trimmedBase, 10);
+      if (Number.isFinite(parsedBase) && parsedBase >= 9) {
+        baseValueToPersist = parsedBase;
+      } else if (!trimmedBase) {
+        baseValueToPersist = null;
+      }
     }
 
     const previousValue = manualT8Value;
     const previousIsManual = isManualT8;
+    const previousBaseValue = manualT8BaseValue;
 
-    setManualT8Value(parsed);
+    setManualT8Value(finalValueToPersist);
     setIsManualT8(true);
+    setManualT8BaseValue(
+      typeof baseValueToPersist === 'number' && Number.isFinite(baseValueToPersist)
+        ? baseValueToPersist
+        : null
+    );
 
     try {
-      await persistManualT8(parsed);
+      await persistManualT8({
+        finalValue: finalValueToPersist,
+        baseValue: baseValueToPersist,
+      });
+
       setIsT8DialogOpen(false);
       toast({ title: 'T-8 actualizado', description: 'El T-8 manual se guardó en tu perfil.' });
     } catch (error) {
       console.error('Failed to save manual T-8 value', error);
       setManualT8Value(previousValue);
+      setManualT8BaseValue(previousBaseValue);
       setIsManualT8(previousIsManual);
-      setManualT8Error('No se pudo guardar el T-8. Inténtalo de nuevo.');
+      setManualT8FinalError('No se pudo guardar el T-8. Inténtalo de nuevo.');
     }
-  }, [isManualT8, manualT8Input, manualT8Value, persistManualT8, toast]);
+  }, [
+    isManualT8,
+    manualT8BaseError,
+    manualT8BaseInput,
+    manualT8BaseValue,
+    manualT8EditedSide,
+    manualT8FinalError,
+    manualT8FinalInput,
+    manualT8Value,
+    persistManualT8,
+    toast,
+  ]);
 
-  const handleResetManualT8 = useCallback(async () => {
+  const handleDeleteManualT8 = useCallback(async () => {
     const previousValue = manualT8Value;
     const previousIsManual = isManualT8;
+    const previousBaseValue = manualT8BaseValue;
 
     setManualT8Value(null);
+    setManualT8BaseValue(null);
     setIsManualT8(false);
-    setManualT8Input('');
-    setManualT8Error('');
+    setManualT8BaseInput('');
+    setManualT8FinalInput('');
+    setManualT8BaseError('');
+    setManualT8FinalError('');
+    setManualT8EditedSide(null);
 
     try {
-      await persistManualT8(null);
-      setIsT8DialogOpen(false);
-      toast({ title: 'T-8 restablecido', description: 'El cálculo automático volverá a mostrarse.' });
+      await persistManualT8({ finalValue: null, baseValue: null });
+      toast({
+        title: 'T-8 borrado',
+        description:
+          'El valor manual se eliminó. Puedes guardar un nuevo valor o continuar con el cálculo automático.',
+      });
     } catch (error) {
-      console.error('Failed to reset manual T-8 value', error);
+      console.error('Failed to delete manual T-8 value', error);
       setManualT8Value(previousValue);
+      setManualT8BaseValue(previousBaseValue);
       setIsManualT8(previousIsManual);
-      setManualT8Error('No se pudo restablecer el T-8. Inténtalo de nuevo.');
+      setManualT8BaseError('No se pudo borrar el T-8. Inténtalo de nuevo.');
     }
-  }, [isManualT8, manualT8Value, persistManualT8, toast]);
+  }, [isManualT8, manualT8BaseValue, manualT8Value, persistManualT8, toast]);
+
+  const handleConfirmT8Delete = useCallback(
+    async () => {
+      setIsDeletingManualT8(true);
+
+      try {
+        await handleDeleteManualT8();
+        setShowT8DeleteDialog(false);
+      } finally {
+        setIsDeletingManualT8(false);
+      }
+    },
+    [handleDeleteManualT8]
+  );
+
+  const handleSelectT8Mode = useCallback(
+    (mode) => {
+      setT8Selection(mode);
+    },
+    []
+  );
 
   const resetStartDateFlow = useCallback(() => {
     setPendingStartDate(null);
@@ -2024,6 +3162,7 @@ const ModernFertilityDashboard = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showNewCycleDialog, setShowNewCycleDialog] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
+  const [initialSectionKey, setInitialSectionKey] = useState(null);
   const isPlaceholderRecord = Boolean(
     editingRecord && String(editingRecord.id || '').startsWith('placeholder-')
   );
@@ -2035,14 +3174,16 @@ const ModernFertilityDashboard = () => {
   const handleCloseForm = useCallback(() => {
     setShowForm(false);
     setEditingRecord(null);
+    setInitialSectionKey(null);
   }, []);
 
   const handleDateSelect = useCallback((record) => {
     setEditingRecord(record);
   }, []);
 
-  const handleEdit = useCallback((record) => {
+  const handleEdit = useCallback((record, sectionKey = null) => {
     setEditingRecord(record);
+    setInitialSectionKey(sectionKey ?? null);
     setShowForm(true);
   }, []);
 
@@ -2149,7 +3290,7 @@ const ModernFertilityDashboard = () => {
 
   if (!currentCycle?.id) {
     return (
-      <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br ffrom-rose-100 via-pink-100 to-rose-100">
+      <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100">
         <div className="text-center space-y-4">
           <p className="text-gray-600 text-lg">No hay ciclo activo.</p>
           <button
@@ -2165,6 +3306,7 @@ const ModernFertilityDashboard = () => {
           onConfirm={async (selectedStartDate) => {
             await startNewCycle(selectedStartDate);
             setShowNewCycleDialog(false);
+            setInitialSectionKey(null);
             setShowForm(true);
           }}
         />
@@ -2184,6 +3326,7 @@ const ModernFertilityDashboard = () => {
       if (!keepFormOpen) {
         setShowForm(false);
         setEditingRecord(null);
+        setInitialSectionKey(null);
       }
     } finally {
       setIsProcessing(false);
@@ -2193,6 +3336,7 @@ const ModernFertilityDashboard = () => {
   const handleConfirmNewCycle = async (selectedStartDate) => {
     await startNewCycle(selectedStartDate);
     setShowNewCycleDialog(false);
+    setInitialSectionKey(null);
     setShowForm(true);
   };
 
@@ -2219,11 +3363,10 @@ const ModernFertilityDashboard = () => {
             onTogglePeak={handleTogglePeak}
             currentPeakIsoDate={currentPeakIsoDate}
             onEditStartDate={handleOpenStartDateEditor}
-            formattedCpmValue={formattedCpmValue}
-            cpmInfoText={cpmInfoText}
             handleOpenCpmDialog={handleOpenCpmDialog}
-            formattedT8Value={formattedT8Value}
             handleOpenT8Dialog={handleOpenT8Dialog}
+            cpmMetric={cpmMetric}
+            t8Metric={t8Metric}
           />
           <Dialog
             open={isCpmDialogOpen}
@@ -2233,173 +3376,351 @@ const ModernFertilityDashboard = () => {
               }
             }}
           >
-            <DialogContent className="w-[90vw] max-w-sm rounded-3xl border border-pink-100 bg-white/95 text-gray-800 shadow-xl">
-              <DialogHeader className="space-y-2 text-left">
-                <DialogTitle>Editar CPM</DialogTitle>
-                <DialogDescription>
-                  Personaliza el CPM introduciendo un valor manual. Si no se establece, se calculará automáticamente
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-3">
-                <div className="rounded-2xl border border-rose-100 bg-rose-50/70 px-3 py-2.5 text-[11px] text-rose-900">
-                  <div className="flex items-start gap-2">
-                    <HelpCircle className="mt-0.5 h-4 w-4 text-rose-500" />
-                    <div className="flex-1 space-y-2">
-                      <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-rose-700">
-                        <span>Origen del dato</span>
-                        <span className="rounded-full bg-white/70 px-2 py-0.5 text-[11px] font-semibold text-rose-600">
-                          {cpmInfo.sourceLabel}
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-1 text-xs text-rose-600">
-                        <span className="font-semibold">Datos disponibles:</span>
-                        {cpmInfo.detailsAvailable ? (
-                          <button
-                            type="button"
-                            onClick={() => setShowCpmDetails((previous) => !previous)}
-                            className="inline-flex items-center font-semibold text-rose-700 underline decoration-rose-300 underline-offset-2 transition hover:text-rose-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70 rounded-sm"
-                            aria-expanded={showCpmDetails}
-                          >
-                            {cpmInfo.highlightLabel}
-                          </button>
-                        ) : (
-                          <span className="text-rose-500">{cpmInfo.highlightLabel}</span>
-                        )}
-                      </div>
-                      <p className="text-[11px] text-rose-500">{cpmInfo.summary}</p>
-                      {cpmInfo.canCompute && cpmInfo.deduction !== null && (
-                        <p className="text-[11px] text-rose-500">
-                          Deducción aplicada: {cpmInfo.deduction} días.
-                        </p>
-                      )}
+            <DialogContent className="flex max-h-[90vh] w-[90vw] max-w-sm flex-col rounded-3xl border border-pink-100 bg-white/95 text-gray-800 shadow-xl overflow-hidden p-0">
+                <DialogHeader className="space-y-2 px-4 pt-4 text-left">
+                  <DialogTitle>Editar CPM</DialogTitle>
+                  <DialogDescription>
+                    <div className="text-xs">
+                    Puedes usar el valor calculado automáticamente o fijar un valor manual.
                     </div>
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="flex-1 space-y-3 overflow-y-auto px-4 pb-4">
+                <div className="rounded-2xl border border-rose-100 bg-rose-50/70 px-3 py-2">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-rose-600">Estado actual</p>
+                    </div>
+                    <span
+                      className={`rounded-full px-3 py-1 text-[11px] font-semibold ${
+                        cpmStatusMode === 'manual'
+                          ? 'bg-rose-100 text-rose-700'
+                          : cpmStatusMode === 'auto'
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : 'bg-gray-100 text-gray-600'
+                      }`}
+                    >
+                      {cpmStatusChipLabel}
+                    </span>
                   </div>
-                  {showCpmDetails && cpmInfo.detailsAvailable && (
-                    <div className="mt-2 space-y-2">
-                      {cpmInfo.cycles.length > 0 ? (
-                        <ul className="space-y-1">
-                          {cpmInfo.cycles.map((cycle, index) => {
-                            const key =
-                              cycle.cycleId ||
-                              cycle.id ||
-                              `${cycle.displayName || cycle.name || cycle.startDate || 'cycle'}-${index}`;
-                            const durationText =
-                              typeof cycle.duration === 'number' && Number.isFinite(cycle.duration)
-                                ? `${cycle.duration} días`
-                                : 'duración desconocida';
-                            const isShortest = Boolean(cpmInfo.shortestCycle && cpmInfo.shortestCycle === cycle);
+                </div>
 
-                            const cycleId = cycle.cycleId || cycle.id;
-                            const isIgnored = Boolean(cycle.isIgnored || cycle.ignoredForAutoCalculations);
-                            const isPending = cycleId ? pendingIgnoredCycleIds.includes(cycleId) : false;
-                            const toggleLabel = isPending
-                              ? 'Guardando…'
-                              : isIgnored
-                                ? 'Incluir'
-                                : 'Ignorar';
+                <div
+                  role="radio"
+                  tabIndex={0}
+                  onClick={() => handleSelectCpmMode('auto')}
+                  onKeyDown={(event) => handleCardKeyDown(event, () => handleSelectCpmMode('auto'))}
+                  className={`cursor-pointer rounded-2xl border px-3 py-3 shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70 ${
+                    cpmSelection === 'auto'
+                      ? 'border-emerald-300 bg-emerald-50/60'
+                      : 'border-rose-100 bg-white/80 hover:border-emerald-200'
+                  } ${!cpmInfo.canCompute ? 'opacity-70' : ''}`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="space-y-1">
+                      <p className="text-sm font-semibold text-rose-900">Cálculo automático</p>
+                      <span className="text-[11px] font-semibold text-rose-600">
+                        {cpmInfo.canCompute && cpmInfo.value !== null
+                          ? `CPM automático: ${cpmAutomaticValueLabel} días`
+                          : 'No disponible todavía'}
+                      </span>
+                      <p className="text-[10px] text-rose-600">Basado en tus ciclos completados.</p>
+                    </div>
+                    <span
+                      className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 ${
+                        cpmSelection === 'auto' ? 'border-emerald-400 bg-emerald-400' : 'border-emerald-300 bg-white'
+                      }`}
+                    >
+                      {cpmSelection === 'auto' && <span className="h-2.5 w-2.5 rounded-full bg-white" />}
+                    </span>
+                  </div>
 
-                            const cardClasses = `rounded-2xl border px-3 py-2 shadow-sm transition hover:border-rose-200 hover:bg-white ${
-                              isIgnored ? 'border-rose-200 bg-rose-50/80 opacity-80' : 'border-rose-100 bg-white/50'
-                            }`;
+                    <div className="mt-2 rounded-2xl border border-rose-100 bg-rose-50/70 px-3 py-2.5 text-[11px] text-rose-900">
+                    <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-rose-700">
+                      <span>Datos disponibles</span>
+                      <button
+                        type="button"
+                        onClick={() => setShowCpmDetails((previous) => !previous)}
+                        className="rounded-full bg-white/70 px-2 py-0.5 text-[11px] font-semibold text-rose-600 transition hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70"
+                        aria-expanded={showCpmDetails}
+                      >
+                      {cpmInfo.highlightLabel}
+                      </button>
+                    </div>
 
-                            return (
-                              <li key={key}>
-                                <div className="flex items-stretch gap-2">
-                                  <div className={`${cardClasses} flex-1`}>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleNavigateToCycleDetails(cycle)}
-                                      className="block w-full rounded-2xl px-1 py-0.5 text-left transition hover:bg-white/60 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70"
-                                    >
-                                      <div className="flex items-center justify-between gap-2">
-                                        <p className="text-xs font-semibold text-rose-700">
-                                          {cycle.dateRangeLabel || cycle.displayName || cycle.name || 'Ciclo sin nombre'}
-                                        </p>
-                                        <ChevronRight className="h-4 w-4 text-rose-400" aria-hidden="true" />
+                    {cpmInfo.summary && (
+                      <p className="mt-1 text-[11px] text-rose-500">{cpmInfo.summary}</p>
+                    )}
+                    {!cpmInfo.detailsAvailable && (
+                      <p className="mt-1 text-[11px] text-rose-500">
+                        Aún no hay ciclos finalizados con fecha de finalización.
+                      </p>
+                    )}
+                    {showCpmDetails && cpmInfo.detailsAvailable && (
+                      <div className="mt-2 space-y-2">
+                        {cpmInfo.cycles.length > 0 ? (
+                          <ul className="space-y-1">
+                            {cpmInfo.cycles.map((cycle, index) => {
+                              const key =
+                                cycle.cycleId ||
+                                cycle.id ||
+                                `${cycle.displayName || cycle.name || cycle.startDate || 'cycle'}-${index}`;
+                              const durationText =
+                                typeof cycle.duration === 'number' && Number.isFinite(cycle.duration)
+                                  ? `${cycle.duration} días`
+                                  : 'duración desconocida';
+                              const isShortest = Boolean(cpmInfo.shortestCycle && cpmInfo.shortestCycle === cycle);
+
+                              const cycleId = cycle.cycleId || cycle.id;
+                              const isIgnored = Boolean(cycle.isIgnored || cycle.ignoredForAutoCalculations);
+                              const isPending = cycleId ? pendingIgnoredCycleIds.includes(cycleId) : false;
+
+                              const cardClasses = `rounded-2xl border px-3 py-2 shadow-sm transition hover:border-rose-200 hover:bg-white ${
+                                isIgnored ? 'border-rose-200 bg-rose-50/80 opacity-80' : 'border-rose-100 bg-white/50'
+                              }`;
+
+                              return (
+                                <li key={key}>
+                                  <div className="flex items-stretch gap-2">
+                                    <div className={`${cardClasses} flex-1`}>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleNavigateToCycleDetails(cycle)}
+                                        className="block w-full rounded-2xl px-1 py-0.5 text-left transition hover:bg-white/60 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70"
+                                      >
+                                        <div className="flex items-center justify-between gap-2">
+                                          <p className="text-xs font-semibold text-rose-700">
+                                            {cycle.dateRangeLabel || cycle.displayName || cycle.name || 'Ciclo sin nombre'}
+                                          </p>
+                                          <ChevronRight className="h-4 w-4 text-rose-400" aria-hidden="true" />
+                                        </div>
+                                      </button>
+                                      <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-[11px] text-rose-500">
+                                        <span>Duración: {durationText}</span>
+                                        {isShortest && (
+                                          <span className="rounded-full bg-rose-100 px-2 py-0.5 font-semibold text-rose-600">
+                                            Ciclo más corto
+                                          </span>
+                                        )}
                                       </div>
-                                    </button>
-                                    <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-[11px] text-rose-500">
-                                      <span>Duración: {durationText}</span>
-                                      {isShortest && (
-                                        <span className="rounded-full bg-rose-100 px-2 py-0.5 font-semibold text-rose-600">
-                                          Ciclo más corto
-                                        </span>
+                                      {isIgnored && (
+                                        <p className="mt-1 text-[11px] text-rose-400">
+                                          Ignorado para el cálculo automático.
+                                        </p>
                                       )}
                                     </div>
-                                    {isIgnored && (
-                                      <p className="mt-1 text-[11px] text-rose-400">
-                                        Ignorado para el cálculo automático.
-                                      </p>
-                                    )}
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="xs"
+                                      disabled={!cycleId || isPending}
+                                      onClick={() => cycleId && handleToggleCycleIgnore(cycleId, !isIgnored)}
+                                      className="shrink-0 self-center h-8 w-8 p-0 bg-transparent border-transparent"
+                                      title={
+                                        isIgnored
+                                          ? 'Incluir ciclo en el cálculo automático'
+                                          : 'Ignorar ciclo para el cálculo automático'
+                                      }
+                                      aria-label={
+                                        isIgnored
+                                          ? 'Incluir ciclo en el cálculo automático'
+                                          : 'Ignorar ciclo para el cálculo automático'
+                                      }
+                                      aria-pressed={isIgnored}
+                                    >
+                                      {isPending ? (
+                                        <>
+                                          <Loader2 className="h-4 w-4 animate-spin text-rose-500" aria-hidden="true" />
+                                          <span className="sr-only">Guardando…</span>
+                                        </>
+                                      ) : isIgnored ? (
+                                        <Ban className="h-4 w-4 text-rose-500" aria-hidden="true" />
+                                      ) : (
+                                        <CheckCircle2 className="h-4 w-4 text-green-800/70" aria-hidden="true" />
+                                      )}
+                                    </Button>
                                   </div>
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="xs"
-                                    disabled={!cycleId || isPending}
-                                    onClick={() => cycleId && handleToggleCycleIgnore(cycleId, !isIgnored)}
-                                    className="shrink-0 self-center text-[10px]"
-                                    title={
-                                      isIgnored
-                                        ? 'Incluir ciclo en el cálculo automático'
-                                        : 'Ignorar ciclo para el cálculo automático'
-                                    }
-                                  >
-                                    {toggleLabel}
-                                  </Button>
-                                </div>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      ) : (
-                        <p className="text-[11px] text-rose-500">
-                          Aún no hay ciclos finalizados con fecha de finalización.
-                        </p>
-                      )}
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        ) : (
+                          <p className="text-[11px] text-rose-500">Aún no hay ciclos finalizados con fecha de finalización.</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div
+                  role="radio"
+                  tabIndex={0}
+                  aria-checked={cpmSelection === 'manual'}
+                  onClick={() => handleSelectCpmMode('manual')}
+                  onKeyDown={(event) => handleCardKeyDown(event, () => handleSelectCpmMode('manual'))}
+                  className={`cursor-pointer rounded-2xl border px-3 py-3 shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70 ${
+                    cpmSelection === 'manual'
+                      ? 'border-rose-300 bg-rose-50'
+                      : 'border-rose-100 bg-white/80 hover:border-rose-200'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="space-y-1">
+                      <p className="text-sm font-semibold text-rose-900">Valor manual</p>
+                    </div>                    
+                      <span
+                      className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 ${
+                        cpmSelection === 'manual' ? 'border-rose-400 bg-rose-400' : 'border-rose-300 bg-white'
+                      }`}
+                    >
+                      {cpmSelection === 'manual' && <span className="h-2.5 w-2.5 rounded-full bg-white" />}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="manual-cpm-base" className="text-xs text-gray-600">
+                        Ciclo más corto
+                      </Label>
+                      <Input
+                        id="manual-cpm-base"
+                        type="number"
+                        inputMode="numeric"
+                        step="1"
+                        min="0"
+                        value={manualCpmBaseInput}
+                        onChange={handleManualCpmBaseInputChange}
+                        placeholder="Introduce un entero"
+                        aria-describedby={manualCpmEditedSide ? 'manual-cpm-helper' : undefined}
+                      />
+                      {manualCpmBaseError && <p className="text-xs text-red-500">{manualCpmBaseError}</p>}
                     </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="manual-cpm-final" className="text-xs text-gray-600">
+                        CPM obtenido
+                      </Label>
+                      <Input
+                        id="manual-cpm-final"
+                        type="number"
+                        inputMode="decimal"
+                        step="0.1"
+                        min="0"
+                        value={manualCpmFinalInput}
+                        onChange={handleManualCpmFinalInputChange}
+                        placeholder="Introduce el valor"
+                        aria-describedby={manualCpmEditedSide ? 'manual-cpm-helper' : undefined}
+                      />
+                      {manualCpmFinalError && <p className="text-xs text-red-500">{manualCpmFinalError}</p>}
+                    </div>
+                  </div>
+
+                    <div className="mt-3 flex flex-wrap items-end gap-2">
+                  {manualCpmEditedSide && (
+                    <div className="mt-2 flex justify-center">
+                      <span
+                        id="manual-cpm-helper"
+                        className="rounded-full bg-rose-50 px-3 py-1 text-xs font-medium text-rose-600"
+                      >
+                      {manualCpmEditedSide === 'base'
+                          ? 'Usando Ciclo más corto como base'
+                          : 'Usando CPM (final)'}
+                      </span>
+                    </div>
+                  
+                    )}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setShowCpmDeleteDialog(true)}
+                      disabled={!canDeleteManualCpm}
+                      className="h-8 shrink-0 rounded-full border border-rose-200 px-3 text-xs text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                    >
+                      Borrar
+                    </Button>
+                  </div>
+
+
+
+                  {isManualCpmSaveDisabled && !isManualCpm && (
+                    <p className="mt-2 text-[11px] text-rose-500">Introduce un valor válido antes de seleccionar.</p>
                   )}
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="manual-cpm-input" className="text-xs text-gray-600">
-                    CPM manual
-                  </Label>
-                  <Input
-                    id="manual-cpm-input"
-                    type="number"
-                    inputMode="decimal"
-                    min="0"
-                    step="0.1"
-                    value={manualCpmInput}
-                    onChange={handleManualCpmInputChange}
-                    placeholder="Introduce un valor"
-                  />
-                  {manualCpmError && (
-                    <p className="text-xs text-red-500">{manualCpmError}</p>
-                  )}
+                <div
+                  role="radio"
+                  tabIndex={0}
+                  aria-checked={cpmSelection === 'none'}
+                  onClick={() => handleSelectCpmMode('none')}
+                  onKeyDown={(event) => handleCardKeyDown(event, () => handleSelectCpmMode('none'))}
+                  className={`cursor-pointer rounded-2xl border px-3 py-2 text-left shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70 ${
+                    cpmSelection === 'none'
+                      ? 'border-gray-300 bg-gray-50'
+                      : 'border-dashed border-rose-200 bg-white/70 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="space-y-1">
+                      <p className="text-sm font-semibold text-rose-900">No usar ningún valor</p>
+                    </div>
+                    <span
+                      className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 ${
+                        cpmSelection === 'none' ? 'border-gray-400 bg-gray-400' : 'border-gray-300 bg-white'
+                      }`}
+                    >
+                      {cpmSelection === 'none' && <span className="h-2.5 w-2.5 rounded-full bg-white" />}
+                    </span>
+                  </div>
                 </div>
               </div>
-              <DialogFooter className="sm:flex-row sm:items-center sm:justify-between">
+                <DialogFooter className="mt-0 flex flex-col gap-3 px-4 pb-4">
+                  <div className="flex w-full items-center justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={handleCloseCpmDialog}
+                      className="h-8 rounded-full px-4 text-xs"
+                    >
+                    Cancelar
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={handleSaveManualCpm}
+                      disabled={isManualCpmSaveDisabled}
+                      className="h-8 rounded-full px-4 text-xs"
+                    >
+                      Guardar
+                    </Button>
+                  </div>
+                </DialogFooter>
+              
+            </DialogContent>
+          </Dialog>
+          <Dialog open={showCpmDeleteDialog} onOpenChange={setShowCpmDeleteDialog}>
+            <DialogContent className="w-[90vw] max-w-xs rounded-2xl border border-rose-100">
+              <DialogHeader>
+                <DialogTitle>¿Estás segura de que quieres borrar el valor manual de CPM?</DialogTitle>
+              </DialogHeader>
+              <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:justify-end sm:gap-3">
                 <Button
                   type="button"
-                  variant="ghost"
-                  onClick={handleResetManualCpm}
-                  disabled={!isManualCpm}
-                  className="text-pink-600 hover:text-pink-700 disabled:text-gray-400"
+                  variant="secondary"
+                  onClick={() => setShowCpmDeleteDialog(false)}
+                  className="w-full sm:w-auto"
                 >
-                  Restablecer automático
+                  Cancelar
                 </Button>
-                <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
-                  <Button type="button" variant="secondary" onClick={handleCloseCpmDialog}>
-                    Cancelar
-                  </Button>
-                  <Button type="button" onClick={handleSaveManualCpm}>
-                    Guardar
-                  </Button>
-                </div>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={handleConfirmCpmDelete}
+                  disabled={isDeletingManualCpm}
+                  className="w-full sm:w-auto"
+                >
+                  {isDeletingManualCpm ? 'Borrando…' : 'Borrar'}
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
+              
           <Dialog
             open={isT8DialogOpen}
             onOpenChange={(open) => {
@@ -2408,154 +3729,337 @@ const ModernFertilityDashboard = () => {
               }
             }}
           >
-            <DialogContent className="w-[90vw] max-w-sm rounded-3xl border border-pink-100 bg-white/95 text-gray-800 shadow-xl">
-              <DialogHeader className="space-y-2 text-left">
-                <DialogTitle>Editar T-8</DialogTitle>
-                <DialogDescription>
-                  Personaliza el T-8 introduciendo un valor manual. Si no se establece, se calculará automáticamente.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-3">
-                <div className="rounded-2xl border border-rose-100 bg-rose-50/70 px-3 py-2.5 text-[11px] text-rose-900">
-                  <div className="flex items-start gap-2">
-                    <HelpCircle className="mt-0.5 h-4 w-4 text-rose-500" />
-                    <div className="space-y-1">
-                      <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-rose-700">
-                        <span>Origen del dato</span>
-                        <span className="rounded-full bg-white/70 px-2 py-0.5 text-[11px] font-semibold text-rose-600">
-                          {t8Info.sourceLabel}
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-1 text-xs text-rose-600">
-                        <span className="font-semibold">Datos disponibles:</span>
-                        <button
-                          type="button"
-                          onClick={() => setShowT8Details((previous) => !previous)}
-                          className="inline-flex items-center font-semibold text-rose-700 underline decoration-rose-300 underline-offset-2 transition hover:text-rose-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70 rounded-sm"
-                          aria-expanded={showT8Details}
-                        >
-                          {t8Info.highlightLabel}
-                        </button>
-                        </div>
-                      <p className="text-[11px] text-rose-500">{t8Info.summary}</p>
-                      {showT8Details && (
-                        <div className="mt-2 space-y-2">
-                          {computedT8Data.cyclesConsidered.length > 0 ? (
-                            <ul className="space-y-1">
-                              {computedT8Data.cyclesConsidered.map((cycle, index) => {
-                                const key = cycle.cycleId || `${cycle.displayName}-${cycle.riseDay}-${index}`;
-                                const riseDayText =
-                                  typeof cycle.riseDay === 'number' && Number.isFinite(cycle.riseDay)
-                                    ? cycle.riseDay
-                                    : '—';
-                                const cycleId = cycle.cycleId || cycle.id;
-                                const isIgnored = Boolean(cycle.isIgnored || cycle.ignoredForAutoCalculations);
-                                const isPending = cycleId ? pendingIgnoredCycleIds.includes(cycleId) : false;
-                                const toggleLabel = isPending
-                                  ? 'Guardando…'
-                                  : isIgnored
-                                    ? 'Incluir'
-                                    : 'Ignorar';
-
-                                const cardClasses = `rounded-2xl border px-3 py-2 shadow-sm transition hover:border-rose-200 hover:bg-white ${
-                                  isIgnored ? 'border-rose-200 bg-rose-50/80 opacity-80' : 'border-rose-100 bg-white/40'
-                                }`;
-
-                                return (
-                                  <li key={key}>
-                                    <div className="flex items-stretch gap-2">
-                                      <div className={`${cardClasses} flex-1`}>
-                                        <button
-                                          type="button"
-                                          onClick={() => handleNavigateToCycleDetails(cycle)}
-                                          className="block w-full rounded-2xl px-1 py-0.5 text-left transition hover:bg-white/60 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70"
-                                        >
-                                          <div className="flex items-center justify-between gap-2">
-                                            <p className="text-xs font-semibold text-rose-700">
-                                              {cycle.dateRangeLabel || cycle.displayName || cycle.name || 'Ciclo sin nombre'}
-                                            </p>
-                                            <ChevronRight className="h-4 w-4 text-rose-400" aria-hidden="true" />
-                                          </div>
-                                        </button>
-                                        <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-rose-500">
-                                          <span>Día de subida: {riseDayText}</span>
-                                          {Number.isFinite(cycle.t8Day) && (
-                                            <span>T-8: Día {cycle.t8Day}</span>
-                                          )}
-                                        </div>
-                                        {isIgnored && (
-                                          <p className="mt-1 text-[11px] text-rose-400">
-                                            Ignorado para el cálculo automático.
-                                          </p>
-                                        )}
-                                      </div>
-                                      <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="xs"
-                                        disabled={!cycleId || isPending}
-                                        onClick={() => cycleId && handleToggleCycleIgnore(cycleId, !isIgnored)}
-                                        className="shrink-0 self-center text-[10px]"
-                                        title={
-                                          isIgnored
-                                            ? 'Incluir ciclo en el cálculo automático'
-                                            : 'Ignorar ciclo para el cálculo automático'
-                                        }
-                                      >
-                                        {toggleLabel}
-                                      </Button>
-                                    </div>
-                                  </li>
-                                );
-                          })}
-                            </ul>
-                          ) : (
-                            <p className="text-[11px] text-rose-500">
-                              Aún no hay ciclos con ovulación confirmada por temperatura.
-                            </p>
-                          )}
-                        </div>
-                      )}
+            <DialogContent className="flex max-h-[90vh] w-[90vw] max-w-sm flex-col rounded-3xl border border-pink-100 bg-white/95 text-gray-800 shadow-xl overflow-hidden p-0">
+                <DialogHeader className="space-y-2 px-4 pt-4 text-left">
+                  <DialogTitle>Editar T-8</DialogTitle>
+                  <DialogDescription>
+                    <div className="text-xs">
+                    Puedes usar el valor calculado automáticamente o fijar un valor manual.
                     </div>
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="flex-1 space-y-3 overflow-y-auto px-4 pb-4">
+                <div className="rounded-2xl border border-rose-100 bg-rose-50/70 px-3 py-2">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-rose-600">Estado actual</p>
+                    </div>
+                    <span
+                      className={`rounded-full px-3 py-1 text-[11px] font-semibold ${
+                        t8StatusMode === 'manual'
+                          ? 'bg-rose-100 text-rose-700'
+                          : t8StatusMode === 'auto'
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : 'bg-gray-100 text-gray-600'
+                      }`}
+                    >
+                      {t8StatusChipLabel}
+                    </span>
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="manual-t8-input" className="text-xs text-gray-600">
-                    T-8 manual
-                  </Label>
-                  <Input
-                    id="manual-t8-input"
-                    type="number"
-                    inputMode="numeric"
-                    min="1"
-                    step="1"
-                    value={manualT8Input}
-                    onChange={handleManualT8InputChange}
-                    placeholder="Introduce un valor"
-                  />
-                  {manualT8Error && (
-                    <p className="text-xs text-red-500">{manualT8Error}</p>
-                  )}
+
+                <div
+                  role="radio"
+                  tabIndex={0}
+                  onClick={() => handleSelectT8Mode('auto')}
+                  onKeyDown={(event) => handleCardKeyDown(event, () => handleSelectT8Mode('auto'))}
+                  className={`cursor-pointer rounded-2xl border px-3 py-3 shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70 ${
+                    t8Selection === 'auto'
+                      ? 'border-emerald-300 bg-emerald-50/60'
+                      : 'border-rose-100 bg-white/80 hover:border-emerald-200'
+                  } ${!computedT8Data.canCompute ? 'opacity-70' : ''}`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="space-y-1">
+                      <p className="text-sm font-semibold text-rose-900">Cálculo automático</p>
+                      <span className="text-[11px] font-semibold text-rose-600">
+                        {computedT8Data.canCompute && computedT8Data.value !== null
+                          ? `T-8 automático: Día ${t8AutomaticValueLabel}`
+                          : 'No disponible todavía'}
+                      </span>
+                      <p className="text-[10px] text-rose-600">Basado en tus ciclos completados.</p>
+                    </div>
+                    <span
+                      className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 ${
+                        t8Selection === 'auto' ? 'border-emerald-400 bg-emerald-400' : 'border-emerald-300 bg-white'
+                      }`}
+                    >
+                      {t8Selection === 'auto' && <span className="h-2.5 w-2.5 rounded-full bg-white" />}
+                    </span>
+                  </div>
+
+                  <div className="mt-2 rounded-2xl border border-rose-100 bg-rose-50/70 px-3 py-2.5 text-[11px] text-rose-900">
+                    <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-rose-700">
+                      <span>Datos disponibles</span>
+                      <button
+                        type="button"
+                        onClick={() => setShowT8Details((previous) => !previous)}
+                        className="rounded-full bg-white/70 px-2 py-0.5 text-[11px] font-semibold text-rose-600 transition hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70"
+                        aria-expanded={showT8Details}
+                      >
+                      {t8Info.highlightLabel}
+                      </button>
+                    </div>
+                    {t8Info.summary && <p className="mt-1 text-[11px] text-rose-500">{t8Info.summary}</p>}
+                    {computedT8Data.cycleCount === 0 && (
+                      <p className="mt-1 text-[11px] text-rose-500">Aún no hay ciclos con ovulación confirmada por temperatura.</p>
+                    )}
+                    {showT8Details && computedT8Data.cycleCount > 0 && (
+                      <div className="mt-2 space-y-2">
+                        {computedT8Data.cyclesConsidered.length > 0 ? (
+                          <ul className="space-y-1">
+                            {computedT8Data.cyclesConsidered.map((cycle, index) => {
+                              const key = cycle.cycleId || `${cycle.displayName}-${cycle.riseDay}-${index}`;
+                              const riseDayText =
+                                typeof cycle.riseDay === 'number' && Number.isFinite(cycle.riseDay)
+                                  ? cycle.riseDay
+                                  : '—';
+                              const cycleId = cycle.cycleId || cycle.id;
+                              const isIgnored = Boolean(cycle.isIgnored || cycle.ignoredForAutoCalculations);
+                              const isPending = cycleId ? pendingIgnoredCycleIds.includes(cycleId) : false;
+
+                              const cardClasses = `rounded-2xl border px-3 py-2 shadow-sm transition hover:border-rose-200 hover:bg-white ${
+                                isIgnored ? 'border-rose-200 bg-rose-50/80 opacity-80' : 'border-rose-100 bg-white/40'
+                              }`;
+
+                              return (
+                                <li key={key}>
+                                  <div className="flex items-stretch gap-2">
+                                    <div className={`${cardClasses} flex-1`}>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleNavigateToCycleDetails(cycle)}
+                                        className="block w-full rounded-2xl px-1 py-0.5 text-left transition hover:bg-white/60 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70"
+                                      >
+                                        <div className="flex items-center justify-between gap-2">
+                                          <p className="text-xs font-semibold text-rose-700">
+                                            {cycle.dateRangeLabel || cycle.displayName || cycle.name || 'Ciclo sin nombre'}
+                                          </p>
+                                          <ChevronRight className="h-4 w-4 text-rose-400" aria-hidden="true" />
+                                        </div>
+                                      </button>
+                                      <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-rose-500">
+                                        <span>Día de subida: {riseDayText}</span>
+                                        {Number.isFinite(cycle.t8Day) && <span>T-8: Día {cycle.t8Day}</span>}
+                                      </div>
+                                      {isIgnored && (
+                                        <p className="mt-1 text-[11px] text-rose-400">
+                                          Ignorado para el cálculo automático.
+                                        </p>
+                                      )}
+                                    </div>
+                                  <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="icon"
+                                      disabled={!cycleId || isPending}
+                                      onClick={() => cycleId && handleToggleCycleIgnore(cycleId, !isIgnored)}
+                                      className="shrink-0 self-center h-8 w-8 p-0 bg-transparent border-transparent"
+                                      title={
+                                        isIgnored
+                                          ? 'Incluir ciclo en el cálculo automático'
+                                          : 'Ignorar ciclo para el cálculo automático'
+                                      }
+                                      aria-label={
+                                        isIgnored
+                                          ? 'Incluir ciclo en el cálculo automático'
+                                          : 'Ignorar ciclo para el cálculo automático'
+                                      }
+                                      aria-pressed={isIgnored}
+                                    >
+                                      {isPending ? (
+                                        <>
+                                          <Loader2 className="h-4 w-4 animate-spin text-rose-500" aria-hidden="true" />
+                                          <span className="sr-only">Guardando…</span>
+                                        </>
+                                      ) : isIgnored ? (
+                                        <Ban className="h-4 w-4 text-rose-500" aria-hidden="true" />
+                                      ) : (
+                                        <CheckCircle2 className="h-4 w-4 text-green-800/70" aria-hidden="true" />
+                                      )}
+                                    </Button>
+                                  </div>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        ) : (
+                          <p className="text-[11px] text-rose-500">Aún no hay ciclos con ovulación confirmada por temperatura.</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-              <DialogFooter className="sm:flex-row sm:items-center sm:justify-between">
+
+                <div
+                  role="radio"
+                  tabIndex={0}
+                  aria-checked={t8Selection === 'manual'}
+                  onClick={() => handleSelectT8Mode('manual')}
+                  onKeyDown={(event) => handleCardKeyDown(event, () => handleSelectT8Mode('manual'))}
+                  className={`cursor-pointer rounded-2xl border px-3 py-3 shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70 ${
+                    t8Selection === 'manual'
+                      ? 'border-rose-300 bg-rose-50'
+                      : 'border-rose-100 bg-white/80 hover:border-rose-200'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="space-y-1">
+                      <p className="text-sm font-semibold text-rose-900">Valor manual</p>
+                    </div>
+                    <span
+                      className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 ${
+                        t8Selection === 'manual' ? 'border-rose-400 bg-rose-400' : 'border-rose-300 bg-white'
+                      }`}
+                    >
+                      {t8Selection === 'manual' && <span className="h-2.5 w-2.5 rounded-full bg-white" />}
+                    </span>
+                  </div>
+
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="manual-t8-base" className="text-xs text-gray-600">
+                        Ciclo con subida (día)
+                      </Label>
+                      <Input
+                        id="manual-t8-base"
+                        type="number"
+                        inputMode="numeric"
+                        step="1"
+                        min="9"
+                        value={manualT8BaseInput}
+                        onChange={handleManualT8BaseInputChange}
+                        placeholder="Día de subida"
+                        aria-describedby={manualT8EditedSide ? 'manual-t8-helper' : undefined}
+                      />
+                      {manualT8BaseError && <p className="text-xs text-red-500">{manualT8BaseError}</p>}
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="manual-t8-final" className="text-xs text-gray-600">
+                        T-8 manual (día)
+                      </Label>
+                      <Input
+                        id="manual-t8-final"
+                        type="number"
+                        inputMode="numeric"
+                        step="1"
+                        min="1"
+                        value={manualT8FinalInput}
+                        onChange={handleManualT8FinalInputChange}
+                        placeholder="Día del T-8"
+                        aria-describedby={manualT8EditedSide ? 'manual-t8-helper' : undefined}
+                      />
+                      {manualT8FinalError && <p className="text-xs text-red-500">{manualT8FinalError}</p>}
+                    </div>
+                  
+                      </div>
+                    <div className="mt-3 flex flex-wrap items-end gap-2">
+                {manualT8EditedSide && (
+                    <div className="mt-2 flex justify-center">
+                      <span
+                        id="manual-t8-helper"
+                        className="rounded-full bg-rose-50 px-3 py-1 text-xs font-medium text-rose-600"
+                      >
+                        {manualT8EditedSide === 'base'
+                          ? 'Usando día de subida como base'
+                          : 'Usando T-8 manual'}
+                      </span>
+                    </div>
+                  )}
+
+                  </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setShowT8DeleteDialog(true)}
+                      disabled={!canDeleteManualT8}
+                      className="h-8 shrink-0 rounded-full border border-rose-200 px-3 text-xs text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                    >
+                      Borrar
+                    </Button>
+                    {isManualT8SaveDisabled && !isManualT8 && (
+                    <p className="mt-2 text-[11px] text-rose-500">Introduce un valor válido antes de seleccionar.</p>
+                  )}
+                  </div>
+
+
+
+                  <div
+                  role="radio"
+                  tabIndex={0}
+                  aria-checked={t8Selection === 'none'}
+                  onClick={() => handleSelectT8Mode('none')}
+                  onKeyDown={(event) => handleCardKeyDown(event, () => handleSelectT8Mode('none'))}
+                  className={`cursor-pointer rounded-2xl border px-3 py-2 text-left shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70 ${
+                    t8Selection === 'none'
+                      ? 'border-gray-300 bg-gray-50'
+                      : 'border-dashed border-rose-200 bg-white/70 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="space-y-1">
+                      <p className="text-sm font-semibold text-rose-900">No usar ningún valor</p>
+                    </div>
+                    <span
+                      className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 ${
+                        t8Selection === 'none' ? 'border-gray-400 bg-gray-400' : 'border-gray-300 bg-white'
+                      }`}
+                    >
+                      {t8Selection === 'none' && <span className="h-2.5 w-2.5 rounded-full bg-white" />}
+                    </span>
+                  </div>
+                  
+                </div>
+
+                </div>
+                
+              <DialogFooter className="mt-0 flex flex-col gap-3 px-4 pb-4">
+                  <div className="flex w-full items-center justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={handleCloseT8Dialog}
+                      className="h-8 rounded-full px-4 text-xs"
+                    >
+                     Cancelar
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={handleSaveManualT8}
+                      disabled={isManualT8SaveDisabled}
+                      className="h-8 rounded-full px-4 text-xs"
+                    >
+                      Guardar
+                    </Button>
+                  </div>
+                </DialogFooter>
+
+            </DialogContent>
+          </Dialog>
+          
+          <Dialog open={showT8DeleteDialog} onOpenChange={setShowT8DeleteDialog}>
+            <DialogContent className="w-[90vw] max-w-xs rounded-2xl border border-rose-100">
+              <DialogHeader>
+                <DialogTitle>¿Estás segura de que quieres borrar el valor manual de T-8?</DialogTitle>
+              </DialogHeader>
+              <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:justify-end sm:gap-3">
                 <Button
                   type="button"
-                  variant="ghost"
-                  onClick={handleResetManualT8}
-                  disabled={!isManualT8}
-                  className="text-pink-600 hover:text-pink-700 disabled:text-gray-400"
+                  variant="secondary"
+                  onClick={() => setShowT8DeleteDialog(false)}
+                  className="w-full sm:w-auto"
                 >
-                  Restablecer automático
+                  Cancelar
                 </Button>
-                <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
-                  <Button type="button" variant="secondary" onClick={handleCloseT8Dialog}>
-                    Cancelar
-                  </Button>
-                  <Button type="button" onClick={handleSaveManualT8}>
-                    Guardar
-                  </Button>
-                </div>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={handleConfirmT8Delete}
+                  disabled={isDeletingManualT8}
+                  className="w-full sm:w-auto"
+                >
+                  {isDeletingManualT8 ? 'Borrando…' : 'Borrar'}
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -2620,12 +4124,17 @@ const ModernFertilityDashboard = () => {
             isEditing={!!editingRecord && !isPlaceholderRecord}
             cycleData={currentCycle.data}
             onDateSelect={handleDateSelect}
+            initialSectionKey={initialSectionKey}
           />
         </DialogContent>
       </Dialog>
 
       <FloatingActionButton
-        onAddRecord={() => { setEditingRecord(null); setShowForm(true); }}
+        onAddRecord={() => {
+          setEditingRecord(null);
+          setInitialSectionKey(null);
+          setShowForm(true);
+        }}
         onAddCycle={() => setShowNewCycleDialog(true)}
       />
 

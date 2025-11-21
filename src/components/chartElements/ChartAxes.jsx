@@ -15,7 +15,10 @@ const ChartAxes = ({
   responsiveFontSize,
   isFullScreen,
   showLeftLabels = false,
-  reduceMotion = false
+  reduceMotion = false,
+  graphBottomY,
+  chartAreaHeight,
+  rowsZoneHeight,
 }) => {
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -47,25 +50,41 @@ const ChartAxes = ({
       {/* Definiciones mejoradas con gradientes inspirados en la dashboard */}
       <defs>
         <linearGradient id="bgGradientChart" x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stopColor="rgba(254, 242, 242, 0.95)" />
-          <stop offset="30%" stopColor="rgba(255, 241, 242, 0.9)" />
-          <stop offset="70%" stopColor="rgba(255, 245, 255, 0.95)" />
-          <stop offset="100%" stopColor="rgba(254, 242, 242, 0.8)" />
+          <stop offset="0%" stopColor="#fffbfc" />
+          <stop offset="50%" stopColor="#fff5f7" />
+          <stop offset="100%" stopColor="#fff1f3" />
+        </linearGradient>
+        {/* AÑADE ESTE NUEVO GRADIENTE */}
+<linearGradient id="dataZoneGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+  <stop offset="0%" stopColor="rgba(255, 255, 255, 0.6)" />
+  <stop offset="20%" stopColor="rgba(255, 250, 252, 0.75)" />
+  <stop offset="100%" stopColor="rgba(254, 242, 244, 0.85)" />
+</linearGradient>
+        <linearGradient id="tempLineGradientChart" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#f472b6" />
+          <stop offset="30%" stopColor="#ec4899" />
+          <stop offset="70%" stopColor="#db2777" />
+          <stop offset="100%" stopColor="#be185d" />
         </linearGradient>
         
-        <linearGradient id="tempLineGradientChart" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#F472B6" />
-          <stop offset="50%" stopColor="#EC4899" />
-          <stop offset="100%" stopColor="#E91E63" />
-        </linearGradient>
-        
-        <filter id="chartGlow" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
-          <feMerge> 
-            <feMergeNode in="coloredBlur"/>
-            <feMergeNode in="SourceGraphic"/>
-          </feMerge>
-        </filter>
+        <filter id="softShadow">
+  <feGaussianBlur in="SourceAlpha" stdDeviation="2"/>
+  <feOffset dx="0" dy="1" result="offsetblur"/>
+  <feComponentTransfer>
+    <feFuncA type="linear" slope="0.2"/>
+  </feComponentTransfer>
+  <feMerge>
+    <feMergeNode/>
+    <feMergeNode in="SourceGraphic"/>
+  </feMerge>
+</filter>
+<filter id="pointGlow">
+  <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+  <feMerge>
+    <feMergeNode in="coloredBlur"/>
+    <feMergeNode in="SourceGraphic"/>
+  </feMerge>
+</filter>
         
         <filter id="textShadow" x="-50%" y="-50%" width="200%" height="200%">
           <feDropShadow dx="0" dy="1" stdDeviation="1" floodColor="rgba(255, 255, 255, 0.8)" />
@@ -83,13 +102,38 @@ const ChartAxes = ({
         x={padding.left}
         y={padding.top}
         width={chartWidth - padding.left - padding.right}
-        height={chartHeight - padding.top - padding.bottom}
+        height={chartAreaHeight}
         fill="url(#bgGradientChart)"
         opacity={2}
         rx={12}
         style={{ filter: 'drop-shadow(0 4px 12px rgba(244, 114, 182, 0.1))' }}
       />
+{/* Fondo del área de gráfica con borde rosado sutil */}
+<rect
+  x={padding.left}
+  y={padding.top}
+  width={chartWidth - padding.left - padding.right}
+  height={chartAreaHeight}
+  fill="white"
+  stroke="url(#tempLineGradientChart)"
+  strokeWidth="1"
+  strokeOpacity="0.2"
+  rx="12"
+  style={{ filter: 'url(#softShadow)' }}
+/>
 
+{/* AÑADE ESTO AQUÍ - Fondo sutil para zona de datos inferior */}
+<rect
+  x={padding.left}
+  y={graphBottomY}
+  width={chartWidth - padding.left - padding.right}
+  height={rowsZoneHeight}
+  fill="url(#dataZoneGradient)"
+  rx="8"
+  style={{ 
+    filter: 'drop-shadow(0 -1px 2px rgba(244, 114, 182, 0.05))'
+  }}
+/>
       {/* Líneas de cuadrícula con estilo mejorado */}
       {tempTicks.map((temp, i) => {
         const y = getY(temp);
@@ -106,8 +150,9 @@ const ChartAxes = ({
               y1={y}
               x2={chartWidth - padding.right}
               y2={y}
-              stroke={isMajor ? "rgba(244, 114, 182, 0.3)" : "rgba(244, 114, 182, 0.15)"}
-              strokeWidth={isMajor ? 3 : 2}
+              stroke={isMajor ? '#f9a8d4' : '#fce7f3'}
+              strokeWidth={isMajor ? 1.5 : 1}
+              opacity={isMajor ? 0.5 : 0.3}
               strokeDasharray={isMajor ? '0' : '4,4'}
               style={{ 
                 filter: isMajor ? 'drop-shadow(0 1px 3px rgba(244, 114, 182, 0.15))' : 'none',
@@ -123,7 +168,8 @@ const ChartAxes = ({
                 textAnchor="end"
                 fontSize={responsiveFontSize(isMajor ? 1.1 : 1)}
                 fontWeight={isMajor ? "700" : "600"}
-                fill={isMajor ? "#E91E63" : "#EC4899"}
+                fill={isMajor ? '#be185d' : '#db2777'}
+                opacity={isMajor ? 0.9 : 0.7}
                 style={{ 
                   filter: 'url(#textShadow)',
                   fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
@@ -140,7 +186,8 @@ const ChartAxes = ({
               textAnchor="start"
               fontSize={responsiveFontSize(isMajor ? 1.1 : 1)}
               fontWeight={isMajor ? "700" : "600"}
-              fill={isMajor ? "#E91E63" : "#EC4899"}
+              fill={isMajor ? '#be185d' : '#db2777'}
+              opacity={isMajor ? 0.9 : 0.7}
               style={{ 
                 filter: 'url(#textShadow)',
                 fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
@@ -161,9 +208,10 @@ const ChartAxes = ({
             x1={x}
             y1={padding.top}
             x2={x}
-            y2={chartHeight - padding.bottom}
-            stroke="rgba(244, 114, 182, 0.08)"
-            strokeWidth={2.8}
+            y2={graphBottomY}
+            stroke="#fce7f3"
+            strokeWidth="1"
+            opacity="0.6"
             style={{ filter: 'drop-shadow(0 0 1px rgba(244, 114, 182, 0.05))' }}
           />
         );
@@ -171,19 +219,27 @@ const ChartAxes = ({
 
       {/* Bordes del área del gráfico con estilo premium */}
       <rect
-        x={padding.left}
-        y={padding.top}
-        width={chartWidth - padding.left - padding.right}
-        height={chartHeight - padding.top - padding.bottom}
-        fill="none"
-        stroke="rgba(244, 114, 182, 0.4)"
-        strokeWidth={4}
-        rx={8}
-        style={{ 
-          filter: 'drop-shadow(0 4px 12px rgba(244, 114, 182, 0.15))',
-          strokeDasharray: '0'
-        }}
-      />
+          x={padding.left}
+          y={padding.top}
+          width={chartWidth - padding.left - padding.right}
+          height={chartAreaHeight}
+          fill="none"
+          stroke="url(#tempLineGradientChart)"
+          strokeWidth="2"
+          strokeOpacity="0.4"
+          rx="12"
+        />
+        <rect
+          x={padding.left + 1}
+          y={padding.top + 1}
+          width={chartWidth - padding.left - padding.right - 2}
+          height={chartAreaHeight - 2}
+          fill="none"
+          stroke="white"
+          strokeWidth="0.5"
+          rx="11"
+          opacity="0.9"
+        />
           {/* Unidad °C con diseño premium similar a la dashboard */}
       {showLeftLabels && (
         <G {...(reduceMotion ? {} : { variants: itemVariants })}>
@@ -194,7 +250,7 @@ const ChartAxes = ({
             textAnchor="middle"
             fontSize={responsiveFontSize(1.4)}
             fontWeight="800"
-            fill="#E91E63"
+            fill="#be185d"
             style={{ 
               filter: 'url(#textShadow)',
               fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'

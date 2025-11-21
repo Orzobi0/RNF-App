@@ -1,4 +1,5 @@
 import React from 'react';
+import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 
 // Colores consistentes con la dashboard
@@ -15,7 +16,9 @@ const ChartLeftLegend = ({
   getY,
   responsiveFontSize,
   textRowHeight,
-  isFullScreen
+  isFullScreen,
+  graphBottomY,
+  rowsZoneHeight,
 }) => {
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -38,8 +41,23 @@ const ChartLeftLegend = ({
     }
   }
 
-  const bottomY = chartHeight - padding.bottom;
-  const rowBlockHeight = textRowHeight * (isFullScreen ? 2 : 1.5);
+  // Ancla y estirado igual que las filas del chart
+  const rowsTopY = graphBottomY;
+  const obsRowIndex = isFullScreen ? 9 : 7.5;
+  const halfBlock = isFullScreen ? 1 : 0.75;
+  const autoRowH = Math.max(1, Math.floor(rowsZoneHeight / (obsRowIndex + halfBlock)));
+  const rowH = Math.max(textRowHeight, autoRowH);
+  const legendRows = useMemo(() => {
+    const baseRows = [
+      { label: 'Fecha', row: 1, color: isFullScreen ? '#374151' : '#374151', icon: null },
+      { label: 'Día', row: 2, color: isFullScreen ? '#374151' : '#374151', icon: null },
+      { label: 'Símbolo', row: 3, color: isFullScreen ? '#374151' : '#374151', icon: null },
+      { label: 'Sens.', row: isFullScreen ? 5 : 4.5, color: SENSATION_COLOR, icon: '◊' },
+      { label: 'Apar.', row: isFullScreen ? 7 : 6, color: APPEARANCE_COLOR, icon: '○' },
+      { label: 'Observ.', row: isFullScreen ? 9 : 7.5, color: OBSERVATION_COLOR, icon: '✦' },
+    ];
+    return baseRows;
+  }, [isFullScreen]);
 
   return (
     <svg
@@ -54,17 +72,7 @@ const ChartLeftLegend = ({
       </defs>
 
       {/* Fondo premium para las etiquetas de filas */}
-      <rect
-        x={0}
-        y={bottomY + textRowHeight * 0.5}
-        width={padding.left}
-        height={textRowHeight * (isFullScreen ? 9.5 : 8)}
-        fill="rgba(255, 255, 255, 0.3)"
-        stroke="rgba(255, 228, 230, 0.9)"
-        strokeWidth={1}
-        rx={12}
-        style={{ filter: 'drop-shadow(0 1px 2px rgba(244, 63, 94, 0.08))' }}
-      />
+
 
 
 
@@ -85,7 +93,8 @@ const ChartLeftLegend = ({
               textAnchor="end"
               fontSize={responsiveFontSize(isMajor ? 1.15 : 1)}
               fontWeight={isMajor ? "800" : "700"}
-              fill={isMajor ? "#E91E63" : "#EC4899"}
+              fill={isMajor ? "#be185d" : "#db2777"}
+              opacity={isMajor ? 1 : 0.85}
               style={{ 
                 filter: 'url(#textShadowLegend)',
                 fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
@@ -101,20 +110,13 @@ const ChartLeftLegend = ({
 
       {/* Etiquetas de filas con diseño mejorado */}
       <motion.g variants={itemVariants}>
-        {[
-          { label: 'Fecha', row: 1, color: isFullScreen ? '#374151' : '#374151', icon: null },
-          { label: 'Día', row: 2, color: isFullScreen ? '#374151' : '#374151', icon: null },
-          { label: 'Símbolo', row: 3, color: isFullScreen ? '#374151' : '#374151', icon: null },
-          { label: 'Sens.', row: isFullScreen ? 5 : 4.5, color: SENSATION_COLOR, icon: '◊' },
-          { label: 'Apar.', row: isFullScreen ? 7 : 6, color: APPEARANCE_COLOR, icon: '○' },
-          { label: 'Observ.', row: isFullScreen ? 9 : 7.5, color: OBSERVATION_COLOR, icon: '✦' }
-        ].map(({ label, row, color, icon }) => (
+        {legendRows.map(({ label, row, color, icon }) => (
           <g key={label}>
             {/* Indicador visual para las categorías de datos */}
             {icon && (
               <text
                 x={padding.left - responsiveFontSize(2.8)}
-                y={bottomY + textRowHeight * row}
+                y={rowsTopY + rowH * row}
                 textAnchor="middle"
                 fontSize={responsiveFontSize(0.8)}
                 fontWeight="600"
@@ -131,7 +133,7 @@ const ChartLeftLegend = ({
             
             <text
               x={padding.left - responsiveFontSize(0.8)}
-              y={bottomY + textRowHeight * row}
+              y={rowsTopY + rowH * row}
               textAnchor="end"
               fontSize={responsiveFontSize(1.05)}
               fontWeight="800"

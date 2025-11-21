@@ -8,7 +8,6 @@ const SENSATION_COLOR = '#1565C0';
 const APPEARANCE_COLOR = '#2E7D32';
 const OBSERVATION_COLOR = '#6A1B9A';
 
-const ROW_BACKGROUND_FILL = 'rgba(255, 255, 255, 0.8)';
 const ROW_BACKGROUND_FILL_SOFT_sens = '#EFF6FF';
 const ROW_BACKGROUND_FILL_SOFT_apa = '#ECFDF5';
 const ROW_BACKGROUND_FILL_SOFT_obs = '#F5F3FF';
@@ -94,6 +93,9 @@ const ChartPoints = ({
   ovulationDetails = null,
   firstHighIndex = null,
   baselineIndices = [],
+  graphBottomLift = 0,
+  graphBottomY,
+  rowsZoneHeight,
 }) => {
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -119,17 +121,27 @@ const ChartPoints = ({
     }
   };
 
-  // filas base
-  const bottomY = chartHeight - padding.bottom;
-  const dateRowY = bottomY + textRowHeight * 1;
-  const cycleDayRowY = bottomY + textRowHeight * 2;
-  const symbolRowYBase = bottomY + textRowHeight * 3;
-  const mucusSensationRowY = bottomY + textRowHeight * (isFullScreen ? 5 : 4.5);
-  const mucusAppearanceRowY = bottomY + textRowHeight * (isFullScreen ? 7 : 6);
-  const observationsRowY = bottomY + textRowHeight * (isFullScreen ? 9 : 7.5);
-  const rowWidth = chartWidth - padding.left - padding.right;
+  // --- Filas ancladas al final del área de gráfico (graphBottomY) y estiradas hasta abajo ---
+  const rowsTopY = graphBottomY; // el “techo” de las filas es justo donde acaba la gráfica
+  const obsRowIndex = isFullScreen ? 9 : 7.5;
+  const halfBlock = isFullScreen ? 1 : 0.75;
+  // altura ideal para que Observ. siga tocando el borde inferior
+  const autoRowH = Math.max(
+    1,
+    Math.floor(rowsZoneHeight / (obsRowIndex + halfBlock))
+  );
+  // no reducimos por debajo del tamaño base (legibilidad), pero sí estiramos
+  const rowH = Math.max(textRowHeight, autoRowH);
 
-  const rowBlockHeight = textRowHeight * (isFullScreen ? 2 : 1.5);
+  const dateRowY = rowsTopY + rowH * 1;
+  const cycleDayRowY = rowsTopY + rowH * 2;
+  const symbolRowYBase = rowsTopY + rowH * 3;
+  const mucusSensationRowY = rowsTopY + rowH * (isFullScreen ? 5 : 4.5);
+  const mucusAppearanceRowY = rowsTopY + rowH * (isFullScreen ? 7 : 6);
+  const observationsRowY = rowsTopY + rowH * (isFullScreen ? 9 : 7.5);
+
+  const rowWidth = chartWidth - padding.left - padding.right;
+  const rowBlockHeight = rowH * (isFullScreen ? 2 : 1.5);
 
   const MotionG = reduceMotion ? 'g' : motion.g;
 
@@ -219,10 +231,10 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
 
 
         <radialGradient id="tempPointGradientChart" cx="30%" cy="30%">
-          <stop offset="0%" stopColor="#FCE7F3" />
-          <stop offset="40%" stopColor="#F472B6" />
-          <stop offset="80%" stopColor="#E91E63" />
-          <stop offset="100%" stopColor="#C2185B" />
+          <stop offset="0%" stopColor="#FDF2F8" />
+          <stop offset="50%" stopColor="#F9A8D4" />
+          <stop offset="85%" stopColor="#EC4899" />
+          <stop offset="100%" stopColor="#DB2777" />
         </radialGradient>
 
         <radialGradient id="tempPointIgnoredGradient" cx="30%" cy="30%">
@@ -231,51 +243,51 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
           <stop offset="100%" stopColor="#E2E8F0" />
         </radialGradient>
         <radialGradient id="ovulationPointGradient" cx="30%" cy="30%">
-          <stop offset="0%" stopColor="#bfdbfe" />
-          <stop offset="45%" stopColor="#60a5fa" />
-          <stop offset="85%" stopColor="#2563eb" />
-          <stop offset="100%" stopColor="#1d4ed8" />
+          <stop offset="0%" stopColor="#dbeafe" />
+          <stop offset="50%" stopColor="#93c5fd" />
+          <stop offset="85%" stopColor="#3b82f6" />
+          <stop offset="100%" stopColor="#2563eb" />
         </radialGradient>
       </defs>
 
       {/* Fondos de filas sutiles alineados con las tarjetas -- ocultos en modo compacto */}
       {!compact && (
-        <g>
-          <rect
-            x={padding.left}
-            y={mucusSensationRowY - rowBlockHeight / 2}
-            width={rowWidth}
-            height={rowBlockHeight}
-            fill={ROW_BACKGROUND_FILL_SOFT_sens}
-            fillOpacity={ROW_TINT_ALPHA}
-            strokeWidth={1.5}
-            rx={6}
-            style={{ filter: ROW_SHADOW }}
-          />
-          <rect
-            x={padding.left}
-            y={mucusAppearanceRowY - rowBlockHeight / 2}
-            width={rowWidth}
-            height={rowBlockHeight}
-            fill={ROW_BACKGROUND_FILL_SOFT_apa}
-            fillOpacity={ROW_TINT_ALPHA}
-            strokeWidth={1.5}
-            rx={6}
-            style={{ filter: ROW_SHADOW }}
-          />
-          <rect
-            x={padding.left}
-            y={observationsRowY - rowBlockHeight / 2}
-            width={rowWidth}
-            height={rowBlockHeight}
-            fill={ROW_BACKGROUND_FILL_SOFT_obs}
-            fillOpacity={ROW_TINT_ALPHA}
-            strokeWidth={1.5}
-            rx={6}
-            style={{ filter: ROW_SHADOW }}
-          />
-        </g>
-      )}
+  <g>
+    <rect
+      x={padding.left}
+      y={mucusSensationRowY - rowBlockHeight / 2}
+      width={rowWidth}
+      height={rowBlockHeight}
+      fill="rgba(239, 246, 255, 0.4)"
+      stroke="rgba(59, 130, 246, 0.08)"
+      strokeWidth={0.5}      
+      rx={3}
+      style={{ filter: 'drop-shadow(0 1px 1px rgba(59, 130, 246, 0.03))' }}
+    />
+    <rect
+      x={padding.left}
+      y={mucusAppearanceRowY - rowBlockHeight / 2}
+      width={rowWidth}
+      height={rowBlockHeight}
+      fill="rgba(236, 253, 245, 0.4)"
+      stroke="rgba(16, 185, 129, 0.08)"
+      strokeWidth={0.5}
+      rx={3}
+      style={{ filter: 'drop-shadow(0 1px 1px rgba(16, 185, 129, 0.03))' }}
+    />
+    <rect
+      x={padding.left}
+      y={observationsRowY - rowBlockHeight / 2}
+      width={rowWidth}
+      height={rowBlockHeight}
+      fill="rgba(245, 243, 255, 0.4)"
+      stroke="rgba(139, 92, 246, 0.08)"
+      strokeWidth={0.5}
+      rx={3}
+      style={{ filter: 'drop-shadow(0 1px 1px rgba(139, 92, 246, 0.03))' }}
+    />
+  </g>
+)}
 
       {/* Leyenda izquierda con tipografía premium */}
       {isFullScreen && orientation !== 'portrait' && (
@@ -291,7 +303,7 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
             <text
               key={label}
               x={padding.left - responsiveFontSize(0.5)}
-              y={bottomY + textRowHeight * row}
+              y={rowsTopY + rowH * row}
               textAnchor="end"
               fontSize={responsiveFontSize(1.05)}
               fontWeight="700"
@@ -311,7 +323,7 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
         const x = getX(index);
         const y = point[temperatureField] != null
           ? getY(point[temperatureField])
-          : bottomY;
+          : rowsTopY;
         const rawTemp = point.temperature_raw;
         const correctedTemp = point.temperature_corrected;
         const showCorrectionIndicator =
@@ -320,12 +332,14 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
           correctedTemp != null &&
           Math.abs(correctedTemp - rawTemp) > 0.01;
         const rawY = showCorrectionIndicator ? getY(rawTemp) : null;  
-        const baseTextFill = isFullScreen ? "#374151" : "#6B7280";
+        const baseTextFill = isFullScreen ? "#60666f" : "#60666f";
         const hasTemp = point[temperatureField] != null;
+        const hasRelations = Boolean(point.had_relations ?? point.hadRelations);
         const hasAnyRecord = hasTemp
           || point.mucus_sensation
           || point.mucus_appearance
-          || point.fertility_symbol;
+          || point.fertility_symbol
+          || hasRelations;
         const isPlaceholder = String(point.id || '').startsWith('placeholder-');
         const peakMarkerIndex = ovulationDetails?.peakDayIndex;
         const isPeakTemperaturePoint =
@@ -433,7 +447,7 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
                     <circle
                       cx={x}
                       cy={rawY}
-                      r={3.5}
+                      r={3}
                       fill={CORRECTION_POINT_FILL}
                       stroke={CORRECTION_POINT_STROKE}
                       strokeWidth={1}
@@ -441,44 +455,18 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
                     <circle
                       cx={x}
                       cy={rawY}
-                      r={1.2}
+                      r={1}
                       fill="rgba(255, 255, 255, 0.6)"
                     />
                   </g>
                 )}
 
-                {/* Aura del punto con efecto glow */}
-                <circle
-                  cx={x}
-                  cy={y}
-                  r={isPeakTemperaturePoint ? 2 : 1.5}
-                  fill={isPeakTemperaturePoint ? 'rgba(59, 130, 246, 0.28)' : 'rgba(244, 114, 182, 0.2)'}
-                  opacity={0.85}
-                  style={{ filter: 'url(#pointGlow)' }}
-                />
-                
-                {/* Anillo decorativo exterior */}
-                <circle
-                  cx={x}
-                  cy={y}
-                  r={isPeakTemperaturePoint ? 4.2 : 3.5}
-                  fill="none"
-                  stroke={
-                    point.ignored
-                      ? 'rgba(148, 163, 184, 0.4)'
-                      : isPeakTemperaturePoint
-                        ? 'rgba(37, 99, 235, 0.55)'
-                        : 'rgba(244, 114, 182, 0.3)'
-                  }
-                  strokeWidth={isPeakTemperaturePoint ? 2 : 1.5}
-                  opacity={isPeakTemperaturePoint ? 0.9 : 0.6}
-                />
-                
+               
                 {/* Punto principal con gradiente mejorado */}
                 <circle
                   cx={x}
                   cy={y}
-                  r={isPeakTemperaturePoint ? 4.6 : 4}
+                  r={isPeakTemperaturePoint ? 3.5 : 2.8}
                   fill={
                     point.ignored
                       ? 'url(#tempPointIgnoredGradient)'
@@ -495,23 +483,24 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
                           ? '#1d4ed8'
                           : '#E91E63'
                   }
-                  strokeWidth={point.ignored ? 2 : isPeakTemperaturePoint ? 3.2 : 3}
+                  strokeWidth={point.ignored ? 1.5 : isPeakTemperaturePoint ? 2.2 : 2}
                   style={{
                     filter: isPeakTemperaturePoint
-                      ? 'drop-shadow(0 3px 8px rgba(37, 99, 235, 0.45))'
-                      : 'drop-shadow(0 3px 6px rgba(244, 114, 182, 0.4))',
+                      ? 'drop-shadow(0 2px 4px rgba(37, 99, 235, 0.3))'
+                      : 'drop-shadow(0 2px 3px rgba(244, 114, 182, 0.25))',
                     cursor: 'pointer'
                   }}
                   pointerEvents="all"
                   onClick={(e) => onPointInteraction(point, index, e)}
                 />
                 
+                
                 {/* Punto central brillante */}
                 {!point.ignored && (
                   <circle
                     cx={x}
                     cy={y}
-                    r={isPeakTemperaturePoint ? 1.8 : 1.5}
+                    r={isPeakTemperaturePoint ? 1.2 : 0.9}
                     fill={isPeakTemperaturePoint ? 'rgba(239, 246, 255, 0.95)' : 'rgba(255, 255, 255, 0.9)'}
                     style={{
                       filter: isPeakTemperaturePoint
@@ -521,20 +510,7 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
                   />
                 )}
 
-                {isPeakTemperaturePoint && (
-                  <circle
-                    cx={x}
-                    cy={y}
-                    r={6.5}
-                    fill="none"
-                    stroke="rgba(37, 99, 235, 0.35)"
-                    strokeWidth={1.2}
-                    strokeDasharray="4 3"
-                  />
-                )}
-
-
-{showInterpretation &&
+                {showInterpretation &&
                   hasTemp &&
                   !point.ignored &&
                   hasHighOrder && (
@@ -759,14 +735,14 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
             )}
             
             {!compact && (
-            <text 
-              x={x} 
-              y={observationsRowY} 
+            <text
+              x={x}
+              y={observationsRowY}
               textAnchor="middle"
-              fontSize={responsiveFontSize(0.9)} 
+              fontSize={responsiveFontSize(0.9)}
               fontWeight="700"
               fill={OBSERVATION_COLOR}
-              style={{ 
+              style={{
                 fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
                 filter: 'drop-shadow(0 1px 2px rgba(255, 255, 255, 0.9))'
               }}
@@ -775,6 +751,7 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
               {obsLine2 && <tspan x={x} dy={responsiveFontSize(1.1)}>{obsLine2}</tspan>}
             </text>
             )}
+
           </MotionG>
         );
       })}

@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Edit2, Trash2, Thermometer, Droplets, Circle, Eye, Calendar, Clock, Edit3 } from 'lucide-react';
+import { Edit2, Trash2, Thermometer, Droplets, Circle, Eye, Calendar, Clock, Edit3, Heart } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { motion } from 'framer-motion';
@@ -95,6 +95,7 @@ const RecordsList = ({ records, onEdit, onDelete, isProcessing, selectedDate }) 
         const peakLabel = peakStatus ? peakLabelMap[peakStatus] || null : null;
 
         const isSelected = selectedDate === record.isoDate;
+        const hasRelations = Boolean(record.had_relations || record.hadRelations);
 
         return (
           <motion.div
@@ -191,11 +192,17 @@ const RecordsList = ({ records, onEdit, onDelete, isProcessing, selectedDate }) 
                     <Edit3 className="w-3 h-3 text-white" />
                   </div>
                   <span className="font-semibold text-violet-800 truncate">{record.observations || ''}</span>
+                  {hasRelations && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-1.5 py-0.5 text-[10px] font-semibold text-rose-600">
+                      <Heart className="h-3 w-3" />
+                      RS
+                    </span>
+                  )}
                 </div>
                 <div className="flex space-x-1">
                   <Button
                     type="button"
-                    onClick={() => onEdit(record)}
+                    onClick={() => onEdit(record, null)}
                     variant="outline"
                     size="sm"
                     className="h-8 w-8 p-0 bg-slate-100 border-pink-300 text-pink-600 hover:bg-pink-50 hover:border-pink-400"

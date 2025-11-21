@@ -27,6 +27,27 @@
         --input: 216 12.2% 83.9%;
         --ring: 320.8 63.5% 68.8%;
         --radius: 0.75rem;
+        --phase-rel: #10B981;
+        --phase-fertile: #EC4899;
+        --phase-post: #38BDF8;
+        --phase-post-abs: #1D4ED8;
+        --phase-rel-stop: 0.28;
+        --phase-fertile-stop: 0.27;
+        --phase-post-stop: 0.45;
+        --phase-post-abs-stop: 0.7;
+        --phase-post-pattern-opacity: 0.35;
+        --phase-text-shadow: rgba(15, 23, 42, 0.2);
+      }
+    }
+
+    @layer base {
+      .dark {
+        --phase-rel-stop: 0.224;
+        --phase-fertile-stop: 0.216;
+        --phase-post-stop: 0.36;
+        --phase-post-abs-stop: 0.56;
+        --phase-post-pattern-opacity: 0.45;
+        --phase-text-shadow: rgba(15, 23, 42, 0.25);
       }
     }
     
@@ -80,6 +101,19 @@
       background-position: 0 0;
     }
 
+    .calendar-spotting-bar {
+      background-color: #ef4444;
+      background-image: radial-gradient(circle, rgba(255, 255, 255, 0.85) 0.8px, transparent 0.8px);
+      background-size: 4px 4px;
+      background-position: 0 0;
+    }
+
+    .calendar-spotting-dot {
+      background-color: #ef4444;
+      background-image: radial-gradient(circle, rgba(255, 255, 255, 0.85) 0.8px, transparent 0.8px);
+      background-size: 3px 3px;
+      background-position: 0 0;
+    }
 
     #spotting-pattern-chart {
       background-color: #ef4444;
@@ -87,3 +121,20 @@
       background-size: 6px 6px;
       background-position: 0 0;
     }
+/* contenedor general de la rueda */
+.cycle-wheel { contain: paint; } /* aísla repintados */
+
+/* anillo que rota */
+.cycle-wheel__ring{
+  transform: translateZ(0) rotate(var(--rot, 0deg));
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+/* cada punto del día */
+.cycle-wheel__dot{
+  transform: translate3d(var(--x,0), var(--y,0), 0) scale(var(--s,1));
+  transition: transform 220ms cubic-bezier(.2,.8,.2,1), opacity 220ms linear;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+}

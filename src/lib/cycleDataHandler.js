@@ -97,6 +97,8 @@ export const processCycleEntries = (entriesFromView, cycleStartIsoDate) => {
       temperature_chart: chartTemp,
       timestamp: entry.timestamp,
       peak_marker: entry.peak_marker || null,
+      had_relations: Boolean(entry.had_relations ?? entry.hadRelations ?? false),
+      hadRelations: Boolean(entry.had_relations ?? entry.hadRelations ?? false),
     };
   });
 };
@@ -263,6 +265,7 @@ export const createNewCycleEntry = async (payload) => {
     mucus_appearance: payload.mucus_appearance,
     fertility_symbol: payload.fertility_symbol,
     observations: payload.observations,
+    had_relations: Boolean(payload.had_relations ?? payload.hadRelations ?? false),
     ignored: payload.ignored,
     peak_marker: payload.peak_marker ?? null,
   };
@@ -329,6 +332,7 @@ export const updateCycleEntry = async (userId, cycleId, entryId, payload) => {
     'mucus_appearance',
     'fertility_symbol',
     'observations',
+    'had_relations',
     'ignored',
     'peak_marker',
   ];

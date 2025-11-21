@@ -34,7 +34,14 @@ export const AuthProvider = ({ children }) => {
           photoURL: firebaseUser.photoURL,
         });
         const prefRef = doc(db, `users/${firebaseUser.uid}/preferences`, 'display');
-        const defaultPreferences = { theme: 'light', units: 'metric', manualCpm: null, manualT8: null };
+        const defaultPreferences = {
+          theme: 'light',
+          units: 'metric',
+          manualCpm: null,
+          manualT8: null,
+          manualCpmBase: null,
+          manualT8Base: null,
+        };
         try {
           const prefSnap = await getDoc(prefRef);
           if (prefSnap.exists()) {

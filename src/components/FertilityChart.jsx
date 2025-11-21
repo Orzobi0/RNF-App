@@ -6,6 +6,7 @@ import ChartPoints from '@/components/chartElements/ChartPoints';
 import ChartTooltip from '@/components/chartElements/ChartTooltip';
 import ChartLeftLegend from '@/components/chartElements/ChartLeftLegend';
 import { useFertilityChart } from '@/hooks/useFertilityChart';
+import RelationsRow from '@/components/chartElements/RelationsRow';
 
 const FertilityChart = ({
   data,
@@ -21,6 +22,13 @@ const FertilityChart = ({
   reduceMotion = false,
   forceLandscape = false,
   currentPeakIsoDate = null,
+  showRelationsRow = false,
+  fertilityStartConfig = null,
+  fertilityCalculatorCycles = [],
+  fertilityCalculatorCandidates = null,
+  onShowPhaseInfo = null,
+  isArchivedCycle = false,
+  cycleEndDate = null,
 }) => {
   const {
     chartRef,
@@ -47,8 +55,23 @@ const FertilityChart = ({
     baselineIndices,
     firstHighIndex,
     ovulationDetails,
+    fertilityStart,
     hasTemperatureData,
-  } = useFertilityChart(data, isFullScreen, orientation, onToggleIgnore, cycleId, visibleDays, forceLandscape);
+    hasAnyObservation,
+    graphBottomInset,
+    todayIndex,
+  } = useFertilityChart(
+    data,
+    isFullScreen,
+    orientation,
+    onToggleIgnore,
+    cycleId,
+    visibleDays,
+    forceLandscape,
+    fertilityStartConfig,
+    fertilityCalculatorCycles,
+    fertilityCalculatorCandidates
+  );
   const uniqueIdRef = useRef(null);
   if (!uniqueIdRef.current) {
     const randomSuffix = Math.random().toString(36).slice(2, 10);
@@ -71,6 +94,8 @@ const FertilityChart = ({
 
   const chartWidth = dimensions.width;
   const chartHeight = dimensions.height;
+  const graphBottomY = chartHeight - padding.bottom - (graphBottomInset || 0);
+  const rowsZoneHeight = Math.max(chartHeight - graphBottomY, 0);
   const baselineY = baselineTemp != null ? getY(baselineTemp) : null;
   const hasPotentialRise = baselineTemp != null && Number.isFinite(firstHighIndex);
   const confirmedRise = Boolean(ovulationDetails?.confirmed);
@@ -143,9 +168,15 @@ const FertilityChart = ({
     return Math.max(temperatureInfertilityStartIndex, peakInfertilityStartIndex);
   }, [temperatureInfertilityStartIndex, peakInfertilityStartIndex])
 
-  const chartAreaHeight = Math.max(chartHeight - padding.top - padding.bottom, 0);
-  const temperatureBelowClipId = `${uniqueId}-temperature-below`;
-  const temperatureAboveClipId = `${uniqueId}-temperature-above`;
+  const fertileStartFinalIndex = useMemo(
+    () =>
+      Number.isInteger(fertilityStart?.fertileStartFinalIndex)
+        ? fertilityStart.fertileStartFinalIndex
+        : null,
+    [fertilityStart]
+  );
+
+  const chartAreaHeight = Math.max(chartHeight - padding.top - padding.bottom - (graphBottomInset || 0), 0);
   const getDayLeftEdge = useCallback(
     (index) => {
       if (!Number.isFinite(index) || !allDataPoints.length) return padding.left;
@@ -215,145 +246,395 @@ const FertilityChart = ({
       padding.right,
     ]
   );
-  const temperatureAreaPaths = useMemo(() => {
-    if (!hasTemperatureData || chartAreaHeight <= 0) {
-      return { below: null, above: null };
+  
+  const totalLastIndex = allDataPoints.length > 0 ? allDataPoints.length - 1 : null;
+
+  const archivedPhaseEndIndex = useMemo(() => {
+    if (!isArchivedCycle || !cycleEndDate || totalLastIndex == null) {
+      return null;
     }
-
-    const bottomY = chartHeight - padding.bottom;
-    const topY = padding.top;
-    const validPoints = allDataPoints
-      .map((point, index) => {
-        const dataPoint = point ? validDataMap.get(point.id) : null;
-        if (!dataPoint || !Number.isFinite(dataPoint.displayTemperature)) {
-          return null;
-        }
-
-        return {
-          index,
-          x: getX(index),
-          y: getY(dataPoint.displayTemperature),
-        };
-      })
-      .filter(Boolean);
-
-    if (!validPoints.length) {
-      return { below: null, above: null };
+    const normalizedEnd = typeof cycleEndDate === 'string' ? cycleEndDate : null;
+    if (!normalizedEnd) return null;
+    const matchingIndex = allDataPoints.findIndex((point) => point?.isoDate === normalizedEnd);
+    if (matchingIndex >= 0) {
+      return Math.min(matchingIndex, totalLastIndex);
     }
-
-    const firstPoint = validPoints[0];
-    const lastPoint = validPoints[validPoints.length - 1];
-    const leftBoundary = getDayLeftEdge(firstPoint.index);
-    const rightBoundary = chartWidth - padding.right;
-
-    const extendedPoints = [...validPoints];
-    if (extendedPoints[extendedPoints.length - 1].x !== rightBoundary) {
-      extendedPoints.push({
-        index: lastPoint.index,
-        x: rightBoundary,
-        y: lastPoint.y,
-      });
+    for (let idx = allDataPoints.length - 1; idx >= 0; idx -= 1) {
+      const iso = allDataPoints[idx]?.isoDate;
+      if (typeof iso === 'string' && iso <= normalizedEnd) {
+        return Math.min(idx, totalLastIndex);
+      }
     }
+    return null;
+  }, [isArchivedCycle, cycleEndDate, allDataPoints, totalLastIndex]);
 
-    const buildPath = (boundaryY) => {
-      const commands = [
-        `M ${leftBoundary} ${boundaryY}`,
-        `L ${firstPoint.x} ${firstPoint.y}`,
-        ...extendedPoints.slice(1).map(({ x, y }) => `L ${x} ${y}`),
-        `L ${rightBoundary} ${boundaryY}`,
-        'Z',
-      ];
+  const relativeFertileLimitIndex = useMemo(() => {
+    if (totalLastIndex == null) {
+      return null;
+    }
+    if (isArchivedCycle) {
+      return Number.isInteger(archivedPhaseEndIndex)
+        ? Math.min(archivedPhaseEndIndex, totalLastIndex)
+        : totalLastIndex;
+    }
+    if (Number.isInteger(todayIndex)) {
+      return Math.min(todayIndex, totalLastIndex);
+    }
+    return totalLastIndex;
+  }, [archivedPhaseEndIndex, isArchivedCycle, todayIndex, totalLastIndex]);
+  const interpretationBandTop =
+    chartAreaHeight > 0 ? padding.top + chartAreaHeight * 0.5 : null;
+  const interpretationBandHeight =
+    interpretationBandTop != null
+      ? Math.max(graphBottomY - interpretationBandTop, 0)
+      : 0;
 
-      return commands.join(' ');
+  const postOvulatoryPhaseInfo = useMemo(() => {
+    if (!showInterpretation || !hasAnyObservation) return null;
+
+    const temperatureDetails = {
+      confirmed: Boolean(ovulationDetails?.confirmed),
+      rule: ovulationDetails?.rule ?? null,
+      baselineTemp: ovulationDetails?.baselineTemp ?? null,
+      baselineIndices: Array.isArray(ovulationDetails?.baselineIndices)
+        ? ovulationDetails.baselineIndices
+        : [],
+      firstHighIndex: Number.isInteger(ovulationDetails?.firstHighIndex)
+        ? ovulationDetails.firstHighIndex
+        : null,
+      highSequenceIndices: Array.isArray(ovulationDetails?.highSequenceIndices)
+        ? ovulationDetails.highSequenceIndices
+        : [],
+      confirmationIndex: Number.isInteger(ovulationDetails?.confirmationIndex)
+        ? ovulationDetails.confirmationIndex
+        : null,
+      startIndex: Number.isInteger(temperatureInfertilityStartIndex)
+        ? temperatureInfertilityStartIndex
+        : null,
     };
+
+    const mucusDetails = {
+      peakDayIndex: Number.isInteger(ovulationDetails?.peakDayIndex)
+        ? ovulationDetails.peakDayIndex
+        : null,
+      thirdDayIndex: Number.isInteger(ovulationDetails?.thirdDayIndex)
+        ? ovulationDetails.thirdDayIndex
+        : null,
+      startIndex: Number.isInteger(peakInfertilityStartIndex)
+        ? peakInfertilityStartIndex
+        : null,
+    };
+
+    const hasTemperatureClosure = temperatureDetails.startIndex != null;
+    const hasMucusClosure = mucusDetails.startIndex != null;
+
+    if (!hasTemperatureClosure && !hasMucusClosure) {
+      return null;
+    }
+
+    let startIndex = null;
+    let status = 'pending';
+    let message = '';
+    let label = 'Postovulatoria (pendiente)';
+    let tooltip = 'Postovulatoria pendiente, a la espera del segundo criterio.';
+
+    if (hasTemperatureClosure && hasMucusClosure) {
+      startIndex = Math.max(temperatureDetails.startIndex, mucusDetails.startIndex);
+      status = 'absolute';
+      label = 'Infertilidad absoluta';
+      tooltip = 'Infertilidad absoluta (postovulatoria con doble criterio alcanzado)';
+      message = 'Infertilidad absoluta';
+    } else if (hasTemperatureClosure) {
+      startIndex = temperatureDetails.startIndex;
+      const ruleLabel = temperatureDetails.rule || 'regla desconocida';
+      const confirmationDay = temperatureDetails.confirmationIndex != null
+        ? `D${temperatureDetails.confirmationIndex + 1}`
+        : '—';
+      message = `Postovulatoria (pendiente): falta moco. Temperatura con regla ${ruleLabel} confirmada en ${confirmationDay}.`;
+      tooltip = message;
+      label = 'Postovulatoria (temperatura)';
+    } else {
+      startIndex = mucusDetails.startIndex;
+      const mucusRuleLabel = mucusDetails.thirdDayIndex != null ? '3° día' : 'P+4';
+      message = `Postovulatoria (pendiente): falta temperatura (método moco alcanzado vía ${mucusRuleLabel}).`;
+      tooltip = message;
+      label = 'Postovulatoria (moco)';
+    }
 
     return {
-      below: buildPath(bottomY),
-      above: buildPath(topY),
+      phase: 'postOvulatory',
+      status,
+      startIndex,
+      reasons: {
+        type: 'post',
+        status,
+        mucus: mucusDetails,
+        temperature: temperatureDetails,
+      },
+      message,
+      label,
+      tooltip,
     };
   }, [
-    allDataPoints,
-    chartAreaHeight,
-    chartHeight,
-    chartWidth,
-    getDayLeftEdge,
-    getX,
-    getY,
-    hasTemperatureData,
-    padding.bottom,
-    padding.right,
-    padding.top,
-    validDataMap,
-  ]);
-
-  const temperatureInfertilityBounds = useMemo(() => {
-    if (
-      !showInterpretation ||
-      !ovulationDetails?.confirmed ||
-      temperatureInfertilityStartIndex == null ||
-      chartAreaHeight <= 0
-    ) {
-      return null;
-    }
-    const inclusiveEnd = absoluteInfertilityStartIndex == null;
-    const endIndex =
-      absoluteInfertilityStartIndex != null
-        ? absoluteInfertilityStartIndex
-        : allDataPoints.length - 1;
-  
-    if (endIndex < temperatureInfertilityStartIndex) return null;
-
-    return getSegmentBounds(temperatureInfertilityStartIndex, endIndex, { inclusiveEnd });
-  }, [
     showInterpretation,
+    hasAnyObservation,
     ovulationDetails,
     temperatureInfertilityStartIndex,
-    chartAreaHeight,
-    absoluteInfertilityStartIndex,
-    allDataPoints.length,
-    getSegmentBounds,
-  ]);
-
-  const peakInfertilityBounds = useMemo(() => {
-    if (!showInterpretation || peakInfertilityStartIndex == null || chartAreaHeight <= 0) {
-      return null;
-    }
-
-    const inclusiveEnd = absoluteInfertilityStartIndex == null;
-    const endIndex =
-      absoluteInfertilityStartIndex != null
-        ? absoluteInfertilityStartIndex
-        : allDataPoints.length - 1;
-
-    if (endIndex < peakInfertilityStartIndex) return null;
-
-    return getSegmentBounds(peakInfertilityStartIndex, endIndex, { inclusiveEnd });
-  }, [
-    showInterpretation,
     peakInfertilityStartIndex,
-    chartAreaHeight,
-    absoluteInfertilityStartIndex,
-    allDataPoints.length,
-    getSegmentBounds,
   ]);
 
-  const absoluteInfertilityBounds = useMemo(() => {
+  const interpretationSegments = useMemo(() => {
     if (
       !showInterpretation ||
-      absoluteInfertilityStartIndex == null ||
-      chartAreaHeight <= 0
+      chartAreaHeight <= 0 ||
+      interpretationBandTop == null ||
+      interpretationBandHeight <= 0 ||
+      allDataPoints.length === 0
     ) {
-      return null;
+      return [];
+    }
+    const segments = [];
+    const lastIndex = allDataPoints.length - 1;
+    const phaseRenderLimit =
+      Number.isInteger(relativeFertileLimitIndex) && relativeFertileLimitIndex >= 0
+        ? Math.min(relativeFertileLimitIndex, lastIndex)
+        : lastIndex;
+
+    const hasFertileStart = Number.isInteger(fertileStartFinalIndex);
+const hasPostPhase = Number.isFinite(postOvulatoryPhaseInfo?.startIndex);
+
+    // Mientras NO haya ni inicio fértil (CPM / T-8 / perfiles / marcador)
+    // ni fase postovulatoria, todo lo registrado se considera
+    // fase relativamente infértil (preovulatoria).
+    if (!hasFertileStart && !hasPostPhase) {
+      const relativeDefaultEnd = Math.min(phaseRenderLimit, lastIndex);
+      if (relativeDefaultEnd < 0) {
+        return segments;
+      }
+      const bounds = getSegmentBounds(0, relativeDefaultEnd);
+      if (bounds) {
+        segments.push({
+          key: 'relative-default',
+          phase: 'relativeInfertile',
+          status: 'default',
+          bounds,
+          startIndex: 0,
+          endIndex: relativeDefaultEnd,
+          displayLabel: 'Relativamente infértil',
+          tooltip:
+            'Relativamente infértil (preovulatoria: sin día fértil por CPM/T-8 ni signos de moco fértil)',
+          message: 'Relativamente infértil',
+          reasons: {
+            type: 'relative',
+            fertileStartFinalIndex: null,
+            aggregate: fertilityStart?.aggregate ?? null,
+            bipScore: fertilityStart?.debug?.bipScore ?? null,
+          },
+        });
+      }
+      return segments;
     }
 
-    return getSegmentBounds(absoluteInfertilityStartIndex, allDataPoints.length - 1);
+     // Caso: NO hay inicio fértil pero SÍ hay fase postovulatoria
+    if (!hasFertileStart && hasPostPhase) {
+      const postStart = postOvulatoryPhaseInfo.startIndex;
+      const preEnd = Math.min(postStart - 1, phaseRenderLimit);
+
+      // Banda previa: “Sin ventana fértil identificable”
+      if (preEnd >= 0) {
+        const bounds = getSegmentBounds(0, preEnd);
+        if (bounds) {
+          segments.push({
+            key: 'no-fertile-window',
+            phase: 'nodata',
+            status: 'no-fertile-window',
+            bounds,
+            startIndex: 0,
+            endIndex: preEnd,
+            displayLabel: 'Sin ventana fértil identificable',
+            tooltip: 'Sin ventana fértil identificable',
+            message: 'Sin ventana fértil identificable',
+            reasons: {
+              type: 'nofertile',
+              status: 'no-fertile-window',
+              message:
+                'No se ha identificado un inicio fértil claro en este ciclo (ni por moco, ni por calculadora, ni por marcador explícito).',
+            },
+          });
+        }
+      }
+
+      // Banda postovulatoria normal
+      if (
+        Number.isFinite(postOvulatoryPhaseInfo.startIndex) &&
+        postOvulatoryPhaseInfo.startIndex <= lastIndex
+      ) {
+        const postEnd =
+          postOvulatoryPhaseInfo.status === 'absolute'
+            ? lastIndex
+            : Math.min(lastIndex, phaseRenderLimit);
+        const bounds = getSegmentBounds(postOvulatoryPhaseInfo.startIndex, postEnd);
+        if (bounds) {
+          segments.push({
+            key: 'post',
+            phase: postOvulatoryPhaseInfo.phase,
+            status: postOvulatoryPhaseInfo.status,
+            bounds,
+            startIndex: postOvulatoryPhaseInfo.startIndex,
+            endIndex: postEnd,
+            displayLabel: postOvulatoryPhaseInfo.label,
+            tooltip: postOvulatoryPhaseInfo.tooltip,
+            message: postOvulatoryPhaseInfo.message,
+            reasons: postOvulatoryPhaseInfo.reasons,
+          });
+        }
+      }
+
+      return segments;
+    }
+
+
+    if (hasFertileStart && fertileStartFinalIndex > 0) {
+      const endIndex = Math.min(fertileStartFinalIndex - 1, phaseRenderLimit);
+      if (endIndex >= 0) {
+        const bounds = getSegmentBounds(0, endIndex);
+        if (bounds) {
+          segments.push({
+            key: 'relative',
+            phase: 'relativeInfertile',
+            status: 'default',
+            bounds,
+            startIndex: 0,
+            endIndex,
+            displayLabel: 'Relativamente infértil',
+            tooltip: 'Relativamente infértil (fase relativamente infértil preovulatoria)',
+            message: 'Relativamente infértil',
+            reasons: {
+              type: 'relative',
+              fertileStartFinalIndex,
+              aggregate: fertilityStart?.aggregate ?? null,
+              bipScore: fertilityStart?.debug?.bipScore ?? null,
+            },
+          });
+        }
+      }
+    }
+
+    const fertileStartIndex = hasFertileStart
+      ? Math.max(fertileStartFinalIndex, 0)
+      : 0;
+
+    const postPhaseStart = postOvulatoryPhaseInfo?.startIndex;
+    const fertileEndIndex =
+      Number.isFinite(postPhaseStart) && postPhaseStart != null
+        ? Math.min(postPhaseStart - 1, lastIndex)
+        : lastIndex;
+
+    const fertileSegmentEnd = Math.min(fertileEndIndex, phaseRenderLimit);
+
+    if (fertileSegmentEnd >= fertileStartIndex) {
+      const bounds = getSegmentBounds(fertileStartIndex, fertileSegmentEnd);
+      if (bounds) {
+        const explicitDay = Number.isInteger(fertilityStart?.debug?.explicitStartDay)
+          ? fertilityStart.debug.explicitStartDay
+          : null;
+        const usedCandidates = fertilityStart?.aggregate?.usedCandidates ?? [];
+        const hasProfileSource = usedCandidates.some((candidate) => candidate?.kind === 'profile');
+        const hasCalculatorSource = usedCandidates.some((candidate) => candidate?.kind === 'calculator');
+        let fertileSource = null;
+        if (hasFertileStart && explicitDay != null && explicitDay === fertileStartFinalIndex) {
+          fertileSource = 'marker';
+        } else if (hasProfileSource) {
+          fertileSource = 'profiles';
+        } else if (hasCalculatorSource) {
+          fertileSource = 'calculator';
+        }
+        segments.push({
+          key: 'fertile',
+          phase: 'fertile',
+          status: 'default',
+          bounds,
+          startIndex: fertileStartIndex,
+          endIndex: fertileSegmentEnd,
+          displayLabel: 'Fértil',
+          tooltip: 'Fértil',
+          message: 'Fértil',
+          reasons: {
+            type: 'fertile',
+            startIndex: fertileStartIndex,
+            endIndex: fertileSegmentEnd,
+            source: fertileSource,
+            details: fertilityStart?.debug ?? null,
+            notes: fertilityStart?.aggregate?.notes ?? [],
+            statusSummary: fertilityStart?.currentAssessment ?? null,
+            dailyAssessments: fertilityStart?.dailyAssessments ?? [],
+            window: fertilityStart?.fertileWindow ?? null,
+            aggregate: fertilityStart?.aggregate ?? null,
+          },
+        });
+      }
+    }
+
+    if (
+      postOvulatoryPhaseInfo &&
+      Number.isFinite(postOvulatoryPhaseInfo.startIndex) &&
+      postOvulatoryPhaseInfo.startIndex <= lastIndex
+    ) {
+      const postEnd =
+        postOvulatoryPhaseInfo.status === 'absolute'
+          ? lastIndex
+          : Math.min(lastIndex, phaseRenderLimit);
+      const bounds = getSegmentBounds(postOvulatoryPhaseInfo.startIndex, postEnd);
+      if (bounds) {
+        segments.push({
+          key: 'post',
+          phase: postOvulatoryPhaseInfo.phase,
+          status: postOvulatoryPhaseInfo.status,
+          bounds,
+          startIndex: postOvulatoryPhaseInfo.startIndex,
+          endIndex: postEnd,
+          displayLabel: postOvulatoryPhaseInfo.label,
+          tooltip: postOvulatoryPhaseInfo.tooltip,
+          message: postOvulatoryPhaseInfo.message,
+          reasons: postOvulatoryPhaseInfo.reasons,
+        });
+      }
+    }
+
+    return segments;
   }, [
     showInterpretation,
-    absoluteInfertilityStartIndex,
     chartAreaHeight,
+    interpretationBandTop,
+    interpretationBandHeight,
     allDataPoints.length,
+    fertileStartFinalIndex,
+    fertilityStart,
+    postOvulatoryPhaseInfo,
+    hasAnyObservation,
     getSegmentBounds,
+    relativeFertileLimitIndex,
   ]);
+  const relativePhaseGradientId = `${uniqueId}-phase-relative-gradient`;
+  const fertilePhaseGradientId = `${uniqueId}-phase-fertile-gradient`;
+  const postPendingGradientId = `${uniqueId}-phase-post-pending-gradient`;
+  const postAbsoluteGradientId = `${uniqueId}-phase-post-absolute-gradient`;
+  const getSegmentTextColor = (segment) => {
+    if (segment.phase === 'relativeInfertile') {
+      return '#065F46';
+    }
+    if (segment.phase === 'fertile') {
+      return '#9D174D';
+    }
+    if (segment.phase === 'postOvulatory') {
+      return segment.status === 'pending' ? '#075985' : '#1E3A8A';
+    }
+    if (segment.phase === 'nodata') {
+      return '#475569';
+    }
+    return 'hsl(var(--foreground))';
+  };
+  const phaseTextShadow = '0 1px 1px var(--phase-text-shadow, rgba(15, 23, 42, 0.2))';
 
   const temperatureRiseHighlightPath = useMemo(() => {
     if (!showInterpretation || !ovulationDetails?.confirmed) return null;
@@ -413,51 +694,20 @@ const FertilityChart = ({
   const rotatedContainer = applyRotation;
   const baseFullClass = 'w-full h-full bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100';
   const containerClass = isFullScreen
-    ? `${baseFullClass} min-h-full ${rotatedContainer ? 'flex items-stretch justify-start overflow-y-auto overflow-x-hidden' : 'flex items-center justify-start overflow-x-auto overflow-y-hidden'}`
-    : `${baseFullClass} overflow-x-auto overflow-y-hidden border border-pink-100/50`;
+    ? `${baseFullClass} min-h-full ${rotatedContainer ? 'overflow-y-auto overflow-x-hidden' : 'overflow-x-auto overflow-y-visible'}`
+    : `${baseFullClass} overflow-x-auto overflow-y-visible border border-pink-100/50`;
   const showLegend = !isFullScreen || orientation === 'portrait';
 
-  const interpretationFeatherSize = 14;
-  const horizontalMaskGradient = `linear-gradient(to right, transparent, rgba(0,0,0,0.95) ${interpretationFeatherSize}px, rgba(0,0,0,0.95) calc(100% - ${interpretationFeatherSize}px), transparent)`;
-  const verticalMaskGradient = `linear-gradient(to bottom, transparent, rgba(0,0,0,0.95) ${interpretationFeatherSize}px, rgba(0,0,0,0.95) calc(100% - ${interpretationFeatherSize}px), transparent)`;
-  const interpretationMaskStyle = {
-    maskImage: `${horizontalMaskGradient}, ${verticalMaskGradient}`,
-    maskMode: 'alpha',
-    maskRepeat: 'no-repeat',
-    maskSize: '100% 100%',
-    maskComposite: 'intersect',
-    WebkitMaskImage: `${horizontalMaskGradient}, ${verticalMaskGradient}`,
-    WebkitMaskRepeat: 'no-repeat',
-    WebkitMaskSize: '100% 100%',
-    WebkitMaskComposite: 'source-in'
-  };
   return (
       <motion.div className="relative w-full h-full" initial={false}>
-      {/* Leyenda izquierda mejorada */}
-      {showLegend && (
-        <div
-          className="absolute left-0 top-0 h-full bg-transparent pointer-events-none z-10"
-          style={{ width: padding.left }}
-        >
-          <ChartLeftLegend
-            padding={padding}
-            chartHeight={chartHeight}
-            tempMin={tempMin}
-            tempMax={tempMax}
-            tempRange={tempRange}
-            getY={getY}
-            responsiveFontSize={responsiveFontSize}
-            textRowHeight={textRowHeight}
-            isFullScreen={isFullScreen}
-          />
-        </div>
-      )}
+      
 
       {/* Contenedor principal del gráfico */}
       <motion.div
         ref={chartRef}
         className={`relative p-0 ${isFullScreen ? '' : 'rounded-2xl'} ${containerClass}`}
         style={{
+          touchAction: 'auto',
           boxShadow: isFullScreen
             ? 'inset 0 1px 3px rgba(244, 114, 182, 0.1)'
             : '0 8px 32px rgba(244, 114, 182, 0.12), 0 2px 8px rgba(244, 114, 182, 0.08)',
@@ -480,7 +730,28 @@ const FertilityChart = ({
             Cargando...
           </div>
         )}
-        
+        <div className="inline-block" style={{ width: chartWidth, height: chartHeight }}>
+          {/* Leyenda izquierda mejorada */}
+      {showLegend && (
+        <div
+          className="absolute left-0 top-0 h-full bg-transparent pointer-events-none z-10"
+          style={{ width: padding.left }}
+        >
+          <ChartLeftLegend
+            padding={padding}
+            chartHeight={chartHeight}
+            tempMin={tempMin}
+            tempMax={tempMax}
+            tempRange={tempRange}
+            getY={getY}
+            responsiveFontSize={responsiveFontSize}
+            textRowHeight={textRowHeight}
+            isFullScreen={isFullScreen}
+            graphBottomY={graphBottomY}
+            rowsZoneHeight={rowsZoneHeight}
+          />
+        </div>
+      )}
         <motion.svg
           width={chartWidth}
           height={chartHeight}
@@ -498,11 +769,42 @@ const FertilityChart = ({
             </linearGradient>
             
             <linearGradient id="tempAreaGradientChart" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="rgba(244,114,182,0.25)" />
-              <stop offset="50%" stopColor="rgba(236,72,153,0.15)" />
-              <stop offset="100%" stopColor="rgba(233,30,99,0.05)" />
+              <stop offset="0%" stopColor="rgba(244, 114, 182, 0.18)" />
+              <stop offset="100%" stopColor="rgba(244, 114, 182, 0.02)" />
             </linearGradient>
-
+            
+            <linearGradient id={relativePhaseGradientId} x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="var(--phase-rel)" stopOpacity="0" />
+              <stop
+                offset="100%"
+                stopColor="var(--phase-rel)"
+                stopOpacity="var(--phase-rel-stop, 0.28)"
+              />
+            </linearGradient>
+            <linearGradient id={fertilePhaseGradientId} x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="var(--phase-fertile)" stopOpacity="0" />
+              <stop
+                offset="100%"
+                stopColor="var(--phase-fertile)"
+                stopOpacity="var(--phase-fertile-stop, 0.27)"
+              />
+            </linearGradient>
+            <linearGradient id={postPendingGradientId} x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="var(--phase-post)" stopOpacity="0" />
+              <stop
+                offset="100%"
+                stopColor="var(--phase-post)"
+                stopOpacity="var(--phase-post-stop, 0.45)"
+              />
+            </linearGradient>
+            <linearGradient id={postAbsoluteGradientId} x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="var(--phase-post-abs)" stopOpacity="0" />
+              <stop
+                offset="100%"
+                stopColor="var(--phase-post-abs)"
+                stopOpacity="var(--phase-post-abs-stop, 0.7)"
+              />
+            </linearGradient>
             {/* Patrón unificado para spotting */}
             <pattern id="spotting-pattern-chart" patternUnits="userSpaceOnUse" width="6" height="6">
               <rect width="6" height="6" fill="#ef4444" />
@@ -526,33 +828,6 @@ const FertilityChart = ({
                 <feMergeNode in="SourceGraphic"/>
               </feMerge>
             </filter>
-            <pattern id="temperatureInfertilityPattern" patternUnits="userSpaceOnUse" width="14" height="14">
-              <rect width="14" height="14" fill="rgba(191, 219, 254, 0.45)" />
-              <path d="M0 0 L14 14" stroke="rgba(59, 130, 246, 0.55)" strokeWidth="1.4" />
-              <path d="M14 0 L0 14" stroke="rgba(59, 130, 246, 0.55)" strokeWidth="1.4" />
-            </pattern>
-            <pattern id="peakInfertilityPattern" patternUnits="userSpaceOnUse" width="12" height="12">
-              <rect width="12" height="12" fill="rgba(167, 243, 208, 0.42)" />
-              <circle cx="3" cy="3" r="1.7" fill="rgba(13, 148, 136, 0.55)" />
-              <circle cx="9" cy="9" r="1.7" fill="rgba(13, 148, 136, 0.55)" />
-            </pattern>
-            <pattern id="absoluteInfertilityPattern" patternUnits="userSpaceOnUse" width="16" height="16">
-              <rect width="16" height="16" fill="rgba(56, 189, 248, 0.45)" />
-              <path d="M0 0 L16 16" stroke="rgba(13, 148, 136, 0.6)" strokeWidth="1.2" />
-              <path d="M16 0 L0 16" stroke="rgba(13, 148, 136, 0.6)" strokeWidth="1.2" />
-              <circle cx="4" cy="12" r="1.6" fill="rgba(19, 78, 74, 0.6)" />
-              <circle cx="12" cy="4" r="1.6" fill="rgba(19, 78, 74, 0.6)" />
-            </pattern>
-            {hasTemperatureData && temperatureAreaPaths.below && (
-              <clipPath id={temperatureBelowClipId} clipPathUnits="userSpaceOnUse">
-                <path d={temperatureAreaPaths.below} />
-              </clipPath>
-            )}
-            {hasTemperatureData && temperatureAreaPaths.above && (
-              <clipPath id={temperatureAboveClipId} clipPathUnits="userSpaceOnUse">
-                <path d={temperatureAreaPaths.above} />
-              </clipPath>
-            )}
           </defs>
 
           {/* Fondo transparente para interacciones */}
@@ -573,76 +848,124 @@ const FertilityChart = ({
             isFullScreen={isFullScreen}
             showLeftLabels={!showLegend}
             reduceMotion={reduceMotion}
+            graphBottomY={graphBottomY}
+            chartAreaHeight={Math.max(chartHeight - padding.top - padding.bottom - (graphBottomInset || 0), 0)}
+            rowsZoneHeight={rowsZoneHeight}
           />
-          {showInterpretation && (
-            <>
-            {peakInfertilityBounds && (
-                hasTemperatureData && temperatureAreaPaths.below ? (
-                  <rect
-                    x={peakInfertilityBounds.x}
-                    y={padding.top}
-                    width={peakInfertilityBounds.width}
-                    height={chartAreaHeight}
-                    fill="url(#peakInfertilityPattern)"
-                    opacity={0.75}
-                    pointerEvents="none"
-                    clipPath={`url(#${temperatureBelowClipId})`}
-                    style={interpretationMaskStyle}
-                  />
-                ) : (
-                  <rect
-                    x={peakInfertilityBounds.x}
-                    y={padding.top}
-                    width={peakInfertilityBounds.width}
-                    height={chartAreaHeight}
-                    fill="url(#peakInfertilityPattern)"
-                    opacity={0.75}
-                    pointerEvents="none"
-                    style={interpretationMaskStyle}
-                  />
-                )
-              )}
-              {temperatureInfertilityBounds && (
-                hasTemperatureData && temperatureAreaPaths.above ? (
-                  <rect
-                    x={temperatureInfertilityBounds.x}
-                    y={padding.top}
-                    width={temperatureInfertilityBounds.width}
-                    height={chartAreaHeight}
-                    fill="url(#temperatureInfertilityPattern)"
-                    opacity={0.7}
-                    pointerEvents="none"
-                    clipPath={`url(#${temperatureAboveClipId})`}
-                    style={interpretationMaskStyle}
-                  />
-                ) : (
-                  <rect
-                    x={temperatureInfertilityBounds.x}
-                    y={padding.top}
-                    width={temperatureInfertilityBounds.width}
-                    height={chartAreaHeight}
-                    fill="url(#temperatureInfertilityPattern)"
-                    opacity={0.7}
-                    pointerEvents="none"
-                    style={interpretationMaskStyle}
-                  />
-                )
-              )}
-              {absoluteInfertilityBounds && (
-                <rect
-                  x={absoluteInfertilityBounds.x}
-                  y={padding.top}
-                  width={absoluteInfertilityBounds.width}
-                  height={chartAreaHeight}
-                  fill="url(#absoluteInfertilityPattern)"
-                  opacity={0.5}
-                  pointerEvents="none"
-                  style={interpretationMaskStyle}
-                />
-              )}
-            </>
-          )}
-                   {/* Línea baseline mejorada */}
+          {showInterpretation &&
+            interpretationSegments.length > 0 &&
+            interpretationBandTop != null &&
+            interpretationBandHeight > 0 && (
+              <g>
+                {interpretationSegments.map((segment) => {
+                  const rectY = interpretationBandTop;
+                  const rectHeight = interpretationBandHeight;
+                  const backgroundFill = (() => {
+                  // Postovulatoria
+                  if (segment.phase === 'postOvulatory') {
+                    return segment.status === 'pending'
+                      ? `url(#${postPendingGradientId})`
+                      : `url(#${postAbsoluteGradientId})`;
+                  }
+
+                  // Relativamente infértil (tanto el segmento "relative" como el "relative-default")
+                  if (segment.phase === 'relativeInfertile') {
+                    return `url(#${relativePhaseGradientId})`;
+                  }
+
+                  // Fértil
+                  if (segment.phase === 'fertile') {
+                    return `url(#${fertilePhaseGradientId})`;
+                  }
+
+                  // Nodata u otros → gris suave
+                  if (segment.phase === 'nodata') {
+                    return 'rgba(203, 213, 225, 0.2)';
+                  }
+
+                  // Fallback: trata cualquier cosa rara como fértil
+                  return `url(#${fertilePhaseGradientId})`;
+                })();
+
+                const rectFill = backgroundFill;
+
+                  const minFontSize = isFullScreen ? 14 : 13;
+                  const fontSize = Math.max(responsiveFontSize(1.1), minFontSize);
+                  const isNarrow = segment.bounds.width < 120;
+                  const availableWidth = Math.max(segment.bounds.width - 16, 0);
+                  const approxCharWidth = Math.max(fontSize * 0.58, 1);
+                  const maxChars = Math.max(1, Math.floor(availableWidth / approxCharWidth));
+                  const tooltipText = segment.tooltip ?? segment.displayLabel ?? segment.message ?? '';
+                  let displayText = segment.displayLabel ?? segment.message ?? '';
+                  if (isNarrow && displayText.length > maxChars) {
+                    const sliceLength = Math.max(maxChars - 1, 1);
+                    const truncated = displayText.slice(0, sliceLength).trimEnd();
+                    displayText = `${truncated}${displayText.length > sliceLength ? '…' : ''}`;
+                  }
+                  const textX = isNarrow
+                    ? segment.bounds.x + 8
+                    : segment.bounds.x + segment.bounds.width / 2;
+                  const textAnchor = isNarrow ? 'start' : 'middle';
+                  const textY = rectY + rectHeight / 2;
+                  const textFillColor = getSegmentTextColor(segment);
+                  const handleActivate = (event) => {
+                    if (typeof event?.stopPropagation === 'function') {
+                      event.stopPropagation();
+                    }
+                    if (typeof onShowPhaseInfo === 'function') {
+                      onShowPhaseInfo({
+                        phase: segment.phase,
+                        status: segment.status,
+                        reasons: segment.reasons,
+                        message: segment.message,
+                        startIndex: segment.startIndex,
+                        endIndex: segment.endIndex,
+                        label: segment.displayLabel ?? segment.message ?? null,
+                      });
+                    }
+                  };
+                  const handleKeyDown = (event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      handleActivate(event);
+                    }
+                  };
+
+                  return (
+                    <g key={segment.key}>
+                      <rect
+                        x={segment.bounds.x}
+                        y={rectY}
+                        width={segment.bounds.width}
+                        height={rectHeight}
+                        fill={rectFill}
+                        pointerEvents="none"
+                      />
+                      <text
+                        x={textX}
+                        y={textY}
+                        fill={textFillColor}
+                        fontSize={fontSize}
+                        fontWeight={600}
+                        dominantBaseline="middle"
+                        textAnchor={textAnchor}
+                        role="button"
+                        aria-label={tooltipText}
+                        tabIndex={0}
+                        onClick={handleActivate}
+                        onKeyDown={handleKeyDown}
+                        style={{ cursor: 'pointer', userSelect: 'none', lineHeight: 1.2, textShadow: phaseTextShadow }}
+                        pointerEvents="auto"
+                      >
+                        <title>{tooltipText}</title>
+                        {displayText}
+                      </text>
+                    </g>
+                  );
+                })}
+              </g>
+            )}
+            {/* Línea baseline mejorada */}
           {showInterpretation && shouldRenderBaseline && baselineY !== null && (
             reduceMotion ? (
               
@@ -675,28 +998,30 @@ const FertilityChart = ({
             allDataPoints={allDataPoints}
             getX={getX}
             getY={getY}
-            baselineY={chartHeight - padding.bottom}
+            baselineY={graphBottomY}
             temperatureField="displayTemperature"
             reduceMotion={reduceMotion}
           />
           {temperatureRiseHighlightPath && (
-            <path
-              d={temperatureRiseHighlightPath}
-              fill="none"
-              stroke="#cc0e93"
-              strokeWidth={6}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              opacity={0.85}
-              style={{ filter: 'drop-shadow(0 2px 6px rgba(206, 14, 147, 0.4))' }}
-              pointerEvents="none"
-            />
+            <g pointerEvents="none">
+
+              {/* Línea principal */}
+              <path
+                d={temperatureRiseHighlightPath}
+                fill="none"
+                stroke="#cc0e93"
+                strokeWidth={4}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                opacity={0.9}
+              />
+            </g>
           )}
 
           {activeIndex !== null && highlightX !== null && dayWidth > 0 && (
             <g pointerEvents="none">
               {(() => {
-                const chartAreaBottomY = chartHeight - padding.bottom;
+                const chartAreaBottomY = graphBottomY;
                 const thinStrokeWidth = Math.max(3, Math.min(14, dayWidth * 0.4));
                 const thickStrokeWidth = Math.max(thinStrokeWidth * 2, textRowHeight * 0.85);
 
@@ -740,6 +1065,8 @@ const FertilityChart = ({
             chartWidth={chartWidth}
             temperatureField="displayTemperature"
             textRowHeight={textRowHeight}
+            graphBottomY={graphBottomY}
+            rowsZoneHeight={rowsZoneHeight}
             compact={false}
             reduceMotion={reduceMotion}
             showInterpretation={showInterpretation}
@@ -747,9 +1074,23 @@ const FertilityChart = ({
             baselineStartIndex={baselineStartIndex}
             firstHighIndex={firstHighIndex}
             baselineIndices={baselineIndices}
+            graphBottomLift={graphBottomInset}
           />
 
         </motion.svg>
+        </div>
+
+        {showRelationsRow && (
+          <RelationsRow
+            allDataPoints={allDataPoints}
+            getX={getX}
+            padding={padding}
+            chartWidth={chartWidth}
+            textRowHeight={textRowHeight}
+            isFullScreen={isFullScreen}
+            responsiveFontSize={responsiveFontSize}
+          />
+        )}
 
         {/* Tooltip mejorado */}
         {activePoint && (

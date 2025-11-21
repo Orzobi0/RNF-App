@@ -20,6 +20,7 @@ const DataEntryForm = ({
   onDateSelect,
   defaultIsoDate,
   focusedField,
+  initialSectionKey = null,
 }) => {
   const formRef = useRef(null);
   useBackClose(Boolean(onCancel), onCancel);
@@ -81,6 +82,8 @@ const DataEntryForm = ({
     setFertilitySymbol,
     observations,
     setObservations,
+    hadRelations,
+    setHadRelations,
     ignored,
     setIgnored,
     peakTag,
@@ -150,6 +153,8 @@ const DataEntryForm = ({
         setFertilitySymbol={setFertilitySymbol}
         observations={observations}
         setObservations={setObservations}
+        hadRelations={hadRelations}
+        setHadRelations={setHadRelations}
         ignored={ignored}
         setIgnored={setIgnored}
         peakTag={peakTag}
@@ -162,6 +167,7 @@ const DataEntryForm = ({
         cycleEndDate={cycleEndDate}
         recordedDates={recordedDates}
         submitCurrentState={submitCurrentState}
+        initialSectionKey={initialSectionKey}
       />
       <DataEntryFormActions
         onCancel={onCancel}

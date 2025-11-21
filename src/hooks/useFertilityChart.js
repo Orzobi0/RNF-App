@@ -1,6 +1,18 @@
 import { useEffect, useLayoutEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { parseISO, differenceInCalendarDays } from 'date-fns';
 import computePeakStatuses from '@/lib/computePeakStatuses';
+import {
+  computeCpmCandidateFromCycles,
+  computeFertilityStartOutput,
+  computeT8CandidateFromCycles,
+} from '@/lib/fertilityStart';
+
+const DEFAULT_FERTILITY_START_CONFIG = {
+  methods: { alemanas: true, oms: true, creighton: true },
+  calculators: { cpm: true, t8: true },
+  postpartum: false,
+  combineMode: 'conservador',
+};
 
 const DEFAULT_TEMP_MIN = 35.8;
 const DEFAULT_TEMP_MAX = 37.2;
@@ -262,10 +274,19 @@ const evaluateHighSequence = ({
       const firstSequenceIndex = evaluation.highSequenceIndices?.length
         ? evaluation.highSequenceIndices[0]
         : null;
+        const boundedConfirmation = Number.isInteger(evaluation.confirmationIndex)
+        ? Math.max(0, Math.min(evaluation.confirmationIndex, processedData.length - 1))
+        : null;
+      let infertileStartIndex = null;
+      if (boundedConfirmation != null) {
+        const candidate = boundedConfirmation + 1;
+        infertileStartIndex = Math.max(0, Math.min(candidate, processedData.length - 1));
+      }
+
       confirmedDetails = {
         confirmed: true,
-        confirmationIndex: evaluation.confirmationIndex,
-        infertileStartIndex: evaluation.confirmationIndex,
+        confirmationIndex: boundedConfirmation,
+        infertileStartIndex,
         rule: evaluation.rule,
         highSequenceIndices: evaluation.highSequenceIndices ?? evaluation.usedIndices,
         usedIndices: evaluation.usedIndices,
@@ -297,7 +318,10 @@ export const useFertilityChart = (
   onToggleIgnore,
   cycleId,
   visibleDays = 5,
-  forceLandscape = false
+  forceLandscape = false,
+  fertilityStartConfig = null,
+  calculatorCycles = [],
+  externalCalculatorCandidates = null
 ) => {
       const chartRef = useRef(null);
       const tooltipRef = useRef(null);
@@ -311,6 +335,16 @@ export const useFertilityChart = (
         setActiveIndex(null);
       }, []);
 
+      // Normaliza los códigos de pico que vienen de computePeakStatuses
+      const normalizePeakStatus = (value) => {
+        if (value == null) return '';
+        const s = String(value).trim().toUpperCase();
+        if (s === 'P' || s === 'PEAK') return 'P';
+        if (s === '1' || s === 'P1' || s === 'P+1') return '1';
+        if (s === '2' || s === 'P2' || s === 'P+2') return '2';
+        if (s === '3' || s === 'P3' || s === 'P+3') return '3';
+        return '';
+      };
 
       const peakStatusByIsoDate = useMemo(() => computePeakStatuses(data), [data]);
       const processedData = useMemo(() => {
@@ -362,14 +396,41 @@ export const useFertilityChart = (
               resolvedValue = getMeasurementTemp(fallbackMeasurement);
             }
           }
-          const isoDate = d?.isoDate;  
+          const isoDate = d?.isoDate;
+          const peakMarker = d?.peak_marker ?? d?.peakStatus ?? null;
+          const resolvedPeakStatus = isoDate
+            ? peakStatusByIsoDate[isoDate] ?? peakMarker
+            : peakMarker;
+          const normalizedPeakStatus = normalizePeakStatus(resolvedPeakStatus); 
           return {
-            ...d,
-            displayTemperature: normalizeTemp(resolvedValue),
-            peakStatus: isoDate ? peakStatusByIsoDate[isoDate] || null : null,
-          };
-        });
-      }, [data, peakStatusByIsoDate]);
+        ...d,
+        displayTemperature: normalizeTemp(resolvedValue),
+        peakStatus: resolvedPeakStatus ?? null,
+        normalizedPeakStatus,
+      };
+    });
+  }, [data, peakStatusByIsoDate]);
+
+  const todayIndex = useMemo(() => {
+    if (!Array.isArray(processedData) || processedData.length === 0) {
+      return null;
+    }
+    const today = new Date();
+    let lastIndex = null;
+    processedData.forEach((entry, idx) => {
+      if (!entry?.isoDate) return;
+      try {
+        const parsed = parseISO(entry.isoDate);
+        if (Number.isNaN(parsed?.getTime?.())) return;
+        if (differenceInCalendarDays(parsed, today) <= 0) {
+          lastIndex = idx;
+        }
+      } catch (error) {
+        // ignore parsing issues
+      }
+    });
+    return lastIndex;
+  }, [processedData]);
 
       useLayoutEffect(() => {
         const updateDimensions = () => {
@@ -407,10 +468,11 @@ export const useFertilityChart = (
             newHeight = parentH;
           }
           
+        
           setDimensions({ width: newWidth, height: newHeight });
         };
 
-        updateDimensions(); 
+        updateDimensions();
         window.addEventListener('resize', updateDimensions);
         
         let resizeObserver;
@@ -440,59 +502,165 @@ export const useFertilityChart = (
       ),
     [processedData]
   );
-  const allDataPoints = useMemo(() => processedData.filter((d) => d && d.isoDate), [processedData]);
+  const rawAllDataPoints = useMemo(() => processedData.filter((d) => d && d.isoDate), [processedData]);
   const hasTemperatureData = validDataForLine.length > 0;
 
-  const peakDayIndex = useMemo(() => {
-    if (!allDataPoints.length) return null;
-    for (let idx = 0; idx < allDataPoints.length; idx += 1) {
-      if (allDataPoints[idx]?.peakStatus === 'P') {
-        return idx;
+  const hasAnyObservation = useMemo(() => {
+    if (!Array.isArray(processedData) || processedData.length === 0) {
+      return false;
+    }
+    return processedData.some((day) => {
+      if (!day) return false;
+      if (day.displayTemperature != null) return true;
+
+      const hasMucusInfo = ['mucusAppearance', 'mucus_appearance', 'mucusSensation', 'mucus_sensation']
+        .some((field) => {
+          const value = day?.[field];
+          return value != null && String(value).trim() !== '';
+        });
+      if (hasMucusInfo) return true;
+
+      const hasSymbol = (() => {
+        const symbol = day?.fertility_symbol ?? day?.fertilitySymbol;
+        if (symbol == null) return false;
+        return String(symbol).trim() !== '';
+      })();
+      if (hasSymbol) return true;
+
+      const hasObservationText = (() => {
+        const observation = day?.observations ?? day?.notes;
+        if (observation == null) return false;
+        return String(observation).trim() !== '';
+      })();
+      if (hasObservationText) return true;
+
+      const normalizedPeak = normalizePeakStatus(
+        day?.normalizedPeakStatus ?? day?.peakStatus ?? day?.peak_marker
+      );
+      return normalizedPeak !== '';
+    });
+  }, [processedData]);
+
+  const normalizedFertilityConfig = useMemo(() => {
+    const config = fertilityStartConfig ?? {};
+    const ensureBoolean = (value, fallback) =>
+      typeof value === 'boolean' ? value : fallback;
+    const methods = {
+      alemanas: ensureBoolean(
+        config?.methods?.alemanas,
+        DEFAULT_FERTILITY_START_CONFIG.methods.alemanas
+      ),
+      oms: ensureBoolean(
+        config?.methods?.oms,
+        DEFAULT_FERTILITY_START_CONFIG.methods.oms
+      ),
+      creighton: ensureBoolean(
+        config?.methods?.creighton,
+        DEFAULT_FERTILITY_START_CONFIG.methods.creighton
+      ),
+    };
+    const calculators = {
+      cpm: ensureBoolean(
+        config?.calculators?.cpm,
+        DEFAULT_FERTILITY_START_CONFIG.calculators.cpm
+      ),
+      t8: ensureBoolean(
+        config?.calculators?.t8,
+        DEFAULT_FERTILITY_START_CONFIG.calculators.t8
+      ),
+    };
+    const validModes = new Set(['conservador', 'consenso', 'permisivo']);
+    const combineMode = validModes.has(config?.combineMode)
+      ? config.combineMode
+      : DEFAULT_FERTILITY_START_CONFIG.combineMode;
+    const postpartum = Boolean(config?.postpartum);
+    return { methods, calculators, combineMode, postpartum };
+  }, [fertilityStartConfig]);
+
+  const fertilityCalculatorCandidates = useMemo(() => {
+    if (Array.isArray(externalCalculatorCandidates) && externalCalculatorCandidates.length > 0) {
+      return externalCalculatorCandidates
+        .map((candidate) => {
+          if (!candidate) return null;
+          const { source, day, reason } = candidate;
+          const normalizedSource = typeof source === 'string'
+            ? source.toUpperCase().replace(/-/g, '')
+            : '';
+          if (normalizedSource !== 'CPM' && normalizedSource !== 'T8') {
+            return null;
+          }
+          const numericDay = Number(day);
+          if (!Number.isFinite(numericDay)) {
+            return null;
+          }
+          return {
+            source: normalizedSource,
+            originalSource: source ?? normalizedSource,
+            day: numericDay,
+            reason: typeof reason === 'string' ? reason : '',
+            kind: 'calculator',
+          };
+        })
+        .filter(Boolean);
+    }
+    const cycles = Array.isArray(calculatorCycles) ? calculatorCycles : [];
+    if (!cycles.length) {
+      return [];
+    }
+    const cpmCandidate = computeCpmCandidateFromCycles(cycles);
+    const t8Candidate = computeT8CandidateFromCycles(cycles, computeOvulationMetrics);
+    return [cpmCandidate, t8Candidate].filter(Boolean);
+  }, [externalCalculatorCandidates, calculatorCycles]);
+
+  const { peakDayIndex, thirdDayIndex, peakInfertilityStartIndex } = useMemo(() => {
+    if (!rawAllDataPoints.length) {
+      return {
+        peakDayIndex: null,
+        thirdDayIndex: null,
+        peakInfertilityStartIndex: null,
+      };
+    }
+
+    const normalizedStatuses = rawAllDataPoints.map((entry) =>
+      entry?.normalizedPeakStatus ?? normalizePeakStatus(entry?.peakStatus ?? entry?.peak_marker)
+    );
+
+    let detectedPeakIndex = null;
+    let detectedThirdIndex = null;
+
+    normalizedStatuses.forEach((status, idx) => {
+      if (status === 'P' && detectedPeakIndex == null) {
+        detectedPeakIndex = idx;
       }
-    }
-    return null;
-  }, [allDataPoints]);
-
-  const peakInfertilityStartIndex = useMemo(() => {
-    if (!allDataPoints.length) return null;
-    
-
-    let thirdDayIndex = null;
-    for (let idx = 0; idx < allDataPoints.length; idx += 1) {
-      if (allDataPoints[idx]?.peakStatus === '3') {
-        thirdDayIndex = idx;
-        break;
+      if (status === '3' && detectedThirdIndex == null) {
+        detectedThirdIndex = idx;
       }
+    });
+
+    if (detectedPeakIndex == null) {
+      return {
+        peakDayIndex: null,
+        thirdDayIndex: null,
+        peakInfertilityStartIndex: null,
+      };
     }
 
-    if (thirdDayIndex != null) {
-    const candidate = thirdDayIndex + 1;
-    if (candidate >= allDataPoints.length) {
-      return thirdDayIndex;
-    }
-    return candidate;
-    }
-
-    if (peakDayIndex == null) return null;
-
-    const peakEntry = allDataPoints[peakDayIndex];
-    if (!peakEntry?.isoDate) return null;
-    const peakDate = parseISO(peakEntry.isoDate);
-
-    for (let idx = peakDayIndex + 1; idx < allDataPoints.length; idx += 1) {
-      const entry = allDataPoints[idx];
-      if (!entry?.isoDate) {
-        continue;
-      }
-
-      const daysFromPeak = differenceInCalendarDays(parseISO(entry.isoDate), peakDate);
-      if (daysFromPeak >= 4) {
-        return idx;
-      }
+    if (detectedThirdIndex != null) {
+      const lastIndex = rawAllDataPoints.length - 1;
+      const startIdx = Math.min(detectedThirdIndex + 1, lastIndex);
+      return {
+        peakDayIndex: detectedPeakIndex,
+        thirdDayIndex: detectedThirdIndex,
+        peakInfertilityStartIndex: startIdx,
+      };
     }
 
-    return null;
-  }, [allDataPoints, peakDayIndex]);
+    return {
+      peakDayIndex: detectedPeakIndex,
+      thirdDayIndex: null,
+      peakInfertilityStartIndex: null,
+    };
+  }, [rawAllDataPoints]);
 
   const {
     baselineTemp,
@@ -518,10 +686,74 @@ export const useFertilityChart = (
 
     return {
       ...baseDetails,
+      baselineTemp,
+      baselineIndices,
+      baselineStartIndex,
+      firstHighIndex,
       peakDayIndex,
       peakInfertilityStartIndex,
+      thirdDayIndex,
     };
-  }, [rawOvulationDetails, peakDayIndex, peakInfertilityStartIndex]);
+  }, [
+    rawOvulationDetails,
+    baselineTemp,
+    baselineIndices,
+    baselineStartIndex,
+    firstHighIndex,
+    peakDayIndex,
+    peakInfertilityStartIndex,
+    thirdDayIndex,
+  ]);
+
+  const fertilityStart = useMemo(
+    () =>
+      computeFertilityStartOutput({
+        processedData,
+        config: normalizedFertilityConfig,
+        calculatorCandidates: fertilityCalculatorCandidates,
+        context: {
+          peakDayIndex,
+          postPeakStartIndex: peakInfertilityStartIndex,
+          peakThirdDayIndex: ovulationDetails?.thirdDayIndex ?? null,
+          temperatureInfertileStartIndex: ovulationDetails?.infertileStartIndex ?? null,
+          temperatureConfirmationIndex: ovulationDetails?.confirmationIndex ?? null,
+          temperatureRule: ovulationDetails?.rule ?? null,
+          todayIndex,
+        },
+      }),
+    [
+      processedData,
+      normalizedFertilityConfig,
+      fertilityCalculatorCandidates,
+      ovulationDetails?.thirdDayIndex,
+      ovulationDetails?.infertileStartIndex,
+      ovulationDetails?.confirmationIndex,
+      ovulationDetails?.rule,
+      peakDayIndex,
+      peakInfertilityStartIndex,
+      todayIndex,
+    ]
+  );
+
+  const processedDataWithAssessments = useMemo(
+    () =>
+      processedData.map((entry, index) => {
+        if (!entry) return entry;
+        const isFutureDay = Number.isInteger(todayIndex) ? index > todayIndex : false;
+        const assessment = fertilityStart?.dailyAssessments?.[index] ?? null;
+        const mergedAssessment = assessment
+          ? { ...assessment, showFertilityStatus: assessment.showFertilityStatus !== false && !isFutureDay }
+          : null;
+        if (!mergedAssessment) return { ...entry, isFutureDay };
+        return { ...entry, fertilityAssessment: mergedAssessment, isFutureDay };
+      }),
+    [processedData, fertilityStart, todayIndex]
+  );
+
+  const allDataPoints = useMemo(
+    () => processedDataWithAssessments.filter((d) => d && d.isoDate),
+    [processedDataWithAssessments]
+  );
 
       const { tempMin, tempMax } = useMemo(() => {
         const recordedTemps = validDataForLine
@@ -582,25 +814,41 @@ export const useFertilityChart = (
       // In pantalla completa damos un poco más de altura a cada
       // fila de texto para permitir mostrar palabras más largas
       // en orientación vertical.
-      const textRowHeight = responsiveFontSize(isFullScreen ? 1.6 : 2.5);
+      const textRowHeight = Math.round(responsiveFontSize(isFullScreen ? 1.6 : 2));
       const isLandscapeVisual = forceLandscape || orientation === 'landscape';
-      // En horizontal mostramos todas las filas (sensación, apariencia y observaciones)
-      // por lo que reservamos más altura bajo la gráfica. Mantenemos portrait como estaba.
-      const numTextRowsBelowChart = isLandscapeVisual ? 9 : 5; 
-      const totalTextRowsHeight = textRowHeight * numTextRowsBelowChart;
+      // Cálculo exacto para que la fila de Observ. "bese" el borde inferior del SVG.
+      // Observaciones está en rowIndex = 9 (fullscreen) o 7.5 (no fullscreen).
+      // rowBlockHeight/2 equivale a 1 (fullscreen) o 0.75 (no fullscreen).
+      const obsRowIndex = isFullScreen ? 9 : 7.5;
+      const halfBlock = isFullScreen ? 1 : 0.75;
+      const bottomRowsExact = Math.round(textRowHeight * (obsRowIndex + halfBlock));
 
-      const padding = { 
-        top: isFullScreen ? Math.max(isLandscapeVisual ? 6 : 12, chartHeight * (isLandscapeVisual ? 0.015 : 0.03)) : 12, 
-        right: isFullScreen ? Math.max(isLandscapeVisual ? 35 : 30, chartWidth * (isLandscapeVisual ? 0.02 : 0.05)) : 50, 
-        bottom: (isFullScreen ? Math.max(isLandscapeVisual ? 0 : 40, chartHeight * (isLandscapeVisual ? 0 : 0.11)) : 60) + totalTextRowsHeight + 25, 
-        left: isFullScreen ? Math.max(isLandscapeVisual ? 45 : 20, chartWidth * (isLandscapeVisual ? 0.02 : 0.05)) : 50
+        const padding = { 
+        top: isFullScreen
+          ? Math.max(isLandscapeVisual ? 6 : 12, chartHeight * (isLandscapeVisual ? 0.015 : 0.03))
+          : 12, 
+        right: isFullScreen
+          ? Math.max(isLandscapeVisual ? 35 : 30, chartWidth * (isLandscapeVisual ? 0.02 : 0.05))
+          : 50, 
+        // 👇 Ajuste exacto. Si quieres que quede "pegadísimo", puedes restar 1px.
+        bottom: Math.max(0, bottomRowsExact - 1),
+        left: isFullScreen
+          ? Math.max(isLandscapeVisual ? 45 : 20, chartWidth * (isLandscapeVisual ? 0.02 : 0.05))
+          : 50
       };
       
+      // --- Levanta el suelo del área del gráfico (sin mover filas) ---
+      // Ajusta cuántas "filas" quieres ganar de aire bajo el gráfico:
+      const GRAPH_BOTTOM_LIFT_ROWS = 4; // p.ej. 0.8 filas; prueba 0.6–1.2
+      const graphBottomInset = Math.max(0, Math.round(textRowHeight * GRAPH_BOTTOM_LIFT_ROWS));
+      const graphBottomY = chartHeight - padding.bottom - graphBottomInset;
+
       const getY = (temp) => {
-        if (temp === null || temp === undefined || tempRange === 0) return chartHeight - padding.bottom; 
-        const graphHeight = chartHeight - padding.top - padding.bottom;
-        if (graphHeight <=0) return chartHeight - padding.bottom;
-        return chartHeight - padding.bottom - ((temp - tempMin) / tempRange) * graphHeight;
+        const effectiveHeight = chartHeight - padding.top - padding.bottom - graphBottomInset;
+        if (temp === null || temp === undefined || tempRange === 0 || effectiveHeight <= 0) {
+          return graphBottomY;
+        }
+        return graphBottomY - ((temp - tempMin) / tempRange) * effectiveHeight;
       };
 
       const getX = (index) => {
@@ -689,7 +937,7 @@ export const useFertilityChart = (
         activePoint,
         activeIndex,
         tooltipPosition,
-        processedData,
+        processedData: processedDataWithAssessments,
         validDataForLine,
         allDataPoints,
         tempMin,
@@ -710,6 +958,10 @@ export const useFertilityChart = (
         baselineIndices,
         firstHighIndex,
         ovulationDetails,
+        fertilityStart,
         hasTemperatureData,
+        hasAnyObservation,
+        graphBottomInset,
+        todayIndex,
       };
     };

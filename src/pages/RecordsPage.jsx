@@ -8,25 +8,13 @@ import React, {
 } from 'react';
 import CycleDatesEditor from '@/components/CycleDatesEditor';
 import DataEntryForm from '@/components/DataEntryForm';
+import DayDetail from '@/components/DayDetail';
 import DeletionDialog from '@/components/DeletionDialog';
 import { useCycleData } from '@/hooks/useCycleData';
 import { useToast } from '@/components/ui/use-toast';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import {
-  Edit,
-  Plus,
-  FileText,
-  Edit2,
-  Trash2,
-  Thermometer,
-  Droplets,
-  Edit3,
-  Clock,
-  CalendarDays,
-  ChevronDown,
-  Circle,
-} from 'lucide-react';
+import { Edit, Plus, FileText, ChevronDown } from 'lucide-react';
 import {
   format,
   parseISO,
@@ -37,15 +25,10 @@ import {
   startOfDay,
   differenceInCalendarDays,
   addDays,
+  addMonths,
 } from 'date-fns';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import {
-  motion,
-  AnimatePresence,
-  useScroll,
-  useMotionValue,
-  useMotionValueEvent,
-} from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Calendar } from '@/components/ui/calendar';
 import { es } from 'date-fns/locale';
 import { FERTILITY_SYMBOL_OPTIONS } from '@/config/fertilitySymbols';
@@ -55,695 +38,23 @@ import { cn } from '@/lib/utils';
 const getSymbolInfo = (symbolValue) =>
   FERTILITY_SYMBOL_OPTIONS.find((symbol) => symbol.value === symbolValue) || FERTILITY_SYMBOL_OPTIONS[0];
 const CALENDAR_BOUNDARY_OFFSET = 10;
-
-const FIELD_PALETTES = {
-  default: {
-    iconBg: 'bg-slate-50',
-    iconBorder: 'border-slate-200',
-    iconColor: 'text-slate-500',
-    labelColor: 'text-slate-600',
-    valueColor: 'text-slate-600',
-    chipBorder: 'border-slate-200',
-    chipBg: 'bg-white/80',
-    hoverBg: 'hover:bg-slate-50',
-    focusRing: 'focus-visible:ring-2 focus-visible:ring-slate-200',
-  },
-  temperature: {
-    iconBg: 'bg-orange-50',
-    iconBorder: 'border-orange-100',
-    iconColor: 'text-orange-500',
-    labelColor: 'text-orange-600',
-    valueColor: 'text-orange-600',
-    chipBorder: 'border-orange-100',
-    hoverBg: 'hover:bg-orange-50',
-    focusRing: 'focus-visible:ring-2 focus-visible:ring-orange-100',
-  },
-  time: {
-    iconBg: 'bg-slate-50',
-    iconBorder: 'border-slate-200',
-    iconColor: 'text-slate-500',
-    labelColor: 'text-slate-500',
-    valueColor: 'text-slate-600',
-    chipBorder: 'border-slate-200',
-    hoverBg: 'hover:bg-slate-50',
-    focusRing: 'focus-visible:ring-2 focus-visible:ring-slate-200',
-  },
-  mucusSensation: {
-    iconBg: 'bg-sky-50',
-    iconBorder: 'border-sky-100',
-    iconColor: 'text-sky-500',
-    labelColor: 'text-sky-600',
-    valueColor: 'text-sky-600',
-    chipBorder: 'border-sky-100',
-    hoverBg: 'hover:bg-sky-50',
-    focusRing: 'focus-visible:ring-2 focus-visible:ring-sky-100',
-  },
-  mucusAppearance: {
-    iconBg: 'bg-emerald-50',
-    iconBorder: 'border-emerald-100',
-    iconColor: 'text-emerald-500',
-    labelColor: 'text-emerald-600',
-    valueColor: 'text-emerald-600',
-    chipBorder: 'border-emerald-100',
-    hoverBg: 'hover:bg-emerald-50',
-    focusRing: 'focus-visible:ring-2 focus-visible:ring-emerald-100',
-  },
-  observations: {
-    iconBg: 'bg-violet-50',
-    iconBorder: 'border-violet-100',
-    iconColor: 'text-violet-500',
-    labelColor: 'text-violet-600',
-    valueColor: 'text-violet-600',
-    chipBorder: 'border-violet-100',
-    hoverBg: 'hover:bg-violet-50',
-    focusRing: 'focus-visible:ring-2 focus-visible:ring-violet-100',
-  },
-};
-
-const getSymbolPalette = (symbolInfo = {}) => {
-  const base = {
-    ...FIELD_PALETTES.default,
-    dotColor: 'bg-slate-300',
-    patternClass: symbolInfo?.pattern ? 'pattern-bg' : '',
-  };
-
-  switch (symbolInfo?.value) {
-    case 'red':
-      return {
-        ...base,
-        iconBg: 'bg-rose-50',
-        iconBorder: 'border-rose-100',
-        iconColor: 'text-rose-500',
-        labelColor: 'text-rose-600',
-        valueColor: 'text-rose-600',
-        chipBorder: 'border-rose-100',
-        hoverBg: 'hover:bg-rose-50',
-        focusRing: 'focus-visible:ring-2 focus-visible:ring-rose-100',
-        dotColor: 'bg-rose-400',
-      };
-    case 'white':
-      return {
-        ...base,
-        iconBg: 'bg-white',
-        iconBorder: 'border-slate-200',
-        iconColor: 'text-slate-500',
-        labelColor: 'text-slate-600',
-        valueColor: 'text-slate-600',
-        chipBorder: 'border-slate-200',
-        hoverBg: 'hover:bg-slate-50',
-        focusRing: 'focus-visible:ring-2 focus-visible:ring-slate-200',
-        dotColor: 'bg-white',
-      };
-    case 'green':
-      return {
-        ...base,
-        iconBg: 'bg-emerald-50',
-        iconBorder: 'border-emerald-100',
-        iconColor: 'text-emerald-500',
-        labelColor: 'text-emerald-600',
-        valueColor: 'text-emerald-600',
-        chipBorder: 'border-emerald-100',
-        hoverBg: 'hover:bg-emerald-50',
-        focusRing: 'focus-visible:ring-2 focus-visible:ring-emerald-100',
-        dotColor: 'bg-emerald-400',
-      };
-    case 'yellow':
-      return {
-        ...base,
-        iconBg: 'bg-yellow-50',
-        iconBorder: 'border-yellow-100',
-        iconColor: 'text-yellow-500',
-        labelColor: 'text-yellow-600',
-        valueColor: 'text-yellow-600',
-        chipBorder: 'border-yellow-100',
-        hoverBg: 'hover:bg-yellow-50',
-        focusRing: 'focus-visible:ring-2 focus-visible:ring-yellow-100',
-        dotColor: 'bg-yellow-300',
-      };
-    case 'spot':
-      return {
-        ...base,
-        iconBg: 'bg-rose-50',
-        iconBorder: 'border-rose-100',
-        iconColor: 'text-rose-500',
-        labelColor: 'text-rose-600',
-        valueColor: 'text-rose-600',
-        chipBorder: 'border-rose-100',
-        hoverBg: 'hover:bg-rose-50',
-        focusRing: 'focus-visible:ring-2 focus-visible:ring-rose-100',
-        dotColor: 'bg-rose-400',
-        patternClass: symbolInfo?.pattern ? 'pattern-bg' : '',
-      };
-    default:
-      return base;
-  }
-};
-
-const buildFieldPalette = (key) => ({ ...FIELD_PALETTES.default, ...(FIELD_PALETTES[key] || {}) });
-
-const useCalendarFade = (
-  calendarContainerRef,
-  { dependencies = [], externalRef, scrollContainerRef } = {}
-) => {
-  const localRef = useRef(null);
-
-  const rawOpacity = useMotionValue(1);
-  const opacity = rawOpacity;
-  const { scrollY } = useScroll();
-
-  const updateOpacity = useCallback(() => {
-    const element = localRef.current;
-    const calendarRect = calendarContainerRef?.current?.getBoundingClientRect();
-
-    if (!element || !calendarRect) {
-      rawOpacity.set(1);
-      return;
-    }
-
-    const fadeBoundary = calendarRect.bottom + CALENDAR_BOUNDARY_OFFSET;
-    const rect = element.getBoundingClientRect();
-    
-    if (rect.bottom <= fadeBoundary) {
-      rawOpacity.set(0);
-      return;
-    }
-
-    rawOpacity.set(1);
-
-  }, [calendarContainerRef, rawOpacity]);
-
-  useMotionValueEvent(scrollY, 'change', updateOpacity);
-
-    useEffect(() => {
-    const container = scrollContainerRef?.current;
-    if (!container) {
-      return undefined;
-    }
-
-    const handleScroll = () => updateOpacity();
-    container.addEventListener('scroll', handleScroll, { passive: true });
-    updateOpacity();
-
-    return () => {
-      container.removeEventListener('scroll', handleScroll);
-    };
-  }, [scrollContainerRef, updateOpacity, ...dependencies]);
-
-  const setRefs = useCallback(
-    (node) => {
-      localRef.current = node;
-
-      if (typeof externalRef === 'function') {
-        externalRef(node);
-      } else if (externalRef && typeof externalRef === 'object') {
-        externalRef.current = node;
-      }
-
-      if (node) {
-        requestAnimationFrame(() => updateOpacity());
-      }
-    },
-    [externalRef, updateOpacity]
-  );
-
-  useEffect(() => {
-    updateOpacity();
-
-    const handleResize = () => updateOpacity();
-    window.addEventListener('resize', handleResize);
-
-    return () => {
-      window.removeEventListener('resize', handleResize);
-    };
-  }, [updateOpacity, ...dependencies]);
-
-  useEffect(() => {
-    const node = localRef.current;
-    if (!node || typeof ResizeObserver === 'undefined') {
-      return undefined;
-    }
-
-    const observer = new ResizeObserver(() => updateOpacity());
-    observer.observe(node);
-
-    return () => {
-      observer.disconnect();
-    };
-  }, [updateOpacity, ...dependencies]);
-
-  return { setRefs, opacity };
-};
-
-const RecordCard = ({
-  isoDate,
-  dayRef,
-  onToggle,
-  isSelected,
-  displayDate,
-  cycleDay,
-  details,
-  symbolLabel,
-  isExpanded,
-  onEdit,
-  onDelete,
-  isProcessing,
-  calendarContainerRef,
-  isCalendarOpen,
-  scrollMarginTop,
-  scrollContainerRef,
-  onInlineEdit,
-}) => {
-  const { setRefs, opacity } = useCalendarFade(calendarContainerRef, {
-    dependencies: [isExpanded, isCalendarOpen],
-    externalRef: dayRef,
-    scrollContainerRef,
-  });
-
-  const symbolPalette = getSymbolPalette(details.symbolInfo);
-  const getFieldPalette = buildFieldPalette;
-  const symbolValue = details?.symbolInfo?.value;
-  const hasSymbolValue = symbolValue && symbolValue !== 'none';
-
-  const fieldRows = [
-    {
-      key: 'temperatureTime',
-      grouped: true,
-      items: [
-        {
-          key: 'temperature',
-          inlineKey: 'temperature',
-          palette: getFieldPalette('temperature'),
-          icon: Thermometer,
-          title: details.hasTemperature ? `${details.displayTemp}°C` : '—',
-          hasValue: details.hasTemperature,
-          badge: details.showCorrectedIndicator ? (
-            <span
-              className="flex h-2.5 w-2.5 items-center justify-center text-amber-500"
-              title="Temperatura corregida"
-            >
-              <span aria-hidden="true" className="text-base leading-none">•</span>
-              <span className="sr-only">Temperatura corregida</span>
-            </span>
-          ) : null,
-        },
-        {
-          key: 'time',
-          inlineKey: 'time',
-          palette: getFieldPalette('time'),
-          icon: Clock,
-          title: details.timeValue || '—',
-          hasValue: Boolean(details.timeValue),
-        },
-        ],
-    },
-    {
-      key: 'sensationAppearance',
-      grouped: true,
-      items: [
-        {
-          key: 'mucusSensation',
-          inlineKey: 'mucusSensation',
-          palette: getFieldPalette('mucusSensation'),
-          icon: Droplets,
-          title: details.mucusSensation || '—',
-          hasValue: Boolean(details.mucusSensation),
-        },
-        {
-          key: 'mucusAppearance',
-          inlineKey: 'mucusAppearance',
-          palette: getFieldPalette('mucusAppearance'),
-          icon: Circle,
-          title: details.mucusAppearance || '—',
-          hasValue: Boolean(details.mucusAppearance),
-        },
-      ],
-    },
-    {
-      key: 'observationsAndSymbol',
-      grouped: true,
-      items: [
-        {
-          key: 'observations',
-          inlineKey: 'observations',
-          palette: getFieldPalette('observations'),
-          icon: Edit3,
-          title: details.observationsText?.trim() ? details.observationsText : '—',
-          hasValue: Boolean(details.observationsText?.trim()),
-          isMultiline: true,
-          minWidthClass: 'min-w-[9rem]',
-        },
-        {
-          key: 'fertilitySymbol',
-          inlineKey: 'fertilitySymbol',
-          palette: symbolPalette,
-          title: symbolLabel || 'Sin símbolo',
-          hasValue: Boolean(hasSymbolValue),
-          minWidthClass: 'min-w-[7.5rem]',
-        },
-        {
-          key: 'editAction',
-          isAction: true,
-          icon: Edit2,
-          ariaLabel: 'Editar registro',
-          onClick: (event) => {
-            event.stopPropagation();
-            onEdit(details.record);
-          },
-          disabled: isProcessing,
-        },
-        {
-          key: 'deleteAction',
-          isAction: true,
-          icon: Trash2,
-          ariaLabel: 'Eliminar registro',
-          onClick: (event) => {
-            event.stopPropagation();
-            onDelete(details.record.id);
-          },
-          disabled: isProcessing,
-        },
-      ],
-    },
-  ];
-
-  const renderFieldRow = (field, index) => {
-    if (field.grouped) {
-      return (
-        <React.Fragment key={field.key}>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
-            {field.items.map((item) => {
-              if (item.isAction) {
-                const Icon = item.icon;
-
-                return (
-                  <button
-                    key={item.key}
-                    type="button"
-                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-rose-500 transition-colors hover:bg-rose-50 hover:text-rose-600 focus:outline-none focus-visible:ring-1 focus-visible:ring-rose-300 disabled:cursor-not-allowed disabled:opacity-60"
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      item.onClick?.(event);
-                    }}
-                    aria-label={item.ariaLabel}
-                    disabled={item.disabled}
-                  >
-                    <Icon className="h-4 w-4" />
-                  </button>
-                );
-              }
-
-              const palette = item.palette || getFieldPalette(item.key);
-              const Icon = item.icon;
-              const hasValue = item.hasValue ?? Boolean(item.title);
-              const displayValue = item.title || '-';
-              const minWidthClass = item.minWidthClass || 'min-w-[8rem]';
-              const iconElement = item.renderIcon
-                ? item.renderIcon()
-                : Icon
-                  ? (
-                      <Icon className={`h-4 w-4 shrink-0 ${palette.iconColor}`} />
-                    )
-                  : null;
-              const gapClass = iconElement ? 'gap-2' : 'gap-1.5';
-
-              return (
-                <button
-                  key={item.key}
-                  type="button"
-                  className={`flex ${minWidthClass} flex-1 items-center ${gapClass} rounded-md px-1.5 py-1 text-left text-sm transition-colors ${
-                    palette.hoverBg
-                  } focus:outline-none focus-visible:ring-1 focus-visible:ring-rose-300`}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    event.preventDefault();
-                    if (typeof onInlineEdit === 'function') {
-                      onInlineEdit(item.inlineKey || item.key);
-                    }
-                  }}
-                >
-                  {iconElement}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-start gap-1.5">
-                      <span
-                        className={`text-sm font-semibold leading-tight ${
-                          hasValue ? palette.valueColor : 'text-slate-400'
-                        } ${item.isMultiline ? 'whitespace-pre-line break-words' : 'truncate'}`}
-                      >
-                        {displayValue}
-                      </span>
-                      {item.badge && <span className="shrink-0">{item.badge}</span>}
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </React.Fragment>
-      );
-    }
-
-    const palette = field.palette || getFieldPalette(field.key);
-    const Icon = field.icon;
-    const valueClass = field.value ? palette.valueColor : 'text-slate-400';
-    const valueText = field.value ?? '—';
-    const iconElement = Icon ? <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${palette.iconColor}`} /> : null;
-    const contentGapClass = iconElement ? 'gap-2' : 'gap-1.5';
-
-    return (
-      <React.Fragment key={field.key}>
-        {index > 0 && <div className="my-1.5 border-t border-slate-100" />}
-        <button
-          type="button"
-          className={`flex w-full items-start gap-3 rounded-md px-1.5 py-1.5 text-left text-sm transition-colors ${
-            palette.hoverBg
-          } focus:outline-none focus-visible:ring-1 focus-visible:ring-rose-300`}
-          onClick={(event) => {
-            event.stopPropagation();
-            event.preventDefault();
-            if (typeof onInlineEdit === 'function') {
-              onInlineEdit(field.key);
-            }
-          }}
-        >
-          <div className={`flex min-w-0 flex-1 items-start ${contentGapClass} ${field.isMultiline ? 'pt-0.5' : ''}`}>
-            {iconElement}
-            <div className="min-w-0 flex-1">
-              <span
-                className={`block text-sm leading-snug ${valueClass} ${field.isMultiline ? 'whitespace-pre-line' : 'truncate'}`}
-              >
-                {valueText}
-              </span>
-            </div>
-          </div>
-          {field.badge && <span className="shrink-0 self-center">{field.badge}</span>}
-        </button>
-      </React.Fragment>
-    );
-  };
-
-  return (
-    <motion.div
-      layout
-      ref={setRefs}
-      onClick={() => onToggle(isoDate)}
-      className={`group relative mx-0.5 flex w-full cursor-pointer flex-col rounded-2xl border border-rose-100 bg-white/75 px-4 py-3 shadow-sm backdrop-blur-md transition-all duration-300 hover:shadow-lg sm:mx-1 sm:px-5 ${
-        isSelected ? 'bg-white/90 ring-2 ring-rose-400 shadow-rose-200/70' : ''
-      }`}
-      whileHover={{ translateY: -2 }}
-      style={{ opacity, scrollMarginTop }}
-    >
-      <div className="flex flex-wrap items-center gap-1.5">
-        <div className="flex items-center gap-1 text-sm font-semibold text-slate-700">
-          <CalendarDays className="h-4 w-4 text-rose-400" />
-          {displayDate}
-        </div>
-        <span className="text-sm font-semibold text-rose-600 ">D{cycleDay}</span>
-        <FieldBadges
-          hasTemperature={details.hasTemperature}
-          hasMucusSensation={details.hasMucusSensation}
-          hasMucusAppearance={details.hasMucusAppearance}
-          hasObservations={details.hasObservations}
-          peakStatus={details.peakStatus}
-          isPeakDay={details.isPeakDay}
-        />
-        <div className="ml-auto flex items-center">
-          <div
-            className={`flex h-6 w-6 items-center justify-center rounded-full border border-slate-400 ${symbolPalette.dotColor} ${symbolPalette.patternClass} shadow-inner`}
-            title={symbolLabel}
-          >            
-          </div>
-        </div>
-      </div>
-      <AnimatePresence initial={false}>
-        {isExpanded && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.25, ease: 'easeInOut' }}
-            className="mt-1.5 overflow-hidden"
-          >
-            <div className="rounded-2xl border border-slate-200 bg-white/80 p-2 shadow-sm">
-              <div className="flex flex-wrap items-center gap-1 text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">
-                <PeakBadge peakStatus={details.peakStatus} isPeakDay={details.isPeakDay} size="small" />
-                {(details.isPeakDay || details.peakStatus === 'P') && (
-                  <span className="text-rose-600">Día pico</span>
-                )}
-                {details.record?.ignored && (
-                  <Badge
-                    className="flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 text-[0.65rem] font-semibold uppercase tracking-wide text-slate-400"
-                    title="Registro ignorado"
-                  >
-                    <span aria-hidden="true" className="h-2 w-2 rounded-full bg-slate-300" />
-                    <span className="sr-only">Registro ignorado</span>
-                  </Badge>
-                )}
-              </div>
-              <div className="mt-1.5 space-y-1">
-                {fieldRows.map((field, index) => renderFieldRow(field, index))}
-              </div>
-              
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
-  );
-};
-
-const EmptyGroupRow = ({
-  id,
-  days,
-  toggleEmptyGroup,
-  isExpandedGroup,
-  hasSelectedInGroup,
-  calendarContainerRef,
-  isCalendarOpen,
-  children,
-  scrollMarginTop,
-  scrollContainerRef,
-}) => {
-  const { setRefs, opacity } = useCalendarFade(calendarContainerRef, {
-    dependencies: [isExpandedGroup, isCalendarOpen, days.length],
-    scrollContainerRef,
-  });
-
-  return (
-    <motion.button
-      type="button"
-      ref={setRefs}
-      onClick={() => toggleEmptyGroup(id)}
-      className={`flex w-full items-center justify-between rounded-2xl border border-dashed border-rose-300 bg-white/40 px-4 py-3 text-sm font-medium text-slate-500 backdrop-blur-sm transition-all duration-200 hover:border-rose-500 hover:bg-white/70 ${
-        hasSelectedInGroup ? 'ring-2 ring-rose-300 text-rose-500 shadow-rose-200/70' : ''
-      }`}
-      whileHover={{ scale: 1.01 }}
-      whileTap={{ scale: 0.99 }}
-      aria-expanded={isExpandedGroup}
-      style={{ opacity, scrollMarginTop }}
-    >
-      {children}
-    </motion.button>
-  );
-};
-
+const CALENDAR_SWIPE_OFFSET = 60;
+const CALENDAR_SWIPE_VELOCITY = 400;
+const CALENDAR_EXIT_OFFSET = 120;
+const CALENDAR_DRAG_LIMIT = 85;
+const CALENDAR_DRAG_ACTIVATION_THRESHOLD = 5;
+const CALENDAR_SNAP_DURATION = 160;
+// Formatea la temperatura para la UI. Devuelve null si el valor no es numérico.
 const formatTemperatureDisplay = (value) => {
-  if (value === null || value === undefined || value === '') {
-    return null;
-  }
-
-  const numeric = Number(String(value).replace(',', '.'));
-  if (Number.isNaN(numeric)) {
-    return null;
-  }
-
-  return numeric.toFixed(2);
-};
-
-const PeakBadge = ({ peakStatus, isPeakDay, size = 'default', className = '' }) => {
-  let label = null;
-  let title = '';
-  let colorClasses = 'border border-slate-200 bg-slate-100 text-slate-500';
-
-  if (isPeakDay || peakStatus === 'P') {
-    label = '✖';
-    title = 'Día pico';
-    colorClasses = 'border border-rose-200 bg-rose-100 text-rose-600';
-  } else if (peakStatus === '1') {
-    label = '+1';
-    title = 'Post día pico +1';
-    colorClasses = 'border border-rose-200 bg-rose-50 text-rose-500';
-  } else if (peakStatus === '2') {
-    label = '+2';
-    title = 'Post día pico +2';
-    colorClasses = 'border border-rose-200 bg-rose-50 text-rose-500';
-  } else if (peakStatus === '3') {
-    label = '+3';
-    title = 'Post día pico +3';
-    colorClasses = 'border border-rose-200 bg-rose-50 text-rose-500';
-  }
-
-  if (!label) {
-    return null;
-  }
-
-  const sizeClasses =
-    size === 'small'
-      ? 'h-5 w-5 text-[0.6rem]'
-      : 'h-6 w-6 text-xs';
-
-  return (
-    <span
-      role="img"
-      aria-label={title}
-      title={title}
-      className={`flex items-center justify-center rounded-full font-semibold shadow-sm shadow-rose-200/40 transition-transform duration-200 ${sizeClasses} ${colorClasses} ${className}`}
-    >
-      {label}
-    </span>
-  );
-};
-
-const FieldBadges = ({
-  hasTemperature,
-  hasMucusSensation,
-  hasMucusAppearance,
-  hasObservations,
-  peakStatus,
-  isPeakDay,
-}) => {
-  const badgeBase =
-    'flex items-center justify-center w-5 h-5 rounded-full text-[0.6rem] shadow-sm transition-transform duration-200';
-  const temperaturePalette = buildFieldPalette('temperature');
-  const sensationPalette = buildFieldPalette('mucusSensation');
-  const appearancePalette = buildFieldPalette('mucusAppearance');
-  const observationsPalette = buildFieldPalette('observations');
-
-  return (
-    <div className="flex items-center gap-1.5">
-      <PeakBadge peakStatus={peakStatus} isPeakDay={isPeakDay} size="small"/>
-      {hasTemperature && (
-        <span className={`${badgeBase} border ${temperaturePalette.iconBorder} ${temperaturePalette.iconBg}`}>
-          <Thermometer className={`h-2.5 w-2.5 ${temperaturePalette.iconColor}`} />
-        </span>
-      )}
-      {hasMucusSensation && (
-        <span className={`${badgeBase} border ${sensationPalette.iconBorder} ${sensationPalette.iconBg}`}>
-          <Droplets className={`h-2.5 w-2.5 ${sensationPalette.iconColor}`} />
-        </span>
-      )}
-      {hasMucusAppearance && (
-        <span className={`${badgeBase} border ${appearancePalette.iconBorder} ${appearancePalette.iconBg}`}>
-          <Circle className={`h-2.5 w-2.5 ${appearancePalette.iconColor}`} />
-        </span>
-      )}
-      {hasObservations && (
-        <span className={`${badgeBase} border ${observationsPalette.iconBorder} ${observationsPalette.iconBg}`}>
-          <Edit3 className={`h-2.5 w-2.5 ${observationsPalette.iconColor}`} />
-        </span>
-      )}
-    </div>
-  );
+  if (value === null || value === undefined || value === '') return null;
+  // Acepta "36,6" y "36.6"
+  const n = typeof value === 'string' ? Number(value.replace(',', '.')) : Number(value);
+  if (!Number.isFinite(n)) return null;
+  // Mostrar 1–2 decimales con separador español
+  return new Intl.NumberFormat('es-ES', {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 2,
+  }).format(n);
 };
 
 export const RecordsExperience = ({
@@ -824,29 +135,14 @@ export const RecordsExperience = ({
   const [showOverlapDialog, setShowOverlapDialog] = useState(false);
   const [isUpdatingStartDate, setIsUpdatingStartDate] = useState(false);
   const [selectedDate, setSelectedDate] = useState(null);
-  const [expandedIsoDate, setExpandedIsoDate] = useState(null);
   const [defaultFormIsoDate, setDefaultFormIsoDate] = useState(null);
   const [focusedField, setFocusedField] = useState(null);
+  const [initialSectionKey, setInitialSectionKey] = useState(null);
   const [isCalendarOpen, setIsCalendarOpen] = useState(initialCalendarOpen);
-  const [expandedEmptyGroups, setExpandedEmptyGroups] = useState([]);
   const calendarContainerRef = useRef(null);
   const recordsScrollRef = useRef(null);
-  const dayRefs = useRef({});
-  const hasUserSelectedDateRef = useRef(false);
   const calendarHeightRef = useRef(0);
   const [calendarHeight, setCalendarHeight] = useState(0);
-
-  const registerDayRef = useCallback(
-    (isoDate) => (node) => {
-      if (!isoDate) return;
-      if (node) {
-        dayRefs.current[isoDate] = node;
-      } else {
-        delete dayRefs.current[isoDate];
-      }
-    },
-    []
-  );
 
   const updateCalendarMetrics = useCallback(() => {
     const element = calendarContainerRef.current;
@@ -904,43 +200,10 @@ export const RecordsExperience = ({
     };
   }, [updateCalendarMetrics]);
 
-  const ensureElementBelowCalendar = useCallback(
-    (element, { behavior = 'smooth', forceAlignTop = false } = {}) => {
-      const container = recordsScrollRef.current;
-
-      if (!element || !container) {
-        return;
-      }
-
-      const containerRect = container.getBoundingClientRect();
-      const elementRect = element.getBoundingClientRect();
-
-      const elementTop = elementRect.top - containerRect.top + container.scrollTop;
-      const elementBottom = elementTop + elementRect.height;
-      const viewTop = container.scrollTop;
-      const viewBottom = viewTop + container.clientHeight;
-      const alignTopTarget = Math.max(elementTop - 12, 0);
-
-      if (forceAlignTop || elementTop < viewTop) {
-        container.scrollTo({ top: alignTopTarget, behavior });
-        return;
-      }
-
-      if (elementBottom > viewBottom) {
-        const alignBottomTarget = Math.max(elementBottom - container.clientHeight + 12, 0);
-        const shouldAlignTop = elementRect.height <= container.clientHeight;
-        container.scrollTo({ top: shouldAlignTop ? alignTopTarget : alignBottomTarget, behavior });
-      }
-    },
-    []
-  );
-
   const boundaryPx = useMemo(
     () => Math.max(Math.round(calendarHeight + CALENDAR_BOUNDARY_OFFSET), CALENDAR_BOUNDARY_OFFSET),
     [calendarHeight]
   );
-
-    const calendarScrollMargin = useMemo(() => boundaryPx, [boundaryPx]);
 
   useEffect(() => {
     setDraftStartDate(cycle?.startDate || '');
@@ -959,59 +222,6 @@ export const RecordsExperience = ({
       })
       .map((record) => record.isoDate);
   }, [cycle?.data]);
-
-  useEffect(() => {
-    if (!selectedDate || !hasUserSelectedDateRef.current) {
-      return;
-    }
-
-    const targetNode = dayRefs.current[selectedDate];
-    if (!targetNode) {
-      return;
-    }
-    
-      const rafId = window.requestAnimationFrame(() => {
-      ensureElementBelowCalendar(targetNode, { behavior: 'smooth', forceAlignTop: true });
-      hasUserSelectedDateRef.current = false;
-    });
-
-      return () => {
-      window.cancelAnimationFrame(rafId);
-    };
-  }, [selectedDate, expandedEmptyGroups, isCalendarOpen, ensureElementBelowCalendar]);
-
-  useEffect(() => {
-    if (!expandedIsoDate) {
-      return;
-    }
-
-    const targetNode = dayRefs.current[expandedIsoDate];
-    if (!targetNode) {
-      return;
-    }
-
-    const rafId = window.requestAnimationFrame(() => {
-      ensureElementBelowCalendar(targetNode, { behavior: 'smooth', forceAlignTop: true });
-    });
-
-    return () => {
-      window.cancelAnimationFrame(rafId);
-    };
-  }, [expandedIsoDate, ensureElementBelowCalendar, isCalendarOpen, calendarHeight]);
-
-  useEffect(() => {
-    const priorityIso = expandedIsoDate || selectedDate;
-    if (!priorityIso) {
-      return;
-    }
-
-    const targetNode = dayRefs.current[priorityIso];
-    if (!targetNode) {
-      return;
-    }
-
-    ensureElementBelowCalendar(targetNode, { behavior: 'auto' });
-  }, [calendarHeight, isCalendarOpen, expandedIsoDate, selectedDate, ensureElementBelowCalendar]);
 
   useEffect(() => {
     const container = recordsScrollRef.current;
@@ -1089,6 +299,8 @@ export const RecordsExperience = ({
       const observationsText = record.observations || '';
       const hasObservations = Boolean(observationsText);
 
+      const hasRelations = Boolean(record.had_relations ?? record.hadRelations ?? false);
+
       const peakStatus = peakStatuses[record.isoDate] || null;
       const isPeakDay = record.peak_marker === 'peak' || peakStatus === 'P';
 
@@ -1108,6 +320,7 @@ export const RecordsExperience = ({
         mucusAppearance,
         hasObservations,
         observationsText,
+        hasRelations,
         peakStatus,
         isPeakDay,
       });
@@ -1169,20 +382,231 @@ export const RecordsExperience = ({
       months:
         'flex flex-col items-center sm:flex-row sm:items-center sm:justify-center space-y-3 sm:space-x-4 sm:space-y-0',
       month: 'space-y-3',
-      table: 'w-full border-collapse space-y-0.5',
+      table: 'records-calendar-day-grid w-full border-collapse space-y-0.5',
       row: 'flex w-full mt-1.5',
-      head_cell: 'text-muted-foreground rounded-md w-8 font-medium text-[0.75rem]',
+      head_cell: 'text-muted-foreground rounded-md w-11 font-medium text-[0.8rem]',
       cell:
-        'h-8 w-8 text-center text-sm p-0 relative [&:has([aria-selected])]:bg-transparent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20',
+        'relative h-11 w-11 text-center text-sm p-0 focus-within:relative focus-within:z-20',
       day: cn(
         buttonVariants({ variant: 'ghost', size: 'icon' }),
-        '!h-8 !w-8 !p-0 font-medium text-slate-700 aria-selected:opacity-100'
+        'relative flex !h-11 !w-11 rounded-2xl flex-col items-center justify-center !p-0 font-medium text-slate-700 aria-selected:opacity-100'
       ),
       day_selected:
-        'border border-rose-400 text-white hover:bg-rose-300 hover:text-white focus:bg-rose-300 focus:text-white',
-      day_today: 'bg-rose-200 text-rose-700 font-semibold',
+        'rounded-2xl border border-rose-400 text-rose-600 focus:ring-2 focus:ring-rose-300 focus:ring-offset-2',
+      day_today: 'rounded-2xl ring-1 ring-rose-300 text-rose-700 font-semibold bg-transparent',
     }),
     []
+  );
+
+  const [currentCalendarMonth, setCurrentCalendarMonth] = useState(() => {
+    if (selectedDate && isValid(parseISO(selectedDate))) {
+      return parseISO(selectedDate);
+    }
+    if (cycleRange?.to) {
+      return cycleRange.to;
+    }
+    return startOfDay(new Date());
+  });
+
+  const calendarAnimationRef = useRef(false);
+
+   const calendarDragAnimationFrameRef = useRef(null);
+  const calendarSwipeStateRef = useRef({
+    active: false,
+    startX: 0,
+    pointerId: null,
+    startTime: 0,
+    dragging: false,
+  });
+  const calendarSwipeCleanupRef = useRef(null);
+  const calendarSwipeContainerRef = useRef(null);
+  const calendarDayGridRef = useRef(null);
+  const calendarDragXRef = useRef(0);
+  const [calendarDragX, setCalendarDragX] = useState(0);
+  const [isCalendarDragging, setIsCalendarDragging] = useState(false);
+
+  const updateCalendarDragX = useCallback((value) => {
+    calendarDragXRef.current = value;
+    setCalendarDragX(value);
+  }, []);
+
+  const waitForNextFrame = useCallback(
+    () =>
+      new Promise((resolve) => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(resolve);
+        });
+      }),
+    []
+  );
+
+  const animateDragTo = useCallback(
+    (target, { duration = CALENDAR_SNAP_DURATION } = {}) => {
+      if (calendarDragAnimationFrameRef.current) {
+        cancelAnimationFrame(calendarDragAnimationFrameRef.current);
+        calendarDragAnimationFrameRef.current = null;
+      }
+
+      const start = calendarDragXRef.current;
+      const diff = target - start;
+
+      if (Math.abs(diff) < 0.5 || duration <= 0) {
+        updateCalendarDragX(target);
+        return Promise.resolve();
+      }
+
+      return new Promise((resolve) => {
+        const easeOut = (t) => 1 - Math.pow(1 - t, 3);
+        const startTime = performance.now();
+
+        const step = (now) => {
+          const elapsed = now - startTime;
+          const progress = Math.min(1, elapsed / duration);
+          const nextValue = start + diff * easeOut(progress);
+          updateCalendarDragX(nextValue);
+
+          if (progress < 1) {
+            calendarDragAnimationFrameRef.current = requestAnimationFrame(step);
+            return;
+          }
+
+          calendarDragAnimationFrameRef.current = null;
+          resolve();
+        };
+
+        calendarDragAnimationFrameRef.current = requestAnimationFrame(step);
+      });
+    },
+    [updateCalendarDragX]
+  );
+  const calendarLabels = useMemo(
+    () => ({
+      labelDay: (day) => {
+        const iso = format(day, 'yyyy-MM-dd');
+        const details = recordDetailsByIso.get(iso);
+        const baseLabel = format(day, 'd MMM', { locale: es });
+
+        if (!details) {
+          return baseLabel;
+        }
+
+        const infoParts = [];
+        if (details.hasTemperature && details.hasMucus) {
+          infoParts.push('temperatura y moco');
+        } else if (details.hasTemperature) {
+          infoParts.push('temperatura');
+        } else if (details.hasMucus) {
+          infoParts.push('moco');
+        }
+
+        if (details.hasRelations) {
+          infoParts.push('RS');
+        }
+
+        if (details.peakStatus) {
+          const peakLabel =
+            details.peakStatus === 'P'
+              ? 'pico ✖'
+              : `pico +${details.peakStatus}`;
+          infoParts.push(peakLabel);
+        }
+
+        if (!infoParts.length) {
+          return baseLabel;
+        }
+
+        return `${baseLabel}: ${infoParts.join('; ')}`;
+      },
+    }),
+    [recordDetailsByIso]
+  );
+
+  const renderCalendarDay = useCallback(
+    ({ date, activeModifiers }) => {
+      const iso = format(date, 'yyyy-MM-dd');
+      const details = recordDetailsByIso.get(iso);
+
+      const hasTemperature = details?.hasTemperature ?? false;
+      const hasMucus = details?.hasMucus ?? false;
+      const hasRelations = details?.hasRelations ?? false;
+      const peakStatus = details?.peakStatus ?? null;
+      const symbolInfo = details?.symbolInfo;
+      const symbolValue = symbolInfo?.value;
+      const isSelected = activeModifiers.selected;
+      {/* Punto de temperatura */}
+      const temperatureDotClass = cn(
+        'h-[0.5rem] w-[0.5rem] rounded-full transition-shadow',
+        hasTemperature ? 'bg-amber-500' : 'bg-transparent',
+        hasTemperature && isSelected
+          ? 'shadow-[0_0_0_0.75px_rgba(255,255,255,0.95)]'
+          : ''
+      );
+      {/* Punto del moco */}
+      const mucusDotClass = cn(
+        'h-[0.5rem] w-[0.5rem] rounded-full transition-shadow',
+        hasMucus ? 'bg-teal-500' : 'bg-transparent',
+        hasMucus && isSelected
+          ? 'shadow-[0_0_0_0.75px_rgba(255,255,255,0.95)]'
+          : ''
+      );
+      {/* Tamaño número */}
+      const shouldShowSymbolBackground = Boolean(symbolValue && symbolValue !== 'none');
+      const numberClass = cn(
+        'relative z-10 text-[1.15rem] leading-none',
+        activeModifiers.outside || activeModifiers.outsideCycle
+          ? 'text-slate-300'
+          : isSelected
+          ? shouldShowSymbolBackground
+            ? 'text-white'
+            : 'text-rose-600'
+          : 'text-slate-700'
+      );
+
+      const peakBadgeContent =
+        peakStatus === 'P' ? '✖' : peakStatus ? `+${peakStatus}` : null;
+
+      const symbolBackgroundClass = shouldShowSymbolBackground
+        ? cn(
+            'pointer-events-none absolute inset-0 rounded-full transition-opacity',
+            symbolInfo?.color ?? '',
+            symbolInfo?.pattern === 'spotting-pattern' ? 'calendar-spotting-dot' : '',
+            symbolValue === 'white' ? 'ring-1 ring-slate-300/70' : '',
+            isSelected ? 'opacity-50' : 'opacity-25'
+          )
+        : null;
+
+      return (
+  <div className="relative flex h-full w-full flex-col items-center justify-center">
+    {/* Número centrado con posible fondo de símbolo */}
+    <span className="relative inline-flex h-8 w-8 items-center justify-center leading-none -mt-[1px]">
+      {symbolBackgroundClass && <span className={symbolBackgroundClass} aria-hidden="true" />}
+      <span className={numberClass}>{format(date, 'd')}</span>
+    </span>
+
+
+    {/* Dots inferiores: temperatura y moco (con halo solo si está seleccionado) */}
+    <div className="mt-[0.22rem] flex h-[0.3rem] items-center justify-center gap-[0.18rem]" aria-hidden="true">
+      <span className={temperatureDotClass} />
+      <span className={mucusDotClass} />
+    </div>
+
+    {/* Badge pico (✖/+1..+3) en esquina superior derecha */}
+    {peakBadgeContent && (
+      <span
+        aria-hidden="true"
+        className={cn(
+          'pointer-events-none absolute -top-[1px] right-[1px] rounded-sm px-[2px] text-[0.55rem] font-semibold leading-none text-rose-500 shadow-[0_0_0_1px_rgba(255,255,255,0.9)]',
+          isSelected ? 'bg-rose-100/90 text-rose-700' : 'bg-white/90'
+        )}
+      >
+        {peakBadgeContent}
+      </span>
+    )}
+  </div>
+);
+
+    },
+    [recordDetailsByIso]
   );
 
   const cycleDays = useMemo(() => {
@@ -1232,6 +656,19 @@ export const RecordsExperience = ({
     [cycleDays]
   );
 
+  const cycleDayMap = useMemo(() => {
+    const map = new Map();
+    cycleDays.forEach((day) => {
+      map.set(day.isoDate, day);
+    });
+    return map;
+  }, [cycleDays]);
+
+  const selectedDayData = selectedDate ? cycleDayMap.get(selectedDate) || null : null;
+  const selectedDayDetails = selectedDayData?.details ?? null;
+  const selectedPeakStatus = selectedDayDetails?.peakStatus ?? (selectedDate ? peakStatuses[selectedDate] ?? null : null);
+  const selectedIsPeakDay = selectedDayDetails?.isPeakDay ?? selectedPeakStatus === 'P';
+
   const defaultSelectedIso = useMemo(() => {
     const cycleEndIso = cycleRange?.to
       ? format(startOfDay(cycleRange.to), 'yyyy-MM-dd')
@@ -1256,7 +693,6 @@ export const RecordsExperience = ({
     if (!defaultSelectedIso) {
       if (selectedDate !== null) {
         setSelectedDate(null);
-        setExpandedIsoDate(null);
       }
       return;
     }
@@ -1264,79 +700,8 @@ export const RecordsExperience = ({
     if (selectedDate !== defaultSelectedIso) {
       setSelectedDate(defaultSelectedIso);
 
-      if (!recordDetailsByIso.has(defaultSelectedIso)) {
-        setExpandedIsoDate(null);
-      }
     }
-  }, [
-    selectedDate,
-    cycleDayIsoSet,
-    defaultSelectedIso,
-    recordDetailsByIso,
-  ]);
-
-  const processedCycleDays = useMemo(() => {
-    if (!cycleDays.length) {
-      return { items: [], isoToGroup: {} };
-    }
-
-    const items = [];
-    const isoToGroup = {};
-
-    for (let index = 0; index < cycleDays.length;) {
-      const day = cycleDays[index];
-      if (day.details) {
-        items.push({ type: 'record', day });
-        index += 1;
-        continue;
-      }
-
-      let runEnd = index;
-      while (runEnd < cycleDays.length && !cycleDays[runEnd].details) {
-        runEnd += 1;
-      }
-
-      const runLength = runEnd - index;
-
-      if (runLength > 3) {
-        const groupDays = cycleDays.slice(index, runEnd);
-        const groupId = `${groupDays[0].isoDate}_${groupDays[groupDays.length - 1].isoDate}`;
-        groupDays.forEach(({ isoDate }) => {
-          isoToGroup[isoDate] = groupId;
-        });
-        items.push({
-          type: 'empty-group',
-          id: groupId,
-          days: groupDays,
-        });
-      } else {
-        for (let offset = index; offset < runEnd; offset += 1) {
-          items.push({ type: 'empty-day', day: cycleDays[offset] });
-        }
-      }
-
-      index = runEnd;
-    }
-
-    return { items, isoToGroup };
-  }, [cycleDays]);
-
-  const { items: cycleDisplayItems, isoToGroup: isoToGroupMap } = processedCycleDays;
-
-  const toggleEmptyGroup = useCallback((groupId) => {
-    if (!groupId) return;
-    setExpandedEmptyGroups((prev) =>
-      prev.includes(groupId) ? prev.filter((id) => id !== groupId) : [...prev, groupId]
-    );
-  }, []);
-
-  useEffect(() => {
-    if (!selectedDate) return;
-    const groupId = isoToGroupMap[selectedDate];
-    if (!groupId) return;
-
-    setExpandedEmptyGroups((prev) => (prev.includes(groupId) ? prev : [...prev, groupId]));
-  }, [selectedDate, isoToGroupMap]);
+}, [selectedDate, cycleDayIsoSet, defaultSelectedIso]);
 
   const handleCalendarSelect = useCallback(
     (day) => {
@@ -1349,22 +714,97 @@ export const RecordsExperience = ({
         }
       }
 
-      const groupId = isoToGroupMap[iso];
-      if (groupId) {
-        setExpandedEmptyGroups((prev) =>
-          prev.includes(groupId) ? prev : [...prev, groupId]
-        );
+      setSelectedDate(iso);
+    },
+    [cycleRange]
+  );
+
+  useEffect(() => {
+    if (!selectedDate) {
+      return;
+    }
+
+    const parsed = parseISO(selectedDate);
+    if (!isValid(parsed)) {
+      return;
+    }
+
+    setCurrentCalendarMonth((prev) => {
+      if (
+        prev &&
+        prev.getFullYear() === parsed.getFullYear() &&
+        prev.getMonth() === parsed.getMonth()
+      ) {
+        return prev;
+      }
+      return parsed;
+    });
+  }, [selectedDate]);
+
+  const changeCalendarMonth = useCallback(
+    (direction) => {
+      setCurrentCalendarMonth((prev) => {
+        const base = prev ?? (cycleRange?.to ?? startOfDay(new Date()));
+        const offset = direction === 'next' ? 1 : -1;
+        return addMonths(base, offset);
+      });
+    },
+    [cycleRange]
+  );
+
+  useEffect(() => {
+    if (!isCalendarOpen) {
+      calendarDayGridRef.current = null;
+      updateCalendarDragX(0);
+      setIsCalendarDragging(false);
+      return;
+    }
+
+    const container = calendarSwipeContainerRef.current;
+    if (!container) {
+      return;
+    }
+
+    const gridElement = container.querySelector('.records-calendar-day-grid');
+    if (gridElement) {
+      calendarDayGridRef.current = gridElement;
+    }
+  }, [currentCalendarMonth, isCalendarOpen, updateCalendarDragX]);
+
+    const animateCalendarMonthChange = useCallback(
+    async (direction) => {
+      if (calendarAnimationRef.current) {
+        return;
       }
 
-      hasUserSelectedDateRef.current = true;
-      setSelectedDate(iso);
+      calendarAnimationRef.current = true;
 
-      if (!recordDetailsByIso.has(iso)) {
-        setExpandedIsoDate(null);
+const gridElement = calendarDayGridRef.current;
+const measuredWidth = gridElement?.getBoundingClientRect()?.width ?? 0;
+const fallback = direction === 'next' ? -CALENDAR_EXIT_OFFSET : CALENDAR_EXIT_OFFSET;
+const exitTarget = measuredWidth
+  ? direction === 'next'
+    ? -measuredWidth
+    : measuredWidth
+  : fallback;
+const enterStart = -exitTarget;
+
+
+
+      try {
+        await animateDragTo(exitTarget, { duration: CALENDAR_SNAP_DURATION });
+        changeCalendarMonth(direction);
+
+        updateCalendarDragX(enterStart);
+        await waitForNextFrame();
+        await animateDragTo(0, { duration: CALENDAR_SNAP_DURATION });
+      } finally {
+        calendarAnimationRef.current = false;
       }
     },
-    [cycleRange, isoToGroupMap, recordDetailsByIso]
+    [animateDragTo, changeCalendarMonth, updateCalendarDragX, waitForNextFrame]
   );
+
 
   const resetStartDateFlow = useCallback(() => {
     setPendingStartDate(null);
@@ -1372,6 +812,19 @@ export const RecordsExperience = ({
     setPendingIncludeEndDate(false);
     setOverlapCycle(null);
     setShowOverlapDialog(false);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (calendarDragAnimationFrameRef.current) {
+        cancelAnimationFrame(calendarDragAnimationFrameRef.current);
+        calendarDragAnimationFrameRef.current = null;
+      }
+      if (calendarSwipeCleanupRef.current) {
+        calendarSwipeCleanupRef.current();
+        calendarSwipeCleanupRef.current = null;
+      }
+    };
   }, []);
 
   const openStartDateEditor = useCallback(() => {
@@ -1396,6 +849,100 @@ export const RecordsExperience = ({
       onRequestDeleteCycle();
     }
   }, [closeStartDateEditor, onRequestDeleteCycle]);
+
+  const handleCalendarPointerDown = useCallback(
+    (event) => {
+      if (!isCalendarOpen || calendarAnimationRef.current) {
+        return;
+      }
+
+      if (event.pointerType === 'mouse' && event.button !== 0) {
+        return;
+      }
+
+      const gridTarget = event.target.closest('.records-calendar-day-grid');
+      if (!gridTarget) {
+        return;
+      }
+
+      const state = calendarSwipeStateRef.current;
+      state.active = true;
+      state.pointerId = event.pointerId;
+      state.startX = event.clientX;
+      state.startTime = performance.now();
+      state.dragging = false;
+
+      const handlePointerMove = (moveEvent) => {
+        if (!state.active || moveEvent.pointerId !== state.pointerId) {
+          return;
+        }
+
+        const delta = moveEvent.clientX - state.startX;
+        if (!state.dragging && Math.abs(delta) > CALENDAR_DRAG_ACTIVATION_THRESHOLD) {
+          state.dragging = true;
+          setIsCalendarDragging(true);
+        }
+
+        if (!state.dragging) {
+          return;
+        }
+
+        const limited = Math.max(-CALENDAR_DRAG_LIMIT, Math.min(CALENDAR_DRAG_LIMIT, delta));
+        moveEvent.preventDefault();
+        updateCalendarDragX(limited);
+      };
+
+      const handlePointerUp = async (upEvent) => {
+        if (!state.active || upEvent.pointerId !== state.pointerId) {
+          return;
+        }
+
+        calendarSwipeCleanupRef.current?.();
+        calendarSwipeCleanupRef.current = null;
+        state.active = false;
+
+        const totalDelta = upEvent.clientX - state.startX;
+        const elapsed = performance.now() - state.startTime;
+        const velocity = elapsed > 0 ? (totalDelta / elapsed) * 1000 : 0;
+        const movedEnoughNext = totalDelta <= -CALENDAR_SWIPE_OFFSET || velocity <= -CALENDAR_SWIPE_VELOCITY;
+        const movedEnoughPrev = totalDelta >= CALENDAR_SWIPE_OFFSET || velocity >= CALENDAR_SWIPE_VELOCITY;
+        const wasDragging = state.dragging;
+        state.dragging = false;
+        setIsCalendarDragging(false);
+
+        if (calendarAnimationRef.current) {
+          await animateDragTo(0, { duration: CALENDAR_SNAP_DURATION });
+          return;
+        }
+
+        if (wasDragging && movedEnoughNext) {
+          await animateCalendarMonthChange('next');
+          return;
+        }
+
+        if (wasDragging && movedEnoughPrev) {
+          await animateCalendarMonthChange('prev');
+          return;
+        }
+
+        await animateDragTo(0, { duration: CALENDAR_SNAP_DURATION });
+      };
+
+      const cleanup = () => {
+        window.removeEventListener('pointermove', handlePointerMove, { capture: true });
+        window.removeEventListener('pointerup', handlePointerUp, { capture: true });
+        window.removeEventListener('pointercancel', handlePointerUp, { capture: true });
+      };
+
+      calendarSwipeCleanupRef.current?.();
+      calendarSwipeCleanupRef.current = cleanup;
+
+      window.addEventListener('pointermove', handlePointerMove, { capture: true, passive: false });
+      window.addEventListener('pointerup', handlePointerUp, { capture: true });
+      window.addEventListener('pointercancel', handlePointerUp, { capture: true });
+    },
+    [animateCalendarMonthChange, animateDragTo, isCalendarOpen, updateCalendarDragX]
+  );
 
   const handleCancelOverlapStart = useCallback(() => {
     resetStartDateFlow();
@@ -1555,20 +1102,20 @@ export const RecordsExperience = ({
     setEditingRecord(null);
     setDefaultFormIsoDate(null);
     setFocusedField(null);
+    setInitialSectionKey(null);
   }, []);
 
   const openRecordForm = useCallback(
-    (record, fieldName = null) => {
+    (record, fieldName = null, sectionKey = null) => {
       if (!record) return;
 
       setEditingRecord(record);
       setDefaultFormIsoDate(record.isoDate ?? null);
       setFocusedField(fieldName);
+      setInitialSectionKey(sectionKey ?? null);
 
       if (record.isoDate) {
-        hasUserSelectedDateRef.current = false;
         setSelectedDate(record.isoDate);
-        setExpandedIsoDate(record.isoDate);
       }
 
       setShowForm(true);
@@ -1576,9 +1123,10 @@ export const RecordsExperience = ({
     []
   );
 
-  const handleEdit = useCallback((record) => openRecordForm(record), [openRecordForm]);
-
-  const handleInlineEdit = useCallback((record, fieldName) => openRecordForm(record, fieldName), [openRecordForm]);
+  const handleEdit = useCallback(
+    (record, sectionKey = null, fieldName = null) => openRecordForm(record, fieldName, sectionKey),
+    [openRecordForm]
+  );
 
   const handleDeleteRequest = (recordId) => {
     const record = cycle?.data?.find((r) => r.id === recordId);
@@ -1589,32 +1137,16 @@ export const RecordsExperience = ({
     setEditingRecord(record);
   }, []);
 
-  const handleToggleRecord = useCallback((isoDate, hasRecord) => {
+  const handleAddRecordForDay = useCallback((isoDate, sectionKey = null, fieldName = null) => {
     if (!isoDate) {
       return;
     }
 
-    hasUserSelectedDateRef.current = false;
     setSelectedDate(isoDate);
-
-    if (!hasRecord) {
-      return;
-    }
-
-    setExpandedIsoDate((prev) => (prev === isoDate ? null : isoDate));
-  }, []);
-
-  const handleAddRecordForDay = useCallback((isoDate) => {
-    if (!isoDate) {
-      return;
-    }
-
-    hasUserSelectedDateRef.current = false;
-    setSelectedDate(isoDate);
-    setExpandedIsoDate(null);
     setEditingRecord(null);
     setDefaultFormIsoDate(isoDate);
-    setFocusedField(null);
+    setFocusedField(fieldName);
+    setInitialSectionKey(sectionKey);
     setShowForm(true);
   }, []);
 
@@ -1625,16 +1157,64 @@ export const RecordsExperience = ({
     setEditingRecord(null);
     setDefaultFormIsoDate(targetIso);
     setFocusedField(null);
-    hasUserSelectedDateRef.current = false;
+    setInitialSectionKey(null);
 
     if (targetIso) {
       setSelectedDate(targetIso);
-      setExpandedIsoDate(null);
     }
 
     setShowForm(true);
   }, [cycleDays, cycle?.startDate, selectedDate]);
 
+  const buildRecordPayloadForDate = useCallback(
+    (isoDate, overrides = {}) => {
+      const existingRecord = cycle?.data?.find((record) => record.isoDate === isoDate) || null;
+      const baseTime = existingRecord?.timestamp && isValid(parseISO(existingRecord.timestamp))
+        ? format(parseISO(existingRecord.timestamp), 'HH:mm')
+        : format(new Date(), 'HH:mm');
+
+      const measurements = existingRecord?.measurements?.length
+        ? existingRecord.measurements.map((measurement, idx) => {
+            const measurementTime =
+              measurement?.time ||
+              (measurement?.timestamp && isValid(parseISO(measurement.timestamp))
+                ? format(parseISO(measurement.timestamp), 'HH:mm')
+                : baseTime);
+
+            return {
+              temperature: measurement?.temperature ?? measurement?.temperature_raw ?? '',
+              temperature_corrected: measurement?.temperature_corrected ?? '',
+              time: measurementTime,
+              time_corrected: measurement?.time_corrected || measurementTime,
+              use_corrected: Boolean(measurement?.use_corrected),
+              selected: Boolean(measurement?.selected ?? idx === 0),
+            };
+          })
+        : [
+            {
+              temperature: '',
+              temperature_corrected: '',
+              time: baseTime,
+              time_corrected: baseTime,
+              use_corrected: false,
+              selected: true,
+            },
+          ];
+
+      return {
+        isoDate,
+        measurements,
+        mucusSensation: existingRecord?.mucusSensation ?? existingRecord?.mucus_sensation ?? '',
+        mucusAppearance: existingRecord?.mucusAppearance ?? existingRecord?.mucus_appearance ?? '',
+        fertility_symbol: existingRecord?.fertility_symbol ?? existingRecord?.fertilitySymbol ?? 'none',
+        observations: existingRecord?.observations ?? '',
+        peak_marker: existingRecord?.peak_marker ?? null,
+        ignored: existingRecord?.ignored ?? false,
+        ...overrides,
+      };
+    },
+    [cycle?.data]
+  );
   const handleSave = async (data, { keepFormOpen = false } = {}) => {
     setIsProcessing(true);
     try {
@@ -1644,6 +1224,7 @@ export const RecordsExperience = ({
         setEditingRecord(null);
         setDefaultFormIsoDate(null);
         setFocusedField(null);
+        setInitialSectionKey(null);
       }
     } catch (error) {
       toast({ title: 'Error', description: 'No se pudo guardar el registro', variant: 'destructive' });
@@ -1655,6 +1236,32 @@ export const RecordsExperience = ({
     }
   };
 
+
+   const handleToggleRelations = useCallback(
+    async (isoDate) => {
+      if (!isoDate) {
+        return;
+      }
+
+      const existingRecord = cycle?.data?.find((record) => record.isoDate === isoDate) || null;
+      const hasRelations = Boolean(existingRecord?.had_relations ?? existingRecord?.hadRelations ?? false);
+      const payload = buildRecordPayloadForDate(isoDate, {
+        had_relations: !hasRelations,
+        hadRelations: !hasRelations,
+      });
+
+      setIsProcessing(true);
+      try {
+        await addOrUpdateDataPoint(payload, existingRecord);
+      } catch (error) {
+        toast({ title: 'Error', description: 'No se pudo actualizar RS', variant: 'destructive' });
+      } finally {
+        setIsProcessing(false);
+      }
+    },
+    [addOrUpdateDataPoint, buildRecordPayloadForDate, cycle?.data, toast]
+  );
+
   const confirmDelete = async () => {
     if (!recordToDelete) return;
     setIsProcessing(true);
@@ -1663,11 +1270,8 @@ export const RecordsExperience = ({
       await deleteRecord(recordToDelete.id);
       setRecordToDelete(null);
       setDefaultFormIsoDate(null);
-      if (deletedIso) {
-        setExpandedIsoDate((prev) => (prev === deletedIso ? null : prev));
-        if (selectedDate === deletedIso) {
-          setSelectedDate(deletedIso);
-        }
+      if (deletedIso && selectedDate === deletedIso) {
+        setSelectedDate(deletedIso);
       }
     } catch {
       toast({ title: 'Error', description: 'No se pudo eliminar el registro', variant: 'destructive' });
@@ -1854,28 +1458,38 @@ export const RecordsExperience = ({
                   transition={{ duration: 0.3 }}
                   className="flex justify-center"
                 >
-                  <Calendar
-                    mode="single"
-                    locale={es}
-                    defaultMonth={
-                      selectedDate && isValid(parseISO(selectedDate))
-                        ? parseISO(selectedDate)
-                        : cycleRange?.to
-                    }
-                    selected={selectedDate && isValid(parseISO(selectedDate)) ? parseISO(selectedDate) : undefined}
-                    onSelect={handleCalendarSelect}
-                    onDayClick={handleCalendarSelect}
-                    modifiers={calendarModifiers}
-                    className="w-full max-w-xs sm:max-w-sm rounded-3xl bg-white/40 !p-2 sm:!p-2.5 mx-auto backdrop-blur-sm [&_button]:text-slate-900 [&_button:hover]:bg-rose-100 [&_button[aria-selected=true]]:bg-rose-400"
-                    classNames={calendarClassNames}
-                    modifiersClassNames={{
-                      hasRecord:
-                        "relative font-semibold after:absolute after:bottom-0.5 after:left-1/2 after:-translate-x-1/2 after:w-1.5 after:h-1.5 after:rounded-full after:bg-rose-400 after:content-['']",
-                      outsideCycle: 'text-slate-300 opacity-50 hover:text-slate-300 hover:bg-transparent',
-                      insideCycleNoRecord:
-                        'text-slate-900 hover:text-slate-900 hover:bg-rose-50',
-                    }}
-                  />
+                  <div
+                    ref={calendarSwipeContainerRef}
+                    onPointerDown={handleCalendarPointerDown}
+                    data-calendar-dragging={isCalendarDragging ? 'true' : 'false'}
+                    className={cn(
+                      'w-full max-w-sm rounded-3xl bg-white/40 mx-auto backdrop-blur-sm overflow-hidden [&_.records-calendar-day-grid]:will-change-transform [&_.records-calendar-day-grid]:transition-transform [&_.records-calendar-day-grid]:duration-200 [&_.records-calendar-day-grid]:ease-out [&_.records-calendar-day-grid]:[transform:translateX(var(--calendar-drag-x,0px))] data-[calendar-dragging=true]:[&_.records-calendar-day-grid]:duration-0 data-[calendar-dragging=true]:[&_.records-calendar-day-grid]:ease-linear',
+                      isCalendarDragging ? 'cursor-grabbing select-none' : 'cursor-grab'
+                    )}
+                    style={{ touchAction: 'pan-y', '--calendar-drag-x': `${calendarDragX}px` }}
+                  >
+                    <Calendar
+                      mode="single"
+                      locale={es}
+                      month={currentCalendarMonth ?? undefined}
+                      onMonthChange={setCurrentCalendarMonth}
+                      selected={selectedDate && isValid(parseISO(selectedDate)) ? parseISO(selectedDate) : undefined}
+                      onSelect={handleCalendarSelect}
+                      onDayClick={handleCalendarSelect}
+                      modifiers={calendarModifiers}
+                      labels={calendarLabels}
+                      components={{ DayContent: renderCalendarDay }}
+                      className="w-full !p-2.5 [&_button]:text-slate-900 [&_button:hover]:bg-rose-200 [&_button[aria-selected=true]]:bg-rose-200 [&_button[aria-selected=true]]:rounded-2xl"
+
+                      classNames={calendarClassNames}
+                      modifiersClassNames={{
+                        hasRecord: 'font-semibold text-slate-900',
+                        outsideCycle: 'text-slate-300 opacity-50 hover:text-slate-300 hover:bg-transparent',
+                        insideCycleNoRecord:
+                          'text-slate-900 hover:text-slate-900 hover:bg-rose-50',
+                      }}
+                    />
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -1919,142 +1533,18 @@ export const RecordsExperience = ({
               </div>
             </motion.div>
           ) : (
-            cycleDisplayItems.map((item) => {
-              if (item.type === 'empty-group') {
-                const { id, days } = item;
-                if (!days.length) {
-                  return null;
-                }
-
-                const newestDay = days[0];
-                const oldestDay = days[days.length - 1];
-                const rangeStartLabel = format(oldestDay.date, 'dd/MM', { locale: es });
-                const rangeEndLabel = format(newestDay.date, 'dd/MM', { locale: es });
-                const isExpandedGroup = expandedEmptyGroups.includes(id);
-                const hasSelectedInGroup = selectedDate
-                  ? days.some((day) => day.isoDate === selectedDate)
-                  : false;
-
-                return (
-                  <motion.div key={id} layout className="space-y-2">
-                    <EmptyGroupRow
-                      id={id}
-                      days={days}
-                      toggleEmptyGroup={toggleEmptyGroup}
-                      isExpandedGroup={isExpandedGroup}
-                      hasSelectedInGroup={hasSelectedInGroup}
-                      calendarContainerRef={calendarContainerRef}
-                      isCalendarOpen={isCalendarOpen}
-                      scrollMarginTop={calendarScrollMargin}
-                      scrollContainerRef={recordsScrollRef}
-                    >
-                      <div className="flex items-center gap-2">
-                        <CalendarDays className="h-4 w-4 text-rose-300" />
-                        <span>{`${rangeStartLabel} --- ${rangeEndLabel} sin registro`}</span>
-                      </div>
-                      <motion.span
-                        animate={{ rotate: isExpandedGroup ? 180 : 0 }}
-                        className="rounded-2xl bg-rose-50 p-1 text-rose-400 shadow-inner"
-                      >
-                        <ChevronDown className="h-4 w-4" />
-                      </motion.span>
-                    </EmptyGroupRow>
-                    <AnimatePresence initial={false}>
-                      {isExpandedGroup && (
-                        <motion.div
-                          key={`${id}-items`}
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: 'auto' }}
-                          exit={{ opacity: 0, height: 0 }}
-                          transition={{ duration: 0.2, ease: 'easeInOut' }}
-                          className="space-y-2 pl-4 sm:pl-6"
-                        >
-                          {days.map(({ isoDate, date, cycleDay }) => {
-                            const isSelectedDay = selectedDate === isoDate;
-                            const displayDate = format(date, 'dd/MM/yyyy', { locale: es });
-                            return (
-                              <motion.button
-                                key={isoDate}
-                                type="button"
-                                ref={registerDayRef(isoDate)}
-                                onClick={() => handleAddRecordForDay(isoDate)}
-                                className={`flex w-full items-center justify-between rounded-2xl border border-dashed border-rose-300 bg-white/40 px-4 py-3 text-sm font-medium text-slate-500 backdrop-blur-sm transition-all duration-200 hover:border-rose-500 hover:bg-white/70 ${
-                                  isSelectedDay ? 'ring-2 ring-rose-300 text-rose-500 shadow-rose-200/70' : ''
-                                }`}
-                                whileHover={{ scale: 1.01 }}
-                                whileTap={{ scale: 0.99 }}
-                                style={{ scrollMarginTop: calendarScrollMargin }}
-                              >
-                                <div className="flex items-center gap-2">
-                                  <CalendarDays className="h-4 w-4 text-rose-300" />
-                                  <span>{`${displayDate} D${cycleDay} - Sin registro`}</span>
-                                </div>
-                                <span className="text-xs font-semibold uppercase tracking-wide text-rose-400">
-                                  Añadir
-                                </span>
-                              </motion.button>
-                            );
-                          })}
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </motion.div>
-                );
-              }
-
-              const { isoDate, date, cycleDay, details } = item.day;
-              const hasRecord = Boolean(details);
-              const isSelected = selectedDate === isoDate;
-              const isExpanded = hasRecord && expandedIsoDate === isoDate;
-              const displayDate = format(date, 'dd/MM/yyyy', { locale: es });
-              const symbolLabel = details?.symbolInfo?.label || '';
-              
-              if (!hasRecord) {
-                return (
-                  <motion.button
-                    key={isoDate}
-                    type="button"
-                    ref={registerDayRef(isoDate)}
-                    onClick={() => handleAddRecordForDay(isoDate)}
-                    className={`flex w-full items-center justify-between rounded-2xl border border-dashed border-rose-300 bg-white/40 px-4 py-3 text-sm font-medium text-slate-500 backdrop-blur-sm transition-all duration-200 hover:border-rose-500 hover:bg-white/70 ${
-                      isSelected ? 'ring-2 ring-rose-300 text-rose-500 shadow-rose-200/70' : ''
-                    }`}
-                    whileHover={{ scale: 1.01 }}
-                    whileTap={{ scale: 0.99 }}
-                    style={{ scrollMarginTop: calendarScrollMargin }}
-                  >
-                    <div className="flex items-center gap-2">
-                      <CalendarDays className="h-4 w-4 text-rose-300" />
-                      <span>{`${displayDate} D${cycleDay} - Sin registro`}</span>
-                    </div>
-                    <span className="text-xs font-semibold uppercase tracking-wide text-rose-400">Añadir</span>
-                  </motion.button>
-                );
-              }
-
-              return (
-                <RecordCard
-                  key={isoDate}
-                  isoDate={isoDate}
-                  dayRef={registerDayRef(isoDate)}
-                  onToggle={(date) => handleToggleRecord(date, true)}
-                  isSelected={isSelected}
-                  displayDate={displayDate}
-                  cycleDay={cycleDay}
-                  details={details}
-                  symbolLabel={symbolLabel}
-                  isExpanded={isExpanded}
-                  onEdit={handleEdit}
-                  onDelete={handleDeleteRequest}
-                  isProcessing={isProcessing}
-                  calendarContainerRef={calendarContainerRef}
-                  isCalendarOpen={isCalendarOpen}
-                  scrollMarginTop={calendarScrollMargin}
-                  scrollContainerRef={recordsScrollRef}
-                  onInlineEdit={(fieldName) => handleInlineEdit(details.record, fieldName)}
-                />
-              );
-            })
+            <DayDetail
+              isoDate={selectedDate}
+              cycleDay={selectedDayData?.cycleDay ?? null}
+              details={selectedDayDetails}
+              peakStatus={selectedPeakStatus}
+              isPeakDay={selectedIsPeakDay}
+              onEdit={handleEdit}
+              onDelete={handleDeleteRequest}
+              onAdd={handleAddRecordForDay}
+              onToggleRelations={handleToggleRelations}
+              isProcessing={isProcessing}
+            />
           )}
         </motion.div>
         {afterRecordsContent && <div className="pt-4 space-y-4">{afterRecordsContent}</div>}
@@ -2084,6 +1574,7 @@ export const RecordsExperience = ({
             onDateSelect={handleDateSelect}
             defaultIsoDate={defaultFormIsoDate}
             focusedField={focusedField}
+            initialSectionKey={initialSectionKey}
           />
         </DialogContent>
       </Dialog>

@@ -85,6 +85,9 @@ export const useDataEntryForm = (
     initialData?.fertility_symbol || FERTILITY_SYMBOLS.NONE.value
   );
   const [observations, setObservations] = useState(initialData?.observations || '');
+  const [hadRelations, setHadRelations] = useState(
+    initialData?.hadRelations ?? initialData?.had_relations ?? false
+  );
   const [ignored, setIgnored] = useState(initialData?.ignored || false);
   const [peakTag, setPeakTag] = useState(
     initialData?.peak_marker === 'peak' ? 'peak' : null
@@ -123,6 +126,7 @@ export const useDataEntryForm = (
       setMucusSensation(initialData.mucusSensation ?? initialData.mucus_sensation ?? '');
       setMucusAppearance(initialData.mucusAppearance ?? initialData.mucus_appearance ?? '');
       setFertilitySymbol(initialData.fertility_symbol || FERTILITY_SYMBOLS.NONE.value);
+      setHadRelations(initialData.hadRelations ?? initialData.had_relations ?? false);
       setObservations(initialData.observations || '');
       setIgnored(initialData.ignored || false);
       setPeakTag(initialData.peak_marker === 'peak' ? 'peak' : null);
@@ -142,6 +146,7 @@ export const useDataEntryForm = (
       setMucusAppearance('');
       setFertilitySymbol(FERTILITY_SYMBOLS.NONE.value);
       setObservations('');
+      setHadRelations(false);
       setIgnored(false);
       setPeakTag(null);
       if (!hadInitialData || defaultIsoChanged) {
@@ -228,7 +233,12 @@ export const useDataEntryForm = (
   };
 
   const buildSubmissionPayload = (options = {}) => {
-    const { overrideMeasurements, overrideIgnored, peakTagOverride } = options;
+    const {
+      overrideMeasurements,
+      overrideIgnored,
+      peakTagOverride,
+      overrideHadRelations,
+    } = options;
     if (!date) {
       toast({
         title: 'Error',
@@ -265,9 +275,18 @@ export const useDataEntryForm = (
       ? peakTagOverride
       : peakTag;
 
-      const measurementsSource = Array.isArray(overrideMeasurements)
+    const measurementsSource = Array.isArray(overrideMeasurements)
       ? overrideMeasurements
       : measurements;
+
+      const hadRelationsOverrideProvided = Object.prototype.hasOwnProperty.call(
+      options,
+      'overrideHadRelations'
+    );
+
+    const effectiveHadRelations = hadRelationsOverrideProvided
+      ? !!overrideHadRelations
+      : hadRelations;
 
     return {
       isoDate,
@@ -283,6 +302,7 @@ export const useDataEntryForm = (
       mucusAppearance,
       fertility_symbol: fertilitySymbol,
       observations,
+      had_relations: effectiveHadRelations,
       ignored:
         Object.prototype.hasOwnProperty.call(options, 'overrideIgnored')
           ? !!overrideIgnored
@@ -308,6 +328,7 @@ export const useDataEntryForm = (
     setMucusAppearance('');
     setFertilitySymbol(FERTILITY_SYMBOLS.NONE.value);
     setObservations('');
+    setHadRelations(false);
     setPeakTag(null);
   };
 
@@ -359,5 +380,7 @@ export const useDataEntryForm = (
     existingPeakIsoDate,
     handleSubmit,
     submitCurrentState,
+    hadRelations,
+    setHadRelations,
   };
 };

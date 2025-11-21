@@ -2,10 +2,12 @@ import React, { useRef, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { XCircle, EyeOff, Eye, Edit3, Thermometer, Droplets, Circle } from 'lucide-react';
+import { PeakModeButton } from '@/components/ui/peak-mode-button';
+import { XCircle, EyeOff, Eye, Edit3, Thermometer, Droplets, Circle, Heart, Sparkles, X } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { getSymbolAppearance } from '@/config/fertilitySymbols';
+import Overlay from '@/components/ui/Overlay';
 
 const ChartTooltip = ({
   point,
@@ -30,12 +32,14 @@ const ChartTooltip = ({
   const tooltipRef = useRef(null);
   const [tooltipHeight, setTooltipHeight] = useState(tooltipMinHeight);
   const [peakActionPending, setPeakActionPending] = useState(false);
+  const [isFertilityOverlayOpen, setIsFertilityOverlayOpen] = useState(false);
 
   useEffect(() => {
     if (tooltipRef.current) {
       setTooltipHeight(tooltipRef.current.offsetHeight);
     }
     setPeakActionPending(false);
+    setIsFertilityOverlayOpen(false);
   }, [point]);
 
   const flipHorizontal = position.clientX > chartWidth * 0.66;
@@ -48,7 +52,6 @@ const ChartTooltip = ({
   let y = flipVertical
     ? position.clientY
     : position.clientY + 10;
-
 
   if (x + tooltipWidth > chartWidth) x = chartWidth - tooltipWidth - 10;
   if (y + tooltipHeight > chartHeight) y = chartHeight - tooltipHeight - 10;
@@ -110,14 +113,56 @@ const ChartTooltip = ({
     : [normalizeTimeString(point.time)];
   const fallbackTime = directTimeCandidates.find(Boolean) ?? formatTimestampTime(point.timestamp);
   const temperatureTime = measurementTime ?? fallbackTime;
+  const fertilityAssessment = point.fertilityAssessment ?? null;
+  const showFertilityStatus =
+    Boolean(fertilityAssessment) &&
+    fertilityAssessment?.showFertilityStatus !== false &&
+    !point.isFutureDay;
+  const fertilityHeader = fertilityAssessment?.header ?? null;
+  const fertilityTitle = fertilityAssessment?.title ?? fertilityAssessment?.label ?? null;
+  const fertilityBody = fertilityAssessment?.body ?? fertilityAssessment?.summaryText ?? null;
+  const fertilityReasons = Array.isArray(fertilityAssessment?.reasonsList)
+    ? fertilityAssessment.reasonsList
+    : [];
+  const fertilityNote = fertilityAssessment?.note ?? null;
+  const fertilityState = fertilityAssessment?.state ?? null;
+  const statusTone = (() => {
+    switch (fertilityState) {
+      case 'waiting':
+        return {
+          container: 'from-amber-50 to-yellow-50 border border-amber-200/70',
+          header: 'text-amber-700/80',
+          title: 'text-amber-900',
+          body: 'text-amber-800/80',
+          icon: 'from-amber-500 to-orange-500',
+        };
+      case 'infertil':
+        return {
+          container: 'from-slate-50 to-slate-100 border border-slate-200/80',
+          header: 'text-slate-600',
+          title: 'text-slate-800',
+          body: 'text-slate-600',
+          icon: 'from-slate-500 to-slate-600',
+        };
+      default:
+        return {
+          container: 'from-emerald-50 to-lime-50 border border-emerald-200/70',
+          header: 'text-emerald-700/80',
+          title: 'text-emerald-900',
+          body: 'text-emerald-800/80',
+          icon: 'from-emerald-500 to-teal-600',
+        };
+    }
+  })();
   const mucusSensation = point.mucus_sensation ?? point.mucusSensation ?? '';
   const mucusAppearance = point.mucus_appearance ?? point.mucusAppearance ?? '';
   const observations = point.observations ?? '';
+  const hasRelations = Boolean(point.had_relations ?? point.hadRelations);
   const hasSymbol = symbolInfo && symbolInfo.value !== 'none';
   const hasTemperature = temp != null;
   const hasMucusInfo = Boolean((mucusSensation && mucusSensation.trim()) || (mucusAppearance && mucusAppearance.trim()));
   const hasObservations = Boolean(observations && observations.trim());
-  const hasAnyData = hasTemperature || hasSymbol || hasMucusInfo || hasObservations;
+  const hasAnyData = hasTemperature || hasSymbol || hasMucusInfo || hasObservations || hasRelations;
   const showEmptyState = !hasAnyData;
   const peakStatus = point.peakStatus || (point.peak_marker === 'peak' ? 'P' : null);
   const peakLabels = {
@@ -132,29 +177,15 @@ const ChartTooltip = ({
   const isSameAsCurrent = hasExistingPeak && point.isoDate === currentPeakIsoDate;
   const isPeakDay = isSameAsCurrent || peakStatus === 'P' || point.peak_marker === 'peak';
   const isDifferentPeakCandidate = hasExistingPeak && !isPeakDay;
-  const peakButtonLabel = 'Día pico';
-  const peakButtonAriaLabel = isPeakDay  
-    ? 'Quitar día pico'
-    : hasExistingPeak
-      ? 'Actualizar día pico'
-      : 'Marcar día pico';
-  const peakButtonTone = isPeakDay
-    ? 'bg-rose-600 text-white border border-rose-600 hover:bg-rose-700 focus-visible:ring-rose-400'
-    : isDifferentPeakCandidate
-      ? 'bg-amber-400 text-amber-900 border border-amber-300 hover:bg-amber-500 hover:text-white focus-visible:ring-amber-300'
-      : 'bg-rose-500 text-white border border-rose-500 hover:bg-rose-600 focus-visible:ring-rose-300';
-  const peakButtonBaseClasses = [
-    'flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-xl text-sm font-semibold sm:text-sm',
-    'transition-all duration-200 shadow-sm hover:shadow-md',
-    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300',
-  ].join(' ');
-  const peakButtonClassName = [
-    peakButtonBaseClasses,
-    peakButtonTone,
-    peakActionPending ? 'opacity-70 cursor-not-allowed' : null,
-  ]
-    .filter(Boolean)
-    .join(' ');
+
+  // --- NUEVO: Modo de botón Día Pico (asignar / actualizar / quitar) ---
+  const peakMode = isPeakDay ? 'remove' : hasExistingPeak ? 'update' : 'assign';
+  const peakButtonLabel =
+    peakMode === 'assign' ? 'Asignar día pico' :
+    peakMode === 'update' ? 'Actualizar día pico' :
+    'Quitar día pico';
+
+  const peakButtonAriaLabel = peakButtonLabel;
 
   const handlePeakToggle = async () => {
     if (!onTogglePeak || peakActionPending) return;
@@ -170,8 +201,12 @@ const ChartTooltip = ({
   };
 
   const handleEditClick = () => {
+    handleSectionEdit();
+  };
+
+  const handleSectionEdit = (sectionKey) => {
     if (!onEdit) return;
-    onEdit(point);
+    onEdit(point, sectionKey);
     if (onClose) onClose();
   };
 
@@ -202,7 +237,7 @@ const ChartTooltip = ({
           text: 'text-green-700',
           glow: 'shadow-green-200/50'
         };
-    case 'yellow':
+      case 'yellow':
         return {
           bg: 'bg-yellow-400',
           light: 'bg-yellow-50',
@@ -248,289 +283,357 @@ const ChartTooltip = ({
         className="origin-top-left"
         style={{ transform: `scale(${scale})`, width: baseWidth, minHeight: baseMinHeight }}
       >
-{/* Contenedor principal con diseño premium inspirado en la dashboard */}
+        {/* Contenedor principal */}
         <div className="relative bg-gradient-to-br from-white/98 to-rose-50/95 backdrop-blur-xl rounded-3xl border border-pink-100 shadow-2xl overflow-hidden">
-        
-        
-        {/* Botón de cerrar más pequeño */}
-        <Button
+
+          {/* Botón de cerrar */}
+          <Button
           variant="ghost"
           size="icon"
           onClick={onClose}
-          className="absolute top-2 right-2 text-gray-400 hover:text-pink-600 hover:bg-pink-50/80 rounded-full w-6 h-6 transition-all duration-200"
-        >
-          <XCircle size={20} />
-        </Button>
+            className="absolute top-2 right-2 z-20 text-gray-400 hover:text-pink-600 hover:bg-pink-50/80 rounded-full w-6 h-6 transition-all duration-200"
+          >
+            <XCircle size={20} />
+          </Button>
 
-        <div className="p-2">
-          {/* Header con fecha y día del ciclo */}
-          <div className="mb-2">
-            <div className="flex items-center gap-3 mb-1">
+          {/* Icono discreto de relaciones, bajo la X */}
+          {hasRelations && (
+            <div
+              className="absolute right-3 top-9 pointer-events-none"
+              aria-hidden="true"
+              title="Relaciones registradas"
+            >
+              <div className="w-4 h-4 rounded-full bg-rose-100/90 border border-rose-200 flex items-center justify-center shadow-sm">
+                <Heart className="w-4 h-4 text-rose-600" fill="currentColor" />
+              </div>
+            </div>
+          )}
+
+          <div className="p-2">
+            {/* Header con fecha y día del ciclo */}
+            <div className="mb-2 relative">
               <div className="w-5 h-5 bg-gradient-to-br from-pink-500 to-rose-500 rounded-full absolute top-2 left-2 flex items-center justify-center shadow-lg">
                 <Circle className="w-2 h-2 text-white" fill="currentColor" />
               </div>
-              <div>
-                <h3 className="font-bold text-center text-lg text-gray-800">
-                  {dateToFormat
-                    ? format(parseISO(dateToFormat), 'dd/MM', { locale: es })
-                    : 'Fecha'}
-                </h3>
-                <p className="text-sm text-pink-600 font-medium">
-                  Día {point.cycleDay || 'N/A'} del ciclo
-                </p>
-                {peakLabel && (
-                  <div className="mt-1 flex justify-center">
-                    <Badge className="bg-rose-100 text-rose-600 border border-rose-200 px-2 py-0 text-[11px]">
-                      {peakLabel}
-                    </Badge>
-                  </div>
-                )}
+
+              {/* Reservar espacio a la izquierda para que el texto no se pegue al punto */}
+              <div className="flex items-center mb-1 pl-8">
+                <div>
+                  <h3 className="font-bold text-left text-lg text-gray-800 tabular-nums tracking-wide">
+                    {dateToFormat
+                      ? format(parseISO(dateToFormat), 'dd/MM', { locale: es })
+                      : 'Fecha'}
+                  </h3>
+                  <p className="text-sm text-pink-600 font-medium">
+                    Día {point.cycleDay || 'N/A'} del ciclo
+                  </p>
+                  {peakLabel && (
+                    <div className="mt-1 flex justify-center">
+                      <Badge className="bg-rose-100 text-rose-600 border border-rose-200 px-2 py-0 text-[11px]">
+                        {peakLabel}
+                      </Badge>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          </div>
+              </div>
+
+            {showFertilityStatus && fertilityTitle && (
+              <>
+                <motion.button
+                  type="button"
+                  onClick={() => setIsFertilityOverlayOpen(true)}
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.05 }}
+                  className={`mb-2 w-full bg-gradient-to-r ${statusTone.container} rounded-3xl p-2 shadow-sm outline-none transition-transform hover:shadow-md focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-pink-200 active:scale-95`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`w-7 h-7 bg-gradient-to-br ${statusTone.icon} rounded-xl flex items-center justify-center shadow-md`}
+                    >
+                      <Sparkles className="w-4 h-4 text-white" />
+                    </div>
+                    <p className={`flex-1 text-left text-sm font-semibold ${statusTone.title}`}>
+                      {fertilityTitle}
+                    </p>
+                  </div>
+                  </motion.button>
+
+                <Overlay
+                  isOpen={isFertilityOverlayOpen}
+                  onClose={() => setIsFertilityOverlayOpen(false)}
+                  ariaLabel="Detalle de la evaluación de fertilidad"
+                  containerClassName="p-6"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="space-y-1">
+                      {fertilityHeader && (
+                        <p className={`text-xs font-semibold uppercase tracking-wide ${statusTone.header}`}>
+                          {fertilityHeader}
+                        </p>
+                      )}
+                      <p className={`text-lg font-semibold ${statusTone.title}`}>{fertilityTitle}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsFertilityOverlayOpen(false)}
+                      className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-200"
+                      aria-label="Cerrar detalle de fertilidad"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+                  <div className="mt-4 space-y-3 text-left">
+                      
+                    {fertilityBody && (
+                      <p className={`text-sm leading-relaxed ${statusTone.body}`}>{fertilityBody}</p>
+                    )}
+                    {fertilityReasons.length > 0 && (
+                      <ul className="list-disc space-y-1 pl-5 text-sm text-slate-600">
+                        {fertilityReasons.map((reason, index) => (
+                          <li key={`${reason}-${index}`}>{reason}</li>
+                        ))}
+                      </ul>
+                    )}
+                    {fertilityNote && (
+                      <p className="text-xs text-slate-500">{fertilityNote}</p>
+                    )}
+                  </div>
+                </Overlay>
+              </>
+            )}
 
           {showEmptyState ? (
             <div className="pt-1 space-y-3">
               <motion.div
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className="rounded-xl border border-dashed border-pink-200 bg-pink-50/60 p-2 text-center"
-                
-              >
-                <p className="text-sm font-semibold text-pink-600">Sin datos registrados para este día.</p>
-              </motion.div>
-              
-              {onEdit && (
-                <motion.div
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.15 }}
-                  className="flex justify-center"
+                  transition={{ delay: 0.1 }}
+                  className="rounded-2xl border border-dashed border-pink-200 bg-pink-50/60 p-2 text-center"
                 >
+                  <p className="text-sm font-semibold text-pink-600">Sin datos registrados para este día.</p>
+                </motion.div>
 
-                  <Button
-                    onClick={handleEditClick}
-                    variant="outline"
-                    size="sm"
-                    className="flex items-center gap-1.5 px-2 py-1.5 bg-white/80 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 border-gray-200 hover:border-blue-300 text-gray-700 hover:text-blue-700 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md text-xs"
-                  >
-                    <Edit3 className="h-4 w-4" />
-                    <span className="font-medium">Añadir datos</span>
-                  </Button>
-                  </motion.div>
-              )}
-              {canTogglePeak && (
+                {(canTogglePeak || onEdit) && (
                 <motion.div
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.2 }}
-                  className="flex justify-center"
+                  className="flex items-center w-full justify-between pt-2 border-t border-gray-100"
                 >
-                  <Button
-                    onClick={handlePeakToggle}
-                    variant={isPeakDay ? 'outline' : 'default'}
-                    size="sm"
-                    disabled={peakActionPending}
-                    className={peakButtonClassName}
-                    aria-label={peakButtonAriaLabel}
-                    title={peakButtonAriaLabel}
-                    aria-pressed={isPeakDay}
-                  >
-                    <span className="font-medium">{peakButtonLabel}</span>
-                  </Button>
-                </motion.div>
-              )}
-            </div>
-          ) : (
-            <>
-              <div className="space-y-1">
-                {/* Temperatura */}
-                {hasTemperature && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.1 }}
-                    className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-1 border border-amber-100/50"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-6 h-6 bg-gradient-to-br from-amber-500 to-orange-600 rounded-lg flex items-center justify-center shadow-md">
-                        <Thermometer className="w-4 h-4 text-white" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex items-baseline gap-2">
-                            <span className="text-md font-bold text-gray-800">
-                              {parseFloat(temp).toFixed(2)}
-                            </span>
-                            <span className="text-md text-gray-600">°C</span>
-                            {point.use_corrected && (
-                              <div
-                                className="w-2 h-2 bg-amber-500 rounded-full shadow-[0_0_4px_rgba(245,158,11,0.65)]"
-                                title="Temperatura corregida"
-                              ></div>
-                            )}
-                          </div>
-                          {temperatureTime && (
-                            <span className="text-sm font-medium text-gray-500 whitespace-nowrap">
-                              {temperatureTime}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-
-                {/* Símbolo de fertilidad */}
-                {hasSymbol && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.15 }}
-                    className={`${symbolColors.light} rounded-xl p-1 ${symbolColors.border} border`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`w-6 h-6 ${symbolColors.bg} rounded-lg flex items-center justify-center shadow-lg ${symbolColors.glow} shadow-lg`}>
-                        <div className="w-2 h-2 bg-white/90 rounded-full shadow-sm"></div>
-                      </div>
-                      <div className="flex-1 text-left">
-                        <span className={`text-md font-semibold ${symbolColors.text}`}>
-                          {symbolInfo.label}
-                        </span>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-                {/* Información de mucus */}
-                <div className="grid grid-cols-1 gap-1">
-                  {/* Sensación */}
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.2 }}
-                    className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-1 border border-blue-100/50"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-md">
-                        <Droplets className="w-4 h-4 text-white" />
-                      </div>
-                      <div className="flex-1 text-left">
-
-                        <span className="text-md font-semibold text-blue-800">
-                          {mucusSensation || '-'}
-                        </span>
-                      </div>
-                    </div>
-                  </motion.div>
-
-                  {/* Apariencia */}
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.25 }}
-                    className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl p-1 border border-emerald-100/50"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-6 h-6 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center shadow-md">
-                        <Circle className="w-4 h-4 text-white" />
-                      </div>
-                      <div className="flex-1 text-left">
-
-                        <span className="text-md font-semibold text-green-800">
-                          {mucusAppearance || '-'}
-                        </span>
-                      </div>
-                    </div>
-                  </motion.div>
-                  {/* Observaciones */}
-                  {hasObservations && (
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: 0.3 }}
-                      className="bg-gradient-to-r from-violet-50 to-purple-50 rounded-xl p-1 border border-violet-100/50"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-6 h-6 bg-gradient-to-br from-violet-500 to-purple-600 rounded-lg flex items-center justify-center shadow-md">
-                          <Edit3 className="w-4 h-4 text-white" />
-                        </div>
-                        <div className="flex-1 text-left">
-                          <span className="text-sm font-semibold text-violet-800">
-                            {observations}
-                          </span>
-                        </div>
-                      </div>
-                    </motion.div>
+                  {/* Izquierda: Día Pico */}
+                  {canTogglePeak && (
+                    <PeakModeButton
+                      mode={peakMode}
+                      size="sm"
+                      onClick={handlePeakToggle}
+                      pending={peakActionPending}
+                      aria-label={peakButtonAriaLabel}
+                      title={peakButtonLabel}
+                      className="shrink-0"
+                    />
                   )}
-                </div>
-              </div>
-              {/* Botones de acción */}
-              {(onEdit || (onToggleIgnore && !isPlaceholder && point.id) || (canTogglePeak && !isPlaceholder)) && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 }}
-                  className="flex justify-center gap-2 pt-2 border-t border-gray-100"
-                >
+
+                  {/* Derecha: Añadir datos */}
                   {onEdit && (
                     <Button
                       onClick={handleEditClick}
                       variant="outline"
                       size="sm"
-                      className="flex items-center gap-1.5 px-2 py-1.5 bg-white/80 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 border-gray-200 hover:border-blue-300 text-gray-700 hover:text-blue-700 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md text-sm"
+                      className="flex items-center gap-1.5 px-2 py-1.5 bg-white/80 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 border-gray-200 hover:border-blue-300 text-gray-700 hover:text-blue-700 rounded-full transition-all duration-200 shadow-sm hover:shadow-md text-xs"
                     >
                       <Edit3 className="h-4 w-4" />
-                      <span className="font-medium">{isPlaceholder ? 'Añadir datos' : ''}</span>
-                    </Button>
-                  )}
-                  {canTogglePeak && !isPlaceholder && (
-                    <Button
-                    onClick={handlePeakToggle}
-                    variant={isPeakDay ? 'outline' : 'default'}
-                    size="sm"
-                    disabled={peakActionPending}
-                    className={peakButtonClassName}
-                    aria-label={peakButtonAriaLabel}
-                    title={peakButtonAriaLabel}
-                    aria-pressed={isPeakDay}
-                  >
-                    <span className="font-medium text-xs sm:text-sm">{peakButtonLabel}</span>
-                  </Button>
-                  )}
-
-                  {onToggleIgnore && !isPlaceholder && point.id && (
-                    <Button
-                      onClick={() => onToggleIgnore(point.id)}
-                      variant="outline"
-                      size="sm"
-                      className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md text-sm ${
-                        point.ignored
-                          ? 'bg-green-50 hover:bg-green-100 border-green-200 hover:border-green-300 text-green-700'
-                          : 'bg-red-50 hover:bg-red-100 border-red-200 hover:border-red-300 text-red-700'
-                      }`}
-                    >
-                      {point.ignored ? (
-                        <>
-                          <Eye className="h-4 w-4" />
-                          <span className="font-medium"></span>
-                        </>
-                      ) : (
-                        <>
-                          <EyeOff className="h-4 w-4" />
-                          <span className="font-medium"></span>
-                        </>
-                      )}
+                      <span className="font-medium">Añadir datos</span>
                     </Button>
                   )}
                 </motion.div>
               )}
-            </>
-          )}      
+
+              </div>
+            ) : (
+              <>
+                <div className="space-y-1">
+                  {/* Temperatura */}
+                  {hasTemperature && (
+                    <motion.button
+                      type="button"
+                      onClick={() => handleSectionEdit('temperature')}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.1 }}
+                      className="w-full text-left bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl p-1 border border-amber-100/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-200"
+                      disabled={!onEdit}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-6 h-6 bg-gradient-to-br from-amber-500 to-orange-600 rounded-lg flex items-center justify-center shadow-md">
+                          <Thermometer className="w-4 h-4 text-white" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-baseline gap-2">
+                              <span className="text-md font-bold text-gray-800">
+                                {parseFloat(temp).toFixed(2)}
+                              </span>
+                              <span className="text-md text-gray-600">°C</span>
+                              {point.use_corrected && (
+                                <div
+                                  className="w-2 h-2 bg-amber-500 rounded-full shadow-[0_0_4px_rgba(245,158,11,0.65)]"
+                                  title="Temperatura corregida"
+                                ></div>
+                              )}
+                            </div>
+                            {temperatureTime && (
+                              <span className="text-sm font-medium text-gray-500 whitespace-nowrap">
+                                {temperatureTime}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </motion.button>
+                  )}
+
+                  {/* Símbolo de fertilidad */}
+                  {hasSymbol && (
+                    <motion.button
+                      type="button"
+                      onClick={() => handleSectionEdit('symbol')}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.15 }}
+                      className={`w-full text-left ${symbolColors.light} rounded-3xl p-1 ${symbolColors.border} border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-pink-200`}
+                      disabled={!onEdit}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-6 h-6 ${symbolColors.bg} rounded-lg flex items-center justify-center shadow-lg ${symbolColors.glow} shadow-lg`}>
+                          <div className="w-2 h-2 bg-white/90 rounded-full shadow-sm"></div>
+                        </div>
+                        <div className="flex-1 text-left">
+                          <span className={`text-md font-semibold ${symbolColors.text}`}>
+                            {symbolInfo.label}
+                          </span>
+                        </div>
+                      </div>
+                    </motion.button>
+                  )}
+
+                  {/* Información de mucus */}
+                  <div className="grid grid-cols-1 gap-1">
+                    {/* Sensación */}
+                    <motion.button
+                      type="button"
+                      onClick={() => handleSectionEdit('sensation')}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.2 }}
+                      className="w-full text-left bg-gradient-to-r from-blue-50 to-indigo-50 rounded-3xl p-1 border border-blue-100/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-200"
+                      disabled={!onEdit}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-md">
+                          <Droplets className="w-4 h-4 text-white" />
+                        </div>
+                        <div className="flex-1 text-left">
+                          <span className="text-md font-semibold text-blue-800">
+                            {mucusSensation || '-'}
+                          </span>
+                        </div>
+                      </div>
+                    </motion.button>
+
+                    {/* Apariencia */}
+                    <motion.button
+                      type="button"
+                      onClick={() => handleSectionEdit('appearance')}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.25 }}
+                      className="w-full text-left bg-gradient-to-r from-emerald-50 to-teal-50 rounded-3xl p-1 border border-emerald-100/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-emerald-200"
+                      disabled={!onEdit}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-6 h-6 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center shadow-md">
+                          <Circle className="w-4 h-4 text-white" />
+                        </div>
+                        <div className="flex-1 text-left">
+                          <span className="text-md font-semibold text-green-800">
+                            {mucusAppearance || '-'}
+                          </span>
+                        </div>
+                      </div>
+                    </motion.button>
+
+                    {/* Observaciones */}
+                    {hasObservations && (
+                      <motion.button
+                        type="button"
+                        onClick={() => handleSectionEdit('observations')}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 0.3 }}
+                        className="w-full text-left bg-gradient-to-r from-violet-50 to-purple-50 rounded-3xl p-1 border border-violet-100/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-violet-200"
+                        disabled={!onEdit}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-6 h-6 bg-gradient-to-br from-violet-500 to-purple-600 rounded-lg flex items-center justify-center shadow-md">
+                            <Edit3 className="w-4 h-4 text-white" />
+                          </div>
+                          <div className="flex-1 text-left">
+                            <span className="text-sm font-semibold text-violet-800">
+                              {observations}
+                            </span>
+                          </div>
+                        </div>
+                      </motion.button>
+                    )}
+                    {/* (Seguimos usando el icono discreto de RS en el header) */}
+                  </div>
+                </div>
+
+                {/* Botones de acción */}
+{(onEdit || (onToggleIgnore && !isPlaceholder && point.id) || (canTogglePeak && !isPlaceholder)) && (
+  <motion.div
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ delay: 0.3 }}
+    className="flex items-center justify-between pt-2 border-t border-gray-100"
+  >
+    {/* Izquierda: Día Pico (sin cambios funcionales) */}
+    {canTogglePeak && !isPlaceholder && (
+      <PeakModeButton
+        mode={peakMode}
+        size="sm"
+        onClick={handlePeakToggle}
+        pending={peakActionPending}
+        aria-label={peakButtonAriaLabel}
+        title={peakButtonLabel}
+        className="shrink-0"
+      />
+    )}
+
+    {/* Derecha: Editar / Ignorar separados por un divisor sutil */}
+    <div className="flex items-center gap-1.5 sm:gap-2 ml-3 pl-3 border-l border-gray-200/70">
+      {onEdit && (
+        <Button
+          onClick={handleEditClick}
+          size="sm"
+          className="h-8 px-2.5 bg-white/80 text-gray-700 rounded-full border border-gray-200/70 shadow-[0_1px_2px_rgba(0,0,0,0.04)] hover:bg-white hover:shadow focus-visible:ring-2 focus-visible:ring-blue-200 transition-all"
+        >
+          <Edit3 className="h-4 w-4 mr-1.5" />
+          <span className="font-medium">{isPlaceholder ? 'Añadir datos' : ''}</span>
+        </Button>
+      )}
+
+
+    </div>
+  </motion.div>
+)}
+
+              </>
+            )}
           </div>
-        
-                   
-      </div>
+        </div>
       </div>
 
       {/* Sombra adicional para profundidad */}

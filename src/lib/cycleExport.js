@@ -18,6 +18,7 @@ const cycleHeaders = [
   'Aspecto de moco',
   'Símbolo de fertilidad',
   'Observaciones',
+  'Relaciones',
   'Ignorado',
   'Marcador pico',
   'Mediciones',
@@ -112,6 +113,7 @@ export const formatCyclesForExport = (cycles = []) => {
       entry?.mucusAppearance ?? '',
       entry?.fertility_symbol ?? '',
       entry?.observations ?? '',
+      entry?.had_relations ? 'Sí' : 'No',
       entry?.ignored ? 'Sí' : 'No',
       entry?.peak_marker ?? '',
       stringifyMeasurements(entry?.measurements),
@@ -163,10 +165,11 @@ export const downloadCyclesAsPdf = (cycles, filename = 'ciclos.pdf') => {
     11: 0.045,
     12: 0.045,
     13: 0.045,
-    14: 0.09,
-    15: 0.035,
-    16: 0.045,
-    17: 0.12,
+    14: 0.05,
+    15: 0.09,
+    16: 0.035,
+    17: 0.045,
+    18: 0.12,
   };
   const computedColumnStyles = Object.fromEntries(
     Object.entries(columnWidthRatios).map(([index, ratio]) => [

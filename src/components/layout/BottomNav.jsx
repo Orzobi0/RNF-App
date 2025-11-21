@@ -39,7 +39,7 @@ const BottomNav = () => {
                     {/* fondo “pill” activo, no afecta a altura */}
                     <span
                       aria-hidden
-                    className={`absolute inset-0 rounded-lg transition-all duration-200 ${
+                    className={`absolute inset-0 rounded-2xl transition-all duration-200 ${
                       active ? 'bg-pink-50 ring-1 ring-pink-100 shadow-sm' : 'bg-transparent'
                     }`}
                     />

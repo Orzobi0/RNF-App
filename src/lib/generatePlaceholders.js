@@ -17,6 +17,8 @@ export function generatePlaceholders(startDate, daysInCycle) {
       temperature: null,
       mucusSensation: null,
       mucusAppearance: null,
+      had_relations: false,
+      hadRelations: false,
       id: `placeholder-${isoDate}`,
       ignored: false,
       peak_marker: null,
