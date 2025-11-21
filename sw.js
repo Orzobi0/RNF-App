@@ -1,4 +1,4 @@
-const BUILD_VERSION_MARKER = '2025-10-29T14:06:20.578Z';
+const BUILD_VERSION_MARKER = '2025-11-21T12:52:56.868Z';
 const CACHE_VERSION =
   BUILD_VERSION_MARKER !== '${__DATE__}'
     ? BUILD_VERSION_MARKER
@@ -14,7 +14,7 @@ const ASSETS = [
   `${BASE_URL}icon-512x512.png`,
   `${BASE_URL}apple-touch-icon.png`
 ];
-const BUILD_ASSETS = (["assets/CycleDatesEditor-13f0a133.js","assets/DeletionDialog-4d81e29b.js","assets/OverlapWarningDialog-691979ea.js","assets/arrow-left-e3d1f6f1.js","assets/badge-4d2a43e0.js","assets/checkbox-33f1ec29.js","assets/computePeakStatuses-53226450.js","assets/eye-2851a226.js","assets/input-38433acf.js","assets/label-79a0a783.js","assets/pencil-d686d72a.js","assets/useCycleData-5c7fca7c.js","assets/useFertilityChart-1eac94a6.js","assets/index-4a97b29a.css","assets/index-9c052d95.js","assets/index.es-27b3b7ea.js","assets/purify.es-2de9db7f.js","assets/html2canvas.esm-e0a7d97b.js","assets/ArchivedCyclesPage-3d00936f.js","assets/AuthPage-2f3e3679.js","assets/ChartPage-b1aa0672.js","assets/CycleDetailPage-e5029e23.js","assets/DashboardPage-6b4c85fb.js","assets/RecordsPage-c24ba616.js","assets/SettingsPage-0923d964.js"] || []).map(
+const BUILD_ASSETS = (["assets/CycleDatesEditor-5cdf72be.js","assets/DeletionDialog-dad1e6ec.js","assets/OverlapWarningDialog-7409f0f1.js","assets/arrow-left-078474d7.js","assets/badge-6bd7af9d.js","assets/checkbox-a510d285.js","assets/computePeakStatuses-347fa954.js","assets/eye-5bd09b1b.js","assets/input-6cdf51b4.js","assets/label-60015da2.js","assets/useCycleData-a1f868e4.js","assets/useFertilityChart-9a56e2e7.js","assets/index-53930f46.css","assets/index-8c1bb4d0.js","assets/index.es-6f9b06f2.js","assets/purify.es-2de9db7f.js","assets/html2canvas.esm-e0a7d97b.js","assets/ArchivedCyclesPage-56e761ab.js","assets/AuthPage-5211b598.js","assets/ChartPage-ef9dc393.js","assets/CycleDetailPage-71ddfa65.js","assets/DashboardPage-27ea997b.js","assets/RecordsPage-1c21047e.js","assets/SettingsPage-61132b35.js"] || []).map(
   (asset) => `${BASE_URL}${asset}`
 );
 async function matchActiveCache(request) {
