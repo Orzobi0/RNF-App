@@ -42,8 +42,16 @@ export function buildT8Metric({
       ? computedT8Data.value
       : null;
 
+  // Solo usamos los valores automáticos si realmente se puede calcular T-8.
+  // Si computedT8Data.canCompute es booleano, lo respetamos. Si no existe,
+  // asumimos true para no romper otros casos.
+  const canUseAutoValues =
+    computedT8Data && typeof computedT8Data.canCompute === 'boolean'
+      ? computedT8Data.canCompute
+      : true;
+
   const shouldUseManual = isManualT8 && t8Selection === 'manual';
-  const shouldUseAuto = t8Selection === 'auto';
+  const shouldUseAuto = t8Selection === 'auto' && canUseAutoValues;
   const isIgnored = t8Selection === 'none';
 
   const baseValue = shouldUseManual
