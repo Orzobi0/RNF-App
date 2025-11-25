@@ -1095,18 +1095,23 @@ const ChartPage = () => {
       typeof window !== 'undefined' ? window.screen?.orientation : null;
 
     if (!isFullScreen) {
-      let enteredFullScreen = false;
-      let hasRequestFullScreen = false;
+      const requestFullScreen =
+        rootElement.requestFullscreen ||
+        rootElement.webkitRequestFullscreen ||
+        rootElement.mozRequestFullScreen ||
+        rootElement.msRequestFullscreen;
+
+      const hasRequestFullScreen = Boolean(requestFullScreen);
+      const canLockOrientation = Boolean(screenOrientation?.lock);
+        if (!hasRequestFullScreen && !canLockOrientation) {
+          window.alert('La pantalla completa no está disponible en este dispositivo.');
+          return;
+        }
+
+        let enteredFullScreen = false;
+      let lockedOrientation = false;
 
       try {
-        const requestFullScreen =
-          rootElement.requestFullscreen ||
-          rootElement.webkitRequestFullscreen ||
-          rootElement.mozRequestFullScreen ||
-          rootElement.msRequestFullscreen;
-
-        hasRequestFullScreen = Boolean(requestFullScreen);
-
         if (requestFullScreen) {
           await requestFullScreen.call(rootElement);
           enteredFullScreen = true;
@@ -1114,17 +1119,26 @@ const ChartPage = () => {
       } catch (err) {
         console.error(err);
       }
-      if (screenOrientation?.lock) {
+      
+      if (canLockOrientation) {
         try {
           await screenOrientation.lock('landscape');
+          lockedOrientation = true;
         } catch (err) {
           console.error(err);
         }
       }
 
-      setOrientation('landscape');
-      setIsFullScreen(enteredFullScreen || !hasRequestFullScreen);
-      
+      const activatedFullScreen = enteredFullScreen || lockedOrientation;
+
+      if (activatedFullScreen) {
+        setOrientation('landscape');
+        setIsFullScreen(true);
+      } else {
+        setOrientation('portrait');
+        setIsFullScreen(false);
+      }
+
     } else {
       if (screenOrientation?.unlock) {
         try {

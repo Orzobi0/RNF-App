@@ -677,7 +677,7 @@ const hasPostPhase = Number.isFinite(postOvulatoryPhaseInfo?.startIndex);
     chartRef.current.scrollLeft = Math.max(0, dayWidth * initialScrollIndex);
   }, [initialScrollIndex, visibleDays, dimensions.width, orientation]);
 
-   const applyRotation = forceLandscape && isViewportPortrait;
+  const applyRotation = isFullScreen && forceLandscape && isViewportPortrait;
 
   // Clase del contenedor de scroll ajustada para rotación artificial
   const rotatedContainer = applyRotation;
