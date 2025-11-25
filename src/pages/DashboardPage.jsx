@@ -36,7 +36,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { computeOvulationMetrics } from '@/hooks/useFertilityChart';
+import { computeOvulationMetrics, useFertilityChart } from '@/hooks/useFertilityChart';
 import { saveUserMetricsSnapshot } from '@/lib/userMetrics';
 import { MANUAL_CPM_DEDUCTION, buildCpmMetric } from '@/lib/metrics/cpm';
 import { buildT8Metric } from '@/lib/metrics/t8';
@@ -51,17 +51,39 @@ const CycleOverviewCard = ({
   handleOpenT8Dialog = () => {},
   cpmMetric = {},
   t8Metric = {},
+  fertilityAssessment = null,
 }) => {
   const records = cycleData.records || [];
   const [activePoint, setActivePoint] = useState(null);
   const [tooltipPosition, setTooltipPosition] = useState({ clientX: 0, clientY: 0 });
   const [wheelOffset, setWheelOffset] = useState(0);
+  const [isFertilityDialogOpen, setIsFertilityDialogOpen] = useState(false);
   const hasInitializedWheelRef = useRef(false);
   const touchStartXRef = useRef(null);
   const circleRef = useRef(null);
   const cycleStartDate = cycleData.startDate ? parseISO(cycleData.startDate) : null;
   const today = startOfDay(new Date());
   const peakStatuses = useMemo(() => computePeakStatuses(records), [records]);
+  const fertilityHeader = fertilityAssessment?.header ?? null;
+  const fertilityTitle = fertilityAssessment?.title ?? fertilityAssessment?.label ?? null;
+  const fertilitySummary = fertilityAssessment?.body ?? fertilityAssessment?.summaryText ?? null;
+  const fertilityNote = fertilityAssessment?.note ?? null;
+  const hasAssessment = Boolean(fertilityAssessment);
+  const emptySummary = 'Todavía no hay suficientes datos para interpretar la fertilidad de hoy. '
+  'Registra algunos días con sensación, aspecto del moco y/o temperatura para obtener una lectura personalizada.';
+  const centralChipLabel = hasAssessment
+    ? (fertilityTitle || 'Fertilidad del día')
+    : 'Sin datos suficientes';
+
+  // Queremos poder abrir siempre la ventana, aunque sea sólo para explicar que faltan datos
+  const canOpenFertilityDialog = true;
+
+
+  useEffect(() => {
+    if (!fertilityAssessment) {
+      setIsFertilityDialogOpen(false);
+    }
+  }, [fertilityAssessment]);
 
     // Ajustes del círculo de progreso
   const totalDots = 28;
@@ -741,21 +763,52 @@ const changeOffsetRaf = useCallback((delta) => {
               </motion.div>
 
               {/* Indicador de fase del ciclo */}
-              <motion.div
-                className="mt-2 px-2.5 py-1  backdrop-blur-sm rounded-full border border-pink-200"
+              <motion.button
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.2, delay: 0.25, ease: 'easeOut' }}
                 style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.1))' }}
+                type="button"
+                onClick={canOpenFertilityDialog ? () => setIsFertilityDialogOpen(true) : undefined}
+                aria-disabled={!canOpenFertilityDialog}
+                disabled={!canOpenFertilityDialog}
+                className={`mt-2 px-2.5 py-1 pointer-events-auto backdrop-blur-sm rounded-full border border-pink-200 ${
+                  canOpenFertilityDialog ? 'cursor-pointer' : 'cursor-default'
+                }`}
               >
-                <span className="text-md font-medium text-pink-900">
-                  {cycleData.currentDay <= 7 ? 'Menstrual' : 
-                   cycleData.currentDay <= 14 ? 'Folicular' :
-                   cycleData.currentDay <= 21 ? 'Ovulatoria' : 'Lútea'}
+                <span className="text-md font-medium text-pink-900 max-w-[220px] truncate">
+                  {centralChipLabel}
                 </span>
-              </motion.div>
+              </motion.button>
             </div>
           </motion.div>
+          <Dialog
+            open={Boolean(isFertilityDialogOpen && canOpenFertilityDialog)}
+            onOpenChange={(open) => setIsFertilityDialogOpen(canOpenFertilityDialog ? open : false)}
+          >
+  
+            <DialogContent className="max-w-sm rounded-3xl border border-pink-100 bg-white/95 text-rose-900">
+              <DialogHeader className="space-y-1">
+                {fertilityHeader && hasAssessment && (
+                  <DialogDescription className="text-xs font-semibold uppercase tracking-wide text-rose-600">
+                    {fertilityHeader}
+                  </DialogDescription>
+                )}
+                <DialogTitle className="text-lg font-bold text-rose-900">
+                  {hasAssessment
+                      ? (fertilityTitle || centralChipLabel)
+                      : 'Sin datos suficientes'}
+                </DialogTitle>
+              </DialogHeader>
+                <p className="text-sm leading-relaxed text-rose-700">
+                  {hasAssessment ? fertilitySummary : emptySummary}
+                </p>
+
+                {hasAssessment && fertilityNote && (
+                  <p className="text-xs text-rose-500">{fertilityNote}</p>
+                )}
+              </DialogContent>
+          </Dialog>
           {hasOverflow && (
             <div className="flex items-center justify-center gap-3">
               <button
@@ -3151,6 +3204,38 @@ const ModernFertilityDashboard = () => {
     parseISO(currentCycle.startDate)
   ) + 1;
 
+  const fertilityCalculatorCycles = useMemo(() => {
+    const cycles = [];
+    if (Array.isArray(archivedCycles) && archivedCycles.length > 0) {
+      cycles.push(...archivedCycles);
+    }
+    if (currentCycle) {
+      cycles.push(currentCycle);
+    }
+    return cycles;
+  }, [archivedCycles, currentCycle]);
+
+  const { processedData: fertilityChartData, todayIndex: fertilityTodayIndex } = useFertilityChart(
+    currentCycle?.data ?? [],
+    false,
+    'portrait',
+    undefined,
+    currentCycle?.id,
+    5,
+    false,
+    null,
+    fertilityCalculatorCycles,
+    null
+  );
+
+  const todayFertilityAssessment = useMemo(
+    () =>
+      fertilityTodayIndex != null && fertilityChartData?.[fertilityTodayIndex]
+        ? fertilityChartData[fertilityTodayIndex].fertilityAssessment ?? null
+        : null,
+    [fertilityChartData, fertilityTodayIndex]
+  );
+
   const handleSave = async (data, { keepFormOpen = false } = {}) => {
     setIsProcessing(true);
     try {
@@ -3199,6 +3284,7 @@ const ModernFertilityDashboard = () => {
             handleOpenT8Dialog={handleOpenT8Dialog}
             cpmMetric={cpmMetric}
             t8Metric={t8Metric}
+            fertilityAssessment={todayFertilityAssessment}
           />
           <Dialog
             open={isCpmDialogOpen}
