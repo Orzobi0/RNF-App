@@ -148,26 +148,6 @@ const FertilityChart = ({
     return map;
   }, [validDataForLine]);
 
-  const temperatureInfertilityStartIndex = useMemo(() => {
-    if (!ovulationDetails?.confirmed) return null;
-    return Number.isFinite(ovulationDetails?.infertileStartIndex)
-      ? ovulationDetails.infertileStartIndex
-      : null;
-  }, [ovulationDetails]);
-
-  const peakInfertilityStartIndex = useMemo(() => {
-    return Number.isFinite(ovulationDetails?.peakInfertilityStartIndex)
-      ? ovulationDetails.peakInfertilityStartIndex
-      : null;
-  }, [ovulationDetails]);
-
-  const absoluteInfertilityStartIndex = useMemo(() => {
-    if (temperatureInfertilityStartIndex == null || peakInfertilityStartIndex == null) {
-      return null;
-    }
-    return Math.max(temperatureInfertilityStartIndex, peakInfertilityStartIndex);
-  }, [temperatureInfertilityStartIndex, peakInfertilityStartIndex])
-
   const fertileStartFinalIndex = useMemo(
     () =>
       Number.isInteger(fertilityStart?.fertileStartFinalIndex)
@@ -292,6 +272,21 @@ const FertilityChart = ({
   const postOvulatoryPhaseInfo = useMemo(() => {
     if (!showInterpretation || !hasAnyObservation) return null;
 
+    const debug = fertilityStart?.debug;
+    const mucusStartIndex = Number.isInteger(debug?.mucusInfertileStartIndex)
+      ? debug.mucusInfertileStartIndex
+      : null;
+
+    const tempStartIndex = Number.isInteger(
+      fertilityStart?.fertileWindow?.temperatureInfertileStartIndex
+    )
+      ? fertilityStart.fertileWindow.temperatureInfertileStartIndex
+      : null;
+
+    const postStartIndex = Number.isInteger(debug?.postOvulatoryStartIndex)
+      ? debug.postOvulatoryStartIndex
+      : null;
+
     const temperatureDetails = {
       confirmed: Boolean(ovulationDetails?.confirmed),
       rule: ovulationDetails?.rule ?? null,
@@ -308,9 +303,7 @@ const FertilityChart = ({
       confirmationIndex: Number.isInteger(ovulationDetails?.confirmationIndex)
         ? ovulationDetails.confirmationIndex
         : null,
-      startIndex: Number.isInteger(temperatureInfertilityStartIndex)
-        ? temperatureInfertilityStartIndex
-        : null,
+      startIndex: tempStartIndex,
     };
 
     const mucusDetails = {
@@ -320,32 +313,30 @@ const FertilityChart = ({
       thirdDayIndex: Number.isInteger(ovulationDetails?.thirdDayIndex)
         ? ovulationDetails.thirdDayIndex
         : null,
-      startIndex: Number.isInteger(peakInfertilityStartIndex)
-        ? peakInfertilityStartIndex
-        : null,
+      startIndex: tempStartIndex,
     };
 
-    const hasTemperatureClosure = temperatureDetails.startIndex != null;
-    const hasMucusClosure = mucusDetails.startIndex != null;
+    const hasTemperatureClosure = tempStartIndex != null;
+    const hasMucusClosure = mucusStartIndex != null;
 
     if (!hasTemperatureClosure && !hasMucusClosure) {
       return null;
     }
 
-    let startIndex = null;
+    const startIndex = Number.isInteger(postStartIndex) ? postStartIndex : null;
+    if (startIndex == null) return null;
+
     let status = 'pending';
     let message = '';
     let label = 'Postovulatoria (pendiente)';
     let tooltip = 'Postovulatoria pendiente, a la espera del segundo criterio.';
 
     if (hasTemperatureClosure && hasMucusClosure) {
-      startIndex = Math.max(temperatureDetails.startIndex, mucusDetails.startIndex);
       status = 'absolute';
       label = 'Infertilidad absoluta';
       tooltip = 'Infertilidad absoluta (postovulatoria con doble criterio alcanzado)';
       message = 'Infertilidad absoluta';
     } else if (hasTemperatureClosure) {
-      startIndex = temperatureDetails.startIndex;
       const ruleLabel = temperatureDetails.rule || 'regla desconocida';
       const confirmationDay = temperatureDetails.confirmationIndex != null
         ? `D${temperatureDetails.confirmationIndex + 1}`
@@ -354,7 +345,6 @@ const FertilityChart = ({
       tooltip = message;
       label = 'Postovulatoria (temperatura)';
     } else {
-      startIndex = mucusDetails.startIndex;
       const mucusRuleLabel = mucusDetails.thirdDayIndex != null ? '3° día' : 'P+4';
       message = `Postovulatoria (pendiente): falta temperatura (método moco alcanzado vía ${mucusRuleLabel}).`;
       tooltip = message;
@@ -379,8 +369,7 @@ const FertilityChart = ({
     showInterpretation,
     hasAnyObservation,
     ovulationDetails,
-    temperatureInfertilityStartIndex,
-    peakInfertilityStartIndex,
+    fertilityStart,
   ]);
 
   const interpretationSegments = useMemo(() => {
