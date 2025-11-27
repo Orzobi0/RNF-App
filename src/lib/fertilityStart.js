@@ -643,6 +643,8 @@ export const computeFertilityStartOutput = ({
 
   let effectivePeakIndex = isValidIndex(peakDayIndex) ? peakDayIndex : null;
 
+  // Solo aceptamos P explícitos de los datos del ciclo.
+  // No inferimos P a partir de estados 1/2/3 ni del score más alto.
   if (effectivePeakIndex == null) {
     const explicitPeakIndex = findLastStatusIndex('P');
     if (isValidIndex(explicitPeakIndex)) {
@@ -650,43 +652,8 @@ export const computeFertilityStartOutput = ({
     }
   }
 
-  if (effectivePeakIndex == null) {
-    const inferenceOffsets = [
-      { status: '1', offset: 1 },
-      { status: '2', offset: 2 },
-      { status: '3', offset: 3 },
-    ];
-    for (const { status, offset } of inferenceOffsets) {
-      const statusIndex = findLastStatusIndex(status);
-      if (statusIndex == null) continue;
-      const candidate = statusIndex - offset;
-      if (isValidIndex(candidate)) {
-        effectivePeakIndex = candidate;
-        break;
-      }
-    }
-  }
-
-  if (effectivePeakIndex == null && totalDays > 0) {
-    let bestIndex = null;
-    let bestScore = -Infinity;
-    for (let idx = 0; idx < totalDays; idx += 1) {
-      const day = days[idx];
-      if (!day) continue;
-      const score = Number.isFinite(day.scoreFertil) ? day.scoreFertil : null;
-      if (score == null) continue;
-      if (
-        score > bestScore ||
-        (score === bestScore && (bestIndex == null || idx > bestIndex))
-      ) {
-        bestScore = score;
-        bestIndex = idx;
-      }
-    }
-    if (bestIndex != null) {
-      effectivePeakIndex = bestIndex;
-    }
-  }
+  // Si no hay pico marcado por la usuaria, no se fuerza ningún pico.
+  // La infertilidad por moco no se basará en un P inventado.
 
   const candidates = [];
   const pushCandidate = (candidate) => {
@@ -738,7 +705,15 @@ export const computeFertilityStartOutput = ({
 
   const candidatesBeforeAggregate = candidates.map((candidate) => ({ ...candidate }));
 
-  const aggregate = aggregateCandidates(candidates, combineMode);
+  let candidatesForAggregate = candidates;
+
+  // En modo conservador usamos todo (perfiles + CPM/T-8).
+  // En modos consenso y permisivo, las calculadoras NO adelantan el inicio fértil.
+  if (combineMode === 'consenso' || combineMode === 'permisivo') {
+    candidatesForAggregate = candidates.filter((candidate) => candidate.kind !== 'calculator');
+  }
+
+  const aggregate = aggregateCandidates(candidatesForAggregate, combineMode);
   aggregate.notes = Array.from(new Set([...(aggregate.notes ?? []), ...notes].filter(Boolean)));
 
   const clampSelectedDay = (day) => {
