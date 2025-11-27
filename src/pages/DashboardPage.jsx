@@ -1163,6 +1163,7 @@ const ModernFertilityDashboard = () => {
   const [manualCpmValue, setManualCpmValue] = useState(null);
   const [isManualCpm, setIsManualCpm] = useState(false);
   const [cpmSelection, setCpmSelection] = useState('auto');
+  const [cpmSelectionDraft, setCpmSelectionDraft] = useState('auto');
   const [showCpmDetails, setShowCpmDetails] = useState(false);
   const [showCpmDeleteDialog, setShowCpmDeleteDialog] = useState(false);
   const [isDeletingManualCpm, setIsDeletingManualCpm] = useState(false);
@@ -1176,6 +1177,7 @@ const ModernFertilityDashboard = () => {
   const [manualT8Value, setManualT8Value] = useState(null);
   const [isManualT8, setIsManualT8] = useState(false);
   const [t8Selection, setT8Selection] = useState('auto');
+  const [t8SelectionDraft, setT8SelectionDraft] = useState('auto');
   const [showT8Details, setShowT8Details] = useState(false);
   const [showT8DeleteDialog, setShowT8DeleteDialog] = useState(false);
   const [isDeletingManualT8, setIsDeletingManualT8] = useState(false);
@@ -1184,6 +1186,8 @@ const ModernFertilityDashboard = () => {
   const manualCpmRestoreAttemptedRef = useRef(false);
   const manualT8RestoreAttemptedRef = useRef(false);
   const automaticMetricsSnapshotRef = useRef(null);
+  const cpmSelectionInitializedRef = useRef(false);
+  const t8SelectionInitializedRef = useRef(false);
 
   const manualCpmStorageKey = useMemo(
     () => (user?.uid ? `rnf_manual_cpm_${user.uid}` : null),
@@ -1200,6 +1204,32 @@ const ModernFertilityDashboard = () => {
   const manualT8BaseStorageKey = useMemo(
     () => (user?.uid ? `rnf_manual_t8_base_${user.uid}` : null),
     [user?.uid]
+  );
+
+  const persistCpmMode = useCallback(
+    async (mode) => {
+      if (!user?.uid || !savePreferences) return;
+      if (!['auto', 'manual', 'none'].includes(mode)) return;
+      try {
+        await savePreferences({ cpmMode: mode });
+      } catch (error) {
+        console.error('Failed to persist CPM mode', error);
+      }
+    },
+    [savePreferences, user?.uid]
+  );
+
+  const persistT8Mode = useCallback(
+    async (mode) => {
+      if (!user?.uid || !savePreferences) return;
+      if (!['auto', 'manual', 'none'].includes(mode)) return;
+      try {
+        await savePreferences({ t8Mode: mode });
+      } catch (error) {
+        console.error('Failed to persist T-8 mode', error);
+      }
+    },
+    [savePreferences, user?.uid]
   );
 
   useEffect(() => {
@@ -2044,6 +2074,42 @@ const ModernFertilityDashboard = () => {
       ignoredCount,
     };
   }, [combinedCycles]);
+  
+  useEffect(() => {
+    if (cpmSelectionInitializedRef.current) return;
+    if (!preferences) return;
+
+    let resolvedMode = preferences?.cpmMode;
+    if (!['auto', 'manual', 'none'].includes(resolvedMode)) {
+      resolvedMode = isManualCpm
+        ? 'manual'
+        : computedCpmData.canCompute
+          ? 'auto'
+          : 'none';
+    }
+
+    setCpmSelection(resolvedMode);
+    setCpmSelectionDraft(resolvedMode);
+    cpmSelectionInitializedRef.current = true;
+  }, [computedCpmData.canCompute, isManualCpm, preferences]);
+
+  useEffect(() => {
+    if (t8SelectionInitializedRef.current) return;
+    if (!preferences) return;
+
+    let resolvedMode = preferences?.t8Mode;
+    if (!['auto', 'manual', 'none'].includes(resolvedMode)) {
+      resolvedMode = isManualT8
+        ? 'manual'
+        : computedT8Data.canCompute
+          ? 'auto'
+          : 'none';
+    }
+
+    setT8Selection(resolvedMode);
+    setT8SelectionDraft(resolvedMode);
+    t8SelectionInitializedRef.current = true;
+  }, [computedT8Data.canCompute, isManualT8, preferences]);
   useEffect(() => {
     if (!user?.uid) {
       automaticMetricsSnapshotRef.current = null;
@@ -2128,7 +2194,17 @@ const ModernFertilityDashboard = () => {
     const cycleCount = computedCpmData.cycleCount ?? 0;
     const cyclesLabel = `${cycleCount} ciclo${cycleCount === 1 ? '' : 's'}`;
     const requiredCycles = 6;
-    const sourceLabel = isManualCpm ? 'Manual' : 'Automático';
+    const resolvedMode = ['auto', 'manual', 'none'].includes(cpmSelection)
+      ? cpmSelection
+      : 'auto';
+    const sourceLabel =
+      resolvedMode === 'manual' && isManualCpm
+        ? 'Manual'
+        : resolvedMode === 'auto' && computedCpmData.canCompute
+          ? 'Automático'
+          : resolvedMode === 'none'
+            ? 'Sin usar'
+            : 'Automático';
     const cycles = computedCpmData.cyclesConsidered ?? [];
     const canCompute = Boolean(computedCpmData.canCompute);
     const ignoredCount = computedCpmData.ignoredCount ?? 0;
@@ -2199,13 +2275,23 @@ const ModernFertilityDashboard = () => {
       value: automaticValue,
       ignoredCount,
     };
-  }, [computedCpmData, isManualCpm]);
+  }, [computedCpmData, cpmSelection, isManualCpm]);
 
   const t8Info = useMemo(() => {
     const cycleCount = computedT8Data.cycleCount;
     const cyclesLabel = `${cycleCount} ciclo${cycleCount === 1 ? '' : 's'}`;
     const requiredCycles = 6;
-    const sourceLabel = isManualT8 ? 'Manual' : 'Automático';
+    const resolvedMode = ['auto', 'manual', 'none'].includes(t8Selection)
+      ? t8Selection
+      : 'auto';
+    const sourceLabel =
+      resolvedMode === 'manual' && isManualT8
+        ? 'Manual'
+        : resolvedMode === 'auto' && computedT8Data.canCompute
+          ? 'Automático'
+          : resolvedMode === 'none'
+            ? 'Sin usar'
+            : 'Automático';
     const ignoredCount = computedT8Data.ignoredCount ?? 0;
 
     const cycleName =
@@ -2252,7 +2338,7 @@ const ModernFertilityDashboard = () => {
       requiredCycles,
       ignoredCount,
     };
-  }, [computedT8Data, isManualT8]);
+  }, [computedT8Data, isManualT8, t8Selection]);
 
   const formatNumber = useCallback((value, options) => {
     if (typeof value !== 'number' || !Number.isFinite(value)) {
@@ -2298,11 +2384,18 @@ const ModernFertilityDashboard = () => {
     (typeof manualCpmValue === 'number' && Number.isFinite(manualCpmValue)
       ? `${manualCpmValue}`
       : '—');
+      const resolvedCpmMode = ['auto', 'manual', 'none'].includes(cpmSelection)
+    ? cpmSelection
+    : 'auto';
   const cpmStatusMode =
-    cpmSelection === 'manual' && isManualCpm
-      ? 'manual'
-      : cpmSelection === 'auto'
-        ? 'auto'
+    resolvedCpmMode === 'manual'
+      ? isManualCpm
+        ? 'manual'
+        : 'none'
+      : resolvedCpmMode === 'auto'
+        ? computedCpmData.canCompute
+          ? 'auto'
+          : 'none'
         : 'none';
   const cpmStatusValueLabel =
     cpmStatusMode === 'manual'
@@ -2329,11 +2422,18 @@ const ModernFertilityDashboard = () => {
     (typeof manualT8Value === 'number' && Number.isFinite(manualT8Value)
       ? `${manualT8Value}`
       : '—');
+      const resolvedT8Mode = ['auto', 'manual', 'none'].includes(t8Selection)
+    ? t8Selection
+    : 'auto';
   const t8StatusMode =
-    t8Selection === 'manual' && isManualT8
-      ? 'manual'
-      : t8Selection === 'auto'
-        ? 'auto'
+    resolvedT8Mode === 'manual'
+      ? isManualT8
+        ? 'manual'
+        : 'none'
+      : resolvedT8Mode === 'auto'
+        ? computedT8Data.canCompute
+          ? 'auto'
+          : 'none'
         : 'none';
   const t8StatusValueLabel =
     t8StatusMode === 'manual'
@@ -2367,20 +2467,20 @@ const ModernFertilityDashboard = () => {
   }, [manualCpmBaseInput, manualCpmEditedSide, manualCpmFinalInput]);
 
   const isCpmSaveDisabled = useMemo(() => {
-    if (cpmSelection === 'manual') {
+    if (cpmSelectionDraft === 'manual') {
       if (manualCpmBaseError || manualCpmFinalError) {
         return true;
       }
 
-    const hasValidBase = manualCpmBaseInput.trim() !== '' && !manualCpmBaseError;
-    const hasValidFinal = manualCpmFinalInput.trim() !== '' && !manualCpmFinalError;
+      const hasValidBase = manualCpmBaseInput.trim() !== '' && !manualCpmBaseError;
+      const hasValidFinal = manualCpmFinalInput.trim() !== '' && !manualCpmFinalError;
 
-    return !hasValidBase && !hasValidFinal;
+      return !hasValidBase && !hasValidFinal;
     }
 
     return false;
   }, [
-    cpmSelection,
+    cpmSelectionDraft,
     manualCpmBaseError,
     manualCpmBaseInput,
     manualCpmFinalError,
@@ -2408,15 +2508,15 @@ const ModernFertilityDashboard = () => {
   }, [manualT8BaseInput, manualT8EditedSide, manualT8FinalInput]);
 
   const isT8SaveDisabled = useMemo(() => {
-    if (t8Selection === 'manual') {
+    if (t8SelectionDraft === 'manual') {
       if (manualT8BaseError || manualT8FinalError) {
         return true;
       }
 
-    const hasValidBase = manualT8BaseInput.trim() !== '' && !manualT8BaseError;
-    const hasValidFinal = manualT8FinalInput.trim() !== '' && !manualT8FinalError;
+      const hasValidBase = manualT8BaseInput.trim() !== '' && !manualT8BaseError;
+      const hasValidFinal = manualT8FinalInput.trim() !== '' && !manualT8FinalError;
 
-     return !hasValidBase && !hasValidFinal;
+       return !hasValidBase && !hasValidFinal;
     }
 
     return false;
@@ -2425,7 +2525,7 @@ const ModernFertilityDashboard = () => {
     manualT8BaseInput,
     manualT8FinalError,
     manualT8FinalInput,
-    t8Selection,
+    t8SelectionDraft,
   ]);
 
   const canDeleteManualT8 = useMemo(() => {
@@ -2510,9 +2610,10 @@ const ModernFertilityDashboard = () => {
     setManualCpmBaseError('');
     setManualCpmFinalError('');
     setManualCpmEditedSide(null);
+    setCpmSelectionDraft(cpmSelection);
     setShowCpmDetails(false);
     setIsCpmDialogOpen(true);
-  }, [computedCpmData, isManualCpm, manualCpmBaseValue, manualCpmValue]);
+  }, [computedCpmData, cpmSelection, isManualCpm, manualCpmBaseValue, manualCpmValue]);
 
   const handleCloseCpmDialog = useCallback(() => {
     setShowCpmDetails(false);
@@ -2599,7 +2700,7 @@ const ModernFertilityDashboard = () => {
 
   const handleSaveManualCpm = useCallback(async () => {
     if (manualCpmBaseError || manualCpmFinalError) {
-      return;
+      return false;
     }
 
     const trimmedBase = manualCpmBaseInput.trim();
@@ -2609,7 +2710,7 @@ const ModernFertilityDashboard = () => {
 
     if (!activeSide) {
       setManualCpmFinalError('Introduce un valor.');
-      return;
+      return fasle;
     }
 
     let baseValueToPersist = manualCpmBaseValue;
@@ -2618,21 +2719,21 @@ const ModernFertilityDashboard = () => {
     if (activeSide === 'base') {
       if (!trimmedBase) {
         setManualCpmBaseError('Introduce un número entero válido.');
-        return;
+        return false;
       }
 
       const parsedBase = Number.parseInt(trimmedBase, 10);
 
       if (!Number.isFinite(parsedBase)) {
         setManualCpmBaseError('Introduce un número entero válido.');
-        return;
+        return false;
       }
 
       const computedFinal = parsedBase - MANUAL_CPM_DEDUCTION;
 
       if (computedFinal < 0) {
         setManualCpmBaseError('El resultado debe ser ≥ 0 días');
-        return;
+        return false;
       }
 
       baseValueToPersist = parsedBase;
@@ -2642,7 +2743,7 @@ const ModernFertilityDashboard = () => {
     } else {
       if (!trimmedFinal) {
         setManualCpmFinalError('Introduce un valor.');
-        return;
+        return false;
       }
 
       const normalized = trimmedFinal.replace(',', '.');
@@ -2650,7 +2751,7 @@ const ModernFertilityDashboard = () => {
 
       if (!Number.isFinite(parsedFinal) || parsedFinal < 0) {
         setManualCpmFinalError('El CPM debe ser ≥ 0 días');
-        return;
+        return false;
       }
 
       finalValueToPersist = parsedFinal;
@@ -2682,12 +2783,14 @@ const ModernFertilityDashboard = () => {
 
       setIsCpmDialogOpen(false);
       toast({ title: 'CPM actualizado', description: 'El CPM manual se guardó en tu perfil.' });
+      return true;
     } catch (error) {
       console.error('Failed to save manual CPM value', error);
       setManualCpmValue(previousValue);
       setManualCpmBaseValue(previousBaseValue);
       setIsManualCpm(previousIsManual);
       setManualCpmFinalError('No se pudo guardar el CPM. Inténtalo de nuevo.');
+      return fasle;
     }
   }, [
     isManualCpm,
@@ -2740,32 +2843,50 @@ const ModernFertilityDashboard = () => {
       try {
         await handleDeleteManualCpm();
         setShowCpmDeleteDialog(false);
-        setCpmSelection(cpmInfo.canCompute ? 'auto' : 'none');
+        const nextMode = cpmInfo.canCompute ? 'auto' : 'none';
+        setCpmSelection(nextMode);
+        setCpmSelectionDraft(nextMode);
+        await persistCpmMode(nextMode);
       } finally {
         setIsDeletingManualCpm(false);
       }
     },
-    [cpmInfo.canCompute, handleDeleteManualCpm]
+    [cpmInfo.canCompute, handleDeleteManualCpm, persistCpmMode]
   );
 
   const handleSelectCpmMode = useCallback(
     (mode) => {
-      setCpmSelection(mode);
+      setCpmSelectionDraft(mode);
     },
     []
   );
 
   const handleSaveCpm = useCallback(async () => {
-    if (cpmSelection === 'manual') {
-      await handleSaveManualCpm();
+    const selectedMode = cpmSelectionDraft;
+
+    if (selectedMode === 'manual') {
+      const saved = await handleSaveManualCpm();
+      if (!saved) {
+        return;
+      }
+
+      setCpmSelection('manual');
+      setCpmSelectionDraft('manual');
+      await persistCpmMode('manual');
       return;
     }
 
+    const nextMode = ['auto', 'none'].includes(selectedMode) ? selectedMode : 'auto';
+    setCpmSelection(nextMode);
+    setCpmSelectionDraft(nextMode);
+    await persistCpmMode(nextMode);
     handleCloseCpmDialog();
-  }, [cpmSelection, handleCloseCpmDialog, handleSaveManualCpm]);
+  }, [cpmSelectionDraft, handleCloseCpmDialog, handleSaveManualCpm, persistCpmMode]);
 
   const handleOpenT8Dialog = useCallback(() => {
-  const hasManualFinal =
+  const hasManualBase =
+      typeof manualT8BaseValue === 'number' && Number.isFinite(manualT8BaseValue);
+    const hasManualFinal =
       typeof manualT8Value === 'number' && Number.isFinite(manualT8Value);
 
     // En el modo manual solo rellenamos los inputs con valores realmente manuales.
@@ -2781,9 +2902,10 @@ const ModernFertilityDashboard = () => {
     setManualT8BaseError('');
     setManualT8FinalError('');
     setManualT8EditedSide(null);
+    setT8SelectionDraft(t8Selection);
     setShowT8Details(false);
     setIsT8DialogOpen(true);
-  }, [computedT8Data, isManualT8, manualT8BaseValue, manualT8Value]);
+  }, [isManualT8, manualT8BaseValue, manualT8Value, t8Selection]);
 
   const handleCloseT8Dialog = useCallback(() => {
     setIsT8DialogOpen(false);
@@ -2842,7 +2964,7 @@ const ModernFertilityDashboard = () => {
 
   const handleSaveManualT8 = useCallback(async () => {
     if (manualT8BaseError || manualT8FinalError) {
-      return;
+      return false;
     }
 
     const trimmedBase = manualT8BaseInput.trim();
@@ -2852,7 +2974,7 @@ const ModernFertilityDashboard = () => {
 
     if (!activeSide) {
       setManualT8FinalError('Introduce un valor.');
-      return;
+      return false;
     }
 
     let baseValueToPersist = manualT8BaseValue;
@@ -2861,19 +2983,19 @@ const ModernFertilityDashboard = () => {
     if (activeSide === 'base') {
       if (!trimmedBase) {
         setManualT8BaseError('Introduce un número entero válido.');
-        return;
+        return false;
       }
 
       const parsedBase = Number.parseInt(trimmedBase, 10);
 
       if (!Number.isFinite(parsedBase)) {
         setManualT8BaseError('Introduce un número entero válido.');
-        return;
+        return false;
       }
 
       if (parsedBase < 9) {
         setManualT8BaseError('El T-8 debe ser ≥ 1');
-        return;
+        return false;
       }
 
       const computedFinal = Math.max(1, parsedBase - 8);
@@ -2884,14 +3006,14 @@ const ModernFertilityDashboard = () => {
     } else {
       if (!trimmedFinal) {
         setManualT8FinalError('Introduce un valor.');
-        return;
+        return false;
       }
 
       const parsedFinal = Number.parseInt(trimmedFinal, 10);
 
       if (!Number.isFinite(parsedFinal) || parsedFinal < 1) {
         setManualT8FinalError('El T-8 debe ser ≥ 1');
-        return;
+        return false;
       }
 
       finalValueToPersist = parsedFinal;
@@ -2924,12 +3046,14 @@ const ModernFertilityDashboard = () => {
 
       setIsT8DialogOpen(false);
       toast({ title: 'T-8 actualizado', description: 'El T-8 manual se guardó en tu perfil.' });
+      return true;
     } catch (error) {
       console.error('Failed to save manual T-8 value', error);
       setManualT8Value(previousValue);
       setManualT8BaseValue(previousBaseValue);
       setIsManualT8(previousIsManual);
       setManualT8FinalError('No se pudo guardar el T-8. Inténtalo de nuevo.');
+      return false;
     }
   }, [
     isManualT8,
@@ -2981,29 +3105,45 @@ const ModernFertilityDashboard = () => {
       try {
         await handleDeleteManualT8();
         setShowT8DeleteDialog(false);
-        setT8Selection(computedT8Data.canCompute ? 'auto' : 'none');
+        const nextMode = computedT8Data.canCompute ? 'auto' : 'none';
+        setT8Selection(nextMode);
+        setT8SelectionDraft(nextMode);
+        await persistT8Mode(nextMode);
       } finally {
         setIsDeletingManualT8(false);
       }
     },
-    [computedT8Data.canCompute, handleDeleteManualT8]
+    [computedT8Data.canCompute, handleDeleteManualT8, persistT8Mode]
   );
 
   const handleSelectT8Mode = useCallback(
     (mode) => {
-      setT8Selection(mode);
+      setT8SelectionDraft(mode);
     },
     []
   );
 
   const handleSaveT8 = useCallback(async () => {
-    if (t8Selection === 'manual') {
-      await handleSaveManualT8();
+    const selectedMode = t8SelectionDraft;
+
+    if (selectedMode === 'manual') {
+      const saved = await handleSaveManualT8();
+      if (!saved) {
+        return;
+      }
+
+      setT8Selection('manual');
+      setT8SelectionDraft('manual');
+      await persistT8Mode('manual');
       return;
     }
 
+    const nextMode = ['auto', 'none'].includes(selectedMode) ? selectedMode : 'auto';
+    setT8Selection(nextMode);
+    setT8SelectionDraft(nextMode);
+    await persistT8Mode(nextMode);
     handleCloseT8Dialog();
-  }, [handleCloseT8Dialog, handleSaveManualT8, t8Selection]);
+  }, [handleCloseT8Dialog, handleSaveManualT8, persistT8Mode, t8SelectionDraft]);
 
   const resetStartDateFlow = useCallback(() => {
     setPendingStartDate(null);
@@ -3400,7 +3540,7 @@ const ModernFertilityDashboard = () => {
                   onClick={() => handleSelectCpmMode('auto')}
                   onKeyDown={(event) => handleCardKeyDown(event, () => handleSelectCpmMode('auto'))}
                   className={`cursor-pointer rounded-2xl border px-3 py-3 shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70 ${
-                    cpmSelection === 'auto'
+                    cpmSelectionDraft === 'auto'
                       ? 'border-emerald-300 bg-emerald-50/60'
                       : 'border-rose-100 bg-white/80 hover:border-emerald-200'
                   } ${!cpmInfo.canCompute ? 'opacity-70' : ''}`}
@@ -3417,10 +3557,10 @@ const ModernFertilityDashboard = () => {
                     </div>
                     <span
                       className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 ${
-                        cpmSelection === 'auto' ? 'border-emerald-400 bg-emerald-400' : 'border-emerald-300 bg-white'
+                        cpmSelectionDraft === 'auto' ? 'border-emerald-400 bg-emerald-400' : 'border-emerald-300 bg-white'
                       }`}
                     >
-                      {cpmSelection === 'auto' && <span className="h-2.5 w-2.5 rounded-full bg-white" />}
+                      {cpmSelectionDraft === 'auto' && <span className="h-2.5 w-2.5 rounded-full bg-white" />}
                     </span>
                   </div>
 
@@ -3544,11 +3684,11 @@ const ModernFertilityDashboard = () => {
                 <div
                   role="radio"
                   tabIndex={0}
-                  aria-checked={cpmSelection === 'manual'}
+                  aria-checked={cpmSelectionDraft === 'manual'}
                   onClick={() => handleSelectCpmMode('manual')}
                   onKeyDown={(event) => handleCardKeyDown(event, () => handleSelectCpmMode('manual'))}
                   className={`cursor-pointer rounded-2xl border px-3 py-3 shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70 ${
-                    cpmSelection === 'manual'
+                    cpmSelectionDraft === 'manual'
                       ? 'border-rose-300 bg-rose-50'
                       : 'border-rose-100 bg-white/80 hover:border-rose-200'
                   }`}
@@ -3559,10 +3699,10 @@ const ModernFertilityDashboard = () => {
                     </div>                    
                       <span
                       className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 ${
-                        cpmSelection === 'manual' ? 'border-rose-400 bg-rose-400' : 'border-rose-300 bg-white'
+                        cpmSelectionDraft === 'manual' ? 'border-rose-400 bg-rose-400' : 'border-rose-300 bg-white'
                       }`}
                     >
-                      {cpmSelection === 'manual' && <span className="h-2.5 w-2.5 rounded-full bg-white" />}
+                      {cpmSelectionDraft === 'manual' && <span className="h-2.5 w-2.5 rounded-full bg-white" />}
                     </span>
                   </div>
 
@@ -3630,18 +3770,18 @@ const ModernFertilityDashboard = () => {
 
 
 
-                  {isCpmSaveDisabled && cpmSelection === 'manual' && !isManualCpm && (
+                  {isCpmSaveDisabled && cpmSelectionDraft === 'manual' && !isManualCpm && (
                     <p className="mt-2 text-[11px] text-rose-500">Introduce un valor válido antes de seleccionar.</p>
                   )}
                 </div>
                 <div
                   role="radio"
                   tabIndex={0}
-                  aria-checked={cpmSelection === 'none'}
+                  aria-checked={cpmSelectionDraft === 'none'}
                   onClick={() => handleSelectCpmMode('none')}
                   onKeyDown={(event) => handleCardKeyDown(event, () => handleSelectCpmMode('none'))}
                   className={`cursor-pointer rounded-2xl border px-3 py-2 text-left shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70 ${
-                    cpmSelection === 'none'
+                    cpmSelectionDraft === 'none'
                       ? 'border-gray-300 bg-gray-50'
                       : 'border-dashed border-rose-200 bg-white/70 hover:border-gray-300'
                   }`}
@@ -3652,10 +3792,10 @@ const ModernFertilityDashboard = () => {
                     </div>
                     <span
                       className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 ${
-                        cpmSelection === 'none' ? 'border-gray-400 bg-gray-400' : 'border-gray-300 bg-white'
+                        cpmSelectionDraft === 'none' ? 'border-gray-400 bg-gray-400' : 'border-gray-300 bg-white'
                       }`}
                     >
-                      {cpmSelection === 'none' && <span className="h-2.5 w-2.5 rounded-full bg-white" />}
+                      {cpmSelectionDraft === 'none' && <span className="h-2.5 w-2.5 rounded-full bg-white" />}
                     </span>
                   </div>
                 </div>
@@ -3753,7 +3893,7 @@ const ModernFertilityDashboard = () => {
                   onClick={() => handleSelectT8Mode('auto')}
                   onKeyDown={(event) => handleCardKeyDown(event, () => handleSelectT8Mode('auto'))}
                   className={`cursor-pointer rounded-2xl border px-3 py-3 shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70 ${
-                    t8Selection === 'auto'
+                    t8SelectionDraft === 'auto'
                       ? 'border-emerald-300 bg-emerald-50/60'
                       : 'border-rose-100 bg-white/80 hover:border-emerald-200'
                   } ${!computedT8Data.canCompute ? 'opacity-70' : ''}`}
@@ -3770,10 +3910,10 @@ const ModernFertilityDashboard = () => {
                     </div>
                     <span
                       className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 ${
-                        t8Selection === 'auto' ? 'border-emerald-400 bg-emerald-400' : 'border-emerald-300 bg-white'
+                        t8SelectionDraft === 'auto' ? 'border-emerald-400 bg-emerald-400' : 'border-emerald-300 bg-white'
                       }`}
                     >
-                      {t8Selection === 'auto' && <span className="h-2.5 w-2.5 rounded-full bg-white" />}
+                      {t8SelectionDraft === 'auto' && <span className="h-2.5 w-2.5 rounded-full bg-white" />}
                     </span>
                   </div>
 
@@ -3883,11 +4023,11 @@ const ModernFertilityDashboard = () => {
                 <div
                   role="radio"
                   tabIndex={0}
-                  aria-checked={t8Selection === 'manual'}
+                  aria-checked={t8SelectionDraft === 'manual'}
                   onClick={() => handleSelectT8Mode('manual')}
                   onKeyDown={(event) => handleCardKeyDown(event, () => handleSelectT8Mode('manual'))}
                   className={`cursor-pointer rounded-2xl border px-3 py-3 shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70 ${
-                    t8Selection === 'manual'
+                    t8SelectionDraft === 'manual'
                       ? 'border-rose-300 bg-rose-50'
                       : 'border-rose-100 bg-white/80 hover:border-rose-200'
                   }`}
@@ -3898,10 +4038,10 @@ const ModernFertilityDashboard = () => {
                     </div>
                     <span
                       className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 ${
-                        t8Selection === 'manual' ? 'border-rose-400 bg-rose-400' : 'border-rose-300 bg-white'
+                        t8SelectionDraft === 'manual' ? 'border-rose-400 bg-rose-400' : 'border-rose-300 bg-white'
                       }`}
                     >
-                      {t8Selection === 'manual' && <span className="h-2.5 w-2.5 rounded-full bg-white" />}
+                      {t8SelectionDraft === 'manual' && <span className="h-2.5 w-2.5 rounded-full bg-white" />}
                     </span>
                   </div>
 
@@ -3966,7 +4106,7 @@ const ModernFertilityDashboard = () => {
                     >
                       Borrar
                     </Button>
-                    {isT8SaveDisabled && t8Selection === 'manual' && !isManualT8 && (
+                    {isT8SaveDisabled && t8SelectionDraft === 'manual' && !isManualT8 && (
                     <p className="mt-2 text-[11px] text-rose-500">Introduce un valor válido antes de seleccionar.</p>
                   )}
                   </div>
@@ -3976,11 +4116,11 @@ const ModernFertilityDashboard = () => {
                   <div
                   role="radio"
                   tabIndex={0}
-                  aria-checked={t8Selection === 'none'}
+                  aria-checked={t8SelectionDraft === 'none'}
                   onClick={() => handleSelectT8Mode('none')}
                   onKeyDown={(event) => handleCardKeyDown(event, () => handleSelectT8Mode('none'))}
                   className={`cursor-pointer rounded-2xl border px-3 py-2 text-left shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70 ${
-                    t8Selection === 'none'
+                    t8SelectionDraft === 'none'
                       ? 'border-gray-300 bg-gray-50'
                       : 'border-dashed border-rose-200 bg-white/70 hover:border-gray-300'
                   }`}
@@ -3991,10 +4131,10 @@ const ModernFertilityDashboard = () => {
                     </div>
                     <span
                       className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 ${
-                        t8Selection === 'none' ? 'border-gray-400 bg-gray-400' : 'border-gray-300 bg-white'
+                        t8SelectionDraft === 'none' ? 'border-gray-400 bg-gray-400' : 'border-gray-300 bg-white'
                       }`}
                     >
-                      {t8Selection === 'none' && <span className="h-2.5 w-2.5 rounded-full bg-white" />}
+                      {t8SelectionDraft === 'none' && <span className="h-2.5 w-2.5 rounded-full bg-white" />}
                     </span>
                   </div>
                   

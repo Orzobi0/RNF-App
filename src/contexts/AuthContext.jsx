@@ -41,6 +41,8 @@ export const AuthProvider = ({ children }) => {
           manualT8: null,
           manualCpmBase: null,
           manualT8Base: null,
+          cpmMode: 'auto',
+          t8Mode: 'auto',
         };
         try {
           const prefSnap = await getDoc(prefRef);
