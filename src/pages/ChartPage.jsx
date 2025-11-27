@@ -18,6 +18,10 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import {
+  computeCpmCandidateFromCycles,
+  computeT8CandidateFromCycles,
+} from '@/lib/fertilityStart';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -27,6 +31,7 @@ import {
 import { useParams, Link, useLocation } from 'react-router-dom';
 import Overlay from '@/components/ui/Overlay';
 import { useAuth } from '@/contexts/AuthContext';
+import { computeOvulationMetrics } from '@/hooks/useFertilityChart';
 
 const CHART_SETTINGS_STORAGE_KEY = 'fertility-chart-settings';
 
@@ -210,7 +215,12 @@ const ChartPage = () => {
   const manualCpmBasePreference = preferences?.manualCpmBase;
   const manualT8Preference = preferences?.manualT8;
   const manualT8BasePreference = preferences?.manualT8Base;
-  
+  const cpmSelection = ['auto', 'manual', 'none'].includes(preferences?.cpmMode)
+    ? preferences.cpmMode
+    : 'auto';
+  const t8Selection = ['auto', 'manual', 'none'].includes(preferences?.t8Mode)
+    ? preferences.t8Mode
+    : 'auto';
     
   const archivedCycleTitle = useMemo(() => {
     if (!showBackToCycleRecords || !targetCycle?.startDate) {
@@ -295,6 +305,18 @@ const ChartPage = () => {
   const fertilityConfig = useMemo(
     () => mergeFertilityStartConfig(chartSettings.fertilityStartConfig),
     [chartSettings.fertilityStartConfig]
+  );
+
+  const fertilityStartConfig = useMemo(
+    () => ({
+      ...fertilityConfig,
+      calculators: {
+        ...fertilityConfig.calculators,
+        cpm: fertilityConfig.calculators.cpm && cpmSelection !== 'none',
+        t8: fertilityConfig.calculators.t8 && t8Selection !== 'none',
+      },
+    }),
+    [fertilityConfig, cpmSelection, t8Selection]
   );
 
   useEffect(() => {
@@ -598,9 +620,32 @@ const ChartPage = () => {
       .filter(Boolean);
   }, [locationStateCandidates, cycleCandidates]);
   
+  const automaticCalculatorCandidates = useMemo(() => {
+    const cpmCandidate = computeCpmCandidateFromCycles(fertilityCalculatorCycles);
+    const t8Candidate = computeT8CandidateFromCycles(
+      fertilityCalculatorCycles,
+      computeOvulationMetrics
+    );
+
+    const candidates = [];
+
+    if (cpmSelection === 'auto' && cpmCandidate) {
+      candidates.push(cpmCandidate);
+    }
+
+    if (t8Selection === 'auto' && t8Candidate) {
+      candidates.push(t8Candidate);
+    }
+
+    return candidates;
+  }, [fertilityCalculatorCycles, cpmSelection, t8Selection]);
+
   const manualCalculatorCandidates = useMemo(() => {
     const candidates = [];
-    const addManualCandidate = (source, finalValue, baseValue) => {
+    const addManualCandidate = (selection, source, finalValue, baseValue) => {
+      if (selection !== 'manual') {
+        return;
+      }
       const numericDay = Number(finalValue);
       if (!Number.isFinite(numericDay) || numericDay <= 0) {
         return;
@@ -632,20 +677,29 @@ const ChartPage = () => {
       });
     };
 
-    addManualCandidate('CPM', manualCpmPreference, manualCpmBasePreference);
-    addManualCandidate('T8', manualT8Preference, manualT8BasePreference);
+    addManualCandidate(cpmSelection, 'CPM', manualCpmPreference, manualCpmBasePreference);
+    addManualCandidate(t8Selection, 'T8', manualT8Preference, manualT8BasePreference);
 
     return candidates;
-  }, [manualCpmPreference, manualCpmBasePreference, manualT8Preference, manualT8BasePreference]);
+  }, [
+    cpmSelection,
+    manualCpmPreference,
+    manualCpmBasePreference,
+    manualT8Preference,
+    manualT8BasePreference,
+    t8Selection,
+  ]);
 
   const combinedFertilityCalculatorCandidates = useMemo(() => {
-    const existing = Array.isArray(storedFertilityCalculatorCandidates)
+    const storedMap = new Map();
+    (Array.isArray(storedFertilityCalculatorCandidates)
       ? storedFertilityCalculatorCandidates
-      : null;
-
-    if (!manualCalculatorCandidates.length) {
-      return existing;
-    }
+      : []
+    ).forEach((candidate) => {
+      const key = normalizeCalculatorSource(candidate?.source);
+      if (!key) return;
+      storedMap.set(key, candidate);
+    });
 
     const manualMap = new Map();
     manualCalculatorCandidates.forEach((candidate) => {
@@ -654,25 +708,32 @@ const ChartPage = () => {
       manualMap.set(key, candidate);
     });
 
-    const combined = [];
-    if (Array.isArray(existing)) {
-      existing.forEach((candidate) => {
-        const key = normalizeCalculatorSource(candidate?.source);
-        if (key && manualMap.has(key)) {
-          combined.push(manualMap.get(key));
-          manualMap.delete(key);
-        } else {
-          combined.push(candidate);
-        }
-      });
-    }
+    const selectedCpmCandidate =
+      cpmSelection === 'manual'
+        ? manualMap.get('CPM') ?? storedMap.get('CPM') ?? null
+        : cpmSelection === 'auto'
+          ? automaticCalculatorCandidates.find(
+              (candidate) => normalizeCalculatorSource(candidate?.source) === 'CPM'
+            ) ?? null
+          : null;
 
-    manualMap.forEach((candidate) => {
-      combined.push(candidate);
-    });
+    const selectedT8Candidate =
+      t8Selection === 'manual'
+        ? manualMap.get('T8') ?? storedMap.get('T8') ?? null
+        : t8Selection === 'auto'
+          ? automaticCalculatorCandidates.find(
+              (candidate) => normalizeCalculatorSource(candidate?.source) === 'T8'
+            ) ?? null
+          : null;
 
-    return combined.length > 0 ? combined : existing;
-  }, [storedFertilityCalculatorCandidates, manualCalculatorCandidates]);
+    return [selectedCpmCandidate, selectedT8Candidate].filter(Boolean);
+  }, [
+    automaticCalculatorCandidates,
+    cpmSelection,
+    manualCalculatorCandidates,
+    storedFertilityCalculatorCandidates,
+    t8Selection,
+  ]);
   const handleTogglePeak = async (record, shouldMarkAsPeak = true) => {
     if (!targetCycle?.id || !record?.isoDate) {
       return;
@@ -1141,7 +1202,7 @@ const ChartPage = () => {
           forceLandscape={orientation === 'landscape'}
           currentPeakIsoDate={currentPeakIsoDate}
           showRelationsRow={chartSettings.showRelationsRow}
-          fertilityStartConfig={fertilityConfig}
+          fertilityStartConfig={fertilityStartConfig}
           fertilityCalculatorCycles={fertilityCalculatorCycles}
           fertilityCalculatorCandidates={combinedFertilityCalculatorCandidates}
           onShowPhaseInfo={handleShowPhaseInfo}

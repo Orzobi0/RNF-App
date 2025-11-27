@@ -3423,6 +3423,87 @@ const ModernFertilityDashboard = () => {
     parseISO(currentCycle.startDate)
   ) + 1;
 
+  const externalCalculatorCandidates = useMemo(() => {
+    const candidates = [];
+    const resolveMode = (value) =>
+      ['auto', 'manual', 'none'].includes(value) ? value : 'auto';
+
+    const addManualCandidate = (source, finalValue, baseValue) => {
+      const numericDay = Number(finalValue);
+      if (!Number.isFinite(numericDay) || numericDay <= 0) {
+        return;
+      }
+
+      const numericBase = Number(baseValue);
+      const hasBase = Number.isFinite(numericBase) && numericBase > 0;
+      const baseLabel = hasBase
+        ? source === 'CPM'
+          ? `ciclo base: ${numericBase}`
+          : `base ${source}: ${numericBase}`
+        : null;
+
+      candidates.push({
+        source,
+        day: Math.max(1, numericDay),
+        reason: baseLabel
+          ? `Manual desde dashboard (${baseLabel})`
+          : 'Manual desde dashboard',
+        kind: 'calculator',
+        isManual: true,
+        manualBase: hasBase ? numericBase : null,
+      });
+    };
+
+    const addAutoCandidate = (source, value, canUse) => {
+      if (!canUse) return;
+      const numericDay = Number(value);
+      if (!Number.isFinite(numericDay)) return;
+
+      candidates.push({
+        source,
+        day: Math.max(1, numericDay),
+        reason: 'Automático desde dashboard',
+        kind: 'calculator',
+      });
+    };
+
+    const resolvedCpmMode = resolveMode(cpmSelection);
+    if (resolvedCpmMode === 'manual') {
+      addManualCandidate('CPM', manualCpmValue, manualCpmBaseValue);
+    } else if (resolvedCpmMode === 'auto') {
+      addAutoCandidate('CPM', computedCpmData?.value, computedCpmData?.canCompute);
+    }
+
+    const resolvedT8Mode = resolveMode(t8Selection);
+    if (resolvedT8Mode === 'manual') {
+      addManualCandidate('T8', manualT8Value, manualT8BaseValue);
+    } else if (resolvedT8Mode === 'auto') {
+      addAutoCandidate('T8', computedT8Data?.value, computedT8Data?.canCompute);
+    }
+
+    return candidates;
+  }, [
+    computedCpmData?.canCompute,
+    computedCpmData?.value,
+    computedT8Data?.canCompute,
+    computedT8Data?.value,
+    cpmSelection,
+    manualCpmBaseValue,
+    manualCpmValue,
+    manualT8BaseValue,
+    manualT8Value,
+    t8Selection,
+  ]);
+
+  const fertilityStartConfig = useMemo(
+    () => ({
+      calculators: {
+        cpm: cpmSelection !== 'none',
+        t8: t8Selection !== 'none',
+      },
+    }),
+    [cpmSelection, t8Selection]
+  );
   const fertilityCalculatorCycles = useMemo(() => {
     const cycles = [];
     if (Array.isArray(archivedCycles) && archivedCycles.length > 0) {
@@ -3442,9 +3523,9 @@ const ModernFertilityDashboard = () => {
     currentCycle?.id,
     5,
     false,
-    null,
+    fertilityStartConfig,
     fertilityCalculatorCycles,
-    null
+    externalCalculatorCandidates
   );
 
 
