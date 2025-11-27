@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import {
   Plus,
   FilePlus,
@@ -58,9 +58,13 @@ const CycleOverviewCard = ({
   const [tooltipPosition, setTooltipPosition] = useState({ clientX: 0, clientY: 0 });
   const [wheelOffset, setWheelOffset] = useState(0);
   const [isFertilityDialogOpen, setIsFertilityDialogOpen] = useState(false);
+  const [recentlyChangedDays, setRecentlyChangedDays] = useState([]);
   const hasInitializedWheelRef = useRef(false);
   const touchStartXRef = useRef(null);
   const circleRef = useRef(null);
+  const recentSignaturesRef = useRef(new Map());
+  const splashTimeoutRef = useRef(null);
+  const prefersReducedMotion = useReducedMotion();
   const cycleStartDate = cycleData.startDate ? parseISO(cycleData.startDate) : null;
   const today = startOfDay(new Date());
   const peakStatuses = useMemo(() => computePeakStatuses(records), [records]);
@@ -84,6 +88,72 @@ const CycleOverviewCard = ({
       setIsFertilityDialogOpen(false);
     }
   }, [fertilityAssessment]);
+
+  useEffect(() => {
+    const prevSignatures = recentSignaturesRef.current;
+    const nextSignatures = new Map();
+    const newDays = [];
+
+    records.forEach((record) => {
+      if (!record) return;
+
+      let recordDay = record.cycleDay;
+      if (!recordDay && cycleStartDate && record.isoDate) {
+        try {
+          recordDay = differenceInDays(parseISO(record.isoDate), cycleStartDate) + 1;
+        } catch (error) {
+          recordDay = null;
+        }
+      }
+
+      if (!recordDay) return;
+
+      const signature = JSON.stringify({
+        temp: record.displayTemperature ?? record.temperature_chart ?? null,
+        symbol: record.fertility_symbol ?? null,
+        sensation: record.mucus_sensation ?? record.mucusSensation ?? '',
+        appearance: record.mucus_appearance ?? record.mucusAppearance ?? '',
+        observations: record.observations ?? '',
+        relations: record.had_relations ?? record.hadRelations ?? false,
+        updatedAt: record.updatedAt ?? record.timestamp ?? null,
+      });
+
+      nextSignatures.set(recordDay, signature);
+
+      if (prevSignatures.size > 0) {
+        const prevSignature = prevSignatures.get(recordDay);
+        if (!prevSignature || prevSignature !== signature) {
+          newDays.push(recordDay);
+        }
+      }
+    });
+
+    recentSignaturesRef.current = nextSignatures;
+
+    if (!prefersReducedMotion && newDays.length) {
+      setRecentlyChangedDays((current) => {
+        const merged = new Set(current);
+        newDays.forEach((day) => merged.add(day));
+        return Array.from(merged);
+      });
+    }
+  }, [cycleStartDate, prefersReducedMotion, records]);
+
+  useEffect(() => {
+    if (prefersReducedMotion || recentlyChangedDays.length === 0) return undefined;
+
+    const timeout = setTimeout(() => {
+      setRecentlyChangedDays([]);
+    }, 1400);
+
+    splashTimeoutRef.current = timeout;
+
+    return () => {
+      if (splashTimeoutRef.current) {
+        clearTimeout(splashTimeoutRef.current);
+      }
+    };
+  }, [prefersReducedMotion, recentlyChangedDays]);
 
     // Ajustes del círculo de progreso
   const totalDots = 28;
@@ -377,6 +447,7 @@ const changeOffsetRaf = useCallback((delta) => {
   };
 
   const dots = createProgressDots();
+  const changedDaySet = useMemo(() => new Set(recentlyChangedDays), [recentlyChangedDays]);
   const wheelRotationDegrees = (wheelOffset * 360) / totalDots;
 
   const rotationRadians = (-wheelRotationDegrees * Math.PI) / 180;
@@ -643,7 +714,7 @@ const changeOffsetRaf = useCallback((delta) => {
               )}
 
               {/* Puntos de progreso */}
-              <motion.g
+  <motion.g
   transition={{ type: 'tween', duration: 0.18, ease: [0.2, 0.8, 0.2, 1] }}
   initial={false}
   animate={{ rotate: -wheelRotationDegrees }}
@@ -670,10 +741,84 @@ const changeOffsetRaf = useCallback((delta) => {
     onClick={(e) => handleDotClick(dot, e)}
     initial={false}
     animate={{ scale: 1, opacity: 1 }}
+    whileTap={prefersReducedMotion ? undefined : { scale: 0.9, translateY: 1.5 }}
     transition={{ duration: 0.15 }}
     style={{ cursor: 'pointer' }}
   />
 </g>
+
+{!prefersReducedMotion && changedDaySet.has(dot.day) && (
+  <motion.g
+    key={`dot-splash-${dot.day}`}
+    pointerEvents="none"
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    exit={{ opacity: 0 }}
+    style={{ transformOrigin: `${dot.x}px ${dot.y}px` }}
+  >
+    {/* Gota que cae con squash/stretch al impactar */}
+    <motion.circle
+      cx={dot.x}
+      cy={dot.y - 12}
+      r={4}
+      fill={dot.colors.main}
+      initial={{ y: -18, scale: 0.5, opacity: 0 }}
+      animate={{
+        y: [-18, 0, 2],
+        scale: [0.5, 1.05, 0.8],
+        opacity: [0, 1, 0],
+      }}
+      transition={{
+        duration: 0.6,
+        ease: 'easeOut',
+        times: [0, 0.6, 1],
+      }}
+    />
+
+    {/* Onda rápida */}
+    <motion.circle
+      cx={dot.x}
+      cy={dot.y}
+      r={dot.isToday ? 12 : 10}
+      stroke={
+        dot.colors.border === 'none'
+          ? dot.colors.main
+          : dot.colors.border || dot.colors.main
+      }
+      strokeWidth={2}
+      fill="none"
+      initial={{ scale: 0.5, opacity: 0.9 }}
+      animate={{ scale: 1.4, opacity: 0 }}
+      transition={{
+        duration: 0.55,
+        ease: [0.16, 1, 0.3, 1], // un poco más elástica
+        delay: 0.05,
+      }}
+    />
+
+    {/* Onda más grande y suave (segunda onda) */}
+    <motion.circle
+      cx={dot.x}
+      cy={dot.y}
+      r={dot.isToday ? 14 : 12}
+      stroke={
+        dot.colors.border === 'none'
+          ? dot.colors.main
+          : dot.colors.border || dot.colors.main
+      }
+      strokeWidth={1.5}
+      fill="none"
+      initial={{ scale: 0.6, opacity: 0.6 }}
+      animate={{ scale: 1.9, opacity: 0 }}
+      transition={{
+        duration: 0.9,
+        ease: 'easeOut',
+        delay: 0.1,
+      }}
+    />
+  </motion.g>
+)}
+
 
                   {/* Anillo pulsante para el día actual */}
                   {dot.isToday && (
