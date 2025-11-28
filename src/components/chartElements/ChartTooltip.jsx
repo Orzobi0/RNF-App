@@ -3,11 +3,10 @@ import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { PeakModeButton } from '@/components/ui/peak-mode-button';
-import { XCircle, EyeOff, Eye, Edit3, Thermometer, Droplets, Circle, Heart, Sparkles, X } from 'lucide-react';
+import { XCircle, EyeOff, Eye, Edit3, Thermometer, Droplets, Circle, Heart } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { getSymbolAppearance } from '@/config/fertilitySymbols';
-import Overlay from '@/components/ui/Overlay';
 
 const ChartTooltip = ({
   point,
@@ -32,14 +31,12 @@ const ChartTooltip = ({
   const tooltipRef = useRef(null);
   const [tooltipHeight, setTooltipHeight] = useState(tooltipMinHeight);
   const [peakActionPending, setPeakActionPending] = useState(false);
-  const [isFertilityOverlayOpen, setIsFertilityOverlayOpen] = useState(false);
 
   useEffect(() => {
     if (tooltipRef.current) {
       setTooltipHeight(tooltipRef.current.offsetHeight);
     }
     setPeakActionPending(false);
-    setIsFertilityOverlayOpen(false);
   }, [point]);
 
   const flipHorizontal = position.clientX > chartWidth * 0.66;
@@ -113,47 +110,6 @@ const ChartTooltip = ({
     : [normalizeTimeString(point.time)];
   const fallbackTime = directTimeCandidates.find(Boolean) ?? formatTimestampTime(point.timestamp);
   const temperatureTime = measurementTime ?? fallbackTime;
-  const fertilityAssessment = point.fertilityAssessment ?? null;
-  const showFertilityStatus =
-    Boolean(fertilityAssessment) &&
-    fertilityAssessment?.showFertilityStatus !== false &&
-    !point.isFutureDay;
-  const fertilityHeader = fertilityAssessment?.header ?? null;
-  const fertilityTitle = fertilityAssessment?.title ?? fertilityAssessment?.label ?? null;
-  const fertilityBody = fertilityAssessment?.body ?? fertilityAssessment?.summaryText ?? null;
-  const fertilityReasons = Array.isArray(fertilityAssessment?.reasonsList)
-    ? fertilityAssessment.reasonsList
-    : [];
-  const fertilityNote = fertilityAssessment?.note ?? null;
-  const fertilityState = fertilityAssessment?.state ?? null;
-  const statusTone = (() => {
-    switch (fertilityState) {
-      case 'waiting':
-        return {
-          container: 'from-amber-50 to-yellow-50 border border-amber-200/70',
-          header: 'text-amber-700/80',
-          title: 'text-amber-900',
-          body: 'text-amber-800/80',
-          icon: 'from-amber-500 to-orange-500',
-        };
-      case 'infertil':
-        return {
-          container: 'from-slate-50 to-slate-100 border border-slate-200/80',
-          header: 'text-slate-600',
-          title: 'text-slate-800',
-          body: 'text-slate-600',
-          icon: 'from-slate-500 to-slate-600',
-        };
-      default:
-        return {
-          container: 'from-emerald-50 to-lime-50 border border-emerald-200/70',
-          header: 'text-emerald-700/80',
-          title: 'text-emerald-900',
-          body: 'text-emerald-800/80',
-          icon: 'from-emerald-500 to-teal-600',
-        };
-    }
-  })();
   const mucusSensation = point.mucus_sensation ?? point.mucusSensation ?? '';
   const mucusAppearance = point.mucus_appearance ?? point.mucusAppearance ?? '';
   const observations = point.observations ?? '';
@@ -337,72 +293,6 @@ const ChartTooltip = ({
                 </div>
               </div>
               </div>
-
-            {showFertilityStatus && fertilityTitle && (
-              <>
-                <motion.button
-                  type="button"
-                  onClick={() => setIsFertilityOverlayOpen(true)}
-                  initial={{ opacity: 0, y: -8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.05 }}
-                  className={`mb-2 w-full bg-gradient-to-r ${statusTone.container} rounded-3xl p-2 shadow-sm outline-none transition-transform hover:shadow-md focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-pink-200 active:scale-95`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={`w-7 h-7 bg-gradient-to-br ${statusTone.icon} rounded-xl flex items-center justify-center shadow-md`}
-                    >
-                      <Sparkles className="w-4 h-4 text-white" />
-                    </div>
-                    <p className={`flex-1 text-left text-sm font-semibold ${statusTone.title}`}>
-                      {fertilityTitle}
-                    </p>
-                  </div>
-                  </motion.button>
-
-                <Overlay
-                  isOpen={isFertilityOverlayOpen}
-                  onClose={() => setIsFertilityOverlayOpen(false)}
-                  ariaLabel="Detalle de la evaluación de fertilidad"
-                  containerClassName="p-6"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="space-y-1">
-                      {fertilityHeader && (
-                        <p className={`text-xs font-semibold uppercase tracking-wide ${statusTone.header}`}>
-                          {fertilityHeader}
-                        </p>
-                      )}
-                      <p className={`text-lg font-semibold ${statusTone.title}`}>{fertilityTitle}</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setIsFertilityOverlayOpen(false)}
-                      className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-200"
-                      aria-label="Cerrar detalle de fertilidad"
-                    >
-                      <X className="h-5 w-5" />
-                    </button>
-                  </div>
-                  <div className="mt-4 space-y-3 text-left">
-                      
-                    {fertilityBody && (
-                      <p className={`text-sm leading-relaxed ${statusTone.body}`}>{fertilityBody}</p>
-                    )}
-                    {fertilityReasons.length > 0 && (
-                      <ul className="list-disc space-y-1 pl-5 text-sm text-slate-600">
-                        {fertilityReasons.map((reason, index) => (
-                          <li key={`${reason}-${index}`}>{reason}</li>
-                        ))}
-                      </ul>
-                    )}
-                    {fertilityNote && (
-                      <p className="text-xs text-slate-500">{fertilityNote}</p>
-                    )}
-                  </div>
-                </Overlay>
-              </>
-            )}
 
           {showEmptyState ? (
             <div className="pt-1 space-y-3">

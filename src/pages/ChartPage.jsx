@@ -18,6 +18,10 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import {
+  computeCpmCandidateFromCycles,
+  computeT8CandidateFromCycles,
+} from '@/lib/fertilityStart';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -27,25 +31,9 @@ import {
 import { useParams, Link, useLocation } from 'react-router-dom';
 import Overlay from '@/components/ui/Overlay';
 import { useAuth } from '@/contexts/AuthContext';
+import { computeOvulationMetrics } from '@/hooks/useFertilityChart';
 
 const CHART_SETTINGS_STORAGE_KEY = 'fertility-chart-settings';
-
-const normalizeDay = (value) => {
-  if (Number.isFinite(value)) {
-    return Math.round(value);
-  }
-  return null;
-};
-
-const pickCandidateByDay = (candidates, selectedDay) => {
-  if (!Array.isArray(candidates) || candidates.length === 0) return null;
-  if (selectedDay == null) {
-    return candidates[0];
-  }
-  const normalizedDay = normalizeDay(selectedDay);
-  const match = candidates.find((candidate) => normalizeDay(candidate?.day) === normalizedDay);
-  return match || candidates[0];
-};
 
 const normalizeCalculatorSource = (source) => {
   if (!source) return '';
@@ -63,139 +51,6 @@ const formatCalculatorSourceLabel = (source) => {
   return source ?? '';
 };
 
-const deriveRelativeReason = (aggregate) => {
-  if (!aggregate) return 'por cambio en sensación/moco';
-  const usedCandidates = Array.isArray(aggregate.usedCandidates) ? aggregate.usedCandidates : [];
-  const selectedDay = normalizeDay(aggregate.selectedDay);
-
-  const hasT8Candidate = usedCandidates.some((candidate) => {
-    if (!candidate) return false;
-    const candidateDay = normalizeDay(candidate.day);
-    if (selectedDay != null && candidateDay !== selectedDay) return false;
-    const source = String(candidate.source ?? '').toUpperCase();
-    return candidate.kind === 'calculator' && (source === 'T8' || source === 'T-8');
-  });
-
-  if (hasT8Candidate) {
-    return 'por T−8';
-  }
-
-  const hasCalculator = usedCandidates.some((candidate) => {
-    if (!candidate) return false;
-    const candidateDay = normalizeDay(candidate.day);
-    if (selectedDay != null && candidateDay !== selectedDay) return false;
-    return candidate.kind === 'calculator';
-  });
-
-  if (hasCalculator) {
-    return 'por T−8';
-  }
-
-  return 'por cambio en sensación/moco';
-};
-
-const deriveFertileMotivo = (reasons = {}) => {
-  const statusSummary = reasons.statusSummary ?? null;
-  const reasonParts = statusSummary?.reasonParts ?? {};
-
-  if (reasonParts.symbol === 'white') {
-    return 'marcador white';
-  }
-  if (reasonParts.sensation) {
-    return 'cambio en sensación';
-  }
-  if (reasonParts.appearance) {
-    return 'cambio en moco';
-  }
-
-  const aggregate = reasons.aggregate ?? null;
-  const usedCandidates = Array.isArray(aggregate?.usedCandidates) ? aggregate.usedCandidates : [];
-  const selectedDay = normalizeDay(aggregate?.selectedDay);
-  const details = reasons.details ?? {};
-  const explicitStartDay = Number.isFinite(details?.explicitStartDay)
-    ? details.explicitStartDay + 1
-    : null;
-
-  if (aggregate?.selectedMode === 'marcador' || (explicitStartDay != null && explicitStartDay === selectedDay)) {
-    return 'marcador white';
-  }
-
-  const matchingCandidate = pickCandidateByDay(usedCandidates, selectedDay);
-
-  const hasT8Candidate = usedCandidates.some((candidate) => {
-    if (!candidate) return false;
-    const source = String(candidate.source ?? '').toUpperCase();
-    return candidate.kind === 'calculator' && (source === 'T8' || source === 'T-8');
-  });
-
-  if (matchingCandidate?.kind === 'calculator' || hasT8Candidate) {
-    return 'T−8';
-  }
-
-  const candidateReason = String(matchingCandidate?.reason ?? '').toUpperCase();
-
-  if (candidateReason.includes('WHITE')) {
-    return 'marcador white';
-  }
-  if (candidateReason.includes('M')) {
-    return 'cambio en moco';
-  }
-  if (candidateReason.includes('S') || candidateReason.includes('BIP')) {
-    return 'cambio en sensación';
-  }
-
-  const hasMucusCandidate = usedCandidates.some((candidate) => {
-    const reason = String(candidate?.reason ?? '').toUpperCase();
-    return reason.includes('M');
-  });
-  if (hasMucusCandidate) {
-    return 'cambio en moco';
-  }
-
-  const hasSensationCandidate = usedCandidates.some((candidate) => {
-    const reason = String(candidate?.reason ?? '').toUpperCase();
-    return reason.includes('S') || reason.includes('BIP');
-  });
-  if (hasSensationCandidate) {
-    return 'cambio en sensación';
-  }
-
-  return null;
-};
-
-const formatClosureDetail = (reasons = {}) => {
-  const mucus = reasons.mucus ?? {};
-  const temperature = reasons.temperature ?? {};
-  const hasMucus = Number.isInteger(mucus.startIndex);
-  const hasTemperature = Number.isInteger(temperature.startIndex);
-  const mucusLabel = mucus.thirdDayIndex != null ? 'P+3' : 'P+4';
-  const rule = typeof temperature.rule === 'string' ? temperature.rule : '';
-  const normalizedRule = rule.toLowerCase();
-
-  if (hasMucus && hasTemperature) {
-    if (normalizedRule.includes('oms')) {
-      return `${mucusLabel} y T+3 (OMS)`;
-    }
-    if (normalizedRule.includes('aleman')) {
-      return `${mucusLabel} y T+3 (Alemanas)`;
-    }
-    const ruleSuffix = rule ? ` (${rule})` : '';
-    return `${mucusLabel} y T+3${ruleSuffix}`;
-  }
-
-  if (hasTemperature) {
-    if (normalizedRule.includes('oms') || normalizedRule.includes('aleman')) {
-      return `T+3 (${rule})`;
-    }
-    return `T+3 (${rule || 'temperatura'})`;
-  }
-
-  if (hasMucus) {
-    return `${mucusLabel} (moco)`;
-  }
-
-  return 'criterio indeterminado';
-};
 const createDefaultFertilityStartConfig = () => ({
   methods: { alemanas: true, oms: true, creighton: true },
   calculators: { cpm: true, t8: true },
@@ -360,7 +215,12 @@ const ChartPage = () => {
   const manualCpmBasePreference = preferences?.manualCpmBase;
   const manualT8Preference = preferences?.manualT8;
   const manualT8BasePreference = preferences?.manualT8Base;
-  
+  const cpmSelection = ['auto', 'manual', 'none'].includes(preferences?.cpmMode)
+    ? preferences.cpmMode
+    : 'auto';
+  const t8Selection = ['auto', 'manual', 'none'].includes(preferences?.t8Mode)
+    ? preferences.t8Mode
+    : 'auto';
     
   const archivedCycleTitle = useMemo(() => {
     if (!showBackToCycleRecords || !targetCycle?.startDate) {
@@ -445,6 +305,18 @@ const ChartPage = () => {
   const fertilityConfig = useMemo(
     () => mergeFertilityStartConfig(chartSettings.fertilityStartConfig),
     [chartSettings.fertilityStartConfig]
+  );
+
+  const fertilityStartConfig = useMemo(
+    () => ({
+      ...fertilityConfig,
+      calculators: {
+        ...fertilityConfig.calculators,
+        cpm: fertilityConfig.calculators.cpm && cpmSelection !== 'none',
+        t8: fertilityConfig.calculators.t8 && t8Selection !== 'none',
+      },
+    }),
+    [fertilityConfig, cpmSelection, t8Selection]
   );
 
   useEffect(() => {
@@ -748,9 +620,32 @@ const ChartPage = () => {
       .filter(Boolean);
   }, [locationStateCandidates, cycleCandidates]);
   
+  const automaticCalculatorCandidates = useMemo(() => {
+    const cpmCandidate = computeCpmCandidateFromCycles(fertilityCalculatorCycles);
+    const t8Candidate = computeT8CandidateFromCycles(
+      fertilityCalculatorCycles,
+      computeOvulationMetrics
+    );
+
+    const candidates = [];
+
+    if (cpmSelection === 'auto' && cpmCandidate) {
+      candidates.push(cpmCandidate);
+    }
+
+    if (t8Selection === 'auto' && t8Candidate) {
+      candidates.push(t8Candidate);
+    }
+
+    return candidates;
+  }, [fertilityCalculatorCycles, cpmSelection, t8Selection]);
+
   const manualCalculatorCandidates = useMemo(() => {
     const candidates = [];
-    const addManualCandidate = (source, finalValue, baseValue) => {
+    const addManualCandidate = (selection, source, finalValue, baseValue) => {
+      if (selection !== 'manual') {
+        return;
+      }
       const numericDay = Number(finalValue);
       if (!Number.isFinite(numericDay) || numericDay <= 0) {
         return;
@@ -782,20 +677,29 @@ const ChartPage = () => {
       });
     };
 
-    addManualCandidate('CPM', manualCpmPreference, manualCpmBasePreference);
-    addManualCandidate('T8', manualT8Preference, manualT8BasePreference);
+    addManualCandidate(cpmSelection, 'CPM', manualCpmPreference, manualCpmBasePreference);
+    addManualCandidate(t8Selection, 'T8', manualT8Preference, manualT8BasePreference);
 
     return candidates;
-  }, [manualCpmPreference, manualCpmBasePreference, manualT8Preference, manualT8BasePreference]);
+  }, [
+    cpmSelection,
+    manualCpmPreference,
+    manualCpmBasePreference,
+    manualT8Preference,
+    manualT8BasePreference,
+    t8Selection,
+  ]);
 
   const combinedFertilityCalculatorCandidates = useMemo(() => {
-    const existing = Array.isArray(storedFertilityCalculatorCandidates)
+    const storedMap = new Map();
+    (Array.isArray(storedFertilityCalculatorCandidates)
       ? storedFertilityCalculatorCandidates
-      : null;
-
-    if (!manualCalculatorCandidates.length) {
-      return existing;
-    }
+      : []
+    ).forEach((candidate) => {
+      const key = normalizeCalculatorSource(candidate?.source);
+      if (!key) return;
+      storedMap.set(key, candidate);
+    });
 
     const manualMap = new Map();
     manualCalculatorCandidates.forEach((candidate) => {
@@ -804,25 +708,32 @@ const ChartPage = () => {
       manualMap.set(key, candidate);
     });
 
-    const combined = [];
-    if (Array.isArray(existing)) {
-      existing.forEach((candidate) => {
-        const key = normalizeCalculatorSource(candidate?.source);
-        if (key && manualMap.has(key)) {
-          combined.push(manualMap.get(key));
-          manualMap.delete(key);
-        } else {
-          combined.push(candidate);
-        }
-      });
-    }
+    const selectedCpmCandidate =
+      cpmSelection === 'manual'
+        ? manualMap.get('CPM') ?? storedMap.get('CPM') ?? null
+        : cpmSelection === 'auto'
+          ? automaticCalculatorCandidates.find(
+              (candidate) => normalizeCalculatorSource(candidate?.source) === 'CPM'
+            ) ?? null
+          : null;
 
-    manualMap.forEach((candidate) => {
-      combined.push(candidate);
-    });
+    const selectedT8Candidate =
+      t8Selection === 'manual'
+        ? manualMap.get('T8') ?? storedMap.get('T8') ?? null
+        : t8Selection === 'auto'
+          ? automaticCalculatorCandidates.find(
+              (candidate) => normalizeCalculatorSource(candidate?.source) === 'T8'
+            ) ?? null
+          : null;
 
-    return combined.length > 0 ? combined : existing;
-  }, [storedFertilityCalculatorCandidates, manualCalculatorCandidates]);
+    return [selectedCpmCandidate, selectedT8Candidate].filter(Boolean);
+  }, [
+    automaticCalculatorCandidates,
+    cpmSelection,
+    manualCalculatorCandidates,
+    storedFertilityCalculatorCandidates,
+    t8Selection,
+  ]);
   const handleTogglePeak = async (record, shouldMarkAsPeak = true) => {
     if (!targetCycle?.id || !record?.isoDate) {
       return;
@@ -975,6 +886,80 @@ const ChartPage = () => {
       if (!info) return;
       const phase = info.phase ?? null;
       const reasons = info.reasons ?? {};
+      const aggregate = reasons?.aggregate ?? null;
+      const usedCandidates = Array.isArray(aggregate?.usedCandidates) ? aggregate.usedCandidates : [];
+      const fertileWindow = reasons?.window ?? reasons?.fertileWindow ?? null;
+      const fertileStartIndex = Number.isInteger(reasons?.startIndex)
+        ? reasons.startIndex
+        : Number.isInteger(reasons?.fertileStartFinalIndex)
+          ? reasons.fertileStartFinalIndex
+          : null;
+
+      const selectedMode = aggregate?.selectedMode ?? fertilityConfig?.combineMode ?? null;
+      const modeLabel = (() => {
+        if (reasons?.source === 'marker' || reasons?.details?.explicitStartDay != null) {
+          return 'Ajustado por marcadores';
+        }
+        const labels = {
+          conservador: 'Modo conservador',
+          consenso: 'Modo consenso',
+          permisivo: 'Modo permisivo',
+        };
+        return labels[selectedMode] ?? null;
+      })();
+
+      const normalizeSource = (candidate) =>
+        (candidate?.source ?? candidate?.originalSource ?? '').toString().toUpperCase();
+
+      const findCandidateForStart = () => {
+        const dayNumber = Number.isInteger(fertileStartIndex) ? fertileStartIndex + 1 : null;
+        if (!dayNumber) return { candidate: null, dayNumber: null };
+        const match = usedCandidates.find(
+          (candidate) => Number.isFinite(candidate?.day) && Math.round(candidate.day) === dayNumber
+        );
+        return { candidate: match ?? usedCandidates[0] ?? null, dayNumber };
+      };
+
+      const describeStartTrigger = (context = 'start') => {
+        const { candidate, dayNumber } = findCandidateForStart();
+        if (!candidate || !dayNumber) return null;
+        const source = normalizeSource(candidate);
+        const cycleLength =
+          candidate?.base ??
+          candidate?.baseCycle ??
+          candidate?.shortestCycle ??
+          candidate?.referenceCycle ??
+          candidate?.finalValue ??
+          candidate?.baseValue ??
+          null;
+
+        if (source === 'CPM') {
+          if (context === 'start') {
+            return `Iniciado por cálculo (ciclo más corto: día ${dayNumber}).`;
+          }
+          return cycleLength
+            ? `Fin por cálculo del ciclo más corto (ciclo de ${cycleLength} días).`
+            : `Fin por cálculo del ciclo más corto (día ${dayNumber}).`;
+        }
+
+        if (source === 'T8' || source === 'T-8') {
+          const label = `día ${dayNumber}`;
+          return context === 'start'
+            ? `Iniciado por cálculo (día de subida en ciclos anteriores: T-8 = ${label}).`
+            : `Fin por cálculo según el día de subida de temperatura (T-8 = ${label}).`;
+        }
+
+        const reasonText = (candidate?.reason ?? '').toUpperCase();
+        const isSensation = reasonText.includes('S') || reasonText.includes('BIP');
+        if (context === 'start') {
+          return isSensation
+            ? `Iniciado por presencia de sensación fértil (día ${dayNumber}).`
+            : `Iniciado por moco fértil (día ${dayNumber}).`;
+        }
+        return isSensation
+          ? `Fin por presencia de sensación fértil (día ${dayNumber}).`
+          : `Fin por presencia de moco fértil (día ${dayNumber}).`;
+      };
 
       let header = null;
       let title = '';
@@ -983,79 +968,56 @@ const ChartPage = () => {
       let note = null;
 
       if (phase === 'relativeInfertile') {
-        title = 'Inicio de fase relativamente infértil';
-        body = 'Inicio de ciclo; a la espera de cambio en sensación, moco o cálculo.';
-        const aggregate = reasons?.aggregate ?? null;
-        const reasonText = deriveRelativeReason(aggregate);
-        if (reasonText) {
-          reasonsList = [reasonText];
+        title = 'Relativamente infértil';
+        if (Number.isInteger(fertileStartIndex)) {
+          body = describeStartTrigger('end') ?? 'Fin de fase relativamente infértil.';
+        } else {
+          body = 'A la espera de cambio en la sensación o apariencia del moco.';
         }
 
         } else if (phase === 'fertile') {
-        title = 'Inicio de fase fértil';
-        const motive = deriveFertileMotivo(reasons);
-        body = motive ? `Inicio de fase fértil por ${motive}.` : 'Inicio de fase fértil.';
-        const statusSummary = reasons?.statusSummary ?? null;
-        if (Array.isArray(statusSummary?.reasonsList) && statusSummary.reasonsList.length > 0) {
-          reasonsList = statusSummary.reasonsList;
-        } else if (motive) {
-          reasonsList = [`Motivo principal: ${motive}.`];
-        }
+        title = 'Fértil';
+        const startDetail = describeStartTrigger('start') ?? 'Inicio de fase fértil.';
+        const hasPostPhase = Number.isFinite(fertileWindow?.endIndex);
+        const hasMucusClosure = Number.isInteger(fertileWindow?.mucusInfertileStartIndex);
+        const hasTemperatureClosure = Number.isInteger(fertileWindow?.temperatureInfertileStartIndex);
 
-        if (statusSummary?.note) {
-          note = statusSummary.note;
+        let closureDetail = null;
+        if (!hasPostPhase) {
+          closureDetail = 'A la espera de cierre por determinación de día pico o temperatura.';
+        } else if (hasMucusClosure && hasTemperatureClosure) {
+          closureDetail = 'Fin determinado por moco y temperatura.';
+        } else if (hasMucusClosure) {
+          closureDetail = 'Fin determinado por determinación de día pico.';
+        } else if (hasTemperatureClosure) {
+          closureDetail = 'Fin determinado por curva de temperatura.';
         }
-
-        if (typeof statusSummary?.header === 'string' && statusSummary.header.trim().length > 0) {
-          header = statusSummary.header;
-        }
-      
-        const aggregate = reasons?.aggregate ?? null;
-        if (aggregate) {
-          const manualCandidates = Array.isArray(aggregate.usedCandidates)
-            ? aggregate.usedCandidates
-            : [];
-          const selectedCandidate = pickCandidateByDay(manualCandidates, aggregate.selectedDay);
-          const manualSource = (() => {
-            if (!selectedCandidate) return null;
-            const normalizedSource = normalizeCalculatorSource(
-              selectedCandidate.source ?? selectedCandidate.originalSource
-            );
-            const isCalculator = selectedCandidate.kind === 'calculator';
-            const isManualCandidate = Boolean(selectedCandidate.isManual);
-            const reasonText = String(selectedCandidate.reason ?? '').toLowerCase();
-            const detectedManual =
-              isManualCandidate ||
-              (isCalculator && normalizedSource && reasonText.includes('manual'));
-            if (!isCalculator || !detectedManual) {
-              return null;
-            }
-            return formatCalculatorSourceLabel(
-              selectedCandidate.source ?? selectedCandidate.originalSource ?? normalizedSource
-            );
-          })();
-
-          if (manualSource) {
-            const manualBody = `Selección ajustada manualmente (${manualSource}).`;
-            body = body ? `${body} ${manualBody}` : manualBody;
-            reasonsList = [...reasonsList, `Valor manual activo en ${manualSource}.`];
-          }
-        }
+        body = closureDetail ? `${startDetail} ${closureDetail}` : startDetail;
       } else if (phase === 'postOvulatory') {
-        const hasTemperature = Number.isInteger(reasons?.temperature?.startIndex);
-        const hasMucus = Number.isInteger(reasons?.mucus?.startIndex);
-        title = hasTemperature && hasMucus ? 'Infertilidad absoluta' : 'Infertilidad';
-        const detail = formatClosureDetail(reasons);
-        body = `Alcanzada la fase de infertilidad por ${detail}.`;
-        if (info?.message) {
-          reasonsList = [info.message];
+        title = 'Infértil postovulatoria';
+        const hasTemperature =
+          Number.isInteger(reasons?.temperature?.startIndex) ||
+          Number.isInteger(fertileWindow?.temperatureInfertileStartIndex);
+        const hasMucus =
+          Number.isInteger(reasons?.mucus?.startIndex) ||
+          Number.isInteger(fertileWindow?.mucusInfertileStartIndex);
+
+        if (hasTemperature && hasMucus) {
+          body = 'Determinada por moco y temperatura (doble criterio).';
+        } else if (hasMucus) {
+          body = 'Determinada por moco.';
+        } else if (hasTemperature) {
+          body = 'Determinada por temperatura.';
+        }
+
+        if (!body) {
+          body = 'Infertilidad postovulatoria.';
         }
         if (reasons?.status === 'pending') {
           note = 'Pendiente completar el segundo criterio.';
         }
-        } else if (phase === 'nodata') {
+      } else if (phase === 'nodata') {
         const status = reasons?.status ?? info?.status ?? null;
-
         if (status === 'no-fertile-window') {
           title = 'Sin ventana fértil identificable';
           body =
@@ -1084,9 +1046,10 @@ const ChartPage = () => {
         body,
         reasons: reasonsList,
         note,
+        modeLabel,
       });
     },
-    [setPhaseOverlay]
+    [fertilityConfig, setPhaseOverlay]
   );
 
   const handleToggleFullScreen = async () => {
@@ -1095,18 +1058,23 @@ const ChartPage = () => {
       typeof window !== 'undefined' ? window.screen?.orientation : null;
 
     if (!isFullScreen) {
-      let enteredFullScreen = false;
-      let hasRequestFullScreen = false;
+      const requestFullScreen =
+        rootElement.requestFullscreen ||
+        rootElement.webkitRequestFullscreen ||
+        rootElement.mozRequestFullScreen ||
+        rootElement.msRequestFullscreen;
+
+      const hasRequestFullScreen = Boolean(requestFullScreen);
+      const canLockOrientation = Boolean(screenOrientation?.lock);
+        if (!hasRequestFullScreen && !canLockOrientation) {
+          window.alert('La pantalla completa no está disponible en este dispositivo.');
+          return;
+        }
+
+        let enteredFullScreen = false;
+      let lockedOrientation = false;
 
       try {
-        const requestFullScreen =
-          rootElement.requestFullscreen ||
-          rootElement.webkitRequestFullscreen ||
-          rootElement.mozRequestFullScreen ||
-          rootElement.msRequestFullscreen;
-
-        hasRequestFullScreen = Boolean(requestFullScreen);
-
         if (requestFullScreen) {
           await requestFullScreen.call(rootElement);
           enteredFullScreen = true;
@@ -1114,17 +1082,26 @@ const ChartPage = () => {
       } catch (err) {
         console.error(err);
       }
-      if (screenOrientation?.lock) {
+      
+      if (canLockOrientation) {
         try {
           await screenOrientation.lock('landscape');
+          lockedOrientation = true;
         } catch (err) {
           console.error(err);
         }
       }
 
-      setOrientation('landscape');
-      setIsFullScreen(enteredFullScreen || !hasRequestFullScreen);
-      
+      const activatedFullScreen = enteredFullScreen || lockedOrientation;
+
+      if (activatedFullScreen) {
+        setOrientation('landscape');
+        setIsFullScreen(true);
+      } else {
+        setOrientation('portrait');
+        setIsFullScreen(false);
+      }
+
     } else {
       if (screenOrientation?.unlock) {
         try {
@@ -1225,7 +1202,7 @@ const ChartPage = () => {
           forceLandscape={orientation === 'landscape'}
           currentPeakIsoDate={currentPeakIsoDate}
           showRelationsRow={chartSettings.showRelationsRow}
-          fertilityStartConfig={fertilityConfig}
+          fertilityStartConfig={fertilityStartConfig}
           fertilityCalculatorCycles={fertilityCalculatorCycles}
           fertilityCalculatorCandidates={combinedFertilityCalculatorCandidates}
           onShowPhaseInfo={handleShowPhaseInfo}
@@ -1381,14 +1358,21 @@ const ChartPage = () => {
                     {phaseOverlay.title}
                   </h2>
                 </div>
-                <button
-                  type="button"
-                  onClick={closePhaseOverlay}
-                  className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-200"
-                  aria-label="Cerrar detalle de interpretación"
-                >
-                  <X className="h-5 w-5" />
-                </button>
+                <div className="flex items-center gap-2">
+                  {phaseOverlay.modeLabel && (
+                    <span className="rounded-full border border-rose-100 bg-rose-50 px-3 py-1 text-[11px] font-semibold text-rose-700">
+                      {phaseOverlay.modeLabel}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={closePhaseOverlay}
+                    className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-200"
+                    aria-label="Cerrar detalle de interpretación"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
               </div>
               {phaseOverlay.body && (
                 <p className="text-sm leading-relaxed text-slate-600">{phaseOverlay.body}</p>

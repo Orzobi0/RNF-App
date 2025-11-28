@@ -19,8 +19,8 @@ const DayDetail = ({
   isoDate,
   cycleDay,
   details,
-  peakStatus, // se mantiene por compatibilidad aunque no se use
-  isPeakDay,  // se mantiene por compatibilidad aunque no se use
+  peakStatus, // P para día de pico, 1–3 para días posteriores
+  isPeakDay,
   onEdit,
   onDelete,
   onAdd,
@@ -92,27 +92,44 @@ const DayDetail = ({
   const observationsValue = details?.observationsText?.trim();
   const hasRelations = Boolean(details?.hasRelations);
 
+// Normalizamos el indicador de pico para la UI
+let peakIndicatorLabel = null;
+let peakIndicatorVariant = null;
+
+
+  if (peakStatus) {
+    if (peakStatus === 'P' || isPeakDay) {
+      peakIndicatorLabel = 'Día pico';
+      peakIndicatorVariant = 'peak';
+    } else {
+      peakIndicatorLabel = `+${peakStatus}`;
+      peakIndicatorVariant = 'post-peak';
+    }
+  }
+
   const getSymbolClasses = () => {
     switch (symbolValue) {
       case 'red':
-        return 'bg-rose-50 border-rose-100';
+        return 'bg-rose-500 border-slate-300 shadow-md';
+      case 'pink':
+        return 'bg-pink-500 border-slate-300 shadow-md';
       case 'green':
-        return 'bg-emerald-50 border-emerald-100';
+        return 'bg-emerald-500 border-slate-300 shadow-md';
       case 'yellow':
-        return 'bg-yellow-50 border-yellow-100';
+        return 'bg-yellow-400 border-slate-300 shadow-md';
       case 'spot':
-        return 'bg-rose-50 border-rose-100';
+        return 'bg-rose-500 border-slate-300 shadow-md';
       case 'white':
-        return 'bg-white border-slate-300';
+        return 'bg-white border-slate-300 shadow-md';
       default:
-        return 'bg-slate-50 border-slate-200';
+        return 'bg-slate-200 border-slate-300 shadow-md';
     }
   };
 
   // Estado vacío: sin día seleccionado
   if (!isoDate) {
     return (
-      <div className="w-full rounded-2xl border border-rose-100/80 bg-white/70 p-4 text-center text-sm text-slate-500 shadow-sm">
+      <div className="w-full rounded-3xl border border-rose-100/80 bg-white/70 p-4 text-center text-sm text-slate-500 shadow-sm">
         Selecciona un día en el calendario para ver o añadir un registro.
       </div>
     );
@@ -120,17 +137,35 @@ const DayDetail = ({
 
   // Base para todos los chips (tamaño algo mayor y altura fija)
   const chipBaseClass =
-    'flex items-center gap-2 rounded-xl border px-3 py-2 text-sm min-h-[3rem]';
+    'flex items-center gap-2 rounded-3xl border px-3 py-2 text-sm min-h-[3rem]';
 
   // Tarjeta compacta pero más alta, usando el espacio disponible
   return (
-    <div className="w-full rounded-2xl border border-rose-100 bg-white/90 p-4 sm:p-5 shadow-md backdrop-blur-sm">
-      {/* Cabecera: fecha + día de ciclo + símbolo + acciones */}
+    <div className="w-full rounded-3xl border border-rose-200/80 bg-white/90 p-4 sm:p-5 shadow-md backdrop-blur-md">
+      {/* Cabecera: fecha + día de ciclo + indicador de pico + símbolo + acciones */}
       <div className="flex items-center gap-2">
-        <p className="text-base font-semibold text-slate-800 sm:text-lg">
-          {formattedDate}
-          {cycleDay ? ` · D${cycleDay}` : ''}
-        </p>
+        {/* Fecha + Dn + pico/+1-3 */}
+        <div className="flex items-center gap-2">
+          <p className="text-base font-semibold text-rose-700 sm:text-lg">
+            {formattedDate}
+            {cycleDay ? ` · D${cycleDay}` : ''}
+          </p>
+
+          {peakIndicatorLabel && (
+            <span
+              className={cn(
+                'inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold',
+                peakIndicatorVariant === 'peak'
+                  ? 'border-rose-300 bg-rose-50 text-rose-700'
+                  : 'border-rose-300 bg-rose-50 text-rose-700'
+              )}
+            >
+              {peakIndicatorLabel}
+            </span>
+          )}
+        </div>
+
+        {/* Símbolo + acciones */}
         <div className="ml-auto flex items-center gap-2">
           <button
             type="button"
@@ -194,7 +229,7 @@ const DayDetail = ({
 
       {/* Cuerpo: 3 filas, más grandes y estructuradas */}
       <div className="mt-4 space-y-3">
-        {/* Fila 1: temperatura + hora (dos columnas fijas) */}
+        {/* Fila 1: temperatura + hora */}
         <div className="grid grid-cols-2 gap-3">
           <button
             type="button"
@@ -238,7 +273,7 @@ const DayDetail = ({
           </button>
         </div>
 
-        {/* Fila 2: moco (sensación mitad izquierda, apariencia mitad derecha) */}
+        {/* Fila 2: moco */}
         <div className="grid grid-cols-2 gap-3">
           <button
             type="button"
@@ -274,7 +309,7 @@ const DayDetail = ({
           </button>
         </div>
 
-        {/* Fila 3: observaciones (ancho fijo, siempre igual) + RS */}
+        {/* Fila 3: observaciones + RS */}
         <div className="flex items-center gap-3">
           <button
             type="button"

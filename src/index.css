@@ -138,3 +138,12 @@
   will-change: transform, opacity;
   backface-visibility: hidden;
 }
+
+/* Quitar highlight y borde de foco en la rueda del ciclo */
+.wheel-no-tap {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.wheel-no-tap * {
+  outline: none;
+}
