@@ -561,13 +561,13 @@ const changeOffsetRaf = useCallback((delta) => {
       <button
         type="button"
         onClick={onClick}
-        className="group w-full rounded-2xl border border-pink-200/40 bg-white/70 p-4 text-left shadow-sm transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70"
+        className="group w-full rounded-2xl border border-rose-100/60 bg-white/80 p-4 text-left shadow-sm transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70"
         aria-describedby={microCopyId}
         aria-label={`Editar ${resolvedTitle}`}
       >
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-1 min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-wide text-pink-600">
+            <p className="text-xs font-semibold uppercase tracking-wide text-rose-600">
               {resolvedTitle}
             </p>
             <p className="text-xl sm:text-2xl font-bold leading-tight text-gray-800 break-words">
@@ -576,16 +576,16 @@ const changeOffsetRaf = useCallback((delta) => {
           </div>
           <div className="flex sm:flex-col flex-row items-center gap-2 sm:items-end">
             <Badge
-              className={`rounded-full border border-pink-200/60 px-2 py-0.5 text-[11px] font-semibold ${
+              className={`rounded-full border border-rose-100/70 px-2 py-0.5 text-[11px] font-semibold ${
                 modeLabel === 'Manual'
                   ? 'bg-rose-100 text-rose-600'
-                  : 'bg-white/80 text-rose-500'
+                  : 'bg-white/85 text-rose-500'
               }`}
             >
               {modeLabel}
             </Badge>
             <div className="sm:text-right text-left">
-              <p className="text-base sm:text-lg font-semibold text-pink-700 whitespace-nowrap">
+              <p className="text-base sm:text-lg font-semibold text-rose-600 whitespace-nowrap">
                 {finalText}
               </p>
             </div>
@@ -602,7 +602,7 @@ const changeOffsetRaf = useCallback((delta) => {
   };
 
   return (
-    <div className="relative flex flex-1 flex-col overflow-y-hidden bg-white/90 rounded-3xl border border-slate-100 shadow-sm p-3">
+    <div className="relative flex flex-col overflow-hidden rounded-3xl bg-white/90 border border-rose-50 shadow-sm p-4 space-y-3">
       {/* Fecha actual - Parte superior con padding reducido */}
       <motion.div
         className="px-4 pt-4 pb-3 text-center flex-shrink-0"
@@ -617,15 +617,16 @@ const changeOffsetRaf = useCallback((delta) => {
             month: 'long'
           })}
         </h1>
-                <button
-          type="button"
-          onClick={onEditStartDate}
-          className="text-sm font-medium text-pink-700 backdrop-blur-sm rounded-full px-3 py-1.5 inline-flex items-center gap-1.5 transition-colors focus:outline-none focus:ring-2 focus:ring-rose-300 focus:ring-offset-2 focus:ring-offset-transparent hover:bg-white/40"
-          title="Editar fecha de inicio del ciclo"
-        >
-          <Edit className="w-4 h-4" />
-          Ciclo actual
-        </button>
+                    <button
+            type="button"
+            onClick={onEditStartDate}
+            className="inline-flex items-center gap-1.5 rounded-full bg-white/50 px-3 py-1.5 text-sm font-medium text-rose-600 backdrop-blur-sm transition-colors focus:outline-none focus:ring-2 focus:ring-rose-300 focus:ring-offset-2 focus:ring-offset-transparent hover:bg-white/70"
+            title="Editar fecha de inicio del ciclo"
+          >
+            <Edit className="w-4 h-4" />
+            {`Ciclo actual`}
+          </button>
+
       </motion.div>
 
       {/* Contenedor principal con flex-grow para usar todo el espacio disponible */}
@@ -885,21 +886,22 @@ const changeOffsetRaf = useCallback((delta) => {
             {/* Contenido central */}
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
               <motion.div
-                className="text-center  backdrop-blur-md rounded-full p-4"
+                className="flex flex-col items-center gap-2"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.2, delay: 0.2, ease: 'easeOut' }}
-                style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}
               >
-                <span className="text-5xl font-bold text-pink-700 block">
-                  {cycleData.currentDay}
-                </span>
-                <span className="text-800 text-pink-700 font-medium mt-0.5 block">
+                <div className="flex items-center justify-center ">
+                  <p className="text-4xl font-semibold text-rose-600 leading-none">
+                    {cycleData.currentDay}
+                  </p>
+                </div>
+                <p className="mt-1 text-[15px] font-medium uppercase tracking-wide text-rose-600">
                   día del ciclo
-                </span>
+                </p>
               </motion.div>
-
             </div>
+
           </motion.div>
 
           {hasOverflow && (
@@ -949,18 +951,14 @@ const changeOffsetRaf = useCallback((delta) => {
           
           {/* Leyenda de colores */}
           <motion.div
-            className="relative bg-gradient-to-br from-pink-50/90 to-rose-50/90 backdrop-blur-md rounded-3xl p-4 border border-pink-200/30"
+            className="relative rounded-3xl bg-white/90 border border-rose-50 shadow-sm p-3 space-y-3"
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.4, delay: 0.5 }}
-            style={{
-              filter: 'drop-shadow(0 8px 25px rgba(236,72,153,0.08))',
-              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.7)'
-            }}
           >
 
-            <h3 className="font-bold mb-4 text-gray-800 flex items-center gap-2 justify-center text-xs tracking-wide uppercase">
-            Símbolos
+            <h3 className="text-[13px] font-semibold text-slate-800 tracking-tight flex items-center gap-2 justify-center uppercase">
+              SÍMBOLOS
             </h3>
             
             {/* Grid de símbolos refinado */}
@@ -999,23 +997,18 @@ const changeOffsetRaf = useCallback((delta) => {
                 </div>       
               ))}
             </div>
-            <div className="absolute top-3 right-4 w-2 h-2 bg-gradient-to-br from-pink-300/40 to-rose-400/40 rounded-full" />
+            <div className="absolute top-3 right-4 w-2 h-2 bg-gradient-to-br from-rose-200/40 to-amber-200/40 rounded-full" />
           </motion.div>
 
           {/* Información del ciclo con diseño tipo card premium */}
           <motion.div
-            className="relative bg-gradient-to-br from-pink-50/70 to-rose-50/50 backdrop-blur-md rounded-3xl p-3 border border-pink-200/40"
+            className="relative rounded-3xl bg-white/90 border border-rose-50 shadow-sm p-3 space-y-2"
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.4, delay: 0.6 }}
-            style={{
-              filter: 'drop-shadow(0 8px 25px rgba(236,72,153,0.1))',
-              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.8)'
-            }}
           >
-            <h3 className="font-bold mb-2 text-gray-800 flex items-center gap-2 justify-center text-[11px] tracking-wide uppercase">
-              
-              Cálculo
+            <h3 className="text-[13px] font-semibold text-slate-800 tracking-tight text-center uppercase">
+              CÁLCULO
             </h3>
             
             <div className="grid grid-cols-2 gap-y-3">
@@ -1083,7 +1076,7 @@ const changeOffsetRaf = useCallback((delta) => {
             </div>
             
             {/* Decoración sutil en la esquina */}
-            <div className="absolute top-3 right-4 w-2 h-2 bg-gradient-to-br from-pink-500/40 to-rose-400/40 rounded-full"/>
+            <div className="absolute top-3 right-4 w-2 h-2 bg-gradient-to-br from-rose-300/40 to-amber-300/40 rounded-full" />
           </motion.div>
         </div>
       </motion.div>
@@ -1100,24 +1093,24 @@ const FloatingActionButton = ({ onAddRecord, onAddCycle }) => {
   <div className="flex flex-col space-y-2 mt-1">
     <motion.button
       onClick={onAddRecord}
-      className="flex items-center gap-1 px-4 h-12 rounded-full bg-gradient-to-br from-pink-500 to-rose-500 text-white shadow-lg"
+      className="flex items-center gap-1 px-4 h-12 rounded-full bg-rose-400 hover:bg-rose-500 text-white shadow-lg shadow-rose-300/50"
       whileTap={{ scale: 0.80 }}
       whileHover={{ scale: 1.05 }}
       initial={{ opacity: 0, y: 20, scale: 0.8 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      style={{ filter: 'drop-shadow(0 6px 12px rgba(236, 72, 153, 0.3))' }}
+      style={{ filter: 'drop-shadow(0 6px 12px rgba(244, 114, 182, 0.28))' }}
     >
       <FilePlus className="h-5 w-5" />
       <span className="text-sm font-medium tracking-tight">Añadir registro</span>
     </motion.button>
     <motion.button
       onClick={onAddCycle}
-      className="flex items-center gap-3 px-4 h-12 rounded-full bg-gradient-to-br from-purple-500 to-indigo-500 text-white shadow-lg"
+      className="flex items-center gap-3 px-4 h-12 rounded-full bg-rose-300 hover:bg-rose-400 text-rose-900 shadow-lg shadow-rose-200/70"
       whileTap={{ scale: 0.95 }}
       whileHover={{ scale: 1.05 }}
       initial={{ opacity: 0, y: 20, scale: 0.8 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      style={{ filter: 'drop-shadow(0 6px 12px rgba(147, 51, 234, 0.3))' }}
+      style={{ filter: 'drop-shadow(0 6px 12px rgba(244, 114, 182, 0.2))' }}
     >
       <CalendarPlus className="h-5 w-5" />
       <span className="text-sm font-medium tracking-tight">Nuevo ciclo</span>
@@ -1129,7 +1122,7 @@ const FloatingActionButton = ({ onAddRecord, onAddCycle }) => {
 
       <motion.button
         onClick={() => setOpen(!open)}
-        className="w-12 h-12 bg-gradient-to-br from-pink-500 to-rose-500 text-white rounded-full shadow-lg flex items-center justify-center"
+        className="flex items-center justify-center rounded-full bg-rose-400 hover:bg-rose-500 text-white shadow-lg shadow-rose-300/50 w-14 h-14 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2"
         whileTap={{ scale: 0.95 }}
         whileHover={{ scale: 1.05 }}
         initial={{ scale: 0 }}
@@ -3571,7 +3564,7 @@ const ModernFertilityDashboard = () => {
   };
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100">
+    <div className="relative flex h-full flex-col overflow-hidden bg-gradient-to-b from-rose-50 via-amber-50/40 to-white">
       <div
   className="pointer-events-none absolute inset-0"
   style={{
@@ -3579,7 +3572,7 @@ const ModernFertilityDashboard = () => {
       'radial-gradient(65% 55% at 50% 32%, rgba(244,114,182,0.18) 0%, rgba(244,114,182,0.12) 35%, rgba(244,114,182,0.06) 60%, rgba(244,114,182,0) 100%)'
   }}
 />
-      <div className="max-w-md mx-auto flex w-full flex-1 flex-col px-4 py-4 bg-white/80 border border-rose-100/70 rounded-3xl shadow-sm">
+      <div className="max-w-md mx-auto w-full flex flex-col px-4 pt-4 pb-10 space-y-4">
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -3606,7 +3599,7 @@ const ModernFertilityDashboard = () => {
               }
             }}
           >
-            <DialogContent className="flex max-h-[90vh] w-[90vw] max-w-sm flex-col rounded-3xl border border-pink-100 bg-white/95 text-gray-800 shadow-xl overflow-hidden p-0">
+            <DialogContent className="flex max-h-[90vh] w-[90vw] max-w-sm flex-col rounded-3xl border border-rose-100 bg-white/95 text-gray-800 shadow-xl overflow-hidden p-0">
                 <DialogHeader className="space-y-2 px-4 pt-4 text-left">
                   <DialogTitle>Editar CPM</DialogTitle>
                   <DialogDescription>
@@ -3959,7 +3952,7 @@ const ModernFertilityDashboard = () => {
               }
             }}
           >
-            <DialogContent className="flex max-h-[90vh] w-[90vw] max-w-sm flex-col rounded-3xl border border-pink-100 bg-white/95 text-gray-800 shadow-xl overflow-hidden p-0">
+            <DialogContent className="flex max-h-[90vh] w-[90vw] max-w-sm flex-col rounded-3xl border border-rose-100 bg-white/95 text-gray-800 shadow-xl overflow-hidden p-0">
                 <DialogHeader className="space-y-2 px-4 pt-4 text-left">
                   <DialogTitle>Editar T-8</DialogTitle>
                   <DialogDescription>
