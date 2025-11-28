@@ -620,7 +620,7 @@ const changeOffsetRaf = useCallback((delta) => {
                 <button
           type="button"
           onClick={onEditStartDate}
-          className="text-sm font-medium text-pink-700 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1.5 inline-flex items-center gap-1.5 transition-colors focus:outline-none focus:ring-2 focus:ring-rose-300 focus:ring-offset-2 focus:ring-offset-transparent hover:bg-white/40"
+          className="text-sm font-medium text-pink-700 backdrop-blur-sm rounded-full px-3 py-1.5 inline-flex items-center gap-1.5 transition-colors focus:outline-none focus:ring-2 focus:ring-rose-300 focus:ring-offset-2 focus:ring-offset-transparent hover:bg-white/40"
           title="Editar fecha de inicio del ciclo"
         >
           <Edit className="w-4 h-4" />
@@ -650,7 +650,7 @@ const changeOffsetRaf = useCallback((delta) => {
             onTouchEnd={handleTouchEnd}
           >
             <svg
-              className="w-full h-full"
+              className="w-full h-full wheel-no-tap"
               viewBox={`0 0 ${viewBoxSize} ${viewBoxSize}`}
               onClick={() => setActivePoint(null)}
             >
@@ -707,22 +707,36 @@ const changeOffsetRaf = useCallback((delta) => {
 {/* Punto principal con sombra real */}
 <g filter={dot.isActive ? 'url(#dotShadow)' : undefined}>
   <motion.circle
-    cx={dot.x}
-    cy={dot.y}
-    r={dot.isToday ? 11 : 10}
-    fill={
-      dot.colors.pattern
-        || (dot.isActive ? dot.colors.main : 'rgba(255,255,255,0.001)')
-    }
-    stroke={dot.colors.border === 'none' ? 'none' : dot.colors.border || 'rgba(158,158,158,0.4)'}
-    strokeWidth={dot.colors.border === 'none' ? 0 : (dot.isToday ? 1.8 : (dot.colors.border ? 0.6 : 0.8))}
-    onClick={(e) => handleDotClick(dot, e)}
-    initial={false}
-    animate={{ scale: 1, opacity: 1 }}
-    whileTap={prefersReducedMotion ? undefined : { scale: 0.9, translateY: 1.5 }}
-    transition={{ duration: 0.15 }}
-    style={{ cursor: 'pointer' }}
-  />
+  cx={dot.x}
+  cy={dot.y}
+  r={dot.isToday ? 11 : 10}
+  fill={
+    dot.colors.pattern
+      || (dot.isActive ? dot.colors.main : 'rgba(255,255,255,0.001)')
+  }
+  stroke={dot.colors.border === 'none'
+    ? 'none'
+    : dot.colors.border || 'rgba(158,158,158,0.4)'}
+  strokeWidth={dot.colors.border === 'none'
+    ? 0
+    : (dot.isToday ? 1.8 : (dot.colors.border ? 0.6 : 0.8))}
+  onClick={(e) => handleDotClick(dot, e)}
+  initial={false}
+  animate={{ scale: 1, opacity: 1, y: 0 }}
+  transition={{ duration: 0.95, ease: 'easeOut' }}   // más rápido
+  whileTap={
+    prefersReducedMotion
+      ? undefined
+      : {
+          y: 2,              // se hunde un pelín
+          scale: 0.75,       // se comprime un poco
+          opacity: 0.95,
+          transition: { duration: 0.08, ease: 'easeOut' },
+        }
+  }
+  style={{ cursor: 'pointer' }}
+/>
+
 </g>
 
 {!prefersReducedMotion && changedDaySet.has(dot.day) && (
@@ -1014,7 +1028,7 @@ const changeOffsetRaf = useCallback((delta) => {
               >
                 <span className="text-[10px] font-medium text-gray-700">Ciclo más corto</span>
                 <div className="h-12 flex items-end">
-                  <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/70 shadow-sm w-12 h-12 text-base font-bold text-rose-700">
+                  <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/70 shadow-sm w-10 h-10 text-base font-bold text-rose-700">
                     {cpmMetric?.baseFormatted ?? '—'}
                   </div>
                 </div>
@@ -1031,7 +1045,7 @@ const changeOffsetRaf = useCallback((delta) => {
                     {cpmMetric?.finalFormatted ?? '—'}
                   </div>
                 </div>
-                <span className="text-[9px] font-semibold text-rose-600 mt-0.5">
+                <span className="text-[9px] font-semibold text-rose-600 mb-0.5">
                   {cpmMetric?.modeLabel ?? 'Auto'}
                 </span>
               </button>
@@ -1045,7 +1059,7 @@ const changeOffsetRaf = useCallback((delta) => {
               >
                 <span className="text-[10px] font-medium text-gray-700">Día de subida</span>
                 <div className="h-12 flex items-end">
-                  <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/70 shadow-sm w-12 h-12 text-base font-bold text-rose-700">
+                  <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/70 shadow-sm w-10 h-10 text-base font-bold text-rose-700">
                     {t8Metric?.baseFormatted ?? '—'}
                   </div>
                 </div>
