@@ -55,6 +55,8 @@ const CycleOverviewCard = ({
   const records = cycleData.records || [];
   const [activePoint, setActivePoint] = useState(null);
   const [tooltipPosition, setTooltipPosition] = useState({ clientX: 0, clientY: 0 });
+  const [isSymbolsOpen, setIsSymbolsOpen] = useState(true);
+  const [isCalcOpen, setIsCalcOpen] = useState(true);
   const [wheelOffset, setWheelOffset] = useState(0);
   const [recentlyChangedDays, setRecentlyChangedDays] = useState([]);
   const hasInitializedWheelRef = useRef(false);
@@ -602,10 +604,11 @@ const changeOffsetRaf = useCallback((delta) => {
   };
 
   return (
-    <div className="relative flex flex-col overflow-hidden rounded-3xl bg-white/90 border border-rose-50 shadow-sm p-4 space-y-3">
+    <div className="relative flex flex-col overflow-hidden rounded-[32px] bg-white/80 border border-rose-50/80 shadow-lg p-4 space-y-4 backdrop-blur-md">
+      <div className="absolute inset-0 bg-gradient-to-b from-rose-50/70 via-white/40 to-white pointer-events-none" />
       {/* Fecha actual - Parte superior con padding reducido */}
       <motion.div
-        className="px-4 pt-4 pb-3 text-center flex-shrink-0"
+        className="relative overflow-hidden rounded-[28px] border border-rose-100/70 bg-gradient-to-r from-rose-50/80 via-white to-amber-50/70 px-4 pt-4 pb-3 text-center flex-shrink-0 shadow-sm"
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
@@ -617,15 +620,15 @@ const changeOffsetRaf = useCallback((delta) => {
             month: 'long'
           })}
         </h1>
-                    <button
-            type="button"
-            onClick={onEditStartDate}
-            className="inline-flex items-center gap-1.5 rounded-full bg-white/50 px-3 py-1.5 text-sm font-medium text-rose-600 backdrop-blur-sm transition-colors focus:outline-none focus:ring-2 focus:ring-rose-300 focus:ring-offset-2 focus:ring-offset-transparent hover:bg-white/70"
-            title="Editar fecha de inicio del ciclo"
-          >
-            <Edit className="w-4 h-4" />
-            {`Ciclo actual`}
-          </button>
+        <button
+          type="button"
+          onClick={onEditStartDate}
+          className="inline-flex items-center gap-1.5 rounded-full bg-white/70 px-3 py-1.5 text-sm font-semibold text-rose-600 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-rose-300 focus:ring-offset-2 focus:ring-offset-transparent hover:bg-white"
+          title="Editar fecha de inicio del ciclo"
+        >
+          <Edit className="w-4 h-4" />
+          {`Ciclo actual`}
+        </button>
 
       </motion.div>
 
@@ -951,129 +954,143 @@ const changeOffsetRaf = useCallback((delta) => {
           
           {/* Leyenda de colores */}
           <motion.div
-            className="relative rounded-3xl bg-white/90 border border-rose-50 shadow-sm p-3 space-y-3"
+            className="relative overflow-hidden rounded-[28px] bg-white/90 border border-rose-50 shadow-md p-3 space-y-3"
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.4, delay: 0.5 }}
           >
 
-            <h3 className="text-[13px] font-semibold text-slate-800 tracking-tight flex items-center gap-2 justify-center uppercase">
-              SÍMBOLOS
-            </h3>
-            
-            {/* Grid de símbolos refinado */}
-            <div className="grid grid-cols-2 gap-2.5">              
-              {[
-                { label: 'Menstrual', color: '#ef4444' },
-                { label: 'Moco (Fértil)', color: '#f8fafc', stroke: '#c2c6cc' },
-                { label: 'Seco', color: '#22c55e' },
-                { label: 'Moco (No fértil)', color: '#facc15', stroke: '#fef08a' },
-                { label: 'Spotting', color: '#ef4444', stroke: '#fee2e2', pattern: true },
-                { label: 'Hoy', isToday: true }
-              ].map(item => (
-                <div key={item.label} className="flex flex-col items-center gap-1.5">
-                  {item.isToday ? (
-                    <div className="relative flex items-center justify-center">
-                      <div className="w-4 h-4 rounded-full border border-rose-400/80 bg-transparent" />
-                      <div className="absolute inset-0 -m-1 rounded-full border-[3px] border-rose-500/80 animate-pulse" />
-                      
-                    </div>
-                  ) : (
-                    <div
-                      className={`w-4 h-4 rounded-full border ${item.pattern ? 'pattern-bg' : ''}`}
-                      style={{
-                        backgroundColor: item.color,
-                        borderColor: item.stroke || 'transparent'
-                      }}
-                    />
-                  )}
-                  <span
-                    className={`text-xs font-medium text-center leading-none ${
-                      item.isToday ? 'text-gray-700 font-semibold' : 'text-gray-700'
-                    }`}
-                  >
-                    {item.label}
-                  </span>
-                </div>       
-              ))}
-            </div>
+            <button
+              type="button"
+              onClick={() => setIsSymbolsOpen((prev) => !prev)}
+              className="group flex w-full items-center justify-between gap-3 rounded-2xl  px-3 py-2 text-left transition"
+            >
+              <span className="text-[13px] font-semibold text-slate-800 tracking-tight uppercase">SÍMBOLOS</span>
+
+            </button>
+
+            {isSymbolsOpen && (
+              <div className="grid grid-cols-2 gap-2.5 rounded-2xl bg-white/60 p-2">
+                {[
+                  { label: 'Menstrual', color: '#ef4444' },
+                  { label: 'Moco (Fértil)', color: '#f8fafc', stroke: '#c2c6cc' },
+                  { label: 'Seco', color: '#22c55e' },
+                  { label: 'Moco (No fértil)', color: '#facc15', stroke: '#fef08a' },
+                  { label: 'Spotting', color: '#ef4444', stroke: '#fee2e2', pattern: true },
+                  { label: 'Hoy', isToday: true }
+                ].map(item => (
+                  <div key={item.label} className="flex flex-col items-center gap-1.5">
+                    {item.isToday ? (
+                      <div className="relative flex items-center justify-center">
+                        <div className="w-5 h-5 rounded-full border border-rose-400/80 bg-transparent" />
+                        <div className="absolute inset-0 -m-1 rounded-full border-[3px] border-rose-500/80 animate-pulse" />
+
+                      </div>
+                    ) : (
+                      <div
+                        className={`w-5 h-5 rounded-full border ${item.pattern ? 'pattern-bg' : ''}`}
+                        style={{
+                          backgroundColor: item.color,
+                          borderColor: item.stroke || 'transparent'
+                        }}
+                      />
+                    )}
+                    <span
+                      className={`text-xs font-medium text-center leading-none ${
+                        item.isToday ? 'text-gray-700 font-semibold' : 'text-gray-700'
+                      }`}
+                    >
+                      {item.label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="absolute top-3 right-4 w-2 h-2 bg-gradient-to-br from-rose-200/40 to-amber-200/40 rounded-full" />
           </motion.div>
 
           {/* Información del ciclo con diseño tipo card premium */}
           <motion.div
-            className="relative rounded-3xl bg-white/90 border border-rose-50 shadow-sm p-3 space-y-2"
+            className="relative overflow-hidden rounded-[28px] bg-white/90 border border-rose-50 shadow-md p-3 space-y-2"
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.4, delay: 0.6 }}
           >
-            <h3 className="text-[13px] font-semibold text-slate-800 tracking-tight text-center uppercase">
-              CÁLCULO
-            </h3>
-            
-            <div className="grid grid-cols-2 gap-y-3">
-              {/* Fila 1 - Ciclo más corto / CPM */}
-              <button
-                type="button"
-                onClick={handleOpenCpmDialog}
-                className="flex flex-col items-center gap-1.5"
-                aria-label="Editar CPM (Ciclo más corto)"
-              >
-                <span className="text-[10px] font-medium text-gray-700">Ciclo más corto</span>
-                <div className="h-12 flex items-end">
-                  <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/70 shadow-sm w-10 h-10 text-base font-bold text-rose-700">
-                    {cpmMetric?.baseFormatted ?? '—'}
+            <button
+              type="button"
+              onClick={() => setIsCalcOpen((prev) => !prev)}
+              className="group flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-2 text-left transition"
+            >
+              <span className="text-[13px] font-semibold text-slate-800 tracking-tight uppercase">CÁLCULO</span>
+
+            </button>
+
+            {isCalcOpen && (
+              <div className="grid grid-cols-2 gap-y-3 rounded-2xl bg-white/60 p-2">
+                {/* Fila 1 - Ciclo más corto / CPM */}
+                <button
+                  type="button"
+                  onClick={handleOpenCpmDialog}
+                  className="flex flex-col items-center gap-1.5"
+                  aria-label="Editar CPM (Ciclo más corto)"
+                >
+                  <span className="text-[10px] font-medium text-gray-700">Ciclo más corto</span>
+                  <div className="h-12 flex items-end">
+                    <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/70 shadow-sm w-12 h-12 text-base font-bold text-rose-700">
+                      {cpmMetric?.baseFormatted ?? '—'}
+                    </div>
                   </div>
-                </div>
-              </button>
-              <button
-                type="button"
-                onClick={handleOpenCpmDialog}
-                className="flex flex-col items-center gap-0.5"
-                aria-label="Editar CPM (resultado)"
-              >
-                <span className="text-[10px] font-medium text-gray-700">CPM</span>
-                <div className="h-12 flex items-end">
-                  <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/80 shadow-sm w-10 h-10 text-sm font-semibold text-rose-700">
-                    {cpmMetric?.finalFormatted ?? '—'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleOpenCpmDialog}
+                  className="flex flex-col items-center gap-0.5"
+                  aria-label="Editar CPM (resultado)"
+                >
+                  <span className="text-[10px] font-medium text-gray-700">CPM</span>
+                  <div className="h-12 flex items-end">
+                    <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/80 shadow-sm w-12 h-12 text-sm font-semibold text-rose-700">
+                      {cpmMetric?.finalFormatted ?? '—'}
+                    </div>
                   </div>
-                </div>
                 <span className="text-[9px] font-semibold text-rose-600 mb-0.5">
-                  {cpmMetric?.modeLabel ?? 'Auto'}
-                </span>
-              </button>
+                    {cpmMetric?.modeLabel ?? 'Auto'}
+                  </span>
+                </button>
 
               {/* Fila 2 - Día de subida / T-8 */}
-              <button
-                type="button"
-                onClick={handleOpenT8Dialog}
-                className="flex flex-col items-center gap-1.5"
-                aria-label="Editar T-8 (Día de subida)"
-              >
-                <span className="text-[10px] font-medium text-gray-700">Día de subida</span>
-                <div className="h-12 flex items-end">
-                  <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/70 shadow-sm w-10 h-10 text-base font-bold text-rose-700">
-                    {t8Metric?.baseFormatted ?? '—'}
+                <button
+                  type="button"
+                  onClick={handleOpenT8Dialog}
+                  className="flex flex-col items-center gap-1.5"
+                  aria-label="Editar T-8 (Día de subida)"
+                >
+                  <span className="text-[10px] font-medium text-gray-700">Día de subida</span>
+                  <div className="h-12 flex items-end">
+                    <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/70 shadow-sm w-12 h-12 text-base font-bold text-rose-700">
+                      {t8Metric?.baseFormatted ?? '—'}
+                    </div>
                   </div>
-                </div>
-              </button>
-              <button
-                type="button"
-                onClick={handleOpenT8Dialog}
-                className="flex flex-col items-center gap-0.5"
-                aria-label="Editar T-8 (resultado)"
-              >
-                <span className="text-[10px] font-medium text-gray-700">T-8</span>
-                <div className="h-12 flex items-end">
-                  <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/80 shadow-sm w-10 h-10 text-sm font-semibold text-rose-700">
-                    {t8Metric?.finalFormatted ?? '—'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleOpenT8Dialog}
+                  className="flex flex-col items-center gap-0.5"
+                  aria-label="Editar T-8 (resultado)"
+                >
+                  <span className="text-[10px] font-medium text-gray-700">T-8</span>
+                  <div className="h-12 flex items-end">
+                    <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/80 shadow-sm w-12 h-12 text-sm font-semibold text-rose-700">
+                      {t8Metric?.finalFormatted ?? '—'}
+                    </div>
                   </div>
-                </div>
-                <span className="text-[9px] font-semibold text-rose-600 mt-0.5">
-                  {t8Metric?.modeLabel ?? 'Auto'}
-                </span>
-              </button>
-            </div>
+                  <span className="text-[9px] font-semibold text-rose-600 mt-0.5">
+                    {t8Metric?.modeLabel ?? 'Auto'}
+                  </span>
+                </button>
+              </div>
+            )}
+
             
             {/* Decoración sutil en la esquina */}
             <div className="absolute top-3 right-4 w-2 h-2 bg-gradient-to-br from-rose-300/40 to-amber-300/40 rounded-full" />
