@@ -602,7 +602,7 @@ const changeOffsetRaf = useCallback((delta) => {
   };
 
   return (
-    <div className="relative flex flex-1 flex-col overflow-y-hidden">
+    <div className="relative flex flex-1 flex-col overflow-y-hidden bg-white/90 rounded-3xl border border-slate-100 shadow-sm p-3">
       {/* Fecha actual - Parte superior con padding reducido */}
       <motion.div
         className="px-4 pt-4 pb-3 text-center flex-shrink-0"
@@ -3400,23 +3400,29 @@ const ModernFertilityDashboard = () => {
 
   if (isLoading && !currentCycle?.id) {
     return (
-      <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100">
-        <p className="text-center text-gray-600 text-lg">Cargando...</p>
+      <div className="min-h-screen bg-gradient-to-b from-rose-50 via-amber-50/40 to-white">
+        <div className="mx-auto flex min-h-screen max-w-md items-center justify-center px-4 py-4">
+          <div className="bg-white/80 border border-rose-100/70 rounded-3xl shadow-sm w-full p-4 text-center">
+            <p className="text-sm font-semibold text-slate-800">Cargando...</p>
+          </div>
+        </div>
       </div>
     );
   }
 
   if (!currentCycle?.id) {
     return (
-      <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100">
-        <div className="text-center space-y-4">
-          <p className="text-gray-600 text-lg">No hay ciclo activo.</p>
-          <button
-            onClick={() => setShowNewCycleDialog(true)}
-            className="px-6 py-3 rounded-lg bg-pink-600 hover:bg-pink-700 text-white shadow"
-          >
-            Iniciar ciclo
-          </button>
+      <div className="min-h-screen bg-gradient-to-b from-rose-50 via-amber-50/40 to-white">
+        <div className="mx-auto flex min-h-screen max-w-md items-center justify-center px-4 py-4">
+          <div className="bg-white/80 border border-rose-100/70 rounded-3xl shadow-sm w-full p-4 text-center space-y-4">
+            <p className="text-[15px] font-semibold text-slate-800">No hay ciclo activo.</p>
+            <button
+              onClick={() => setShowNewCycleDialog(true)}
+              className="h-11 w-full rounded-full bg-rose-400 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-500"
+            >
+              Iniciar ciclo
+            </button>
+          </div>
         </div>
         <NewCycleDialog
           isOpen={showNewCycleDialog}
@@ -3573,13 +3579,13 @@ const ModernFertilityDashboard = () => {
       'radial-gradient(65% 55% at 50% 32%, rgba(244,114,182,0.18) 0%, rgba(244,114,182,0.12) 35%, rgba(244,114,182,0.06) 60%, rgba(244,114,182,0) 100%)'
   }}
 />
-      <div className="max-w-md mx-auto flex w-full flex-1 flex-col">
+      <div className="max-w-md mx-auto flex w-full flex-1 flex-col px-4 py-4 bg-white/80 border border-rose-100/70 rounded-3xl shadow-sm">
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: 20 }}
           transition={{ duration: 0.3 }}
-          className="flex flex-1 flex-col"
+          className="flex flex-1 flex-col gap-3"
         >
           <CycleOverviewCard
             cycleData={{ ...currentCycle, currentDay, records: currentCycle.data }}
