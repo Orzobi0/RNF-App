@@ -244,21 +244,38 @@ const CycleDetailPage = () => {
 
   if ((cycleDataHookIsLoading && !cycleData) || !cycleData) {
     return (
-      <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 px-4 py-8 text-center text-pink-600">
+      <div className="flex h-full flex-col items-center justify-center overflow-hidden bg-[#fff7fb]">
+    <div
+      className="pointer-events-none absolute inset-0"
+      style={{
+        backgroundImage: `
+          radial-gradient(120% 120% at 0% 0%, rgba(251,113,133,0.18) 0, transparent 55%),
+          radial-gradient(110% 110% at 100% 0%, rgba(244,114,182,0.16) 0, transparent 55%),
+          radial-gradient(130% 130% at 0% 100%, rgba(251,113,133,0.08) 0, transparent 60%),
+          radial-gradient(140% 140% at 100% 100%, rgba(255,255,255,0.9) 0, rgba(255,247,250,0.3) 40%, transparent 70%)
+        `,
+        backgroundColor: '#fff7fb'
+      }}
+    />
         <p>Cargando detalles del ciclo...</p>
       </div>
     );
   }
 
   return (
-    <div className="relative flex h-full flex-col bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100">
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            'radial-gradient(65% 55% at 50% 32%, rgba(244,114,182,0.18) 0%, rgba(244,114,182,0.12) 35%, rgba(244,114,182,0.06) 60%, rgba(244,114,182,0) 100%)'
-        }}
-      />
+    <div className="relative flex h-full flex-col overflow-hidden bg-[#fff7fb]">
+    <div
+      className="pointer-events-none absolute inset-0"
+      style={{
+        backgroundImage: `
+          radial-gradient(120% 120% at 0% 0%, rgba(251,113,133,0.18) 0, transparent 55%),
+          radial-gradient(110% 110% at 100% 0%, rgba(244,114,182,0.16) 0, transparent 55%),
+          radial-gradient(130% 130% at 0% 100%, rgba(251,113,133,0.08) 0, transparent 60%),
+          radial-gradient(140% 140% at 100% 100%, rgba(255,255,255,0.9) 0, rgba(255,247,250,0.3) 40%, transparent 70%)
+        `,
+        backgroundColor: '#fff7fb'
+      }}
+    />
       <RecordsExperience
         cycle={cycleData}
         isLoading={cycleDataHookIsLoading}
