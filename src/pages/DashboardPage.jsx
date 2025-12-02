@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
   Plus,
   FilePlus,
@@ -56,7 +56,7 @@ const CycleOverviewCard = ({
   const [activePoint, setActivePoint] = useState(null);
   const [tooltipPosition, setTooltipPosition] = useState({ clientX: 0, clientY: 0 });
   const [isSymbolsOpen, setIsSymbolsOpen] = useState(true);
-  const [isCalcOpen, setIsCalcOpen] = useState(true);
+  const [isCalcOpen, setIsCalcOpen] = useState(false);
   const [wheelOffset, setWheelOffset] = useState(0);
   const [recentlyChangedDays, setRecentlyChangedDays] = useState([]);
   const hasInitializedWheelRef = useRef(false);
@@ -319,7 +319,7 @@ const changeOffsetRaf = useCallback((delta) => {
         };
         case 'yellow':
         return {
-          main: '#eab308',
+          main: '#f1c232',
           light: '#facc15',
           glow: 'rgba(234,179,8,0.32)',
           border: 'rgba(234,179,8,0.32)'
@@ -335,9 +335,9 @@ const changeOffsetRaf = useCallback((delta) => {
       default:
         return {
           main: '#d1d5db',
-          light: '#e5e7eb',
+          light: '#d1d5db',
           glow: 'rgba(209,213,219,0.35)',
-          border: 'none'
+          border: 'd1d5db'
         };
     }
   };
@@ -377,6 +377,16 @@ const changeOffsetRaf = useCallback((delta) => {
     }, new Map());
   }, [records, cycleStartDate]);
 
+const EMPTY_DAY_COLORS = {
+  main: '#b4a9b0',                          // muy claro, liloso
+  light: '#c1b6bd',
+  glow: 'rgba(212, 194, 206, 0.16)',
+  border: '#c1b6bd',
+};
+
+
+
+
   const createProgressDots = () => {
     return Array.from({ length: totalDots }, (_, index) => {
       const day = wheelOffset + index + 1;
@@ -391,7 +401,7 @@ const changeOffsetRaf = useCallback((delta) => {
       
       let colors = day <= cycleData.currentDay && recordWithCycleDay
         ? getSymbolColor(recordWithCycleDay.fertility_symbol)
-        : { main: '#c1abb6', light: '#c8cacf', glow: 'rgba(229, 231, 235, 0.3)' };
+        : EMPTY_DAY_COLORS;
 
       const isToday = day === cycleData.currentDay;
       if (isToday) {
@@ -640,7 +650,7 @@ const changeOffsetRaf = useCallback((delta) => {
       >
         {/* Tarjeta SOLO para el círculo + navegación */}
         
-        <div className="relative overflow-hidden rounded-[40px] bg-[#fff8fb] border border-rose-100/70 shadow-[0_18px_45px_rgba(251,113,133,0.18)] p-4 backdrop-blur-xl mb-4">
+        <div className="relative overflow-hidden rounded-[75px] bg-[#fff8fb] border border-rose-100/70 shadow-[0_18px_45px_rgba(251,113,133,0.18)] p-4 backdrop-blur-md mb-4">
         <div className="pointer-events-none absolute inset-0">
         {/* halo desde arriba como antes */}
         <div className="absolute inset-0 bg-[radial-gradient(120%_160%_at_50%_0%,rgba(251,113,133,0.12),transparent_55%)]" />
@@ -965,7 +975,7 @@ const changeOffsetRaf = useCallback((delta) => {
 </div>
 
         {/* Leyenda e información del ciclo con diseño mejorado */}
-        <div className="grid grid-cols-2 gap-4 mx-2 mb-6 mt-2 flex-shrink-0">
+        <div className="grid grid-cols-2 items-start gap-4 mx-2 mb-6 mt-2 flex-shrink-0">
           
           {/* Leyenda de colores */}
           <motion.div
@@ -977,50 +987,59 @@ const changeOffsetRaf = useCallback((delta) => {
 
             <button
               type="button"
-              onClick={() => setIsSymbolsOpen((prev) => !prev)}
+              onClick={() => setIsSymbolsOpen((previous) => !previous)}
               className="group flex w-full items-center justify-between gap-3 rounded-2xl  px-3 py-2 text-left transition"
             >
               <span className="text-[13px] font-semibold text-slate-800 tracking-tight uppercase">SÍMBOLOS</span>
 
             </button>
 
-            {isSymbolsOpen && (
-              <div className="grid grid-cols-2 gap-2.5 rounded-2xl bg-white/60 p-2">
-                {[
-                  { label: 'Menstrual', color: '#ef4444' },
-                  { label: 'Moco (Fértil)', color: '#f8fafc', stroke: '#c2c6cc' },
-                  { label: 'Seco', color: '#22c55e' },
-                  { label: 'Moco (No fértil)', color: '#facc15', stroke: '#fef08a' },
-                  { label: 'Spotting', color: '#ef4444', stroke: '#fee2e2', pattern: true },
-                  { label: 'Hoy', isToday: true }
-                ].map(item => (
-                  <div key={item.label} className="flex flex-col items-center gap-1.5">
-                    {item.isToday ? (
-                      <div className="relative flex items-center justify-center">
-                        <div className="w-5 h-5 rounded-full border border-rose-400/80 bg-transparent" />
-                        <div className="absolute inset-0 -m-1 rounded-full border-[3px] border-rose-500/80 animate-pulse" />
+            <AnimatePresence initial={false}>
+               {isSymbolsOpen && (
+                <motion.div
+                  key="symbols"
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.25, ease: 'easeInOut' }}
+                  className="grid grid-cols-2 gap-2.5 rounded-2xl bg-white/60 p-2 overflow-hidden"
+                >
+                  {[
+                    { label: 'Menstrual', color: '#ef4444' },
+                    { label: 'Moco (Fértil)', color: '#f8fafc', stroke: '#c2c6cc' },
+                    { label: 'Seco', color: '#22c55e' },
+                    { label: 'Moco (No fértil)', color: '#facc15', stroke: '#fef08a' },
+                    { label: 'Spotting', color: '#ef4444', stroke: '#fee2e2', pattern: true },
+                    { label: 'Hoy', isToday: true }
+                  ].map(item => (
+                    <div key={item.label} className="flex flex-col items-center gap-1.5">
+                      {item.isToday ? (
+                        <div className="relative flex items-center justify-center">
+                          <div className="w-5 h-5 rounded-full border border-rose-400/80 bg-transparent" />
+                          <div className="absolute inset-0 -m-1 rounded-full border-[3px] border-rose-500/80 animate-pulse" />
 
-                      </div>
-                    ) : (
-                      <div
-                        className={`w-5 h-5 rounded-full border ${item.pattern ? 'pattern-bg' : ''}`}
-                        style={{
-                          backgroundColor: item.color,
-                          borderColor: item.stroke || 'transparent'
-                        }}
-                      />
-                    )}
-                    <span
-                      className={`text-xs font-medium text-center leading-none ${
-                        item.isToday ? 'text-gray-700 font-semibold' : 'text-gray-700'
-                      }`}
-                    >
-                      {item.label}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
+                        </div>
+                      ) : (
+                        <div
+                          className={`w-5 h-5 rounded-full border ${item.pattern ? 'pattern-bg' : ''}`}
+                          style={{
+                            backgroundColor: item.color,
+                            borderColor: item.stroke || 'transparent'
+                          }}
+                        />
+                      )}
+                      <span
+                        className={`text-xs font-medium text-center leading-none ${
+                          item.isToday ? 'text-gray-700 font-semibold' : 'text-gray-700'
+                        }`}
+                      >
+                        {item.label}
+                      </span>
+                    </div>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
             <div className="absolute top-3 right-4 w-2 h-2 bg-gradient-to-br from-rose-200/40 to-amber-200/40 rounded-full" />
           </motion.div>
 
@@ -1033,78 +1052,87 @@ const changeOffsetRaf = useCallback((delta) => {
           >
             <button
               type="button"
-              onClick={() => setIsCalcOpen((prev) => !prev)}
+              onClick={() => setIsCalcOpen((previous) => !previous)}
               className="group flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-2 text-left transition"
             >
               <span className="text-[13px] font-semibold text-slate-800 tracking-tight uppercase">CÁLCULO</span>
 
             </button>
 
-            {isCalcOpen && (
-              <div className="grid grid-cols-2 gap-y-3 rounded-2xl bg-white/60 p-2">
-                {/* Fila 1 - Ciclo más corto / CPM */}
-                <button
-                  type="button"
-                  onClick={handleOpenCpmDialog}
-                  className="flex flex-col items-center gap-1.5"
-                  aria-label="Editar CPM (Ciclo más corto)"
+            <AnimatePresence initial={false}>
+              {isCalcOpen && (
+                <motion.div
+                  key="calc-card"
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.25, ease: 'easeInOut' }}
+                  className="grid grid-cols-2 gap-y-3 rounded-2xl bg-white/60 p-2 overflow-hidden"
                 >
-                  <span className="text-[10px] font-medium text-gray-700">Ciclo más corto</span>
-                  <div className="h-12 flex items-end">
-                    <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/70 shadow-sm w-12 h-12 text-base font-bold text-rose-700">
-                      {cpmMetric?.baseFormatted ?? '—'}
+                  {/* Fila 1 - Ciclo más corto / CPM */}
+                  <button
+                    type="button"
+                    onClick={handleOpenCpmDialog}
+                    className="flex flex-col items-center gap-1.5"
+                    aria-label="Editar CPM (Ciclo más corto)"
+                  >
+                    <span className="text-[10px] font-medium text-gray-700">Ciclo más corto</span>
+                    <div className="h-12 flex items-end">
+                      <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/70 shadow-sm w-12 h-12 text-base font-bold text-rose-700">
+                        {cpmMetric?.baseFormatted ?? '—'}
+                      </div>
                     </div>
-                  </div>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleOpenCpmDialog}
-                  className="flex flex-col items-center gap-0.5"
-                  aria-label="Editar CPM (resultado)"
-                >
-                  <span className="text-[10px] font-medium text-gray-700">CPM</span>
-                  <div className="h-12 flex items-end">
-                    <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/80 shadow-sm w-12 h-12 text-sm font-semibold text-rose-700">
-                      {cpmMetric?.finalFormatted ?? '—'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleOpenCpmDialog}
+                    className="flex flex-col items-center gap-0.5"
+                    aria-label="Editar CPM (resultado)"
+                  >
+                    <span className="text-[10px] font-medium text-gray-700">CPM</span>
+                    <div className="h-12 flex items-end">
+                      <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/80 shadow-sm w-12 h-12 text-sm font-semibold text-rose-700">
+                        {cpmMetric?.finalFormatted ?? '—'}
+                      </div>
                     </div>
-                  </div>
-                <span className="text-[9px] font-semibold text-rose-600 mb-0.5">
-                    {cpmMetric?.modeLabel ?? 'Auto'}
-                  </span>
-                </button>
+                    <span className="text-[9px] font-semibold text-rose-600 mt-0.5">
+                      {cpmMetric?.modeLabel ?? 'Auto'}
+                    </span>
+                  </button>
 
-              {/* Fila 2 - Día de subida / T-8 */}
-                <button
-                  type="button"
-                  onClick={handleOpenT8Dialog}
-                  className="flex flex-col items-center gap-1.5"
-                  aria-label="Editar T-8 (Día de subida)"
-                >
-                  <span className="text-[10px] font-medium text-gray-700">Día de subida</span>
-                  <div className="h-12 flex items-end">
-                    <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/70 shadow-sm w-12 h-12 text-base font-bold text-rose-700">
-                      {t8Metric?.baseFormatted ?? '—'}
+                  {/* Fila 2 - Día de subida / T-8 */}
+                  <button
+                    type="button"
+                    onClick={handleOpenT8Dialog}
+                    className="flex flex-col items-center gap-1.5"
+                    aria-label="Editar T-8 (Día de subida)"
+                  >
+                    <span className="text-[10px] font-medium text-gray-700">Día de subida</span>
+                    <div className="h-12 flex items-end">
+                      <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/70 shadow-sm w-12 h-12 text-base font-bold text-rose-700">
+                        {t8Metric?.baseFormatted ?? '—'}
+                      </div>
                     </div>
-                  </div>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleOpenT8Dialog}
-                  className="flex flex-col items-center gap-0.5"
-                  aria-label="Editar T-8 (resultado)"
-                >
-                  <span className="text-[10px] font-medium text-gray-700">T-8</span>
-                  <div className="h-12 flex items-end">
-                    <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/80 shadow-sm w-12 h-12 text-sm font-semibold text-rose-700">
-                      {t8Metric?.finalFormatted ?? '—'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleOpenT8Dialog}
+                    className="flex flex-col items-center gap-0.5"
+                    aria-label="Editar T-8 (resultado)"
+                  >
+                    <span className="text-[10px] font-medium text-gray-700">T-8</span>
+                    <div className="h-12 flex items-end">
+                      <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/80 shadow-sm w-12 h-12 text-sm font-semibold text-rose-700">
+                        {t8Metric?.finalFormatted ?? '—'}
+                      </div>
                     </div>
-                  </div>
-                  <span className="text-[9px] font-semibold text-rose-600 mt-0.5">
-                    {t8Metric?.modeLabel ?? 'Auto'}
-                  </span>
-                </button>
-              </div>
-            )}
+                    <span className="text-[9px] font-semibold text-rose-600 mt-0.5">
+                      {t8Metric?.modeLabel ?? 'Auto'}
+                    </span>
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             
             {/* Decoración sutil en la esquina */}
