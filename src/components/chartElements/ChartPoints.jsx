@@ -6,6 +6,10 @@ import { getSymbolAppearance, getSymbolColorPalette } from '@/config/fertilitySy
 const SENSATION_COLOR = '#1565C0';
 const APPEARANCE_COLOR = '#2E7D32';
 const OBSERVATION_COLOR = '#6A1B9A';
+const HEART_COLOR = '#be123c';
+
+const BACKGROUND_COLOR = 'rgba(252, 231, 243, 0.40)';
+const BORDER_COLOR = 'rgba(244, 114, 182, 0.08)';
 
 const ROW_BACKGROUND_FILL_SOFT_sens = '#EFF6FF';
 const ROW_BACKGROUND_FILL_SOFT_apa = '#ECFDF5';
@@ -96,6 +100,7 @@ const ChartPoints = ({
   graphBottomLift = 0,
   graphBottomY,
   rowsZoneHeight,
+  showRelationsRow = false,
 }) => {
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -125,10 +130,14 @@ const ChartPoints = ({
   const rowsTopY = graphBottomY; // el “techo” de las filas es justo donde acaba la gráfica
   const obsRowIndex = isFullScreen ? 9 : 7.5;
   const halfBlock = isFullScreen ? 1 : 0.75;
+  const relationsRowIndex = showRelationsRow
+    ? obsRowIndex + (isFullScreen ? 2 : 1.5)
+    : null;
+  const lastRowIndex = relationsRowIndex ?? obsRowIndex;
   // altura ideal para que Observ. siga tocando el borde inferior
   const autoRowH = Math.max(
     1,
-    Math.floor(rowsZoneHeight / (obsRowIndex + halfBlock))
+    Math.floor(rowsZoneHeight / (lastRowIndex + halfBlock))
   );
   // no reducimos por debajo del tamaño base (legibilidad), pero sí estiramos
   const rowH = Math.max(textRowHeight, autoRowH);
@@ -139,9 +148,11 @@ const ChartPoints = ({
   const mucusSensationRowY = rowsTopY + rowH * (isFullScreen ? 5 : 4.5);
   const mucusAppearanceRowY = rowsTopY + rowH * (isFullScreen ? 7 : 6);
   const observationsRowY = rowsTopY + rowH * (isFullScreen ? 9 : 7.5);
+  const relationsRowY = relationsRowIndex != null ? rowsTopY + rowH * relationsRowIndex : null;
 
   const rowWidth = chartWidth - padding.left - padding.right;
   const rowBlockHeight = rowH * (isFullScreen ? 2 : 1.5);
+  const relationsHeartSize = Math.min(Math.max(rowBlockHeight * 0.46, 14), 15);
 
   const MotionG = reduceMotion ? 'g' : motion.g;
 
@@ -290,6 +301,19 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
       rx={3}
       style={{ filter: 'drop-shadow(0 1px 1px rgba(139, 92, 246, 0.03))' }}
     />
+    {showRelationsRow && relationsRowY != null && (
+      <rect
+        x={padding.left}
+        y={relationsRowY - rowBlockHeight / 2}
+        width={rowWidth}
+        height={rowBlockHeight}
+        fill={BACKGROUND_COLOR}
+        stroke={BORDER_COLOR}
+        strokeWidth={0.5}
+        rx={3}
+        style={{ filter: 'drop-shadow(0 1px 1px rgba(244, 114, 182, 0.03))' }}
+      />
+    )}
   </g>
 )}
 
@@ -303,6 +327,9 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
             { label: 'Sens.', row: isFullScreen ? 5 : 4.5, color: SENSATION_COLOR },
             { label: 'Apar.', row: isFullScreen ? 7 : 6, color: APPEARANCE_COLOR },
             { label: 'Observ.', row: isFullScreen ? 9 : 7.5, color: OBSERVATION_COLOR },
+            ...(showRelationsRow && relationsRowIndex != null
+              ? [{ label: 'RS', row: relationsRowIndex, color: HEART_COLOR }]
+              : []),
           ].map(({ label, row, color }) => (
             <text
               key={label}
@@ -322,6 +349,24 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
           ))}
         </motion.g>
       )}
+
+    {/* Etiqueta RS en modos sin leyenda expandida */}
+          {showRelationsRow && relationsRowY != null && !(isFullScreen && orientation !== 'portrait') && (
+            <text
+              x={padding.left - responsiveFontSize(0.5)}
+              y={relationsRowY}
+              textAnchor="end"
+              fontSize={responsiveFontSize(1.05)}
+              fontWeight="800"
+              fill={HEART_COLOR}
+              style={{
+                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                filter: 'drop-shadow(0 1px 2px rgba(255, 255, 255, 0.9))',
+              }}
+            >
+              RS
+            </text>
+          )}
 
       {data.map((point, index) => {
         const x = getX(index);
@@ -753,6 +798,20 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
               <tspan x={x} dy={0}>{obsLine1}</tspan>
               {obsLine2 && <tspan x={x} dy={responsiveFontSize(1.1)}>{obsLine2}</tspan>}
             </text>
+            )}
+
+            {showRelationsRow && relationsRowY != null && (
+              <text
+                x={x}
+                y={relationsRowY}
+                textAnchor="middle"
+                fontSize={relationsHeartSize}
+                fontWeight="700"
+                fill={hasRelations ? HEART_COLOR : 'transparent'}
+                aria-label={hasRelations ? `Relación registrada el ${point.isoDate || `día ${index + 1}`}` : undefined}
+              >
+                {hasRelations ? '❤' : ''}
+              </text>
             )}
 
           </MotionG>

@@ -321,7 +321,8 @@ export const useFertilityChart = (
   forceLandscape = false,
   fertilityStartConfig = null,
   calculatorCycles = [],
-  externalCalculatorCandidates = null
+  externalCalculatorCandidates = null,
+  showRelationsRow = false
 ) => {
       const chartRef = useRef(null);
       const tooltipRef = useRef(null);
@@ -812,12 +813,13 @@ export const useFertilityChart = (
       // en orientación vertical.
       const textRowHeight = Math.round(responsiveFontSize(isFullScreen ? 1.6 : 2));
       const isLandscapeVisual = forceLandscape || orientation === 'landscape';
-      // Cálculo exacto para que la fila de Observ. "bese" el borde inferior del SVG.
+      // Cálculo exacto para que la fila inferior "bese" el borde inferior del SVG.
       // Observaciones está en rowIndex = 9 (fullscreen) o 7.5 (no fullscreen).
       // rowBlockHeight/2 equivale a 1 (fullscreen) o 0.75 (no fullscreen).
       const obsRowIndex = isFullScreen ? 9 : 7.5;
+      const relationsRowIndex = obsRowIndex + (showRelationsRow ? (isFullScreen ? 2 : 1.5) : 0);
       const halfBlock = isFullScreen ? 1 : 0.75;
-      const bottomRowsExact = Math.round(textRowHeight * (obsRowIndex + halfBlock));
+      const bottomRowsExact = Math.round(textRowHeight * (relationsRowIndex + halfBlock));
 
         const padding = { 
         top: isFullScreen

@@ -6,7 +6,6 @@ import ChartPoints from '@/components/chartElements/ChartPoints';
 import ChartTooltip from '@/components/chartElements/ChartTooltip';
 import ChartLeftLegend from '@/components/chartElements/ChartLeftLegend';
 import { useFertilityChart } from '@/hooks/useFertilityChart';
-import RelationsRow from '@/components/chartElements/RelationsRow';
 
 const FertilityChart = ({
   data,
@@ -70,7 +69,8 @@ const FertilityChart = ({
     forceLandscape,
     fertilityStartConfig,
     fertilityCalculatorCycles,
-    fertilityCalculatorCandidates
+    fertilityCalculatorCandidates,
+    showRelationsRow
   );
   const uniqueIdRef = useRef(null);
   if (!uniqueIdRef.current) {
@@ -1064,22 +1064,11 @@ const hasPostPhase = Number.isFinite(postOvulatoryPhaseInfo?.startIndex);
             firstHighIndex={firstHighIndex}
             baselineIndices={baselineIndices}
             graphBottomLift={graphBottomInset}
+            showRelationsRow={showRelationsRow}
           />
 
         </motion.svg>
         </div>
-
-        {showRelationsRow && (
-          <RelationsRow
-            allDataPoints={allDataPoints}
-            getX={getX}
-            padding={padding}
-            chartWidth={chartWidth}
-            textRowHeight={textRowHeight}
-            isFullScreen={isFullScreen}
-            responsiveFontSize={responsiveFontSize}
-          />
-        )}
 
         {/* Tooltip mejorado */}
         {activePoint && (
