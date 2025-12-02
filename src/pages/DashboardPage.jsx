@@ -1005,10 +1005,10 @@ const EMPTY_DAY_COLORS = {
                   className="grid grid-cols-2 gap-2.5 rounded-2xl bg-white/60 p-2 overflow-hidden"
                 >
                   {[
-                    { label: 'Menstrual', color: '#ef4444' },
-                    { label: 'Moco (Fértil)', color: '#f8fafc', stroke: '#c2c6cc' },
+                    { label: 'Menstrual', color: '#fb7185' },
+                    { label: 'Moco (Fértil)', color: '#fcebf1', stroke: '#ffcfd6' },
                     { label: 'Seco', color: '#22c55e' },
-                    { label: 'Moco (No fértil)', color: '#facc15', stroke: '#fef08a' },
+                    { label: 'Moco (No fértil)', color: '#f1c232', stroke: '#fef08a' },
                     { label: 'Spotting', color: '#ef4444', stroke: '#fee2e2', pattern: true },
                     { label: 'Hoy', isToday: true }
                   ].map(item => (
