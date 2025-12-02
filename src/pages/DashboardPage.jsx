@@ -298,45 +298,45 @@ const changeOffsetRaf = useCallback((delta) => {
     switch (symbolValue) {
       case 'red':
         return {
-          main: '#ef4444',
-          light: '#fee2e2',
-          glow: 'rgba(239, 68, 68, 0.3)',
+          main: '#fb7185',
+          light: '#fecdd3',
+          glow: 'rgba(251,113,133,0.35)',
           border: 'none'
         };
       case 'white':
         return {
-          main: '#f8fafc',
-          light: '#ffe4e6',
-          glow: 'rgba(248, 250, 252, 0.3)',
-          border: 'none'
+          main: '#fcebf1',
+          light: '#ffe4f0',
+          glow: 'rgba(251,113,133,0.22)',
+          border: 'rgba(251,113,133,0.22)'
         };
       case 'green':
         return {
           main: '#22c55e',
-          light: '#22c55e',
-          glow: 'rgba(34, 197, 94, 0.3)',
-          border: 'none'
+          light: '#bbf7d0',
+          glow: 'rgba(22,163,74,0.32)',
+          border: 'rgba(22,163,74,0.32)'
         };
         case 'yellow':
         return {
-          main: '#facc15',
-          light: '#fef08a',
-          glow: 'rgba(250, 204, 21, 0.3)',
-          border: 'none'
+          main: '#eab308',
+          light: '#facc15',
+          glow: 'rgba(234,179,8,0.32)',
+          border: 'rgba(234,179,8,0.32)'
         };
       case 'spot':
         return {
-          main: '#ef4444',
-          light: '#ef4444',
-          glow: 'rgba(239, 68, 68, 0.3)',
+          main: '#fb7185',
+          light: '#fecdd3',
+          glow: 'rgba(248,113,113,0.45)',
           border: '#fee2e2',
           pattern: 'url(#spotting-pattern-dashboard)'
         };
       default:
         return {
           main: '#d1d5db',
-          light: '#f8fafc',
-          glow: 'rgba(209, 213, 219, 0.3)',
+          light: '#e5e7eb',
+          glow: 'rgba(209,213,219,0.35)',
           border: 'none'
         };
     }
@@ -604,16 +604,15 @@ const changeOffsetRaf = useCallback((delta) => {
   };
 
   return (
-    <div className="relative flex flex-col overflow-hidden rounded-[32px] bg-white/80 border border-rose-50/80 shadow-lg p-4 space-y-4 backdrop-blur-md">
-      <div className="absolute inset-0 bg-gradient-to-b from-rose-50/70 via-white/40 to-white pointer-events-none" />
+    <div className="relative flex flex-col space-y-4">
       {/* Fecha actual - Parte superior con padding reducido */}
       <motion.div
-        className="relative overflow-hidden rounded-[28px] border border-rose-100/70 bg-gradient-to-r from-rose-50/80 via-white to-amber-50/70 px-4 pt-4 pb-3 text-center flex-shrink-0 shadow-sm"
+        className="relative overflow-hidden px-4 pt-4 pb-3 text-center flex-shrink-0"
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
       >
-        <h1 className="text-xl font-bold text-gray-800 mb-1">
+        <h1 className="text-xl font-bold text-rose-900 mb-1">
           {new Date().toLocaleDateString('es-ES', {
             weekday: 'long',
             day: 'numeric',
@@ -623,7 +622,7 @@ const changeOffsetRaf = useCallback((delta) => {
         <button
           type="button"
           onClick={onEditStartDate}
-          className="inline-flex items-center gap-1.5 rounded-full bg-white/70 px-3 py-1.5 text-sm font-semibold text-rose-600 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-rose-300 focus:ring-offset-2 focus:ring-offset-transparent hover:bg-white"
+          className="inline-flex items-center gap-1.5 rounded-full bg-white/70 px-3 py-1.5 text-sm font-semibold text-rose-700 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-rose-300 focus:ring-offset-2 focus:ring-offset-transparent hover:bg-white"
           title="Editar fecha de inicio del ciclo"
         >
           <Edit className="w-4 h-4" />
@@ -634,13 +633,23 @@ const changeOffsetRaf = useCallback((delta) => {
 
       {/* Contenedor principal con flex-grow para usar todo el espacio disponible */}
         <motion.div
-          className="px-4 flex-grow flex flex-col justify-start mt-2"
+        className="px-4 flex-grow flex flex-col justify-start mt-2"
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.4, delay: 0.1 }}
       >
-        {/* Círculo de progreso redimensionado */}
-        <div className="text-center mb-3 flex-shrink-0">
+        {/* Tarjeta SOLO para el círculo + navegación */}
+        
+        <div className="relative overflow-hidden rounded-[40px] bg-[#fff8fb] border border-rose-100/70 shadow-[0_18px_45px_rgba(251,113,133,0.18)] p-4 backdrop-blur-xl mb-4">
+        <div className="pointer-events-none absolute inset-0">
+        {/* halo desde arriba como antes */}
+        <div className="absolute inset-0 bg-[radial-gradient(120%_160%_at_50%_0%,rgba(251,113,133,0.12),transparent_55%)]" />
+        {/* degradado sutil desde abajo para que no quede plano-blanco */}
+        <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-rose-50/90 via-rose-50/40 to-transparent" />
+        </div>
+        <div className="relative text-center flex-shrink-0">
+          {/* Círculo de progreso redimensionado */}
+          <div className="mb-3">
           <motion.div
             ref={circleRef}
             className="relative inline-flex items-center justify-center mb-4"
@@ -663,15 +672,18 @@ const changeOffsetRaf = useCallback((delta) => {
                   <rect width="6" height="6" fill="#ef4444" />
                   <circle cx="3" cy="3" r="1.5" fill="rgba(255,255,255,0.85)" />
                 </pattern>
-                <radialGradient id="ringGlow" cx="50%" cy="50%" r="50%">
-                <stop offset="0%" stopColor="rgba(255,255,255,0.0)" />
-                <stop offset="60%" stopColor="rgba(244,114,182,0.12)" />
-                <stop offset="100%" stopColor="rgba(190,24,93,0.10)" />
+                <radialGradient id="ringGlow" cx="50%" cy="50%" r="60%">
+                  {/* centro rosa muy clarito, no blanco puro */}
+                  <stop offset="0%"  stopColor="rgba(255,236,240,0.98)" />
+                  {/* mantenemos ese tono casi hasta el borde interior */}
+                  <stop offset="5%" stopColor="rgba(255,236,240,0.95)" />
+                  {/* borde con rosa palo derivado de rose-400/80 */}
+                  <stop offset="100%" stopColor="rgba(251,113,133,0.22)" /> {/* rose-400 ~22% */}
                 </radialGradient>
-              </defs>
-              <filter id="dotShadow" x="-30%" y="-30%" width="160%" height="160%" colorInterpolationFilters="sRGB">
-  <feDropShadow dx="0" dy="0.8" stdDeviation="0.8" floodColor="#000" floodOpacity="0.22" />
-</filter>
+                  </defs>
+                  <filter id="dotShadow" x="-30%" y="-30%" width="160%" height="160%" colorInterpolationFilters="sRGB">
+                <feDropShadow dx="0" dy="0.8" stdDeviation="0.8" floodColor="#000" floodOpacity="0.22" />
+              </filter>
 
               {/* Círculo base sutil */}
               <circle
@@ -679,8 +691,8 @@ const changeOffsetRaf = useCallback((delta) => {
                 cy={center}
                 r={radius - 30}
                 fill="url(#ringGlow)"
-                stroke="rgba(255,255,255,0.35)"
-                strokeWidth="0.5"
+                stroke="rgba(255,255,255,0.55)"
+                strokeWidth="0.8"
               />
               {hasOverflow && (
                 <line
@@ -895,17 +907,18 @@ const changeOffsetRaf = useCallback((delta) => {
                 transition={{ duration: 0.2, delay: 0.2, ease: 'easeOut' }}
               >
                 <div className="flex items-center justify-center ">
-                  <p className="text-4xl font-semibold text-rose-600 leading-none">
+                  <p className="text-6xl font-semibold text-rose-700 leading-none">
                     {cycleData.currentDay}
                   </p>
                 </div>
-                <p className="mt-1 text-[15px] font-medium uppercase tracking-wide text-rose-600">
+                <p className="mt-1 text-[15px] font-medium uppercase tracking-wide text-rose-700">
                   día del ciclo
                 </p>
               </motion.div>
             </div>
 
           </motion.div>
+          
 
           {hasOverflow && (
             <div className="flex items-center justify-center gap-3">
@@ -945,16 +958,18 @@ const changeOffsetRaf = useCallback((delta) => {
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
-            </div>
-          )}
         </div>
+      )}
+    </div>
+  </div>
+</div>
 
         {/* Leyenda e información del ciclo con diseño mejorado */}
         <div className="grid grid-cols-2 gap-4 mx-2 mb-6 mt-2 flex-shrink-0">
           
           {/* Leyenda de colores */}
           <motion.div
-            className="relative overflow-hidden rounded-[28px] bg-white/90 border border-rose-50 shadow-md p-3 space-y-3"
+            className="relative overflow-hidden rounded-[28px] bg-white/75 border border-rose-100/80 shadow-[0_14px_35px_rgba(148,163,184,0.18)] backdrop-blur-md p-3 space-y-3"
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.4, delay: 0.5 }}
@@ -1011,7 +1026,7 @@ const changeOffsetRaf = useCallback((delta) => {
 
           {/* Información del ciclo con diseño tipo card premium */}
           <motion.div
-            className="relative overflow-hidden rounded-[28px] bg-white/90 border border-rose-50 shadow-md p-3 space-y-2"
+            className="relative overflow-hidden rounded-[28px] bg-white/75 border border-rose-100/80 shadow-[0_14px_35px_rgba(148,163,184,0.18)] backdrop-blur-md p-3 space-y-2"
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.4, delay: 0.6 }}
@@ -1110,7 +1125,7 @@ const FloatingActionButton = ({ onAddRecord, onAddCycle }) => {
   <div className="flex flex-col space-y-2 mt-1">
     <motion.button
       onClick={onAddRecord}
-      className="flex items-center gap-1 px-4 h-12 rounded-full bg-rose-400 hover:bg-rose-500 text-white shadow-lg shadow-rose-300/50"
+      className="flex items-center gap-1 px-4 h-12 rounded-full bg-rose-400/80 hover:bg-rose-500 text-white/90 shadow-lg shadow-rose-300/50"
       whileTap={{ scale: 0.80 }}
       whileHover={{ scale: 1.05 }}
       initial={{ opacity: 0, y: 20, scale: 0.8 }}
@@ -1122,7 +1137,7 @@ const FloatingActionButton = ({ onAddRecord, onAddCycle }) => {
     </motion.button>
     <motion.button
       onClick={onAddCycle}
-      className="flex items-center gap-3 px-4 h-12 rounded-full bg-rose-300 hover:bg-rose-400 text-rose-900 shadow-lg shadow-rose-200/70"
+      className="flex items-center gap-3 px-4 h-12 rounded-full bg-white/80 hover:bg-rose-300 text-rose-500/80 shadow-lg shadow-rose-200/70"
       whileTap={{ scale: 0.95 }}
       whileHover={{ scale: 1.05 }}
       initial={{ opacity: 0, y: 20, scale: 0.8 }}
@@ -1139,7 +1154,7 @@ const FloatingActionButton = ({ onAddRecord, onAddCycle }) => {
 
       <motion.button
         onClick={() => setOpen(!open)}
-        className="flex items-center justify-center rounded-full bg-rose-400 hover:bg-rose-500 text-white shadow-lg shadow-rose-300/50 w-14 h-14 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2"
+        className="flex items-center justify-center rounded-full bg-rose-400/80 hover:bg-rose-500 text-white shadow-lg shadow-rose-300/50 w-14 h-14 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2"
         whileTap={{ scale: 0.95 }}
         whileHover={{ scale: 1.05 }}
         initial={{ scale: 0 }}
@@ -3581,14 +3596,19 @@ const ModernFertilityDashboard = () => {
   };
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden bg-gradient-to-b from-rose-50 via-amber-50/40 to-white">
-      <div
-  className="pointer-events-none absolute inset-0"
-  style={{
-    background:
-      'radial-gradient(65% 55% at 50% 32%, rgba(244,114,182,0.18) 0%, rgba(244,114,182,0.12) 35%, rgba(244,114,182,0.06) 60%, rgba(244,114,182,0) 100%)'
-  }}
-/>
+    <div className="relative flex h-full flex-col overflow-hidden bg-[#fff7fb]">
+    <div
+      className="pointer-events-none absolute inset-0"
+      style={{
+        backgroundImage: `
+          radial-gradient(120% 120% at 0% 0%, rgba(251,113,133,0.18) 0, transparent 55%),
+          radial-gradient(110% 110% at 100% 0%, rgba(244,114,182,0.16) 0, transparent 55%),
+          radial-gradient(130% 130% at 0% 100%, rgba(251,113,133,0.08) 0, transparent 60%),
+          radial-gradient(140% 140% at 100% 100%, rgba(255,255,255,0.9) 0, rgba(255,247,250,0.3) 40%, transparent 70%)
+        `,
+        backgroundColor: '#fff7fb'
+      }}
+    />
       <div className="max-w-md mx-auto w-full flex flex-col px-4 pt-4 pb-10 space-y-4">
         <motion.div
           initial={{ opacity: 0, x: -20 }}
