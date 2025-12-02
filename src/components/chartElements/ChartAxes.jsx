@@ -56,10 +56,11 @@ const ChartAxes = ({
         </linearGradient>
         {/* AÑADE ESTE NUEVO GRADIENTE */}
 <linearGradient id="dataZoneGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-  <stop offset="0%" stopColor="rgba(255, 255, 255, 0.6)" />
-  <stop offset="20%" stopColor="rgba(255, 250, 252, 0.75)" />
-  <stop offset="100%" stopColor="rgba(254, 242, 244, 0.85)" />
+  <stop offset="0%"   stopColor="#fff7fb" />
+  <stop offset="35%"  stopColor="#ffe4f0" />
+  <stop offset="100%" stopColor="#fecdd3" />
 </linearGradient>
+
         <linearGradient id="tempLineGradientChart" x1="0%" y1="0%" x2="100%" y2="0%">
           <stop offset="0%" stopColor="#f472b6" />
           <stop offset="30%" stopColor="#ec4899" />

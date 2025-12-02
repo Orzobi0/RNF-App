@@ -40,6 +40,7 @@ import { computeOvulationMetrics, useFertilityChart } from '@/hooks/useFertility
 import { saveUserMetricsSnapshot } from '@/lib/userMetrics';
 import { MANUAL_CPM_DEDUCTION, buildCpmMetric } from '@/lib/metrics/cpm';
 import { buildT8Metric } from '@/lib/metrics/t8';
+import { getSymbolColorPalette } from '@/config/fertilitySymbols';
 
 const CycleOverviewCard = ({
   cycleData,
@@ -294,53 +295,13 @@ const changeOffsetRaf = useCallback((delta) => {
   }, []);
 
   // Colores suaves con mejor contraste
-  const getSymbolColor = (symbolValue) => {
-    switch (symbolValue) {
-      case 'red':
-        return {
-          main: '#fb7185',
-          light: '#fecdd3',
-          glow: 'rgba(251,113,133,0.35)',
-          border: 'none'
-        };
-      case 'white':
-        return {
-          main: '#fcebf1',
-          light: '#ffe4f0',
-          glow: 'rgba(251,113,133,0.22)',
-          border: 'rgba(251,113,133,0.22)'
-        };
-      case 'green':
-        return {
-          main: '#22c55e',
-          light: '#bbf7d0',
-          glow: 'rgba(22,163,74,0.32)',
-          border: 'rgba(22,163,74,0.32)'
-        };
-        case 'yellow':
-        return {
-          main: '#f1c232',
-          light: '#facc15',
-          glow: 'rgba(234,179,8,0.32)',
-          border: 'rgba(234,179,8,0.32)'
-        };
-      case 'spot':
-        return {
-          main: '#fb7185',
-          light: '#fecdd3',
-          glow: 'rgba(248,113,113,0.45)',
-          border: '#fee2e2',
-          pattern: 'url(#spotting-pattern-dashboard)'
-        };
-      default:
-        return {
-          main: '#d1d5db',
-          light: '#d1d5db',
-          glow: 'rgba(209,213,219,0.35)',
-          border: 'd1d5db'
-        };
-    }
-  };
+  const getSymbolColor = useCallback(
+    (symbolValue) => ({
+      ...getSymbolColorPalette(symbolValue),
+      ...(symbolValue === 'spot' ? { pattern: 'url(#spotting-pattern-dashboard)' } : {})
+    }),
+    []
+  );
 
   // Crear puntos individuales en lugar de segmentos
   const recordsByDay = useMemo(() => {
