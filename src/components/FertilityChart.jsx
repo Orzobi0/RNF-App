@@ -749,6 +749,7 @@ const hasPostPhase = Number.isFinite(postOvulatoryPhaseInfo?.startIndex);
                     isFullScreen={isFullScreen}
                     graphBottomY={graphBottomY}
                     rowsZoneHeight={rowsZoneHeight}
+                    showRelationsRow={showRelationsRow}
                   />
                 </div>
               )}

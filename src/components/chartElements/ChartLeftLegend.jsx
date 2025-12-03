@@ -19,6 +19,7 @@ const ChartLeftLegend = ({
   isFullScreen,
   graphBottomY,
   rowsZoneHeight,
+  showRelationsRow = false,
 }) => {
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -45,7 +46,11 @@ const ChartLeftLegend = ({
   const rowsTopY = graphBottomY;
   const obsRowIndex = isFullScreen ? 9 : 7.5;
   const halfBlock = isFullScreen ? 1 : 0.75;
-  const autoRowH = Math.max(1, Math.floor(rowsZoneHeight / (obsRowIndex + halfBlock)));
+  const relationsRowIndex = showRelationsRow
+    ? obsRowIndex + (isFullScreen ? 2 : 1.5)
+    : null;
+  const lastRowIndex = relationsRowIndex ?? obsRowIndex;
+  const autoRowH = Math.max(1, Math.floor(rowsZoneHeight / (lastRowIndex + halfBlock)));
   const rowH = Math.max(textRowHeight, autoRowH);
   const legendRows = useMemo(() => {
     const baseRows = [
@@ -56,8 +61,11 @@ const ChartLeftLegend = ({
       { label: 'Apar.', row: isFullScreen ? 7 : 6, color: APPEARANCE_COLOR, icon: '○' },
       { label: 'Observ.', row: isFullScreen ? 9 : 7.5, color: OBSERVATION_COLOR, icon: '✦' },
     ];
+    if (showRelationsRow && relationsRowIndex != null) {
+      baseRows.push({ label: 'RS', row: relationsRowIndex, color: '#F472B6', icon: '♥' });
+    }
     return baseRows;
-  }, [isFullScreen]);
+  }, [isFullScreen, relationsRowIndex, showRelationsRow]);
 
   return (
     <svg
