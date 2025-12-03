@@ -583,7 +583,7 @@ const EMPTY_DAY_COLORS = {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
       >
-        <h1 className="text-xl font-bold text-rose-900 mb-1">
+        <h1 className="text-xl font-bold text-[#4a1f2a] mb-1">
           {new Date().toLocaleDateString('es-ES', {
             weekday: 'long',
             day: 'numeric',
@@ -593,7 +593,7 @@ const EMPTY_DAY_COLORS = {
         <button
           type="button"
           onClick={onEditStartDate}
-          className="inline-flex items-center gap-1.5 rounded-full bg-white/70 px-3 py-1.5 text-sm font-semibold text-rose-700 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-rose-300 focus:ring-offset-2 focus:ring-offset-transparent hover:bg-white"
+          className="inline-flex items-center gap-1.5 rounded-full bg-white/60 px-3 py-1.5 text-sm font-semibold text-[#8B4A63] shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-rose-300 focus:ring-offset-2 focus:ring-offset-transparent hover:bg-white"
           title="Editar fecha de inicio del ciclo"
         >
           <Edit className="w-4 h-4" />
@@ -623,7 +623,7 @@ const EMPTY_DAY_COLORS = {
           <div className="mb-3">
           <motion.div
             ref={circleRef}
-            className="relative inline-flex items-center justify-center mb-4"
+            className="relative inline-flex items-center justify-center mb-4 drop-shadow-[0_15px_35px_rgba(221,86,101,0.22)]"
             style={{ width: viewBoxSize, height: viewBoxSize }}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -643,19 +643,14 @@ const EMPTY_DAY_COLORS = {
                   <rect width="6" height="6" fill="#ef4444" />
                   <circle cx="3" cy="3" r="1.5" fill="rgba(255,255,255,0.85)" />
                 </pattern>
-                <radialGradient id="ringGlow" cx="50%" cy="50%" r="75%">
-                  {/* centro rosa muy clarito, no blanco puro */}
-                  <stop offset="0%"  stopColor="rgba(255,236,240,0.98)" />
-                  {/* mantenemos ese tono casi hasta el borde interior */}
-                  <stop offset="5%" stopColor="rgba(255,236,240,0.95)" />
-                  <stop offset="30%" stopColor="rgba(255,220,230,0.85)" />
-                  <stop offset="70%" stopColor="rgba(251,113,133,0.35)" />
-                  {/* borde con rosa palo derivado de rose-400/80 */}
-                  <stop offset="100%" stopColor="rgba(251,113,133,0.22)" /> {/* rose-400 ~22% */}
+                <radialGradient id="ringGlow" cx="50%" cy="50%" r="78%" fx="30%" fy="20%">
+                  <stop offset="0%" stopColor="#FFE7E8" stopOpacity="0.98" />
+                  <stop offset="60%" stopColor="#FFC0C1" stopOpacity="0.95" />
+                  <stop offset="100%" stopColor="#FFB5B3" stopOpacity="0.95" />
                 </radialGradient>
                 <filter id="circleDepthShadow">
-                <feDropShadow dx="0" dy="4" stdDeviation="2" floodColor="rgba(0,0,0,0.12)" />
-                  <feDropShadow dx="0" dy="2" stdDeviation="1" floodColor="rgba(0,0,0,0.08)" />
+                  <feDropShadow dx="0" dy="10" stdDeviation="10" floodColor="rgba(221,86,101,0.22)" floodOpacity="1" />
+                  <feDropShadow dx="0" dy="4" stdDeviation="4" floodColor="rgba(221,86,101,0.18)" floodOpacity="1" />
                 </filter>
                 <filter id="dotShadow" x="-30%" y="-30%" width="160%" height="160%" colorInterpolationFilters="sRGB">
                 <feDropShadow dx="0" dy="0.8" stdDeviation="0.8" floodColor="#000" floodOpacity="0.22" />
@@ -679,12 +674,10 @@ const EMPTY_DAY_COLORS = {
     </feMerge>
   </filter>
                   </defs>
-                  
-
 
               {/* Círculo base sutil */}
-              <circle cx={center} cy={center} r={radius - 28} fill="url(#ringGlow)" stroke="rgba(255,255,255,0.65)" strokeWidth={1.2}
-              filter="url(#circleDepthShadow)" 
+              <circle cx={center} cy={center} r={radius - 28} fill="url(#ringGlow)" stroke="rgba(255,225,228,0.8)" strokeWidth={1.2}
+              filter="url(#circleDepthShadow)"
               />
               {hasOverflow && (
                 <line
@@ -818,7 +811,6 @@ filter={dot.fertilitysymbol === 'white' ? "url(#whiteSymbolShadow)" : dot.isActi
   </motion.g>
 )}
 
-
                   {/* Anillo pulsante para el día actual */}
                   {dot.isToday && (
                     <circle
@@ -898,11 +890,11 @@ filter={dot.fertilitysymbol === 'white' ? "url(#whiteSymbolShadow)" : dot.isActi
                 transition={{ duration: 0.2, delay: 0.2, ease: 'easeOut' }}
               >
                 <div className="flex items-center justify-center ">
-                  <p className="text-6xl font-semibold text-rose-700 leading-none">
+                  <p className="text-6xl font-semibold text-[#DD5665] leading-none">
                     {cycleData.currentDay}
                   </p>
                 </div>
-                <p className="mt-1 text-[15px] font-medium uppercase tracking-wide text-rose-700">
+                <p className="mt-1 text-[15px] font-medium uppercase tracking-wide text-[#DD5665]">
                   día del ciclo
                 </p>
               </motion.div>
@@ -960,7 +952,7 @@ filter={dot.fertilitysymbol === 'white' ? "url(#whiteSymbolShadow)" : dot.isActi
           
           {/* Leyenda de colores */}
           <motion.div
-            className="relative overflow-hidden rounded-[28px] bg-white/75 border border-rose-100/80 shadow-[0_14px_35px_rgba(148,163,184,0.18)] backdrop-blur-md p-3 space-y-3"
+            className="relative overflow-hidden rounded-[28px] bg-[#ffe1e3] border border-white/50 shadow-[0_14px_35px_rgba(148,163,184,0.18)] backdrop-blur-md p-3 space-y-3"
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.4, delay: 0.5 }}
@@ -971,8 +963,8 @@ filter={dot.fertilitysymbol === 'white' ? "url(#whiteSymbolShadow)" : dot.isActi
               onClick={() => setIsSymbolsOpen((previous) => !previous)}
               className="group flex w-full items-center justify-between gap-3 rounded-2xl  px-3 py-2 text-left transition"
             >
-              <span className="text-[13px] font-semibold text-slate-800 tracking-tight uppercase">SÍMBOLOS</span>
-
+              <span className="text-[13px] font-semibold text-slate-700 tracking-tight uppercase">SÍMBOLOS</span>
+             <div className="absolute top-6 right-4 w-2 h-2 bg-[#fdb9c0] rounded-full" />
             </button>
 
             <AnimatePresence initial={false}>
@@ -983,7 +975,7 @@ filter={dot.fertilitysymbol === 'white' ? "url(#whiteSymbolShadow)" : dot.isActi
                   animate={{ height: 'auto', opacity: 1 }}
                   exit={{ height: 0, opacity: 0 }}
                   transition={{ duration: 0.25, ease: 'easeInOut' }}
-                  className="grid grid-cols-2 gap-2.5 rounded-2xl bg-white/60 p-2 overflow-hidden"
+                  className="grid grid-cols-2 gap-2.5 rounded-3xl bg-white/40 p-2 overflow-hidden"
                 >
                   {[
                     { label: 'Menstrual', color: '#fb7185' },
@@ -1021,12 +1013,12 @@ filter={dot.fertilitysymbol === 'white' ? "url(#whiteSymbolShadow)" : dot.isActi
                 </motion.div>
               )}
             </AnimatePresence>
-            <div className="absolute top-3 right-4 w-2 h-2 bg-gradient-to-br from-rose-200/40 to-amber-200/40 rounded-full" />
+
           </motion.div>
 
           {/* Información del ciclo con diseño tipo card premium */}
           <motion.div
-            className="relative overflow-hidden rounded-[28px] bg-white/75 border border-rose-100/80 shadow-[0_14px_35px_rgba(148,163,184,0.18)] backdrop-blur-md p-3 space-y-2"
+            className="relative overflow-hidden rounded-[28px] bg-[#ffe1e3] border border-white/50 shadow-[0_14px_35px_rgba(148,163,184,0.18)] backdrop-blur-md p-3 space-y-2"
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.4, delay: 0.6 }}
@@ -1037,7 +1029,7 @@ filter={dot.fertilitysymbol === 'white' ? "url(#whiteSymbolShadow)" : dot.isActi
               className="group flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-2 text-left transition"
             >
               <span className="text-[13px] font-semibold text-slate-800 tracking-tight uppercase">CÁLCULO</span>
-
+              <div className="absolute top-6 right-4 w-2 h-2 bg-[#fdb9c0] rounded-full" />
             </button>
 
             <AnimatePresence initial={false}>
@@ -1048,7 +1040,7 @@ filter={dot.fertilitysymbol === 'white' ? "url(#whiteSymbolShadow)" : dot.isActi
                   animate={{ height: 'auto', opacity: 1 }}
                   exit={{ height: 0, opacity: 0 }}
                   transition={{ duration: 0.25, ease: 'easeInOut' }}
-                  className="grid grid-cols-2 gap-y-3 rounded-2xl bg-white/60 p-2 overflow-hidden"
+                  className="grid grid-cols-2 gap-y-3 rounded-3xl bg-white/40 p-2 overflow-hidden"
                 >
                   {/* Fila 1 - Ciclo más corto / CPM */}
                   <button
@@ -1114,10 +1106,6 @@ filter={dot.fertilitysymbol === 'white' ? "url(#whiteSymbolShadow)" : dot.isActi
                 </motion.div>
               )}
             </AnimatePresence>
-
-            
-            {/* Decoración sutil en la esquina */}
-            <div className="absolute top-3 right-4 w-2 h-2 bg-gradient-to-br from-rose-300/40 to-amber-300/40 rounded-full" />
           </motion.div>
         </div>
       </motion.div>
@@ -1134,7 +1122,7 @@ const FloatingActionButton = ({ onAddRecord, onAddCycle }) => {
   <div className="flex flex-col space-y-2 mt-1">
     <motion.button
       onClick={onAddRecord}
-      className="flex items-center gap-1 px-4 h-12 rounded-full bg-rose-400/80 hover:bg-rose-500 text-white/90 shadow-lg shadow-rose-300/50"
+      className="flex items-center gap-1 px-4 h-12 rounded-full bg-[#DD5665] hover:bg-[#C94B5A] text-white/90 shadow-lg shadow-[#DD5665]"
       whileTap={{ scale: 0.80 }}
       whileHover={{ scale: 1.05 }}
       initial={{ opacity: 0, y: 20, scale: 0.8 }}
@@ -1146,7 +1134,7 @@ const FloatingActionButton = ({ onAddRecord, onAddCycle }) => {
     </motion.button>
     <motion.button
       onClick={onAddCycle}
-      className="flex items-center gap-3 px-4 h-12 rounded-full bg-white/80 hover:bg-rose-300 text-rose-500/80 shadow-lg shadow-rose-200/70"
+      className="flex items-center gap-3 px-4 h-12 rounded-full bg-white/80 hover:bg-rose-300 text-[#DD5665] shadow-lg shadow-[#DD5665]"
       whileTap={{ scale: 0.95 }}
       whileHover={{ scale: 1.05 }}
       initial={{ opacity: 0, y: 20, scale: 0.8 }}
@@ -1163,12 +1151,12 @@ const FloatingActionButton = ({ onAddRecord, onAddCycle }) => {
 
       <motion.button
         onClick={() => setOpen(!open)}
-        className="flex items-center justify-center rounded-full bg-rose-400/80 hover:bg-rose-500 text-white shadow-lg shadow-rose-300/50 w-14 h-14 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2"
+        className="flex items-center justify-center rounded-full bg-[#DD5665] hover:bg-[#DD5665] text-white shadow-sd shadow-[#DD5665] w-14 h-14 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2"
         whileTap={{ scale: 0.95 }}
         whileHover={{ scale: 1.05 }}
         initial={{ scale: 0 }}
         animate={{ scale: 1 }}
-        style={{ filter: 'drop-shadow(0 4px 12px rgba(236, 72, 153, 0.35))' }}
+        style={{ filter: 'drop-shadow(0 4px 12px rgba(221, 86, 101, 0.35))' }}
       >
         <motion.span animate={{ rotate: open ? 135 : 0 }} transition={{ type: 'spring', stiffness: 260, damping: 20 }}>
           <Plus className="h-5 w-5" />
@@ -3434,8 +3422,13 @@ const ModernFertilityDashboard = () => {
 
   if (isLoading && !currentCycle?.id) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-rose-50 via-amber-50/40 to-white">
-        <div className="mx-auto flex min-h-screen max-w-md items-center justify-center px-4 py-4">
+      <div className="relative min-h-screen overflow-hidden app-background">
+        <div className="pointer-events-none absolute inset-0">
+          <div className="wave wave--top" />
+          <div className="wave wave--right" />
+          <div className="wave wave--bottom" />
+        </div>
+        <div className="mx-auto flex min-h-screen max-w-md items-center justify-center px-4 py-4 relative z-10">
           <div className="bg-white/80 border border-rose-100/70 rounded-3xl shadow-sm w-full p-4 text-center">
             <p className="text-sm font-semibold text-slate-800">Cargando...</p>
           </div>
@@ -3446,8 +3439,13 @@ const ModernFertilityDashboard = () => {
 
   if (!currentCycle?.id) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-rose-50 via-amber-50/40 to-white">
-        <div className="mx-auto flex min-h-screen max-w-md items-center justify-center px-4 py-4">
+      <div className="relative min-h-screen overflow-hidden app-background">
+        <div className="pointer-events-none absolute inset-0">
+          <div className="wave wave--top" />
+          <div className="wave wave--right" />
+          <div className="wave wave--bottom" />
+        </div>
+        <div className="mx-auto flex min-h-screen max-w-md items-center justify-center px-4 py-4 relative z-10">
           <div className="bg-white/80 border border-rose-100/70 rounded-3xl shadow-sm w-full p-4 text-center space-y-4">
             <p className="text-[15px] font-semibold text-slate-800">No hay ciclo activo.</p>
             <button
@@ -3606,20 +3604,27 @@ const ModernFertilityDashboard = () => {
   };
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden bg-[#fff7fb]">
-    <div
-      className="pointer-events-none absolute inset-0"
-      style={{
-        backgroundImage: `
-          radial-gradient(120% 120% at 0% 0%, rgba(251,113,133,0.18) 0, transparent 55%),
-          radial-gradient(110% 110% at 100% 0%, rgba(244,114,182,0.16) 0, transparent 55%),
-          radial-gradient(130% 130% at 0% 100%, rgba(251,113,133,0.08) 0, transparent 60%),
-          radial-gradient(140% 140% at 100% 100%, rgba(255,255,255,0.9) 0, rgba(255,247,250,0.3) 40%, transparent 70%)
-        `,
-        backgroundColor: '#fff7fb'
-      }}
-    />
-      <div className="max-w-md mx-auto w-full flex flex-col px-4 pt-4 pb-10 space-y-4">
+    <div className="relative flex h-full flex-col overflow-hidden app-background">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="wave wave--left-1" />
+        <div className="wave wave--left-2" />
+        <div className="wave wave--left-3" />
+        <div className="wave wave--right-1" />
+        <div className="wave wave--right-2" />
+        <div className="wave wave--right-3" />
+      </div>
+      <div className="pointer-events-none absolute inset-0">
+        <div
+          className="absolute inset-0"
+          style={{
+            backgroundImage: `
+              radial-gradient(120% 120% at 0% 0%, rgba(251,113,133,0.12) 0, transparent 55%),
+              radial-gradient(110% 110% at 100% 0%, rgba(244,114,182,0.12) 0, transparent 55%)
+            `,
+          }}
+        />
+      </div>
+      <div className="max-w-md mx-auto w-full flex flex-col px-4 pt-4 pb-10 space-y-4 relative z-10">
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}

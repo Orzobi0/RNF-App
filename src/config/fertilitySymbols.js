@@ -32,14 +32,14 @@ export const getSymbolColorPalette = (symbolValue) => {
       };
     case 'green':
       return {
-        main: '#22c55e',
+        main: '#67C5A4',
         light: '#bbf7d0',
         glow: 'rgba(22,163,74,0.32)',
         border: 'rgba(22,163,74,0.32)'
       };
     case 'yellow':
       return {
-        main: '#f1c232',
+        main: '#F7B944',
         light: '#facc15',
         glow: 'rgba(234,179,8,0.32)',
         border: 'rgba(234,179,8,0.32)'
