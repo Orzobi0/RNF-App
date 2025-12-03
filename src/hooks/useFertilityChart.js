@@ -799,12 +799,13 @@ export const useFertilityChart = (
       const tempRange = tempMax - tempMin;
       
       const chartWidth = dimensions.width;
-      const chartHeight = dimensions.height;
+      // Altura visible medida por ResizeObserver (la "ventana" que tenía antes de RS).
+      const viewportHeight = dimensions.height;
       
       const baseFontSize = 9;
       const responsiveFontSize = (multiplier = 1) => {
         if (!isFullScreen) return baseFontSize * multiplier;
-        const smallerDim = Math.min(chartWidth, chartHeight);
+        const smallerDim = Math.min(chartWidth, viewportHeight);
         return Math.max(8, Math.min(baseFontSize * multiplier, smallerDim / (allDataPoints.length > 0 ? (40 / multiplier) : 40) ));
       };
 
@@ -819,11 +820,23 @@ export const useFertilityChart = (
       const obsRowIndex = isFullScreen ? 9 : 7.5;
       const relationsRowIndex = obsRowIndex + (showRelationsRow ? (isFullScreen ? 2 : 1.5) : 0);
       const halfBlock = isFullScreen ? 1 : 0.75;
-      const bottomRowsExact = Math.round(textRowHeight * (relationsRowIndex + halfBlock));
+      const baseBottomRowsExact = Math.round(textRowHeight * (obsRowIndex + halfBlock));
+      const relationsBottomRowsExact = Math.round(textRowHeight * (relationsRowIndex + halfBlock));
+      const bottomRowsExact = showRelationsRow ? relationsBottomRowsExact : baseBottomRowsExact;
+
+      // Cuando hay fila de RS añadimos altura extra equivalente al espacio adicional de filas
+      // inferior para que la zona de temperaturas no se comprima y el extra sea scrollable.
+      const extraScrollableHeight = showRelationsRow
+        ? Math.max(0, relationsBottomRowsExact - baseBottomRowsExact)
+        : 0;
+      const chartContentHeight = viewportHeight + extraScrollableHeight;
 
         const padding = { 
         top: isFullScreen
-          ? Math.max(isLandscapeVisual ? 6 : 12, chartHeight * (isLandscapeVisual ? 0.015 : 0.03))
+          ? Math.max(
+              isLandscapeVisual ? 6 : 12,
+              viewportHeight * (isLandscapeVisual ? 0.015 : 0.03)
+            )
           : 12, 
         right: isFullScreen
           ? Math.max(isLandscapeVisual ? 35 : 30, chartWidth * (isLandscapeVisual ? 0.02 : 0.05))
@@ -839,10 +852,9 @@ export const useFertilityChart = (
       // Ajusta cuántas "filas" quieres ganar de aire bajo el gráfico:
       const GRAPH_BOTTOM_LIFT_ROWS = 4; // p.ej. 0.8 filas; prueba 0.6–1.2
       const graphBottomInset = Math.max(0, Math.round(textRowHeight * GRAPH_BOTTOM_LIFT_ROWS));
-      const graphBottomY = chartHeight - padding.bottom - graphBottomInset;
-
+      const graphBottomY = chartContentHeight - padding.bottom - graphBottomInset;
       const getY = (temp) => {
-        const effectiveHeight = chartHeight - padding.top - padding.bottom - graphBottomInset;
+        const effectiveHeight = chartContentHeight - padding.top - padding.bottom - graphBottomInset;
         if (temp === null || temp === undefined || tempRange === 0 || effectiveHeight <= 0) {
           return graphBottomY;
         }
@@ -931,7 +943,13 @@ export const useFertilityChart = (
       return {
         chartRef,
         tooltipRef,
-        dimensions,
+        dimensions: {
+          ...dimensions,
+          // chartContentHeight: altura total del SVG cuando hay RS (para scroll vertical interno)
+          contentHeight: chartContentHeight,
+          // viewportHeight: altura visible sin RS; mantiene compatibilidad con el estado previo
+          viewportHeight,
+        },
         activePoint,
         activeIndex,
         tooltipPosition,

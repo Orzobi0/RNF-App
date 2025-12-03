@@ -56,7 +56,7 @@ const CycleOverviewCard = ({
   const records = cycleData.records || [];
   const [activePoint, setActivePoint] = useState(null);
   const [tooltipPosition, setTooltipPosition] = useState({ clientX: 0, clientY: 0 });
-  const [isSymbolsOpen, setIsSymbolsOpen] = useState(true);
+  const [isSymbolsOpen, setIsSymbolsOpen] = useState(false);
   const [isCalcOpen, setIsCalcOpen] = useState(false);
   const [wheelOffset, setWheelOffset] = useState(0);
   const [recentlyChangedDays, setRecentlyChangedDays] = useState([]);
@@ -611,12 +611,12 @@ const EMPTY_DAY_COLORS = {
       >
         {/* Tarjeta SOLO para el círculo + navegación */}
         
-        <div className="relative overflow-hidden rounded-[75px] bg-[#fff8fb] border border-rose-100/70 shadow-[0_18px_45px_rgba(251,113,133,0.18)] p-4 backdrop-blur-md mb-4">
+        <div className="relative overflow-hidden rounded-[75px]   p-4  mb-4">
         <div className="pointer-events-none absolute inset-0">
         {/* halo desde arriba como antes */}
-        <div className="absolute inset-0 bg-[radial-gradient(120%_160%_at_50%_0%,rgba(251,113,133,0.12),transparent_55%)]" />
+        <div className="absolute inset-0 " />
         {/* degradado sutil desde abajo para que no quede plano-blanco */}
-        <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-rose-50/90 via-rose-50/40 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 h-1/2 " />
         </div>
         <div className="relative text-center flex-shrink-0">
           {/* Círculo de progreso redimensionado */}
