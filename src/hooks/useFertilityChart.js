@@ -822,14 +822,15 @@ export const useFertilityChart = (
       const halfBlock = isFullScreen ? 1 : 0.75;
       const baseBottomRowsExact = Math.round(textRowHeight * (obsRowIndex + halfBlock));
       const relationsBottomRowsExact = Math.round(textRowHeight * (relationsRowIndex + halfBlock));
-      const bottomRowsExact = showRelationsRow ? relationsBottomRowsExact : baseBottomRowsExact;
+      const bottomRowsExact = baseBottomRowsExact;
 
       // Cuando hay fila de RS añadimos altura extra equivalente al espacio adicional de filas
       // inferior para que la zona de temperaturas no se comprima y el extra sea scrollable.
       const extraScrollableHeight = showRelationsRow
         ? Math.max(0, relationsBottomRowsExact - baseBottomRowsExact)
         : 0;
-      const chartContentHeight = viewportHeight + extraScrollableHeight;
+      const chartContentHeight = viewportHeight;
+      const scrollableContentHeight = chartContentHeight + extraScrollableHeight;
 
         const padding = { 
         top: isFullScreen
@@ -947,6 +948,8 @@ export const useFertilityChart = (
           ...dimensions,
           // chartContentHeight: altura total del SVG cuando hay RS (para scroll vertical interno)
           contentHeight: chartContentHeight,
+          scrollableContentHeight,
+          extraScrollableHeight,
           // viewportHeight: altura visible sin RS; mantiene compatibilidad con el estado previo
           viewportHeight,
         },

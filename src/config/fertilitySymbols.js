@@ -26,9 +26,9 @@ export const getSymbolColorPalette = (symbolValue) => {
     case 'white':
       return {
         main: '#fdf5f8',
-        light: '#ffe4f0',
-        glow: 'rgba(251,113,133,0.22)',
-        border: 'rgba(251,113,133,0.22)'
+        light: '#ffffff',
+        glow: 'rgba(255,255,255,0.4)',
+        border: 'rgba(251,113,133,0.6)'
       };
     case 'green':
       return {

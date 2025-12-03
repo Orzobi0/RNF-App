@@ -643,27 +643,48 @@ const EMPTY_DAY_COLORS = {
                   <rect width="6" height="6" fill="#ef4444" />
                   <circle cx="3" cy="3" r="1.5" fill="rgba(255,255,255,0.85)" />
                 </pattern>
-                <radialGradient id="ringGlow" cx="50%" cy="50%" r="60%">
+                <radialGradient id="ringGlow" cx="50%" cy="50%" r="75%">
                   {/* centro rosa muy clarito, no blanco puro */}
                   <stop offset="0%"  stopColor="rgba(255,236,240,0.98)" />
                   {/* mantenemos ese tono casi hasta el borde interior */}
                   <stop offset="5%" stopColor="rgba(255,236,240,0.95)" />
+                  <stop offset="30%" stopColor="rgba(255,220,230,0.85)" />
+                  <stop offset="70%" stopColor="rgba(251,113,133,0.35)" />
                   {/* borde con rosa palo derivado de rose-400/80 */}
                   <stop offset="100%" stopColor="rgba(251,113,133,0.22)" /> {/* rose-400 ~22% */}
                 </radialGradient>
-                  </defs>
-                  <filter id="dotShadow" x="-30%" y="-30%" width="160%" height="160%" colorInterpolationFilters="sRGB">
+                <filter id="circleDepthShadow">
+                <feDropShadow dx="0" dy="4" stdDeviation="2" floodColor="rgba(0,0,0,0.12)" />
+                  <feDropShadow dx="0" dy="2" stdDeviation="1" floodColor="rgba(0,0,0,0.08)" />
+                </filter>
+                <filter id="dotShadow" x="-30%" y="-30%" width="160%" height="160%" colorInterpolationFilters="sRGB">
                 <feDropShadow dx="0" dy="0.8" stdDeviation="0.8" floodColor="#000" floodOpacity="0.22" />
               </filter>
+              <filter id="whiteSymbolShadow">
+  <feDropShadow dx="0" dy="0.5" stdDeviation="0.8" floodColor="rgba(189,16,44,0.3)" />
+</filter>
+
+  <filter id="activePointHighlight">
+    <feDropShadow dx="0" dy="-1" stdDeviation="0.5" floodColor="rgba(255,255,255,0.7)" floodOpacity="1" />
+  </filter>
+  
+
+  <filter id="bevel">
+    <feFlood floodColor="rgba(255,255,255,0.4)" result="top"/>
+    <feFlood floodColor="rgba(0,0,0,0.2)" result="bottom"/>
+    <feMerge>
+      <feMergeNode in="top"/>
+      <feMergeNode in="bottom"/>
+      <feMergeNode/>
+    </feMerge>
+  </filter>
+                  </defs>
+                  
+
 
               {/* Círculo base sutil */}
-              <circle
-                cx={center}
-                cy={center}
-                r={radius - 30}
-                fill="url(#ringGlow)"
-                stroke="rgba(255,255,255,0.55)"
-                strokeWidth="0.8"
+              <circle cx={center} cy={center} r={radius - 28} fill="url(#ringGlow)" stroke="rgba(255,255,255,0.65)" strokeWidth={1.2}
+              filter="url(#circleDepthShadow)" 
               />
               {hasOverflow && (
                 <line
@@ -692,24 +713,23 @@ const EMPTY_DAY_COLORS = {
                 {dots.map((dot, index) => (
                   <g key={index}>
 {/* Punto principal con sombra real */}
-<g filter={dot.isActive ? 'url(#dotShadow)' : undefined}>
+<g filter={dot.isActive ? 'url(#activePointHighlight)' : dot.isToday ? "url(#bevel)" : undefined}>
   <motion.circle
   cx={dot.x}
   cy={dot.y}
-  r={dot.isToday ? 11 : 10}
+  r={dot.isToday ? 12 : 11}
   fill={
     dot.colors.pattern
       || (dot.isActive ? dot.colors.main : 'rgba(255,255,255,0.001)')
   }
-  stroke={dot.colors.border === 'none'
-    ? 'none'
-    : dot.colors.border || 'rgba(158,158,158,0.4)'}
-  strokeWidth={dot.colors.border === 'none'
-    ? 0
-    : (dot.isToday ? 1.8 : (dot.colors.border ? 0.6 : 0.8))}
+  stroke={dot.colors.border && dot.colors.border !== 'none' ? dot.colors.border : "rgba(255,255,255,0.3)"}
+   strokeWidth={dot.colors.border && dot.colors.border !== 'none' ? (dot.isToday ? 2.2 : 1.2) : 0}
+filter={dot.fertilitysymbol === 'white' ? "url(#whiteSymbolShadow)" : dot.isActive ? "url(#dotShadow)" : undefined}
+
+   strokeLinecap="round"
   onClick={(e) => handleDotClick(dot, e)}
   initial={false}
-  animate={{ scale: 1, opacity: 1, y: 0 }}
+  animate={{ scale: dot.isActive ? [1, 1.05, 1] : 1, opacity: 1, y: 0 }}
   transition={{ duration: 0.95, ease: 'easeOut' }}   // más rápido
   whileTap={
     prefersReducedMotion

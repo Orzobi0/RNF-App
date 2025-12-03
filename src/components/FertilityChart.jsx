@@ -95,6 +95,7 @@ const FertilityChart = ({
   const chartWidth = dimensions.width;
   const chartHeight = dimensions.contentHeight ?? dimensions.height;
   const viewportHeight = dimensions.viewportHeight ?? dimensions.height;
+  const scrollableContentHeight = dimensions.scrollableContentHeight ?? chartHeight;
   const graphBottomY = chartHeight - padding.bottom - (graphBottomInset || 0);
   const rowsZoneHeight = Math.max(chartHeight - graphBottomY, 0);
   const baselineY = baselineTemp != null ? getY(baselineTemp) : null;
@@ -728,9 +729,9 @@ const hasPostPhase = Number.isFinite(postOvulatoryPhaseInfo?.startIndex);
           */}
           <div
             className={`relative h-full ${showRelationsRow ? 'overflow-y-auto' : 'overflow-y-visible'}`}
-            style={{ maxHeight: viewportHeight }}
+            style={{ height: viewportHeight, maxHeight: viewportHeight }}
           >
-            <div className="relative" style={{ width: chartWidth, height: chartHeight }}>
+            <div className="relative" style={{ width: chartWidth, height: scrollableContentHeight }}>
               {/* Leyenda izquierda mejorada */}
               {showLegend && (
                 <div
@@ -739,7 +740,7 @@ const hasPostPhase = Number.isFinite(postOvulatoryPhaseInfo?.startIndex);
                 >
                   <ChartLeftLegend
                     padding={padding}
-                    chartHeight={chartHeight}
+                    chartHeight={scrollableContentHeight} 
                     tempMin={tempMin}
                     tempMax={tempMax}
                     tempRange={tempRange}
@@ -755,9 +756,9 @@ const hasPostPhase = Number.isFinite(postOvulatoryPhaseInfo?.startIndex);
               )}
               <motion.svg
                 width={chartWidth}
-                height={chartHeight}
+                height={scrollableContentHeight}   
                 className="font-sans flex-shrink-0"
-                viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+                viewBox={`0 0 ${chartWidth} ${scrollableContentHeight}`} 
                 preserveAspectRatio="xMidYMid meet"
                 initial={false}
               >

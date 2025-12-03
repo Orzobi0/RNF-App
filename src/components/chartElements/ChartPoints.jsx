@@ -133,12 +133,9 @@ const ChartPoints = ({
   const relationsRowIndex = showRelationsRow
     ? obsRowIndex + (isFullScreen ? 2 : 1.5)
     : null;
-  const lastRowIndex = relationsRowIndex ?? obsRowIndex;
-  // altura ideal para que Observ. siga tocando el borde inferior
-  const autoRowH = Math.max(
-    1,
-    Math.floor(rowsZoneHeight / (lastRowIndex + halfBlock))
-  );
+  const baseRowCount = obsRowIndex + halfBlock;
+  // altura ideal basada en el layout original para no comprimir filas existentes
+  const autoRowH = Math.max(1, Math.floor(rowsZoneHeight / baseRowCount));
   // no reducimos por debajo del tamaño base (legibilidad), pero sí estiramos
   const rowH = Math.max(textRowHeight, autoRowH);
 
@@ -148,11 +145,13 @@ const ChartPoints = ({
   const mucusSensationRowY = rowsTopY + rowH * (isFullScreen ? 5 : 4.5);
   const mucusAppearanceRowY = rowsTopY + rowH * (isFullScreen ? 7 : 6);
   const observationsRowY = rowsTopY + rowH * (isFullScreen ? 9 : 7.5);
-  const relationsRowY = relationsRowIndex != null ? rowsTopY + rowH * relationsRowIndex : null;
+  const relationsRowY = showRelationsRow
+    ? observationsRowY + rowH * (isFullScreen ? 2 : 1.5)
+    : null;
 
   const rowWidth = chartWidth - padding.left - padding.right;
   const rowBlockHeight = rowH * (isFullScreen ? 2 : 1.5);
-  const relationsHeartSize = Math.min(Math.max(rowBlockHeight * 0.46, 14), 15);
+  const relationsHeartSize = Math.min(Math.max(rowBlockHeight * 0.46, 14), 12);
 
   const MotionG = reduceMotion ? 'g' : motion.g;
 

@@ -49,8 +49,8 @@ const ChartLeftLegend = ({
   const relationsRowIndex = showRelationsRow
     ? obsRowIndex + (isFullScreen ? 2 : 1.5)
     : null;
-  const lastRowIndex = relationsRowIndex ?? obsRowIndex;
-  const autoRowH = Math.max(1, Math.floor(rowsZoneHeight / (lastRowIndex + halfBlock)));
+  const baseRowCount = obsRowIndex + halfBlock;
+  const autoRowH = Math.max(1, Math.floor(rowsZoneHeight / baseRowCount));
   const rowH = Math.max(textRowHeight, autoRowH);
   const legendRows = useMemo(() => {
     const baseRows = [
