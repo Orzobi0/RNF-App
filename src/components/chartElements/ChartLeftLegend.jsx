@@ -59,10 +59,10 @@ const ChartLeftLegend = ({
       { label: 'Símbolo', row: 3, color: isFullScreen ? '#374151' : '#374151', icon: null },
       { label: 'Sens.', row: isFullScreen ? 5 : 4.5, color: SENSATION_COLOR, icon: '◊' },
       { label: 'Apar.', row: isFullScreen ? 7 : 6, color: APPEARANCE_COLOR, icon: '○' },
-      { label: 'Observ.', row: isFullScreen ? 9 : 7.5, color: OBSERVATION_COLOR, icon: '✦' },
+      { label: 'Obs.', row: isFullScreen ? 9 : 7.5, color: OBSERVATION_COLOR, icon: '✦' },
     ];
     if (showRelationsRow && relationsRowIndex != null) {
-      baseRows.push({ label: 'RS', row: relationsRowIndex, color: '#F472B6', icon: '♥' });
+      baseRows.push({ label: 'RS', row: relationsRowIndex, color: '#f44336', icon: '♥' });
     }
     return baseRows;
   }, [isFullScreen, relationsRowIndex, showRelationsRow]);

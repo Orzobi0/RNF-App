@@ -350,24 +350,6 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
         </motion.g>
       )}
 
-    {/* Etiqueta RS en modos sin leyenda expandida */}
-          {showRelationsRow && relationsRowY != null && !(isFullScreen && orientation !== 'portrait') && (
-            <text
-              x={padding.left - responsiveFontSize(0.5)}
-              y={relationsRowY}
-              textAnchor="end"
-              fontSize={responsiveFontSize(1.05)}
-              fontWeight="800"
-              fill={HEART_COLOR}
-              style={{
-                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                filter: 'drop-shadow(0 1px 2px rgba(255, 255, 255, 0.9))',
-              }}
-            >
-              RS
-            </text>
-          )}
-
       {data.map((point, index) => {
         const x = getX(index);
         const y = point[temperatureField] != null
