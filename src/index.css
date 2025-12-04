@@ -52,34 +52,44 @@
 }
 
 @layer base {
-  html, body, #root {
+
+  html,
+  body,
+  #root {
     height: 100%;
     min-height: 100dvh;
   }
+
   * {
     border-color: hsl(var(--border));
   }
+
   body {
     background: linear-gradient(135deg, #FFFAFC 0%, #f7eaef 100%);
     scroll-behavior: smooth;
     color: hsl(var(--foreground));
     font-family: 'Inter', sans-serif;
   }
+
   ::-webkit-scrollbar {
     width: 8px;
     height: 8px;
   }
+
   ::-webkit-scrollbar-track {
     background: #F4F6F8;
     border-radius: 10px;
   }
+
   ::-webkit-scrollbar-thumb {
     background: #E27DBF;
     border-radius: 10px;
   }
+
   ::-webkit-scrollbar-thumb:hover {
     background: #E27DBF;
   }
+
   * {
     scrollbar-width: thin;
     scrollbar-color: #E27DBF #F4F6F8;
@@ -119,16 +129,16 @@
   background-size: 6px 6px;
   background-position: 0 0;
 }
+
 .app-background {
   min-height: 100vh;
   background:
     radial-gradient(circle at 50% -10%, rgba(255, 255, 255, 0.7) 0, transparent 60%),
-    linear-gradient(
-      to bottom,
-      #ffdbde 0%,   /* algo más de color solo arriba */
+    linear-gradient(to bottom,
+      #ffdbde 0%,
+      /* algo más de color solo arriba */
       #ffe5e7 35%,
-      #ffe8eb 100%
-    );
+      #ffe8eb 100%);
   position: relative;
   overflow: hidden;
 }
@@ -145,17 +155,34 @@
 
 /* movimiento lateral suave para el lado izquierdo */
 @keyframes waveDriftLeft {
-  0%   { transform: translate3d(0, 0, 0) scale(1); }
-  50%  { transform: translate3d(10px, 6px, 0) scale(1.02); }
-  100% { transform: translate3d(0, 0, 0) scale(1); }
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  50% {
+    transform: translate3d(10px, 6px, 0) scale(1.02);
+  }
+
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
 }
 
 /* movimiento lateral suave para el lado derecho */
 @keyframes waveDriftRight {
-  0%   { transform: translate3d(0, 0, 0) scale(1); }
-  50%  { transform: translate3d(-10px, 6px, 0) scale(1.02); }
-  100% { transform: translate3d(0, 0, 0) scale(1); }
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  50% {
+    transform: translate3d(-10px, 6px, 0) scale(1.02);
+  }
+
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
 }
+
 /* ===== GRUPO IZQUIERDO ===== */
 
 .wave--left-1 {
@@ -225,19 +252,23 @@
 }
 
 /* contenedor general de la rueda */
-.cycle-wheel { contain: paint; } /* aísla repintados */
+.cycle-wheel {
+  contain: paint;
+}
+
+/* aísla repintados */
 
 /* anillo que rota */
-.cycle-wheel__ring{
+.cycle-wheel__ring {
   transform: translateZ(0) rotate(var(--rot, 0deg));
   will-change: transform;
   backface-visibility: hidden;
 }
 
 /* cada punto del día */
-.cycle-wheel__dot{
-  transform: translate3d(var(--x,0), var(--y,0), 0) scale(var(--s,1));
-  transition: transform 220ms cubic-bezier(.2,.8,.2,1), opacity 220ms linear;
+.cycle-wheel__dot {
+  transform: translate3d(var(--x, 0), var(--y, 0), 0) scale(var(--s, 1));
+  transition: transform 220ms cubic-bezier(.2, .8, .2, 1), opacity 220ms linear;
   will-change: transform, opacity;
   backface-visibility: hidden;
 }
@@ -249,4 +280,22 @@
 
 .wheel-no-tap * {
   outline: none;
+}
+
+/* Reducir prominencia del círculo central */
+#ringGlow stop:nth-child(1) {
+  stop-opacity: 0.2 !important;
+}
+
+#ringGlow stop:nth-child(2) {
+  stop-opacity: 0.12 !important;
+}
+
+#ringGlow stop:nth-child(3) {
+  stop-opacity: 0.08 !important;
+}
+
+/* Reducir sombra del círculo central */
+.drop-shadow-\[0_15px_35px_rgba\(221\,86\,101\,0\.22\)\] {
+  filter: drop-shadow(0 4px 8px rgba(221, 86, 101, 0.08)) !important;
 }
