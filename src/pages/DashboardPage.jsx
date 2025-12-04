@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+﻿import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
   Plus,
@@ -364,6 +364,25 @@ const EMPTY_DAY_COLORS = {
         ? getSymbolColor(recordWithCycleDay.fertility_symbol)
         : EMPTY_DAY_COLORS;
 
+
+      // Distinguish between past empty days and future days
+      if (!recordWithCycleDay && day < cycleData.currentDay) {
+        // Past days without record: transparent with gray border
+        colors = {
+          main: 'transparent',
+          light: 'transparent',
+          glow: 'rgba(180, 169, 176, 0.1)',
+          border: 'rgba(180, 169, 176, 0.4)',
+        };
+      } else if (isFutureDay || day > cycleData.currentDay) {
+        // Future days: transparent with pale pink border
+        colors = {
+          main: 'transparent',
+          light: 'transparent',
+          glow: 'rgba(251, 192, 203, 0.1)',
+          border: 'rgba(252, 170, 185, 0.35)',
+        };
+      }
       const isToday = day === cycleData.currentDay;
       if (isToday) {
         if (recordWithCycleDay) {
