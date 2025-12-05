@@ -240,7 +240,7 @@ const ChartTooltip = ({
         style={{ transform: `scale(${scale})`, width: baseWidth, minHeight: baseMinHeight }}
       >
         {/* Contenedor principal */}
-        <div className="relative bg-gradient-to-br from-white/98 to-rose-50/95 backdrop-blur-xl rounded-3xl border border-pink-100 shadow-2xl overflow-hidden">
+        <div className="relative bg-gradient-to-br from-white/80 to-rose-50/95 backdrop-blur-xl rounded-3xl border border-pink-100 shadow-2xl overflow-hidden">
 
           {/* Botón de cerrar */}
           <Button
@@ -527,7 +527,7 @@ const ChartTooltip = ({
       </div>
 
       {/* Sombra adicional para profundidad */}
-      <div className="absolute -inset-2 bg-gradient-to-br from-pink-200/25 to-rose-300/25 rounded-3xl blur-2xl -z-10"></div>
+      <div className="absolute -inset-2 bg-gradient-to-br from-pink-200/25 to-rose-300/25 rounded-3xl blur-xl -z-10"></div>
     </motion.div>
   );
 };

@@ -14,7 +14,7 @@ import { useCycleData } from '@/hooks/useCycleData';
 import { useToast } from '@/components/ui/use-toast';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Edit, Plus, FileText, ChevronDown } from 'lucide-react';
+import { Edit, Plus, FileText } from 'lucide-react';
 import {
   format,
   parseISO,
@@ -59,12 +59,11 @@ const formatTemperatureDisplay = (value) => {
 
 export const RecordsExperience = ({
   cycle: cycleProp,
-  headerTitle = 'Mis Registros',
+  headerTitle,
   headerIcon: HeaderIcon = FileText,
   headerActions,
   topAccessory,
   includeEndDate = false,
-  initialCalendarOpen = true,
   addOrUpdateDataPoint: addOrUpdateDataPointProp,
   deleteRecord: deleteRecordProp,
   isLoading: isLoadingProp,
@@ -138,7 +137,35 @@ export const RecordsExperience = ({
   const [defaultFormIsoDate, setDefaultFormIsoDate] = useState(null);
   const [focusedField, setFocusedField] = useState(null);
   const [initialSectionKey, setInitialSectionKey] = useState(null);
-  const [isCalendarOpen, setIsCalendarOpen] = useState(initialCalendarOpen);
+  const cycleRangeLabel = useMemo(() => {
+    if (!cycle?.startDate) return null;
+
+    const parsedStart = parseISO(cycle.startDate);
+    if (!isValid(parsedStart)) return null;
+
+    const startLabel = format(parsedStart, 'dd/MM/yyyy');
+    let endLabel = 'En curso';
+
+    if (cycle?.endDate) {
+      const parsedEnd = parseISO(cycle.endDate);
+      if (isValid(parsedEnd)) {
+        endLabel = format(parsedEnd, 'dd/MM/yyyy');
+      }
+    }
+
+    return `${startLabel} - ${endLabel}`;
+  }, [cycle?.endDate, cycle?.startDate]);
+
+  const resolvedHeaderTitle = useMemo(() => {
+    if (headerTitle) return headerTitle;
+
+    if (cycle?.type === 'current' || !cycle?.endDate) {
+      return 'Ciclo actual';
+    }
+
+    return cycleRangeLabel ?? 'Mis registros';
+  }, [cycle?.endDate, cycle?.type, cycleRangeLabel, headerTitle]);
+  const isCalendarOpen = true;
   const calendarContainerRef = useRef(null);
   const recordsScrollRef = useRef(null);
   const calendarHeightRef = useRef(0);
@@ -1324,9 +1351,6 @@ const enterStart = -exitTarget;
     typeof topAccessory === 'function'
       ? topAccessory({
           ...headerActionProps,
-          toggleCalendar: () => setIsCalendarOpen((prev) => !prev),
-          openCalendar: () => setIsCalendarOpen(true),
-          closeCalendar: () => setIsCalendarOpen(false),
         })
       : topAccessory ?? null;
 
@@ -1400,25 +1424,9 @@ const enterStart = -exitTarget;
                 transition={{ duration: 0.5 }}
               >
                 <div className="flex flex-wrap items-center gap-1 justify-between sm:justify-start">
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-2">
                     <HeaderIcon className="h-7 w-7 text-pink-500" />
-                    <button
-                      type="button"
-                      onClick={() => setIsCalendarOpen((prev) => !prev)}
-                      className="group flex items-center gap-1 rounded-full px-1 py-1 text-left transition-all hover:border-rose-800 hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:ring-offset-2 focus-visible:ring-offset-rose-50"
-                      aria-expanded={isCalendarOpen}
-                      aria-controls="records-calendar"
-                    >
-                      <span className="text-2xl sm:text-2xl font-bold text-slate-700">{headerTitle}</span>
-                      <span className="flex items-center gap-1">
-                        <motion.span
-                          animate={{ rotate: isCalendarOpen ? 180 : 0 }}
-                          className="flex h-7 w-7 items-center justify-center rounded-full bg-rose-50 text-rose-400"
-                        >
-                          <ChevronDown className="h-4 w-4" />
-                        </motion.span>
-                      </span>
-                    </button>
+                    <span className="text-2xl sm:text-2xl font-bold text-slate-700">{resolvedHeaderTitle}</span>
                   </div>
                   <div className="flex items-center gap-1">{resolvedHeaderActions}</div>
                 </div>

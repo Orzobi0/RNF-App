@@ -602,7 +602,7 @@ const EMPTY_DAY_COLORS = {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
       >
-        <h1 className="text-xl font-bold text-[#4a1f2a] mb-1">
+        <h1 className="text-xl font-bold text-titulo mb-1">
           {new Date().toLocaleDateString('es-ES', {
             weekday: 'long',
             day: 'numeric',
@@ -612,7 +612,7 @@ const EMPTY_DAY_COLORS = {
         <button
           type="button"
           onClick={onEditStartDate}
-          className="inline-flex items-center gap-1.5 rounded-full bg-white/60 px-3 py-1.5 text-sm font-semibold text-[#8B4A63] shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-rose-300 focus:ring-offset-2 focus:ring-offset-transparent hover:bg-white"
+          className="inline-flex items-center gap-1.5 rounded-full bg-white/60 px-3 py-1.5 text-sm font-semibold text-subtitulo shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-rose-300 focus:ring-offset-2 focus:ring-offset-transparent hover:bg-white"
           title="Editar fecha de inicio del ciclo"
         >
           <Edit className="w-4 h-4" />
@@ -735,14 +735,18 @@ const EMPTY_DAY_COLORS = {
       || (dot.isActive ? dot.colors.main : 'rgba(255,255,255,0.001)')
   }
   stroke={dot.colors.border && dot.colors.border !== 'none' ? dot.colors.border : "rgba(255,255,255,0.3)"}
-   strokeWidth={dot.colors.border && dot.colors.border !== 'none' ? (dot.isToday ? 2.2 : 1.2) : 0}
-filter={dot.fertilitysymbol === 'white' ? "url(#whiteSymbolShadow)" : dot.isActive ? "url(#dotShadow)" : undefined}
+  strokeWidth={dot.colors.border && dot.colors.border !== 'none' ? (dot.isToday ? 2.2 : 1.2) : 0}
+  filter={dot.fertilitysymbol === 'white' 
+    ? "url(#whiteSymbolShadow)" 
+    : dot.isActive 
+      ? "url(#dotShadow)" 
+      : undefined}
 
-   strokeLinecap="round"
+  strokeLinecap="round"
   onClick={(e) => handleDotClick(dot, e)}
   initial={false}
-  animate={{ scale: dot.isActive ? [1, 1.05, 1] : 1, opacity: 1, y: 0 }}
-  transition={{ duration: 0.95, ease: 'easeOut' }}   // más rápido
+  animate={{ scale: 1, opacity: 1, y: 0 }}
+  transition={{ duration: 0.50, ease: 'easeOut' }}   // más rápido
   whileTap={
     prefersReducedMotion
       ? undefined
@@ -909,12 +913,12 @@ filter={dot.fertilitysymbol === 'white' ? "url(#whiteSymbolShadow)" : dot.isActi
                 transition={{ duration: 0.2, delay: 0.2, ease: 'easeOut' }}
               >
                 <div className="flex items-center justify-center ">
-                  <p className="text-6xl font-semibold text-[#DD5665] leading-none">
+                  <p className="text-6xl font-semibold text-fertiliapp-fuerte leading-none">
                     {cycleData.currentDay}
                   </p>
                 </div>
-                <p className="mt-1 text-[15px] font-medium uppercase tracking-wide text-[#DD5665]">
-                  día del ciclo
+                <p className="mt-1 text-[15px] font-medium uppercase tracking-wide text-fertiliapp-fuerte">
+                  DÍA DEL CICLO
                 </p>
               </motion.div>
             </div>
@@ -926,7 +930,7 @@ filter={dot.fertilitysymbol === 'white' ? "url(#whiteSymbolShadow)" : dot.isActi
             <div className="flex items-center justify-center gap-3">
               <button
                 type="button"
-                className="p-2 rounded-full text-rose-500 shadow-xs transition hover:border hover:border-rose-500/20"
+                className="p-2 rounded-full text-fertiliapp-fuerte shadow-xs transition hover:border hover:bg-fertiliapp-fuerte/20"
                 onClick={() => changeOffset(-1)}
                 disabled={wheelOffset === 0}
               >
@@ -935,11 +939,11 @@ filter={dot.fertilitysymbol === 'white' ? "url(#whiteSymbolShadow)" : dot.isActi
               <div className="flex flex-col items-center gap-1">
                 
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium text-rose-500">
+                  <span className="text-xs font-medium text-fertiliapp-fuerte">
                     Día {wheelOffset + 1}
                   </span>
-                  <span className="text-xs text-rose-400">•</span>
-                  <span className="text-xs font-medium text-rose-500">
+                  <span className="text-xs text-fertiliapp-fuerte">•</span>
+                  <span className="text-xs font-medium text-fertiliapp-fuerte">
                     Día {Math.min(wheelOffset + totalDots, totalCycleDays)}
                   </span>
                 </div>
@@ -949,12 +953,12 @@ filter={dot.fertilitysymbol === 'white' ? "url(#whiteSymbolShadow)" : dot.isActi
                   max={maxOffset}
                   value={wheelOffset}
                   onChange={(event) => setWheelOffset(clampOffset(Number(event.target.value)))}
-                  className="w-40 accent-rose-500"
+                  className="w-40 range-fertiliapp"
                 />
               </div>
               <button
                 type="button"
-                className="p-2 rounded-full text-rose-500 shadow-xs transition hover:border hover:border-rose-500/20"
+                className="p-2 rounded-full text-fertiliapp-fuerte shadow-xs transition hover:border hover:bg-fertiliapp-fuerte/20"
                 onClick={() => changeOffsetRaf(1)}
                 disabled={wheelOffset === maxOffset}
               >
@@ -1141,7 +1145,7 @@ const FloatingActionButton = ({ onAddRecord, onAddCycle }) => {
   <div className="flex flex-col space-y-2 mt-1">
     <motion.button
       onClick={onAddRecord}
-      className="flex items-center gap-1 px-4 h-12 rounded-full bg-[#DD5665] hover:bg-[#C94B5A] text-white/90 shadow-lg shadow-[#DD5665]"
+      className="flex items-center gap-1 px-4 h-12 rounded-full bg-fertiliapp-fuerte hover:brightness-50 text-white/90 shadow-sm shadow-[#DD5665]"
       whileTap={{ scale: 0.80 }}
       whileHover={{ scale: 1.05 }}
       initial={{ opacity: 0, y: 20, scale: 0.8 }}
@@ -1153,7 +1157,7 @@ const FloatingActionButton = ({ onAddRecord, onAddCycle }) => {
     </motion.button>
     <motion.button
       onClick={onAddCycle}
-      className="flex items-center gap-3 px-4 h-12 rounded-full bg-white/80 hover:bg-rose-300 text-[#DD5665] shadow-lg shadow-[#DD5665]"
+      className="flex items-center gap-3 px-4 h-12 rounded-full bg-white/80 hover:brightness-50 text-fertiliapp-fuerte shadow-sm shadow-[#DD5665]"
       whileTap={{ scale: 0.95 }}
       whileHover={{ scale: 1.05 }}
       initial={{ opacity: 0, y: 20, scale: 0.8 }}
@@ -1170,7 +1174,7 @@ const FloatingActionButton = ({ onAddRecord, onAddCycle }) => {
 
       <motion.button
         onClick={() => setOpen(!open)}
-        className="flex items-center justify-center rounded-full bg-[#DD5665] hover:bg-[#DD5665] text-white shadow-sd shadow-[#DD5665] w-14 h-14 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2"
+        className="flex items-center justify-center rounded-full bg-fertiliapp-fuerte hover:brightness-95 text-white shadow-sm shadow-[#DD5665] w-14 h-14 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2"
         whileTap={{ scale: 0.95 }}
         whileHover={{ scale: 1.05 }}
         initial={{ scale: 0 }}

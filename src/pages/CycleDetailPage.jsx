@@ -288,7 +288,6 @@ const CycleDetailPage = () => {
         includeEndDate
         headerActions={headerActions}
         topAccessory={topAccessory}
-        headerTitle="Mis registros"
         onRequestDeleteCycle={handleDeleteCycleRequest}
         isDeletingCycle={isDeletingCycle}
         dateEditorDeleteDescription={

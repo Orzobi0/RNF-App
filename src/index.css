@@ -37,6 +37,34 @@
     --phase-post-abs-stop: 0.7;
     --phase-post-pattern-opacity: 0.35;
     --phase-text-shadow: rgba(15, 23, 42, 0.2);
+    --color-fertiliapp: #E37988;           /* rosa Fertiliapp (botones, enlaces, detalles) */
+    --color-fertiliapp-fuerte: #D85C70;    /* rosa más fuerte (número grande centro) */
+    --color-fertiliapp-suave: #FBCBD6;     /* rosa de apoyo / degradados */
+    --color-fondo-tarjeta: #FFE8EE;        /* fondo de cards */
+
+    /* Símbolos */
+    --color-verde-fertil: #67C5A4;
+    --color-amarillo-moco: #F7B944;
+
+    /* Textos */
+    --color-texto-titulo: #3A2430;
+    --color-texto-subtitulo: #644053;
+    --color-texto-base: #8F6C7C;
+    --color-texto-suave: #C2A6B3;
+
+    /* Bordes */
+    --color-borde: #F7CFD7;
+    --color-borde-suave: #FBE4EA;
+
+    /* Colores secundarios de interfaz */
+    --color-secundario: #4C9BB8;          /* azul verdoso complementario al rosa */
+    --color-secundario-suave: #D9EEF5;    /* fondo suave para secciones secundarias */
+
+    /* Estados generales (no solo ciclo) */
+    --color-ok: #5BBF9A;                  /* éxito / correcto */
+    --color-alerta: #F6B45C;              /* aviso suave (no error crítico) */
+    --color-error-suave: #FDE2E7;         /* fondos de error ligados al rosa */
+
   }
 }
 
@@ -103,28 +131,28 @@
 }
 
 .spotting-pattern-icon {
-  background-color: #ef4444;
+  background-color: #fb7185;
   background-image: radial-gradient(circle, rgba(255, 255, 255, 0.85) 1.5px, transparent 1.5px);
   background-size: 6px 6px;
   background-position: 0 0;
 }
 
 .calendar-spotting-bar {
-  background-color: #ef4444;
+  background-color: #fb7185;
   background-image: radial-gradient(circle, rgba(255, 255, 255, 0.85) 0.8px, transparent 0.8px);
   background-size: 4px 4px;
   background-position: 0 0;
 }
 
 .calendar-spotting-dot {
-  background-color: #ef4444;
+  background-color: #fb7185;
   background-image: radial-gradient(circle, rgba(255, 255, 255, 0.85) 0.8px, transparent 0.8px);
   background-size: 3px 3px;
   background-position: 0 0;
 }
 
 #spotting-pattern-chart {
-  background-color: #ef4444;
+  background-color: #fb7185;
   background-image: radial-gradient(circle, rgba(255, 255, 255, 0.85) 1.5px, transparent 1.5px);
   background-size: 6px 6px;
   background-position: 0 0;
@@ -251,7 +279,61 @@
   animation-delay: -6s;
 }
 
-/* contenedor general de la rueda */
+@layer utilities {
+  /* Texto */
+  .text-fertiliapp { color: var(--color-fertiliapp); }
+  .text-fertiliapp-fuerte { color: var(--color-fertiliapp-fuerte); }
+  .text-fertiliapp-suave { color: var(--color-fertiliapp-suave); }
+
+  .text-titulo { color: var(--color-texto-titulo); }
+  .text-subtitulo { color: var(--color-texto-subtitulo); }
+  .text-base { color: var(--color-texto-base); }
+  .text-suave { color: var(--color-texto-suave); }
+
+  /* Fondos principales*/
+  .bg-fertiliapp { background-color: var(--color-fertiliapp); }
+  .bg-fertiliapp-fuerte { background-color: var(--color-fertiliapp-fuerte); }
+  .bg-fertiliapp-suave { background-color: var(--color-fertiliapp-suave); }
+  .bg-tarjeta { background-color: var(--color-fondo-tarjeta); }
+
+    /* Símbolos/estados ciclo */
+  .bg-verde-fertil { background-color: var(--color-verde-fertil); }
+  .bg-amarillo-moco { background-color: var(--color-amarillo-moco); }
+  .text-verde-fertil { color: var(--color-verde-fertil); }
+  .text-amarillo-moco { color: var(--color-amarillo-moco); }
+
+  /* Bordes */
+  .border-fertiliapp { border-color: var(--color-borde); }
+  .border-fertiliapp-fuerte { border-color: var(--color-fertiliapp-fuerte); }
+  .border-fertiliapp-suave { border-color: var(--color-borde-suave); }
+
+    /* Ring de foco en tonos Fertiliapp */
+  .ring-fertiliapp { --tw-ring-color: var(--color-fertiliapp); }
+  .ring-fertiliapp-fuerte { --tw-ring-color: var(--color-fertiliapp-fuerte); }
+
+  /* Fondos secundarios */
+  .bg-secundario { background-color: var(--color-secundario); }
+  .bg-secundario-suave { background-color: var(--color-secundario-suave); }
+
+  /* Texto secundarios */
+  .text-secundario { color: var(--color-secundario); }
+
+  /* Bordes secundarios */
+  .border-secundario { border-color: var(--color-secundario); }
+
+  /* Estados genéricos */
+  .bg-ok { background-color: var(--color-ok); }
+  .text-ok { color: var(--color-ok); }
+
+  .bg-alerta { background-color: var(--color-alerta); }
+  .text-alerta { color: var(--color-alerta); }
+
+  .bg-error-suave { background-color: var(--color-error-suave); }
+  .text-error-suave { color: var(--color-error-suave); }
+}
+
+
+  /* contenedor general de la rueda */
 .cycle-wheel {
   contain: paint;
 }
@@ -298,4 +380,43 @@
 /* Reducir sombra del círculo central */
 .drop-shadow-\[0_15px_35px_rgba\(221\,86\,101\,0\.22\)\] {
   filter: drop-shadow(0 4px 8px rgba(221, 86, 101, 0.08)) !important;
+}
+@layer components {
+  .range-fertiliapp {
+    /* opcional: si el navegador lo soporta, suma */
+    accent-color: var(--color-fertiliapp-fuerte);
+
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    background: transparent;
+  }
+
+  /* TRACK en Safari / iOS / Chrome */
+  .range-fertiliapp::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 999px;
+    background-color: rgba(216, 92, 112, 0.25); /* usa el rosa suave */
+  }
+
+  /* THUMB en Safari / iOS / Chrome */
+  .range-fertiliapp::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 999px;
+    background-color: var(--color-fertiliapp-fuerte);
+    box-shadow: 0 0 0 4px rgba(216, 92, 112, 0.35);
+    margin-top: calc((12px - 4px) / -2); /* centra el thumb en el track */
+  }
+
+  /* (Opcional) foco accesible sin el azul feo */
+  .range-fertiliapp:focus-visible {
+    outline: none;
+  }
+
+  .range-fertiliapp:focus-visible::-webkit-slider-thumb {
+    box-shadow: 0 0 0 5px rgba(216, 92, 112, 0.45);
+  }
 }
