@@ -14,7 +14,7 @@ const ActionButtons = ({ onAddRecord, onShowRecords, onNewCycle, disableAdd, dis
       <Button
       onClick={onShowRecords}
       variant="outline"
-      className="border-pink-500 text-pink-400 hover:bg-pink-500/20 hover:text-pink-300 font-semibold py-2 px-4 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 flex items-center text-base"
+      className="border-pink-500 text-pink-400 hover:bg-pink-500/20 hover:text-pink-300 font-semibold py-2 px-4 rounded-3xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 flex items-center text-base"
       disabled={disableRecords}
     >
       <ListChecks className="mr-2 h-6 w-6" />

@@ -164,7 +164,7 @@ const EditCycleDatesDialog = ({
             )}
           </div>
           <DialogFooter className="sm:justify-end">
-            <Button variant="outline" onClick={onClose} className="border-gray-300 text-gray-700 hover:bg-gray-100">Cancelar</Button>
+            <Button variant="outline" onClick={onClose} className="border-gray-300 text-titulo hover:bg-gray-100">Cancelar</Button>
             <Button variant="primary" onClick={handleConfirm} className="bg-pink-600 hover:bg-pink-700 text-white">Guardar</Button>
           </DialogFooter>
         </DialogContent>

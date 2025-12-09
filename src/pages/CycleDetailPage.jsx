@@ -187,7 +187,7 @@ const CycleDetailPage = () => {
         asChild
         variant="outline"
         size="icon"
-        className="shrink-0 ml-2 rounded-full border-pink-300 text-pink-600 hover:bg-pink-50 hover:border-pink-400"
+        className="shrink-0 ml-2 rounded-full border-fertiliapp-fuerte text-fertiliapp-fuerte hover:brightness-95"
       >
         <Link to="/archived-cycles" aria-label="Volver a mis ciclos">
           <ArrowLeft className="h-4 w-4" />
@@ -195,7 +195,7 @@ const CycleDetailPage = () => {
         </Link>
       </Button>
       <div className="items-center justify-center px-4 py-3">
-        <h2 className="text-2xl font-semibold text-rose-700 truncate">
+        <h2 className="text-2xl font-semibold text-titulo truncate">
           {cycleData?.name ? `${cycleData.name} · ` : ''}{cycleRangeLabel}
         </h2>
       </div>
@@ -209,7 +209,7 @@ const CycleDetailPage = () => {
           asChild
           variant="outline"
           size="icon"
-          className="border-pink-300 text-pink-600 rounded-full hover:bg-pink-50 hover:border-pink-400"
+          className="border-white text-alerta bg-white rounded-full hover:brightness-95"
         >
           <Link to={`/chart/${cycleId}`} aria-label="Ver gráfica del ciclo">
             <BarChart3 className="h-4 w-4" />
@@ -221,7 +221,7 @@ const CycleDetailPage = () => {
           size="icon"
           onClick={openDateEditor}
           aria-pressed={isUpdatingDates}
-          className="border-pink-300 text-pink-600 rounded-full hover:bg-pink-50 hover:border-pink-400"
+          className="border-white text-subtitulo rounded-full hover:brightness-95"
           disabled={isUpdatingDates}
           aria-label="Editar fechas del ciclo"
         >
@@ -231,7 +231,7 @@ const CycleDetailPage = () => {
           type="button"
           size="icon"
           onClick={openAddRecord}
-          className="rounded-full bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white shadow"
+          className="rounded-full bg-secundario hover:brightness-95 text-white shadow"
           disabled={isProcessing}
           aria-label="Añadir registro al ciclo"
         >

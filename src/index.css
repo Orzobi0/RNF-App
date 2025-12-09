@@ -57,13 +57,41 @@
     --color-borde-suave: #FBE4EA;
 
     /* Colores secundarios de interfaz */
-    --color-secundario: #4C9BB8;          /* azul verdoso complementario al rosa */
+    --color-secundario: #5BA9B8;          /* azul verdoso complementario al rosa */
     --color-secundario-suave: #D9EEF5;    /* fondo suave para secciones secundarias */
 
     /* Estados generales (no solo ciclo) */
-    --color-ok: #5BBF9A;                  /* éxito / correcto */
-    --color-alerta: #F6B45C;              /* aviso suave (no error crítico) */
-    --color-error-suave: #FDE2E7;         /* fondos de error ligados al rosa */
+    --color-ok: #D85C70;                  /* éxito / correcto */
+    --color-alerta: #F6B45C;  
+    --color-alerta-suave: #fff1e0;  
+    --color-alerta-2: #3A2430;    
+    --color-alerta-2-suave: #e6d4dd;         /* aviso suave (no error crítico) */
+
+
+  /* Formulario de registro (NO confundir con símbolos del ciclo) */
+
+    /* Temperatura: amarillo suave tipo “alerta” */
+    --color-temp: #F6B45C;
+    --color-temp-suave: #FFF6E8;
+    --color-temp-borde: #FAD7A0;
+
+    /* Sensación: azul compatible con el secundario frío */
+    --color-sensacion: #4C9BB8;
+    --color-sensacion-fuerte: #1a5d75;
+    --color-sensacion-suave: #E6F3F9;
+    --color-sensacion-borde: #BEDCEB;
+
+    /* Apariencia: verde distinto del verde fértil menta */
+    --color-apariencia: #5BBF9A;
+    --color-apariencia-fuerte: #3a8a6e;
+    --color-apariencia-suave: #E7F6F0;
+    --color-apariencia-borde: #C4E7DB;
+
+    /* Observaciones: lila suave, coherente con la marca */
+    --color-observaciones: #B58ACB;
+    --color-observaciones-fuerte: #7E52A3;
+    --color-observaciones-suave: #F5F0FB;
+    --color-observaciones-borde: #E0CCF0;
 
   }
 }
@@ -289,12 +317,18 @@
   .text-subtitulo { color: var(--color-texto-subtitulo); }
   .text-base { color: var(--color-texto-base); }
   .text-suave { color: var(--color-texto-suave); }
+    /* Texto secundarios */
+  .text-secundario { color: var(--color-secundario); }
 
   /* Fondos principales*/
   .bg-fertiliapp { background-color: var(--color-fertiliapp); }
   .bg-fertiliapp-fuerte { background-color: var(--color-fertiliapp-fuerte); }
   .bg-fertiliapp-suave { background-color: var(--color-fertiliapp-suave); }
   .bg-tarjeta { background-color: var(--color-fondo-tarjeta); }
+  .bg-secundario { background-color: var(--color-secundario); }
+  .bg-secundario-suave { background-color: var(--color-secundario-suave); }
+  .ring-fertiliapp-suave { --tw-ring-color: var(--color-fertiliapp-suave); }
+
 
     /* Símbolos/estados ciclo */
   .bg-verde-fertil { background-color: var(--color-verde-fertil); }
@@ -306,20 +340,12 @@
   .border-fertiliapp { border-color: var(--color-borde); }
   .border-fertiliapp-fuerte { border-color: var(--color-fertiliapp-fuerte); }
   .border-fertiliapp-suave { border-color: var(--color-borde-suave); }
+  .border-secundario { border-color: var(--color-secundario); }
 
     /* Ring de foco en tonos Fertiliapp */
   .ring-fertiliapp { --tw-ring-color: var(--color-fertiliapp); }
   .ring-fertiliapp-fuerte { --tw-ring-color: var(--color-fertiliapp-fuerte); }
 
-  /* Fondos secundarios */
-  .bg-secundario { background-color: var(--color-secundario); }
-  .bg-secundario-suave { background-color: var(--color-secundario-suave); }
-
-  /* Texto secundarios */
-  .text-secundario { color: var(--color-secundario); }
-
-  /* Bordes secundarios */
-  .border-secundario { border-color: var(--color-secundario); }
 
   /* Estados genéricos */
   .bg-ok { background-color: var(--color-ok); }
@@ -327,9 +353,41 @@
 
   .bg-alerta { background-color: var(--color-alerta); }
   .text-alerta { color: var(--color-alerta); }
+  .bg-alerta-2 { background-color: var(--color-alerta-2); }
+  .text-alerta-2 { color: var(--color-alerta-2); }
+  .bg-alerta-2-suave { background-color: var(--color-alerta-2-suave); }
+  .text-alerta-2-suave { color: var(--color-alerta-2-suave); }
 
-  .bg-error-suave { background-color: var(--color-error-suave); }
-  .text-error-suave { color: var(--color-error-suave); }
+  .bg-alerta-suave { background-color: var(--color-alerta-suave); }
+  .text-alerta-suave { color: var(--color-alerta-suave); }
+
+    /* Formulario – temperatura (amarillos) */
+  .text-temp { color: var(--color-temp); }
+  .bg-temp-suave { background-color: var(--color-temp-suave); }
+  .border-temp { border-color: var(--color-temp-borde); }
+  .ring-temp { --tw-ring-color: var(--color-temp); }
+
+  /* Formulario – sensación (azules) */
+  .text-sensacion { color: var(--color-sensacion); }
+  .text-sensacion-fuerte { color: var(--color-sensacion-fuerte); }
+  .bg-sensacion-suave { background-color: var(--color-sensacion-suave); }
+  .border-sensacion { border-color: var(--color-sensacion-borde); }
+  .ring-sensacion { --tw-ring-color: var(--color-sensacion); }
+
+  /* Formulario – apariencia (verdes) */
+  .text-apariencia { color: var(--color-apariencia); }
+  .text-apariencia-fuerte { color: var(--color-apariencia-fuerte); }
+  .bg-apariencia-suave { background-color: var(--color-apariencia-suave); }
+  .border-apariencia { border-color: var(--color-apariencia-borde); }
+  .ring-apariencia { --tw-ring-color: var(--color-apariencia); }
+
+  /* Formulario – observaciones (lilas) */
+  .text-observaciones { color: var(--color-observaciones); }
+  .text-observaciones-fuerte { color: var(--color-observaciones-fuerte); }
+  .bg-observaciones-suave { background-color: var(--color-observaciones-suave); }
+  .border-observaciones { border-color: var(--color-observaciones-borde); }
+  .ring-observaciones { --tw-ring-color: var(--color-observaciones); }
+
 }
 
 

@@ -20,7 +20,7 @@ const BottomNav = () => {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-50 border-t border-gray-100 bg-white/80 backdrop-blur-xl supports-[backdrop-filter]:bg-white/70 pt-2 pb-[env(safe-area-inset-bottom)] min-h-[var(--bottom-nav-safe)]"
+      className="fixed bottom-0 left-0 right-0 z-50 border-fertiliapp-suave bg-white/90 backdrop-blur-md supports-[backdrop-filter]:bg-white/90 pt-2 pb-[env(safe-area-inset-bottom)] min-h-[var(--bottom-nav-safe)]"
     >
       <ul className="mx-auto grid w-full max-w-md grid-cols-5 gap-2 px-2">
         {links.map(({ to, label, icon: Icon, isActive: computeActive }) => (
@@ -39,15 +39,15 @@ const BottomNav = () => {
                     {/* fondo “pill” activo, no afecta a altura */}
                     <span
                       aria-hidden
-                    className={`absolute inset-0 rounded-2xl transition-all duration-200 ${
-                      active ? 'bg-pink-50 ring-1 ring-pink-100 shadow-sm' : 'bg-transparent'
+                    className={`absolute inset-0 rounded-3xl transition-all duration-200 ${
+                      active ? 'bg-fertiliapp-suave/80 ring-1 ring-fertiliapp-suave shadow-sm' : 'bg-transparent'
                     }`}
                     />
                     {/* icono: mantenemos contenedor h-7 para conservar altura total previa */}
                     <span className="relative z-10 flex h-7 w-7 items-center justify-center">
                       <Icon
                       className={`h-6 w-6 transition-transform duration-200 ${
-                        active ? 'text-pink-600 scale-110' : 'text-gray-400 group-hover:text-gray-600'
+                        active ? 'text-fertiliapp-fuerte scale-110' : 'text-gray-400 group-hover:text-gray-600'
                       }`}
                     />
                     </span>

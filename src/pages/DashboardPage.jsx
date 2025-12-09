@@ -1174,7 +1174,7 @@ const FloatingActionButton = ({ onAddRecord, onAddCycle }) => {
 
       <motion.button
         onClick={() => setOpen(!open)}
-        className="flex items-center justify-center rounded-full bg-fertiliapp-fuerte hover:brightness-95 text-white shadow-sm shadow-[#DD5665] w-14 h-14 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2"
+        className="flex items-center justify-center rounded-full bg-white/95 border border-secundario text-secundario hover:brightness-95 shadow-sm shadow-[#5BA9B8] w-14 h-14 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2"
         whileTap={{ scale: 0.95 }}
         whileHover={{ scale: 1.05 }}
         initial={{ scale: 0 }}

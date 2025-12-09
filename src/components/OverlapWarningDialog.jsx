@@ -40,8 +40,8 @@ const OverlapWarningDialog = ({ isOpen, onCancel, onConfirm, conflictCycle }) =>
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="sm:justify-end">
-          <Button variant="outline" onClick={onCancel} className="border-gray-300 text-gray-700 hover:bg-gray-100">Cancelar</Button>
-          <Button variant="destructive" onClick={onConfirm} className="bg-pink-600 hover:bg-pink-700 text-white">Confirmar</Button>
+          <Button variant="outline" onClick={onCancel} className="border-gray-300 text-titulo hover:bg-gray-100">Cancelar</Button>
+          <Button variant="destructive" onClick={onConfirm} className="bg-fertiliapp-fuerte hover:bg-pink-700 text-white">Confirmar</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

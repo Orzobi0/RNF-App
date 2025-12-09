@@ -1325,7 +1325,7 @@ const enterStart = -exitTarget;
               variant="outline"
               size="icon"
               onClick={openStartDateEditor}
-              className="border-pink-200 rounded-full text-pink-600 hover:bg-pink-500"
+              className="border-fertiliapp-suave rounded-full text-titulo hover:brightness-95"
               disabled={isProcessing || isUpdatingStartDate}
               aria-label={includeEndDate ? 'Editar fechas del ciclo' : 'Editar fecha de inicio'}
             >
@@ -1336,7 +1336,7 @@ const enterStart = -exitTarget;
               type="button"
               size="icon"
               onClick={handleOpenAddRecord}
-              className="rounded-full bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white shadow-lg"
+              className="rounded-full bg-secundario hover:brightness-95 text-white shadow-md"
               disabled={isProcessing}
               style={{ filter: 'drop-shadow(0 6px 12px rgba(236, 72, 153, 0.3))' }}
               aria-label="Añadir registro"
@@ -1369,7 +1369,7 @@ const enterStart = -exitTarget;
         backgroundColor: '#fff7fb'
       }}
     />
-        <p className="text-center text-slate-600 text-lg">Cargando...</p>
+        <p className="text-center text-titulo text-lg">Cargando...</p>
       </div>
     );
   }
@@ -1389,7 +1389,7 @@ const enterStart = -exitTarget;
         backgroundColor: '#fff7fb'
       }}
     />
-        <p className="text-center text-slate-600 text-lg">No hay ciclo activo.</p>
+        <p className="text-center text-titulo text-lg">No hay ciclo activo.</p>
       </div>
     );
   }
@@ -1414,7 +1414,7 @@ const enterStart = -exitTarget;
           ref={calendarContainerRef}
           className="sticky top-1 z-50 w-full max-w-lg mx-auto"
         >
-          <div className="relative overflow-hidden rounded-2xl ring-1 ring-rose-100/70">
+          <div className="relative overflow-hidden rounded-2xl">
             <div className="space-y-1.5 p-2 sm:p-2.5 relative z-10">
               {/* Header */}
               <motion.div
@@ -1425,8 +1425,8 @@ const enterStart = -exitTarget;
               >
                 <div className="flex flex-wrap items-center gap-1 justify-between sm:justify-start">
                   <div className="flex items-center gap-2">
-                    <HeaderIcon className="h-7 w-7 text-pink-500" />
-                    <span className="text-2xl sm:text-2xl font-bold text-slate-700">{resolvedHeaderTitle}</span>
+                    <HeaderIcon className="h-7 w-7 text-subtitulo" />
+                    <span className="text-2xl sm:text-2xl font-bold text-subtitulo">{resolvedHeaderTitle}</span>
                   </div>
                   <div className="flex items-center gap-1">{resolvedHeaderActions}</div>
                 </div>

@@ -68,13 +68,13 @@ export default function UpdateNotification() {
 
   return (
     <div className="fixed top-4 left-4 right-4 z-50 flex justify-center">
-      <div className="w-full max-w-sm rounded-lg bg-blue-600 p-4 text-white shadow-lg">
+      <div className="w-full max-w-sm rounded-lg bg-secundario p-4 text-white shadow-lg">
         <p className="mb-3 text-sm">¡Nueva versión disponible!</p>
         <div className="flex items-center justify-end gap-2">
           <Button onClick={() => setShowUpdate(false)} variant="secondary">
             Después
           </Button>
-          <Button onClick={handleUpdate} className="bg-white text-blue-600 hover:bg-white/90">
+          <Button onClick={handleUpdate} className="bg-white text-secundario hover:bg-white/90">
             Actualizar
           </Button>
         </div>

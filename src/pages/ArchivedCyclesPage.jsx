@@ -216,17 +216,17 @@ const ArchivedCyclesPage = () => {
           >
             <div className="bg-white/70 backdrop-blur-md rounded-3xl p-8 border border-pink-200/50 shadow-lg">
               <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-pink-100 to-rose-100 rounded-full flex items-center justify-center">
-                <Archive className="w-10 h-10 text-pink-500" />
+                <Archive className="w-10 h-10 text-subtitulo" />
               </div>
-              <h2 className="text-2xl font-semibold text-slate-700 mb-4">No hay ciclos archivados</h2>
-              <p className="text-slate-600 mb-8">Cuando inicies un nuevo ciclo, el anterior aparecerá aquí.</p>
+              <h2 className="text-2xl font-semibold text-subtitulo mb-4">No hay ciclos archivados</h2>
+              <p className="text-subtitulo mb-8">Cuando inicies un nuevo ciclo, el anterior aparecerá aquí.</p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Button asChild className="bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white shadow-lg">
+                <Button asChild className="bg-fertiliapp-fuerte hover:from-pink-600 hover:to-rose-600 text-white shadow-lg">
                   <Link to="/">Volver al Ciclo Actual</Link>
                 </Button>
                 <Button
                   onClick={openAddDialog}
-                  className="bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white shadow-lg"
+                  className="bg-fertiliapp-fuerte hover:from-pink-600 hover:to-rose-600 text-white shadow-lg"
                 >
                   <Plus className="mr-2 h-4 w-4" /> Crear Ciclo
                 </Button>
@@ -301,15 +301,15 @@ const ArchivedCyclesPage = () => {
   animate={{ opacity: 1, y: 0 }}
   transition={{ duration: 0.5 }}
 >
-  <h1 className="text-3xl sm:text-4xl font-bold text-slate-700 flex items-center">
-    <Archive className="mr-3 h-8 w-8 text-pink-500" />
+  <h1 className="text-3xl sm:text-4xl font-bold text-subtitulo flex items-center">
+    <Archive className="mr-3 h-8 w-8 text-subtitulo" />
     Mis Ciclos
   </h1>
 
   <div className="flex flex-row items-center gap-3">
     <Button
       onClick={openAddDialog}
-      className="flex-shrink-0 text-md rounded-full bg-rose-400 hover:bg-rose-500 text-white shadow-lg px-4"
+      className="flex-shrink-0 text-md rounded-full bg-secundario hover:brightness-95 text-white shadow-lg px-4"
       style={{ filter: 'drop-shadow(0 6px 12px rgba(236, 72, 153, 0.3))' }}
     >
       <Plus className="mr-1 h-4 w-4" /> Ciclo
@@ -318,17 +318,17 @@ const ArchivedCyclesPage = () => {
     <button
       type="button"
       onClick={() => setIsFilterOpen((prev) => !prev)}
-      className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-pink-200 bg-white/90 shadow-sm hover:bg-white"
+      className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-fertiliapp-fuerte bg-white/90 shadow-sm hover:bg-white"
       aria-label="Filtrar por año"
     >
-      <Search className="h-5 w-5 text-rose-400" />
+      <Search className="h-5 w-5 text-fertiliapp-fuerte" />
     </button>
   </div>
 </motion.div>
 
 {isFilterOpen && (
   <div className="mb-4 flex w-full justify-center">
-    <div className="flex w-full max-w-md items-center gap-2 rounded-3xl border border-pink-200 bg-white/90 px-3 py-2 shadow-sm">
+    <div className="flex w-full max-w-md items-center gap-2 rounded-3xl border border-fertiliapp-suave bg-white/90 px-3 py-2 shadow-sm">
       <span className="text-xs font-medium text-slate-700">Año</span>
       <select
         id="year-filter"
@@ -374,7 +374,7 @@ const ArchivedCyclesPage = () => {
                   <motion.button
                     key={cycle.id}
                     type="button"
-                    className="w-full max-w-[480px] mx-auto bg-white/80 backdrop-blur-md border border-pink-200/50 shadow-md hover:shadow-lg transition-all duration-300 hover:bg-white/90 rounded-3xl active:scale-[0.98] cursor-pointer select-none"
+                    className="w-full max-w-[480px] mx-auto bg-white/80 backdrop-blur-md border border-fertiliapp-suave shadow-md hover:shadow-lg transition-all duration-300 hover:bg-white/90 rounded-3xl active:scale-[0.98] cursor-pointer select-none"
                     variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }}
                     onMouseDown={() => startLongPressDetection(cycle)}
                     onMouseUp={() => cancelLongPressDetection(cycle)}
@@ -404,8 +404,8 @@ const ArchivedCyclesPage = () => {
                         <div className="flex items-start gap-3 flex-1 min-w-0">
                           {/* Icono del ciclo */}
                           <div className="flex flex-col items-center">
-                            <div className="w-12 h-12 bg-gradient-to-br from-pink-100 to-rose-100 rounded-full flex items-center justify-center flex-shrink-0">
-                              <Calendar className="w-6 h-6 text-pink-600" />
+                            <div className="w-12 h-12 bg-fertiliapp-suave rounded-full flex items-center justify-center flex-shrink-0">
+                              <Calendar className="w-6 h-6 text-fertiliapp-fuerte" />
                             </div>
                           </div>
 
@@ -434,7 +434,7 @@ const ArchivedCyclesPage = () => {
                                 </div>
                               )}
                               {cycle.isCurrent && (
-                                <Badge className="bg-gradient-to-r from-pink-500 to-rose-500 text-white text-xs">
+                                <Badge className="bg-fertiliapp-fuerte text-white text-xs">
                                   Ciclo actual
                                 </Badge>
                               )}
@@ -447,7 +447,7 @@ const ArchivedCyclesPage = () => {
                 );
               })}
               {filteredCycles.length === 0 && (
-                <div className="mt-6 rounded-2xl border border-dashed border-pink-200 bg-white/70 p-6 text-center text-slate-600 shadow-inner">
+                <div className="mt-6 rounded-2xl border border-dashed border-fertiliapp-suave bg-white/70 p-6 text-center text-slate-600 shadow-inner">
                   No hay ciclos para el año seleccionado.
  
                 </div>
