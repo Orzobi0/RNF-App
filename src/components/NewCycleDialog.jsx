@@ -35,7 +35,7 @@ const NewCycleDialog = ({ isOpen, onClose, onConfirm, currentCycleStartDate }) =
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="bg-white border-pink-100 text-gray-800">
+      <DialogContent className="bg-white border-pink-100 text-gray-800 rounded-3xl">
         <DialogHeader>
           <DialogTitle>Iniciar nuevo ciclo</DialogTitle>
           <DialogDescription className="text-gray-600">
@@ -59,8 +59,8 @@ const NewCycleDialog = ({ isOpen, onClose, onConfirm, currentCycleStartDate }) =
           />
         </div>
         <DialogFooter className="sm:justify-end">
-          <Button variant="outline" onClick={onClose} className="border-gray-300 text-gray-700 hover:bg-gray-100">Cancelar</Button>
-          <Button variant="primary" onClick={handleConfirm} className="bg-pink-600 hover:bg-pink-700 text-white">{isFirstCycle ? 'Iniciar ciclo' : 'Confirmar nuevo ciclo'}</Button>
+          <Button variant="outline" onClick={onClose} className="border-gray-300 text-subtitulo hover:brightness-95">Cancelar</Button>
+          <Button variant="primary" onClick={handleConfirm} className="bg-fertiliapp-fuerte hover:brightness-95 text-white">{isFirstCycle ? 'Iniciar ciclo' : 'Confirmar nuevo ciclo'}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

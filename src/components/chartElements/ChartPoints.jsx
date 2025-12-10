@@ -1,12 +1,15 @@
 import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { parseISO, startOfDay, isAfter, isSameDay } from 'date-fns';
-import { getSymbolAppearance } from '@/config/fertilitySymbols';
-
+import { getSymbolAppearance, getSymbolColorPalette } from '@/config/fertilitySymbols';
 // Colores consistentes con la dashboard pero con mejor contraste para el chart
-const SENSATION_COLOR = '#1565C0';
-const APPEARANCE_COLOR = '#2E7D32';
-const OBSERVATION_COLOR = '#6A1B9A';
+const SENSATION_COLOR = 'var(--color-sensacion-fuerte)';
+const APPEARANCE_COLOR = 'var(--color-apariencia-fuerte)';
+const OBSERVATION_COLOR = 'var(--color-observaciones-fuerte)';
+const HEART_COLOR = '#be123c';
+
+const BACKGROUND_COLOR = 'rgba(252, 231, 243, 0.40)';
+const BORDER_COLOR = 'rgba(244, 114, 182, 0.08)';
 
 const ROW_BACKGROUND_FILL_SOFT_sens = '#EFF6FF';
 const ROW_BACKGROUND_FILL_SOFT_apa = '#ECFDF5';
@@ -26,6 +29,7 @@ const PEAK_TEXT_SHADOW = 'drop-shadow(0 2px 4px rgba(244, 114, 182, 0.35))';
 const HIGH_SEQUENCE_NUMBER_COLOR = '#be185d';
 const BASELINE_NUMBER_COLOR = '#2563eb';
 const TODAY_HIGHLIGHT_COLOR = '#be185d';
+const SYMBOL_BORDER_FALLBACK = 'rgba(244, 114, 182, 0.35)';
 
 
 /** Quita ceros iniciales a día/mes */
@@ -96,6 +100,7 @@ const ChartPoints = ({
   graphBottomLift = 0,
   graphBottomY,
   rowsZoneHeight,
+  showRelationsRow = false,
 }) => {
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -125,11 +130,12 @@ const ChartPoints = ({
   const rowsTopY = graphBottomY; // el “techo” de las filas es justo donde acaba la gráfica
   const obsRowIndex = isFullScreen ? 9 : 7.5;
   const halfBlock = isFullScreen ? 1 : 0.75;
-  // altura ideal para que Observ. siga tocando el borde inferior
-  const autoRowH = Math.max(
-    1,
-    Math.floor(rowsZoneHeight / (obsRowIndex + halfBlock))
-  );
+  const relationsRowIndex = showRelationsRow
+    ? obsRowIndex + (isFullScreen ? 2 : 1.5)
+    : null;
+  const baseRowCount = obsRowIndex + halfBlock;
+  // altura ideal basada en el layout original para no comprimir filas existentes
+  const autoRowH = Math.max(1, Math.floor(rowsZoneHeight / baseRowCount));
   // no reducimos por debajo del tamaño base (legibilidad), pero sí estiramos
   const rowH = Math.max(textRowHeight, autoRowH);
 
@@ -139,9 +145,13 @@ const ChartPoints = ({
   const mucusSensationRowY = rowsTopY + rowH * (isFullScreen ? 5 : 4.5);
   const mucusAppearanceRowY = rowsTopY + rowH * (isFullScreen ? 7 : 6);
   const observationsRowY = rowsTopY + rowH * (isFullScreen ? 9 : 7.5);
+  const relationsRowY = showRelationsRow
+    ? observationsRowY + rowH * (isFullScreen ? 2 : 1.5)
+    : null;
 
   const rowWidth = chartWidth - padding.left - padding.right;
   const rowBlockHeight = rowH * (isFullScreen ? 2 : 1.5);
+  const relationsHeartSize = Math.min(Math.max(rowBlockHeight * 0.46, 14), 12);
 
   const MotionG = reduceMotion ? 'g' : motion.g;
 
@@ -220,6 +230,10 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
         <filter id="rowShadowChart" x="-10%" y="-10%" width="120%" height="120%">
           <feDropShadow dx="0" dy="2" stdDeviation="4" floodColor="rgba(244, 114, 182, 0.2)" />
         </filter>
+        <pattern id="spotting-pattern-chart" patternUnits="userSpaceOnUse" width="6" height="6">
+          <rect width="6" height="6" fill="#fb7185" />
+          <circle cx="3" cy="3" r="1.5" fill="rgba(255,255,255,0.85)" />
+        </pattern>
         
         <filter id="pointGlow" x="-50%" y="-50%" width="200%" height="200%">
           <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
@@ -251,43 +265,7 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
       </defs>
 
       {/* Fondos de filas sutiles alineados con las tarjetas -- ocultos en modo compacto */}
-      {!compact && (
-  <g>
-    <rect
-      x={padding.left}
-      y={mucusSensationRowY - rowBlockHeight / 2}
-      width={rowWidth}
-      height={rowBlockHeight}
-      fill="rgba(239, 246, 255, 0.4)"
-      stroke="rgba(59, 130, 246, 0.08)"
-      strokeWidth={0.5}      
-      rx={3}
-      style={{ filter: 'drop-shadow(0 1px 1px rgba(59, 130, 246, 0.03))' }}
-    />
-    <rect
-      x={padding.left}
-      y={mucusAppearanceRowY - rowBlockHeight / 2}
-      width={rowWidth}
-      height={rowBlockHeight}
-      fill="rgba(236, 253, 245, 0.4)"
-      stroke="rgba(16, 185, 129, 0.08)"
-      strokeWidth={0.5}
-      rx={3}
-      style={{ filter: 'drop-shadow(0 1px 1px rgba(16, 185, 129, 0.03))' }}
-    />
-    <rect
-      x={padding.left}
-      y={observationsRowY - rowBlockHeight / 2}
-      width={rowWidth}
-      height={rowBlockHeight}
-      fill="rgba(245, 243, 255, 0.4)"
-      stroke="rgba(139, 92, 246, 0.08)"
-      strokeWidth={0.5}
-      rx={3}
-      style={{ filter: 'drop-shadow(0 1px 1px rgba(139, 92, 246, 0.03))' }}
-    />
-  </g>
-)}
+
 
       {/* Leyenda izquierda con tipografía premium */}
       {isFullScreen && orientation !== 'portrait' && (
@@ -299,6 +277,9 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
             { label: 'Sens.', row: isFullScreen ? 5 : 4.5, color: SENSATION_COLOR },
             { label: 'Apar.', row: isFullScreen ? 7 : 6, color: APPEARANCE_COLOR },
             { label: 'Observ.', row: isFullScreen ? 9 : 7.5, color: OBSERVATION_COLOR },
+            ...(showRelationsRow && relationsRowIndex != null
+              ? [{ label: 'RS', row: relationsRowIndex, color: HEART_COLOR }]
+              : []),
           ].map(({ label, row, color }) => (
             <text
               key={label}
@@ -349,17 +330,18 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
           hasTemp &&
           index === peakMarkerIndex;
 
-        // Símbolo con colores mejorados
+        // Símbolo con colores alineados con el dashboard
         const symbolInfo = getSymbolAppearance(point.fertility_symbol);
-        let symbolFillStyle = 'transparent';
-        if (symbolInfo?.color) {
-          const raw = symbolInfo.color.replace(/^bg-/, '');
-          if (raw === 'red-500') symbolFillStyle = '#ef4444';
-          else if (raw === 'white') symbolFillStyle = '#ffffff';
-          else if (raw === 'green-500') symbolFillStyle = '#22c55e';
-          else if (raw === 'pink-300') symbolFillStyle = '#f9a8d4';
-          else if (raw === 'yellow-400') symbolFillStyle = '#facc15';
-        }
+        const symbolPalette = getSymbolColorPalette(symbolInfo.value);
+        const symbolFillStyle = symbolInfo.pattern === 'spotting-pattern'
+          ? 'url(#spotting-pattern-chart)'
+          : symbolPalette.main;
+        const symbolStrokeColor = symbolPalette.border === 'none'
+          ? 'none'
+          : (symbolPalette.border || SYMBOL_BORDER_FALLBACK);
+        const symbolStrokeWidth = symbolPalette.border === 'none'
+          ? 0
+          : (symbolInfo.value === 'white' ? 1.6 : 1);
 
 
         const isFuture = point.isoDate
@@ -614,11 +596,9 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
                   y={symbolRowYBase - symbolRectSize*0.75}
                   width={symbolRectSize*1.4}
                   height={symbolRectSize}
-                  fill={symbolInfo.pattern === 'spotting-pattern'
-                    ? "url(#spotting-pattern-chart)"
-                    : symbolFillStyle}
-                  stroke={symbolInfo.value === 'white' ? '#CBD5E1' : 'rgba(233, 30, 99, 0.4)'}
-                  strokeWidth={symbolInfo.value === 'white' ? 2 : 1}
+                  fill={symbolFillStyle}
+                  stroke={symbolStrokeColor}
+                  strokeWidth={symbolStrokeWidth}
                   rx={symbolRectSize * 0.2}
                   style={{ filter: 'drop-shadow(0 2px 4px rgba(244, 114, 182, 0.25))' }}
                 />
@@ -750,6 +730,20 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
               <tspan x={x} dy={0}>{obsLine1}</tspan>
               {obsLine2 && <tspan x={x} dy={responsiveFontSize(1.1)}>{obsLine2}</tspan>}
             </text>
+            )}
+
+            {showRelationsRow && relationsRowY != null && (
+              <text
+                x={x}
+                y={relationsRowY}
+                textAnchor="middle"
+                fontSize={relationsHeartSize}
+                fontWeight="700"
+                fill={hasRelations ? HEART_COLOR : 'transparent'}
+                aria-label={hasRelations ? `Relación registrada el ${point.isoDate || `día ${index + 1}`}` : undefined}
+              >
+                {hasRelations ? '❤' : ''}
+              </text>
             )}
 
           </MotionG>

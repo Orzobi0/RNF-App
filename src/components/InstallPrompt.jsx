@@ -1,12 +1,19 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 const IOS_DISMISSED_KEY = 'iosInstallDismissed';
 
-export default function InstallPrompt() {
+export default function InstallPrompt({
+  className = '',
+  buttonClassName = '',
+  align = 'center',
+  forceVisible = false,
+}) {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstall, setShowInstall] = useState(false);
   const [showIOS, setShowIOS] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(false);
 
   useEffect(() => {
     const handler = (e) => {
@@ -17,9 +24,12 @@ export default function InstallPrompt() {
     window.addEventListener('beforeinstallprompt', handler);
 
     const isIOS = /iphone|ipad|ipod/.test(window.navigator.userAgent.toLowerCase());
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+    const standalone =
+      window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+    setIsStandalone(Boolean(standalone));
+
     const dismissed = localStorage.getItem(IOS_DISMISSED_KEY);
-    if (!('onbeforeinstallprompt' in window) && isIOS && !isStandalone && !dismissed) {
+    if (!('onbeforeinstallprompt' in window) && isIOS && !standalone && !dismissed) {
       setShowIOS(true);
     }
 
@@ -39,22 +49,51 @@ export default function InstallPrompt() {
     localStorage.setItem(IOS_DISMISSED_KEY, '1');
   };
 
-  if (showInstall) {
-    return (
-      <div className="fixed bottom-4 inset-x-0 flex justify-center z-50">
-        <Button onClick={handleInstall}>Instalar aplicación</Button>
-      </div>
-    );
-  }
+  // ✅ Solo mostramos el CTA si:
+  // - no está en standalone
+  // - tenemos evento beforeinstallprompt (deferredPrompt)
+  // - y se ha marcado showInstall desde ese evento
+  //   o si explícitamente forzamos la visibilidad
+  const shouldShowCTA = (!isStandalone && showInstall && deferredPrompt) || forceVisible;
+  const isDisabled = !deferredPrompt;
 
   if (showIOS) {
     return (
-      <div className="fixed bottom-0 inset-x-0 bg-white p-4 text-center border-t space-y-2 z-50">
-        <p className="text-sm">Para instalar esta app, toca el botón Compartir y luego "Añadir a pantalla de inicio".</p>
-        <Button variant="outline" onClick={dismissIOS}>Cerrar</Button>
+      <div
+        className={cn(
+          'w-full rounded-2xl border bg-white/90 p-4 text-center shadow-sm space-y-2',
+          className
+        )}
+      >
+        <p className="text-sm text-slate-700">
+          Para instalar esta app, toca el botón Compartir y luego "Añadir a pantalla de inicio".
+        </p>
+        <Button variant="outline" onClick={dismissIOS} className="rounded-xl">
+          Cerrar
+        </Button>
       </div>
     );
   }
 
-  return null;
+  if (!shouldShowCTA) {
+    return null;
+  }
+
+  return (
+    <div
+      className={cn(
+        'w-full',
+        align === 'center' ? 'flex justify-center' : align === 'end' ? 'flex justify-end' : '',
+        className
+      )}
+    >
+      <Button
+        onClick={handleInstall}
+        disabled={isDisabled}
+        className={cn('rounded-3xl px-6 py-3 text-white', buttonClassName)}
+      >
+        Instalar aplicación
+      </Button>
+    </div>
+  );
 }

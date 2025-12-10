@@ -14,6 +14,54 @@ export const getSymbolAppearance = (symbolValue) => {
   return found || FERTILITY_SYMBOLS.NONE;
 };
 
+export const getSymbolColorPalette = (symbolValue) => {
+  switch (symbolValue) {
+    case 'red':
+      return {
+        main: '#fb7185',
+        light: '#fecdd3',
+        glow: 'rgba(251,113,133,0.35)',
+        border: 'none'
+      };
+    case 'white':
+      return {
+        main: '#fdf5f8',
+        light: '#ffffff',
+        glow: 'rgba(255,255,255,0.4)',
+        border: 'rgba(251,113,133,0.6)'
+      };
+    case 'green':
+      return {
+        main: '#67C5A4',
+        light: '#bbf7d0',
+        glow: 'rgba(22,163,74,0.32)',
+        border: 'rgba(22,163,74,0.32)'
+      };
+    case 'yellow':
+      return {
+        main: '#F7B944',
+        light: '#facc15',
+        glow: 'rgba(234,179,8,0.32)',
+        border: 'rgba(234,179,8,0.32)'
+      };
+    case 'spot':
+      return {
+        main: '#fb7185',
+        light: '#fecdd3',
+        glow: 'rgba(248,113,113,0.45)',
+        border: '#fee2e2',
+        pattern: 'spotting-pattern'
+      };
+    default:
+      return {
+        main: '#d1d5db',
+        light: '#d1d5db',
+        glow: 'rgba(209,213,219,0.35)',
+        border: '#d1d5db'
+      };
+  }
+};
+
 export const getFertilitySymbolTheme = (symbolValue) => {
   switch (symbolValue) {
     case 'red':

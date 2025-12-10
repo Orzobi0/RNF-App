@@ -381,7 +381,7 @@ const ChartPage = () => {
   if (showLoading) {
     return (
       <MainLayout>
-        <div className="flex h-full flex-col items-center justify-center space-y-4 bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 px-4 py-8 text-center text-pink-600">
+        <div className="flex h-full flex-col items-center justify-center space-y-4 bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 px-4 py-8 text-center text-fertiliapp-fuerte">
           <p>Cargando…</p>
         </div>
       </MainLayout>
@@ -392,9 +392,9 @@ const ChartPage = () => {
     if (cycleId && notFound) {
       return (
         <MainLayout>
-          <div className="flex h-full flex-col items-center justify-center space-y-4 px-4 py-8 text-center text-pink-600">
+          <div className="flex h-full flex-col items-center justify-center space-y-4 px-4 py-8 text-center text-fertiliapp-fuerte">
             <p>No se encontró el ciclo solicitado.</p>
-            <Button asChild className="bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow">
+            <Button asChild className="bg-fertiliapp-fuerte rounded-3xl text-white shadow">
               <Link to="/archived-cycles">Volver a Mis Ciclos</Link>
             </Button>
           </div>
@@ -403,9 +403,9 @@ const ChartPage = () => {
     }
     return (
       <MainLayout>
-        <div className="flex h-full flex-col items-center justify-center space-y-4 px-4 py-8 text-center text-pink-600">
+        <div className="flex h-full flex-col items-center justify-center space-y-4 px-4 py-8 text-center text-fertiliapp-fuerte">
           <p>No hay ciclo activo.</p>
-          <Button asChild className="bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow">
+          <Button asChild className="bg-fertiliapp-fuerte rounded-3xl text-white shadow">
             <Link to="/records">Ir a Mis Registros</Link>
           </Button>
         </div>
@@ -461,7 +461,13 @@ const ChartPage = () => {
     scrollStart = Math.max(0, endIndex - visibleDays);
   }
   const baseStyle = {
-    background: 'linear-gradient(to br, #fff1f2 0%, #fce7f3 50%, #ffe4e6 100%)'
+    backgroundColor: '#fff7fb',
+    backgroundImage: `
+      radial-gradient(120% 120% at 0% 0%, rgba(251,113,133,0.18) 0, transparent 55%),
+      radial-gradient(110% 110% at 100% 0%, rgba(244,114,182,0.16) 0, transparent 55%),
+      radial-gradient(130% 130% at 0% 100%, rgba(251,113,133,0.08) 0, transparent 60%),
+      radial-gradient(140% 140% at 100% 100%, rgba(255,255,255,0.9) 0, rgba(255,247,250,0.3) 40%, transparent 70%)
+    `
   };
   const NAVBAR_SAFE_VAR = 'var(--bottom-nav-safe)';
   const containerStyle = isFullScreen

@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { motion } from 'framer-motion';
 import { LogIn, UserPlus, Mail, KeyRound, Eye, EyeOff } from 'lucide-react';
+import InstallPrompt from '@/components/InstallPrompt';
 const AuthPage = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
@@ -18,6 +19,7 @@ const AuthPage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const forceInstallPrompt = import.meta.env.VITE_FORCE_INSTALL_PROMPT === 'true';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -71,16 +73,16 @@ const AuthPage = () => {
   };
 
   return (
-    <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 p-4">
+    <div className="relative flex h-full flex-col items-center justify-center p-4">
       <motion.div
-        className="w-full max-w-md bg-white/80 backdrop-blur-md shadow-xl rounded-xl p-8 sm:p-10"
+        className="w-full max-w-md bg-white/80 backdrop-blur-md shadow-xl rounded-3xl p-8 sm:p-10"
         initial={{ opacity: 0, y: -30 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, ease: 'easeOut' }}
       >
         <div className="text-center mb-8">
           <motion.h1
-            className="text-3xl sm:text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-rose-400 via-pink-400 to-fuchsia-500 py-2 mb-2"
+            className="text-3xl sm:text-4xl font-bold bg-clip-text text-transparent bg-fertiliapp py-2 mb-2"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.2, duration: 0.5 }}
@@ -93,7 +95,7 @@ const AuthPage = () => {
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-2">
             <Label htmlFor="email" className="flex items-center text-gray-700 text-lg">
-              <Mail className="mr-2 h-5 w-5 text-pink-400" /> Correo Electrónico
+              <Mail className="mr-2 h-5 w-5 text-fertiliapp-fuerte" /> Correo Electrónico
             </Label>
             <Input
               id="email"
@@ -102,12 +104,12 @@ const AuthPage = () => {
               onChange={(e) => setEmail(e.target.value)}
               placeholder="tu@email.com"
               required
-              className="bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400 focus:ring-pink-500 focus:border-pink-500 text-base py-3 px-4"
+              className="bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400 rounded-3xl focus:ring-fertiliapp-fuerte focus:border-fertiliapp-fuerte text-base py-3 px-4"
             />
           </div>
             <div className="space-y-2">
               <Label htmlFor="password" className="flex items-center text-gray-700 text-lg">
-                <KeyRound className="mr-2 h-5 w-5 text-rose-400" /> Contraseña
+                <KeyRound className="mr-2 h-5 w-5 text-fertiliapp-fuerte" /> Contraseña
               </Label>
               <div className="relative">
                 <Input
@@ -117,7 +119,7 @@ const AuthPage = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   required
-                  className="bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400 focus:ring-pink-500 focus:border-pink-500 text-base py-3 px-4 pr-10"
+                  className="bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400 rounded-3xl focus:ring-fertiliapp-fuerte focus:border-fertiliapp-fuerte text-base py-3 px-4 pr-10"
                 />
                 <button
                   type="button"
@@ -146,7 +148,7 @@ const AuthPage = () => {
             {!isLogin && (
               <div className="space-y-2">
                 <Label htmlFor="confirmPassword" className="flex items-center text-gray-700 text-lg">
-                  <KeyRound className="mr-2 h-5 w-5 text-rose-400" /> Confirmar Contraseña
+                  <KeyRound className="mr-2 h-5 w-5 text-fertiliapp-fuerte" /> Confirmar Contraseña
                 </Label>
                 <div className="relative">
                   <Input
@@ -156,7 +158,7 @@ const AuthPage = () => {
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="••••••••"
                     required
-                    className="bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400 focus:ring-pink-500 focus:border-pink-500 text-base py-3 px-4 pr-10"
+                    className="bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400 focus:ring-fertiliapp-fuerte focus:border-fertiliapp-fuerte text-base py-3 px-4 pr-10"
                   />
                   <button
                     type="button"
@@ -173,7 +175,7 @@ const AuthPage = () => {
           <Button
             type="submit"
             disabled={loading}
-            className="w-full bg-gradient-to-r from-pink-500 to-fuchsia-600 hover:from-pink-600 hover:to-fuchsia-700 text-white font-semibold py-3 text-lg shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105 flex items-center justify-center"
+            className="w-full bg-fertiliapp-fuerte hover:brithness-95 text-white font-semibold py-3 text-lg shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105 flex items-center justify-center"
           >
             {loading ? (
               <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
@@ -188,6 +190,11 @@ const AuthPage = () => {
             )}
           </Button>
         </form>
+        <InstallPrompt
+          className="mt-6"
+          buttonClassName="w-full bg-fertiliapp-fuerte hover:brightness-95"
+          forceVisible={forceInstallPrompt}
+        />
 
         <div className="mt-8 text-center">
           <Button

@@ -3,9 +3,9 @@ import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 
 // Colores consistentes con la dashboard
-const SENSATION_COLOR = '#1565C0';
-const APPEARANCE_COLOR = '#2E7D32';
-const OBSERVATION_COLOR = '#6A1B9A';
+const SENSATION_COLOR = 'var(--color-sensacion-fuerte)';
+const APPEARANCE_COLOR = 'var(--color-apariencia-fuerte)';
+const OBSERVATION_COLOR = 'var(--color-observaciones-fuerte)';
 
 const ChartLeftLegend = ({
   padding,
@@ -19,6 +19,7 @@ const ChartLeftLegend = ({
   isFullScreen,
   graphBottomY,
   rowsZoneHeight,
+  showRelationsRow = false,
 }) => {
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -45,7 +46,11 @@ const ChartLeftLegend = ({
   const rowsTopY = graphBottomY;
   const obsRowIndex = isFullScreen ? 9 : 7.5;
   const halfBlock = isFullScreen ? 1 : 0.75;
-  const autoRowH = Math.max(1, Math.floor(rowsZoneHeight / (obsRowIndex + halfBlock)));
+  const relationsRowIndex = showRelationsRow
+    ? obsRowIndex + (isFullScreen ? 2 : 1.5)
+    : null;
+  const baseRowCount = obsRowIndex + halfBlock;
+  const autoRowH = Math.max(1, Math.floor(rowsZoneHeight / baseRowCount));
   const rowH = Math.max(textRowHeight, autoRowH);
   const legendRows = useMemo(() => {
     const baseRows = [
@@ -54,10 +59,13 @@ const ChartLeftLegend = ({
       { label: 'Símbolo', row: 3, color: isFullScreen ? '#374151' : '#374151', icon: null },
       { label: 'Sens.', row: isFullScreen ? 5 : 4.5, color: SENSATION_COLOR, icon: '◊' },
       { label: 'Apar.', row: isFullScreen ? 7 : 6, color: APPEARANCE_COLOR, icon: '○' },
-      { label: 'Observ.', row: isFullScreen ? 9 : 7.5, color: OBSERVATION_COLOR, icon: '✦' },
+      { label: 'Obs.', row: isFullScreen ? 9 : 7.5, color: OBSERVATION_COLOR, icon: '✦' },
     ];
+    if (showRelationsRow && relationsRowIndex != null) {
+      baseRows.push({ label: 'RS', row: relationsRowIndex, color: '#f44336', icon: '♥' });
+    }
     return baseRows;
-  }, [isFullScreen]);
+  }, [isFullScreen, relationsRowIndex, showRelationsRow]);
 
   return (
     <svg

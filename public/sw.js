@@ -155,7 +155,16 @@ self.addEventListener('fetch', (event) => {
           } catch (error) {
             console.log('SW: Network failed on forced reload, falling back to cache');
             const fallback = await matchActiveCache(`${BASE_URL}index.html`);
-            return fallback || Response.error();
+            if (fallback) return fallback;
+
+          return new Response(
+            '<h1>Sin conexión</h1><p>No se pudo cargar la aplicación.</p>',
+            {
+              headers: { 'Content-Type': 'text/html' },
+              status: 503,
+            }
+          );
+
           }
         }
 
@@ -181,7 +190,14 @@ self.addEventListener('fetch', (event) => {
             return fallback;
           }
 
-          return Response.error();
+          return new Response(
+          '<h1>Sin conexión</h1><p>No se pudo cargar la aplicación.</p>',
+          {
+            headers: { 'Content-Type': 'text/html' },
+            status: 503,
+          }
+        );
+
         }
       })()
     );

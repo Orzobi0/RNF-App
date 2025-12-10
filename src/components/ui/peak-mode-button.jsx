@@ -15,11 +15,11 @@ const sizeClassMap = {
 
 const toneClassMap = {
   assign:
-    'bg-pink-500 text-white border border-pink-600 shadow-[0_8px_18px_-6px_rgba(244,63,94,0.45)] hover:bg-pink-600 hover:shadow-[0_12px_24px_-8px_rgba(244,63,94,0.55)] focus-visible:ring-pink-300',
+    'bg-fertiliapp-fuerte text-white border border-fertiliapp-fuerte shadow-[0_8px_18px_-6px_rgba(244,63,94,0.45)] hover:brightness-95 hover:shadow-[0_12px_24px_-8px_rgba(244,63,94,0.55)] focus-visible:ring-fertiliapp-fuerte',
   update:
-    'bg-slate-100 text-indigo-700 border border-indigo-400 shadow-[0_8px_18px_-6px_rgba(99,102,241,0.28)] hover:bg-indigo-50 hover:shadow-[0_12px_24px_-8px_rgba(99,102,241,0.35)] focus-visible:ring-indigo-300 ring-offset-1 ring-offset-white',
+    'bg-slate-100 text-secundario border border-secundario shadow-[0_8px_18px_-6px_rgba(99,102,241,0.28)] hover:brightness-95 hover:shadow-[0_12px_24px_-8px_rgba(99,102,241,0.35)] focus-visible:ring-secundario ring-offset-1 ring-offset-white',
   remove:
-    'bg-white text-pink-700 border border-pink-400 shadow-[0_8px_18px_-6px_rgba(244,63,94,0.28)] hover:bg-pink-50 hover:shadow-[0_12px_24px_-8px_rgba(244,63,94,0.35)] focus-visible:ring-pink-300',
+    'bg-white text-fertiliapp-fuerte border border-fertiliapp-fuerte shadow-[0_8px_18px_-6px_rgba(244,63,94,0.28)] hover:brightness-95 hover:shadow-[0_12px_24px_-8px_rgba(244,63,94,0.35)] focus-visible:ring-fertiliapp-fuerte',
 };
 
 const iconMap = {

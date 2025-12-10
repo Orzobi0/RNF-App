@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
+﻿import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
   Plus,
   FilePlus,
@@ -40,6 +40,7 @@ import { computeOvulationMetrics, useFertilityChart } from '@/hooks/useFertility
 import { saveUserMetricsSnapshot } from '@/lib/userMetrics';
 import { MANUAL_CPM_DEDUCTION, buildCpmMetric } from '@/lib/metrics/cpm';
 import { buildT8Metric } from '@/lib/metrics/t8';
+import { getSymbolColorPalette } from '@/config/fertilitySymbols';
 
 const CycleOverviewCard = ({
   cycleData,
@@ -55,9 +56,10 @@ const CycleOverviewCard = ({
   const records = cycleData.records || [];
   const [activePoint, setActivePoint] = useState(null);
   const [tooltipPosition, setTooltipPosition] = useState({ clientX: 0, clientY: 0 });
-  const [wheelOffset, setWheelOffset] = useState(0);
+  const [isSymbolsOpen, setIsSymbolsOpen] = useState(false);
+  const [isCalcOpen, setIsCalcOpen] = useState(false);
   const [recentlyChangedDays, setRecentlyChangedDays] = useState([]);
-  const hasInitializedWheelRef = useRef(false);
+  const hasInitializedWheelRef = useRef(true);
   const touchStartXRef = useRef(null);
   const circleRef = useRef(null);
   const recentSignaturesRef = useRef(new Map());
@@ -170,6 +172,22 @@ const CycleOverviewCard = ({
 
   const maxOffset = Math.max(totalCycleDays - totalDots, 0);
   const hasOverflow = maxOffset > 0;
+
+  const desiredInitialWheelOffset = useMemo(() => {
+    if (!hasOverflow) {
+      return 0;
+    }
+
+    return Math.max(0, Math.min(Math.max(cycleData.currentDay - totalDots, 0), maxOffset));
+  }, [cycleData.currentDay, hasOverflow, maxOffset, totalDots]);
+
+  const [wheelOffset, setWheelOffset] = useState(desiredInitialWheelOffset);
+
+  useEffect(() => {
+    if (!hasInitializedWheelRef.current) {
+      hasInitializedWheelRef.current = true;
+    }
+  }, [desiredInitialWheelOffset, wheelOffset]);
 
   useEffect(() => {
     if (!hasOverflow) {
@@ -292,53 +310,13 @@ const changeOffsetRaf = useCallback((delta) => {
   }, []);
 
   // Colores suaves con mejor contraste
-  const getSymbolColor = (symbolValue) => {
-    switch (symbolValue) {
-      case 'red':
-        return {
-          main: '#ef4444',
-          light: '#fee2e2',
-          glow: 'rgba(239, 68, 68, 0.3)',
-          border: 'none'
-        };
-      case 'white':
-        return {
-          main: '#f8fafc',
-          light: '#ffe4e6',
-          glow: 'rgba(248, 250, 252, 0.3)',
-          border: 'none'
-        };
-      case 'green':
-        return {
-          main: '#22c55e',
-          light: '#22c55e',
-          glow: 'rgba(34, 197, 94, 0.3)',
-          border: 'none'
-        };
-        case 'yellow':
-        return {
-          main: '#facc15',
-          light: '#fef08a',
-          glow: 'rgba(250, 204, 21, 0.3)',
-          border: 'none'
-        };
-      case 'spot':
-        return {
-          main: '#ef4444',
-          light: '#ef4444',
-          glow: 'rgba(239, 68, 68, 0.3)',
-          border: '#fee2e2',
-          pattern: 'url(#spotting-pattern-dashboard)'
-        };
-      default:
-        return {
-          main: '#d1d5db',
-          light: '#f8fafc',
-          glow: 'rgba(209, 213, 219, 0.3)',
-          border: 'none'
-        };
-    }
-  };
+  const getSymbolColor = useCallback(
+    (symbolValue) => ({
+      ...getSymbolColorPalette(symbolValue),
+      ...(symbolValue === 'spot' ? { pattern: 'url(#spotting-pattern-dashboard)' } : {})
+    }),
+    []
+  );
 
   // Crear puntos individuales en lugar de segmentos
   const recordsByDay = useMemo(() => {
@@ -375,6 +353,16 @@ const changeOffsetRaf = useCallback((delta) => {
     }, new Map());
   }, [records, cycleStartDate]);
 
+const EMPTY_DAY_COLORS = {
+  main: '#b4a9b0',                          // muy claro, liloso
+  light: '#c1b6bd',
+  glow: 'rgba(212, 194, 206, 0.16)',
+  border: '#c1b6bd',
+};
+
+
+
+
   const createProgressDots = () => {
     return Array.from({ length: totalDots }, (_, index) => {
       const day = wheelOffset + index + 1;
@@ -389,8 +377,27 @@ const changeOffsetRaf = useCallback((delta) => {
       
       let colors = day <= cycleData.currentDay && recordWithCycleDay
         ? getSymbolColor(recordWithCycleDay.fertility_symbol)
-        : { main: '#c1abb6', light: '#c8cacf', glow: 'rgba(229, 231, 235, 0.3)' };
+        : EMPTY_DAY_COLORS;
 
+
+      // Distinguish between past empty days and future days
+      if (!recordWithCycleDay && day < cycleData.currentDay) {
+        // Past days without record: transparent with gray border
+        colors = {
+          main: 'transparent',
+          light: 'transparent',
+          glow: 'rgba(180, 169, 176, 0.1)',
+          border: 'rgba(180, 169, 176, 0.4)',
+        };
+      } else if (isFutureDay || day > cycleData.currentDay) {
+        // Future days: transparent with pale pink border
+        colors = {
+          main: 'transparent',
+          light: 'transparent',
+          glow: 'rgba(251, 192, 203, 0.1)',
+          border: 'rgba(252, 170, 185, 0.35)',
+        };
+      }
       const isToday = day === cycleData.currentDay;
       if (isToday) {
         if (recordWithCycleDay) {
@@ -561,13 +568,13 @@ const changeOffsetRaf = useCallback((delta) => {
       <button
         type="button"
         onClick={onClick}
-        className="group w-full rounded-2xl border border-pink-200/40 bg-white/70 p-4 text-left shadow-sm transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70"
+        className="group w-full rounded-2xl border border-rose-100/60 bg-white/80 p-4 text-left shadow-sm transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70"
         aria-describedby={microCopyId}
         aria-label={`Editar ${resolvedTitle}`}
       >
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-1 min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-wide text-pink-600">
+            <p className="text-xs font-semibold uppercase tracking-wide text-rose-600">
               {resolvedTitle}
             </p>
             <p className="text-xl sm:text-2xl font-bold leading-tight text-gray-800 break-words">
@@ -576,16 +583,16 @@ const changeOffsetRaf = useCallback((delta) => {
           </div>
           <div className="flex sm:flex-col flex-row items-center gap-2 sm:items-end">
             <Badge
-              className={`rounded-full border border-pink-200/60 px-2 py-0.5 text-[11px] font-semibold ${
+              className={`rounded-full border border-rose-100/70 px-2 py-0.5 text-[11px] font-semibold ${
                 modeLabel === 'Manual'
                   ? 'bg-rose-100 text-rose-600'
-                  : 'bg-white/80 text-rose-500'
+                  : 'bg-white/85 text-rose-500'
               }`}
             >
               {modeLabel}
             </Badge>
             <div className="sm:text-right text-left">
-              <p className="text-base sm:text-lg font-semibold text-pink-700 whitespace-nowrap">
+              <p className="text-base sm:text-lg font-semibold text-rose-600 whitespace-nowrap">
                 {finalText}
               </p>
             </div>
@@ -602,44 +609,55 @@ const changeOffsetRaf = useCallback((delta) => {
   };
 
   return (
-    <div className="relative flex flex-1 flex-col overflow-y-hidden">
+    <div className="relative flex flex-col space-y-4">
       {/* Fecha actual - Parte superior con padding reducido */}
       <motion.div
-        className="px-4 pt-4 pb-3 text-center flex-shrink-0"
+        className="relative overflow-hidden px-4 pt-4 pb-3 text-center flex-shrink-0"
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
       >
-        <h1 className="text-xl font-bold text-gray-800 mb-1">
+        <h1 className="text-xl font-bold text-titulo mb-1">
           {new Date().toLocaleDateString('es-ES', {
             weekday: 'long',
             day: 'numeric',
             month: 'long'
           })}
         </h1>
-                <button
+        <button
           type="button"
           onClick={onEditStartDate}
-          className="text-sm font-medium text-pink-700 backdrop-blur-sm rounded-full px-3 py-1.5 inline-flex items-center gap-1.5 transition-colors focus:outline-none focus:ring-2 focus:ring-rose-300 focus:ring-offset-2 focus:ring-offset-transparent hover:bg-white/40"
+          className="inline-flex items-center gap-1.5 rounded-full bg-white/60 px-3 py-1.5 text-sm font-semibold text-subtitulo shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-rose-300 focus:ring-offset-2 focus:ring-offset-transparent hover:bg-white"
           title="Editar fecha de inicio del ciclo"
         >
           <Edit className="w-4 h-4" />
-          Ciclo actual
+          {`Ciclo actual`}
         </button>
+
       </motion.div>
 
       {/* Contenedor principal con flex-grow para usar todo el espacio disponible */}
         <motion.div
-          className="px-4 flex-grow flex flex-col justify-start mt-2"
+        className="px-4 flex-grow flex flex-col justify-start mt-2"
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.4, delay: 0.1 }}
       >
-        {/* Círculo de progreso redimensionado */}
-        <div className="text-center mb-3 flex-shrink-0">
+        {/* Tarjeta SOLO para el círculo + navegación */}
+        
+        <div className="relative overflow-hidden rounded-[75px]   p-4  mb-4">
+        <div className="pointer-events-none absolute inset-0">
+        {/* halo desde arriba como antes */}
+        <div className="absolute inset-0 " />
+        {/* degradado sutil desde abajo para que no quede plano-blanco */}
+        <div className="absolute inset-x-0 bottom-0 h-1/2 " />
+        </div>
+        <div className="relative text-center flex-shrink-0">
+          {/* Círculo de progreso redimensionado */}
+          <div className="mb-3">
           <motion.div
             ref={circleRef}
-            className="relative inline-flex items-center justify-center mb-4"
+            className="relative inline-flex items-center justify-center mb-4 drop-shadow-[0_15px_35px_rgba(221,86,101,0.22)]"
             style={{ width: viewBoxSize, height: viewBoxSize }}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -659,24 +677,41 @@ const changeOffsetRaf = useCallback((delta) => {
                   <rect width="6" height="6" fill="#ef4444" />
                   <circle cx="3" cy="3" r="1.5" fill="rgba(255,255,255,0.85)" />
                 </pattern>
-                <radialGradient id="ringGlow" cx="50%" cy="50%" r="50%">
-                <stop offset="0%" stopColor="rgba(255,255,255,0.0)" />
-                <stop offset="60%" stopColor="rgba(244,114,182,0.12)" />
-                <stop offset="100%" stopColor="rgba(190,24,93,0.10)" />
+                <radialGradient id="ringGlow" cx="50%" cy="50%" r="78%" fx="30%" fy="20%">
+                  <stop offset="0%" stopColor="#FFE7E8" stopOpacity="0.98" />
+                  <stop offset="60%" stopColor="#FFC0C1" stopOpacity="0.95" />
+                  <stop offset="100%" stopColor="#FFB5B3" stopOpacity="0.95" />
                 </radialGradient>
-              </defs>
-              <filter id="dotShadow" x="-30%" y="-30%" width="160%" height="160%" colorInterpolationFilters="sRGB">
-  <feDropShadow dx="0" dy="0.8" stdDeviation="0.8" floodColor="#000" floodOpacity="0.22" />
+                <filter id="circleDepthShadow">
+                  <feDropShadow dx="0" dy="10" stdDeviation="10" floodColor="rgba(221,86,101,0.22)" floodOpacity="1" />
+                  <feDropShadow dx="0" dy="4" stdDeviation="4" floodColor="rgba(221,86,101,0.18)" floodOpacity="1" />
+                </filter>
+                <filter id="dotShadow" x="-30%" y="-30%" width="160%" height="160%" colorInterpolationFilters="sRGB">
+                <feDropShadow dx="0" dy="0.8" stdDeviation="0.8" floodColor="#000" floodOpacity="0.22" />
+              </filter>
+              <filter id="whiteSymbolShadow">
+  <feDropShadow dx="0" dy="0.5" stdDeviation="0.8" floodColor="rgba(189,16,44,0.3)" />
 </filter>
 
+  <filter id="activePointHighlight">
+    <feDropShadow dx="0" dy="-1" stdDeviation="0.5" floodColor="rgba(255,255,255,0.7)" floodOpacity="1" />
+  </filter>
+  
+
+  <filter id="bevel">
+    <feFlood floodColor="rgba(255,255,255,0.4)" result="top"/>
+    <feFlood floodColor="rgba(0,0,0,0.2)" result="bottom"/>
+    <feMerge>
+      <feMergeNode in="top"/>
+      <feMergeNode in="bottom"/>
+      <feMergeNode/>
+    </feMerge>
+  </filter>
+                  </defs>
+
               {/* Círculo base sutil */}
-              <circle
-                cx={center}
-                cy={center}
-                r={radius - 30}
-                fill="url(#ringGlow)"
-                stroke="rgba(255,255,255,0.35)"
-                strokeWidth="0.5"
+              <circle cx={center} cy={center} r={radius - 28} fill="url(#ringGlow)" stroke="rgba(255,225,228,0.8)" strokeWidth={1.2}
+              filter="url(#circleDepthShadow)"
               />
               {hasOverflow && (
                 <line
@@ -695,7 +730,7 @@ const changeOffsetRaf = useCallback((delta) => {
   <motion.g
   transition={{ type: 'tween', duration: 0.18, ease: [0.2, 0.8, 0.2, 1] }}
   initial={false}
-  animate={{ rotate: -wheelRotationDegrees }}
+  animate={hasInitializedWheelRef.current ? { rotate: -wheelRotationDegrees } : false}
   style={{
     transformOrigin: 'center',
     transformBox: 'view-box',
@@ -705,27 +740,30 @@ const changeOffsetRaf = useCallback((delta) => {
                 {dots.map((dot, index) => (
                   <g key={index}>
 {/* Punto principal con sombra real */}
-<g filter={dot.isActive ? 'url(#dotShadow)' : undefined}>
+<g filter={dot.isActive ? 'url(#activePointHighlight)' : dot.isToday ? "url(#bevel)" : undefined}>
   <motion.circle
   cx={dot.x}
   cy={dot.y}
-  r={dot.isToday ? 11 : 10}
+  r={dot.isToday ? 12 : 11}
   fill={
     dot.colors.pattern
       || (dot.isActive ? dot.colors.main : 'rgba(255,255,255,0.001)')
   }
-  stroke={dot.colors.border === 'none'
-    ? 'none'
-    : dot.colors.border || 'rgba(158,158,158,0.4)'}
-  strokeWidth={dot.colors.border === 'none'
-    ? 0
-    : (dot.isToday ? 1.8 : (dot.colors.border ? 0.6 : 0.8))}
+  stroke={dot.colors.border && dot.colors.border !== 'none' ? dot.colors.border : "rgba(255,255,255,0.3)"}
+  strokeWidth={dot.colors.border && dot.colors.border !== 'none' ? (dot.isToday ? 2.2 : 1.2) : 0}
+  filter={dot.fertilitysymbol === 'white' 
+    ? "url(#whiteSymbolShadow)" 
+    : dot.isActive 
+      ? "url(#dotShadow)" 
+      : undefined}
+
+  strokeLinecap="round"
   onClick={(e) => handleDotClick(dot, e)}
   initial={false}
   animate={{ scale: 1, opacity: 1, y: 0 }}
-  transition={{ duration: 0.95, ease: 'easeOut' }}   // más rápido
+  transition={{ duration: 0.50, ease: 'easeOut' }}   // más rápido
   whileTap={
-    prefersReducedMotion
+    prefersReducedMotion || !hasInitializedWheelRef.current
       ? undefined
       : {
           y: 2,              // se hunde un pelín
@@ -811,7 +849,6 @@ const changeOffsetRaf = useCallback((delta) => {
   </motion.g>
 )}
 
-
                   {/* Anillo pulsante para el día actual */}
                   {dot.isToday && (
                     <circle
@@ -885,28 +922,30 @@ const changeOffsetRaf = useCallback((delta) => {
             {/* Contenido central */}
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
               <motion.div
-                className="text-center  backdrop-blur-md rounded-full p-4"
+                className="flex flex-col items-center gap-2"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.2, delay: 0.2, ease: 'easeOut' }}
-                style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}
               >
-                <span className="text-5xl font-bold text-pink-700 block">
-                  {cycleData.currentDay}
-                </span>
-                <span className="text-800 text-pink-700 font-medium mt-0.5 block">
-                  día del ciclo
-                </span>
+                <div className="flex items-center justify-center ">
+                  <p className="text-6xl font-semibold text-fertiliapp-fuerte leading-none">
+                    {cycleData.currentDay}
+                  </p>
+                </div>
+                <p className="mt-1 text-[15px] font-medium uppercase tracking-wide text-fertiliapp-fuerte">
+                  DÍA DEL CICLO
+                </p>
               </motion.div>
-
             </div>
+
           </motion.div>
+          
 
           {hasOverflow && (
             <div className="flex items-center justify-center gap-3">
               <button
                 type="button"
-                className="p-2 rounded-full text-rose-500 shadow-xs transition hover:border hover:border-rose-500/20"
+                className="p-2 rounded-full text-fertiliapp-fuerte shadow-xs transition hover:border hover:bg-fertiliapp-fuerte/20"
                 onClick={() => changeOffset(-1)}
                 disabled={wheelOffset === 0}
               >
@@ -915,11 +954,11 @@ const changeOffsetRaf = useCallback((delta) => {
               <div className="flex flex-col items-center gap-1">
                 
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium text-rose-500">
+                  <span className="text-xs font-medium text-fertiliapp-fuerte">
                     Día {wheelOffset + 1}
                   </span>
-                  <span className="text-xs text-rose-400">•</span>
-                  <span className="text-xs font-medium text-rose-500">
+                  <span className="text-xs text-fertiliapp-fuerte">•</span>
+                  <span className="text-xs font-medium text-fertiliapp-fuerte">
                     Día {Math.min(wheelOffset + totalDots, totalCycleDays)}
                   </span>
                 </div>
@@ -929,161 +968,186 @@ const changeOffsetRaf = useCallback((delta) => {
                   max={maxOffset}
                   value={wheelOffset}
                   onChange={(event) => setWheelOffset(clampOffset(Number(event.target.value)))}
-                  className="w-40 accent-rose-500"
+                  className="w-40 range-fertiliapp"
                 />
               </div>
               <button
                 type="button"
-                className="p-2 rounded-full text-rose-500 shadow-xs transition hover:border hover:border-rose-500/20"
+                className="p-2 rounded-full text-fertiliapp-fuerte shadow-xs transition hover:border hover:bg-fertiliapp-fuerte/20"
                 onClick={() => changeOffsetRaf(1)}
                 disabled={wheelOffset === maxOffset}
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
-            </div>
-          )}
         </div>
+      )}
+    </div>
+  </div>
+</div>
 
         {/* Leyenda e información del ciclo con diseño mejorado */}
-        <div className="grid grid-cols-2 gap-4 mx-2 mb-6 mt-2 flex-shrink-0">
+        <div className="grid grid-cols-2 gap-4 mx-2 mb-6 mt-2 flex-shrink-0 items-start">
           
           {/* Leyenda de colores */}
           <motion.div
-            className="relative bg-gradient-to-br from-pink-50/90 to-rose-50/90 backdrop-blur-md rounded-3xl p-4 border border-pink-200/30"
+            className={`relative overflow-hidden rounded-3xl bg-white/60 border border-secundario-suave shadow-[0_14px_35px_rgba(148,163,184,0.18)] backdrop-blur-md p-1 transition-[width] duration-300 ease-in-out mx-auto ${
+              isSymbolsOpen ? 'w-full' : 'w-[80%]'
+            }`}
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.4, delay: 0.5 }}
-            style={{
-              filter: 'drop-shadow(0 8px 25px rgba(236,72,153,0.08))',
-              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.7)'
-            }}
           >
 
-            <h3 className="font-bold mb-4 text-gray-800 flex items-center gap-2 justify-center text-xs tracking-wide uppercase">
-            Símbolos
-            </h3>
-            
-            {/* Grid de símbolos refinado */}
-            <div className="grid grid-cols-2 gap-2.5">              
-              {[
-                { label: 'Menstrual', color: '#ef4444' },
-                { label: 'Moco (Fértil)', color: '#f8fafc', stroke: '#c2c6cc' },
-                { label: 'Seco', color: '#22c55e' },
-                { label: 'Moco (No fértil)', color: '#facc15', stroke: '#fef08a' },
-                { label: 'Spotting', color: '#ef4444', stroke: '#fee2e2', pattern: true },
-                { label: 'Hoy', isToday: true }
-              ].map(item => (
-                <div key={item.label} className="flex flex-col items-center gap-1.5">
-                  {item.isToday ? (
-                    <div className="relative flex items-center justify-center">
-                      <div className="w-4 h-4 rounded-full border border-rose-400/80 bg-transparent" />
-                      <div className="absolute inset-0 -m-1 rounded-full border-[3px] border-rose-500/80 animate-pulse" />
-                      
+            <button
+              type="button"
+              onClick={() => setIsSymbolsOpen((previous) => !previous)}
+              className="group flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-2 text-left transition"
+            >
+              <span className="text-sm font-semibold text-slate-700 tracking-tight uppercase">SÍMBOLOS</span>
+             <div className="absolute top-4.5 right-4 w-1.5 h-1.5 bg-secundario rounded-full" />
+            </button>
+
+            <AnimatePresence initial={false}>
+               {isSymbolsOpen && (
+                <motion.div
+                  key="symbols"
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.25, ease: 'easeInOut' }}
+                  className="grid grid-cols-2 gap-2.5 rounded-3xl bg-white/40 p-2 overflow-hidden"
+                >
+                  {[
+                    { label: 'Menstrual', color: '#fb7185' },
+                    { label: 'Moco (Fértil)', color: '#fcebf1', stroke: '#ffcfd6' },
+                    { label: 'Seco', color: '#22c55e' },
+                    { label: 'Moco (No fértil)', color: '#f1c232', stroke: '#fef08a' },
+                    { label: 'Spotting', color: '#ef4444', stroke: '#fee2e2', pattern: true },
+                    { label: 'Hoy', isToday: true }
+                  ].map(item => (
+                    <div key={item.label} className="flex flex-col items-center gap-1.5">
+                      {item.isToday ? (
+                        <div className="relative flex items-center justify-center">
+                          <div className="w-5 h-5 rounded-full border border-rose-400/80 bg-transparent" />
+                          <div className="absolute inset-0 -m-1 rounded-full border-[3px] border-rose-500/80 animate-pulse" />
+
+                        </div>
+                      ) : (
+                        <div
+                          className={`w-5 h-5 rounded-full border ${item.pattern ? 'pattern-bg' : ''}`}
+                          style={{
+                            backgroundColor: item.color,
+                            borderColor: item.stroke || 'transparent'
+                          }}
+                        />
+                      )}
+                      <span
+                        className={`text-xs font-medium text-center leading-none ${
+                          item.isToday ? 'text-gray-700 font-semibold' : 'text-gray-700'
+                        }`}
+                      >
+                        {item.label}
+                      </span>
                     </div>
-                  ) : (
-                    <div
-                      className={`w-4 h-4 rounded-full border ${item.pattern ? 'pattern-bg' : ''}`}
-                      style={{
-                        backgroundColor: item.color,
-                        borderColor: item.stroke || 'transparent'
-                      }}
-                    />
-                  )}
-                  <span
-                    className={`text-xs font-medium text-center leading-none ${
-                      item.isToday ? 'text-gray-700 font-semibold' : 'text-gray-700'
-                    }`}
-                  >
-                    {item.label}
-                  </span>
-                </div>       
-              ))}
-            </div>
-            <div className="absolute top-3 right-4 w-2 h-2 bg-gradient-to-br from-pink-300/40 to-rose-400/40 rounded-full" />
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+
           </motion.div>
 
           {/* Información del ciclo con diseño tipo card premium */}
           <motion.div
-            className="relative bg-gradient-to-br from-pink-50/70 to-rose-50/50 backdrop-blur-md rounded-3xl p-3 border border-pink-200/40"
+            className={`relative overflow-hidden rounded-3xl bg-white/60 border border-secundario-suave shadow-[0_14px_35px_rgba(148,163,184,0.18)] backdrop-blur-md p-1 transition-[width] duration-300 ease-in-out mx-auto ${
+              isCalcOpen ? 'w-full' : 'w-[80%]'
+            }`}
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.4, delay: 0.6 }}
-            style={{
-              filter: 'drop-shadow(0 8px 25px rgba(236,72,153,0.1))',
-              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.8)'
-            }}
           >
-            <h3 className="font-bold mb-2 text-gray-800 flex items-center gap-2 justify-center text-[11px] tracking-wide uppercase">
-              
-              Cálculo
-            </h3>
-            
-            <div className="grid grid-cols-2 gap-y-3">
-              {/* Fila 1 - Ciclo más corto / CPM */}
-              <button
-                type="button"
-                onClick={handleOpenCpmDialog}
-                className="flex flex-col items-center gap-1.5"
-                aria-label="Editar CPM (Ciclo más corto)"
-              >
-                <span className="text-[10px] font-medium text-gray-700">Ciclo más corto</span>
-                <div className="h-12 flex items-end">
-                  <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/70 shadow-sm w-10 h-10 text-base font-bold text-rose-700">
-                    {cpmMetric?.baseFormatted ?? '—'}
-                  </div>
-                </div>
-              </button>
-              <button
-                type="button"
-                onClick={handleOpenCpmDialog}
-                className="flex flex-col items-center gap-0.5"
-                aria-label="Editar CPM (resultado)"
-              >
-                <span className="text-[10px] font-medium text-gray-700">CPM</span>
-                <div className="h-12 flex items-end">
-                  <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/80 shadow-sm w-10 h-10 text-sm font-semibold text-rose-700">
-                    {cpmMetric?.finalFormatted ?? '—'}
-                  </div>
-                </div>
-                <span className="text-[9px] font-semibold text-rose-600 mb-0.5">
-                  {cpmMetric?.modeLabel ?? 'Auto'}
-                </span>
-              </button>
+            <button
+              type="button"
+              onClick={() => setIsCalcOpen((previous) => !previous)}
+              className="group flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-2 text-left transition"
+            >
+              <span className="text-sm font-semibold text-slate-800 tracking-tight uppercase">CÁLCULO</span>
+              <div className="absolute top-4.5 right-4 w-1.5 h-1.5 bg-secundario rounded-full" />
+            </button>
 
-              {/* Fila 2 - Día de subida / T-8 */}
-              <button
-                type="button"
-                onClick={handleOpenT8Dialog}
-                className="flex flex-col items-center gap-1.5"
-                aria-label="Editar T-8 (Día de subida)"
-              >
-                <span className="text-[10px] font-medium text-gray-700">Día de subida</span>
-                <div className="h-12 flex items-end">
-                  <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/70 shadow-sm w-10 h-10 text-base font-bold text-rose-700">
-                    {t8Metric?.baseFormatted ?? '—'}
-                  </div>
-                </div>
-              </button>
-              <button
-                type="button"
-                onClick={handleOpenT8Dialog}
-                className="flex flex-col items-center gap-0.5"
-                aria-label="Editar T-8 (resultado)"
-              >
-                <span className="text-[10px] font-medium text-gray-700">T-8</span>
-                <div className="h-12 flex items-end">
-                  <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/80 shadow-sm w-10 h-10 text-sm font-semibold text-rose-700">
-                    {t8Metric?.finalFormatted ?? '—'}
-                  </div>
-                </div>
-                <span className="text-[9px] font-semibold text-rose-600 mt-0.5">
-                  {t8Metric?.modeLabel ?? 'Auto'}
-                </span>
-              </button>
-            </div>
-            
-            {/* Decoración sutil en la esquina */}
-            <div className="absolute top-3 right-4 w-2 h-2 bg-gradient-to-br from-pink-500/40 to-rose-400/40 rounded-full"/>
+            <AnimatePresence initial={false}>
+              {isCalcOpen && (
+                <motion.div
+                  key="calc-card"
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.25, ease: 'easeInOut' }}
+                  className="grid grid-cols-2 gap-2.5 rounded-3xl bg-white/40 p-2 overflow-hidden"
+                >
+                  {/* Fila 1 - Ciclo más corto / CPM */}
+                  <button
+                    type="button"
+                    onClick={handleOpenCpmDialog}
+                    className="flex flex-col items-center gap-1.5"
+                    aria-label="Editar CPM (Ciclo más corto)"
+                  >
+                    <span className="flex items-center justify-center text-[10px] font-medium text-gray-700 leading-tight text-center h-8">Ciclo más corto</span>
+                    <div className="h-10 flex items-end">
+                      <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/70 shadow-sm w-10 h-10 text-base font-bold text-rose-700">
+                        {cpmMetric?.baseFormatted ?? '—'}
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleOpenCpmDialog}
+                    className="flex flex-col items-center gap-1.5"
+                    aria-label="Editar CPM (resultado)"
+                  >
+                    <span className="flex items-center justify-center text-[10px] font-medium text-gray-700 leading-tight text-center h-8">CPM</span>
+                    <div className="h-10 flex items-end">
+                      <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/80 shadow-sm w-10 h-10 text-sm font-semibold text-rose-700">
+                        {cpmMetric?.finalFormatted ?? '—'}
+                      </div>
+                    </div>
+                    <span className="text-[9px] font-semibold text-rose-600 mt-0.5">
+                      {cpmMetric?.modeLabel ?? 'Auto'}
+                    </span>
+                  </button>
+
+                  {/* Fila 2 - Día de subida / T-8 */}
+                  <button
+                    type="button"
+                    onClick={handleOpenT8Dialog}
+                    className="flex flex-col items-center gap-1.5"
+                    aria-label="Editar T-8 (Día de subida)"
+                  >
+                    <span className="flex items-center justify-center text-[10px] font-medium text-gray-700 leading-tight text-center h-8">Día de subida</span>
+                    <div className="h-10 flex items-end">
+                      <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/70 shadow-sm w-10 h-10 text-base font-bold text-rose-700">
+                        {t8Metric?.baseFormatted ?? '—'}
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleOpenT8Dialog}
+                    className="flex flex-col items-center gap-1.5"
+                    aria-label="Editar T-8 (resultado)"
+                  >
+                    <span className="flex items-center justify-center text-[10px] font-medium text-gray-700 leading-tight text-center h-8">T-8</span>
+                    <div className="h-10 flex items-end">
+                      <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/80 shadow-sm w-10 h-10 text-sm font-semibold text-rose-700">
+                        {t8Metric?.finalFormatted ?? '—'}
+                      </div>
+                    </div>
+                    <span className="text-[9px] font-semibold text-rose-600 mt-0.5">
+                      {t8Metric?.modeLabel ?? 'Auto'}
+                    </span>
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
         </div>
       </motion.div>
@@ -1100,24 +1164,24 @@ const FloatingActionButton = ({ onAddRecord, onAddCycle }) => {
   <div className="flex flex-col space-y-2 mt-1">
     <motion.button
       onClick={onAddRecord}
-      className="flex items-center gap-1 px-4 h-12 rounded-full bg-gradient-to-br from-pink-500 to-rose-500 text-white shadow-lg"
+      className="flex items-center gap-1 px-4 h-10 rounded-full bg-fertiliapp-fuerte hover:brightness-50 text-white/90 shadow-sm shadow-[#DD5665]"
       whileTap={{ scale: 0.80 }}
       whileHover={{ scale: 1.05 }}
       initial={{ opacity: 0, y: 20, scale: 0.8 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      style={{ filter: 'drop-shadow(0 6px 12px rgba(236, 72, 153, 0.3))' }}
+      style={{ filter: 'drop-shadow(0 6px 12px rgba(244, 114, 182, 0.28))' }}
     >
       <FilePlus className="h-5 w-5" />
       <span className="text-sm font-medium tracking-tight">Añadir registro</span>
     </motion.button>
     <motion.button
       onClick={onAddCycle}
-      className="flex items-center gap-3 px-4 h-12 rounded-full bg-gradient-to-br from-purple-500 to-indigo-500 text-white shadow-lg"
+      className="flex items-center gap-3 px-4 h-10 rounded-full bg-white/80 hover:brightness-50 text-fertiliapp-fuerte shadow-sm shadow-[#DD5665]"
       whileTap={{ scale: 0.95 }}
       whileHover={{ scale: 1.05 }}
       initial={{ opacity: 0, y: 20, scale: 0.8 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      style={{ filter: 'drop-shadow(0 6px 12px rgba(147, 51, 234, 0.3))' }}
+      style={{ filter: 'drop-shadow(0 6px 12px rgba(244, 114, 182, 0.2))' }}
     >
       <CalendarPlus className="h-5 w-5" />
       <span className="text-sm font-medium tracking-tight">Nuevo ciclo</span>
@@ -1129,12 +1193,12 @@ const FloatingActionButton = ({ onAddRecord, onAddCycle }) => {
 
       <motion.button
         onClick={() => setOpen(!open)}
-        className="w-12 h-12 bg-gradient-to-br from-pink-500 to-rose-500 text-white rounded-full shadow-lg flex items-center justify-center"
+        className="flex items-center justify-center rounded-full bg-white/80 border border-fertiliapp-fuerte text-fertiliapp-fuerte hover:brightness-95 shadow-sm shadow-[#5BA9B8] w-12 h-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2"
         whileTap={{ scale: 0.95 }}
         whileHover={{ scale: 1.05 }}
         initial={{ scale: 0 }}
         animate={{ scale: 1 }}
-        style={{ filter: 'drop-shadow(0 4px 12px rgba(236, 72, 153, 0.35))' }}
+        style={{ filter: 'drop-shadow(0 4px 12px rgba(221, 86, 101, 0.35))' }}
       >
         <motion.span animate={{ rotate: open ? 135 : 0 }} transition={{ type: 'spring', stiffness: 260, damping: 20 }}>
           <Plus className="h-5 w-5" />
@@ -3398,44 +3462,18 @@ const ModernFertilityDashboard = () => {
     [addOrUpdateDataPoint, currentCycle?.id]
   );
 
-  if (isLoading && !currentCycle?.id) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100">
-        <p className="text-center text-gray-600 text-lg">Cargando...</p>
-      </div>
-    );
-  }
+  const currentDay = useMemo(() => {
+    if (!currentCycle?.startDate) return null;
 
-  if (!currentCycle?.id) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100">
-        <div className="text-center space-y-4">
-          <p className="text-gray-600 text-lg">No hay ciclo activo.</p>
-          <button
-            onClick={() => setShowNewCycleDialog(true)}
-            className="px-6 py-3 rounded-lg bg-pink-600 hover:bg-pink-700 text-white shadow"
-          >
-            Iniciar ciclo
-          </button>
-        </div>
-        <NewCycleDialog
-          isOpen={showNewCycleDialog}
-          onClose={() => setShowNewCycleDialog(false)}
-          onConfirm={async (selectedStartDate) => {
-            await startNewCycle(selectedStartDate);
-            setShowNewCycleDialog(false);
-            setInitialSectionKey(null);
-            setShowForm(true);
-          }}
-        />
-      </div>
-    );
-  }
-
-  const currentDay = differenceInDays(
-    startOfDay(new Date()),
-    parseISO(currentCycle.startDate)
-  ) + 1;
+  try {
+      return (
+        differenceInDays(startOfDay(new Date()), parseISO(currentCycle.startDate)) + 1
+      );
+    } catch (error) {
+      console.error('Error calculating current day:', error);
+      return null;
+    }
+  }, [currentCycle?.startDate]);
 
   const externalCalculatorCandidates = useMemo(() => {
     const candidates = [];
@@ -3539,9 +3577,57 @@ const ModernFertilityDashboard = () => {
     false,
     fertilityStartConfig,
     fertilityCalculatorCycles,
-    externalCalculatorCandidates
+    externalCalculatorCandidates,
+    false
   );
 
+  if (isLoading && !currentCycle?.id) {
+    return (
+      <div className="mx-auto flex min-h-screen max-w-md items-center justify-center px-4 py-4">
+        <div className="w-full rounded-3xl border border-rose-100/70 bg-white/80 p-4 text-center shadow-sm">
+          <p className="text-sm font-semibold text-slate-800">Cargando...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentCycle?.id) {
+    return (
+      <div className="mx-auto flex min-h-screen max-w-md items-center justify-center px-4 py-4">
+        <div className="w-full space-y-4 rounded-3xl border border-rose-100/70 bg-white/80 p-4 text-center shadow-sm">
+          <p className="text-[15px] font-semibold text-slate-800">No hay ciclo activo.</p>
+          <button
+            onClick={() => setShowNewCycleDialog(true)}
+            className="h-11 w-full rounded-full bg-fertiliapp-fuerte px-4 text-sm font-semibold text-white shadow-sm transition hover:brightness-95"
+          >
+            Iniciar ciclo
+          </button>
+        </div>
+        <NewCycleDialog
+          isOpen={showNewCycleDialog}
+          onClose={() => setShowNewCycleDialog(false)}
+          onConfirm={async (selectedStartDate) => {
+            await startNewCycle(selectedStartDate);
+            setShowNewCycleDialog(false);
+            setInitialSectionKey(null);
+            setShowForm(true);
+          }}
+        />
+      </div>
+    );
+  }
+
+  if (!currentCycle?.startDate) {
+    return (
+      <div className="mx-auto flex min-h-screen max-w-md items-center justify-center px-4 py-4">
+        <div className="w-full rounded-3xl border border-rose-100/70 bg-white/80 p-4 text-center shadow-sm">
+          <p className="text-sm font-semibold text-slate-800">Cargando...</p>
+        </div>
+      </div>
+    );
+  }
+
+ 
 
   const handleSave = async (data, { keepFormOpen = false } = {}) => {
     setIsProcessing(true);
@@ -3565,21 +3651,14 @@ const ModernFertilityDashboard = () => {
   };
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100">
-      <div
-  className="pointer-events-none absolute inset-0"
-  style={{
-    background:
-      'radial-gradient(65% 55% at 50% 32%, rgba(244,114,182,0.18) 0%, rgba(244,114,182,0.12) 35%, rgba(244,114,182,0.06) 60%, rgba(244,114,182,0) 100%)'
-  }}
-/>
-      <div className="max-w-md mx-auto flex w-full flex-1 flex-col">
+    <>
+      <div className="mx-auto flex h-full w-full flex-col space-y-4 px-4 pb-10 pt-4">
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: 20 }}
           transition={{ duration: 0.3 }}
-          className="flex flex-1 flex-col"
+          className="flex flex-1 flex-col gap-3"
         >
           <CycleOverviewCard
             cycleData={{ ...currentCycle, currentDay, records: currentCycle.data }}
@@ -3600,16 +3679,16 @@ const ModernFertilityDashboard = () => {
               }
             }}
           >
-            <DialogContent className="flex max-h-[90vh] w-[90vw] max-w-sm flex-col rounded-3xl border border-pink-100 bg-white/95 text-gray-800 shadow-xl overflow-hidden p-0">
-                <DialogHeader className="space-y-2 px-4 pt-4 text-left">
-                  <DialogTitle>Editar CPM</DialogTitle>
-                  <DialogDescription>
-                    <div className="text-xs">
+            <DialogContent className="flex max-h-[90vh] w-[90vw] max-w-sm flex-col overflow-hidden rounded-3xl border border-rose-100 bg-white/95 p-0 text-gray-800 shadow-xl">
+              <DialogHeader className="space-y-2 px-4 pt-4 text-left">
+                <DialogTitle>Editar CPM</DialogTitle>
+                <DialogDescription>
+                  <div className="text-xs">
                     Puedes usar el valor calculado automáticamente o fijar un valor manual.
-                    </div>
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="flex-1 space-y-3 overflow-y-auto px-4 pb-4">
+                  </div>
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex-1 space-y-3 overflow-y-auto px-4 pb-4">
                 <div className="rounded-2xl border border-rose-100 bg-rose-50/70 px-3 py-2">
                   <div className="flex items-start justify-between gap-3">
                     <div className="space-y-1">
@@ -3637,7 +3716,7 @@ const ModernFertilityDashboard = () => {
                   className={`cursor-pointer rounded-2xl border px-3 py-3 shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70 ${
                     cpmSelectionDraft === 'auto'
                       ? 'border-emerald-300 bg-emerald-50/60'
-                      : 'border-rose-100 bg-white/80 hover:border-emerald-200'
+                      : 'border-rose-100 bg-white/80 hover:border-fertiliapp-suave'
                   } ${!cpmInfo.canCompute ? 'opacity-70' : ''}`}
                 >
                   <div className="flex items-start justify-between gap-2">
@@ -3652,7 +3731,7 @@ const ModernFertilityDashboard = () => {
                     </div>
                     <span
                       className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 ${
-                        cpmSelectionDraft === 'auto' ? 'border-emerald-400 bg-emerald-400' : 'border-emerald-300 bg-white'
+                        cpmSelectionDraft === 'auto' ? 'border-emerald-400 bg-emerald-400' : 'border-fertiliapp-suave bg-white'
                       }`}
                     >
                       {cpmSelectionDraft === 'auto' && <span className="h-2.5 w-2.5 rounded-full bg-white" />}
@@ -3784,17 +3863,17 @@ const ModernFertilityDashboard = () => {
                   onKeyDown={(event) => handleCardKeyDown(event, () => handleSelectCpmMode('manual'))}
                   className={`cursor-pointer rounded-2xl border px-3 py-3 shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70 ${
                     cpmSelectionDraft === 'manual'
-                      ? 'border-rose-300 bg-rose-50'
+                      ? 'border-emerald-300 bg-emerald-50/60'
                       : 'border-rose-100 bg-white/80 hover:border-rose-200'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="space-y-1">
                       <p className="text-sm font-semibold text-rose-900">Valor manual</p>
-                    </div>                    
+                    </div>                  
                       <span
                       className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 ${
-                        cpmSelectionDraft === 'manual' ? 'border-rose-400 bg-rose-400' : 'border-rose-300 bg-white'
+                        cpmSelectionDraft === 'manual' ? 'border-emerald-400 bg-emerald-400' : 'border-rose-300 bg-white'
                       }`}
                     >
                       {cpmSelectionDraft === 'manual' && <span className="h-2.5 w-2.5 rounded-full bg-white" />}
@@ -3877,8 +3956,8 @@ const ModernFertilityDashboard = () => {
                   onKeyDown={(event) => handleCardKeyDown(event, () => handleSelectCpmMode('none'))}
                   className={`cursor-pointer rounded-2xl border px-3 py-2 text-left shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70 ${
                     cpmSelectionDraft === 'none'
-                      ? 'border-gray-300 bg-gray-50'
-                      : 'border-dashed border-rose-200 bg-white/70 hover:border-gray-300'
+                      ? 'border-emerald-300 bg-emerald-50/60'
+                      : 'border-dashed border-rose-200 bg-white/70 hover:border-rose-300'
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2">
@@ -3887,7 +3966,7 @@ const ModernFertilityDashboard = () => {
                     </div>
                     <span
                       className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 ${
-                        cpmSelectionDraft === 'none' ? 'border-gray-400 bg-gray-400' : 'border-gray-300 bg-white'
+                        cpmSelectionDraft === 'none' ? 'border-emerald-400 bg-emerald-400' : 'border-rose-300 bg-white'
                       }`}
                     >
                       {cpmSelectionDraft === 'none' && <span className="h-2.5 w-2.5 rounded-full bg-white" />}
@@ -3953,7 +4032,7 @@ const ModernFertilityDashboard = () => {
               }
             }}
           >
-            <DialogContent className="flex max-h-[90vh] w-[90vw] max-w-sm flex-col rounded-3xl border border-pink-100 bg-white/95 text-gray-800 shadow-xl overflow-hidden p-0">
+            <DialogContent className="flex max-h-[90vh] w-[90vw] max-w-sm flex-col rounded-3xl border border-rose-100 bg-white/95 text-gray-800 shadow-xl overflow-hidden p-0">
                 <DialogHeader className="space-y-2 px-4 pt-4 text-left">
                   <DialogTitle>Editar T-8</DialogTitle>
                   <DialogDescription>
@@ -3990,7 +4069,7 @@ const ModernFertilityDashboard = () => {
                   className={`cursor-pointer rounded-2xl border px-3 py-3 shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70 ${
                     t8SelectionDraft === 'auto'
                       ? 'border-emerald-300 bg-emerald-50/60'
-                      : 'border-rose-100 bg-white/80 hover:border-emerald-200'
+                      : 'border-rose-100 bg-white/80 hover:border-rose-200'
                   } ${!computedT8Data.canCompute ? 'opacity-70' : ''}`}
                 >
                   <div className="flex items-start justify-between gap-2">
@@ -4005,7 +4084,7 @@ const ModernFertilityDashboard = () => {
                     </div>
                     <span
                       className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 ${
-                        t8SelectionDraft === 'auto' ? 'border-emerald-400 bg-emerald-400' : 'border-emerald-300 bg-white'
+                        t8SelectionDraft === 'auto' ? 'border-emerald-400 bg-emerald-400' : 'border-rose-300 bg-white'
                       }`}
                     >
                       {t8SelectionDraft === 'auto' && <span className="h-2.5 w-2.5 rounded-full bg-white" />}
@@ -4123,7 +4202,7 @@ const ModernFertilityDashboard = () => {
                   onKeyDown={(event) => handleCardKeyDown(event, () => handleSelectT8Mode('manual'))}
                   className={`cursor-pointer rounded-2xl border px-3 py-3 shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70 ${
                     t8SelectionDraft === 'manual'
-                      ? 'border-rose-300 bg-rose-50'
+                      ? 'border-emerald-300 bg-emerald-50/60'
                       : 'border-rose-100 bg-white/80 hover:border-rose-200'
                   }`}
                 >
@@ -4133,7 +4212,7 @@ const ModernFertilityDashboard = () => {
                     </div>
                     <span
                       className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 ${
-                        t8SelectionDraft === 'manual' ? 'border-rose-400 bg-rose-400' : 'border-rose-300 bg-white'
+                        t8SelectionDraft === 'manual' ? 'border-emerald-400 bg-emerald-400' : 'border-rose-300 bg-white'
                       }`}
                     >
                       {t8SelectionDraft === 'manual' && <span className="h-2.5 w-2.5 rounded-full bg-white" />}
@@ -4216,8 +4295,8 @@ const ModernFertilityDashboard = () => {
                   onKeyDown={(event) => handleCardKeyDown(event, () => handleSelectT8Mode('none'))}
                   className={`cursor-pointer rounded-2xl border px-3 py-2 text-left shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70 ${
                     t8SelectionDraft === 'none'
-                      ? 'border-gray-300 bg-gray-50'
-                      : 'border-dashed border-rose-200 bg-white/70 hover:border-gray-300'
+                      ? 'border-emerald-300 bg-emerald-50/60'
+                      : 'border-dashed border-rose-200 bg-white/70 hover:border-rose-300'
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2">
@@ -4226,7 +4305,7 @@ const ModernFertilityDashboard = () => {
                     </div>
                     <span
                       className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 ${
-                        t8SelectionDraft === 'none' ? 'border-gray-400 bg-gray-400' : 'border-gray-300 bg-white'
+                        t8SelectionDraft === 'none' ? 'border-emerald-400 bg-emerald-400' : 'border-rose-300 bg-white'
                       }`}
                     >
                       {t8SelectionDraft === 'none' && <span className="h-2.5 w-2.5 rounded-full bg-white" />}
@@ -4326,7 +4405,7 @@ const ModernFertilityDashboard = () => {
 
       <Dialog
         open={showForm}
-                onOpenChange={(open) => {
+        onOpenChange={(open) => {
           if (open) {
             setShowForm(true);
           } else {
@@ -4334,7 +4413,7 @@ const ModernFertilityDashboard = () => {
           }
         }}
       >
-          <DialogContent
+        <DialogContent
           hideClose
           className="bg-transparent border-none p-0 text-gray-800 w-[90vw] sm:w-auto max-w-md sm:max-w-lg md:max-w-xl max-h-[85vh] overflow-y-auto"
         >
@@ -4368,7 +4447,7 @@ const ModernFertilityDashboard = () => {
         onConfirm={handleConfirmNewCycle}
         currentCycleStartDate={currentCycle.startDate}
       />
-    </div>
+    </>
   );
 };
 

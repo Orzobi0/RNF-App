@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { downloadCyclesAsCsv, downloadCyclesAsPdf } from '@/lib/cycleExport';
 import ExportCyclesDialog from '@/components/ExportCyclesDialog';
 import { useCycleData } from '@/hooks/useCycleData';
+import InstallPrompt from '@/components/InstallPrompt';
 
 import {
   Dialog,
@@ -40,6 +41,7 @@ const SettingsPage = () => {
   const [loadingPassword, setLoadingPassword] = useState(false);
   const [loadingLogout, setLoadingLogout] = useState(false);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+  const forceInstallPrompt = import.meta.env.VITE_FORCE_INSTALL_PROMPT === 'true';
 
     const allCycles = useMemo(() => {
     const combined = [];
@@ -201,23 +203,15 @@ const SettingsPage = () => {
   };
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100">
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            'radial-gradient(65% 55% at 50% 32%, rgba(244,114,182,0.18) 0%, rgba(244,114,182,0.12) 35%, rgba(244,114,182,0.06) 60%, rgba(244,114,182,0) 100%)',
-        }}
-      />
-
-      <div className="relative z-10 mx-auto flex w-full max-w-2xl flex-1 flex-col box-border px-4 py-6">
+     <div className="relative flex min-h-[100dvh] flex-col overflow-hidden">
+      <div className="relative z-10 mx-auto flex w-full max-w-2xl flex-1 flex-col box-border px-4 py-6 pb-[calc(var(--bottom-nav-safe)+1.25rem)]">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
           <h1 className="text-3xl font-bold text-slate-700 flex items-center">
-            <User className="mr-2 h-8 w-8 text-pink-500" />
+            <User className="mr-2 h-8 w-8 text-fertiliapp-fuerte" />
             Mi cuenta
           </h1>
         </motion.div>
@@ -262,9 +256,16 @@ const SettingsPage = () => {
               Exportar ciclos
             </Button>
           </div>
+          
+          <InstallPrompt
+            align="end"
+            buttonClassName="bg-fertiliapp-fuerte hover:brightness-95"
+            forceVisible={forceInstallPrompt}
+          />
         </div>
 
-                  <div className="bg-white/80 backdrop-blur p-4 rounded-3xl shadow flex items-center justify-between">
+          <div className="mt-auto pt-4">
+          <div className="bg-white/80 backdrop-blur p-4 rounded-3xl shadow flex items-center justify-between">
             <div>
               <p className="text-sm text-slate-500">Sesión</p>
               <p className="font-medium text-slate-700">Cerrar sesión de tu cuenta</p>
@@ -278,6 +279,7 @@ const SettingsPage = () => {
               Cerrar sesión
             </Button>
           </div>
+        </div>  
       </div>
       
 

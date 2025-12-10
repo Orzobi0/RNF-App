@@ -654,46 +654,47 @@ const DataEntryFormFields = ({
     const symbolDockStyles = getFertilitySymbolDockStyles(fertilitySymbol);
     return {
       temperature: {
-        activeBorder: 'border-orange-300',
-        activeBg: 'bg-orange-50',
-        activeText: 'text-orange-600',
-        filledText: 'text-orange-500',
-        idleText: 'text-slate-500',
-        focusRing: 'focus-visible:ring-orange-200',
+        activeBorder: 'border-temp',
+        activeBg: 'bg-temp-suave',
+        activeText: 'text-temp',
+        filledText: 'text-temp',
+        idleText: 'text-suave',
+        focusRing: 'ring-temp',
       },
       symbol: symbolDockStyles,
       sensation: {
-        activeBorder: 'border-sky-300',
-        activeBg: 'bg-sky-50',
-        activeText: 'text-sky-600',
-        filledText: 'text-sky-500',
-        idleText: 'text-slate-500',
-        focusRing: 'focus-visible:ring-sky-200',
+        activeBorder: 'border-sensacion',
+        activeBg: 'bg-sensacion-suave',
+        activeText: 'text-sensacion',
+        filledText: 'text-sensacion',
+        idleText: 'text-suave',
+        focusRing: 'ring-sensacion',
       },
       appearance: {
-        activeBorder: 'border-emerald-300',
-        activeBg: 'bg-emerald-50',
-        activeText: 'text-emerald-600',
-        filledText: 'text-emerald-500',
-        idleText: 'text-slate-500',
-        focusRing: 'focus-visible:ring-emerald-200',
+        activeBorder: 'border-apariencia',
+        activeBg: 'bg-apariencia-suave',
+        activeText: 'text-apariencia',
+        filledText: 'text-apariencia',
+        idleText: 'text-suave',
+        focusRing: 'ring-apariencia',
       },
       observations: {
-        activeBorder: 'border-violet-300',
-        activeBg: 'bg-violet-50',
-        activeText: 'text-violet-600',
-        filledText: 'text-violet-500',
-        idleText: 'text-slate-500',
-        focusRing: 'focus-visible:ring-violet-200',
+        activeBorder: 'border-observaciones',
+        activeBg: 'bg-observaciones-suave',
+        activeText: 'text-observaciones',
+        filledText: 'text-observaciones',
+        idleText: 'text-suave',
+        focusRing: 'ring-observaciones',
       },
     };
   }, [fertilitySymbol]);
+
 
   const renderSectionContent = (key) => {
     switch (key) {
       case 'temperature':
         return (
-          <div className="space-y-3 rounded-3xl border border-amber-300/60 bg-gradient-to-r from-amber-50 to-orange-50 p-3 shadow-sm">
+          <div className="space-y-3 rounded-3xl border border-temp bg-temp-suave p-3 shadow-sm">
             {measurements.map((m, idx) => {
               const measurementSelectId = `measurement_select_${idx}`;
               return (
@@ -775,7 +776,7 @@ const DataEntryFormFields = ({
                           onClick={() => handleIgnoredChange(!ignored)}
                           className={cn(
                             'h-9 w-9 border-amber-200 text-amber-600 transition-colors',
-                            ignored ? 'bg-orange-500 text-white hover:bg-orange-600' : 'bg-white/70 hover:bg-amber-100'
+                            ignored ? 'bg-temp-suave text-temp hover:bg-temp-suave/80' : 'bg-white/70 hover:bg-temp-suave'
                           )}
                           title={ignored ? 'Restaurar' : 'Despreciar'}
                           aria-label={ignored ? 'Restaurar medición ignorada' : 'Despreciar medición seleccionada'}
@@ -823,7 +824,7 @@ const DataEntryFormFields = ({
                   </div>
 
                   {correctionIndex === idx && (
-                    <div className="mt-2 space-y-2 rounded-3xl border border-amber-200 bg-white/80 p-3">
+                    <div className="mt-2 space-y-2 rounded-3xl border border-temp bg-white/80 p-3">
                       <div className="flex flex-wrap items-center gap-2">
                         <Input
                           type="number"
@@ -944,9 +945,9 @@ const DataEntryFormFields = ({
         }
       case 'sensation':
         return (
-          <div className="space-y-2 rounded-3xl border border-blue-300/60 bg-gradient-to-r from-blue-50 to-indigo-50 p-3 shadow-sm">
+          <div className="space-y-2 rounded-3xl border border-sensacion bg-sensacion-suave p-3 shadow-sm">
             <Label htmlFor="mucusSensation" className="flex items-center text-slate-800 text-sm font-semibold">
-              <Droplets className="mr-2 h-5 w-5 text-sky-600" />
+              <Droplets className="mr-2 h-5 w-5 text-sensacion" />
               Sensación del moco
             </Label>
             <Input
@@ -954,16 +955,16 @@ const DataEntryFormFields = ({
               id="mucusSensation"
               value={mucusSensation}
               onChange={(e) => setMucusSensation(e.target.value)}
-              className={cn("bg-white/70 border-blue-200 text-gray-800 placeholder-gray-400 focus:border-blue-500 focus:ring-blue-500 text-base", RADIUS.field)}
+              className={cn( "bg-white/70 border-sensacion text-gray-800 placeholder-gray-400 focus:border-sensacion ring-sensacion focus:ring-2 font-semibold text-sensacion-fuerte", RADIUS.field)}
               disabled={isProcessing}
             />
           </div>
         );
       case 'appearance':
         return (
-          <div className="space-y-2 rounded-3xl border border-emerald-300/60 bg-gradient-to-r from-emerald-50 to-teal-50 p-3 shadow-sm">
+          <div className="space-y-2 rounded-3xl border border-apariencia bg-apariencia-suave p-3 shadow-sm">
             <Label htmlFor="mucusAppearance" className="flex items-center text-slate-800 text-sm font-semibold">
-              <Circle className="mr-2 h-5 w-5 text-emerald-600" />
+              <Circle className="mr-2 h-5 w-5 text-apariencia" />
               Apariencia del moco
             </Label>
             <Input
@@ -971,16 +972,16 @@ const DataEntryFormFields = ({
               id="mucusAppearance"
               value={mucusAppearance}
               onChange={(e) => setMucusAppearance(e.target.value)}
-              className={cn("bg-white/70 border-emerald-200 text-gray-800 placeholder-gray-400 focus:border-emerald-500 focus:ring-emerald-500 text-base", RADIUS.field)}
+              className={cn("bg-white/70 border-apariencia text-gray-800 placeholder-gray-400 focus:border-apariencia focus:ring-apariencia font-semibold text-apariencia-fuerte", RADIUS.field)}
               disabled={isProcessing}
             />
           </div>
         );
       case 'observations':
         return (
-          <div className="space-y-2 rounded-3xl border border-violet-300/60 bg-gradient-to-r from-violet-50 to-purple-50 p-3 shadow-sm">
+          <div className="space-y-2 rounded-3xl border border-observaciones bg-observaciones-suave p-3 shadow-sm">
             <Label htmlFor="observations" className="flex items-center text-slate-800 text-sm font-semibold">
-              <Edit3 className="mr-2 h-5 w-5 text-violet-600" />
+              <Edit3 className="mr-2 h-5 w-5 text-observaciones" />
               Observaciones
             </Label>
             <Textarea
@@ -988,7 +989,7 @@ const DataEntryFormFields = ({
               id="observations"
               value={observations}
               onChange={(e) => setObservations(e.target.value)}
-              className={cn("min-h-[40px] resize-none bg-white/70 border-violet-200 text-gray-800 placeholder-gray-400 focus:border-violet-500 focus:ring-violet-500 text-base", RADIUS.field)}
+              className={cn("min-h-[40px] resize-none bg-white/70 border-observaciones text-gray-800 placeholder-gray-400 focus:border-observaciones focus:ring-observaciones font-semibold text-observaciones-fuerte", RADIUS.field)}
               disabled={isProcessing}
             />
           </div>
@@ -1000,9 +1001,9 @@ const DataEntryFormFields = ({
 
   return (
     <>
-      <div className="space-y-2 rounded-3xl border border-pink-300/50 bg-gradient-to-r from-pink-50 to-rose-50 p-3">
-        <Label htmlFor="date" className="flex items-center text-pink-700 text-sm font-semibold">
-          <CalendarDays className="mr-2 h-5 w-5 text-pink-400" />
+      <div className="space-y-2 rounded-3xl border border-fertiliapp bg-tarjeta p-3">
+        <Label htmlFor="date" className="flex items-center text-titulo text-sm font-semibold">
+          <CalendarDays className="mr-2 h-5 w-5 text-titulo" />
           Fecha del Registro
         </Label>
         <Popover open={open} onOpenChange={setOpen}>
@@ -1010,7 +1011,7 @@ const DataEntryFormFields = ({
             <Button
               variant="outline"
               className={cn(
-                'w-full justify-start text-left font-normal bg-white/70 border-pink-200 text-gray-800 hover:bg-white/70 hover:text-gray-800',
+                'w-full justify-start text-left font-normal bg-white/70 border-fertiliapp-suave text-gray-800 hover:bg-white/70 hover:text-gray-800',
                 !date && 'text-muted-foreground'
               )}
               disabled={isProcessing}
@@ -1038,9 +1039,9 @@ const DataEntryFormFields = ({
               modifiers={{ hasRecord: recordedDates }}
               modifiersClassNames={{
                 hasRecord:
-                  'relative after:content-["" ] after:absolute after:inset-x-0 after:bottom-1 after:mx-auto after:w-1.5 after:h-1.5 after:rounded-full after:bg-pink-500',
+                  'relative after:content-["" ] after:absolute after:inset-x-0 after:bottom-1 after:mx-auto after:w-1.5 after:h-1.5 after:rounded-full after:bg-fertiliapp-fuerte',
               }}
-              className="[&_button]:text-gray-800 [&_button:hover]:bg-pink-100 [&_button[aria-selected=true]]:bg-pink-500"
+              className="[&_button]:text-gray-800 [&_button:hover]:bg-fertiliapp-suave [&_button[aria-selected=true]]:bg-fertiliapp-fuerte [&_button[aria-selected=true]]:text-white [&_button[aria-disabled=true]]:text-gray-400"
             />
           </PopoverContent>
         </Popover>

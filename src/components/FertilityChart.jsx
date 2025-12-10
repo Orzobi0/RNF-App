@@ -6,7 +6,6 @@ import ChartPoints from '@/components/chartElements/ChartPoints';
 import ChartTooltip from '@/components/chartElements/ChartTooltip';
 import ChartLeftLegend from '@/components/chartElements/ChartLeftLegend';
 import { useFertilityChart } from '@/hooks/useFertilityChart';
-import RelationsRow from '@/components/chartElements/RelationsRow';
 
 const FertilityChart = ({
   data,
@@ -70,7 +69,8 @@ const FertilityChart = ({
     forceLandscape,
     fertilityStartConfig,
     fertilityCalculatorCycles,
-    fertilityCalculatorCandidates
+    fertilityCalculatorCandidates,
+    showRelationsRow
   );
   const uniqueIdRef = useRef(null);
   if (!uniqueIdRef.current) {
@@ -93,7 +93,9 @@ const FertilityChart = ({
   }
 
   const chartWidth = dimensions.width;
-  const chartHeight = dimensions.height;
+  const chartHeight = dimensions.contentHeight ?? dimensions.height;
+  const viewportHeight = dimensions.viewportHeight ?? dimensions.height;
+  const scrollableContentHeight = dimensions.scrollableContentHeight ?? chartHeight;
   const graphBottomY = chartHeight - padding.bottom - (graphBottomInset || 0);
   const rowsZoneHeight = Math.max(chartHeight - graphBottomY, 0);
   const baselineY = baselineTemp != null ? getY(baselineTemp) : null;
@@ -720,35 +722,46 @@ const hasPostPhase = Number.isFinite(postOvulatoryPhaseInfo?.startIndex);
           </div>
         )}
         <div className="inline-block" style={{ width: chartWidth, height: chartHeight }}>
-          {/* Leyenda izquierda mejorada */}
-      {showLegend && (
-        <div
-          className="absolute left-0 top-0 h-full bg-transparent pointer-events-none z-10"
-          style={{ width: padding.left }}
-        >
-          <ChartLeftLegend
-            padding={padding}
-            chartHeight={chartHeight}
-            tempMin={tempMin}
-            tempMax={tempMax}
-            tempRange={tempRange}
-            getY={getY}
-            responsiveFontSize={responsiveFontSize}
-            textRowHeight={textRowHeight}
-            isFullScreen={isFullScreen}
-            graphBottomY={graphBottomY}
-            rowsZoneHeight={rowsZoneHeight}
-          />
-        </div>
-      )}
-        <motion.svg
-          width={chartWidth}
-          height={chartHeight}
-          className="font-sans flex-shrink-0"
-          viewBox={`0 0 ${chartWidth} ${chartHeight}`}
-          preserveAspectRatio="xMidYMid meet"
-          initial={false}
-        >
+          {/*
+            Contenedor scrollable interno: mantiene la altura visible (viewportHeight)
+            igual que antes, pero permite que el contenido (SVG + filas extra) mida
+            más cuando showRelationsRow es true sin comprimir la zona de temperaturas.
+          */}
+          <div
+            className="relative h-full overflow-y-auto"
+            style={{ height: chartHeight, maxHeight: scrollableContentHeight }}
+          >
+            <div className="relative" style={{ width: chartWidth, height: scrollableContentHeight }}>
+              {/* Leyenda izquierda mejorada */}
+              {showLegend && (
+                <div
+                  className="absolute left-0 top-0 h-full bg-transparent pointer-events-none z-10"
+                  style={{ width: padding.left }}
+                >
+                  <ChartLeftLegend
+                    padding={padding}
+                    chartHeight={scrollableContentHeight} 
+                    tempMin={tempMin}
+                    tempMax={tempMax}
+                    tempRange={tempRange}
+                    getY={getY}
+                    responsiveFontSize={responsiveFontSize}
+                    textRowHeight={textRowHeight}
+                    isFullScreen={isFullScreen}
+                    graphBottomY={graphBottomY}
+                    rowsZoneHeight={rowsZoneHeight}
+                    showRelationsRow={showRelationsRow}
+                  />
+                </div>
+              )}
+              <motion.svg
+                width={chartWidth}
+                height={scrollableContentHeight}   
+                className="font-sans flex-shrink-0"
+                viewBox={`0 0 ${chartWidth} ${scrollableContentHeight}`} 
+                preserveAspectRatio="xMidYMid meet"
+                initial={false}
+              >
           <defs>
             {/* Gradientes mejorados para la línea de temperatura */}
             <linearGradient id="tempLineGradientChart" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -1064,22 +1077,13 @@ const hasPostPhase = Number.isFinite(postOvulatoryPhaseInfo?.startIndex);
             firstHighIndex={firstHighIndex}
             baselineIndices={baselineIndices}
             graphBottomLift={graphBottomInset}
+            showRelationsRow={showRelationsRow}
           />
 
         </motion.svg>
+            </div>
+          </div>
         </div>
-
-        {showRelationsRow && (
-          <RelationsRow
-            allDataPoints={allDataPoints}
-            getX={getX}
-            padding={padding}
-            chartWidth={chartWidth}
-            textRowHeight={textRowHeight}
-            isFullScreen={isFullScreen}
-            responsiveFontSize={responsiveFontSize}
-          />
-        )}
 
         {/* Tooltip mejorado */}
         {activePoint && (

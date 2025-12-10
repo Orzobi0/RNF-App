@@ -12,16 +12,15 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    const swUrl = `${import.meta.env.BASE_URL}sw.js`;
-    navigator.serviceWorker.register(swUrl, {
-      updateViaCache: 'none',
-      scope: '/'
-    }).then((registration) => {
-      // Forzar actualización cada vez
-      registration.update();
+    const swUrl = new URL('sw.js', import.meta.env.BASE_URL);
 
-    });
+    navigator.serviceWorker
+      .register(swUrl)
+      .catch((error) => {
+        console.error('Service worker registration failed:', error);
+      });
   });
-
 }
+
+
 

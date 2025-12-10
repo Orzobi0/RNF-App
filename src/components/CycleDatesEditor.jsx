@@ -72,10 +72,10 @@ const CycleDatesEditor = ({
 
   return (
     <>
-      <div className={`${className} rounded-2xl border border-rose-100 bg-white/90 p-5 shadow-lg`}>
+      <div className={`${className} rounded-3xl border border-rose-100 bg-white/90 p-5 shadow-md`}>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <h2 className="text-lg font-semibold text-rose-700 mb-1">{title}</h2>
+            <h2 className="text-lg font-semibold text-titulo mb-1">{title}</h2>
             <p className="text-sm text-slate-600">{description}</p>
             {currentRangeLabel && (
               <p className="text-xs text-slate-500 mt-1">{currentRangeLabel}</p>
@@ -87,7 +87,7 @@ const CycleDatesEditor = ({
                   type="date"
                   value={startDate || ''}
                   onChange={handleStartChange}
-                  className="mt-1 w-full rounded-lg border border-rose-200 bg-rose-50/60 px-3 py-2 text-slate-800 focus:border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-300"
+                  className="mt-1 w-full rounded-lg border border-fertiliapp-suave bg-white px-3 py-2 text-slate-800 focus:border-fertiliapp-suave focus:outline-none focus:ring-2 focus:ring-fertiliapp-suave"
                 />
               </label>
               {includeEndDate && (
@@ -97,7 +97,7 @@ const CycleDatesEditor = ({
                     type="date"
                     value={endDate || ''}
                     onChange={handleEndChange}
-                    className="mt-1 w-full rounded-lg border border-rose-200 bg-rose-50/60 px-3 py-2 text-slate-800 focus:border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-300"
+                    className="mt-1 w-full rounded-lg border border-fertiliapp-suave bg-white px-3 py-2 text-slate-800 focus:border-fertiliapp-suave focus:outline-none focus:ring-2 focus:ring-fertiliapp-suave"
                   />
                 </label>
               )}
@@ -108,30 +108,30 @@ const CycleDatesEditor = ({
                 type="button"
                 variant="outline"
                 onClick={onCancel}
-                className="border-rose-200 text-rose-600 hover:bg-rose-50"
+                className="border-fertiliapp-suave text-titulo hover:brightness-95"
                 disabled={isProcessing}
               >
                 {cancelLabel}
               </Button>
               <Button
                 type="submit"
-                className="bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow hover:from-pink-600 hover:to-rose-600"
+                className="bg-fertiliapp-fuerte text-white shadow hover:brightness-95"
                 disabled={isProcessing}
               >
                 {saveLabel}
               </Button>
             </div>
             {onDeleteCycle && (
-              <div className="mt-6 rounded-xl border border-rose-100 bg-rose-50/70 p-4 text-left">
-                <h3 className="text-base font-semibold text-rose-700 mb-2">{deleteTitle}</h3>
+              <div className="mt-6 rounded-3xl bg-alerta-2-suave p-4 text-left">
+                <h3 className="font-semibold text-slate-800 mb-2">{deleteTitle}</h3>
                 {deleteDescription && (
-                  <p className="text-sm text-slate-600 mb-3">{deleteDescription}</p>
+                  <p className="text-sm text-slate-800 mb-3">{deleteDescription}</p>
                 )}
                 <Button
                   type="button"
                   onClick={onDeleteCycle}
                   disabled={isProcessing || isDeletingCycle}
-                  className="w-full sm:w-auto bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white shadow-md"
+                  className="w-full sm:w-auto bg-alerta-2 hover:brightness-95 text-white shadow-md"
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
                   {deleteLabel}
