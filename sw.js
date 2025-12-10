@@ -1,4 +1,4 @@
-const BUILD_VERSION_MARKER = '2025-11-28T11:23:46.521Z';
+const BUILD_VERSION_MARKER = '2025-12-10T22:03:32.802Z';
 const CACHE_VERSION =
   BUILD_VERSION_MARKER !== '${__DATE__}'
     ? BUILD_VERSION_MARKER
@@ -14,7 +14,7 @@ const ASSETS = [
   `${BASE_URL}icon-512x512.png`,
   `${BASE_URL}apple-touch-icon.png`
 ];
-const BUILD_ASSETS = (["assets/CycleDatesEditor-2252eb48.js","assets/DeletionDialog-d77cbaeb.js","assets/OverlapWarningDialog-becbd304.js","assets/arrow-left-e68f1409.js","assets/badge-a7e9b0c3.js","assets/checkbox-7666851b.js","assets/computePeakStatuses-93cb3295.js","assets/eye-a5e52431.js","assets/input-4ca4bf6c.js","assets/label-c685ab7e.js","assets/useCycleData-3c889a19.js","assets/useFertilityChart-08cb569a.js","assets/index-9c8afd84.css","assets/index-a7b876ee.js","assets/index.es-b86b89fb.js","assets/purify.es-2de9db7f.js","assets/html2canvas.esm-e0a7d97b.js","assets/ArchivedCyclesPage-8dd26aa2.js","assets/AuthPage-1d5ba317.js","assets/ChartPage-49d5aade.js","assets/CycleDetailPage-2567728c.js","assets/DashboardPage-7d854f29.js","assets/RecordsPage-57b51308.js","assets/SettingsPage-30585dce.js"] || []).map(
+const BUILD_ASSETS = (["assets/DeletionDialog-31da8265.js","assets/InstallPrompt-f1214dae.js","assets/NewCycleDialog-c52b1f5b.js","assets/OverlapWarningDialog-038e0dd4.js","assets/arrow-left-da98c05b.js","assets/badge-4c7d2230.js","assets/checkbox-2e1f35be.js","assets/computePeakStatuses-8ec0bab9.js","assets/eye-fe5b932b.js","assets/input-c95d25ec.js","assets/label-270ed458.js","assets/useCycleData-9f76d19f.js","assets/useFertilityChart-b6d45542.js","assets/index-c2dc2ccf.css","assets/index-2f41c8cd.js","assets/index.es-b7ec6044.js","assets/purify.es-2de9db7f.js","assets/html2canvas.esm-e0a7d97b.js","assets/ArchivedCyclesPage-e14ac466.js","assets/AuthPage-6e8391f4.js","assets/ChartPage-d29ed2cd.js","assets/CycleDetailPage-f27c93da.js","assets/DashboardPage-43ecb127.js","assets/RecordsPage-689fc63f.js","assets/SettingsPage-7ea0d73a.js"] || []).map(
   (asset) => `${BASE_URL}${asset}`
 );
 async function matchActiveCache(request) {
@@ -155,7 +155,16 @@ self.addEventListener('fetch', (event) => {
           } catch (error) {
             console.log('SW: Network failed on forced reload, falling back to cache');
             const fallback = await matchActiveCache(`${BASE_URL}index.html`);
-            return fallback || Response.error();
+            if (fallback) return fallback;
+
+          return new Response(
+            '<h1>Sin conexión</h1><p>No se pudo cargar la aplicación.</p>',
+            {
+              headers: { 'Content-Type': 'text/html' },
+              status: 503,
+            }
+          );
+
           }
         }
 
@@ -181,7 +190,14 @@ self.addEventListener('fetch', (event) => {
             return fallback;
           }
 
-          return Response.error();
+          return new Response(
+          '<h1>Sin conexión</h1><p>No se pudo cargar la aplicación.</p>',
+          {
+            headers: { 'Content-Type': 'text/html' },
+            status: 503,
+          }
+        );
+
         }
       })()
     );
