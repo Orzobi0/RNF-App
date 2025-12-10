@@ -3460,16 +3460,9 @@ const ModernFertilityDashboard = () => {
 
   if (isLoading && !currentCycle?.id) {
     return (
-      <div className="relative min-h-screen overflow-hidden app-background">
-        <div className="pointer-events-none absolute inset-0">
-          <div className="wave wave--top" />
-          <div className="wave wave--right" />
-          <div className="wave wave--bottom" />
-        </div>
-        <div className="mx-auto flex min-h-screen max-w-md items-center justify-center px-4 py-4 relative z-10">
-          <div className="bg-white/80 border border-rose-100/70 rounded-3xl shadow-sm w-full p-4 text-center">
-            <p className="text-sm font-semibold text-slate-800">Cargando...</p>
-          </div>
+      <div className="mx-auto flex min-h-screen max-w-md items-center justify-center px-4 py-4">
+        <div className="w-full rounded-3xl border border-rose-100/70 bg-white/80 p-4 text-center shadow-sm">
+          <p className="text-sm font-semibold text-slate-800">Cargando...</p>
         </div>
       </div>
     );
@@ -3477,22 +3470,15 @@ const ModernFertilityDashboard = () => {
 
   if (!currentCycle?.id) {
     return (
-      <div className="relative min-h-screen overflow-hidden app-background">
-        <div className="pointer-events-none absolute inset-0">
-          <div className="wave wave--top" />
-          <div className="wave wave--right" />
-          <div className="wave wave--bottom" />
-        </div>
-        <div className="mx-auto flex min-h-screen max-w-md items-center justify-center px-4 py-4 relative z-10">
-          <div className="bg-white/80 border border-rose-100/70 rounded-3xl shadow-sm w-full p-4 text-center space-y-4">
-            <p className="text-[15px] font-semibold text-slate-800">No hay ciclo activo.</p>
-            <button
-              onClick={() => setShowNewCycleDialog(true)}
-              className="h-11 w-full rounded-full bg-rose-400 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-500"
-            >
-              Iniciar ciclo
-            </button>
-          </div>
+      <div className="mx-auto flex min-h-screen max-w-md items-center justify-center px-4 py-4">
+        <div className="w-full space-y-4 rounded-3xl border border-rose-100/70 bg-white/80 p-4 text-center shadow-sm">
+          <p className="text-[15px] font-semibold text-slate-800">No hay ciclo activo.</p>
+          <button
+            onClick={() => setShowNewCycleDialog(true)}
+            className="h-11 w-full rounded-full bg-rose-400 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-500"
+          >
+            Iniciar ciclo
+          </button>
         </div>
         <NewCycleDialog
           isOpen={showNewCycleDialog}
@@ -3642,27 +3628,8 @@ const ModernFertilityDashboard = () => {
   };
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden app-background">
-      <div className="pointer-events-none absolute inset-0">
-        <div className="wave wave--left-1" />
-        <div className="wave wave--left-2" />
-        <div className="wave wave--left-3" />
-        <div className="wave wave--right-1" />
-        <div className="wave wave--right-2" />
-        <div className="wave wave--right-3" />
-      </div>
-      <div className="pointer-events-none absolute inset-0">
-        <div
-          className="absolute inset-0"
-          style={{
-            backgroundImage: `
-              radial-gradient(120% 120% at 0% 0%, rgba(251,113,133,0.12) 0, transparent 55%),
-              radial-gradient(110% 110% at 100% 0%, rgba(244,114,182,0.12) 0, transparent 55%)
-            `,
-          }}
-        />
-      </div>
-      <div className="max-w-md mx-auto w-full flex flex-col px-4 pt-4 pb-10 space-y-4 relative z-10">
+    <>
+      <div className="mx-auto flex h-full w-full flex-col space-y-4 px-4 pb-10 pt-4">
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -3689,16 +3656,16 @@ const ModernFertilityDashboard = () => {
               }
             }}
           >
-            <DialogContent className="flex max-h-[90vh] w-[90vw] max-w-sm flex-col rounded-3xl border border-rose-100 bg-white/95 text-gray-800 shadow-xl overflow-hidden p-0">
-                <DialogHeader className="space-y-2 px-4 pt-4 text-left">
-                  <DialogTitle>Editar CPM</DialogTitle>
-                  <DialogDescription>
-                    <div className="text-xs">
+            <DialogContent className="flex max-h-[90vh] w-[90vw] max-w-sm flex-col overflow-hidden rounded-3xl border border-rose-100 bg-white/95 p-0 text-gray-800 shadow-xl">
+              <DialogHeader className="space-y-2 px-4 pt-4 text-left">
+                <DialogTitle>Editar CPM</DialogTitle>
+                <DialogDescription>
+                  <div className="text-xs">
                     Puedes usar el valor calculado automáticamente o fijar un valor manual.
-                    </div>
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="flex-1 space-y-3 overflow-y-auto px-4 pb-4">
+                  </div>
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex-1 space-y-3 overflow-y-auto px-4 pb-4">
                 <div className="rounded-2xl border border-rose-100 bg-rose-50/70 px-3 py-2">
                   <div className="flex items-start justify-between gap-3">
                     <div className="space-y-1">
@@ -4415,7 +4382,7 @@ const ModernFertilityDashboard = () => {
 
       <Dialog
         open={showForm}
-                onOpenChange={(open) => {
+        onOpenChange={(open) => {
           if (open) {
             setShowForm(true);
           } else {
@@ -4423,7 +4390,7 @@ const ModernFertilityDashboard = () => {
           }
         }}
       >
-          <DialogContent
+        <DialogContent
           hideClose
           className="bg-transparent border-none p-0 text-gray-800 w-[90vw] sm:w-auto max-w-md sm:max-w-lg md:max-w-xl max-h-[85vh] overflow-y-auto"
         >
@@ -4457,7 +4424,7 @@ const ModernFertilityDashboard = () => {
         onConfirm={handleConfirmNewCycle}
         currentCycleStartDate={currentCycle.startDate}
       />
-    </div>
+    </>
   );
 };
 

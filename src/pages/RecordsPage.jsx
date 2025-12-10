@@ -1381,22 +1381,15 @@ const enterStart = -exitTarget;
 
   if (!cycle?.id) {
     return (
-      <div className="relative min-h-screen overflow-hidden app-background">
-        <div className="pointer-events-none absolute inset-0">
-          <div className="wave wave--top" />
-          <div className="wave wave--right" />
-          <div className="wave wave--bottom" />
-        </div>
-        <div className="mx-auto flex min-h-screen max-w-md items-center justify-center px-4 py-4 relative z-10">
-          <div className="bg-white/80 border border-rose-100/70 rounded-3xl shadow-sm w-full p-4 text-center space-y-4">
-            <p className="text-[15px] font-semibold text-slate-800">No hay ciclo activo.</p>
-            <button
-              onClick={() => setShowNewCycleDialog(true)}
-              className="h-11 w-full rounded-full bg-rose-400 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-500"
-            >
-              Iniciar ciclo
-            </button>
-          </div>
+      <div className="mx-auto flex min-h-screen max-w-md items-center justify-center px-4 py-4">
+        <div className="w-full space-y-4 rounded-3xl border border-rose-100/70 bg-white/80 p-4 text-center shadow-sm">
+          <p className="text-[15px] font-semibold text-slate-800">No hay ciclo activo.</p>
+          <button
+            onClick={() => setShowNewCycleDialog(true)}
+            className="h-11 w-full rounded-full bg-rose-400 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-500"
+          >
+            Iniciar ciclo
+          </button>
         </div>
         <NewCycleDialog
           isOpen={showNewCycleDialog}

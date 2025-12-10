@@ -403,9 +403,9 @@ const ChartPage = () => {
     }
     return (
       <MainLayout>
-        <div className="flex h-full flex-col items-center justify-center space-y-4 px-4 py-8 text-center text-pink-600">
+        <div className="flex h-full flex-col items-center justify-center space-y-4 px-4 py-8 text-center text-fertiliapp-fuerte">
           <p>No hay ciclo activo.</p>
-          <Button asChild className="bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow">
+          <Button asChild className="bg-fertiliapp-fuerte rounded-3xl text-white shadow">
             <Link to="/records">Ir a Mis Registros</Link>
           </Button>
         </div>

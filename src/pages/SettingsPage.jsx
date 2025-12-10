@@ -269,7 +269,7 @@ const SettingsPage = () => {
           </div>
         </div>
 
-            <div className="bg-white/80 backdrop-blur p-4 rounded-3xl shadow flex items-center justify-between">
+          <div className="bg-white/80 backdrop-blur p-4 rounded-3xl shadow flex items-center justify-between">
             <div>
               <p className="text-sm text-slate-500">Sesión</p>
               <p className="font-medium text-slate-700">Cerrar sesión de tu cuenta</p>
