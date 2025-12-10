@@ -19,7 +19,7 @@ const RecordsList = ({ records, onEdit, onDelete, isProcessing, selectedDate }) 
       >
         <div className="bg-white/70 backdrop-blur-md rounded-3xl p-8 border border-pink-200/50 shadow-lg mx-4">
           <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-pink-100 to-rose-100 rounded-full flex items-center justify-center">
-            <Eye className="w-8 h-8 text-pink-500" />
+            <Eye className="w-8 h-8 text-fertiliapp-fuerte" />
           </div>
           <h3 className="text-xl font-semibold text-slate-700 mb-2">No hay registros</h3>
           <p className="text-slate-500">Añade tu primer registro para comenzar.</p>
@@ -100,7 +100,7 @@ const RecordsList = ({ records, onEdit, onDelete, isProcessing, selectedDate }) 
         return (
           <motion.div
             key={record.id}
-            className={`bg-white/80 backdrop-blur-md border border-pink-200/50 shadow-lg hover:shadow-xl transition-all duration-300 hover:bg-white/90 rounded-xl ${isSelected ? 'ring-2 ring-rose-400 shadow-xl shadow-rose-200/70' : ''}`}
+            className={`bg-white/80 backdrop-blur-md border border-pink-200/50 shadow-lg hover:shadow-xl transition-all duration-300 hover:bg-white/90 rounded-3xl ${isSelected ? 'ring-2 ring-fertiliapp-suave shadow-xl shadow-rose-200/70' : ''}`}
             variants={{
               hidden: { opacity: 0, y: 20 },
               show: { opacity: 1, y: 0 }
@@ -110,11 +110,11 @@ const RecordsList = ({ records, onEdit, onDelete, isProcessing, selectedDate }) 
               {/* Encabezado con fecha y símbolo */}
               <div className="flex items-start justify-between">
                 <div className="flex items-center space-x-2">
-                  <Calendar className="w-5 h-5 text-pink-500 flex-shrink-0" />
+                  <Calendar className="w-5 h-5 text-fertiliapp-fuerte flex-shrink-0" />
                   <span className="font-semibold text-slate-700 text-lg">
                     {format(parseISO(record.isoDate), 'dd/MM/yyyy', { locale: es })}
                   </span>
-                  <span className="text-md text-pink-500">Día {record.cycleDay}</span>
+                  <span className="text-md text-fertiliapp-fuerte">Día {record.cycleDay}</span>
                   
                   {peakLabel && (
                     <Badge className="ml-2 bg-rose-100 text-rose-600 border border-rose-200">

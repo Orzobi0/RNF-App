@@ -1330,7 +1330,7 @@ const enterStart = -exitTarget;
               variant="outline"
               size="icon"
               onClick={openStartDateEditor}
-              className="border-fertiliapp-suave rounded-full text-titulo hover:brightness-95"
+              className="border-fertiliapp-suave rounded-full bg-secundario-suave text-secundario hover:brightness-95"
               disabled={isProcessing || isUpdatingStartDate}
               aria-label={includeEndDate ? 'Editar fechas del ciclo' : 'Editar fecha de inicio'}
             >
@@ -1341,7 +1341,7 @@ const enterStart = -exitTarget;
               type="button"
               size="icon"
               onClick={handleOpenAddRecord}
-              className="rounded-full bg-secundario hover:brightness-95 text-white shadow-md"
+              className="rounded-full border border-fertiliapp-fuerte bg-white/80 hover:brightness-95 text-fertiliapp-fuerte shadow-md"
               disabled={isProcessing}
               style={{ filter: 'drop-shadow(0 6px 12px rgba(236, 72, 153, 0.3))' }}
               aria-label="Añadir registro"

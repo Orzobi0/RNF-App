@@ -47,8 +47,8 @@
     --color-amarillo-moco: #F7B944;
 
     /* Textos */
-    --color-texto-titulo: #3A2430;
-    --color-texto-subtitulo: #644053;
+    --color-texto-titulo: #4B2E3B;
+    --color-texto-subtitulo: #6B4254;
     --color-texto-base: #8F6C7C;
     --color-texto-suave: #C2A6B3;
 
@@ -341,6 +341,7 @@
   .border-fertiliapp-fuerte { border-color: var(--color-fertiliapp-fuerte); }
   .border-fertiliapp-suave { border-color: var(--color-borde-suave); }
   .border-secundario { border-color: var(--color-secundario); }
+  .border-secundario-suave { border-color: var(--color-secundario-suave); }
 
     /* Ring de foco en tonos Fertiliapp */
   .ring-fertiliapp { --tw-ring-color: var(--color-fertiliapp); }

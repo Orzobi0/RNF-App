@@ -247,7 +247,7 @@ const ChartTooltip = ({
           variant="ghost"
           size="icon"
           onClick={onClose}
-            className="absolute top-2 right-2 z-20 text-gray-400 hover:text-pink-600 hover:bg-pink-50/80 rounded-full w-6 h-6 transition-all duration-200"
+            className="absolute top-2 right-2 z-20 text-gray-400 hover:text-fertiliapp-fuerte hover:bg-fertiliapp-fuerte/20 rounded-full w-6 h-6 transition-all duration-200"
           >
             <XCircle size={20} />
           </Button>
@@ -260,7 +260,7 @@ const ChartTooltip = ({
               title="Relaciones registradas"
             >
               <div className="w-4 h-4 rounded-full bg-rose-100/90 border border-rose-200 flex items-center justify-center shadow-sm">
-                <Heart className="w-4 h-4 text-rose-600" fill="currentColor" />
+                <Heart className="w-4 h-4 text-fertiliapp-fuerte" fill="currentColor" />
               </div>
             </div>
           )}
@@ -268,7 +268,7 @@ const ChartTooltip = ({
           <div className="p-2">
             {/* Header con fecha y día del ciclo */}
             <div className="mb-2 relative">
-              <div className="w-5 h-5 bg-gradient-to-br from-pink-500 to-rose-500 rounded-full absolute top-2 left-2 flex items-center justify-center shadow-lg">
+              <div className="w-5 h-5 bg-fertiliapp-fuerte rounded-full absolute top-2 left-2 flex items-center justify-center shadow-lg">
                 <Circle className="w-2 h-2 text-white" fill="currentColor" />
               </div>
 
@@ -280,12 +280,12 @@ const ChartTooltip = ({
                       ? format(parseISO(dateToFormat), 'dd/MM', { locale: es })
                       : 'Fecha'}
                   </h3>
-                  <p className="text-sm text-pink-600 font-medium">
+                  <p className="text-sm text-fertiliapp-fuerte font-medium">
                     Día {point.cycleDay || 'N/A'} del ciclo
                   </p>
                   {peakLabel && (
                     <div className="mt-1 flex justify-center">
-                      <Badge className="bg-rose-100 text-rose-600 border border-rose-200 px-2 py-0 text-[11px]">
+                      <Badge className="bg-rose-100 text-fertiliapp-fuerte border border-rose-200 px-2 py-0 text-[11px]">
                         {peakLabel}
                       </Badge>
                     </div>
@@ -300,9 +300,9 @@ const ChartTooltip = ({
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.1 }}
-                  className="rounded-2xl border border-dashed border-pink-200 bg-pink-50/60 p-2 text-center"
+                  className="rounded-2xl border border-dashed border-fertiliapp-suave bg-fertiliapp-suave/60 p-2 text-center"
                 >
-                  <p className="text-sm font-semibold text-pink-600">Sin datos registrados para este día.</p>
+                  <p className="text-sm font-semibold text-titulo">Sin datos registrados para este día.</p>
                 </motion.div>
 
                 {(canTogglePeak || onEdit) && (

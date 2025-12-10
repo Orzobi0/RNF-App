@@ -990,7 +990,7 @@ const EMPTY_DAY_COLORS = {
           
           {/* Leyenda de colores */}
           <motion.div
-            className={`relative overflow-hidden rounded-3xl bg-white/60 border border-secundario/90 shadow-[0_14px_35px_rgba(148,163,184,0.18)] backdrop-blur-md p-1 transition-[width] duration-300 ease-in-out mx-auto ${
+            className={`relative overflow-hidden rounded-3xl bg-white/60 border border-secundario-suave shadow-[0_14px_35px_rgba(148,163,184,0.18)] backdrop-blur-md p-1 transition-[width] duration-300 ease-in-out mx-auto ${
               isSymbolsOpen ? 'w-full' : 'w-[80%]'
             }`}
             initial={{ opacity: 0, x: -20 }}
@@ -1058,7 +1058,7 @@ const EMPTY_DAY_COLORS = {
 
           {/* Información del ciclo con diseño tipo card premium */}
           <motion.div
-            className={`relative overflow-hidden rounded-3xl bg-white/60 border border-secundario/90 shadow-[0_14px_35px_rgba(148,163,184,0.18)] backdrop-blur-md p-1 transition-[width] duration-300 ease-in-out mx-auto ${
+            className={`relative overflow-hidden rounded-3xl bg-white/60 border border-secundario-suave shadow-[0_14px_35px_rgba(148,163,184,0.18)] backdrop-blur-md p-1 transition-[width] duration-300 ease-in-out mx-auto ${
               isCalcOpen ? 'w-full' : 'w-[80%]'
             }`}
             initial={{ opacity: 0, x: 20 }}
@@ -3707,7 +3707,7 @@ const ModernFertilityDashboard = () => {
                   className={`cursor-pointer rounded-2xl border px-3 py-3 shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70 ${
                     cpmSelectionDraft === 'auto'
                       ? 'border-emerald-300 bg-emerald-50/60'
-                      : 'border-rose-100 bg-white/80 hover:border-emerald-200'
+                      : 'border-rose-100 bg-white/80 hover:border-fertiliapp-suave'
                   } ${!cpmInfo.canCompute ? 'opacity-70' : ''}`}
                 >
                   <div className="flex items-start justify-between gap-2">
@@ -3722,7 +3722,7 @@ const ModernFertilityDashboard = () => {
                     </div>
                     <span
                       className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 ${
-                        cpmSelectionDraft === 'auto' ? 'border-emerald-400 bg-emerald-400' : 'border-emerald-300 bg-white'
+                        cpmSelectionDraft === 'auto' ? 'border-emerald-400 bg-emerald-400' : 'border-fertiliapp-suave bg-white'
                       }`}
                     >
                       {cpmSelectionDraft === 'auto' && <span className="h-2.5 w-2.5 rounded-full bg-white" />}
@@ -3854,17 +3854,17 @@ const ModernFertilityDashboard = () => {
                   onKeyDown={(event) => handleCardKeyDown(event, () => handleSelectCpmMode('manual'))}
                   className={`cursor-pointer rounded-2xl border px-3 py-3 shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70 ${
                     cpmSelectionDraft === 'manual'
-                      ? 'border-rose-300 bg-rose-50'
+                      ? 'border-emerald-300 bg-emerald-50/60'
                       : 'border-rose-100 bg-white/80 hover:border-rose-200'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="space-y-1">
                       <p className="text-sm font-semibold text-rose-900">Valor manual</p>
-                    </div>                    
+                    </div>                  
                       <span
                       className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 ${
-                        cpmSelectionDraft === 'manual' ? 'border-rose-400 bg-rose-400' : 'border-rose-300 bg-white'
+                        cpmSelectionDraft === 'manual' ? 'border-emerald-400 bg-emerald-400' : 'border-rose-300 bg-white'
                       }`}
                     >
                       {cpmSelectionDraft === 'manual' && <span className="h-2.5 w-2.5 rounded-full bg-white" />}
@@ -3947,8 +3947,8 @@ const ModernFertilityDashboard = () => {
                   onKeyDown={(event) => handleCardKeyDown(event, () => handleSelectCpmMode('none'))}
                   className={`cursor-pointer rounded-2xl border px-3 py-2 text-left shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70 ${
                     cpmSelectionDraft === 'none'
-                      ? 'border-gray-300 bg-gray-50'
-                      : 'border-dashed border-rose-200 bg-white/70 hover:border-gray-300'
+                      ? 'border-emerald-300 bg-emerald-50/60'
+                      : 'border-dashed border-rose-200 bg-white/70 hover:border-rose-300'
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2">
@@ -3957,7 +3957,7 @@ const ModernFertilityDashboard = () => {
                     </div>
                     <span
                       className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 ${
-                        cpmSelectionDraft === 'none' ? 'border-gray-400 bg-gray-400' : 'border-gray-300 bg-white'
+                        cpmSelectionDraft === 'none' ? 'border-emerald-400 bg-emerald-400' : 'border-rose-300 bg-white'
                       }`}
                     >
                       {cpmSelectionDraft === 'none' && <span className="h-2.5 w-2.5 rounded-full bg-white" />}
@@ -4060,7 +4060,7 @@ const ModernFertilityDashboard = () => {
                   className={`cursor-pointer rounded-2xl border px-3 py-3 shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70 ${
                     t8SelectionDraft === 'auto'
                       ? 'border-emerald-300 bg-emerald-50/60'
-                      : 'border-rose-100 bg-white/80 hover:border-emerald-200'
+                      : 'border-rose-100 bg-white/80 hover:border-rose-200'
                   } ${!computedT8Data.canCompute ? 'opacity-70' : ''}`}
                 >
                   <div className="flex items-start justify-between gap-2">
@@ -4075,7 +4075,7 @@ const ModernFertilityDashboard = () => {
                     </div>
                     <span
                       className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 ${
-                        t8SelectionDraft === 'auto' ? 'border-emerald-400 bg-emerald-400' : 'border-emerald-300 bg-white'
+                        t8SelectionDraft === 'auto' ? 'border-emerald-400 bg-emerald-400' : 'border-rose-300 bg-white'
                       }`}
                     >
                       {t8SelectionDraft === 'auto' && <span className="h-2.5 w-2.5 rounded-full bg-white" />}
@@ -4193,7 +4193,7 @@ const ModernFertilityDashboard = () => {
                   onKeyDown={(event) => handleCardKeyDown(event, () => handleSelectT8Mode('manual'))}
                   className={`cursor-pointer rounded-2xl border px-3 py-3 shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70 ${
                     t8SelectionDraft === 'manual'
-                      ? 'border-rose-300 bg-rose-50'
+                      ? 'border-emerald-300 bg-emerald-50/60'
                       : 'border-rose-100 bg-white/80 hover:border-rose-200'
                   }`}
                 >
@@ -4203,7 +4203,7 @@ const ModernFertilityDashboard = () => {
                     </div>
                     <span
                       className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 ${
-                        t8SelectionDraft === 'manual' ? 'border-rose-400 bg-rose-400' : 'border-rose-300 bg-white'
+                        t8SelectionDraft === 'manual' ? 'border-emerald-400 bg-emerald-400' : 'border-rose-300 bg-white'
                       }`}
                     >
                       {t8SelectionDraft === 'manual' && <span className="h-2.5 w-2.5 rounded-full bg-white" />}
@@ -4286,8 +4286,8 @@ const ModernFertilityDashboard = () => {
                   onKeyDown={(event) => handleCardKeyDown(event, () => handleSelectT8Mode('none'))}
                   className={`cursor-pointer rounded-2xl border px-3 py-2 text-left shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70 ${
                     t8SelectionDraft === 'none'
-                      ? 'border-gray-300 bg-gray-50'
-                      : 'border-dashed border-rose-200 bg-white/70 hover:border-gray-300'
+                      ? 'border-emerald-300 bg-emerald-50/60'
+                      : 'border-dashed border-rose-200 bg-white/70 hover:border-rose-300'
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2">
@@ -4296,7 +4296,7 @@ const ModernFertilityDashboard = () => {
                     </div>
                     <span
                       className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 ${
-                        t8SelectionDraft === 'none' ? 'border-gray-400 bg-gray-400' : 'border-gray-300 bg-white'
+                        t8SelectionDraft === 'none' ? 'border-emerald-400 bg-emerald-400' : 'border-rose-300 bg-white'
                       }`}
                     >
                       {t8SelectionDraft === 'none' && <span className="h-2.5 w-2.5 rounded-full bg-white" />}
