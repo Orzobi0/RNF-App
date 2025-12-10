@@ -46,9 +46,9 @@ const DeletionDialog = ({
         }
       }}
     >
-      <DialogContent className="bg-white/95 backdrop-blur border border-pink-100 text-slate-700">
+      <DialogContent className="bg-white/95 backdrop-blur border border-fertiliapp-fuerte text-slate-700">
         <DialogHeader>
-          <DialogTitle className="text-lg font-semibold text-rose-600">{title}</DialogTitle>
+          <DialogTitle className="text-lg font-semibold text-fertiliapp-fuerte">{title}</DialogTitle>
           <DialogDescription className="text-slate-600">{message}</DialogDescription>
         </DialogHeader>
         <DialogFooter className="sm:justify-end gap-2">
@@ -57,7 +57,7 @@ const DeletionDialog = ({
             variant="outline"
             onClick={handleClose}
             disabled={isProcessing}
-            className="border-pink-200 text-pink-600 hover:bg-pink-50 hover:text-pink-700"
+            className="border-pink-200 text-fertiliapp-fuerte hover:bg-pink-50 hover:text-fertiliapp-fuerte"
           >
             {cancelLabel}
           </Button>
@@ -66,7 +66,7 @@ const DeletionDialog = ({
             onClick={onConfirm}
             disabled={isProcessing}
             className={cn(
-              'bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white shadow-lg',
+              'bg-fertiliapp-fuerte hover:brightness-95 text-white shadow-lg',
               isProcessing && 'opacity-80 cursor-not-allowed',
               confirmButtonClassName
             )}

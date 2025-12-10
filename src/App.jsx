@@ -37,7 +37,7 @@ function AppContent() {
             transition={{ duration: 1.2, repeat: Infinity }}
           />
           <motion.p
-            className="font-medium text-pink-600"
+            className="font-medium text-fertiliapp-fuerte"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.2 }}
@@ -51,19 +51,19 @@ function AppContent() {
 
   const suspenseFallback = user ? (
     <MainLayout>
-      <div className="flex min-h-[100dvh] items-center justify-center p-4 text-pink-600">
+      <div className="flex min-h-[100dvh] items-center justify-center p-4 text-fertiliapp-fuerte">
         Cargando...
       </div>
     </MainLayout>
   ) : (
     <div className="flex min-h-[100dvh] flex-col items-center justify-center space-y-4 px-4">
       <motion.div
-        className="h-8 w-8 rounded-full bg-pink-500/80"
+        className="h-8 w-8 rounded-full bg-fertiliapp-fuerte/80"
         animate={{ opacity: [0.4, 1, 0.4] }}
         transition={{ duration: 1.2, repeat: Infinity }}
       />
       <motion.p
-        className="font-medium text-pink-600"
+        className="font-medium text-fertiliapp-fuerte"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.2 }}
