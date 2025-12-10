@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { downloadCyclesAsCsv, downloadCyclesAsPdf } from '@/lib/cycleExport';
 import ExportCyclesDialog from '@/components/ExportCyclesDialog';
 import { useCycleData } from '@/hooks/useCycleData';
+import InstallPrompt from '@/components/InstallPrompt';
 
 import {
   Dialog,
@@ -201,7 +202,7 @@ const SettingsPage = () => {
   };
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden bg-[#fff7fb]">
+     <div className="relative flex min-h-[100dvh] flex-col overflow-hidden bg-[#fff7fb]">
     <div
       className="pointer-events-none absolute inset-0"
       style={{
@@ -215,7 +216,7 @@ const SettingsPage = () => {
       }}
     />
 
-      <div className="relative z-10 mx-auto flex w-full max-w-2xl flex-1 flex-col box-border px-4 py-6">
+      <div className="relative z-10 mx-auto flex w-full max-w-2xl flex-1 flex-col box-border px-4 py-6 pb-[calc(var(--bottom-nav-safe)+1.25rem)]">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -267,8 +268,15 @@ const SettingsPage = () => {
               Exportar ciclos
             </Button>
           </div>
+          
+          <InstallPrompt
+            align="start"
+            className="bg-white/80 backdrop-blur p-4 rounded-3xl shadow"
+            buttonClassName="bg-fertiliapp-fuerte hover:brightness-95"
+          />
         </div>
 
+          <div className="mt-auto pt-4">
           <div className="bg-white/80 backdrop-blur p-4 rounded-3xl shadow flex items-center justify-between">
             <div>
               <p className="text-sm text-slate-500">Sesión</p>
@@ -283,6 +291,7 @@ const SettingsPage = () => {
               Cerrar sesión
             </Button>
           </div>
+        </div>  
       </div>
       
 

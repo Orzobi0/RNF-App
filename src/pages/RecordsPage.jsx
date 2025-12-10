@@ -1386,7 +1386,7 @@ const enterStart = -exitTarget;
           <p className="text-[15px] font-semibold text-slate-800">No hay ciclo activo.</p>
           <button
             onClick={() => setShowNewCycleDialog(true)}
-            className="h-11 w-full rounded-full bg-rose-400 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-500"
+            className="h-11 w-full rounded-full bg-fertiliapp-fuerte px-4 text-sm font-semibold text-white shadow-sm transition hover:brightness-95"
           >
             Iniciar ciclo
           </button>

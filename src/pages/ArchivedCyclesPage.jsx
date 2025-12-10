@@ -214,19 +214,19 @@ const ArchivedCyclesPage = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
           >
-            <div className="bg-white/70 backdrop-blur-md rounded-3xl p-8 border border-pink-200/50 shadow-lg">
+            <div className="bg-white/70 mt-6 backdrop-blur-md rounded-3xl p-8 border border-pink-200/50 shadow-lg">
               <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-pink-100 to-rose-100 rounded-full flex items-center justify-center">
                 <Archive className="w-10 h-10 text-subtitulo" />
               </div>
               <h2 className="text-2xl font-semibold text-subtitulo mb-4">No hay ciclos archivados</h2>
               <p className="text-subtitulo mb-8">Cuando inicies un nuevo ciclo, el anterior aparecerá aquí.</p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Button asChild className="bg-fertiliapp-fuerte hover:from-pink-600 hover:to-rose-600 text-white shadow-lg">
+                <Button asChild className="bg-fertiliapp-fuerte rounded-3xl hover:brightness-95 text-white shadow-lg">
                   <Link to="/">Volver al Ciclo Actual</Link>
                 </Button>
                 <Button
                   onClick={openAddDialog}
-                  className="bg-fertiliapp-fuerte hover:from-pink-600 hover:to-rose-600 text-white shadow-lg"
+                  className="bg-fertiliapp-fuerte hover:brightness-95 rounded-3xl text-white shadow-lg"
                 >
                   <Plus className="mr-2 h-4 w-4" /> Crear Ciclo
                 </Button>

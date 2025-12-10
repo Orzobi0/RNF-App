@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 const IOS_DISMISSED_KEY = 'iosInstallDismissed';
 
-export default function InstallPrompt() {
+export default function InstallPrompt({ className = '', buttonClassName = '', align = 'center' }) {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstall, setShowInstall] = useState(false);
   const [showIOS, setShowIOS] = useState(false);
@@ -41,17 +42,29 @@ export default function InstallPrompt() {
 
   if (showInstall) {
     return (
-      <div className="fixed bottom-4 inset-x-0 flex justify-center z-50">
-        <Button onClick={handleInstall}>Instalar aplicación</Button>
+      <div
+        className={cn(
+          'w-full',
+          align === 'center' ? 'flex justify-center' : align === 'end' ? 'flex justify-end' : '',
+          className,
+        )}
+      >
+        <Button onClick={handleInstall} className={cn('rounded-2xl px-6 py-3 text-base', buttonClassName)}>
+          Instalar aplicación
+        </Button>
       </div>
     );
   }
 
   if (showIOS) {
     return (
-      <div className="fixed bottom-0 inset-x-0 bg-white p-4 text-center border-t space-y-2 z-50">
-        <p className="text-sm">Para instalar esta app, toca el botón Compartir y luego "Añadir a pantalla de inicio".</p>
-        <Button variant="outline" onClick={dismissIOS}>Cerrar</Button>
+      <div className={cn('w-full rounded-2xl border bg-white/90 p-4 text-center shadow-sm space-y-2', className)}>
+        <p className="text-sm text-slate-700">
+          Para instalar esta app, toca el botón Compartir y luego "Añadir a pantalla de inicio".
+        </p>
+        <Button variant="outline" onClick={dismissIOS} className="rounded-xl">
+          Cerrar
+        </Button>
       </div>
     );
   }

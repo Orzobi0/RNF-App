@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { motion } from 'framer-motion';
 import { LogIn, UserPlus, Mail, KeyRound, Eye, EyeOff } from 'lucide-react';
+import InstallPrompt from '@/components/InstallPrompt';
 const AuthPage = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
@@ -71,7 +72,7 @@ const AuthPage = () => {
   };
 
   return (
-    <div className="flex h-full flex-col items-center justify-center bg-[#fff7fb] p-4">
+    <div className="relative flex h-full flex-col items-center justify-center bg-[#fff7fb] p-4">
     <div
       className="pointer-events-none absolute inset-0"
       style={{
@@ -200,6 +201,10 @@ const AuthPage = () => {
             )}
           </Button>
         </form>
+        <InstallPrompt
+          className="mt-6"
+          buttonClassName="w-full bg-fertiliapp-fuerte hover:brightness-95"
+        />
 
         <div className="mt-8 text-center">
           <Button
