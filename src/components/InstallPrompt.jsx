@@ -24,15 +24,13 @@ export default function InstallPrompt({
     window.addEventListener('beforeinstallprompt', handler);
 
     const isIOS = /iphone|ipad|ipod/.test(window.navigator.userAgent.toLowerCase());
-    const standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+    const standalone =
+      window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
     setIsStandalone(Boolean(standalone));
+
     const dismissed = localStorage.getItem(IOS_DISMISSED_KEY);
     if (!('onbeforeinstallprompt' in window) && isIOS && !standalone && !dismissed) {
       setShowIOS(true);
-    }
-
-    if (!standalone) {
-      setShowInstall(true);
     }
 
     return () => window.removeEventListener('beforeinstallprompt', handler);
@@ -51,13 +49,22 @@ export default function InstallPrompt({
     localStorage.setItem(IOS_DISMISSED_KEY, '1');
   };
 
-  const shouldShowCTA = (!isStandalone && showInstall) || forceVisible;
+  // ✅ Solo mostramos el CTA si:
+  // - no está en standalone
+  // - tenemos evento beforeinstallprompt (deferredPrompt)
+  // - y se ha marcado showInstall desde ese evento
+  //   o si explícitamente forzamos la visibilidad
+  const shouldShowCTA = (!isStandalone && showInstall && deferredPrompt) || forceVisible;
   const isDisabled = !deferredPrompt;
-  const showHelpText = isDisabled;
 
   if (showIOS) {
     return (
-      <div className={cn('w-full rounded-2xl border bg-white/90 p-4 text-center shadow-sm space-y-2', className)}>
+      <div
+        className={cn(
+          'w-full rounded-2xl border bg-white/90 p-4 text-center shadow-sm space-y-2',
+          className
+        )}
+      >
         <p className="text-sm text-slate-700">
           Para instalar esta app, toca el botón Compartir y luego "Añadir a pantalla de inicio".
         </p>
@@ -67,26 +74,26 @@ export default function InstallPrompt({
       </div>
     );
   }
-  if (shouldShowCTA) {
-    return (
-      <div
-        className={cn(
-          'w-full',
-          align === 'center' ? 'flex justify-center' : align === 'end' ? 'flex justify-end' : '',
-          className,
-        )}
-      >
-        <Button
-          onClick={handleInstall}
-          disabled={isDisabled}
-          className={cn('rounded-3xl px-6 py-3 text-white', buttonClassName)}
-        >
-          Instalar aplicación
-        </Button>
 
-      </div>
-    );
+  if (!shouldShowCTA) {
+    return null;
   }
 
-  return null;
+  return (
+    <div
+      className={cn(
+        'w-full',
+        align === 'center' ? 'flex justify-center' : align === 'end' ? 'flex justify-end' : '',
+        className
+      )}
+    >
+      <Button
+        onClick={handleInstall}
+        disabled={isDisabled}
+        className={cn('rounded-3xl px-6 py-3 text-white', buttonClassName)}
+      >
+        Instalar aplicación
+      </Button>
+    </div>
+  );
 }

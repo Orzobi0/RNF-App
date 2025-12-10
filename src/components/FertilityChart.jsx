@@ -721,15 +721,15 @@ const hasPostPhase = Number.isFinite(postOvulatoryPhaseInfo?.startIndex);
             Cargando...
           </div>
         )}
-        <div className="inline-block" style={{ width: chartWidth, height: viewportHeight }}>
+        <div className="inline-block" style={{ width: chartWidth, height: chartHeight }}>
           {/*
             Contenedor scrollable interno: mantiene la altura visible (viewportHeight)
             igual que antes, pero permite que el contenido (SVG + filas extra) mida
             más cuando showRelationsRow es true sin comprimir la zona de temperaturas.
           */}
           <div
-            className={`relative h-full ${showRelationsRow ? 'overflow-y-auto' : 'overflow-y-visible'}`}
-            style={{ height: viewportHeight, maxHeight: viewportHeight }}
+            className="relative h-full overflow-y-auto"
+            style={{ height: chartHeight, maxHeight: scrollableContentHeight }}
           >
             <div className="relative" style={{ width: chartWidth, height: scrollableContentHeight }}>
               {/* Leyenda izquierda mejorada */}

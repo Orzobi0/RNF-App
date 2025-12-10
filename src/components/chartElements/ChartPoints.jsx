@@ -3,9 +3,9 @@ import { motion } from 'framer-motion';
 import { parseISO, startOfDay, isAfter, isSameDay } from 'date-fns';
 import { getSymbolAppearance, getSymbolColorPalette } from '@/config/fertilitySymbols';
 // Colores consistentes con la dashboard pero con mejor contraste para el chart
-const SENSATION_COLOR = '#1565C0';
-const APPEARANCE_COLOR = '#2E7D32';
-const OBSERVATION_COLOR = '#6A1B9A';
+const SENSATION_COLOR = 'var(--color-sensacion-fuerte)';
+const APPEARANCE_COLOR = 'var(--color-apariencia-fuerte)';
+const OBSERVATION_COLOR = 'var(--color-observaciones-fuerte)';
 const HEART_COLOR = '#be123c';
 
 const BACKGROUND_COLOR = 'rgba(252, 231, 243, 0.40)';

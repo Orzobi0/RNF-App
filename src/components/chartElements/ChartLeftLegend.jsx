@@ -3,9 +3,9 @@ import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 
 // Colores consistentes con la dashboard
-const SENSATION_COLOR = '#1565C0';
-const APPEARANCE_COLOR = '#2E7D32';
-const OBSERVATION_COLOR = '#6A1B9A';
+const SENSATION_COLOR = 'var(--color-sensacion-fuerte)';
+const APPEARANCE_COLOR = 'var(--color-apariencia-fuerte)';
+const OBSERVATION_COLOR = 'var(--color-observaciones-fuerte)';
 
 const ChartLeftLegend = ({
   padding,

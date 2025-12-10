@@ -829,7 +829,9 @@ export const useFertilityChart = (
       const extraScrollableHeight = showRelationsRow
         ? Math.max(0, relationsBottomRowsExact - baseBottomRowsExact)
         : 0;
-      const chartContentHeight = viewportHeight;
+      const visibleRowsHeight = showRelationsRow ? relationsBottomRowsExact : baseBottomRowsExact;
+      const minGraphArea = Math.max(viewportHeight - visibleRowsHeight, textRowHeight * (isFullScreen ? 10 : 8));
+      const chartContentHeight = visibleRowsHeight + Math.max(minGraphArea, 0);
       const scrollableContentHeight = chartContentHeight + extraScrollableHeight;
 
         const padding = { 
