@@ -179,19 +179,7 @@ const ArchivedCyclesPage = () => {
 
   if (isLoading && !hasCachedCycles) {
     return (
-      <div className="relative flex h-full flex-col items-center justify-center overflow-hidden bg-[#fff7fb]">
-    <div
-      className="pointer-events-none absolute inset-0"
-      style={{
-        backgroundImage: `
-          radial-gradient(120% 120% at 0% 0%, rgba(251,113,133,0.18) 0, transparent 55%),
-          radial-gradient(110% 110% at 100% 0%, rgba(244,114,182,0.16) 0, transparent 55%),
-          radial-gradient(130% 130% at 0% 100%, rgba(251,113,133,0.08) 0, transparent 60%),
-          radial-gradient(140% 140% at 100% 100%, rgba(255,255,255,0.9) 0, rgba(255,247,250,0.3) 40%, transparent 70%)
-        `,
-        backgroundColor: '#fff7fb'
-      }}
-    />
+      <div className="relative flex h-full flex-col items-center justify-center overflow-hidden">
         <div className="text-center text-slate-600 p-8">Cargando ciclos archivados...</div>
       </div>
     );
@@ -214,19 +202,19 @@ const ArchivedCyclesPage = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
           >
-            <div className="bg-white/70 mt-6 backdrop-blur-md rounded-3xl p-8 border border-pink-200/50 shadow-lg">
+            <div className="bg-white/70 mt-6 backdrop-blur-md rounded-3xl p-8 border border-pink-200/50 shadow-sm">
               <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-pink-100 to-rose-100 rounded-full flex items-center justify-center">
                 <Archive className="w-10 h-10 text-subtitulo" />
               </div>
               <h2 className="text-2xl font-semibold text-subtitulo mb-4">No hay ciclos archivados</h2>
               <p className="text-subtitulo mb-8">Cuando inicies un nuevo ciclo, el anterior aparecerá aquí.</p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Button asChild className="bg-fertiliapp-fuerte rounded-3xl hover:brightness-95 text-white shadow-lg">
+                <Button asChild className="bg-fertiliapp-fuerte rounded-3xl hover:brightness-95 text-white shadow-sm">
                   <Link to="/">Volver al Ciclo Actual</Link>
                 </Button>
                 <Button
                   onClick={openAddDialog}
-                  className="bg-fertiliapp-fuerte hover:brightness-95 rounded-3xl text-white shadow-lg"
+                  className="bg-fertiliapp-fuerte hover:brightness-95 rounded-3xl text-white shadow-sm"
                 >
                   <Plus className="mr-2 h-4 w-4" /> Crear Ciclo
                 </Button>
@@ -278,21 +266,8 @@ const ArchivedCyclesPage = () => {
       }
     });
   return (
-    <div className="relative flex min-h-screen flex-col overflow-hidden bg-[#fff7fb]">
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          backgroundImage: `
-          radial-gradient(120% 120% at 0% 0%, rgba(251,113,133,0.18) 0, transparent 55%),
-          radial-gradient(110% 110% at 100% 0%, rgba(244,114,182,0.16) 0, transparent 55%),
-          radial-gradient(130% 130% at 0% 100%, rgba(251,113,133,0.08) 0, transparent 60%),
-          radial-gradient(140% 140% at 100% 100%, rgba(255,255,255,0.9) 0, rgba(255,247,250,0.3) 40%, transparent 70%)
-        `,
-        backgroundColor: '#fff7fb'
-      }}
-    />
-      
-      <div className="relative z-10 flex-1 flex">
+    <div className="relative flex min-h-screen flex-col overflow-hidden">
+      <div className="relative z-10 flex flex-1">
         <div className="w-full max-w-4xl mx-auto px-4 py-6 flex flex-col h-full">
           {/* Header */}
           <motion.div
@@ -374,7 +349,7 @@ const ArchivedCyclesPage = () => {
                   <motion.button
                     key={cycle.id}
                     type="button"
-                    className="w-full max-w-[480px] mx-auto bg-white/80 backdrop-blur-md border border-fertiliapp-suave shadow-md hover:shadow-lg transition-all duration-300 hover:bg-white/90 rounded-3xl active:scale-[0.98] cursor-pointer select-none"
+                    className="w-full max-w-[480px] mx-auto bg-white/80 backdrop-blur-md border border-fertiliapp-suave shadow-sm hover:shadow-sm transition-all duration-300 hover:bg-white/90 rounded-3xl active:scale-[0.98] cursor-pointer select-none"
                     variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }}
                     onMouseDown={() => startLongPressDetection(cycle)}
                     onMouseUp={() => cancelLongPressDetection(cycle)}
@@ -447,7 +422,7 @@ const ArchivedCyclesPage = () => {
                 );
               })}
               {filteredCycles.length === 0 && (
-                <div className="mt-6 rounded-2xl border border-dashed border-fertiliapp-suave bg-white/70 p-6 text-center text-slate-600 shadow-inner">
+                <div className="mt-6 rounded-3xl border border-dashed border-fertiliapp-suave bg-white/70 p-6 text-center text-slate-600 shadow-inner">
                   No hay ciclos para el año seleccionado.
  
                 </div>

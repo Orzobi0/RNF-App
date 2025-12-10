@@ -381,7 +381,7 @@ const ChartPage = () => {
   if (showLoading) {
     return (
       <MainLayout>
-        <div className="flex h-full flex-col items-center justify-center space-y-4 bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 px-4 py-8 text-center text-pink-600">
+        <div className="flex h-full flex-col items-center justify-center space-y-4 bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 px-4 py-8 text-center text-fertiliapp-fuerte">
           <p>Cargando…</p>
         </div>
       </MainLayout>
@@ -392,9 +392,9 @@ const ChartPage = () => {
     if (cycleId && notFound) {
       return (
         <MainLayout>
-          <div className="flex h-full flex-col items-center justify-center space-y-4 px-4 py-8 text-center text-pink-600">
+          <div className="flex h-full flex-col items-center justify-center space-y-4 px-4 py-8 text-center text-fertiliapp-fuerte">
             <p>No se encontró el ciclo solicitado.</p>
-            <Button asChild className="bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow">
+            <Button asChild className="bg-fertiliapp-fuerte rounded-3xl text-white shadow">
               <Link to="/archived-cycles">Volver a Mis Ciclos</Link>
             </Button>
           </div>

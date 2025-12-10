@@ -1361,19 +1361,7 @@ const enterStart = -exitTarget;
 
   if (isLoading && !cycle?.id) {
     return (
-      <div className="relative flex h-full flex-col items-center justify-center overflow-hidden bg-[#fff7fb]">
-    <div
-      className="pointer-events-none absolute inset-0"
-      style={{
-        backgroundImage: `
-          radial-gradient(120% 120% at 0% 0%, rgba(251,113,133,0.18) 0, transparent 55%),
-          radial-gradient(110% 110% at 100% 0%, rgba(244,114,182,0.16) 0, transparent 55%),
-          radial-gradient(130% 130% at 0% 100%, rgba(251,113,133,0.08) 0, transparent 60%),
-          radial-gradient(140% 140% at 100% 100%, rgba(255,255,255,0.9) 0, rgba(255,247,250,0.3) 40%, transparent 70%)
-        `,
-        backgroundColor: '#fff7fb'
-      }}
-    />
+      <div className="relative flex h-full flex-col items-center justify-center overflow-hidden">
         <p className="text-center text-titulo text-lg">Cargando...</p>
       </div>
     );
@@ -1406,20 +1394,7 @@ const enterStart = -exitTarget;
   }
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden bg-[#fff7fb]">
-    <div
-      className="pointer-events-none absolute inset-0"
-      style={{
-        backgroundImage: `
-          radial-gradient(120% 120% at 0% 0%, rgba(251,113,133,0.18) 0, transparent 55%),
-          radial-gradient(110% 110% at 100% 0%, rgba(244,114,182,0.16) 0, transparent 55%),
-          radial-gradient(130% 130% at 0% 100%, rgba(251,113,133,0.08) 0, transparent 60%),
-          radial-gradient(140% 140% at 100% 100%, rgba(255,255,255,0.9) 0, rgba(255,247,250,0.3) 40%, transparent 70%)
-        `,
-        backgroundColor: '#fff7fb'
-      }}
-    />
-      
+    <div className="relative flex h-full flex-col overflow-hidden">      
       <div className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-6 px-4 relative z-10">
         <div
           ref={calendarContainerRef}

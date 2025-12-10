@@ -986,11 +986,13 @@ const EMPTY_DAY_COLORS = {
 </div>
 
         {/* Leyenda e información del ciclo con diseño mejorado */}
-        <div className="grid grid-cols-2 items-start gap-4 mx-2 mb-6 mt-2 flex-shrink-0">
+        <div className="grid grid-cols-2 gap-4 mx-2 mb-6 mt-2 flex-shrink-0 items-start">
           
           {/* Leyenda de colores */}
           <motion.div
-            className="relative overflow-hidden rounded-[28px] bg-[#ffe1e3] border border-white/50 shadow-[0_14px_35px_rgba(148,163,184,0.18)] backdrop-blur-md p-3 space-y-3"
+            className={`relative overflow-hidden rounded-3xl bg-white/60 border border-secundario/90 shadow-[0_14px_35px_rgba(148,163,184,0.18)] backdrop-blur-md p-1 transition-[width] duration-300 ease-in-out mx-auto ${
+              isSymbolsOpen ? 'w-full' : 'w-[80%]'
+            }`}
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.4, delay: 0.5 }}
@@ -999,10 +1001,10 @@ const EMPTY_DAY_COLORS = {
             <button
               type="button"
               onClick={() => setIsSymbolsOpen((previous) => !previous)}
-              className="group flex w-full items-center justify-between gap-3 rounded-2xl  px-3 py-2 text-left transition"
+              className="group flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-2 text-left transition"
             >
-              <span className="text-[13px] font-semibold text-slate-700 tracking-tight uppercase">SÍMBOLOS</span>
-             <div className="absolute top-6 right-4 w-2 h-2 bg-[#fdb9c0] rounded-full" />
+              <span className="text-sm font-semibold text-slate-700 tracking-tight uppercase">SÍMBOLOS</span>
+             <div className="absolute top-4.5 right-4 w-1.5 h-1.5 bg-secundario rounded-full" />
             </button>
 
             <AnimatePresence initial={false}>
@@ -1056,7 +1058,9 @@ const EMPTY_DAY_COLORS = {
 
           {/* Información del ciclo con diseño tipo card premium */}
           <motion.div
-            className="relative overflow-hidden rounded-[28px] bg-[#ffe1e3] border border-white/50 shadow-[0_14px_35px_rgba(148,163,184,0.18)] backdrop-blur-md p-3 space-y-2"
+            className={`relative overflow-hidden rounded-3xl bg-white/60 border border-secundario/90 shadow-[0_14px_35px_rgba(148,163,184,0.18)] backdrop-blur-md p-1 transition-[width] duration-300 ease-in-out mx-auto ${
+              isCalcOpen ? 'w-full' : 'w-[80%]'
+            }`}
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.4, delay: 0.6 }}
@@ -1066,8 +1070,8 @@ const EMPTY_DAY_COLORS = {
               onClick={() => setIsCalcOpen((previous) => !previous)}
               className="group flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-2 text-left transition"
             >
-              <span className="text-[13px] font-semibold text-slate-800 tracking-tight uppercase">CÁLCULO</span>
-              <div className="absolute top-6 right-4 w-2 h-2 bg-[#fdb9c0] rounded-full" />
+              <span className="text-sm font-semibold text-slate-800 tracking-tight uppercase">CÁLCULO</span>
+              <div className="absolute top-4.5 right-4 w-1.5 h-1.5 bg-secundario rounded-full" />
             </button>
 
             <AnimatePresence initial={false}>
@@ -1078,7 +1082,7 @@ const EMPTY_DAY_COLORS = {
                   animate={{ height: 'auto', opacity: 1 }}
                   exit={{ height: 0, opacity: 0 }}
                   transition={{ duration: 0.25, ease: 'easeInOut' }}
-                  className="grid grid-cols-2 gap-y-3 rounded-3xl bg-white/40 p-2 overflow-hidden"
+                  className="grid grid-cols-2 gap-2.5 rounded-3xl bg-white/40 p-2 overflow-hidden"
                 >
                   {/* Fila 1 - Ciclo más corto / CPM */}
                   <button
@@ -1087,9 +1091,9 @@ const EMPTY_DAY_COLORS = {
                     className="flex flex-col items-center gap-1.5"
                     aria-label="Editar CPM (Ciclo más corto)"
                   >
-                    <span className="text-[10px] font-medium text-gray-700">Ciclo más corto</span>
-                    <div className="h-12 flex items-end">
-                      <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/70 shadow-sm w-12 h-12 text-base font-bold text-rose-700">
+                    <span className="flex items-center justify-center text-[10px] font-medium text-gray-700 leading-tight text-center h-8">Ciclo más corto</span>
+                    <div className="h-10 flex items-end">
+                      <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/70 shadow-sm w-10 h-10 text-base font-bold text-rose-700">
                         {cpmMetric?.baseFormatted ?? '—'}
                       </div>
                     </div>
@@ -1097,12 +1101,12 @@ const EMPTY_DAY_COLORS = {
                   <button
                     type="button"
                     onClick={handleOpenCpmDialog}
-                    className="flex flex-col items-center gap-0.5"
+                    className="flex flex-col items-center gap-1.5"
                     aria-label="Editar CPM (resultado)"
                   >
-                    <span className="text-[10px] font-medium text-gray-700">CPM</span>
-                    <div className="h-12 flex items-end">
-                      <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/80 shadow-sm w-12 h-12 text-sm font-semibold text-rose-700">
+                    <span className="flex items-center justify-center text-[10px] font-medium text-gray-700 leading-tight text-center h-8">CPM</span>
+                    <div className="h-10 flex items-end">
+                      <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/80 shadow-sm w-10 h-10 text-sm font-semibold text-rose-700">
                         {cpmMetric?.finalFormatted ?? '—'}
                       </div>
                     </div>
@@ -1118,9 +1122,9 @@ const EMPTY_DAY_COLORS = {
                     className="flex flex-col items-center gap-1.5"
                     aria-label="Editar T-8 (Día de subida)"
                   >
-                    <span className="text-[10px] font-medium text-gray-700">Día de subida</span>
-                    <div className="h-12 flex items-end">
-                      <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/70 shadow-sm w-12 h-12 text-base font-bold text-rose-700">
+                    <span className="flex items-center justify-center text-[10px] font-medium text-gray-700 leading-tight text-center h-8">Día de subida</span>
+                    <div className="h-10 flex items-end">
+                      <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/70 shadow-sm w-10 h-10 text-base font-bold text-rose-700">
                         {t8Metric?.baseFormatted ?? '—'}
                       </div>
                     </div>
@@ -1128,12 +1132,12 @@ const EMPTY_DAY_COLORS = {
                   <button
                     type="button"
                     onClick={handleOpenT8Dialog}
-                    className="flex flex-col items-center gap-0.5"
+                    className="flex flex-col items-center gap-1.5"
                     aria-label="Editar T-8 (resultado)"
                   >
-                    <span className="text-[10px] font-medium text-gray-700">T-8</span>
-                    <div className="h-12 flex items-end">
-                      <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/80 shadow-sm w-12 h-12 text-sm font-semibold text-rose-700">
+                    <span className="flex items-center justify-center text-[10px] font-medium text-gray-700 leading-tight text-center h-8">T-8</span>
+                    <div className="h-10 flex items-end">
+                      <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/80 shadow-sm w-10 h-10 text-sm font-semibold text-rose-700">
                         {t8Metric?.finalFormatted ?? '—'}
                       </div>
                     </div>
@@ -1160,7 +1164,7 @@ const FloatingActionButton = ({ onAddRecord, onAddCycle }) => {
   <div className="flex flex-col space-y-2 mt-1">
     <motion.button
       onClick={onAddRecord}
-      className="flex items-center gap-1 px-4 h-12 rounded-full bg-fertiliapp-fuerte hover:brightness-50 text-white/90 shadow-sm shadow-[#DD5665]"
+      className="flex items-center gap-1 px-4 h-10 rounded-full bg-fertiliapp-fuerte hover:brightness-50 text-white/90 shadow-sm shadow-[#DD5665]"
       whileTap={{ scale: 0.80 }}
       whileHover={{ scale: 1.05 }}
       initial={{ opacity: 0, y: 20, scale: 0.8 }}
@@ -1172,7 +1176,7 @@ const FloatingActionButton = ({ onAddRecord, onAddCycle }) => {
     </motion.button>
     <motion.button
       onClick={onAddCycle}
-      className="flex items-center gap-3 px-4 h-12 rounded-full bg-white/80 hover:brightness-50 text-fertiliapp-fuerte shadow-sm shadow-[#DD5665]"
+      className="flex items-center gap-3 px-4 h-10 rounded-full bg-white/80 hover:brightness-50 text-fertiliapp-fuerte shadow-sm shadow-[#DD5665]"
       whileTap={{ scale: 0.95 }}
       whileHover={{ scale: 1.05 }}
       initial={{ opacity: 0, y: 20, scale: 0.8 }}
@@ -1189,7 +1193,7 @@ const FloatingActionButton = ({ onAddRecord, onAddCycle }) => {
 
       <motion.button
         onClick={() => setOpen(!open)}
-        className="flex items-center justify-center rounded-full bg-white/95 border border-secundario text-secundario hover:brightness-95 shadow-sm shadow-[#5BA9B8] w-14 h-14 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2"
+        className="flex items-center justify-center rounded-full bg-white/80 border border-fertiliapp-fuerte text-fertiliapp-fuerte hover:brightness-95 shadow-sm shadow-[#5BA9B8] w-12 h-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2"
         whileTap={{ scale: 0.95 }}
         whileHover={{ scale: 1.05 }}
         initial={{ scale: 0 }}

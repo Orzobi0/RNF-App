@@ -72,19 +72,7 @@ const AuthPage = () => {
   };
 
   return (
-    <div className="relative flex h-full flex-col items-center justify-center bg-[#fff7fb] p-4">
-    <div
-      className="pointer-events-none absolute inset-0"
-      style={{
-        backgroundImage: `
-          radial-gradient(120% 120% at 0% 0%, rgba(251,113,133,0.18) 0, transparent 55%),
-          radial-gradient(110% 110% at 100% 0%, rgba(244,114,182,0.16) 0, transparent 55%),
-          radial-gradient(130% 130% at 0% 100%, rgba(251,113,133,0.08) 0, transparent 60%),
-          radial-gradient(140% 140% at 100% 100%, rgba(255,255,255,0.9) 0, rgba(255,247,250,0.3) 40%, transparent 70%)
-        `,
-        backgroundColor: '#fff7fb'
-      }}
-    />
+    <div className="relative flex h-full flex-col items-center justify-center p-4">
       <motion.div
         className="w-full max-w-md bg-white/80 backdrop-blur-md shadow-xl rounded-xl p-8 sm:p-10"
         initial={{ opacity: 0, y: -30 }}

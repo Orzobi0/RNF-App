@@ -202,20 +202,7 @@ const SettingsPage = () => {
   };
 
   return (
-     <div className="relative flex min-h-[100dvh] flex-col overflow-hidden bg-[#fff7fb]">
-    <div
-      className="pointer-events-none absolute inset-0"
-      style={{
-        backgroundImage: `
-          radial-gradient(120% 120% at 0% 0%, rgba(251,113,133,0.18) 0, transparent 55%),
-          radial-gradient(110% 110% at 100% 0%, rgba(244,114,182,0.16) 0, transparent 55%),
-          radial-gradient(130% 130% at 0% 100%, rgba(251,113,133,0.08) 0, transparent 60%),
-          radial-gradient(140% 140% at 100% 100%, rgba(255,255,255,0.9) 0, rgba(255,247,250,0.3) 40%, transparent 70%)
-        `,
-        backgroundColor: '#fff7fb'
-      }}
-    />
-
+     <div className="relative flex min-h-[100dvh] flex-col overflow-hidden">
       <div className="relative z-10 mx-auto flex w-full max-w-2xl flex-1 flex-col box-border px-4 py-6 pb-[calc(var(--bottom-nav-safe)+1.25rem)]">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
