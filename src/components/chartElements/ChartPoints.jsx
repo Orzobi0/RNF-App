@@ -265,56 +265,7 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
       </defs>
 
       {/* Fondos de filas sutiles alineados con las tarjetas -- ocultos en modo compacto */}
-      {!compact && (
-  <g>
-    <rect
-      x={padding.left}
-      y={mucusSensationRowY - rowBlockHeight / 2}
-      width={rowWidth}
-      height={rowBlockHeight}
-      fill="rgba(239, 246, 255, 0.4)"
-      stroke="rgba(59, 130, 246, 0.08)"
-      strokeWidth={0.5}      
-      rx={3}
-      style={{ filter: 'drop-shadow(0 1px 1px rgba(59, 130, 246, 0.03))' }}
-    />
-    <rect
-      x={padding.left}
-      y={mucusAppearanceRowY - rowBlockHeight / 2}
-      width={rowWidth}
-      height={rowBlockHeight}
-      fill="rgba(236, 253, 245, 0.4)"
-      stroke="rgba(16, 185, 129, 0.08)"
-      strokeWidth={0.5}
-      rx={3}
-      style={{ filter: 'drop-shadow(0 1px 1px rgba(16, 185, 129, 0.03))' }}
-    />
-    <rect
-      x={padding.left}
-      y={observationsRowY - rowBlockHeight / 2}
-      width={rowWidth}
-      height={rowBlockHeight}
-      fill="rgba(245, 243, 255, 0.4)"
-      stroke="rgba(139, 92, 246, 0.08)"
-      strokeWidth={0.5}
-      rx={3}
-      style={{ filter: 'drop-shadow(0 1px 1px rgba(139, 92, 246, 0.03))' }}
-    />
-    {showRelationsRow && relationsRowY != null && (
-      <rect
-        x={padding.left}
-        y={relationsRowY - rowBlockHeight / 2}
-        width={rowWidth}
-        height={rowBlockHeight}
-        fill={BACKGROUND_COLOR}
-        stroke={BORDER_COLOR}
-        strokeWidth={0.5}
-        rx={3}
-        style={{ filter: 'drop-shadow(0 1px 1px rgba(244, 114, 182, 0.03))' }}
-      />
-    )}
-  </g>
-)}
+
 
       {/* Leyenda izquierda con tipografía premium */}
       {isFullScreen && orientation !== 'portrait' && (

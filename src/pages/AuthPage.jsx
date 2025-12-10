@@ -75,7 +75,7 @@ const AuthPage = () => {
   return (
     <div className="relative flex h-full flex-col items-center justify-center p-4">
       <motion.div
-        className="w-full max-w-md bg-white/80 backdrop-blur-md shadow-xl rounded-xl p-8 sm:p-10"
+        className="w-full max-w-md bg-white/80 backdrop-blur-md shadow-xl rounded-3xl p-8 sm:p-10"
         initial={{ opacity: 0, y: -30 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, ease: 'easeOut' }}

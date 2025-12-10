@@ -258,8 +258,7 @@ const SettingsPage = () => {
           </div>
           
           <InstallPrompt
-            align="start"
-            className="bg-white/80 backdrop-blur p-4 rounded-3xl shadow"
+            align="end"
             buttonClassName="bg-fertiliapp-fuerte hover:brightness-95"
             forceVisible={forceInstallPrompt}
           />

@@ -13,6 +13,7 @@ export default function InstallPrompt({
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstall, setShowInstall] = useState(false);
   const [showIOS, setShowIOS] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(false);
 
   useEffect(() => {
     const handler = (e) => {
@@ -23,10 +24,15 @@ export default function InstallPrompt({
     window.addEventListener('beforeinstallprompt', handler);
 
     const isIOS = /iphone|ipad|ipod/.test(window.navigator.userAgent.toLowerCase());
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+    const standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+    setIsStandalone(Boolean(standalone));
     const dismissed = localStorage.getItem(IOS_DISMISSED_KEY);
-    if (!('onbeforeinstallprompt' in window) && isIOS && !isStandalone && !dismissed) {
+    if (!('onbeforeinstallprompt' in window) && isIOS && !standalone && !dismissed) {
       setShowIOS(true);
+    }
+
+    if (!standalone) {
+      setShowInstall(true);
     }
 
     return () => window.removeEventListener('beforeinstallprompt', handler);
@@ -45,9 +51,9 @@ export default function InstallPrompt({
     localStorage.setItem(IOS_DISMISSED_KEY, '1');
   };
 
-  const shouldShowCTA = showInstall || forceVisible;
+  const shouldShowCTA = (!isStandalone && showInstall) || forceVisible;
   const isDisabled = !deferredPrompt;
-  const showHelpText = forceVisible && isDisabled;
+  const showHelpText = isDisabled;
 
   if (showIOS) {
     return (
@@ -61,7 +67,7 @@ export default function InstallPrompt({
       </div>
     );
   }
-if (shouldShowCTA) {
+  if (shouldShowCTA) {
     return (
       <div
         className={cn(
@@ -73,15 +79,11 @@ if (shouldShowCTA) {
         <Button
           onClick={handleInstall}
           disabled={isDisabled}
-          className={cn('rounded-2xl px-6 py-3 text-base', buttonClassName)}
+          className={cn('rounded-3xl px-6 py-3 text-white', buttonClassName)}
         >
           Instalar aplicación
         </Button>
-        {showHelpText && (
-          <p className="mt-2 text-sm text-slate-600">
-            Añade la aplicación a tu pantalla de inicio desde el menú del navegador para una experiencia completa.
-          </p>
-        )}
+
       </div>
     );
   }

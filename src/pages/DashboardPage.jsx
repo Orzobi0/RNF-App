@@ -3462,56 +3462,18 @@ const ModernFertilityDashboard = () => {
     [addOrUpdateDataPoint, currentCycle?.id]
   );
 
-  if (isLoading && !currentCycle?.id) {
-    return (
-      <div className="mx-auto flex min-h-screen max-w-md items-center justify-center px-4 py-4">
-        <div className="w-full rounded-3xl border border-rose-100/70 bg-white/80 p-4 text-center shadow-sm">
-          <p className="text-sm font-semibold text-slate-800">Cargando...</p>
-        </div>
-      </div>
-    );
-  }
+  const currentDay = useMemo(() => {
+    if (!currentCycle?.startDate) return null;
 
-  if (!currentCycle?.id) {
-    return (
-      <div className="mx-auto flex min-h-screen max-w-md items-center justify-center px-4 py-4">
-        <div className="w-full space-y-4 rounded-3xl border border-rose-100/70 bg-white/80 p-4 text-center shadow-sm">
-          <p className="text-[15px] font-semibold text-slate-800">No hay ciclo activo.</p>
-          <button
-            onClick={() => setShowNewCycleDialog(true)}
-            className="h-11 w-full rounded-full bg-fertiliapp-fuerte px-4 text-sm font-semibold text-white shadow-sm transition hover:brightness-95"
-          >
-            Iniciar ciclo
-          </button>
-        </div>
-        <NewCycleDialog
-          isOpen={showNewCycleDialog}
-          onClose={() => setShowNewCycleDialog(false)}
-          onConfirm={async (selectedStartDate) => {
-            await startNewCycle(selectedStartDate);
-            setShowNewCycleDialog(false);
-            setInitialSectionKey(null);
-            setShowForm(true);
-          }}
-        />
-      </div>
-    );
-  }
-
-  if (!currentCycle?.startDate) {
-    return (
-      <div className="mx-auto flex min-h-screen max-w-md items-center justify-center px-4 py-4">
-        <div className="w-full rounded-3xl border border-rose-100/70 bg-white/80 p-4 text-center shadow-sm">
-          <p className="text-sm font-semibold text-slate-800">Cargando...</p>
-        </div>
-      </div>
-    );
-  }
-
-  const currentDay = differenceInDays(
-    startOfDay(new Date()),
-    parseISO(currentCycle.startDate)
-  ) + 1;
+  try {
+      return (
+        differenceInDays(startOfDay(new Date()), parseISO(currentCycle.startDate)) + 1
+      );
+    } catch (error) {
+      console.error('Error calculating current day:', error);
+      return null;
+    }
+  }, [currentCycle?.startDate]);
 
   const externalCalculatorCandidates = useMemo(() => {
     const candidates = [];
@@ -3619,6 +3581,53 @@ const ModernFertilityDashboard = () => {
     false
   );
 
+  if (isLoading && !currentCycle?.id) {
+    return (
+      <div className="mx-auto flex min-h-screen max-w-md items-center justify-center px-4 py-4">
+        <div className="w-full rounded-3xl border border-rose-100/70 bg-white/80 p-4 text-center shadow-sm">
+          <p className="text-sm font-semibold text-slate-800">Cargando...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentCycle?.id) {
+    return (
+      <div className="mx-auto flex min-h-screen max-w-md items-center justify-center px-4 py-4">
+        <div className="w-full space-y-4 rounded-3xl border border-rose-100/70 bg-white/80 p-4 text-center shadow-sm">
+          <p className="text-[15px] font-semibold text-slate-800">No hay ciclo activo.</p>
+          <button
+            onClick={() => setShowNewCycleDialog(true)}
+            className="h-11 w-full rounded-full bg-fertiliapp-fuerte px-4 text-sm font-semibold text-white shadow-sm transition hover:brightness-95"
+          >
+            Iniciar ciclo
+          </button>
+        </div>
+        <NewCycleDialog
+          isOpen={showNewCycleDialog}
+          onClose={() => setShowNewCycleDialog(false)}
+          onConfirm={async (selectedStartDate) => {
+            await startNewCycle(selectedStartDate);
+            setShowNewCycleDialog(false);
+            setInitialSectionKey(null);
+            setShowForm(true);
+          }}
+        />
+      </div>
+    );
+  }
+
+  if (!currentCycle?.startDate) {
+    return (
+      <div className="mx-auto flex min-h-screen max-w-md items-center justify-center px-4 py-4">
+        <div className="w-full rounded-3xl border border-rose-100/70 bg-white/80 p-4 text-center shadow-sm">
+          <p className="text-sm font-semibold text-slate-800">Cargando...</p>
+        </div>
+      </div>
+    );
+  }
+
+ 
 
   const handleSave = async (data, { keepFormOpen = false } = {}) => {
     setIsProcessing(true);
