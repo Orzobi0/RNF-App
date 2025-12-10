@@ -12,16 +12,23 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    const swUrl = `${import.meta.env.BASE_URL}sw.js`;
-    navigator.serviceWorker.register(swUrl, {
-      updateViaCache: 'none',
-      scope: '/'
-    }).then((registration) => {
-      // Forzar actualización cada vez
-      registration.update();
+    navigator.serviceWorker
+      .getRegistrations()
+      .then((registrations) => {
+        registrations.forEach((registration) => {
+          registration.unregister().catch(() => {});
+        });
+      })
+      .catch(() => {});
 
-    });
+    // Limpiar caches existentes para evitar restos de versiones previas.
+    if (window.caches?.keys) {
+      caches.keys().then((keys) => {
+        keys.forEach((key) => {
+          caches.delete(key).catch(() => {});
+        });
+      });
+    }
   });
-
 }
 

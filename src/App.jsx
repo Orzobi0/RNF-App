@@ -32,7 +32,7 @@ function AppContent() {
       <AppBackground>
         <div className="flex min-h-[100dvh] flex-col items-center justify-center space-y-4 px-4">
           <motion.div
-            className="h-8 w-8 rounded-full bg-pink-500/80"
+            className="h-8 w-8 rounded-full bg-fertiliapp"
             animate={{ opacity: [0.4, 1, 0.4] }}
             transition={{ duration: 1.2, repeat: Infinity }}
           />
@@ -58,7 +58,7 @@ function AppContent() {
   ) : (
     <div className="flex min-h-[100dvh] flex-col items-center justify-center space-y-4 px-4">
       <motion.div
-        className="h-8 w-8 rounded-full bg-fertiliapp-fuerte/80"
+        className="h-8 w-8 rounded-full bg-fertiliapp"
         animate={{ opacity: [0.4, 1, 0.4] }}
         transition={{ duration: 1.2, repeat: Infinity }}
       />
