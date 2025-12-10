@@ -19,6 +19,7 @@ const AuthPage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const forceInstallPrompt = import.meta.env.VITE_FORCE_INSTALL_PROMPT === 'true';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -192,6 +193,7 @@ const AuthPage = () => {
         <InstallPrompt
           className="mt-6"
           buttonClassName="w-full bg-fertiliapp-fuerte hover:brightness-95"
+          forceVisible={forceInstallPrompt}
         />
 
         <div className="mt-8 text-center">

@@ -41,6 +41,7 @@ const SettingsPage = () => {
   const [loadingPassword, setLoadingPassword] = useState(false);
   const [loadingLogout, setLoadingLogout] = useState(false);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+  const forceInstallPrompt = import.meta.env.VITE_FORCE_INSTALL_PROMPT === 'true';
 
     const allCycles = useMemo(() => {
     const combined = [];
@@ -260,6 +261,7 @@ const SettingsPage = () => {
             align="start"
             className="bg-white/80 backdrop-blur p-4 rounded-3xl shadow"
             buttonClassName="bg-fertiliapp-fuerte hover:brightness-95"
+            forceVisible={forceInstallPrompt}
           />
         </div>
 

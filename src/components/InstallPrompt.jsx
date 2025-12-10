@@ -4,7 +4,12 @@ import { cn } from '@/lib/utils';
 
 const IOS_DISMISSED_KEY = 'iosInstallDismissed';
 
-export default function InstallPrompt({ className = '', buttonClassName = '', align = 'center' }) {
+export default function InstallPrompt({
+  className = '',
+  buttonClassName = '',
+  align = 'center',
+  forceVisible = false,
+}) {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstall, setShowInstall] = useState(false);
   const [showIOS, setShowIOS] = useState(false);
@@ -40,21 +45,9 @@ export default function InstallPrompt({ className = '', buttonClassName = '', al
     localStorage.setItem(IOS_DISMISSED_KEY, '1');
   };
 
-  if (showInstall) {
-    return (
-      <div
-        className={cn(
-          'w-full',
-          align === 'center' ? 'flex justify-center' : align === 'end' ? 'flex justify-end' : '',
-          className,
-        )}
-      >
-        <Button onClick={handleInstall} className={cn('rounded-2xl px-6 py-3 text-base', buttonClassName)}>
-          Instalar aplicación
-        </Button>
-      </div>
-    );
-  }
+  const shouldShowCTA = showInstall || forceVisible;
+  const isDisabled = !deferredPrompt;
+  const showHelpText = forceVisible && isDisabled;
 
   if (showIOS) {
     return (
@@ -65,6 +58,30 @@ export default function InstallPrompt({ className = '', buttonClassName = '', al
         <Button variant="outline" onClick={dismissIOS} className="rounded-xl">
           Cerrar
         </Button>
+      </div>
+    );
+  }
+if (shouldShowCTA) {
+    return (
+      <div
+        className={cn(
+          'w-full',
+          align === 'center' ? 'flex justify-center' : align === 'end' ? 'flex justify-end' : '',
+          className,
+        )}
+      >
+        <Button
+          onClick={handleInstall}
+          disabled={isDisabled}
+          className={cn('rounded-2xl px-6 py-3 text-base', buttonClassName)}
+        >
+          Instalar aplicación
+        </Button>
+        {showHelpText && (
+          <p className="mt-2 text-sm text-slate-600">
+            Añade la aplicación a tu pantalla de inicio desde el menú del navegador para una experiencia completa.
+          </p>
+        )}
       </div>
     );
   }
