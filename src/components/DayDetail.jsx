@@ -146,7 +146,7 @@ let peakIndicatorVariant = null;
       <div className="flex items-center gap-2">
         {/* Fecha + Dn + pico/+1-3 */}
         <div className="flex items-center gap-2">
-          <p className="text-base font-semibold text-rose-700 sm:text-lg">
+          <p className="font-semibold text-subtitulo sm:text-lg">
             {formattedDate}
             {cycleDay ? ` · D${cycleDay}` : ''}
           </p>
@@ -184,7 +184,7 @@ let peakIndicatorVariant = null;
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 rounded-full text-rose-500 hover:bg-rose-50"
+                className="h-8 w-8 rounded-full text-fertiliapp-fuerte hover:bg-rose-50"
                 onClick={handleEdit}
                 disabled={isProcessing}
               >
@@ -199,7 +199,7 @@ let peakIndicatorVariant = null;
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 rounded-full text-rose-500 hover:bg-rose-50"
+                className="h-8 w-8 rounded-full text-fertiliapp-fuerte hover:bg-rose-50"
                 onClick={handleDelete}
                 disabled={isProcessing}
               >

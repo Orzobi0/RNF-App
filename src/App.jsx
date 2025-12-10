@@ -145,7 +145,7 @@ function AppContent() {
 
 function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={import.meta.env.BASE_URL}>
       <UpdateNotification />
       <AuthProvider>
         <CycleDataProvider>
@@ -158,5 +158,6 @@ function App() {
     </BrowserRouter>
   );
 }
+
 
 export default App;
