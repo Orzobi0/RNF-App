@@ -57,8 +57,8 @@
     --color-borde-suave: #FBE4EA;
 
     /* Colores secundarios de interfaz */
-    --color-secundario: #5BA9B8;          /* azul verdoso complementario al rosa */
-    --color-secundario-suave: #D9EEF5;    /* fondo suave para secciones secundarias */
+    --color-secundario: #8FC4CF;          /* azul verdoso complementario al rosa */
+    --color-secundario-suave: #E6F5F7;    /* fondo suave para secciones secundarias */
 
     /* Estados generales (no solo ciclo) */
     --color-ok: #D85C70;                  /* éxito / correcto */

@@ -1330,7 +1330,7 @@ const enterStart = -exitTarget;
               variant="outline"
               size="icon"
               onClick={openStartDateEditor}
-              className="border-fertiliapp-suave rounded-full bg-secundario-suave text-secundario hover:brightness-95"
+              className="border-fertiliapp-suave rounded-full bg-secundario text-white hover:brightness-95"
               disabled={isProcessing || isUpdatingStartDate}
               aria-label={includeEndDate ? 'Editar fechas del ciclo' : 'Editar fecha de inicio'}
             >
