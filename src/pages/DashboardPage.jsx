@@ -58,9 +58,8 @@ const CycleOverviewCard = ({
   const [tooltipPosition, setTooltipPosition] = useState({ clientX: 0, clientY: 0 });
   const [isSymbolsOpen, setIsSymbolsOpen] = useState(false);
   const [isCalcOpen, setIsCalcOpen] = useState(false);
-  const [wheelOffset, setWheelOffset] = useState(0);
   const [recentlyChangedDays, setRecentlyChangedDays] = useState([]);
-  const hasInitializedWheelRef = useRef(false);
+  const hasInitializedWheelRef = useRef(true);
   const touchStartXRef = useRef(null);
   const circleRef = useRef(null);
   const recentSignaturesRef = useRef(new Map());
@@ -173,6 +172,22 @@ const CycleOverviewCard = ({
 
   const maxOffset = Math.max(totalCycleDays - totalDots, 0);
   const hasOverflow = maxOffset > 0;
+
+  const desiredInitialWheelOffset = useMemo(() => {
+    if (!hasOverflow) {
+      return 0;
+    }
+
+    return Math.max(0, Math.min(Math.max(cycleData.currentDay - totalDots, 0), maxOffset));
+  }, [cycleData.currentDay, hasOverflow, maxOffset, totalDots]);
+
+  const [wheelOffset, setWheelOffset] = useState(desiredInitialWheelOffset);
+
+  useEffect(() => {
+    if (!hasInitializedWheelRef.current) {
+      hasInitializedWheelRef.current = true;
+    }
+  }, [desiredInitialWheelOffset, wheelOffset]);
 
   useEffect(() => {
     if (!hasOverflow) {
@@ -715,7 +730,7 @@ const EMPTY_DAY_COLORS = {
   <motion.g
   transition={{ type: 'tween', duration: 0.18, ease: [0.2, 0.8, 0.2, 1] }}
   initial={false}
-  animate={{ rotate: -wheelRotationDegrees }}
+  animate={hasInitializedWheelRef.current ? { rotate: -wheelRotationDegrees } : false}
   style={{
     transformOrigin: 'center',
     transformBox: 'view-box',
@@ -748,7 +763,7 @@ const EMPTY_DAY_COLORS = {
   animate={{ scale: 1, opacity: 1, y: 0 }}
   transition={{ duration: 0.50, ease: 'easeOut' }}   // más rápido
   whileTap={
-    prefersReducedMotion
+    prefersReducedMotion || !hasInitializedWheelRef.current
       ? undefined
       : {
           y: 2,              // se hunde un pelín

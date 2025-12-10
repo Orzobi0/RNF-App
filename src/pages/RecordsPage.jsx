@@ -15,6 +15,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Edit, Plus, FileText } from 'lucide-react';
+import NewCycleDialog from '@/components/NewCycleDialog';
 import {
   format,
   parseISO,
@@ -71,6 +72,7 @@ export const RecordsExperience = ({
   checkCycleOverlap: checkCycleOverlapProp,
   forceShiftNextCycleStart: forceShiftNextCycleStartProp,
   forceUpdateCycleStart: forceUpdateCycleStartProp,
+  startNewCycle: startNewCycleProp,
   refreshData: refreshDataProp,
   afterRecordsContent = null,
   onRequestDeleteCycle = null,
@@ -88,6 +90,7 @@ export const RecordsExperience = ({
     checkCycleOverlap: contextCheckCycleOverlap,
     forceUpdateCycleStart: contextForceUpdateCycleStart,
     forceShiftNextCycleStart: contextForceShiftNextCycleStart,
+    startNewCycle: contextStartNewCycle,
     refreshData: contextRefreshData,
   } = useCycleData();
   const cycle = cycleProp ?? contextCurrentCycle;
@@ -113,10 +116,11 @@ export const RecordsExperience = ({
     ? forceUpdateCycleStartProp
     : async (cycleId, startDate) =>
         contextForceUpdateCycleStart(cycleId ?? cycle?.id, startDate);
-    const forceShiftNextCycleStart = forceShiftNextCycleStartProp
+  const forceShiftNextCycleStart = forceShiftNextCycleStartProp
     ? forceShiftNextCycleStartProp
     : async (cycleId, newEndDate, newStartDate) =>
         contextForceShiftNextCycleStart(cycleId ?? cycle?.id, newEndDate, newStartDate);
+  const startNewCycle = startNewCycleProp ?? contextStartNewCycle;
   const refreshData = refreshDataProp ?? contextRefreshData;
   const { toast } = useToast();
   const [showForm, setShowForm] = useState(false);
@@ -137,6 +141,7 @@ export const RecordsExperience = ({
   const [defaultFormIsoDate, setDefaultFormIsoDate] = useState(null);
   const [focusedField, setFocusedField] = useState(null);
   const [initialSectionKey, setInitialSectionKey] = useState(null);
+  const [showNewCycleDialog, setShowNewCycleDialog] = useState(false);
   const cycleRangeLabel = useMemo(() => {
     if (!cycle?.startDate) return null;
 
@@ -1376,20 +1381,33 @@ const enterStart = -exitTarget;
 
   if (!cycle?.id) {
     return (
-      <div className="relative flex h-full flex-col overflow-hidden bg-[#fff7fb]">
-    <div
-      className="pointer-events-none absolute inset-0"
-      style={{
-        backgroundImage: `
-          radial-gradient(120% 120% at 0% 0%, rgba(251,113,133,0.18) 0, transparent 55%),
-          radial-gradient(110% 110% at 100% 0%, rgba(244,114,182,0.16) 0, transparent 55%),
-          radial-gradient(130% 130% at 0% 100%, rgba(251,113,133,0.08) 0, transparent 60%),
-          radial-gradient(140% 140% at 100% 100%, rgba(255,255,255,0.9) 0, rgba(255,247,250,0.3) 40%, transparent 70%)
-        `,
-        backgroundColor: '#fff7fb'
-      }}
-    />
-        <p className="text-center text-titulo text-lg">No hay ciclo activo.</p>
+      <div className="relative min-h-screen overflow-hidden app-background">
+        <div className="pointer-events-none absolute inset-0">
+          <div className="wave wave--top" />
+          <div className="wave wave--right" />
+          <div className="wave wave--bottom" />
+        </div>
+        <div className="mx-auto flex min-h-screen max-w-md items-center justify-center px-4 py-4 relative z-10">
+          <div className="bg-white/80 border border-rose-100/70 rounded-3xl shadow-sm w-full p-4 text-center space-y-4">
+            <p className="text-[15px] font-semibold text-slate-800">No hay ciclo activo.</p>
+            <button
+              onClick={() => setShowNewCycleDialog(true)}
+              className="h-11 w-full rounded-full bg-rose-400 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-500"
+            >
+              Iniciar ciclo
+            </button>
+          </div>
+        </div>
+        <NewCycleDialog
+          isOpen={showNewCycleDialog}
+          onClose={() => setShowNewCycleDialog(false)}
+          onConfirm={async (selectedStartDate) => {
+            await startNewCycle(selectedStartDate);
+            setShowNewCycleDialog(false);
+            setInitialSectionKey(null);
+            setShowForm(true);
+          }}
+        />
       </div>
     );
   }

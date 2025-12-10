@@ -222,7 +222,7 @@ const SettingsPage = () => {
           transition={{ duration: 0.5 }}
         >
           <h1 className="text-3xl font-bold text-slate-700 flex items-center">
-            <User className="mr-2 h-8 w-8 text-pink-500" />
+            <User className="mr-2 h-8 w-8 text-fertiliapp-fuerte" />
             Mi cuenta
           </h1>
         </motion.div>
@@ -269,7 +269,7 @@ const SettingsPage = () => {
           </div>
         </div>
 
-                  <div className="bg-white/80 backdrop-blur p-4 rounded-3xl shadow flex items-center justify-between">
+            <div className="bg-white/80 backdrop-blur p-4 rounded-3xl shadow flex items-center justify-between">
             <div>
               <p className="text-sm text-slate-500">Sesión</p>
               <p className="font-medium text-slate-700">Cerrar sesión de tu cuenta</p>

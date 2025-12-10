@@ -309,7 +309,7 @@ const ArchivedCyclesPage = () => {
   <div className="flex flex-row items-center gap-3">
     <Button
       onClick={openAddDialog}
-      className="flex-shrink-0 text-md rounded-full bg-secundario hover:brightness-95 text-white shadow-lg px-4"
+      className="flex-shrink-0 text-md font-semibold rounded-full bg-white/90 border border-secundario hover:brightness-95 text-secundario shadow-sm px-2"
       style={{ filter: 'drop-shadow(0 6px 12px rgba(236, 72, 153, 0.3))' }}
     >
       <Plus className="mr-1 h-4 w-4" /> Ciclo
