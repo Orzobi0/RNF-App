@@ -844,8 +844,8 @@ const ChartPage = () => {
           return 'Ajustado por marcadores';
         }
         const labels = {
-          conservador: 'Modo conservador',
-          estandar: 'Modo estándar',
+          conservador: 'Conservador',
+          estandar: 'Estándar',
         };
         return labels[selectedMode] ?? null;
       })();
@@ -940,7 +940,7 @@ const ChartPage = () => {
         }
         body = closureDetail ? `${startDetail} ${closureDetail}` : startDetail;
       } else if (phase === 'postOvulatory') {
-        title = 'Infértil postovulatoria';
+        title = 'Fase postovulatoria';
         const hasTemperature =
           Number.isInteger(reasons?.temperature?.startIndex) ||
           Number.isInteger(fertileWindow?.temperatureInfertileStartIndex);
@@ -1110,7 +1110,7 @@ const ChartPage = () => {
           onClick={() => setSettingsOpen((prev) => !prev)}
           variant="ghost"
           size="icon"
-          className="absolute top-16 right-4 z-10 p-2 rounded-full bg-white/80 shadow-lg shadow-slate-300/50 text-slate-700 hover:bg-[#E27DBF]/20"
+          className="absolute top-16 right-4 z-10 p-2 rounded-full bg-white shadow-lg shadow-secundario text-secundario hover:brightness-95"
           aria-label="Ajustes del gráfico"
         >
           <Settings className="h-4 w-4" />
@@ -1121,8 +1121,8 @@ const ChartPage = () => {
           variant="ghost"
           size="icon"
           className={`absolute top-4 right-20 z-10 p-2 rounded-full transition-colors ${showInterpretation 
-            ? 'bg-gradient-to-br from-pink-500 to-rose-500 text-white shadow-lg shadow-pink-300/50 border-pink-400' 
-            : 'bg-white/80 text-slate-600 hover:bg-pink-50/80 shadow-md border-pink-200/50'}`}
+            ? 'bg-fertiliapp-fuerte text-white shadow-lg shadow-fertiliapp-fuerte/50 border-fertiliapp-fuerte/70' 
+            : 'bg-white/80 text-fertiliapp-fuerte border border-fertiliapp-fuerte hover:brightness-95 shadow-md'}`}
         >
           {showInterpretation ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
         </Button>
@@ -1274,19 +1274,12 @@ const ChartPage = () => {
           {phaseOverlay && (
             <div className="space-y-4 text-left">
               <div className="flex items-start justify-between gap-4">
-                <div className="space-y-1">
-                  {phaseOverlay.header && (
-                    <p className="text-xs font-semibold uppercase tracking-wide text-pink-600">
-                      {phaseOverlay.header}
-                    </p>
-                  )}
-                  <h2 className="text-lg font-semibold text-slate-800">
-                    {phaseOverlay.title}
-                  </h2>
-                </div>
+                <h2 className="text-lg font-semibold text-fertiliapp-fuerte">
+                  {phaseOverlay.title}
+                </h2>
                 <div className="flex items-center gap-2">
                   {phaseOverlay.modeLabel && (
-                    <span className="rounded-full border border-rose-100 bg-rose-50 px-3 py-1 text-[11px] font-semibold text-rose-700">
+                    <span className="rounded-full border border-secundario bg-secundario-suave px-3 py-1 text-[11px] font-semibold text-secundario-fuerte">
                       {phaseOverlay.modeLabel}
                     </span>
                   )}
@@ -1300,6 +1293,11 @@ const ChartPage = () => {
                   </button>
                 </div>
               </div>
+              {phaseOverlay.header && (
+                <p className="text-sm font-medium leading-snug text-subtitulo">
+                  {phaseOverlay.header}
+                </p>
+              )}
               {phaseOverlay.body && (
                 <p className="text-sm leading-relaxed text-slate-600">{phaseOverlay.body}</p>
               )}

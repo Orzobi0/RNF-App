@@ -57,7 +57,8 @@
     --color-borde-suave: #FBE4EA;
 
     /* Colores secundarios de interfaz */
-    --color-secundario: #8FC4CF;          /* azul verdoso complementario al rosa */
+    --color-secundario: #8FC4CF;
+    --color-secundario-fuerte: #337c8b;            /* azul verdoso complementario al rosa */
     --color-secundario-suave: #E6F5F7;    /* fondo suave para secciones secundarias */
 
     /* Estados generales (no solo ciclo) */
@@ -319,6 +320,8 @@
   .text-suave { color: var(--color-texto-suave); }
     /* Texto secundarios */
   .text-secundario { color: var(--color-secundario); }
+  .text-secundario-fuerte { color: var(--color-secundario-fuerte); }
+  .text-secundario-suave { color: var(--color-secundario-suave); }
 
   /* Fondos principales*/
   .bg-fertiliapp { background-color: var(--color-fertiliapp); }
@@ -326,6 +329,7 @@
   .bg-fertiliapp-suave { background-color: var(--color-fertiliapp-suave); }
   .bg-tarjeta { background-color: var(--color-fondo-tarjeta); }
   .bg-secundario { background-color: var(--color-secundario); }
+  .bg-secundario-fuerte { background-color: var(--color-secundario-fuerte); }
   .bg-secundario-suave { background-color: var(--color-secundario-suave); }
   .ring-fertiliapp-suave { --tw-ring-color: var(--color-fertiliapp-suave); }
 
