@@ -764,7 +764,7 @@ const FertilityChart = ({
   const rotatedContainer = applyRotation;
   const baseFullClass = 'w-full h-full bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100';
   const containerClass = isFullScreen
-    ? `${baseFullClass} min-h-full ${rotatedContainer ? 'overflow-y-auto overflow-x-hidden' : 'overflow-x-auto overflow-y-visible'}`
+    ? `${baseFullClass} h-full ${rotatedContainer ? 'overflow-y-auto overflow-x-auto' : 'overflow-x-auto overflow-y-auto'}`
     : `${baseFullClass} overflow-x-auto overflow-y-visible border border-pink-100/50`;
   const showLegend = !isFullScreen || orientation === 'portrait';
 
@@ -784,12 +784,12 @@ const FertilityChart = ({
           ...(applyRotation
             ? {
                 position: 'absolute',
-                top: 0,
-                left: 0,
+                top: '50%',
+                left: '50%',
                 width: `${viewport.h}px`,
                 height: `${viewport.w}px`,
-                transform: 'rotate(90deg) translateY(-100%)',
-                transformOrigin: 'top left'
+                transform: 'translate(-50%, -50%) rotate(90deg)',
+                transformOrigin: 'center center',
               }
             : {})
         }}
