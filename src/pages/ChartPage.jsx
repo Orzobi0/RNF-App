@@ -227,6 +227,7 @@ const ChartPage = () => {
     typeof window !== 'undefined' && window.innerWidth > window.innerHeight ? 'landscape' : 'portrait'
   );
   const [isFullScreen, setIsFullScreen] = useState(false);
+  const [forceLandscape, setForceLandscape] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [initialSectionKey, setInitialSectionKey] = useState(null);
@@ -321,7 +322,12 @@ const ChartPage = () => {
         } catch (error) {
           // ignored
         }
-        setOrientation('portrait');
+        setForceLandscape(false);
+        const nextOrientation =
+          typeof window !== 'undefined' && window.innerWidth > window.innerHeight
+            ? 'landscape'
+            : 'portrait';
+        setOrientation(nextOrientation);
       }
     };
 
@@ -341,6 +347,27 @@ const ChartPage = () => {
   useLayoutEffect(() => {
     window.dispatchEvent(new Event('resize'));
   }, [orientation, isFullScreen]);
+  
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const handleOrientationChange = () => {
+      if (forceLandscape) return;
+      const nextOrientation = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
+      setOrientation((prev) => (prev === nextOrientation ? prev : nextOrientation));
+      window.dispatchEvent(new Event('resize'));
+    };
+
+    window.addEventListener('resize', handleOrientationChange);
+    window.addEventListener('orientationchange', handleOrientationChange);
+
+    handleOrientationChange();
+
+    return () => {
+      window.removeEventListener('resize', handleOrientationChange);
+      window.removeEventListener('orientationchange', handleOrientationChange);
+    };
+  }, [forceLandscape]);
   if (showLoading) {
     return (
       <MainLayout>
@@ -1028,6 +1055,12 @@ const ChartPage = () => {
     const screenOrientation =
       typeof window !== 'undefined' ? window.screen?.orientation : null;
 
+      const enableForcedLandscape = () => {
+      setOrientation('landscape');
+      setIsFullScreen(true);
+      setForceLandscape(true);
+    };
+
     if (!isFullScreen) {
       const requestFullScreen =
         rootElement.requestFullscreen ||
@@ -1037,12 +1070,14 @@ const ChartPage = () => {
 
       const hasRequestFullScreen = Boolean(requestFullScreen);
       const canLockOrientation = Boolean(screenOrientation?.lock);
-        if (!hasRequestFullScreen && !canLockOrientation) {
-          window.alert('La pantalla completa no está disponible en este dispositivo.');
-          return;
-        }
+      
 
-        let enteredFullScreen = false;
+      if (!hasRequestFullScreen && !canLockOrientation) {
+        enableForcedLandscape();
+        return;
+      }
+
+      let enteredFullScreen = false;
       let lockedOrientation = false;
 
       try {
@@ -1066,11 +1101,9 @@ const ChartPage = () => {
       const activatedFullScreen = enteredFullScreen || lockedOrientation;
 
       if (activatedFullScreen) {
-        setOrientation('landscape');
-        setIsFullScreen(true);
+        enableForcedLandscape();
       } else {
-        setOrientation('portrait');
-        setIsFullScreen(false);
+        enableForcedLandscape();
       }
 
     } else {
@@ -1100,7 +1133,12 @@ const ChartPage = () => {
       } catch (err) {
         console.error(err);
       }
-      setOrientation('portrait');
+      setForceLandscape(false);
+      const nextOrientation =
+        typeof window !== 'undefined' && window.innerWidth > window.innerHeight
+          ? 'landscape'
+          : 'portrait';
+      setOrientation(nextOrientation);
       setIsFullScreen(false);
     }
   };
@@ -1170,7 +1208,7 @@ const ChartPage = () => {
           visibleDays={visibleDays}
           showInterpretation={showInterpretation}
           reduceMotion={true}
-          forceLandscape={orientation === 'landscape'}
+          forceLandscape={forceLandscape || orientation === 'landscape'}
           currentPeakIsoDate={currentPeakIsoDate}
           showRelationsRow={chartSettings.showRelationsRow}
           fertilityStartConfig={fertilityStartConfig}
