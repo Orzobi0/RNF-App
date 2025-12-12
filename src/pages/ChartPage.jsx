@@ -52,7 +52,6 @@ const formatCalculatorSourceLabel = (source) => {
 };
 
 const createDefaultFertilityStartConfig = () => ({
-  methods: { alemanas: true, oms: true, creighton: true },
   calculators: { cpm: true, t8: true },
   postpartum: false,
   combineMode: 'conservador',
@@ -63,12 +62,6 @@ const DEFAULT_CHART_SETTINGS = {
   fertilityStartConfig: createDefaultFertilityStartConfig(),
 };
 
-const FERTILITY_METHOD_OPTIONS = [
-  { key: 'alemanas', label: 'Alemanas' },
-  { key: 'oms', label: 'OMS' },
-  { key: 'creighton', label: 'Creighton' },
-];
-
 const FERTILITY_CALCULATOR_OPTIONS = [
   { key: 'cpm', label: 'CPM' },
   { key: 't8', label: 'T-8' },
@@ -76,31 +69,21 @@ const FERTILITY_CALCULATOR_OPTIONS = [
 
 const COMBINE_MODE_LABELS = {
   conservador: 'Conservador',
-  consenso: 'Consenso',
-  permisivo: 'Permisivo',
+  estandar: 'Estándar',
 };
 
 const mergeFertilityStartConfig = (incoming) => {
   const base = createDefaultFertilityStartConfig();
   const merged = {
-    methods: { ...base.methods },
     calculators: { ...base.calculators },
     postpartum: base.postpartum,
     combineMode: base.combineMode,
   };
 
   if (incoming && typeof incoming === 'object') {
-    Object.keys(merged.methods).forEach((key) => {
-      if (typeof incoming?.methods?.[key] === 'boolean') {
-        merged.methods[key] = incoming.methods[key];
-      }
-    });
-
-    let hasExplicitCalculatorValues = false;
     Object.keys(merged.calculators).forEach((key) => {
       if (typeof incoming?.calculators?.[key] === 'boolean') {
         merged.calculators[key] = incoming.calculators[key];
-        hasExplicitCalculatorValues = true;
       }
     });
 
@@ -112,27 +95,7 @@ const mergeFertilityStartConfig = (incoming) => {
       merged.postpartum = incoming.postpartum;
     } else if (incoming.postpartum != null) {
       merged.postpartum = Boolean(incoming.postpartum);
-    }
-    
-    if (!hasExplicitCalculatorValues) {
-      const { alemanas, oms, creighton } = merged.methods;
-      if (alemanas) {
-        merged.calculators.cpm = true;
-        merged.calculators.t8 = true;
-      } else if (oms || creighton) {
-        merged.calculators.cpm = false;
-        merged.calculators.t8 = false;
-      }
-    }
-  } else {
-    const { alemanas, oms, creighton } = merged.methods;
-    if (alemanas) {
-      merged.calculators.cpm = true;
-      merged.calculators.t8 = true;
-    } else if (oms || creighton) {
-      merged.calculators.cpm = false;
-      merged.calculators.t8 = false;
-    }
+    }    
   }
 
   return merged;
@@ -511,35 +474,6 @@ const ChartPage = () => {
       showRelationsRow: checked === true,
     }));
   };
-  const handleFertilityMethodChange = (methodKey, checked) => {
-    setChartSettings((prev) => {
-      const currentConfig = prev.fertilityStartConfig ?? createDefaultFertilityStartConfig();
-      const nextValue = checked === true;
-      if (currentConfig.methods?.[methodKey] === nextValue) {
-        return prev;
-      }
-      const updatedConfig = {
-        ...currentConfig,
-        methods: {
-          ...currentConfig.methods,
-          [methodKey]: nextValue,
-        },
-      };
-
-      if (methodKey === 'alemanas' && nextValue) {
-        updatedConfig.calculators = {
-          ...currentConfig.calculators,
-          cpm: true,
-          t8: true,
-        };
-      }
-
-      return {
-        ...prev,
-        fertilityStartConfig: updatedConfig,
-      };
-    });
-  };
   const handleFertilityCalculatorChange = (calculatorKey, checked) => {
     setChartSettings((prev) => {
       const currentConfig = prev.fertilityStartConfig ?? createDefaultFertilityStartConfig();
@@ -894,6 +828,9 @@ const ChartPage = () => {
       const reasons = info.reasons ?? {};
       const aggregate = reasons?.aggregate ?? null;
       const usedCandidates = Array.isArray(aggregate?.usedCandidates) ? aggregate.usedCandidates : [];
+      const referenceCandidates = Array.isArray(aggregate?.ignoredCalculatorCandidates)
+        ? aggregate.ignoredCalculatorCandidates
+        : [];
       const fertileWindow = reasons?.window ?? reasons?.fertileWindow ?? null;
       const fertileStartIndex = Number.isInteger(reasons?.startIndex)
         ? reasons.startIndex
@@ -908,8 +845,7 @@ const ChartPage = () => {
         }
         const labels = {
           conservador: 'Modo conservador',
-          consenso: 'Modo consenso',
-          permisivo: 'Modo permisivo',
+          estandar: 'Modo estándar',
         };
         return labels[selectedMode] ?? null;
       })();
@@ -978,7 +914,11 @@ const ChartPage = () => {
         if (Number.isInteger(fertileStartIndex)) {
           body = describeStartTrigger('end') ?? 'Fin de fase relativamente infértil.';
         } else {
-          body = 'A la espera de cambio en la sensación o apariencia del moco.';
+          const hasReference =
+            selectedMode === 'estandar' && Array.isArray(referenceCandidates) && referenceCandidates.length > 0;
+          body = hasReference
+            ? 'Referencia (CPM/T-8) alcanzada, a la espera de signos de moco/sensación.'
+            : 'A la espera de cambio en la sensación o apariencia del moco.';
         }
 
         } else if (phase === 'fertile') {
@@ -1264,27 +1204,7 @@ const ChartPage = () => {
                   onCheckedChange={handleRelationsSettingChange}
                   className="mt-1"
                 />
-              </div>
-            
-              <div className="rounded-xl border border-purple-100/70 bg-purple-50/40 p-4 space-y-3">
-                <div>
-                  <h3 className="text-sm font-semibold text-slate-700">Perfiles sintotérmicos</h3>
-                  <p className="text-xs text-slate-500">
-                    Activa los métodos que quieras considerar para detectar el inicio fértil.
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  {FERTILITY_METHOD_OPTIONS.map((option) => (
-                    <div key={option.key} className="flex items-center justify-between gap-3">
-                      <span className="text-sm text-slate-700">{option.label}</span>
-                      <Checkbox
-                        checked={Boolean(fertilityConfig.methods?.[option.key])}
-                        onCheckedChange={(checked) => handleFertilityMethodChange(option.key, checked)}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
+              </div>            
 
               <div className="rounded-xl border border-amber-100/70 bg-amber-50/40 p-4 space-y-3">
                 <div>
