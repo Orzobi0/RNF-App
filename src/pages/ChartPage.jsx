@@ -801,7 +801,7 @@ const ChartPage = () => {
   const toggleInterpretation = () => {
     setShowInterpretation((v) => !v);
   };
-    const closePhaseOverlay = useCallback(() => {
+  const closePhaseOverlay = useCallback(() => {
     setPhaseOverlay(null);
   }, []);
   const handleInterpretationClick = (event) => {
@@ -820,6 +820,23 @@ const ChartPage = () => {
       toggleInterpretation();
     }
   };
+
+  const formatDateFromIndex = useCallback(
+    (index) => {
+      if (!Number.isInteger(index) || index < 0 || index >= mergedData.length) return '—';
+      const entry = mergedData[index];
+      const dateValue = entry?.isoDate ?? entry?.date;
+      if (!dateValue) return '—';
+      try {
+        const parsedDate = typeof dateValue === 'string' ? parseISO(dateValue) : dateValue;
+        return format(parsedDate, 'dd/MM');
+      } catch (error) {
+        console.error('Error formatting date from index', error);
+        return '—';
+      }
+    },
+    [mergedData]
+  );
 
   const handleShowPhaseInfo = useCallback(
     (info = {}) => {
@@ -862,115 +879,128 @@ const ChartPage = () => {
         return { candidate: match ?? usedCandidates[0] ?? null, dayNumber };
       };
 
-      const describeStartTrigger = (context = 'start') => {
-        const { candidate, dayNumber } = findCandidateForStart();
-        if (!candidate || !dayNumber) return null;
+      const getStartCauseLabel = () => {
+        const { candidate } = findCandidateForStart();
         const source = normalizeSource(candidate);
-        const cycleLength =
-          candidate?.base ??
-          candidate?.baseCycle ??
-          candidate?.shortestCycle ??
-          candidate?.referenceCycle ??
-          candidate?.finalValue ??
-          candidate?.baseValue ??
-          null;
-
-        if (source === 'CPM') {
-          if (context === 'start') {
-            return `Iniciado por cálculo (ciclo más corto: día ${dayNumber}).`;
-          }
-          return cycleLength
-            ? `Fin por cálculo del ciclo más corto (ciclo de ${cycleLength} días).`
-            : `Fin por cálculo del ciclo más corto (día ${dayNumber}).`;
-        }
-
-        if (source === 'T8' || source === 'T-8') {
-          const label = `día ${dayNumber}`;
-          return context === 'start'
-            ? `Iniciado por cálculo (día de subida en ciclos anteriores: T-8 = ${label}).`
-            : `Fin por cálculo según el día de subida de temperatura (T-8 = ${label}).`;
-        }
+        if (source === 'CPM') return 'alcanzar valor CPM';
+        if (source === 'T8' || source === 'T-8') return 'alcanzar valor T-8';
+        if (reasons?.source === 'marker' || reasons?.details?.explicitStartDay != null) return 'marcador';
 
         const reasonText = (candidate?.reason ?? '').toUpperCase();
         const isSensation = reasonText.includes('S') || reasonText.includes('BIP');
-        if (context === 'start') {
-          return isSensation
-            ? `Iniciado por presencia de sensación fértil (día ${dayNumber}).`
-            : `Iniciado por moco fértil (día ${dayNumber}).`;
-        }
-        return isSensation
-          ? `Fin por presencia de sensación fértil (día ${dayNumber}).`
-          : `Fin por presencia de moco fértil (día ${dayNumber}).`;
+        if (!reasonText && !source) return null;
+        return isSensation ? 'cambio en la sensación' : 'presencia de moco';
       };
 
-      let header = null;
       let title = '';
-      let body = '';
-      let reasonsList = [];
-      let note = null;
+      let message = '';
+      let description = null;
 
       if (phase === 'relativeInfertile') {
         title = 'Relativamente infértil';
-        if (Number.isInteger(fertileStartIndex)) {
-          body = describeStartTrigger('end') ?? 'Fin de fase relativamente infértil.';
+        const fertileStarted = Number.isInteger(fertileStartIndex);
+        const hasReference =
+          selectedMode === 'estandar' && Array.isArray(referenceCandidates) && referenceCandidates.length > 0;
+        const startCause = getStartCauseLabel();
+        const startDate = formatDateFromIndex(fertileStartIndex);
+
+        if (!fertileStarted) {
+          if (selectedMode === 'conservador') {
+            message = 'A la espera de cálculo (CPM/T-8) o signos de moco/sensación.';
+          } else if (hasReference) {
+            message = 'Referencia alcanzada (CPM/T-8). A la espera de signos de moco/sensación.';
+          } else {
+            message = 'A la espera de signos de moco/sensación.';
+          }
         } else {
-          const hasReference =
-            selectedMode === 'estandar' && Array.isArray(referenceCandidates) && referenceCandidates.length > 0;
-          body = hasReference
-            ? 'Referencia (CPM/T-8) alcanzada, a la espera de signos de moco/sensación.'
-            : 'A la espera de cambio en la sensación o apariencia del moco.';
+          const triggerLabel = startCause ?? '—';
+          message = `Fin de fase por ${triggerLabel}.`;
+          description = startDate !== '—' ? `Inicio fértil: ${startDate}.` : null;
         }
 
         } else if (phase === 'fertile') {
-        title = 'Fértil';
-        const startDetail = describeStartTrigger('start') ?? 'Inicio de fase fértil.';
+        title = 'Fase fértil';
+        const startCause = getStartCauseLabel() ?? '—';
+        const startDate = formatDateFromIndex(fertileStartIndex);
+        const startLabel = startDate ?? '—';
         const hasPostPhase = Number.isFinite(fertileWindow?.endIndex);
         const hasMucusClosure = Number.isInteger(fertileWindow?.mucusInfertileStartIndex);
         const hasTemperatureClosure = Number.isInteger(fertileWindow?.temperatureInfertileStartIndex);
 
-        let closureDetail = null;
+        message = `Iniciada el ${startLabel} por ${startCause}.`;
+
         if (!hasPostPhase) {
-          closureDetail = 'A la espera de cierre por determinación de día pico o temperatura.';
+          description = 'A la espera de cierre por día pico y/o confirmación de temperatura.';
         } else if (hasMucusClosure && hasTemperatureClosure) {
-          closureDetail = 'Fin determinado por moco y temperatura.';
+          description = 'Finalizada por doble criterio.';
         } else if (hasMucusClosure) {
-          closureDetail = 'Fin determinado por determinación de día pico.';
+          description = 'Finalizada por día pico.';
         } else if (hasTemperatureClosure) {
-          closureDetail = 'Fin determinado por curva de temperatura.';
+          description = 'Finalizada por temperatura.';
         }
-        body = closureDetail ? `${startDetail} ${closureDetail}` : startDetail;
+
       } else if (phase === 'postOvulatory') {
-        title = 'Fase postovulatoria';
-        const hasTemperature =
-          Number.isInteger(reasons?.temperature?.startIndex) ||
-          Number.isInteger(fertileWindow?.temperatureInfertileStartIndex);
-        const hasMucus =
-          Number.isInteger(reasons?.mucus?.startIndex) ||
-          Number.isInteger(fertileWindow?.mucusInfertileStartIndex);
+        const displayLabel = (info?.displayLabel ?? info?.label ?? '').toLowerCase();
+        const status = info?.status ?? reasons?.status ?? null;
+        const tempConfirmationDate = formatDateFromIndex(
+          Number.isInteger(reasons?.temperature?.confirmationIndex)
+            ? reasons.temperature.confirmationIndex
+            : Number.isInteger(reasons?.temperature?.startIndex)
+              ? reasons.temperature.startIndex
+              : fertileWindow?.temperatureInfertileStartIndex
+        );
+        const peakDate = formatDateFromIndex(reasons?.mucus?.peakDayIndex);
+        const mucusInfertileDate = formatDateFromIndex(
+          Number.isInteger(reasons?.mucus?.infertileStartIndex)
+            ? reasons.mucus.infertileStartIndex
+            : info?.startIndex
+        );
+        const segmentStartDate = formatDateFromIndex(info?.startIndex);
 
-        if (hasTemperature && hasMucus) {
-          body = 'Determinada por moco y temperatura (doble criterio).';
-        } else if (hasMucus) {
-          body = 'Determinada por moco.';
-        } else if (hasTemperature) {
-          body = 'Determinada por temperatura.';
-        }
+        if (status === 'absolute' || info?.displayLabel === 'Infertilidad absoluta') {
+          title = 'Infertilidad postovulatoria confirmada';
+          message = `Comienza el ${segmentStartDate}.`;
+          description = `Confirmada por temperatura (${tempConfirmationDate}) y 3.º/4.º día postpico (${mucusInfertileDate}).`;
+        } else if (displayLabel.includes('moco')) {
+          title = 'Infertilidad post-pico';
+          // Índice real donde empieza la infertilidad por moco (lo que se está dibujando)
+          const mucusInfertileIndex =
+            Number.isInteger(reasons?.mucus?.infertileStartIndex)
+              ? reasons.mucus.infertileStartIndex
+              : Number.isInteger(info?.startIndex)
+                ? info.startIndex
+                : null;
 
-        if (!body) {
-          body = 'Infertilidad postovulatoria.';
-        }
-        if (reasons?.status === 'pending') {
-          note = 'Pendiente completar el segundo criterio.';
+          const peakIndex = Number.isInteger(reasons?.mucus?.peakDayIndex)
+            ? reasons.mucus.peakDayIndex
+            : null;
+
+          let postPicoLabel = 'día postpico';
+          if (Number.isInteger(mucusInfertileIndex) && Number.isInteger(peakIndex)) {
+            const delta = mucusInfertileIndex - peakIndex;
+            if (delta === 3) postPicoLabel = '3.º día postpico';
+            else if (delta === 4) postPicoLabel = '4.º día postpico';
+          }
+          message = `Alcanzada el ${segmentStartDate} por ${postPicoLabel}. Día pico: ${peakDate}.`;
+          description = 'A la espera de confirmación por temperatura.';
+        } else if (displayLabel.includes('temperatura')) {
+          title = 'Infertilidad postovulatoria por temperatura';
+          message = `Temperatura confirmada el ${tempConfirmationDate}.`;
+          description = 'A la espera de determinación del día pico.';
+        } else {
+          title = 'Fase postovulatoria';
+          message = 'Interpretación postovulatoria disponible.';
+          description = status === 'pending' ? 'Pendiente completar el segundo criterio.' : null;
         }
       } else if (phase === 'nodata') {
         const status = reasons?.status ?? info?.status ?? null;
         if (status === 'no-fertile-window') {
           title = 'Sin ventana fértil identificable';
-          body =
+          message =
             'No se ha identificado un inicio fértil claro en este ciclo (ni por moco, ni por calculadora, ni por marcador explícito).';
         } else {
           title = 'Sin datos suficientes';
-          body = 'Añade registros de sensación, moco o temperatura para interpretar el ciclo.';
+          message = 'Añade registros de sensación, moco o temperatura para interpretar el ciclo.';
         }
       } else if (info?.message) {
         title = info.message;
@@ -981,21 +1011,16 @@ const ChartPage = () => {
       if (!title) {
         return;
       }
-      
-      if (!header && typeof info?.message === 'string' && info.message.trim().length > 0) {
-        header = info.message;
-      }
+
 
       setPhaseOverlay({
-        header,
         title,
-        body,
-        reasons: reasonsList,
-        note,
+        message,
+        description,
         modeLabel,
       });
     },
-    [fertilityConfig, setPhaseOverlay]
+    [fertilityConfig, formatDateFromIndex, mergedData.length, setPhaseOverlay]
   );
 
   const handleToggleFullScreen = async () => {
@@ -1272,44 +1297,34 @@ const ChartPage = () => {
           containerClassName="p-6"
         >
           {phaseOverlay && (
-            <div className="space-y-4 text-left">
-              <div className="flex items-start justify-between gap-4">
-                <h2 className="text-lg font-semibold text-fertiliapp-fuerte">
-                  {phaseOverlay.title}
-                </h2>
-                <div className="flex items-center gap-2">
+            <div className="space-y-3 text-left">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <h2 className="text-lg font-semibold text-fertiliapp-fuerte">
+                    {phaseOverlay.title}
+                  </h2>
                   {phaseOverlay.modeLabel && (
                     <span className="rounded-full border border-secundario bg-secundario-suave px-3 py-1 text-[11px] font-semibold text-secundario-fuerte">
                       {phaseOverlay.modeLabel}
                     </span>
                   )}
-                  <button
-                    type="button"
-                    onClick={closePhaseOverlay}
-                    className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-200"
-                    aria-label="Cerrar detalle de interpretación"
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
                 </div>
+                <button
+                  type="button"
+                  onClick={closePhaseOverlay}
+                  className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-200"
+                  aria-label="Cerrar detalle de interpretación"
+                >
+                  <X className="h-5 w-5" />
+                </button>
               </div>
-              {phaseOverlay.header && (
-                <p className="text-sm font-medium leading-snug text-subtitulo">
-                  {phaseOverlay.header}
-                </p>
+              
+              {phaseOverlay.message && (
+                <p className="text-sm leading-relaxed text-slate-700">{phaseOverlay.message}</p>
               )}
-              {phaseOverlay.body && (
-                <p className="text-sm leading-relaxed text-slate-600">{phaseOverlay.body}</p>
-              )}
-              {Array.isArray(phaseOverlay.reasons) && phaseOverlay.reasons.length > 0 && (
-                <ul className="list-disc space-y-1 pl-5 text-sm text-slate-600">
-                  {phaseOverlay.reasons.map((reason, index) => (
-                    <li key={`${reason}-${index}`}>{reason}</li>
-                  ))}
-                </ul>
-              )}
-              {phaseOverlay.note && (
-                <p className="text-xs text-slate-500">{phaseOverlay.note}</p>
+              
+              {phaseOverlay.description && (
+                <p className="text-sm leading-relaxed text-slate-500">{phaseOverlay.description}</p>
               )}
             </div>
           )}

@@ -59,7 +59,11 @@
     /* Colores secundarios de interfaz */
     --color-secundario: #8FC4CF;
     --color-secundario-fuerte: #337c8b;            /* azul verdoso complementario al rosa */
-    --color-secundario-suave: #E6F5F7;    /* fondo suave para secciones secundarias */
+    --color-secundario-suave: #E6F5F7;            /* fondo suave para secciones secundarias */
+    --color-secundario-fondo: #f0f7f8; 
+    --color-moco: #53ADAB;
+    --color-moco-suave: #f1fcfb;
+     
 
     /* Estados generales (no solo ciclo) */
     --color-ok: #D85C70;                  /* éxito / correcto */
@@ -331,6 +335,9 @@
   .bg-secundario { background-color: var(--color-secundario); }
   .bg-secundario-fuerte { background-color: var(--color-secundario-fuerte); }
   .bg-secundario-suave { background-color: var(--color-secundario-suave); }
+  .bg-secundario-fondo { background-color: var(--color-secundario-fondo); }
+
+    /* Ring de foco en tonos Fertiliapp */
   .ring-fertiliapp-suave { --tw-ring-color: var(--color-fertiliapp-suave); }
 
 
@@ -370,7 +377,9 @@
   .text-temp { color: var(--color-temp); }
   .bg-temp-suave { background-color: var(--color-temp-suave); }
   .border-temp { border-color: var(--color-temp-borde); }
+  .border-temp-suave { border-color: var(--color-temp-suave); }
   .ring-temp { --tw-ring-color: var(--color-temp); }
+  .bg-temp { background-color: var(--color-temp); }
 
   /* Formulario – sensación (azules) */
   .text-sensacion { color: var(--color-sensacion); }
@@ -378,6 +387,8 @@
   .bg-sensacion-suave { background-color: var(--color-sensacion-suave); }
   .border-sensacion { border-color: var(--color-sensacion-borde); }
   .ring-sensacion { --tw-ring-color: var(--color-sensacion); }
+  .bg-sensacion { background-color: var(--color-sensacion); }
+  .border-sensacion-fuerte { border-color: var(--color-sensacion-fuerte); }
 
   /* Formulario – apariencia (verdes) */
   .text-apariencia { color: var(--color-apariencia); }
@@ -385,6 +396,8 @@
   .bg-apariencia-suave { background-color: var(--color-apariencia-suave); }
   .border-apariencia { border-color: var(--color-apariencia-borde); }
   .ring-apariencia { --tw-ring-color: var(--color-apariencia); }
+  .bg-apariencia { background-color: var(--color-apariencia); }
+  .border-apariencia-fuerte { border-color: var(--color-apariencia-fuerte); }
 
   /* Formulario – observaciones (lilas) */
   .text-observaciones { color: var(--color-observaciones); }
@@ -392,9 +405,17 @@
   .bg-observaciones-suave { background-color: var(--color-observaciones-suave); }
   .border-observaciones { border-color: var(--color-observaciones-borde); }
   .ring-observaciones { --tw-ring-color: var(--color-observaciones); }
+  .bg-observaciones { background-color: var(--color-observaciones); }
 
+/* MOCO */
+.text-moco { color: var(--color-moco); }
+.text-moco-suave { color: var(--color-moco-suave); }
+.border-moco { border-color: var(--color-moco);}
+.bg-moco { background-color: var(--color-moco); }
+.bg-moco-suave { background-color: var(--color-moco-suave); }
+.border-moco-suave { border-color: var(--color-moco-suave); }
+.ring-moco { --tw-ring-color: var(--color-moco); }
 }
-
 
   /* contenedor general de la rueda */
 .cycle-wheel {
@@ -481,5 +502,24 @@
 
   .range-fertiliapp:focus-visible::-webkit-slider-thumb {
     box-shadow: 0 0 0 5px rgba(216, 92, 112, 0.45);
+  }
+
+  /* Tooltip: elige UNA de las dos superficies (solid o gradient) */
+  .tooltip-surface--solid {
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid var(--color-borde-suave);
+  }
+
+  .tooltip-surface--gradient {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.88) 0%, var(--color-fondo-tarjeta) 100%);
+    border: 1px solid var(--color-borde-suave);
+  }
+
+  .tooltip-glow {
+    background: linear-gradient(
+      135deg,
+      rgba(227, 121, 136, 0.18),
+      rgba(216, 92, 112, 0.12)
+    );
   }
 }

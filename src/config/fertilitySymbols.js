@@ -1,10 +1,10 @@
 export const FERTILITY_SYMBOLS = {
-  NONE: { value: 'none', label: 'Sin Símbolo', color: 'bg-gray-200', textColor: '#e2e8f0' },
-  MENSTRUATION: { value: 'red', label: 'Menstruación', color: 'bg-red-500', textColor: '#e2e8f0' },
-  FERTILE: { value: 'white', label: 'Moco (Fértil)', color: 'bg-white', textColor: '#e2e8f0' },
-  INFERTILE: { value: 'green', label: 'Seco', color: 'bg-green-500', textColor: '#e2e8f0' },
-  NON_FERTILE_MUCUS: { value: 'yellow', label: 'Moco (No fértil)', color: 'bg-yellow-400', textColor: '#1f2937' },
-  SPOTTING: { value: 'spot', label: 'Spotting', color: 'bg-red-500', textColor: '#e2e8f0', pattern: 'spotting-pattern' },
+  NONE: { value: 'none', label: 'Sin Símbolo', color: 'bg-slate-200', textColor: '#64748b' },
+  MENSTRUATION: { value: 'red', label: 'Menstruación', color: 'bg-[#fb7185]', textColor: '#ffffff' },
+  FERTILE: { value: 'white', label: 'Moco (Fértil)', color: 'bg-[#fdf5f8] border-2 border-[rgba(251,113,133,0.6)]', textColor: '#4B2E3B' },
+  INFERTILE: { value: 'green', label: 'Seco', color: 'bg-verde-fertil', textColor: '#ffffff' },
+  NON_FERTILE_MUCUS: { value: 'yellow', label: 'Moco (No fértil)', color: 'bg-amarillo-moco', textColor: '#3A2430' },
+  SPOTTING: { value: 'spot', label: 'Spotting', color: 'spotting-pattern-icon', textColor: '#ffffff', pattern: 'spotting-pattern' },
 };
 
 export const FERTILITY_SYMBOL_OPTIONS = Object.values(FERTILITY_SYMBOLS);
@@ -33,16 +33,16 @@ export const getSymbolColorPalette = (symbolValue) => {
     case 'green':
       return {
         main: '#67C5A4',
-        light: '#bbf7d0',
-        glow: 'rgba(22,163,74,0.32)',
-        border: 'rgba(22,163,74,0.32)'
+        light: '#E7F6F0',
+        glow: 'rgba(103,197,164,0.35)',
+        border: 'rgba(103,197,164,0.55)'
       };
     case 'yellow':
       return {
         main: '#F7B944',
-        light: '#facc15',
-        glow: 'rgba(234,179,8,0.32)',
-        border: 'rgba(234,179,8,0.32)'
+        light: '#FFF6E8',
+        glow: 'rgba(247,185,68,0.32)',
+        border: 'rgba(247,185,68,0.55)'
       };
     case 'spot':
       return {
@@ -65,65 +65,58 @@ export const getSymbolColorPalette = (symbolValue) => {
 export const getFertilitySymbolTheme = (symbolValue) => {
   switch (symbolValue) {
     case 'red':
-      return {
-        icon: 'text-rose-500',
-        panelBorder: 'border-rose-200/70',
-        panelBackground: 'from-rose-50 to-rose-100',
-        triggerBorder: 'border-rose-200',
-        triggerHover: 'hover:bg-rose-50',
-        triggerActive: 'data-[state=open]:bg-rose-50',
-        triggerFocus:
-          'focus:ring-rose-200 focus:border-rose-400 !focus:shadow-[0_0_0_3px_rgba(244,63,94,0.20)]',
-        contentBorder: 'border-rose-200',
-      };
-    case 'green':
-      return {
-        icon: 'text-emerald-500',
-        panelBorder: 'border-emerald-200/70',
-        panelBackground: 'from-emerald-50 to-emerald-100',
-        triggerBorder: 'border-emerald-200',
-        triggerHover: 'hover:bg-emerald-50',
-        triggerActive: 'data-[state=open]:bg-emerald-50',
-        triggerFocus:
-          'focus:ring-emerald-200 focus:border-emerald-400 !focus:shadow-[0_0_0_3px_rgba(16,185,129,0.20)]',
-        contentBorder: 'border-emerald-200',
-      };
-    case 'yellow':
-      return {
-        icon: 'text-amber-500',
-        panelBorder: 'border-amber-200/70',
-        panelBackground: 'from-amber-50 to-yellow-100',
-        triggerBorder: 'border-amber-200',
-        triggerHover: 'hover:bg-amber-50',
-        triggerActive: 'data-[state=open]:bg-amber-50',
-        triggerFocus:
-          'focus:ring-amber-200 focus:border-amber-400 !focus:shadow-[0_0_0_3px_rgba(245,158,11,0.22)]',
-        contentBorder: 'border-amber-200',
-      };
     case 'spot':
       return {
-        icon: 'text-rose-500',
-        panelBorder: 'border-rose-200/70',
-        panelBackground: 'from-rose-50 to-rose-100',
-        triggerBorder: 'border-rose-200',
-        triggerHover: 'hover:bg-rose-50',
-        triggerActive: 'data-[state=open]:bg-rose-50',
+        icon: 'text-[color:rgba(251,113,133,1)]',
+        panelBorder: 'border-[color:rgba(251,113,133,0.25)]',
+        panelBackground: 'from-[rgba(254,205,211,0.35)] to-[rgba(254,205,211,0.60)]',
+        triggerBorder: 'border-[color:rgba(251,113,133,0.28)]',
+        triggerHover: 'hover:bg-[rgba(254,205,211,0.35)]',
+        triggerActive: 'data-[state=open]:bg-[rgba(254,205,211,0.35)]',
         triggerFocus:
-          'focus:ring-rose-200 focus:border-rose-400 !focus:shadow-[0_0_0_3px_rgba(244,63,94,0.20)]',
-        contentBorder: 'border-rose-200',
+          'focus:ring-[rgba(251,113,133,0.20)] focus:border-[color:rgba(251,113,133,0.55)] !focus:shadow-[0_0_0_3px_rgba(251,113,133,0.18)]',
+        contentBorder: 'border-[color:rgba(251,113,133,0.22)]',
       };
+
+    case 'green':
+      return {
+        icon: 'text-[color:rgba(103,197,164,1)]',
+        panelBorder: 'border-[color:rgba(103,197,164,0.30)]',
+        panelBackground: 'from-[rgba(231,246,240,0.70)] to-[rgba(231,246,240,1)]',
+        triggerBorder: 'border-[color:rgba(103,197,164,0.40)]',
+        triggerHover: 'hover:bg-[rgba(231,246,240,0.85)]',
+        triggerActive: 'data-[state=open]:bg-[rgba(231,246,240,0.85)]',
+        triggerFocus:
+          'focus:ring-[rgba(103,197,164,0.22)] focus:border-[color:rgba(103,197,164,0.60)] !focus:shadow-[0_0_0_3px_rgba(103,197,164,0.18)]',
+        contentBorder: 'border-[color:rgba(103,197,164,0.30)]',
+      };
+
+    case 'yellow':
+      return {
+        icon: 'text-[color:rgba(247,185,68,1)]',
+        panelBorder: 'border-[color:rgba(247,185,68,0.30)]',
+        panelBackground: 'from-[rgba(255,246,232,0.75)] to-[rgba(255,246,232,1)]',
+        triggerBorder: 'border-[color:rgba(247,185,68,0.42)]',
+        triggerHover: 'hover:bg-[rgba(255,246,232,0.92)]',
+        triggerActive: 'data-[state=open]:bg-[rgba(255,246,232,0.92)]',
+        triggerFocus:
+          'focus:ring-[rgba(247,185,68,0.22)] focus:border-[color:rgba(247,185,68,0.62)] !focus:shadow-[0_0_0_3px_rgba(247,185,68,0.18)]',
+        contentBorder: 'border-[color:rgba(247,185,68,0.30)]',
+      };
+
     case 'white':
       return {
-        icon: 'text-slate-500',
-        panelBorder: 'border-slate-200/80',
-        panelBackground: 'from-slate-50 to-slate-100',
-        triggerBorder: 'border-slate-200',
-        triggerHover: 'hover:bg-slate-50',
-        triggerActive: 'data-[state=open]:bg-slate-50',
+        icon: 'text-[color:var(--color-texto-subtitulo)]',
+        panelBorder: 'border-[color:rgba(251,113,133,0.22)]',
+        panelBackground: 'from-[rgba(255,255,255,1)] to-[rgba(253,245,248,1)]',
+        triggerBorder: 'border-[color:rgba(251,113,133,0.22)]',
+        triggerHover: 'hover:bg-[rgba(253,245,248,0.85)]',
+        triggerActive: 'data-[state=open]:bg-[rgba(253,245,248,0.85)]',
         triggerFocus:
-          'focus:ring-slate-200 focus:border-slate-300 !focus:shadow-[0_0_0_3px_rgba(148,163,184,0.20)]',
-        contentBorder: 'border-slate-200',
+          'focus:ring-[rgba(251,113,133,0.16)] focus:border-[color:rgba(251,113,133,0.45)] !focus:shadow-[0_0_0_3px_rgba(251,113,133,0.14)]',
+        contentBorder: 'border-[color:rgba(251,113,133,0.18)]',
       };
+
     default:
       return {
         icon: 'text-slate-500',
@@ -138,53 +131,50 @@ export const getFertilitySymbolTheme = (symbolValue) => {
       };
   }
 };
+
 export const getFertilitySymbolDockStyles = (symbolValue) => {
   switch (symbolValue) {
     case 'red':
-      return {
-        activeBorder: 'border-rose-300',
-        activeBg: 'bg-rose-50',
-        activeText: 'text-rose-600',
-        filledText: 'text-rose-500',
-        idleText: 'text-rose-400',
-        focusRing: 'focus-visible:ring-rose-200',
-      };
-    case 'green':
-      return {
-        activeBorder: 'border-emerald-300',
-        activeBg: 'bg-emerald-50',
-        activeText: 'text-emerald-600',
-        filledText: 'text-emerald-500',
-        idleText: 'text-emerald-400',
-        focusRing: 'focus-visible:ring-emerald-200',
-      };
-    case 'yellow':
-      return {
-        activeBorder: 'border-amber-300',
-        activeBg: 'bg-amber-50',
-        activeText: 'text-amber-600',
-        filledText: 'text-amber-500',
-        idleText: 'text-amber-500',
-        focusRing: 'focus-visible:ring-amber-200',
-      };
     case 'spot':
       return {
-        activeBorder: 'border-rose-300',
-        activeBg: 'bg-rose-50',
-        activeText: 'text-rose-600',
-        filledText: 'text-rose-500',
-        idleText: 'text-rose-400',
-        focusRing: 'focus-visible:ring-rose-200',
+        activeBorder: 'border-[color:rgba(251,113,133,0.45)]',
+        activeBg: 'bg-[rgba(254,205,211,0.35)]',
+        activeText: 'text-[color:rgba(251,113,133,1)]',
+        filledText: 'text-[color:rgba(251,113,133,1)]',
+        idleText: 'text-[color:rgba(251,113,133,0.75)]',
+        focusRing: 'focus-visible:ring-[rgba(251,113,133,0.20)]',
       };
+
+    case 'green':
+      return {
+        activeBorder: 'border-[color:rgba(103,197,164,0.55)]',
+        activeBg: 'bg-[rgba(231,246,240,0.92)]',
+        activeText: 'text-[color:var(--color-apariencia-fuerte)]',
+        filledText: 'text-[color:rgba(103,197,164,1)]',
+        idleText: 'text-[color:rgba(103,197,164,0.80)]',
+        focusRing: 'focus-visible:ring-[rgba(103,197,164,0.20)]',
+      };
+
+    case 'yellow':
+      return {
+        activeBorder: 'border-[color:rgba(247,185,68,0.60)]',
+        activeBg: 'bg-[rgba(255,246,232,0.95)]',
+        activeText: 'text-[color:var(--color-alerta-2)]',
+        filledText: 'text-[color:rgba(247,185,68,1)]',
+        idleText: 'text-[color:rgba(247,185,68,0.85)]',
+        focusRing: 'focus-visible:ring-[rgba(247,185,68,0.20)]',
+      };
+
     case 'white':
       return {
-        activeBorder: 'border-slate-300',
-        activeBg: 'bg-white',
-        activeText: 'text-slate-600',
-        filledText: 'text-slate-500',
-        idleText: 'text-slate-500',
-        focusRing: 'focus-visible:ring-slate-200',
+        activeBorder: 'border-[color:rgba(251,113,133,0.35)]',
+        activeBg: 'bg-[rgba(253,245,248,0.90)]',
+        activeText: 'text-[color:var(--color-texto-titulo)]',
+        filledText: 'text-[color:var(--color-texto-subtitulo)]',
+        idleText: 'text-[color:var(--color-texto-subtitulo)]',
+        focusRing: 'focus-visible:ring-[rgba(251,113,133,0.16)]',
       };
+
     default:
       return {
         activeBorder: 'border-slate-300',

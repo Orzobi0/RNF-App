@@ -1019,10 +1019,10 @@ const EMPTY_DAY_COLORS = {
                 >
                   {[
                     { label: 'Menstrual', color: '#fb7185' },
-                    { label: 'Moco (Fértil)', color: '#fcebf1', stroke: '#ffcfd6' },
-                    { label: 'Seco', color: '#22c55e' },
-                    { label: 'Moco (No fértil)', color: '#f1c232', stroke: '#fef08a' },
-                    { label: 'Spotting', color: '#ef4444', stroke: '#fee2e2', pattern: true },
+                    { label: 'Moco (Fértil)', color: '#fdf5f8', stroke: '#fb7185' },
+                    { label: 'Seco', color: '#67C5A4' },
+                    { label: 'Moco (No fértil)', color: '#F7B944' },
+                    { label: 'Spotting', color: '#fb7185', stroke: '#fee2e2', pattern: true },
                     { label: 'Hoy', isToday: true }
                   ].map(item => (
                     <div key={item.label} className="flex flex-col items-center gap-1.5">
