@@ -3584,8 +3584,8 @@ const ModernFertilityDashboard = () => {
   if (isLoading && !currentCycle?.id) {
     return (
       <div className="mx-auto flex min-h-screen max-w-md items-center justify-center px-4 py-4">
-        <div className="w-full rounded-3xl border border-rose-100/70 bg-white/80 p-4 text-center shadow-sm">
-          <p className="text-sm font-semibold text-slate-800">Cargando...</p>
+        <div className="w-full rounded-3xl  p-4 text-center shadow-sm">
+          <p className="text-sm font-semibold text-fertiliapp-fuerte">Cargando...</p>
         </div>
       </div>
     );
