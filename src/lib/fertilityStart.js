@@ -368,6 +368,10 @@ const buildNormalizedDay = (day, bipBaseline, index) => {
   const rawAppearance = day?.mucusAppearance ?? day?.mucus_appearance;
   const inputSymbol = day?.fertility_symbol ?? day?.fertilitySymbol;
   const rawObservations = day?.observations ?? day?.notes;
+  const peakMarkerRaw = day?.peak_marker ?? day?.peakMarker ?? null;
+  const isPeakMarked = typeof peakMarkerRaw === 'string'
+    ? peakMarkerRaw.trim().toLowerCase() === 'peak'
+    : false;
 
   const sensationInfo = detectSensationLevel(rawSensation);
   const appearanceInfo = detectAppearanceLevel(rawAppearance);
@@ -452,6 +456,7 @@ const buildNormalizedDay = (day, bipBaseline, index) => {
     M,
     symbolDetected,
     rawSymbol,
+    isPeakMarked,
     scoreCore,
     scoreFertil,
     hasChangeBIP,
@@ -498,10 +503,10 @@ const findInternalCandidate = (days) => {
   for (let i = 0; i < days.length; i += 1) {
     const day = days[i];
     if (!day) continue;
-    if (day.normalizedPeakStatus === 'P') {
+    if (day.isPeakMarked) {
       return { source: 'Interno', day: i + 1, reason: 'P', kind: 'profile' };
     }
-    if (day.symbolDetected === 'white') {
+    if (day.symbolDetected === 'white' || day.rawSymbol === 'white') {
       return { source: 'Interno', day: i + 1, reason: 'white', kind: 'profile' };
     }
     if (day.symbolDetected === 'M+' || day.symbolDetected === 'F') {
@@ -565,9 +570,7 @@ export const computeFertilityStartOutput = ({
   const combineMode = validModes.has(rawCombineMode) ? rawCombineMode : 'conservador';
 
   const {
-    peakDayIndex = null,
     postPeakStartIndex = null,
-    peakThirdDayIndex = null,
     temperatureInfertileStartIndex = null,
     temperatureConfirmationIndex = null,
     temperatureRule = null,
@@ -580,26 +583,22 @@ export const computeFertilityStartOutput = ({
   const isValidIndex = (idx) =>
     Number.isInteger(idx) && idx >= 0 && idx < totalDays;
 
-  const findLastStatusIndex = (status) => {
-    if (!status || totalDays === 0) return null;
-    for (let idx = totalDays - 1; idx >= 0; idx -= 1) {
-      if (days[idx]?.normalizedPeakStatus === status) {
+  const isPeakMarkedEntry = (entry) => {
+    const marker = entry?.peak_marker ?? entry?.peakMarker ?? null;
+    return typeof marker === 'string' && marker.trim().toLowerCase() === 'peak';
+  };
+  const findLastPeakMarkerIndex = () => {
+    if (!Array.isArray(processedData) || processedData.length === 0) return null;
+    for (let idx = processedData.length - 1; idx >= 0; idx -= 1) {
+      if (isPeakMarkedEntry(processedData[idx])) {
         return idx;
       }
     }
     return null;
   };
 
-  let effectivePeakIndex = isValidIndex(peakDayIndex) ? peakDayIndex : null;
-
-  // Solo aceptamos P explícitos de los datos del ciclo.
-  // No inferimos P a partir de estados 1/2/3 ni del score más alto.
-  if (effectivePeakIndex == null) {
-    const explicitPeakIndex = findLastStatusIndex('P');
-    if (isValidIndex(explicitPeakIndex)) {
-      effectivePeakIndex = explicitPeakIndex;
-    }
-  }
+  const explicitPeakIndex = findLastPeakMarkerIndex();
+  const effectivePeakIndex = isValidIndex(explicitPeakIndex) ? explicitPeakIndex : null;
 
   // Si no hay pico marcado por la usuaria, no se fuerza ningún pico.
   // La infertilidad por moco no se basará en un P inventado.
@@ -739,50 +738,39 @@ export const computeFertilityStartOutput = ({
     }
   };
 
-  const findStatusIndex = (status) => {
-    if (!status) return null;
-    for (let idx = 0; idx < days.length; idx += 1) {
-      if (days[idx]?.normalizedPeakStatus === status) {
-        return idx;
-      }
-    }
-    return null;
-  };
 
   let pPlus3Index = null;
   let pPlus4Index = null;
 
   if (isValidIndex(effectivePeakIndex)) {
-    pPlus3Index = findStatusIndex('3');
-    if (pPlus3Index == null && Number.isInteger(peakThirdDayIndex)) {
-      pPlus3Index = clampIndexWithin(peakThirdDayIndex);
+    const candidatePPlus3 = effectivePeakIndex + 3;
+    if (isValidIndex(candidatePPlus3)) {
+      pPlus3Index = candidatePPlus3;
     }
-       if (pPlus3Index != null) {
-      const candidate = clampIndexWithin(pPlus3Index + 1);
-      if (candidate != null) {
-        pPlus4Index = candidate;
-      }
-  }
+      
+    const candidatePPlus4 = effectivePeakIndex + 4;
+    if (isValidIndex(candidatePPlus4)) {
+      pPlus4Index = candidatePPlus4;
     }
 
   const peakIndexForDiff = clampIndexWithin(effectivePeakIndex);
-  const peakDate = parseEntryDate(peakIndexForDiff);
-  if (peakDate) {
-    for (let idx = peakIndexForDiff + 1; idx < processedData.length; idx += 1) {
-      const currentDate = parseEntryDate(idx);
-      if (!currentDate) continue;
-      const diff = differenceInCalendarDays(currentDate, peakDate);
-      if (pPlus3Index == null && diff >= 3) {
-        pPlus3Index = clampIndexWithin(idx);
-      }
-      if (pPlus4Index == null && diff >= 4) {
-        pPlus4Index = clampIndexWithin(idx);
-      }
-      if (pPlus3Index != null && pPlus4Index != null) {
-        break;
+    const peakDate = parseEntryDate(peakIndexForDiff);
+    if (peakDate) {
+      for (let idx = peakIndexForDiff + 1; idx < processedData.length; idx += 1) {
+        const currentDate = parseEntryDate(idx);
+        if (!currentDate) continue;
+        const diff = differenceInCalendarDays(currentDate, peakDate);
+        if (pPlus3Index == null && diff >= 3) {
+          pPlus3Index = clampIndexWithin(idx);
+        }
+        if (pPlus4Index == null && diff >= 4) {
+          pPlus4Index = clampIndexWithin(idx);
+        }
+        if (pPlus3Index != null && pPlus4Index != null) {
+          break;
+        }
       }
     }
-
   }
 
   const temperatureConfirmationIdx = clampIndexWithin(temperatureConfirmationIndex);
@@ -792,13 +780,9 @@ export const computeFertilityStartOutput = ({
     const candidate = clampIndexWithin(temperatureInfertileIdx - 1);
     if (candidate != null && candidate >= 0) tPlus3Index = candidate;
   }
-  if (pPlus4Index == null && pPlus3Index != null) {
-    const candidate = clampIndexWithin(pPlus3Index + 1);
-    if (candidate != null) pPlus4Index = candidate;
-  }
 
   const mucusInfertileStartIndex = combineMode === 'conservador'
-    ? pPlus4Index ?? pPlus3Index ?? null
+    ? pPlus4Index ?? null
     : pPlus3Index ?? null;
   const waitingStartIndex = null;
 
@@ -997,7 +981,7 @@ export const computeFertilityStartOutput = ({
 
     let rawLevel = 0;
     if (
-      day.normalizedPeakStatus === 'P' ||
+      day.isPeakMarked ||
       day.symbolDetected === 'M+' ||
       day.symbolDetected === 'F' ||
       day.S >= 3 ||

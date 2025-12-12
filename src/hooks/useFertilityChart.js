@@ -278,7 +278,7 @@ const evaluateHighSequence = ({
         : null;
       let infertileStartIndex = null;
       if (boundedConfirmation != null) {
-        const candidate = boundedConfirmation + 1;
+        const candidate = boundedConfirmation;
         infertileStartIndex = Math.max(0, Math.min(candidate, processedData.length - 1));
       }
 
