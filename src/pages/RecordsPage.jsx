@@ -421,11 +421,10 @@ export const RecordsExperience = ({
         'relative h-11 w-11 text-center text-sm p-0 focus-within:relative focus-within:z-20',
       day: cn(
         buttonVariants({ variant: 'ghost', size: 'icon' }),
-        'relative flex !h-11 !w-11 rounded-2xl flex-col items-center justify-center !p-0 font-medium text-slate-700 aria-selected:opacity-100'
+        'relative flex !h-11 !w-11 rounded-3xl flex-col items-center justify-center !p-0 font-medium text-slate-700 aria-selected:opacity-100'
       ),
-      day_selected:
-        'rounded-2xl border border-rose-400 text-rose-600 focus:ring-2 focus:ring-rose-300 focus:ring-offset-2',
-      day_today: 'rounded-2xl ring-1 ring-rose-300 text-rose-700 font-semibold bg-transparent',
+      day_selected: '',
+      day_today: '',
     }),
     []
   );
@@ -565,6 +564,7 @@ export const RecordsExperience = ({
       const symbolInfo = details?.symbolInfo;
       const symbolValue = symbolInfo?.value;
       const isSelected = activeModifiers.selected;
+      const isToday = activeModifiers.today;
       {/* Punto de temperatura */}
       const temperatureDotClass = cn(
         'h-[0.5rem] w-[0.5rem] rounded-full transition-shadow',
@@ -590,7 +590,9 @@ export const RecordsExperience = ({
           : isSelected
           ? shouldShowSymbolBackground
             ? 'text-white'
-            : 'text-rose-600'
+            : 'text-fertiliapp-fuerte'
+          : isToday
+          ? 'text-subtitulo font-semibold'
           : 'text-slate-700'
       );
 
@@ -611,13 +613,25 @@ export const RecordsExperience = ({
   <div className="relative flex h-full w-full flex-col items-center justify-center">
     {/* Número centrado con posible fondo de símbolo */}
     <span className="relative inline-flex h-8 w-8 items-center justify-center leading-none -mt-[1px]">
+      {isToday && !isSelected && !(activeModifiers.outside || activeModifiers.outsideCycle) && (
+    <span
+      aria-hidden="true"
+      className="pointer-events-none absolute -inset-[4px] rounded-full border border-fertiliapp-fuerte"
+    />
+  )}
+      {isSelected && (
+    <span
+      aria-hidden="true"
+      className="pointer-events-none absolute -inset-[4px] rounded-full bg-tarjeta border border-fertiliapp-fuerte"
+    />
+  )}
       {symbolBackgroundClass && <span className={symbolBackgroundClass} aria-hidden="true" />}
       <span className={numberClass}>{format(date, 'd')}</span>
     </span>
 
 
     {/* Dots inferiores: temperatura y moco (con halo solo si está seleccionado) */}
-    <div className="mt-[0.22rem] flex h-[0.3rem] items-center justify-center gap-[0.18rem]" aria-hidden="true">
+    <div className="mt-[0.35rem] flex h-[0.3rem] items-center justify-center gap-[0.18rem]" aria-hidden="true">
       <span className={temperatureDotClass} />
       <span className={mucusDotClass} />
     </div>
@@ -627,8 +641,8 @@ export const RecordsExperience = ({
       <span
         aria-hidden="true"
         className={cn(
-          'pointer-events-none absolute -top-[1px] right-[1px] rounded-sm px-[2px] text-[0.55rem] font-semibold leading-none text-rose-500 shadow-[0_0_0_1px_rgba(255,255,255,0.9)]',
-          isSelected ? 'bg-rose-100/90 text-rose-700' : 'bg-white/90'
+          'pointer-events-none absolute -top-[1px] right-[1px] rounded-sm px-[2px] text-[0.55rem] font-semibold leading-none text-fertiliapp-fuerte shadow-[0_0_0_1px_rgba(255,255,255,0.9)]',
+          isSelected ? 'bg-rose-100/90 text-fertiliapp-fuerte' : 'bg-white/90'
         )}
       >
         {peakBadgeContent}
@@ -1471,7 +1485,7 @@ const enterStart = -exitTarget;
                     onPointerDown={handleCalendarPointerDown}
                     data-calendar-dragging={isCalendarDragging ? 'true' : 'false'}
                     className={cn(
-                      'w-full max-w-sm rounded-3xl bg-white/40 mx-auto backdrop-blur-sm overflow-hidden [&_.records-calendar-day-grid]:will-change-transform [&_.records-calendar-day-grid]:transition-transform [&_.records-calendar-day-grid]:duration-200 [&_.records-calendar-day-grid]:ease-out [&_.records-calendar-day-grid]:[transform:translateX(var(--calendar-drag-x,0px))] data-[calendar-dragging=true]:[&_.records-calendar-day-grid]:duration-0 data-[calendar-dragging=true]:[&_.records-calendar-day-grid]:ease-linear',
+                      'w-full max-w-sm rounded-3xl bg-white/80 mx-auto backdrop-blur-sm overflow-hidden [&_.records-calendar-day-grid]:will-change-transform [&_.records-calendar-day-grid]:transition-transform [&_.records-calendar-day-grid]:duration-200 [&_.records-calendar-day-grid]:ease-out [&_.records-calendar-day-grid]:[transform:translateX(var(--calendar-drag-x,0px))] data-[calendar-dragging=true]:[&_.records-calendar-day-grid]:duration-0 data-[calendar-dragging=true]:[&_.records-calendar-day-grid]:ease-linear',
                       isCalendarDragging ? 'cursor-grabbing select-none' : 'cursor-grab'
                     )}
                     style={{ touchAction: 'pan-y', '--calendar-drag-x': `${calendarDragX}px` }}
@@ -1487,7 +1501,7 @@ const enterStart = -exitTarget;
                       modifiers={calendarModifiers}
                       labels={calendarLabels}
                       components={{ DayContent: renderCalendarDay }}
-                      className="w-full !p-2.5 [&_button]:text-slate-900 [&_button:hover]:bg-rose-200 [&_button[aria-selected=true]]:bg-rose-200 [&_button[aria-selected=true]]:rounded-2xl"
+                      className="w-full !p-2.5 [&_button]:text-slate-900 [&_button:hover]:bg-tarjeta [&_button[aria-selected=true]]:bg-transparent"
 
                       classNames={calendarClassNames}
                       modifiersClassNames={{
@@ -1531,7 +1545,7 @@ const enterStart = -exitTarget;
               animate={{ opacity: 1, y: 0 }}
             >
               <div className="mx-auto max-w-md rounded-3xl border border-rose-100 bg-white/80 p-8 shadow-lg backdrop-blur-sm">
-                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-rose-100 text-rose-500 shadow-inner">
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-rose-100 text-fertiliapp-fuerte shadow-inner">
                   <FileText className="h-8 w-8" />
                 </div>
                 <h3 className="text-lg font-semibold text-slate-700">Aún no hay días para mostrar</h3>

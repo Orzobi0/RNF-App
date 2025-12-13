@@ -1233,12 +1233,12 @@ const ChartPage = () => {
             role="dialog"
             aria-modal="true"
             >
-            <div className="flex h-full flex-col gap-6 border-l border-rose-100/60 bg-white p-6 shadow-xl">
+            <div className="flex h-full flex-col gap-6 border-xl rounded-xl border-rose-100/60 bg-white p-6 shadow-xl">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-lg font-semibold text-slate-700">Ajustes del gráfico</h2>
+                <h2 className="text-lg font-semibold text-titulo">Ajustes del gráfico</h2>
                 <p className="text-sm text-slate-500">
-                  Personaliza la visualización de filas adicionales en la gráfica.
+                  Personaliza la visualización del gráfico
                 </p>
               </div>
               <Button
@@ -1252,10 +1252,10 @@ const ChartPage = () => {
               </Button>
             </div>
             <div className="space-y-4 overflow-y-auto pr-1">
-              <div className="rounded-xl border border-rose-100/70 bg-rose-50/40 p-4 flex items-start justify-between gap-3">
+              <div className="rounded-2xl border border-rose-100/70 bg-rose-50/40 p-4 flex items-start justify-between gap-3">
                 <div className="max-w-xs">
                   <Label htmlFor="toggle-relations-row" className="text-sm font-semibold text-slate-700">
-                    Mostrar fila de Relaciones (RS)
+                    Mostrar fila RS
                   </Label>
                   <p className="text-xs text-slate-500 mt-1">
                     Añade una fila dedicada a las relaciones sexuales debajo de la gráfica.
@@ -1269,7 +1269,7 @@ const ChartPage = () => {
                 />
               </div>            
 
-              <div className="rounded-xl border border-amber-100/70 bg-amber-50/40 p-4 space-y-3">
+              <div className="rounded-2xl border border-amber-100/70 bg-amber-50/40 p-4 space-y-3">
                 <div>
                   <h3 className="text-sm font-semibold text-slate-700">Calculadoras complementarias</h3>
                   <p className="text-xs text-slate-500">
@@ -1294,7 +1294,7 @@ const ChartPage = () => {
                 </div>
               </div>
 
-              <div className="rounded-xl border border-sky-100/70 bg-sky-50/40 p-4 space-y-3">
+              <div className="rounded-2xl border border-sky-100/70 bg-sky-50/40 p-4 space-y-3">
                 <div>
                   <h3 className="text-sm font-semibold text-slate-700">Modo de combinación</h3>
                   <p className="text-xs text-slate-500">
@@ -1302,12 +1302,12 @@ const ChartPage = () => {
                   </p>
                 </div>
                 <Select value={fertilityConfig.combineMode} onValueChange={handleCombineModeChange}>
-                  <SelectTrigger className="w-full bg-white/80 border-slate-200 text-sm text-slate-700">
+                  <SelectTrigger className="w-full bg-white/80 border-slate-200 text-sm rounded-3xl text-slate-700">
                     <SelectValue placeholder="Selecciona un modo" />
                   </SelectTrigger>
-                  <SelectContent className="bg-white border-slate-200 text-slate-700">
+                  <SelectContent className="bg-white border-slate-200 text-slate-700 rounded-3xl">
                     {Object.entries(COMBINE_MODE_LABELS).map(([value, label]) => (
-                      <SelectItem key={value} value={value} className="text-sm">
+                      <SelectItem key={value} value={value} className="text-sm rounded-3xl">
                         {label}
                       </SelectItem>
                     ))}
