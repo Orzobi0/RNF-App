@@ -6,7 +6,7 @@
   :root {
     /* Altura de la barra inferior y variante con safe-area */
     --bottom-nav-height: 4.2rem;
-    --bottom-nav-safe: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom));
+    --bottom-nav-safe: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px));
     --background: 210 22.2% 96.5%;
     --foreground: 215 27.9% 16.9%;
     --card: 0 0% 100%;

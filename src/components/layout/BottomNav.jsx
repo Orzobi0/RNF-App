@@ -20,7 +20,7 @@ const BottomNav = () => {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-50 border-fertiliapp-suave bg-white/90 backdrop-blur-md supports-[backdrop-filter]:bg-white/90 pt-2 pb-[env(safe-area-inset-bottom)] min-h-[var(--bottom-nav-safe)]"
+      className="fixed bottom-0 left-0 right-0 z-50 border-fertiliapp-suave bg-white/90 backdrop-blur-md supports-[backdrop-filter]:bg-white/90 pt-2 pb-[env(safe-area-inset-bottom)] min-h-[var(--bottom-nav-height)]"
     >
       <ul className="mx-auto grid w-full max-w-md grid-cols-5 gap-2 px-2">
         {links.map(({ to, label, icon: Icon, isActive: computeActive }) => (
