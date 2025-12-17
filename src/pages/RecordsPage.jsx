@@ -1535,7 +1535,7 @@ const enterStart = -exitTarget;
           className="sticky overflow-y-auto overscroll-contain w-full max-w-4xl mx-auto"
           style={{
             top: boundaryPx,
-            maxHeight: `calc(100dvh - ${boundaryPx}px - var(--bottom-nav-safe, 0px))`,
+            maxHeight: `calc(h-app - ${boundaryPx}px - var(--bottom-nav-safe, 0px))`,
             WebkitOverflowScrolling: 'touch',
           }}
         >
