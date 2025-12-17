@@ -18,7 +18,7 @@ jobs:
       - name: 🔧 Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '16'    # o la versión que corresponda a tu proyecto
+          node-version: '20.19.x'    # o la versión que corresponda a tu proyecto
 
       - name: 📦 Install dependencies
         run: npm ci

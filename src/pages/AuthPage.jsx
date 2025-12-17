@@ -73,7 +73,7 @@ const AuthPage = () => {
   };
 
   return (
-    <div className="relative flex h-full flex-col items-center justify-center p-4">
+    <div className="relative flex min-h-app flex-col items-center justify-center p-4">
       <motion.div
         className="w-full max-w-md bg-white/80 backdrop-blur-md shadow-xl rounded-3xl p-8 sm:p-10"
         initial={{ opacity: 0, y: -30 }}
