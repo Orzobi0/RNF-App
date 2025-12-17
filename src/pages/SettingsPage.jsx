@@ -203,7 +203,7 @@ const SettingsPage = () => {
   };
 
   return (
-     <div className="relative flex min-h-app flex-col overflow-hidden">
+     <div className="relative flex h-[calc(var(--app-vh,1vh)*100 - var(--bottom-nav-safe))] flex-col overflow-hidden">
       <div className="relative z-10 mx-auto flex w-full max-w-2xl flex-1 flex-col box-border px-4 py-6">
         <motion.div
           initial={{ opacity: 0, y: -20 }}

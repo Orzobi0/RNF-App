@@ -668,7 +668,7 @@ const EMPTY_DAY_COLORS = {
             onTouchEnd={handleTouchEnd}
           >
             <svg
-              className="w-full min-h-app wheel-no-tap"
+              className="w-full h-app wheel-no-tap"
               viewBox={`0 0 ${viewBoxSize} ${viewBoxSize}`}
               onClick={() => setActivePoint(null)}
             >
@@ -3652,7 +3652,7 @@ const ModernFertilityDashboard = () => {
 
   return (
     <>
-      <div className="mx-auto flex min-h-app w-full flex-col space-y-4 px-4 pb-10 pt-4">
+      <div className="mx-auto flex h-full w-full flex-col space-y-4 px-4 pb-10 pt-4">
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}

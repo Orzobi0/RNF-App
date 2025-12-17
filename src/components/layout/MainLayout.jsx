@@ -3,12 +3,12 @@ import BottomNav from './BottomNav';
 
 const MainLayout = ({ children, hideBottomNav = false }) => {
   const mainClass = hideBottomNav
-    ? 'flex-1 w-full overflow-y-auto'
-    : 'flex-1 w-full overflow-y-auto pb-[var(--bottom-nav-safe)]';
+    ? 'relative z-10 h-app w-full overflow-y-auto'
+    : 'relative z-10 w-full overflow-y-auto h-[calc(var(--app-vh,1vh)*100 - var(--bottom-nav-safe))]';
 
   return (
     <div className="relative flex min-h-viewport flex-col overflow-hidden">
-      <main className={`relative z-10 ${mainClass}`}>
+      <main className={mainClass}>
         {children}
       </main>
       {!hideBottomNav && (
