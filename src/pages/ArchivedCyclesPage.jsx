@@ -266,7 +266,7 @@ const ArchivedCyclesPage = () => {
       }
     });
   return (
-    <div className="relative flex min-h-screen flex-col overflow-hidden">
+    <div className="relative flex h-[calc(var(--app-vh,1vh)*100 - var(--bottom-nav-safe))] flex-col overflow-hidden">
       <div className="relative z-10 flex flex-1">
         <div className="w-full max-w-4xl mx-auto px-4 py-6 flex h-[calc(var(--app-vh,1vh)*100 - var(--bottom-nav-safe))] flex-col">
           {/* Header */}
