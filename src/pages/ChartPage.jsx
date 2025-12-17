@@ -54,11 +54,11 @@ const formatCalculatorSourceLabel = (source) => {
 const createDefaultFertilityStartConfig = () => ({
   calculators: { cpm: true, t8: true },
   postpartum: false,
-  combineMode: 'conservador',
+  combineMode: 'estandar',
 });
 
 const DEFAULT_CHART_SETTINGS = {
-  showRelationsRow: false,
+  showRelationsRow: true,
   fertilityStartConfig: createDefaultFertilityStartConfig(),
 };
 

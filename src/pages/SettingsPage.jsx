@@ -204,7 +204,10 @@ const SettingsPage = () => {
 
   return (
      <div className="relative flex h-[calc(var(--app-vh,1vh)*100 - var(--bottom-nav-safe))] flex-col overflow-hidden">
-      <div className="relative z-10 mx-auto flex w-full max-w-2xl flex-1 flex-col box-border px-4 py-6">
+      <div
+        className="relative z-10 mx-auto flex w-full max-w-2xl flex-1 flex-col box-border px-4 py-6"
+        style={{ paddingBottom: 'calc(var(--bottom-nav-safe) + 4rem)' }}
+      >
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -264,7 +267,13 @@ const SettingsPage = () => {
           />
         </div>
 
-          <div className="mt-auto pt-4">
+      </div>
+
+      <div
+        className="fixed left-0 right-0 bottom-0 z-20 flex justify-center pointer-events-none"
+        style={{ bottom: 'var(--bottom-nav-safe)' }}
+      >
+        <div className="mx-auto w-full max-w-2xl px-4 pb-6 pointer-events-auto">
           <div className="bg-white/80 backdrop-blur p-4 rounded-3xl shadow flex items-center justify-between">
             <div>
               <p className="text-sm text-slate-500">Sesión</p>
@@ -279,9 +288,9 @@ const SettingsPage = () => {
               Cerrar sesión
             </Button>
           </div>
-        </div>  
+        </div>
       </div>
-      
+
 
       <Dialog open={showEmailDialog} onOpenChange={setShowEmailDialog}>
         <DialogContent className="sm:max-w-md">
