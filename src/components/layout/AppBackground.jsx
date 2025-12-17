@@ -1,7 +1,7 @@
 import React from 'react';
 
 const AppBackground = ({ children }) => (
-  <div className="relative min-h-screen overflow-hidden app-background">
+  <div className="relative min-h-viewport overflow-hidden app-background">
     <div className="pointer-events-none absolute inset-0">
       <div className="wave wave--left-1" />
       <div className="wave wave--left-2" />
@@ -21,7 +21,7 @@ const AppBackground = ({ children }) => (
         }}
       />
     </div>
-    <div className="relative z-10 flex min-h-screen flex-col">
+    <div className="relative z-10 flex min-h-viewport flex-col">
       {children}
     </div>
   </div>

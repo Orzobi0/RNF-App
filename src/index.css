@@ -118,7 +118,9 @@
   body,
   #root {
     height: 100%;
-    min-height: 100dvh;
+    min-height: 100vh;   /* fallback universal */
+    min-height: 100svh;  /* viewport “estable” (si lo soporta) */
+    min-height: 100dvh;  /* viewport dinámico (si lo soporta) */
   }
 
   * {
@@ -192,7 +194,9 @@
 }
 
 .app-background {
-  min-height: 100vh;
+  min-height: 100vh;   /* fallback */
+  min-height: 100svh;  /* mejor en móviles */
+  min-height: 100dvh;  /* mejor si soportado */
   background:
     radial-gradient(circle at 50% -10%, rgba(255, 255, 255, 0.7) 0, transparent 60%),
     linear-gradient(to bottom,
@@ -313,6 +317,12 @@
 }
 
 @layer utilities {
+.min-h-viewport {
+    min-height: 100vh;
+    min-height: 100svh;
+    min-height: 100dvh;
+  }
+
   /* Texto */
   .text-fertiliapp { color: var(--color-fertiliapp); }
   .text-fertiliapp-fuerte { color: var(--color-fertiliapp-fuerte); }

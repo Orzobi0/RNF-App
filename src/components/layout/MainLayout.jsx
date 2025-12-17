@@ -7,7 +7,7 @@ const MainLayout = ({ children, hideBottomNav = false }) => {
     : 'flex-1 w-full overflow-y-auto pb-[var(--bottom-nav-safe)]';
 
   return (
-    <div className="relative flex min-h-[100dvh] flex-col overflow-hidden">
+    <div className="relative flex min-h-viewport flex-col overflow-hidden">
       <main className={`relative z-10 ${mainClass}`}>
         {children}
       </main>
