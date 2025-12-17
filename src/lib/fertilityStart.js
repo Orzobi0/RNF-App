@@ -368,6 +368,10 @@ const buildNormalizedDay = (day, bipBaseline, index) => {
   const rawAppearance = day?.mucusAppearance ?? day?.mucus_appearance;
   const inputSymbol = day?.fertility_symbol ?? day?.fertilitySymbol;
   const rawObservations = day?.observations ?? day?.notes;
+  const peakMarkerRaw = day?.peak_marker ?? day?.peakMarker ?? null;
+  const isPeakMarked = typeof peakMarkerRaw === 'string'
+    ? peakMarkerRaw.trim().toLowerCase() === 'peak'
+    : false;
 
   const sensationInfo = detectSensationLevel(rawSensation);
   const appearanceInfo = detectAppearanceLevel(rawAppearance);
@@ -452,6 +456,7 @@ const buildNormalizedDay = (day, bipBaseline, index) => {
     M,
     symbolDetected,
     rawSymbol,
+    isPeakMarked,
     scoreCore,
     scoreFertil,
     hasChangeBIP,
@@ -494,55 +499,24 @@ export const normalizeCycleDays = (processedData = []) => {
   return { days, bipScore };
 };
 
-const findAlemanasCandidate = (days) => {
+const findInternalCandidate = (days) => {
   for (let i = 0; i < days.length; i += 1) {
     const day = days[i];
     if (!day) continue;
+    if (day.isPeakMarked) {
+      return { source: 'Interno', day: i + 1, reason: 'P', kind: 'profile' };
+    }
+    if (day.symbolDetected === 'white' || day.rawSymbol === 'white') {
+      return { source: 'Interno', day: i + 1, reason: 'white', kind: 'profile' };
+    }
     if (day.symbolDetected === 'M+' || day.symbolDetected === 'F') {
-      return { source: 'Alemanas', day: i + 1, reason: 'M+', kind: 'profile' };
+      return { source: 'Interno', day: i + 1, reason: 'M+', kind: 'profile' };
+    }
+    if (day.symbolDetected === 'M') {
+      return { source: 'Interno', day: i + 1, reason: 'M', kind: 'profile' };
     }
     if (day.M >= 2 || day.S >= 2) {
-      return { source: 'Alemanas', day: i + 1, reason: 'S/M>=2', kind: 'profile' };
-    }
-    if (day.hasChangeBIP) {
-      return { source: 'Alemanas', day: i + 1, reason: 'BIP', kind: 'profile' };
-    }
-  }
-  return null;
-};
-
-const findOmsCandidate = (days) => {
-  for (let i = 0; i < days.length; i += 1) {
-    const day = days[i];
-    if (!day) continue;
-    if (day.M >= 2) {
-      return { source: 'OMS', day: i + 1, reason: 'M>=2', kind: 'profile' };
-    }
-    if (day.S >= 2) {
-      return { source: 'OMS', day: i + 1, reason: 'S>=2', kind: 'profile' };
-    }
-    if (day.symbolDetected === 'M+' || day.symbolDetected === 'F') {
-      return { source: 'OMS', day: i + 1, reason: 'M+', kind: 'profile' };
-    }
-    if (day.hasChangeBIP) {
-      return { source: 'OMS', day: i + 1, reason: 'BIP', kind: 'profile' };
-    }
-  }
-  return null;
-};
-
-const findCreightonCandidate = (days) => {
-  for (let i = 0; i < days.length; i += 1) {
-    const day = days[i];
-    if (!day) continue;
-    if (day.symbolDetected === 'M+') {
-      return { source: 'Creighton', day: i + 1, reason: 'M+', kind: 'profile' };
-    }
-    if (day.symbolDetected === 'M' || day.M >= 2) {
-      return { source: 'Creighton', day: i + 1, reason: 'M>=2', kind: 'profile' };
-    }
-    if (day.hasChangeBIP) {
-      return { source: 'Creighton', day: i + 1, reason: 'BIP', kind: 'profile' };
+      return { source: 'Interno', day: i + 1, reason: 'S/M>=2', kind: 'profile' };
     }
   }
   return null;
@@ -569,29 +543,7 @@ const aggregateCandidates = (candidates, mode) => {
     return aDay - bDay;
   });
 
-  const dayNumbers = sortedCandidates.map((candidate) => Math.round(candidate.day));
-
-  let selectedDay = null;
-  if (mode === 'permisivo') {
-    selectedDay = Math.max(...dayNumbers);
-  } else if (mode === 'consenso') {
-    const frequency = new Map();
-    dayNumbers.forEach((day) => {
-      const current = frequency.get(day) ?? 0;
-      frequency.set(day, current + 1);
-    });
-    let maxCount = 0;
-    let earliestDay = null;
-    frequency.forEach((count, day) => {
-      if (count > maxCount || (count === maxCount && (earliestDay == null || day < earliestDay))) {
-        maxCount = count;
-        earliestDay = day;
-      }
-    });
-    selectedDay = earliestDay;
-  } else {
-    selectedDay = Math.min(...dayNumbers);
-  }
+  const selectedDay = Math.min(...sortedCandidates.map((candidate) => Math.round(candidate.day)));
 
   return {
     status: selectedDay != null ? 'ok' : 'indeterminado',
@@ -609,16 +561,16 @@ export const computeFertilityStartOutput = ({
   context = {},
 }) => {
   const {
-    methods = { alemanas: true, oms: true, creighton: true },
     calculators = { cpm: true, t8: true },
     postpartum = false,
-    combineMode = 'conservador',
+    combineMode: rawCombineMode = 'conservador',
   } = config || {};
 
+  const validModes = new Set(['conservador', 'estandar']);
+  const combineMode = validModes.has(rawCombineMode) ? rawCombineMode : 'conservador';
+
   const {
-    peakDayIndex = null,
     postPeakStartIndex = null,
-    peakThirdDayIndex = null,
     temperatureInfertileStartIndex = null,
     temperatureConfirmationIndex = null,
     temperatureRule = null,
@@ -631,26 +583,22 @@ export const computeFertilityStartOutput = ({
   const isValidIndex = (idx) =>
     Number.isInteger(idx) && idx >= 0 && idx < totalDays;
 
-  const findLastStatusIndex = (status) => {
-    if (!status || totalDays === 0) return null;
-    for (let idx = totalDays - 1; idx >= 0; idx -= 1) {
-      if (days[idx]?.normalizedPeakStatus === status) {
+  const isPeakMarkedEntry = (entry) => {
+    const marker = entry?.peak_marker ?? entry?.peakMarker ?? null;
+    return typeof marker === 'string' && marker.trim().toLowerCase() === 'peak';
+  };
+  const findLastPeakMarkerIndex = () => {
+    if (!Array.isArray(processedData) || processedData.length === 0) return null;
+    for (let idx = processedData.length - 1; idx >= 0; idx -= 1) {
+      if (isPeakMarkedEntry(processedData[idx])) {
         return idx;
       }
     }
     return null;
   };
 
-  let effectivePeakIndex = isValidIndex(peakDayIndex) ? peakDayIndex : null;
-
-  // Solo aceptamos P explícitos de los datos del ciclo.
-  // No inferimos P a partir de estados 1/2/3 ni del score más alto.
-  if (effectivePeakIndex == null) {
-    const explicitPeakIndex = findLastStatusIndex('P');
-    if (isValidIndex(explicitPeakIndex)) {
-      effectivePeakIndex = explicitPeakIndex;
-    }
-  }
+  const explicitPeakIndex = findLastPeakMarkerIndex();
+  const effectivePeakIndex = isValidIndex(explicitPeakIndex) ? explicitPeakIndex : null;
 
   // Si no hay pico marcado por la usuaria, no se fuerza ningún pico.
   // La infertilidad por moco no se basará en un P inventado.
@@ -665,17 +613,10 @@ export const computeFertilityStartOutput = ({
     });
   };
 
-  if (methods.alemanas) {
-    pushCandidate(findAlemanasCandidate(days));
-  }
-  if (methods.oms) {
-    pushCandidate(findOmsCandidate(days));
-  }
-  if (methods.creighton) {
-    pushCandidate(findCreightonCandidate(days));
-  }
+  pushCandidate(findInternalCandidate(days));
 
   const notes = [];
+  const ignoredCalculatorCandidates = [];
   if (postpartum) {
     notes.push('Calculadoras CPM/T-8 omitidas por configuración de posparto.');
   }
@@ -689,31 +630,30 @@ export const computeFertilityStartOutput = ({
       const include =
         (normalizedSource === 'CPM' && calculators.cpm) ||
         (normalizedSource === 'T8' && calculators.t8);
-      if (include) {
-        pushCandidate({
-          ...candidate,
-          source: normalizedSource,
-          kind: 'calculator',
-        });
+      if (!include) return;
+
+      const normalizedCandidate = {
+        ...candidate,
+        source: normalizedSource,
+        kind: 'calculator',
+      };
+
+      if (combineMode === 'conservador') {
+        pushCandidate(normalizedCandidate);
+      } else {
+        ignoredCalculatorCandidates.push(normalizedCandidate);
       }
     });
   }
 
-  if (!methods.alemanas && !methods.oms && !methods.creighton) {
-    notes.push('Ningún perfil sintotérmico seleccionado.');
-  }
-
   const candidatesBeforeAggregate = candidates.map((candidate) => ({ ...candidate }));
 
-  let candidatesForAggregate = candidates;
-
-  // En modo conservador usamos todo (perfiles + CPM/T-8).
-  // En modos consenso y permisivo, las calculadoras NO adelantan el inicio fértil.
-  if (combineMode === 'consenso' || combineMode === 'permisivo') {
-    candidatesForAggregate = candidates.filter((candidate) => candidate.kind !== 'calculator');
-  }
+  const candidatesForAggregate = combineMode === 'conservador'
+    ? candidates
+    : candidates.filter((candidate) => candidate.kind !== 'calculator');
 
   const aggregate = aggregateCandidates(candidatesForAggregate, combineMode);
+  aggregate.ignoredCalculatorCandidates = ignoredCalculatorCandidates;
   aggregate.notes = Array.from(new Set([...(aggregate.notes ?? []), ...notes].filter(Boolean)));
 
   const clampSelectedDay = (day) => {
@@ -725,54 +665,13 @@ export const computeFertilityStartOutput = ({
     return bounded;
   };
 
-  let selectedDay = Number.isFinite(aggregate.selectedDay)
+  const selectedDay = Number.isFinite(aggregate.selectedDay)
     ? clampSelectedDay(aggregate.selectedDay)
     : null;
   if (selectedDay != null && selectedDay !== aggregate.selectedDay) {
     const note = `El día calculado (${aggregate.selectedDay}) supera la duración del ciclo. Se usa ${selectedDay}.`;
     aggregate.notes = Array.from(new Set([...(aggregate.notes ?? []), note]));
     aggregate.selectedDay = selectedDay;
-  }
-
-  let explicitStartDay = null;
-  if (Array.isArray(days) && days.length > 0) {
-    const whiteIndex = days.findIndex((day) => day?.rawSymbol === 'white');
-    if (whiteIndex >= 0) {
-      explicitStartDay = whiteIndex;
-    }
-  }
-
-  if (Array.isArray(processedData) && processedData.length > 0) {
-    for (let idx = 0; idx < processedData.length; idx += 1) {
-      const entry = processedData[idx];
-      const normalized = normalizePeakStatus(
-        entry?.normalizedPeakStatus ?? entry?.peakStatus ?? entry?.peak_marker
-      );
-      if (normalized === 'P') {
-        explicitStartDay = explicitStartDay != null
-          ? Math.min(explicitStartDay, idx)
-          : idx;
-        break;
-      }
-    }
-  }
-
-  if (
-    explicitStartDay != null &&
-    (selectedDay == null || explicitStartDay + 1 < selectedDay)
-  ) {
-    const overrideDay = clampSelectedDay(explicitStartDay + 1);
-    if (overrideDay != null) {
-      aggregate.selectedDay = overrideDay;
-      aggregate.selectedMode = 'marcador';
-      aggregate.status = 'ok';
-      aggregate.notes = Array.from(
-        new Set([...(aggregate.notes ?? []), 'Inicio fértil ajustado por marcador explícito.'])
-      );
-      selectedDay = overrideDay;
-    }
-  } else {
-    selectedDay = aggregate.selectedDay ?? null;
   }
 
   let fertileStartFinalIndex = null;
@@ -839,50 +738,39 @@ export const computeFertilityStartOutput = ({
     }
   };
 
-  const findStatusIndex = (status) => {
-    if (!status) return null;
-    for (let idx = 0; idx < days.length; idx += 1) {
-      if (days[idx]?.normalizedPeakStatus === status) {
-        return idx;
-      }
-    }
-    return null;
-  };
 
-  let pPlus3Index = findStatusIndex('3');
-  if (pPlus3Index == null && Number.isInteger(peakThirdDayIndex)) {
-    pPlus3Index = clampIndexWithin(peakThirdDayIndex);
-  }
-  if (pPlus3Index == null && Number.isInteger(postPeakStartIndex)) {
-    pPlus3Index = clampIndexWithin(postPeakStartIndex - 1);
-  }
+  let pPlus3Index = null;
+  let pPlus4Index = null;
 
-    let pPlus4Index = null;
-  if (pPlus3Index != null) {
-    const candidate = clampIndexWithin(pPlus3Index + 1);
-    if (candidate != null) {
-      pPlus4Index = candidate;
+  if (isValidIndex(effectivePeakIndex)) {
+    const candidatePPlus3 = effectivePeakIndex + 3;
+    if (isValidIndex(candidatePPlus3)) {
+      pPlus3Index = candidatePPlus3;
     }
-      }
+      
+    const candidatePPlus4 = effectivePeakIndex + 4;
+    if (isValidIndex(candidatePPlus4)) {
+      pPlus4Index = candidatePPlus4;
+    }
 
   const peakIndexForDiff = clampIndexWithin(effectivePeakIndex);
-  const peakDate = parseEntryDate(peakIndexForDiff);
-  if (peakDate) {
-    for (let idx = peakIndexForDiff + 1; idx < processedData.length; idx += 1) {
-      const currentDate = parseEntryDate(idx);
-      if (!currentDate) continue;
-      const diff = differenceInCalendarDays(currentDate, peakDate);
-      if (pPlus3Index == null && diff >= 3) {
-        pPlus3Index = clampIndexWithin(idx);
-      }
-      if (pPlus4Index == null && diff >= 4) {
-        pPlus4Index = clampIndexWithin(idx);
-      }
-      if (pPlus3Index != null && pPlus4Index != null) {
-        break;
+    const peakDate = parseEntryDate(peakIndexForDiff);
+    if (peakDate) {
+      for (let idx = peakIndexForDiff + 1; idx < processedData.length; idx += 1) {
+        const currentDate = parseEntryDate(idx);
+        if (!currentDate) continue;
+        const diff = differenceInCalendarDays(currentDate, peakDate);
+        if (pPlus3Index == null && diff >= 3) {
+          pPlus3Index = clampIndexWithin(idx);
+        }
+        if (pPlus4Index == null && diff >= 4) {
+          pPlus4Index = clampIndexWithin(idx);
+        }
+        if (pPlus3Index != null && pPlus4Index != null) {
+          break;
+        }
       }
     }
-
   }
 
   const temperatureConfirmationIdx = clampIndexWithin(temperatureConfirmationIndex);
@@ -892,64 +780,52 @@ export const computeFertilityStartOutput = ({
     const candidate = clampIndexWithin(temperatureInfertileIdx - 1);
     if (candidate != null && candidate >= 0) tPlus3Index = candidate;
   }
-  if (pPlus4Index == null && pPlus3Index != null) {
-    const candidate = clampIndexWithin(pPlus3Index + 1);
-    if (candidate != null) pPlus4Index = candidate;
+
+  const mucusInfertileStartIndex = combineMode === 'conservador'
+    ? pPlus4Index ?? null
+    : pPlus3Index ?? null;
+  const waitingStartIndex = null;
+
+  const estimateStartIndexCandidates = [mucusInfertileStartIndex, temperatureInfertileIdx].filter(
+    (idx) => Number.isInteger(idx)
+  );
+  const firstEstimateIndex =
+    estimateStartIndexCandidates.length > 0 ? Math.min(...estimateStartIndexCandidates) : null;
+
+  const hasMucusClosure = Number.isInteger(mucusInfertileStartIndex);
+  const hasTemperatureClosure = Number.isInteger(temperatureInfertileIdx);
+  const absoluteStartIndex = hasMucusClosure && hasTemperatureClosure
+    ? Math.max(mucusInfertileStartIndex, temperatureInfertileIdx)
+    : null;
+
+    if (fertileStartIndex != null && lastIndex != null && lastIndex >= fertileStartIndex) {
+    if (Number.isInteger(firstEstimateIndex)) {
+      const candidate = Math.max(fertileStartIndex, firstEstimateIndex - 1);
+      fertileEndIndex = Math.min(candidate, lastIndex);
+    } else {
+      fertileEndIndex = lastIndex;
+    }
   }
 
-  const waitingStartIndex = pPlus3Index != null ? pPlus3Index : null;
-
-  const mucusInfertileStartIndex = pPlus4Index ?? pPlus3Index ?? null;
-
-  let postOvulatoryStartIndex = null;
-  if (mucusInfertileStartIndex != null && temperatureInfertileIdx != null) {
-    postOvulatoryStartIndex = Math.min(mucusInfertileStartIndex, temperatureInfertileIdx);
-  } else if (mucusInfertileStartIndex != null) {
-    postOvulatoryStartIndex = mucusInfertileStartIndex;
-  } else if (temperatureInfertileIdx != null) {
-    postOvulatoryStartIndex = temperatureInfertileIdx;
-  }
-
-  let closureAlemanIndex = null;
-  if (pPlus3Index != null && tPlus3Index != null) {
-    closureAlemanIndex = Math.max(pPlus3Index, tPlus3Index);
-  }
-
-    let closureOmsIndex = null;
-  if (pPlus4Index != null && tPlus3Index != null) {
-    closureOmsIndex = Math.max(pPlus4Index, tPlus3Index);
-  }
-
-  let closureDetail = null;
-  let closureIndex = null;
-  if (closureAlemanIndex != null || closureOmsIndex != null) {
-    const alemanCandidate = closureAlemanIndex != null ? closureAlemanIndex : Number.NEGATIVE_INFINITY;
-    const omsCandidate = closureOmsIndex != null ? closureOmsIndex : Number.NEGATIVE_INFINITY;
-    closureIndex = Math.max(alemanCandidate, omsCandidate);
-    if (closureOmsIndex != null && (closureAlemanIndex == null || closureOmsIndex >= closureAlemanIndex)) {
-      closureDetail = 'P+4 y T+3 (OMS)';
-    } else if (closureAlemanIndex != null) {
-      closureDetail = 'P+3 y T+3 (Alemanes)';
-    }
-    }
-
-    if (closureIndex != null && fertileStartIndex != null) {
-    const boundedClosure = clampIndexWithin(closureIndex);
-    if (boundedClosure != null) {
-      fertileEndIndex = Math.max(fertileStartIndex, boundedClosure);
-    }
-    }
-
-    const windowEndIndex = fertileEndIndex != null
+  const windowEndIndex = fertileEndIndex != null
     ? fertileEndIndex
     : lastIndex != null
       ? lastIndex
       : null;
 
+      const postOvulatoryStartIndex = firstEstimateIndex;
+
+  let closureDetail = null;
+  if (hasMucusClosure && hasTemperatureClosure) {
+    closureDetail = combineMode === 'conservador' ? 'P+4 y T+3' : 'P+3 y T+3';
+  } else if (hasMucusClosure) {
+    closureDetail = combineMode === 'conservador' ? 'P+4' : 'P+3';
+  } else if (hasTemperatureClosure) {
+    closureDetail = temperatureRule ?? 'Temperatura';
+  }
   const PROFILE_LABELS = {
     conservador: 'modo conservador',
-    consenso: 'modo consenso',
-    permisivo: 'modo permisivo',
+    estandar: 'modo estándar',
     marcador: 'marcador explícito',
   };
 
@@ -958,10 +834,13 @@ export const computeFertilityStartOutput = ({
   const hasProfileSource = usedCandidates.some((candidate) => candidate?.kind === 'profile');
   const hasCalculatorSource = usedCandidates.some((candidate) => candidate?.kind === 'calculator');
   const hasMucusObservations = days.some(
-    (day) => day?.entryFlags?.hasAppearance || day?.entryFlags?.hasSensation || day?.symbolDetected
+    (day) =>
+      day?.entryFlags?.hasAppearance ||
+      day?.entryFlags?.hasSensation ||
+      (day?.symbolDetected && day.symbolDetected !== 'none')
   );
 
-  let fertileHeaderText = `Fase fértil abierta (perfil: ${PROFILE_LABELS[profileMode] ?? profileMode}).`;
+  let fertileHeaderText = `Fase fértil abierta (${PROFILE_LABELS[profileMode] ?? profileMode}).`;
   if (profileMode === 'marcador') {
     fertileHeaderText = 'Fase fértil abierta (ajustada por tus marcadores).';
   } else if (hasProfileSource && hasMucusObservations) {
@@ -970,25 +849,23 @@ export const computeFertilityStartOutput = ({
     fertileHeaderText = 'Inicio fértil estimado por calculadora (según tus ciclos anteriores).';
   }
 
-  const infertileTitleAbsolute = 'Fase de infertilidad absoluta confirmada(postovulatoria)';
+  const hasAbsoluteClosure = hasMucusClosure && hasTemperatureClosure;
+
+  const infertileTitleAbsolute = 'Infertilidad absoluta postovulatoria';
   const infertileDetailText = closureDetail ?? 'criterio indeterminado';
   const infertileBodyAbsolute = `Ventana cerrada por doble criterio: ${infertileDetailText}.`;
   const referencePeakIndex = clampIndexWithin(effectivePeakIndex);
 
-  const hasMucusClosure = pPlus3Index != null || pPlus4Index != null;
-  const hasTemperatureClosure = tPlus3Index != null;
-  const hasAbsoluteClosure = hasMucusClosure && hasTemperatureClosure;
-
   const peakDateLabel = formatDateLabel(referencePeakIndex);
   const temperatureDateLabel = formatDateLabel(tPlus3Index);
-  const infertileTitleMucus = 'Fase de infertilidad postovulatoria (método moco)';
+  const infertileTitleMucus = 'Infertilidad estimada por moco';
   const infertileBodyMucus = peakDateLabel
     ? `Fase de infertilidad alcanzada por determinación de día pico el ${peakDateLabel}.`
     : 'Fase de infertilidad alcanzada por determinación de día pico.';
-  const infertileTitleTemperature = 'Ovulación confirmada por temperatura';
+  const infertileTitleTemperature = 'Infertilidad estimada por temperatura';
   const infertileBodyTemperature = temperatureDateLabel
-    ? `Ovulación confirmada por temperatura el ${temperatureDateLabel}. La fase de infertilidad absoluta está pendiente de determinar día pico (si se registra).`
-    : 'Ovulación confirmada por temperatura. La fase de infertilidad absoluta está pendiente de determinar día pico (si se registra).';
+    ? `Infertilidad estimada por temperatura desde el ${temperatureDateLabel}.`
+    : 'Infertilidad estimada por temperatura.';
 
   const dailyAssessments = new Array(days.length).fill(null);
   let lastRecordedLevel = null;
@@ -1029,14 +906,14 @@ export const computeFertilityStartOutput = ({
       continue;
     }
 
-    const isWithinPostOvulatory = Number.isInteger(postOvulatoryStartIndex)
-      ? i >= postOvulatoryStartIndex
-      : false;
+    const hasEstimateStart = Number.isInteger(firstEstimateIndex);
+    const isWithinPostOvulatory = hasEstimateStart ? i >= firstEstimateIndex : false;
+    const isAbsolutePhase = Number.isInteger(absoluteStartIndex) ? i >= absoluteStartIndex : false;
     const isWithinFertile =
       fertileStartIndex != null &&
       windowEndIndex != null &&
       i >= fertileStartIndex &&
-      i <= windowEndIndex &&
+      (hasEstimateStart ? i < firstEstimateIndex : i <= windowEndIndex) &&
       !isWithinPostOvulatory;
     const isFutureDay = Number.isInteger(todayIndex) && todayIndex != null ? i > todayIndex : false;
 
@@ -1047,48 +924,56 @@ export const computeFertilityStartOutput = ({
       const shouldRenderPostPhase =
         isWithinPostOvulatory || (windowEndIndex != null && i > windowEndIndex);
 
-      if (shouldRenderPostPhase) {
-        if (!hasMucusClosure && !hasTemperatureClosure && postOvulatoryStartIndex == null) {
-          dailyAssessments[i] = null;
-          continue;
-        }
-
-        const hasRecord = Boolean(day.entryFlags?.hasAny);
-        const note = !hasRecord ? 'Sin registro hoy; estimación basada en días adyacentes.' : null;
-        let infertileTitle = infertileTitleAbsolute;
-        let infertileBody = infertileBodyAbsolute;
-        let infertileStatus = 'absolute';
-
-        if (!hasAbsoluteClosure && hasMucusClosure) {
-          infertileTitle = infertileTitleMucus;
-          infertileBody = infertileBodyMucus;
-          infertileStatus = 'mucus';
-        } else if (!hasAbsoluteClosure && hasTemperatureClosure) {
-          infertileTitle = infertileTitleTemperature;
-          infertileBody = infertileBodyTemperature;
-          infertileStatus = 'temperature';
-        }
-
-        dailyAssessments[i] = {
-          index: i,
-          state: 'infertil',
-          status: infertileStatus,
-          title: infertileTitle,
-          header: infertileTitle,
-          body: infertileBody,
-          detail: closureDetail,
-          hasRecord,
-          inherited: false,
-          note,
-          isFertile: false,
-          phase: 'postOvulatory',
-          label: infertileTitle,
-          summaryText: infertileBody,
-          reasonsList: [],
-          reasonsText: '',
-          showFertilityStatus: !isFutureDay,
-        };
+      if (!shouldRenderPostPhase || !hasEstimateStart) {
+        dailyAssessments[i] = null;
+        continue;
       }
+
+      const hasRecord = Boolean(day.entryFlags?.hasAny);
+      const note = !hasRecord ? 'Sin registro hoy; estimación basada en días adyacentes.' : null;
+
+      let infertileTitle = null;
+      let infertileBody = null;
+      let infertileStatus = null;
+
+      if (isAbsolutePhase && hasAbsoluteClosure) {
+        infertileTitle = infertileTitleAbsolute;
+        infertileBody = infertileBodyAbsolute;
+        infertileStatus = 'absolute';
+      } else if (hasMucusClosure && i >= mucusInfertileStartIndex) {
+        infertileTitle = infertileTitleMucus;
+        infertileBody = infertileBodyMucus;
+        infertileStatus = 'mucus';
+      } else if (hasTemperatureClosure && i >= temperatureInfertileIdx) {
+        infertileTitle = infertileTitleTemperature;
+        infertileBody = infertileBodyTemperature;
+        infertileStatus = 'temperature';
+      }
+
+        if (!infertileStatus) {
+        dailyAssessments[i] = null;
+        continue;
+      }
+      
+      dailyAssessments[i] = {
+        index: i,
+        state: 'infertil',
+        status: infertileStatus,
+        title: infertileTitle,
+        header: infertileTitle,
+        body: infertileBody,
+        detail: closureDetail,
+        hasRecord,
+        inherited: false,
+        note,
+        isFertile: false,
+        phase: 'postOvulatory',
+        label: infertileTitle,
+        summaryText: infertileBody,
+        reasonsList: [],
+        reasonsText: '',
+        showFertilityStatus: !isFutureDay,
+      };
       continue;
     }
 
@@ -1096,7 +981,7 @@ export const computeFertilityStartOutput = ({
 
     let rawLevel = 0;
     if (
-      day.normalizedPeakStatus === 'P' ||
+      day.isPeakMarked ||
       day.symbolDetected === 'M+' ||
       day.symbolDetected === 'F' ||
       day.S >= 3 ||
@@ -1261,7 +1146,6 @@ export const computeFertilityStartOutput = ({
   }
   const debug = {
     bipScore,
-    explicitStartDay,
     effectivePeakIndex,
     candidatesBeforeAggregate,
     closureDetail,
@@ -1273,6 +1157,8 @@ export const computeFertilityStartOutput = ({
     temperatureRule: temperatureRule ?? null,
     mucusInfertileStartIndex,
     postOvulatoryStartIndex,
+    firstEstimateIndex,
+    absoluteStartIndex,
   };
 
   return {

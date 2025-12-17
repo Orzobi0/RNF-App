@@ -1019,10 +1019,10 @@ const EMPTY_DAY_COLORS = {
                 >
                   {[
                     { label: 'Menstrual', color: '#fb7185' },
-                    { label: 'Moco (Fértil)', color: '#fcebf1', stroke: '#ffcfd6' },
-                    { label: 'Seco', color: '#22c55e' },
-                    { label: 'Moco (No fértil)', color: '#f1c232', stroke: '#fef08a' },
-                    { label: 'Spotting', color: '#ef4444', stroke: '#fee2e2', pattern: true },
+                    { label: 'Moco (Fértil)', color: '#fdf5f8', stroke: '#fb7185' },
+                    { label: 'Seco', color: '#67C5A4' },
+                    { label: 'Moco (No fértil)', color: '#F7B944' },
+                    { label: 'Spotting', color: '#fb7185', stroke: '#fee2e2', pattern: true },
                     { label: 'Hoy', isToday: true }
                   ].map(item => (
                     <div key={item.label} className="flex flex-col items-center gap-1.5">
@@ -3584,8 +3584,8 @@ const ModernFertilityDashboard = () => {
   if (isLoading && !currentCycle?.id) {
     return (
       <div className="mx-auto flex min-h-screen max-w-md items-center justify-center px-4 py-4">
-        <div className="w-full rounded-3xl border border-rose-100/70 bg-white/80 p-4 text-center shadow-sm">
-          <p className="text-sm font-semibold text-slate-800">Cargando...</p>
+        <div className="w-full rounded-3xl  p-4 text-center shadow-sm">
+          <p className="text-sm font-semibold text-fertiliapp-fuerte">Cargando...</p>
         </div>
       </div>
     );

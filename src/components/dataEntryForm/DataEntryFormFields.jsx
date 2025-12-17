@@ -82,10 +82,19 @@ const DataEntryFormFields = ({
   const sectionOrder = useMemo(
     () => [
       { ...SECTION_METADATA.temperature, icon: Thermometer },
-      { ...SECTION_METADATA.symbol, icon: Sprout },
-      { ...SECTION_METADATA.sensation, icon: Droplets },
-      { ...SECTION_METADATA.appearance, icon: Circle },
+      { ...SECTION_METADATA.moco, icon: Droplets },
       { ...SECTION_METADATA.observations, icon: Edit3 },
+    ],
+    []
+  );
+
+  const dockItems = useMemo(
+    () => [
+      { ...SECTION_METADATA.temperature, sectionKey: 'temperature', icon: Thermometer },
+      { ...SECTION_METADATA.sensation, sectionKey: 'moco', icon: Droplets },
+      { ...SECTION_METADATA.appearance, sectionKey: 'moco', icon: Circle },
+      { ...SECTION_METADATA.symbol, sectionKey: 'moco', icon: Sprout },
+      { ...SECTION_METADATA.observations, sectionKey: 'observations', icon: Edit3 },
     ],
     []
   );
@@ -111,16 +120,44 @@ const DataEntryFormFields = ({
   const cycleEnd = cycleEndDate ? startOfDay(parseISO(cycleEndDate)) : null;
   const disabledDateRanges = cycleEnd ? [{ before: cycleStart }, { after: cycleEnd }] : [{ before: cycleStart }];
   const selectedIsoDate = date ? format(date, 'yyyy-MM-dd') : null;
- const [dockOffset, setDockOffset] = useState(0);
+  const [dockOffset, setDockOffset] = useState(0);
+  const appearanceInputRef = useRef(null);
+  const symbolTriggerRef = useRef(null);
 
- const recomputeDockOffset = useCallback(() => {
-   const dock = dockRef.current;
-   if (!dock) return;
-   const rect = dock.getBoundingClientRect();
-   const computedTop = parseFloat(getComputedStyle(dock).top || '0');
-   const safeTop = Number.isNaN(computedTop) ? 0 : computedTop;
-   setDockOffset((rect?.height || 0) + safeTop + 12); // 12px de margen
- }, []);
+  const normalizeSectionKey = useCallback((key) => {
+    if (['symbol', 'sensation', 'appearance'].includes(key)) {
+      return 'moco';
+    }
+
+    return key;
+  }, []);
+
+  const handleSensationKeyDown = useCallback((event) => {
+    if (event.key !== 'Enter') {
+      return;
+    }
+
+    event.preventDefault();
+    appearanceInputRef.current?.focus();
+  }, []);
+
+  const handleAppearanceKeyDown = useCallback((event) => {
+    if (event.key !== 'Enter') {
+      return;
+    }
+
+    event.preventDefault();
+    symbolTriggerRef.current?.focus();
+  }, []);
+
+  const recomputeDockOffset = useCallback(() => {
+    const dock = dockRef.current;
+    if (!dock) return;
+    const rect = dock.getBoundingClientRect();
+    const computedTop = parseFloat(getComputedStyle(dock).top || '0');
+    const safeTop = Number.isNaN(computedTop) ? 0 : computedTop;
+    setDockOffset((rect?.height || 0) + safeTop + 12); // 12px de margen
+  }, []);
 
  useEffect(() => {
    recomputeDockOffset();
@@ -148,18 +185,20 @@ const DataEntryFormFields = ({
 
   const registerActiveSection = useCallback(
     (key) => {
-      if (!key) {
+      const normalizedKey = normalizeSectionKey(key);
+      if (!normalizedKey) {
         return;
       }
 
       userCollapsedRef.current = false;
-      setActiveSection((current) => (current === key ? current : key));
+      setActiveSection((current) => (current === normalizedKey ? current : normalizedKey));
 
       const storageKey = selectedIsoDate ?? DEFAULT_SECTION_STORAGE_KEY;
-      lastActivePerDateRef.current.set(storageKey, key);
+      lastActivePerDateRef.current.set(storageKey, normalizedKey);
     },
-    [selectedIsoDate]
+    [normalizeSectionKey, selectedIsoDate]
   );
+
 
   useEffect(() => {
     if (!sectionKeys.length) {
@@ -181,7 +220,7 @@ const DataEntryFormFields = ({
     }
 
     const storageKey = selectedIsoDate ?? DEFAULT_SECTION_STORAGE_KEY;
-    const storedSection = lastActivePerDateRef.current.get(storageKey);
+    const storedSection = normalizeSectionKey(lastActivePerDateRef.current.get(storageKey));
     const fallbackSection =
       (storedSection && sectionKeys.includes(storedSection) && storedSection) || sectionKeys[0] || null;
 
@@ -196,6 +235,7 @@ const DataEntryFormFields = ({
   }, [
     activeSection,
     isViewAll,
+    normalizeSectionKey,
     registerActiveSection,
     sectionKeys,
     selectedIsoDate,
@@ -236,35 +276,35 @@ const DataEntryFormFields = ({
 
   const handleSectionToggle = useCallback(
     (key) => {
-      if (!key) {
-        return;
-      }
+      const normalizedKey = normalizeSectionKey(key);
+      if (!normalizedKey) return;
 
       triggerHapticFeedback();
 
  if (isViewAll) {
-   pendingScrollTargetRef.current = key;
-   registerActiveSection(key);
-   scrollToSectionStart(key);
+        pendingScrollTargetRef.current = normalizedKey;
+        registerActiveSection(normalizedKey);
+        scrollToSectionStart(normalizedKey);
    return;
  }
       
       setActiveSection((current) => {
-        if (current === key) {
+        if (current === normalizedKey) {
           userCollapsedRef.current = true;
           pendingScrollTargetRef.current = null;
           return null;
         }
 
         userCollapsedRef.current = false;
-        pendingScrollTargetRef.current = key;
+        pendingScrollTargetRef.current = normalizedKey;
         const storageKey = selectedIsoDate ?? DEFAULT_SECTION_STORAGE_KEY;
-        lastActivePerDateRef.current.set(storageKey, key);
-        return key;
+        lastActivePerDateRef.current.set(storageKey, normalizedKey);
+        return normalizedKey;
       });
     },
     [
       isViewAll,
+      normalizeSectionKey,
       registerActiveSection,
       scrollToSectionStart,
       selectedIsoDate,
@@ -307,7 +347,7 @@ const DataEntryFormFields = ({
     setIsViewAll(nextViewAll);
 
     const storageKey = selectedIsoDate ?? DEFAULT_SECTION_STORAGE_KEY;
-    const storedActive = lastActivePerDateRef.current.get(storageKey);
+    const storedActive = normalizeSectionKey(lastActivePerDateRef.current.get(storageKey));
     const defaultTarget = storedActive ?? activeSection ?? sectionKeys[0];
 
     if (nextViewAll) {
@@ -339,20 +379,24 @@ const DataEntryFormFields = ({
     }
 
     const storageKey = selectedIsoDate ?? DEFAULT_SECTION_STORAGE_KEY;
-    const storedSection = lastActivePerDateRef.current.get(storageKey);
+    const storedSection = normalizeSectionKey(lastActivePerDateRef.current.get(storageKey));
     const isStoredValid = storedSection && sectionKeys.includes(storedSection);
 
     const previousIsoDate = previousIsoDateRef.current;
     const dateChanged = previousIsoDate !== selectedIsoDate;
     previousIsoDateRef.current = selectedIsoDate;
 
-    const hasInitialSection = Boolean(initialSectionKey && sectionKeys.includes(initialSectionKey));
-    const shouldPreferInitial = hasInitialSection && (dateChanged || initialSectionKey !== storedSection);
+    const normalizedInitialSectionKey = normalizeSectionKey(initialSectionKey);
+    const hasInitialSection = Boolean(
+      normalizedInitialSectionKey && sectionKeys.includes(normalizedInitialSectionKey)
+    );
+    const shouldPreferInitial =
+      hasInitialSection && (dateChanged || normalizedInitialSectionKey !== storedSection);
 
     let fallbackSection = null;
 
     if (shouldPreferInitial) {
-      fallbackSection = initialSectionKey;
+      fallbackSection = normalizedInitialSectionKey;
       initializedSectionsRef.current = true;
     } else if (isStoredValid) {
       fallbackSection = storedSection;
@@ -368,7 +412,7 @@ const DataEntryFormFields = ({
     lastActivePerDateRef.current.set(storageKey, fallbackSection);
     setActiveSection((current) => (current === fallbackSection ? current : fallbackSection));
     pendingScrollTargetRef.current = fallbackSection;
-  }, [date, sectionKeys, selectedIsoDate, initialSectionKey]);
+  }, [date, sectionKeys, selectedIsoDate, initialSectionKey, normalizeSectionKey]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -574,7 +618,7 @@ const DataEntryFormFields = ({
     }
   };
 
-  const filledBySection = useMemo(() => {
+  const filledState = useMemo(() => {
     const hasTemperature = measurements.some((measurement) => {
       if (!measurement) return false;
       const baseTemp = measurement.temperature;
@@ -596,13 +640,22 @@ const DataEntryFormFields = ({
     const hasSensation = Boolean(mucusSensation && mucusSensation.trim());
     const hasAppearance = Boolean(mucusAppearance && mucusAppearance.trim());
     const hasObservations = Boolean(observations && observations.trim());
+    const hasMoco = hasSymbol || hasSensation || hasAppearance;
 
     return {
-      temperature: hasTemperature,
-      symbol: hasSymbol,
-      sensation: hasSensation,
-      appearance: hasAppearance,
-      observations: hasObservations,
+      section: {
+        temperature: hasTemperature,
+        moco: hasMoco,
+        observations: hasObservations,
+      },
+      dock: {
+        temperature: hasTemperature,
+        symbol: hasSymbol,
+        sensation: hasSensation,
+        appearance: hasAppearance,
+        observations: hasObservations,
+        moco: hasMoco,
+      },
     };
   }, [
     fertilitySymbol,
@@ -611,6 +664,9 @@ const DataEntryFormFields = ({
     mucusSensation,
     observations,
   ]);
+
+  const filledBySection = filledState.section;
+  const filledByDockItem = filledState.dock;
 
   useEffect(() => {
     if (!isEditing) {
@@ -660,6 +716,14 @@ const DataEntryFormFields = ({
         filledText: 'text-temp',
         idleText: 'text-suave',
         focusRing: 'ring-temp',
+      },
+      moco: {
+        activeBorder: 'border-moco',
+        activeBg: 'bg-moco-suave',
+        activeText: 'text-moco',
+        filledText: 'text-moco',
+        idleText: 'text-moco-suave',
+        focusRing: 'ring-moco',
       },
       symbol: symbolDockStyles,
       sensation: {
@@ -890,93 +954,101 @@ const DataEntryFormFields = ({
             })}
           </div>
         );
-      case 'symbol': {
+      case 'moco': {
         const symbolTheme = getFertilitySymbolTheme(fertilitySymbol);
         return (
-          <div
-            className={cn(
-              'space-y-3 rounded-3xl border bg-gradient-to-r p-3 shadow-sm transition-colors duration-300',
-              symbolTheme.panelBorder,
-              symbolTheme.panelBackground
-            )}
-          >
-            <div className="flex flex-col gap-3">
-              <Label htmlFor="fertilitySymbol" className="flex items-center text-slate-800 text-sm font-semibold">
-                <Sprout
-                  className={cn('mr-2 h-5 w-5 transition-colors duration-300', symbolTheme.icon)}
-                />
-                Símbolo de Fertilidad
+          <div className="space-y-3 rounded-3xl bg-moco-suave p-3 shadow-xs">
+            <div className="space-y-2 rounded-3xl bg-white/80 border border-sensacion p-3 shadow-sm">
+              <Label htmlFor="mucusSensation" className="flex items-center text-slate-800 text-sm font-semibold">
+                <Droplets className="mr-2 h-5 w-5 text-sensacion" />
+                Sensación del moco
               </Label>
-              <Select value={fertilitySymbol} onValueChange={setFertilitySymbol} disabled={isProcessing}>
-                <SelectTrigger
-                  className={cn(
-                    'w-full border bg-white text-gray-800 transition-colors duration-200',
-                    symbolTheme.triggerBorder,
-                    symbolTheme.triggerHover,
-                    symbolTheme.triggerActive,
-                    symbolTheme.triggerFocus,
-                    RADIUS.field
-                  )}
-                  data-field="fertilitySymbol"
-                >
-                  <SelectValue placeholder="Selecciona un símbolo" />
-                </SelectTrigger>
-                <SelectContent
-                  className={cn('bg-white text-gray-800', symbolTheme.contentBorder, RADIUS.dropdown)}
-                >
-                  {FERTILITY_SYMBOL_OPTIONS.map((symbol) => (
-                    <SelectItem key={symbol.value} value={symbol.value} className="cursor-pointer rounded-lg">
-                      <div className="flex items-center">
-                        <span
-                          className={cn(
-                            'mr-2 h-4 w-4 rounded-full border border-gray-300',
-                            symbol.pattern === 'spotting-pattern' ? 'spotting-pattern-icon' : symbol.color
-                          )}
-                        />
-                        {symbol.label}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Input
+                data-field="mucusSensation"
+                id="mucusSensation"
+                value={mucusSensation}
+                onChange={(e) => setMucusSensation(e.target.value)}
+                onKeyDown={handleSensationKeyDown}
+                className={cn(
+                  'bg-white/70 border-sensacion text-gray-800 placeholder-gray-400 focus:border-sensacion ring-sensacion focus:ring-2 font-semibold text-sensacion-fuerte',
+                  RADIUS.field
+                )}
+                disabled={isProcessing}
+              />
+            </div>
+
+            <div className="space-y-2 rounded-3xl bg-white/80 p-3 border border-apariencia shadow-sm">
+              <Label htmlFor="mucusAppearance" className="flex items-center text-slate-800 text-sm font-semibold">
+                <Circle className="mr-2 h-5 w-5 text-apariencia" />
+                Apariencia del moco
+              </Label>
+              <Input
+                data-field="mucusAppearance"
+                id="mucusAppearance"
+                value={mucusAppearance}
+                onChange={(e) => setMucusAppearance(e.target.value)}
+                onKeyDown={handleAppearanceKeyDown}
+                ref={appearanceInputRef}
+                className={cn(
+                  'bg-white/70 border-apariencia text-gray-800 placeholder-gray-400 focus:border-apariencia focus:ring-apariencia font-semibold text-apariencia-fuerte',
+                  RADIUS.field
+                )}
+                disabled={isProcessing}
+              />
+            </div>
+
+            <div
+              className={cn(
+                'space-y-3 rounded-3xl border bg-gradient-to-r p-3 shadow-sm transition-colors duration-300',
+                symbolTheme.panelBorder,
+                symbolTheme.panelBackground
+              )}
+            >
+              <div className="flex flex-col gap-3">
+                <Label htmlFor="fertilitySymbol" className="flex items-center text-slate-800 text-sm font-semibold">
+                  <Sprout
+                    className={cn('mr-2 h-5 w-5 transition-colors duration-300', symbolTheme.icon)}
+                  />
+                  Símbolo de Fertilidad
+                </Label>
+                <Select value={fertilitySymbol} onValueChange={setFertilitySymbol} disabled={isProcessing}>
+                  <SelectTrigger
+                    ref={symbolTriggerRef}
+                    className={cn(
+                      'w-full border bg-white text-gray-800 transition-colors duration-200',
+                      symbolTheme.triggerBorder,
+                      symbolTheme.triggerHover,
+                      symbolTheme.triggerActive,
+                      symbolTheme.triggerFocus,
+                      RADIUS.field
+                    )}
+                    data-field="fertilitySymbol"
+                  >
+                    <SelectValue placeholder="Selecciona un símbolo" />
+                  </SelectTrigger>
+                  <SelectContent
+                    className={cn('bg-white text-gray-800', symbolTheme.contentBorder, RADIUS.dropdown)}
+                  >
+                    {FERTILITY_SYMBOL_OPTIONS.map((symbol) => (
+                      <SelectItem key={symbol.value} value={symbol.value} className="cursor-pointer rounded-3xl">
+                        <div className="flex items-center">
+                          <span
+                            className={cn(
+                              'mr-2 h-4 w-4 rounded-full border border-gray-300',
+                              symbol.pattern === 'spotting-pattern' ? 'spotting-pattern-icon' : symbol.color
+                            )}
+                          />
+                          {symbol.label}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
         );
         }
-      case 'sensation':
-        return (
-          <div className="space-y-2 rounded-3xl border border-sensacion bg-sensacion-suave p-3 shadow-sm">
-            <Label htmlFor="mucusSensation" className="flex items-center text-slate-800 text-sm font-semibold">
-              <Droplets className="mr-2 h-5 w-5 text-sensacion" />
-              Sensación del moco
-            </Label>
-            <Input
-              data-field="mucusSensation"
-              id="mucusSensation"
-              value={mucusSensation}
-              onChange={(e) => setMucusSensation(e.target.value)}
-              className={cn( "bg-white/70 border-sensacion text-gray-800 placeholder-gray-400 focus:border-sensacion ring-sensacion focus:ring-2 font-semibold text-sensacion-fuerte", RADIUS.field)}
-              disabled={isProcessing}
-            />
-          </div>
-        );
-      case 'appearance':
-        return (
-          <div className="space-y-2 rounded-3xl border border-apariencia bg-apariencia-suave p-3 shadow-sm">
-            <Label htmlFor="mucusAppearance" className="flex items-center text-slate-800 text-sm font-semibold">
-              <Circle className="mr-2 h-5 w-5 text-apariencia" />
-              Apariencia del moco
-            </Label>
-            <Input
-              data-field="mucusAppearance"
-              id="mucusAppearance"
-              value={mucusAppearance}
-              onChange={(e) => setMucusAppearance(e.target.value)}
-              className={cn("bg-white/70 border-apariencia text-gray-800 placeholder-gray-400 focus:border-apariencia focus:ring-apariencia font-semibold text-apariencia-fuerte", RADIUS.field)}
-              disabled={isProcessing}
-            />
-          </div>
-        );
       case 'observations':
         return (
           <div className="space-y-2 rounded-3xl border border-observaciones bg-observaciones-suave p-3 shadow-sm">
@@ -1046,8 +1118,7 @@ const DataEntryFormFields = ({
           </PopoverContent>
         </Popover>
       </div>
-
-      <div className="mt-4">
+      <div className="mt-2">
         <div
           ref={dockRef}
           className={cn(
@@ -1056,20 +1127,21 @@ const DataEntryFormFields = ({
           )}
         >
           <div className="flex flex-1 items-center gap-1 sm:gap-2">
-            {sectionOrder.map((section) => {
-              const Icon = section.icon;
-              const isExpanded = openSectionKeys.includes(section.key);
+            {dockItems.map((item) => {
+              const Icon = item.icon;
+              const targetSectionKey = item.sectionKey;
+              const isExpanded = openSectionKeys.includes(targetSectionKey);
               const isActive = !isViewAll && isExpanded;
-              const styles = sectionStyles[section.key] || {};
-              const isFilled = filledBySection[section.key];
+              const styles = sectionStyles[item.key] || sectionStyles[targetSectionKey] || {};
+              const isFilled = filledByDockItem[item.key] ?? filledBySection[targetSectionKey];
               const idleTextClass = styles.idleText ?? 'text-slate-500';
               const filledTextClass = styles.filledText ?? idleTextClass;
               return (
                 <button
-                  key={section.key}
+                  key={item.key}
                   type="button"
-                  onPointerDown={(e) => handleSectionPointerDown(e, section.key)}
-                  onClick={() => handleSectionClick(section.key)}
+                  onPointerDown={(e) => handleSectionPointerDown(e, targetSectionKey)}
+                  onClick={() => handleSectionClick(targetSectionKey)}
                   className={cn(
                     'flex h-11 w-11 items-center justify-center rounded-full border-2 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 touch-manipulation',
                     styles.focusRing,
@@ -1087,9 +1159,9 @@ const DataEntryFormFields = ({
                     !isActive && isViewAll && 'opacity-70',
                     'min-h-[44px] min-w-[44px]'
                   )}
-                  aria-label={section.ariaLabel}
+                  aria-label={item.ariaLabel}
                   aria-expanded={isExpanded}
-                  aria-controls={`${section.key}-panel`}
+                  aria-controls={`${targetSectionKey}-panel`}
                   data-active={isActive}
                 >
                   <Icon
@@ -1100,10 +1172,10 @@ const DataEntryFormFields = ({
                         : isFilled
                         ? filledTextClass
                         : idleTextClass
-                  )}
+                    )}
                     aria-hidden="true"
                   />
-                  <span className="sr-only">{section.srLabel}</span>
+                  <span className="sr-only">{item.srLabel}</span>
                 </button>
               );
             })}
@@ -1128,7 +1200,7 @@ const DataEntryFormFields = ({
           </button>
         </div>
       </div>
-      <div className="mt-3 space-y-2">
+      <div className="mt-2 space-y-1">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <PeakModeButton
             mode={peakMode}
@@ -1150,27 +1222,22 @@ const DataEntryFormFields = ({
             <span className="text-xs font-semibold uppercase tracking-wide">RS</span>
           </button>
         </div>
-        {existingPeakIsoDate && (
-          <div className="text-[11px] text-slate-500" aria-live="polite">
-            Día pico: {format(parseISO(existingPeakIsoDate), 'dd/MM')}
-          </div>
-        )}
-        {(statusMessages.peak || statusMessages.relations) && (
-          <div className="flex flex-col gap-1">
-            {statusMessages.peak && (
-              <span className="text-xs font-medium text-rose-600" role="status" aria-live="polite">
-                {statusMessages.peak}
-              </span>
-            )}
-            {statusMessages.relations && (
-              <span className="text-xs font-medium text-rose-600" role="status" aria-live="polite">
-                {statusMessages.relations}
-              </span>
-            )}
-          </div>
-        )}
+        {(existingPeakIsoDate || statusMessages.peak || statusMessages.relations) && (
+  <div className="flex items-center justify-between gap-2 text-[11px]">
+    <span className="text-slate-500">
+      {existingPeakIsoDate ? `Día pico: ${format(parseISO(existingPeakIsoDate), 'dd/MM')}` : ''}
+    </span>
+
+    {(statusMessages.peak || statusMessages.relations) && (
+      <span className="font-medium text-rose-600" role="status" aria-live="polite">
+        {statusMessages.peak ?? statusMessages.relations}
+      </span>
+    )}
+  </div>
+)}
+
       </div>
-      <div className="mt-3" ref={sectionsContainerRef}>
+      <div className="mt-2" ref={sectionsContainerRef}>
         <AnimatePresence initial={false}>
           {sectionOrder
             .filter((section) => openSectionKeys.includes(section.key))
@@ -1186,7 +1253,7 @@ const DataEntryFormFields = ({
                 transition={{ duration: 0.18, ease: 'easeInOut' }}
                 className="overflow-hidden"
               >
-                <div className="pt-3">
+                <div className="pt-2">
                   {renderSectionContent(section.key)}
                 </div>
               </motion.div>

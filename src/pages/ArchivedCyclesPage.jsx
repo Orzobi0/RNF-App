@@ -379,8 +379,8 @@ const ArchivedCyclesPage = () => {
                         <div className="flex items-start gap-3 flex-1 min-w-0">
                           {/* Icono del ciclo */}
                           <div className="flex flex-col items-center">
-                            <div className="w-12 h-12 bg-fertiliapp-suave rounded-full flex items-center justify-center flex-shrink-0">
-                              <Calendar className="w-6 h-6 text-fertiliapp-fuerte" />
+                            <div className="w-12 h-12 bg-fertiliapp rounded-full flex items-center justify-center flex-shrink-0">
+                              <Calendar className="w-6 h-6 text-white" />
                             </div>
                           </div>
 

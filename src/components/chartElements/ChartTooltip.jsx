@@ -240,14 +240,14 @@ const ChartTooltip = ({
         style={{ transform: `scale(${scale})`, width: baseWidth, minHeight: baseMinHeight }}
       >
         {/* Contenedor principal */}
-        <div className="relative bg-gradient-to-br from-white/80 to-rose-50/95 backdrop-blur-xl rounded-3xl border border-pink-100 shadow-2xl overflow-hidden">
+        <div className="relative tooltip-surface--gradient backdrop-blur-xl rounded-3xl shadow-2xl overflow-hidden">
 
           {/* Botón de cerrar */}
           <Button
           variant="ghost"
           size="icon"
           onClick={onClose}
-            className="absolute top-2 right-2 z-20 text-gray-400 hover:text-fertiliapp-fuerte hover:bg-fertiliapp-fuerte/20 rounded-full w-6 h-6 transition-all duration-200"
+          className="absolute top-2 right-2 z-20 text-gray-400 hover:text-fertiliapp-fuerte hover:bg-fertiliapp-suave rounded-full w-6 h-6 transition-all duration-200"
           >
             <XCircle size={20} />
           </Button>
@@ -259,9 +259,8 @@ const ChartTooltip = ({
               aria-hidden="true"
               title="Relaciones registradas"
             >
-              <div className="w-4 h-4 rounded-full bg-rose-100/90 border border-rose-200 flex items-center justify-center shadow-sm">
                 <Heart className="w-4 h-4 text-fertiliapp-fuerte" fill="currentColor" />
-              </div>
+
             </div>
           )}
 
@@ -273,24 +272,24 @@ const ChartTooltip = ({
               </div>
 
               {/* Reservar espacio a la izquierda para que el texto no se pegue al punto */}
-              <div className="flex items-center mb-1 pl-8">
-                <div>
+              <div className="mb-1 pl-8">
+                <div className="flex items-baseline justify-start gap-2">
                   <h3 className="font-bold text-left text-lg text-gray-800 tabular-nums tracking-wide">
                     {dateToFormat
                       ? format(parseISO(dateToFormat), 'dd/MM', { locale: es })
                       : 'Fecha'}
                   </h3>
-                  <p className="text-sm text-fertiliapp-fuerte font-medium">
-                    Día {point.cycleDay || 'N/A'} del ciclo
-                  </p>
-                  {peakLabel && (
-                    <div className="mt-1 flex justify-center">
-                      <Badge className="bg-rose-100 text-fertiliapp-fuerte border border-rose-200 px-2 py-0 text-[11px]">
-                        {peakLabel}
-                      </Badge>
-                    </div>
-                  )}
+                  <span className="text-sm text-fertiliapp-fuerte font-medium whitespace-nowrap">
+                    Día {point.cycleDay || 'N/A'}
+                  </span>
                 </div>
+                {peakLabel && (
+                  <div className="mt-1 flex justify-start">
+                    <Badge className="bg-tarjeta text-fertiliapp-fuerte border border-fertiliapp-suave px-2 py-0 text-[11px]">
+                      {peakLabel}
+                    </Badge>
+                  </div>
+                )}
               </div>
               </div>
 
@@ -352,11 +351,11 @@ const ChartTooltip = ({
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: 0.1 }}
-                      className="w-full text-left bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl p-1 border border-amber-100/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-200"
+                      className="w-full text-left bg-temp-suave rounded-2xl p-1 border border-temp focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-temp"
                       disabled={!onEdit}
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-6 h-6 bg-gradient-to-br from-amber-500 to-orange-600 rounded-lg flex items-center justify-center shadow-md">
+                        <div className="w-6 h-6 bg-temp rounded-lg flex items-center justify-center shadow-md">
                           <Thermometer className="w-4 h-4 text-white" />
                         </div>
                         <div className="flex-1">
@@ -417,15 +416,15 @@ const ChartTooltip = ({
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: 0.2 }}
-                      className="w-full text-left bg-gradient-to-r from-blue-50 to-indigo-50 rounded-3xl p-1 border border-blue-100/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-200"
+                      className="w-full text-left bg-sensacion-suave rounded-3xl p-1 border border-sensacion focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-200"
                       disabled={!onEdit}
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-md">
+                        <div className="w-6 h-6 bg-sensacion rounded-lg flex items-center justify-center shadow-md">
                           <Droplets className="w-4 h-4 text-white" />
                         </div>
                         <div className="flex-1 text-left">
-                          <span className="text-md font-semibold text-blue-800">
+                          <span className="text-md font-semibold text-sensacion-fuerte">
                             {mucusSensation || '-'}
                           </span>
                         </div>
@@ -439,15 +438,15 @@ const ChartTooltip = ({
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: 0.25 }}
-                      className="w-full text-left bg-gradient-to-r from-emerald-50 to-teal-50 rounded-3xl p-1 border border-emerald-100/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-emerald-200"
+                      className="w-full text-left bg-apariencia-suave rounded-3xl p-1 border border-apariencia focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-emerald-200"
                       disabled={!onEdit}
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-6 h-6 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center shadow-md">
+                        <div className="w-6 h-6 bg-apariencia rounded-lg flex items-center justify-center shadow-md">
                           <Circle className="w-4 h-4 text-white" />
                         </div>
                         <div className="flex-1 text-left">
-                          <span className="text-md font-semibold text-green-800">
+                          <span className="text-md font-semibold text-apariencia-fuerte">
                             {mucusAppearance || '-'}
                           </span>
                         </div>
@@ -462,15 +461,15 @@ const ChartTooltip = ({
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         transition={{ delay: 0.3 }}
-                        className="w-full text-left bg-gradient-to-r from-violet-50 to-purple-50 rounded-3xl p-1 border border-violet-100/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-violet-200"
+                        className="w-full text-left bg-observaciones-suave rounded-3xl p-1 border border-observaciones focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-violet-200"
                         disabled={!onEdit}
                       >
                         <div className="flex items-center gap-3">
-                          <div className="w-6 h-6 bg-gradient-to-br from-violet-500 to-purple-600 rounded-lg flex items-center justify-center shadow-md">
+                          <div className="w-6 h-6 bg-observaciones rounded-lg flex items-center justify-center shadow-md">
                             <Edit3 className="w-4 h-4 text-white" />
                           </div>
                           <div className="flex-1 text-left">
-                            <span className="text-sm font-semibold text-violet-800">
+                            <span className="text-sm font-semibold text-observaciones-fuerte">
                               {observations}
                             </span>
                           </div>
@@ -527,7 +526,7 @@ const ChartTooltip = ({
       </div>
 
       {/* Sombra adicional para profundidad */}
-      <div className="absolute -inset-2 bg-gradient-to-br from-pink-200/25 to-rose-300/25 rounded-3xl blur-xl -z-10"></div>
+      <div className="absolute -inset-2 tooltip-glow rounded-3xl blur-xl -z-10"></div>
     </motion.div>
   );
 };

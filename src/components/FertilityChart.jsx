@@ -285,9 +285,26 @@ const FertilityChart = ({
       ? fertilityStart.fertileWindow.temperatureInfertileStartIndex
       : null;
 
-    const postStartIndex = Number.isInteger(debug?.postOvulatoryStartIndex)
-      ? debug.postOvulatoryStartIndex
-      : null;
+    const computedPostStart = [mucusStartIndex, tempStartIndex]
+      .filter((idx) => Number.isInteger(idx))
+      .sort((a, b) => a - b)[0];
+
+    const postStartIndex = Number.isInteger(computedPostStart)
+      ? computedPostStart
+      : Number.isInteger(debug?.postOvulatoryStartIndex)
+        ? debug.postOvulatoryStartIndex
+        : null;
+
+    const computedAbsoluteStart =
+      Number.isInteger(mucusStartIndex) && Number.isInteger(tempStartIndex)
+        ? Math.max(mucusStartIndex, tempStartIndex)
+        : null;
+
+    const absoluteStartIndex = Number.isInteger(computedAbsoluteStart)
+      ? computedAbsoluteStart
+      : Number.isInteger(debug?.absoluteStartIndex)
+        ? debug.absoluteStartIndex
+        : null;
 
     const temperatureDetails = {
       confirmed: Boolean(ovulationDetails?.confirmed),
@@ -315,7 +332,7 @@ const FertilityChart = ({
       thirdDayIndex: Number.isInteger(ovulationDetails?.thirdDayIndex)
         ? ovulationDetails.thirdDayIndex
         : null,
-      startIndex: tempStartIndex,
+      startIndex: mucusStartIndex,
     };
 
     const hasTemperatureClosure = tempStartIndex != null;
@@ -330,33 +347,77 @@ const FertilityChart = ({
 
     let status = 'pending';
     let message = '';
-    let label = 'Postovulatoria (pendiente)';
-    let tooltip = 'Postovulatoria pendiente, a la espera del segundo criterio.';
+    let label = 'Infertilidad postovulatoria';
+    let tooltip = 'Fase postovulatoria: se ha cumplido un criterio de cierre; falta el segundo para confirmar la infertilidad absoluta.';
+
+    const absoluteLabel = 'Infertilidad absoluta';
+    const absoluteMessage = 'Fase postovulatoria alcanzada (se ha confirmado día pico y subida de temperatura).';
+    const absoluteTooltip = 'Confirmación completa: doble criterio (día pico + temperatura).';
+    const formatDay = (idx) => (Number.isInteger(idx) ? `D${idx + 1}` : '—');
+    let estimatedLabel = label;
+    let estimatedTooltip = tooltip;
+    let estimatedMessage = message;
+    let estimatedStatus = 'pending';
 
     if (hasTemperatureClosure && hasMucusClosure) {
       status = 'absolute';
-      label = 'Infertilidad absoluta';
-      tooltip = 'Infertilidad absoluta (postovulatoria con doble criterio alcanzado)';
-      message = 'Infertilidad absoluta';
+      label = absoluteLabel;
+      tooltip = absoluteTooltip;
+      message = absoluteMessage;
+
+      const temperatureFirst = Number.isInteger(tempStartIndex)
+        && (!Number.isInteger(mucusStartIndex) || tempStartIndex <= mucusStartIndex);
+      if (temperatureFirst) {
+        const ruleLabel = temperatureDetails.rule || 'regla desconocida';
+        const confirmationDay = temperatureDetails.confirmationIndex != null
+          ? `D${temperatureDetails.confirmationIndex + 1}`
+          : '—';
+        estimatedMessage = `Temperatura confirmada el ${confirmationDay}. A la espera de determinación del día pico.`;
+        estimatedTooltip = estimatedMessage;
+        estimatedLabel = 'Infertilidad estimada por temperatura';
+      } else {
+        const mucusRuleLabel = mucusDetails.thirdDayIndex != null ? '3° día postpico' : '4º día postpico';
+        estimatedMessage = `Alcanzado ${mucusRuleLabel} tras alcanzar día pico el ${mucusDetails.peakDayIndex + 1} del ciclo`;
+        estimatedTooltip = estimatedMessage;
+        estimatedLabel = 'Infertilidad estimada por moco';
+      }
     } else if (hasTemperatureClosure) {
       const ruleLabel = temperatureDetails.rule || 'regla desconocida';
       const confirmationDay = temperatureDetails.confirmationIndex != null
         ? `D${temperatureDetails.confirmationIndex + 1}`
         : '—';
-      message = `Postovulatoria (pendiente): falta moco. Temperatura con regla ${ruleLabel} confirmada en ${confirmationDay}.`;
+      message = `Temperatura confirmada el ${confirmationDay}. A la espera de determinación del día pico.`;
       tooltip = message;
-      label = 'Postovulatoria (temperatura)';
+      label = 'Infertilidad estimada por temperatura';
+      estimatedMessage = message;
+      estimatedTooltip = tooltip;
+      estimatedLabel = label;
     } else {
-      const mucusRuleLabel = mucusDetails.thirdDayIndex != null ? '3° día' : 'P+4';
-      message = `Postovulatoria (pendiente): falta temperatura (método moco alcanzado vía ${mucusRuleLabel}).`;
+      const mucusRuleLabel = mucusDetails.thirdDayIndex != null ? '3° día postpico' : '4º día postpico';
+      message = `Alcanzado ${mucusRuleLabel} tras seleccionar día pico el ${mucusDetails.peakDayIndex + 1} del ciclo`;
       tooltip = message;
-      label = 'Postovulatoria (moco)';
+      label = 'Infertilidad estimada por moco';
+      estimatedMessage = message;
+      estimatedTooltip = tooltip;
+      estimatedLabel = label;
     }
 
     return {
       phase: 'postOvulatory',
       status,
       startIndex,
+      absoluteStartIndex,
+      estimated: {
+        status: estimatedStatus,
+        label: estimatedLabel,
+        tooltip: estimatedTooltip,
+        message: estimatedMessage,
+      },
+      absolute: {
+        label: absoluteLabel,
+        tooltip: absoluteTooltip,
+        message: absoluteMessage,
+      },
       reasons: {
         type: 'post',
         status,
@@ -391,8 +452,62 @@ const FertilityChart = ({
         ? Math.min(relativeFertileLimitIndex, lastIndex)
         : lastIndex;
 
+        const appendPostSegments = (targetSegments, renderLimit) => {
+      if (!postOvulatoryPhaseInfo) return;
+
+      const postStart = postOvulatoryPhaseInfo.startIndex;
+      const absStart = Number.isInteger(postOvulatoryPhaseInfo.absoluteStartIndex)
+        ? postOvulatoryPhaseInfo.absoluteStartIndex
+        : null;
+
+      const estimatedInfo = postOvulatoryPhaseInfo.estimated ?? postOvulatoryPhaseInfo;
+      const absoluteInfo = postOvulatoryPhaseInfo.absolute ?? postOvulatoryPhaseInfo;
+
+      const absoluteSegmentStart = absStart != null ? absStart : postStart;
+      const renderEnd =
+        postOvulatoryPhaseInfo.status === 'absolute'
+          ? lastIndex
+          : Math.min(lastIndex, renderLimit);
+
+      if (absStart != null && absStart > postStart) {
+        const pendingEnd = Math.min(absStart - 1, renderLimit);
+        const pendingBounds = getSegmentBounds(postStart, pendingEnd);
+        if (pendingBounds) {
+          targetSegments.push({
+            key: 'post-pending',
+            phase: 'postOvulatory',
+            status: estimatedInfo.status ?? 'pending',
+            bounds: pendingBounds,
+            startIndex: postStart,
+            endIndex: pendingEnd,
+            displayLabel: estimatedInfo.label,
+            tooltip: estimatedInfo.tooltip,
+            message: estimatedInfo.message,
+            reasons: postOvulatoryPhaseInfo.reasons,
+          });
+        }
+      }
+
+      if (absoluteSegmentStart <= renderEnd) {
+        const absoluteBounds = getSegmentBounds(absoluteSegmentStart, renderEnd);
+        if (absoluteBounds) {
+          targetSegments.push({
+            key: 'post-absolute',
+            phase: 'postOvulatory',
+            status: absStart != null ? 'absolute' : postOvulatoryPhaseInfo.status,
+            bounds: absoluteBounds,
+            startIndex: absoluteSegmentStart,
+            endIndex: renderEnd,
+            displayLabel: absStart != null ? absoluteInfo.label : postOvulatoryPhaseInfo.label,
+            tooltip: absStart != null ? absoluteInfo.tooltip : postOvulatoryPhaseInfo.tooltip,
+            message: absStart != null ? absoluteInfo.message : postOvulatoryPhaseInfo.message,
+            reasons: postOvulatoryPhaseInfo.reasons,
+          });
+        }
+      }
+    };
     const hasFertileStart = Number.isInteger(fertileStartFinalIndex);
-const hasPostPhase = Number.isFinite(postOvulatoryPhaseInfo?.startIndex);
+    const hasPostPhase = Number.isFinite(postOvulatoryPhaseInfo?.startIndex);
 
     // Mientras NO haya ni inicio fértil (CPM / T-8 / perfiles / marcador)
     // ni fase postovulatoria, todo lo registrado se considera
@@ -460,25 +575,7 @@ const hasPostPhase = Number.isFinite(postOvulatoryPhaseInfo?.startIndex);
         Number.isFinite(postOvulatoryPhaseInfo.startIndex) &&
         postOvulatoryPhaseInfo.startIndex <= lastIndex
       ) {
-        const postEnd =
-          postOvulatoryPhaseInfo.status === 'absolute'
-            ? lastIndex
-            : Math.min(lastIndex, phaseRenderLimit);
-        const bounds = getSegmentBounds(postOvulatoryPhaseInfo.startIndex, postEnd);
-        if (bounds) {
-          segments.push({
-            key: 'post',
-            phase: postOvulatoryPhaseInfo.phase,
-            status: postOvulatoryPhaseInfo.status,
-            bounds,
-            startIndex: postOvulatoryPhaseInfo.startIndex,
-            endIndex: postEnd,
-            displayLabel: postOvulatoryPhaseInfo.label,
-            tooltip: postOvulatoryPhaseInfo.tooltip,
-            message: postOvulatoryPhaseInfo.message,
-            reasons: postOvulatoryPhaseInfo.reasons,
-          });
-        }
+    appendPostSegments(segments, phaseRenderLimit);
       }
 
       return segments;
@@ -571,25 +668,7 @@ const hasPostPhase = Number.isFinite(postOvulatoryPhaseInfo?.startIndex);
       Number.isFinite(postOvulatoryPhaseInfo.startIndex) &&
       postOvulatoryPhaseInfo.startIndex <= lastIndex
     ) {
-      const postEnd =
-        postOvulatoryPhaseInfo.status === 'absolute'
-          ? lastIndex
-          : Math.min(lastIndex, phaseRenderLimit);
-      const bounds = getSegmentBounds(postOvulatoryPhaseInfo.startIndex, postEnd);
-      if (bounds) {
-        segments.push({
-          key: 'post',
-          phase: postOvulatoryPhaseInfo.phase,
-          status: postOvulatoryPhaseInfo.status,
-          bounds,
-          startIndex: postOvulatoryPhaseInfo.startIndex,
-          endIndex: postEnd,
-          displayLabel: postOvulatoryPhaseInfo.label,
-          tooltip: postOvulatoryPhaseInfo.tooltip,
-          message: postOvulatoryPhaseInfo.message,
-          reasons: postOvulatoryPhaseInfo.reasons,
-        });
-      }
+      appendPostSegments(segments, phaseRenderLimit);
     }
 
     return segments;
@@ -685,7 +764,7 @@ const hasPostPhase = Number.isFinite(postOvulatoryPhaseInfo?.startIndex);
   const rotatedContainer = applyRotation;
   const baseFullClass = 'w-full h-full bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100';
   const containerClass = isFullScreen
-    ? `${baseFullClass} min-h-full ${rotatedContainer ? 'overflow-y-auto overflow-x-hidden' : 'overflow-x-auto overflow-y-visible'}`
+    ? `${baseFullClass} h-full ${rotatedContainer ? 'overflow-y-auto overflow-x-auto' : 'overflow-x-auto overflow-y-auto'}`
     : `${baseFullClass} overflow-x-auto overflow-y-visible border border-pink-100/50`;
   const showLegend = !isFullScreen || orientation === 'portrait';
 
@@ -705,12 +784,12 @@ const hasPostPhase = Number.isFinite(postOvulatoryPhaseInfo?.startIndex);
           ...(applyRotation
             ? {
                 position: 'absolute',
-                top: 0,
-                left: 0,
+                top: '50%',
+                left: '50%',
                 width: `${viewport.h}px`,
                 height: `${viewport.w}px`,
-                transform: 'rotate(90deg) translateY(-100%)',
-                transformOrigin: 'top left'
+                transform: 'translate(-50%, -50%) rotate(90deg)',
+                transformOrigin: 'center center',
               }
             : {})
         }}

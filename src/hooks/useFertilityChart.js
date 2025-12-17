@@ -8,7 +8,6 @@ import {
 } from '@/lib/fertilityStart';
 
 const DEFAULT_FERTILITY_START_CONFIG = {
-  methods: { alemanas: true, oms: true, creighton: true },
   calculators: { cpm: true, t8: true },
   postpartum: false,
   combineMode: 'conservador',
@@ -279,7 +278,7 @@ const evaluateHighSequence = ({
         : null;
       let infertileStartIndex = null;
       if (boundedConfirmation != null) {
-        const candidate = boundedConfirmation + 1;
+        const candidate = boundedConfirmation;
         infertileStartIndex = Math.max(0, Math.min(candidate, processedData.length - 1));
       }
 
@@ -546,20 +545,6 @@ export const useFertilityChart = (
     const config = fertilityStartConfig ?? {};
     const ensureBoolean = (value, fallback) =>
       typeof value === 'boolean' ? value : fallback;
-    const methods = {
-      alemanas: ensureBoolean(
-        config?.methods?.alemanas,
-        DEFAULT_FERTILITY_START_CONFIG.methods.alemanas
-      ),
-      oms: ensureBoolean(
-        config?.methods?.oms,
-        DEFAULT_FERTILITY_START_CONFIG.methods.oms
-      ),
-      creighton: ensureBoolean(
-        config?.methods?.creighton,
-        DEFAULT_FERTILITY_START_CONFIG.methods.creighton
-      ),
-    };
     const calculators = {
       cpm: ensureBoolean(
         config?.calculators?.cpm,
@@ -570,12 +555,12 @@ export const useFertilityChart = (
         DEFAULT_FERTILITY_START_CONFIG.calculators.t8
       ),
     };
-    const validModes = new Set(['conservador', 'consenso', 'permisivo']);
+    const validModes = new Set(['conservador', 'estandar']);
     const combineMode = validModes.has(config?.combineMode)
       ? config.combineMode
       : DEFAULT_FERTILITY_START_CONFIG.combineMode;
     const postpartum = Boolean(config?.postpartum);
-    return { methods, calculators, combineMode, postpartum };
+    return { calculators, combineMode, postpartum };
   }, [fertilityStartConfig]);
 
   const fertilityCalculatorCandidates = useMemo(() => {

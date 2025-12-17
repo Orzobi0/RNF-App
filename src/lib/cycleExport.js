@@ -3,26 +3,33 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 const cycleHeaders = [
-  'ID de ciclo',
-  'Inicio de ciclo',
-  'Fin de ciclo',
-  'ID del registro',
-  'Fecha (ISO)',
   'Fecha',
-  'Día del ciclo',
-  'Temp. sin corregir',
+  'Día ciclo',
+  'Temp.',
   'Temp. corregida',
   'Temp. gráfico',
   'Usa corregida',
-  'Sensación de moco',
-  'Aspecto de moco',
-  'Símbolo de fertilidad',
-  'Observaciones',
-  'Relaciones',
+  'Sensación',
+  'Apariencia',
+  'Símbolo',
+  'Obs',
+  'RS',
   'Ignorado',
-  'Marcador pico',
+  'Día pico',
   'Mediciones',
 ];
+
+const formatDate = (value) => {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return String(value);
+
+  const day = String(parsed.getDate()).padStart(2, '0');
+  const month = String(parsed.getMonth() + 1).padStart(2, '0');
+  const year = parsed.getFullYear();
+
+  return `${day}/${month}/${year}`;
+};
 
 const formatMeasurement = (measurement, index) => {
   if (!measurement) return `Medición ${index + 1}: N/D`;
@@ -63,9 +70,13 @@ const ensureProcessedEntries = (cycle) => {
 };
 
 const inferCycleTitle = (cycle, index) => {
+  const formattedStart = formatDate(cycle?.startDate);
+  const formattedEnd = formatDate(cycle?.endDate);
+
+  if (formattedStart && formattedEnd) return `Ciclo ${formattedStart} - ${formattedEnd}`;
+  if (formattedStart) return `Ciclo ${formattedStart}`;
   if (cycle?.name) return cycle.name;
   if (cycle?.type === 'current') return 'Ciclo actual';
-  if (cycle?.startDate) return `Ciclo ${cycle.startDate}`;
   if (cycle?.id) return `Ciclo ${cycle.id}`;
   return `Ciclo ${index + 1}`;
 };
@@ -98,23 +109,18 @@ export const formatCyclesForExport = (cycles = []) => {
   return cycles.map((cycle, index) => {
     const processedEntries = ensureProcessedEntries(cycle) ?? [];
     const rows = processedEntries.map((entry) => [
-      cycle?.id ?? '',
-      cycle?.startDate ?? '',
-      cycle?.endDate ?? '',
-      entry?.id ?? '',
-      entry?.isoDate ?? '',
-      entry?.date ?? '',
+      formatDate(entry?.date || entry?.isoDate),
       entry?.cycleDay ?? '',
       entry?.temperature_raw ?? '',
       entry?.temperature_corrected ?? '',
       entry?.temperature_chart ?? '',
-      entry?.use_corrected ? 'Sí' : 'No',
+      entry?.use_corrected ? 'Sí' : '',
       entry?.mucusSensation ?? '',
       entry?.mucusAppearance ?? '',
       entry?.fertility_symbol ?? '',
       entry?.observations ?? '',
-      entry?.had_relations ? 'Sí' : 'No',
-      entry?.ignored ? 'Sí' : 'No',
+      entry?.had_relations ? 'Sí' : '',
+      entry?.ignored ? 'Sí' : '',
       entry?.peak_marker ?? '',
       stringifyMeasurements(entry?.measurements),
     ]);
@@ -151,25 +157,20 @@ export const downloadCyclesAsPdf = (cycles, filename = 'ciclos.pdf') => {
   const horizontalMargin = 14;
   const tableWidth = doc.internal.pageSize.getWidth() - horizontalMargin * 2;
   const columnWidthRatios = {
-    0: 0.05,
-    1: 0.075,
-    2: 0.075,
-    3: 0.055,
-    4: 0.065,
+    0: 0.09,
+    1: 0.06,
+    2: 0.07,
+    3: 0.07,
+    4: 0.07,
     5: 0.05,
-    6: 0.035,
-    7: 0.045,
-    8: 0.045,
-    9: 0.045,
-    10: 0.035,
-    11: 0.045,
-    12: 0.045,
-    13: 0.045,
-    14: 0.05,
-    15: 0.09,
-    16: 0.035,
-    17: 0.045,
-    18: 0.12,
+    6: 0.07,
+    7: 0.07,
+    8: 0.05,
+    9: 0.14,
+    10: 0.06,
+    11: 0.06,
+    12: 0.05,
+    13: 0.09,
   };
   const computedColumnStyles = Object.fromEntries(
     Object.entries(columnWidthRatios).map(([index, ratio]) => [
@@ -203,8 +204,8 @@ export const downloadCyclesAsPdf = (cycles, filename = 'ciclos.pdf') => {
         halign: 'left',
         valign: 'top',
       },
-      headStyles: { fillColor: [244, 114, 182], textColor: [255, 255, 255], fontStyle: 'bold' },
-      alternateRowStyles: { fillColor: [252, 242, 248] },
+      headStyles: { fillColor: [216, 92, 112], textColor: [255, 255, 255], fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [255, 232, 238] },
       columnStyles: computedColumnStyles,
       margin: { left: horizontalMargin, right: horizontalMargin },
       tableWidth,

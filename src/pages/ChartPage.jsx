@@ -52,7 +52,6 @@ const formatCalculatorSourceLabel = (source) => {
 };
 
 const createDefaultFertilityStartConfig = () => ({
-  methods: { alemanas: true, oms: true, creighton: true },
   calculators: { cpm: true, t8: true },
   postpartum: false,
   combineMode: 'conservador',
@@ -63,12 +62,6 @@ const DEFAULT_CHART_SETTINGS = {
   fertilityStartConfig: createDefaultFertilityStartConfig(),
 };
 
-const FERTILITY_METHOD_OPTIONS = [
-  { key: 'alemanas', label: 'Alemanas' },
-  { key: 'oms', label: 'OMS' },
-  { key: 'creighton', label: 'Creighton' },
-];
-
 const FERTILITY_CALCULATOR_OPTIONS = [
   { key: 'cpm', label: 'CPM' },
   { key: 't8', label: 'T-8' },
@@ -76,31 +69,21 @@ const FERTILITY_CALCULATOR_OPTIONS = [
 
 const COMBINE_MODE_LABELS = {
   conservador: 'Conservador',
-  consenso: 'Consenso',
-  permisivo: 'Permisivo',
+  estandar: 'Estándar',
 };
 
 const mergeFertilityStartConfig = (incoming) => {
   const base = createDefaultFertilityStartConfig();
   const merged = {
-    methods: { ...base.methods },
     calculators: { ...base.calculators },
     postpartum: base.postpartum,
     combineMode: base.combineMode,
   };
 
   if (incoming && typeof incoming === 'object') {
-    Object.keys(merged.methods).forEach((key) => {
-      if (typeof incoming?.methods?.[key] === 'boolean') {
-        merged.methods[key] = incoming.methods[key];
-      }
-    });
-
-    let hasExplicitCalculatorValues = false;
     Object.keys(merged.calculators).forEach((key) => {
       if (typeof incoming?.calculators?.[key] === 'boolean') {
         merged.calculators[key] = incoming.calculators[key];
-        hasExplicitCalculatorValues = true;
       }
     });
 
@@ -112,27 +95,7 @@ const mergeFertilityStartConfig = (incoming) => {
       merged.postpartum = incoming.postpartum;
     } else if (incoming.postpartum != null) {
       merged.postpartum = Boolean(incoming.postpartum);
-    }
-    
-    if (!hasExplicitCalculatorValues) {
-      const { alemanas, oms, creighton } = merged.methods;
-      if (alemanas) {
-        merged.calculators.cpm = true;
-        merged.calculators.t8 = true;
-      } else if (oms || creighton) {
-        merged.calculators.cpm = false;
-        merged.calculators.t8 = false;
-      }
-    }
-  } else {
-    const { alemanas, oms, creighton } = merged.methods;
-    if (alemanas) {
-      merged.calculators.cpm = true;
-      merged.calculators.t8 = true;
-    } else if (oms || creighton) {
-      merged.calculators.cpm = false;
-      merged.calculators.t8 = false;
-    }
+    }    
   }
 
   return merged;
@@ -264,6 +227,7 @@ const ChartPage = () => {
     typeof window !== 'undefined' && window.innerWidth > window.innerHeight ? 'landscape' : 'portrait'
   );
   const [isFullScreen, setIsFullScreen] = useState(false);
+  const [forceLandscape, setForceLandscape] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [initialSectionKey, setInitialSectionKey] = useState(null);
@@ -358,7 +322,12 @@ const ChartPage = () => {
         } catch (error) {
           // ignored
         }
-        setOrientation('portrait');
+        setForceLandscape(false);
+        const nextOrientation =
+          typeof window !== 'undefined' && window.innerWidth > window.innerHeight
+            ? 'landscape'
+            : 'portrait';
+        setOrientation(nextOrientation);
       }
     };
 
@@ -378,6 +347,27 @@ const ChartPage = () => {
   useLayoutEffect(() => {
     window.dispatchEvent(new Event('resize'));
   }, [orientation, isFullScreen]);
+  
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const handleOrientationChange = () => {
+      if (forceLandscape) return;
+      const nextOrientation = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
+      setOrientation((prev) => (prev === nextOrientation ? prev : nextOrientation));
+      window.dispatchEvent(new Event('resize'));
+    };
+
+    window.addEventListener('resize', handleOrientationChange);
+    window.addEventListener('orientationchange', handleOrientationChange);
+
+    handleOrientationChange();
+
+    return () => {
+      window.removeEventListener('resize', handleOrientationChange);
+      window.removeEventListener('orientationchange', handleOrientationChange);
+    };
+  }, [forceLandscape]);
   if (showLoading) {
     return (
       <MainLayout>
@@ -510,35 +500,6 @@ const ChartPage = () => {
       ...prev,
       showRelationsRow: checked === true,
     }));
-  };
-  const handleFertilityMethodChange = (methodKey, checked) => {
-    setChartSettings((prev) => {
-      const currentConfig = prev.fertilityStartConfig ?? createDefaultFertilityStartConfig();
-      const nextValue = checked === true;
-      if (currentConfig.methods?.[methodKey] === nextValue) {
-        return prev;
-      }
-      const updatedConfig = {
-        ...currentConfig,
-        methods: {
-          ...currentConfig.methods,
-          [methodKey]: nextValue,
-        },
-      };
-
-      if (methodKey === 'alemanas' && nextValue) {
-        updatedConfig.calculators = {
-          ...currentConfig.calculators,
-          cpm: true,
-          t8: true,
-        };
-      }
-
-      return {
-        ...prev,
-        fertilityStartConfig: updatedConfig,
-      };
-    });
   };
   const handleFertilityCalculatorChange = (calculatorKey, checked) => {
     setChartSettings((prev) => {
@@ -867,7 +828,7 @@ const ChartPage = () => {
   const toggleInterpretation = () => {
     setShowInterpretation((v) => !v);
   };
-    const closePhaseOverlay = useCallback(() => {
+  const closePhaseOverlay = useCallback(() => {
     setPhaseOverlay(null);
   }, []);
   const handleInterpretationClick = (event) => {
@@ -887,6 +848,23 @@ const ChartPage = () => {
     }
   };
 
+  const formatDateFromIndex = useCallback(
+    (index) => {
+      if (!Number.isInteger(index) || index < 0 || index >= mergedData.length) return '—';
+      const entry = mergedData[index];
+      const dateValue = entry?.isoDate ?? entry?.date;
+      if (!dateValue) return '—';
+      try {
+        const parsedDate = typeof dateValue === 'string' ? parseISO(dateValue) : dateValue;
+        return format(parsedDate, 'dd/MM');
+      } catch (error) {
+        console.error('Error formatting date from index', error);
+        return '—';
+      }
+    },
+    [mergedData]
+  );
+
   const handleShowPhaseInfo = useCallback(
     (info = {}) => {
       if (!info) return;
@@ -894,6 +872,9 @@ const ChartPage = () => {
       const reasons = info.reasons ?? {};
       const aggregate = reasons?.aggregate ?? null;
       const usedCandidates = Array.isArray(aggregate?.usedCandidates) ? aggregate.usedCandidates : [];
+      const referenceCandidates = Array.isArray(aggregate?.ignoredCalculatorCandidates)
+        ? aggregate.ignoredCalculatorCandidates
+        : [];
       const fertileWindow = reasons?.window ?? reasons?.fertileWindow ?? null;
       const fertileStartIndex = Number.isInteger(reasons?.startIndex)
         ? reasons.startIndex
@@ -907,9 +888,8 @@ const ChartPage = () => {
           return 'Ajustado por marcadores';
         }
         const labels = {
-          conservador: 'Modo conservador',
-          consenso: 'Modo consenso',
-          permisivo: 'Modo permisivo',
+          conservador: 'Conservador',
+          estandar: 'Estándar',
         };
         return labels[selectedMode] ?? null;
       })();
@@ -926,111 +906,128 @@ const ChartPage = () => {
         return { candidate: match ?? usedCandidates[0] ?? null, dayNumber };
       };
 
-      const describeStartTrigger = (context = 'start') => {
-        const { candidate, dayNumber } = findCandidateForStart();
-        if (!candidate || !dayNumber) return null;
+      const getStartCauseLabel = () => {
+        const { candidate } = findCandidateForStart();
         const source = normalizeSource(candidate);
-        const cycleLength =
-          candidate?.base ??
-          candidate?.baseCycle ??
-          candidate?.shortestCycle ??
-          candidate?.referenceCycle ??
-          candidate?.finalValue ??
-          candidate?.baseValue ??
-          null;
-
-        if (source === 'CPM') {
-          if (context === 'start') {
-            return `Iniciado por cálculo (ciclo más corto: día ${dayNumber}).`;
-          }
-          return cycleLength
-            ? `Fin por cálculo del ciclo más corto (ciclo de ${cycleLength} días).`
-            : `Fin por cálculo del ciclo más corto (día ${dayNumber}).`;
-        }
-
-        if (source === 'T8' || source === 'T-8') {
-          const label = `día ${dayNumber}`;
-          return context === 'start'
-            ? `Iniciado por cálculo (día de subida en ciclos anteriores: T-8 = ${label}).`
-            : `Fin por cálculo según el día de subida de temperatura (T-8 = ${label}).`;
-        }
+        if (source === 'CPM') return 'alcanzar valor CPM';
+        if (source === 'T8' || source === 'T-8') return 'alcanzar valor T-8';
+        if (reasons?.source === 'marker' || reasons?.details?.explicitStartDay != null) return 'marcador';
 
         const reasonText = (candidate?.reason ?? '').toUpperCase();
         const isSensation = reasonText.includes('S') || reasonText.includes('BIP');
-        if (context === 'start') {
-          return isSensation
-            ? `Iniciado por presencia de sensación fértil (día ${dayNumber}).`
-            : `Iniciado por moco fértil (día ${dayNumber}).`;
-        }
-        return isSensation
-          ? `Fin por presencia de sensación fértil (día ${dayNumber}).`
-          : `Fin por presencia de moco fértil (día ${dayNumber}).`;
+        if (!reasonText && !source) return null;
+        return isSensation ? 'cambio en la sensación' : 'presencia de moco';
       };
 
-      let header = null;
       let title = '';
-      let body = '';
-      let reasonsList = [];
-      let note = null;
+      let message = '';
+      let description = null;
 
       if (phase === 'relativeInfertile') {
         title = 'Relativamente infértil';
-        if (Number.isInteger(fertileStartIndex)) {
-          body = describeStartTrigger('end') ?? 'Fin de fase relativamente infértil.';
+        const fertileStarted = Number.isInteger(fertileStartIndex);
+        const hasReference =
+          selectedMode === 'estandar' && Array.isArray(referenceCandidates) && referenceCandidates.length > 0;
+        const startCause = getStartCauseLabel();
+        const startDate = formatDateFromIndex(fertileStartIndex);
+
+        if (!fertileStarted) {
+          if (selectedMode === 'conservador') {
+            message = 'A la espera de cálculo (CPM/T-8) o signos de moco/sensación.';
+          } else if (hasReference) {
+            message = 'Referencia alcanzada (CPM/T-8). A la espera de signos de moco/sensación.';
+          } else {
+            message = 'A la espera de signos de moco/sensación.';
+          }
         } else {
-          body = 'A la espera de cambio en la sensación o apariencia del moco.';
+          const triggerLabel = startCause ?? '—';
+          message = `Fin de fase por ${triggerLabel}.`;
+          description = startDate !== '—' ? `Inicio fértil: ${startDate}.` : null;
         }
 
         } else if (phase === 'fertile') {
-        title = 'Fértil';
-        const startDetail = describeStartTrigger('start') ?? 'Inicio de fase fértil.';
+        title = 'Fase fértil';
+        const startCause = getStartCauseLabel() ?? '—';
+        const startDate = formatDateFromIndex(fertileStartIndex);
+        const startLabel = startDate ?? '—';
         const hasPostPhase = Number.isFinite(fertileWindow?.endIndex);
         const hasMucusClosure = Number.isInteger(fertileWindow?.mucusInfertileStartIndex);
         const hasTemperatureClosure = Number.isInteger(fertileWindow?.temperatureInfertileStartIndex);
 
-        let closureDetail = null;
+        message = `Iniciada el ${startLabel} por ${startCause}.`;
+
         if (!hasPostPhase) {
-          closureDetail = 'A la espera de cierre por determinación de día pico o temperatura.';
+          description = 'A la espera de cierre por día pico y/o confirmación de temperatura.';
         } else if (hasMucusClosure && hasTemperatureClosure) {
-          closureDetail = 'Fin determinado por moco y temperatura.';
+          description = 'Finalizada por doble criterio.';
         } else if (hasMucusClosure) {
-          closureDetail = 'Fin determinado por determinación de día pico.';
+          description = 'Finalizada por día pico.';
         } else if (hasTemperatureClosure) {
-          closureDetail = 'Fin determinado por curva de temperatura.';
+          description = 'Finalizada por temperatura.';
         }
-        body = closureDetail ? `${startDetail} ${closureDetail}` : startDetail;
+
       } else if (phase === 'postOvulatory') {
-        title = 'Infértil postovulatoria';
-        const hasTemperature =
-          Number.isInteger(reasons?.temperature?.startIndex) ||
-          Number.isInteger(fertileWindow?.temperatureInfertileStartIndex);
-        const hasMucus =
-          Number.isInteger(reasons?.mucus?.startIndex) ||
-          Number.isInteger(fertileWindow?.mucusInfertileStartIndex);
+        const displayLabel = (info?.displayLabel ?? info?.label ?? '').toLowerCase();
+        const status = info?.status ?? reasons?.status ?? null;
+        const tempConfirmationDate = formatDateFromIndex(
+          Number.isInteger(reasons?.temperature?.confirmationIndex)
+            ? reasons.temperature.confirmationIndex
+            : Number.isInteger(reasons?.temperature?.startIndex)
+              ? reasons.temperature.startIndex
+              : fertileWindow?.temperatureInfertileStartIndex
+        );
+        const peakDate = formatDateFromIndex(reasons?.mucus?.peakDayIndex);
+        const mucusInfertileDate = formatDateFromIndex(
+          Number.isInteger(reasons?.mucus?.infertileStartIndex)
+            ? reasons.mucus.infertileStartIndex
+            : info?.startIndex
+        );
+        const segmentStartDate = formatDateFromIndex(info?.startIndex);
 
-        if (hasTemperature && hasMucus) {
-          body = 'Determinada por moco y temperatura (doble criterio).';
-        } else if (hasMucus) {
-          body = 'Determinada por moco.';
-        } else if (hasTemperature) {
-          body = 'Determinada por temperatura.';
-        }
+        if (status === 'absolute' || info?.displayLabel === 'Infertilidad absoluta') {
+          title = 'Infertilidad postovulatoria confirmada';
+          message = `Comienza el ${segmentStartDate}.`;
+          description = `Confirmada por temperatura (${tempConfirmationDate}) y 3.º/4.º día postpico (${mucusInfertileDate}).`;
+        } else if (displayLabel.includes('moco')) {
+          title = 'Infertilidad post-pico';
+          // Índice real donde empieza la infertilidad por moco (lo que se está dibujando)
+          const mucusInfertileIndex =
+            Number.isInteger(reasons?.mucus?.infertileStartIndex)
+              ? reasons.mucus.infertileStartIndex
+              : Number.isInteger(info?.startIndex)
+                ? info.startIndex
+                : null;
 
-        if (!body) {
-          body = 'Infertilidad postovulatoria.';
-        }
-        if (reasons?.status === 'pending') {
-          note = 'Pendiente completar el segundo criterio.';
+          const peakIndex = Number.isInteger(reasons?.mucus?.peakDayIndex)
+            ? reasons.mucus.peakDayIndex
+            : null;
+
+          let postPicoLabel = 'día postpico';
+          if (Number.isInteger(mucusInfertileIndex) && Number.isInteger(peakIndex)) {
+            const delta = mucusInfertileIndex - peakIndex;
+            if (delta === 3) postPicoLabel = '3.º día postpico';
+            else if (delta === 4) postPicoLabel = '4.º día postpico';
+          }
+          message = `Alcanzada el ${segmentStartDate} por ${postPicoLabel}. Día pico: ${peakDate}.`;
+          description = 'A la espera de confirmación por temperatura.';
+        } else if (displayLabel.includes('temperatura')) {
+          title = 'Infertilidad postovulatoria por temperatura';
+          message = `Temperatura confirmada el ${tempConfirmationDate}.`;
+          description = 'A la espera de determinación del día pico.';
+        } else {
+          title = 'Fase postovulatoria';
+          message = 'Interpretación postovulatoria disponible.';
+          description = status === 'pending' ? 'Pendiente completar el segundo criterio.' : null;
         }
       } else if (phase === 'nodata') {
         const status = reasons?.status ?? info?.status ?? null;
         if (status === 'no-fertile-window') {
           title = 'Sin ventana fértil identificable';
-          body =
+          message =
             'No se ha identificado un inicio fértil claro en este ciclo (ni por moco, ni por calculadora, ni por marcador explícito).';
         } else {
           title = 'Sin datos suficientes';
-          body = 'Añade registros de sensación, moco o temperatura para interpretar el ciclo.';
+          message = 'Añade registros de sensación, moco o temperatura para interpretar el ciclo.';
         }
       } else if (info?.message) {
         title = info.message;
@@ -1041,27 +1038,28 @@ const ChartPage = () => {
       if (!title) {
         return;
       }
-      
-      if (!header && typeof info?.message === 'string' && info.message.trim().length > 0) {
-        header = info.message;
-      }
+
 
       setPhaseOverlay({
-        header,
         title,
-        body,
-        reasons: reasonsList,
-        note,
+        message,
+        description,
         modeLabel,
       });
     },
-    [fertilityConfig, setPhaseOverlay]
+    [fertilityConfig, formatDateFromIndex, mergedData.length, setPhaseOverlay]
   );
 
   const handleToggleFullScreen = async () => {
     const rootElement = document.documentElement;
     const screenOrientation =
       typeof window !== 'undefined' ? window.screen?.orientation : null;
+
+      const enableForcedLandscape = () => {
+      setOrientation('landscape');
+      setIsFullScreen(true);
+      setForceLandscape(true);
+    };
 
     if (!isFullScreen) {
       const requestFullScreen =
@@ -1072,12 +1070,14 @@ const ChartPage = () => {
 
       const hasRequestFullScreen = Boolean(requestFullScreen);
       const canLockOrientation = Boolean(screenOrientation?.lock);
-        if (!hasRequestFullScreen && !canLockOrientation) {
-          window.alert('La pantalla completa no está disponible en este dispositivo.');
-          return;
-        }
+      
 
-        let enteredFullScreen = false;
+      if (!hasRequestFullScreen && !canLockOrientation) {
+        enableForcedLandscape();
+        return;
+      }
+
+      let enteredFullScreen = false;
       let lockedOrientation = false;
 
       try {
@@ -1101,11 +1101,9 @@ const ChartPage = () => {
       const activatedFullScreen = enteredFullScreen || lockedOrientation;
 
       if (activatedFullScreen) {
-        setOrientation('landscape');
-        setIsFullScreen(true);
+        enableForcedLandscape();
       } else {
-        setOrientation('portrait');
-        setIsFullScreen(false);
+        enableForcedLandscape();
       }
 
     } else {
@@ -1135,7 +1133,12 @@ const ChartPage = () => {
       } catch (err) {
         console.error(err);
       }
-      setOrientation('portrait');
+      setForceLandscape(false);
+      const nextOrientation =
+        typeof window !== 'undefined' && window.innerWidth > window.innerHeight
+          ? 'landscape'
+          : 'portrait';
+      setOrientation(nextOrientation);
       setIsFullScreen(false);
     }
   };
@@ -1170,7 +1173,7 @@ const ChartPage = () => {
           onClick={() => setSettingsOpen((prev) => !prev)}
           variant="ghost"
           size="icon"
-          className="absolute top-16 right-4 z-10 p-2 rounded-full bg-white/80 shadow-lg shadow-slate-300/50 text-slate-700 hover:bg-[#E27DBF]/20"
+          className="absolute top-16 right-4 z-10 p-2 rounded-full bg-white shadow-lg shadow-secundario text-secundario hover:brightness-95"
           aria-label="Ajustes del gráfico"
         >
           <Settings className="h-4 w-4" />
@@ -1181,8 +1184,8 @@ const ChartPage = () => {
           variant="ghost"
           size="icon"
           className={`absolute top-4 right-20 z-10 p-2 rounded-full transition-colors ${showInterpretation 
-            ? 'bg-gradient-to-br from-pink-500 to-rose-500 text-white shadow-lg shadow-pink-300/50 border-pink-400' 
-            : 'bg-white/80 text-slate-600 hover:bg-pink-50/80 shadow-md border-pink-200/50'}`}
+            ? 'bg-fertiliapp-fuerte text-white shadow-lg shadow-fertiliapp-fuerte/50 border-fertiliapp-fuerte/70' 
+            : 'bg-white/80 text-fertiliapp-fuerte border border-fertiliapp-fuerte hover:brightness-95 shadow-md'}`}
         >
           {showInterpretation ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
         </Button>
@@ -1205,7 +1208,7 @@ const ChartPage = () => {
           visibleDays={visibleDays}
           showInterpretation={showInterpretation}
           reduceMotion={true}
-          forceLandscape={orientation === 'landscape'}
+          forceLandscape={forceLandscape || orientation === 'landscape'}
           currentPeakIsoDate={currentPeakIsoDate}
           showRelationsRow={chartSettings.showRelationsRow}
           fertilityStartConfig={fertilityStartConfig}
@@ -1230,12 +1233,12 @@ const ChartPage = () => {
             role="dialog"
             aria-modal="true"
             >
-            <div className="flex h-full flex-col gap-6 border-l border-rose-100/60 bg-white p-6 shadow-xl">
+            <div className="flex h-full flex-col gap-6 border-xl rounded-xl border-rose-100/60 bg-white p-6 shadow-xl">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-lg font-semibold text-slate-700">Ajustes del gráfico</h2>
+                <h2 className="text-lg font-semibold text-titulo">Ajustes del gráfico</h2>
                 <p className="text-sm text-slate-500">
-                  Personaliza la visualización de filas adicionales en la gráfica.
+                  Personaliza la visualización del gráfico
                 </p>
               </div>
               <Button
@@ -1249,10 +1252,10 @@ const ChartPage = () => {
               </Button>
             </div>
             <div className="space-y-4 overflow-y-auto pr-1">
-              <div className="rounded-xl border border-rose-100/70 bg-rose-50/40 p-4 flex items-start justify-between gap-3">
+              <div className="rounded-2xl border border-rose-100/70 bg-rose-50/40 p-4 flex items-start justify-between gap-3">
                 <div className="max-w-xs">
                   <Label htmlFor="toggle-relations-row" className="text-sm font-semibold text-slate-700">
-                    Mostrar fila de Relaciones (RS)
+                    Mostrar fila RS
                   </Label>
                   <p className="text-xs text-slate-500 mt-1">
                     Añade una fila dedicada a las relaciones sexuales debajo de la gráfica.
@@ -1264,29 +1267,9 @@ const ChartPage = () => {
                   onCheckedChange={handleRelationsSettingChange}
                   className="mt-1"
                 />
-              </div>
-            
-              <div className="rounded-xl border border-purple-100/70 bg-purple-50/40 p-4 space-y-3">
-                <div>
-                  <h3 className="text-sm font-semibold text-slate-700">Perfiles sintotérmicos</h3>
-                  <p className="text-xs text-slate-500">
-                    Activa los métodos que quieras considerar para detectar el inicio fértil.
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  {FERTILITY_METHOD_OPTIONS.map((option) => (
-                    <div key={option.key} className="flex items-center justify-between gap-3">
-                      <span className="text-sm text-slate-700">{option.label}</span>
-                      <Checkbox
-                        checked={Boolean(fertilityConfig.methods?.[option.key])}
-                        onCheckedChange={(checked) => handleFertilityMethodChange(option.key, checked)}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
+              </div>            
 
-              <div className="rounded-xl border border-amber-100/70 bg-amber-50/40 p-4 space-y-3">
+              <div className="rounded-2xl border border-amber-100/70 bg-amber-50/40 p-4 space-y-3">
                 <div>
                   <h3 className="text-sm font-semibold text-slate-700">Calculadoras complementarias</h3>
                   <p className="text-xs text-slate-500">
@@ -1311,7 +1294,7 @@ const ChartPage = () => {
                 </div>
               </div>
 
-              <div className="rounded-xl border border-sky-100/70 bg-sky-50/40 p-4 space-y-3">
+              <div className="rounded-2xl border border-sky-100/70 bg-sky-50/40 p-4 space-y-3">
                 <div>
                   <h3 className="text-sm font-semibold text-slate-700">Modo de combinación</h3>
                   <p className="text-xs text-slate-500">
@@ -1319,12 +1302,12 @@ const ChartPage = () => {
                   </p>
                 </div>
                 <Select value={fertilityConfig.combineMode} onValueChange={handleCombineModeChange}>
-                  <SelectTrigger className="w-full bg-white/80 border-slate-200 text-sm text-slate-700">
+                  <SelectTrigger className="w-full bg-white/80 border-slate-200 text-sm rounded-3xl text-slate-700">
                     <SelectValue placeholder="Selecciona un modo" />
                   </SelectTrigger>
-                  <SelectContent className="bg-white border-slate-200 text-slate-700">
+                  <SelectContent className="bg-white border-slate-200 text-slate-700 rounded-3xl">
                     {Object.entries(COMBINE_MODE_LABELS).map(([value, label]) => (
-                      <SelectItem key={value} value={value} className="text-sm">
+                      <SelectItem key={value} value={value} className="text-sm rounded-3xl">
                         {label}
                       </SelectItem>
                     ))}
@@ -1352,46 +1335,34 @@ const ChartPage = () => {
           containerClassName="p-6"
         >
           {phaseOverlay && (
-            <div className="space-y-4 text-left">
-              <div className="flex items-start justify-between gap-4">
-                <div className="space-y-1">
-                  {phaseOverlay.header && (
-                    <p className="text-xs font-semibold uppercase tracking-wide text-pink-600">
-                      {phaseOverlay.header}
-                    </p>
-                  )}
-                  <h2 className="text-lg font-semibold text-slate-800">
+            <div className="space-y-3 text-left">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <h2 className="text-lg font-semibold text-fertiliapp-fuerte">
                     {phaseOverlay.title}
                   </h2>
-                </div>
-                <div className="flex items-center gap-2">
                   {phaseOverlay.modeLabel && (
-                    <span className="rounded-full border border-rose-100 bg-rose-50 px-3 py-1 text-[11px] font-semibold text-rose-700">
+                    <span className="rounded-full border border-secundario bg-secundario-suave px-3 py-1 text-[11px] font-semibold text-secundario-fuerte">
                       {phaseOverlay.modeLabel}
                     </span>
                   )}
-                  <button
-                    type="button"
-                    onClick={closePhaseOverlay}
-                    className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-200"
-                    aria-label="Cerrar detalle de interpretación"
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
                 </div>
+                <button
+                  type="button"
+                  onClick={closePhaseOverlay}
+                  className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-200"
+                  aria-label="Cerrar detalle de interpretación"
+                >
+                  <X className="h-5 w-5" />
+                </button>
               </div>
-              {phaseOverlay.body && (
-                <p className="text-sm leading-relaxed text-slate-600">{phaseOverlay.body}</p>
+              
+              {phaseOverlay.message && (
+                <p className="text-sm leading-relaxed text-slate-700">{phaseOverlay.message}</p>
               )}
-              {Array.isArray(phaseOverlay.reasons) && phaseOverlay.reasons.length > 0 && (
-                <ul className="list-disc space-y-1 pl-5 text-sm text-slate-600">
-                  {phaseOverlay.reasons.map((reason, index) => (
-                    <li key={`${reason}-${index}`}>{reason}</li>
-                  ))}
-                </ul>
-              )}
-              {phaseOverlay.note && (
-                <p className="text-xs text-slate-500">{phaseOverlay.note}</p>
+              
+              {phaseOverlay.description && (
+                <p className="text-sm leading-relaxed text-slate-500">{phaseOverlay.description}</p>
               )}
             </div>
           )}

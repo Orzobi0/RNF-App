@@ -10,7 +10,7 @@ import React from 'react';
               type="button"
               onClick={onCancel}
               variant="outline"
-              className="w-full rounded-3xl border-pink-200 bg-white/70 text-gray-700 hover:bg-fertiliapp-fuerte font-semibold py-2.5 text-sm"
+              className="w-full rounded-3xl border-pink-200 bg-white/70 text-gray-700 hover:bg-alerta font-semibold py-2.5 text-sm"
               disabled={isProcessing}
             >
               <XCircle className="mr-2 h-5 w-5" />

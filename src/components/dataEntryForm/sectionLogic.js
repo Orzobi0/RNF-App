@@ -4,6 +4,11 @@ export const SECTION_METADATA = Object.freeze({
     ariaLabel: 'Alternar sección de temperatura',
     srLabel: 'Temperatura',
   },
+  moco: {
+    key: 'moco',
+    ariaLabel: 'Alternar sección de moco cervical',
+    srLabel: 'Moco cervical',
+  },
   symbol: {
     key: 'symbol',
     ariaLabel: 'Alternar sección de símbolo de fertilidad',
