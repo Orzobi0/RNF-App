@@ -322,6 +322,12 @@
     min-height: 100svh;
     min-height: 100dvh;
   }
+  .h-app {
+    height: calc(var(--app-vh, 1vh) * 100);
+  }
+  .min-h-app {
+    min-height: calc(var(--app-vh, 1vh) * 100);
+  }
 
   /* Texto */
   .text-fertiliapp { color: var(--color-fertiliapp); }

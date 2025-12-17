@@ -459,19 +459,20 @@ const ChartPage = () => {
       radial-gradient(140% 140% at 100% 100%, rgba(255,255,255,0.9) 0, rgba(255,247,250,0.3) 40%, transparent 70%)
     `
   };
+  const APP_H = 'calc(var(--app-vh, 1vh) * 100)';
   const NAVBAR_SAFE_VAR = 'var(--bottom-nav-safe)';
   const containerStyle = isFullScreen
     ? {
         ...baseStyle,
-        height: '100dvh',
-        maxHeight: '100dvh',
+        height: APP_H,
+        maxHeight: APP_H,
         paddingTop: 'env(safe-area-inset-top)',
         paddingBottom: 'env(safe-area-inset-bottom)'
         }
     : {
         ...baseStyle,
-        height: `calc(100dvh - ${NAVBAR_SAFE_VAR})`,
-        maxHeight: `calc(100dvh - ${NAVBAR_SAFE_VAR})`,
+        height: `calc(${APP_H} - ${NAVBAR_SAFE_VAR})`,
+        maxHeight: `calc(${APP_H} - ${NAVBAR_SAFE_VAR})`,
         paddingTop: 'env(safe-area-inset-top)',
         paddingBottom: 'env(safe-area-inset-bottom)'
       };
@@ -1148,7 +1149,7 @@ const ChartPage = () => {
       <div
         className={
           isFullScreen
-            ? 'fixed inset-0 z-50 h-[100dvh] w-[100dvw] overflow-y-auto overflow-x-hidden'
+            ? 'fixed inset-0 z-50 h-app w-[100vw] overflow-y-auto overflow-x-hidden'
             : 'relative w-full h-full overflow-y-auto overflow-x-hidden'}
         style={containerStyle}
       >
@@ -1227,7 +1228,7 @@ const ChartPage = () => {
             />
             )}
             {/* Drawer fijo */}
-            <div className={`fixed top-0 right-0 z-50 h-dvh w-72 sm:w-80 transform transition-transform duration-300 ease-in-out ${
+            <div className={`fixed top-0 right-0 z-50 h-app w-72 sm:w-80 transform transition-transform duration-300 ease-in-out ${
               settingsOpen ? 'translate-x-0' : 'translate-x-full'
             }`}
             role="dialog"

@@ -15,6 +15,7 @@ import MainLayout from '@/components/layout/MainLayout';
 import { Toaster } from '@/components/ui/toaster';
 import { motion } from 'framer-motion';
 import UpdateNotification from '@/components/UpdateNotification';
+import ViewportHeightFix from "@/components/ViewportHeightFix";
 
 function ProtectedRoute({ children }) {
   const { user } = useAuth();
@@ -146,6 +147,7 @@ function AppContent() {
 function App() {
   return (
     <BrowserRouter basename={import.meta.env.BASE_URL}>
+      <ViewportHeightFix />
       <UpdateNotification />
       <AuthProvider>
         <CycleDataProvider>
