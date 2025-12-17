@@ -44,7 +44,7 @@ const CALENDAR_SWIPE_VELOCITY = 400;
 const CALENDAR_EXIT_OFFSET = 120;
 const CALENDAR_DRAG_LIMIT = 85;
 const CALENDAR_DRAG_ACTIVATION_THRESHOLD = 5;
-const CALENDAR_SNAP_DURATION = 160;
+const CALENDAR_SNAP_DURATION = 10;
 // Formatea la temperatura para la UI. Devuelve null si el valor no es numérico.
 const formatTemperatureDisplay = (value) => {
   if (value === null || value === undefined || value === '') return null;
@@ -448,6 +448,8 @@ export const RecordsExperience = ({
     pointerId: null,
     startTime: 0,
     dragging: false,
+    gridWidth: 0,
+    swipeThreshold: 0,
   });
   const calendarSwipeCleanupRef = useRef(null);
   const calendarSwipeContainerRef = useRef(null);
@@ -918,6 +920,10 @@ const enterStart = -exitTarget;
       state.startTime = performance.now();
       state.dragging = false;
 
+      const width = gridTarget.getBoundingClientRect().width || 0;
+ state.gridWidth = width;
+ // umbral “natural”: 20% del ancho, pero nunca menos de 60px
+ state.swipeThreshold = width ? Math.max(CALENDAR_SWIPE_OFFSET, width * 0.2) : CALENDAR_SWIPE_OFFSET;
       const handlePointerMove = (moveEvent) => {
         if (!state.active || moveEvent.pointerId !== state.pointerId) {
           return;
@@ -933,7 +939,8 @@ const enterStart = -exitTarget;
           return;
         }
 
-        const limited = Math.max(-CALENDAR_DRAG_LIMIT, Math.min(CALENDAR_DRAG_LIMIT, delta));
+       const limit = state.gridWidth || CALENDAR_DRAG_LIMIT;
+       const limited = Math.max(-limit, Math.min(limit, delta));
         moveEvent.preventDefault();
         updateCalendarDragX(limited);
       };
@@ -950,8 +957,9 @@ const enterStart = -exitTarget;
         const totalDelta = upEvent.clientX - state.startX;
         const elapsed = performance.now() - state.startTime;
         const velocity = elapsed > 0 ? (totalDelta / elapsed) * 1000 : 0;
-        const movedEnoughNext = totalDelta <= -CALENDAR_SWIPE_OFFSET || velocity <= -CALENDAR_SWIPE_VELOCITY;
-        const movedEnoughPrev = totalDelta >= CALENDAR_SWIPE_OFFSET || velocity >= CALENDAR_SWIPE_VELOCITY;
+        const threshold = state.swipeThreshold || CALENDAR_SWIPE_OFFSET;
+        const movedEnoughNext = totalDelta <= -threshold || velocity <= -CALENDAR_SWIPE_VELOCITY;
+        const movedEnoughPrev = totalDelta >= threshold || velocity >= CALENDAR_SWIPE_VELOCITY;
         const wasDragging = state.dragging;
         state.dragging = false;
         setIsCalendarDragging(false);
