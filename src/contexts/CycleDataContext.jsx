@@ -19,6 +19,9 @@ import {
   forceShiftNextCycleStart as forceShiftNextCycleStartDB
 } from '@/lib/cycleDataHandler';
 import { getCachedCycleData, saveCycleDataToCache, clearCycleDataCache } from '@/lib/cycleCache';
+import { getFunctions, httpsCallable } from "firebase/functions";
+import { readBbtFromHealthConnect } from "@/lib/healthConnectSync";
+
 
 const CycleDataContext = createContext(null);
 
@@ -696,9 +699,52 @@ export const CycleDataProvider = ({ children }) => {
     [loadCycleData]
   );
 
+    const syncHealthConnectTemperatures = useCallback(async () => {
+    if (!user?.uid) throw new Error("NO_USER");
+    if (!currentCycle?.id || !currentCycle?.startDate) throw new Error("NO_CURRENT_CYCLE");
+
+    setIsLoading(true);
+    try {
+      const items = await readBbtFromHealthConnect({ startDate: currentCycle.startDate });
+
+      if (!items.length) {
+        toast({ title: "Sin registros", description: "No se encontraron temperaturas en Health Connect." });
+        return;
+      }
+
+      const functions = getFunctions(); // si usas región, aquí: getFunctions(app, "europe-west1")
+      const syncFn = httpsCallable(functions, "syncBasalBodyTemperature");
+
+      const resp = await syncFn({
+        cycleId: currentCycle.id,
+        items,
+      });
+
+      const data = resp?.data;
+      toast({
+        title: "Sincronización hecha",
+        description: `Nuevos: ${data?.created ?? 0} · Ya estaban: ${data?.skippedExisting ?? 0} · Rechazados: ${data?.rejected ?? 0}`,
+      });
+
+      await loadCycleData({ silent: true });
+    } catch (e) {
+      console.error(e);
+      toast({
+        title: "Error al sincronizar",
+        description: String(e?.message || e),
+        variant: "destructive",
+      });
+      throw e;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user, currentCycle, loadCycleData, toast]);
+
+
   const value = {
     currentCycle,
     archivedCycles,
+    syncHealthConnectTemperatures,
     addOrUpdateDataPoint,
     deleteRecord,
     startNewCycle,

@@ -1,8 +1,197 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
+const { FieldValue } = require("firebase-admin/firestore");
 
 admin.initializeApp();
 const db = admin.firestore();
+
+const sanitizeDocId = (s) =>
+  String(s)
+    .trim()
+    // Firestore doc ids: evitamos chars problemáticos
+    .replace(/[\/\?#\[\]]/g, "_")
+    .slice(0, 900);
+
+const normalizeCelsius = (v) => {
+  if (v == null) return null;
+  let num = typeof v === "number" ? v : Number(String(v).replace(",", ".").trim());
+  if (Number.isNaN(num)) return null;
+
+  // Si llega Fahrenheit por error
+  if (num > 80 && num < 120) num = (num - 32) / 1.8;
+
+  // Rango razonable BBT
+  if (num < 30 || num > 45) return null;
+
+  return Number(num.toFixed(2));
+};
+
+// Callable para Health Connect
+exports.syncBasalBodyTemperature = functions.https.onCall(async (data, context) => {
+  if (!context.auth?.uid) {
+    throw new functions.https.HttpsError("unauthenticated", "Debes estar autenticada.");
+  }
+
+  const uid = context.auth.uid;
+  const cycleId = typeof data?.cycleId === "string" ? data.cycleId.trim() : "";
+  const items = Array.isArray(data?.items) ? data.items : [];
+
+  if (!cycleId) {
+    throw new functions.https.HttpsError("invalid-argument", "cycleId es obligatorio.");
+  }
+  if (items.length > 500) {
+    throw new functions.https.HttpsError("invalid-argument", "Máximo 500 mediciones por sincronización.");
+  }
+
+  // Verificar ciclo actual (end_date == null)
+  const cycleRef = db.doc(`users/${uid}/cycles/${cycleId}`);
+  const cycleSnap = await cycleRef.get();
+  if (!cycleSnap.exists) {
+    throw new functions.https.HttpsError("not-found", "Ciclo no encontrado.");
+  }
+
+  const cycle = cycleSnap.data() || {};
+  const endDate = cycle.end_date;
+  const isCurrent = endDate === null || endDate === undefined || endDate === "";
+  if (!isCurrent) {
+    throw new functions.https.HttpsError("failed-precondition", "Solo se permite sincronizar el ciclo actual.");
+  }
+
+  const startDate = typeof cycle.start_date === "string" ? cycle.start_date : null;
+
+  // Agrupar por día (1 entry por día)
+  const byDate = new Map(); // localDate -> array items
+  const rejectedItems = [];
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i] || {};
+
+    const timestampMs = typeof it.timestampMs === "number" ? it.timestampMs : null;
+    const temperatureC = normalizeCelsius(it.temperatureC);
+    const localDate = typeof it.localDate === "string" ? it.localDate.trim() : "";
+    const externalIdRaw = typeof it.externalId === "string" ? it.externalId.trim() : "";
+    const timeLocal = typeof it.time === "string" ? it.time.trim() : null; // "HH:mm" (mejor desde el móvil)
+    const dataOrigin = typeof it.dataOrigin === "string" ? it.dataOrigin : null;
+
+    if (!timestampMs || temperatureC == null || !localDate) {
+      rejectedItems.push({ index: i, error: "INVALID_ITEM" });
+      continue;
+    }
+
+    // Filtrar fuera del ciclo actual (por fecha local)
+    if (startDate && localDate < startDate) {
+      rejectedItems.push({ index: i, error: "OUTSIDE_CURRENT_CYCLE" });
+      continue;
+    }
+
+    const arr = byDate.get(localDate) || [];
+    arr.push({
+      index: i,
+      timestampMs,
+      timestamp: typeof it.timestamp === "string" && it.timestamp ? it.timestamp : new Date(timestampMs).toISOString(),
+      temperatureC,
+      localDate,
+      externalIdRaw,
+      timeLocal,
+      dataOrigin,
+    });
+    byDate.set(localDate, arr);
+  }
+
+  let createdDays = 0;
+  let createdMeasurements = 0;
+  let skippedMeasurements = 0;
+
+  const results = [];
+
+  // Para determinismo: ordena mediciones por hora dentro del día
+  const sortByTs = (a, b) => a.timestampMs - b.timestampMs;
+
+  for (const [localDate, dayItems] of byDate.entries()) {
+    dayItems.sort(sortByTs);
+
+    const entryId = localDate; // "YYYY-MM-DD" -> docId estable (1 entry por día)
+    const entryRef = db.doc(`users/${uid}/cycles/${cycleId}/entries/${entryId}`);
+
+    const entrySnap = await entryRef.get();
+    const entryExists = entrySnap.exists;
+
+    // Si no existe el entry del día, lo creamos con resumen basado en la 1ª medición
+    if (!entryExists) {
+      const first = dayItems[0];
+      const entryData = {
+        timestamp: first.timestamp,   // ISO con offset si lo mandas desde el móvil
+        iso_date: localDate,          // coherente con tu código (iso_date)
+        temperature_raw: first.temperatureC,
+        temperature_corrected: first.temperatureC,
+        temperature_chart: first.temperatureC,
+        use_corrected: false,
+        ignored: false,
+        source: "health_connect",
+        created_at: FieldValue.serverTimestamp(),
+      };
+
+      await entryRef.create(entryData);
+      createdDays++;
+    }
+
+    // Crear mediciones en subcolección measurements (idempotente por externalId/timestamp)
+    for (let j = 0; j < dayItems.length; j++) {
+      const m = dayItems[j];
+      const externalId = m.externalIdRaw || `hc_${m.timestampMs}`;
+      const measurementId = sanitizeDocId(`hc_${externalId}`);
+
+      const mRef = entryRef.collection("measurements").doc(measurementId);
+      const mData = {
+        temperature: m.temperatureC,
+        temperature_corrected: null,
+        use_corrected: false,
+        selected: !entryExists && j === 0, // solo si el entry era nuevo, marcamos una por defecto
+        time: m.timeLocal || null,         // importante: viene del móvil
+        timestamp: m.timestamp,
+        timestamp_ms: m.timestampMs,
+        source: "health_connect",
+        health_connect: {
+          externalId: m.externalIdRaw || null,
+          dataOrigin: m.dataOrigin || null,
+        },
+        created_at: FieldValue.serverTimestamp(),
+      };
+
+      try {
+        await mRef.create(mData);
+        createdMeasurements++;
+        results.push({ index: m.index, ok: true, status: "MEASUREMENT_CREATED", day: localDate, measurementId });
+      } catch (err) {
+        const msg = String(err?.message || "");
+        const code = err?.code;
+        if (code === 6 || msg.includes("ALREADY_EXISTS")) {
+          skippedMeasurements++;
+          results.push({ index: m.index, ok: true, status: "MEASUREMENT_EXISTS", day: localDate, measurementId });
+          continue;
+        }
+        console.error("MEASUREMENT_WRITE_FAILED", err);
+        results.push({ index: m.index, ok: false, error: "MEASUREMENT_WRITE_FAILED", day: localDate });
+      }
+    }
+  }
+
+  await cycleRef.set(
+    { last_health_connect_sync: FieldValue.serverTimestamp() },
+    { merge: true }
+  );
+
+  return {
+    ok: true,
+    cycleId,
+    createdDays,
+    createdMeasurements,
+    skippedMeasurements,
+    rejected: rejectedItems.length,
+    rejectedItems,
+    results,
+  };
+});
+
 
 exports.addTemperature = functions.https.onRequest(async (req, res) => {
   try {
