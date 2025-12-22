@@ -51,3 +51,7 @@ node_modules/
 # OS
 .DS_Store
 Thumbs.db
+
+android/**/.DS_Store
+android/**/Thumbs.db
+
