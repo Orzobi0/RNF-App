@@ -699,7 +699,7 @@ export const CycleDataProvider = ({ children }) => {
     [loadCycleData]
   );
 
-    const syncHealthConnectTemperatures = useCallback(async () => {
+  const syncHealthConnectTemperatures = useCallback(async () => {
     if (!user?.uid) throw new Error("NO_USER");
     if (!currentCycle?.id || !currentCycle?.startDate) throw new Error("NO_CURRENT_CYCLE");
 
@@ -723,15 +723,33 @@ export const CycleDataProvider = ({ children }) => {
       const data = resp?.data;
       toast({
         title: "Sincronización hecha",
-        description: `Nuevos: ${data?.created ?? 0} · Ya estaban: ${data?.skippedExisting ?? 0} · Rechazados: ${data?.rejected ?? 0}`,
+        description: `Nuevos: ${data?.createdMeasurements ?? 0} · Ya estaban: ${data?.skippedMeasurements ?? 0} · Rechazados: ${data?.rejected ?? 0}`,
       });
 
       await loadCycleData({ silent: true });
+      return data;
     } catch (e) {
       console.error(e);
+      const message = String(e?.message || "");
+      if (message.includes("HEALTH_CONNECT_NotInstalled") || message.includes("HEALTH_CONNECT_NotSupported")) {
+        toast({
+          title: "Health Connect no disponible",
+          description: "Instala Health Connect para poder sincronizar tus registros.",
+          variant: "destructive",
+        });
+        return null;
+      }
+      if (message.includes("HEALTH_CONNECT_ONLY_IN_APP")) {
+        toast({
+          title: "Solo en la app Android",
+          description: "La sincronización está disponible únicamente en la app Android.",
+          variant: "destructive",
+        });
+        return null;
+      }
       toast({
         title: "Error al sincronizar",
-        description: String(e?.message || e),
+        description: message,
         variant: "destructive",
       });
       throw e;

@@ -59,6 +59,7 @@ export async function readBbtFromHealthConnect({ startDate }) {
         timestampMs: time.getTime(),
         timestamp: format(time, "yyyy-MM-dd'T'HH:mm:ssXXX"),
         localDate: format(time, "yyyy-MM-dd"),
+        time: format(time, "HH:mm"),
 
         temperatureC: Number(c.toFixed(2)),
       };

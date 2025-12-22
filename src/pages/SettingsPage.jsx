@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { User } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
@@ -22,7 +23,7 @@ import {
 
 const SettingsPage = () => {
   const { user, updateEmail, updatePassword, login, logout } = useAuth();
-  const { currentCycle, archivedCycles } = useCycleData();
+  const { currentCycle, archivedCycles, syncHealthConnectTemperatures } = useCycleData();
   const { toast } = useToast();
 
   const [showEmailDialog, setShowEmailDialog] = useState(false);
@@ -42,6 +43,10 @@ const SettingsPage = () => {
   const [loadingLogout, setLoadingLogout] = useState(false);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const forceInstallPrompt = import.meta.env.VITE_FORCE_INSTALL_PROMPT === 'true';
+  const [syncingHealthConnect, setSyncingHealthConnect] = useState(false);
+  const [lastSyncSummary, setLastSyncSummary] = useState('');
+
+  const isAndroidApp = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android';
 
     const allCycles = useMemo(() => {
     const combined = [];
@@ -202,6 +207,28 @@ const SettingsPage = () => {
     }
   };
 
+  const handleSyncHealthConnect = async () => {
+    if (!isAndroidApp) return;
+    setSyncingHealthConnect(true);
+    try {
+      const data = await syncHealthConnectTemperatures();
+      if (data) {
+        setLastSyncSummary(
+          `Nuevos: ${data?.createdMeasurements ?? 0} · Ya estaban: ${data?.skippedMeasurements ?? 0} · Rechazados: ${data?.rejected ?? 0}`
+        );
+      }
+    } finally {
+      setSyncingHealthConnect(false);
+    }
+  };
+
+  const syncHelperText = (() => {
+    if (!isAndroidApp) return 'Disponible solo en la app Android.';
+    if (!currentCycle?.id) return 'Necesitas un ciclo actual para sincronizar.';
+    if (lastSyncSummary) return lastSyncSummary;
+    return 'Sincroniza tus temperaturas basales desde Health Connect.';
+  })();
+
   return (
      <div className="relative flex h-[calc(var(--app-vh,1vh)*100 - var(--bottom-nav-safe))] flex-col overflow-hidden">
       <div
@@ -260,6 +287,22 @@ const SettingsPage = () => {
             </Button>
           </div>
           
+          <div className="bg-white/50 backdrop-blur p-4 rounded-3xl shadow flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm text-slate-500">Sincronizar Health Connect</p>
+              <p className="font-medium text-slate-700">
+                Importa tus temperaturas
+              </p>
+              <p className="text-xs text-slate-500 mt-1">{syncHelperText}</p>
+            </div>
+            <Button
+              onClick={handleSyncHealthConnect}
+              className="ml-0 sm:ml-4"
+              disabled={!isAndroidApp || syncingHealthConnect || !currentCycle?.id}
+            >
+              {syncingHealthConnect ? 'Sincronizando...' : 'Sincronizar ahora'}
+            </Button>
+          </div>
           <InstallPrompt
             align="end"
             buttonClassName="bg-fertiliapp-fuerte hover:brightness-95"
