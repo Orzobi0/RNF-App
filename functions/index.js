@@ -163,3 +163,21 @@ exports.addTemperature = functions.https.onRequest(async (req, res) => {
     return res.status(500).json({ error: "INTERNAL" });
   }
 });
+exports.exchangeCustomToken = functions.https.onRequest(async (req, res) => {
+  try {
+    if (req.method !== "POST") return res.status(405).send("Método no permitido");
+
+    const authHeader = req.headers.authorization || req.headers.Authorization || "";
+    const idToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
+    if (!idToken) return res.status(401).send("Falta Authorization Bearer");
+
+    const decoded = await admin.auth().verifyIdToken(idToken);
+    const customToken = await admin.auth().createCustomToken(decoded.uid);
+
+    return res.json({ customToken });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: "INTERNAL" });
+  }
+});
+

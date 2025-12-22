@@ -173,7 +173,7 @@ const ChartPage = () => {
     ? isLoading && !currentCycle?.id
     : externalLoading || (isLoading && !archivedMatch && !fetchedCycle);
 
-  const { preferences } = useAuth();
+  const { preferences, savePreferences } = useAuth();
   const manualCpmPreference = preferences?.manualCpm;
   const manualCpmBasePreference = preferences?.manualCpmBase;
   const manualT8Preference = preferences?.manualT8;
@@ -266,6 +266,37 @@ const ChartPage = () => {
     
     return defaults;
   });
+  
+  useEffect(() => {
+    if (!preferences) return;
+
+    setChartSettings((prev) => {
+      const currentConfig = prev.fertilityStartConfig ?? createDefaultFertilityStartConfig();
+      const nextConfig = { ...currentConfig };
+      let changed = false;
+
+      if (typeof preferences.showRelationsRow === 'boolean' && prev.showRelationsRow !== preferences.showRelationsRow) {
+        changed = true;
+      }
+
+      if (Object.prototype.hasOwnProperty.call(COMBINE_MODE_LABELS, preferences.combineMode)) {
+        if (currentConfig.combineMode !== preferences.combineMode) {
+          nextConfig.combineMode = preferences.combineMode;
+          changed = true;
+        }
+      }
+
+      if (!changed) return prev;
+
+      return {
+        ...prev,
+        showRelationsRow: typeof preferences.showRelationsRow === 'boolean'
+          ? preferences.showRelationsRow
+          : prev.showRelationsRow,
+        fertilityStartConfig: nextConfig,
+      };
+    });
+  }, [preferences]);
   const fertilityConfig = useMemo(
     () => mergeFertilityStartConfig(chartSettings.fertilityStartConfig),
     [chartSettings.fertilityStartConfig]
@@ -497,10 +528,17 @@ const ChartPage = () => {
     }
   };
   const handleRelationsSettingChange = (checked) => {
+    const nextValue = checked === true;
     setChartSettings((prev) => ({
       ...prev,
-      showRelationsRow: checked === true,
+      showRelationsRow: nextValue,
     }));
+    
+    if (typeof savePreferences === 'function') {
+      savePreferences({ showRelationsRow: nextValue }).catch((error) => {
+        console.error('Failed to persist relations row preference', error);
+      });
+    }
   };
   const handleFertilityCalculatorChange = (calculatorKey, checked) => {
     setChartSettings((prev) => {
@@ -538,6 +576,12 @@ const ChartPage = () => {
         },
       };
     });
+    
+    if (typeof savePreferences === 'function') {
+      savePreferences({ combineMode: value }).catch((error) => {
+        console.error('Failed to persist combine mode preference', error);
+      });
+    }
   };
   const handlePostpartumChange = (checked) => {
     setChartSettings((prev) => {
