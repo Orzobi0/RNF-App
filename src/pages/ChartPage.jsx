@@ -491,6 +491,7 @@ const ChartPage = () => {
     `
   };
   const APP_H = 'calc(var(--app-vh, 1vh) * 100)';
+  const NAVBAR_SAFE_VAR = 'var(--bottom-nav-safe)';
   const containerStyle = isFullScreen
     ? {
         ...baseStyle,
@@ -501,8 +502,8 @@ const ChartPage = () => {
         }
     : {
         ...baseStyle,
-        height: '100%',
-        maxHeight: '100%',
+        height: `calc(${APP_H} - ${NAVBAR_SAFE_VAR})`,
+        maxHeight: `calc(${APP_H} - ${NAVBAR_SAFE_VAR})`,
         paddingTop: 'env(safe-area-inset-top)',
       };
 
