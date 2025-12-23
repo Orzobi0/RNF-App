@@ -43,13 +43,10 @@ const compactDate = (dateStr) => {
  * Divide en dos líneas sin añadir puntos suspensivos.
  * Si "isFull" es true, simplemente corta por caracteres.
  */
-const splitText = (str = '', maxChars, isFull, fallback = '–') => {
-  if (!str) return [fallback, ''];
-  if (str.length <= maxChars) return [str, ''];
-  if (isFull) {
-    const firstLine = str.slice(0, maxChars);
-    const secondLine = str.slice(maxChars, maxChars * 2);
-    return [firstLine, secondLine];
+const splitTextLines = (str = '', maxChars, maxLines = 2, isFull, fallback = '–') => {
+  if (!str) return [fallback, ...Array.from({ length: Math.max(0, maxLines - 1) }, () => '')];
+  if (str.length <= maxChars && maxLines > 1) {
+    return [str, ...Array.from({ length: Math.max(0, maxLines - 1) }, () => '')];
   }
 
   const splitByWords = (text) => {
@@ -64,10 +61,37 @@ const splitText = (str = '', maxChars, isFull, fallback = '–') => {
     return [text.slice(0, spaceIdx), text.slice(spaceIdx + 1)];
   };
 
-  const [firstLine, remainder] = splitByWords(str);
-  const [secondLine] = splitByWords(remainder.trimStart());
+  const lines = [];
+  let remainder = str;
 
-  return [firstLine, secondLine];
+  for (let i = 0; i < maxLines; i += 1) {
+    if (!remainder) break;
+    if (isFull) {
+      const line = remainder.slice(0, maxChars);
+      remainder = remainder.slice(maxChars);
+      lines.push(line);
+    } else {
+      const [line, rest] = splitByWords(remainder);
+      remainder = rest.trimStart();
+      lines.push(line);
+    }
+  }
+
+  if (remainder && lines.length) {
+    const lastIndex = lines.length - 1;
+    const lastLine = lines[lastIndex];
+    if (lastLine) {
+      lines[lastIndex] = `${lastLine.slice(0, Math.max(1, lastLine.length - 1))}…`;
+    } else {
+      lines[lastIndex] = '…';
+    }
+  }
+
+  while (lines.length < maxLines) {
+    lines.push('');
+  }
+
+  return lines;
 };
 
 /** Limita un texto al número indicado de palabras */
@@ -383,28 +407,37 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
 
 
         // Límites de texto
-        const maxChars = isFullScreen ? 4 : 7;
+        const cellWidth = totalPoints > 0 ? rowWidth / totalPoints : rowWidth;
+        const adaptiveChars = Math.max(3, Math.floor(cellWidth / 6));
+        const maxChars = Math.min(isFullScreen ? 4 : 9, adaptiveChars);
         const maxWords = 2;
 
-        const [sensLine1, sensLine2] = splitText(
+        const [sensLine1, sensLine2, sensLine3] = splitTextLines(
           isFullScreen ? limitWords(point.mucus_sensation, maxWords, isFuture ? '' : '–') : point.mucus_sensation,
           maxChars,
+          3,
           false,
           isFuture ? '' : '–'
         );
-        const [aparLine1, aparLine2] = splitText(
+        const [aparLine1, aparLine2, aparLine3] = splitTextLines(
           isFullScreen ? limitWords(point.mucus_appearance, maxWords, isFuture ? '' : '–') : point.mucus_appearance,
           maxChars,
+          3,
           false,
           isFuture ? '' : '–'
         );
-        const [obsLine1, obsLine2] = splitText(
+        const [obsLine1, obsLine2, obsLine3] = splitTextLines(
           isFullScreen ? limitWords(point.observations, maxWords, '') : point.observations,
           maxChars,
+          3,
           false,
           ''
         );
 
+        const rowLineHeight = responsiveFontSize(0.95);
+        const sensationFontSize = responsiveFontSize(sensLine3 ? 0.8 : 0.9);
+        const appearanceFontSize = responsiveFontSize(aparLine3 ? 0.8 : 0.9);
+        const observationFontSize = responsiveFontSize(obsLine3 ? 0.8 : 0.9);
         return (
           <MotionG
             key={`pt-${index}-${point.isoDate || point.timestamp}`}
@@ -683,7 +716,7 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
               x={x} 
               y={mucusSensationRowY} 
               textAnchor="middle"
-              fontSize={responsiveFontSize(0.9)} 
+              fontSize={sensationFontSize} 
               fontWeight="700"
               fill={SENSATION_COLOR}
               style={{ 
@@ -692,7 +725,8 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
               }}
             >
               <tspan x={x} dy={0}>{sensLine1}</tspan>
-              {sensLine2 && <tspan x={x} dy={responsiveFontSize(1.1)}>{sensLine2}</tspan>}
+              {sensLine2 && <tspan x={x} dy={rowLineHeight}>{sensLine2}</tspan>}
+              {sensLine3 && <tspan x={x} dy={rowLineHeight}>{sensLine3}</tspan>}
             </text>
             )}
 
@@ -701,7 +735,7 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
               x={x} 
               y={mucusAppearanceRowY} 
               textAnchor="middle"
-              fontSize={responsiveFontSize(0.9)} 
+              fontSize={appearanceFontSize} 
               fontWeight="700"
               fill={APPEARANCE_COLOR}
               style={{ 
@@ -710,7 +744,8 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
               }}
             >
               <tspan x={x} dy={0}>{aparLine1}</tspan>
-              {aparLine2 && <tspan x={x} dy={responsiveFontSize(1.1)}>{aparLine2}</tspan>}
+              {aparLine2 && <tspan x={x} dy={rowLineHeight}>{aparLine2}</tspan>}
+              {aparLine3 && <tspan x={x} dy={rowLineHeight}>{aparLine3}</tspan>}
             </text>
             )}
             
@@ -719,7 +754,7 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
               x={x}
               y={observationsRowY}
               textAnchor="middle"
-              fontSize={responsiveFontSize(0.9)}
+              fontSize={observationFontSize}
               fontWeight="700"
               fill={OBSERVATION_COLOR}
               style={{
@@ -728,7 +763,8 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
               }}
             >
               <tspan x={x} dy={0}>{obsLine1}</tspan>
-              {obsLine2 && <tspan x={x} dy={responsiveFontSize(1.1)}>{obsLine2}</tspan>}
+              {obsLine2 && <tspan x={x} dy={rowLineHeight}>{obsLine2}</tspan>}
+              {obsLine3 && <tspan x={x} dy={rowLineHeight}>{obsLine3}</tspan>}
             </text>
             )}
 

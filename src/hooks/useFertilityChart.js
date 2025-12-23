@@ -852,11 +852,32 @@ export const useFertilityChart = (
       const getX = (index) => {
         const extraMargin = (isFullScreen && !(forceLandscape || orientation === 'landscape')) ? 5 : 10;
         const daySpacing = (isFullScreen && !(forceLandscape || orientation === 'landscape')) ? 25 : 0;
-        const availableWidth = chartWidth - padding.left - padding.right - extraMargin - daySpacing * (allDataPoints.length - 1);
-        if (availableWidth <= 0) return padding.left + extraMargin + daySpacing * index;
+        const EXTRA_RIGHT_GAP = 15;
+        const edgePadding = isFullScreen
+          ? Math.max(isLandscapeVisual ? 8 : 18, chartWidth * (isLandscapeVisual ? 0.01 : 0.05))
+          : 20;
+        const paddingRightForX = padding.right + EXTRA_RIGHT_GAP;
+        const availableWidth =
+          chartWidth -
+          padding.left -
+          paddingRightForX -
+          extraMargin -
+          edgePadding * 2 -
+          daySpacing * (allDataPoints.length - 1);
+        if (availableWidth <= 0) {
+          return padding.left + extraMargin + edgePadding + daySpacing * index;
+        }
         const pointsToDisplay = allDataPoints.length > 1 ? allDataPoints.length - 1 : 1;
-        if (pointsToDisplay === 0 || allDataPoints.length === 0) return padding.left + extraMargin + daySpacing * index;
-        return padding.left + extraMargin + index * (availableWidth / (allDataPoints.length === 1 ? 1 : pointsToDisplay)) + daySpacing * index;
+        if (pointsToDisplay === 0 || allDataPoints.length === 0) {
+          return padding.left + extraMargin + edgePadding + daySpacing * index;
+        }
+        return (
+          padding.left +
+          extraMargin +
+          edgePadding +
+          index * (availableWidth / (allDataPoints.length === 1 ? 1 : pointsToDisplay)) +
+          daySpacing * index
+        );
       };
       
       const handlePointInteraction = (point, index, event) => {
