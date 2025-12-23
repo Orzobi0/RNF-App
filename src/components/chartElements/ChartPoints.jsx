@@ -53,12 +53,22 @@ const splitTextLines = (str = '', maxChars, maxLines = 2, isFull, fallback = 'â€
     if (!text) return ['', ''];
     if (text.length <= maxChars) return [text, ''];
 
-    const spaceIdx = text.indexOf(' ', maxChars);
-    if (spaceIdx === -1) {
+  const hasSpaces = /\s/.test(text);
+  if (!hasSpaces && text.length <= 8) {
+    return [text, ''];
+  }
+
+    const spaceBefore = text.lastIndexOf(' ', maxChars);
+    if (spaceBefore > 0) {
+      return [text.slice(0, spaceBefore), text.slice(spaceBefore + 1)];
+    }
+
+    const spaceAfter = text.indexOf(' ', maxChars);
+    if (spaceAfter === -1) {
       return [text.slice(0, maxChars), text.slice(maxChars)];
     }
 
-    return [text.slice(0, spaceIdx), text.slice(spaceIdx + 1)];
+    return [text.slice(0, spaceAfter), text.slice(spaceAfter + 1)];
   };
 
   const lines = [];
@@ -411,6 +421,7 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
         const adaptiveChars = Math.max(3, Math.floor(cellWidth / 6));
         const maxChars = Math.min(isFullScreen ? 4 : 9, adaptiveChars);
         const maxWords = 2;
+        const obsMaxChars = Math.max(2, Math.min(maxChars, Math.floor(cellWidth / 7)));
 
         const [sensLine1, sensLine2, sensLine3] = splitTextLines(
           isFullScreen ? limitWords(point.mucus_sensation, maxWords, isFuture ? '' : 'â€“') : point.mucus_sensation,
@@ -428,7 +439,7 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
         );
         const [obsLine1, obsLine2, obsLine3] = splitTextLines(
           isFullScreen ? limitWords(point.observations, maxWords, '') : point.observations,
-          maxChars,
+          obsMaxChars,
           3,
           false,
           ''
@@ -438,6 +449,18 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
         const sensationFontSize = responsiveFontSize(sensLine3 ? 0.8 : 0.9);
         const appearanceFontSize = responsiveFontSize(aparLine3 ? 0.8 : 0.9);
         const observationFontSize = responsiveFontSize(obsLine3 ? 0.8 : 0.9);
+        const countLines = (a, b, c) => Math.max(1, [a, b, c].filter((v) => v && String(v).trim() !== '').length);
+
+        const sensCount = countLines(sensLine1, sensLine2, sensLine3);
+        const aparCount = countLines(aparLine1, aparLine2, aparLine3);
+        const obsCount  = countLines(obsLine1,  obsLine2,  obsLine3);
+
+        const centeredY = (baseY, lines) => baseY - ((lines - 1) * rowLineHeight) / 2;
+
+        const sensY = centeredY(mucusSensationRowY, sensCount);
+        const aparY = centeredY(mucusAppearanceRowY, aparCount);
+        const obsY  = centeredY(observationsRowY, obsCount);
+
         return (
           <MotionG
             key={`pt-${index}-${point.isoDate || point.timestamp}`}
@@ -714,7 +737,7 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
             {!compact && (
             <text 
               x={x} 
-              y={mucusSensationRowY} 
+              y={sensY} 
               textAnchor="middle"
               fontSize={sensationFontSize} 
               fontWeight="700"
@@ -733,7 +756,7 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
             {!compact && (
             <text 
               x={x} 
-              y={mucusAppearanceRowY} 
+              y={aparY} 
               textAnchor="middle"
               fontSize={appearanceFontSize} 
               fontWeight="700"
@@ -752,7 +775,7 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
             {!compact && (
             <text
               x={x}
-              y={observationsRowY}
+              y={obsY}
               textAnchor="middle"
               fontSize={observationFontSize}
               fontWeight="700"

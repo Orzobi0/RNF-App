@@ -491,7 +491,6 @@ const ChartPage = () => {
     `
   };
   const APP_H = 'calc(var(--app-vh, 1vh) * 100)';
-  const NAVBAR_SAFE_VAR = 'var(--bottom-nav-safe)';
   const containerStyle = isFullScreen
     ? {
         ...baseStyle,
@@ -502,10 +501,9 @@ const ChartPage = () => {
         }
     : {
         ...baseStyle,
-        height: `calc(${APP_H} - ${NAVBAR_SAFE_VAR})`,
-        maxHeight: `calc(${APP_H} - ${NAVBAR_SAFE_VAR})`,
+        height: '100%',
+        maxHeight: '100%',
         paddingTop: 'env(safe-area-inset-top)',
-        paddingBottom: 'env(safe-area-inset-bottom)'
       };
 
   const handleEdit = (record, sectionKey = null) => {
