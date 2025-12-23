@@ -39,62 +39,124 @@ const compactDate = (dateStr) => {
   return `${parseInt(d, 10)}/${parseInt(m, 10)}`;
 };
 
-/**
- * Divide en dos líneas sin añadir puntos suspensivos.
- * Si "isFull" es true, simplemente corta por caracteres.
- */
-const splitTextLines = (str = '', maxChars, maxLines = 2, isFull, fallback = '–') => {
-  if (!str) return [fallback, ...Array.from({ length: Math.max(0, maxLines - 1) }, () => '')];
-  if (str.length <= maxChars && maxLines > 1) {
-    return [str, ...Array.from({ length: Math.max(0, maxLines - 1) }, () => '')];
+const DEFAULT_TEXT_FONT_FAMILY =
+  '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+
+const createTextMeasurer = () => {
+  if (typeof document === 'undefined') {
+    return (text, font) => {
+      const match = /(\d+(?:\.\d+)?)px/.exec(font || '');
+      const fontSize = match ? Number(match[1]) : 12;
+      return text.length * fontSize * 0.6;
+    };
   }
 
-  const splitByWords = (text) => {
-    if (!text) return ['', ''];
-    if (text.length <= maxChars) return [text, ''];
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
+  if (!context) {
+    return (text, font) => {
+      const match = /(\d+(?:\.\d+)?)px/.exec(font || '');
+      const fontSize = match ? Number(match[1]) : 12;
+      return text.length * fontSize * 0.6;
+    };
+  }
+  return (text, font) => {
+    context.font = font;
+    return context.measureText(text).width;
+  };
+};
+  const buildFontString = (fontSize, fontWeight, fontFamily) =>
+  `${fontWeight} ${fontSize}px ${fontFamily}`;
 
-  const hasSpaces = /\s/.test(text);
-  if (!hasSpaces && text.length <= 8) {
-    return [text, ''];
+const splitTextLinesByWidth = (
+  str = '',
+  {
+    maxWidth,
+    maxLines = 2,
+    fontSize,
+    fontWeight = 700,
+    fontFamily = DEFAULT_TEXT_FONT_FAMILY,
+    fallback = '–',
+    measureTextWidth,
+  }
+) => {
+  if (!str) {
+    return [fallback, ...Array.from({ length: Math.max(0, maxLines - 1) }, () => '')];
   }
 
-    const spaceBefore = text.lastIndexOf(' ', maxChars);
-    if (spaceBefore > 0) {
-      return [text.slice(0, spaceBefore), text.slice(spaceBefore + 1)];
-    }
+    const font = buildFontString(fontSize, fontWeight, fontFamily);
+  const textWidth = (text) => measureTextWidth(text, font);
+  const normalized = String(str).trim();
+  const hasSpaces = /\s/.test(normalized);
+  const tokens = hasSpaces ? normalized.split(/\s+/) : Array.from(normalized);
+  const separator = hasSpaces ? ' ' : '';
+  const lines = [];
 
-    const spaceAfter = text.indexOf(' ', maxChars);
-    if (spaceAfter === -1) {
-      return [text.slice(0, maxChars), text.slice(maxChars)];
-    }
 
-    return [text.slice(0, spaceAfter), text.slice(spaceAfter + 1)];
+    const splitByChars = (value) => {
+    const chars = Array.from(value);
+    let line = '';
+    while (chars.length) {
+      const nextLine = line + chars[0];
+      if (textWidth(nextLine) <= maxWidth || !line) {
+        line = nextLine;
+        chars.shift();
+        if (textWidth(line) > maxWidth && line.length > 1) {
+          chars.unshift(...Array.from(line.slice(1)));
+          line = line[0];
+          break;
+        }
+      } else {
+        break;
+      }
+    }
+    return [line, chars.join('')];
   };
 
-  const lines = [];
-  let remainder = str;
-
-  for (let i = 0; i < maxLines; i += 1) {
-    if (!remainder) break;
-    if (isFull) {
-      const line = remainder.slice(0, maxChars);
-      remainder = remainder.slice(maxChars);
-      lines.push(line);
-    } else {
-      const [line, rest] = splitByWords(remainder);
-      remainder = rest.trimStart();
-      lines.push(line);
+  while (tokens.length && lines.length < maxLines) {
+    let line = '';
+    while (tokens.length) {
+      const nextToken = tokens[0];
+      const candidate = line ? `${line}${separator}${nextToken}` : nextToken;
+      if (textWidth(candidate) <= maxWidth) {
+        line = candidate;
+        tokens.shift();
+        continue;
+      }
+      if (!line) {
+        if (hasSpaces) {
+          const [chunk, remainder] = splitByChars(nextToken);
+          line = chunk;
+          if (remainder) {
+            tokens[0] = remainder;
+          } else {
+            tokens.shift();
+          }
+        } else {
+          const [chunk, remainder] = splitByChars(nextToken);
+          line = chunk;
+          if (remainder) {
+            tokens[0] = remainder;
+          } else {
+            tokens.shift();
+          }
+        }
+      }
+      break;
+    }
+    lines.push(line);
+    if (!line && tokens.length) {
+      lines.push(tokens.shift());
     }
   }
 
-  if (remainder && lines.length) {
+  if (tokens.length && lines.length) {
     const lastIndex = lines.length - 1;
-    const lastLine = lines[lastIndex];
-    if (lastLine) {
-      lines[lastIndex] = `${lastLine.slice(0, Math.max(1, lastLine.length - 1))}…`;
-    } else {
-      lines[lastIndex] = '…';
+    let lastLine = lines[lastIndex] || '';
+    while (lastLine && textWidth(`${lastLine}…`) > maxWidth) {
+      lastLine = lastLine.slice(0, -1);
     }
+    lines[lastIndex] = lastLine ? `${lastLine}…` : '…';
   }
 
   while (lines.length < maxLines) {
@@ -105,10 +167,10 @@ const splitTextLines = (str = '', maxChars, maxLines = 2, isFull, fallback = '�
 };
 
 /** Limita un texto al número indicado de palabras */
-const limitWords = (str = '', maxWords, fallback = '–') => {
+function limitWords(str = '', maxWords, fallback = '–') {
   if (!str) return fallback;
   return str.split(/\s+/).slice(0, maxWords).join(' ');
-};
+}
 
 const ChartPoints = ({
   data,
@@ -191,6 +253,7 @@ const ChartPoints = ({
 
   const totalPoints = Array.isArray(data) ? data.length : 0;
   const today = useMemo(() => startOfDay(new Date()), []);
+  const measureTextWidth = useMemo(() => createTextMeasurer(), []);
 
   const highSequenceOrderMap = useMemo(() => {
     if (!showInterpretation) {
@@ -418,37 +481,71 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
 
         // Límites de texto
         const cellWidth = totalPoints > 0 ? rowWidth / totalPoints : rowWidth;
-        const adaptiveChars = Math.max(3, Math.floor(cellWidth / 6));
-        const maxChars = Math.min(isFullScreen ? 4 : 9, adaptiveChars);
         const maxWords = 2;
-        const obsMaxChars = Math.max(2, Math.min(maxChars, Math.floor(cellWidth / 7)));
-
-        const [sensLine1, sensLine2, sensLine3] = splitTextLines(
-          isFullScreen ? limitWords(point.mucus_sensation, maxWords, isFuture ? '' : '–') : point.mucus_sensation,
-          maxChars,
-          3,
-          false,
-          isFuture ? '' : '–'
-        );
-        const [aparLine1, aparLine2, aparLine3] = splitTextLines(
-          isFullScreen ? limitWords(point.mucus_appearance, maxWords, isFuture ? '' : '–') : point.mucus_appearance,
-          maxChars,
-          3,
-          false,
-          isFuture ? '' : '–'
-        );
-        const [obsLine1, obsLine2, obsLine3] = splitTextLines(
-          isFullScreen ? limitWords(point.observations, maxWords, '') : point.observations,
-          obsMaxChars,
-          3,
-          false,
-          ''
-        );
-
+        const cellTextPadding = Math.min(12, Math.max(4, cellWidth * 0.12));
+        const availableTextWidth = Math.max(0, cellWidth - cellTextPadding * 2);
         const rowLineHeight = responsiveFontSize(0.95);
-        const sensationFontSize = responsiveFontSize(sensLine3 ? 0.8 : 0.9);
-        const appearanceFontSize = responsiveFontSize(aparLine3 ? 0.8 : 0.9);
-        const observationFontSize = responsiveFontSize(obsLine3 ? 0.8 : 0.9);
+        const baseSensationFontSize = responsiveFontSize(0.9);
+        const baseAppearanceFontSize = responsiveFontSize(0.9);
+        const baseObservationFontSize = responsiveFontSize(0.9);
+        const smallSensationFontSize = responsiveFontSize(0.8);
+        const smallAppearanceFontSize = responsiveFontSize(0.8);
+        const smallObservationFontSize = responsiveFontSize(0.8);
+        const resolveLines = (text, fallback, baseFontSize, smallFontSize) => {
+  const base = splitTextLinesByWidth(text, {
+    maxWidth: availableTextWidth,
+    maxLines: 3,
+    fontSize: baseFontSize,
+    fontWeight: 700,
+    fontFamily: DEFAULT_TEXT_FONT_FAMILY,
+    fallback,
+    measureTextWidth,
+  });
+
+  // Si necesitó 3ª línea con la base, reintenta con fuente menor
+  if (base[2]) {
+    const smaller = splitTextLinesByWidth(text, {
+      maxWidth: availableTextWidth,
+      maxLines: 3,
+      fontSize: smallFontSize,
+      fontWeight: 700,
+      fontFamily: DEFAULT_TEXT_FONT_FAMILY,
+      fallback,
+      measureTextWidth,
+    });
+    return { lines: smaller, fontSize: smallFontSize };
+  }
+
+  return { lines: base, fontSize: baseFontSize };
+};
+
+
+
+        const sensText = isFullScreen
+  ? limitWords(point.mucus_sensation, maxWords, isFuture ? '' : '–')
+  : point.mucus_sensation;
+
+const aparText = isFullScreen
+  ? limitWords(point.mucus_appearance, maxWords, isFuture ? '' : '–')
+  : point.mucus_appearance;
+
+const obsText = isFullScreen
+  ? limitWords(point.observations, maxWords, '')
+  : point.observations;
+
+const sensRes = resolveLines(sensText, isFuture ? '' : '–', baseSensationFontSize, smallSensationFontSize);
+const aparRes = resolveLines(aparText, isFuture ? '' : '–', baseAppearanceFontSize, smallAppearanceFontSize);
+const obsRes  = resolveLines(obsText,  '',               baseObservationFontSize, smallObservationFontSize);
+
+const [sensLine1, sensLine2, sensLine3] = sensRes.lines;
+const [aparLine1, aparLine2, aparLine3] = aparRes.lines;
+const [obsLine1,  obsLine2,  obsLine3 ] = obsRes.lines;
+
+const sensationFontSize   = sensRes.fontSize;
+const appearanceFontSize  = aparRes.fontSize;
+const observationFontSize = obsRes.fontSize;
+
+
         const countLines = (a, b, c) => Math.max(1, [a, b, c].filter((v) => v && String(v).trim() !== '').length);
 
         const sensCount = countLines(sensLine1, sensLine2, sensLine3);
