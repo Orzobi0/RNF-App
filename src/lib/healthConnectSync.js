@@ -17,11 +17,18 @@ export async function readBbtFromHealthConnect({ startDate }) {
 
   const { HealthConnect } = await import("capacitor-health-connect");
 
-  const availability = await HealthConnect.checkAvailability();
-  if (availability !== "Available") {
-    // 'NotInstalled' | 'NotSupported'
-    throw new Error(`HEALTH_CONNECT_${availability}`);
-  }
+const availabilityResp = await HealthConnect.checkAvailability();
+
+// El plugin puede devolver string o un objeto
+const availability =
+  typeof availabilityResp === "string"
+    ? availabilityResp
+    : availabilityResp?.availability ?? availabilityResp?.value ?? availabilityResp?.status;
+
+if (availability !== "Available") {
+  throw new Error(`HEALTH_CONNECT_${availability || "Unknown"}`);
+}
+
 
   // Permisos
   const neededRead = ["BasalBodyTemperature"];
