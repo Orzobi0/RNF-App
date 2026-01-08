@@ -730,7 +730,9 @@ export const CycleDataProvider = ({ children }) => {
       return data;
     } catch (e) {
       console.error(e);
-      const message = String(e?.message || "");
+      const toReadableError = (error) =>
+        typeof error === "string" ? error : error?.message ?? JSON.stringify(error);
+      const message = toReadableError(e);
       if (message.includes("HEALTH_CONNECT_NotInstalled") || message.includes("HEALTH_CONNECT_NotSupported")) {
         toast({
           title: "Health Connect no disponible",
@@ -752,7 +754,7 @@ export const CycleDataProvider = ({ children }) => {
         description: message,
         variant: "destructive",
       });
-      throw e;
+      throw new Error(message);
     } finally {
       setIsLoading(false);
     }
