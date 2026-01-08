@@ -749,12 +749,28 @@ export const CycleDataProvider = ({ children }) => {
         });
         return null;
       }
+      if (message.includes("HEALTH_CONNECT_PERMISSION_DENIED")) {
+        toast({
+          title: "Permisos requeridos",
+          description: "Debes conceder permisos de Health Connect para sincronizar.",
+          variant: "destructive",
+        });
+        return null;
+      }
+      if (message.includes("HEALTH_CONNECT_INVALID_START_DATE")) {
+        toast({
+          title: "Fecha de inicio inválida",
+          description: "No se pudo leer la fecha de inicio del ciclo actual.",
+          variant: "destructive",
+        });
+        return null;
+      }
       toast({
         title: "Error al sincronizar",
         description: message,
         variant: "destructive",
       });
-      throw new Error(message);
+      return null;
     } finally {
       setIsLoading(false);
     }

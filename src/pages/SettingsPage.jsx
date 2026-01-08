@@ -217,6 +217,8 @@ const SettingsPage = () => {
           `Nuevos: ${data?.createdMeasurements ?? 0} · Ya estaban: ${data?.skippedMeasurements ?? 0} · Rechazados: ${data?.rejected ?? 0}`
         );
       }
+      } catch (error) {
+      console.error("Error al sincronizar Health Connect", error);
     } finally {
       setSyncingHealthConnect(false);
     }

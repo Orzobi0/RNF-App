@@ -17,17 +17,17 @@ export async function readBbtFromHealthConnect({ startDate }) {
 
   const { HealthConnect } = await import("capacitor-health-connect");
 
-const availabilityResp = await HealthConnect.checkAvailability();
+  const availabilityResp = await HealthConnect.checkAvailability();
 
-// El plugin puede devolver string o un objeto
-const availability =
-  typeof availabilityResp === "string"
-    ? availabilityResp
-    : availabilityResp?.availability ?? availabilityResp?.value ?? availabilityResp?.status;
+  // El plugin puede devolver string o un objeto
+  const availability =
+    typeof availabilityResp === "string"
+      ? availabilityResp
+      : availabilityResp?.availability ?? availabilityResp?.value ?? availabilityResp?.status;
 
-if (availability !== "Available") {
-  throw new Error(`HEALTH_CONNECT_${availability || "Unknown"}`);
-}
+  if (availability !== "Available") {
+    throw new Error(`HEALTH_CONNECT_${availability || "Unknown"}`);
+  }
 
 
   // Permisos
@@ -38,9 +38,18 @@ if (availability !== "Available") {
 
   if (!hasAll) {
     await HealthConnect.requestHealthPermissions({ read: neededRead, write: [] });
+    const permAfterRequest = await HealthConnect.checkHealthPermissions({ read: neededRead, write: [] });
+      const hasAllAfterRequest = permAfterRequest?.read?.every(Boolean);
+      if (!hasAllAfterRequest) {
+        throw new Error("HEALTH_CONNECT_PERMISSION_DENIED");
+      }
   }
 
-  const start = startOfDay(parseISO(startDate));
+  const parsedStart = parseISO(startDate);
+  if (!startDate || Number.isNaN(parsedStart?.getTime?.())) {
+    throw new Error("HEALTH_CONNECT_INVALID_START_DATE");
+  }
+  const start = startOfDay(parsedStart);
   const end = new Date();
 
   const resp = await HealthConnect.readRecords({
