@@ -2,15 +2,18 @@ import React, { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { User } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
+import { App } from '@capacitor/app';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ToastAction } from '@/components/ui/toast';
 import { downloadCyclesAsCsv, downloadCyclesAsPdf } from '@/lib/cycleExport';
 import ExportCyclesDialog from '@/components/ExportCyclesDialog';
 import { useCycleData } from '@/hooks/useCycleData';
 import InstallPrompt from '@/components/InstallPrompt';
+import { ensureHealthConnectPermissions } from '@/lib/healthConnectSync';
 
 import {
   Dialog,
@@ -207,8 +210,44 @@ const SettingsPage = () => {
     }
   };
 
+  const handleOpenHealthConnectSettings = async () => {
+    try {
+      const { HealthConnect } = await import('capacitor-health-connect');
+      if (typeof HealthConnect?.openHealthConnectSettings === 'function') {
+        await HealthConnect.openHealthConnectSettings();
+        return;
+      }
+    } catch (error) {
+      console.error('Error al abrir ajustes de Health Connect', error);
+    }
+
+    await App.openSettings();
+  };
+
   const handleSyncHealthConnect = async () => {
     if (!isAndroidApp) return;
+    
+    let hasPermissions = false;
+    try {
+      hasPermissions = await ensureHealthConnectPermissions();
+    } catch (error) {
+      console.error('Error al comprobar permisos de Health Connect', error);
+    }
+
+    if (!hasPermissions) {
+      toast({
+        title: 'Permisos requeridos',
+        description: 'Se abrirán los ajustes para concederlos.',
+        action: (
+          <ToastAction altText="Abrir ajustes" onClick={handleOpenHealthConnectSettings}>
+            Abrir ajustes
+          </ToastAction>
+        ),
+      });
+      await handleOpenHealthConnectSettings();
+      return;
+    }
+
     setSyncingHealthConnect(true);
     try {
       const data = await syncHealthConnectTemperatures();
@@ -217,8 +256,8 @@ const SettingsPage = () => {
           `Nuevos: ${data?.createdMeasurements ?? 0} · Ya estaban: ${data?.skippedMeasurements ?? 0} · Rechazados: ${data?.rejected ?? 0}`
         );
       }
-      } catch (error) {
-      console.error("Error al sincronizar Health Connect", error);
+    } catch (error) {
+      console.error('Error al sincronizar Health Connect', error);
     } finally {
       setSyncingHealthConnect(false);
     }

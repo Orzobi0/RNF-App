@@ -10,6 +10,20 @@ const toCelsius = (temp) => {
   return value; // celsius
 };
 
+export async function ensureHealthConnectPermissions() {
+  const { HealthConnect } = await import("capacitor-health-connect");
+  const neededRead = ["BasalBodyTemperature"];
+
+  const perm = await HealthConnect.checkHealthPermissions({ read: neededRead, write: [] });
+  const hasAll = perm?.read?.every(Boolean);
+
+  if (hasAll) return true;
+
+  await HealthConnect.requestHealthPermissions({ read: neededRead, write: [] });
+  const permAfterRequest = await HealthConnect.checkHealthPermissions({ read: neededRead, write: [] });
+  return permAfterRequest?.read?.every(Boolean) ?? false;
+}
+
 export async function readBbtFromHealthConnect({ startDate }) {
   if (!Capacitor.isNativePlatform()) {
     throw new Error("HEALTH_CONNECT_ONLY_IN_APP");
@@ -30,19 +44,9 @@ export async function readBbtFromHealthConnect({ startDate }) {
   }
 
 
-  // Permisos
-  const neededRead = ["BasalBodyTemperature"];
-
-  const perm = await HealthConnect.checkHealthPermissions({ read: neededRead, write: [] });
-  const hasAll = perm?.read?.every(Boolean);
-
-  if (!hasAll) {
-    await HealthConnect.requestHealthPermissions({ read: neededRead, write: [] });
-    const permAfterRequest = await HealthConnect.checkHealthPermissions({ read: neededRead, write: [] });
-      const hasAllAfterRequest = permAfterRequest?.read?.every(Boolean);
-      if (!hasAllAfterRequest) {
-        throw new Error("HEALTH_CONNECT_PERMISSION_DENIED");
-      }
+ const hasPermissions = await ensureHealthConnectPermissions();
+  if (!hasPermissions) {
+    throw new Error("HEALTH_CONNECT_PERMISSION_DENIED");
   }
 
   const parsedStart = parseISO(startDate);
