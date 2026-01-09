@@ -213,10 +213,11 @@ const SettingsPage = () => {
   const handleOpenHealthConnectSettings = async () => {
     try {
       const { HealthConnect } = await import('capacitor-health-connect');
-      if (typeof HealthConnect?.openHealthConnectSettings === 'function') {
-        await HealthConnect.openHealthConnectSettings();
-        return;
-      }
+      if (typeof HealthConnect?.openHealthConnectSetting === 'function') {
+      await HealthConnect.openHealthConnectSetting();
+      return;
+    }
+
     } catch (error) {
       console.error('Error al abrir ajustes de Health Connect', error);
     }

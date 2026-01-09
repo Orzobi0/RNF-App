@@ -14,15 +14,56 @@ export async function ensureHealthConnectPermissions() {
   const { HealthConnect } = await import("capacitor-health-connect");
   const neededRead = ["BasalBodyTemperature"];
 
+  // 1) Disponibilidad (el plugin puede devolver string u objeto)
+  const availabilityResp = await HealthConnect.checkAvailability();
+  const availability =
+    typeof availabilityResp === "string"
+      ? availabilityResp
+      : availabilityResp?.availability ?? availabilityResp?.value ?? availabilityResp?.status;
+
+  if (availability !== "Available") {
+    throw new Error(`HEALTH_CONNECT_${availability || "Unknown"}`);
+  }
+
+  // Helper: detectar permisos concedidos aunque el formato cambie
+  const hasAllRead = (permResp) => {
+    const r = permResp?.read;
+
+    // Caso A: array de booleanos
+    if (Array.isArray(r) && r.every((x) => typeof x === "boolean")) {
+      return r.every(Boolean);
+    }
+
+    // Caso B: array de strings (tipos concedidos)
+    if (Array.isArray(r) && r.every((x) => typeof x === "string")) {
+      return neededRead.every((t) => r.includes(t));
+    }
+
+    // Caso C: objeto { BasalBodyTemperature: true } o { BasalBodyTemperature: { granted: true } }
+    if (r && typeof r === "object") {
+      return neededRead.every((t) => {
+        const v = r[t];
+        if (typeof v === "boolean") return v;
+        if (v && typeof v === "object") return Boolean(v.granted ?? v.allowed ?? v.value ?? v.status);
+        return false;
+      });
+    }
+
+    return false;
+  };
+
+  // 2) Check
   const perm = await HealthConnect.checkHealthPermissions({ read: neededRead, write: [] });
-  const hasAll = perm?.read?.every(Boolean);
+  if (hasAllRead(perm)) return true;
 
-  if (hasAll) return true;
-
+  // 3) Request (esto debería abrir la pantalla de permisos de Health Connect)
   await HealthConnect.requestHealthPermissions({ read: neededRead, write: [] });
-  const permAfterRequest = await HealthConnect.checkHealthPermissions({ read: neededRead, write: [] });
-  return permAfterRequest?.read?.every(Boolean) ?? false;
+
+  // 4) Re-check
+  const permAfter = await HealthConnect.checkHealthPermissions({ read: neededRead, write: [] });
+  return hasAllRead(permAfter);
 }
+
 
 export async function readBbtFromHealthConnect({ startDate }) {
   if (!Capacitor.isNativePlatform()) {
