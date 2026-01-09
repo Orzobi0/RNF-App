@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { User } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
@@ -14,6 +14,7 @@ import ExportCyclesDialog from '@/components/ExportCyclesDialog';
 import { useCycleData } from '@/hooks/useCycleData';
 import InstallPrompt from '@/components/InstallPrompt';
 import { ensureHealthConnectPermissions } from '@/lib/healthConnectSync';
+import useHealthConnectState from '@/hooks/useHealthConnect';
 
 import {
   Dialog,
@@ -26,8 +27,9 @@ import {
 
 const SettingsPage = () => {
   const { user, updateEmail, updatePassword, login, logout } = useAuth();
-  const { currentCycle, archivedCycles, syncHealthConnectTemperatures } = useCycleData();
+  const { currentCycle, archivedCycles } = useCycleData();
   const { toast } = useToast();
+  const { isAvailable, hasPermissions, availabilityStatus, refreshPermissions } = useHealthConnectState();
 
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
@@ -47,9 +49,26 @@ const SettingsPage = () => {
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const forceInstallPrompt = import.meta.env.VITE_FORCE_INSTALL_PROMPT === 'true';
   const [syncingHealthConnect, setSyncingHealthConnect] = useState(false);
-  const [lastSyncSummary, setLastSyncSummary] = useState('');
 
   const isAndroidApp = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android';
+
+  useEffect(() => {
+    refreshPermissions();
+
+    if (!isAndroidApp) {
+      return undefined;
+    }
+
+    const listener = App.addListener('appStateChange', ({ isActive }) => {
+      if (isActive) {
+        refreshPermissions();
+      }
+    });
+
+    return () => {
+      listener?.remove?.();
+    };
+  }, [isAndroidApp, refreshPermissions]);
 
     const allCycles = useMemo(() => {
     const combined = [];
@@ -230,58 +249,65 @@ const handleOpenHealthConnectSettings = async () => {
 
 
 
-  const handleSyncHealthConnect = async () => {
-  if (!isAndroidApp) return;
-
-  let hasPermissions = false;
-
-  try {
-    hasPermissions = await ensureHealthConnectPermissions();
-  } catch (error) {
-    const msg = String(error?.message || error);
-    toast({
-      title: 'Health Connect: error pidiendo permisos',
-      description: msg,
-      variant: 'destructive',
-    });
-    return;
-  }
-
-  if (!hasPermissions) {
-    toast({
-      title: 'Permisos requeridos',
-      description: 'Se abrirá Salud/Health Connect para conceder permisos.',
-      action: (
-        <ToastAction altText="Abrir Salud" onClick={handleOpenHealthConnectSettings}>
-          Abrir Salud
-        </ToastAction>
-      ),
-    });
-    await handleOpenHealthConnectSettings();
-    return;
-  }
-
-  setSyncingHealthConnect(true);
-  try {
-    const data = await syncHealthConnectTemperatures();
-    if (data) {
-      setLastSyncSummary(
-        `Nuevos: ${data?.createdMeasurements ?? 0} · Ya estaban: ${data?.skippedMeasurements ?? 0} · Rechazados: ${data?.rejected ?? 0}`
-      );
+  const handleHealthConnectToggle = async () => {
+    if (!isAndroidApp) {
+      toast({
+        title: 'Solo en la app Android',
+        description: 'La conexión con Health Connect está disponible solo en Android.',
+        variant: 'destructive',
+      });
+      return;
     }
-  } catch (error) {
-    console.error('Error al sincronizar Health Connect', error);
-  } finally {
-    setSyncingHealthConnect(false);
-  }
-};
 
+    setSyncingHealthConnect(true);
+    try {
+      if (!hasPermissions) {
+        let granted = false;
+        try {
+          granted = await ensureHealthConnectPermissions();
+        } catch (error) {
+          const msg = String(error?.message || error);
+          toast({
+            title: 'Health Connect: error pidiendo permisos',
+            description: msg,
+            variant: 'destructive',
+          });
+          await refreshPermissions();
+          return;
+        }
 
-  const syncHelperText = (() => {
+        await refreshPermissions();
+        if (!granted) {
+          toast({
+            title: 'Permisos requeridos',
+            description: 'Se abrirá Salud/Health Connect para conceder permisos.',
+            action: (
+              <ToastAction altText="Abrir Salud" onClick={handleOpenHealthConnectSettings}>
+                Abrir Salud
+              </ToastAction>
+            ),
+          });
+          await handleOpenHealthConnectSettings();
+        }
+        return;
+      }
+
+      toast({
+        title: 'Gestiona permisos en Salud',
+        description: 'Para revocar permisos, abre los ajustes de Health Connect.',
+      });
+      await handleOpenHealthConnectSettings();
+    } finally {
+      setSyncingHealthConnect(false);
+    }
+  };
+
+  const healthConnectDescription = (() => {
     if (!isAndroidApp) return 'Disponible solo en la app Android.';
-    if (!currentCycle?.id) return 'Necesitas un ciclo actual para sincronizar.';
-    if (lastSyncSummary) return lastSyncSummary;
-    return 'Sincroniza tus temperaturas basales desde Health Connect.';
+    if (!isAvailable && availabilityStatus) {
+      return 'Instala Health Connect para conectar tus registros de temperatura.';
+    }
+    return 'Activa Health Connect para sincronizar tus temperaturas basales.';
   })();
 
   return (
@@ -342,21 +368,28 @@ const handleOpenHealthConnectSettings = async () => {
             </Button>
           </div>
           
-          <div className="bg-white/50 backdrop-blur p-4 rounded-3xl shadow flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm text-slate-500">Sincronizar Health Connect</p>
-              <p className="font-medium text-slate-700">
-                Importa tus temperaturas
-              </p>
-              <p className="text-xs text-slate-500 mt-1">{syncHelperText}</p>
+          <div className="bg-white/80 backdrop-blur p-4 rounded-3xl shadow flex items-center justify-between gap-4">
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-slate-700">Health Connect</p>
+              <p className="text-xs text-slate-500">{healthConnectDescription}</p>
             </div>
-            <Button
-              onClick={handleSyncHealthConnect}
-              className="ml-0 sm:ml-4"
-              disabled={!isAndroidApp || syncingHealthConnect || !currentCycle?.id}
+            <button
+              type="button"
+              role="switch"
+              aria-checked={hasPermissions}
+              onClick={handleHealthConnectToggle}
+              disabled={!isAndroidApp || syncingHealthConnect || (!isAvailable && !hasPermissions)}
+              className={`relative inline-flex h-7 w-12 items-center rounded-full transition ${
+                hasPermissions ? 'bg-fertiliapp-fuerte' : 'bg-slate-300'
+              } ${!isAndroidApp || syncingHealthConnect ? 'opacity-60' : 'opacity-100'}`}
             >
-              {syncingHealthConnect ? 'Sincronizando...' : 'Sincronizar ahora'}
-            </Button>
+              <span className="sr-only">Conectar Health Connect</span>
+              <span
+                className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${
+                  hasPermissions ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
           </div>
           <InstallPrompt
             align="end"

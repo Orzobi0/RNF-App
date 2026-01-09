@@ -23,11 +23,18 @@ import {
   Plus,
   Heart,
   Edit3,
+  RefreshCw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PeakModeButton } from '@/components/ui/peak-mode-button';
 import { format, startOfDay, parseISO, addHours, parse } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { Capacitor } from '@capacitor/core';
+import { ToastAction } from '@/components/ui/toast';
+import { useToast } from '@/components/ui/use-toast';
+import { ensureHealthConnectPermissions } from '@/lib/healthConnectSync';
+import { useCycleData } from '@/hooks/useCycleData';
+import useHealthConnectState from '@/hooks/useHealthConnect';
 import {
   FERTILITY_SYMBOL_OPTIONS,
   getFertilitySymbolDockStyles,
@@ -77,7 +84,11 @@ const DataEntryFormFields = ({
   const [open, setOpen] = useState(false);
   const [correctionIndex, setCorrectionIndex] = useState(null);
   const [statusMessages, setStatusMessages] = useState({ peak: null, relations: null });
+  const [syncingHealthConnect, setSyncingHealthConnect] = useState(false);
   const initializedSectionsRef = useRef(false);
+  const { toast } = useToast();
+  const { syncHealthConnectTemperatures, currentCycle } = useCycleData();
+  const { isAvailable, hasPermissions, refreshPermissions } = useHealthConnectState();
 
   const sectionOrder = useMemo(
     () => [
@@ -617,6 +628,103 @@ const DataEntryFormFields = ({
       setHadRelations(previousValue);
     }
   };
+
+  const handleOpenHealthConnectSettings = useCallback(async () => {
+    try {
+      const { HealthConnect } = await import('capacitor-health-connect');
+      if (typeof HealthConnect?.openHealthConnectSetting === 'function') {
+        await HealthConnect.openHealthConnectSetting();
+        return;
+      }
+      throw new Error('HC_OPEN_SETTINGS_UNAVAILABLE');
+    } catch (error) {
+      console.error('Error al abrir ajustes de Health Connect', error);
+      toast({
+        title: 'No se pudo abrir Salud automáticamente',
+        description: 'Abre Salud/Health Connect y concede permisos a FertiliApp manualmente.',
+        variant: 'destructive',
+      });
+    }
+  }, [toast]);
+
+  const handleSyncHealthConnect = useCallback(async () => {
+    if (!Capacitor.isNativePlatform()) {
+      toast({
+        title: 'Solo en la app Android',
+        description: 'La sincronización está disponible únicamente en la app Android.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!currentCycle?.id || !currentCycle?.startDate) {
+      toast({
+        title: 'Ciclo requerido',
+        description: 'Necesitas un ciclo actual para sincronizar temperaturas.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const refreshedState = await refreshPermissions();
+    const availableNow = refreshedState?.isAvailable ?? isAvailable;
+    const permissionsNow = refreshedState?.hasPermissions ?? hasPermissions;
+
+    if (!availableNow && !permissionsNow) {
+      toast({
+        title: 'Health Connect no disponible',
+        description: 'Instala Health Connect para poder sincronizar tus registros.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSyncingHealthConnect(true);
+    try {
+      let granted = permissionsNow;
+      if (!granted) {
+        try {
+          granted = await ensureHealthConnectPermissions();
+        } catch (error) {
+          toast({
+            title: 'Health Connect: error pidiendo permisos',
+            description: String(error?.message || error),
+            variant: 'destructive',
+          });
+          await refreshPermissions();
+          return;
+        }
+
+        await refreshPermissions();
+
+        if (!granted) {
+          toast({
+            title: 'Permisos requeridos',
+            description: 'Se abrirá Salud/Health Connect para conceder permisos.',
+            action: (
+              <ToastAction altText="Abrir Salud" onClick={handleOpenHealthConnectSettings}>
+                Abrir Salud
+              </ToastAction>
+            ),
+          });
+          await handleOpenHealthConnectSettings();
+          return;
+        }
+      }
+
+      await syncHealthConnectTemperatures();
+    } finally {
+      setSyncingHealthConnect(false);
+    }
+  }, [
+    currentCycle,
+    handleOpenHealthConnectSettings,
+    hasPermissions,
+    isAvailable,
+    refreshPermissions,
+    syncHealthConnectTemperatures,
+    toast,
+  ]);
 
   const filledState = useMemo(() => {
     const hasTemperature = measurements.some((measurement) => {
@@ -1201,7 +1309,7 @@ const DataEntryFormFields = ({
         </div>
       </div>
       <div className="mt-2 space-y-1">
-        <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <PeakModeButton
             mode={peakMode}
             size="md"
@@ -1210,17 +1318,31 @@ const DataEntryFormFields = ({
             aria-label={peakAriaLabel}
             disabled={isProcessing || !selectedIsoDate}
           />
-          <button
-            type="button"
-            className={relationsButtonClasses}
-            onClick={handleRelationsToggle}
-            disabled={isProcessing || !selectedIsoDate}
-            aria-pressed={hadRelations}
-            aria-label={hadRelations ? 'Desmarcar relaciones sexuales' : 'Marcar relaciones sexuales'}
-          >
-            <Heart className={cn('h-4 w-4', hadRelations ? 'text-rose-500 fill-current' : 'text-slate-400')} aria-hidden="true" />
-            <span className="text-xs font-semibold uppercase tracking-wide">RS</span>
-          </button>
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleSyncHealthConnect}
+              disabled={isProcessing || syncingHealthConnect}
+              className={cn(
+                'inline-flex items-center gap-2 rounded-full border border-amber-200 bg-white px-3 py-2 text-xs font-semibold uppercase tracking-wide text-amber-700 shadow-sm transition hover:border-amber-300 hover:text-amber-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-200 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60'
+              )}
+              aria-label="Sincronizar temperatura desde Health Connect"
+            >
+              <RefreshCw className={cn('h-4 w-4', syncingHealthConnect && 'animate-spin')} aria-hidden="true" />
+              {syncingHealthConnect ? 'Sincronizando' : '+ temperatura'}
+            </button>
+            <button
+              type="button"
+              className={relationsButtonClasses}
+              onClick={handleRelationsToggle}
+              disabled={isProcessing || !selectedIsoDate}
+              aria-pressed={hadRelations}
+              aria-label={hadRelations ? 'Desmarcar relaciones sexuales' : 'Marcar relaciones sexuales'}
+            >
+              <Heart className={cn('h-4 w-4', hadRelations ? 'text-rose-500 fill-current' : 'text-slate-400')} aria-hidden="true" />
+              <span className="text-xs font-semibold uppercase tracking-wide">RS</span>
+            </button>
+          </div>
         </div>
         {(existingPeakIsoDate || statusMessages.peak || statusMessages.relations) && (
   <div className="flex items-center justify-between gap-2 text-[11px]">
