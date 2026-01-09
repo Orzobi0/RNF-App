@@ -2,6 +2,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <queries>
         <package android:name="com.google.android.apps.healthdata" />
+            <!-- Android 14 / Health Connect integrado -->
+    <package android:name="com.android.healthconnect.controller" />
+
+    <!-- Necesario para visibilidad del intent de rationale -->
+    <intent>
+        <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+    </intent>
     </queries>
 
     <application
@@ -22,6 +29,10 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <intent-filter>
+    <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+</intent-filter>
+
         </activity>
 
         <provider
