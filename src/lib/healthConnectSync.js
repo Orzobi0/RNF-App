@@ -13,6 +13,19 @@ const toCelsius = (temp) => {
 export async function ensureHealthConnectPermissions() {
   const { HealthConnect } = await import("capacitor-health-connect");
   const neededRead = ["BasalBodyTemperature"];
+const neededReadAliases = [
+  "BasalBodyTemperature",
+  "READ_BASAL_BODY_TEMPERATURE",
+  "android.permission.health.READ_BASAL_BODY_TEMPERATURE",
+];
+
+const norm = (s) =>
+  String(s || "")
+    .toLowerCase()
+    .replace(/^android\.permission\.health\./, "")
+    .replace(/^read_/, "")
+    .replace(/[^a-z0-9]/g, "");
+
 
   // 1) Disponibilidad (el plugin puede devolver string u objeto)
   const availabilityResp = await HealthConnect.checkAvailability();
@@ -27,30 +40,46 @@ export async function ensureHealthConnectPermissions() {
 
   // Helper: detectar permisos concedidos aunque el formato cambie
   const hasAllRead = (permResp) => {
-    const r = permResp?.read;
+  const r = permResp?.read;
 
-    // Caso A: array de booleanos
-    if (Array.isArray(r) && r.every((x) => typeof x === "boolean")) {
-      return r.every(Boolean);
-    }
+  const neededNorms = neededReadAliases.map(norm);
 
-    // Caso B: array de strings (tipos concedidos)
-    if (Array.isArray(r) && r.every((x) => typeof x === "string")) {
-      return neededRead.every((t) => r.includes(t));
-    }
+  const matchesAny = (x) => neededNorms.includes(norm(x));
 
-    // Caso C: objeto { BasalBodyTemperature: true } o { BasalBodyTemperature: { granted: true } }
-    if (r && typeof r === "object") {
-      return neededRead.every((t) => {
-        const v = r[t];
-        if (typeof v === "boolean") return v;
-        if (v && typeof v === "object") return Boolean(v.granted ?? v.allowed ?? v.value ?? v.status);
-        return false;
-      });
-    }
+  // A) array de strings (permissions)
+  if (Array.isArray(r) && r.every((x) => typeof x === "string")) {
+    return r.some(matchesAny); // con 1 permiso ya valdría si solo pides BBT
+  }
 
-    return false;
-  };
+  // B) array de booleanos
+  if (Array.isArray(r) && r.every((x) => typeof x === "boolean")) {
+    return r.every(Boolean);
+  }
+
+  // C) array de objetos (distintos plugins devuelven esto)
+  if (Array.isArray(r) && r.every((x) => x && typeof x === "object")) {
+    return r.some((obj) => {
+      const key =
+        obj.permission ?? obj.name ?? obj.type ?? obj.recordType ?? obj.value;
+      const granted = obj.granted ?? obj.allowed ?? obj.isGranted ?? obj.status;
+      return matchesAny(key) && Boolean(granted);
+    });
+  }
+
+  // D) objeto mapa { "android.permission.health.READ_...": true }
+  if (r && typeof r === "object") {
+    return Object.entries(r).some(([k, v]) => {
+      const granted =
+        typeof v === "boolean"
+          ? v
+          : Boolean(v?.granted ?? v?.allowed ?? v?.value ?? v?.status);
+      return matchesAny(k) && granted;
+    });
+  }
+
+  return false;
+};
+
 
   // 2) Check
   const perm = await HealthConnect.checkHealthPermissions({ read: neededRead, write: [] });
