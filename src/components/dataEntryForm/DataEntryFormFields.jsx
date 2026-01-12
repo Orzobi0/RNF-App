@@ -73,6 +73,9 @@ const DataEntryFormFields = ({
   recordedDates = [],
   submitCurrentState,
   initialSectionKey = null,
+  onSyncTemperature = () => {},
+  isSyncingTemperature = false,
+  canSyncTemperature = false,
 }) => {
   const [open, setOpen] = useState(false);
   const [correctionIndex, setCorrectionIndex] = useState(null);
@@ -587,6 +590,12 @@ const DataEntryFormFields = ({
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-transparent disabled:cursor-not-allowed disabled:opacity-60',
     hadRelations
       ? 'text-rose-600' : 'text-slate-600'
+  );
+  const syncTemperatureClasses = cn(
+    'inline-flex items-center gap-1 rounded-full border border-amber-200 bg-white/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-700 shadow-sm transition-colors',
+    canSyncTemperature && !isSyncingTemperature
+      ? 'hover:bg-amber-50'
+      : 'cursor-not-allowed opacity-60'
   );
 
   const handleRelationsToggle = async () => {
@@ -1210,6 +1219,16 @@ const DataEntryFormFields = ({
             aria-label={peakAriaLabel}
             disabled={isProcessing || !selectedIsoDate}
           />
+          <button
+            type="button"
+            className={syncTemperatureClasses}
+            onClick={onSyncTemperature}
+            disabled={isProcessing || isSyncingTemperature || !canSyncTemperature}
+            aria-label="Sincronizar temperaturas"
+          >
+            <RefreshCcw className="h-3.5 w-3.5" aria-hidden="true" />
+            {isSyncingTemperature ? 'Sincronizando...' : '+ temperatura'}
+          </button>
           <button
             type="button"
             className={relationsButtonClasses}

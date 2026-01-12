@@ -10,9 +10,7 @@ const toCelsius = (temp) => {
   return value; // celsius
 };
 
-export async function ensureHealthConnectPermissions() {
-  const { HealthConnect } = await import("capacitor-health-connect");
-  const neededRead = ["BasalBodyTemperature"];
+const neededRead = ["BasalBodyTemperature"];
 const neededReadAliases = [
   "BasalBodyTemperature",
   "READ_BASAL_BODY_TEMPERATURE",
@@ -26,24 +24,14 @@ const norm = (s) =>
     .replace(/^read_/, "")
     .replace(/[^a-z0-9]/g, "");
 
+    const resolveAvailability = (availabilityResp) =>
+  typeof availabilityResp === "string"
+    ? availabilityResp
+    : availabilityResp?.availability ?? availabilityResp?.value ?? availabilityResp?.status;
 
-  // 1) Disponibilidad (el plugin puede devolver string u objeto)
-  const availabilityResp = await HealthConnect.checkAvailability();
-  const availability =
-    typeof availabilityResp === "string"
-      ? availabilityResp
-      : availabilityResp?.availability ?? availabilityResp?.value ?? availabilityResp?.status;
-
-  if (availability !== "Available") {
-    throw new Error(`HEALTH_CONNECT_${availability || "Unknown"}`);
-  }
-
-  // Helper: detectar permisos concedidos aunque el formato cambie
   const hasAllRead = (permResp) => {
   const r = permResp?.read;
-
   const neededNorms = neededReadAliases.map(norm);
-
   const matchesAny = (x) => neededNorms.includes(norm(x));
 
   // A) array de strings (permissions)
@@ -59,8 +47,7 @@ const norm = (s) =>
   // C) array de objetos (distintos plugins devuelven esto)
   if (Array.isArray(r) && r.every((x) => x && typeof x === "object")) {
     return r.some((obj) => {
-      const key =
-        obj.permission ?? obj.name ?? obj.type ?? obj.recordType ?? obj.value;
+      const key = obj.permission ?? obj.name ?? obj.type ?? obj.recordType ?? obj.value;
       const granted = obj.granted ?? obj.allowed ?? obj.isGranted ?? obj.status;
       return matchesAny(key) && Boolean(granted);
     });
@@ -80,6 +67,33 @@ const norm = (s) =>
   return false;
 };
 
+export async function getHealthConnectStatus() {
+  if (!Capacitor.isNativePlatform()) {
+    return { isAvailable: false, hasPermissions: false, availability: "NotNative" };
+  }
+
+  const { HealthConnect } = await import("capacitor-health-connect");
+  const availabilityResp = await HealthConnect.checkAvailability();
+  const availability = resolveAvailability(availabilityResp);
+
+  if (availability !== "Available") {
+    return { isAvailable: false, hasPermissions: false, availability };
+  }
+
+  const perm = await HealthConnect.checkHealthPermissions({ read: neededRead, write: [] });
+  return { isAvailable: true, hasPermissions: hasAllRead(perm), availability };
+}
+
+export async function ensureHealthConnectPermissions() {
+  const { HealthConnect } = await import("capacitor-health-connect");
+
+  // 1) Disponibilidad (el plugin puede devolver string u objeto)
+  const availabilityResp = await HealthConnect.checkAvailability();
+  const availability = resolveAvailability(availabilityResp);
+
+  if (availability !== "Available") {
+    throw new Error(`HEALTH_CONNECT_${availability || "Unknown"}`);
+  }
 
   // 2) Check
   const perm = await HealthConnect.checkHealthPermissions({ read: neededRead, write: [] });
@@ -103,18 +117,13 @@ export async function readBbtFromHealthConnect({ startDate }) {
 
   const availabilityResp = await HealthConnect.checkAvailability();
 
-  // El plugin puede devolver string o un objeto
-  const availability =
-    typeof availabilityResp === "string"
-      ? availabilityResp
-      : availabilityResp?.availability ?? availabilityResp?.value ?? availabilityResp?.status;
+  const availability = resolveAvailability(availabilityResp);
 
   if (availability !== "Available") {
     throw new Error(`HEALTH_CONNECT_${availability || "Unknown"}`);
   }
 
-
- const hasPermissions = await ensureHealthConnectPermissions();
+  const hasPermissions = await ensureHealthConnectPermissions();
   if (!hasPermissions) {
     throw new Error("HEALTH_CONNECT_PERMISSION_DENIED");
   }

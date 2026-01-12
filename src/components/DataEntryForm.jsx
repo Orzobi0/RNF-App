@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useMemo } from 'react';
+import React, { useRef, useEffect, useMemo, useState } from 'react';
 import DataEntryFormFields from '@/components/dataEntryForm/DataEntryFormFields';
 import DataEntryFormActions from '@/components/dataEntryForm/DataEntryFormActions';
 import { motion } from 'framer-motion';
@@ -7,6 +7,11 @@ import { XCircle, Edit3 } from 'lucide-react';
 import { useDataEntryForm } from '@/hooks/useDataEntryForm';
 import useBackClose from '@/hooks/useBackClose';
 import { parseISO } from 'date-fns';
+import { useToast } from '@/components/ui/use-toast';
+import { ensureHealthConnectPermissions } from '@/lib/healthConnectSync';
+import { useCycleData } from '@/hooks/useCycleData';
+import { useHealthConnect } from '@/contexts/HealthConnectContext.jsx';
+import { useNavigate } from 'react-router-dom';
 
 const DataEntryForm = ({
   onSubmit,
@@ -24,6 +29,11 @@ const DataEntryForm = ({
 }) => {
   const formRef = useRef(null);
   useBackClose(Boolean(onCancel), onCancel);
+  const { toast } = useToast();
+  const navigate = useNavigate();
+  const { syncHealthConnectTemperatures } = useCycleData();
+  const { isAvailable, hasPermissions, refreshPermissions, isAndroidApp } = useHealthConnect();
+  const [syncingHealthConnect, setSyncingHealthConnect] = useState(false);
 
   useEffect(() => {
     const form = formRef.current;
@@ -101,10 +111,65 @@ const DataEntryForm = ({
     onDateSelect,
     defaultIsoDate,
   );
-   const recordedDates = useMemo(
+  const recordedDates = useMemo(
     () => cycleData.map((r) => parseISO(r.isoDate)),
     [cycleData]
   );
+
+  const handleSyncTemperature = async () => {
+    if (syncingHealthConnect || isProcessing) return;
+
+    if (!isAndroidApp) {
+      toast({
+        title: 'Disponible solo en Android',
+        description: 'Health Connect funciona únicamente en la app Android.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!isAvailable) {
+      toast({
+        title: 'Health Connect no disponible',
+        description: 'Instala Health Connect para sincronizar tus temperaturas.',
+        variant: 'destructive',
+      });
+      navigate('/settings');
+      return;
+    }
+
+    let granted = hasPermissions;
+    if (!granted) {
+      try {
+        granted = await ensureHealthConnectPermissions();
+      } catch (error) {
+        const message = String(error?.message || error);
+        toast({
+          title: 'Health Connect: error pidiendo permisos',
+          description: message,
+          variant: 'destructive',
+        });
+      } finally {
+        await refreshPermissions();
+      }
+    }
+
+    if (!granted) {
+      toast({
+        title: 'Permisos requeridos',
+        description: 'Activa Health Connect en ajustes para sincronizar.',
+      });
+      navigate('/settings');
+      return;
+    }
+
+    setSyncingHealthConnect(true);
+    try {
+      await syncHealthConnectTemperatures();
+    } finally {
+      setSyncingHealthConnect(false);
+    }
+  };
 
   return (
     <motion.form
@@ -168,6 +233,9 @@ const DataEntryForm = ({
         recordedDates={recordedDates}
         submitCurrentState={submitCurrentState}
         initialSectionKey={initialSectionKey}
+        onSyncTemperature={handleSyncTemperature}
+        isSyncingTemperature={syncingHealthConnect}
+        canSyncTemperature={Boolean(isAndroidApp && isAvailable)}
       />
       <DataEntryFormActions
         onCancel={onCancel}
