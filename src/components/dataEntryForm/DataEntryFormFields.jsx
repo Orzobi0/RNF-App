@@ -23,6 +23,7 @@ import {
   Plus,
   Heart,
   Edit3,
+  RefreshCcw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PeakModeButton } from '@/components/ui/peak-mode-button';
