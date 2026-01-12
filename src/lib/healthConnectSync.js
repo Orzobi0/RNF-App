@@ -30,7 +30,15 @@ const norm = (s) =>
     : availabilityResp?.availability ?? availabilityResp?.value ?? availabilityResp?.status;
 
   const hasAllRead = (permResp) => {
-  const r = permResp?.read;
+  if (permResp?.allPermissionsGranted === true) return true;
+
+  const permissionResults = permResp?.permissionResults;
+  const r =
+    permResp?.permissions?.read ??
+    permResp?.readPermissions ??
+    permissionResults?.read ??
+    permissionResults ??
+    permResp?.read;
   const neededNorms = neededReadAliases.map(norm);
   const matchesAny = (x) => neededNorms.includes(norm(x));
 
@@ -64,6 +72,7 @@ const norm = (s) =>
     });
   }
 
+  console.warn("[HealthConnect] Unexpected permission response shape", permResp);
   return false;
 };
 
