@@ -24,6 +24,31 @@ const norm = (s) =>
     .replace(/^read_/, "")
     .replace(/[^a-z0-9]/g, "");
 
+
+const safeStringify = (obj) => {
+  try {
+    const seen = new WeakSet();
+    return JSON.stringify(
+      obj,
+      (_k, v) => {
+        if (typeof v === "object" && v !== null) {
+          if (seen.has(v)) return "[Circular]";
+          seen.add(v);
+        }
+        return v;
+      },
+      2
+   );
+  } catch {
+    try { return String(obj); } catch { return "[Unstringifiable]"; }
+  }
+};
+
+const warnShape = (label, obj) => {
+  const keys = obj && typeof obj === "object" ? Object.keys(obj) : [];
+  console.warn(`${label} keys=${keys.join(",")}\n${safeStringify(obj)}`);
+};
+
     const resolveAvailability = (availabilityResp) =>
   typeof availabilityResp === "string"
     ? availabilityResp
@@ -33,14 +58,23 @@ const norm = (s) =>
   if (permResp?.allPermissionsGranted === true) return true;
 
   const permissionResults = permResp?.permissionResults;
-  const r =
-    permResp?.permissions?.read ??
-    permResp?.readPermissions ??
-    permissionResults?.read ??
-    permissionResults ??
-    permResp?.read;
+const r =
+  permResp?.permissions?.read ??
+  permResp?.readPermissions ??
+  permissionResults?.read ??
+  (Array.isArray(permissionResults) ? permissionResults : null) ??
+  permResp?.read;
+
   const neededNorms = neededReadAliases.map(norm);
   const matchesAny = (x) => neededNorms.includes(norm(x));
+  if (permResp === true) return true;
+if (permResp?.hasAllPermissions === true) return true;
+
+const granted = permResp?.grantedPermissions ?? permResp?.permissionsGranted;
+if (Array.isArray(granted) && granted.every((x) => typeof x === "string")) {
+  return granted.some(matchesAny);
+}
+
 
   // A) array de strings (permissions)
   if (Array.isArray(r) && r.every((x) => typeof x === "string")) {
@@ -72,8 +106,8 @@ const norm = (s) =>
     });
   }
 
-  console.warn("[HealthConnect] Unexpected permission response shape", permResp);
-  return false;
+  warnShape("[HealthConnect] Unexpected permission response shape", permResp);
+return false;
 };
 
 export async function getHealthConnectStatus() {
