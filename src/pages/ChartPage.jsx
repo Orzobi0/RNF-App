@@ -54,11 +54,11 @@ const formatCalculatorSourceLabel = (source) => {
 const createDefaultFertilityStartConfig = () => ({
   calculators: { cpm: true, t8: true },
   postpartum: false,
-  combineMode: 'conservador',
+  combineMode: 'estandar',
 });
 
 const DEFAULT_CHART_SETTINGS = {
-  showRelationsRow: false,
+  showRelationsRow: true,
   fertilityStartConfig: createDefaultFertilityStartConfig(),
 };
 
@@ -173,7 +173,7 @@ const ChartPage = () => {
     ? isLoading && !currentCycle?.id
     : externalLoading || (isLoading && !archivedMatch && !fetchedCycle);
 
-  const { preferences } = useAuth();
+  const { preferences, savePreferences } = useAuth();
   const manualCpmPreference = preferences?.manualCpm;
   const manualCpmBasePreference = preferences?.manualCpmBase;
   const manualT8Preference = preferences?.manualT8;
@@ -266,6 +266,37 @@ const ChartPage = () => {
     
     return defaults;
   });
+  
+  useEffect(() => {
+    if (!preferences) return;
+
+    setChartSettings((prev) => {
+      const currentConfig = prev.fertilityStartConfig ?? createDefaultFertilityStartConfig();
+      const nextConfig = { ...currentConfig };
+      let changed = false;
+
+      if (typeof preferences.showRelationsRow === 'boolean' && prev.showRelationsRow !== preferences.showRelationsRow) {
+        changed = true;
+      }
+
+      if (Object.prototype.hasOwnProperty.call(COMBINE_MODE_LABELS, preferences.combineMode)) {
+        if (currentConfig.combineMode !== preferences.combineMode) {
+          nextConfig.combineMode = preferences.combineMode;
+          changed = true;
+        }
+      }
+
+      if (!changed) return prev;
+
+      return {
+        ...prev,
+        showRelationsRow: typeof preferences.showRelationsRow === 'boolean'
+          ? preferences.showRelationsRow
+          : prev.showRelationsRow,
+        fertilityStartConfig: nextConfig,
+      };
+    });
+  }, [preferences]);
   const fertilityConfig = useMemo(
     () => mergeFertilityStartConfig(chartSettings.fertilityStartConfig),
     [chartSettings.fertilityStartConfig]
@@ -459,21 +490,21 @@ const ChartPage = () => {
       radial-gradient(140% 140% at 100% 100%, rgba(255,255,255,0.9) 0, rgba(255,247,250,0.3) 40%, transparent 70%)
     `
   };
+  const APP_H = 'calc(var(--app-vh, 1vh) * 100)';
   const NAVBAR_SAFE_VAR = 'var(--bottom-nav-safe)';
   const containerStyle = isFullScreen
     ? {
         ...baseStyle,
-        height: '100dvh',
-        maxHeight: '100dvh',
+        height: APP_H,
+        maxHeight: APP_H,
         paddingTop: 'env(safe-area-inset-top)',
         paddingBottom: 'env(safe-area-inset-bottom)'
         }
     : {
         ...baseStyle,
-        height: `calc(100dvh - ${NAVBAR_SAFE_VAR})`,
-        maxHeight: `calc(100dvh - ${NAVBAR_SAFE_VAR})`,
+        height: `calc(${APP_H} - ${NAVBAR_SAFE_VAR})`,
+        maxHeight: `calc(${APP_H} - ${NAVBAR_SAFE_VAR})`,
         paddingTop: 'env(safe-area-inset-top)',
-        paddingBottom: 'env(safe-area-inset-bottom)'
       };
 
   const handleEdit = (record, sectionKey = null) => {
@@ -496,10 +527,17 @@ const ChartPage = () => {
     }
   };
   const handleRelationsSettingChange = (checked) => {
+    const nextValue = checked === true;
     setChartSettings((prev) => ({
       ...prev,
-      showRelationsRow: checked === true,
+      showRelationsRow: nextValue,
     }));
+    
+    if (typeof savePreferences === 'function') {
+      savePreferences({ showRelationsRow: nextValue }).catch((error) => {
+        console.error('Failed to persist relations row preference', error);
+      });
+    }
   };
   const handleFertilityCalculatorChange = (calculatorKey, checked) => {
     setChartSettings((prev) => {
@@ -537,6 +575,12 @@ const ChartPage = () => {
         },
       };
     });
+    
+    if (typeof savePreferences === 'function') {
+      savePreferences({ combineMode: value }).catch((error) => {
+        console.error('Failed to persist combine mode preference', error);
+      });
+    }
   };
   const handlePostpartumChange = (checked) => {
     setChartSettings((prev) => {
@@ -1148,7 +1192,7 @@ const ChartPage = () => {
       <div
         className={
           isFullScreen
-            ? 'fixed inset-0 z-50 h-[100dvh] w-[100dvw] overflow-y-auto overflow-x-hidden'
+            ? 'fixed inset-0 z-50 h-app w-[100vw] overflow-y-auto overflow-x-hidden'
             : 'relative w-full h-full overflow-y-auto overflow-x-hidden'}
         style={containerStyle}
       >
@@ -1227,7 +1271,7 @@ const ChartPage = () => {
             />
             )}
             {/* Drawer fijo */}
-            <div className={`fixed top-0 right-0 z-50 h-dvh w-72 sm:w-80 transform transition-transform duration-300 ease-in-out ${
+            <div className={`fixed top-0 right-0 z-50 h-app w-72 sm:w-80 transform transition-transform duration-300 ease-in-out ${
               settingsOpen ? 'translate-x-0' : 'translate-x-full'
             }`}
             role="dialog"

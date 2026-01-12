@@ -3652,7 +3652,7 @@ const ModernFertilityDashboard = () => {
 
   return (
     <>
-      <div className="mx-auto flex h-full w-full flex-col space-y-4 px-4 pb-10 pt-4">
+      <div className="mx-auto flex h-[calc(var(--app-vh,1vh)*100 - var(--bottom-nav-safe))] w-full flex-col space-y-4 px-4 pb-10 pt-4">
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}

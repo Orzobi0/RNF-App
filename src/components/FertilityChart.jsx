@@ -101,7 +101,7 @@ const FertilityChart = ({
   const baselineY = baselineTemp != null ? getY(baselineTemp) : null;
   const hasPotentialRise = baselineTemp != null && Number.isFinite(firstHighIndex);
   const confirmedRise = Boolean(ovulationDetails?.confirmed);
-  const shouldRenderBaseline = baselineTemp != null;
+  const shouldRenderBaseline = baselineTemp != null && confirmedRise;
 
   const baselineStartX = getX(0);
   const baselineEndX =

@@ -19,6 +19,9 @@ import {
   forceShiftNextCycleStart as forceShiftNextCycleStartDB
 } from '@/lib/cycleDataHandler';
 import { getCachedCycleData, saveCycleDataToCache, clearCycleDataCache } from '@/lib/cycleCache';
+import { getFunctions, httpsCallable } from "firebase/functions";
+import { readBbtFromHealthConnect } from "@/lib/healthConnectSync";
+
 
 const CycleDataContext = createContext(null);
 
@@ -696,9 +699,88 @@ export const CycleDataProvider = ({ children }) => {
     [loadCycleData]
   );
 
+  const syncHealthConnectTemperatures = useCallback(async () => {
+    if (!user?.uid) throw new Error("NO_USER");
+    if (!currentCycle?.id || !currentCycle?.startDate) throw new Error("NO_CURRENT_CYCLE");
+
+    setIsLoading(true);
+    try {
+      const items = await readBbtFromHealthConnect({ startDate: currentCycle.startDate });
+
+      if (!items.length) {
+        toast({ title: "Sin registros", description: "No se encontraron temperaturas en Health Connect." });
+        return;
+      }
+
+      const functions = getFunctions(); // si usas región, aquí: getFunctions(app, "europe-west1")
+      const syncFn = httpsCallable(functions, "syncBasalBodyTemperature");
+
+      const resp = await syncFn({
+        cycleId: currentCycle.id,
+        items,
+      });
+
+      const data = resp?.data;
+      toast({
+        title: "Sincronización hecha",
+        description: `Nuevos: ${data?.createdMeasurements ?? 0} · Ya estaban: ${data?.skippedMeasurements ?? 0} · Rechazados: ${data?.rejected ?? 0}`,
+      });
+
+      await loadCycleData({ silent: true });
+      return data;
+    } catch (e) {
+      console.error(e);
+      const toReadableError = (error) =>
+        typeof error === "string" ? error : error?.message ?? JSON.stringify(error);
+      const message = toReadableError(e);
+      if (message.includes("HEALTH_CONNECT_NotInstalled") || message.includes("HEALTH_CONNECT_NotSupported")) {
+        toast({
+          title: "Health Connect no disponible",
+          description: "Instala Health Connect para poder sincronizar tus registros.",
+          variant: "destructive",
+        });
+        return null;
+      }
+      if (message.includes("HEALTH_CONNECT_ONLY_IN_APP")) {
+        toast({
+          title: "Solo en la app Android",
+          description: "La sincronización está disponible únicamente en la app Android.",
+          variant: "destructive",
+        });
+        return null;
+      }
+      if (message.includes("HEALTH_CONNECT_PERMISSION_DENIED")) {
+        toast({
+          title: "Permisos requeridos",
+          description: "Debes conceder permisos de Health Connect para sincronizar.",
+          variant: "destructive",
+        });
+        return null;
+      }
+      if (message.includes("HEALTH_CONNECT_INVALID_START_DATE")) {
+        toast({
+          title: "Fecha de inicio inválida",
+          description: "No se pudo leer la fecha de inicio del ciclo actual.",
+          variant: "destructive",
+        });
+        return null;
+      }
+      toast({
+        title: "Error al sincronizar",
+        description: message,
+        variant: "destructive",
+      });
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user, currentCycle, loadCycleData, toast]);
+
+
   const value = {
     currentCycle,
     archivedCycles,
+    syncHealthConnectTemperatures,
     addOrUpdateDataPoint,
     deleteRecord,
     startNewCycle,

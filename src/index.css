@@ -6,7 +6,7 @@
   :root {
     /* Altura de la barra inferior y variante con safe-area */
     --bottom-nav-height: 4.2rem;
-    --bottom-nav-safe: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom));
+    --bottom-nav-safe: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px));
     --background: 210 22.2% 96.5%;
     --foreground: 215 27.9% 16.9%;
     --card: 0 0% 100%;
@@ -118,7 +118,9 @@
   body,
   #root {
     height: 100%;
-    min-height: 100dvh;
+    min-height: 100vh;   /* fallback universal */
+    min-height: 100svh;  /* viewport “estable” (si lo soporta) */
+    min-height: 100dvh;  /* viewport dinámico (si lo soporta) */
   }
 
   * {
@@ -192,7 +194,9 @@
 }
 
 .app-background {
-  min-height: 100vh;
+  min-height: 100vh;   /* fallback */
+  min-height: 100svh;  /* mejor en móviles */
+  min-height: 100dvh;  /* mejor si soportado */
   background:
     radial-gradient(circle at 50% -10%, rgba(255, 255, 255, 0.7) 0, transparent 60%),
     linear-gradient(to bottom,
@@ -313,6 +317,18 @@
 }
 
 @layer utilities {
+.min-h-viewport {
+    min-height: 100vh;
+    min-height: 100svh;
+    min-height: 100dvh;
+  }
+  .h-app {
+    height: calc(var(--app-vh, 1vh) * 100);
+  }
+  .min-h-app {
+    min-height: calc(var(--app-vh, 1vh) * 100);
+  }
+
   /* Texto */
   .text-fertiliapp { color: var(--color-fertiliapp); }
   .text-fertiliapp-fuerte { color: var(--color-fertiliapp-fuerte); }

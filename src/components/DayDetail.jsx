@@ -242,7 +242,7 @@ let peakIndicatorVariant = null;
                 : 'border-orange-50 bg-orange-50 text-slate-400'
             )}
           >
-            <Thermometer className="h-5 w-5 opacity-80" />
+            <Thermometer className="h-5 w-5 shrink-0 opacity-80" />
             <div className="flex items-center gap-1">
               <span className="font-semibold">
                 {renderChipValue(temperatureValue)}
@@ -266,7 +266,7 @@ let peakIndicatorVariant = null;
                 : 'border-slate-200 bg-slate-50 text-slate-400'
             )}
           >
-            <Clock className="h-5 w-5 opacity-80" />
+            <Clock className="h-5 w-5 shrink-0 opacity-80" />
             <span className="font-semibold">
               {renderChipValue(timeValue)}
             </span>
@@ -286,7 +286,7 @@ let peakIndicatorVariant = null;
                 : 'border-sky-50 bg-sky-50 text-slate-400'
             )}
           >
-            <Droplets className="h-5 w-5 opacity-80" />
+            <Droplets className="h-5 w-5 shrink-0 opacity-80" />
             <span className="font-semibold">
               {renderChipValue(mucusSensationValue)}
             </span>
@@ -302,7 +302,7 @@ let peakIndicatorVariant = null;
                 : 'border-emerald-50 bg-emerald-50 text-slate-400'
             )}
           >
-            <Circle className="h-5 w-5 opacity-80" />
+            <Circle className="h-5 w-5 shrink-0 opacity-80" />
             <span className="font-semibold">
               {renderChipValue(mucusAppearanceValue)}
             </span>
@@ -322,7 +322,7 @@ let peakIndicatorVariant = null;
                 : 'border-violet-100 bg-violet-50 text-slate-400'
             )}
           >
-            <FileText className="h-5 w-5 opacity-80" />
+            <FileText className="h-5 w-5 shrink-0 opacity-80" />
             <span className="truncate">
               {renderChipValue(observationsValue, { placeholder: '-' })}
             </span>
@@ -341,7 +341,7 @@ let peakIndicatorVariant = null;
           >
             <Heart
               className={cn(
-                'h-4 w-4',
+                'h-4 shrink-0 w-4',
                 hasRelations ? 'text-rose-500 fill-current' : 'text-slate-300'
               )}
             />

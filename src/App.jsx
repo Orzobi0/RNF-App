@@ -15,6 +15,7 @@ import MainLayout from '@/components/layout/MainLayout';
 import { Toaster } from '@/components/ui/toaster';
 import { motion } from 'framer-motion';
 import UpdateNotification from '@/components/UpdateNotification';
+import ViewportHeightFix from "@/components/ViewportHeightFix";
 
 function ProtectedRoute({ children }) {
   const { user } = useAuth();
@@ -30,7 +31,7 @@ function AppContent() {
   if (loadingAuth) {
     return (
       <AppBackground>
-        <div className="flex min-h-[100dvh] flex-col items-center justify-center space-y-4 px-4">
+        <div className="flex min-h-app flex-col items-center justify-center space-y-4 px-4">
           <motion.div
             className="h-8 w-8 rounded-full bg-fertiliapp"
             animate={{ opacity: [0.4, 1, 0.4] }}
@@ -51,12 +52,12 @@ function AppContent() {
 
   const suspenseFallback = user ? (
     <MainLayout>
-      <div className="flex min-h-[100dvh] items-center justify-center p-4 text-fertiliapp-fuerte">
+      <div className="flex min-h-app items-center justify-center p-4 text-fertiliapp-fuerte">
         Cargando...
       </div>
     </MainLayout>
   ) : (
-    <div className="flex min-h-[100dvh] flex-col items-center justify-center space-y-4 px-4">
+    <div className="flex min-h-app flex-col items-center justify-center space-y-4 px-4">
       <motion.div
         className="h-8 w-8 rounded-full bg-fertiliapp"
         animate={{ opacity: [0.4, 1, 0.4] }}
@@ -146,6 +147,7 @@ function AppContent() {
 function App() {
   return (
     <BrowserRouter basename={import.meta.env.BASE_URL}>
+      <ViewportHeightFix />
       <UpdateNotification />
       <AuthProvider>
         <CycleDataProvider>

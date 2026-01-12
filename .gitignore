@@ -33,3 +33,25 @@ Thumbs.db
 node_modules
 node_modules
 node_modules
+
+# Capacitor / Android
+android/.idea/
+android/.gradle/
+android/build/
+android/app/build/
+android/app/.cxx/
+android/local.properties
+
+# Logs
+*.log
+
+# Node
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
+
+android/**/.DS_Store
+android/**/Thumbs.db
+

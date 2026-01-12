@@ -1,15 +1,19 @@
 import React, { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { User } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
+import { App } from '@capacitor/app';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ToastAction } from '@/components/ui/toast';
 import { downloadCyclesAsCsv, downloadCyclesAsPdf } from '@/lib/cycleExport';
 import ExportCyclesDialog from '@/components/ExportCyclesDialog';
 import { useCycleData } from '@/hooks/useCycleData';
 import InstallPrompt from '@/components/InstallPrompt';
+import { ensureHealthConnectPermissions } from '@/lib/healthConnectSync';
 
 import {
   Dialog,
@@ -22,7 +26,7 @@ import {
 
 const SettingsPage = () => {
   const { user, updateEmail, updatePassword, login, logout } = useAuth();
-  const { currentCycle, archivedCycles } = useCycleData();
+  const { currentCycle, archivedCycles, syncHealthConnectTemperatures } = useCycleData();
   const { toast } = useToast();
 
   const [showEmailDialog, setShowEmailDialog] = useState(false);
@@ -42,6 +46,10 @@ const SettingsPage = () => {
   const [loadingLogout, setLoadingLogout] = useState(false);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const forceInstallPrompt = import.meta.env.VITE_FORCE_INSTALL_PROMPT === 'true';
+  const [syncingHealthConnect, setSyncingHealthConnect] = useState(false);
+  const [lastSyncSummary, setLastSyncSummary] = useState('');
+
+  const isAndroidApp = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android';
 
     const allCycles = useMemo(() => {
     const combined = [];
@@ -202,9 +210,86 @@ const SettingsPage = () => {
     }
   };
 
+const handleOpenHealthConnectSettings = async () => {
+  try {
+    const { HealthConnect } = await import('capacitor-health-connect');
+    if (typeof HealthConnect?.openHealthConnectSetting === 'function') {
+      await HealthConnect.openHealthConnectSetting();
+      return;
+    }
+    throw new Error('HC_OPEN_SETTINGS_UNAVAILABLE');
+  } catch (error) {
+    console.error('Error al abrir ajustes de Health Connect', error);
+    toast({
+      title: 'No se pudo abrir Salud automáticamente',
+      description: 'Abre Salud/Health Connect y concede permisos a FertiliApp manualmente.',
+      variant: 'destructive',
+    });
+  }
+};
+
+
+
+  const handleSyncHealthConnect = async () => {
+  if (!isAndroidApp) return;
+
+  let hasPermissions = false;
+
+  try {
+    hasPermissions = await ensureHealthConnectPermissions();
+  } catch (error) {
+    const msg = String(error?.message || error);
+    toast({
+      title: 'Health Connect: error pidiendo permisos',
+      description: msg,
+      variant: 'destructive',
+    });
+    return;
+  }
+
+  if (!hasPermissions) {
+    toast({
+      title: 'Permisos requeridos',
+      description: 'Se abrirá Salud/Health Connect para conceder permisos.',
+      action: (
+        <ToastAction altText="Abrir Salud" onClick={handleOpenHealthConnectSettings}>
+          Abrir Salud
+        </ToastAction>
+      ),
+    });
+    await handleOpenHealthConnectSettings();
+    return;
+  }
+
+  setSyncingHealthConnect(true);
+  try {
+    const data = await syncHealthConnectTemperatures();
+    if (data) {
+      setLastSyncSummary(
+        `Nuevos: ${data?.createdMeasurements ?? 0} · Ya estaban: ${data?.skippedMeasurements ?? 0} · Rechazados: ${data?.rejected ?? 0}`
+      );
+    }
+  } catch (error) {
+    console.error('Error al sincronizar Health Connect', error);
+  } finally {
+    setSyncingHealthConnect(false);
+  }
+};
+
+
+  const syncHelperText = (() => {
+    if (!isAndroidApp) return 'Disponible solo en la app Android.';
+    if (!currentCycle?.id) return 'Necesitas un ciclo actual para sincronizar.';
+    if (lastSyncSummary) return lastSyncSummary;
+    return 'Sincroniza tus temperaturas basales desde Health Connect.';
+  })();
+
   return (
-     <div className="relative flex min-h-[100dvh] flex-col overflow-hidden">
-      <div className="relative z-10 mx-auto flex w-full max-w-2xl flex-1 flex-col box-border px-4 py-6 pb-[calc(var(--bottom-nav-safe)+1.25rem)]">
+     <div className="relative flex h-[calc(var(--app-vh,1vh)*100 - var(--bottom-nav-safe))] flex-col overflow-hidden">
+      <div
+        className="relative z-10 mx-auto flex w-full max-w-2xl flex-1 flex-col box-border px-4 py-6"
+        style={{ paddingBottom: 'calc(var(--bottom-nav-safe) + 4rem)' }}
+      >
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -257,6 +342,22 @@ const SettingsPage = () => {
             </Button>
           </div>
           
+          <div className="bg-white/50 backdrop-blur p-4 rounded-3xl shadow flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm text-slate-500">Sincronizar Health Connect</p>
+              <p className="font-medium text-slate-700">
+                Importa tus temperaturas
+              </p>
+              <p className="text-xs text-slate-500 mt-1">{syncHelperText}</p>
+            </div>
+            <Button
+              onClick={handleSyncHealthConnect}
+              className="ml-0 sm:ml-4"
+              disabled={!isAndroidApp || syncingHealthConnect || !currentCycle?.id}
+            >
+              {syncingHealthConnect ? 'Sincronizando...' : 'Sincronizar ahora'}
+            </Button>
+          </div>
           <InstallPrompt
             align="end"
             buttonClassName="bg-fertiliapp-fuerte hover:brightness-95"
@@ -264,7 +365,13 @@ const SettingsPage = () => {
           />
         </div>
 
-          <div className="mt-auto pt-4">
+      </div>
+
+      <div
+        className="fixed left-0 right-0 bottom-0 z-20 flex justify-center pointer-events-none"
+        style={{ bottom: 'var(--bottom-nav-safe)' }}
+      >
+        <div className="mx-auto w-full max-w-2xl px-4 pb-6 pointer-events-auto">
           <div className="bg-white/80 backdrop-blur p-4 rounded-3xl shadow flex items-center justify-between">
             <div>
               <p className="text-sm text-slate-500">Sesión</p>
@@ -279,9 +386,9 @@ const SettingsPage = () => {
               Cerrar sesión
             </Button>
           </div>
-        </div>  
+        </div>
       </div>
-      
+
 
       <Dialog open={showEmailDialog} onOpenChange={setShowEmailDialog}>
         <DialogContent className="sm:max-w-md">

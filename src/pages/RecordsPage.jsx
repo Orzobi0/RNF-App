@@ -1535,7 +1535,7 @@ const enterStart = -exitTarget;
           className="sticky overflow-y-auto overscroll-contain w-full max-w-4xl mx-auto"
           style={{
             top: boundaryPx,
-            maxHeight: `calc(100dvh - ${boundaryPx}px - var(--bottom-nav-safe, 0px))`,
+            maxHeight: `calc(h-app - ${boundaryPx}px )`,
             WebkitOverflowScrolling: 'touch',
           }}
         >
@@ -1543,7 +1543,7 @@ const enterStart = -exitTarget;
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.1 }}
-            className="relative space-y-2 px-1.5 pt-2 pb-[calc(var(--bottom-nav-safe,0px))] sm:px-2 lg:px-4"
+            className="relative space-y-2 px-1.5 pt-2 sm:px-2 lg:px-4"
           >
          
           {cycleDays.length === 0 ? (

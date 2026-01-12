@@ -179,7 +179,7 @@ const ArchivedCyclesPage = () => {
 
   if (isLoading && !hasCachedCycles) {
     return (
-      <div className="relative flex h-full flex-col items-center justify-center overflow-hidden">
+      <div className="relative flex h-[calc(var(--app-vh,1vh)*100 - var(--bottom-nav-safe))] flex-col items-center justify-center overflow-hidden">
         <div className="text-center text-slate-600 p-8">Cargando ciclos archivados...</div>
       </div>
     );
@@ -187,7 +187,7 @@ const ArchivedCyclesPage = () => {
 
   if (!allCycles || allCycles.length === 0) {
     return (
-      <div className="relative flex h-full flex-col bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100">
+      <div className="relative flex h-[calc(var(--app-vh,1vh)*100 - var(--bottom-nav-safe))] flex-col bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100">
         <div
           className="pointer-events-none absolute inset-0"
           style={{
@@ -266,9 +266,9 @@ const ArchivedCyclesPage = () => {
       }
     });
   return (
-    <div className="relative flex min-h-screen flex-col overflow-hidden">
+    <div className="relative flex h-[calc(var(--app-vh,1vh)*100 - var(--bottom-nav-safe))] flex-col overflow-hidden">
       <div className="relative z-10 flex flex-1">
-        <div className="w-full max-w-4xl mx-auto px-4 py-6 flex flex-col h-full">
+        <div className="w-full max-w-4xl mx-auto px-4 py-6 flex h-[calc(var(--app-vh,1vh)*100 - var(--bottom-nav-safe))] flex-col">
           {/* Header */}
           <motion.div
   className="flex items-center justify-between gap-3 mb-6"
