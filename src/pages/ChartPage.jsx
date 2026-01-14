@@ -330,6 +330,7 @@ const ChartPage = () => {
   }, [chartSettings, fertilityConfig]);
 
   const ignoreNextClickRef = useRef(false);
+  const keepFormOpenUntilRef = useRef(0);
   const isPlaceholderRecord = Boolean(
     editingRecord && String(editingRecord.id || '').startsWith('placeholder-')
   );
@@ -838,10 +839,18 @@ const ChartPage = () => {
       setIsProcessing(false);
     }
   };
+  const handleCloseForm = useCallback(() => {
+    setShowForm(false);
+    setEditingRecord(null);
+    setInitialSectionKey(null);
+  }, []);
 
   const handleSave = async (data, { keepFormOpen = false } = {}) => {
     if (!targetCycle?.id) return;
     setIsProcessing(true);
+    if (keepFormOpen) {
+      keepFormOpenUntilRef.current = Date.now() + 500;
+    }
     try {
       await addOrUpdateDataPoint(data, editingRecord, targetCycle.id);
       if (isUsingFallbackCycle) {
@@ -858,12 +867,6 @@ const ChartPage = () => {
     } finally {
       setIsProcessing(false);
     }
-  };
-
-  const handleCloseForm = () => {
-    setShowForm(false);
-    setEditingRecord(null);
-    setInitialSectionKey(null);
   };
 
   const handleDateSelect = (record) => {
@@ -891,6 +894,19 @@ const ChartPage = () => {
       toggleInterpretation();
     }
   };
+
+  const handleFormOpenChange = useCallback((open) => {
+    if (open) {
+      setShowForm(true);
+      return;
+    }
+
+    if (Date.now() < keepFormOpenUntilRef.current) {
+      return;
+    }
+
+    handleCloseForm();
+  }, [handleCloseForm]);
 
   const formatDateFromIndex = useCallback(
     (index) => {
@@ -1412,10 +1428,20 @@ const ChartPage = () => {
           )}
         </Overlay>
 
-        <Dialog open={showForm} onOpenChange={(open) => { if (!open) handleCloseForm(); }}>
+        <Dialog open={showForm} onOpenChange={handleFormOpenChange}>
           <DialogContent
             hideClose
             className="bg-transparent border-none p-0 text-gray-800 w-[90vw] sm:w-auto max-w-md sm:max-w-lg md:max-w-xl max-h-[85vh] overflow-y-auto"
+            onInteractOutside={(event) => {
+              if (Date.now() < keepFormOpenUntilRef.current) {
+                event.preventDefault();
+              }
+            }}
+            onPointerDownOutside={(event) => {
+              if (Date.now() < keepFormOpenUntilRef.current) {
+                event.preventDefault();
+              }
+            }}
           >
             <DataEntryForm
               onSubmit={handleSave}
