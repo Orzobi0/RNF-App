@@ -519,28 +519,23 @@ export const RecordsExperience = ({
         const details = recordDetailsByIso.get(iso);
         const baseLabel = format(day, 'd MMM', { locale: es });
 
-        if (!details) {
-          return baseLabel;
-        }
+       const peakStatus = details?.peakStatus ?? peakStatuses[iso] ?? null;
 
         const infoParts = [];
-        if (details.hasTemperature && details.hasMucus) {
+        if (details?.hasTemperature && details?.hasMucus) {
           infoParts.push('temperatura y moco');
-        } else if (details.hasTemperature) {
+        } else if (details?.hasTemperature) {
           infoParts.push('temperatura');
-        } else if (details.hasMucus) {
+        } else if (details?.hasMucus) {
           infoParts.push('moco');
         }
 
-        if (details.hasRelations) {
+        if (details?.hasRelations) {
           infoParts.push('RS');
         }
 
-        if (details.peakStatus) {
-          const peakLabel =
-            details.peakStatus === 'P'
-              ? 'pico ✖'
-              : `pico +${details.peakStatus}`;
+        if (peakStatus) {
+          const peakLabel = peakStatus === 'P' ? 'pico ✖' : `pico +${peakStatus}`;
           infoParts.push(peakLabel);
         }
 
@@ -551,7 +546,7 @@ export const RecordsExperience = ({
         return `${baseLabel}: ${infoParts.join('; ')}`;
       },
     }),
-    [recordDetailsByIso]
+    [peakStatuses, recordDetailsByIso]
   );
 
   const renderCalendarDay = useCallback(
@@ -562,7 +557,7 @@ export const RecordsExperience = ({
       const hasTemperature = details?.hasTemperature ?? false;
       const hasMucus = details?.hasMucus ?? false;
       const hasRelations = details?.hasRelations ?? false;
-      const peakStatus = details?.peakStatus ?? null;
+      const peakStatus = details?.peakStatus ?? peakStatuses[iso] ?? null;
       const symbolInfo = details?.symbolInfo;
       const symbolValue = symbolInfo?.value;
       const isSelected = activeModifiers.selected;
@@ -629,6 +624,14 @@ export const RecordsExperience = ({
   )}
       {symbolBackgroundClass && <span className={symbolBackgroundClass} aria-hidden="true" />}
       <span className={numberClass}>{format(date, 'd')}</span>
+      {hasRelations && (
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute -bottom-[1px] -right-[2px] text-[0.55rem] font-semibold text-rose-500"
+        >
+          ❤
+        </span>
+      )}
     </span>
 
 
@@ -654,7 +657,7 @@ export const RecordsExperience = ({
 );
 
     },
-    [recordDetailsByIso]
+    [peakStatuses, recordDetailsByIso]
   );
 
   const cycleDays = useMemo(() => {
@@ -1433,8 +1436,11 @@ const enterStart = -exitTarget;
               >
                 <div className="flex flex-wrap items-center gap-1 justify-between sm:justify-start">
                   <div className="flex items-center gap-2">
-                    <HeaderIcon className="h-7 w-7 text-subtitulo" />
-                    <span className="text-2xl sm:text-2xl font-bold text-subtitulo">{resolvedHeaderTitle}</span>
+                    {resolvedTopAccessory && (
+                      <div className="flex items-center">{resolvedTopAccessory}</div>
+                    )}
+                    <HeaderIcon className="h-6 w-6 text-subtitulo" />
+                    <span className="text-xl sm:text-2xl font-bold text-subtitulo">{resolvedHeaderTitle}</span>
                   </div>
                   <div className="flex items-center gap-1">{resolvedHeaderActions}</div>
                 </div>

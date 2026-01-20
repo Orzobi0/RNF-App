@@ -182,25 +182,18 @@ const CycleDetailPage = () => {
     }, [cycleData?.id, deleteCycle, navigate, toast, user]);
 
   const topAccessory = useCallback(() => (
-    <div className="flex items-center gap-1">
       <Button
-        asChild
-        variant="outline"
-        size="icon"
-        className="shrink-0 ml-2 rounded-full border-fertiliapp-fuerte text-fertiliapp-fuerte hover:brightness-95"
-      >
-        <Link to="/archived-cycles" aria-label="Volver a mis ciclos">
-          <ArrowLeft className="h-4 w-4" />
-          <span className="sr-only">Mis ciclos</span>
-        </Link>
-      </Button>
-      <div className="items-center justify-center px-4 py-3">
-        <h2 className="text-2xl font-semibold text-titulo truncate">
-          {cycleData?.name ? `${cycleData.name} · ` : ''}{cycleRangeLabel}
-        </h2>
-      </div>
-    </div>
-    ), [cycleData?.name, cycleRangeLabel]);
+      asChild
+      variant="outline"
+      size="icon"
+      className="shrink-0 rounded-full border-transparent bg-transparent text-fertiliapp-fuerte hover:brightness-95"
+    >
+      <Link to="/archived-cycles" aria-label="Volver a mis ciclos">
+        <ArrowLeft className="h-4 w-4" />
+        <span className="sr-only">Mis ciclos</span>
+      </Link>
+    </Button>
+  ), []);
 
   const headerActions = useCallback(
     ({ openDateEditor, openAddRecord, isProcessing, isUpdatingDates }) => (
@@ -209,7 +202,7 @@ const CycleDetailPage = () => {
           asChild
           variant="outline"
           size="icon"
-          className="border-white text-alerta bg-white rounded-full hover:brightness-95"
+          className="border-alerta text-white bg-alerta rounded-full hover:brightness-95"
         >
           <Link to={`/chart/${cycleId}`} aria-label="Ver gráfica del ciclo">
             <BarChart3 className="h-4 w-4" />

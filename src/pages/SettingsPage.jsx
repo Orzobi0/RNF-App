@@ -36,7 +36,7 @@ const SettingsPage = () => {
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [selectedCycleIds, setSelectedCycleIds] = useState([]);
-  const [exportFormat, setExportFormat] = useState('csv');
+  const [exportFormat, setExportFormat] = useState('pdf');
   const [includeChart, setIncludeChart] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
@@ -84,7 +84,7 @@ const SettingsPage = () => {
 
   const resetExportState = () => {
     setSelectedCycleIds([]);
-    setExportFormat('csv');
+    setExportFormat('pdf');
     setIncludeChart(false);
     setIsExporting(false);
   };

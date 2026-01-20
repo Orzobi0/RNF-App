@@ -385,6 +385,8 @@
   .text-alerta-2 { color: var(--color-alerta-2); }
   .bg-alerta-2-suave { background-color: var(--color-alerta-2-suave); }
   .text-alerta-2-suave { color: var(--color-alerta-2-suave); }
+  .border-alerta-2-suave { border-color: var(--color-alerta-2-suave); }
+  .border-alerta { border-color: var(--color-alerta); }
 
   .bg-alerta-suave { background-color: var(--color-alerta-suave); }
   .text-alerta-suave { color: var(--color-alerta-suave); }

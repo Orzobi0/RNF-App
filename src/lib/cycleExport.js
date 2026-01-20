@@ -166,14 +166,34 @@ const buildChartData = (entries = []) => {
     .sort((a, b) => a.cycleDay - b.cycleDay);
 };
 
+const getTempTicks = (minTemp, maxTemp) => {
+  const tempRange = Math.max(maxTemp - minTemp, 0.1);
+  const tickIncrement = tempRange <= 2.5 ? 0.1 : 0.5;
+  const ticks = [];
+
+  for (let t = minTemp; t <= maxTemp + 1e-9; t += tickIncrement) {
+    ticks.push(Number(t.toFixed(1)));
+  }
+
+  return ticks;
+};
+
+const getDayTickStep = (dayRange) => {
+  if (dayRange <= 14) return 1;
+  if (dayRange <= 30) return 2;
+  if (dayRange <= 45) return 3;
+  if (dayRange <= 60) return 4;
+  return 5;
+};
+
 const renderCycleChart = (doc, cycleTitle, entries) => {
   const chartData = buildChartData(entries);
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 14;
-  const chartTop = 30;
-  const chartLeft = margin + 12;
-  const chartRight = pageWidth - margin;
+  const chartTop = 34;
+  const chartLeft = margin + 16;
+  const chartRight = pageWidth - margin - 6;
   const chartBottom = pageHeight - 24;
   const chartWidth = chartRight - chartLeft;
   const chartHeight = chartBottom - chartTop;
@@ -190,8 +210,12 @@ const renderCycleChart = (doc, cycleTitle, entries) => {
   }
 
   const temperatures = chartData.map((point) => point.temperature);
-  const minTemp = Math.min(...temperatures);
-  const maxTemp = Math.max(...temperatures);
+  const rawMinTemp = Math.min(...temperatures);
+  const rawMaxTemp = Math.max(...temperatures);
+  const paddedMin = rawMinTemp - 0.1;
+  const paddedMax = rawMaxTemp + 0.1;
+  const minTemp = Number(paddedMin.toFixed(1));
+  const maxTemp = Number(paddedMax.toFixed(1));
   const tempRange = Math.max(maxTemp - minTemp, 0.1);
   const minDay = Math.min(...chartData.map((point) => point.cycleDay));
   const maxDay = Math.max(...chartData.map((point) => point.cycleDay));
@@ -200,19 +224,48 @@ const renderCycleChart = (doc, cycleTitle, entries) => {
   const getX = (day) => chartLeft + ((day - minDay) / dayRange) * chartWidth;
   const getY = (temp) => chartBottom - ((temp - minTemp) / tempRange) * chartHeight;
 
-  doc.setDrawColor(120, 120, 120);
-  doc.setLineWidth(0.3);
-  doc.line(chartLeft, chartTop, chartLeft, chartBottom);
-  doc.line(chartLeft, chartBottom, chartRight, chartBottom);
+  doc.setDrawColor(255, 237, 242);
+  doc.setFillColor(255, 248, 250);
+  doc.rect(chartLeft, chartTop, chartWidth, chartHeight, 'FD');
 
-  doc.setFontSize(9);
-  doc.text(`${minTemp.toFixed(2)}°`, margin, chartBottom + 1, { baseline: 'bottom' });
-  doc.text(`${maxTemp.toFixed(2)}°`, margin, chartTop + 2);
-  doc.text(`${minDay}`, chartLeft, chartBottom + 6);
-  doc.text(`${maxDay}`, chartRight - 4, chartBottom + 6);
+  const tempTicks = getTempTicks(minTemp, maxTemp);
+  tempTicks.forEach((tick) => {
+    const y = getY(tick);
+    const isMajor = tick.toFixed(1).endsWith('.0') || tick.toFixed(1).endsWith('.5');
+    doc.setDrawColor(isMajor ? 244 : 252, isMajor ? 114 : 228, isMajor ? 182 : 196);
+    doc.setLineWidth(isMajor ? 0.4 : 0.2);
+    doc.line(chartLeft, y, chartRight, y);
+
+    doc.setFontSize(8);
+    doc.setTextColor(isMajor ? 190 : 219, isMajor ? 24 : 39, isMajor ? 93 : 119);
+    doc.text(tick.toFixed(1), chartLeft - 2.5, y + 2, { align: 'right' });
+  });
+
+  const dayStep = getDayTickStep(dayRange);
+  for (let day = minDay; day <= maxDay; day += dayStep) {
+    const x = getX(day);
+    doc.setDrawColor(252, 228, 236);
+    doc.setLineWidth(0.2);
+    doc.line(x, chartTop, x, chartBottom);
+    doc.setFontSize(8);
+    doc.setTextColor(148, 163, 184);
+    doc.text(String(day), x, chartBottom + 5, { align: 'center' });
+  }
 
   doc.setDrawColor(216, 92, 112);
-  doc.setLineWidth(0.8);
+  doc.setLineWidth(0.6);
+  doc.rect(chartLeft, chartTop, chartWidth, chartHeight);
+
+  doc.setFontSize(9);
+  doc.setTextColor(148, 16, 89);
+  doc.text('Temperatura (°C)', chartLeft, chartTop - 6);
+  doc.setTextColor(148, 163, 184);
+  doc.text('Día del ciclo', (chartLeft + chartRight) / 2, chartBottom + 10, {
+    align: 'center',
+  });
+
+  doc.setDrawColor(216, 92, 112);
+  doc.setLineWidth(0.9);
   chartData.forEach((point, index) => {
     const x = getX(point.cycleDay);
     const y = getY(point.temperature);
@@ -220,7 +273,8 @@ const renderCycleChart = (doc, cycleTitle, entries) => {
       const prev = chartData[index - 1];
       doc.line(getX(prev.cycleDay), getY(prev.temperature), x, y);
     }
-    doc.circle(x, y, 0.6, 'F');
+    doc.setFillColor(216, 92, 112);
+    doc.circle(x, y, 0.8, 'F');
   });
 };
 
