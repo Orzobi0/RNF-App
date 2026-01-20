@@ -149,7 +149,86 @@ export const downloadCyclesAsCsv = (cycles, filename = 'ciclos.csv') => {
   triggerDownload(blob, filename);
 };
 
-export const downloadCyclesAsPdf = (cycles, filename = 'ciclos.pdf') => {
+const buildChartData = (entries = []) => {
+  return entries
+    .map((entry, index) => {
+      const temperature =
+        entry?.temperature_chart ?? entry?.temperature_corrected ?? entry?.temperature_raw ?? null;
+      const numericTemp =
+        temperature !== null && temperature !== undefined && temperature !== ''
+          ? Number(temperature)
+          : null;
+      if (!Number.isFinite(numericTemp)) return null;
+      const cycleDay = Number.isFinite(Number(entry?.cycleDay)) ? Number(entry.cycleDay) : index + 1;
+      return { cycleDay, temperature: numericTemp };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.cycleDay - b.cycleDay);
+};
+
+const renderCycleChart = (doc, cycleTitle, entries) => {
+  const chartData = buildChartData(entries);
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 14;
+  const chartTop = 30;
+  const chartLeft = margin + 12;
+  const chartRight = pageWidth - margin;
+  const chartBottom = pageHeight - 24;
+  const chartWidth = chartRight - chartLeft;
+  const chartHeight = chartBottom - chartTop;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.text(`${cycleTitle} · Gráfica`, margin, 20);
+  doc.setFont('helvetica', 'normal');
+
+  if (!chartData.length) {
+    doc.setFontSize(11);
+    doc.text('No hay datos de temperatura para graficar.', margin, chartTop);
+    return;
+  }
+
+  const temperatures = chartData.map((point) => point.temperature);
+  const minTemp = Math.min(...temperatures);
+  const maxTemp = Math.max(...temperatures);
+  const tempRange = Math.max(maxTemp - minTemp, 0.1);
+  const minDay = Math.min(...chartData.map((point) => point.cycleDay));
+  const maxDay = Math.max(...chartData.map((point) => point.cycleDay));
+  const dayRange = Math.max(maxDay - minDay, 1);
+
+  const getX = (day) => chartLeft + ((day - minDay) / dayRange) * chartWidth;
+  const getY = (temp) => chartBottom - ((temp - minTemp) / tempRange) * chartHeight;
+
+  doc.setDrawColor(120, 120, 120);
+  doc.setLineWidth(0.3);
+  doc.line(chartLeft, chartTop, chartLeft, chartBottom);
+  doc.line(chartLeft, chartBottom, chartRight, chartBottom);
+
+  doc.setFontSize(9);
+  doc.text(`${minTemp.toFixed(2)}°`, margin, chartBottom + 1, { baseline: 'bottom' });
+  doc.text(`${maxTemp.toFixed(2)}°`, margin, chartTop + 2);
+  doc.text(`${minDay}`, chartLeft, chartBottom + 6);
+  doc.text(`${maxDay}`, chartRight - 4, chartBottom + 6);
+
+  doc.setDrawColor(216, 92, 112);
+  doc.setLineWidth(0.8);
+  chartData.forEach((point, index) => {
+    const x = getX(point.cycleDay);
+    const y = getY(point.temperature);
+    if (index > 0) {
+      const prev = chartData[index - 1];
+      doc.line(getX(prev.cycleDay), getY(prev.temperature), x, y);
+    }
+    doc.circle(x, y, 0.6, 'F');
+  });
+};
+
+export const downloadCyclesAsPdf = (
+  cycles,
+  filename = 'ciclos.pdf',
+  { includeChart = false } = {},
+) => {
   const formatted = formatCyclesForExport(cycles);
   if (!formatted.length) return;
 
@@ -210,6 +289,11 @@ export const downloadCyclesAsPdf = (cycles, filename = 'ciclos.pdf') => {
       margin: { left: horizontalMargin, right: horizontalMargin },
       tableWidth,
     });
+    
+    if (includeChart) {
+      doc.addPage();
+      renderCycleChart(doc, cycle.title, ensureProcessedEntries(cycles[index]));
+    }
   });
 
   const blob = doc.output('blob');

@@ -37,6 +37,7 @@ const SettingsPage = () => {
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [selectedCycleIds, setSelectedCycleIds] = useState([]);
   const [exportFormat, setExportFormat] = useState('csv');
+  const [includeChart, setIncludeChart] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
   const [newEmail, setNewEmail] = useState(user?.email || '');
@@ -84,7 +85,15 @@ const SettingsPage = () => {
   const resetExportState = () => {
     setSelectedCycleIds([]);
     setExportFormat('csv');
+    setIncludeChart(false);
     setIsExporting(false);
+  };
+
+  const handleFormatChange = (value) => {
+    setExportFormat(value);
+    if (value !== 'pdf') {
+      setIncludeChart(false);
+    }
   };
 
   const handleCloseExportDialog = () => {
@@ -137,7 +146,7 @@ const SettingsPage = () => {
       const filename = `ciclos-${timestamp}.${exportFormat}`;
 
       if (exportFormat === 'pdf') {
-        await downloadCyclesAsPdf(cyclesToExport, filename);
+        await downloadCyclesAsPdf(cyclesToExport, filename, { includeChart });
       } else {
         await downloadCyclesAsCsv(cyclesToExport, filename);
       }
@@ -536,7 +545,9 @@ const SettingsPage = () => {
         onToggleId={handleToggleCycle}
         onToggleAll={handleToggleAllCycles}
         format={exportFormat}
-        onFormatChange={setExportFormat}
+        onFormatChange={handleFormatChange}
+        includeChart={includeChart}
+        onIncludeChartChange={setIncludeChart}
         isProcessing={isExporting}
       />
     </div>
