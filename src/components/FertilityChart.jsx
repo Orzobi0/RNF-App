@@ -851,6 +851,7 @@ const FertilityChart = ({
   }, [updateVisibleRange]);
 
   const applyRotation = isFullScreen && forceLandscape && isViewportPortrait;
+  const visualOrientation = forceLandscape ? 'landscape' : orientation;
 
   // Clase del contenedor de scroll ajustada para rotación artificial
   const rotatedContainer = applyRotation;
@@ -858,7 +859,7 @@ const FertilityChart = ({
   const containerClass = isFullScreen
     ? `${baseFullClass} h-full ${rotatedContainer ? 'overflow-y-auto overflow-x-auto' : 'overflow-x-auto overflow-y-auto'}`
     : `${baseFullClass} overflow-x-auto overflow-y-visible border border-pink-100/50`;
-  const showLegend = !isFullScreen || orientation === 'portrait';
+  const showLegend = !isFullScreen || visualOrientation === 'portrait';
 
   return (
       <motion.div className="relative w-full h-full" initial={false}>
@@ -1230,7 +1231,7 @@ const FertilityChart = ({
             getX={getX}
             getY={getY}
             isFullScreen={isFullScreen}
-            orientation={orientation}
+            orientation={visualOrientation}
             responsiveFontSize={responsiveFontSize}
             onPointInteraction={handlePointInteraction}
             clearActivePoint={clearActivePoint}

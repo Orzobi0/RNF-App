@@ -13,8 +13,8 @@ const DEFAULT_FERTILITY_START_CONFIG = {
   combineMode: 'conservador',
 };
 
-const DEFAULT_TEMP_MIN = 35.8;
-const DEFAULT_TEMP_MAX = 37.2;
+const DEFAULT_TEMP_MIN = 36.1;
+const DEFAULT_TEMP_MAX = 37.5;
 
 export const computeOvulationMetrics = (processedData = []) => {
   const isValid = (p) => p && p.displayTemperature != null && !p.ignored;

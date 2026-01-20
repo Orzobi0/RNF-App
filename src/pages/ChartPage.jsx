@@ -331,50 +331,48 @@ const ChartPage = () => {
 
   const ignoreNextClickRef = useRef(false);
   const keepFormOpenUntilRef = useRef(0);
+  const bodyOverflowRef = useRef(null);
+  const htmlOverflowRef = useRef(null);
   const isPlaceholderRecord = Boolean(
     editingRecord && String(editingRecord.id || '').startsWith('placeholder-')
   );
   
   useEffect(() => {
-    const handleFullScreenChange = async () => {
-      const isCurrentlyFullScreen = Boolean(
-        document.fullscreenElement ||
-          document.webkitFullscreenElement ||
-          document.mozFullScreenElement ||
-          document.msFullscreenElement
-      );
+    if (typeof document === 'undefined') return undefined;
 
-      setIsFullScreen(isCurrentlyFullScreen);
+      const body = document.body;
+    const html = document.documentElement;
 
-      if (!isCurrentlyFullScreen) {
-        try {
-          const screenOrientation =
-            typeof window !== 'undefined' ? window.screen?.orientation : null;
-          await screenOrientation?.unlock?.();
-        } catch (error) {
-          // ignored
-        }
-        setForceLandscape(false);
-        const nextOrientation =
-          typeof window !== 'undefined' && window.innerWidth > window.innerHeight
-            ? 'landscape'
-            : 'portrait';
-        setOrientation(nextOrientation);
+      if (isFullScreen) {
+      if (bodyOverflowRef.current === null) {
+        bodyOverflowRef.current = body.style.overflow;
+      }
+    if (htmlOverflowRef.current === null) {
+        htmlOverflowRef.current = html.style.overflow;
+      }
+      body.style.overflow = 'hidden';
+      html.style.overflow = 'hidden';
+      return undefined;
+    }
+ if (bodyOverflowRef.current !== null) {
+      body.style.overflow = bodyOverflowRef.current;
+      bodyOverflowRef.current = null;
+    }
+    if (htmlOverflowRef.current !== null) {
+      html.style.overflow = htmlOverflowRef.current;
+      htmlOverflowRef.current = null;
+    }
+    return () => {
+      if (bodyOverflowRef.current !== null) {
+        body.style.overflow = bodyOverflowRef.current;
+        bodyOverflowRef.current = null;
+      }
+      if (htmlOverflowRef.current !== null) {
+        html.style.overflow = htmlOverflowRef.current;
+        htmlOverflowRef.current = null;
       }
     };
-
-    document.addEventListener('fullscreenchange', handleFullScreenChange);
-    document.addEventListener('webkitfullscreenchange', handleFullScreenChange);
-    document.addEventListener('mozfullscreenchange', handleFullScreenChange);
-    document.addEventListener('MSFullscreenChange', handleFullScreenChange);
-
-    return () => {
-      document.removeEventListener('fullscreenchange', handleFullScreenChange);
-      document.removeEventListener('webkitfullscreenchange', handleFullScreenChange);
-      document.removeEventListener('mozfullscreenchange', handleFullScreenChange);
-      document.removeEventListener('MSFullscreenChange', handleFullScreenChange);
-    };
-  }, []);
+  }, [isFullScreen]);;
 
   useLayoutEffect(() => {
     window.dispatchEvent(new Event('resize'));
@@ -464,16 +462,17 @@ const ChartPage = () => {
     return existingRecord ? { ...existingRecord, date: placeholder.date } : placeholder;
   });
 
+  const visualOrientation = forceLandscape ? 'landscape' : orientation;
   const visibleDays = isFullScreen
-    ? (orientation === 'portrait'
+    ? (visualOrientation === 'portrait'
         ? VISIBLE_DAYS_FULLSCREEN_PORTRAIT
         : VISIBLE_DAYS_FULLSCREEN_LANDSCAPE)
-    : (orientation === 'portrait'
+    : (visualOrientation === 'portrait'
       ? VISIBLE_DAYS_FULLSCREEN_PORTRAIT
       : CYCLE_DURATION_DAYS);
   let scrollStart = 0;
 
-  if (orientation !== 'landscape') {
+  if (visualOrientation !== 'landscape') {
     const daysSinceCycleStart = differenceInDays(new Date(), startOfDay(cycleStartDate));
     const currentDayIndex = Math.min(Math.max(daysSinceCycleStart, 0), daysInCycle - 1);
     let endIndex = Math.min(daysInCycle, currentDayIndex + 1);
@@ -1110,97 +1109,20 @@ const ChartPage = () => {
     [fertilityConfig, formatDateFromIndex, mergedData.length, setPhaseOverlay]
   );
 
-  const handleToggleFullScreen = async () => {
-    const rootElement = document.documentElement;
-    const screenOrientation =
-      typeof window !== 'undefined' ? window.screen?.orientation : null;
-
-      const enableForcedLandscape = () => {
-      setOrientation('landscape');
+  const handleToggleFullScreen = () => {
+    if (!isFullScreen) {
       setIsFullScreen(true);
       setForceLandscape(true);
-    };
-
-    if (!isFullScreen) {
-      const requestFullScreen =
-        rootElement.requestFullscreen ||
-        rootElement.webkitRequestFullscreen ||
-        rootElement.mozRequestFullScreen ||
-        rootElement.msRequestFullscreen;
-
-      const hasRequestFullScreen = Boolean(requestFullScreen);
-      const canLockOrientation = Boolean(screenOrientation?.lock);
-      
-
-      if (!hasRequestFullScreen && !canLockOrientation) {
-        enableForcedLandscape();
-        return;
-      }
-
-      let enteredFullScreen = false;
-      let lockedOrientation = false;
-
-      try {
-        if (requestFullScreen) {
-          await requestFullScreen.call(rootElement);
-          enteredFullScreen = true;
-        }
-      } catch (err) {
-        console.error(err);
-      }
-      
-      if (canLockOrientation) {
-        try {
-          await screenOrientation.lock('landscape');
-          lockedOrientation = true;
-        } catch (err) {
-          console.error(err);
-        }
-      }
-
-      const activatedFullScreen = enteredFullScreen || lockedOrientation;
-
-      if (activatedFullScreen) {
-        enableForcedLandscape();
-      } else {
-        enableForcedLandscape();
-      }
-
-    } else {
-      if (screenOrientation?.unlock) {
-        try {
-          await screenOrientation.unlock();
-        } catch (err) {
-          console.error(err);
-        }
-      }
-      try {
-        const exitFullScreen =
-          document.exitFullscreen ||
-          document.webkitExitFullscreen ||
-          document.mozCancelFullScreen ||
-          document.msExitFullscreen;
-
-        const isAnyElementFullScreen =
-          document.fullscreenElement ||
-          document.webkitFullscreenElement ||
-          document.mozFullScreenElement ||
-          document.msFullscreenElement;
-
-        if (exitFullScreen && isAnyElementFullScreen) {
-          await exitFullScreen.call(document);
-        }
-      } catch (err) {
-        console.error(err);
-      }
-      setForceLandscape(false);
-      const nextOrientation =
-        typeof window !== 'undefined' && window.innerWidth > window.innerHeight
-          ? 'landscape'
-          : 'portrait';
-      setOrientation(nextOrientation);
-      setIsFullScreen(false);
+    return;
     }
+    
+    setForceLandscape(false);
+    const nextOrientation =
+      typeof window !== 'undefined' && window.innerWidth > window.innerHeight
+        ? 'landscape'
+        : 'portrait';
+    setOrientation(nextOrientation);
+    setIsFullScreen(false);
   };
 
   return (
@@ -1216,7 +1138,7 @@ const ChartPage = () => {
           <Button
             asChild
             variant="ghost"
-            className="absolute top-4 left-4 z-10 bg-white/80 text-slate-700 hover:bg-[#E27DBF]/20"
+            className="absolute top-4 left-4 z-10 bg-white/20 text-slate-700 hover:brightness-95"
           >
             <Link to={`/cycle/${targetCycle.id}`} className="flex items-center gap-1">
               <ArrowLeft className="h-4 w-4" />
@@ -1233,8 +1155,8 @@ const ChartPage = () => {
           onClick={() => setSettingsOpen((prev) => !prev)}
           variant="ghost"
           size="icon"
-          className="absolute top-16 right-4 z-10 p-2 rounded-full bg-white shadow-lg shadow-secundario text-secundario hover:brightness-95"
-          aria-label="Ajustes del gráfico"
+          className="absolute top-16 right-4 z-10 p-2 rounded-full bg-white/20 shadow-lg shadow-secundario text-secundario border hover:brightness-95"
+          aria-label="Ajustes"
         >
           <Settings className="h-4 w-4" />
         </Button>
@@ -1245,13 +1167,13 @@ const ChartPage = () => {
           size="icon"
           className={`absolute top-4 right-20 z-10 p-2 rounded-full transition-colors ${showInterpretation 
             ? 'bg-fertiliapp-fuerte text-white shadow-lg shadow-fertiliapp-fuerte/50 border-fertiliapp-fuerte/70' 
-            : 'bg-white/80 text-fertiliapp-fuerte border border-fertiliapp-fuerte hover:brightness-95 shadow-md'}`}
+            : 'bg-white/20 text-fertiliapp-fuerte border border-fertiliapp-fuerte hover:brightness-95 shadow-md'}`}
         >
           {showInterpretation ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
         </Button>
         <Button
           onClick={handleToggleFullScreen}
-          className="absolute top-4 right-4 z-10 bg-white/80 rounded-full text-slate-600 hover:bg-pink-50/80 shadow-md border border-pink-200/50 backdrop-blur-sm"
+          className="absolute top-4 right-4 z-10 bg-white/20 rounded-full text-slate-600 hover:bg-pink-50/80 shadow-md border border-slate-400/50 backdrop-blur-sm"
           aria-label={isFullScreen ? 'Salir de pantalla completa' : 'Rotar gráfico'}
         >
           <RotateCcw className="w-4 h-4" />
