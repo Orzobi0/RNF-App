@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { parseISO, startOfDay, isAfter, isSameDay } from 'date-fns';
 import { getSymbolAppearance, getSymbolColorPalette } from '@/config/fertilitySymbols';
@@ -182,6 +182,7 @@ const ChartPoints = ({
   onPointInteraction,
   clearActivePoint,
   activePoint,
+  visibleRange = null,
   padding,
   chartHeight,
   chartWidth,
@@ -252,8 +253,27 @@ const ChartPoints = ({
   const MotionG = reduceMotion ? 'g' : motion.g;
 
   const totalPoints = Array.isArray(data) ? data.length : 0;
+  const isLongCycle = totalPoints > 60;
+  const rangeStart = Number.isInteger(visibleRange?.startIndex) ? visibleRange.startIndex : 0;
+  const rangeEnd = Number.isInteger(visibleRange?.endIndex)
+    ? visibleRange.endIndex
+    : Math.max(totalPoints - 1, 0);
+  const startIndex = totalPoints ? Math.max(0, Math.min(totalPoints - 1, rangeStart)) : 0;
+  const endIndex = totalPoints ? Math.max(startIndex, Math.min(totalPoints - 1, rangeEnd)) : -1;
   const today = useMemo(() => startOfDay(new Date()), []);
   const measureTextWidth = useMemo(() => createTextMeasurer(), []);
+  const textLayoutCacheRef = useRef(new Map());
+  const cellWidth = totalPoints > 0 ? rowWidth / totalPoints : rowWidth;
+  const maxWords = 2;
+  const cellTextPadding = Math.min(12, Math.max(4, cellWidth * 0.12));
+  const availableTextWidth = Math.max(0, cellWidth - cellTextPadding * 2);
+  const rowLineHeight = responsiveFontSize(0.95);
+  const baseSensationFontSize = responsiveFontSize(0.9);
+  const baseAppearanceFontSize = responsiveFontSize(0.9);
+  const baseObservationFontSize = responsiveFontSize(0.9);
+  const smallSensationFontSize = responsiveFontSize(0.8);
+  const smallAppearanceFontSize = responsiveFontSize(0.8);
+  const smallObservationFontSize = responsiveFontSize(0.8);
 
   const highSequenceOrderMap = useMemo(() => {
     if (!showInterpretation) {
@@ -319,6 +339,66 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
 
     return map;
   }, [showInterpretation, baselineIndices, totalPoints, firstHighIndex]);
+
+  const rowLabelShadow = isLongCycle ? 'none' : 'drop-shadow(0 1px 2px rgba(255, 255, 255, 0.9))';
+  const textShadowSoft = isLongCycle ? 'none' : 'drop-shadow(0 1px 1px rgba(255, 255, 255, 0.8))';
+  const textShadowStrong = isLongCycle ? 'none' : 'drop-shadow(0 1px 2px rgba(255, 255, 255, 0.9))';
+  const peakShadow = isLongCycle ? 'none' : PEAK_TEXT_SHADOW;
+  const activeShadow = isLongCycle
+    ? 'none'
+    : 'drop-shadow(0 2px 4px rgba(244, 114, 182, 0.25))';
+  const activeNumberShadow = isLongCycle
+    ? 'none'
+    : 'drop-shadow(0 1px 3px rgba(37, 99, 235, 0.45))';
+  const tooltipShadow = isLongCycle
+    ? 'none'
+    : 'drop-shadow(0 2px 4px rgba(37, 99, 235, 0.3))';
+
+  const resolveLines = useCallback(
+    (text, fallback, baseFontSize, smallFontSize) => {
+      const base = splitTextLinesByWidth(text, {
+        maxWidth: availableTextWidth,
+        maxLines: 3,
+        fontSize: baseFontSize,
+        fontWeight: 700,
+        fontFamily: DEFAULT_TEXT_FONT_FAMILY,
+        fallback,
+        measureTextWidth,
+      });
+
+      if (base[2]) {
+        const smaller = splitTextLinesByWidth(text, {
+          maxWidth: availableTextWidth,
+          maxLines: 3,
+          fontSize: smallFontSize,
+          fontWeight: 700,
+          fontFamily: DEFAULT_TEXT_FONT_FAMILY,
+          fallback,
+          measureTextWidth,
+        });
+        return { lines: smaller, fontSize: smallFontSize };
+      }
+
+      return { lines: base, fontSize: baseFontSize };
+    },
+    [availableTextWidth, measureTextWidth]
+  );
+
+  const getCachedLines = useCallback(
+    (cacheKey, text, fallback, baseFontSize, smallFontSize) => {
+      const existing = textLayoutCacheRef.current.get(cacheKey);
+      if (existing) return existing;
+      const resolved = resolveLines(text, fallback, baseFontSize, smallFontSize);
+      textLayoutCacheRef.current.set(cacheKey, resolved);
+      return resolved;
+    },
+    [resolveLines]
+  );
+
+  const visibleIndices = useMemo(() => {
+    if (!totalPoints || endIndex < startIndex) return [];
+    return Array.from({ length: endIndex - startIndex + 1 }, (_, offset) => startIndex + offset);
+  }, [endIndex, startIndex, totalPoints]);
 
   return (
     <>
@@ -387,7 +467,7 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
               fontWeight="700"
               fill={color}
               style={{ 
-                filter: 'drop-shadow(0 1px 2px rgba(255, 255, 255, 0.9))',
+                filter: rowLabelShadow,
                 fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
               }}
             >
@@ -397,7 +477,9 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
         </motion.g>
       )}
 
-      {data.map((point, index) => {
+      {visibleIndices.map((index) => {
+        const point = data[index];
+        if (!point) return null;
         const x = getX(index);
         const y = point[temperatureField] != null
           ? getY(point[temperatureField])
@@ -480,47 +562,6 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
 
 
         // Límites de texto
-        const cellWidth = totalPoints > 0 ? rowWidth / totalPoints : rowWidth;
-        const maxWords = 2;
-        const cellTextPadding = Math.min(12, Math.max(4, cellWidth * 0.12));
-        const availableTextWidth = Math.max(0, cellWidth - cellTextPadding * 2);
-        const rowLineHeight = responsiveFontSize(0.95);
-        const baseSensationFontSize = responsiveFontSize(0.9);
-        const baseAppearanceFontSize = responsiveFontSize(0.9);
-        const baseObservationFontSize = responsiveFontSize(0.9);
-        const smallSensationFontSize = responsiveFontSize(0.8);
-        const smallAppearanceFontSize = responsiveFontSize(0.8);
-        const smallObservationFontSize = responsiveFontSize(0.8);
-        const resolveLines = (text, fallback, baseFontSize, smallFontSize) => {
-  const base = splitTextLinesByWidth(text, {
-    maxWidth: availableTextWidth,
-    maxLines: 3,
-    fontSize: baseFontSize,
-    fontWeight: 700,
-    fontFamily: DEFAULT_TEXT_FONT_FAMILY,
-    fallback,
-    measureTextWidth,
-  });
-
-  // Si necesitó 3ª línea con la base, reintenta con fuente menor
-  if (base[2]) {
-    const smaller = splitTextLinesByWidth(text, {
-      maxWidth: availableTextWidth,
-      maxLines: 3,
-      fontSize: smallFontSize,
-      fontWeight: 700,
-      fontFamily: DEFAULT_TEXT_FONT_FAMILY,
-      fallback,
-      measureTextWidth,
-    });
-    return { lines: smaller, fontSize: smallFontSize };
-  }
-
-  return { lines: base, fontSize: baseFontSize };
-};
-
-
-
         const sensText = isFullScreen
   ? limitWords(point.mucus_sensation, maxWords, isFuture ? '' : '–')
   : point.mucus_sensation;
@@ -533,9 +574,28 @@ const obsText = isFullScreen
   ? limitWords(point.observations, maxWords, '')
   : point.observations;
 
-const sensRes = resolveLines(sensText, isFuture ? '' : '–', baseSensationFontSize, smallSensationFontSize);
-const aparRes = resolveLines(aparText, isFuture ? '' : '–', baseAppearanceFontSize, smallAppearanceFontSize);
-const obsRes  = resolveLines(obsText,  '',               baseObservationFontSize, smallObservationFontSize);
+const pointKey = `${point.isoDate || point.id || index}`;
+const sensRes = getCachedLines(
+  `${pointKey}-sens-${availableTextWidth}-${baseSensationFontSize}-${smallSensationFontSize}-${sensText ?? ''}`,
+  sensText,
+  isFuture ? '' : '–',
+  baseSensationFontSize,
+  smallSensationFontSize
+);
+const aparRes = getCachedLines(
+  `${pointKey}-apar-${availableTextWidth}-${baseAppearanceFontSize}-${smallAppearanceFontSize}-${aparText ?? ''}`,
+  aparText,
+  isFuture ? '' : '–',
+  baseAppearanceFontSize,
+  smallAppearanceFontSize
+);
+const obsRes = getCachedLines(
+  `${pointKey}-obs-${availableTextWidth}-${baseObservationFontSize}-${smallObservationFontSize}-${obsText ?? ''}`,
+  obsText,
+  '',
+  baseObservationFontSize,
+  smallObservationFontSize
+);
 
 const [sensLine1, sensLine2, sensLine3] = sensRes.lines;
 const [aparLine1, aparLine2, aparLine3] = aparRes.lines;
@@ -620,9 +680,7 @@ const observationFontSize = obsRes.fontSize;
                   }
                   strokeWidth={point.ignored ? 1.5 : isPeakTemperaturePoint ? 2.2 : 2}
                   style={{
-                    filter: isPeakTemperaturePoint
-                      ? 'drop-shadow(0 2px 4px rgba(37, 99, 235, 0.3))'
-                      : 'drop-shadow(0 2px 3px rgba(244, 114, 182, 0.25))',
+                    filter: isPeakTemperaturePoint ? tooltipShadow : activeShadow,
                     cursor: 'pointer'
                   }}
                   pointerEvents="all"
@@ -638,9 +696,7 @@ const observationFontSize = obsRes.fontSize;
                     r={isPeakTemperaturePoint ? 1.2 : 0.9}
                     fill={isPeakTemperaturePoint ? 'rgba(239, 246, 255, 0.95)' : 'rgba(255, 255, 255, 0.9)'}
                     style={{
-                      filter: isPeakTemperaturePoint
-                        ? 'drop-shadow(0 1px 3px rgba(37, 99, 235, 0.45))'
-                        : 'drop-shadow(0 1px 2px rgba(244, 114, 182, 0.3))'
+                      filter: isPeakTemperaturePoint ? activeNumberShadow : textShadowSoft
                     }}
                   />
                 )}
@@ -663,7 +719,7 @@ const observationFontSize = obsRes.fontSize;
                           fontFamily:
                             '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
                           paintOrder: 'stroke',
-                          filter: 'drop-shadow(0 1px 1px rgba(255, 255, 255, 0.8))',
+                          filter: textShadowSoft,
                         }}
                       >
                         {highOrder}
@@ -688,7 +744,7 @@ const observationFontSize = obsRes.fontSize;
                           fontFamily:
                             '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
                           paintOrder: 'stroke',
-                          filter: 'drop-shadow(0 1px 1px rgba(255, 255, 255, 0.85))',
+                          filter: textShadowSoft,
                         }}
                       >
                         {baselineOrder}
@@ -708,7 +764,7 @@ const observationFontSize = obsRes.fontSize;
               fill={highlightedTextFill}
               style={{
                 fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                filter: 'drop-shadow(0 1px 1px rgba(255, 255, 255, 0.8))'
+                filter: textShadowSoft
               }}
             >
               {compactDate(point.date)}
@@ -724,7 +780,7 @@ const observationFontSize = obsRes.fontSize;
               fill={highlightedTextFill}
               style={{
                 fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                filter: 'drop-shadow(0 1px 1px rgba(255, 255, 255, 0.8))'
+                filter: textShadowSoft
               }}
             >
               {point.cycleDay}
@@ -753,7 +809,7 @@ const observationFontSize = obsRes.fontSize;
                   stroke={symbolStrokeColor}
                   strokeWidth={symbolStrokeWidth}
                   rx={symbolRectSize * 0.2}
-                  style={{ filter: 'drop-shadow(0 2px 4px rgba(244, 114, 182, 0.25))' }}
+                  style={{ filter: activeShadow }}
                 />
                 {peakStatus && (
                   <g pointerEvents="none">
@@ -768,7 +824,7 @@ const observationFontSize = obsRes.fontSize;
                         stroke="#fff"
                         strokeWidth={1.5}
                         paintOrder="stroke"
-                        style={{ filter: PEAK_TEXT_SHADOW }}
+                        style={{ filter: peakShadow }}
                       >
                         {PEAK_EMOJI}
                       </text>
@@ -780,7 +836,7 @@ const observationFontSize = obsRes.fontSize;
                         fontSize={responsiveFontSize(peakStatus ? 1.1 : 1)}
                         fontWeight="800"
                         fill={POST_PEAK_MARKER_COLOR}
-                        style={{ filter: 'drop-shadow(0 1px 1px rgba(255,255,255,0.9))' }}
+                        style={{ filter: textShadowStrong }}
                       >
                         {peakStatus}
                       </text>
@@ -819,10 +875,10 @@ const observationFontSize = obsRes.fontSize;
                   fontWeight={isPeakMarker ? '900' : isPostPeakMarker ? '800' : '500'}
                   style={{
                     filter: isPeakMarker
-                      ? PEAK_TEXT_SHADOW
+                      ? peakShadow
                       : isPostPeakMarker
-                        ? 'drop-shadow(0 1px 1px rgba(255,255,255,0.9))'
-                        : 'drop-shadow(0 1px 1px rgba(255, 255, 255, 0.8))'
+                        ? textShadowStrong
+                        : textShadowSoft
                   }}
                 >
                   {peakDisplay}
@@ -841,7 +897,7 @@ const observationFontSize = obsRes.fontSize;
               fill={SENSATION_COLOR}
               style={{ 
                 fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                filter: 'drop-shadow(0 1px 2px rgba(255, 255, 255, 0.9))'
+                filter: textShadowStrong
               }}
             >
               <tspan x={x} dy={0}>{sensLine1}</tspan>
@@ -860,7 +916,7 @@ const observationFontSize = obsRes.fontSize;
               fill={APPEARANCE_COLOR}
               style={{ 
                 fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                filter: 'drop-shadow(0 1px 2px rgba(255, 255, 255, 0.9))'
+                filter: textShadowStrong
               }}
             >
               <tspan x={x} dy={0}>{aparLine1}</tspan>
@@ -879,7 +935,7 @@ const observationFontSize = obsRes.fontSize;
               fill={OBSERVATION_COLOR}
               style={{
                 fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                filter: 'drop-shadow(0 1px 2px rgba(255, 255, 255, 0.9))'
+                filter: textShadowStrong
               }}
             >
               <tspan x={x} dy={0}>{obsLine1}</tspan>
@@ -909,4 +965,44 @@ const observationFontSize = obsRes.fontSize;
   );
 };
 
-export default ChartPoints;
+const areEqual = (prev, next) => {
+  if (prev.data !== next.data) return false;
+  if (prev.getX !== next.getX || prev.getY !== next.getY) return false;
+  if (prev.isFullScreen !== next.isFullScreen) return false;
+  if (prev.orientation !== next.orientation) return false;
+  if (prev.responsiveFontSize !== next.responsiveFontSize) return false;
+  if (prev.onPointInteraction !== next.onPointInteraction) return false;
+  if (prev.clearActivePoint !== next.clearActivePoint) return false;
+  if (prev.chartHeight !== next.chartHeight || prev.chartWidth !== next.chartWidth) return false;
+  if (prev.temperatureField !== next.temperatureField) return false;
+  if (prev.textRowHeight !== next.textRowHeight) return false;
+  if (prev.compact !== next.compact) return false;
+  if (prev.reduceMotion !== next.reduceMotion) return false;
+  if (prev.showInterpretation !== next.showInterpretation) return false;
+  if (prev.ovulationDetails !== next.ovulationDetails) return false;
+  if (prev.firstHighIndex !== next.firstHighIndex) return false;
+  if (prev.baselineIndices !== next.baselineIndices) return false;
+  if (prev.graphBottomLift !== next.graphBottomLift) return false;
+  if (prev.graphBottomY !== next.graphBottomY) return false;
+  if (prev.rowsZoneHeight !== next.rowsZoneHeight) return false;
+  if (prev.showRelationsRow !== next.showRelationsRow) return false;
+
+  const prevRange = prev.visibleRange;
+  const nextRange = next.visibleRange;
+  if (prevRange?.startIndex !== nextRange?.startIndex) return false;
+  if (prevRange?.endIndex !== nextRange?.endIndex) return false;
+
+  const prevPadding = prev.padding;
+  const nextPadding = next.padding;
+  if (prevPadding !== nextPadding) {
+    if (!prevPadding || !nextPadding) return false;
+    if (prevPadding.left !== nextPadding.left) return false;
+    if (prevPadding.right !== nextPadding.right) return false;
+    if (prevPadding.top !== nextPadding.top) return false;
+    if (prevPadding.bottom !== nextPadding.bottom) return false;
+  }
+
+  return true;
+};
+
+export default React.memo(ChartPoints, areEqual);

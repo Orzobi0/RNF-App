@@ -804,7 +804,7 @@ const DataEntryFormFields = ({
                       onChange={(e) => updateMeasurement(idx, 'temperature', e.target.value)}
                       onInput={(e) => updateMeasurement(idx, 'temperature', e.target.value)}
                       placeholder="36.50"
-                      className={cn("bg-white/70 border-amber-200 text-gray-800 placeholder-gray-400 focus:border-orange-500 focus:ring-orange-500 text-base", RADIUS.field)}
+                      className={cn("bg-white/70 border-amber-200 text-amber-800 font-semibold placeholder-gray-400 focus:border-orange-500 focus:ring-orange-500 ", RADIUS.field)}
                       disabled={isProcessing}
                     />
                     <Input
@@ -812,7 +812,7 @@ const DataEntryFormFields = ({
                       type="time"
                       value={m.time}
                       onChange={(e) => updateMeasurement(idx, 'time', e.target.value)}
-                      className={cn("bg-white/70 border-amber-200 text-gray-800 placeholder-gray-400 focus:border-orange-500 focus:ring-orange-500 text-base", RADIUS.field)}
+                      className={cn("bg-white/70 border-amber-200 text-gray-600 font-semibold placeholder-gray-400 focus:border-orange-500 focus:ring-orange-500", RADIUS.field)}
                       disabled={isProcessing}
                     />
                   </div>
@@ -821,10 +821,10 @@ const DataEntryFormFields = ({
                     <div className="flex flex-wrap items-center gap-2">
                       <Button
                         type="button"
-                        size="sm"
+                        size="xs"
                         variant="outline"
                         disabled={isProcessing}
-                        className="bg-slate-200/50 text-slate-600 rounded-3xl"
+                        className="bg-slate-100/50 text-slate-600 text-xs rounded-3xl"
                         onClick={() => {
                           if (correctionIndex === idx) {
                             setCorrectionIndex(null);
@@ -849,8 +849,8 @@ const DataEntryFormFields = ({
                           disabled={isProcessing}
                           onClick={() => handleIgnoredChange(!ignored)}
                           className={cn(
-                            'h-9 w-9 border-amber-200 text-amber-600 transition-colors',
-                            ignored ? 'bg-temp-suave text-temp hover:bg-temp-suave/80' : 'bg-white/70 hover:bg-temp-suave'
+                            'h-7 w-7 border-amber-200 text-amber-600 transition-colors',
+                            ignored ? 'bg-slate-100 text-slate-500 hover:bg-slate-300/80 border-slate-300' : 'bg-white/70 hover:bg-slate-100'
                           )}
                           title={ignored ? 'Restaurar' : 'Despreciar'}
                           aria-label={ignored ? 'Restaurar medición ignorada' : 'Despreciar medición seleccionada'}
@@ -887,12 +887,12 @@ const DataEntryFormFields = ({
                       type="button"
                       onClick={addMeasurement}
                       disabled={isProcessing}
-                      size="sm"
+                      size="xs"
                       variant="outline"
-                      className="ml-auto flex items-center gap-1 rounded-full border-amber-300 bg-amber-50/80 px-3 py-1 text-xs font-semibold text-amber-700 shadow-sm transition-colors hover:bg-amber-100"
+                      className="ml-auto flex items-center gap-1 rounded-full border-amber-300/50 bg-amber-50/80 px-1 py-1 text-xs text-amber-600 shadow-sm transition-colors hover:bg-amber-100"
                       aria-label="Añadir una nueva medición"
                     >
-                      <Plus className="h-3.5 w-3.5" />
+                      <Plus className="h-3 w-3" />
                       Medición
                     </Button>
                   </div>
@@ -1098,7 +1098,6 @@ const DataEntryFormFields = ({
               )}
               disabled={isProcessing}
             >
-              <CalendarDays className="mr-2 h-4 w-4" />
               {date ? format(date, 'PPP', { locale: es }) : <span>Selecciona una fecha</span>}
             </Button>
           </PopoverTrigger>

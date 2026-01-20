@@ -78,6 +78,11 @@ const FertilityChart = ({
     uniqueIdRef.current = `fertility-chart-${cycleId ?? 'default'}-${randomSuffix}`;
   }
   const uniqueId = uniqueIdRef.current;
+  const [visibleRange, setVisibleRange] = useState({
+    startIndex: 0,
+    endIndex: Math.max(allDataPoints.length - 1, 0),
+  });
+  const scrollRafRef = useRef(null);
 
   if (!allDataPoints || allDataPoints.length === 0) {
     return (
@@ -752,11 +757,63 @@ const FertilityChart = ({
     };
   }, []);
 
+  const updateVisibleRange = useCallback(
+    (scrollLeft = 0) => {
+      if (!chartRef.current) return;
+      const totalPoints = allDataPoints.length;
+      if (!totalPoints) {
+        setVisibleRange({ startIndex: 0, endIndex: -1 });
+        return;
+      }
+      const dayWidth = chartRef.current.clientWidth / visibleDays;
+      const overscan = chartRef.current.clientWidth >= 1024 ? 15 : 10;
+      const safeDayWidth = dayWidth || 1;
+      let startIndex = Math.floor(scrollLeft / safeDayWidth) - overscan;
+      let endIndex = startIndex + visibleDays + overscan * 2;
+      startIndex = Math.max(0, startIndex);
+      endIndex = Math.min(totalPoints - 1, endIndex);
+      setVisibleRange((prev) =>
+        prev.startIndex === startIndex && prev.endIndex === endIndex
+          ? prev
+          : { startIndex, endIndex }
+      );
+    },
+    [allDataPoints.length, visibleDays]
+  );
+
   useEffect(() => {
     if (!chartRef.current) return;
     const dayWidth = chartRef.current.clientWidth / visibleDays;
     chartRef.current.scrollLeft = Math.max(0, dayWidth * initialScrollIndex);
-  }, [initialScrollIndex, visibleDays, dimensions.width, orientation]);
+  updateVisibleRange(chartRef.current.scrollLeft);
+  }, [
+    initialScrollIndex,
+    visibleDays,
+    dimensions.width,
+    orientation,
+    updateVisibleRange,
+  ]);
+
+  useEffect(() => {
+    const node = chartRef.current;
+    if (!node) return;
+    const handleScroll = () => {
+      if (scrollRafRef.current) return;
+      scrollRafRef.current = window.requestAnimationFrame(() => {
+        scrollRafRef.current = null;
+        updateVisibleRange(node.scrollLeft);
+      });
+    };
+    node.addEventListener('scroll', handleScroll, { passive: true });
+    updateVisibleRange(node.scrollLeft);
+    return () => {
+      node.removeEventListener('scroll', handleScroll);
+      if (scrollRafRef.current) {
+        window.cancelAnimationFrame(scrollRafRef.current);
+        scrollRafRef.current = null;
+      }
+    };
+  }, [updateVisibleRange]);
 
   const applyRotation = isFullScreen && forceLandscape && isViewportPortrait;
 
@@ -925,6 +982,7 @@ const FertilityChart = ({
             getY={getY}
             getX={getX}
             allDataPoints={allDataPoints}
+            visibleRange={visibleRange}
             responsiveFontSize={responsiveFontSize}
             isFullScreen={isFullScreen}
             showLeftLabels={!showLegend}
@@ -1141,6 +1199,7 @@ const FertilityChart = ({
             onPointInteraction={handlePointInteraction}
             clearActivePoint={clearActivePoint}
             activePoint={activePoint}
+            visibleRange={visibleRange}
             padding={padding}
             chartHeight={chartHeight}
             chartWidth={chartWidth}
