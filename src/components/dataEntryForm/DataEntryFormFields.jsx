@@ -1219,16 +1219,18 @@ const DataEntryFormFields = ({
             aria-label={peakAriaLabel}
             disabled={isProcessing || !selectedIsoDate}
           />
-          <button
-            type="button"
-            className={syncTemperatureClasses}
-            onClick={onSyncTemperature}
-            disabled={isProcessing || isSyncingTemperature || !canSyncTemperature}
-            aria-label="Sincronizar temperaturas"
-          >
-            <RefreshCcw className="h-3.5 w-3.5" aria-hidden="true" />
-            {isSyncingTemperature ? 'Sincronizando...' : '+ temperatura'}
-          </button>
+          {canSyncTemperature && (
+            <button
+              type="button"
+              className={syncTemperatureClasses}
+              onClick={onSyncTemperature}
+              disabled={isProcessing || isSyncingTemperature || !canSyncTemperature}
+              aria-label="Sincronizar temperaturas"
+            >
+              <RefreshCcw className="h-3.5 w-3.5" aria-hidden="true" />
+              {isSyncingTemperature ? 'Sincronizando...' : '+ temperatura'}
+            </button>
+          )}
           <button
             type="button"
             className={relationsButtonClasses}

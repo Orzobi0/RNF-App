@@ -349,36 +349,36 @@ const SettingsPage = () => {
             </Button>
           </div>
           
-          <div className="bg-white/50 backdrop-blur p-4 rounded-3xl shadow flex items-center justify-between gap-4">
-            <div>
-              <p className="text-sm text-slate-500">Health Connect</p>
-              <p className="font-medium text-slate-700">Conectar con Salud</p>
-              <p className="text-xs text-slate-500 mt-1">
-                {!isAndroidApp
-                  ? 'Disponible solo en la app Android.'
-                  : !isAvailable
+          {isAndroidApp && (
+            <div className="bg-white/50 backdrop-blur p-4 rounded-3xl shadow flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm text-slate-500">Health Connect</p>
+                <p className="font-medium text-slate-700">Conectar con Salud</p>
+                <p className="text-xs text-slate-500 mt-1">
+                  {!isAvailable
                     ? 'Instala Health Connect para habilitar la sincronización.'
                     : hasPermissions
                       ? 'Conectado. Puedes sincronizar desde el formulario.'
                       : 'Activa permisos para importar tus temperaturas.'}
               </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={hasPermissions}
+                onClick={() => handleHealthConnectToggle(!hasPermissions)}
+                disabled={!isAvailable || isChecking}
+                className="relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full border border-slate-200 bg-slate-200 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-fertiliapp-fuerte disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <span
+                  className={cn(
+                    'inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform',
+                    hasPermissions ? 'translate-x-5' : 'translate-x-0'
+                  )}
+                />
+              </button>
             </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={hasPermissions}
-              onClick={() => handleHealthConnectToggle(!hasPermissions)}
-              disabled={!isAndroidApp || !isAvailable || isChecking}
-              className="relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full border border-slate-200 bg-slate-200 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-fertiliapp-fuerte disabled:cursor-not-allowed disabled:opacity-60"
-            >
-            <span
-                className={cn(
-                  'inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform',
-                  hasPermissions ? 'translate-x-5' : 'translate-x-0'
-                )}
-              />
-            </button>
-          </div>
+            )}
           <InstallPrompt
             align="end"
             buttonClassName="bg-fertiliapp-fuerte hover:brightness-95"
