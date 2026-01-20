@@ -17,6 +17,7 @@ const ChartAxes = ({
   isFullScreen,
   showLeftLabels = false,
   reduceMotion = false,
+  isScrolling = false,
   graphBottomY,
   chartAreaHeight,
   rowsZoneHeight,
@@ -43,9 +44,10 @@ const ChartAxes = ({
     }
   }
 
-  const G = reduceMotion ? 'g' : motion.g;
   const totalPoints = allDataPoints.length;
   const isLongCycle = totalPoints > 60;
+  const perfMode = isLongCycle || isScrolling;
+  const G = reduceMotion || perfMode ? 'g' : motion.g;
   const rangeStart = Number.isInteger(visibleRange?.startIndex) ? visibleRange.startIndex : 0;
   const rangeEnd = Number.isInteger(visibleRange?.endIndex)
     ? visibleRange.endIndex
@@ -153,7 +155,10 @@ const ChartAxes = ({
           : `.${temp.toFixed(1).split('.')[1]}`;
 
         return (
-          <G key={`temp-tick-${i}`} {...(reduceMotion ? {} : { variants: itemVariants })}>
+          <G
+            key={`temp-tick-${i}`}
+            {...(reduceMotion || perfMode ? {} : { variants: itemVariants })}
+          >
             {/* Líneas de cuadrícula con gradientes sutiles */}
             <line
               x1={padding.left}
@@ -165,7 +170,7 @@ const ChartAxes = ({
               opacity={isMajor ? 0.5 : 0.3}
               strokeDasharray={isMajor ? '0' : '4,4'}
               style={{ 
-                filter: isMajor ? 'drop-shadow(0 1px 3px rgba(244, 114, 182, 0.15))' : 'none',
+                filter: isMajor && !perfMode ? 'drop-shadow(0 1px 3px rgba(244, 114, 182, 0.15))' : 'none',
                 opacity: isMajor ? 1 : 0.7
               }}
             />
@@ -181,7 +186,7 @@ const ChartAxes = ({
                 fill={isMajor ? '#be185d' : '#db2777'}
                 opacity={isMajor ? 0.9 : 0.7}
                 style={{ 
-                  filter: 'url(#textShadow)',
+                  filter: perfMode ? 'none' : 'url(#textShadow)',
                   fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
                 }}
               >
@@ -199,7 +204,7 @@ const ChartAxes = ({
               fill={isMajor ? '#be185d' : '#db2777'}
               opacity={isMajor ? 0.9 : 0.7}
               style={{ 
-                filter: 'url(#textShadow)',
+                filter: perfMode ? 'none' : 'url(#textShadow)',
                 fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
               }}
             >
@@ -225,9 +230,7 @@ const ChartAxes = ({
               strokeWidth="1"
               opacity="0.6"
               style={{
-                filter: isLongCycle
-                  ? 'none'
-                  : 'drop-shadow(0 0 1px rgba(244, 114, 182, 0.05))',
+                filter: perfMode ? 'none' : 'drop-shadow(0 0 1px rgba(244, 114, 182, 0.05))',
               }}
             />
           );
@@ -258,7 +261,7 @@ const ChartAxes = ({
         />
           {/* Unidad °C con diseño premium similar a la dashboard */}
       {showLeftLabels && (
-        <G {...(reduceMotion ? {} : { variants: itemVariants })}>
+        <G {...(reduceMotion || perfMode ? {} : { variants: itemVariants })}>
 
           <text
             x={padding.left + responsiveFontSize(1.2)}
@@ -268,7 +271,7 @@ const ChartAxes = ({
             fontWeight="800"
             fill="#be185d"
             style={{ 
-              filter: 'url(#textShadow)',
+              filter: perfMode ? 'none' : 'url(#textShadow)',
               fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
             }}
           >

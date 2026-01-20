@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { parseISO, startOfDay, isAfter, isSameDay } from 'date-fns';
 import { getSymbolAppearance, getSymbolColorPalette } from '@/config/fertilitySymbols';
@@ -190,6 +190,7 @@ const ChartPoints = ({
   textRowHeight,
   compact = false,
   reduceMotion = false,
+  isScrolling = false,
   showInterpretation = false,
   ovulationDetails = null,
   firstHighIndex = null,
@@ -246,14 +247,15 @@ const ChartPoints = ({
     ? observationsRowY + rowH * (isFullScreen ? 2 : 1.5)
     : null;
 
+  const totalPoints = Array.isArray(data) ? data.length : 0;
+  const isLongCycle = totalPoints > 60;
+  const perfMode = isLongCycle || isScrolling;
+  const MotionG = reduceMotion || perfMode ? 'g' : motion.g;
+
   const rowWidth = chartWidth - padding.left - padding.right;
   const rowBlockHeight = rowH * (isFullScreen ? 2 : 1.5);
   const relationsHeartSize = Math.min(Math.max(rowBlockHeight * 0.46, 14), 12);
 
-  const MotionG = reduceMotion ? 'g' : motion.g;
-
-  const totalPoints = Array.isArray(data) ? data.length : 0;
-  const isLongCycle = totalPoints > 60;
   const rangeStart = Number.isInteger(visibleRange?.startIndex) ? visibleRange.startIndex : 0;
   const rangeEnd = Number.isInteger(visibleRange?.endIndex)
     ? visibleRange.endIndex
@@ -340,17 +342,17 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
     return map;
   }, [showInterpretation, baselineIndices, totalPoints, firstHighIndex]);
 
-  const rowLabelShadow = isLongCycle ? 'none' : 'drop-shadow(0 1px 2px rgba(255, 255, 255, 0.9))';
-  const textShadowSoft = isLongCycle ? 'none' : 'drop-shadow(0 1px 1px rgba(255, 255, 255, 0.8))';
-  const textShadowStrong = isLongCycle ? 'none' : 'drop-shadow(0 1px 2px rgba(255, 255, 255, 0.9))';
-  const peakShadow = isLongCycle ? 'none' : PEAK_TEXT_SHADOW;
-  const activeShadow = isLongCycle
+  const rowLabelShadow = perfMode ? 'none' : 'drop-shadow(0 1px 2px rgba(255, 255, 255, 0.9))';
+  const textShadowSoft = perfMode ? 'none' : 'drop-shadow(0 1px 1px rgba(255, 255, 255, 0.8))';
+  const textShadowStrong = perfMode ? 'none' : 'drop-shadow(0 1px 2px rgba(255, 255, 255, 0.9))';
+  const peakShadow = perfMode ? 'none' : PEAK_TEXT_SHADOW;
+  const activeShadow = perfMode
     ? 'none'
     : 'drop-shadow(0 2px 4px rgba(244, 114, 182, 0.25))';
-  const activeNumberShadow = isLongCycle
+  const activeNumberShadow = perfMode
     ? 'none'
     : 'drop-shadow(0 1px 3px rgba(37, 99, 235, 0.45))';
-  const tooltipShadow = isLongCycle
+  const tooltipShadow = perfMode
     ? 'none'
     : 'drop-shadow(0 2px 4px rgba(37, 99, 235, 0.3))';
 
@@ -383,6 +385,16 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
     },
     [availableTextWidth, measureTextWidth]
   );
+
+  useEffect(() => {
+    textLayoutCacheRef.current.clear();
+  }, [
+    totalPoints,
+    availableTextWidth,
+    baseSensationFontSize,
+    baseAppearanceFontSize,
+    baseObservationFontSize,
+  ]);
 
   const getCachedLines = useCallback(
     (cacheKey, text, fallback, baseFontSize, smallFontSize) => {
@@ -446,7 +458,7 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
 
       {/* Leyenda izquierda con tipografía premium */}
       {isFullScreen && orientation !== 'portrait' && (
-        <motion.g variants={itemVariants}>
+        <MotionG {...(reduceMotion || perfMode ? {} : { variants: itemVariants })}>
           {[
             { label: 'Fecha', row: 1, color: isFullScreen ? "#374151" : "#6B7280" },
             { label: 'Día', row: 2, color: isFullScreen ? "#374151" : "#6B7280" },
@@ -474,7 +486,7 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
               {label}
             </text>
           ))}
-        </motion.g>
+        </MotionG>
       )}
 
       {visibleIndices.map((index) => {
@@ -621,12 +633,12 @@ const observationFontSize = obsRes.fontSize;
         return (
           <MotionG
             key={`pt-${index}-${point.isoDate || point.timestamp}`}
-            {...(reduceMotion ? {} : { variants: itemVariants })}
+            {...(reduceMotion || perfMode ? {} : { variants: itemVariants })}
             {...interactionProps}
           >
             {/* Punto de temperatura con diseño premium */}
             {hasTemp && (
-              <MotionG {...(reduceMotion ? {} : { variants: pointVariants })}>
+              <MotionG {...(reduceMotion || perfMode ? {} : { variants: pointVariants })}>
                 {/* Indicador de corrección: punto original y línea discontinua */}
                 {showCorrectionIndicator && rawY !== null && (
                   <g pointerEvents="none">
@@ -978,6 +990,7 @@ const areEqual = (prev, next) => {
   if (prev.textRowHeight !== next.textRowHeight) return false;
   if (prev.compact !== next.compact) return false;
   if (prev.reduceMotion !== next.reduceMotion) return false;
+  if (prev.isScrolling !== next.isScrolling) return false;
   if (prev.showInterpretation !== next.showInterpretation) return false;
   if (prev.ovulationDetails !== next.ovulationDetails) return false;
   if (prev.firstHighIndex !== next.firstHighIndex) return false;
