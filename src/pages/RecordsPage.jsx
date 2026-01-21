@@ -42,11 +42,11 @@ const getSymbolInfo = (symbolValue) =>
   FERTILITY_SYMBOL_OPTIONS.find((symbol) => symbol.value === symbolValue) || FERTILITY_SYMBOL_OPTIONS[0];
 const CALENDAR_BOUNDARY_OFFSET = 10;
 const CALENDAR_SWIPE_OFFSET = 60;
-const CALENDAR_SWIPE_VELOCITY = 400;
+const CALENDAR_SWIPE_VELOCITY = 750;
 const CALENDAR_EXIT_OFFSET = 120;
 const CALENDAR_DRAG_LIMIT = 85;
 const CALENDAR_DRAG_ACTIVATION_THRESHOLD = 5;
-const CALENDAR_SNAP_DURATION = 10;
+const CALENDAR_SNAP_DURATION = 180;
 // Formatea la temperatura para la UI. Devuelve null si el valor no es numérico.
 const formatTemperatureDisplay = (value) => {
   if (value === null || value === undefined || value === '') return null;
@@ -614,7 +614,7 @@ export const RecordsExperience = ({
       {hasRelations && (
         <Heart
           aria-hidden="true"
-          className="pointer-events-none absolute -bottom-[1px] -right-[2px] h-2 w-2 text-rose-500 fill-current"
+          className="pointer-events-none absolute -bottom-[0.2px] -right-[0.2px] h-2 w-2 text-rose-500 fill-current"
         />
       )}
     </span>
@@ -911,7 +911,7 @@ const enterStart = -exitTarget;
       const width = gridTarget.getBoundingClientRect().width || 0;
  state.gridWidth = width;
  // umbral “natural”: 20% del ancho, pero nunca menos de 60px
- state.swipeThreshold = width ? Math.max(CALENDAR_SWIPE_OFFSET, width * 0.2) : CALENDAR_SWIPE_OFFSET;
+ state.swipeThreshold = width ? Math.max(CALENDAR_SWIPE_OFFSET, width * 0.25) : CALENDAR_SWIPE_OFFSET;
       const handlePointerMove = (moveEvent) => {
         if (!state.active || moveEvent.pointerId !== state.pointerId) {
           return;
@@ -927,7 +927,7 @@ const enterStart = -exitTarget;
           return;
         }
 
-       const limit = state.gridWidth || CALENDAR_DRAG_LIMIT;
+       const limit = state.gridWidth ? state.gridWidth * 0.7 : CALENDAR_DRAG_LIMIT;
        const limited = Math.max(-limit, Math.min(limit, delta));
         moveEvent.preventDefault();
         updateCalendarDragX(limited);
@@ -1496,7 +1496,7 @@ const enterStart = -exitTarget;
                     onPointerDown={handleCalendarPointerDown}
                     data-calendar-dragging={isCalendarDragging ? 'true' : 'false'}
                     className={cn(
-                      'w-full max-w-sm rounded-3xl bg-white/80 mx-auto backdrop-blur-sm overflow-hidden [&_.records-calendar-day-grid]:will-change-transform [&_.records-calendar-day-grid]:transition-transform [&_.records-calendar-day-grid]:duration-200 [&_.records-calendar-day-grid]:ease-out [&_.records-calendar-day-grid]:[transform:translateX(var(--calendar-drag-x,0px))] data-[calendar-dragging=true]:[&_.records-calendar-day-grid]:duration-0 data-[calendar-dragging=true]:[&_.records-calendar-day-grid]:ease-linear',
+                      'w-full max-w-sm rounded-3xl bg-white/80 mx-auto backdrop-blur-sm overflow-hidden [&_.records-calendar-day-grid]:will-change-transform [&_.records-calendar-day-grid]:[transform:translate3d(var(--calendar-drag-x,0px),0,0)]',
                       isCalendarDragging ? 'cursor-grabbing select-none' : 'cursor-grab'
                     )}
                     style={{ touchAction: 'pan-y', '--calendar-drag-x': `${calendarDragX}px` }}
@@ -1526,8 +1526,7 @@ const enterStart = -exitTarget;
                 </motion.div>
               )}
             </AnimatePresence>
-            </div>
-            
+            </div>            
           </div>
         </div>
 
@@ -1557,7 +1556,7 @@ const enterStart = -exitTarget;
             >
               <div className="mx-auto max-w-md rounded-3xl border border-rose-100 bg-white/80 p-8 shadow-lg backdrop-blur-sm">
                 <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-rose-100 text-fertiliapp-fuerte shadow-inner">
-                  <ClipboardList className="h-8 w-8" />
+                  <ClipboardList className="h-9 w-9" />
                 </div>
                 <h3 className="text-lg font-semibold text-slate-700">Aún no hay días para mostrar</h3>
                 <p className="mt-1 text-sm text-slate-500">

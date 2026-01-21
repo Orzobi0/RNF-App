@@ -313,7 +313,7 @@ const ArchivedCyclesPage = () => {
         id="year-filter"
         value={selectedYear}
         onChange={(event) => setSelectedYear(event.target.value)}
-        className="flex-1 rounded-3xl border border-pink-100 bg-white px-3 py-2 text-sm text-slate-700 shadow-inner focus:outline-none focus:ring-2 focus:ring-pink-300"
+        className="flex-1 rounded-3xl border border-pink-100 bg-white px-3 py-2 text-sm text-slate-700 shadow-inner focus:outline-none focus:ring-2 focus:ring-fertiliapp"
       >
         <option value="all">Todos</option>
         {availableYears.map((year) => (
@@ -382,7 +382,7 @@ const ArchivedCyclesPage = () => {
                       <div className="flex items-center gap-3 flex-1 min-w-0">
                         {/* Icono del ciclo */}
                         <div className="flex flex-col items-center">
-                          <div className="w-10 h-10 bg-fertiliapp rounded-full flex items-center justify-center flex-shrink-0">
+                          <div className="w-10 h-10 bg-fertiliapp-fuerte rounded-full flex items-center justify-center flex-shrink-0">
                             <Calendar className="w-5 h-5 text-white" />
                           </div>
                         </div>
