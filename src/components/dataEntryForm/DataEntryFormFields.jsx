@@ -23,6 +23,7 @@ import {
   Plus,
   Heart,
   Edit3,
+  RefreshCcw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PeakModeButton } from '@/components/ui/peak-mode-button';
@@ -73,6 +74,9 @@ const DataEntryFormFields = ({
   recordedDates = [],
   submitCurrentState,
   initialSectionKey = null,
+  onSyncTemperature = () => {},
+  isSyncingTemperature = false,
+  canSyncTemperature = false,
 }) => {
   const [open, setOpen] = useState(false);
   const [correctionIndex, setCorrectionIndex] = useState(null);
@@ -588,6 +592,12 @@ const DataEntryFormFields = ({
     hadRelations
       ? 'text-rose-600' : 'text-slate-600'
   );
+  const syncTemperatureClasses = cn(
+    'inline-flex items-center gap-1 rounded-full border border-amber-200 bg-white/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-700 shadow-sm transition-colors',
+    canSyncTemperature && !isSyncingTemperature
+      ? 'hover:bg-amber-50'
+      : 'cursor-not-allowed opacity-60'
+  );
 
   const handleRelationsToggle = async () => {
     if (isProcessing || typeof submitCurrentState !== 'function' || !selectedIsoDate) {
@@ -770,7 +780,7 @@ const DataEntryFormFields = ({
                     </Label>
                     <label
                       htmlFor={measurementSelectId}
-                      className="flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-700 shadow-sm"
+                      className="flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50/70 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-amber-700 shadow-sm"
                     >
                       <input
                         id={measurementSelectId}
@@ -778,9 +788,9 @@ const DataEntryFormFields = ({
                         checked={m.selected}
                         onChange={() => selectMeasurement(idx)}
                         disabled={isProcessing}
-                        className="h-3.5 w-3.5 text-orange-500 focus:ring-orange-400"
+                        className="h-3 w-3 text-orange-500 focus:ring-orange-400"
                       />
-                      <span>Usar en gráfica</span>
+                      <span>gráfica</span>
                     </label>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
@@ -794,7 +804,7 @@ const DataEntryFormFields = ({
                       onChange={(e) => updateMeasurement(idx, 'temperature', e.target.value)}
                       onInput={(e) => updateMeasurement(idx, 'temperature', e.target.value)}
                       placeholder="36.50"
-                      className={cn("bg-white/70 border-amber-200 text-gray-800 placeholder-gray-400 focus:border-orange-500 focus:ring-orange-500 text-base", RADIUS.field)}
+                      className={cn("bg-white/70 border-amber-200 text-amber-800 font-semibold placeholder-gray-400 focus:border-orange-500 focus:ring-orange-500 ", RADIUS.field)}
                       disabled={isProcessing}
                     />
                     <Input
@@ -802,7 +812,7 @@ const DataEntryFormFields = ({
                       type="time"
                       value={m.time}
                       onChange={(e) => updateMeasurement(idx, 'time', e.target.value)}
-                      className={cn("bg-white/70 border-amber-200 text-gray-800 placeholder-gray-400 focus:border-orange-500 focus:ring-orange-500 text-base", RADIUS.field)}
+                      className={cn("bg-white/70 border-amber-200 text-gray-600 font-semibold placeholder-gray-400 focus:border-orange-500 focus:ring-orange-500", RADIUS.field)}
                       disabled={isProcessing}
                     />
                   </div>
@@ -811,10 +821,10 @@ const DataEntryFormFields = ({
                     <div className="flex flex-wrap items-center gap-2">
                       <Button
                         type="button"
-                        size="sm"
+                        size="xs"
                         variant="outline"
                         disabled={isProcessing}
-                        className="bg-slate-200/50 text-slate-600 rounded-3xl"
+                        className="bg-slate-100/50 text-slate-600 text-xs rounded-3xl"
                         onClick={() => {
                           if (correctionIndex === idx) {
                             setCorrectionIndex(null);
@@ -839,8 +849,8 @@ const DataEntryFormFields = ({
                           disabled={isProcessing}
                           onClick={() => handleIgnoredChange(!ignored)}
                           className={cn(
-                            'h-9 w-9 border-amber-200 text-amber-600 transition-colors',
-                            ignored ? 'bg-temp-suave text-temp hover:bg-temp-suave/80' : 'bg-white/70 hover:bg-temp-suave'
+                            'h-7 w-7 border-amber-200 text-amber-600 transition-colors',
+                            ignored ? 'bg-slate-100 text-slate-500 hover:bg-slate-300/80 border-slate-300' : 'bg-white/70 hover:bg-slate-100'
                           )}
                           title={ignored ? 'Restaurar' : 'Despreciar'}
                           aria-label={ignored ? 'Restaurar medición ignorada' : 'Despreciar medición seleccionada'}
@@ -855,7 +865,7 @@ const DataEntryFormFields = ({
                             size="icon"
                             onClick={() => confirmMeasurement(idx)}
                             disabled={isProcessing}
-                            className="h-9 w-9"
+                            className="h-8 w-8 bg-green-400"
                             aria-label="Confirmar medición"
                           >
                             <Check className="h-4 w-4" />
@@ -865,7 +875,7 @@ const DataEntryFormFields = ({
                             size="icon"
                             onClick={() => removeMeasurement(idx)}
                             disabled={isProcessing}
-                            className="h-9 w-9"
+                            className="h-8 w-8"
                             aria-label="Eliminar medición"
                           >
                             <X className="h-4 w-4" />
@@ -877,12 +887,12 @@ const DataEntryFormFields = ({
                       type="button"
                       onClick={addMeasurement}
                       disabled={isProcessing}
-                      size="sm"
+                      size="xs"
                       variant="outline"
-                      className="ml-auto flex items-center gap-1 rounded-full border-amber-300 bg-amber-50/80 px-3 py-1 text-xs font-semibold text-amber-700 shadow-sm transition-colors hover:bg-amber-100"
+                      className="ml-auto flex items-center gap-1 rounded-full border-amber-300/50 bg-amber-50/80 px-1 py-1 text-xs text-amber-600 shadow-sm transition-colors hover:bg-amber-100"
                       aria-label="Añadir una nueva medición"
                     >
-                      <Plus className="h-3.5 w-3.5" />
+                      <Plus className="h-3 w-3" />
                       Medición
                     </Button>
                   </div>
@@ -1088,7 +1098,6 @@ const DataEntryFormFields = ({
               )}
               disabled={isProcessing}
             >
-              <CalendarDays className="mr-2 h-4 w-4" />
               {date ? format(date, 'PPP', { locale: es }) : <span>Selecciona una fecha</span>}
             </Button>
           </PopoverTrigger>
@@ -1210,6 +1219,18 @@ const DataEntryFormFields = ({
             aria-label={peakAriaLabel}
             disabled={isProcessing || !selectedIsoDate}
           />
+          {canSyncTemperature && (
+            <button
+              type="button"
+              className={syncTemperatureClasses}
+              onClick={onSyncTemperature}
+              disabled={isProcessing || isSyncingTemperature || !canSyncTemperature}
+              aria-label="Sincronizar temperaturas"
+            >
+              <RefreshCcw className="h-3.5 w-3.5" aria-hidden="true" />
+              {isSyncingTemperature ? 'Sincronizando...' : '+ temperatura'}
+            </button>
+          )}
           <button
             type="button"
             className={relationsButtonClasses}

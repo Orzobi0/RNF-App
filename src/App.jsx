@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ErrorBoundary } from '@/components/dev/ErrorBoundary';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { CycleDataProvider } from '@/contexts/CycleDataContext.jsx';
+import { HealthConnectProvider } from '@/contexts/HealthConnectContext.jsx';
 import AppBackground from '@/components/layout/AppBackground';
 const AuthPage = lazy(() => import('@/pages/AuthPage'));
 const DashboardPage = lazy(() => import('@/pages/DashboardPage'));
@@ -151,9 +152,11 @@ function App() {
       <UpdateNotification />
       <AuthProvider>
         <CycleDataProvider>
-          <ErrorBoundary>
-            <AppContent />
-          </ErrorBoundary>
+          <HealthConnectProvider>
+            <ErrorBoundary>
+              <AppContent />
+            </ErrorBoundary>
+          </HealthConnectProvider>
         </CycleDataProvider>
         <Toaster />
       </AuthProvider>

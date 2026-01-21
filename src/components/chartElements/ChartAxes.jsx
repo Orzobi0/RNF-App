@@ -12,10 +12,12 @@ const ChartAxes = ({
   getY,
   getX,
   allDataPoints = [],
+  visibleRange = null,
   responsiveFontSize,
   isFullScreen,
   showLeftLabels = false,
   reduceMotion = false,
+  isScrolling = false,
   graphBottomY,
   chartAreaHeight,
   rowsZoneHeight,
@@ -42,7 +44,16 @@ const ChartAxes = ({
     }
   }
 
-  const G = reduceMotion ? 'g' : motion.g;
+  const totalPoints = allDataPoints.length;
+  const isLongCycle = totalPoints > 60;
+  const perfMode = isLongCycle || isScrolling;
+  const G = reduceMotion || perfMode ? 'g' : motion.g;
+  const rangeStart = Number.isInteger(visibleRange?.startIndex) ? visibleRange.startIndex : 0;
+  const rangeEnd = Number.isInteger(visibleRange?.endIndex)
+    ? visibleRange.endIndex
+    : Math.max(totalPoints - 1, 0);
+  const startIndex = totalPoints ? Math.max(0, Math.min(totalPoints - 1, rangeStart)) : 0;
+  const endIndex = totalPoints ? Math.max(startIndex, Math.min(totalPoints - 1, rangeEnd)) : -1;
 
   return (
     <>
@@ -144,7 +155,10 @@ const ChartAxes = ({
           : `.${temp.toFixed(1).split('.')[1]}`;
 
         return (
-          <G key={`temp-tick-${i}`} {...(reduceMotion ? {} : { variants: itemVariants })}>
+          <G
+            key={`temp-tick-${i}`}
+            {...(reduceMotion || perfMode ? {} : { variants: itemVariants })}
+          >
             {/* Líneas de cuadrícula con gradientes sutiles */}
             <line
               x1={padding.left}
@@ -156,7 +170,7 @@ const ChartAxes = ({
               opacity={isMajor ? 0.5 : 0.3}
               strokeDasharray={isMajor ? '0' : '4,4'}
               style={{ 
-                filter: isMajor ? 'drop-shadow(0 1px 3px rgba(244, 114, 182, 0.15))' : 'none',
+                filter: isMajor && !perfMode ? 'drop-shadow(0 1px 3px rgba(244, 114, 182, 0.15))' : 'none',
                 opacity: isMajor ? 1 : 0.7
               }}
             />
@@ -172,7 +186,7 @@ const ChartAxes = ({
                 fill={isMajor ? '#be185d' : '#db2777'}
                 opacity={isMajor ? 0.9 : 0.7}
                 style={{ 
-                  filter: 'url(#textShadow)',
+                  filter: perfMode ? 'none' : 'url(#textShadow)',
                   fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
                 }}
               >
@@ -190,7 +204,7 @@ const ChartAxes = ({
               fill={isMajor ? '#be185d' : '#db2777'}
               opacity={isMajor ? 0.9 : 0.7}
               style={{ 
-                filter: 'url(#textShadow)',
+                filter: perfMode ? 'none' : 'url(#textShadow)',
                 fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
               }}
             >
@@ -201,22 +215,26 @@ const ChartAxes = ({
       })}
 
       {/* Líneas verticales de días con gradiente sutil */}
-      {allDataPoints.map((_, i) => {
-        const x = getX(i);
-        return (
-          <line
-            key={`day-grid-${i}`}
-            x1={x}
-            y1={padding.top}
-            x2={x}
-            y2={graphBottomY}
-            stroke="#fce7f3"
-            strokeWidth="1"
-            opacity="0.6"
-            style={{ filter: 'drop-shadow(0 0 1px rgba(244, 114, 182, 0.05))' }}
-          />
-        );
-      })}
+      {totalPoints > 0 &&
+        Array.from({ length: endIndex - startIndex + 1 }, (_, offset) => {
+          const i = startIndex + offset;
+          const x = getX(i);
+          return (
+            <line
+              key={`day-grid-${i}`}
+              x1={x}
+              y1={padding.top}
+              x2={x}
+              y2={graphBottomY}
+              stroke="#fce7f3"
+              strokeWidth="1"
+              opacity="0.6"
+              style={{
+                filter: perfMode ? 'none' : 'drop-shadow(0 0 1px rgba(244, 114, 182, 0.05))',
+              }}
+            />
+          );
+        })}
 
       {/* Bordes del área del gráfico con estilo premium */}
       <rect
@@ -243,7 +261,7 @@ const ChartAxes = ({
         />
           {/* Unidad °C con diseño premium similar a la dashboard */}
       {showLeftLabels && (
-        <G {...(reduceMotion ? {} : { variants: itemVariants })}>
+        <G {...(reduceMotion || perfMode ? {} : { variants: itemVariants })}>
 
           <text
             x={padding.left + responsiveFontSize(1.2)}
@@ -253,7 +271,7 @@ const ChartAxes = ({
             fontWeight="800"
             fill="#be185d"
             style={{ 
-              filter: 'url(#textShadow)',
+              filter: perfMode ? 'none' : 'url(#textShadow)',
               fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
             }}
           >

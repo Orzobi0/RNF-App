@@ -12,9 +12,10 @@ import DayDetail from '@/components/DayDetail';
 import DeletionDialog from '@/components/DeletionDialog';
 import { useCycleData } from '@/hooks/useCycleData';
 import { useToast } from '@/components/ui/use-toast';
+import { HeaderIconButton, HeaderIconButtonPrimary } from '@/components/HeaderIconButton';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Edit, Plus, FileText } from 'lucide-react';
+import { Edit, Plus, ClipboardList, Heart } from 'lucide-react';
 import NewCycleDialog from '@/components/NewCycleDialog';
 import {
   format,
@@ -34,17 +35,18 @@ import { Calendar } from '@/components/ui/calendar';
 import { es } from 'date-fns/locale';
 import { FERTILITY_SYMBOL_OPTIONS } from '@/config/fertilitySymbols';
 import computePeakStatuses from '@/lib/computePeakStatuses';
+import { formatCycleMeta, formatCycleTitle } from '@/lib/formatCycleTitle';
 import { cn } from '@/lib/utils';
 
 const getSymbolInfo = (symbolValue) =>
   FERTILITY_SYMBOL_OPTIONS.find((symbol) => symbol.value === symbolValue) || FERTILITY_SYMBOL_OPTIONS[0];
 const CALENDAR_BOUNDARY_OFFSET = 10;
 const CALENDAR_SWIPE_OFFSET = 60;
-const CALENDAR_SWIPE_VELOCITY = 400;
+const CALENDAR_SWIPE_VELOCITY = 750;
 const CALENDAR_EXIT_OFFSET = 120;
 const CALENDAR_DRAG_LIMIT = 85;
 const CALENDAR_DRAG_ACTIVATION_THRESHOLD = 5;
-const CALENDAR_SNAP_DURATION = 10;
+const CALENDAR_SNAP_DURATION = 180;
 // Formatea la temperatura para la UI. Devuelve null si el valor no es numérico.
 const formatTemperatureDisplay = (value) => {
   if (value === null || value === undefined || value === '') return null;
@@ -61,7 +63,7 @@ const formatTemperatureDisplay = (value) => {
 export const RecordsExperience = ({
   cycle: cycleProp,
   headerTitle,
-  headerIcon: HeaderIcon = FileText,
+  headerIcon: HeaderIcon = ClipboardList,
   headerActions,
   topAccessory,
   includeEndDate = false,
@@ -142,34 +144,19 @@ export const RecordsExperience = ({
   const [focusedField, setFocusedField] = useState(null);
   const [initialSectionKey, setInitialSectionKey] = useState(null);
   const [showNewCycleDialog, setShowNewCycleDialog] = useState(false);
-  const cycleRangeLabel = useMemo(() => {
-    if (!cycle?.startDate) return null;
-
-    const parsedStart = parseISO(cycle.startDate);
-    if (!isValid(parsedStart)) return null;
-
-    const startLabel = format(parsedStart, 'dd/MM/yyyy');
-    let endLabel = 'En curso';
-
-    if (cycle?.endDate) {
-      const parsedEnd = parseISO(cycle.endDate);
-      if (isValid(parsedEnd)) {
-        endLabel = format(parsedEnd, 'dd/MM/yyyy');
-      }
-    }
-
-    return `${startLabel} - ${endLabel}`;
-  }, [cycle?.endDate, cycle?.startDate]);
+  const recordCount = cycle?.data?.length ?? 0;
+  const isCurrentCycle = !cycle?.endDate;
 
   const resolvedHeaderTitle = useMemo(() => {
     if (headerTitle) return headerTitle;
 
-    if (cycle?.type === 'current' || !cycle?.endDate) {
-      return 'Ciclo actual';
-    }
+    return formatCycleTitle({ startDate: cycle?.startDate, endDate: cycle?.endDate });
+  }, [cycle?.endDate, cycle?.startDate, headerTitle]);
 
-    return cycleRangeLabel ?? 'Mis registros';
-  }, [cycle?.endDate, cycle?.type, cycleRangeLabel, headerTitle]);
+    const resolvedHeaderMeta = useMemo(
+    () => formatCycleMeta({ startDate: cycle?.startDate, endDate: cycle?.endDate, recordCount }),
+    [cycle?.endDate, cycle?.startDate, recordCount]
+  );
   const isCalendarOpen = true;
   const calendarContainerRef = useRef(null);
   const recordsScrollRef = useRef(null);
@@ -519,28 +506,23 @@ export const RecordsExperience = ({
         const details = recordDetailsByIso.get(iso);
         const baseLabel = format(day, 'd MMM', { locale: es });
 
-        if (!details) {
-          return baseLabel;
-        }
+       const peakStatus = details?.peakStatus ?? peakStatuses[iso] ?? null;
 
         const infoParts = [];
-        if (details.hasTemperature && details.hasMucus) {
+        if (details?.hasTemperature && details?.hasMucus) {
           infoParts.push('temperatura y moco');
-        } else if (details.hasTemperature) {
+        } else if (details?.hasTemperature) {
           infoParts.push('temperatura');
-        } else if (details.hasMucus) {
+        } else if (details?.hasMucus) {
           infoParts.push('moco');
         }
 
-        if (details.hasRelations) {
+        if (details?.hasRelations) {
           infoParts.push('RS');
         }
 
-        if (details.peakStatus) {
-          const peakLabel =
-            details.peakStatus === 'P'
-              ? 'pico ✖'
-              : `pico +${details.peakStatus}`;
+        if (peakStatus) {
+          const peakLabel = peakStatus === 'P' ? 'pico ✖' : `pico +${peakStatus}`;
           infoParts.push(peakLabel);
         }
 
@@ -551,7 +533,7 @@ export const RecordsExperience = ({
         return `${baseLabel}: ${infoParts.join('; ')}`;
       },
     }),
-    [recordDetailsByIso]
+    [peakStatuses, recordDetailsByIso]
   );
 
   const renderCalendarDay = useCallback(
@@ -562,7 +544,7 @@ export const RecordsExperience = ({
       const hasTemperature = details?.hasTemperature ?? false;
       const hasMucus = details?.hasMucus ?? false;
       const hasRelations = details?.hasRelations ?? false;
-      const peakStatus = details?.peakStatus ?? null;
+      const peakStatus = details?.peakStatus ?? peakStatuses[iso] ?? null;
       const symbolInfo = details?.symbolInfo;
       const symbolValue = symbolInfo?.value;
       const isSelected = activeModifiers.selected;
@@ -629,6 +611,12 @@ export const RecordsExperience = ({
   )}
       {symbolBackgroundClass && <span className={symbolBackgroundClass} aria-hidden="true" />}
       <span className={numberClass}>{format(date, 'd')}</span>
+      {hasRelations && (
+        <Heart
+          aria-hidden="true"
+          className="pointer-events-none absolute -bottom-[0.2px] -right-[0.2px] h-2 w-2 text-rose-500 fill-current"
+        />
+      )}
     </span>
 
 
@@ -643,7 +631,7 @@ export const RecordsExperience = ({
       <span
         aria-hidden="true"
         className={cn(
-          'pointer-events-none absolute -top-[1px] right-[1px] rounded-sm px-[2px] text-[0.55rem] font-semibold leading-none text-fertiliapp-fuerte shadow-[0_0_0_1px_rgba(255,255,255,0.9)]',
+          'pointer-events-none absolute -top-[1px] right-[0.5px] rounded-sm px-[2px] text-[0.75rem] font-semibold leading-none text-fertiliapp-fuerte shadow-[0_0_0_1px_rgba(255,255,255,0.9)]',
           isSelected ? 'bg-rose-100/90 text-fertiliapp-fuerte' : 'bg-white/90'
         )}
       >
@@ -654,7 +642,7 @@ export const RecordsExperience = ({
 );
 
     },
-    [recordDetailsByIso]
+    [peakStatuses, recordDetailsByIso]
   );
 
   const cycleDays = useMemo(() => {
@@ -923,7 +911,7 @@ const enterStart = -exitTarget;
       const width = gridTarget.getBoundingClientRect().width || 0;
  state.gridWidth = width;
  // umbral “natural”: 20% del ancho, pero nunca menos de 60px
- state.swipeThreshold = width ? Math.max(CALENDAR_SWIPE_OFFSET, width * 0.2) : CALENDAR_SWIPE_OFFSET;
+ state.swipeThreshold = width ? Math.max(CALENDAR_SWIPE_OFFSET, width * 0.25) : CALENDAR_SWIPE_OFFSET;
       const handlePointerMove = (moveEvent) => {
         if (!state.active || moveEvent.pointerId !== state.pointerId) {
           return;
@@ -939,7 +927,7 @@ const enterStart = -exitTarget;
           return;
         }
 
-       const limit = state.gridWidth || CALENDAR_DRAG_LIMIT;
+       const limit = state.gridWidth ? state.gridWidth * 0.7 : CALENDAR_DRAG_LIMIT;
        const limited = Math.max(-limit, Math.min(limit, delta));
         moveEvent.preventDefault();
         updateCalendarDragX(limited);
@@ -1347,30 +1335,25 @@ const enterStart = -exitTarget;
       ? headerActions(headerActionProps)
       : (
           <>
-            <Button
+            <HeaderIconButton
               type="button"
-              variant="outline"
-              size="icon"
               onClick={openStartDateEditor}
-              className="border-fertiliapp-suave rounded-full bg-secundario text-white hover:brightness-95"
+              className="text-subtitulo"
               disabled={isProcessing || isUpdatingStartDate}
               aria-label={includeEndDate ? 'Editar fechas del ciclo' : 'Editar fecha de inicio'}
             >
               <Edit className="h-4 w-4" />
               <span className="sr-only">{includeEndDate ? 'Editar fechas del ciclo' : 'Editar fecha de inicio'}</span>
-            </Button>
-            <Button
+            </HeaderIconButton>
+            <HeaderIconButtonPrimary
               type="button"
-              size="icon"
               onClick={handleOpenAddRecord}
-              className="rounded-full border border-fertiliapp-fuerte bg-white/80 hover:brightness-95 text-fertiliapp-fuerte shadow-md"
               disabled={isProcessing}
-              style={{ filter: 'drop-shadow(0 6px 12px rgba(236, 72, 153, 0.3))' }}
               aria-label="Añadir registro"
             >
               <Plus className="h-4 w-4" />
               <span className="sr-only">Añadir registro</span>
-            </Button>
+            </HeaderIconButtonPrimary>
           </>
         );
 
@@ -1426,18 +1409,38 @@ const enterStart = -exitTarget;
             <div className="space-y-1.5 p-2 sm:p-2.5 relative z-10">
               {/* Header */}
               <motion.div
-                className="flex flex-col gap-4"
+                className="flex flex-col gap-2"
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5 }}
               >
-                <div className="flex flex-wrap items-center gap-1 justify-between sm:justify-start">
-                  <div className="flex items-center gap-2">
-                    <HeaderIcon className="h-7 w-7 text-subtitulo" />
-                    <span className="text-2xl sm:text-2xl font-bold text-subtitulo">{resolvedHeaderTitle}</span>
+                <div className="rounded-3xl border border-fertiliapp-suave bg-white/50 p-3 shadow-sm backdrop-blur-md">
+                  <div className="flex min-w-0 flex-1 flex-col gap-1">
+                    <div className="flex items-center justify-between gap-2 text-[10px] uppercase tracking-[0.18em] text-base">
+                      <div className="flex min-w-0 items-center gap-2">
+                        {resolvedTopAccessory && (
+                          <div className="flex items-center">{resolvedTopAccessory}</div>
+                        )}
+                        <span>{isCurrentCycle ? 'CICLO ACTUAL' : 'CICLO ARCHIVADO'}</span>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">{resolvedHeaderActions}</div>
+                    </div>
+                      <div className="flex min-w-0 items-center gap-2">
+                        <HeaderIcon className="h-5 w-5 text-subtitulo" />
+                        <span
+                          className={cn(
+                            'font-semibold text-titulo leading-tight',
+                            isCurrentCycle ? 'text-[21px] sm:text-[22px]' : 'text-[21px] sm:text-[22px]'
+                          )}
+                        >
+                          {resolvedHeaderTitle}
+                        </span>
+                      </div>
+                      {resolvedHeaderMeta && (
+                        <div className="text-[13px] text-base whitespace-nowrap">{resolvedHeaderMeta}</div>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1">{resolvedHeaderActions}</div>
-                </div>
               </motion.div>
             
             {showStartDateEditor && (
@@ -1493,7 +1496,7 @@ const enterStart = -exitTarget;
                     onPointerDown={handleCalendarPointerDown}
                     data-calendar-dragging={isCalendarDragging ? 'true' : 'false'}
                     className={cn(
-                      'w-full max-w-sm rounded-3xl bg-white/80 mx-auto backdrop-blur-sm overflow-hidden [&_.records-calendar-day-grid]:will-change-transform [&_.records-calendar-day-grid]:transition-transform [&_.records-calendar-day-grid]:duration-200 [&_.records-calendar-day-grid]:ease-out [&_.records-calendar-day-grid]:[transform:translateX(var(--calendar-drag-x,0px))] data-[calendar-dragging=true]:[&_.records-calendar-day-grid]:duration-0 data-[calendar-dragging=true]:[&_.records-calendar-day-grid]:ease-linear',
+                      'w-full max-w-sm rounded-3xl bg-white/80 mx-auto backdrop-blur-sm overflow-hidden [&_.records-calendar-day-grid]:will-change-transform [&_.records-calendar-day-grid]:[transform:translate3d(var(--calendar-drag-x,0px),0,0)]',
                       isCalendarDragging ? 'cursor-grabbing select-none' : 'cursor-grab'
                     )}
                     style={{ touchAction: 'pan-y', '--calendar-drag-x': `${calendarDragX}px` }}
@@ -1523,8 +1526,7 @@ const enterStart = -exitTarget;
                 </motion.div>
               )}
             </AnimatePresence>
-            </div>
-            
+            </div>            
           </div>
         </div>
 
@@ -1554,7 +1556,7 @@ const enterStart = -exitTarget;
             >
               <div className="mx-auto max-w-md rounded-3xl border border-rose-100 bg-white/80 p-8 shadow-lg backdrop-blur-sm">
                 <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-rose-100 text-fertiliapp-fuerte shadow-inner">
-                  <FileText className="h-8 w-8" />
+                  <ClipboardList className="h-9 w-9" />
                 </div>
                 <h3 className="text-lg font-semibold text-slate-700">Aún no hay días para mostrar</h3>
                 <p className="mt-1 text-sm text-slate-500">

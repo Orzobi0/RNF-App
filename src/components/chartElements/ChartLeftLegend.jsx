@@ -1,5 +1,6 @@
 import React from 'react';
 import { useMemo } from 'react';
+import { Heart } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 // Colores consistentes con la dashboard
@@ -57,12 +58,12 @@ const ChartLeftLegend = ({
       { label: 'Fecha', row: 1, color: isFullScreen ? '#374151' : '#374151', icon: null },
       { label: 'Día', row: 2, color: isFullScreen ? '#374151' : '#374151', icon: null },
       { label: 'Símbolo', row: 3, color: isFullScreen ? '#374151' : '#374151', icon: null },
-      { label: 'Sens.', row: isFullScreen ? 5 : 4.5, color: SENSATION_COLOR, icon: '◊' },
-      { label: 'Apar.', row: isFullScreen ? 7 : 6, color: APPEARANCE_COLOR, icon: '○' },
-      { label: 'Obs.', row: isFullScreen ? 9 : 7.5, color: OBSERVATION_COLOR, icon: '✦' },
+      { label: 'Sens.', row: isFullScreen ? 5 : 4.5, color: SENSATION_COLOR, icon: { type: 'text', value: '◊' } },
+      { label: 'Apar.', row: isFullScreen ? 7 : 6, color: APPEARANCE_COLOR, icon: { type: 'text', value: '○' } },
+      { label: 'Obs.', row: isFullScreen ? 9 : 7.5, color: OBSERVATION_COLOR, icon: { type: 'text', value: '✦' } },
     ];
     if (showRelationsRow && relationsRowIndex != null) {
-      baseRows.push({ label: 'RS', row: relationsRowIndex, color: '#f44336', icon: '♥' });
+      baseRows.push({ label: 'RS', row: relationsRowIndex, color: '#f44336', icon: { type: 'heart' } });
     }
     return baseRows;
   }, [isFullScreen, relationsRowIndex, showRelationsRow]);
@@ -118,13 +119,17 @@ const ChartLeftLegend = ({
 
       {/* Etiquetas de filas con diseño mejorado */}
       <motion.g variants={itemVariants}>
-        {legendRows.map(({ label, row, color, icon }) => (
+        {legendRows.map(({ label, row, color, icon }) => {
+          const iconX = padding.left - responsiveFontSize(2.8);
+          const iconY = rowsTopY + rowH * row;
+          const iconSize = responsiveFontSize(0.95);
+          return (
           <g key={label}>
             {/* Indicador visual para las categorías de datos */}
-            {icon && (
+            {icon?.type === 'text' && (
               <text
-                x={padding.left - responsiveFontSize(2.8)}
-                y={rowsTopY + rowH * row}
+                x={iconX}
+                y={iconY}
                 textAnchor="middle"
                 fontSize={responsiveFontSize(0.8)}
                 fontWeight="600"
@@ -135,8 +140,19 @@ const ChartLeftLegend = ({
                   fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
                 }}
               >
-                {icon}
+                {icon.value}
               </text>
+            )}
+            {icon?.type === 'heart' && (
+              <g transform={`translate(${iconX - iconSize / 2}, ${iconY - iconSize / 2})`} opacity={0.7}>
+                <Heart
+                  width={iconSize}
+                  height={iconSize}
+                  color={color}
+                  fill={color}
+                  aria-hidden="true"
+                />
+              </g>
             )}
             
             <text
@@ -154,7 +170,8 @@ const ChartLeftLegend = ({
               {label}
             </text>
           </g>
-        ))}
+        );
+        })}
         
       </motion.g>
 

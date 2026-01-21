@@ -29,6 +29,8 @@ const ExportCyclesDialog = ({
   onToggleAll,
   format,
   onFormatChange,
+  includeChart,
+  onIncludeChartChange,
   isProcessing,
 }) => {
   const { currentCycles, archivedCycles, allSelectedState } = useMemo(() => {
@@ -155,11 +157,30 @@ const ExportCyclesDialog = ({
                 <SelectValue placeholder="Selecciona un formato" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="csv">CSV</SelectItem>
                 <SelectItem value="pdf">PDF</SelectItem>
+                <SelectItem value="csv">CSV</SelectItem>                
               </SelectContent>
             </Select>
           </div>
+          
+          {format === 'pdf' && (
+            <div className="flex items-start gap-2 rounded-lg border border-slate-200 bg-white/60 px-3 py-2">
+              <Checkbox
+                id="export-chart"
+                checked={includeChart}
+                onCheckedChange={(value) => onIncludeChartChange(Boolean(value))}
+                disabled={isProcessing}
+              />
+              <div className="space-y-1">
+                <Label htmlFor="export-chart" className="text-sm font-medium text-slate-700">
+                  Incluir gráfica en el PDF
+                </Label>
+                <p className="text-xs text-slate-500">
+                  Adjunta la gráfica de temperaturas al final de cada ciclo.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         <DialogFooter>

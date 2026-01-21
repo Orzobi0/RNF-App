@@ -13,8 +13,8 @@ const DEFAULT_FERTILITY_START_CONFIG = {
   combineMode: 'conservador',
 };
 
-const DEFAULT_TEMP_MIN = 35.8;
-const DEFAULT_TEMP_MAX = 37.2;
+const DEFAULT_TEMP_MIN = 36.1;
+const DEFAULT_TEMP_MAX = 37.5;
 
 export const computeOvulationMetrics = (processedData = []) => {
   const isValid = (p) => p && p.displayTemperature != null && !p.ignored;
@@ -325,7 +325,12 @@ export const useFertilityChart = (
 ) => {
       const chartRef = useRef(null);
       const tooltipRef = useRef(null);
-      const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+      const [dimensions, setDimensions] = useState({
+        width: 0,
+        height: 0,
+        viewportWidth: 0,
+        viewportHeight: 0,
+      });
       const [activePoint, setActivePoint] = useState(null);
       const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
       const [activeIndex, setActiveIndex] = useState(null);
@@ -442,6 +447,8 @@ export const useFertilityChart = (
           let containerWidth = chartRef.current.clientWidth > 0 ? chartRef.current.clientWidth : parentW;
           let newWidth;
           let newHeight;
+          let viewportWidth;
+          let viewportHeight;
 
           if (isFullScreen) {
             let availW = window.innerWidth;
@@ -452,6 +459,8 @@ export const useFertilityChart = (
             }
 
             containerWidth = availW;
+            viewportWidth = availW;
+            viewportHeight = availH;
             if (orientation === 'portrait' && !forceLandscape) {
               const legendSpace = Math.max(30, availW * 0.05);
               const perDayWidth = (availW - legendSpace) / visibleDays;
@@ -466,10 +475,17 @@ export const useFertilityChart = (
             const perDayWidth = containerWidth / visibleDays;
             newWidth = perDayWidth * data.length;
             newHeight = parentH;
+            viewportWidth = containerWidth;
+            viewportHeight = parentH;
           }
           
         
-          setDimensions({ width: newWidth, height: newHeight });
+          setDimensions({
+            width: newWidth,
+            height: newHeight,
+            viewportWidth,
+            viewportHeight,
+          });
         };
 
         updateDimensions();
@@ -785,7 +801,8 @@ export const useFertilityChart = (
       
       const chartWidth = dimensions.width;
       // Altura visible medida por ResizeObserver (la "ventana" que tenía antes de RS).
-      const viewportHeight = dimensions.height;
+      const viewportHeight = dimensions.viewportHeight || dimensions.height;
+      const viewportWidth = dimensions.viewportWidth || chartWidth;
       
       const baseFontSize = 9;
       const responsiveFontSize = (multiplier = 1) => {
@@ -827,12 +844,18 @@ export const useFertilityChart = (
             )
           : 12, 
         right: isFullScreen
-          ? Math.max(isLandscapeVisual ? 35 : 30, chartWidth * (isLandscapeVisual ? 0.02 : 0.05))
+          ? Math.max(
+              isLandscapeVisual ? 35 : 30,
+              Math.min(chartWidth, viewportWidth) * (isLandscapeVisual ? 0.02 : 0.05)
+            )
           : 50, 
         // 👇 Ajuste exacto. Si quieres que quede "pegadísimo", puedes restar 1px.
         bottom: Math.max(0, bottomRowsExact - 1),
         left: isFullScreen
-          ? Math.max(isLandscapeVisual ? 45 : 20, chartWidth * (isLandscapeVisual ? 0.02 : 0.05))
+          ? Math.max(
+              isLandscapeVisual ? 45 : 20,
+              Math.min(chartWidth, viewportWidth) * (isLandscapeVisual ? 0.02 : 0.05)
+            )
           : 50
       };
       
@@ -854,7 +877,10 @@ export const useFertilityChart = (
         const daySpacing = (isFullScreen && !(forceLandscape || orientation === 'landscape')) ? 25 : 0;
         const EXTRA_RIGHT_GAP = 15;
         const edgePadding = isFullScreen
-          ? Math.max(isLandscapeVisual ? 8 : 18, chartWidth * (isLandscapeVisual ? 0.01 : 0.05))
+          ? Math.max(
+              isLandscapeVisual ? 8 : 18,
+              Math.min(chartWidth, viewportWidth) * (isLandscapeVisual ? 0.01 : 0.05)
+            )
           : 20;
         const paddingRightForX = padding.right + EXTRA_RIGHT_GAP;
         const availableWidth =

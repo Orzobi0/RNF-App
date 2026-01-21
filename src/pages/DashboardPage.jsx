@@ -641,7 +641,7 @@ const EMPTY_DAY_COLORS = {
         className="px-4 flex-grow flex flex-col justify-start mt-2"
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.4, delay: 0.1 }}
+        transition={{ duration: 0.2, delay: 0.1 }}
       >
         {/* Tarjeta SOLO para el círculo + navegación */}
         
@@ -760,8 +760,6 @@ const EMPTY_DAY_COLORS = {
   strokeLinecap="round"
   onClick={(e) => handleDotClick(dot, e)}
   initial={false}
-  animate={{ scale: 1, opacity: 1, y: 0 }}
-  transition={{ duration: 0.50, ease: 'easeOut' }}   // más rápido
   whileTap={
     prefersReducedMotion || !hasInitializedWheelRef.current
       ? undefined
@@ -925,7 +923,7 @@ const EMPTY_DAY_COLORS = {
                 className="flex flex-col items-center gap-2"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={{ duration: 0.2, delay: 0.2, ease: 'easeOut' }}
+                transition={{ duration: 0.1, delay: 0.1, ease: 'easeOut' }}
               >
                 <div className="flex items-center justify-center ">
                   <p className="text-6xl font-semibold text-fertiliapp-fuerte leading-none">
@@ -995,7 +993,7 @@ const EMPTY_DAY_COLORS = {
             }`}
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.4, delay: 0.5 }}
+            transition={{ duration: 0.2, delay: 0.1 }}
           >
 
             <button
@@ -1063,7 +1061,7 @@ const EMPTY_DAY_COLORS = {
             }`}
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.4, delay: 0.6 }}
+            transition={{ duration: 0.2, delay: 0.1 }}
           >
             <button
               type="button"

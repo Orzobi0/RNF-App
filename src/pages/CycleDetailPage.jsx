@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import DeletionDialog from '@/components/DeletionDialog';
 import { useCycleData } from '@/hooks/useCycleData';
 import { useToast } from '@/components/ui/use-toast';
-import { Button } from '@/components/ui/button';
+import { HeaderIconButton, HeaderIconButtonPrimary } from '@/components/HeaderIconButton';
 import { ArrowLeft, BarChart3, Pencil, Plus } from 'lucide-react';
 import { differenceInDays, startOfDay, parseISO, format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
@@ -182,61 +182,39 @@ const CycleDetailPage = () => {
     }, [cycleData?.id, deleteCycle, navigate, toast, user]);
 
   const topAccessory = useCallback(() => (
-    <div className="flex items-center gap-1">
-      <Button
-        asChild
-        variant="outline"
-        size="icon"
-        className="shrink-0 ml-2 rounded-full border-fertiliapp-fuerte text-fertiliapp-fuerte hover:brightness-95"
-      >
-        <Link to="/archived-cycles" aria-label="Volver a mis ciclos">
-          <ArrowLeft className="h-4 w-4" />
-          <span className="sr-only">Mis ciclos</span>
-        </Link>
-      </Button>
-      <div className="items-center justify-center px-4 py-3">
-        <h2 className="text-2xl font-semibold text-titulo truncate">
-          {cycleData?.name ? `${cycleData.name} · ` : ''}{cycleRangeLabel}
-        </h2>
-      </div>
-    </div>
-    ), [cycleData?.name, cycleRangeLabel]);
+      <HeaderIconButton asChild className="shrink-0 text-fertiliapp-fuerte">
+      <Link to="/archived-cycles" aria-label="Volver a mis ciclos">
+        <ArrowLeft className="h-4 w-4" />
+        <span className="sr-only">Mis ciclos</span>
+      </Link>
+    </HeaderIconButton>
+  ), []);
 
   const headerActions = useCallback(
     ({ openDateEditor, openAddRecord, isProcessing, isUpdatingDates }) => (
-      <div className="flex items-center gap-1">
-        <Button
-          asChild
-          variant="outline"
-          size="icon"
-          className="border-white text-alerta bg-white rounded-full hover:brightness-95"
-        >
-          <Link to={`/chart/${cycleId}`} aria-label="Ver gráfica del ciclo">
-            <BarChart3 className="h-4 w-4" />
-          </Link>
-        </Button>
-        <Button
+      <div className="flex items-center gap-2">
+        <HeaderIconButton
           type="button"
-          variant="outline"
-          size="icon"
           onClick={openDateEditor}
           aria-pressed={isUpdatingDates}
-          className="border-white text-subtitulo rounded-full hover:brightness-95"
           disabled={isUpdatingDates}
           aria-label="Editar fechas del ciclo"
         >
           <Pencil className="h-4 w-4" />
-        </Button>
-        <Button
+        </HeaderIconButton>
+        <HeaderIconButton asChild>
+          <Link to={`/chart/${cycleId}`} aria-label="Ver gráfica del ciclo">
+            <BarChart3 className="h-4 w-4" />
+          </Link>
+        </HeaderIconButton>
+        <HeaderIconButtonPrimary
           type="button"
-          size="icon"
           onClick={openAddRecord}
-          className="rounded-full bg-secundario hover:brightness-95 text-white shadow"
           disabled={isProcessing}
           aria-label="Añadir registro al ciclo"
         >
           <Plus className="h-4 w-4" />
-        </Button>
+        </HeaderIconButtonPrimary>
       </div>
     ),
     [cycleId]

@@ -78,6 +78,31 @@ const FertilityChart = ({
     uniqueIdRef.current = `fertility-chart-${cycleId ?? 'default'}-${randomSuffix}`;
   }
   const uniqueId = uniqueIdRef.current;
+  const getOverscanDays = useCallback((visibleDaysValue, totalPoints) => {
+    const screens = visibleDaysValue >= 20 ? 1 : 2;
+    const raw = Math.ceil(visibleDaysValue * screens);
+    const capped = Math.min(raw, 24);
+    return Math.max(capped, 12);
+  }, []);
+
+  const initialRange = useMemo(() => {
+    const total = allDataPoints.length;
+    if (!total) return { startIndex: 0, endIndex: -1 };
+
+    const overscanDays = getOverscanDays(visibleDays, total);
+    const startIndex = Math.max(0, Math.floor(initialScrollIndex) - overscanDays);
+    const endIndex = Math.min(
+      total - 1,
+      Math.floor(initialScrollIndex) + visibleDays + overscanDays
+    );
+
+    return { startIndex, endIndex };
+  }, [allDataPoints.length, getOverscanDays, initialScrollIndex, visibleDays]);
+
+  const [visibleRange, setVisibleRange] = useState(initialRange);
+  const scrollRafRef = useRef(null);
+  const [isScrolling, setIsScrolling] = useState(false);
+  const scrollStopTimerRef = useRef(null);
 
   if (!allDataPoints || allDataPoints.length === 0) {
     return (
@@ -752,13 +777,81 @@ const FertilityChart = ({
     };
   }, []);
 
+  const updateVisibleRange = useCallback(
+    (scrollLeft = 0) => {
+      const node = chartRef.current;
+      if (!node) return;
+
+      const totalPoints = allDataPoints.length;
+      if (!totalPoints) {
+        setVisibleRange({ startIndex: 0, endIndex: -1 });
+        return;
+      }
+      
+      const viewportW = node.clientWidth || 1;
+      const dayW = viewportW / Math.max(visibleDays, 1);
+      const safeDayW = dayW || 1;
+
+      const overscanDays = getOverscanDays(visibleDays, totalPoints);
+
+      const firstVisible = Math.floor(scrollLeft / safeDayW);
+      const lastVisible = Math.floor((scrollLeft + viewportW) / safeDayW);
+
+      let startIndex = firstVisible - overscanDays;
+      let endIndex = lastVisible + overscanDays;
+
+      startIndex = Math.max(0, startIndex);
+      endIndex = Math.min(totalPoints - 1, endIndex);
+      setVisibleRange((prev) =>
+        prev.startIndex === startIndex && prev.endIndex === endIndex
+          ? prev
+          : { startIndex, endIndex }
+      );
+    },
+    [allDataPoints.length, getOverscanDays, visibleDays]
+  );
+
   useEffect(() => {
     if (!chartRef.current) return;
     const dayWidth = chartRef.current.clientWidth / visibleDays;
     chartRef.current.scrollLeft = Math.max(0, dayWidth * initialScrollIndex);
-  }, [initialScrollIndex, visibleDays, dimensions.width, orientation]);
+  updateVisibleRange(chartRef.current.scrollLeft);
+  }, [
+    initialScrollIndex,
+    visibleDays,
+    dimensions.width,
+    orientation,
+    updateVisibleRange,
+  ]);
+
+  useEffect(() => {
+    const node = chartRef.current;
+    if (!node) return;
+    const handleScroll = () => {
+      setIsScrolling(true);
+      if (scrollStopTimerRef.current) window.clearTimeout(scrollStopTimerRef.current);
+      scrollStopTimerRef.current = window.setTimeout(() => setIsScrolling(false), 140);
+
+      if (scrollRafRef.current) return;
+      scrollRafRef.current = window.requestAnimationFrame(() => {
+        scrollRafRef.current = null;
+        updateVisibleRange(node.scrollLeft);
+      });
+    };
+    node.addEventListener('scroll', handleScroll, { passive: true });
+    updateVisibleRange(node.scrollLeft);
+    return () => {
+      node.removeEventListener('scroll', handleScroll);
+      if (scrollStopTimerRef.current) window.clearTimeout(scrollStopTimerRef.current);
+      if (scrollRafRef.current) {
+        window.cancelAnimationFrame(scrollRafRef.current);
+        scrollRafRef.current = null;
+      }
+    };
+  }, [updateVisibleRange]);
 
   const applyRotation = isFullScreen && forceLandscape && isViewportPortrait;
+  const visualOrientation = forceLandscape ? 'landscape' : orientation;
 
   // Clase del contenedor de scroll ajustada para rotación artificial
   const rotatedContainer = applyRotation;
@@ -766,7 +859,7 @@ const FertilityChart = ({
   const containerClass = isFullScreen
     ? `${baseFullClass} h-full ${rotatedContainer ? 'overflow-y-auto overflow-x-auto' : 'overflow-x-auto overflow-y-auto'}`
     : `${baseFullClass} overflow-x-auto overflow-y-visible border border-pink-100/50`;
-  const showLegend = !isFullScreen || orientation === 'portrait';
+  const showLegend = !isFullScreen || visualOrientation === 'portrait';
 
   return (
       <motion.div className="relative w-full h-full" initial={false}>
@@ -925,10 +1018,12 @@ const FertilityChart = ({
             getY={getY}
             getX={getX}
             allDataPoints={allDataPoints}
+            visibleRange={visibleRange}
             responsiveFontSize={responsiveFontSize}
             isFullScreen={isFullScreen}
             showLeftLabels={!showLegend}
             reduceMotion={reduceMotion}
+            isScrolling={isScrolling}
             graphBottomY={graphBottomY}
             chartAreaHeight={Math.max(chartHeight - padding.top - padding.bottom - (graphBottomInset || 0), 0)}
             rowsZoneHeight={rowsZoneHeight}
@@ -1136,11 +1231,12 @@ const FertilityChart = ({
             getX={getX}
             getY={getY}
             isFullScreen={isFullScreen}
-            orientation={orientation}
+            orientation={visualOrientation}
             responsiveFontSize={responsiveFontSize}
             onPointInteraction={handlePointInteraction}
             clearActivePoint={clearActivePoint}
             activePoint={activePoint}
+            visibleRange={visibleRange}
             padding={padding}
             chartHeight={chartHeight}
             chartWidth={chartWidth}
@@ -1150,6 +1246,7 @@ const FertilityChart = ({
             rowsZoneHeight={rowsZoneHeight}
             compact={false}
             reduceMotion={reduceMotion}
+            isScrolling={isScrolling}
             showInterpretation={showInterpretation}
             ovulationDetails={ovulationDetails}
             baselineStartIndex={baselineStartIndex}

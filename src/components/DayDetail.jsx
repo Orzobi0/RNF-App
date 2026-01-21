@@ -148,7 +148,7 @@ let peakIndicatorVariant = null;
         <div className="flex items-center gap-2">
           <p className="font-semibold text-subtitulo sm:text-lg">
             {formattedDate}
-            {cycleDay ? ` · D${cycleDay}` : ''}
+            {cycleDay ? ` · Día ${cycleDay}` : ''}
           </p>
 
           {peakIndicatorLabel && (
@@ -333,7 +333,7 @@ let peakIndicatorVariant = null;
             disabled={isProcessing}
             className={cn(
               'flex h-10 w-10 items-center justify-center rounded-full border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200',
-              hasRelations ? 'border-rose-500 bg-rose-50' : 'border-slate-200 bg-white',
+              hasRelations ? 'border-rose-50 bg-rose-50' : 'border-slate-200 bg-white',
               isProcessing && 'opacity-70 cursor-not-allowed'
             )}
             title={hasRelations ? 'Hubo relaciones' : 'Sin relaciones'}
