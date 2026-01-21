@@ -15,7 +15,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { HeaderIconButton, HeaderIconButtonPrimary } from '@/components/HeaderIconButton';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Edit, Plus, FileText, Heart } from 'lucide-react';
+import { Edit, Plus, ClipboardList, Heart } from 'lucide-react';
 import NewCycleDialog from '@/components/NewCycleDialog';
 import {
   format,
@@ -63,7 +63,7 @@ const formatTemperatureDisplay = (value) => {
 export const RecordsExperience = ({
   cycle: cycleProp,
   headerTitle,
-  headerIcon: HeaderIcon = FileText,
+  headerIcon: HeaderIcon = ClipboardList,
   headerActions,
   topAccessory,
   includeEndDate = false,
@@ -1414,15 +1414,17 @@ const enterStart = -exitTarget;
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5 }}
               >
-                <div className="rounded-3xl border border-fertiliapp-suave bg-white/80 p-3 shadow-sm backdrop-blur-md">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex min-w-0 flex-1 flex-col gap-1">
-                       <div className="flex min-w-0 items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-base">
+                <div className="rounded-3xl border border-fertiliapp-suave bg-white/50 p-3 shadow-sm backdrop-blur-md">
+                  <div className="flex min-w-0 flex-1 flex-col gap-1">
+                    <div className="flex items-center justify-between gap-2 text-[10px] uppercase tracking-[0.18em] text-base">
+                      <div className="flex min-w-0 items-center gap-2">
                         {resolvedTopAccessory && (
                           <div className="flex items-center">{resolvedTopAccessory}</div>
                         )}
                         <span>{isCurrentCycle ? 'CICLO ACTUAL' : 'CICLO ARCHIVADO'}</span>
                       </div>
+                      <div className="flex shrink-0 items-center gap-2">{resolvedHeaderActions}</div>
+                    </div>
                       <div className="flex min-w-0 items-center gap-2">
                         <HeaderIcon className="h-5 w-5 text-subtitulo" />
                         <span
@@ -1435,12 +1437,10 @@ const enterStart = -exitTarget;
                         </span>
                       </div>
                       {resolvedHeaderMeta && (
-                        <div className="truncate text-[13px] text-base">{resolvedHeaderMeta}</div>
+                        <div className="text-[13px] text-base whitespace-nowrap">{resolvedHeaderMeta}</div>
                       )}
                     </div>
-                    <div className="flex shrink-0 items-center gap-2">{resolvedHeaderActions}</div>
                   </div>
-                </div>
               </motion.div>
             
             {showStartDateEditor && (
@@ -1557,7 +1557,7 @@ const enterStart = -exitTarget;
             >
               <div className="mx-auto max-w-md rounded-3xl border border-rose-100 bg-white/80 p-8 shadow-lg backdrop-blur-sm">
                 <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-rose-100 text-fertiliapp-fuerte shadow-inner">
-                  <FileText className="h-8 w-8" />
+                  <ClipboardList className="h-8 w-8" />
                 </div>
                 <h3 className="text-lg font-semibold text-slate-700">Aún no hay días para mostrar</h3>
                 <p className="mt-1 text-sm text-slate-500">

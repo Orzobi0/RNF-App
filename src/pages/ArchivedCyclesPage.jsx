@@ -280,9 +280,6 @@ const ArchivedCyclesPage = () => {
             <div className="rounded-3xl border border-fertiliapp-suave bg-white/80 p-3 shadow-sm backdrop-blur-md">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
-                  <div className="flex min-w-0 items-center gap-2 truncate text-[11px] uppercase tracking-[0.18em] text-base">
-                    <span>CICLOS</span>
-                  </div>
                   <div className="flex min-w-0 items-center gap-2">
                     <span className="truncate text-[21px] font-semibold leading-tight text-titulo">
                       Mis ciclos
@@ -356,7 +353,7 @@ const ArchivedCyclesPage = () => {
                   <motion.button
                     key={cycle.id}
                     type="button"
-                    className="w-full max-w-[480px] mx-auto bg-white/80 backdrop-blur-md border border-fertiliapp-suave shadow-sm hover:shadow-sm transition-all duration-300 hover:bg-white/90 rounded-3xl active:scale-[0.98] cursor-pointer select-none"
+                    className="w-full max-w-[480px] mx-auto bg-white/80 backdrop-blur-md border border-fertiliapp-suave shadow-md hover:shadow-sm transition-all duration-300 hover:bg-white/90 rounded-3xl active:scale-[0.98] cursor-pointer select-none"
                     variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }}
                     onMouseDown={() => startLongPressDetection(cycle)}
                     onMouseUp={() => cancelLongPressDetection(cycle)}

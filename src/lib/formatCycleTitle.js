@@ -19,7 +19,7 @@ export const formatCycleTitle = ({ startDate, endDate }) => {
       return 'Mis registros';
     }
 
-    return formatDayMonthYear(start);
+    return `${formatDayMonthYear(start)} - actualidad`;
   }
 
   if (!startDate) {
@@ -61,7 +61,7 @@ export const formatCycleMeta = ({ startDate, endDate, recordCount = 0, reference
 
   if (!endDate) {
     const cycleDay = differenceInCalendarDays(startOfDay(referenceDate), startOfDay(start)) + 1;
-    return `Desde ${formatDayMonthYear(start)} · Día ${cycleDay} · ${recordCount} registros`;
+    return `Día ${cycleDay} · ${recordCount} registros`;
   }
 
   const end = parseISO(endDate);
