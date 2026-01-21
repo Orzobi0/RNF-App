@@ -9,7 +9,17 @@ const formatDayMonthYear = (date) => normalizeMonth(format(date, 'd MMM yyyy', {
 
 export const formatCycleTitle = ({ startDate, endDate }) => {
   if (!endDate) {
-    return 'Ciclo actual';
+    if (!startDate) {
+      return 'Mis registros';
+    }
+
+    const start = parseISO(startDate);
+
+    if (!isValid(start)) {
+      return 'Mis registros';
+    }
+
+    return formatDayMonthYear(start);
   }
 
   if (!startDate) {

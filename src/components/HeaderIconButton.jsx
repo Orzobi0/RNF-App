@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 const baseClasses =
-  'h-10 w-10 rounded-full bg-white/85 backdrop-blur-md shadow-sm hover:bg-white hover:brightness-95';
+  'h-9 w-9 shrink-0 rounded-full bg-white/85 backdrop-blur-md shadow-sm shadow-black/5 hover:bg-white hover:brightness-95 [&>svg]:h-5 [&>svg]:w-5';
 
 export const HeaderIconButton = React.forwardRef(
   ({ className, variant = 'neutral', ...props }, ref) => {

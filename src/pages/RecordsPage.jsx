@@ -1409,36 +1409,36 @@ const enterStart = -exitTarget;
             <div className="space-y-1.5 p-2 sm:p-2.5 relative z-10">
               {/* Header */}
               <motion.div
-                className="flex flex-col gap-4"
+                className="flex flex-col gap-2"
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5 }}
               >
-                <div className="rounded-3xl border border-fertiliapp-suave bg-white/80 p-3.5 shadow-sm backdrop-blur-md">
-                  <div className="flex items-center justify-between gap-4">
+                <div className="rounded-3xl border border-fertiliapp-suave bg-white/80 p-3 shadow-sm backdrop-blur-md">
+                  <div className="flex items-center justify-between gap-2">
                     <div className="flex min-w-0 flex-1 flex-col gap-1">
-                      <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-base">
+                       <div className="flex min-w-0 items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-base">
                         {resolvedTopAccessory && (
                           <div className="flex items-center">{resolvedTopAccessory}</div>
                         )}
-                        <span>CICLO</span>
+                        <span>{isCurrentCycle ? 'CICLO ACTUAL' : 'CICLO ARCHIVADO'}</span>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex min-w-0 items-center gap-2">
                         <HeaderIcon className="h-5 w-5 text-subtitulo" />
                         <span
                           className={cn(
                             'font-semibold text-titulo leading-tight',
-                            isCurrentCycle ? 'text-[23px] sm:text-[26px]' : 'text-[22px] sm:text-2xl'
+                            isCurrentCycle ? 'text-[21px] sm:text-[22px]' : 'text-[21px] sm:text-[22px]'
                           )}
                         >
                           {resolvedHeaderTitle}
                         </span>
                       </div>
                       {resolvedHeaderMeta && (
-                        <div className="text-[13px] text-base">{resolvedHeaderMeta}</div>
+                        <div className="truncate text-[13px] text-base">{resolvedHeaderMeta}</div>
                       )}
                     </div>
-                    <div className="flex items-center gap-2">{resolvedHeaderActions}</div>
+                    <div className="flex shrink-0 items-center gap-2">{resolvedHeaderActions}</div>
                   </div>
                 </div>
               </motion.div>

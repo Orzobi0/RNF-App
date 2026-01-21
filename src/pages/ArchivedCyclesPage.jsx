@@ -272,31 +272,41 @@ const ArchivedCyclesPage = () => {
         <div className="w-full max-w-4xl mx-auto px-4 py-6 flex h-[calc(var(--app-vh,1vh)*100 - var(--bottom-nav-safe))] flex-col">
           {/* Header */}
           <motion.div
-  className="flex items-center justify-between gap-3 mb-6"
-  initial={{ opacity: 0, y: -20 }}
-  animate={{ opacity: 1, y: 0 }}
-  transition={{ duration: 0.5 }}
->
-  <h1 className="text-3xl sm:text-4xl font-bold text-subtitulo flex items-center">
-    <Archive className="mr-3 h-8 w-8 text-subtitulo" />
-    Mis Ciclos
-  </h1>
+  className="mb-4"
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            <div className="rounded-3xl border border-fertiliapp-suave bg-white/80 p-3 shadow-sm backdrop-blur-md">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                  <div className="flex min-w-0 items-center gap-2 truncate text-[11px] uppercase tracking-[0.18em] text-base">
+                    <span>CICLOS</span>
+                  </div>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="truncate text-[21px] font-semibold leading-tight text-titulo">
+                      Mis ciclos
+                    </span>
+                  </div>
+                  <div className="truncate text-[13px] text-base">Historial de ciclos</div>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <HeaderIconButtonPrimary type="button" onClick={openAddDialog} aria-label="Añadir ciclo">
+                    <Plus className="h-4 w-4" />
+                    <span className="sr-only">Añadir ciclo</span>
+                  </HeaderIconButtonPrimary>
 
-  <div className="flex flex-row items-center gap-2">
-    <HeaderIconButtonPrimary type="button" onClick={openAddDialog} aria-label="Añadir ciclo">
-      <Plus className="h-4 w-4" />
-      <span className="sr-only">Añadir ciclo</span>
-    </HeaderIconButtonPrimary>
-
-    <HeaderIconButton
-      type="button"
-      onClick={() => setIsFilterOpen((prev) => !prev)}
-      aria-label="Filtrar por año"
-    >
-      <SlidersHorizontal className="h-5 w-5" />
-    </HeaderIconButton>
-  </div>
-</motion.div>
+                  <HeaderIconButton
+                    type="button"
+                    onClick={() => setIsFilterOpen((prev) => !prev)}
+                    aria-label="Filtrar por año"
+                  >
+                    <SlidersHorizontal className="h-5 w-5" />
+                  </HeaderIconButton>
+                </div>
+              </div>
+            </div>
+          </motion.div>
 
 {isFilterOpen && (
   <div className="mb-4 flex w-full justify-center">
@@ -323,7 +333,7 @@ const ArchivedCyclesPage = () => {
           {/* Cycles List */}
           <div className="flex-1 overflow-y-auto pr-1 sm:pr-0 pb-6">
           <motion.div
-            className="space-y-4 px-1"
+            className="space-y-3 px-1"
               variants={{
                 hidden: { opacity: 0 },
                 show: {
@@ -370,51 +380,47 @@ const ArchivedCyclesPage = () => {
                       }
                     }}
                   >
-                    <div className="p-3">
-
-                        {/* Información del ciclo */}
-                        <div className="flex items-start gap-3 flex-1 min-w-0">
-                          {/* Icono del ciclo */}
-                          <div className="flex flex-col items-center">
-                            <div className="w-12 h-12 bg-fertiliapp rounded-full flex items-center justify-center flex-shrink-0">
-                              <Calendar className="w-6 h-6 text-white" />
-                            </div>
+                    <div className="p-2.5">
+                      {/* Información del ciclo */}
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        {/* Icono del ciclo */}
+                        <div className="flex flex-col items-center">
+                          <div className="w-10 h-10 bg-fertiliapp rounded-full flex items-center justify-center flex-shrink-0">
+                            <Calendar className="w-5 h-5 text-white" />
                           </div>
+                        </div>
 
                           {/* Detalles del ciclo */}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center flex-wrap gap-2 mb-1.5">
-                              <h2 className="text-lg font-semibold text-slate-700">
-                                {format(parseISO(cycle.startDate), "dd/MM/yyyy", { locale: es })} - {endDate}
-                              </h2>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h2 className="truncate text-[15px] font-semibold text-slate-700">
+                              {format(parseISO(cycle.startDate), "dd/MM/yyyy", { locale: es })} - {endDate}
+                            </h2>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-slate-600">
+                            <div className="flex items-center space-x-1">
+                              <BarChart3 className="w-4 h-4 text-slate-500" />
+                              <span>{recordCount} registro{recordCount !== 1 ? 's' : ''}</span>
 
                             </div>
 
-                            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-slate-600">
+                            {cycle.endDate && (
                               <div className="flex items-center space-x-1">
-                                <BarChart3 className="w-4 h-4 text-slate-500" />
-                                <span>{recordCount} registro{recordCount !== 1 ? 's' : ''}</span>
+                                <Calendar className="w-4 h-4 text-slate-500" />
+                                <span>
+                                  {Math.ceil((parseISO(cycle.endDate) - parseISO(cycle.startDate)) / (1000 * 60 * 60 * 24)) + 1} días
+                                </span>
                               </div>
-
-                              {cycle.endDate && (
-                                <div className="flex items-center space-x-1">
-                                  <Calendar className="w-4 h-4 text-slate-500" />
-                                  <span>
-                                    {Math.ceil((parseISO(cycle.endDate) - parseISO(cycle.startDate)) / (1000 * 60 * 60 * 24)) + 1} días
-                                  </span>
-
-                                </div>
-                              )}
-                              {cycle.isCurrent && (
-                                <Badge className="bg-fertiliapp-fuerte text-white text-xs">
-                                  Ciclo actual
-                                </Badge>
-                              )}
-                              
-                            </div>
+                        )}
+                            {cycle.isCurrent && (
+                              <Badge className="rounded-full bg-fertiliapp-fuerte px-2 py-0.5 text-[11px] text-white">
+                                Ciclo actual
+                              </Badge>
+                            )}
                           </div>
                         </div>
                       </div>
+                    </div>
                       </motion.button>
                 );
               })}

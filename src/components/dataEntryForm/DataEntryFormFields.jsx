@@ -780,7 +780,7 @@ const DataEntryFormFields = ({
                     </Label>
                     <label
                       htmlFor={measurementSelectId}
-                      className="flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-700 shadow-sm"
+                      className="flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50/70 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-amber-700 shadow-sm"
                     >
                       <input
                         id={measurementSelectId}
@@ -788,9 +788,9 @@ const DataEntryFormFields = ({
                         checked={m.selected}
                         onChange={() => selectMeasurement(idx)}
                         disabled={isProcessing}
-                        className="h-3.5 w-3.5 text-orange-500 focus:ring-orange-400"
+                        className="h-3 w-3 text-orange-500 focus:ring-orange-400"
                       />
-                      <span>Usar en gráfica</span>
+                      <span>gráfica</span>
                     </label>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
@@ -865,7 +865,7 @@ const DataEntryFormFields = ({
                             size="icon"
                             onClick={() => confirmMeasurement(idx)}
                             disabled={isProcessing}
-                            className="h-9 w-9"
+                            className="h-8 w-8 bg-green-400"
                             aria-label="Confirmar medición"
                           >
                             <Check className="h-4 w-4" />
@@ -875,7 +875,7 @@ const DataEntryFormFields = ({
                             size="icon"
                             onClick={() => removeMeasurement(idx)}
                             disabled={isProcessing}
-                            className="h-9 w-9"
+                            className="h-8 w-8"
                             aria-label="Eliminar medición"
                           >
                             <X className="h-4 w-4" />
