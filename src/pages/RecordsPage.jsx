@@ -14,7 +14,7 @@ import { useCycleData } from '@/hooks/useCycleData';
 import { useToast } from '@/components/ui/use-toast';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Edit, Plus, FileText } from 'lucide-react';
+import { Edit, Plus, FileText, Heart } from 'lucide-react';
 import NewCycleDialog from '@/components/NewCycleDialog';
 import {
   format,
@@ -625,12 +625,10 @@ export const RecordsExperience = ({
       {symbolBackgroundClass && <span className={symbolBackgroundClass} aria-hidden="true" />}
       <span className={numberClass}>{format(date, 'd')}</span>
       {hasRelations && (
-        <span
+        <Heart
           aria-hidden="true"
-          className="pointer-events-none absolute -bottom-[1px] -right-[2px] text-[0.55rem] font-semibold text-rose-500"
-        >
-          ❤
-        </span>
+          className="pointer-events-none absolute -bottom-[1px] -right-[2px] h-2 w-2 text-rose-500 fill-current"
+        />
       )}
     </span>
 
@@ -646,7 +644,7 @@ export const RecordsExperience = ({
       <span
         aria-hidden="true"
         className={cn(
-          'pointer-events-none absolute -top-[1px] right-[1px] rounded-sm px-[2px] text-[0.55rem] font-semibold leading-none text-fertiliapp-fuerte shadow-[0_0_0_1px_rgba(255,255,255,0.9)]',
+          'pointer-events-none absolute -top-[1px] right-[0.5px] rounded-sm px-[2px] text-[0.75rem] font-semibold leading-none text-fertiliapp-fuerte shadow-[0_0_0_1px_rgba(255,255,255,0.9)]',
           isSelected ? 'bg-rose-100/90 text-fertiliapp-fuerte' : 'bg-white/90'
         )}
       >
