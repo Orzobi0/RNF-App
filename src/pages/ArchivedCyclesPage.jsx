@@ -344,9 +344,8 @@ const ArchivedCyclesPage = () => {
               animate="show"
             >
               {filteredCycles.map((cycle) => {
-                const endDate = cycle.endDate
-                  ? format(parseISO(cycle.endDate), "dd/MM/yyyy", { locale: es })
-                  : 'En curso';
+                const formatArchivedDate = (date) => format(parseISO(date), 'dd MMM yy', { locale: es });
+                const endDate = cycle.endDate ? formatArchivedDate(cycle.endDate) : 'En curso';
                 const recordCount = cycle.data ? cycle.data.length : 0;
 
                 return (
@@ -391,7 +390,7 @@ const ArchivedCyclesPage = () => {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
                             <h2 className="truncate text-[15px] font-semibold text-slate-700">
-                              {format(parseISO(cycle.startDate), "dd/MM/yyyy", { locale: es })} - {endDate}
+                              {formatArchivedDate(cycle.startDate)} - {endDate}
                             </h2>
                           </div>
                           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-slate-600">
