@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import { Heart } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { parseISO, startOfDay, isAfter, isSameDay } from 'date-fns';
 import { getSymbolAppearance, getSymbolColorPalette } from '@/config/fertilitySymbols';
@@ -956,18 +957,19 @@ const observationFontSize = obsRes.fontSize;
             </text>
             )}
 
-            {showRelationsRow && relationsRowY != null && (
-              <text
-                x={x}
-                y={relationsRowY}
-                textAnchor="middle"
-                fontSize={relationsHeartSize}
-                fontWeight="700"
-                fill={hasRelations ? HEART_COLOR : 'transparent'}
-                aria-label={hasRelations ? `Relación registrada el ${point.isoDate || `día ${index + 1}`}` : undefined}
+            {showRelationsRow && relationsRowY != null && hasRelations && (
+              <g
+                transform={`translate(${x - relationsHeartSize / 2}, ${relationsRowY - relationsHeartSize / 2})`}
+                role="img"
+                aria-label={`Relación registrada el ${point.isoDate || `día ${index + 1}`}`}
               >
-                {hasRelations ? '❤' : ''}
-              </text>
+                <Heart
+                  width={relationsHeartSize}
+                  height={relationsHeartSize}
+                  color={HEART_COLOR}
+                  fill={HEART_COLOR}
+                />
+              </g>
             )}
 
           </MotionG>

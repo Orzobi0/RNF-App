@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCycleData } from '@/hooks/useCycleData';
+import { HeaderIconButton, HeaderIconButtonPrimary } from '@/components/HeaderIconButton';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Archive, Plus, Calendar, BarChart3, Search } from 'lucide-react';
+import { Archive, Plus, Calendar, BarChart3, SlidersHorizontal } from 'lucide-react';
 import { motion } from 'framer-motion';
 import EditCycleDatesDialog from '@/components/EditCycleDatesDialog';
 import DeletionDialog from '@/components/DeletionDialog';
@@ -281,23 +282,19 @@ const ArchivedCyclesPage = () => {
     Mis Ciclos
   </h1>
 
-  <div className="flex flex-row items-center gap-3">
-    <Button
-      onClick={openAddDialog}
-      className="flex-shrink-0 text-md font-semibold rounded-full bg-white/90 border border-secundario hover:brightness-95 text-secundario shadow-sm px-2"
-      style={{ filter: 'drop-shadow(0 6px 12px rgba(236, 72, 153, 0.3))' }}
-    >
-      <Plus className="mr-1 h-4 w-4" /> Ciclo
-    </Button>
+  <div className="flex flex-row items-center gap-2">
+    <HeaderIconButtonPrimary type="button" onClick={openAddDialog} aria-label="Añadir ciclo">
+      <Plus className="h-4 w-4" />
+      <span className="sr-only">Añadir ciclo</span>
+    </HeaderIconButtonPrimary>
 
-    <button
+    <HeaderIconButton
       type="button"
       onClick={() => setIsFilterOpen((prev) => !prev)}
-      className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-fertiliapp-fuerte bg-white/90 shadow-sm hover:bg-white"
       aria-label="Filtrar por año"
     >
-      <Search className="h-5 w-5 text-fertiliapp-fuerte" />
-    </button>
+      <SlidersHorizontal className="h-5 w-5" />
+    </HeaderIconButton>
   </div>
 </motion.div>
 

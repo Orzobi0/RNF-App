@@ -12,6 +12,7 @@ import DayDetail from '@/components/DayDetail';
 import DeletionDialog from '@/components/DeletionDialog';
 import { useCycleData } from '@/hooks/useCycleData';
 import { useToast } from '@/components/ui/use-toast';
+import { HeaderIconButton, HeaderIconButtonPrimary } from '@/components/HeaderIconButton';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Edit, Plus, FileText, Heart } from 'lucide-react';
@@ -34,6 +35,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { es } from 'date-fns/locale';
 import { FERTILITY_SYMBOL_OPTIONS } from '@/config/fertilitySymbols';
 import computePeakStatuses from '@/lib/computePeakStatuses';
+import { formatCycleMeta, formatCycleTitle } from '@/lib/formatCycleTitle';
 import { cn } from '@/lib/utils';
 
 const getSymbolInfo = (symbolValue) =>
@@ -142,34 +144,19 @@ export const RecordsExperience = ({
   const [focusedField, setFocusedField] = useState(null);
   const [initialSectionKey, setInitialSectionKey] = useState(null);
   const [showNewCycleDialog, setShowNewCycleDialog] = useState(false);
-  const cycleRangeLabel = useMemo(() => {
-    if (!cycle?.startDate) return null;
-
-    const parsedStart = parseISO(cycle.startDate);
-    if (!isValid(parsedStart)) return null;
-
-    const startLabel = format(parsedStart, 'dd/MM/yyyy');
-    let endLabel = 'En curso';
-
-    if (cycle?.endDate) {
-      const parsedEnd = parseISO(cycle.endDate);
-      if (isValid(parsedEnd)) {
-        endLabel = format(parsedEnd, 'dd/MM/yyyy');
-      }
-    }
-
-    return `${startLabel} - ${endLabel}`;
-  }, [cycle?.endDate, cycle?.startDate]);
+  const recordCount = cycle?.data?.length ?? 0;
+  const isCurrentCycle = !cycle?.endDate;
 
   const resolvedHeaderTitle = useMemo(() => {
     if (headerTitle) return headerTitle;
 
-    if (cycle?.type === 'current' || !cycle?.endDate) {
-      return 'Ciclo actual';
-    }
+    return formatCycleTitle({ startDate: cycle?.startDate, endDate: cycle?.endDate });
+  }, [cycle?.endDate, cycle?.startDate, headerTitle]);
 
-    return cycleRangeLabel ?? 'Mis registros';
-  }, [cycle?.endDate, cycle?.type, cycleRangeLabel, headerTitle]);
+    const resolvedHeaderMeta = useMemo(
+    () => formatCycleMeta({ startDate: cycle?.startDate, endDate: cycle?.endDate, recordCount }),
+    [cycle?.endDate, cycle?.startDate, recordCount]
+  );
   const isCalendarOpen = true;
   const calendarContainerRef = useRef(null);
   const recordsScrollRef = useRef(null);
@@ -1348,30 +1335,25 @@ const enterStart = -exitTarget;
       ? headerActions(headerActionProps)
       : (
           <>
-            <Button
+            <HeaderIconButton
               type="button"
-              variant="outline"
-              size="icon"
               onClick={openStartDateEditor}
-              className="border-fertiliapp-suave rounded-full bg-secundario text-white hover:brightness-95"
+              className="text-subtitulo"
               disabled={isProcessing || isUpdatingStartDate}
               aria-label={includeEndDate ? 'Editar fechas del ciclo' : 'Editar fecha de inicio'}
             >
               <Edit className="h-4 w-4" />
               <span className="sr-only">{includeEndDate ? 'Editar fechas del ciclo' : 'Editar fecha de inicio'}</span>
-            </Button>
-            <Button
+            </HeaderIconButton>
+            <HeaderIconButtonPrimary
               type="button"
-              size="icon"
               onClick={handleOpenAddRecord}
-              className="rounded-full border border-fertiliapp-fuerte bg-white/80 hover:brightness-95 text-fertiliapp-fuerte shadow-md"
               disabled={isProcessing}
-              style={{ filter: 'drop-shadow(0 6px 12px rgba(236, 72, 153, 0.3))' }}
               aria-label="Añadir registro"
             >
               <Plus className="h-4 w-4" />
               <span className="sr-only">Añadir registro</span>
-            </Button>
+            </HeaderIconButtonPrimary>
           </>
         );
 
@@ -1432,15 +1414,32 @@ const enterStart = -exitTarget;
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5 }}
               >
-                <div className="flex flex-wrap items-center gap-1 justify-between sm:justify-start">
-                  <div className="flex items-center gap-2">
-                    {resolvedTopAccessory && (
-                      <div className="flex items-center">{resolvedTopAccessory}</div>
-                    )}
-                    <HeaderIcon className="h-6 w-6 text-subtitulo" />
-                    <span className="text-xl sm:text-2xl font-bold text-subtitulo">{resolvedHeaderTitle}</span>
+                <div className="rounded-3xl border border-fertiliapp-suave bg-white/80 p-3.5 shadow-sm backdrop-blur-md">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex min-w-0 flex-1 flex-col gap-1">
+                      <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-base">
+                        {resolvedTopAccessory && (
+                          <div className="flex items-center">{resolvedTopAccessory}</div>
+                        )}
+                        <span>CICLO</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <HeaderIcon className="h-5 w-5 text-subtitulo" />
+                        <span
+                          className={cn(
+                            'font-semibold text-titulo leading-tight',
+                            isCurrentCycle ? 'text-[23px] sm:text-[26px]' : 'text-[22px] sm:text-2xl'
+                          )}
+                        >
+                          {resolvedHeaderTitle}
+                        </span>
+                      </div>
+                      {resolvedHeaderMeta && (
+                        <div className="text-[13px] text-base">{resolvedHeaderMeta}</div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">{resolvedHeaderActions}</div>
                   </div>
-                  <div className="flex items-center gap-1">{resolvedHeaderActions}</div>
                 </div>
               </motion.div>
             
