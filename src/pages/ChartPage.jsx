@@ -246,7 +246,7 @@ const ChartPage = () => {
   const [externalLoading, setExternalLoading] = useState(false);
   const [notFound, setNotFound] = useState(false);
 
-  const isViewingCurrentCycle = !cycleId || cycleId === currentCycle.id;
+  const isViewingCurrentCycle = !cycleId || cycleId === currentCycle?.id;
   const archivedMatch = !isViewingCurrentCycle
     ? archivedCycles.find((cycle) => cycle.id === cycleId)
     : null;
@@ -469,28 +469,7 @@ const ChartPage = () => {
     }
   }, [chartSettings, fertilityConfig]);
 
-  useEffect(() => {
-    if (!targetCycle?.id || interpretationModalOpen) {
-      return;
-    }
-    setInterpretationOverrides(
-      normalizeInterpretationOverrides(confirmedInterpretation?.overrides)
-    );
-    setCurrentInterpretationMode(
-      confirmedInterpretation?.confirmedMode ?? 'estandar'
-    );
-  }, [
-    targetCycle?.id,
-    interpretationModalOpen,
-    confirmedInterpretation?.confirmedMode,
-    confirmedInterpretation?.overrides,
-  ]);
 
-  useEffect(() => {
-    if (showInterpretation && !hasValidConfirmation) {
-      setShowInterpretation(false);
-    }
-  }, [showInterpretation, hasValidConfirmation]);
 
   const handleInterpretationData = useCallback((data) => {
     setInterpretationSource(data);
@@ -507,21 +486,22 @@ const ChartPage = () => {
   useEffect(() => {
     if (typeof document === 'undefined') return undefined;
 
-      const body = document.body;
+    const body = document.body;
     const html = document.documentElement;
 
-      if (isFullScreen) {
+    if (isFullScreen) {
       if (bodyOverflowRef.current === null) {
         bodyOverflowRef.current = body.style.overflow;
       }
-    if (htmlOverflowRef.current === null) {
+      if (htmlOverflowRef.current === null) {
         htmlOverflowRef.current = html.style.overflow;
       }
       body.style.overflow = 'hidden';
       html.style.overflow = 'hidden';
       return undefined;
     }
- if (bodyOverflowRef.current !== null) {
+
+    if (bodyOverflowRef.current !== null) {
       body.style.overflow = bodyOverflowRef.current;
       bodyOverflowRef.current = null;
     }
@@ -539,9 +519,10 @@ const ChartPage = () => {
         htmlOverflowRef.current = null;
       }
     };
-  }, [isFullScreen]);;
+  }, [isFullScreen]);
 
   useLayoutEffect(() => {
+    if (typeof window === 'undefined') return;
     window.dispatchEvent(new Event('resize'));
   }, [orientation, isFullScreen]);
   
@@ -565,47 +546,20 @@ const ChartPage = () => {
       window.removeEventListener('orientationchange', handleOrientationChange);
     };
   }, [forceLandscape]);
-  if (showLoading) {
-    return (
-      <MainLayout>
-        <div className="flex h-full flex-col items-center justify-center space-y-4 bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 px-4 py-8 text-center text-fertiliapp-fuerte">
-          <p>Cargando…</p>
-        </div>
-      </MainLayout>
-    );
-  }
-
-  if (!targetCycle?.id) {
-    if (cycleId && notFound) {
-      return (
-        <MainLayout>
-          <div className="flex h-full flex-col items-center justify-center space-y-4 px-4 py-8 text-center text-fertiliapp-fuerte">
-            <p>No se encontró el ciclo solicitado.</p>
-            <Button asChild className="bg-fertiliapp-fuerte rounded-3xl text-white shadow">
-              <Link to="/archived-cycles">Volver a Mis Ciclos</Link>
-            </Button>
-          </div>
-        </MainLayout>
-      );
-    }
-    return (
-      <MainLayout>
-        <div className="flex h-full flex-col items-center justify-center space-y-4 px-4 py-8 text-center text-fertiliapp-fuerte">
-          <p>No hay ciclo activo.</p>
-          <Button asChild className="bg-fertiliapp-fuerte rounded-3xl text-white shadow">
-            <Link to="/records">Ir a Mis Registros</Link>
-          </Button>
-        </div>
-      </MainLayout>
-    );
-  }
-
+  
   const CYCLE_DURATION_DAYS = 28;
   const VISIBLE_DAYS_FULLSCREEN_PORTRAIT = 10;
   const VISIBLE_DAYS_FULLSCREEN_LANDSCAPE = 25;
 
-  const cycleStartDate = parseISO(targetCycle.startDate);
-  const cycleEntries = targetCycle.data || [];
+  const cycleEntries = Array.isArray(targetCycle?.data) ? targetCycle.data : [];
+  let cycleStartDate = startOfDay(new Date());
+  try {
+    if (targetCycle?.startDate) {
+      cycleStartDate = parseISO(targetCycle.startDate);
+    }
+  } catch (error) {
+    console.warn('startDate inválida en targetCycle', targetCycle?.startDate, error);
+  }
   const confirmedInterpretation = targetCycle?.interpretation ?? null;
   const cycleDataVersion = useMemo(() => {
     const payload = (cycleEntries ?? []).map((entry) => ({
@@ -681,12 +635,34 @@ const ChartPage = () => {
       confirmedInterpretation.confirmedMode === currentInterpretationMode
     );
   }, [confirmedInterpretation, cycleDataVersion, currentInterpretationMode]);
-  const currentPeakIsoDate = useMemo(() => {
-    const peakRecord = Array.isArray(cycleEntries)
-      ? cycleEntries.find((record) => record?.peak_marker === 'peak')
-      : null;
-    return peakRecord?.isoDate || null;
-  }, [cycleEntries]);
+
+  useEffect(() => {
+    if (!targetCycle?.id || interpretationModalOpen) {
+      return;
+    }
+    setInterpretationOverrides(
+      normalizeInterpretationOverrides(confirmedInterpretation?.overrides)
+    );
+    setCurrentInterpretationMode(
+      confirmedInterpretation?.confirmedMode ?? 'estandar'
+    );
+  }, [
+    targetCycle?.id,
+    interpretationModalOpen,
+    confirmedInterpretation?.confirmedMode,
+    confirmedInterpretation?.overrides,
+  ]);
+    useEffect(() => {
+    if (showInterpretation && !hasValidConfirmation) {
+      setShowInterpretation(false);
+    }
+  }, [showInterpretation, hasValidConfirmation]);
+
+
+  const peakRecord = Array.isArray(cycleEntries)
+    ? cycleEntries.find((record) => record?.peak_marker === 'peak')
+    : null;
+  const currentPeakIsoDate = peakRecord?.isoDate || null;
 
   const lastRecordDate = cycleEntries.reduce((maxDate, record) => {
     const recDate = parseISO(record.isoDate);
@@ -1470,6 +1446,40 @@ const ChartPage = () => {
     setOrientation(nextOrientation);
     setIsFullScreen(false);
   };
+if (showLoading) {
+    return (
+      <MainLayout>
+        <div className="flex h-full flex-col items-center justify-center space-y-4 bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100 px-4 py-8 text-center text-fertiliapp-fuerte">
+          <p>Cargando…</p>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  if (!targetCycle?.id) {
+    if (cycleId && notFound) {
+      return (
+        <MainLayout>
+          <div className="flex h-full flex-col items-center justify-center space-y-4 px-4 py-8 text-center text-fertiliapp-fuerte">
+            <p>No se encontró el ciclo solicitado.</p>
+            <Button asChild className="bg-fertiliapp-fuerte rounded-3xl text-white shadow">
+              <Link to="/archived-cycles">Volver a Mis Ciclos</Link>
+            </Button>
+          </div>
+        </MainLayout>
+      );
+    }
+    return (
+      <MainLayout>
+        <div className="flex h-full flex-col items-center justify-center space-y-4 px-4 py-8 text-center text-fertiliapp-fuerte">
+          <p>No hay ciclo activo.</p>
+          <Button asChild className="bg-fertiliapp-fuerte rounded-3xl text-white shadow">
+            <Link to="/records">Ir a Mis Registros</Link>
+          </Button>
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout hideBottomNav={isFullScreen}>
