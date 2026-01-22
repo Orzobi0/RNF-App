@@ -302,9 +302,7 @@ export const createNewCycleEntry = async (payload) => {
     );
         if (payload.measurements && payload.measurements.length) {
       const mRef = collection(db, `users/${userId}/cycles/${targetCycle.id}/entries/${ref.id}/measurements`);
-      for (const m of payload.measurements) {
-        await addDoc(mRef, m);
-      }
+      await Promise.all(payload.measurements.map((m) => addDoc(mRef, m)));
     }
     return { id: ref.id };
   }
@@ -313,9 +311,7 @@ export const createNewCycleEntry = async (payload) => {
     const ref = await addDoc(collection(db, `users/${userId}/cycles/${payload.cycle_id}/entries`), entryData);
         if (payload.measurements && payload.measurements.length) {
       const mRef = collection(db, `users/${userId}/cycles/${payload.cycle_id}/entries/${ref.id}/measurements`);
-      for (const m of payload.measurements) {
-        await addDoc(mRef, m);
-      }
+      await Promise.all(payload.measurements.map((m) => addDoc(mRef, m)));
     }
     return { id: ref.id };
   }
@@ -361,9 +357,7 @@ export const updateCycleEntry = async (userId, cycleId, entryId, payload) => {
     const mRef = collection(db, `users/${userId}/cycles/${cycleId}/entries/${entryId}/measurements`);
     const mSnap = await getDocs(mRef);
     await Promise.all(mSnap.docs.map((d) => deleteDoc(d.ref)));
-    for (const m of payload.measurements) {
-      await addDoc(mRef, m);
-    }
+    await Promise.all(payload.measurements.map((m) => addDoc(mRef, m)));
   }
   return { id: entryId };
 };

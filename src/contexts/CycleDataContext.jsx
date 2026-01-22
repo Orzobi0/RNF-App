@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
-import { format, startOfDay, parseISO, addDays, parse } from 'date-fns';
+import { format, startOfDay, parseISO, addDays, parse, differenceInDays } from 'date-fns';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -52,6 +52,42 @@ const normalizeTemp = (val) => {
   const num = parseFloat(String(val).replace(',', '.'));
   return isNaN(num) ? null : num;
 };
+
+const computeCycleDayNumber = (isoDate, cycleStartIso) => {
+  if (!isoDate || !cycleStartIso) return null;
+  try {
+    return differenceInDays(startOfDay(parseISO(isoDate)), startOfDay(parseISO(cycleStartIso))) + 1;
+  } catch {
+    return null;
+  }
+};
+
+const normalizeMeasurementForCompare = (m) => ({
+  temperature: normalizeTemp(m?.temperature ?? m?.temperature_raw),
+  temperature_corrected: normalizeTemp(m?.temperature_corrected),
+  time: String(m?.time ?? '').trim(),
+  time_corrected: String(m?.time_corrected ?? '').trim(),
+  selected: !!m?.selected,
+  use_corrected: !!m?.use_corrected,
+});
+
+const measurementsAreEqual = (a, b) => {
+  const aa = Array.isArray(a) ? a.map(normalizeMeasurementForCompare) : [];
+  const bb = Array.isArray(b) ? b.map(normalizeMeasurementForCompare) : [];
+  if (aa.length !== bb.length) return false;
+  for (let i = 0; i < aa.length; i++) {
+    const x = aa[i];
+    const y = bb[i];
+    if (x.temperature !== y.temperature) return false;
+    if (x.temperature_corrected !== y.temperature_corrected) return false;
+    if (x.time !== y.time) return false;
+    if (x.time_corrected !== y.time_corrected) return false;
+    if (x.selected !== y.selected) return false;
+    if (x.use_corrected !== y.use_corrected) return false;
+  }
+  return true;
+};
+
 
 const normalizeDate = (date) => {
   if (!date) return null;
@@ -208,6 +244,48 @@ export const CycleDataProvider = ({ children }) => {
     loadCycleData().catch((error) => console.error('Initial cycle data load failed:', error));
   }, [user?.uid, loadCycleData, resetState]);
 
+    const refreshCycleByIdInBackground = useCallback(
+  (cycleIdToRefresh) => {
+    if (!user?.uid || !cycleIdToRefresh) return;
+
+    fetchCycleByIdDB(user.uid, cycleIdToRefresh)
+      .then((cycleData) => {
+        if (!cycleData) return;
+
+        const startDate = normalizeDate(cycleData.startDate);
+        const endDate = normalizeDate(cycleData.endDate);
+        const processed = processCycleEntries(cycleData.data || [], startDate);
+        const filteredStart = filterEntriesByStartDate(processed, startDate);
+        const filtered = filterEntriesByEndDate(filteredStart, endDate);
+
+        const normalizedCycle = {
+          ...cycleData,
+          startDate: startDate ?? format(startOfDay(new Date()), 'yyyy-MM-dd'),
+          endDate,
+          data: filtered,
+          interpretation: cycleData.interpretation ?? null,
+        };
+
+        if (cycleIdToRefresh === currentCycle.id) {
+          setCurrentCycle(normalizedCycle);
+        } else {
+          setArchivedCycles((prev) => {
+            const exists = prev.some((c) => c.id === cycleIdToRefresh);
+            return exists
+              ? prev.map((c) => (c.id === cycleIdToRefresh ? normalizedCycle : c))
+              : [normalizedCycle, ...prev];
+          });
+        }
+      })
+      .catch((err) => {
+        console.error('Background refreshCycleById failed:', err);
+      });
+  },
+  [user?.uid, currentCycle.id]
+);
+
+
+
   const addOrUpdateDataPoint = useCallback(
     async (newData, editingRecord, targetCycleId = null) => {
       const cycleIdToUse = targetCycleId ?? currentCycle.id;
@@ -217,9 +295,11 @@ export const CycleDataProvider = ({ children }) => {
       }
 
       setIsLoading(true);
-
+      const prevCurrentCycle = currentCycle;
+      const prevArchivedCycles = archivedCycles;
       try {
-        const selectedMeasurement = newData.measurements.find((m) => m.selected) || newData.measurements[0];
+        const measurements = Array.isArray(newData?.measurements) ? newData.measurements : [];
+        const selectedMeasurement = measurements.find((m) => m?.selected) || measurements[0] || {};
         const timeString =
           selectedMeasurement && selectedMeasurement.time && selectedMeasurement.time.trim() !== ''
             ? selectedMeasurement.time
@@ -261,7 +341,7 @@ export const CycleDataProvider = ({ children }) => {
           'peak_marker'
         );
 
-        const measurementsList = Array.isArray(newData.measurements) ? newData.measurements : [];
+        const measurementsList = measurements;
         const hasTemperatureData = measurementsList.some((measurement) => {
           if (!measurement) return false;
           const measurementRaw = normalizeTemp(measurement.temperature);
@@ -292,6 +372,9 @@ export const CycleDataProvider = ({ children }) => {
           newData.had_relations ?? newData.hadRelations ?? false
         );
         const isPeakMarked = newData.peak_marker === 'peak';
+        const isRemovingPeak =
+        peakMarkerProvided && targetRecord?.peak_marker === 'peak' && !isPeakMarked;
+
 
         const isPayloadEmpty =
           !hasTemperatureData &&
@@ -306,7 +389,7 @@ export const CycleDataProvider = ({ children }) => {
           cycle_id: cycleIdToUse,
           user_id: user.uid,
           timestamp: format(recordDateTime, "yyyy-MM-dd'T'HH:mm:ssXXX"),
-          measurements: newData.measurements,
+          measurements,
           mucus_sensation: newData.mucusSensation || null,
           mucus_appearance: newData.mucusAppearance || null,
           fertility_symbol: newData.fertility_symbol === 'none' ? null : newData.fertility_symbol,
@@ -322,30 +405,130 @@ export const CycleDataProvider = ({ children }) => {
           temperature_chart: chartTemp
         };
 
+        const tempId = `temp-${Date.now()}`;
+const optimisticId = targetRecord?.id ?? tempId;
+
+const buildOptimisticEntry = () => {
+  const isoDate = newData.isoDate;
+  const ddmm = (() => {
+    try {
+      return format(parseISO(isoDate), 'dd/MM');
+    } catch {
+      return targetRecord?.date ?? 'N/A';
+    }
+  })();
+
+  return {
+    ...(targetRecord ?? {}),
+    id: optimisticId,
+    isoDate,
+    date: ddmm,
+    cycleDay: computeCycleDayNumber(isoDate, targetCycle?.startDate) ?? targetRecord?.cycleDay ?? null,
+    timestamp: recordPayload.timestamp,
+    measurements: Array.isArray(recordPayload.measurements) ? recordPayload.measurements : (targetRecord?.measurements ?? []),
+    temperature_raw: recordPayload.temperature_raw,
+    temperature_corrected: recordPayload.temperature_corrected,
+    use_corrected: recordPayload.use_corrected,
+    temperature_chart: recordPayload.temperature_chart,
+    mucusSensation: recordPayload.mucus_sensation ?? null,
+    mucusAppearance: recordPayload.mucus_appearance ?? null,
+    fertility_symbol: recordPayload.fertility_symbol ?? null,
+    observations: recordPayload.observations ?? null,
+    had_relations: !!recordPayload.had_relations,
+    hadRelations: !!recordPayload.had_relations,
+    ignored: !!recordPayload.ignored,
+    peak_marker: recordPayload.peak_marker ?? null,
+  };
+};
+
+const upsertByIdOrIso = (entries, entry) => {
+  const list = Array.isArray(entries) ? entries : [];
+  const idx = list.findIndex((r) => r?.id === entry.id || r?.isoDate === entry.isoDate);
+  if (idx >= 0) {
+    const next = [...list];
+    next[idx] = { ...next[idx], ...entry };
+    return next;
+  }
+  return [...list, entry].sort((a, b) => (a?.isoDate || '').localeCompare(b?.isoDate || ''));
+};
+
+const applyOptimisticToCycle = (cycle) => {
+  if (!cycle || cycle.id !== cycleIdToUse) return cycle;
+  let data = Array.isArray(cycle.data) ? cycle.data : [];
+
+  // Si marcamos pico, desmarca el pico anterior en local
+  if (recordPayload.peak_marker === 'peak') {
+    data = data.map((r) =>
+      r?.peak_marker === 'peak' && r.id !== optimisticId ? { ...r, peak_marker: null } : r
+    );
+  }
+
+  // Si hay que borrar el registro (caso que tú ya manejas)
+  if (targetRecord && isPayloadEmpty && isRemovingPeak) {
+    data = data.filter((r) => r.id !== targetRecord.id);
+    return { ...cycle, data };
+  }
+
+  // Si no hay datos y es creación, no hacemos nada (igual que tu return actual)
+  if (!targetRecord && isPayloadEmpty) {
+    return cycle;
+  }
+
+  const optimisticEntry = buildOptimisticEntry();
+  data = upsertByIdOrIso(data, optimisticEntry);
+  return { ...cycle, data };
+};
+
+if (cycleIdToUse === currentCycle.id) {
+  setCurrentCycle((prev) => applyOptimisticToCycle(prev));
+} else {
+  setArchivedCycles((prev) => prev.map((c) => applyOptimisticToCycle(c)));
+}
+
         if (targetRecord) {
-          const isRemovingPeak =
-            peakMarkerProvided && targetRecord?.peak_marker === 'peak' && !isPeakMarked;
           if (isPayloadEmpty && isRemovingPeak) {
             await deleteCycleEntryDB(user.uid, cycleIdToUse, targetRecord.id);
           } else {
-            await updateCycleEntry(user.uid, cycleIdToUse, targetRecord.id, recordPayload);
+            const dbPayload = { ...recordPayload };
+            if (measurementsAreEqual(targetRecord?.measurements, recordPayload.measurements)) {
+              delete dbPayload.measurements;
+            }
+            await updateCycleEntry(user.uid, cycleIdToUse, targetRecord.id, dbPayload);
           }
         } else {
           if (isPayloadEmpty) {
             return;
           }
-          await createNewCycleEntry(recordPayload);
+          const created = await createNewCycleEntry(recordPayload);
+          if (created?.id && created.id !== optimisticId) {
+            const replaceTempId = (cycle) => {
+              if (!cycle || cycle.id !== cycleIdToUse) return cycle;
+              return {
+                ...cycle,
+                data: (cycle.data || []).map((r) =>
+                  r.id === optimisticId ? { ...r, id: created.id } : r
+                ),
+              };
+            };
+            if (cycleIdToUse === currentCycle.id) {
+              setCurrentCycle((prev) => replaceTempId(prev));
+            } else {
+              setArchivedCycles((prev) => prev.map((c) => replaceTempId(c)));
+            }
+          }
         }
 
-        await loadCycleData({ silent: true });
+        refreshCycleByIdInBackground(cycleIdToUse);
       } catch (error) {
         console.error('Error adding/updating data point:', error);
+        setCurrentCycle(prevCurrentCycle);
+        setArchivedCycles(prevArchivedCycles);
         throw error;
       } finally {
         setIsLoading(false);
       }
     },
-    [user, currentCycle, archivedCycles, loadCycleData]
+    [user, currentCycle, archivedCycles, refreshCycleByIdInBackground]
   );
 
   const deleteRecord = useCallback(
@@ -594,6 +777,8 @@ export const CycleDataProvider = ({ children }) => {
       }
 
       setIsLoading(true);
+      const prevCurrentCycle = currentCycle;
+      const prevArchivedCycles = archivedCycles;
       try {
         const newCycle = await createNewCycleDB(user.uid, startDate);
         try {
