@@ -1168,13 +1168,34 @@ const ChartPage = () => {
   const handleInterpretationModalChange = useCallback(
     (open) => {
       if (!open) {
+        if (selectionTarget) {
+          return;
+        }
         setInterpretationModalOpen(false);
         setSelectionTarget(null);
         return;
       }
       setInterpretationModalOpen(true);
     },
-    []
+    [selectionTarget]
+  );
+
+  const handleInterpretationDialogInteractOutside = useCallback(
+    (event) => {
+      if (selectionTarget) {
+        event.preventDefault();
+      }
+    },
+    [selectionTarget]
+  );
+
+  const handleInterpretationDialogEscapeKeyDown = useCallback(
+    (event) => {
+      if (selectionTarget) {
+        event.preventDefault();
+      }
+    },
+    [selectionTarget]
   );
 
   const isFieldManual = useCallback(
@@ -1722,11 +1743,17 @@ if (showLoading) {
           )}
         </Overlay>
 
-        <Dialog open={interpretationModalOpen} onOpenChange={handleInterpretationModalChange}>
+        <Dialog
+          open={interpretationModalOpen}
+          onOpenChange={handleInterpretationModalChange}
+          modal={!selectionTarget}
+        >
           <DialogContent
             hideClose={Boolean(selectionTarget)}
             hideOverlay={Boolean(selectionTarget)}
             className={`bg-white border-rose-100/70 text-slate-700 ${interpretationDialogClassName}`}
+            onInteractOutside={handleInterpretationDialogInteractOutside}
+            onEscapeKeyDown={handleInterpretationDialogEscapeKeyDown}
           >
             {selectionTarget ? (
               <div className="flex items-center justify-between gap-4">
