@@ -226,9 +226,6 @@ const resolveInterpretationValues = (suggestions = {}, overrides = {}) => {
   return resolved;
 };
 
-const formatCycleDayLabel = (value) =>
-  Number.isInteger(value) && value > 0 ? `D${value}` : '—';
-
 const ChartPage = () => {
   const { cycleId } = useParams();
   const location = useLocation();
@@ -1158,12 +1155,53 @@ const ChartPage = () => {
     [mergedData]
   );
 
+  const cycleDayDateMap = useMemo(() => {
+    const map = new Map();
+    mergedData.forEach((entry) => {
+      if (!Number.isInteger(entry?.cycleDay)) return;
+      const dateValue = entry?.isoDate ?? entry?.date;
+      if (!dateValue) return;
+      map.set(entry.cycleDay, dateValue);
+    });
+    return map;
+  }, [mergedData]);
+
+  const formatCycleDayLabel = useCallback(
+    (value) => {
+      if (!Number.isInteger(value) || value <= 0) return '—';
+      const dateValue = cycleDayDateMap.get(value);
+      if (!dateValue) return `Día ${value}`;
+      try {
+        const parsedDate = typeof dateValue === 'string' ? parseISO(dateValue) : dateValue;
+        const dateLabel = format(parsedDate, 'dd/MM');
+        return `${dateLabel} - Día ${value}`;
+      } catch (error) {
+        console.error('Error formatting cycle day label', error);
+        return `Día ${value}`;
+      }
+    },
+    [cycleDayDateMap]
+  );
+
   const interpretationStatusLabel = useMemo(() => {
     if (confirmedInterpretation?.confirmed && !hasValidConfirmation) {
       return 'Revisión por cambios';
     }
+    if (hasValidConfirmation) {
+      return 'Confirmado';
+    }
     return 'Pendiente';
   }, [confirmedInterpretation?.confirmed, hasValidConfirmation]);
+
+  const interpretationStatusClassName = useMemo(() => {
+    if (interpretationStatusLabel === 'Confirmado') {
+      return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+    }
+    if (interpretationStatusLabel === 'Revisión por cambios') {
+      return 'border-amber-200 bg-amber-50 text-amber-700';
+    }
+    return 'border-slate-200 bg-slate-50 text-slate-600';
+  }, [interpretationStatusLabel]);
 
   const handleInterpretationModalChange = useCallback(
     (open) => {
@@ -1780,7 +1818,7 @@ if (showLoading) {
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-semibold text-amber-700">
+                    <span className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${interpretationStatusClassName}`}>
                       {interpretationStatusLabel}
                     </span>
                     <Select
@@ -1801,11 +1839,11 @@ if (showLoading) {
                   </div>
                 </div>
 
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {INTERPRETATION_SECTIONS.map((section) => (
                     <div
                       key={section.key}
-                      className="rounded-2xl border border-rose-100/70 bg-rose-50/40 p-4 space-y-3"
+                      className="rounded-2xl border border-rose-100/70 bg-rose-50/40 p-4 space-y-2"
                     >
                       <h3 className="text-sm font-semibold text-slate-700">{section.title}</h3>
                       <div className="space-y-2">
