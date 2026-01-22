@@ -109,7 +109,7 @@ const INTERPRETATION_MODE_LABELS = {
 const INTERPRETATION_SECTIONS = [
   {
     key: 'relativeInfertile',
-    title: 'Relativamente infértil',
+    title: 'Fase Relativamente infértil',
     fields: [
       { key: 'start', label: 'Inicio' },
       { key: 'end', label: 'Fin' },
@@ -117,7 +117,7 @@ const INTERPRETATION_SECTIONS = [
   },
   {
     key: 'fertile',
-    title: 'Fértil',
+    title: 'Fase Fértil',
     fields: [
       { key: 'start', label: 'Inicio' },
       { key: 'end', label: 'Fin' },
@@ -125,11 +125,11 @@ const INTERPRETATION_SECTIONS = [
   },
   {
     key: 'infertile',
-    title: 'Infértil',
+    title: 'Fase Infértil',
     fields: [
-      { key: 'peak', label: 'Pico (moco)' },
-      { key: 'thermalShift', label: 'Shift térmico' },
-      { key: 'start', label: 'Inicio infertilidad' },
+      { key: 'peak', label: 'Infertilidad por moco' },
+      { key: 'thermalShift', label: 'Infertilidad por temperatura' },
+      { key: 'start', label: 'Infertilidad absoluta' },
     ],
   },
 ];
@@ -1652,7 +1652,7 @@ if (showLoading) {
                 <div>
                   <h3 className="text-sm font-semibold text-slate-700">Modo de combinación</h3>
                   <p className="text-xs text-slate-500">
-                    Determina cómo se elige el inicio fértil a partir de los candidatos disponibles.
+                    Determina cómo se elige el inicio fértil a partir de los datos disponibles.
                   </p>
                 </div>
                 <Select value={fertilityConfig.combineMode} onValueChange={handleCombineModeChange}>
@@ -1749,7 +1749,7 @@ if (showLoading) {
                   <div>
                     <h2 className="text-lg font-semibold text-titulo">Interpretación</h2>
                     <p className="text-sm text-slate-500">
-                      Confirma la interpretación para pintar la gráfica.
+                      Confirma la interpretación
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
@@ -1848,7 +1848,7 @@ if (showLoading) {
                     disabled={isSavingInterpretation}
                     className="w-full rounded-full bg-fertiliapp-fuerte text-white shadow-md hover:brightness-95"
                   >
-                    {isSavingInterpretation ? 'Guardando…' : 'Confirmar y pintar'}
+                    {isSavingInterpretation ? 'Guardando…' : 'Confirmar y ver'}
                   </Button>
                 </div>
               </div>
