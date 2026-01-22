@@ -193,6 +193,7 @@ const ChartPoints = ({
   reduceMotion = false,
   isScrolling = false,
   showInterpretation = false,
+  selectionMode = false,
   ovulationDetails = null,
   firstHighIndex = null,
   baselineIndices = [],
@@ -550,7 +551,7 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
         const isPeakSeriesDay =
           isPeakMarker || ['1', '2', '3'].includes(peakStatus);
         const shouldRenderSymbol = !isPlaceholder && symbolInfo.value !== 'none';
-        const shouldEnableInteractions = Boolean(point.isoDate) && !isFuture;
+        const shouldEnableInteractions = Boolean(point.isoDate) && (selectionMode || !isFuture);
         const interactionProps = shouldEnableInteractions
           ? {
               pointerEvents: 'all',
@@ -994,6 +995,7 @@ const areEqual = (prev, next) => {
   if (prev.reduceMotion !== next.reduceMotion) return false;
   if (prev.isScrolling !== next.isScrolling) return false;
   if (prev.showInterpretation !== next.showInterpretation) return false;
+  if (prev.selectionMode !== next.selectionMode) return false;
   if (prev.ovulationDetails !== next.ovulationDetails) return false;
   if (prev.firstHighIndex !== next.firstHighIndex) return false;
   if (prev.baselineIndices !== next.baselineIndices) return false;

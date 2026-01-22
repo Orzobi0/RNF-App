@@ -14,6 +14,7 @@ import {
   fetchArchivedCyclesDB,
   updateCycleDatesDB,
   updateCycleIgnoreAutoCalculations,
+  updateCycleInterpretationDB,
   deleteCycleDB,
   forceUpdateCycleStart as forceUpdateCycleStartDB,
   forceShiftNextCycleStart as forceShiftNextCycleStartDB
@@ -31,6 +32,7 @@ const defaultCycleState = {
   endDate: null,
   data: [],
   ignoredForAutoCalculations: false,
+  interpretation: null,
 };
 
 const filterEntriesByEndDate = (entries, endDate) => {
@@ -133,7 +135,8 @@ export const CycleDataProvider = ({ children }) => {
             ...cycleToLoad,
             startDate,
             endDate,
-            data: filtered
+            data: filtered,
+            interpretation: cycleToLoad.interpretation ?? null,
           };
         }
 
@@ -149,7 +152,8 @@ export const CycleDataProvider = ({ children }) => {
             startDate: aStart ?? format(startOfDay(new Date()), 'yyyy-MM-dd'),
             endDate: aEnd,
             needsCompletion: cycle.needsCompletion,
-            data: filtered
+            data: filtered,
+            interpretation: cycle.interpretation ?? null,
           };
         });
 
@@ -467,6 +471,42 @@ export const CycleDataProvider = ({ children }) => {
     [user, currentCycle, archivedCycles, loadCycleData, toast]
   );
 
+  const updateCycleInterpretation = useCallback(
+    async (cycleIdToUpdate, interpretation) => {
+      if (!user?.uid || !cycleIdToUpdate) {
+        return;
+      }
+
+      const applyInterpretation = (cycle) => {
+        if (!cycle || cycle.id !== cycleIdToUpdate) {
+          return cycle;
+        }
+
+        return {
+          ...cycle,
+          interpretation: interpretation ?? null,
+        };
+      };
+
+      setCurrentCycle((prevCycle) => applyInterpretation(prevCycle));
+      setArchivedCycles((prevCycles) => prevCycles.map((cycle) => applyInterpretation(cycle)));
+
+      try {
+        await updateCycleInterpretationDB(user.uid, cycleIdToUpdate, interpretation ?? null);
+
+        await saveCycleDataToCache(user.uid, {
+          currentCycle: applyInterpretation(currentCycle),
+          archivedCycles: archivedCycles.map((cycle) => applyInterpretation(cycle)),
+        });
+      } catch (error) {
+        console.error('Error updating cycle interpretation:', error);
+        await loadCycleData({ silent: true });
+        throw error;
+      }
+    },
+    [user, currentCycle, archivedCycles, loadCycleData]
+  );
+
   const startNewCycle = useCallback(
     async (selectedStartDate) => {
       if (!user?.uid) return;
@@ -501,6 +541,7 @@ export const CycleDataProvider = ({ children }) => {
           endDate: null,
           data: [],
           ignoredForAutoCalculations: false,
+          interpretation: null,
         });
         await loadCycleData({ silent: true });
       } catch (error) {
@@ -793,6 +834,7 @@ export const CycleDataProvider = ({ children }) => {
     refreshData,
     toggleIgnoreRecord,
     setCycleIgnoreForAutoCalculations,
+    updateCycleInterpretation,
     addArchivedCycle,
     deleteCycle
   };
