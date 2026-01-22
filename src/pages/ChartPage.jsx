@@ -10,7 +10,7 @@ import FertilityChart from '@/components/FertilityChart';
 import { useCycleData } from '@/hooks/useCycleData';
 import { differenceInDays, format, parseISO, startOfDay } from 'date-fns';
 import generatePlaceholders from '@/lib/generatePlaceholders';
-import { RotateCcw, Eye, EyeOff, ArrowLeft, Settings, X } from 'lucide-react';
+import { RotateCcw, Eye, EyeOff, ArrowLeft, Settings, X, PencilLine } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import DataEntryForm from '@/components/DataEntryForm';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
@@ -101,6 +101,134 @@ const mergeFertilityStartConfig = (incoming) => {
   return merged;
 };
 
+const INTERPRETATION_MODE_LABELS = {
+  estandar: 'Estándar',
+  conservador: 'Conservador',
+};
+
+const INTERPRETATION_SECTIONS = [
+  {
+    key: 'relativeInfertile',
+    title: 'Relativamente infértil',
+    fields: [
+      { key: 'start', label: 'Inicio' },
+      { key: 'end', label: 'Fin' },
+    ],
+  },
+  {
+    key: 'fertile',
+    title: 'Fértil',
+    fields: [
+      { key: 'start', label: 'Inicio' },
+      { key: 'end', label: 'Fin' },
+    ],
+  },
+  {
+    key: 'infertile',
+    title: 'Infértil',
+    fields: [
+      { key: 'peak', label: 'Pico (moco)' },
+      { key: 'thermalShift', label: 'Shift térmico' },
+      { key: 'start', label: 'Inicio infertilidad' },
+    ],
+  },
+];
+
+const normalizeInterpretationOverrides = (overrides = {}) => ({
+  relativeInfertile: { ...(overrides?.relativeInfertile ?? {}) },
+  fertile: { ...(overrides?.fertile ?? {}) },
+  infertile: { ...(overrides?.infertile ?? {}) },
+});
+
+const cleanInterpretationOverrides = (overrides = {}) => {
+  const cleaned = {};
+  Object.entries(overrides).forEach(([sectionKey, fields]) => {
+    if (!fields || typeof fields !== 'object') return;
+    const normalizedFields = {};
+    Object.entries(fields).forEach(([fieldKey, value]) => {
+      if (Number.isInteger(value) && value > 0) {
+        normalizedFields[fieldKey] = value;
+      }
+    });
+    if (Object.keys(normalizedFields).length > 0) {
+      cleaned[sectionKey] = normalizedFields;
+    }
+  });
+  return cleaned;
+};
+
+const resolveInterpretationValues = (suggestions = {}, overrides = {}) => {
+  const resolved = {
+    relativeInfertile: {
+      start: Number.isInteger(overrides?.relativeInfertile?.start)
+        ? overrides.relativeInfertile.start
+        : Number.isInteger(suggestions?.relativeInfertile?.start)
+          ? suggestions.relativeInfertile.start
+          : null,
+      end: Number.isInteger(overrides?.relativeInfertile?.end)
+        ? overrides.relativeInfertile.end
+        : Number.isInteger(suggestions?.relativeInfertile?.end)
+          ? suggestions.relativeInfertile.end
+          : null,
+    },
+    fertile: {
+      start: Number.isInteger(overrides?.fertile?.start)
+        ? overrides.fertile.start
+        : Number.isInteger(suggestions?.fertile?.start)
+          ? suggestions.fertile.start
+          : null,
+      end: Number.isInteger(overrides?.fertile?.end)
+        ? overrides.fertile.end
+        : Number.isInteger(suggestions?.fertile?.end)
+          ? suggestions.fertile.end
+          : null,
+    },
+    infertile: {
+      peak: Number.isInteger(overrides?.infertile?.peak)
+        ? overrides.infertile.peak
+        : Number.isInteger(suggestions?.infertile?.peak)
+          ? suggestions.infertile.peak
+          : null,
+      thermalShift: Number.isInteger(overrides?.infertile?.thermalShift)
+        ? overrides.infertile.thermalShift
+        : Number.isInteger(suggestions?.infertile?.thermalShift)
+          ? suggestions.infertile.thermalShift
+          : null,
+      start: Number.isInteger(overrides?.infertile?.start)
+        ? overrides.infertile.start
+        : Number.isInteger(suggestions?.infertile?.start)
+          ? suggestions.infertile.start
+          : null,
+    },
+  };
+
+  const hasManual = (sectionKey, fieldKey) =>
+    Number.isInteger(overrides?.[sectionKey]?.[fieldKey]);
+
+  const clampDay = (value) => (Number.isInteger(value) && value > 0 ? value : null);
+
+  if (hasManual('relativeInfertile', 'end') && !hasManual('fertile', 'start')) {
+    resolved.fertile.start = clampDay(resolved.relativeInfertile.end + 1);
+  }
+
+  if (hasManual('fertile', 'start') && !hasManual('relativeInfertile', 'end')) {
+    resolved.relativeInfertile.end = clampDay(resolved.fertile.start - 1);
+  }
+
+  if (hasManual('fertile', 'end') && !hasManual('infertile', 'start')) {
+    resolved.infertile.start = clampDay(resolved.fertile.end + 1);
+  }
+
+  if (hasManual('infertile', 'start') && !hasManual('fertile', 'end')) {
+    resolved.fertile.end = clampDay(resolved.infertile.start - 1);
+  }
+
+  return resolved;
+};
+
+const formatCycleDayLabel = (value) =>
+  Number.isInteger(value) && value > 0 ? `D${value}` : '—';
+
 const ChartPage = () => {
   const { cycleId } = useParams();
   const location = useLocation();
@@ -110,7 +238,8 @@ const ChartPage = () => {
     isLoading,
     addOrUpdateDataPoint,
     toggleIgnoreRecord,
-    getCycleById
+    getCycleById,
+    updateCycleInterpretation
   } = useCycleData();
 
   const [fetchedCycle, setFetchedCycle] = useState(null);
@@ -233,6 +362,17 @@ const ChartPage = () => {
   const [initialSectionKey, setInitialSectionKey] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showInterpretation, setShowInterpretation] = useState(false);
+  const [interpretationModalOpen, setInterpretationModalOpen] = useState(false);
+  const [selectionTarget, setSelectionTarget] = useState(null);
+  const [interpretationOverrides, setInterpretationOverrides] = useState(
+    () => normalizeInterpretationOverrides()
+  );
+  const [currentInterpretationMode, setCurrentInterpretationMode] = useState('estandar');
+  const [interpretationSource, setInterpretationSource] = useState({
+    fertilityStart: null,
+    ovulationDetails: null,
+  });
+  const [isSavingInterpretation, setIsSavingInterpretation] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [phaseOverlay, setPhaseOverlay] = useState(null);
   const [chartSettings, setChartSettings] = useState(() => {
@@ -328,6 +468,33 @@ const ChartPage = () => {
       console.warn('No se pudieron guardar los ajustes del gráfico.', error);
     }
   }, [chartSettings, fertilityConfig]);
+
+  useEffect(() => {
+    if (!targetCycle?.id || interpretationModalOpen) {
+      return;
+    }
+    setInterpretationOverrides(
+      normalizeInterpretationOverrides(confirmedInterpretation?.overrides)
+    );
+    setCurrentInterpretationMode(
+      confirmedInterpretation?.confirmedMode ?? 'estandar'
+    );
+  }, [
+    targetCycle?.id,
+    interpretationModalOpen,
+    confirmedInterpretation?.confirmedMode,
+    confirmedInterpretation?.overrides,
+  ]);
+
+  useEffect(() => {
+    if (showInterpretation && !hasValidConfirmation) {
+      setShowInterpretation(false);
+    }
+  }, [showInterpretation, hasValidConfirmation]);
+
+  const handleInterpretationData = useCallback((data) => {
+    setInterpretationSource(data);
+  }, []);
 
   const ignoreNextClickRef = useRef(false);
   const keepFormOpenUntilRef = useRef(0);
@@ -439,6 +606,81 @@ const ChartPage = () => {
 
   const cycleStartDate = parseISO(targetCycle.startDate);
   const cycleEntries = targetCycle.data || [];
+  const confirmedInterpretation = targetCycle?.interpretation ?? null;
+  const cycleDataVersion = useMemo(() => {
+    const payload = (cycleEntries ?? []).map((entry) => ({
+      id: entry?.id ?? null,
+      isoDate: entry?.isoDate ?? entry?.iso_date ?? null,
+      temperature_chart: entry?.temperature_chart ?? null,
+      temperature_raw: entry?.temperature_raw ?? null,
+      temperature_corrected: entry?.temperature_corrected ?? null,
+      use_corrected: entry?.use_corrected ?? null,
+      mucusSensation: entry?.mucusSensation ?? entry?.mucus_sensation ?? null,
+      mucusAppearance: entry?.mucusAppearance ?? entry?.mucus_appearance ?? null,
+      fertility_symbol: entry?.fertility_symbol ?? null,
+      observations: entry?.observations ?? null,
+      ignored: entry?.ignored ?? null,
+      peak_marker: entry?.peak_marker ?? null,
+      had_relations: entry?.had_relations ?? entry?.hadRelations ?? null,
+      measurements: entry?.measurements ?? null,
+    }));
+    return JSON.stringify(payload);
+  }, [cycleEntries]);
+  const interpretationSuggestions = useMemo(() => {
+    const fertilityStart = interpretationSource?.fertilityStart ?? null;
+    const ovulationDetails = interpretationSource?.ovulationDetails ?? null;
+    const toCycleDay = (index) => (Number.isInteger(index) ? index + 1 : null);
+    const fertileStartIndex = Number.isInteger(fertilityStart?.fertileStartFinalIndex)
+      ? fertilityStart.fertileStartFinalIndex
+      : null;
+    const relativeEndIndex =
+      Number.isInteger(fertileStartIndex) && fertileStartIndex > 0
+        ? fertileStartIndex - 1
+        : null;
+    const postOvulatoryStartIndex = Number.isInteger(fertilityStart?.debug?.postOvulatoryStartIndex)
+      ? fertilityStart.debug.postOvulatoryStartIndex
+      : null;
+    const fertileEndIndex = Number.isInteger(fertilityStart?.fertileWindow?.endIndex)
+      ? fertilityStart.fertileWindow.endIndex
+      : Number.isInteger(postOvulatoryStartIndex)
+        ? postOvulatoryStartIndex - 1
+        : null;
+    const peakDayIndex = Number.isInteger(ovulationDetails?.peakDayIndex)
+      ? ovulationDetails.peakDayIndex
+      : null;
+    const thermalShiftIndex = Number.isInteger(fertilityStart?.debug?.temperatureConfirmationIndex)
+      ? fertilityStart.debug.temperatureConfirmationIndex
+      : Number.isInteger(ovulationDetails?.confirmationIndex)
+        ? ovulationDetails.confirmationIndex
+        : null;
+
+    return {
+      relativeInfertile: {
+        start: 1,
+        end: toCycleDay(relativeEndIndex),
+      },
+      fertile: {
+        start: toCycleDay(fertileStartIndex),
+        end: toCycleDay(fertileEndIndex),
+      },
+      infertile: {
+        peak: toCycleDay(peakDayIndex),
+        thermalShift: toCycleDay(thermalShiftIndex),
+        start: toCycleDay(postOvulatoryStartIndex),
+      },
+    };
+  }, [interpretationSource]);
+  const resolvedInterpretation = useMemo(
+    () => resolveInterpretationValues(interpretationSuggestions, interpretationOverrides),
+    [interpretationSuggestions, interpretationOverrides]
+  );
+  const hasValidConfirmation = useMemo(() => {
+    if (!confirmedInterpretation?.confirmed) return false;
+    return (
+      confirmedInterpretation.confirmedDataVersion === cycleDataVersion &&
+      confirmedInterpretation.confirmedMode === currentInterpretationMode
+    );
+  }, [confirmedInterpretation, cycleDataVersion, currentInterpretationMode]);
   const currentPeakIsoDate = useMemo(() => {
     const peakRecord = Array.isArray(cycleEntries)
       ? cycleEntries.find((record) => record?.peak_marker === 'peak')
@@ -506,6 +748,10 @@ const ChartPage = () => {
         maxHeight: `calc(${APP_H} - ${NAVBAR_SAFE_VAR})`,
         paddingTop: 'env(safe-area-inset-top)',
       };
+  const isInterpretationVisible = showInterpretation && hasValidConfirmation;
+  const interpretationDialogClassName = selectionTarget
+    ? 'top-auto bottom-6 translate-y-0 w-[90vw] max-w-xl rounded-full px-4 py-3'
+    : 'w-[90vw] sm:w-full max-w-2xl max-h-[80vh] overflow-y-auto';
 
   const handleEdit = (record, sectionKey = null) => {
     setEditingRecord(record);
@@ -871,9 +1117,21 @@ const ChartPage = () => {
   const handleDateSelect = (record) => {
     setEditingRecord(record);
   };
-  const toggleInterpretation = () => {
-    setShowInterpretation((v) => !v);
-  };
+  const openInterpretationModal = useCallback(() => {
+    setSelectionTarget(null);
+    setInterpretationOverrides(
+      normalizeInterpretationOverrides(confirmedInterpretation?.overrides)
+    );
+    setInterpretationModalOpen(true);
+  }, [confirmedInterpretation?.overrides]);
+
+  const handleInterpretationAction = useCallback(() => {
+    if (hasValidConfirmation) {
+      setShowInterpretation((v) => !v);
+      return;
+    }
+    openInterpretationModal();
+  }, [hasValidConfirmation, openInterpretationModal]);
   const closePhaseOverlay = useCallback(() => {
     setPhaseOverlay(null);
   }, []);
@@ -883,14 +1141,14 @@ const ChartPage = () => {
       ignoreNextClickRef.current = false;
       return;
     }
-    toggleInterpretation();
+    handleInterpretationAction();
   };
 
   const handleInterpretationPointerUp = (event) => {
     if (event.pointerType === 'touch') {
       event.preventDefault();
       ignoreNextClickRef.current = true;
-      toggleInterpretation();
+      handleInterpretationAction();
     }
   };
 
@@ -923,6 +1181,94 @@ const ChartPage = () => {
     },
     [mergedData]
   );
+
+  const interpretationStatusLabel = useMemo(() => {
+    if (confirmedInterpretation?.confirmed && !hasValidConfirmation) {
+      return 'Revisión por cambios';
+    }
+    return 'Pendiente';
+  }, [confirmedInterpretation?.confirmed, hasValidConfirmation]);
+
+  const handleInterpretationModalChange = useCallback(
+    (open) => {
+      if (!open) {
+        setInterpretationModalOpen(false);
+        setSelectionTarget(null);
+        return;
+      }
+      setInterpretationModalOpen(true);
+    },
+    []
+  );
+
+  const isFieldManual = useCallback(
+    (sectionKey, fieldKey) =>
+      Number.isInteger(interpretationOverrides?.[sectionKey]?.[fieldKey]),
+    [interpretationOverrides]
+  );
+
+  const handleSelectField = useCallback((sectionKey, fieldKey, label) => {
+    setSelectionTarget({ sectionKey, fieldKey, label });
+  }, []);
+
+  const handleDaySelection = useCallback(
+    (cycleDay) => {
+      if (!selectionTarget || !Number.isInteger(cycleDay)) {
+        return;
+      }
+      const { sectionKey, fieldKey } = selectionTarget;
+      setInterpretationOverrides((prev) => {
+        const next = normalizeInterpretationOverrides(prev);
+        next[sectionKey] = { ...(next[sectionKey] ?? {}) };
+        next[sectionKey][fieldKey] = cycleDay;
+        return next;
+      });
+      setSelectionTarget(null);
+    },
+    [selectionTarget]
+  );
+
+  const handleResetField = useCallback((sectionKey, fieldKey) => {
+    setInterpretationOverrides((prev) => {
+      const next = normalizeInterpretationOverrides(prev);
+      if (next?.[sectionKey]) {
+        const { [fieldKey]: _, ...rest } = next[sectionKey];
+        next[sectionKey] = rest;
+      }
+      return next;
+    });
+  }, []);
+
+  const handleConfirmInterpretation = useCallback(async () => {
+    if (!targetCycle?.id || isSavingInterpretation) {
+      return;
+    }
+    setIsSavingInterpretation(true);
+    try {
+      const cleanedOverrides = cleanInterpretationOverrides(interpretationOverrides);
+      const payload = {
+        confirmed: true,
+        confirmedDataVersion: cycleDataVersion,
+        confirmedMode: currentInterpretationMode,
+        overrides: cleanedOverrides,
+      };
+      await updateCycleInterpretation(targetCycle.id, payload);
+      setShowInterpretation(true);
+      setSelectionTarget(null);
+      setInterpretationModalOpen(false);
+    } catch (error) {
+      console.error('Error confirming interpretation:', error);
+    } finally {
+      setIsSavingInterpretation(false);
+    }
+  }, [
+    targetCycle?.id,
+    isSavingInterpretation,
+    interpretationOverrides,
+    cycleDataVersion,
+    currentInterpretationMode,
+    updateCycleInterpretation,
+  ]);
 
   const handleShowPhaseInfo = useCallback(
     (info = {}) => {
@@ -1165,11 +1511,11 @@ const ChartPage = () => {
           onPointerUp={handleInterpretationPointerUp}
           variant="ghost"
           size="icon"
-          className={`absolute top-4 right-20 z-10 p-2 rounded-full transition-colors ${showInterpretation 
+          className={`absolute top-4 right-20 z-10 p-2 rounded-full transition-colors ${isInterpretationVisible 
             ? 'bg-fertiliapp-fuerte text-white shadow-lg shadow-fertiliapp-fuerte/50 border-fertiliapp-fuerte/70' 
             : 'bg-white/20 text-fertiliapp-fuerte border border-fertiliapp-fuerte hover:brightness-95 shadow-md'}`}
         >
-          {showInterpretation ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          {isInterpretationVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
         </Button>
         <Button
           onClick={handleToggleFullScreen}
@@ -1188,7 +1534,7 @@ const ChartPage = () => {
           cycleId={targetCycle.id}
           initialScrollIndex={scrollStart}
           visibleDays={visibleDays}
-          showInterpretation={showInterpretation}
+          showInterpretation={isInterpretationVisible}
           reduceMotion={true}
           forceLandscape={forceLandscape || orientation === 'landscape'}
           currentPeakIsoDate={currentPeakIsoDate}
@@ -1199,6 +1545,10 @@ const ChartPage = () => {
           onShowPhaseInfo={handleShowPhaseInfo}
           isArchivedCycle={!isViewingCurrentCycle}
           cycleEndDate={targetCycle?.endDate ?? null}
+          selectionMode={Boolean(selectionTarget)}
+          onDaySelect={handleDaySelection}
+          confirmedInterpretation={hasValidConfirmation ? resolvedInterpretation : null}
+          onInterpretationData={handleInterpretationData}
         />
         
         {/* Backdrop */}
@@ -1349,6 +1699,139 @@ const ChartPage = () => {
             </div>
           )}
         </Overlay>
+
+        <Dialog open={interpretationModalOpen} onOpenChange={handleInterpretationModalChange}>
+          <DialogContent
+            hideClose={Boolean(selectionTarget)}
+            className={`bg-white border-rose-100/70 text-slate-700 ${interpretationDialogClassName}`}
+          >
+            {selectionTarget ? (
+              <div className="flex items-center justify-between gap-4">
+                <div className="text-sm font-semibold text-slate-700">
+                  Selecciona un día en la gráfica:{' '}
+                  <span className="text-fertiliapp-fuerte">{selectionTarget.label}</span>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="rounded-full px-3 text-xs font-semibold text-slate-500 hover:text-slate-700"
+                  onClick={() => setSelectionTarget(null)}
+                >
+                  Cancelar
+                </Button>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <h2 className="text-lg font-semibold text-titulo">Interpretación</h2>
+                    <p className="text-sm text-slate-500">
+                      Confirma la interpretación para pintar la gráfica.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-semibold text-amber-700">
+                      {interpretationStatusLabel}
+                    </span>
+                    <Select
+                      value={currentInterpretationMode}
+                      onValueChange={setCurrentInterpretationMode}
+                    >
+                      <SelectTrigger className="h-8 rounded-full border border-rose-200 bg-white/80 px-3 text-[11px] font-semibold text-rose-700">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white border-rose-100 rounded-2xl text-rose-700">
+                        {Object.entries(INTERPRETATION_MODE_LABELS).map(([value, label]) => (
+                          <SelectItem key={value} value={value} className="text-xs rounded-2xl">
+                            {label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  {INTERPRETATION_SECTIONS.map((section) => (
+                    <div
+                      key={section.key}
+                      className="rounded-2xl border border-rose-100/70 bg-rose-50/40 p-4 space-y-3"
+                    >
+                      <h3 className="text-sm font-semibold text-slate-700">{section.title}</h3>
+                      <div className="space-y-2">
+                        {section.fields.map((field) => {
+                          const value = resolvedInterpretation?.[section.key]?.[field.key];
+                          const manual = isFieldManual(section.key, field.key);
+                          return (
+                            <div
+                              key={`${section.key}-${field.key}`}
+                              className="flex items-center justify-between gap-3 rounded-xl bg-white/70 px-3 py-2"
+                            >
+                              <div>
+                                <p className="text-xs font-semibold text-slate-600">
+                                  {field.label}
+                                </p>
+                                <p className="text-sm font-semibold text-slate-800">
+                                  {formatCycleDayLabel(value)}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={`rounded-full px-2 py-1 text-[10px] font-semibold ${
+                                    manual
+                                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                      : 'bg-slate-100 text-slate-500 border border-slate-200'
+                                  }`}
+                                >
+                                  {manual ? 'Manual' : 'Sugerido'}
+                                </span>
+                                {manual && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleResetField(section.key, field.key)}
+                                    className="rounded-full border border-slate-200 bg-white p-1 text-slate-400 hover:text-slate-600"
+                                    aria-label={`Restablecer ${field.label}`}
+                                  >
+                                    ↺
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleSelectField(
+                                      section.key,
+                                      field.key,
+                                      `${section.title} · ${field.label}`
+                                    )
+                                  }
+                                  className="rounded-full border border-rose-200 bg-white p-1 text-rose-500 hover:text-rose-600"
+                                  aria-label={`Editar ${field.label}`}
+                                >
+                                  <PencilLine className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="sticky bottom-0 bg-white/90 pt-2">
+                  <Button
+                    type="button"
+                    onClick={handleConfirmInterpretation}
+                    disabled={isSavingInterpretation}
+                    className="w-full rounded-full bg-fertiliapp-fuerte text-white shadow-md hover:brightness-95"
+                  >
+                    {isSavingInterpretation ? 'Guardando…' : 'Confirmar y pintar'}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
 
         <Dialog open={showForm} onOpenChange={handleFormOpenChange}>
           <DialogContent

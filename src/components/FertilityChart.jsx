@@ -28,6 +28,10 @@ const FertilityChart = ({
   onShowPhaseInfo = null,
   isArchivedCycle = false,
   cycleEndDate = null,
+  selectionMode = false,
+  onDaySelect = null,
+  confirmedInterpretation = null,
+  onInterpretationData = null,
 }) => {
   const {
     chartRef,
@@ -72,6 +76,15 @@ const FertilityChart = ({
     fertilityCalculatorCandidates,
     showRelationsRow
   );
+  useEffect(() => {
+    if (typeof onInterpretationData !== 'function') {
+      return;
+    }
+    onInterpretationData({
+      fertilityStart,
+      ovulationDetails,
+    });
+  }, [fertilityStart, ovulationDetails, onInterpretationData]);
   const uniqueIdRef = useRef(null);
   if (!uniqueIdRef.current) {
     const randomSuffix = Math.random().toString(36).slice(2, 10);
@@ -163,6 +176,25 @@ const FertilityChart = ({
           0
         )
       : 0;
+
+  const handlePointSelection = useCallback(
+    (point, index, event) => {
+      if (selectionMode && typeof onDaySelect === 'function') {
+        const cycleDay = Number.isInteger(point?.cycleDay)
+          ? point.cycleDay
+          : Number.isInteger(index)
+            ? index + 1
+            : null;
+        if (Number.isInteger(cycleDay)) {
+          onDaySelect(cycleDay);
+        }
+        clearActivePoint();
+        return;
+      }
+      handlePointInteraction(point, index, event);
+    },
+    [selectionMode, onDaySelect, clearActivePoint, handlePointInteraction]
+  );
  
 
   const validDataMap = useMemo(() => {
@@ -460,6 +492,30 @@ const FertilityChart = ({
     fertilityStart,
   ]);
 
+  const confirmedInterpretationIndices = useMemo(() => {
+    if (!confirmedInterpretation) return null;
+    const toIndex = (value) => (Number.isInteger(value) ? value - 1 : null);
+    return {
+      relativeEndIndex: toIndex(confirmedInterpretation?.relativeInfertile?.end),
+      fertileStartIndex: toIndex(confirmedInterpretation?.fertile?.start),
+      fertileEndIndex: toIndex(confirmedInterpretation?.fertile?.end),
+      infertileStartIndex: toIndex(confirmedInterpretation?.infertile?.start),
+      peakDayIndex: toIndex(confirmedInterpretation?.infertile?.peak),
+      thermalShiftIndex: toIndex(confirmedInterpretation?.infertile?.thermalShift),
+    };
+  }, [confirmedInterpretation]);
+
+  const effectivePostOvulatoryPhaseInfo = useMemo(() => {
+    if (!postOvulatoryPhaseInfo) return null;
+    if (!Number.isInteger(confirmedInterpretationIndices?.infertileStartIndex)) {
+      return postOvulatoryPhaseInfo;
+    }
+    return {
+      ...postOvulatoryPhaseInfo,
+      startIndex: confirmedInterpretationIndices.infertileStartIndex,
+    };
+  }, [postOvulatoryPhaseInfo, confirmedInterpretationIndices?.infertileStartIndex]);
+
   const interpretationSegments = useMemo(() => {
     if (
       !showInterpretation ||
@@ -472,25 +528,41 @@ const FertilityChart = ({
     }
     const segments = [];
     const lastIndex = allDataPoints.length - 1;
+    const effectiveFertileStartIndex = Number.isInteger(confirmedInterpretationIndices?.fertileStartIndex)
+      ? confirmedInterpretationIndices.fertileStartIndex
+      : fertileStartFinalIndex;
+    const effectiveRelativeEndIndex = Number.isInteger(confirmedInterpretationIndices?.relativeEndIndex)
+      ? confirmedInterpretationIndices.relativeEndIndex
+      : Number.isInteger(effectiveFertileStartIndex)
+        ? effectiveFertileStartIndex - 1
+        : null;
+    const effectivePostStartIndex = Number.isInteger(confirmedInterpretationIndices?.infertileStartIndex)
+      ? confirmedInterpretationIndices.infertileStartIndex
+      : effectivePostOvulatoryPhaseInfo?.startIndex;
+    const effectiveFertileEndIndex = Number.isInteger(confirmedInterpretationIndices?.fertileEndIndex)
+      ? confirmedInterpretationIndices.fertileEndIndex
+      : Number.isInteger(effectivePostStartIndex)
+        ? effectivePostStartIndex - 1
+        : null;
     const phaseRenderLimit =
       Number.isInteger(relativeFertileLimitIndex) && relativeFertileLimitIndex >= 0
         ? Math.min(relativeFertileLimitIndex, lastIndex)
         : lastIndex;
 
         const appendPostSegments = (targetSegments, renderLimit) => {
-      if (!postOvulatoryPhaseInfo) return;
+      if (!effectivePostOvulatoryPhaseInfo) return;
 
-      const postStart = postOvulatoryPhaseInfo.startIndex;
-      const absStart = Number.isInteger(postOvulatoryPhaseInfo.absoluteStartIndex)
-        ? postOvulatoryPhaseInfo.absoluteStartIndex
+      const postStart = effectivePostOvulatoryPhaseInfo.startIndex;
+      const absStart = Number.isInteger(effectivePostOvulatoryPhaseInfo.absoluteStartIndex)
+        ? effectivePostOvulatoryPhaseInfo.absoluteStartIndex
         : null;
 
-      const estimatedInfo = postOvulatoryPhaseInfo.estimated ?? postOvulatoryPhaseInfo;
-      const absoluteInfo = postOvulatoryPhaseInfo.absolute ?? postOvulatoryPhaseInfo;
+      const estimatedInfo = effectivePostOvulatoryPhaseInfo.estimated ?? effectivePostOvulatoryPhaseInfo;
+      const absoluteInfo = effectivePostOvulatoryPhaseInfo.absolute ?? effectivePostOvulatoryPhaseInfo;
 
       const absoluteSegmentStart = absStart != null ? absStart : postStart;
       const renderEnd =
-        postOvulatoryPhaseInfo.status === 'absolute'
+        effectivePostOvulatoryPhaseInfo.status === 'absolute'
           ? lastIndex
           : Math.min(lastIndex, renderLimit);
 
@@ -508,7 +580,7 @@ const FertilityChart = ({
             displayLabel: estimatedInfo.label,
             tooltip: estimatedInfo.tooltip,
             message: estimatedInfo.message,
-            reasons: postOvulatoryPhaseInfo.reasons,
+            reasons: effectivePostOvulatoryPhaseInfo.reasons,
           });
         }
       }
@@ -519,20 +591,20 @@ const FertilityChart = ({
           targetSegments.push({
             key: 'post-absolute',
             phase: 'postOvulatory',
-            status: absStart != null ? 'absolute' : postOvulatoryPhaseInfo.status,
+            status: absStart != null ? 'absolute' : effectivePostOvulatoryPhaseInfo.status,
             bounds: absoluteBounds,
             startIndex: absoluteSegmentStart,
             endIndex: renderEnd,
-            displayLabel: absStart != null ? absoluteInfo.label : postOvulatoryPhaseInfo.label,
-            tooltip: absStart != null ? absoluteInfo.tooltip : postOvulatoryPhaseInfo.tooltip,
-            message: absStart != null ? absoluteInfo.message : postOvulatoryPhaseInfo.message,
-            reasons: postOvulatoryPhaseInfo.reasons,
+            displayLabel: absStart != null ? absoluteInfo.label : effectivePostOvulatoryPhaseInfo.label,
+            tooltip: absStart != null ? absoluteInfo.tooltip : effectivePostOvulatoryPhaseInfo.tooltip,
+            message: absStart != null ? absoluteInfo.message : effectivePostOvulatoryPhaseInfo.message,
+            reasons: effectivePostOvulatoryPhaseInfo.reasons,
           });
         }
       }
     };
-    const hasFertileStart = Number.isInteger(fertileStartFinalIndex);
-    const hasPostPhase = Number.isFinite(postOvulatoryPhaseInfo?.startIndex);
+    const hasFertileStart = Number.isInteger(effectiveFertileStartIndex);
+    const hasPostPhase = Number.isFinite(effectivePostOvulatoryPhaseInfo?.startIndex);
 
     // Mientras NO haya ni inicio fértil (CPM / T-8 / perfiles / marcador)
     // ni fase postovulatoria, todo lo registrado se considera
@@ -568,7 +640,7 @@ const FertilityChart = ({
 
      // Caso: NO hay inicio fértil pero SÍ hay fase postovulatoria
     if (!hasFertileStart && hasPostPhase) {
-      const postStart = postOvulatoryPhaseInfo.startIndex;
+      const postStart = effectivePostOvulatoryPhaseInfo.startIndex;
       const preEnd = Math.min(postStart - 1, phaseRenderLimit);
 
       // Banda previa: “Sin ventana fértil identificable”
@@ -597,8 +669,8 @@ const FertilityChart = ({
 
       // Banda postovulatoria normal
       if (
-        Number.isFinite(postOvulatoryPhaseInfo.startIndex) &&
-        postOvulatoryPhaseInfo.startIndex <= lastIndex
+        Number.isFinite(effectivePostOvulatoryPhaseInfo.startIndex) &&
+        effectivePostOvulatoryPhaseInfo.startIndex <= lastIndex
       ) {
     appendPostSegments(segments, phaseRenderLimit);
       }
@@ -607,8 +679,11 @@ const FertilityChart = ({
     }
 
 
-    if (hasFertileStart && fertileStartFinalIndex > 0) {
-      const endIndex = Math.min(fertileStartFinalIndex - 1, phaseRenderLimit);
+    if (hasFertileStart && effectiveFertileStartIndex > 0) {
+      const manualRelativeEndIndex = Number.isInteger(effectiveRelativeEndIndex)
+        ? effectiveRelativeEndIndex
+        : effectiveFertileStartIndex - 1;
+      const endIndex = Math.min(manualRelativeEndIndex, phaseRenderLimit);
       if (endIndex >= 0) {
         const bounds = getSegmentBounds(0, endIndex);
         if (bounds) {
@@ -624,7 +699,7 @@ const FertilityChart = ({
             message: 'Relativamente infértil',
             reasons: {
               type: 'relative',
-              fertileStartFinalIndex,
+              fertileStartFinalIndex: effectiveFertileStartIndex,
               aggregate: fertilityStart?.aggregate ?? null,
               bipScore: fertilityStart?.debug?.bipScore ?? null,
             },
@@ -634,16 +709,18 @@ const FertilityChart = ({
     }
 
     const fertileStartIndex = hasFertileStart
-      ? Math.max(fertileStartFinalIndex, 0)
+      ? Math.max(effectiveFertileStartIndex, 0)
       : 0;
 
-    const postPhaseStart = postOvulatoryPhaseInfo?.startIndex;
-    const fertileEndIndex =
-      Number.isFinite(postPhaseStart) && postPhaseStart != null
-        ? Math.min(postPhaseStart - 1, lastIndex)
-        : lastIndex;
+    const postPhaseStart = effectivePostOvulatoryPhaseInfo?.startIndex;
+    const resolvedFertileEndIndex =
+      Number.isFinite(effectiveFertileEndIndex) && effectiveFertileEndIndex != null
+        ? Math.min(effectiveFertileEndIndex, lastIndex)
+        : Number.isFinite(postPhaseStart) && postPhaseStart != null
+          ? Math.min(postPhaseStart - 1, lastIndex)
+          : lastIndex;
 
-    const fertileSegmentEnd = Math.min(fertileEndIndex, phaseRenderLimit);
+    const fertileSegmentEnd = Math.min(resolvedFertileEndIndex, phaseRenderLimit);
 
     if (fertileSegmentEnd >= fertileStartIndex) {
       const bounds = getSegmentBounds(fertileStartIndex, fertileSegmentEnd);
@@ -689,9 +766,9 @@ const FertilityChart = ({
     }
 
     if (
-      postOvulatoryPhaseInfo &&
-      Number.isFinite(postOvulatoryPhaseInfo.startIndex) &&
-      postOvulatoryPhaseInfo.startIndex <= lastIndex
+      effectivePostOvulatoryPhaseInfo &&
+      Number.isFinite(effectivePostOvulatoryPhaseInfo.startIndex) &&
+      effectivePostOvulatoryPhaseInfo.startIndex <= lastIndex
     ) {
       appendPostSegments(segments, phaseRenderLimit);
     }
@@ -705,10 +782,11 @@ const FertilityChart = ({
     allDataPoints.length,
     fertileStartFinalIndex,
     fertilityStart,
-    postOvulatoryPhaseInfo,
+    effectivePostOvulatoryPhaseInfo,
     hasAnyObservation,
     getSegmentBounds,
     relativeFertileLimitIndex,
+    confirmedInterpretationIndices,
   ]);
   const relativePhaseGradientId = `${uniqueId}-phase-relative-gradient`;
   const fertilePhaseGradientId = `${uniqueId}-phase-fertile-gradient`;
@@ -1233,7 +1311,7 @@ const FertilityChart = ({
             isFullScreen={isFullScreen}
             orientation={visualOrientation}
             responsiveFontSize={responsiveFontSize}
-            onPointInteraction={handlePointInteraction}
+            onPointInteraction={handlePointSelection}
             clearActivePoint={clearActivePoint}
             activePoint={activePoint}
             visibleRange={visibleRange}
@@ -1248,6 +1326,7 @@ const FertilityChart = ({
             reduceMotion={reduceMotion}
             isScrolling={isScrolling}
             showInterpretation={showInterpretation}
+            selectionMode={selectionMode}
             ovulationDetails={ovulationDetails}
             baselineStartIndex={baselineStartIndex}
             firstHighIndex={firstHighIndex}
