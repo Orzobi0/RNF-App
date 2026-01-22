@@ -1609,7 +1609,19 @@ if (showLoading) {
                   onCheckedChange={handleRelationsSettingChange}
                   className="mt-1"
                 />
-              </div>            
+              </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={openInterpretationModal}
+                  className="w-15 flex items-center justify-start gap-2 rounded-3xl border-rose-200/80 bg-white/80 text-sm font-semibold text-slate-700 hover:bg-white"
+                  aria-label="Abrir sugerencias de interpretación"
+                >
+                  <Settings className="h-4 w-4 text-slate-500" />
+                  Interpretación
+                </Button>
+
 
               <div className="rounded-2xl border border-amber-100/70 bg-amber-50/40 p-4 space-y-3">
                 <div>
@@ -1713,6 +1725,7 @@ if (showLoading) {
         <Dialog open={interpretationModalOpen} onOpenChange={handleInterpretationModalChange}>
           <DialogContent
             hideClose={Boolean(selectionTarget)}
+            hideOverlay={Boolean(selectionTarget)}
             className={`bg-white border-rose-100/70 text-slate-700 ${interpretationDialogClassName}`}
           >
             {selectionTarget ? (
