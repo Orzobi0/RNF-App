@@ -559,6 +559,7 @@ export const computeFertilityStartOutput = ({
   config = {},
   calculatorCandidates = [],
   context = {},
+  interpretation = null,
 }) => {
   const {
     calculators = { cpm: true, t8: true },
@@ -1161,13 +1162,47 @@ export const computeFertilityStartOutput = ({
     absoluteStartIndex,
   };
 
+  const autoFertilityStartIndex = fertileStartFinalIndex;
+  const autoFertilityEndIndex = fertileEndIndex;
+  const normalizeOverrideIndex = (value) => {
+    if (!Number.isInteger(value)) return null;
+    if (value === 0) return 0;
+    return value - 1;
+  };
+  const overrideStartRaw =
+    interpretation?.overrides?.fertilityStart ??
+    interpretation?.overrides?.fertile?.start ??
+    null;
+  const overrideEndRaw =
+    interpretation?.overrides?.fertilityEnd ??
+    interpretation?.overrides?.fertile?.end ??
+    null;
+  const overrideStartIndex = normalizeOverrideIndex(overrideStartRaw);
+  const overrideEndIndex = normalizeOverrideIndex(overrideEndRaw);
+  const fertilityStart = overrideStartIndex ?? autoFertilityStartIndex;
+  const fertilityEnd = overrideEndIndex ?? autoFertilityEndIndex;
+  const sources = {
+    start: overrideStartIndex != null ? 'manual' : 'auto',
+    end: overrideEndIndex != null ? 'manual' : 'auto',
+  };
+  const invalidRange =
+    fertilityStart != null && fertilityEnd != null && fertilityStart > fertilityEnd;
+  const outputFertilityStart = invalidRange ? null : fertilityStart;
+  const outputFertilityEnd = invalidRange ? null : fertilityEnd;
+
   return {
-    fertileStartFinalIndex,
+    autoFertilityStart: autoFertilityStartIndex,
+    autoFertilityEnd: autoFertilityEndIndex,
+    fertilityStart,
+    fertilityEnd,
+    sources,
+    invalidRange,
+    fertileStartFinalIndex: outputFertilityStart,
     fertileWindow:
-      fertileStartIndex != null && fertileEndIndex != null
+      outputFertilityStart != null && outputFertilityEnd != null
         ? {
-            startIndex: fertileStartIndex,
-            endIndex: fertileEndIndex,
+            startIndex: outputFertilityStart,
+            endIndex: outputFertilityEnd,
             waitingStartIndex,
             closureDetail,
             temperatureConfirmationIndex: tPlus3Index,

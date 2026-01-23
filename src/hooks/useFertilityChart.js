@@ -321,7 +321,8 @@ export const useFertilityChart = (
   fertilityStartConfig = null,
   calculatorCycles = [],
   externalCalculatorCandidates = null,
-  showRelationsRow = false
+  showRelationsRow = false,
+  interpretation = null
 ) => {
       const chartRef = useRef(null);
       const tooltipRef = useRef(null);
@@ -713,6 +714,7 @@ export const useFertilityChart = (
         processedData,
         config: normalizedFertilityConfig,
         calculatorCandidates: fertilityCalculatorCandidates,
+        interpretation,
         context: {
           peakDayIndex,
           postPeakStartIndex: peakInfertilityStartIndex,
@@ -727,6 +729,7 @@ export const useFertilityChart = (
       processedData,
       normalizedFertilityConfig,
       fertilityCalculatorCandidates,
+      interpretation,
       ovulationDetails?.thirdDayIndex,
       ovulationDetails?.infertileStartIndex,
       ovulationDetails?.confirmationIndex,

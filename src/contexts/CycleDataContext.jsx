@@ -88,6 +88,88 @@ const measurementsAreEqual = (a, b) => {
   return true;
 };
 
+const hasOwn = (obj, key) => Object.prototype.hasOwnProperty.call(obj ?? {}, key);
+
+const normalizeTextValue = (value) => {
+  if (value === null || value === undefined) return null;
+  const trimmed = String(value).trim();
+  return trimmed === '' ? null : trimmed;
+};
+
+const hasMeasurementContent = (measurements) => {
+  if (!Array.isArray(measurements) || measurements.length === 0) return false;
+  return measurements.some((measurement) => {
+    if (!measurement) return false;
+    const measurementRaw = normalizeTemp(measurement.temperature ?? measurement.temperature_raw);
+    const measurementCorrected = normalizeTemp(measurement.temperature_corrected);
+    const measurementTime = String(measurement.time ?? measurement.timestamp ?? '').trim();
+    const correctedTime = String(measurement.time_corrected ?? '').trim();
+    return (
+      measurementRaw !== null ||
+      measurementCorrected !== null ||
+      measurementTime !== '' ||
+      correctedTime !== ''
+    );
+  });
+};
+
+const entryHasMeaningfulData = (entry) => {
+  if (!entry) return false;
+  const mucusSensation = normalizeTextValue(entry.mucusSensation ?? entry.mucus_sensation);
+  const mucusAppearance = normalizeTextValue(entry.mucusAppearance ?? entry.mucus_appearance);
+  const observations = normalizeTextValue(entry.observations);
+  const fertilitySymbol = String(entry.fertility_symbol ?? entry.fertilitySymbol ?? '').trim().toLowerCase();
+  const hasFertilitySymbol = fertilitySymbol !== '' && fertilitySymbol !== 'none';
+  const hasRelations = Boolean(entry.had_relations ?? entry.hadRelations);
+  const hasPeak = entry.peak_marker === 'peak';
+  const hasTemperature =
+    normalizeTemp(entry.temperature_raw) !== null ||
+    normalizeTemp(entry.temperature_corrected) !== null ||
+    normalizeTemp(entry.temperature_chart) !== null ||
+    hasMeasurementContent(entry.measurements);
+
+  return (
+    hasTemperature ||
+    mucusSensation !== null ||
+    mucusAppearance !== null ||
+    hasFertilitySymbol ||
+    observations !== null ||
+    hasRelations ||
+    hasPeak
+  );
+};
+
+const entryHasNonPeakData = (entry) => {
+  if (!entry) return false;
+  const clone = { ...entry, peak_marker: null };
+  return entryHasMeaningfulData(clone);
+};
+
+const isPlainObject = (value) =>
+  value !== null && typeof value === 'object' && !Array.isArray(value);
+
+const mergeInterpretation = (base, updates) => {
+  if (updates === undefined) return base ?? null;
+  if (updates === null) return null;
+  if (!isPlainObject(updates)) return updates;
+
+  const result = isPlainObject(base) ? { ...base } : {};
+  Object.entries(updates).forEach(([key, value]) => {
+    if (value === undefined) {
+      return;
+    }
+    if (value === null) {
+      delete result[key];
+      return;
+    }
+    if (isPlainObject(value)) {
+      result[key] = mergeInterpretation(result[key], value);
+      return;
+    }
+    result[key] = value;
+  });
+  return result;
+};
 
 const normalizeDate = (date) => {
   if (!date) return null;
@@ -298,14 +380,6 @@ export const CycleDataProvider = ({ children }) => {
       const prevCurrentCycle = currentCycle;
       const prevArchivedCycles = archivedCycles;
       try {
-        const measurements = Array.isArray(newData?.measurements) ? newData.measurements : [];
-        const selectedMeasurement = measurements.find((m) => m?.selected) || measurements[0] || {};
-        const timeString =
-          selectedMeasurement && selectedMeasurement.time && selectedMeasurement.time.trim() !== ''
-            ? selectedMeasurement.time
-            : format(new Date(), 'HH:mm');
-        const recordDateTime = parse(`${newData.isoDate} ${timeString}`, 'yyyy-MM-dd HH:mm', new Date());
-
         const targetCycle =
           cycleIdToUse === currentCycle.id
             ? currentCycle
@@ -331,172 +405,255 @@ export const CycleDataProvider = ({ children }) => {
           });
         }
 
-        const rawTemp = normalizeTemp(selectedMeasurement.temperature);
-        const correctedTemp = normalizeTemp(selectedMeasurement.temperature_corrected);
-        const useCorrected = !!selectedMeasurement.use_corrected && correctedTemp !== null;
-        const chartTemp = useCorrected ? correctedTemp : rawTemp;
+        const measurementsProvided = hasOwn(newData, 'measurements');
+        const measurements = measurementsProvided && Array.isArray(newData?.measurements)
+          ? newData.measurements
+          : [];
+        const selectedMeasurement = measurements.find((m) => m?.selected) || measurements[0] || {};
+        const measurementsChanged = measurementsProvided
+          ? !measurementsAreEqual(targetRecord?.measurements, measurements)
+          : false;
+
+        const fallbackTime = targetRecord?.timestamp && !Number.isNaN(Date.parse(targetRecord.timestamp))
+          ? format(parseISO(targetRecord.timestamp), 'HH:mm')
+          : format(new Date(), 'HH:mm');
+        const timeString =
+          selectedMeasurement?.time && String(selectedMeasurement.time).trim() !== ''
+            ? String(selectedMeasurement.time).trim()
+            : fallbackTime;
+        const shouldUpdateTimestamp = !targetRecord || measurementsChanged;
+        const recordDateTime = shouldUpdateTimestamp
+          ? parse(`${newData.isoDate} ${timeString}`, 'yyyy-MM-dd HH:mm', new Date())
+          : null;
+
+        const rawTemp = measurementsProvided ? normalizeTemp(selectedMeasurement.temperature) : null;
+        const correctedTemp = measurementsProvided
+          ? normalizeTemp(selectedMeasurement.temperature_corrected)
+          : null;
+        const useCorrected =
+          measurementsProvided && !!selectedMeasurement.use_corrected && correctedTemp !== null;
+        const chartTemp = measurementsProvided ? (useCorrected ? correctedTemp : rawTemp) : null;
 
         const peakMarkerProvided = Object.prototype.hasOwnProperty.call(
           newData,
           'peak_marker'
         );
 
-        const measurementsList = measurements;
-        const hasTemperatureData = measurementsList.some((measurement) => {
-          if (!measurement) return false;
-          const measurementRaw = normalizeTemp(measurement.temperature);
-          const measurementCorrected = normalizeTemp(measurement.temperature_corrected);
-          return measurementRaw !== null || measurementCorrected !== null;
-        });
+        const mucusSensationProvided =
+          hasOwn(newData, 'mucusSensation') || hasOwn(newData, 'mucus_sensation');
+        const mucusAppearanceProvided =
+          hasOwn(newData, 'mucusAppearance') || hasOwn(newData, 'mucus_appearance');
+        const observationsProvided = hasOwn(newData, 'observations');
+        const fertilitySymbolProvided =
+          hasOwn(newData, 'fertility_symbol') || hasOwn(newData, 'fertilitySymbol');
+        const hadRelationsProvided =
+          hasOwn(newData, 'had_relations') || hasOwn(newData, 'hadRelations');
+        const ignoredProvided = hasOwn(newData, 'ignored');
 
-        const trimValue = (value) => {
-          if (value === null || value === undefined) return '';
-          return String(value).trim();
-        };
-
-        const mucusSensationValue = trimValue(
-          newData.mucusSensation ?? newData.mucus_sensation ?? ''
+        const mucusSensationValue = normalizeTextValue(
+          newData.mucusSensation ?? newData.mucus_sensation ?? null
         );
-        const mucusAppearanceValue = trimValue(
-          newData.mucusAppearance ?? newData.mucus_appearance ?? ''
+        const mucusAppearanceValue = normalizeTextValue(
+          newData.mucusAppearance ?? newData.mucus_appearance ?? null
         );
-        const observationsValue = trimValue(newData.observations ?? '');
+        const observationsValue = normalizeTextValue(newData.observations ?? null);
         const fertilitySymbolValue =
           newData.fertility_symbol ?? newData.fertilitySymbol ?? null;
-        const hasFertilitySymbol =
-          fertilitySymbolValue !== null &&
-          fertilitySymbolValue !== undefined &&
-          fertilitySymbolValue !== '' &&
-          fertilitySymbolValue !== 'none';
-          const hadRelationsValue = Boolean(
+        const normalizedFertilitySymbol =
+          fertilitySymbolValue === 'none' || fertilitySymbolValue === ''
+            ? null
+            : fertilitySymbolValue;
+        const hadRelationsValue = Boolean(
           newData.had_relations ?? newData.hadRelations ?? false
         );
-        const isPeakMarked = newData.peak_marker === 'peak';
-        const isRemovingPeak =
-        peakMarkerProvided && targetRecord?.peak_marker === 'peak' && !isPeakMarked;
-
-
-        const isPayloadEmpty =
-          !hasTemperatureData &&
-          mucusSensationValue === '' &&
-          mucusAppearanceValue === '' &&
-          !hasFertilitySymbol &&
-          observationsValue === '' &&
-          !hadRelationsValue &&
-          !isPeakMarked;
+        const patchPayload = {};
+        if (measurementsProvided && measurementsChanged) {
+          patchPayload.measurements = measurements;
+          patchPayload.temperature_raw = rawTemp;
+          patchPayload.temperature_corrected = correctedTemp;
+          patchPayload.use_corrected = useCorrected;
+          patchPayload.temperature_chart = chartTemp;
+        }
+        if (mucusSensationProvided) {
+          patchPayload.mucus_sensation = mucusSensationValue;
+        }
+        if (mucusAppearanceProvided) {
+          patchPayload.mucus_appearance = mucusAppearanceValue;
+        }
+        if (fertilitySymbolProvided) {
+          patchPayload.fertility_symbol = normalizedFertilitySymbol;
+        }
+        if (observationsProvided) {
+          patchPayload.observations = observationsValue;
+        }
+        if (hadRelationsProvided) {
+          patchPayload.had_relations = hadRelationsValue;
+        }
+        if (ignoredProvided) {
+          patchPayload.ignored = Boolean(newData.ignored);
+        }
+        if (peakMarkerProvided) {
+          patchPayload.peak_marker = newData.peak_marker ?? null;
+        }
+        if (shouldUpdateTimestamp && recordDateTime) {
+          patchPayload.timestamp = format(recordDateTime, "yyyy-MM-dd'T'HH:mm:ssXXX");
+        }
 
         const recordPayload = {
           cycle_id: cycleIdToUse,
           user_id: user.uid,
-          timestamp: format(recordDateTime, "yyyy-MM-dd'T'HH:mm:ssXXX"),
-          measurements,
-          mucus_sensation: newData.mucusSensation || null,
-          mucus_appearance: newData.mucusAppearance || null,
-          fertility_symbol: newData.fertility_symbol === 'none' ? null : newData.fertility_symbol,
-          observations: newData.observations || null,
+          timestamp: shouldUpdateTimestamp && recordDateTime
+            ? format(recordDateTime, "yyyy-MM-dd'T'HH:mm:ssXXX")
+            : targetRecord?.timestamp ?? format(new Date(), "yyyy-MM-dd'T'HH:mm:ssXXX"),
+          measurements: measurementsProvided ? measurements : [],
+          mucus_sensation: mucusSensationValue,
+          mucus_appearance: mucusAppearanceValue,
+          fertility_symbol: normalizedFertilitySymbol,
+          observations: observationsValue,
           had_relations: hadRelationsValue,
-          ignored: targetRecord ? (newData.ignored ?? targetRecord.ignored) : newData.ignored || false,
+          ignored: ignoredProvided ? Boolean(newData.ignored) : Boolean(targetRecord?.ignored),
           peak_marker: peakMarkerProvided
             ? newData.peak_marker ?? null
             : targetRecord?.peak_marker ?? null,
-          temperature_raw: rawTemp,
-          temperature_corrected: correctedTemp,
-          use_corrected: useCorrected,
-          temperature_chart: chartTemp
+          temperature_raw: measurementsProvided ? rawTemp : null,
+          temperature_corrected: measurementsProvided ? correctedTemp : null,
+          use_corrected: measurementsProvided ? useCorrected : false,
+          temperature_chart: measurementsProvided ? chartTemp : null
         };
 
         const tempId = `temp-${Date.now()}`;
-const optimisticId = targetRecord?.id ?? tempId;
+        const optimisticId = targetRecord?.id ?? tempId;
 
-const buildOptimisticEntry = () => {
-  const isoDate = newData.isoDate;
-  const ddmm = (() => {
-    try {
-      return format(parseISO(isoDate), 'dd/MM');
-    } catch {
-      return targetRecord?.date ?? 'N/A';
-    }
-  })();
+        const buildOptimisticEntry = () => {
+          const isoDate = newData.isoDate;
+          const ddmm = (() => {
+            try {
+              return format(parseISO(isoDate), 'dd/MM');
+            } catch {
+              return targetRecord?.date ?? 'N/A';
+            }
+          })();
 
-  return {
-    ...(targetRecord ?? {}),
-    id: optimisticId,
-    isoDate,
-    date: ddmm,
-    cycleDay: computeCycleDayNumber(isoDate, targetCycle?.startDate) ?? targetRecord?.cycleDay ?? null,
-    timestamp: recordPayload.timestamp,
-    measurements: Array.isArray(recordPayload.measurements) ? recordPayload.measurements : (targetRecord?.measurements ?? []),
-    temperature_raw: recordPayload.temperature_raw,
-    temperature_corrected: recordPayload.temperature_corrected,
-    use_corrected: recordPayload.use_corrected,
-    temperature_chart: recordPayload.temperature_chart,
-    mucusSensation: recordPayload.mucus_sensation ?? null,
-    mucusAppearance: recordPayload.mucus_appearance ?? null,
-    fertility_symbol: recordPayload.fertility_symbol ?? null,
-    observations: recordPayload.observations ?? null,
-    had_relations: !!recordPayload.had_relations,
-    hadRelations: !!recordPayload.had_relations,
-    ignored: !!recordPayload.ignored,
-    peak_marker: recordPayload.peak_marker ?? null,
-  };
-};
+          return {
+            ...(targetRecord ?? {}),
+            id: optimisticId,
+            isoDate,
+            date: ddmm,
+            cycleDay:
+              computeCycleDayNumber(isoDate, targetCycle?.startDate) ??
+              targetRecord?.cycleDay ??
+              null,
+            timestamp: shouldUpdateTimestamp ? recordPayload.timestamp : targetRecord?.timestamp,
+            measurements: measurementsProvided
+              ? measurements
+              : targetRecord?.measurements ?? [],
+            temperature_raw: measurementsProvided
+              ? rawTemp
+              : targetRecord?.temperature_raw ?? null,
+            temperature_corrected: measurementsProvided
+              ? correctedTemp
+              : targetRecord?.temperature_corrected ?? null,
+            use_corrected: measurementsProvided
+              ? useCorrected
+              : targetRecord?.use_corrected ?? false,
+            temperature_chart: measurementsProvided
+              ? chartTemp
+              : targetRecord?.temperature_chart ?? null,
+            mucusSensation: mucusSensationProvided
+              ? mucusSensationValue
+              : targetRecord?.mucusSensation ?? targetRecord?.mucus_sensation ?? null,
+            mucusAppearance: mucusAppearanceProvided
+              ? mucusAppearanceValue
+              : targetRecord?.mucusAppearance ?? targetRecord?.mucus_appearance ?? null,
+            fertility_symbol: fertilitySymbolProvided
+              ? normalizedFertilitySymbol
+              : targetRecord?.fertility_symbol ?? null,
+            observations: observationsProvided
+              ? observationsValue
+              : targetRecord?.observations ?? null,
+            had_relations: hadRelationsProvided
+              ? hadRelationsValue
+              : targetRecord?.had_relations ?? targetRecord?.hadRelations ?? false,
+            hadRelations: hadRelationsProvided
+              ? hadRelationsValue
+              : targetRecord?.had_relations ?? targetRecord?.hadRelations ?? false,
+            ignored: ignoredProvided
+              ? Boolean(newData.ignored)
+              : Boolean(targetRecord?.ignored),
+            peak_marker: peakMarkerProvided
+              ? newData.peak_marker ?? null
+              : targetRecord?.peak_marker ?? null,
+          };
+        };
 
-const upsertByIdOrIso = (entries, entry) => {
-  const list = Array.isArray(entries) ? entries : [];
-  const idx = list.findIndex((r) => r?.id === entry.id || r?.isoDate === entry.isoDate);
-  if (idx >= 0) {
-    const next = [...list];
-    next[idx] = { ...next[idx], ...entry };
-    return next;
-  }
-  return [...list, entry].sort((a, b) => (a?.isoDate || '').localeCompare(b?.isoDate || ''));
-};
+        const upsertByIdOrIso = (entries, entry) => {
+          const list = Array.isArray(entries) ? entries : [];
+          const idx = list.findIndex((r) => r?.id === entry.id || r?.isoDate === entry.isoDate);
+          if (idx >= 0) {
+            const next = [...list];
+            next[idx] = { ...next[idx], ...entry };
+            return next;
+          }
+          return [...list, entry].sort((a, b) => (a?.isoDate || '').localeCompare(b?.isoDate || ''));
+        };
 
-const applyOptimisticToCycle = (cycle) => {
-  if (!cycle || cycle.id !== cycleIdToUse) return cycle;
-  let data = Array.isArray(cycle.data) ? cycle.data : [];
+        const optimisticEntry = buildOptimisticEntry();
+        const entryHasData = entryHasMeaningfulData(optimisticEntry);
+        const isPeakToggleOnly =
+          peakMarkerProvided &&
+          !measurementsProvided &&
+          !mucusSensationProvided &&
+          !mucusAppearanceProvided &&
+          !fertilitySymbolProvided &&
+          !observationsProvided &&
+          !hadRelationsProvided &&
+          !ignoredProvided;
+        const canDeletePeakOnly = isPeakToggleOnly && !entryHasNonPeakData(targetRecord);
+        const shouldDeleteRecord =
+          targetRecord &&
+          !entryHasData &&
+          (canDeletePeakOnly || !isPeakToggleOnly);
 
-  // Si marcamos pico, desmarca el pico anterior en local
-  if (recordPayload.peak_marker === 'peak') {
-    data = data.map((r) =>
-      r?.peak_marker === 'peak' && r.id !== optimisticId ? { ...r, peak_marker: null } : r
-    );
-  }
+        const applyOptimisticToCycle = (cycle) => {
+          if (!cycle || cycle.id !== cycleIdToUse) return cycle;
+          let data = Array.isArray(cycle.data) ? cycle.data : [];
 
-  // Si hay que borrar el registro (caso que tú ya manejas)
-  if (targetRecord && isPayloadEmpty && isRemovingPeak) {
-    data = data.filter((r) => r.id !== targetRecord.id);
-    return { ...cycle, data };
-  }
+          if (peakMarkerProvided && newData.peak_marker === 'peak') {
+            data = data.map((r) =>
+              r?.peak_marker === 'peak' && r.id !== optimisticId ? { ...r, peak_marker: null } : r
+            );
+          }
 
-  // Si no hay datos y es creación, no hacemos nada (igual que tu return actual)
-  if (!targetRecord && isPayloadEmpty) {
-    return cycle;
-  }
+          if (shouldDeleteRecord && targetRecord) {
+            data = data.filter((r) => r.id !== targetRecord.id);
+            return { ...cycle, data };
+          }
 
-  const optimisticEntry = buildOptimisticEntry();
-  data = upsertByIdOrIso(data, optimisticEntry);
-  return { ...cycle, data };
-};
+          if (!targetRecord && !entryHasData) {
+            return cycle;
+          }
 
-if (cycleIdToUse === currentCycle.id) {
-  setCurrentCycle((prev) => applyOptimisticToCycle(prev));
-} else {
-  setArchivedCycles((prev) => prev.map((c) => applyOptimisticToCycle(c)));
-}
+          data = upsertByIdOrIso(data, optimisticEntry);
+          return { ...cycle, data };
+        };
+
+        if (cycleIdToUse === currentCycle.id) {
+          setCurrentCycle((prev) => applyOptimisticToCycle(prev));
+        } else {
+          setArchivedCycles((prev) => prev.map((c) => applyOptimisticToCycle(c)));
+        }
 
         if (targetRecord) {
-          if (isPayloadEmpty && isRemovingPeak) {
+          if (shouldDeleteRecord) {
             await deleteCycleEntryDB(user.uid, cycleIdToUse, targetRecord.id);
           } else {
-            const dbPayload = { ...recordPayload };
-            if (measurementsAreEqual(targetRecord?.measurements, recordPayload.measurements)) {
-              delete dbPayload.measurements;
+            const dbPayload = { ...patchPayload };
+            if (Object.keys(dbPayload).length > 0) {
+              await updateCycleEntry(user.uid, cycleIdToUse, targetRecord.id, dbPayload);
             }
-            await updateCycleEntry(user.uid, cycleIdToUse, targetRecord.id, dbPayload);
           }
         } else {
-          if (isPayloadEmpty) {
+          if (!entryHasData) {
             return;
           }
           const created = await createNewCycleEntry(recordPayload);
@@ -660,6 +817,15 @@ if (cycleIdToUse === currentCycle.id) {
         return;
       }
 
+      const targetCycle =
+        cycleIdToUpdate === currentCycle.id
+          ? currentCycle
+          : archivedCycles.find((cycle) => cycle.id === cycleIdToUpdate);
+      const mergedInterpretation = mergeInterpretation(
+        targetCycle?.interpretation ?? null,
+        interpretation
+      );
+
       const applyInterpretation = (cycle) => {
         if (!cycle || cycle.id !== cycleIdToUpdate) {
           return cycle;
@@ -667,7 +833,7 @@ if (cycleIdToUse === currentCycle.id) {
 
         return {
           ...cycle,
-          interpretation: interpretation ?? null,
+          interpretation: mergedInterpretation ?? null,
         };
       };
 
@@ -675,7 +841,7 @@ if (cycleIdToUse === currentCycle.id) {
       setArchivedCycles((prevCycles) => prevCycles.map((cycle) => applyInterpretation(cycle)));
 
       try {
-        await updateCycleInterpretationDB(user.uid, cycleIdToUpdate, interpretation ?? null);
+        await updateCycleInterpretationDB(user.uid, cycleIdToUpdate, mergedInterpretation ?? null);
 
         await saveCycleDataToCache(user.uid, {
           currentCycle: applyInterpretation(currentCycle),

@@ -3576,7 +3576,8 @@ const ModernFertilityDashboard = () => {
     fertilityStartConfig,
     fertilityCalculatorCycles,
     externalCalculatorCandidates,
-    false
+    false,
+    currentCycle?.interpretation?.confirmed ? currentCycle?.interpretation : null
   );
 
   if (isLoading && !currentCycle?.id) {

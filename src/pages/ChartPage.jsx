@@ -140,23 +140,6 @@ const normalizeInterpretationOverrides = (overrides = {}) => ({
   infertile: { ...(overrides?.infertile ?? {}) },
 });
 
-const cleanInterpretationOverrides = (overrides = {}) => {
-  const cleaned = {};
-  Object.entries(overrides).forEach(([sectionKey, fields]) => {
-    if (!fields || typeof fields !== 'object') return;
-    const normalizedFields = {};
-    Object.entries(fields).forEach(([fieldKey, value]) => {
-      if (Number.isInteger(value) && value > 0) {
-        normalizedFields[fieldKey] = value;
-      }
-    });
-    if (Object.keys(normalizedFields).length > 0) {
-      cleaned[sectionKey] = normalizedFields;
-    }
-  });
-  return cleaned;
-};
-
 const resolveInterpretationValues = (suggestions = {}, overrides = {}) => {
   const resolved = {
     relativeInfertile: {
@@ -581,9 +564,11 @@ const ChartPage = () => {
     const fertilityStart = interpretationSource?.fertilityStart ?? null;
     const ovulationDetails = interpretationSource?.ovulationDetails ?? null;
     const toCycleDay = (index) => (Number.isInteger(index) ? index + 1 : null);
-    const fertileStartIndex = Number.isInteger(fertilityStart?.fertileStartFinalIndex)
-      ? fertilityStart.fertileStartFinalIndex
-      : null;
+    const fertileStartIndex = Number.isInteger(fertilityStart?.autoFertilityStart)
+      ? fertilityStart.autoFertilityStart
+      : Number.isInteger(fertilityStart?.fertileStartFinalIndex)
+        ? fertilityStart.fertileStartFinalIndex
+        : null;
     const relativeEndIndex =
       Number.isInteger(fertileStartIndex) && fertileStartIndex > 0
         ? fertileStartIndex - 1
@@ -591,11 +576,13 @@ const ChartPage = () => {
     const postOvulatoryStartIndex = Number.isInteger(fertilityStart?.debug?.postOvulatoryStartIndex)
       ? fertilityStart.debug.postOvulatoryStartIndex
       : null;
-    const fertileEndIndex = Number.isInteger(fertilityStart?.fertileWindow?.endIndex)
-      ? fertilityStart.fertileWindow.endIndex
-      : Number.isInteger(postOvulatoryStartIndex)
-        ? postOvulatoryStartIndex - 1
-        : null;
+    const fertileEndIndex = Number.isInteger(fertilityStart?.autoFertilityEnd)
+      ? fertilityStart.autoFertilityEnd
+      : Number.isInteger(fertilityStart?.fertileWindow?.endIndex)
+        ? fertilityStart.fertileWindow.endIndex
+        : Number.isInteger(postOvulatoryStartIndex)
+          ? postOvulatoryStartIndex - 1
+          : null;
     const peakDayIndex = Number.isInteger(ovulationDetails?.peakDayIndex)
       ? ovulationDetails.peakDayIndex
       : null;
@@ -1274,13 +1261,58 @@ const ChartPage = () => {
     });
   }, []);
 
+  const buildOverridesPayload = useCallback(() => {
+    const previousOverrides = normalizeInterpretationOverrides(
+      confirmedInterpretation?.overrides
+    );
+    const selectedOverrides = normalizeInterpretationOverrides(interpretationOverrides);
+    const nextOverrides = {};
+
+    INTERPRETATION_SECTIONS.forEach((section) => {
+      const sectionKey = section.key;
+      const nextFields = {};
+
+      section.fields.forEach((field) => {
+        const fieldKey = field.key;
+        const selectedValue = selectedOverrides?.[sectionKey]?.[fieldKey];
+        const suggestedValue = interpretationSuggestions?.[sectionKey]?.[fieldKey];
+        const previousValue = previousOverrides?.[sectionKey]?.[fieldKey];
+
+        if (Number.isInteger(selectedValue)) {
+          if (
+            Number.isInteger(suggestedValue) &&
+            selectedValue === suggestedValue
+          ) {
+            if (Number.isInteger(previousValue)) {
+              nextFields[fieldKey] = null;
+            }
+          } else {
+            nextFields[fieldKey] = selectedValue;
+          }
+        } else if (Number.isInteger(previousValue)) {
+          nextFields[fieldKey] = null;
+        }
+      });
+
+      if (Object.keys(nextFields).length > 0) {
+        nextOverrides[sectionKey] = nextFields;
+      }
+    });
+
+    return Object.keys(nextOverrides).length > 0 ? nextOverrides : null;
+  }, [
+    confirmedInterpretation?.overrides,
+    interpretationOverrides,
+    interpretationSuggestions,
+  ]);
+
   const handleConfirmInterpretation = useCallback(async () => {
     if (!targetCycle?.id || isSavingInterpretation) {
       return;
     }
     setIsSavingInterpretation(true);
     try {
-      const cleanedOverrides = cleanInterpretationOverrides(interpretationOverrides);
+      const cleanedOverrides = buildOverridesPayload();
       const payload = {
         confirmed: true,
         confirmedDataVersion: cycleDataVersion,
@@ -1303,6 +1335,7 @@ const ChartPage = () => {
     cycleDataVersion,
     currentInterpretationMode,
     updateCycleInterpretation,
+    buildOverridesPayload,
   ]);
 
   const handleShowPhaseInfo = useCallback(
@@ -1616,6 +1649,7 @@ if (showLoading) {
           cycleEndDate={targetCycle?.endDate ?? null}
           selectionMode={Boolean(selectionTarget)}
           onDaySelect={handleDaySelection}
+          interpretation={hasValidConfirmation ? confirmedInterpretation : null}
           confirmedInterpretation={hasValidConfirmation ? resolvedInterpretation : null}
           onInterpretationData={handleInterpretationData}
         />

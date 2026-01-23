@@ -31,6 +31,7 @@ const FertilityChart = ({
   selectionMode = false,
   onDaySelect = null,
   confirmedInterpretation = null,
+  interpretation = null,
   onInterpretationData = null,
 }) => {
   const {
@@ -74,7 +75,8 @@ const FertilityChart = ({
     fertilityStartConfig,
     fertilityCalculatorCycles,
     fertilityCalculatorCandidates,
-    showRelationsRow
+    showRelationsRow,
+    interpretation
   );
   useEffect(() => {
     if (typeof onInterpretationData !== 'function') {
