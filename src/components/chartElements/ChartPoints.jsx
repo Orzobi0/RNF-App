@@ -507,6 +507,12 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
         const rawY = showCorrectionIndicator ? getY(rawTemp) : null;  
         const baseTextFill = isFullScreen ? "#60666f" : "#60666f";
         const hasTemp = point[temperatureField] != null;
+        const isCorrectedDisplayed =
+          point.use_corrected &&
+          correctedTemp != null &&
+          point[temperatureField] === correctedTemp;
+        const isIgnoredForDisplay =
+          point.ignored || (point.use_corrected && !isCorrectedDisplayed);
         const hasRelations = Boolean(point.had_relations ?? point.hadRelations);
         const hasAnyRecord = hasTemp
           || point.mucus_sensation
@@ -518,7 +524,7 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
         const isPeakTemperaturePoint =
           showInterpretation &&
           peakMarkerIndex != null &&
-          !point.ignored &&
+          !isIgnoredForDisplay &&
           hasTemp &&
           index === peakMarkerIndex;
 
@@ -676,22 +682,22 @@ const observationFontSize = obsRes.fontSize;
                   cy={y}
                   r={isPeakTemperaturePoint ? 3.5 : 2.8}
                   fill={
-                    point.ignored
+                    isIgnoredForDisplay
                       ? 'url(#tempPointIgnoredGradient)'
                       : isPeakTemperaturePoint
                         ? 'url(#ovulationPointGradient)'
                         : 'url(#tempPointGradientChart)'
                   }
                   stroke={
-                    point.use_corrected
+                    point.use_corrected && isCorrectedDisplayed
                       ? '#941616'
-                      : point.ignored
+                      : isIgnoredForDisplay
                         ? '#94A3B8'
                         : isPeakTemperaturePoint
                           ? '#1d4ed8'
                           : '#E91E63'
                   }
-                  strokeWidth={point.ignored ? 1.5 : isPeakTemperaturePoint ? 2.2 : 2}
+                  sstrokeWidth={isIgnoredForDisplay ? 1.5 : isPeakTemperaturePoint ? 2.2 : 2}
                   style={{
                     filter: isPeakTemperaturePoint ? tooltipShadow : activeShadow,
                     cursor: 'pointer'
@@ -702,7 +708,7 @@ const observationFontSize = obsRes.fontSize;
                 
                 
                 {/* Punto central brillante */}
-                {!point.ignored && (
+                {!isIgnoredForDisplay && (
                   <circle
                     cx={x}
                     cy={y}
@@ -716,7 +722,7 @@ const observationFontSize = obsRes.fontSize;
 
                 {showInterpretation &&
                   hasTemp &&
-                  !point.ignored &&
+                  !isIgnoredForDisplay &&
                   hasHighOrder && (
                     <g pointerEvents="none">
                       <text
@@ -741,7 +747,7 @@ const observationFontSize = obsRes.fontSize;
                   )}
                 {showInterpretation &&
                   hasTemp &&
-                  !point.ignored &&
+                  !isIgnoredForDisplay &&
                   hasBaselineOrder && (
                     <g pointerEvents="none">
                       <text

@@ -2,6 +2,8 @@ import { processCycleEntries } from '@/lib/cycleDataHandler';
 import { computePeakStatuses } from '@/lib/computePeakStatuses';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { getSymbolAppearance } from '@/config/fertilitySymbols';
+
 
 const cycleHeaders = [
   'Fecha',
@@ -11,20 +13,60 @@ const cycleHeaders = [
   'Apariencia',
   'Símbolo',
   'Obs',
-  'RS',
   'Día pico',
+  'RS',
+
 ];
 
+const parseDateOnly = (value) => {
+  if (!value) return null;
+  if (value instanceof Date) return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+
+  const str = String(value).trim();
+
+  // YYYY-MM-DD (ISO date-only) -> crear fecha LOCAL (sin líos de zona horaria)
+  const iso = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (iso) {
+    const y = Number(iso[1]);
+    const m = Number(iso[2]) - 1;
+    const d = Number(iso[3]);
+    return new Date(y, m, d);
+  }
+
+  // DD/MM/YYYY o D/M/YYYY
+  const dmy = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if (dmy) {
+    const d = Number(dmy[1]);
+    const m = Number(dmy[2]) - 1;
+    let y = Number(dmy[3]);
+    if (y < 100) y += 2000;
+    return new Date(y, m, d);
+  }
+
+  // Último recurso: intentar parsear si viene ISO con hora (2025-11-01T...)
+  const parsed = new Date(str);
+  if (!Number.isNaN(parsed.getTime())) {
+    return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+  }
+
+  return null;
+};
+
 const formatDate = (value) => {
-  if (!value) return '';
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return String(value);
+  const parsed = parseDateOnly(value);
+  if (!parsed) return value ? String(value) : '';
 
   const day = String(parsed.getDate()).padStart(2, '0');
   const month = String(parsed.getMonth() + 1).padStart(2, '0');
   const year = parsed.getFullYear();
-
   return `${day}/${month}/${year}`;
+};
+
+const formatFertilitySymbolLabel = (symbolValue) => {
+  if (!symbolValue || symbolValue === 'none') return '';
+  const appearance = getSymbolAppearance(symbolValue);
+  if (!appearance || appearance.value === 'none') return '';
+  return appearance.label ?? '';
 };
 
 const resolveSelectedTemperature = (entry) => {
@@ -48,15 +90,20 @@ const resolveSelectedTemperature = (entry) => {
       ? correctedTemp
       : rawTemp ?? correctedTemp;
 
-  if (resolvedTemp === null || resolvedTemp === undefined || resolvedTemp === '') {
+    if (resolvedTemp === null || resolvedTemp === undefined || resolvedTemp === '') {
     return '';
   }
-  
+
   const suffix =
     usesCorrected && correctedTemp !== null && correctedTemp !== undefined && correctedTemp !== ''
       ? '*'
       : '';
-  return `${resolvedTemp}${suffix}`;
+
+  const asNumber = Number(String(resolvedTemp).replace(',', '.'));
+  const formatted = Number.isFinite(asNumber) ? asNumber.toFixed(2) : String(resolvedTemp);
+
+  return `${formatted}${suffix}`;
+
 };
 
 const formatPeakStatus = (entry, peakStatuses) => {
@@ -77,6 +124,52 @@ const ensureProcessedEntries = (cycle) => {
   }
   return processCycleEntries(cycle?.data || [], startDate);
 };
+
+const toIsoLocal = (date) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
+const buildFullTimelineEntries = (cycle, baseEntries = []) => {
+  const base = Array.isArray(baseEntries) ? baseEntries : [];
+  if (!base.length) return base;
+
+  const byIso = new Map(
+    base
+      .filter((e) => e?.isoDate)
+      .map((e) => [e.isoDate, e]),
+  );
+
+  const start = parseDateOnly(cycle?.startDate ?? base[0]?.isoDate);
+  const end = parseDateOnly(cycle?.endDate ?? base[base.length - 1]?.isoDate);
+  if (!start || !end) return base;
+
+  const cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate(), 12);
+  const endNoon = new Date(end.getFullYear(), end.getMonth(), end.getDate(), 12);
+
+  const result = [];
+  let dayIndex = 1;
+
+  while (cursor <= endNoon) {
+    const isoDate = toIsoLocal(cursor);
+    const existing = byIso.get(isoDate);
+
+    result.push(
+      existing
+        ? { ...existing, cycleDay: existing.cycleDay ?? dayIndex }
+        : { isoDate, cycleDay: dayIndex },
+    );
+
+    cursor.setDate(cursor.getDate() + 1);
+    dayIndex += 1;
+  }
+
+  return result;
+};
+
+
 
 const inferCycleTitle = (cycle, index) => {
   const formattedStart = formatDate(cycle?.startDate);
@@ -116,18 +209,21 @@ export const formatCyclesForExport = (cycles = []) => {
   if (!Array.isArray(cycles)) return [];
 
   return cycles.map((cycle, index) => {
-    const processedEntries = ensureProcessedEntries(cycle) ?? [];
-    const peakStatuses = computePeakStatuses(processedEntries);
+const baseEntries = ensureProcessedEntries(cycle) ?? [];         // solo días con datos reales
+const processedEntries = buildFullTimelineEntries(cycle, baseEntries); // todos los días (incl. vacíos)
+const peakStatuses = computePeakStatuses(baseEntries);           // calcula picos solo con datos reales
+
     const rows = processedEntries.map((entry) => [
-      formatDate(entry?.date || entry?.isoDate),
+      formatDate(entry?.isoDate ?? entry?.date),
       entry?.cycleDay ?? '',
       resolveSelectedTemperature(entry),
       entry?.mucusSensation ?? '',
       entry?.mucusAppearance ?? '',
-      entry?.fertility_symbol ?? '',
+      formatFertilitySymbolLabel(entry?.fertility_symbol),
       entry?.observations ?? '',
-      entry?.had_relations ? 'Sí' : '',
       formatPeakStatus(entry, peakStatuses),
+      entry?.had_relations ? 'Sí' : '',
+
     ]);
 
     return {
@@ -295,15 +391,15 @@ export const downloadCyclesAsPdf = (
   const horizontalMargin = 14;
   const tableWidth = doc.internal.pageSize.getWidth() - horizontalMargin * 2;
   const columnWidthRatios = {
-    0: 0.11,
-    1: 0.07,
-    2: 0.09,
-    3: 0.09,
-    4: 0.09,
-    5: 0.07,
-    6: 0.28,
-    7: 0.06,
-    8: 0.14,
+    0: 0.08, // Fecha (menos)
+    1: 0.06, // Día ciclo
+    2: 0.09, // Temperatura
+    3: 0.17, // Sensación (más)
+    4: 0.17, // Apariencia (más)
+    5: 0.10, // Símbolo
+    6: 0.18, // Obs (menos)
+    7: 0.10, // Día pico (menos)
+    8: 0.05, // RS
   };
   const computedColumnStyles = Object.fromEntries(
     Object.entries(columnWidthRatios).map(([index, ratio]) => [
@@ -326,23 +422,30 @@ export const downloadCyclesAsPdf = (
     doc.setFont('helvetica', 'normal');
 
     autoTable(doc, {
-      startY: 32,
-      head: [cycle.headers],
-      body: cycle.rows,
-      styles: {
-        fontSize: 7,
-        cellPadding: { top: 1.6, right: 1.6, bottom: 1.6, left: 1.6 },
-        overflow: 'linebreak',
-        cellWidth: 'wrap',
-        halign: 'left',
-        valign: 'top',
-      },
-      headStyles: { fillColor: [216, 92, 112], textColor: [255, 255, 255], fontStyle: 'bold' },
-      alternateRowStyles: { fillColor: [255, 232, 238] },
-      columnStyles: computedColumnStyles,
-      margin: { left: horizontalMargin, right: horizontalMargin },
-      tableWidth,
-    });
+  head: [cycle.headers],
+  body: cycle.rows,
+  margin: { top: 32, left: horizontalMargin, right: horizontalMargin, bottom: 14 },
+  tableWidth,
+  styles: {
+    fontSize: 7,
+    cellPadding: { top: 1.6, right: 1.6, bottom: 1.6, left: 1.6 },
+    overflow: 'linebreak',
+    cellWidth: 'wrap',
+    halign: 'left',
+    valign: 'top',
+  },
+  headStyles: { fillColor: [216, 92, 112], textColor: [255, 255, 255], fontStyle: 'bold' },
+  alternateRowStyles: { fillColor: [255, 232, 238] },
+  columnStyles: computedColumnStyles,
+
+  didDrawPage: () => {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.text(cycle.title, horizontalMargin, 24);
+    doc.setFont('helvetica', 'normal');
+  },
+});
+
     
     if (includeChart) {
       doc.addPage();
