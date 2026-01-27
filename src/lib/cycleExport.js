@@ -1,22 +1,18 @@
 import { processCycleEntries } from '@/lib/cycleDataHandler';
+import { computePeakStatuses } from '@/lib/computePeakStatuses';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 const cycleHeaders = [
   'Fecha',
   'Día ciclo',
-  'Temp.',
-  'Temp. corregida',
-  'Temp. gráfico',
-  'Usa corregida',
+  'Temperatura',
   'Sensación',
   'Apariencia',
   'Símbolo',
   'Obs',
   'RS',
-  'Ignorado',
   'Día pico',
-  'Mediciones',
 ];
 
 const formatDate = (value) => {
@@ -31,34 +27,47 @@ const formatDate = (value) => {
   return `${day}/${month}/${year}`;
 };
 
-const formatMeasurement = (measurement, index) => {
-  if (!measurement) return `Medición ${index + 1}: N/D`;
-  const parts = [`Medición ${index + 1}`];
-  if (measurement.time) parts.push(`hora: ${measurement.time}`);
-  if (measurement.temperature !== undefined && measurement.temperature !== null && measurement.temperature !== '') {
-    parts.push(`temp: ${measurement.temperature}`);
-  }
-  if (
-    measurement.temperature_corrected !== undefined &&
-    measurement.temperature_corrected !== null &&
-    measurement.temperature_corrected !== ''
-  ) {
-    parts.push(`corr: ${measurement.temperature_corrected}`);
-  }
-  if (measurement.use_corrected) {
-    parts.push('usa corregida');
-  }
-  if (measurement.selected) {
-    parts.push('seleccionada');
-  }
-  return parts.join(' | ');
-};
+const resolveSelectedTemperature = (entry) => {
+  const measurements = Array.isArray(entry?.measurements) ? entry.measurements : [];
+  const selectedMeasurement =
+    measurements.find((measurement) => measurement?.selected) ||
+    (entry?.temperature_chart || entry?.temperature_raw || entry?.temperature_corrected
+      ? {
+          temperature: entry?.temperature_chart ?? entry?.temperature_raw ?? null,
+          temperature_corrected: entry?.temperature_corrected ?? null,
+          use_corrected: entry?.use_corrected ?? false,
+        }
+      : null);
 
-const stringifyMeasurements = (measurements) => {
-  if (!Array.isArray(measurements) || measurements.length === 0) {
+  const usesCorrected = selectedMeasurement?.use_corrected ?? entry?.use_corrected ?? false;
+  const correctedTemp = selectedMeasurement?.temperature_corrected ?? entry?.temperature_corrected ?? null;
+  const rawTemp =
+    selectedMeasurement?.temperature ?? entry?.temperature_chart ?? entry?.temperature_raw ?? null;
+  const resolvedTemp =
+    usesCorrected && correctedTemp !== null && correctedTemp !== undefined && correctedTemp !== ''
+      ? correctedTemp
+      : rawTemp ?? correctedTemp;
+
+  if (resolvedTemp === null || resolvedTemp === undefined || resolvedTemp === '') {
     return '';
   }
-  return measurements.map((measurement, index) => formatMeasurement(measurement, index)).join(' \n ');
+  
+  const suffix =
+    usesCorrected && correctedTemp !== null && correctedTemp !== undefined && correctedTemp !== ''
+      ? '*'
+      : '';
+  return `${resolvedTemp}${suffix}`;
+};
+
+const formatPeakStatus = (entry, peakStatuses) => {
+  const status = peakStatuses?.[entry?.isoDate ?? ''] ?? null;
+  if (status === 'P' || entry?.peak_marker === 'peak') {
+    return 'Día pico';
+  }
+  if (status === '1' || status === '2' || status === '3') {
+    return `+${status}`;
+  }
+  return '';
 };
 
 const ensureProcessedEntries = (cycle) => {
@@ -108,21 +117,17 @@ export const formatCyclesForExport = (cycles = []) => {
 
   return cycles.map((cycle, index) => {
     const processedEntries = ensureProcessedEntries(cycle) ?? [];
+    const peakStatuses = computePeakStatuses(processedEntries);
     const rows = processedEntries.map((entry) => [
       formatDate(entry?.date || entry?.isoDate),
       entry?.cycleDay ?? '',
-      entry?.temperature_raw ?? '',
-      entry?.temperature_corrected ?? '',
-      entry?.temperature_chart ?? '',
-      entry?.use_corrected ? 'Sí' : '',
+      resolveSelectedTemperature(entry),
       entry?.mucusSensation ?? '',
       entry?.mucusAppearance ?? '',
       entry?.fertility_symbol ?? '',
       entry?.observations ?? '',
       entry?.had_relations ? 'Sí' : '',
-      entry?.ignored ? 'Sí' : '',
-      entry?.peak_marker ?? '',
-      stringifyMeasurements(entry?.measurements),
+      formatPeakStatus(entry, peakStatuses),
     ]);
 
     return {
@@ -290,20 +295,15 @@ export const downloadCyclesAsPdf = (
   const horizontalMargin = 14;
   const tableWidth = doc.internal.pageSize.getWidth() - horizontalMargin * 2;
   const columnWidthRatios = {
-    0: 0.09,
-    1: 0.06,
-    2: 0.07,
-    3: 0.07,
-    4: 0.07,
-    5: 0.05,
-    6: 0.07,
-    7: 0.07,
-    8: 0.05,
-    9: 0.14,
-    10: 0.06,
-    11: 0.06,
-    12: 0.05,
-    13: 0.09,
+    0: 0.11,
+    1: 0.07,
+    2: 0.09,
+    3: 0.09,
+    4: 0.09,
+    5: 0.07,
+    6: 0.28,
+    7: 0.06,
+    8: 0.14,
   };
   const computedColumnStyles = Object.fromEntries(
     Object.entries(columnWidthRatios).map(([index, ratio]) => [

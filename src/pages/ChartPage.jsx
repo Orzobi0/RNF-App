@@ -452,9 +452,19 @@ const ChartPage = () => {
   }, cycleStartDate);
 
   const today = startOfDay(new Date());
-  const lastRelevantDate = lastRecordDate > today ? lastRecordDate : today;
+  const isArchivedCycle = !isViewingCurrentCycle;
+  const archivedEndDate = isArchivedCycle && targetCycle?.endDate
+    ? startOfDay(parseISO(targetCycle.endDate))
+    : null;
+  const lastRelevantDate = isArchivedCycle
+    ? (archivedEndDate ?? lastRecordDate)
+    : (lastRecordDate > today ? lastRecordDate : today);
   const daysSinceStart = differenceInDays(startOfDay(lastRelevantDate), cycleStartDate);
-  const daysInCycle = Math.max(CYCLE_DURATION_DAYS, daysSinceStart + 1);
+  const computedDaysInCycle = Math.max(CYCLE_DURATION_DAYS, daysSinceStart + 1);
+  const maxArchivedDays = archivedEndDate
+    ? differenceInDays(archivedEndDate, cycleStartDate) + 1
+    : null;
+  const daysInCycle = maxArchivedDays ? Math.min(computedDaysInCycle, maxArchivedDays) : computedDaysInCycle;
 
   const fullCyclePlaceholders = generatePlaceholders(cycleStartDate, daysInCycle);
   const mergedData = fullCyclePlaceholders.map((placeholder) => {

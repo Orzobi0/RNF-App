@@ -606,7 +606,7 @@ export const RecordsExperience = ({
       {isSelected && (
     <span
       aria-hidden="true"
-      className="pointer-events-none absolute -inset-[4px] rounded-full bg-tarjeta border border-fertiliapp-fuerte"
+      className="pointer-events-none absolute -inset-[2px] rounded-full bg-tarjeta border-2 border-fertiliapp-fuerte"
     />
   )}
       {symbolBackgroundClass && <span className={symbolBackgroundClass} aria-hidden="true" />}
@@ -621,7 +621,7 @@ export const RecordsExperience = ({
 
 
     {/* Dots inferiores: temperatura y moco (con halo solo si está seleccionado) */}
-    <div className="mt-[0.35rem] flex h-[0.3rem] items-center justify-center gap-[0.18rem]" aria-hidden="true">
+    <div className="mt-[0.2rem] flex h-[0.3rem] items-center justify-center gap-[0.18rem]" aria-hidden="true">
       <span className={temperatureDotClass} />
       <span className={mucusDotClass} />
     </div>
@@ -706,20 +706,26 @@ export const RecordsExperience = ({
   const selectedIsPeakDay = selectedDayDetails?.isPeakDay ?? selectedPeakStatus === 'P';
 
   const defaultSelectedIso = useMemo(() => {
+    if (!cycleRange) return null;
+
     const cycleEndIso = cycleRange?.to
       ? format(startOfDay(cycleRange.to), 'yyyy-MM-dd')
       : null;
+    const cycleStartIso = cycleRange?.from
+      ? format(startOfDay(cycleRange.from), 'yyyy-MM-dd')
+      : null;
 
-    if (includeEndDate) {
-      return cycleEndIso ?? sortedRecordDates[0] ?? null;
+    // Ciclo actual (sin endDate): por defecto, hoy (si cae dentro del ciclo mostrado)
+    if (!cycle?.endDate) {
+      const todayIso = format(startOfDay(new Date()), 'yyyy-MM-dd');
+      if (cycleDayIsoSet.has(todayIso)) return todayIso;
     }
 
-    if (sortedRecordDates.length) {
-      return sortedRecordDates[0];
-    }
-
-    return cycleEndIso;
-  }, [includeEndDate, cycleRange, sortedRecordDates]);
+    // Si no, prioriza fin de ciclo; si no existe, inicio; si no, último día con registro
+   if (cycleEndIso && cycleDayIsoSet.has(cycleEndIso)) return cycleEndIso;
+    if (cycleStartIso && cycleDayIsoSet.has(cycleStartIso)) return cycleStartIso;
+    return sortedRecordDates[0] ?? null;
+  }, [cycle?.endDate, cycleRange, cycleDayIsoSet, sortedRecordDates]);
 
   useEffect(() => {
     if (selectedDate && cycleDayIsoSet.has(selectedDate)) {

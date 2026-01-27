@@ -548,16 +548,6 @@ const DataEntryFormFields = ({
   const handleIgnoredChange = (checked) => {
     const nextValue = checked === true;
     setIgnored(nextValue);
-
-    if (!isEditing || isProcessing || typeof submitCurrentState !== 'function') {
-      return;
-    }
-
-    submitCurrentState({
-      overrideIgnored: nextValue,
-      keepFormOpen: true,
-      skipReset: true,
-    });
   };
 
   const handleUseCorrectedChange = (index, checked) => {
@@ -567,25 +557,6 @@ const DataEntryFormFields = ({
     if (!nextValue && correctionIndex === index) {
       setCorrectionIndex(null);
     }
-
-    if (!isEditing || isProcessing || typeof submitCurrentState !== 'function') {
-      return;
-    }
-
-    const updatedMeasurements = measurements.map((measurement, measurementIndex) =>
-      measurementIndex === index
-        ? {
-            ...measurement,
-            use_corrected: nextValue,
-          }
-        : measurement
-    );
-
-    submitCurrentState({
-      overrideMeasurements: updatedMeasurements,
-      keepFormOpen: true,
-      skipReset: true,
-    });
   };
   const relationsButtonClasses = cn(
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-transparent disabled:cursor-not-allowed disabled:opacity-60',
