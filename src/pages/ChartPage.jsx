@@ -285,6 +285,7 @@ const ChartPage = () => {
           changed = true;
         }
       }
+      
 
       if (!changed) return prev;
 
@@ -599,11 +600,19 @@ const ChartPage = () => {
       if (currentConfig.postpartum === nextValue) {
         return prev;
       }
+      const baseCalculators =
+      currentConfig.calculators ?? createDefaultFertilityStartConfig().calculators;
+      const nextCalculators = {
+        ...baseCalculators,
+        cpm: !nextValue,
+        t8: !nextValue,
+      };
       return {
         ...prev,
         fertilityStartConfig: {
           ...currentConfig,
           postpartum: nextValue,
+          calculators: nextCalculators,
         },
       };
     });
@@ -1279,6 +1288,7 @@ const ChartPage = () => {
                       <span className="text-sm text-slate-700">{option.label}</span>
                       <Checkbox
                         checked={Boolean(fertilityConfig.calculators?.[option.key])}
+                        disabled={Boolean(fertilityConfig.postpartum)}
                         onCheckedChange={(checked) => handleFertilityCalculatorChange(option.key, checked)}
                       />
                     </div>
