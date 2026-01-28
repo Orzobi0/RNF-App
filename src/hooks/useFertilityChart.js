@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { parseISO, differenceInCalendarDays } from 'date-fns';
 import computePeakStatuses from '@/lib/computePeakStatuses';
+import { evaluateHighSequencePostpartum } from '../lib/evaluateHighSequencePostpartum';
 import {
   computeCpmCandidateFromCycles,
   computeFertilityStartOutput,
@@ -16,7 +17,8 @@ const DEFAULT_FERTILITY_START_CONFIG = {
 const DEFAULT_TEMP_MIN = 36.1;
 const DEFAULT_TEMP_MAX = 37.5;
 
-export const computeOvulationMetrics = (processedData = []) => {
+export const computeOvulationMetrics = (processedData = [], options = {}) => {
+  const { postpartum = false } = options;
   const isValid = (p) => p && p.displayTemperature != null && !p.ignored;
   const windowSize = 6;
   const borderlineTolerance = 0.05;
@@ -263,7 +265,13 @@ const evaluateHighSequence = ({
       continue;
     }
 
-    const evaluation = evaluateHighSequence(baselineInfo);
+    const evaluation = postpartum
+      ? evaluateHighSequencePostpartum({
+        ...baselineInfo,
+        processedData,
+        isValid,
+      })
+      : evaluateHighSequence(baselineInfo);
     if (evaluation?.requireRebaseline) {
       searchStartIndex = baselineStartIndex + 1;
       continue;
@@ -671,8 +679,8 @@ export const useFertilityChart = (
     baselineIndices,
     ovulationDetails: rawOvulationDetails,
   } = useMemo(
-    () => computeOvulationMetrics(processedData),
-    [processedData]
+    () => computeOvulationMetrics(processedData, { postpartum: normalizedFertilityConfig.postpartum }),
+    [processedData, normalizedFertilityConfig.postpartum]
   );
   const ovulationDetails = useMemo(() => {
     const baseDetails =
