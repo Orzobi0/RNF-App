@@ -68,8 +68,8 @@ const FERTILITY_CALCULATOR_OPTIONS = [
 ];
 
 const COMBINE_MODE_LABELS = {
-  conservador: 'Conservador',
   estandar: 'Estándar',
+  conservador: 'Conservador',
 };
 
 const mergeFertilityStartConfig = (incoming) => {
@@ -997,6 +997,7 @@ const ChartPage = () => {
         };
         return labels[selectedMode] ?? null;
       })();
+      const postpartumActive = Boolean(fertilityConfig?.postpartum);
 
       const normalizeSource = (candidate) =>
         (candidate?.source ?? candidate?.originalSource ?? '').toString().toUpperCase();
@@ -1149,6 +1150,7 @@ const ChartPage = () => {
         message,
         description,
         modeLabel,
+        postpartumActive,
       });
     },
     [fertilityConfig, formatDateFromIndex, mergedData.length, setPhaseOverlay]
@@ -1279,7 +1281,7 @@ const ChartPage = () => {
               </Button>
             </div>
             <div className="space-y-4 overflow-y-auto pr-1">
-              <div className="rounded-2xl border border-rose-100/70 bg-rose-50/40 p-4 flex items-start justify-between gap-3">
+              <div className="rounded-2xl border border-pink-100/70 bg-pink-50/40 p-4 flex items-start justify-between gap-3">
                 <div className="max-w-xs">
                   <Label htmlFor="toggle-relations-row" className="text-sm font-semibold text-slate-700">
                     Mostrar fila RS
@@ -1299,7 +1301,7 @@ const ChartPage = () => {
                 <div>
                   <h3 className="text-sm font-semibold text-slate-700">Modo de combinación</h3>
                   <p className="text-xs text-slate-500">
-                    Determina cómo se elige el inicio fértil a partir de los candidatos disponibles.
+                    Determina cómo se elige el inicio y fin de la fase fértil a partir de los candidatos disponibles.
                   </p>
                 </div>
                 <Select value={fertilityConfig.combineMode} onValueChange={handleCombineModeChange}>
@@ -1314,6 +1316,8 @@ const ChartPage = () => {
                     ))}
                   </SelectContent>
                 </Select>
+                </div>
+              <div className="rounded-2xl border border-red-100/70 bg-red-50/40 p-3">
                 <div className="flex items-start justify-between gap-3 pt-1">
                   <div className="max-w-[65%]">
                     <p className="text-sm font-semibold text-slate-700">Modo postparto</p>
@@ -1372,6 +1376,11 @@ const ChartPage = () => {
                   {phaseOverlay.modeLabel && (
                     <span className="rounded-full border border-secundario bg-secundario-suave px-3 py-1 text-[11px] font-semibold text-secundario-fuerte">
                       {phaseOverlay.modeLabel}
+                    </span>
+                  )}
+                  {phaseOverlay.postpartumActive && (
+                    <span className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-[11px] font-semibold text-rose-600">
+                      Modo postparto
                     </span>
                   )}
                 </div>
