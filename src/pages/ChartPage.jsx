@@ -1294,7 +1294,37 @@ const ChartPage = () => {
                   onCheckedChange={handleRelationsSettingChange}
                   className="mt-1"
                 />
-              </div>            
+              </div>       
+              <div className="rounded-2xl border border-sky-100/70 bg-sky-50/40 p-4 space-y-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-700">Modo de combinación</h3>
+                  <p className="text-xs text-slate-500">
+                    Determina cómo se elige el inicio fértil a partir de los candidatos disponibles.
+                  </p>
+                </div>
+                <Select value={fertilityConfig.combineMode} onValueChange={handleCombineModeChange}>
+                  <SelectTrigger className="w-full bg-white/80 border-slate-200 text-sm rounded-3xl text-slate-700">
+                    <SelectValue placeholder="Selecciona un modo" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-slate-200 text-slate-700 rounded-3xl">
+                    {Object.entries(COMBINE_MODE_LABELS).map(([value, label]) => (
+                      <SelectItem key={value} value={value} className="text-sm rounded-3xl">
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="flex items-start justify-between gap-3 pt-1">
+                  <div className="max-w-[65%]">
+                    <p className="text-sm font-semibold text-slate-700">Modo postparto</p>
+                  </div>
+                  <Checkbox
+                    checked={Boolean(fertilityConfig.postpartum)}
+                    onCheckedChange={handlePostpartumChange}
+                    className="mt-1"
+                  />
+                </div>
+              </div>     
 
               <div className="rounded-2xl border border-amber-100/70 bg-amber-50/40 p-4 space-y-3">
                 <div>
@@ -1322,37 +1352,7 @@ const ChartPage = () => {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-sky-100/70 bg-sky-50/40 p-4 space-y-3">
-                <div>
-                  <h3 className="text-sm font-semibold text-slate-700">Modo de combinación</h3>
-                  <p className="text-xs text-slate-500">
-                    Determina cómo se elige el inicio fértil a partir de los candidatos disponibles.
-                  </p>
-                </div>
-                <Select value={fertilityConfig.combineMode} onValueChange={handleCombineModeChange}>
-                  <SelectTrigger className="w-full bg-white/80 border-slate-200 text-sm rounded-3xl text-slate-700">
-                    <SelectValue placeholder="Selecciona un modo" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white border-slate-200 text-slate-700 rounded-3xl">
-                    {Object.entries(COMBINE_MODE_LABELS).map(([value, label]) => (
-                      <SelectItem key={value} value={value} className="text-sm rounded-3xl">
-                        {label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <div className="flex items-start justify-between gap-3 pt-1">
-                  <div className="max-w-[65%]">
-                    <p className="text-sm font-semibold text-slate-700">Modo posparto</p>
-                    <p className="text-xs text-slate-500">Ignora automáticamente CPM y T-8.</p>
-                  </div>
-                  <Checkbox
-                    checked={Boolean(fertilityConfig.postpartum)}
-                    onCheckedChange={handlePostpartumChange}
-                    className="mt-1"
-                  />
-                </div>
-              </div>
+              
             </div> 
             </div>
         </div>
