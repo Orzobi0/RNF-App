@@ -268,36 +268,44 @@ const ChartPage = () => {
   });
   
   useEffect(() => {
-    if (!preferences) return;
+  if (!preferences) return;
 
-    setChartSettings((prev) => {
-      const currentConfig = prev.fertilityStartConfig ?? createDefaultFertilityStartConfig();
-      const nextConfig = { ...currentConfig };
-      let changed = false;
+  setChartSettings((prev) => {
+    const currentConfig = mergeFertilityStartConfig(prev.fertilityStartConfig);
+    const preferenceConfig = mergeFertilityStartConfig(preferences.fertilityStartConfig);
+    let changed = false;
 
-      if (typeof preferences.showRelationsRow === 'boolean' && prev.showRelationsRow !== preferences.showRelationsRow) {
-        changed = true;
-      }
+    if (
+      typeof preferences.showRelationsRow === 'boolean' &&
+      prev.showRelationsRow !== preferences.showRelationsRow
+    ) {
+      changed = true;
+    }
 
-      if (Object.prototype.hasOwnProperty.call(COMBINE_MODE_LABELS, preferences.combineMode)) {
-        if (currentConfig.combineMode !== preferences.combineMode) {
-          nextConfig.combineMode = preferences.combineMode;
-          changed = true;
-        }
-      }
-      
+    if (currentConfig.combineMode !== preferenceConfig.combineMode) changed = true;
+    if (currentConfig.postpartum !== preferenceConfig.postpartum) changed = true;
 
-      if (!changed) return prev;
+    if (
+      Object.keys(currentConfig.calculators ?? {}).some(
+        (key) => currentConfig.calculators?.[key] !== preferenceConfig.calculators?.[key]
+      )
+    ) {
+      changed = true;
+    }
 
-      return {
-        ...prev,
-        showRelationsRow: typeof preferences.showRelationsRow === 'boolean'
+    if (!changed) return prev;
+
+    return {
+      ...prev,
+      showRelationsRow:
+        typeof preferences.showRelationsRow === 'boolean'
           ? preferences.showRelationsRow
           : prev.showRelationsRow,
-        fertilityStartConfig: nextConfig,
-      };
-    });
-  }, [preferences]);
+      fertilityStartConfig: preferenceConfig,
+    };
+  });
+}, [preferences]);
+
   const fertilityConfig = useMemo(
     () => mergeFertilityStartConfig(chartSettings.fertilityStartConfig),
     [chartSettings.fertilityStartConfig]
@@ -551,51 +559,62 @@ const ChartPage = () => {
     }
   };
   const handleFertilityCalculatorChange = (calculatorKey, checked) => {
+    let nextConfig = null;
     setChartSettings((prev) => {
-      const currentConfig = prev.fertilityStartConfig ?? createDefaultFertilityStartConfig();
+      const currentConfig = mergeFertilityStartConfig(prev.fertilityStartConfig);
       const nextValue = checked === true;
       if (currentConfig.calculators?.[calculatorKey] === nextValue) {
         return prev;
       }
-      return {
-        ...prev,
-        fertilityStartConfig: {
-          ...currentConfig,
-          calculators: {
-            ...currentConfig.calculators,
-            [calculatorKey]: nextValue,
-          },
+      nextConfig = {
+        ...currentConfig,
+        calculators: {
+          ...currentConfig.calculators,
+          [calculatorKey]: nextValue,
         },
       };
+      return {
+        ...prev,
+        fertilityStartConfig: nextConfig,
+      };
     });
+    
+    if (nextConfig && typeof savePreferences === 'function') {
+      savePreferences({ fertilityStartConfig: nextConfig }).catch((error) => {
+        console.error('Failed to persist calculator preference', error);
+      });
+    }
   };
   const handleCombineModeChange = (value) => {
     if (!Object.prototype.hasOwnProperty.call(COMBINE_MODE_LABELS, value)) {
       return;
     }
+    let nextConfig = null;
     setChartSettings((prev) => {
-      const currentConfig = prev.fertilityStartConfig ?? createDefaultFertilityStartConfig();
+      const currentConfig = mergeFertilityStartConfig(prev.fertilityStartConfig);
       if (currentConfig.combineMode === value) {
         return prev;
       }
+      nextConfig = {
+        ...currentConfig,
+        combineMode: value,
+      };
       return {
         ...prev,
-        fertilityStartConfig: {
-          ...currentConfig,
-          combineMode: value,
-        },
+        fertilityStartConfig: nextConfig,
       };
     });
     
-    if (typeof savePreferences === 'function') {
-      savePreferences({ combineMode: value }).catch((error) => {
+    if (nextConfig && typeof savePreferences === 'function') {
+      savePreferences({ fertilityStartConfig: nextConfig }).catch((error) => {
         console.error('Failed to persist combine mode preference', error);
       });
     }
   };
   const handlePostpartumChange = (checked) => {
+    let nextConfig = null;
     setChartSettings((prev) => {
-      const currentConfig = prev.fertilityStartConfig ?? createDefaultFertilityStartConfig();
+      const currentConfig = mergeFertilityStartConfig(prev.fertilityStartConfig);
       const nextValue = checked === true;
       if (currentConfig.postpartum === nextValue) {
         return prev;
@@ -607,15 +626,22 @@ const ChartPage = () => {
         cpm: !nextValue,
         t8: !nextValue,
       };
+      nextConfig = {
+        ...currentConfig,
+        postpartum: nextValue,
+        calculators: nextCalculators,
+      };
       return {
         ...prev,
-        fertilityStartConfig: {
-          ...currentConfig,
-          postpartum: nextValue,
-          calculators: nextCalculators,
-        },
+        fertilityStartConfig: nextConfig,
       };
     });
+    
+    if (nextConfig && typeof savePreferences === 'function') {
+      savePreferences({ fertilityStartConfig: nextConfig }).catch((error) => {
+        console.error('Failed to persist postpartum preference', error);
+      });
+    }
   };
   
   const locationStateCandidates = location?.state?.fertilityCalculatorCandidates;
