@@ -33,6 +33,10 @@
         margin: 0 0 12px;
         opacity: 0.8;
       }
+      .actions {
+        display: grid;
+        gap: 10px;
+      }
       button {
         width: 100%;
         border: 0;
@@ -47,8 +51,12 @@
     <div class="wrap">
       <div class="card">
         <h1>Sin conexión</h1>
-        <p>No se pudo cargar la app ahora mismo. Puedes reintentar o abrir cuando tengas señal.</p>
-        <button onclick="location.reload()">Reintentar</button>
+        <p>No se pudo cargar la app ahora mismo. Puedes volver, ir al inicio o reintentar.</p>
+        <div class="actions">
+          <button onclick="history.back()">Volver</button>
+          <button onclick="location.href = new URL('./', location.href).toString()">Inicio</button>
+          <button onclick="location.reload()">Reintentar</button>
+        </div>
       </div>
     </div>
   </body>

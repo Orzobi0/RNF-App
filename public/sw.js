@@ -163,37 +163,21 @@ self.addEventListener('fetch', (event) => {
   if (event.request.mode === 'navigate') {
     event.respondWith(
       (async () => {
-        // Si es recarga forzada, ir directo a la red
-        if (isForcedReload(event.request)) {
-          console.log('SW: Forced reload detected, bypassing cache');
-          try {
-            const networkResponse = await fetch(event.request);
-            if (networkResponse && networkResponse.ok) {
-              const cache = await caches.open(CACHE_NAME);
-              await cache.put(event.request, networkResponse.clone());
-            }
-            return networkResponse;
-          } catch (error) {
-            console.log('SW: Network failed on forced reload, falling back to cache');
-            const fallback = await matchActiveCache(INDEX_URL);
-            if (fallback) return fallback;
-
-
-          return new Response(
-            '<h1>Sin conexión</h1><p>No se pudo cargar la aplicación.</p>',
-            {
-              headers: { 'Content-Type': 'text/html' },
-              status: 503,
-            }
-          );
-
-          }
-        }
-
-         // Cache-first para app shell (abre instantáneo) + update en segundo plano
+      // Cache-first para app shell (abre instantáneo) + update en segundo plano
         const cachedIndex = await matchActiveCache(INDEX_URL);
-        if (cachedIndex) return cachedIndex;
-
+        if (cachedIndex) {
+          event.waitUntil(
+            (async () => {
+              try {
+                const networkIndex = await fetch(INDEX_URL, { cache: 'no-cache' });
+                if (networkIndex && networkIndex.ok) {
+                  await putInCache(INDEX_URL, networkIndex.clone());
+                }
+              } catch {}
+            })()
+          );
+          return cachedIndex;
+        }
 
         // Si todavía no hay index en caché (primer arranque), intenta red
         try {
@@ -202,11 +186,11 @@ self.addEventListener('fetch', (event) => {
           return networkIndex;
         } catch (error) {
           const offline = await matchActiveCache(OFFLINE_URL);
-          return offline || new Response(
+          if (offline) return offline;
+          return new Response(
             '<h1>Sin conexión</h1><p>No se pudo cargar la aplicación.</p>',
             { headers: { 'Content-Type': 'text/html' }, status: 503 }
           );
-
         }
       })()
     );
