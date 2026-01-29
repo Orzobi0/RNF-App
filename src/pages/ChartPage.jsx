@@ -68,8 +68,8 @@ const FERTILITY_CALCULATOR_OPTIONS = [
 ];
 
 const COMBINE_MODE_LABELS = {
-  conservador: 'Conservador',
   estandar: 'Estándar',
+  conservador: 'Conservador',
 };
 
 const mergeFertilityStartConfig = (incoming) => {
@@ -268,35 +268,44 @@ const ChartPage = () => {
   });
   
   useEffect(() => {
-    if (!preferences) return;
+  if (!preferences) return;
 
-    setChartSettings((prev) => {
-      const currentConfig = prev.fertilityStartConfig ?? createDefaultFertilityStartConfig();
-      const nextConfig = { ...currentConfig };
-      let changed = false;
+  setChartSettings((prev) => {
+    const currentConfig = mergeFertilityStartConfig(prev.fertilityStartConfig);
+    const preferenceConfig = mergeFertilityStartConfig(preferences.fertilityStartConfig);
+    let changed = false;
 
-      if (typeof preferences.showRelationsRow === 'boolean' && prev.showRelationsRow !== preferences.showRelationsRow) {
-        changed = true;
-      }
+    if (
+      typeof preferences.showRelationsRow === 'boolean' &&
+      prev.showRelationsRow !== preferences.showRelationsRow
+    ) {
+      changed = true;
+    }
 
-      if (Object.prototype.hasOwnProperty.call(COMBINE_MODE_LABELS, preferences.combineMode)) {
-        if (currentConfig.combineMode !== preferences.combineMode) {
-          nextConfig.combineMode = preferences.combineMode;
-          changed = true;
-        }
-      }
+    if (currentConfig.combineMode !== preferenceConfig.combineMode) changed = true;
+    if (currentConfig.postpartum !== preferenceConfig.postpartum) changed = true;
 
-      if (!changed) return prev;
+    if (
+      Object.keys(currentConfig.calculators ?? {}).some(
+        (key) => currentConfig.calculators?.[key] !== preferenceConfig.calculators?.[key]
+      )
+    ) {
+      changed = true;
+    }
 
-      return {
-        ...prev,
-        showRelationsRow: typeof preferences.showRelationsRow === 'boolean'
+    if (!changed) return prev;
+
+    return {
+      ...prev,
+      showRelationsRow:
+        typeof preferences.showRelationsRow === 'boolean'
           ? preferences.showRelationsRow
           : prev.showRelationsRow,
-        fertilityStartConfig: nextConfig,
-      };
-    });
-  }, [preferences]);
+      fertilityStartConfig: preferenceConfig,
+    };
+  });
+}, [preferences]);
+
   const fertilityConfig = useMemo(
     () => mergeFertilityStartConfig(chartSettings.fertilityStartConfig),
     [chartSettings.fertilityStartConfig]
@@ -452,9 +461,19 @@ const ChartPage = () => {
   }, cycleStartDate);
 
   const today = startOfDay(new Date());
-  const lastRelevantDate = lastRecordDate > today ? lastRecordDate : today;
+  const isArchivedCycle = !isViewingCurrentCycle;
+  const archivedEndDate = isArchivedCycle && targetCycle?.endDate
+    ? startOfDay(parseISO(targetCycle.endDate))
+    : null;
+  const lastRelevantDate = isArchivedCycle
+    ? (archivedEndDate ?? lastRecordDate)
+    : (lastRecordDate > today ? lastRecordDate : today);
   const daysSinceStart = differenceInDays(startOfDay(lastRelevantDate), cycleStartDate);
-  const daysInCycle = Math.max(CYCLE_DURATION_DAYS, daysSinceStart + 1);
+  const computedDaysInCycle = Math.max(CYCLE_DURATION_DAYS, daysSinceStart + 1);
+  const maxArchivedDays = archivedEndDate
+    ? differenceInDays(archivedEndDate, cycleStartDate) + 1
+    : null;
+  const daysInCycle = maxArchivedDays ? Math.min(computedDaysInCycle, maxArchivedDays) : computedDaysInCycle;
 
   const fullCyclePlaceholders = generatePlaceholders(cycleStartDate, daysInCycle);
   const mergedData = fullCyclePlaceholders.map((placeholder) => {
@@ -540,63 +559,89 @@ const ChartPage = () => {
     }
   };
   const handleFertilityCalculatorChange = (calculatorKey, checked) => {
+    let nextConfig = null;
     setChartSettings((prev) => {
-      const currentConfig = prev.fertilityStartConfig ?? createDefaultFertilityStartConfig();
+      const currentConfig = mergeFertilityStartConfig(prev.fertilityStartConfig);
       const nextValue = checked === true;
       if (currentConfig.calculators?.[calculatorKey] === nextValue) {
         return prev;
       }
-      return {
-        ...prev,
-        fertilityStartConfig: {
-          ...currentConfig,
-          calculators: {
-            ...currentConfig.calculators,
-            [calculatorKey]: nextValue,
-          },
+      nextConfig = {
+        ...currentConfig,
+        calculators: {
+          ...currentConfig.calculators,
+          [calculatorKey]: nextValue,
         },
       };
+      return {
+        ...prev,
+        fertilityStartConfig: nextConfig,
+      };
     });
+    
+    if (nextConfig && typeof savePreferences === 'function') {
+      savePreferences({ fertilityStartConfig: nextConfig }).catch((error) => {
+        console.error('Failed to persist calculator preference', error);
+      });
+    }
   };
   const handleCombineModeChange = (value) => {
     if (!Object.prototype.hasOwnProperty.call(COMBINE_MODE_LABELS, value)) {
       return;
     }
+    let nextConfig = null;
     setChartSettings((prev) => {
-      const currentConfig = prev.fertilityStartConfig ?? createDefaultFertilityStartConfig();
+      const currentConfig = mergeFertilityStartConfig(prev.fertilityStartConfig);
       if (currentConfig.combineMode === value) {
         return prev;
       }
+      nextConfig = {
+        ...currentConfig,
+        combineMode: value,
+      };
       return {
         ...prev,
-        fertilityStartConfig: {
-          ...currentConfig,
-          combineMode: value,
-        },
+        fertilityStartConfig: nextConfig,
       };
     });
     
-    if (typeof savePreferences === 'function') {
-      savePreferences({ combineMode: value }).catch((error) => {
+    if (nextConfig && typeof savePreferences === 'function') {
+      savePreferences({ fertilityStartConfig: nextConfig }).catch((error) => {
         console.error('Failed to persist combine mode preference', error);
       });
     }
   };
   const handlePostpartumChange = (checked) => {
+    let nextConfig = null;
     setChartSettings((prev) => {
-      const currentConfig = prev.fertilityStartConfig ?? createDefaultFertilityStartConfig();
+      const currentConfig = mergeFertilityStartConfig(prev.fertilityStartConfig);
       const nextValue = checked === true;
       if (currentConfig.postpartum === nextValue) {
         return prev;
       }
+      const baseCalculators =
+      currentConfig.calculators ?? createDefaultFertilityStartConfig().calculators;
+      const nextCalculators = {
+        ...baseCalculators,
+        cpm: !nextValue,
+        t8: !nextValue,
+      };
+      nextConfig = {
+        ...currentConfig,
+        postpartum: nextValue,
+        calculators: nextCalculators,
+      };
       return {
         ...prev,
-        fertilityStartConfig: {
-          ...currentConfig,
-          postpartum: nextValue,
-        },
+        fertilityStartConfig: nextConfig,
       };
     });
+    
+    if (nextConfig && typeof savePreferences === 'function') {
+      savePreferences({ fertilityStartConfig: nextConfig }).catch((error) => {
+        console.error('Failed to persist postpartum preference', error);
+      });
+    }
   };
   
   const locationStateCandidates = location?.state?.fertilityCalculatorCandidates;
@@ -952,6 +997,7 @@ const ChartPage = () => {
         };
         return labels[selectedMode] ?? null;
       })();
+      const postpartumActive = Boolean(fertilityConfig?.postpartum);
 
       const normalizeSource = (candidate) =>
         (candidate?.source ?? candidate?.originalSource ?? '').toString().toUpperCase();
@@ -1104,6 +1150,7 @@ const ChartPage = () => {
         message,
         description,
         modeLabel,
+        postpartumActive,
       });
     },
     [fertilityConfig, formatDateFromIndex, mergedData.length, setPhaseOverlay]
@@ -1234,7 +1281,7 @@ const ChartPage = () => {
               </Button>
             </div>
             <div className="space-y-4 overflow-y-auto pr-1">
-              <div className="rounded-2xl border border-rose-100/70 bg-rose-50/40 p-4 flex items-start justify-between gap-3">
+              <div className="rounded-2xl border border-pink-100/70 bg-pink-50/40 p-4 flex items-start justify-between gap-3">
                 <div className="max-w-xs">
                   <Label htmlFor="toggle-relations-row" className="text-sm font-semibold text-slate-700">
                     Mostrar fila RS
@@ -1249,7 +1296,39 @@ const ChartPage = () => {
                   onCheckedChange={handleRelationsSettingChange}
                   className="mt-1"
                 />
-              </div>            
+              </div>       
+              <div className="rounded-2xl border border-sky-100/70 bg-sky-50/40 p-4 space-y-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-700">Modo de combinación</h3>
+                  <p className="text-xs text-slate-500">
+                    Determina cómo se elige el inicio y fin de la fase fértil a partir de los candidatos disponibles.
+                  </p>
+                </div>
+                <Select value={fertilityConfig.combineMode} onValueChange={handleCombineModeChange}>
+                  <SelectTrigger className="w-full bg-white/80 border-slate-200 text-sm rounded-3xl text-slate-700">
+                    <SelectValue placeholder="Selecciona un modo" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-slate-200 text-slate-700 rounded-3xl">
+                    {Object.entries(COMBINE_MODE_LABELS).map(([value, label]) => (
+                      <SelectItem key={value} value={value} className="text-sm rounded-3xl">
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                </div>
+              <div className="rounded-2xl border border-red-100/70 bg-red-50/40 p-3">
+                <div className="flex items-start justify-between gap-3 pt-1">
+                  <div className="max-w-[65%]">
+                    <p className="text-sm font-semibold text-slate-700">Modo postparto</p>
+                  </div>
+                  <Checkbox
+                    checked={Boolean(fertilityConfig.postpartum)}
+                    onCheckedChange={handlePostpartumChange}
+                    className="mt-1"
+                  />
+                </div>
+              </div>     
 
               <div className="rounded-2xl border border-amber-100/70 bg-amber-50/40 p-4 space-y-3">
                 <div>
@@ -1269,6 +1348,7 @@ const ChartPage = () => {
                       <span className="text-sm text-slate-700">{option.label}</span>
                       <Checkbox
                         checked={Boolean(fertilityConfig.calculators?.[option.key])}
+                        disabled={Boolean(fertilityConfig.postpartum)}
                         onCheckedChange={(checked) => handleFertilityCalculatorChange(option.key, checked)}
                       />
                     </div>
@@ -1276,37 +1356,7 @@ const ChartPage = () => {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-sky-100/70 bg-sky-50/40 p-4 space-y-3">
-                <div>
-                  <h3 className="text-sm font-semibold text-slate-700">Modo de combinación</h3>
-                  <p className="text-xs text-slate-500">
-                    Determina cómo se elige el inicio fértil a partir de los candidatos disponibles.
-                  </p>
-                </div>
-                <Select value={fertilityConfig.combineMode} onValueChange={handleCombineModeChange}>
-                  <SelectTrigger className="w-full bg-white/80 border-slate-200 text-sm rounded-3xl text-slate-700">
-                    <SelectValue placeholder="Selecciona un modo" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white border-slate-200 text-slate-700 rounded-3xl">
-                    {Object.entries(COMBINE_MODE_LABELS).map(([value, label]) => (
-                      <SelectItem key={value} value={value} className="text-sm rounded-3xl">
-                        {label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <div className="flex items-start justify-between gap-3 pt-1">
-                  <div className="max-w-[65%]">
-                    <p className="text-sm font-semibold text-slate-700">Modo posparto</p>
-                    <p className="text-xs text-slate-500">Ignora automáticamente CPM y T-8.</p>
-                  </div>
-                  <Checkbox
-                    checked={Boolean(fertilityConfig.postpartum)}
-                    onCheckedChange={handlePostpartumChange}
-                    className="mt-1"
-                  />
-                </div>
-              </div>
+              
             </div> 
             </div>
         </div>
@@ -1326,6 +1376,11 @@ const ChartPage = () => {
                   {phaseOverlay.modeLabel && (
                     <span className="rounded-full border border-secundario bg-secundario-suave px-3 py-1 text-[11px] font-semibold text-secundario-fuerte">
                       {phaseOverlay.modeLabel}
+                    </span>
+                  )}
+                  {phaseOverlay.postpartumActive && (
+                    <span className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-[11px] font-semibold text-rose-600">
+                      Modo postparto
                     </span>
                   )}
                 </div>

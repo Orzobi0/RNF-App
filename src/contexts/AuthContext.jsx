@@ -12,10 +12,65 @@ import {
   updateProfile,
   deleteUser,
 } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { deleteField, doc, getDoc, setDoc } from 'firebase/firestore';
 import { useToast } from '@/components/ui/use-toast';
 
-    const AuthContext = createContext(null);
+  const AuthContext = createContext(null);
+
+const COMBINE_MODE_OPTIONS = new Set(['estandar', 'conservador']);
+
+const normalizeCombineMode = (value) => (
+  COMBINE_MODE_OPTIONS.has(value) ? value : null
+);
+
+const createDefaultFertilityStartConfig = () => ({
+  calculators: { cpm: true, t8: true },
+  postpartum: false,
+  combineMode: 'estandar',
+});
+
+const mergeFertilityStartConfig = ({ current, incoming, legacyCombineMode }) => {
+  const base = createDefaultFertilityStartConfig();
+  const merged = {
+    calculators: { ...base.calculators },
+    postpartum: base.postpartum,
+    combineMode: base.combineMode,
+  };
+  let combineModeSet = false;
+
+  const applyConfig = (source) => {
+    if (!source || typeof source !== 'object') return;
+    Object.keys(merged.calculators).forEach((key) => {
+      if (typeof source?.calculators?.[key] === 'boolean') {
+        merged.calculators[key] = source.calculators[key];
+      }
+    });
+
+    if (typeof source.postpartum === 'boolean') {
+      merged.postpartum = source.postpartum;
+    } else if (source.postpartum != null) {
+      merged.postpartum = Boolean(source.postpartum);
+    }
+
+    const normalizedMode = normalizeCombineMode(source.combineMode);
+    if (normalizedMode) {
+      merged.combineMode = normalizedMode;
+      combineModeSet = true;
+    }
+  };
+
+  applyConfig(current);
+  applyConfig(incoming);
+
+  if (!combineModeSet) {
+    const legacyMode = normalizeCombineMode(legacyCombineMode);
+    if (legacyMode) {
+      merged.combineMode = legacyMode;
+    }
+  }
+
+  return merged;
+};
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -44,12 +99,26 @@ export const AuthProvider = ({ children }) => {
           cpmMode: 'auto',
           t8Mode: 'auto',
           showRelationsRow: true,
-          combineMode: 'estandar',
+          fertilityStartConfig: createDefaultFertilityStartConfig(),
         };
         try {
           const prefSnap = await getDoc(prefRef);
           if (prefSnap.exists()) {
-            setPreferences({ ...defaultPreferences, ...prefSnap.data() });
+            const {
+              combineMode: legacyCombineMode,
+              fertilityStartConfig: storedFertilityStartConfig,
+              ...restPreferences
+            } = prefSnap.data();
+            const mergedFertilityStartConfig = mergeFertilityStartConfig({
+              current: defaultPreferences.fertilityStartConfig,
+              incoming: storedFertilityStartConfig,
+              legacyCombineMode,
+            });
+            setPreferences({
+              ...defaultPreferences,
+              ...restPreferences,
+              fertilityStartConfig: mergedFertilityStartConfig,
+            });
           } else {
             setPreferences(defaultPreferences);
           }
@@ -129,18 +198,58 @@ export const AuthProvider = ({ children }) => {
       throw error;
     }
   };
-const savePreferences = async (prefs) => {
-  if (!auth.currentUser) return;
-  const prefRef = doc(db, `users/${auth.currentUser.uid}/preferences`, 'display');
-  try {
-    await setDoc(prefRef, prefs, { merge: true });
-    setPreferences((previous) => ({ ...(previous ?? {}), ...prefs }));
-  } catch (error) {
-    console.error('Failed to save preferences', error);
-    toast({ title: 'Error al guardar preferencias', description: error.message, variant: 'destructive' });
-    throw error;
-  }
-};
+const savePreferences = async (prefs = {}) => {
+    if (!auth.currentUser) return;
+    const prefRef = doc(db, `users/${auth.currentUser.uid}/preferences`, 'display');
+    const {
+      combineMode: legacyCombineMode,
+      fertilityStartConfig: incomingFertilityStartConfig,
+      ...restPrefs
+    } = prefs ?? {};
+    const hasFertilityUpdate =
+      (incomingFertilityStartConfig && typeof incomingFertilityStartConfig === 'object')
+      || legacyCombineMode !== undefined;
+    const nextFertilityStartConfig = hasFertilityUpdate
+      ? mergeFertilityStartConfig({
+          current: preferences?.fertilityStartConfig,
+          incoming: incomingFertilityStartConfig,
+          legacyCombineMode,
+        })
+      : preferences?.fertilityStartConfig;
+
+    const payload = { ...restPrefs };
+    if (hasFertilityUpdate && nextFertilityStartConfig) {
+      payload.fertilityStartConfig = nextFertilityStartConfig;
+      payload.combineMode = deleteField();
+    }
+
+    try {
+      await setDoc(prefRef, payload, { merge: true });
+      setPreferences((previous) => {
+        const current = previous ?? {
+          theme: 'light',
+          units: 'metric',
+          manualCpm: null,
+          manualT8: null,
+          manualCpmBase: null,
+          manualT8Base: null,
+          cpmMode: 'auto',
+          t8Mode: 'auto',
+          showRelationsRow: true,
+          fertilityStartConfig: createDefaultFertilityStartConfig(),
+        };
+        const next = { ...current, ...restPrefs };
+        if (hasFertilityUpdate && nextFertilityStartConfig) {
+          next.fertilityStartConfig = nextFertilityStartConfig;
+        }
+        return next;
+      });
+    } catch (error) {
+      console.error('Failed to save preferences', error);
+      toast({ title: 'Error al guardar preferencias', description: error.message, variant: 'destructive' });
+      throw error;
+    }
+  };
 
   const updateProfileInfo = async (profile) => {
     if (!auth.currentUser) return;
@@ -186,5 +295,5 @@ const savePreferences = async (prefs) => {
   );
 };
 
-    export const useAuth = () => useContext(AuthContext);
+export const useAuth = () => useContext(AuthContext);
   
