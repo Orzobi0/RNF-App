@@ -43,6 +43,18 @@ async function cacheFirst(request) {
   return network;
 }
 
+async function getMissingBuildAsset() {
+  if (!BUILD_ASSETS.length) return null;
+  const cache = await caches.open(CACHE_NAME);
+  for (const assetUrl of BUILD_ASSETS) {
+    const match = await cache.match(assetUrl);
+    if (!match) {
+      return assetUrl;
+    }
+  }
+  return null;
+}
+
 self.addEventListener('install', event => {
   console.log('SW: Installing new version', CACHE_VERSION);
   event.waitUntil(
@@ -166,6 +178,22 @@ self.addEventListener('fetch', (event) => {
       // Cache-first para app shell (abre instantáneo) + update en segundo plano
         const cachedIndex = await matchActiveCache(INDEX_URL);
         if (cachedIndex) {
+           // Si el caché del build está incompleto y no hay red, evitamos pantalla en negro.
+          const missingAsset = await getMissingBuildAsset();
+          if (missingAsset) {
+            try {
+              const response = await fetch(missingAsset, { cache: 'no-cache' });
+              if (response && response.ok) {
+                await putInCache(missingAsset, response.clone());
+              } else {
+                const offline = await matchActiveCache(OFFLINE_URL);
+                if (offline) return offline;
+              }
+            } catch {
+              const offline = await matchActiveCache(OFFLINE_URL);
+              if (offline) return offline;
+            }
+          }
           event.waitUntil(
             (async () => {
               try {
