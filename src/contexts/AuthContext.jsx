@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { auth, db } from '@/lib/firebaseClient';
+import { auth, db, authPersistenceReady } from '@/lib/firebaseClient';
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
@@ -12,10 +12,10 @@ import {
   updateProfile,
   deleteUser,
 } from 'firebase/auth';
-import { deleteField, doc, getDoc, setDoc } from 'firebase/firestore';
+import { deleteField, doc, getDoc, setDoc, getDocFromCache } from 'firebase/firestore';
 import { useToast } from '@/components/ui/use-toast';
 
-  const AuthContext = createContext(null);
+const AuthContext = createContext(null);
 
 const COMBINE_MODE_OPTIONS = new Set(['estandar', 'conservador']);
 
@@ -79,60 +79,124 @@ export const AuthProvider = ({ children }) => {
   const { toast } = useToast();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        setUser({
-          id: firebaseUser.uid,
-          uid: firebaseUser.uid,
-          email: firebaseUser.email,
-          displayName: firebaseUser.displayName,
-          photoURL: firebaseUser.photoURL,
-        });
-        const prefRef = doc(db, `users/${firebaseUser.uid}/preferences`, 'display');
-        const defaultPreferences = {
-          theme: 'light',
-          units: 'metric',
-          manualCpm: null,
-          manualT8: null,
-          manualCpmBase: null,
-          manualT8Base: null,
-          cpmMode: 'auto',
-          t8Mode: 'auto',
-          showRelationsRow: true,
-          fertilityStartConfig: createDefaultFertilityStartConfig(),
-        };
-        try {
-          const prefSnap = await getDoc(prefRef);
-          if (prefSnap.exists()) {
-            const {
-              combineMode: legacyCombineMode,
-              fertilityStartConfig: storedFertilityStartConfig,
-              ...restPreferences
-            } = prefSnap.data();
-            const mergedFertilityStartConfig = mergeFertilityStartConfig({
-              current: defaultPreferences.fertilityStartConfig,
-              incoming: storedFertilityStartConfig,
-              legacyCombineMode,
-            });
-            setPreferences({
-              ...defaultPreferences,
-              ...restPreferences,
-              fertilityStartConfig: mergedFertilityStartConfig,
-            });
-          } else {
+    let unsubscribe = null;
+    let cancelled = false;
+
+    const init = async () => {
+      try {
+        await authPersistenceReady;
+      } catch (error) {
+        // Si falla, seguimos igual, pero al menos lo intentamos.
+      }
+      if (cancelled) return;
+
+      unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+        if (firebaseUser) {
+          setUser({
+            id: firebaseUser.uid,
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            displayName: firebaseUser.displayName,
+            photoURL: firebaseUser.photoURL,
+          });
+
+          try {
+            if (navigator?.storage?.persist) {
+              const key = 'rnf_storage_persist_requested_v1';
+              let already = false;
+              try {
+                already = localStorage.getItem(key) === '1';
+              } catch (storageError) {
+                // Ignore local storage errors.
+              }
+              if (!already) {
+                try {
+                  localStorage.setItem(key, '1');
+                } catch (storageError) {
+                  // Ignore local storage errors.
+                }
+                await navigator.storage.persist();
+              }
+            }
+          } catch (storageError) {
+            // No es crítico si falla.
+          }
+
+          const prefRef = doc(db, `users/${firebaseUser.uid}/preferences`, 'display');
+          const defaultPreferences = {
+            theme: 'light',
+            units: 'metric',
+            manualCpm: null,
+            manualT8: null,
+            manualCpmBase: null,
+            manualT8Base: null,
+            cpmMode: 'auto',
+            t8Mode: 'auto',
+            showRelationsRow: true,
+            fertilityStartConfig: createDefaultFertilityStartConfig(),
+          };
+          try {
+            try {
+              const cacheSnap = await getDocFromCache(prefRef);
+              if (cacheSnap.exists()) {
+                const {
+                  combineMode: legacyCombineMode,
+                  fertilityStartConfig: storedFertilityStartConfig,
+                  ...restPreferences
+                } = cacheSnap.data();
+                const mergedFertilityStartConfig = mergeFertilityStartConfig({
+                  current: defaultPreferences.fertilityStartConfig,
+                  incoming: storedFertilityStartConfig,
+                  legacyCombineMode,
+                });
+                setPreferences({
+                  ...defaultPreferences,
+                  ...restPreferences,
+                  fertilityStartConfig: mergedFertilityStartConfig,
+                });
+              }
+            } catch (cacheError) {
+              // Ignore cache errors; we'll try the network next.
+            }
+
+            const prefSnap = await getDoc(prefRef);
+            if (prefSnap.exists()) {
+              const {
+                combineMode: legacyCombineMode,
+                fertilityStartConfig: storedFertilityStartConfig,
+                ...restPreferences
+              } = prefSnap.data();
+              const mergedFertilityStartConfig = mergeFertilityStartConfig({
+                current: defaultPreferences.fertilityStartConfig,
+                incoming: storedFertilityStartConfig,
+                legacyCombineMode,
+              });
+              setPreferences({
+                ...defaultPreferences,
+                ...restPreferences,
+                fertilityStartConfig: mergedFertilityStartConfig,
+              });
+            } else {
+              setPreferences(defaultPreferences);
+            }
+          } catch (error) {
+            console.error('Failed to load preferences', error);
             setPreferences(defaultPreferences);
           }
-        } catch (error) {
-          console.error('Failed to load preferences', error);
-          setPreferences(defaultPreferences);
+        } else {
+          setUser(null);
+          setPreferences(null);
         }
-      } else {
-        setUser(null);
-        setPreferences(null);
-      }
+
         setLoadingAuth(false);
     });
-    return () => unsubscribe();
+    };
+
+    init();
+    return () => {
+      cancelled = true;
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
   const login = async (email, password) => {
@@ -198,7 +262,7 @@ export const AuthProvider = ({ children }) => {
       throw error;
     }
   };
-const savePreferences = async (prefs = {}) => {
+  const savePreferences = async (prefs = {}) => {
     if (!auth.currentUser) return;
     const prefRef = doc(db, `users/${auth.currentUser.uid}/preferences`, 'display');
     const {

@@ -38,6 +38,12 @@ const configureAuthPersistence = async () => {
   }
 };
 
+// Export: permite esperar la persistencia antes de hidratar Auth en React
+export const authPersistenceReady =
+  typeof window !== 'undefined'
+    ? configureAuthPersistence()
+    : Promise.resolve();
+
 if (typeof window !== 'undefined') {
   enableMultiTabIndexedDbPersistence(db).catch((error) => {
     if (error.code === 'failed-precondition') {
@@ -59,7 +65,7 @@ if (typeof window !== 'undefined') {
     }
   });
 
-  configureAuthPersistence().catch((error) => {
+  authPersistenceReady.catch((error) => {
     console.error('Unexpected error configuring Firebase Auth persistence.', error);
   });
 }

@@ -117,6 +117,15 @@ export const CycleDataProvider = ({ children }) => {
       if (shouldShowLoading) {
         setIsLoading(true);
       }
+      const isOffline =
+  typeof navigator !== 'undefined' && navigator.onLine === false;
+
+      // Si ya tenemos algo cargado (por caché o porque ya se cargó antes), y no hay red,
+      // no intentamos Firestore. Así abre rápido y sin “ruido”.
+      if (isOffline && (cachedDataApplied || hasLoadedRef.current)) {
+        if (!silent) setIsLoading(false);
+        return;
+      }
 
       try {
         const cycleToLoad = await fetchCurrentCycleDB(user.uid);
