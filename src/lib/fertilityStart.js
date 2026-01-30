@@ -563,11 +563,11 @@ export const computeFertilityStartOutput = ({
   const {
     calculators = { cpm: true, t8: true },
     postpartum = false,
-    combineMode: rawCombineMode = 'conservador',
+    combineMode: rawCombineMode = 'estandar',
   } = config || {};
 
-  const validModes = new Set(['conservador', 'estandar']);
-  const combineMode = validModes.has(rawCombineMode) ? rawCombineMode : 'conservador';
+  const validModes = new Set(['estandar']);
+  const combineMode = validModes.has(rawCombineMode) ? rawCombineMode : 'estandar';
 
   const {
     postPeakStartIndex = null,
@@ -638,19 +638,13 @@ export const computeFertilityStartOutput = ({
         kind: 'calculator',
       };
 
-      if (combineMode === 'conservador') {
-        pushCandidate(normalizedCandidate);
-      } else {
-        ignoredCalculatorCandidates.push(normalizedCandidate);
-      }
+      pushCandidate(normalizedCandidate);
     });
   }
 
   const candidatesBeforeAggregate = candidates.map((candidate) => ({ ...candidate }));
 
-  const candidatesForAggregate = combineMode === 'conservador'
-    ? candidates
-    : candidates.filter((candidate) => candidate.kind !== 'calculator');
+  const candidatesForAggregate = candidates;
 
   const aggregate = aggregateCandidates(candidatesForAggregate, combineMode);
   aggregate.ignoredCalculatorCandidates = ignoredCalculatorCandidates;
@@ -747,12 +741,11 @@ export const computeFertilityStartOutput = ({
     if (isValidIndex(candidatePPlus3)) {
       pPlus3Index = candidatePPlus3;
     }
-      
     const candidatePPlus4 = effectivePeakIndex + 4;
-    if (isValidIndex(candidatePPlus4)) {
-      pPlus4Index = candidatePPlus4;
-    }
-
+  if (isValidIndex(candidatePPlus4)) {
+    pPlus4Index = candidatePPlus4;
+  }  
+      
   const peakIndexForDiff = clampIndexWithin(effectivePeakIndex);
     const peakDate = parseEntryDate(peakIndexForDiff);
     if (peakDate) {
@@ -764,11 +757,13 @@ export const computeFertilityStartOutput = ({
           pPlus3Index = clampIndexWithin(idx);
         }
         if (pPlus4Index == null && diff >= 4) {
-          pPlus4Index = clampIndexWithin(idx);
-        }
-        if (pPlus3Index != null && pPlus4Index != null) {
-          break;
-        }
+        pPlus4Index = clampIndexWithin(idx);
+      }
+        if (postpartum) {
+        if (pPlus4Index != null) break;
+      } else {
+        if (pPlus3Index != null) break;
+      }
       }
     }
   }
@@ -781,9 +776,8 @@ export const computeFertilityStartOutput = ({
     if (candidate != null && candidate >= 0) tPlus3Index = candidate;
   }
 
-  const mucusInfertileStartIndex = combineMode === 'conservador'
-    ? pPlus4Index ?? null
-    : pPlus3Index ?? null;
+  const mucusInfertileStartIndex = (postpartum ? pPlus4Index : pPlus3Index) ?? null;
+
   const waitingStartIndex = null;
 
   const estimateStartIndexCandidates = [mucusInfertileStartIndex, temperatureInfertileIdx].filter(
@@ -813,23 +807,24 @@ export const computeFertilityStartOutput = ({
       ? lastIndex
       : null;
 
-      const postOvulatoryStartIndex = firstEstimateIndex;
+  const postOvulatoryStartIndex = firstEstimateIndex;
+  const mucusClosureLabel = postpartum ? 'P+4' : 'P+3';
 
   let closureDetail = null;
   if (hasMucusClosure && hasTemperatureClosure) {
-    closureDetail = combineMode === 'conservador' ? 'P+4 y T+3' : 'P+3 y T+3';
-  } else if (hasMucusClosure) {
-    closureDetail = combineMode === 'conservador' ? 'P+4' : 'P+3';
-  } else if (hasTemperatureClosure) {
+  closureDetail = `${mucusClosureLabel} y T+3`;
+} else if (hasMucusClosure) {
+  closureDetail = mucusClosureLabel;
+}
+ else if (hasTemperatureClosure) {
     closureDetail = temperatureRule ?? 'Temperatura';
   }
   const PROFILE_LABELS = {
-    conservador: 'modo conservador',
     estandar: 'modo estándar',
     marcador: 'marcador explícito',
   };
 
-  const profileMode = aggregate?.selectedMode ?? combineMode ?? 'conservador';
+  const profileMode = aggregate?.selectedMode ?? combineMode ?? 'estandar';
   const usedCandidates = aggregate?.usedCandidates ?? [];
   const hasProfileSource = usedCandidates.some((candidate) => candidate?.kind === 'profile');
   const hasCalculatorSource = usedCandidates.some((candidate) => candidate?.kind === 'calculator');
@@ -1056,7 +1051,7 @@ export const computeFertilityStartOutput = ({
     switch (state) {
       case 'waiting':
         title = 'Fertilidad en espera de confirmación por temperatura';
-        body = 'Final de moco alcanzado (≥P+3). Ventana mantenida hasta confirmación térmica (T+3).';
+        body = `Final de moco alcanzado (≥${mucusClosureLabel}). Ventana mantenida hasta confirmación térmica (T+3).`;
         break;
       case 'aumento':
         title = 'Aumento de fertilidad';

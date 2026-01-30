@@ -17,11 +17,12 @@ import { useToast } from '@/components/ui/use-toast';
 
 const AuthContext = createContext(null);
 
-const COMBINE_MODE_OPTIONS = new Set(['estandar', 'conservador']);
+const COMBINE_MODE_OPTIONS = new Set(['estandar']);
 
-const normalizeCombineMode = (value) => (
-  COMBINE_MODE_OPTIONS.has(value) ? value : null
-);
+const normalizeCombineMode = (value) => {
+  if (value === 'conservador') return 'estandar';
+  return COMBINE_MODE_OPTIONS.has(value) ? value : null;
+};
 
 const createDefaultFertilityStartConfig = () => ({
   calculators: { cpm: true, t8: true },
