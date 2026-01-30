@@ -875,18 +875,6 @@ const DataEntryFormFields = ({
                         })()
                       )}
                     </div>
-                    <Button
-                      type="button"
-                      onClick={addMeasurement}
-                      disabled={isProcessing}
-                      size="xs"
-                      variant="outline"
-                      className="ml-auto flex items-center gap-1 rounded-full border-amber-300/50 bg-amber-50/80 px-1 py-1 text-xs text-amber-600 shadow-sm transition-colors hover:bg-amber-100"
-                      aria-label="Añadir una nueva medición"
-                    >
-                      <Plus className="h-3 w-3" />
-                      Medición
-                    </Button>
                   </div>
 
                   {correctionIndex === idx && (
@@ -954,6 +942,18 @@ const DataEntryFormFields = ({
                 </div>
               );
             })}
+            <Button
+              type="button"
+              onClick={addMeasurement}
+              disabled={isProcessing}
+              size="xs"
+              variant="outline"
+              className="ml-auto flex items-center gap-1 rounded-full border-amber-300/50 bg-amber-50/80 px-3 py-2 text-xs text-amber-600 shadow-sm transition-colors hover:bg-amber-100"
+              aria-label="Añadir una nueva medición"
+            >
+              <Plus className="h-3 w-3" />
+              Medición
+            </Button>
           </div>
         );
       case 'moco': {
