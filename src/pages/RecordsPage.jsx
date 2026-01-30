@@ -96,6 +96,7 @@ export const RecordsExperience = ({
     forceShiftNextCycleStart: contextForceShiftNextCycleStart,
     startNewCycle: contextStartNewCycle,
     refreshData: contextRefreshData,
+    getMeasurementsForEntry: contextGetMeasurementsForEntry,
   } = useCycleData();
   const { preferences, savePreferences } = useAuth();
   const cycle = cycleProp ?? contextCurrentCycle;
@@ -127,11 +128,13 @@ export const RecordsExperience = ({
         contextForceShiftNextCycleStart(cycleId ?? cycle?.id, newEndDate, newStartDate);
   const startNewCycle = startNewCycleProp ?? contextStartNewCycle;
   const refreshData = refreshDataProp ?? contextRefreshData;
+  const getMeasurementsForEntry = contextGetMeasurementsForEntry;
   const { toast } = useToast();
   const [showForm, setShowForm] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [recordToDelete, setRecordToDelete] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [showStartDateEditor, setShowStartDateEditor] = useState(false);
   const [draftStartDate, setDraftStartDate] = useState(() => cycle?.startDate || '');
   const [draftEndDate, setDraftEndDate] = useState(() => cycle?.endDate || '');
@@ -176,6 +179,7 @@ export const RecordsExperience = ({
   const calendarContainerRef = useRef(null);
   const recordsScrollRef = useRef(null);
   const calendarHeightRef = useRef(0);
+  const activeRecordLoadRef = useRef(null);
   const [calendarHeight, setCalendarHeight] = useState(0);
 
   const updateCalendarMetrics = useCallback(() => {
@@ -1166,12 +1170,15 @@ const enterStart = -exitTarget;
     setDefaultFormIsoDate(null);
     setFocusedField(null);
     setInitialSectionKey(null);
+    setIsDetailLoading(false);
+    activeRecordLoadRef.current = null;
   }, []);
 
   const openRecordForm = useCallback(
-    (record, fieldName = null, sectionKey = null) => {
+    async (record, fieldName = null, sectionKey = null) => {
       if (!record) return;
 
+      activeRecordLoadRef.current = record.id ?? null;
       setEditingRecord(record);
       setDefaultFormIsoDate(record.isoDate ?? null);
       setFocusedField(fieldName);
@@ -1182,8 +1189,27 @@ const enterStart = -exitTarget;
       }
 
       setShowForm(true);
+
+      const hasLoadedMeasurements =
+        record?.measurementsLoaded ||
+        (Array.isArray(record?.measurements) && record.measurements.length > 0);
+      if (getMeasurementsForEntry && record?.id && cycle?.id && !hasLoadedMeasurements) {
+        setIsDetailLoading(true);
+        try {
+          const measurements = await getMeasurementsForEntry(cycle.id, record.id);
+          if (activeRecordLoadRef.current === record.id) {
+            setEditingRecord((prev) =>
+              prev?.id === record.id
+                ? { ...prev, measurements, measurementsLoaded: true }
+                : prev
+            );
+          }
+        } finally {
+          setIsDetailLoading(false);
+        }
+      }
     },
-    []
+    [cycle?.id, getMeasurementsForEntry]
   );
 
   const handleEdit = useCallback(
@@ -1205,6 +1231,7 @@ const enterStart = -exitTarget;
       return;
     }
 
+    activeRecordLoadRef.current = null;
     setSelectedDate(isoDate);
     setEditingRecord(null);
     setDefaultFormIsoDate(isoDate);
@@ -1217,6 +1244,7 @@ const enterStart = -exitTarget;
     const fallbackIso = cycleDays.length ? cycleDays[0].isoDate : cycle?.startDate || null;
     const targetIso = selectedDate || fallbackIso || null;
 
+    activeRecordLoadRef.current = null;
     setEditingRecord(null);
     setDefaultFormIsoDate(targetIso);
     setFocusedField(null);
@@ -1282,6 +1310,10 @@ const enterStart = -exitTarget;
     setIsProcessing(true);
     try {
       await addOrUpdateDataPoint(data, editingRecord);
+      toast({
+        title: 'Guardado',
+        duration: 2000,
+      });
       if (!keepFormOpen) {
         setShowForm(false);
         setEditingRecord(null);
@@ -1629,7 +1661,7 @@ const enterStart = -exitTarget;
             initialData={editingRecord}
             cycleStartDate={cycle?.startDate}
             cycleEndDate={cycle?.endDate}
-            isProcessing={isProcessing}
+            isProcessing={isProcessing || isDetailLoading}
             isEditing={!!editingRecord}
             cycleData={cycle?.data}
             onDateSelect={handleDateSelect}

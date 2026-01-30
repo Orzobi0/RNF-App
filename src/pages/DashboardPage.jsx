@@ -114,7 +114,11 @@ const CycleOverviewCard = ({
     if (!prefersReducedMotion && newDays.length) {
       setRecentlyChangedDays((current) => {
         const merged = new Set(current);
+        const initialSize = merged.size;
         newDays.forEach((day) => merged.add(day));
+        if (merged.size === initialSize) {
+          return current;
+        }
         return Array.from(merged);
       });
     }
