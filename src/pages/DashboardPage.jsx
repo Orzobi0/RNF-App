@@ -3011,13 +3011,13 @@ const ModernFertilityDashboard = () => {
       return;
     }
 
-    if (parsed < 9) {
-      setManualT8BaseError('El T-8 debe ser ≥ 1');
+    if (parsed < 8) {
+      setManualT8BaseError('El T-8 debe ser ≥ 0');
       setManualT8FinalInput('');
       return;
     }
 
-    const computedFinal = Math.max(1, parsed - 8);
+    const computedFinal = Math.max(0, parsed - 8);
     setManualT8FinalInput(String(computedFinal));
   }, []);
 
@@ -3034,8 +3034,8 @@ const ModernFertilityDashboard = () => {
 
     const parsed = Number.parseInt(value, 10);
 
-    if (!Number.isFinite(parsed) || parsed < 1) {
-      setManualT8FinalError('El T-8 debe ser ≥ 1');
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      setManualT8FinalError('El T-8 debe ser ≥ 0');
     }
   }, []);
 
@@ -3070,12 +3070,12 @@ const ModernFertilityDashboard = () => {
         return false;
       }
 
-      if (parsedBase < 9) {
-        setManualT8BaseError('El T-8 debe ser ≥ 1');
+      if (parsedBase < 8) {
+        setManualT8BaseError('El T-8 debe ser ≥ 0');
         return false;
       }
 
-      const computedFinal = Math.max(1, parsedBase - 8);
+      const computedFinal = Math.max(0, parsedBase - 8);
       baseValueToPersist = parsedBase;
       finalValueToPersist = computedFinal;
       setManualT8FinalInput(String(computedFinal));
@@ -3088,8 +3088,8 @@ const ModernFertilityDashboard = () => {
 
       const parsedFinal = Number.parseInt(trimmedFinal, 10);
 
-      if (!Number.isFinite(parsedFinal) || parsedFinal < 1) {
-        setManualT8FinalError('El T-8 debe ser ≥ 1');
+      if (!Number.isFinite(parsedFinal) || parsedFinal < 0) {
+        setManualT8FinalError('El T-8 debe ser ≥ 0');
         return false;
       }
 
@@ -4251,7 +4251,7 @@ const ModernFertilityDashboard = () => {
                         type="number"
                         inputMode="numeric"
                         step="1"
-                        min="9"
+                        min="8"
                         value={manualT8BaseInput}
                         onChange={handleManualT8BaseInputChange}
                         placeholder="Día de subida"
@@ -4268,7 +4268,7 @@ const ModernFertilityDashboard = () => {
                         type="number"
                         inputMode="numeric"
                         step="1"
-                        min="1"
+                        min="0"
                         value={manualT8FinalInput}
                         onChange={handleManualT8FinalInputChange}
                         placeholder="Día del T-8"
