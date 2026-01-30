@@ -853,6 +853,27 @@ const DataEntryFormFields = ({
                           </Button>
                         </>
                       )}
+                      {m.confirmed && isEditing && (
+                        (() => {
+                          const isEmptyMeasurement =
+                            String(m.temperature ?? '').trim() === '' &&
+                            String(m.temperature_corrected ?? '').trim() === '';
+                          const canRemove = measurements.length > 1 || isEmptyMeasurement;
+                          if (!canRemove) return null;
+                          return (
+                            <Button
+                              type="button"
+                              size="icon"
+                              onClick={() => removeMeasurement(idx)}
+                              disabled={isProcessing}
+                              className="h-8 w-8"
+                              aria-label="Eliminar medición"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          );
+                        })()
+                      )}
                     </div>
                     <Button
                       type="button"

@@ -279,6 +279,17 @@ export const useDataEntryForm = (
       ? overrideMeasurements
       : measurements;
 
+    const isMeasurementValid = (measurement) => {
+      if (!measurement) return false;
+      const raw = measurement.temperature;
+      const corrected = measurement.temperature_corrected;
+      const rawString = raw === null || raw === undefined ? '' : String(raw).trim();
+      const correctedString =
+        corrected === null || corrected === undefined ? '' : String(corrected).trim();
+      return rawString !== '' || correctedString !== '';
+    };
+    const filteredMeasurements = measurementsSource.filter(isMeasurementValid);
+
       const hadRelationsOverrideProvided = Object.prototype.hasOwnProperty.call(
       options,
       'overrideHadRelations'
@@ -290,7 +301,7 @@ export const useDataEntryForm = (
 
     return {
       isoDate,
-      measurements: measurementsSource.map((m) => ({
+      measurements: filteredMeasurements.map((m) => ({
         temperature: normalizeMeasurementValue(m.temperature),
         time: m.time,
         selected: m.selected,

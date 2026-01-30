@@ -12,6 +12,7 @@ import {
   fetchCycleByIdDB,
   fetchCurrentCycleDB,
   fetchArchivedCyclesDB,
+  fetchEntryMeasurementsDB,
   updateCycleDatesDB,
   updateCycleIgnoreAutoCalculations,
   deleteCycleDB,
@@ -51,6 +52,16 @@ const normalizeTemp = (val) => {
   return isNaN(num) ? null : num;
 };
 
+const isMeasurementValid = (measurement) => {
+  if (!measurement) return false;
+  const raw = measurement.temperature;
+  const corrected = measurement.temperature_corrected;
+  const rawString = raw === null || raw === undefined ? '' : String(raw).trim();
+  const correctedString =
+    corrected === null || corrected === undefined ? '' : String(corrected).trim();
+  return rawString !== '' || correctedString !== '';
+};
+
 const normalizeDate = (date) => {
   if (!date) return null;
   if (typeof date === 'string') {
@@ -61,6 +72,66 @@ const normalizeDate = (date) => {
   }
   return format(startOfDay(new Date(date)), 'yyyy-MM-dd');
 };
+
+const buildEntryForState = ({
+  payload,
+  entryId,
+  isoDate,
+  cycleStartDate,
+  existingEntry,
+}) => {
+  const entryForProcessing = {
+    id: entryId,
+    iso_date: isoDate,
+    timestamp: payload.timestamp,
+    temperature_raw: payload.temperature_raw ?? null,
+    temperature_corrected: payload.temperature_corrected ?? null,
+    use_corrected: Boolean(payload.use_corrected),
+    temperature_chart: payload.temperature_chart ?? null,
+    mucus_sensation: payload.mucus_sensation ?? null,
+    mucus_appearance: payload.mucus_appearance ?? null,
+    fertility_symbol: payload.fertility_symbol ?? null,
+    observations: payload.observations ?? null,
+    had_relations: payload.had_relations ?? false,
+    ignored: payload.ignored ?? false,
+    peak_marker: payload.peak_marker ?? null,
+    measurements:
+      payload.measurements ??
+      (Array.isArray(existingEntry?.measurements) ? existingEntry.measurements : []),
+  };
+
+  const processed = cycleStartDate
+    ? processCycleEntries([entryForProcessing], cycleStartDate)
+    : [];
+
+  if (!processed.length) {
+    return {
+      ...existingEntry,
+      ...entryForProcessing,
+      isoDate,
+      measurements: entryForProcessing.measurements,
+      measurementsLoaded: Array.isArray(payload.measurements)
+        ? true
+        : existingEntry?.measurementsLoaded,
+    };
+  }
+
+  return {
+    ...existingEntry,
+    ...processed[0],
+    measurements: entryForProcessing.measurements,
+    measurementsLoaded: Array.isArray(payload.measurements)
+      ? true
+      : existingEntry?.measurementsLoaded,
+  };
+};
+
+const sortEntriesByTimestamp = (entries) =>
+  [...entries].sort((a, b) => {
+    const dateA = a.timestamp ? parseISO(a.timestamp) : a.isoDate ? parseISO(a.isoDate) : 0;
+    const dateB = b.timestamp ? parseISO(b.timestamp) : b.isoDate ? parseISO(b.isoDate) : 0;
+    return dateA > dateB ? 1 : dateA < dateB ? -1 : 0;
+  });
 
 export const CycleDataProvider = ({ children }) => {
   const { user } = useAuth();
@@ -213,6 +284,52 @@ export const CycleDataProvider = ({ children }) => {
     loadCycleData().catch((error) => console.error('Initial cycle data load failed:', error));
   }, [user?.uid, loadCycleData, resetState]);
 
+  const updateEntryState = useCallback((cycleId, entryId, payload, isoDate, { remove = false } = {}) => {
+    const applyUpdate = (cycle) => {
+      if (!cycle || cycle.id !== cycleId) return cycle;
+
+      const currentData = Array.isArray(cycle.data) ? cycle.data : [];
+
+      if (remove) {
+        return { ...cycle, data: currentData.filter((entry) => entry.id !== entryId) };
+      }
+
+      const existingEntry = currentData.find((entry) => entry.id === entryId) || null;
+      const updatedEntry = buildEntryForState({
+        payload,
+        entryId,
+        isoDate,
+        cycleStartDate: cycle.startDate,
+        existingEntry,
+      });
+
+      const nextData = existingEntry
+        ? currentData.map((entry) => (entry.id === entryId ? updatedEntry : entry))
+        : sortEntriesByTimestamp([...currentData, updatedEntry]);
+
+      return { ...cycle, data: nextData };
+    };
+
+    setCurrentCycle((prevCycle) => applyUpdate(prevCycle));
+    setArchivedCycles((prevCycles) => prevCycles.map((cycle) => applyUpdate(cycle)));
+  }, []);
+
+  const updateEntryMeasurementsState = useCallback((cycleId, entryId, measurements) => {
+    const applyUpdate = (cycle) => {
+      if (!cycle || cycle.id !== cycleId) return cycle;
+      const currentData = Array.isArray(cycle.data) ? cycle.data : [];
+      const nextData = currentData.map((entry) =>
+        entry.id === entryId
+          ? { ...entry, measurements, measurementsLoaded: true }
+          : entry
+      );
+      return { ...cycle, data: nextData };
+    };
+
+    setCurrentCycle((prevCycle) => applyUpdate(prevCycle));
+    setArchivedCycles((prevCycles) => prevCycles.map((cycle) => applyUpdate(cycle)));
+  }, []);
+
   const addOrUpdateDataPoint = useCallback(
     async (newData, editingRecord, targetCycleId = null) => {
       const cycleIdToUse = targetCycleId ?? currentCycle.id;
@@ -224,13 +341,6 @@ export const CycleDataProvider = ({ children }) => {
       setIsLoading(true);
 
       try {
-        const selectedMeasurement = newData.measurements.find((m) => m.selected) || newData.measurements[0];
-        const timeString =
-          selectedMeasurement && selectedMeasurement.time && selectedMeasurement.time.trim() !== ''
-            ? selectedMeasurement.time
-            : format(new Date(), 'HH:mm');
-        const recordDateTime = parse(`${newData.isoDate} ${timeString}`, 'yyyy-MM-dd HH:mm', new Date());
-
         const targetCycle =
           cycleIdToUse === currentCycle.id
             ? currentCycle
@@ -256,9 +366,33 @@ export const CycleDataProvider = ({ children }) => {
           });
         }
 
-        const rawTemp = normalizeTemp(selectedMeasurement.temperature);
-        const correctedTemp = normalizeTemp(selectedMeasurement.temperature_corrected);
-        const useCorrected = !!selectedMeasurement.use_corrected && correctedTemp !== null;
+        const measurementsList = Array.isArray(newData.measurements) ? newData.measurements : [];
+        const validMeasurements = measurementsList.filter(isMeasurementValid);
+        const selectedMeasurement =
+          validMeasurements.find((measurement) => measurement?.selected) || validMeasurements[0] || null;
+        const measurementWithTime =
+          measurementsList.find(
+            (measurement) =>
+              measurement?.time && String(measurement.time).trim() !== ''
+          ) || selectedMeasurement;
+        const fallbackTime = (() => {
+          if (measurementWithTime?.time && String(measurementWithTime.time).trim() !== '') {
+            return measurementWithTime.time;
+          }
+          if (targetRecord?.timestamp) {
+            try {
+              return format(parseISO(targetRecord.timestamp), 'HH:mm');
+            } catch (error) {
+              return format(new Date(), 'HH:mm');
+            }
+          }
+          return format(new Date(), 'HH:mm');
+        })();
+        const recordDateTime = parse(`${newData.isoDate} ${fallbackTime}`, 'yyyy-MM-dd HH:mm', new Date());
+
+        const rawTemp = normalizeTemp(selectedMeasurement?.temperature);
+        const correctedTemp = normalizeTemp(selectedMeasurement?.temperature_corrected);
+        const useCorrected = !!selectedMeasurement?.use_corrected && correctedTemp !== null;
         const chartTemp = useCorrected ? correctedTemp : rawTemp;
 
         const peakMarkerProvided = Object.prototype.hasOwnProperty.call(
@@ -266,8 +400,7 @@ export const CycleDataProvider = ({ children }) => {
           'peak_marker'
         );
 
-        const measurementsList = Array.isArray(newData.measurements) ? newData.measurements : [];
-        const hasTemperatureData = measurementsList.some((measurement) => {
+        const hasTemperatureData = validMeasurements.some((measurement) => {
           if (!measurement) return false;
           const measurementRaw = normalizeTemp(measurement.temperature);
           const measurementCorrected = normalizeTemp(measurement.temperature_corrected);
@@ -307,11 +440,14 @@ export const CycleDataProvider = ({ children }) => {
           !hadRelationsValue &&
           !isPeakMarked;
 
+        const measurementsPayload = Array.isArray(newData.measurements)
+          ? validMeasurements
+          : undefined;
         const recordPayload = {
           cycle_id: cycleIdToUse,
           user_id: user.uid,
           timestamp: format(recordDateTime, "yyyy-MM-dd'T'HH:mm:ssXXX"),
-          measurements: newData.measurements,
+          measurements: measurementsPayload,
           mucus_sensation: newData.mucusSensation || null,
           mucus_appearance: newData.mucusAppearance || null,
           fertility_symbol: newData.fertility_symbol === 'none' ? null : newData.fertility_symbol,
@@ -327,22 +463,33 @@ export const CycleDataProvider = ({ children }) => {
           temperature_chart: chartTemp
         };
 
+        let savedEntryId = targetRecord?.id ?? null;
         if (targetRecord) {
           const isRemovingPeak =
             peakMarkerProvided && targetRecord?.peak_marker === 'peak' && !isPeakMarked;
           if (isPayloadEmpty && isRemovingPeak) {
             await deleteCycleEntryDB(user.uid, cycleIdToUse, targetRecord.id);
+            updateEntryState(cycleIdToUse, targetRecord.id, recordPayload, newData.isoDate, {
+              remove: true,
+            });
           } else {
             await updateCycleEntry(user.uid, cycleIdToUse, targetRecord.id, recordPayload);
+            updateEntryState(cycleIdToUse, targetRecord.id, recordPayload, newData.isoDate);
           }
         } else {
           if (isPayloadEmpty) {
             return;
           }
-          await createNewCycleEntry(recordPayload);
+          const created = await createNewCycleEntry(recordPayload);
+          savedEntryId = created?.id ?? null;
+          if (savedEntryId) {
+            updateEntryState(cycleIdToUse, savedEntryId, recordPayload, newData.isoDate);
+          }
         }
 
-        await loadCycleData({ silent: true });
+        loadCycleData({ silent: true }).catch((error) =>
+          console.error('Background cycle data refresh failed after save:', error)
+        );
       } catch (error) {
         console.error('Error adding/updating data point:', error);
         throw error;
@@ -350,7 +497,17 @@ export const CycleDataProvider = ({ children }) => {
         setIsLoading(false);
       }
     },
-    [user, currentCycle, archivedCycles, loadCycleData]
+    [user, currentCycle, archivedCycles, loadCycleData, updateEntryState]
+  );
+
+  const getMeasurementsForEntry = useCallback(
+    async (cycleId, entryId) => {
+      if (!user?.uid || !cycleId || !entryId) return [];
+      const measurements = await fetchEntryMeasurementsDB(user.uid, cycleId, entryId);
+      updateEntryMeasurementsState(cycleId, entryId, measurements);
+      return measurements;
+    },
+    [user, updateEntryMeasurementsState]
   );
 
   const deleteRecord = useCallback(
@@ -803,7 +960,8 @@ export const CycleDataProvider = ({ children }) => {
     toggleIgnoreRecord,
     setCycleIgnoreForAutoCalculations,
     addArchivedCycle,
-    deleteCycle
+    deleteCycle,
+    getMeasurementsForEntry
   };
 
   return <CycleDataContext.Provider value={value}>{children}</CycleDataContext.Provider>;
