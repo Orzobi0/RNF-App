@@ -1939,7 +1939,7 @@ const ModernFertilityDashboard = () => {
     const deduction = includedCount >= 12 ? 20 : 21;
     const computedValue =
       typeof shortestCycle?.duration === 'number' && Number.isFinite(shortestCycle.duration)
-        ? Math.max(0, shortestCycle.duration - deduction)
+        ? Math.max(1, shortestCycle.duration - deduction)
         : null;
 
     return {
@@ -2095,7 +2095,7 @@ const ModernFertilityDashboard = () => {
         continue;
       }
 
-      const t8Day = Math.max(0, riseDay - 8);
+      const t8Day = Math.max(1, riseDay - 8);
       const isIgnored = Boolean(cycle.ignoredForAutoCalculations);
 
       const cycleInfo = {
@@ -2722,8 +2722,8 @@ const ModernFertilityDashboard = () => {
 
       const result = parsedBase - MANUAL_CPM_DEDUCTION;
 
-      if (result < 0) {
-        setManualCpmBaseError('El resultado debe ser ≥ 0 días');
+      if (result < 1) {
+        setManualCpmBaseError('El resultado debe ser ≥ 1 día');
         setManualCpmFinalInput('');
         return;
       }
@@ -2759,8 +2759,8 @@ const ModernFertilityDashboard = () => {
       }
 
 
-      if (parsed < 0) {
-        setManualCpmFinalError('El CPM debe ser ≥ 0');
+      if (parsed < 1) {
+        setManualCpmFinalError('El CPM debe ser ≥ 1');
         setManualCpmBaseInput('');
         return;
       }
@@ -2808,8 +2808,8 @@ const ModernFertilityDashboard = () => {
 
       const computedFinal = parsedBase - MANUAL_CPM_DEDUCTION;
 
-      if (computedFinal < 0) {
-        setManualCpmBaseError('El resultado debe ser ≥ 0 días');
+      if (computedFinal < 1) {
+        setManualCpmBaseError('El resultado debe ser ≥ 1 día');
         return false;
       }
 
@@ -2826,15 +2826,15 @@ const ModernFertilityDashboard = () => {
       const normalized = trimmedFinal.replace(',', '.');
       const parsedFinal = Number.parseFloat(normalized);
 
-      if (!Number.isFinite(parsedFinal) || parsedFinal < 0) {
-        setManualCpmFinalError('El CPM debe ser ≥ 0 días');
+      if (!Number.isFinite(parsedFinal) || parsedFinal < 1) {
+        setManualCpmFinalError('El CPM debe ser ≥ 1 día');
         return false;
       }
 
       finalValueToPersist = parsedFinal;
 
       const parsedBase = Number.parseInt(trimmedBase, 10);
-      if (Number.isFinite(parsedBase) && parsedBase - MANUAL_CPM_DEDUCTION >= 0) {
+      if (Number.isFinite(parsedBase) && parsedBase - MANUAL_CPM_DEDUCTION >= 1) {
         baseValueToPersist = parsedBase;
       } else if (!trimmedBase) {
         baseValueToPersist = null;
@@ -3011,13 +3011,13 @@ const ModernFertilityDashboard = () => {
       return;
     }
 
-    if (parsed < 8) {
-      setManualT8BaseError('El T-8 debe ser ≥ 0');
+    if (parsed < 9) {
+      setManualT8BaseError('El día de subida debe ser ≥ 9');
       setManualT8FinalInput('');
       return;
     }
 
-    const computedFinal = Math.max(0, parsed - 8);
+    const computedFinal = Math.max(1, parsed - 8);
     setManualT8FinalInput(String(computedFinal));
   }, []);
 
@@ -3034,8 +3034,8 @@ const ModernFertilityDashboard = () => {
 
     const parsed = Number.parseInt(value, 10);
 
-    if (!Number.isFinite(parsed) || parsed < 0) {
-      setManualT8FinalError('El T-8 debe ser ≥ 0');
+    if (!Number.isFinite(parsed) || parsed < 1) {
+      setManualT8FinalError('El T-8 debe ser ≥ 1');
     }
   }, []);
 
@@ -3070,12 +3070,12 @@ const ModernFertilityDashboard = () => {
         return false;
       }
 
-      if (parsedBase < 8) {
-        setManualT8BaseError('El día de subida debe ser ≥ 8');
+      if (parsedBase < 9) {
+        setManualT8BaseError('El día de subida debe ser ≥ 9');
         return false;
       }
 
-      const computedFinal = Math.max(0, parsedBase - 8);
+      const computedFinal = Math.max(1, parsedBase - 8);
       baseValueToPersist = parsedBase;
       finalValueToPersist = computedFinal;
       setManualT8FinalInput(String(computedFinal));
@@ -3088,8 +3088,8 @@ const ModernFertilityDashboard = () => {
 
       const parsedFinal = Number.parseInt(trimmedFinal, 10);
 
-      if (!Number.isFinite(parsedFinal) || parsedFinal < 0) {
-        setManualT8FinalError('El T-8 debe ser ≥ 0');
+      if (!Number.isFinite(parsedFinal) || parsedFinal < 1) {
+        setManualT8FinalError('El T-8 debe ser ≥ 1');
         return false;
       }
 
@@ -3929,7 +3929,7 @@ const ModernFertilityDashboard = () => {
                         type="number"
                         inputMode="decimal"
                         step="0.1"
-                        min="0"
+                        min="1"
                         value={manualCpmFinalInput}
                         onChange={handleManualCpmFinalInputChange}
                         placeholder="Introduce el valor"
@@ -4268,7 +4268,7 @@ const ModernFertilityDashboard = () => {
                         type="number"
                         inputMode="numeric"
                         step="1"
-                        min="0"
+                        min="1"
                         value={manualT8FinalInput}
                         onChange={handleManualT8FinalInputChange}
                         placeholder="Día del T-8"
