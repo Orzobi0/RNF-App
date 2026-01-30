@@ -10,6 +10,7 @@ import CycleDatesEditor from '@/components/CycleDatesEditor';
 import DataEntryForm from '@/components/DataEntryForm';
 import DayDetail from '@/components/DayDetail';
 import DeletionDialog from '@/components/DeletionDialog';
+import PostpartumExitDialog from '@/components/PostpartumExitDialog';
 import { useCycleData } from '@/hooks/useCycleData';
 import { useToast } from '@/components/ui/use-toast';
 import { HeaderIconButton, HeaderIconButtonPrimary } from '@/components/HeaderIconButton';
@@ -37,6 +38,7 @@ import { FERTILITY_SYMBOL_OPTIONS } from '@/config/fertilitySymbols';
 import computePeakStatuses from '@/lib/computePeakStatuses';
 import { formatCycleMeta, formatCycleTitle } from '@/lib/formatCycleTitle';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
 
 const getSymbolInfo = (symbolValue) =>
   FERTILITY_SYMBOL_OPTIONS.find((symbol) => symbol.value === symbolValue) || FERTILITY_SYMBOL_OPTIONS[0];
@@ -95,6 +97,7 @@ export const RecordsExperience = ({
     startNewCycle: contextStartNewCycle,
     refreshData: contextRefreshData,
   } = useCycleData();
+  const { preferences, savePreferences } = useAuth();
   const cycle = cycleProp ?? contextCurrentCycle;
   const isLoading = isLoadingProp ?? contextIsLoading;
   const addOrUpdateDataPoint = addOrUpdateDataPointProp
@@ -144,8 +147,20 @@ export const RecordsExperience = ({
   const [focusedField, setFocusedField] = useState(null);
   const [initialSectionKey, setInitialSectionKey] = useState(null);
   const [showNewCycleDialog, setShowNewCycleDialog] = useState(false);
+  const [showPostpartumExitDialog, setShowPostpartumExitDialog] = useState(false);
   const recordCount = cycle?.data?.length ?? 0;
   const isCurrentCycle = !cycle?.endDate;
+
+  const handleConfirmPostpartumExit = useCallback(async () => {
+    setShowPostpartumExitDialog(false);
+    if (typeof savePreferences !== 'function') return;
+    await savePreferences({
+      fertilityStartConfig: {
+        postpartum: false,
+        calculators: { cpm: true, t8: true },
+      },
+    });
+  }, [savePreferences]);
 
   const resolvedHeaderTitle = useMemo(() => {
     if (headerTitle) return headerTitle;
@@ -1398,7 +1413,15 @@ const enterStart = -exitTarget;
             setShowNewCycleDialog(false);
             setInitialSectionKey(null);
             setShowForm(true);
+            if (preferences?.fertilityStartConfig?.postpartum === true) {
+              setShowPostpartumExitDialog(true);
+            }
           }}
+        />
+        <PostpartumExitDialog
+          isOpen={showPostpartumExitDialog}
+          onClose={() => setShowPostpartumExitDialog(false)}
+          onConfirm={handleConfirmPostpartumExit}
         />
       </div>
     );

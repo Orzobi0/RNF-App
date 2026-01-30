@@ -18,6 +18,7 @@ import CycleDatesEditor from '@/components/CycleDatesEditor';
 import DataEntryForm from '@/components/DataEntryForm';
 import { useToast } from '@/components/ui/use-toast';
 import NewCycleDialog from '@/components/NewCycleDialog';
+import PostpartumExitDialog from '@/components/PostpartumExitDialog';
 import {
   Dialog,
   DialogContent,
@@ -3341,6 +3342,7 @@ const ModernFertilityDashboard = () => {
   const [showForm, setShowForm] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showNewCycleDialog, setShowNewCycleDialog] = useState(false);
+  const [showPostpartumExitDialog, setShowPostpartumExitDialog] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [initialSectionKey, setInitialSectionKey] = useState(null);
   const isPlaceholderRecord = Boolean(
@@ -3356,6 +3358,17 @@ const ModernFertilityDashboard = () => {
     setEditingRecord(null);
     setInitialSectionKey(null);
   }, []);
+
+  const handleConfirmPostpartumExit = useCallback(async () => {
+    setShowPostpartumExitDialog(false);
+    if (typeof savePreferences !== 'function') return;
+    await savePreferences({
+      fertilityStartConfig: {
+        postpartum: false,
+        calculators: { cpm: true, t8: true },
+      },
+    });
+  }, [savePreferences]);
 
   const handleDateSelect = useCallback((record) => {
     setEditingRecord(record);
@@ -3609,7 +3622,15 @@ const ModernFertilityDashboard = () => {
             setShowNewCycleDialog(false);
             setInitialSectionKey(null);
             setShowForm(true);
+            if (preferences?.fertilityStartConfig?.postpartum === true) {
+              setShowPostpartumExitDialog(true);
+            }
           }}
+        />
+        <PostpartumExitDialog
+          isOpen={showPostpartumExitDialog}
+          onClose={() => setShowPostpartumExitDialog(false)}
+          onConfirm={handleConfirmPostpartumExit}
         />
       </div>
     );
@@ -3646,6 +3667,9 @@ const ModernFertilityDashboard = () => {
     setShowNewCycleDialog(false);
     setInitialSectionKey(null);
     setShowForm(true);
+    if (preferences?.fertilityStartConfig?.postpartum === true) {
+      setShowPostpartumExitDialog(true);
+    }
   };
 
   return (
@@ -4444,6 +4468,11 @@ const ModernFertilityDashboard = () => {
         onClose={() => setShowNewCycleDialog(false)}
         onConfirm={handleConfirmNewCycle}
         currentCycleStartDate={currentCycle.startDate}
+      />
+      <PostpartumExitDialog
+        isOpen={showPostpartumExitDialog}
+        onClose={() => setShowPostpartumExitDialog(false)}
+        onConfirm={handleConfirmPostpartumExit}
       />
     </>
   );
