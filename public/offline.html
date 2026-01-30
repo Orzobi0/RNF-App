@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#FFE4E6" />
+    <title>Pantalla no disponible sin conexión</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+        background: #fde2e8;
+      }
+      .wrap {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background:
+          radial-gradient(140% 120% at 0% 0%, rgba(251, 113, 133, 0.12) 0, transparent 55%),
+          radial-gradient(120% 120% at 100% 0%, rgba(244, 114, 182, 0.12) 0, transparent 55%),
+          #fde2e8;
+      }
+      .card {
+        max-width: 420px;
+        width: 100%;
+        background: rgba(255, 255, 255, 0.9);
+        border-radius: 28px;
+        padding: 28px 24px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+        text-align: center;
+      }
+      h1 {
+        margin: 0 0 12px;
+        font-size: 22px;
+        color: #d64d62;
+      }
+      p {
+        margin: 0 0 20px;
+        color: #6b7280;
+      }
+      .actions {
+        display: grid;
+        gap: 10px;
+      }
+      button {
+        width: 100%;
+        border: 0;
+        border-radius: 999px;
+        padding: 12px 16px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .btn-primary {
+        background: #d85a6a;
+        color: #fff;
+      }
+      .btn-secondary {
+        background: #333764;
+        color: #fff;
+      }
+      .btn-outline {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        color: #1f2937;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="card">
+        <h1>Pantalla no disponible sin conexión</h1>
+        <p>Esta pantalla no está disponible sin conexión porque no se había cargado antes.</p>
+        <div class="actions">
+          <button class="btn-primary" onclick="history.back()">Volver</button>
+          <button class="btn-secondary" onclick="location.href = new URL('./', location.href).toString()">Ir a inicio</button>
+          <button class="btn-outline" onclick="location.reload()">Reintentar</button>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

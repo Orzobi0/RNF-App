@@ -18,6 +18,7 @@ import CycleDatesEditor from '@/components/CycleDatesEditor';
 import DataEntryForm from '@/components/DataEntryForm';
 import { useToast } from '@/components/ui/use-toast';
 import NewCycleDialog from '@/components/NewCycleDialog';
+import PostpartumExitDialog from '@/components/PostpartumExitDialog';
 import {
   Dialog,
   DialogContent,
@@ -1938,7 +1939,7 @@ const ModernFertilityDashboard = () => {
     const deduction = includedCount >= 12 ? 20 : 21;
     const computedValue =
       typeof shortestCycle?.duration === 'number' && Number.isFinite(shortestCycle.duration)
-        ? shortestCycle.duration - deduction
+        ? Math.max(1, shortestCycle.duration - deduction)
         : null;
 
     return {
@@ -2460,7 +2461,7 @@ const ModernFertilityDashboard = () => {
     (typeof manualCpmValue === 'number' && Number.isFinite(manualCpmValue)
       ? `${manualCpmValue}`
       : '—');
-      const resolvedCpmMode = ['auto', 'manual', 'none'].includes(cpmSelection)
+  const resolvedCpmMode = ['auto', 'manual', 'none'].includes(cpmSelection)
     ? cpmSelection
     : 'auto';
   const cpmStatusMode =
@@ -2469,9 +2470,7 @@ const ModernFertilityDashboard = () => {
         ? 'manual'
         : 'none'
       : resolvedCpmMode === 'auto'
-        ? computedCpmData.canCompute
-          ? 'auto'
-          : 'none'
+        ? 'auto'
         : 'none';
   const cpmStatusValueLabel =
     cpmStatusMode === 'manual'
@@ -2483,7 +2482,9 @@ const ModernFertilityDashboard = () => {
     cpmStatusMode === 'manual'
       ? 'Se usa el valor que has introducido manualmente.'
       : cpmStatusMode === 'auto'
-        ? 'Se usa el valor calculado con tus ciclos.'
+        ? computedCpmData.canCompute
+          ? 'Se usa el valor calculado con tus ciclos.'
+          : 'Faltan ciclos para calcular el CPM automáticamente.'
         : 'Este dato no se tendrá en cuenta en la interpretación.';
   const cpmStatusChipLabel =
     cpmStatusMode === 'manual' ? 'Manual' : cpmStatusMode === 'auto' ? 'Automático' : 'Sin usar';
@@ -2498,7 +2499,7 @@ const ModernFertilityDashboard = () => {
     (typeof manualT8Value === 'number' && Number.isFinite(manualT8Value)
       ? `${manualT8Value}`
       : '—');
-      const resolvedT8Mode = ['auto', 'manual', 'none'].includes(t8Selection)
+  const resolvedT8Mode = ['auto', 'manual', 'none'].includes(t8Selection)
     ? t8Selection
     : 'auto';
   const t8StatusMode =
@@ -2507,9 +2508,7 @@ const ModernFertilityDashboard = () => {
         ? 'manual'
         : 'none'
       : resolvedT8Mode === 'auto'
-        ? computedT8Data.canCompute
-          ? 'auto'
-          : 'none'
+        ? 'auto'
         : 'none';
   const t8StatusValueLabel =
     t8StatusMode === 'manual'
@@ -2521,7 +2520,9 @@ const ModernFertilityDashboard = () => {
     t8StatusMode === 'manual'
       ? 'Se usa el valor que has introducido manualmente.'
       : t8StatusMode === 'auto'
-        ? 'Se usa el valor calculado con tus ciclos.'
+        ? computedT8Data.canCompute
+          ? 'Se usa el valor calculado con tus ciclos.'
+          : 'Faltan ciclos para calcular el T-8 automáticamente.'
         : 'Este dato no se tendrá en cuenta en la interpretación.';
   const t8StatusChipLabel =
     t8StatusMode === 'manual' ? 'Manual' : t8StatusMode === 'auto' ? 'Automático' : 'Sin usar';
@@ -2714,19 +2715,18 @@ const ModernFertilityDashboard = () => {
       const parsedBase = Number.parseInt(value, 10);
 
       if (!Number.isFinite(parsedBase)) {
-        setManualCpmBaseError('Introduce un número entero válido.');
+        setManualCpmBaseError('El ciclo más corto debe ser ≥ 1');
         setManualCpmFinalInput('');
         return;
       }
 
-      const result = parsedBase - MANUAL_CPM_DEDUCTION;
-
-      if (result < 0) {
-        setManualCpmBaseError('El resultado debe ser ≥ 0 días');
+      if (parsedBase < 1) {
+        setManualCpmBaseError('El día de subida debe ser ≥ 1');
         setManualCpmFinalInput('');
         return;
       }
 
+      const result = Math.max(1, parsedBase - MANUAL_CPM_DEDUCTION);
       setManualCpmFinalInput(String(result));
     },
     []
@@ -2742,8 +2742,6 @@ const ModernFertilityDashboard = () => {
       setManualCpmBaseError('');
 
       if (!value.trim()) {
-        // si borran el CPM, borramos el ciclo más corto calculado
-        setManualCpmBaseInput('');
         return;
       }
 
@@ -2753,22 +2751,14 @@ const ModernFertilityDashboard = () => {
 
       if (!Number.isFinite(parsed)) {
         setManualCpmFinalError('Introduce un número válido.');
-        setManualCpmBaseInput('');
         return;
       }
 
-
-      if (parsed < 0) {
-        setManualCpmFinalError('El CPM debe ser ≥ 0');
-        setManualCpmBaseInput('');
+      if (parsed < 1) {
+        setManualCpmFinalError('El CPM debe ser ≥ 1');
         return;
       }
 
-    // si el CPM es X, el ciclo más corto es X + deducción (20) y lo redondeamos a entero
-    const base = parsed + MANUAL_CPM_DEDUCTION;
-    const baseRounded = Math.round(base);
-
-    setManualCpmBaseInput(String(baseRounded));
     },
     []
   );
@@ -2786,7 +2776,7 @@ const ModernFertilityDashboard = () => {
 
     if (!activeSide) {
       setManualCpmFinalError('Introduce un valor.');
-      return fasle;
+      return false;
     }
 
     let baseValueToPersist = manualCpmBaseValue;
@@ -2805,12 +2795,7 @@ const ModernFertilityDashboard = () => {
         return false;
       }
 
-      const computedFinal = parsedBase - MANUAL_CPM_DEDUCTION;
-
-      if (computedFinal < 0) {
-        setManualCpmBaseError('El resultado debe ser ≥ 0 días');
-        return false;
-      }
+      const computedFinal = Math.max(1, parsedBase - MANUAL_CPM_DEDUCTION);
 
       baseValueToPersist = parsedBase;
       finalValueToPersist = computedFinal;
@@ -2825,18 +2810,22 @@ const ModernFertilityDashboard = () => {
       const normalized = trimmedFinal.replace(',', '.');
       const parsedFinal = Number.parseFloat(normalized);
 
-      if (!Number.isFinite(parsedFinal) || parsedFinal < 0) {
-        setManualCpmFinalError('El CPM debe ser ≥ 0 días');
+      if (!Number.isFinite(parsedFinal) || parsedFinal < 1) {
+        setManualCpmFinalError('El CPM debe ser ≥ 1 día');
         return false;
       }
 
       finalValueToPersist = parsedFinal;
 
-      const parsedBase = Number.parseInt(trimmedBase, 10);
-      if (Number.isFinite(parsedBase) && parsedBase - MANUAL_CPM_DEDUCTION >= 0) {
-        baseValueToPersist = parsedBase;
-      } else if (!trimmedBase) {
+      if (!trimmedBase) {
         baseValueToPersist = null;
+        } else {
+        const parsedBase = Number.parseInt(trimmedBase, 10);
+        if (!Number.isFinite(parsedBase) || parsedBase < 1) {
+          setManualCpmBaseError('Introduce un número entero válido.');
+          return false;
+        }
+        baseValueToPersist = parsedBase;
       }
     }
     const previousValue = manualCpmValue;
@@ -2866,7 +2855,7 @@ const ModernFertilityDashboard = () => {
       setManualCpmBaseValue(previousBaseValue);
       setIsManualCpm(previousIsManual);
       setManualCpmFinalError('No se pudo guardar el CPM. Inténtalo de nuevo.');
-      return fasle;
+      return false;
     }
   }, [
     isManualCpm,
@@ -3010,8 +2999,8 @@ const ModernFertilityDashboard = () => {
       return;
     }
 
-    if (parsed < 9) {
-      setManualT8BaseError('El T-8 debe ser ≥ 1');
+    if (parsed < 1) {
+      setManualT8BaseError('Introduce un número entero válido.');
       setManualT8FinalInput('');
       return;
     }
@@ -3064,15 +3053,10 @@ const ModernFertilityDashboard = () => {
 
       const parsedBase = Number.parseInt(trimmedBase, 10);
 
-      if (!Number.isFinite(parsedBase)) {
-        setManualT8BaseError('Introduce un número entero válido.');
-        return false;
-      }
-
-      if (parsedBase < 9) {
-        setManualT8BaseError('El T-8 debe ser ≥ 1');
-        return false;
-      }
+      if (!Number.isFinite(parsedBase) || parsedBase < 1) {
+      setManualT8BaseError('Introduce un número entero válido.');
+      return false;
+    }
 
       const computedFinal = Math.max(1, parsedBase - 8);
       baseValueToPersist = parsedBase;
@@ -3094,11 +3078,15 @@ const ModernFertilityDashboard = () => {
 
       finalValueToPersist = parsedFinal;
 
-      const parsedBase = Number.parseInt(trimmedBase, 10);
-      if (Number.isFinite(parsedBase) && parsedBase >= 9) {
-        baseValueToPersist = parsedBase;
-      } else if (!trimmedBase) {
+      if (!trimmedBase) {
         baseValueToPersist = null;
+        } else {
+        const parsedBase = Number.parseInt(trimmedBase, 10);
+        if (!Number.isFinite(parsedBase) || parsedBase < 1) {
+          setManualT8BaseError('Introduce un número entero válido.');
+          return false;
+        }
+        baseValueToPersist = parsedBase;
       }
     }
 
@@ -3341,6 +3329,7 @@ const ModernFertilityDashboard = () => {
   const [showForm, setShowForm] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showNewCycleDialog, setShowNewCycleDialog] = useState(false);
+  const [showPostpartumExitDialog, setShowPostpartumExitDialog] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [initialSectionKey, setInitialSectionKey] = useState(null);
   const isPlaceholderRecord = Boolean(
@@ -3356,6 +3345,17 @@ const ModernFertilityDashboard = () => {
     setEditingRecord(null);
     setInitialSectionKey(null);
   }, []);
+
+  const handleConfirmPostpartumExit = useCallback(async () => {
+    setShowPostpartumExitDialog(false);
+    if (typeof savePreferences !== 'function') return;
+    await savePreferences({
+      fertilityStartConfig: {
+        postpartum: false,
+        calculators: { cpm: true, t8: true },
+      },
+    });
+  }, [savePreferences]);
 
   const handleDateSelect = useCallback((record) => {
     setEditingRecord(record);
@@ -3480,7 +3480,7 @@ const ModernFertilityDashboard = () => {
 
     const addManualCandidate = (source, finalValue, baseValue) => {
       const numericDay = Number(finalValue);
-      if (!Number.isFinite(numericDay) || numericDay <= 0) {
+      if (!Number.isFinite(numericDay) || numericDay < 0) {
         return;
       }
 
@@ -3609,7 +3609,15 @@ const ModernFertilityDashboard = () => {
             setShowNewCycleDialog(false);
             setInitialSectionKey(null);
             setShowForm(true);
+            if (preferences?.fertilityStartConfig?.postpartum === true) {
+              setShowPostpartumExitDialog(true);
+            }
           }}
+        />
+        <PostpartumExitDialog
+          isOpen={showPostpartumExitDialog}
+          onClose={() => setShowPostpartumExitDialog(false)}
+          onConfirm={handleConfirmPostpartumExit}
         />
       </div>
     );
@@ -3646,6 +3654,9 @@ const ModernFertilityDashboard = () => {
     setShowNewCycleDialog(false);
     setInitialSectionKey(null);
     setShowForm(true);
+    if (preferences?.fertilityStartConfig?.postpartum === true) {
+      setShowPostpartumExitDialog(true);
+    }
   };
 
   return (
@@ -3697,7 +3708,7 @@ const ModernFertilityDashboard = () => {
                         cpmStatusMode === 'manual'
                           ? 'bg-rose-100 text-rose-700'
                           : cpmStatusMode === 'auto'
-                            ? 'bg-emerald-50 text-emerald-700'
+                            ? 'bg-rose-100 text-rose-700'
                             : 'bg-gray-100 text-gray-600'
                       }`}
                     >
@@ -3888,7 +3899,7 @@ const ModernFertilityDashboard = () => {
                         type="number"
                         inputMode="numeric"
                         step="1"
-                        min="0"
+                        min="1"
                         value={manualCpmBaseInput}
                         onChange={handleManualCpmBaseInputChange}
                         placeholder="Introduce un entero"
@@ -3905,7 +3916,7 @@ const ModernFertilityDashboard = () => {
                         type="number"
                         inputMode="decimal"
                         step="0.1"
-                        min="0"
+                        min="1"
                         value={manualCpmFinalInput}
                         onChange={handleManualCpmFinalInputChange}
                         placeholder="Introduce el valor"
@@ -4050,7 +4061,7 @@ const ModernFertilityDashboard = () => {
                         t8StatusMode === 'manual'
                           ? 'bg-rose-100 text-rose-700'
                           : t8StatusMode === 'auto'
-                            ? 'bg-emerald-50 text-emerald-700'
+                            ? 'bg-rose-100 text-rose-700'
                             : 'bg-gray-100 text-gray-600'
                       }`}
                     >
@@ -4227,7 +4238,7 @@ const ModernFertilityDashboard = () => {
                         type="number"
                         inputMode="numeric"
                         step="1"
-                        min="9"
+                        min="1"
                         value={manualT8BaseInput}
                         onChange={handleManualT8BaseInputChange}
                         placeholder="Día de subida"
@@ -4444,6 +4455,11 @@ const ModernFertilityDashboard = () => {
         onClose={() => setShowNewCycleDialog(false)}
         onConfirm={handleConfirmNewCycle}
         currentCycleStartDate={currentCycle.startDate}
+      />
+      <PostpartumExitDialog
+        isOpen={showPostpartumExitDialog}
+        onClose={() => setShowPostpartumExitDialog(false)}
+        onConfirm={handleConfirmPostpartumExit}
       />
     </>
   );

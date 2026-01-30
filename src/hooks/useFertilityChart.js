@@ -11,7 +11,7 @@ import {
 const DEFAULT_FERTILITY_START_CONFIG = {
   calculators: { cpm: true, t8: true },
   postpartum: false,
-  combineMode: 'conservador',
+  combineMode: 'estandar',
 };
 
 const DEFAULT_TEMP_MIN = 36.1;
@@ -579,7 +579,7 @@ export const useFertilityChart = (
         DEFAULT_FERTILITY_START_CONFIG.calculators.t8
       ),
     };
-    const validModes = new Set(['conservador', 'estandar']);
+    const validModes = new Set(['estandar']);
     const combineMode = validModes.has(config?.combineMode)
       ? config.combineMode
       : DEFAULT_FERTILITY_START_CONFIG.combineMode;

@@ -1,10 +1,13 @@
 import React, { Suspense, lazy } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { ErrorBoundary } from '@/components/dev/ErrorBoundary';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { CycleDataProvider } from '@/contexts/CycleDataContext.jsx';
 import { HealthConnectProvider } from '@/contexts/HealthConnectContext.jsx';
 import AppBackground from '@/components/layout/AppBackground';
+import RouteErrorBoundary from '@/components/errors/RouteErrorBoundary';
+import RouteErrorFallback from '@/components/errors/RouteErrorFallback';
+import GlobalChunkErrorHandler from '@/components/errors/GlobalChunkErrorHandler';
 const AuthPage = lazy(() => import('@/pages/AuthPage'));
 const DashboardPage = lazy(() => import('@/pages/DashboardPage'));
 const ArchivedCyclesPage = lazy(() => import('@/pages/ArchivedCyclesPage'));
@@ -28,6 +31,7 @@ function ProtectedRoute({ children }) {
 
 function AppContent() {
   const { user, loadingAuth } = useAuth();
+  const location = useLocation();
 
   if (loadingAuth) {
     return (
@@ -78,68 +82,72 @@ function AppContent() {
   return (
     <AppBackground>
       <Suspense fallback={suspenseFallback}>
-        <Routes>
-          <Route path="/auth" element={user ? <Navigate to="/" replace /> : <AuthPage />} />
-          <Route
-            path="/"
-            element={
-              <ProtectedRoute>
-                <MainLayout>
-                  <DashboardPage />
-                </MainLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/chart/:cycleId?"
-            element={
-              <ProtectedRoute>
-                <ChartPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/records"
-            element={
-              <ProtectedRoute>
-                <MainLayout>
-                  <RecordsPage />
-                </MainLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/archived-cycles"
-            element={
-              <ProtectedRoute>
-                <MainLayout>
-                  <ArchivedCyclesPage />
-                </MainLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/settings"
-            element={
-              <ProtectedRoute>
-                <MainLayout>
-                  <SettingsPage />
-                </MainLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/cycle/:cycleId"
-            element={
-              <ProtectedRoute>
-                <MainLayout>
-                  <CycleDetailPage />
-                </MainLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route path="*" element={<Navigate to={user ? "/" : "/auth"} replace />} />
-        </Routes>
+        <GlobalChunkErrorHandler>
+          <RouteErrorBoundary key={location.pathname} FallbackComponent={RouteErrorFallback}>
+            <Routes>
+              <Route path="/auth" element={user ? <Navigate to="/" replace /> : <AuthPage />} />
+              <Route
+                path="/"
+                element={
+                  <ProtectedRoute>
+                    <MainLayout>
+                      <DashboardPage />
+                    </MainLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/chart/:cycleId?"
+                element={
+                  <ProtectedRoute>
+                    <ChartPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/records"
+                element={
+                  <ProtectedRoute>
+                    <MainLayout>
+                      <RecordsPage />
+                    </MainLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/archived-cycles"
+                element={
+                  <ProtectedRoute>
+                    <MainLayout>
+                      <ArchivedCyclesPage />
+                    </MainLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/settings"
+                element={
+                  <ProtectedRoute>
+                    <MainLayout>
+                      <SettingsPage />
+                    </MainLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/cycle/:cycleId"
+                element={
+                  <ProtectedRoute>
+                    <MainLayout>
+                      <CycleDetailPage />
+                    </MainLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route path="*" element={<Navigate to={user ? "/" : "/auth"} replace />} />
+            </Routes>
+          </RouteErrorBoundary>
+        </GlobalChunkErrorHandler>
       </Suspense>
     </AppBackground>
   );

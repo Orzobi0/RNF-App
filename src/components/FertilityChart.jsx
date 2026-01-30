@@ -289,6 +289,16 @@ const FertilityChart = ({
     }
     return totalLastIndex;
   }, [archivedPhaseEndIndex, isArchivedCycle, todayIndex, totalLastIndex]);
+  
+  const phaseInfoLimitIndex = useMemo(() => {
+    if (isArchivedCycle) {
+      if (Number.isInteger(archivedPhaseEndIndex)) {
+        return archivedPhaseEndIndex;
+      }
+      return Number.isInteger(relativeFertileLimitIndex) ? relativeFertileLimitIndex : null;
+    }
+    return Number.isInteger(todayIndex) ? todayIndex : null;
+  }, [archivedPhaseEndIndex, isArchivedCycle, relativeFertileLimitIndex, todayIndex]);
   const interpretationBandTop =
     chartAreaHeight > 0 ? padding.top + chartAreaHeight * 0.5 : null;
   const interpretationBandHeight =
@@ -1096,6 +1106,7 @@ const FertilityChart = ({
                         message: segment.message,
                         startIndex: segment.startIndex,
                         endIndex: segment.endIndex,
+                        limitIndex: phaseInfoLimitIndex,
                         label: segment.displayLabel ?? segment.message ?? null,
                       });
                     }

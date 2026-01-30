@@ -21,13 +21,6 @@ import {
   computeCpmCandidateFromCycles,
   computeT8CandidateFromCycles,
 } from '@/lib/fertilityStart';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { useParams, Link, useLocation } from 'react-router-dom';
 import Overlay from '@/components/ui/Overlay';
 import { useAuth } from '@/contexts/AuthContext';
@@ -51,6 +44,11 @@ const formatCalculatorSourceLabel = (source) => {
   return source ?? '';
 };
 
+const normalizeCombineMode = (value) => {
+  if (value === 'conservador') return 'estandar';
+  return value === 'estandar' ? value : null;
+};
+
 const createDefaultFertilityStartConfig = () => ({
   calculators: { cpm: true, t8: true },
   postpartum: false,
@@ -67,11 +65,6 @@ const FERTILITY_CALCULATOR_OPTIONS = [
   { key: 't8', label: 'T-8' },
 ];
 
-const COMBINE_MODE_LABELS = {
-  estandar: 'Estándar',
-  conservador: 'Conservador',
-};
-
 const mergeFertilityStartConfig = (incoming) => {
   const base = createDefaultFertilityStartConfig();
   const merged = {
@@ -87,8 +80,9 @@ const mergeFertilityStartConfig = (incoming) => {
       }
     });
 
-    if (Object.prototype.hasOwnProperty.call(COMBINE_MODE_LABELS, incoming.combineMode)) {
-      merged.combineMode = incoming.combineMode;
+    const normalizedMode = normalizeCombineMode(incoming.combineMode);
+    if (normalizedMode) {
+      merged.combineMode = normalizedMode;
     }
 
     if (typeof incoming.postpartum === 'boolean') {
@@ -585,32 +579,7 @@ const ChartPage = () => {
       });
     }
   };
-  const handleCombineModeChange = (value) => {
-    if (!Object.prototype.hasOwnProperty.call(COMBINE_MODE_LABELS, value)) {
-      return;
-    }
-    let nextConfig = null;
-    setChartSettings((prev) => {
-      const currentConfig = mergeFertilityStartConfig(prev.fertilityStartConfig);
-      if (currentConfig.combineMode === value) {
-        return prev;
-      }
-      nextConfig = {
-        ...currentConfig,
-        combineMode: value,
-      };
-      return {
-        ...prev,
-        fertilityStartConfig: nextConfig,
-      };
-    });
-    
-    if (nextConfig && typeof savePreferences === 'function') {
-      savePreferences({ fertilityStartConfig: nextConfig }).catch((error) => {
-        console.error('Failed to persist combine mode preference', error);
-      });
-    }
-  };
+  
   const handlePostpartumChange = (checked) => {
     let nextConfig = null;
     setChartSettings((prev) => {
@@ -976,9 +945,6 @@ const ChartPage = () => {
       const reasons = info.reasons ?? {};
       const aggregate = reasons?.aggregate ?? null;
       const usedCandidates = Array.isArray(aggregate?.usedCandidates) ? aggregate.usedCandidates : [];
-      const referenceCandidates = Array.isArray(aggregate?.ignoredCalculatorCandidates)
-        ? aggregate.ignoredCalculatorCandidates
-        : [];
       const fertileWindow = reasons?.window ?? reasons?.fertileWindow ?? null;
       const fertileStartIndex = Number.isInteger(reasons?.startIndex)
         ? reasons.startIndex
@@ -986,18 +952,9 @@ const ChartPage = () => {
           ? reasons.fertileStartFinalIndex
           : null;
 
-      const selectedMode = aggregate?.selectedMode ?? fertilityConfig?.combineMode ?? null;
-      const modeLabel = (() => {
-        if (reasons?.source === 'marker' || reasons?.details?.explicitStartDay != null) {
-          return 'Ajustado por marcadores';
-        }
-        const labels = {
-          conservador: 'Conservador',
-          estandar: 'Estándar',
-        };
-        return labels[selectedMode] ?? null;
-      })();
       const postpartumActive = Boolean(fertilityConfig?.postpartum);
+      const hasActiveCalculators = !postpartumActive
+        && Boolean(fertilityConfig?.calculators?.cpm || fertilityConfig?.calculators?.t8);
 
       const normalizeSource = (candidate) =>
         (candidate?.source ?? candidate?.originalSource ?? '').toString().toUpperCase();
@@ -1030,17 +987,22 @@ const ChartPage = () => {
 
       if (phase === 'relativeInfertile') {
         title = 'Relativamente infértil';
-        const fertileStarted = Number.isInteger(fertileStartIndex);
-        const hasReference =
-          selectedMode === 'estandar' && Array.isArray(referenceCandidates) && referenceCandidates.length > 0;
+        const currentLimitIndex = Number.isInteger(info?.limitIndex)
+          ? info.limitIndex
+          : Number.isInteger(info?.endIndex)
+            ? info.endIndex
+            : Number.isInteger(info?.todayIndex)
+              ? info.todayIndex
+              : null;
+        const fertileStarted = Number.isInteger(fertileStartIndex)
+          && Number.isInteger(currentLimitIndex)
+          && fertileStartIndex <= currentLimitIndex;
         const startCause = getStartCauseLabel();
         const startDate = formatDateFromIndex(fertileStartIndex);
 
         if (!fertileStarted) {
-          if (selectedMode === 'conservador') {
+          if (hasActiveCalculators) {
             message = 'A la espera de cálculo (CPM/T-8) o signos de moco/sensación.';
-          } else if (hasReference) {
-            message = 'Referencia alcanzada (CPM/T-8). A la espera de signos de moco/sensación.';
           } else {
             message = 'A la espera de signos de moco/sensación.';
           }
@@ -1149,7 +1111,6 @@ const ChartPage = () => {
         title,
         message,
         description,
-        modeLabel,
         postpartumActive,
       });
     },
@@ -1297,26 +1258,7 @@ const ChartPage = () => {
                   className="mt-1"
                 />
               </div>       
-              <div className="rounded-2xl border border-sky-100/70 bg-sky-50/40 p-4 space-y-3">
-                <div>
-                  <h3 className="text-sm font-semibold text-slate-700">Modo de combinación</h3>
-                  <p className="text-xs text-slate-500">
-                    Determina cómo se elige el inicio y fin de la fase fértil a partir de los candidatos disponibles.
-                  </p>
-                </div>
-                <Select value={fertilityConfig.combineMode} onValueChange={handleCombineModeChange}>
-                  <SelectTrigger className="w-full bg-white/80 border-slate-200 text-sm rounded-3xl text-slate-700">
-                    <SelectValue placeholder="Selecciona un modo" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white border-slate-200 text-slate-700 rounded-3xl">
-                    {Object.entries(COMBINE_MODE_LABELS).map(([value, label]) => (
-                      <SelectItem key={value} value={value} className="text-sm rounded-3xl">
-                        {label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                </div>
+              
               <div className="rounded-2xl border border-red-100/70 bg-red-50/40 p-3">
                 <div className="flex items-start justify-between gap-3 pt-1">
                   <div className="max-w-[65%]">
@@ -1373,11 +1315,6 @@ const ChartPage = () => {
                   <h2 className="text-lg font-semibold text-fertiliapp-fuerte">
                     {phaseOverlay.title}
                   </h2>
-                  {phaseOverlay.modeLabel && (
-                    <span className="rounded-full border border-secundario bg-secundario-suave px-3 py-1 text-[11px] font-semibold text-secundario-fuerte">
-                      {phaseOverlay.modeLabel}
-                    </span>
-                  )}
                   {phaseOverlay.postpartumActive && (
                     <span className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-[11px] font-semibold text-rose-600">
                       Modo postparto
