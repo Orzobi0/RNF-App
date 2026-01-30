@@ -440,8 +440,20 @@ export const CycleDataProvider = ({ children }) => {
           !hadRelationsValue &&
           !isPeakMarked;
 
+        const hadMultipleMeasurements =
+          !!targetRecord?.measurementsLoaded &&
+          Array.isArray(targetRecord?.measurements) &&
+          targetRecord.measurements.length >= 2;
+
+        const shouldPersistMeasurements = validMeasurements.length >= 2;
+        const shouldClearMeasurements = hadMultipleMeasurements && validMeasurements.length < 2;
+
         const measurementsPayload = Array.isArray(newData.measurements)
-          ? validMeasurements
+          ? shouldPersistMeasurements
+            ? validMeasurements
+            : shouldClearMeasurements
+              ? []
+              : undefined
           : undefined;
         const recordPayload = {
           cycle_id: cycleIdToUse,
