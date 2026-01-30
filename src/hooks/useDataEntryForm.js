@@ -77,12 +77,18 @@ export const useDataEntryForm = (
           initialData?.temperature_raw === null || initialData?.temperature_raw === undefined
             ? ''
             : String(initialData.temperature_raw),
+        temperature_corrected:
+          initialData?.temperature_corrected === null ||
+          initialData?.temperature_corrected === undefined
+            ? ''
+            : String(initialData.temperature_corrected),
         time: initialData?.timestamp
           ? format(parseISO(initialData.timestamp), 'HH:mm')
           : format(new Date(), 'HH:mm'),
         time_corrected: initialData?.timestamp
           ? format(parseISO(initialData.timestamp), 'HH:mm')
           : format(new Date(), 'HH:mm'),
+        use_corrected: !!initialData?.use_corrected,
       }),
     ];
   });
@@ -142,12 +148,18 @@ export const useDataEntryForm = (
               initialData?.temperature_raw === null || initialData?.temperature_raw === undefined
                 ? ''
                 : String(initialData.temperature_raw),
+            temperature_corrected:
+              initialData?.temperature_corrected === null ||
+              initialData?.temperature_corrected === undefined
+                ? ''
+                : String(initialData.temperature_corrected),
             time: initialData?.timestamp
               ? format(parseISO(initialData.timestamp), 'HH:mm')
               : format(new Date(), 'HH:mm'),
             time_corrected: initialData?.timestamp
               ? format(parseISO(initialData.timestamp), 'HH:mm')
               : format(new Date(), 'HH:mm'),
+            use_corrected: !!initialData?.use_corrected,
           }),
         ]);
       }

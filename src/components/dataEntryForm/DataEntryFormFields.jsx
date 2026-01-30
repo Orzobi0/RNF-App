@@ -836,7 +836,7 @@ const DataEntryFormFields = ({
                             size="icon"
                             onClick={() => confirmMeasurement(idx)}
                             disabled={isProcessing}
-                            className="h-8 w-8 bg-green-400"
+                            className="h-7 w-7 bg-green-600"
                             aria-label="Confirmar medición"
                           >
                             <Check className="h-4 w-4" />
@@ -846,7 +846,7 @@ const DataEntryFormFields = ({
                             size="icon"
                             onClick={() => removeMeasurement(idx)}
                             disabled={isProcessing}
-                            className="h-8 w-8"
+                            className="h-7 w-7"
                             aria-label="Eliminar medición"
                           >
                             <X className="h-4 w-4" />
@@ -893,7 +893,7 @@ const DataEntryFormFields = ({
                               updateMeasurement(idx, 'use_corrected', true);
                             }
                           }}
-                          className={cn("bg-white/70 border-amber-200 text-gray-800 placeholder-gray-400 focus:border-orange-500 focus:ring-orange-500 text-base", RADIUS.field)}
+                          className={cn("bg-white/70 border-amber-200 placeholder-gray-400 focus:border-orange-500 focus:ring-orange-500 text-orange-700 font-semibold", RADIUS.field)}
                           disabled={isProcessing}
                         />
                         <Button
@@ -922,7 +922,7 @@ const DataEntryFormFields = ({
                             type="time"
                             value={m.time_corrected}
                             onChange={(e) => updateMeasurement(idx, 'time_corrected', e.target.value)}
-                            className="bg-white/70 border-amber-200 text-gray-800 focus:border-orange-500 focus:ring-orange-500 text-base"
+                            className="bg-white/70 border-amber-200 text-gray-800 focus:border-orange-500 focus:ring-orange-500"
                             disabled={isProcessing}
                           />
                         </div>
