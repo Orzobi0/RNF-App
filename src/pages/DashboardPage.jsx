@@ -2787,7 +2787,7 @@ const ModernFertilityDashboard = () => {
 
     if (!activeSide) {
       setManualCpmFinalError('Introduce un valor.');
-      return fasle;
+      return false;
     }
 
     let baseValueToPersist = manualCpmBaseValue;
@@ -2867,7 +2867,7 @@ const ModernFertilityDashboard = () => {
       setManualCpmBaseValue(previousBaseValue);
       setIsManualCpm(previousIsManual);
       setManualCpmFinalError('No se pudo guardar el CPM. Inténtalo de nuevo.');
-      return fasle;
+      return false;
     }
   }, [
     isManualCpm,
@@ -3071,7 +3071,7 @@ const ModernFertilityDashboard = () => {
       }
 
       if (parsedBase < 8) {
-        setManualT8BaseError('El T-8 debe ser ≥ 0');
+        setManualT8BaseError('El día de subida debe ser ≥ 8');
         return false;
       }
 
@@ -3493,7 +3493,7 @@ const ModernFertilityDashboard = () => {
 
     const addManualCandidate = (source, finalValue, baseValue) => {
       const numericDay = Number(finalValue);
-      if (!Number.isFinite(numericDay) || numericDay <= 0) {
+      if (!Number.isFinite(numericDay) || numericDay < 0) {
         return;
       }
 
