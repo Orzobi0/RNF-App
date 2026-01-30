@@ -1939,7 +1939,7 @@ const ModernFertilityDashboard = () => {
     const deduction = includedCount >= 12 ? 20 : 21;
     const computedValue =
       typeof shortestCycle?.duration === 'number' && Number.isFinite(shortestCycle.duration)
-        ? shortestCycle.duration - deduction
+        ? Math.max(0, shortestCycle.duration - deduction)
         : null;
 
     return {
@@ -2095,7 +2095,7 @@ const ModernFertilityDashboard = () => {
         continue;
       }
 
-      const t8Day = Math.max(1, riseDay - 8);
+      const t8Day = Math.max(0, riseDay - 8);
       const isIgnored = Boolean(cycle.ignoredForAutoCalculations);
 
       const cycleInfo = {

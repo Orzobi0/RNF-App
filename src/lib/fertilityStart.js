@@ -1228,7 +1228,7 @@ export const computeCpmCandidateFromCycles = (cycles = []) => {
 
   return {
     source: 'CPM',
-    day: Math.max(1, Math.round(rawDay)),
+    day: Math.max(0, Math.round(rawDay)),
     reason: `ciclo_mas_corto=${shortest.duration}`,
     kind: 'calculator',
   };
@@ -1326,7 +1326,7 @@ export const computeT8CandidateFromCycles = (cycles = [], computeOvulationMetric
       return;
     }
 
-    const t8Day = Math.max(1, Math.round(riseDay - 8));
+    const t8Day = Math.max(0, Math.round(riseDay - 8));
     const cycleInfo = {
       riseDay,
       t8Day,
@@ -1349,7 +1349,7 @@ export const computeT8CandidateFromCycles = (cycles = [], computeOvulationMetric
 
   return {
     source: 'T8',
-    day: Math.max(1, Math.round(earliest.t8Day)),
+    day: Math.max(0, Math.round(earliest.t8Day)),
     reason: `t8=${earliest.t8Day}`,
     kind: 'calculator',
   };
