@@ -2460,7 +2460,7 @@ const ModernFertilityDashboard = () => {
     (typeof manualCpmValue === 'number' && Number.isFinite(manualCpmValue)
       ? `${manualCpmValue}`
       : '—');
-      const resolvedCpmMode = ['auto', 'manual', 'none'].includes(cpmSelection)
+  const resolvedCpmMode = ['auto', 'manual', 'none'].includes(cpmSelection)
     ? cpmSelection
     : 'auto';
   const cpmStatusMode =
@@ -2469,9 +2469,7 @@ const ModernFertilityDashboard = () => {
         ? 'manual'
         : 'none'
       : resolvedCpmMode === 'auto'
-        ? computedCpmData.canCompute
-          ? 'auto'
-          : 'none'
+        ? 'auto'
         : 'none';
   const cpmStatusValueLabel =
     cpmStatusMode === 'manual'
@@ -2483,7 +2481,9 @@ const ModernFertilityDashboard = () => {
     cpmStatusMode === 'manual'
       ? 'Se usa el valor que has introducido manualmente.'
       : cpmStatusMode === 'auto'
-        ? 'Se usa el valor calculado con tus ciclos.'
+        ? computedCpmData.canCompute
+          ? 'Se usa el valor calculado con tus ciclos.'
+          : 'Faltan ciclos para calcular el CPM automáticamente.'
         : 'Este dato no se tendrá en cuenta en la interpretación.';
   const cpmStatusChipLabel =
     cpmStatusMode === 'manual' ? 'Manual' : cpmStatusMode === 'auto' ? 'Automático' : 'Sin usar';
@@ -2498,7 +2498,7 @@ const ModernFertilityDashboard = () => {
     (typeof manualT8Value === 'number' && Number.isFinite(manualT8Value)
       ? `${manualT8Value}`
       : '—');
-      const resolvedT8Mode = ['auto', 'manual', 'none'].includes(t8Selection)
+  const resolvedT8Mode = ['auto', 'manual', 'none'].includes(t8Selection)
     ? t8Selection
     : 'auto';
   const t8StatusMode =
@@ -2507,9 +2507,7 @@ const ModernFertilityDashboard = () => {
         ? 'manual'
         : 'none'
       : resolvedT8Mode === 'auto'
-        ? computedT8Data.canCompute
-          ? 'auto'
-          : 'none'
+        ? 'auto'
         : 'none';
   const t8StatusValueLabel =
     t8StatusMode === 'manual'
@@ -2521,7 +2519,9 @@ const ModernFertilityDashboard = () => {
     t8StatusMode === 'manual'
       ? 'Se usa el valor que has introducido manualmente.'
       : t8StatusMode === 'auto'
-        ? 'Se usa el valor calculado con tus ciclos.'
+        ? computedT8Data.canCompute
+          ? 'Se usa el valor calculado con tus ciclos.'
+          : 'Faltan ciclos para calcular el T-8 automáticamente.'
         : 'Este dato no se tendrá en cuenta en la interpretación.';
   const t8StatusChipLabel =
     t8StatusMode === 'manual' ? 'Manual' : t8StatusMode === 'auto' ? 'Automático' : 'Sin usar';
@@ -3697,7 +3697,7 @@ const ModernFertilityDashboard = () => {
                         cpmStatusMode === 'manual'
                           ? 'bg-rose-100 text-rose-700'
                           : cpmStatusMode === 'auto'
-                            ? 'bg-emerald-50 text-emerald-700'
+                            ? 'bg-rose-100 text-rose-700'
                             : 'bg-gray-100 text-gray-600'
                       }`}
                     >
@@ -4050,7 +4050,7 @@ const ModernFertilityDashboard = () => {
                         t8StatusMode === 'manual'
                           ? 'bg-rose-100 text-rose-700'
                           : t8StatusMode === 'auto'
-                            ? 'bg-emerald-50 text-emerald-700'
+                            ? 'bg-rose-100 text-rose-700'
                             : 'bg-gray-100 text-gray-600'
                       }`}
                     >
