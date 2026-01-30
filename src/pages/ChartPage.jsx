@@ -987,11 +987,13 @@ const ChartPage = () => {
 
       if (phase === 'relativeInfertile') {
         title = 'Relativamente infértil';
-        const currentLimitIndex = Number.isInteger(info?.endIndex)
-          ? info.endIndex
-          : Number.isInteger(info?.todayIndex)
-            ? info.todayIndex
-            : null;
+        const currentLimitIndex = Number.isInteger(info?.limitIndex)
+          ? info.limitIndex
+          : Number.isInteger(info?.endIndex)
+            ? info.endIndex
+            : Number.isInteger(info?.todayIndex)
+              ? info.todayIndex
+              : null;
         const fertileStarted = Number.isInteger(fertileStartIndex)
           && Number.isInteger(currentLimitIndex)
           && fertileStartIndex <= currentLimitIndex;
