@@ -2715,19 +2715,18 @@ const ModernFertilityDashboard = () => {
       const parsedBase = Number.parseInt(value, 10);
 
       if (!Number.isFinite(parsedBase)) {
-        setManualCpmBaseError('Introduce un número entero válido.');
+        setManualCpmBaseError('El ciclo más corto debe ser ≥ 1');
         setManualCpmFinalInput('');
         return;
       }
 
-      const result = parsedBase - MANUAL_CPM_DEDUCTION;
-
-      if (result < 1) {
-        setManualCpmBaseError('El resultado debe ser ≥ 1 día');
+      if (parsedBase < 1) {
+        setManualCpmBaseError('El día de subida debe ser ≥ 1');
         setManualCpmFinalInput('');
         return;
       }
 
+      const result = Math.max(1, parsedBase - MANUAL_CPM_DEDUCTION);
       setManualCpmFinalInput(String(result));
     },
     []
@@ -2743,8 +2742,6 @@ const ModernFertilityDashboard = () => {
       setManualCpmBaseError('');
 
       if (!value.trim()) {
-        // si borran el CPM, borramos el ciclo más corto calculado
-        setManualCpmBaseInput('');
         return;
       }
 
@@ -2754,22 +2751,14 @@ const ModernFertilityDashboard = () => {
 
       if (!Number.isFinite(parsed)) {
         setManualCpmFinalError('Introduce un número válido.');
-        setManualCpmBaseInput('');
         return;
       }
-
 
       if (parsed < 1) {
         setManualCpmFinalError('El CPM debe ser ≥ 1');
-        setManualCpmBaseInput('');
         return;
       }
 
-    // si el CPM es X, el ciclo más corto es X + deducción (20) y lo redondeamos a entero
-    const base = parsed + MANUAL_CPM_DEDUCTION;
-    const baseRounded = Math.round(base);
-
-    setManualCpmBaseInput(String(baseRounded));
     },
     []
   );
@@ -2806,12 +2795,7 @@ const ModernFertilityDashboard = () => {
         return false;
       }
 
-      const computedFinal = parsedBase - MANUAL_CPM_DEDUCTION;
-
-      if (computedFinal < 1) {
-        setManualCpmBaseError('El resultado debe ser ≥ 1 día');
-        return false;
-      }
+      const computedFinal = Math.max(1, parsedBase - MANUAL_CPM_DEDUCTION);
 
       baseValueToPersist = parsedBase;
       finalValueToPersist = computedFinal;
@@ -2833,11 +2817,15 @@ const ModernFertilityDashboard = () => {
 
       finalValueToPersist = parsedFinal;
 
-      const parsedBase = Number.parseInt(trimmedBase, 10);
-      if (Number.isFinite(parsedBase) && parsedBase - MANUAL_CPM_DEDUCTION >= 1) {
-        baseValueToPersist = parsedBase;
-      } else if (!trimmedBase) {
+      if (!trimmedBase) {
         baseValueToPersist = null;
+        } else {
+        const parsedBase = Number.parseInt(trimmedBase, 10);
+        if (!Number.isFinite(parsedBase) || parsedBase < 1) {
+          setManualCpmBaseError('Introduce un número entero válido.');
+          return false;
+        }
+        baseValueToPersist = parsedBase;
       }
     }
     const previousValue = manualCpmValue;
@@ -3011,8 +2999,8 @@ const ModernFertilityDashboard = () => {
       return;
     }
 
-    if (parsed < 9) {
-      setManualT8BaseError('El día de subida debe ser ≥ 9');
+    if (parsed < 1) {
+      setManualT8BaseError('Introduce un número entero válido.');
       setManualT8FinalInput('');
       return;
     }
@@ -3065,15 +3053,10 @@ const ModernFertilityDashboard = () => {
 
       const parsedBase = Number.parseInt(trimmedBase, 10);
 
-      if (!Number.isFinite(parsedBase)) {
-        setManualT8BaseError('Introduce un número entero válido.');
-        return false;
-      }
-
-      if (parsedBase < 9) {
-        setManualT8BaseError('El día de subida debe ser ≥ 9');
-        return false;
-      }
+      if (!Number.isFinite(parsedBase) || parsedBase < 1) {
+      setManualT8BaseError('Introduce un número entero válido.');
+      return false;
+    }
 
       const computedFinal = Math.max(1, parsedBase - 8);
       baseValueToPersist = parsedBase;
@@ -3095,11 +3078,15 @@ const ModernFertilityDashboard = () => {
 
       finalValueToPersist = parsedFinal;
 
-      const parsedBase = Number.parseInt(trimmedBase, 10);
-      if (Number.isFinite(parsedBase) && parsedBase >= 9) {
-        baseValueToPersist = parsedBase;
-      } else if (!trimmedBase) {
+      if (!trimmedBase) {
         baseValueToPersist = null;
+        } else {
+        const parsedBase = Number.parseInt(trimmedBase, 10);
+        if (!Number.isFinite(parsedBase) || parsedBase < 1) {
+          setManualT8BaseError('Introduce un número entero válido.');
+          return false;
+        }
+        baseValueToPersist = parsedBase;
       }
     }
 
@@ -3912,7 +3899,7 @@ const ModernFertilityDashboard = () => {
                         type="number"
                         inputMode="numeric"
                         step="1"
-                        min="0"
+                        min="1"
                         value={manualCpmBaseInput}
                         onChange={handleManualCpmBaseInputChange}
                         placeholder="Introduce un entero"
@@ -4251,7 +4238,7 @@ const ModernFertilityDashboard = () => {
                         type="number"
                         inputMode="numeric"
                         step="1"
-                        min="8"
+                        min="1"
                         value={manualT8BaseInput}
                         onChange={handleManualT8BaseInputChange}
                         placeholder="Día de subida"
