@@ -1264,6 +1264,9 @@ const enterStart = -exitTarget;
         ? format(parseISO(existingRecord.timestamp), 'HH:mm')
         : format(new Date(), 'HH:mm');
 
+      const fallbackTemperatureRaw = existingRecord?.temperature_raw ?? existingRecord?.temperature ?? '';
+      const fallbackTemperatureCorrected = existingRecord?.temperature_corrected ?? '';
+      const fallbackUseCorrected = Boolean(existingRecord?.use_corrected);
       const measurements = existingRecord?.measurements?.length
         ? existingRecord.measurements.map((measurement, idx) => {
             const measurementTime =
@@ -1273,21 +1276,28 @@ const enterStart = -exitTarget;
                 : baseTime);
 
             return {
-              temperature: measurement?.temperature ?? measurement?.temperature_raw ?? '',
-              temperature_corrected: measurement?.temperature_corrected ?? '',
+              temperature:
+                measurement?.temperature ??
+                measurement?.temperature_raw ??
+                fallbackTemperatureRaw,
+              temperature_corrected:
+                measurement?.temperature_corrected ?? fallbackTemperatureCorrected,
               time: measurementTime,
               time_corrected: measurement?.time_corrected || measurementTime,
-              use_corrected: Boolean(measurement?.use_corrected),
+              use_corrected:
+                measurement?.use_corrected !== undefined
+                  ? Boolean(measurement?.use_corrected)
+                  : fallbackUseCorrected,
               selected: Boolean(measurement?.selected ?? idx === 0),
             };
           })
         : [
             {
-              temperature: '',
-              temperature_corrected: '',
+              temperature: fallbackTemperatureRaw,
+              temperature_corrected: fallbackTemperatureCorrected,
               time: baseTime,
               time_corrected: baseTime,
-              use_corrected: false,
+              use_corrected: fallbackUseCorrected,
               selected: true,
             },
           ];
