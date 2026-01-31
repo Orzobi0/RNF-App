@@ -13,6 +13,19 @@ export const useDataEntryForm = (
   onDateSelect,
   defaultIsoDate
 ) => {
+  const buildEmptyMeasurement = (overrides = {}) => {
+    const now = format(new Date(), 'HH:mm');
+    return {
+      temperature: '',
+      time: now,
+      selected: true,
+      temperature_corrected: '',
+      time_corrected: now,
+      use_corrected: false,
+      confirmed: true,
+      ...overrides,
+    };
+  };
   const getDefaultDate = () => {
     if (initialData?.isoDate) {
       return parseISO(initialData.isoDate);
@@ -44,8 +57,8 @@ export const useDataEntryForm = (
 
   const [date, setDate] = useState(getDefaultDate);
   const [measurements, setMeasurements] = useState(() => {
-    if (initialData?.measurements && Array.isArray(initialData.measurements)) {
-      return initialData.measurements.map((m) => ({
+    if (Array.isArray(initialData?.measurements) && initialData.measurements.length > 0) {
+      const mapped = initialData.measurements.map((m) => ({
         temperature: m.temperature ?? '',
         time: m.time || format(new Date(), 'HH:mm'),
         selected: !!m.selected,
@@ -54,24 +67,29 @@ export const useDataEntryForm = (
         use_corrected: !!m.use_corrected,
         confirmed: true,
       }));
+      if (!mapped.some((x) => x.selected)) mapped[0].selected = true;
+      return mapped;
     }
+    // fallback (legacy o measurements vacío)
     return [
-      {
+      buildEmptyMeasurement({
         temperature:
           initialData?.temperature_raw === null || initialData?.temperature_raw === undefined
             ? ''
             : String(initialData.temperature_raw),
+        temperature_corrected:
+          initialData?.temperature_corrected === null ||
+          initialData?.temperature_corrected === undefined
+            ? ''
+            : String(initialData.temperature_corrected),
         time: initialData?.timestamp
           ? format(parseISO(initialData.timestamp), 'HH:mm')
           : format(new Date(), 'HH:mm'),
-        selected: true,
-        temperature_corrected: '',
         time_corrected: initialData?.timestamp
           ? format(parseISO(initialData.timestamp), 'HH:mm')
           : format(new Date(), 'HH:mm'),
-        use_corrected: false,
-        confirmed: true,
-      },
+        use_corrected: !!initialData?.use_corrected,
+      }),
     ];
   });
 
@@ -110,9 +128,8 @@ export const useDataEntryForm = (
 
     if (initialData) {
       setDate(parseISO(initialData.isoDate));
-      if (initialData.measurements && Array.isArray(initialData.measurements)) {
-        setMeasurements(
-          initialData.measurements.map((m) => ({
+      if (Array.isArray(initialData.measurements) && initialData.measurements.length > 0) {
+        const mapped = initialData.measurements.map((m) => ({
             temperature: m.temperature ?? '',
             time: m.time || format(new Date(), 'HH:mm'),
             selected: !!m.selected,
@@ -120,8 +137,31 @@ export const useDataEntryForm = (
             time_corrected: m.time_corrected || m.time || format(new Date(), 'HH:mm'),
             use_corrected: !!m.use_corrected,
             confirmed: true,
-          }))
-        );
+          }));
+        if (!mapped.some((x) => x.selected)) mapped[0].selected = true;
+        setMeasurements(mapped);
+      } else {
+        // si viene [] o no viene, muestra al menos 1 fila editable
+        setMeasurements([
+          buildEmptyMeasurement({
+            temperature:
+              initialData?.temperature_raw === null || initialData?.temperature_raw === undefined
+                ? ''
+                : String(initialData.temperature_raw),
+            temperature_corrected:
+              initialData?.temperature_corrected === null ||
+              initialData?.temperature_corrected === undefined
+                ? ''
+                : String(initialData.temperature_corrected),
+            time: initialData?.timestamp
+              ? format(parseISO(initialData.timestamp), 'HH:mm')
+              : format(new Date(), 'HH:mm'),
+            time_corrected: initialData?.timestamp
+              ? format(parseISO(initialData.timestamp), 'HH:mm')
+              : format(new Date(), 'HH:mm'),
+            use_corrected: !!initialData?.use_corrected,
+          }),
+        ]);
       }
       setMucusSensation(initialData.mucusSensation ?? initialData.mucus_sensation ?? '');
       setMucusAppearance(initialData.mucusAppearance ?? initialData.mucus_appearance ?? '');
@@ -132,15 +172,7 @@ export const useDataEntryForm = (
       setPeakTag(initialData.peak_marker === 'peak' ? 'peak' : null);
     } else {
       setMeasurements([
-        {
-          temperature: '',
-          time: format(new Date(), 'HH:mm'),
-          selected: true,
-          temperature_corrected: '',
-          time_corrected: format(new Date(), 'HH:mm'),
-          use_corrected: false,      
-          confirmed: true,
-        },
+        buildEmptyMeasurement(),
       ]);
       setMucusSensation('');
       setMucusAppearance('');
@@ -193,21 +225,30 @@ export const useDataEntryForm = (
   }, [date, cycleData, onDateSelect]);
 
   const addMeasurement = () => {
-    setMeasurements((prev) => [
-      ...prev,
-        {
-        temperature: prev[prev.length - 1]?.temperature || '',
-        time: format(new Date(), 'HH:mm'),
-        selected: false,
-        temperature_corrected: '',
-        time_corrected: format(new Date(), 'HH:mm'),
-        use_corrected: false,
-        confirmed: false,
-      },
-    ]);
+    setMeasurements((prev) => {
+      const now = format(new Date(), 'HH:mm');
+      if (!prev.length) {
+        return [buildEmptyMeasurement({ time: now, time_corrected: now, confirmed: false })];
+      }
+      return [
+        ...prev,
+        buildEmptyMeasurement({
+          temperature: prev[prev.length - 1]?.temperature || '',
+          time: now,
+          time_corrected: now,
+          selected: false,
+          confirmed: false,
+        }),
+      ];
+    });
   };
   const removeMeasurement = (index) => {
-    setMeasurements((prev) => prev.filter((_, i) => i !== index));
+    setMeasurements((prev) => {
+      const next = prev.filter((_, i) => i !== index);
+      if (!next.length) return [buildEmptyMeasurement()];
+      if (!next.some((m) => m.selected)) next[0] = { ...next[0], selected: true };
+      return next;
+    });
   };
 
   const confirmMeasurement = (index) => {
@@ -279,6 +320,17 @@ export const useDataEntryForm = (
       ? overrideMeasurements
       : measurements;
 
+    const isMeasurementValid = (measurement) => {
+      if (!measurement) return false;
+      const raw = measurement.temperature;
+      const corrected = measurement.temperature_corrected;
+      const rawString = raw === null || raw === undefined ? '' : String(raw).trim();
+      const correctedString =
+        corrected === null || corrected === undefined ? '' : String(corrected).trim();
+      return rawString !== '' || correctedString !== '';
+    };
+    const filteredMeasurements = measurementsSource.filter(isMeasurementValid);
+
       const hadRelationsOverrideProvided = Object.prototype.hasOwnProperty.call(
       options,
       'overrideHadRelations'
@@ -290,7 +342,7 @@ export const useDataEntryForm = (
 
     return {
       isoDate,
-      measurements: measurementsSource.map((m) => ({
+      measurements: filteredMeasurements.map((m) => ({
         temperature: normalizeMeasurementValue(m.temperature),
         time: m.time,
         selected: m.selected,
