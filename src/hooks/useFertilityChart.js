@@ -19,8 +19,12 @@ const DEFAULT_TEMP_MAX = 37.5;
 
 export const computeOvulationMetrics = (processedData = [], options = {}) => {
   const { postpartum = false } = options;
-  const isValid = (p) => p && p.displayTemperature != null && !p.ignored;
-  const isValidTemperaturePoint = (p) => isValid(p) && Number.isFinite(p.displayTemperature);
+  const getCalcTemperature = (point) =>
+    point?.calcTemperature != null ? point.calcTemperature : point?.displayTemperature;
+  const isIgnoredForCalc = (point) =>
+    point?.ignoredForCalc != null ? point.ignoredForCalc : point?.ignored;
+  const isValid = (p) => p && getCalcTemperature(p) != null && !isIgnoredForCalc(p);
+  const isValidTemperaturePoint = (p) => isValid(p) && Number.isFinite(getCalcTemperature(p));
   const windowSize = 6;
   const borderlineTolerance = 0.05;
   const isDev =
@@ -93,7 +97,7 @@ export const computeOvulationMetrics = (processedData = [], options = {}) => {
         continue;
       }
 
-      const temperature = candidate.displayTemperature;
+      const temperature = getCalcTemperature(candidate);
       if (!Number.isFinite(temperature)) {
         continue;
       }
@@ -116,7 +120,7 @@ export const computeOvulationMetrics = (processedData = [], options = {}) => {
           if (!isValid(potentialHigh)) {
             continue;
           }
-          const potentialTemp = potentialHigh.displayTemperature;
+          const potentialTemp = getCalcTemperature(potentialHigh);
           if (!Number.isFinite(potentialTemp)) {
             continue;
           }
@@ -174,8 +178,9 @@ const evaluateHighSequence = ({
     seenSequenceIndices.add(index);
     sequenceIndices.push(index);
   };
-  let borderlineSkipIndex = null; // segunda excepción
-  let slipUsed = false; // un valor bajo permitido antes de 3 altos
+  let ex2Active = false;          // 2ª excepción activa
+  let lineOrBelowCount = 0;       // para detectar “dos valores en línea/bajo”
+  let slipUsed = false;
   // Evitamos usar index-1 porque puede apuntar a un día ignorado o sin temperatura.
   const precedingLowIndex = findPreviousValidIndex(sequenceStartIndex - 1);
 
@@ -184,18 +189,44 @@ const evaluateHighSequence = ({
       ? [precedingLowIndex, ...sequenceIndices]
       : [...sequenceIndices];
 
+    const ensureRebaseline = () => ({
+    confirmed: false,
+    requireRebaseline: true,
+    usedIndices: buildUsedIndices(),
+    highSequenceIndices: [...sequenceIndices],
+  });
+
   for (let idx = sequenceStartIndex; idx < processedData.length; idx++) {
     const point = processedData[idx];
-    if (!isValid(point)) break;
 
-    const temp = point.displayTemperature;
-    if (!Number.isFinite(temp)) break;
+    if (!point) break;
+    const ignored = isIgnoredForCalc(point);
+    if (ignored) continue; // trastorno/ignorado NO rompe
+
+    const temp = getCalcTemperature(point);
+    if (!Number.isFinite(temp)) break; // ausencia de dato => rompe (consecutivas)
 
     // --- Caso normal: temperatura alta ---
     if (temp > currentBaselineTemp) {
       addSequenceIndex(idx);
       highs.push({ index: idx, temp });
-
+ // Si estamos en 2ª excepción, NO se combinan excepciones:
+      // confirmación cuando consigues el 3er ALTO “real”, y este debe ser >= +0.2
+      if (ex2Active) {
+        if (highs.length === 3) {
+          if (temp >= requiredRise) {
+            return {
+              confirmed: true,
+              confirmationIndex: idx,
+              usedIndices: buildUsedIndices(),
+              highSequenceIndices: [...sequenceIndices],
+              rule: "german-2nd-exception",
+            };
+          }
+          return ensureRebaseline();
+        }
+        continue;
+      }
       // Regla normal: 3-high
       if (highs.length === 3 && highs[2].temp >= requiredRise) {
         
@@ -220,23 +251,6 @@ const evaluateHighSequence = ({
         };
       }
 
-      // 2ª excepción: un rasante en los 3 primeros → basta con que el 3º alto sea ≥ +0.2
-      if (
-        borderlineSkipIndex !== null &&
-        highs.length === 3 &&
-        highs[2].temp >= requiredRise
-      ) {
-        
-        return {
-          confirmed: true,
-          confirmationIndex: highs[2].index,
-          usedIndices: buildUsedIndices(),
-          highSequenceIndices: [...sequenceIndices],
-          rule: "german-2nd-exception",
-        };
-      }
-
-
       // Regla 5-high
       if (highs.length === 5 && highs[3].temp > currentBaselineTemp && highs[4].temp >= requiredRise) {
         
@@ -252,17 +266,23 @@ const evaluateHighSequence = ({
       continue;
     }
 
-    // --- Borderline (segunda excepción) ---
-    if (temp >= currentBaselineTemp - 0.05 && borderlineSkipIndex === null && highs.length > 0 && highs.length < 3) {
-      borderlineSkipIndex = idx;
+    // --- Línea / ligeramente por debajo (2ª excepción) ---
+    const isLineOrSlightlyBelow =
+      temp <= currentBaselineTemp && temp >= currentBaselineTemp - 0.05;
+
+    if (isLineOrSlightlyBelow && highs.length > 0 && highs.length < 3) {
+      lineOrBelowCount += 1;
       addSequenceIndex(idx);
-      highs.push({ index: idx, temp: currentBaselineTemp }); // lo contamos como un “alto” justo en baseline
+      // Si hay DOS valores en línea/bajo => rebaseline (PDF)
+      if (lineOrBelowCount >= 2) return ensureRebaseline();
+      ex2Active = true;
+      // OJO: este día NO cuenta como “alto” (no meterlo en highs)
       continue;
     }
 
 
     // --- Slip permitido ---
-    if (!slipUsed && highs.length > 0 && highs.length < 3) {
+    if (!slipUsed && !ex2Active && highs.length > 0 && highs.length < 3) {
       slipUsed = true;
       addSequenceIndex(idx);
       continue;
@@ -364,7 +384,9 @@ const evaluateHighSequence = ({
         index,
         isoDate: point.isoDate,
         displayTemperature: point.displayTemperature,
+        calcTemperature: getCalcTemperature(point),
         ignored: point.ignored,
+        ignoredForCalc: isIgnoredForCalc(point),
         use_corrected: point.use_corrected,
         temperature_raw: point.temperature_raw ?? null,
         temperature_corrected: point.temperature_corrected ?? null,
@@ -468,14 +490,6 @@ export const useFertilityChart = (
           }
           return null;
         };
-console.log(
-  data.map(d => ({
-    iso: d.isoDate,
-    temp_chart: d.temperature_chart,
-    m_count: Array.isArray(d.measurements) ? d.measurements.length : 0,
-    selected_count: Array.isArray(d.measurements) ? d.measurements.filter(m=>m?.selected).length : 0,
-  }))
-);
 
         const resolveEffectiveTemperature = (entry) => {
           if (!entry) return null;
@@ -511,6 +525,9 @@ console.log(
 
         return data.map((d) => {
           const resolvedValue = resolveEffectiveTemperature(d);
+          const measurementIgnored = Array.isArray(d?.measurements)
+            ? d.measurements.some((m) => m?.ignored)
+            : false;
           const isoDate = d?.isoDate;
           const peakMarker = d?.peak_marker ?? d?.peakStatus ?? null;
           const resolvedPeakStatus = isoDate
@@ -526,14 +543,18 @@ console.log(
               });
             }
           }
+          const displayTemperature = normalizeTemp(resolvedValue);
+          const ignoredForCalc = Boolean(d?.ignored || measurementIgnored);
           return {
         ...d,
-        displayTemperature: normalizeTemp(resolvedValue),
-        peakStatus: resolvedPeakStatus ?? null,
-        normalizedPeakStatus,
-      };
-    });
-  }, [data, peakStatusByIsoDate]);
+            displayTemperature,
+            calcTemperature: ignoredForCalc ? null : displayTemperature,
+            ignoredForCalc,
+            peakStatus: resolvedPeakStatus ?? null,
+            normalizedPeakStatus,
+          };
+        });
+      }, [data, peakStatusByIsoDate]);
 
   const todayIndex = useMemo(() => {
     if (!Array.isArray(processedData) || processedData.length === 0) {

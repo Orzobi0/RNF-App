@@ -287,9 +287,13 @@ const ChartPoints = ({
       ? ovulationDetails.highSequenceIndices
       : [];
 
-      const isValidPoint = (idx) => {
+    const isValidPoint = (idx) => {
       const point = data?.[idx];
-      return point && Number.isFinite(point.displayTemperature) && !point.ignored;
+      const calcTemperature =
+        point?.calcTemperature != null ? point.calcTemperature : point?.displayTemperature;
+      const ignoredForCalc =
+        point?.ignoredForCalc != null ? point.ignoredForCalc : point?.ignored;
+      return point && Number.isFinite(calcTemperature) && !ignoredForCalc;
     };
     const map = new Map();
     indices.forEach((sequenceIndex, position) => {
@@ -307,7 +311,7 @@ const ChartPoints = ({
     return map;
   }, [showInterpretation, ovulationDetails, totalPoints, data]);
 
-    const baselineOrderMap = useMemo(() => {
+  const baselineOrderMap = useMemo(() => {
     if (!showInterpretation) {
       return new Map();
     }
@@ -321,7 +325,11 @@ const ChartPoints = ({
     const validIndices = [];
     const isValidPoint = (idx) => {
       const point = data?.[idx];
-      return point && Number.isFinite(point.displayTemperature) && !point.ignored;
+      const calcTemperature =
+        point?.calcTemperature != null ? point.calcTemperature : point?.displayTemperature;
+      const ignoredForCalc =
+        point?.ignoredForCalc != null ? point.ignoredForCalc : point?.ignored;
+      return point && Number.isFinite(calcTemperature) && !ignoredForCalc;
     };
     const findPreviousValidIndex = (startIndex) => {
       for (let idx = startIndex; idx >= 0; idx -= 1) {
@@ -343,7 +351,7 @@ const ChartPoints = ({
         seen.add(idx);
         validIndices.push(idx);
       }
-      };
+    };
 
     indices.forEach((value) => {
       addIndexIfValid(value);

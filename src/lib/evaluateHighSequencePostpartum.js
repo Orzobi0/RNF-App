@@ -9,6 +9,12 @@ export const evaluateHighSequencePostpartum = ({
     return { confirmed: false };
   }
 
+  const getCalcTemperature = (point) =>
+    point?.calcTemperature != null ? point.calcTemperature : point?.displayTemperature;
+
+  const isIgnoredForCalc = (point) =>
+    point?.ignoredForCalc != null ? point.ignoredForCalc : point?.ignored;
+
   const requiredRise = currentBaselineTemp + 0.2;
   const highs = [];
   const sequenceIndices = [];
@@ -42,13 +48,31 @@ export const evaluateHighSequencePostpartum = ({
     highSequenceIndices: [...sequenceIndices],
   });
 
-  for (let idx = sequenceStartIndex; idx < processedData.length; idx += 1) {
+    for (let idx = sequenceStartIndex; idx < processedData.length; idx += 1) {
+    const borderlineTolerance = 0.05;
     const point = processedData[idx];
+    if (!point) break;
+
+    // Ignorado/trastorno: NO rompe la secuencia, simplemente se salta
+    if (isIgnoredForCalc(point)) continue;
+
+    // Si no es válido ya no es por ignorado: es ausencia/valor inválido => rompe (prudencia)
     if (!isValid(point)) break;
 
-    const temp = point.displayTemperature;
+    const temp = getCalcTemperature(point);
     if (!Number.isFinite(temp)) break;
 
+    const isLineOrSlightlyBelow =
+      temp <= currentBaselineTemp && temp >= currentBaselineTemp - borderlineTolerance;
+    const isClearlyBelow =
+      temp < currentBaselineTemp - borderlineTolerance;
+
+       // Si baja claramente por debajo de la línea básica, no lo tratamos como Ex2.
+    // Es demasiado “bajo” para considerarlo un rasante: prudencia => rebaseline.
+    if (isClearlyBelow) {
+      addSequenceIndex(idx);
+      return ensureRebaseline();
+    }
     if (temp > currentBaselineTemp) {
       addSequenceIndex(idx);
       highs.push({ index: idx, temp });
@@ -79,6 +103,7 @@ export const evaluateHighSequencePostpartum = ({
       }
 
       if (ex2Active) {
+        ex1Triggered = false; // por seguridad: no combinamos excepciones
         // En Ex2, el "4º alto" (tras el día en línea/bajo) debe ser >= baseline+0.2.
         // Si no lo es, NO se confirma y se fuerza rebaseline (no se puede combinar con Ex1).
         if (highs.length === 4 && ex2QualifiedIndex == null) {
@@ -107,7 +132,7 @@ export const evaluateHighSequencePostpartum = ({
       continue;
     }
 
-    if (temp <= currentBaselineTemp) {
+    if (isLineOrSlightlyBelow) {
       lineOrBelowCount += 1;
       addSequenceIndex(idx);
 
