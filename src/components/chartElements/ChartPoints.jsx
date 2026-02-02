@@ -287,15 +287,25 @@ const ChartPoints = ({
       ? ovulationDetails.highSequenceIndices
       : [];
 
+      const isValidPoint = (idx) => {
+      const point = data?.[idx];
+      return point && Number.isFinite(point.displayTemperature) && !point.ignored;
+    };
     const map = new Map();
     indices.forEach((sequenceIndex, position) => {
       const idx = Number(sequenceIndex);
-      if (Number.isInteger(idx) && idx >= 0 && idx < totalPoints && !map.has(idx)) {
+      if (
+        Number.isInteger(idx)
+        && idx >= 0
+        && idx < totalPoints
+        && !map.has(idx)
+        && isValidPoint(idx)
+      ) {
         map.set(idx, position + 1);
       }
     });
     return map;
-  }, [showInterpretation, ovulationDetails, totalPoints]);
+  }, [showInterpretation, ovulationDetails, totalPoints, data]);
 
     const baselineOrderMap = useMemo(() => {
     if (!showInterpretation) {
@@ -309,9 +319,27 @@ const ChartPoints = ({
 
     const seen = new Set();
     const validIndices = [];
+    const isValidPoint = (idx) => {
+      const point = data?.[idx];
+      return point && Number.isFinite(point.displayTemperature) && !point.ignored;
+    };
+    const findPreviousValidIndex = (startIndex) => {
+      for (let idx = startIndex; idx >= 0; idx -= 1) {
+        if (isValidPoint(idx)) {
+          return idx;
+        }
+      }
+      return null;
+    };
     const addIndexIfValid = (value) => {
       const idx = Number(value);
-      if (Number.isInteger(idx) && idx >= 0 && idx < totalPoints && !seen.has(idx)) {
+      if (
+        Number.isInteger(idx)
+        && idx >= 0
+        && idx < totalPoints
+        && !seen.has(idx)
+        && isValidPoint(idx)
+      ) {
         seen.add(idx);
         validIndices.push(idx);
       }
@@ -323,7 +351,11 @@ const ChartPoints = ({
     if (firstHighIndex != null) {
       const firstHighIdx = Number(firstHighIndex);
       if (Number.isInteger(firstHighIdx)) {
-        addIndexIfValid(firstHighIdx - 1);
+        // Usar el último índice válido previo para evitar días ignorados/sin temp.
+        const previousValidIndex = findPreviousValidIndex(firstHighIdx - 1);
+        if (previousValidIndex != null) {
+          addIndexIfValid(previousValidIndex);
+        }
       }
     }
 
@@ -341,7 +373,7 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
 }
 
     return map;
-  }, [showInterpretation, baselineIndices, totalPoints, firstHighIndex]);
+  }, [showInterpretation, baselineIndices, totalPoints, firstHighIndex, data]);
 
   const rowLabelShadow = perfMode ? 'none' : 'drop-shadow(0 1px 2px rgba(255, 255, 255, 0.9))';
   const textShadowSoft = perfMode ? 'none' : 'drop-shadow(0 1px 1px rgba(255, 255, 255, 0.8))';

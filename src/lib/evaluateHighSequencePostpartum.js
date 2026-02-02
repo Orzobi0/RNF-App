@@ -3,6 +3,7 @@ export const evaluateHighSequencePostpartum = ({
   firstHighIndex: sequenceStartIndex,
   processedData,
   isValid,
+  findPreviousValidIndex,
 }) => {
   if (sequenceStartIndex == null) {
     return { confirmed: false };
@@ -21,7 +22,13 @@ export const evaluateHighSequencePostpartum = ({
   let ex2Active = false;
   let ex2QualifiedIndex = null;
   let ex1Triggered = false;
-  const precedingLowIndex = sequenceStartIndex > 0 ? sequenceStartIndex - 1 : null;
+  // Evitamos usar index-1 porque puede apuntar a un día ignorado o sin temperatura.
+  const precedingLowIndex =
+    typeof findPreviousValidIndex === 'function'
+      ? findPreviousValidIndex(sequenceStartIndex - 1)
+      : sequenceStartIndex > 0
+        ? sequenceStartIndex - 1
+        : null;
 
   const buildUsedIndices = () =>
     precedingLowIndex != null

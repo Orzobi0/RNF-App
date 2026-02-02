@@ -20,8 +20,40 @@ const DEFAULT_TEMP_MAX = 37.5;
 export const computeOvulationMetrics = (processedData = [], options = {}) => {
   const { postpartum = false } = options;
   const isValid = (p) => p && p.displayTemperature != null && !p.ignored;
+  const isValidTemperaturePoint = (p) => isValid(p) && Number.isFinite(p.displayTemperature);
   const windowSize = 6;
   const borderlineTolerance = 0.05;
+  const isDev =
+    typeof import.meta !== 'undefined'
+      ? Boolean(import.meta?.env?.DEV)
+      : process?.env?.NODE_ENV !== 'production';
+
+  const findPreviousValidIndex = (startIndex, predicate = isValidTemperaturePoint) => {
+    if (!Number.isInteger(startIndex)) return null;
+    for (let idx = startIndex; idx >= 0; idx -= 1) {
+      const point = processedData[idx];
+      if (predicate(point)) {
+        return idx;
+      }
+    }
+    return null;
+  };
+
+  const filterValidIndices = (indices, predicate = isValidTemperaturePoint) => {
+    if (!Array.isArray(indices) || indices.length === 0) return [];
+    const seen = new Set();
+    const result = [];
+    indices.forEach((value) => {
+      const idx = Number(value);
+      if (!Number.isInteger(idx) || idx < 0 || idx >= processedData.length) return;
+      if (seen.has(idx)) return;
+      const point = processedData[idx];
+      if (!predicate(point)) return;
+      seen.add(idx);
+      result.push(idx);
+    });
+    return result;
+  };
 
   const getBaselineInfo = (entries) => {
     if (!entries || entries.length !== windowSize) return null;
@@ -144,7 +176,8 @@ const evaluateHighSequence = ({
   };
   let borderlineSkipIndex = null; // segunda excepción
   let slipUsed = false; // un valor bajo permitido antes de 3 altos
-  const precedingLowIndex = sequenceStartIndex > 0 ? sequenceStartIndex - 1 : null;
+  // Evitamos usar index-1 porque puede apuntar a un día ignorado o sin temperatura.
+  const precedingLowIndex = findPreviousValidIndex(sequenceStartIndex - 1);
 
   const buildUsedIndices = () =>
     precedingLowIndex != null
@@ -270,6 +303,7 @@ const evaluateHighSequence = ({
         ...baselineInfo,
         processedData,
         isValid,
+        findPreviousValidIndex,
       })
       : evaluateHighSequence(baselineInfo);
     if (evaluation?.requireRebaseline) {
@@ -309,12 +343,63 @@ const evaluateHighSequence = ({
         searchStartIndex = baselineStartIndex + 1;
   }
 
+  const filteredBaselineIndices = filterValidIndices(baselineIndices);
+  const filteredHighSequenceIndices = filterValidIndices(confirmedDetails?.highSequenceIndices);
+  const filteredUsedIndices = filterValidIndices(confirmedDetails?.usedIndices);
+  const filteredDetails = {
+    ...confirmedDetails,
+    highSequenceIndices: filteredHighSequenceIndices,
+    usedIndices: filteredUsedIndices,
+  };
+
+  if (isDev) {
+    // Manual repro (dev):
+    // 1) Día X: raw alta, corregida baja, use_corrected = true.
+    // 2) Marcar ignored = true y activar "mostrar".
+    // 3) Verificar que numeración/interpretación no salta índices inexistentes.
+    const formatPoint = (index) => {
+      const point = processedData[index];
+      if (!point) return null;
+      return {
+        index,
+        isoDate: point.isoDate,
+        displayTemperature: point.displayTemperature,
+        ignored: point.ignored,
+        use_corrected: point.use_corrected,
+        temperature_raw: point.temperature_raw ?? null,
+        temperature_corrected: point.temperature_corrected ?? null,
+        temperature_chart: point.temperature_chart ?? null,
+      };
+    };
+
+    const logList = (label, indices) => {
+      console.groupCollapsed(`${label} (${indices.length})`);
+      indices.forEach((idx) => console.log(formatPoint(idx)));
+      console.groupEnd();
+    };
+
+    console.groupCollapsed('[fertility] Ovulation metrics debug');
+    console.log('baselineTemp', baselineTemp);
+    console.log('baselineIndices', filteredBaselineIndices);
+    console.log('firstHighIndex', firstHighIndex);
+    console.log('ovulationDetails', {
+      rule: filteredDetails?.rule,
+      confirmationIndex: filteredDetails?.confirmationIndex,
+      highSequenceIndices: filteredHighSequenceIndices,
+      usedIndices: filteredUsedIndices,
+    });
+    logList('baselineIndices', filteredBaselineIndices);
+    logList('highSequenceIndices', filteredHighSequenceIndices);
+    logList('usedIndices', filteredUsedIndices);
+    console.groupEnd();
+  }
+
   return {
     baselineTemp,
     baselineStartIndex,
     firstHighIndex,
-    baselineIndices,
-    ovulationDetails: confirmedDetails,
+    baselineIndices: filteredBaselineIndices,
+    ovulationDetails: filteredDetails,
   };
 };
 
@@ -368,7 +453,7 @@ export const useFertilityChart = (
           const parsed = parseFloat(String(value).replace(',', '.'));
           return Number.isFinite(parsed) ? parsed : null;
         };
-        const getMeasurementTemp = (measurement) => {
+        const resolveMeasurementTemp = (measurement) => {
           if (!measurement) return null;
           const raw = normalizeTemp(measurement.temperature);
           const corrected = normalizeTemp(measurement.temperature_corrected);
@@ -383,38 +468,64 @@ export const useFertilityChart = (
           }
           return null;
         };
+console.log(
+  data.map(d => ({
+    iso: d.isoDate,
+    temp_chart: d.temperature_chart,
+    m_count: Array.isArray(d.measurements) ? d.measurements.length : 0,
+    selected_count: Array.isArray(d.measurements) ? d.measurements.filter(m=>m?.selected).length : 0,
+  }))
+);
 
-        return data.map((d) => {
-          const directSources = [
-            d?.temperature_chart,
-            d?.temperature_raw,
-            d?.temperature_corrected,
-          ];
-
-          let resolvedValue = null;
-          for (const candidate of directSources) {
-            if (candidate !== null && candidate !== undefined && candidate !== '') {
-              resolvedValue = candidate;
-              break;
-            }
+        const resolveEffectiveTemperature = (entry) => {
+          if (!entry) return null;
+          const chart = normalizeTemp(entry.temperature_chart);
+          const raw = normalizeTemp(entry.temperature_raw);
+          const corrected = normalizeTemp(entry.temperature_corrected);
+          if (entry.use_corrected && corrected !== null) {
+            return corrected;
+          }
+          if (chart !== null) {
+            return chart;
+          }
+          if (raw !== null) {
+            return raw;
+          }
+          if (corrected !== null) {
+            return corrected;
           }
 
-          if (resolvedValue == null && Array.isArray(d?.measurements)) {
-            const selectedMeasurement = d.measurements.find(
-              (m) => m && m.selected && getMeasurementTemp(m) !== null
+          if (Array.isArray(entry.measurements)) {
+            const selectedMeasurement = entry.measurements.find(
+              (m) => m && m.selected && resolveMeasurementTemp(m) !== null
             );
             const fallbackMeasurement =
-              selectedMeasurement || d.measurements.find((m) => getMeasurementTemp(m) !== null);
+              selectedMeasurement || entry.measurements.find((m) => resolveMeasurementTemp(m) !== null);
             if (fallbackMeasurement) {
-              resolvedValue = getMeasurementTemp(fallbackMeasurement);
+              return resolveMeasurementTemp(fallbackMeasurement);
             }
           }
+          
+          return null;
+        };
+
+        return data.map((d) => {
+          const resolvedValue = resolveEffectiveTemperature(d);
           const isoDate = d?.isoDate;
           const peakMarker = d?.peak_marker ?? d?.peakStatus ?? null;
           const resolvedPeakStatus = isoDate
             ? peakStatusByIsoDate[isoDate] ?? peakMarker
             : peakMarker;
           const normalizedPeakStatus = normalizePeakStatus(resolvedPeakStatus); 
+          if (import.meta?.env?.DEV && d?.use_corrected && normalizeTemp(d?.temperature_corrected) !== null) {
+            if (resolvedValue !== normalizeTemp(d?.temperature_corrected)) {
+              console.warn('[fertility] use_corrected debe priorizar temperature_corrected', {
+                isoDate,
+                resolvedValue,
+                corrected: normalizeTemp(d?.temperature_corrected),
+              });
+            }
+          }
           return {
         ...d,
         displayTemperature: normalizeTemp(resolvedValue),
