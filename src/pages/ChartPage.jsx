@@ -25,6 +25,7 @@ import { useParams, Link, useLocation } from 'react-router-dom';
 import Overlay from '@/components/ui/Overlay';
 import { useAuth } from '@/contexts/AuthContext';
 import { computeOvulationMetrics } from '@/hooks/useFertilityChart';
+import normalizeBoolean from '@/lib/normalizeBoolean';
 
 const CHART_SETTINGS_STORAGE_KEY = 'fertility-chart-settings';
 
@@ -85,11 +86,10 @@ const mergeFertilityStartConfig = (incoming) => {
       merged.combineMode = normalizedMode;
     }
 
-    if (typeof incoming.postpartum === 'boolean') {
-      merged.postpartum = incoming.postpartum;
-    } else if (incoming.postpartum != null) {
-      merged.postpartum = Boolean(incoming.postpartum);
-    }    
+    const normalizedPostpartum = normalizeBoolean(incoming.postpartum);
+    if (normalizedPostpartum !== null) {
+      merged.postpartum = normalizedPostpartum;
+    }   
   }
 
   return merged;
@@ -252,6 +252,17 @@ const ChartPage = () => {
           merged.showRelationsRow = Boolean(parsed.showRelationsRow);
         }
         merged.fertilityStartConfig = mergeFertilityStartConfig(parsed?.fertilityStartConfig);
+        const normalizedPostpartum = normalizeBoolean(parsed?.fertilityStartConfig?.postpartum);
+        if (parsed?.fertilityStartConfig?.postpartum != null && normalizedPostpartum === null) {
+          try {
+            window.localStorage.setItem(
+              CHART_SETTINGS_STORAGE_KEY,
+              JSON.stringify({ ...parsed, fertilityStartConfig: merged.fertilityStartConfig })
+            );
+          } catch (error) {
+            console.warn('No se pudieron limpiar los ajustes del gráfico.', error);
+          }
+        }
         return merged;
       }
     } catch (error) {
