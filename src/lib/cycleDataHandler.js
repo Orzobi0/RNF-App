@@ -7,10 +7,10 @@ import {
   updateDoc,
   deleteDoc,
   setDoc,
-
+  writeBatch,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebaseClient';
-import { format, differenceInDays, startOfDay, parseISO, compareAsc, addDays } from 'date-fns';
+import { format, differenceInDays, startOfDay, parseISO, compareAsc, addDays, isValid } from 'date-fns';
 
 const generateCycleDaysForRecord = (recordIsoDate, cycleStartIsoDate) => {
   if (!recordIsoDate || !cycleStartIsoDate) return 0;
@@ -601,4 +601,166 @@ export const deleteCycleDB = async (userId, cycleId) => {
   const entriesSnap = await getDocs(entriesRef);
   await Promise.all(entriesSnap.docs.map((d) => deleteDoc(d.ref)));
   await deleteDoc(doc(db, `users/${userId}/cycles/${cycleId}`));
+};
+
+export const undoCurrentCycleDB = async (userId, currentCycleId) => {
+  if (!userId || !currentCycleId) {
+    throw new Error('Missing user or cycle ID');
+  }
+
+  const currentCycleRef = doc(db, `users/${userId}/cycles/${currentCycleId}`);
+  const currentCycleSnap = await getDoc(currentCycleRef);
+  if (!currentCycleSnap.exists()) {
+    throw new Error('Cycle not found');
+  }
+
+  const currentData = currentCycleSnap.data();
+  if (currentData.end_date !== null && currentData.end_date !== undefined) {
+    const error = new Error('Cannot undo a non-current cycle');
+    error.code = 'undo-not-current';
+    throw error;
+  }
+
+  if (!currentData.start_date || !isValid(parseISO(currentData.start_date))) {
+    const error = new Error('Current cycle has invalid start date');
+    error.code = 'undo-not-current';
+    throw error;
+  }
+
+  const cyclesSnap = await getDocs(collection(db, `users/${userId}/cycles`));
+  const dayBefore = format(addDays(parseISO(currentData.start_date), -1), 'yyyy-MM-dd');
+  const previousCycles = cyclesSnap.docs
+    .filter((docSnap) => docSnap.id !== currentCycleId)
+    .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
+    .filter((cycle) => cycle.end_date === dayBefore)
+    .sort((a, b) => (b.start_date || '').localeCompare(a.start_date || ''));
+
+  if (!previousCycles.length) {
+    const error = new Error('No previous cycle available');
+    error.code = 'no-previous-cycle';
+    throw error;
+  }
+
+  const previousCycle = previousCycles[0];
+  if (!previousCycle.start_date || !isValid(parseISO(previousCycle.start_date))) {
+    throw new Error('Previous cycle has invalid start date');
+  }
+
+  const resolveIsoDate = (entry) => {
+    if (entry.iso_date && isValid(parseISO(entry.iso_date))) {
+      return format(parseISO(entry.iso_date), 'yyyy-MM-dd');
+    }
+    if (typeof entry.timestamp === 'string' && isValid(parseISO(entry.timestamp))) {
+      return format(parseISO(entry.timestamp), 'yyyy-MM-dd');
+    }
+    const error = new Error('Entry has invalid date');
+    error.code = 'undo-invalid-entry';
+    throw error;
+  };
+
+  const resolveIsoDateForSet = (entry) => {
+    try {
+      if (entry.iso_date && isValid(parseISO(entry.iso_date))) {
+        return format(parseISO(entry.iso_date), 'yyyy-MM-dd');
+      }
+      if (typeof entry.timestamp === 'string' && isValid(parseISO(entry.timestamp))) {
+        return format(parseISO(entry.timestamp), 'yyyy-MM-dd');
+      }
+      return null;
+    } catch (error) {
+      return null;
+    }
+  };
+
+  const previousEntriesRef = collection(
+    db,
+    `users/${userId}/cycles/${previousCycle.id}/entries`
+  );
+  const previousEntriesSnap = await getDocs(previousEntriesRef);
+  const existingIsoDates = new Set();
+  previousEntriesSnap.docs.forEach((entryDoc) => {
+    const isoDate = resolveIsoDateForSet(entryDoc.data());
+    if (isoDate) {
+      existingIsoDates.add(isoDate);
+    }
+  });
+
+  const currentEntriesRef = collection(
+    db,
+    `users/${userId}/cycles/${currentCycleId}/entries`
+  );
+  const currentEntriesSnap = await getDocs(currentEntriesRef);
+  const entriesToMove = currentEntriesSnap.docs.map((entryDoc) => {
+    const entryData = entryDoc.data();
+    const isoDate = resolveIsoDate(entryData);
+    if (existingIsoDates.has(isoDate)) {
+      const error = new Error('Entry date conflicts with previous cycle');
+      error.code = 'undo-date-conflict';
+      throw error;
+    }
+    existingIsoDates.add(isoDate);
+    return { ref: entryDoc.ref, id: entryDoc.id, data: entryData, isoDate };
+  });
+
+  let batch = writeBatch(db);
+  let opCount = 0;
+
+  const ensureBatchCapacity = async () => {
+    if (opCount >= 400) {
+      await batch.commit();
+      batch = writeBatch(db);
+      opCount = 0;
+    }
+  };
+
+  const queueSet = async (ref, data) => {
+    await ensureBatchCapacity();
+    batch.set(ref, data);
+    opCount += 1;
+  };
+
+  const queueDelete = async (ref) => {
+    await ensureBatchCapacity();
+    batch.delete(ref);
+    opCount += 1;
+  };
+
+  const queueUpdate = async (ref, data) => {
+    await ensureBatchCapacity();
+    batch.update(ref, data);
+    opCount += 1;
+  };
+
+  for (const entry of entriesToMove) {
+    const newEntryRef = doc(
+      db,
+      `users/${userId}/cycles/${previousCycle.id}/entries/${entry.id}`
+    );
+    const newCycleDay = generateCycleDaysForRecord(entry.isoDate, previousCycle.start_date);
+    await queueSet(newEntryRef, { ...entry.data, cycle_day: newCycleDay });
+
+    const measurementsRef = collection(
+      db,
+      `users/${userId}/cycles/${currentCycleId}/entries/${entry.id}/measurements`
+    );
+    const measurementsSnap = await getDocs(measurementsRef);
+    for (const measurementDoc of measurementsSnap.docs) {
+      const newMeasurementRef = doc(
+        db,
+        `users/${userId}/cycles/${previousCycle.id}/entries/${entry.id}/measurements/${measurementDoc.id}`
+      );
+      await queueSet(newMeasurementRef, measurementDoc.data());
+      await queueDelete(measurementDoc.ref);
+    }
+
+    await queueDelete(entry.ref);
+  }
+
+  const previousCycleRef = doc(db, `users/${userId}/cycles/${previousCycle.id}`);
+  await queueUpdate(previousCycleRef, { end_date: null });
+  await queueDelete(currentCycleRef);
+
+  if (opCount > 0) {
+    await batch.commit();
+  }
 };

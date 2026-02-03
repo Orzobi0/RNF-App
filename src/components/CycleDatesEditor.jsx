@@ -44,6 +44,8 @@ const CycleDatesEditor = ({
   deleteDescription = 'Esta acción no se puede deshacer. Se eliminarán todos los registros asociados.',
   deleteLabel = 'Eliminar ciclo',
   isDeletingCycle = false,
+  onUndoCycle,
+  isUndoingCycle = false,
 }) => {
   const formattedStartDate = cycle?.startDate ? formatDateDisplay(cycle.startDate) : null;
   const formattedEndDate = cycle?.endDate ? formatDateDisplay(cycle.endDate) : 'En curso';
@@ -109,18 +111,34 @@ const CycleDatesEditor = ({
                 variant="outline"
                 onClick={onCancel}
                 className="border-fertiliapp-suave text-titulo hover:brightness-95"
-                disabled={isProcessing}
+                disabled={isProcessing || isUndoingCycle}
               >
                 {cancelLabel}
               </Button>
               <Button
                 type="submit"
                 className="bg-fertiliapp-fuerte text-white shadow hover:brightness-95"
-                disabled={isProcessing}
+                disabled={isProcessing || isUndoingCycle}
               >
                 {saveLabel}
               </Button>
             </div>
+            {onUndoCycle && (
+              <div className="mt-4 rounded-3xl bg-amber-50 p-4 text-left">
+                <h3 className="font-semibold text-slate-800 mb-2">Deshacer ciclo</h3>
+                <p className="text-sm text-slate-700 mb-3">
+                  Une el ciclo actual con el anterior y mueve todos los registros.
+                </p>
+                <Button
+                  type="button"
+                  onClick={onUndoCycle}
+                  disabled={isProcessing || isUndoingCycle}
+                  className="w-full sm:w-auto bg-amber-500 hover:brightness-95 text-white shadow-md"
+                >
+                  {isUndoingCycle ? 'Deshaciendo…' : 'Deshacer ciclo'}
+                </Button>
+              </div>
+            )}
             {onDeleteCycle && (
               <div className="mt-6 rounded-3xl bg-alerta-2-suave p-4 text-left">
                 <h3 className="font-semibold text-slate-800 mb-2">{deleteTitle}</h3>
@@ -130,7 +148,7 @@ const CycleDatesEditor = ({
                 <Button
                   type="button"
                   onClick={onDeleteCycle}
-                  disabled={isProcessing || isDeletingCycle}
+                  disabled={isProcessing || isDeletingCycle || isUndoingCycle}
                   className="w-full sm:w-auto bg-alerta-2 hover:brightness-95 text-white shadow-md"
                 >
                   <Trash2 className="mr-2 h-4 w-4" />

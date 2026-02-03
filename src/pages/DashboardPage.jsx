@@ -16,6 +16,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import CycleDatesEditor from '@/components/CycleDatesEditor';
 import DataEntryForm from '@/components/DataEntryForm';
+import DeletionDialog from '@/components/DeletionDialog';
 import { useToast } from '@/components/ui/use-toast';
 import NewCycleDialog from '@/components/NewCycleDialog';
 import PostpartumExitDialog from '@/components/PostpartumExitDialog';
@@ -28,7 +29,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { useCycleData } from '@/hooks/useCycleData';
-import { addDays, differenceInDays, format, isAfter, parseISO, startOfDay } from 'date-fns';
+import { addDays, differenceInDays, format, isAfter, isValid, parseISO, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import ChartTooltip from '@/components/chartElements/ChartTooltip';
 import computePeakStatuses from '@/lib/computePeakStatuses';
@@ -1224,6 +1225,7 @@ const ModernFertilityDashboard = () => {
     forceUpdateCycleStart,
     refreshData,
     setCycleIgnoreForAutoCalculations,
+    undoCurrentCycle,
   } = useCycleData();
   const { toast } = useToast();
   const [showStartDateEditor, setShowStartDateEditor] = useState(false);
@@ -1263,6 +1265,8 @@ const ModernFertilityDashboard = () => {
   const [showT8DeleteDialog, setShowT8DeleteDialog] = useState(false);
   const [isDeletingManualT8, setIsDeletingManualT8] = useState(false);
   const [pendingIgnoredCycleIds, setPendingIgnoredCycleIds] = useState([]);
+  const [showUndoCycleDialog, setShowUndoCycleDialog] = useState(false);
+  const [isUndoingCycle, setIsUndoingCycle] = useState(false);
 
   const manualCpmRestoreAttemptedRef = useRef(false);
   const manualT8RestoreAttemptedRef = useRef(false);
@@ -1286,6 +1290,30 @@ const ModernFertilityDashboard = () => {
     () => (user?.uid ? `rnf_manual_t8_base_${user.uid}` : null),
     [user?.uid]
   );
+
+  const undoCandidate = useMemo(() => {
+    if (!currentCycle?.id || currentCycle?.endDate) return null;
+    if (!currentCycle?.startDate) return null;
+    const parsedStart = parseISO(currentCycle.startDate);
+    if (!isValid(parsedStart)) return null;
+    const dayBefore = format(addDays(parsedStart, -1), 'yyyy-MM-dd');
+    const candidates = archivedCycles.filter((cycle) => cycle?.endDate === dayBefore);
+    if (!candidates.length) return null;
+    return candidates.sort((a, b) => (b.startDate || '').localeCompare(a.startDate || ''))[0];
+  }, [archivedCycles, currentCycle]);
+
+  const handleConfirmUndoCycle = useCallback(async () => {
+    if (!currentCycle?.id) return;
+    setIsUndoingCycle(true);
+    try {
+      await undoCurrentCycle(currentCycle.id);
+      setShowUndoCycleDialog(false);
+    } catch (error) {
+      console.error('Failed to undo cycle', error);
+    } finally {
+      setIsUndoingCycle(false);
+    }
+  }, [currentCycle?.id, undoCurrentCycle]);
 
   const persistCpmMode = useCallback(
     async (mode) => {
@@ -4398,7 +4426,7 @@ const ModernFertilityDashboard = () => {
                 onStartDateChange={(value) => setDraftStartDate(value)}
                 onSave={handleSaveStartDate}
                 onCancel={handleCloseStartDateEditor}
-                isProcessing={isUpdatingStartDate}
+                isProcessing={isUpdatingStartDate || isLoading || isUndoingCycle}
                 dateError={dateError}
                 includeEndDate={false}
                 showOverlapDialog={showOverlapDialog}
@@ -4409,12 +4437,25 @@ const ModernFertilityDashboard = () => {
                 saveLabel="Guardar cambios"
                 title="Editar fecha de inicio"
                 description="Selecciona una nueva fecha de inicio para el ciclo actual. Los registros se reorganizarán automáticamente."
+                onUndoCycle={undoCandidate ? () => setShowUndoCycleDialog(true) : undefined}
+                isUndoingCycle={isUndoingCycle}
                 className="w-full"
               />
             </DialogContent>
           </Dialog>
         </motion.div>
       </div>
+
+<DeletionDialog
+        isOpen={showUndoCycleDialog}
+        onClose={() => setShowUndoCycleDialog(false)}
+        onConfirm={handleConfirmUndoCycle}
+        title="Deshacer ciclo"
+        confirmLabel="Deshacer ciclo"
+        cancelLabel="Cancelar"
+        description="¿Quieres unir el ciclo actual con el anterior? Esta acción no se puede deshacer."
+        isProcessing={isUndoingCycle}
+      />
 
       <Dialog
         open={showForm}

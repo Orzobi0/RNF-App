@@ -16,6 +16,7 @@ import {
   updateCycleDatesDB,
   updateCycleIgnoreAutoCalculations,
   deleteCycleDB,
+  undoCurrentCycleDB,
   forceUpdateCycleStart as forceUpdateCycleStartDB,
   forceShiftNextCycleStart as forceShiftNextCycleStartDB
 } from '@/lib/cycleDataHandler';
@@ -792,6 +793,38 @@ export const CycleDataProvider = ({ children }) => {
     },
     [user, loadCycleData, toast]
   );
+  const undoCurrentCycle = useCallback(
+    async (cycleIdToUndo) => {
+      if (!user?.uid || !cycleIdToUndo) return;
+
+      setIsLoading(true);
+      try {
+        await undoCurrentCycleDB(user.uid, cycleIdToUndo);
+        await loadCycleData({ silent: true });
+      } catch (error) {
+        console.error('Error undoing current cycle:', error);
+        const description = (() => {
+          switch (error.code) {
+            case 'no-previous-cycle':
+              return 'No hay un ciclo previo compatible para deshacer.';
+            case 'undo-not-current':
+              return 'Solo se puede deshacer el ciclo actual.';
+            case 'undo-invalid-entry':
+              return 'Hay registros con fecha inválida en el ciclo actual.';
+            case 'undo-date-conflict':
+              return 'El ciclo anterior ya tiene registros en una de las fechas.';
+            default:
+              return 'No se pudo deshacer el ciclo.';
+          }
+        })();
+        toast({ title: 'Error', description, variant: 'destructive' });
+        throw error;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [user, loadCycleData, toast]
+  );
 
   const checkCycleOverlap = useCallback(
     async (cycleIdToCheck, newStartDate, newEndDate) => {
@@ -990,7 +1023,8 @@ export const CycleDataProvider = ({ children }) => {
     setCycleIgnoreForAutoCalculations,
     addArchivedCycle,
     deleteCycle,
-    getMeasurementsForEntry
+    getMeasurementsForEntry,
+    undoCurrentCycle
   };
 
   return <CycleDataContext.Provider value={value}>{children}</CycleDataContext.Provider>;
