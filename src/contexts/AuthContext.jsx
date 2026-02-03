@@ -14,6 +14,7 @@ import {
 } from 'firebase/auth';
 import { deleteField, doc, getDoc, setDoc, getDocFromCache } from 'firebase/firestore';
 import { useToast } from '@/components/ui/use-toast';
+import normalizeBoolean from '@/lib/normalizeBoolean';
 
 const AuthContext = createContext(null);
 
@@ -47,10 +48,9 @@ const mergeFertilityStartConfig = ({ current, incoming, legacyCombineMode }) => 
       }
     });
 
-    if (typeof source.postpartum === 'boolean') {
-      merged.postpartum = source.postpartum;
-    } else if (source.postpartum != null) {
-      merged.postpartum = Boolean(source.postpartum);
+    const normalizedPostpartum = normalizeBoolean(source.postpartum);
+    if (normalizedPostpartum !== null) {
+      merged.postpartum = normalizedPostpartum;
     }
 
     const normalizedMode = normalizeCombineMode(source.combineMode);
