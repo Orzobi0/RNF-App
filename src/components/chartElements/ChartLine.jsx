@@ -1,7 +1,16 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 
-const ChartLine = ({ data, allDataPoints, getX, getY, baselineY, temperatureField = 'temperature', reduceMotion = false }) => {
+const ChartLine = ({
+  data,
+  allDataPoints,
+  getX,
+  getY,
+  baselineY,
+  temperatureField = 'temperature',
+  reduceMotion = false,
+  connectGaps = true,
+}) => {
   if (!data || data.length < 2) return null;
 
   let pathD = '';
@@ -28,7 +37,7 @@ const ChartLine = ({ data, allDataPoints, getX, getY, baselineY, temperatureFiel
   const hasContinuousSegment = pathD.includes("L");
 
   const thinPathD =
-    validPoints.length > 1
+    connectGaps && validPoints.length > 1
       ? validPoints
           .map(({ x, y }, idx) => `${idx === 0 ? 'M' : 'L'} ${x} ${y}`)
           .join(' ')

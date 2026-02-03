@@ -200,6 +200,7 @@ const ChartPoints = ({
   graphBottomY,
   rowsZoneHeight,
   showRelationsRow = false,
+  autoLabelStep = false,
 }) => {
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -277,6 +278,26 @@ const ChartPoints = ({
   const smallSensationFontSize = responsiveFontSize(0.8);
   const smallAppearanceFontSize = responsiveFontSize(0.8);
   const smallObservationFontSize = responsiveFontSize(0.8);
+  const labelStep = useMemo(() => {
+    if (!autoLabelStep || totalPoints < 2) return 1;
+    const dayWidth = Math.abs(getX(1) - getX(0));
+    if (!Number.isFinite(dayWidth) || dayWidth <= 0) return 1;
+    const samplePoint = data?.find((entry) => entry?.date || entry?.cycleDay != null) ?? {};
+    const sampleDate = compactDate(samplePoint?.date || '00/00');
+    const sampleDay = String(samplePoint?.cycleDay ?? totalPoints ?? '');
+    const dateFontSize = responsiveFontSize(1.05);
+    const dayFontSize = responsiveFontSize(1);
+    const dateWidth = measureTextWidth(
+      sampleDate,
+      buildFontString(dateFontSize, 900, DEFAULT_TEXT_FONT_FAMILY)
+    );
+    const dayWidthText = measureTextWidth(
+      sampleDay,
+      buildFontString(dayFontSize, 900, DEFAULT_TEXT_FONT_FAMILY)
+    );
+    const minLabelWidth = Math.max(dateWidth, dayWidthText) + responsiveFontSize(0.8);
+    return Math.max(1, Math.ceil(minLabelWidth / dayWidth));
+  }, [autoLabelStep, totalPoints, getX, data, measureTextWidth, responsiveFontSize]);
 
   const highSequenceOrderMap = useMemo(() => {
     if (!showInterpretation) {
@@ -559,6 +580,8 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
           || point.mucus_appearance
           || point.fertility_symbol
           || hasRelations;
+        const shouldRenderXLabel =
+          !autoLabelStep || index % labelStep === 0 || index === totalPoints - 1;  
         const isPlaceholder = String(point.id || '').startsWith('placeholder-');
         const peakMarkerIndex = ovulationDetails?.peakDayIndex;
         const isPeakTemperaturePoint =
@@ -814,36 +837,40 @@ const observationFontSize = obsRes.fontSize;
               )}
 
             {/* Fecha con estilo mejorado */}
-            <text
-              x={x}
-              y={dateRowY}
-              textAnchor="middle"
-              fontSize={responsiveFontSize(1.05)}
-              fontWeight="900"
-              fill={highlightedTextFill}
-              style={{
-                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                filter: textShadowSoft
-              }}
-            >
-              {compactDate(point.date)}
-            </text>
+            {shouldRenderXLabel && (
+              <text
+                x={x}
+                y={dateRowY}
+                textAnchor="middle"
+                fontSize={responsiveFontSize(1.05)}
+                fontWeight="900"
+                fill={highlightedTextFill}
+                style={{
+                  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                  filter: textShadowSoft
+                }}
+              >
+                {compactDate(point.date)}
+              </text>
+            )}
 
             {/* Día del ciclo con estilo mejorado */}
-            <text
-              x={x}
-              y={cycleDayRowY}
-              textAnchor="middle"
-              fontSize={responsiveFontSize(1)}
-              fontWeight="900"
-              fill={highlightedTextFill}
-              style={{
-                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                filter: textShadowSoft
-              }}
-            >
-              {point.cycleDay}
-            </text>
+            {shouldRenderXLabel && (
+              <text
+                x={x}
+                y={cycleDayRowY}
+                textAnchor="middle"
+                fontSize={responsiveFontSize(1)}
+                fontWeight="900"
+                fill={highlightedTextFill}
+                style={{
+                  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                  filter: textShadowSoft
+                }}
+              >
+                {point.cycleDay}
+              </text>
+            )}
 
             {/* Símbolo mejorado con mejor diseño */}
             {shouldRenderSymbol ? (
@@ -1047,6 +1074,7 @@ const areEqual = (prev, next) => {
   if (prev.graphBottomY !== next.graphBottomY) return false;
   if (prev.rowsZoneHeight !== next.rowsZoneHeight) return false;
   if (prev.showRelationsRow !== next.showRelationsRow) return false;
+  if (prev.autoLabelStep !== next.autoLabelStep) return false;
 
   const prevRange = prev.visibleRange;
   const nextRange = next.visibleRange;
