@@ -106,7 +106,7 @@ export const evaluateHighSequencePostpartum = ({
         ex1Triggered = false; // por seguridad: no combinamos excepciones
         // En Ex2, el "4º alto" (tras el día en línea/bajo) debe ser >= baseline+0.2.
         // Si no lo es, NO se confirma y se fuerza rebaseline (no se puede combinar con Ex1).
-        if (highs.length === 4 && ex2QualifiedIndex == null) {
+        if (highs.length === 3 && ex2QualifiedIndex == null) {
           if (temp >= requiredRise) {
             ex2QualifiedIndex = idx; // este es el 4º alto válido
           } else {
@@ -115,7 +115,7 @@ export const evaluateHighSequencePostpartum = ({
         }
 
         // Posparto: +1 día alto adicional tras la confirmación base => 5º alto
-        if (ex2QualifiedIndex != null && highs.length >= 5) {
+        if (ex2QualifiedIndex != null && highs.length >= 4) {
           const confirmationIndex = highs[highs.length - 1].index; // 5º alto
           if (confirmationIndex !== ex2QualifiedIndex) {
             return {
