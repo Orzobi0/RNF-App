@@ -88,7 +88,7 @@ const EditCycleDatesDialog = ({
       return;
     }
     if (includeEndDate && startDate && endDate && endDate < startDate) {
-      setEndDateError('La fecha de fin no puede ser anterior al inicio');
+      setEndDateError('La fecha de fin no puede ser anterior a la fecha de inicio.');
       return;
     }
     const payload = includeEndDate

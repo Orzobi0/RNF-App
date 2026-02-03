@@ -73,6 +73,17 @@ const normalizeDate = (date) => {
   return format(startOfDay(new Date(date)), 'yyyy-MM-dd');
 };
 
+const normalizeCycleRange = (startDate, endDate) => {
+  const normalizedStart = normalizeDate(startDate);
+  const normalizedEnd = normalizeDate(endDate);
+
+  if (normalizedStart && normalizedEnd && parseISO(normalizedEnd) < parseISO(normalizedStart)) {
+    return { startDate: normalizedEnd, endDate: normalizedStart };
+  }
+
+  return { startDate: normalizedStart, endDate: normalizedEnd };
+};
+
 const buildEntryForState = ({
   payload,
   entryId,
@@ -203,8 +214,10 @@ export const CycleDataProvider = ({ children }) => {
 
         let currentCycleData = defaultCycleState;
         if (cycleToLoad) {
-          const startDate = normalizeDate(cycleToLoad.startDate);
-          const endDate = normalizeDate(cycleToLoad.endDate);
+          const { startDate, endDate } = normalizeCycleRange(
+            cycleToLoad.startDate,
+            cycleToLoad.endDate
+          );
           const processed = processCycleEntries(cycleToLoad.data, startDate);
           const filteredStart = filterEntriesByStartDate(processed, startDate);
           const filtered = filterEntriesByEndDate(filteredStart, endDate);
@@ -219,8 +232,10 @@ export const CycleDataProvider = ({ children }) => {
 
         const archivedData = await fetchArchivedCyclesDB(user.uid, cycleToLoad ? cycleToLoad.startDate : null);
         const archivedCyclesData = archivedData.map((cycle) => {
-          const aStart = normalizeDate(cycle.startDate);
-          const aEnd = normalizeDate(cycle.endDate);
+          const { startDate: aStart, endDate: aEnd } = normalizeCycleRange(
+            cycle.startDate,
+            cycle.endDate
+          );
           const processed = processCycleEntries(cycle.data || [], aStart);
           const filteredStart = filterEntriesByStartDate(processed, aStart);
           const filtered = filterEntriesByEndDate(filteredStart, aEnd);
@@ -850,8 +865,10 @@ export const CycleDataProvider = ({ children }) => {
         const cycleData = await fetchCycleByIdDB(user.uid, cycleIdToFetch);
         if (!cycleData) return null;
 
-        const startDate = normalizeDate(cycleData.startDate);
-        const endDate = normalizeDate(cycleData.endDate);
+        const { startDate, endDate } = normalizeCycleRange(
+          cycleData.startDate,
+          cycleData.endDate
+        );
         const processed = processCycleEntries(cycleData.data || [], startDate);
         const filteredStart = filterEntriesByStartDate(processed, startDate);
         const filtered = filterEntriesByEndDate(filteredStart, endDate);
