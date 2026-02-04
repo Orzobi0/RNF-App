@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
-import { format, startOfDay, parseISO, addDays, parse } from 'date-fns';
+import { format, startOfDay, parseISO, addDays, parse, isValid } from 'date-fns';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -824,6 +824,16 @@ export const CycleDataProvider = ({ children }) => {
             case 'undo-invalid-entry':
               return 'Hay registros con fecha inválida en el ciclo actual.';
             case 'undo-date-conflict':
+              if (typeof error?.conflictDate === 'string') {
+    try {
+      const conflict = parseISO(error.conflictDate);
+      if (isValid(conflict)) {
+        return `El día ${format(conflict, 'dd/MM')} tiene un registro en el ciclo anterior.`;
+      }
+    } catch (e) {
+      // ignorar y caer al mensaje genérico
+    }
+  }
               return 'El ciclo anterior ya tiene registros en una de las fechas.';
             default:
               return 'No se pudo deshacer el ciclo.';

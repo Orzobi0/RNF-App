@@ -1138,6 +1138,7 @@ export const undoCurrentCycleDB = async (userId, currentCycleId) => {
     if (existingIsoDates.has(isoDate)) {
       const error = new Error('Entry date conflicts with previous cycle');
       error.code = 'undo-date-conflict';
+      error.conflictDate = isoDate;
       throw error;
     }
     existingIsoDates.add(isoDate);

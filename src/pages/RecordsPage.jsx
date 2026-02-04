@@ -158,6 +158,20 @@ export const RecordsExperience = ({
     return candidates.sort((a, b) => (b.startDate || '').localeCompare(a.startDate || ''))[0];
   }, [archivedCycles, contextCurrentCycle, cycle?.id]);
 
+  const undoRangeText = useMemo(() => {
+    if (!undoCandidate?.startDate || !undoCandidate?.endDate) return '';
+    const start = parseISO(undoCandidate.startDate);
+    const end = parseISO(undoCandidate.endDate);
+    if (!isValid(start) || !isValid(end)) return '';
+    const formatRangeDate = (date) => format(date, 'dd MMM yy', { locale: es }).replace('.', '');
+    return `${formatRangeDate(start)} - ${formatRangeDate(end)}`;
+  }, [undoCandidate]);
+
+  const undoCycleDescription = useMemo(() => {
+    const rangeSuffix = undoRangeText ? ` (${undoRangeText})` : '';
+    return `¿Quieres unir el ciclo actual al ciclo anterior${rangeSuffix}? Esta acción no se puede deshacer.`;
+  }, [undoRangeText]);
+
   const handleConfirmPostpartumExit = useCallback(async () => {
     setShowPostpartumExitDialog(false);
     if (typeof savePreferences !== 'function') return;
@@ -1693,7 +1707,7 @@ const enterStart = -exitTarget;
         title="Deshacer ciclo"
         confirmLabel="Deshacer ciclo"
         cancelLabel="Cancelar"
-        description="¿Quieres unir el ciclo actual con el anterior? Esta acción no se puede deshacer."
+        description={undoCycleDescription}
         isProcessing={isUndoingCycle}
       />
 
