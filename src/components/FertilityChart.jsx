@@ -29,6 +29,8 @@ const FertilityChart = ({
   isArchivedCycle = false,
   cycleEndDate = null,
   exportMode = false,
+  rasterizeOnMobile = true,
+  rasterMode = 'auto',
 }) => {
   const {
     chartRef,
@@ -60,6 +62,7 @@ const FertilityChart = ({
     hasAnyObservation,
     graphBottomInset,
     todayIndex,
+    handlePointInteractionAtIndex,
   } = useFertilityChart(
     data,
     isFullScreen,
@@ -74,6 +77,15 @@ const FertilityChart = ({
     showRelationsRow
   );
   const effectiveReduceMotion = reduceMotion || exportMode;
+  const handlePointInteractionSafe = exportMode ? () => {} : handlePointInteraction;
+  const clearActivePointSafe = exportMode ? () => {} : clearActivePoint;
+  const svgRef = useRef(null);
+  const canvasRef = useRef(null);
+  const [isRasterizing, setIsRasterizing] = useState(false);
+  const [rasterReady, setRasterReady] = useState(false);
+  const [rasterError, setRasterError] = useState(null);
+  const rasterDebounceRef = useRef(null);
+  const lastRasterInteractionRef = useRef(0);
   const uniqueIdRef = useRef(null);
   if (!uniqueIdRef.current) {
     const randomSuffix = Math.random().toString(36).slice(2, 10);
@@ -791,8 +803,21 @@ const FertilityChart = ({
     };
   }, []);
 
+  const effectiveRasterMode = rasterMode || (rasterizeOnMobile ? 'auto' : 'off');
+  const shouldRasterize = useMemo(() => {
+    if (exportMode) return false;
+    if (effectiveRasterMode === 'on') return true;
+    if (effectiveRasterMode === 'off') return false;
+    if (!rasterizeOnMobile) return false;
+    if (typeof window === 'undefined') return false;
+    const coarsePointer = window.matchMedia?.('(pointer: coarse)')?.matches ?? false;
+    const smallViewport = (viewport.w || window.innerWidth) < 768;
+    return coarsePointer || smallViewport;
+  }, [effectiveRasterMode, exportMode, rasterizeOnMobile, viewport.w]);
+
   const updateVisibleRange = useCallback(
     (scrollLeft = 0) => {
+      if (shouldRasterize) return;
       const node = chartRef.current;
       if (!node) return;
 
@@ -822,7 +847,7 @@ const FertilityChart = ({
           : { startIndex, endIndex }
       );
     },
-    [allDataPoints.length, getOverscanDays, visibleDays]
+    [allDataPoints.length, getOverscanDays, shouldRasterize, visibleDays]
   );
 
   useEffect(() => {
@@ -864,6 +889,276 @@ const FertilityChart = ({
     };
   }, [updateVisibleRange]);
 
+  const effectiveVisibleRange = useMemo(() => {
+    if (!shouldRasterize) return visibleRange;
+    return {
+      startIndex: 0,
+      endIndex: allDataPoints.length ? allDataPoints.length - 1 : -1,
+    };
+  }, [allDataPoints.length, shouldRasterize, visibleRange]);
+
+  const xByIndex = useMemo(
+    () => allDataPoints.map((_, index) => getX(index)),
+    [allDataPoints, getX]
+  );
+
+  const findNearestIndex = useCallback(
+    (targetX) => {
+      if (!xByIndex.length || !Number.isFinite(targetX)) return null;
+      let low = 0;
+      let high = xByIndex.length - 1;
+      while (low <= high) {
+        const mid = Math.floor((low + high) / 2);
+        const value = xByIndex[mid];
+        if (value === targetX) return mid;
+        if (value < targetX) {
+          low = mid + 1;
+        } else {
+          high = mid - 1;
+        }
+      }
+      const candidates = [low - 1, low].filter(
+        (index) => index >= 0 && index < xByIndex.length
+      );
+      let nearest = null;
+      let minDistance = Infinity;
+      candidates.forEach((index) => {
+        const distance = Math.abs(xByIndex[index] - targetX);
+        if (distance < minDistance) {
+          minDistance = distance;
+          nearest = index;
+        }
+      });
+      return nearest;
+    },
+    [xByIndex]
+  );
+
+  const getHitSlopForIndex = useCallback(
+    (index) => {
+      if (!Number.isInteger(index) || !xByIndex.length) return 0;
+      const leftGap =
+        index > 0 ? xByIndex[index] - xByIndex[index - 1] : null;
+      const rightGap =
+        index < xByIndex.length - 1 ? xByIndex[index + 1] - xByIndex[index] : null;
+      const gaps = [leftGap, rightGap].filter((gap) => Number.isFinite(gap) && gap > 0);
+      const closestGap = gaps.length ? Math.min(...gaps) : fallbackDayWidth || 0;
+      return Math.max(8, closestGap * 0.5);
+    },
+    [fallbackDayWidth, xByIndex]
+  );
+
+  const handleRasterInteraction = useCallback(
+    (event) => {
+      if (!shouldRasterize || !chartRef.current) return;
+      const now = Date.now();
+      if (now - lastRasterInteractionRef.current < 120) {
+        return;
+      }
+      lastRasterInteractionRef.current = now;
+
+      let clientX;
+      let clientY;
+      if (event.type.startsWith('touch')) {
+        const touch = event.changedTouches?.[0];
+        if (!touch) return;
+        clientX = touch.clientX;
+        clientY = touch.clientY;
+      } else {
+        clientX = event.clientX;
+        clientY = event.clientY;
+      }
+      if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) return;
+
+      const chartRect = chartRef.current.getBoundingClientRect();
+      const contentX = clientX - chartRect.left + chartRef.current.scrollLeft;
+
+      if (contentX < padding.left || contentX > chartWidth - padding.right) {
+        clearActivePointSafe();
+        return;
+      }
+
+      const nearestIndex = findNearestIndex(contentX);
+      if (nearestIndex == null) {
+        clearActivePointSafe();
+        return;
+      }
+
+      const hitSlop = getHitSlopForIndex(nearestIndex);
+      if (Math.abs(xByIndex[nearestIndex] - contentX) > hitSlop) {
+        clearActivePointSafe();
+        return;
+      }
+
+      handlePointInteractionAtIndex(nearestIndex, { clientX, clientY });
+    },
+    [
+      chartRef,
+      chartWidth,
+      clearActivePointSafe,
+      findNearestIndex,
+      getHitSlopForIndex,
+      handlePointInteractionAtIndex,
+      padding.left,
+      padding.right,
+      shouldRasterize,
+      xByIndex,
+    ]
+  );
+
+  const buildRasterStyleText = useCallback(() => {
+    if (typeof window === 'undefined') return '';
+    const rootStyles = window.getComputedStyle(document.documentElement);
+    const cssVars = [
+      '--phase-rel',
+      '--phase-rel-stop',
+      '--phase-fertile',
+      '--phase-fertile-stop',
+      '--phase-post',
+      '--phase-post-stop',
+      '--phase-post-abs',
+      '--phase-post-abs-stop',
+      '--phase-text-shadow',
+      '--color-sensacion-fuerte',
+      '--color-apariencia-fuerte',
+      '--color-observaciones-fuerte',
+      '--foreground',
+    ];
+    const declarations = cssVars
+      .map((name) => {
+        const value = rootStyles.getPropertyValue(name).trim();
+        return value ? `${name}: ${value};` : null;
+      })
+      .filter(Boolean)
+      .join(' ');
+    return declarations ? `svg { ${declarations} }` : '';
+  }, []);
+
+  const rasterizeSvgToCanvas = useCallback(async () => {
+    const svgNode = svgRef.current;
+    const canvas = canvasRef.current;
+    if (!svgNode || !canvas) return false;
+    const clonedSvg = svgNode.cloneNode(true);
+    if (!clonedSvg.getAttribute('xmlns')) {
+      clonedSvg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    }
+    if (!clonedSvg.getAttribute('xmlns:xlink')) {
+      clonedSvg.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+    }
+    const styleText = buildRasterStyleText();
+    if (styleText) {
+      const styleNode = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+      styleNode.setAttribute('type', 'text/css');
+      styleNode.textContent = styleText;
+      clonedSvg.insertBefore(styleNode, clonedSvg.firstChild);
+    }
+    const serializer = new XMLSerializer();
+    const svgString = serializer.serializeToString(clonedSvg);
+    const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const image = new Image();
+    image.crossOrigin = 'anonymous';
+
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.max(Math.round(chartWidth * dpr), 1);
+    canvas.height = Math.max(Math.round(scrollableContentHeight * dpr), 1);
+    canvas.style.width = `${chartWidth}px`;
+    canvas.style.height = `${scrollableContentHeight}px`;
+    const context = canvas.getContext('2d');
+    if (!context) {
+      URL.revokeObjectURL(url);
+      throw new Error('No se pudo inicializar el canvas.');
+    }
+    context.setTransform(dpr, 0, 0, dpr, 0, 0);
+    context.clearRect(0, 0, chartWidth, scrollableContentHeight);
+
+    try {
+      await new Promise((resolve, reject) => {
+        image.onload = resolve;
+        image.onerror = reject;
+        image.src = url;
+      });
+      context.drawImage(image, 0, 0, chartWidth, scrollableContentHeight);
+      return true;
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }, [buildRasterStyleText, chartWidth, scrollableContentHeight]);
+
+  useEffect(() => {
+    if (!shouldRasterize) {
+      setRasterReady(false);
+      setRasterError(null);
+      setIsRasterizing(false);
+    }
+  }, [shouldRasterize]);
+
+  useEffect(() => {
+    if (!shouldRasterize) return;
+    if (chartWidth <= 0 || scrollableContentHeight <= 0) return;
+    if (!svgRef.current || !canvasRef.current) return;
+
+    setRasterReady(false);
+    setRasterError(null);
+    setIsRasterizing(true);
+
+    if (rasterDebounceRef.current) {
+      window.clearTimeout(rasterDebounceRef.current);
+    }
+
+    let cancelled = false;
+    rasterDebounceRef.current = window.setTimeout(() => {
+      const timeoutMs = 3500;
+      Promise.race([
+        rasterizeSvgToCanvas(),
+        new Promise((_, reject) =>
+          window.setTimeout(() => reject(new Error('Raster timeout')), timeoutMs)
+        ),
+      ])
+        .then(() => {
+          if (cancelled) return;
+          setRasterReady(true);
+          setIsRasterizing(false);
+        })
+        .catch((error) => {
+          if (cancelled) return;
+          setRasterError(error);
+          setRasterReady(false);
+          setIsRasterizing(false);
+        });
+    }, 150);
+
+    return () => {
+      cancelled = true;
+      if (rasterDebounceRef.current) {
+        window.clearTimeout(rasterDebounceRef.current);
+      }
+    };
+  }, [
+    allDataPoints,
+    baselineIndices,
+    baselineStartIndex,
+    baselineTemp,
+    chartWidth,
+    fertilityStart,
+    forceLandscape,
+    firstHighIndex,
+    graphBottomInset,
+    isFullScreen,
+    orientation,
+    ovulationDetails,
+    padding,
+    rasterizeSvgToCanvas,
+    scrollableContentHeight,
+    shouldRasterize,
+    showInterpretation,
+    showRelationsRow,
+    tempMax,
+    tempMin,
+    tempRange,
+    textRowHeight,
+  ]);
+
   const applyRotation = !exportMode && isFullScreen && forceLandscape && isViewportPortrait;
   const visualOrientation = forceLandscape ? 'landscape' : orientation;
 
@@ -874,8 +1169,8 @@ const FertilityChart = ({
     ? `${baseFullClass} h-full ${rotatedContainer ? 'overflow-y-auto overflow-x-auto' : 'overflow-x-auto overflow-y-auto'}`
     : `${baseFullClass} overflow-x-auto overflow-y-visible border border-pink-100/50`;
   const showLegend = !isFullScreen || visualOrientation === 'portrait';
-  const handlePointInteractionSafe = exportMode ? () => {} : handlePointInteraction;
-  const clearActivePointSafe = exportMode ? () => {} : clearActivePoint;
+  const showRasterLayer = shouldRasterize && rasterReady && !rasterError;
+  const showRasterOverlay = shouldRasterize && isRasterizing;
   return (
       <motion.div className="relative w-full h-full" initial={false}>
       
@@ -942,12 +1237,33 @@ const FertilityChart = ({
                   />
                 </div>
               )}
+              {shouldRasterize && (
+                <canvas
+                  ref={canvasRef}
+                  data-chart-raster="true"
+                  className="absolute inset-0 z-0"
+                  onPointerUp={handleRasterInteraction}
+                  onTouchEnd={handleRasterInteraction}
+                  style={{
+                    opacity: showRasterLayer ? 1 : 0,
+                    pointerEvents: showRasterLayer ? 'auto' : 'none',
+                  }}
+                />
+              )}
+              {showRasterOverlay && (
+                <div className="absolute inset-0 z-20 flex items-center justify-center text-slate-400 bg-white/50 backdrop-blur-sm pointer-events-none">
+                  Cargando...
+                </div>
+              )}
               <motion.svg
+                ref={svgRef}
                 width={chartWidth}
                 height={scrollableContentHeight}   
-                className="font-sans flex-shrink-0"
+                className="font-sans flex-shrink-0 relative z-0"
                 viewBox={`0 0 ${chartWidth} ${scrollableContentHeight}`} 
                 preserveAspectRatio="xMidYMid meet"
+                xmlns="http://www.w3.org/2000/svg"
+                style={showRasterLayer ? { visibility: 'hidden', pointerEvents: 'none' } : undefined}
                 initial={false}
               >
           <defs>
@@ -1034,7 +1350,7 @@ const FertilityChart = ({
             getY={getY}
             getX={getX}
             allDataPoints={allDataPoints}
-            visibleRange={visibleRange}
+            visibleRange={effectiveVisibleRange}
             responsiveFontSize={responsiveFontSize}
             isFullScreen={isFullScreen}
             showLeftLabels={!showLegend}
@@ -1254,7 +1570,7 @@ const FertilityChart = ({
             onPointInteraction={handlePointInteractionSafe}
             clearActivePoint={clearActivePointSafe}
             activePoint={activePoint}
-            visibleRange={visibleRange}
+            visibleRange={effectiveVisibleRange}
             padding={padding}
             chartHeight={chartHeight}
             chartWidth={chartWidth}
