@@ -105,7 +105,7 @@ const CycleDatesEditor = ({
               )}
             </div>
             {dateError && <p className="mt-2 text-sm text-red-500">{dateError}</p>}
-            <div className="mt-4 flex flex-wrap gap-2 justify-center">
+            <div className="mt-4 flex flex-wrap gap-3 justify-center">
               <Button
                 type="button"
                 variant="outline"
