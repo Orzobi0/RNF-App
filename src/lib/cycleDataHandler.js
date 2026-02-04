@@ -233,7 +233,9 @@ export const splitCycleAtDate = async (userId, previousCycleId, newCycleId, star
 
   const startDate = parseISO(startDateS);
   if (!isValid(startDate)) {
-    throw new Error('Invalid split start date');
+    const error = new Error('Invalid split start date');
+    error.code = 'split-invalid-date';
+    throw error;
   }
 
   const previousEntriesRef = collection(db, `users/${userId}/cycles/${previousCycleId}/entries`);
@@ -255,6 +257,30 @@ export const splitCycleAtDate = async (userId, previousCycleId, newCycleId, star
     return { movedEntries: 0 };
   }
 
+  // 1) Indexar lo que YA exista en el ciclo destino por fecha (isoDate).
+  //    - Si hay duplicados por fecha en el destino, eso ya es un estado inconsistente => split-date-conflict.
+  const newEntriesRef = collection(db, `users/${userId}/cycles/${newCycleId}/entries`);
+  const newEntriesSnap = await getDocs(newEntriesRef);
+  const newEntriesByIso = new Map(); // isoDate -> { id, ref, data }
+
+  for (const d of newEntriesSnap.docs) {
+    const data = d.data();
+    let iso = null;
+    try {
+      iso = resolveSplitEntryIsoDate(data);
+    } catch (e) {
+      // Si un entry del destino tiene fecha inválida, no lo usamos para resolver conflictos.
+      // Mejor no romper el split por datos “raros” que ya existían.
+      continue;
+    }
+    if (newEntriesByIso.has(iso)) {
+      const error = new Error('New cycle already has multiple entries for the same date');
+      error.code = 'split-date-conflict';
+      error.conflictDate = iso; // 'yyyy-MM-dd'
+      throw error;
+    }
+    newEntriesByIso.set(iso, { id: d.id, ref: d.ref, data });
+  }
   let batch = writeBatch(db);
   let opCount = 0;
 
@@ -272,15 +298,76 @@ export const splitCycleAtDate = async (userId, previousCycleId, newCycleId, star
     opCount += 1;
   };
 
+  const queueUpdate = async (ref, data) => {
+    await ensureBatchCapacity();
+    batch.update(ref, data);
+    opCount += 1;
+  };
   const queueDelete = async (ref) => {
     await ensureBatchCapacity();
     batch.delete(ref);
     opCount += 1;
   };
 
+  const isEmptyValue = (v) =>
+    v === null ||
+    v === undefined ||
+    (typeof v === 'string' && v.trim() === '');
+
+  const MERGE_KEYS = [
+    'temperature_raw',
+    'temperature_corrected',
+    'use_corrected',
+    'temperature_chart',
+    'mucus_sensation',
+    'mucus_appearance',
+    'fertility_symbol',
+    'observations',
+    'had_relations',
+    'ignored',
+    'peak_marker',
+    'timestamp',
+  ];
   for (const entry of entriesToMove) {
-    const newEntryRef = doc(db, `users/${userId}/cycles/${newCycleId}/entries/${entry.id}`);
+    const existingTarget = newEntriesByIso.get(entry.isoDate);
     const newCycleDay = generateCycleDaysForRecord(entry.isoDate, startDateS);
+
+    // 2) Si ya hay entry en el destino para esa fecha, fusionamos (no petamos).
+    if (existingTarget) {
+      const updatePayload = { cycle_day: newCycleDay };
+      for (const key of MERGE_KEYS) {
+        const targetVal = existingTarget.data?.[key];
+        const sourceVal = entry.data?.[key];
+        if (isEmptyValue(targetVal) && !isEmptyValue(sourceVal)) {
+          updatePayload[key] = sourceVal;
+        }
+      }
+      await queueUpdate(existingTarget.ref, updatePayload);
+
+      const measurementsRef = collection(
+        db,
+        `users/${userId}/cycles/${previousCycleId}/entries/${entry.id}/measurements`
+      );
+      const measurementsSnap = await getDocs(measurementsRef);
+      for (const measurementDoc of measurementsSnap.docs) {
+        // Usar ID nuevo para evitar colisiones con mediciones ya existentes en el destino
+        const destMeasRef = doc(
+          collection(
+            db,
+            `users/${userId}/cycles/${newCycleId}/entries/${existingTarget.id}/measurements`
+          )
+        );
+        await queueSet(destMeasRef, measurementDoc.data());
+        await queueDelete(measurementDoc.ref);
+      }
+
+      // Eliminamos el entry del ciclo anterior (su “contenido” ya queda en el destino)
+      await queueDelete(entry.ref);
+      continue;
+    }
+
+    // 3) Caso normal: mover entry completo al destino
+    const newEntryRef = doc(db, `users/${userId}/cycles/${newCycleId}/entries/${entry.id}`);
     await queueSet(newEntryRef, { ...entry.data, cycle_day: newCycleDay });
 
     const measurementsRef = collection(

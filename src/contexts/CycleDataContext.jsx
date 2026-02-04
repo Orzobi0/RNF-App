@@ -693,7 +693,32 @@ export const CycleDataProvider = ({ children }) => {
         await loadCycleData({ silent: true });
       } catch (error) {
         console.error('Error starting new cycle:', error);
-        toast({ title: 'Error', description: 'No se pudo iniciar el nuevo ciclo.', variant: 'destructive' });
+        const formatDMY = (iso) => {
+          try { return format(parseISO(iso), 'dd/MM/yyyy'); } catch { return iso; }
+        };
+
+        const description = (() => {
+          if (error?.code === 'cycle-overlap') {
+            const c = error?.conflictCycle;
+            if (!c) return 'Las fechas coinciden con otro ciclo.';
+            const s = c.startDate ? formatDMY(c.startDate) : 'sin fecha de inicio';
+            const e = c.endDate ? formatDMY(c.endDate) : 'en curso';
+            return `Las fechas coinciden con el ciclo del ${s} al ${e}.`;
+          }
+          if (error?.code === 'split-date-conflict') {
+            const d = error?.conflictDate ? formatDMY(error.conflictDate) : 'esa fecha';
+            return `No se pudo dividir el ciclo porque el ciclo nuevo ya tiene más de un registro en ${d}. Esto suele venir de datos duplicados (por ejemplo, creados desde otra sesión o por un estado inconsistente).`;
+          }
+          if (error?.code === 'split-invalid-entry') {
+            return 'No se pudo dividir el ciclo porque hay registros con fecha inválida en el ciclo anterior.';
+          }
+          if (error?.code === 'split-invalid-date') {
+            return 'La fecha elegida para iniciar el ciclo no es válida.';
+          }
+          return 'No se pudo iniciar el nuevo ciclo.';
+        })();
+
+        toast({ title: 'Error', description, variant: 'destructive' });
         throw error;
       } finally {
         setIsLoading(false);
