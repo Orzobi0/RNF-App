@@ -170,19 +170,6 @@ export const RecordsExperience = ({
     return candidates.sort((a, b) => (b.startDate || '').localeCompare(a.startDate || ''))[0];
   }, [archivedCycles, contextCurrentCycle, cycle?.id]);
 
-  const handleConfirmUndoCycle = useCallback(async () => {
-    if (!contextCurrentCycle?.id) return;
-    setIsUndoingCycle(true);
-    try {
-      await contextUndoCurrentCycle(contextCurrentCycle.id);
-      setShowUndoCycleDialog(false);
-    } catch (error) {
-      console.error('Failed to undo cycle', error);
-    } finally {
-      setIsUndoingCycle(false);
-    }
-  }, [contextCurrentCycle?.id, contextUndoCurrentCycle]);
-
   const handleConfirmPostpartumExit = useCallback(async () => {
     setShowPostpartumExitDialog(false);
     if (typeof savePreferences !== 'function') return;
@@ -932,6 +919,20 @@ const enterStart = -exitTarget;
     setDraftStartDate(cycle?.startDate || '');
     setDraftEndDate(cycle?.endDate || '');
   }, [cycle?.startDate, cycle?.endDate, resetStartDateFlow]);
+
+  const handleConfirmUndoCycle = useCallback(async () => {
+    if (!contextCurrentCycle?.id) return;
+    setIsUndoingCycle(true);
+    try {
+      await contextUndoCurrentCycle(contextCurrentCycle.id);
+      setShowUndoCycleDialog(false);
+      closeStartDateEditor();
+    } catch (error) {
+      console.error('Failed to undo cycle', error);
+    } finally {
+      setIsUndoingCycle(false);
+    }
+  }, [closeStartDateEditor, contextCurrentCycle?.id, contextUndoCurrentCycle]);
 
   const handleDeleteCycleFromEditor = useCallback(() => {
     if (onRequestDeleteCycle) {

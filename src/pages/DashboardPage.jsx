@@ -1302,19 +1302,6 @@ const ModernFertilityDashboard = () => {
     return candidates.sort((a, b) => (b.startDate || '').localeCompare(a.startDate || ''))[0];
   }, [archivedCycles, currentCycle]);
 
-  const handleConfirmUndoCycle = useCallback(async () => {
-    if (!currentCycle?.id) return;
-    setIsUndoingCycle(true);
-    try {
-      await undoCurrentCycle(currentCycle.id);
-      setShowUndoCycleDialog(false);
-    } catch (error) {
-      console.error('Failed to undo cycle', error);
-    } finally {
-      setIsUndoingCycle(false);
-    }
-  }, [currentCycle?.id, undoCurrentCycle]);
-
   const persistCpmMode = useCallback(
     async (mode) => {
       if (!user?.uid || !savePreferences) return;
@@ -3260,6 +3247,20 @@ const ModernFertilityDashboard = () => {
     resetStartDateFlow();
     setDraftStartDate(currentCycle?.startDate || '');
   }, [currentCycle?.startDate, resetStartDateFlow]);
+
+  const handleConfirmUndoCycle = useCallback(async () => {
+    if (!currentCycle?.id) return;
+    setIsUndoingCycle(true);
+    try {
+      await undoCurrentCycle(currentCycle.id);
+      setShowUndoCycleDialog(false);
+      handleCloseStartDateEditor();
+    } catch (error) {
+      console.error('Failed to undo cycle', error);
+    } finally {
+      setIsUndoingCycle(false);
+    }
+  }, [currentCycle?.id, handleCloseStartDateEditor, undoCurrentCycle]);
 
   const handleCancelOverlapStart = useCallback(() => {
     resetStartDateFlow();
