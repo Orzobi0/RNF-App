@@ -859,18 +859,34 @@ export const CycleDataProvider = ({ children }) => {
   );
 
   const updateCycleDates = useCallback(
-    async (cycleIdToUpdate, newStartDate, newEndDate, force = false) => {
+    async (cycleIdToUpdate, newStartDate, newEndDate) => {
       if (!user?.uid) return;
+
+      const cycleToUpdate =
+        currentCycle?.id === cycleIdToUpdate
+          ? currentCycle
+          : archivedCycles.find((cycle) => cycle.id === cycleIdToUpdate);
+      const currentStartDate = cycleToUpdate?.startDate ?? null;
+      const currentEndDate = cycleToUpdate?.endDate ?? null;
+      const hasStartChange = newStartDate !== undefined && newStartDate !== currentStartDate;
+      const hasEndChange = newEndDate !== undefined && newEndDate !== currentEndDate;
 
       setIsLoading(true);
       try {
-        if (force && newStartDate) {
+        if (hasStartChange && newStartDate) {
           await forceUpdateCycleStartDB(user.uid, cycleIdToUpdate, newStartDate);
-          if (newEndDate !== undefined) {
-            await updateCycleDatesDB(cycleIdToUpdate, user.uid, undefined, newEndDate);
           }
-        } else {
-          await updateCycleDatesDB(cycleIdToUpdate, user.uid, newStartDate, newEndDate);
+        if (hasEndChange && newEndDate) {
+          const startForCalc = hasStartChange ? newStartDate : currentStartDate;
+          await forceShiftNextCycleStartDB(user.uid, cycleIdToUpdate, newEndDate, startForCalc);
+        }
+        if (hasStartChange || hasEndChange) {
+          await updateCycleDatesDB(
+            cycleIdToUpdate,
+            user.uid,
+            hasStartChange ? newStartDate : undefined,
+            hasEndChange ? newEndDate : undefined
+          );
         }
         await loadCycleData({ silent: true });
       } catch (error) {
@@ -885,20 +901,19 @@ export const CycleDataProvider = ({ children }) => {
         setIsLoading(false);
       }
     },
-    [user, loadCycleData, toast, buildOverlapDescription]
+    [user, currentCycle, archivedCycles, loadCycleData, toast, buildOverlapDescription]
   );
 
   const forceUpdateCycleStart = useCallback(
-    (cycleIdToUpdate, newStartDate) => updateCycleDates(cycleIdToUpdate, newStartDate, undefined, true),
+    (cycleIdToUpdate, newStartDate) =>
+      updateCycleDates(cycleIdToUpdate, newStartDate, undefined),
     [updateCycleDates]
   );
 
   const forceShiftNextCycleStart = useCallback(
-    async (cycleIdToUpdate, newEndDate, newStartDate) => {
-      if (!user?.uid || !cycleIdToUpdate || !newEndDate) return;
-      await forceShiftNextCycleStartDB(user.uid, cycleIdToUpdate, newEndDate, newStartDate);
-    },
-    [user]
+    (cycleIdToUpdate, newEndDate, newStartDate) =>
+      updateCycleDates(cycleIdToUpdate, newStartDate, newEndDate),
+    [updateCycleDates]
   );
 
   const getCycleById = useCallback(

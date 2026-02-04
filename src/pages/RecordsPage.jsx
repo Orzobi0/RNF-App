@@ -74,8 +74,6 @@ export const RecordsExperience = ({
   isLoading: isLoadingProp,
   updateCycleDates: updateCycleDatesProp,
   checkCycleOverlap: checkCycleOverlapProp,
-  forceShiftNextCycleStart: forceShiftNextCycleStartProp,
-  forceUpdateCycleStart: forceUpdateCycleStartProp,
   startNewCycle: startNewCycleProp,
   refreshData: refreshDataProp,
   afterRecordsContent = null,
@@ -93,8 +91,6 @@ export const RecordsExperience = ({
     isLoading: contextIsLoading,
     updateCycleDates: contextUpdateCycleDates,
     checkCycleOverlap: contextCheckCycleOverlap,
-    forceUpdateCycleStart: contextForceUpdateCycleStart,
-    forceShiftNextCycleStart: contextForceShiftNextCycleStart,
     startNewCycle: contextStartNewCycle,
     refreshData: contextRefreshData,
     getMeasurementsForEntry: contextGetMeasurementsForEntry,
@@ -120,14 +116,6 @@ export const RecordsExperience = ({
     : async (cycleId, startDate, endDate) =>
         contextUpdateCycleDates(cycleId ?? cycle?.id, startDate, endDate);
   const checkCycleOverlap = checkCycleOverlapProp ?? contextCheckCycleOverlap;
-  const forceUpdateCycleStart = forceUpdateCycleStartProp
-    ? forceUpdateCycleStartProp
-    : async (cycleId, startDate) =>
-        contextForceUpdateCycleStart(cycleId ?? cycle?.id, startDate);
-  const forceShiftNextCycleStart = forceShiftNextCycleStartProp
-    ? forceShiftNextCycleStartProp
-    : async (cycleId, newEndDate, newStartDate) =>
-        contextForceShiftNextCycleStart(cycleId ?? cycle?.id, newEndDate, newStartDate);
   const startNewCycle = startNewCycleProp ?? contextStartNewCycle;
   const refreshData = refreshDataProp ?? contextRefreshData;
   const getMeasurementsForEntry = contextGetMeasurementsForEntry;
@@ -1130,12 +1118,6 @@ const enterStart = -exitTarget;
       const currentStartDate = cycle.startDate;
       const currentEndDate = cycle.endDate ?? undefined;
       const hasStartChange = pendingStartDate !== currentStartDate;
-      const startMovesEarlier =
-        hasStartChange &&
-        pendingStartDate &&
-        currentStartDate &&
-        isBefore(parseISO(pendingStartDate), parseISO(currentStartDate));
-
       const resolvedPendingEnd = pendingIncludeEndDate
         ? pendingEndDate ?? undefined
         : undefined;
@@ -1143,15 +1125,6 @@ const enterStart = -exitTarget;
         pendingIncludeEndDate &&
         pendingEndDate !== null &&
         resolvedPendingEnd !== currentEndDate;
-
-      if (startMovesEarlier) {
-        await forceUpdateCycleStart(cycle.id, pendingStartDate);
-      }
-      
-      if (hasEndChange && resolvedPendingEnd && forceShiftNextCycleStart) {
-        const effectiveStartDate = hasStartChange ? pendingStartDate : currentStartDate;
-        await forceShiftNextCycleStart(cycle.id, resolvedPendingEnd, effectiveStartDate);
-      }
 
       await updateCycleDates(
         cycle.id,
@@ -1183,8 +1156,6 @@ const enterStart = -exitTarget;
     pendingStartDate,
     pendingIncludeEndDate,
     pendingEndDate,
-    forceUpdateCycleStart,
-    forceShiftNextCycleStart,
     updateCycleDates,
     refreshData,
     toast,

@@ -21,8 +21,6 @@ const ArchivedCyclesPage = () => {
     updateCycleDates,
     deleteCycle,
     checkCycleOverlap,
-    forceUpdateCycleStart,
-    forceShiftNextCycleStart,
   } = useCycleData();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -100,9 +98,6 @@ const ArchivedCyclesPage = () => {
       const hasStartChange = startDate !== undefined && startDate !== currentStartDate;
       const hasEndChange = endDate !== undefined && endDate !== currentEndDate;
 
-      const startMovesEarlier =
-        hasStartChange && currentStartDate && startDate && parseISO(startDate) < parseISO(currentStartDate);
-
       const effectiveStartDate = hasStartChange ? startDate : currentStartDate;
       const effectiveEndDate = hasEndChange ? endDate : currentEndDate;
       if (
@@ -117,17 +112,7 @@ const ArchivedCyclesPage = () => {
         return;
       }
 
-      if (force && startMovesEarlier) {
-        await forceUpdateCycleStart(editingCycle.id, startDate);
-        if (endDate !== undefined) {
-          await updateCycleDates(editingCycle.id, undefined, endDate);
-        }
-        } else if (force && effectiveEndDate) {
-        await forceShiftNextCycleStart(editingCycle.id, effectiveEndDate, effectiveStartDate);
-        await updateCycleDates(editingCycle.id, startDate, endDate);
-      } else {
-        await updateCycleDates(editingCycle.id, startDate, endDate);
-      }
+      await updateCycleDates(editingCycle.id, startDate, endDate);
       setEditingCycle(null);
       setEditCycleError(null);
     } catch (error) {

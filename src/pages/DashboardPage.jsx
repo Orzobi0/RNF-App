@@ -1222,7 +1222,6 @@ const ModernFertilityDashboard = () => {
     isLoading,
     updateCycleDates,
     checkCycleOverlap,
-    forceUpdateCycleStart,
     refreshData,
     setCycleIgnoreForAutoCalculations,
     undoCurrentCycle,
@@ -3330,7 +3329,7 @@ const ModernFertilityDashboard = () => {
     setShowOverlapDialog(false);
 
     try {
-      await forceUpdateCycleStart(currentCycle.id, pendingStartDate);
+      await updateCycleDates(currentCycle.id, pendingStartDate);
       await refreshData({ silent: true });
       toast({
         title: 'Fecha de inicio actualizada',
@@ -3352,7 +3351,7 @@ const ModernFertilityDashboard = () => {
   }, [
     currentCycle?.id,
     pendingStartDate,
-    forceUpdateCycleStart,
+    updateCycleDates,
     refreshData,
     toast,
     handleCloseStartDateEditor,
