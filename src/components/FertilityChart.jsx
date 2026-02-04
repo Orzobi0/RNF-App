@@ -81,6 +81,8 @@ const FertilityChart = ({
   }
   const uniqueId = uniqueIdRef.current;
   const getOverscanDays = useCallback((visibleDaysValue, totalPoints) => {
+    // Para ciclos normales, renderiza todo y evita el efecto “carga por trozos”
+  if (totalPoints <= 120) return totalPoints;
     const screens = visibleDaysValue >= 20 ? 1 : 2;
     const raw = Math.ceil(visibleDaysValue * screens);
     const capped = Math.min(raw, 24);

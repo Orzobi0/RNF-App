@@ -399,7 +399,6 @@ const ChartPage = () => {
       if (forceLandscape) return;
       const nextOrientation = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
       setOrientation((prev) => (prev === nextOrientation ? prev : nextOrientation));
-      window.dispatchEvent(new Event('resize'));
     };
 
     window.addEventListener('resize', handleOrientationChange);
