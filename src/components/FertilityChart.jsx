@@ -29,6 +29,8 @@ const FertilityChart = ({
   isArchivedCycle = false,
   cycleEndDate = null,
   exportMode = false,
+  rasterizeOnMobile = true,
+  rasterMode = null,
 }) => {
   const {
     chartRef,
@@ -47,6 +49,7 @@ const FertilityChart = ({
     getY,
     getX,
     handlePointInteraction,
+    handlePointInteractionAtIndex,
     handleToggleIgnore,
     responsiveFontSize,
     clearActivePoint,
@@ -60,6 +63,7 @@ const FertilityChart = ({
     hasAnyObservation,
     graphBottomInset,
     todayIndex,
+    isPointInteractive,
   } = useFertilityChart(
     data,
     isFullScreen,
@@ -780,6 +784,13 @@ const FertilityChart = ({
   // Detectar orientación real del viewport para rotación visual
   const [viewport, setViewport] = useState({ w: typeof window !== 'undefined' ? window.innerWidth : 0, h: typeof window !== 'undefined' ? window.innerHeight : 0 });
   const isViewportPortrait = viewport.w < viewport.h;
+  const svgRef = useRef(null);
+  const canvasRef = useRef(null);
+  const rasterUrlRef = useRef(null);
+  const rasterTimeoutRef = useRef(null);
+  const [isRasterizing, setIsRasterizing] = useState(false);
+  const [rasterReady, setRasterReady] = useState(false);
+  const [rasterError, setRasterError] = useState(false);
 
   useEffect(() => {
     const onResize = () => setViewport({ w: window.innerWidth, h: window.innerHeight });
@@ -790,6 +801,244 @@ const FertilityChart = ({
       window.removeEventListener('orientationchange', onResize);
     };
   }, []);
+
+  const normalizedRasterMode = ['auto', 'on', 'off'].includes(rasterMode)
+    ? rasterMode
+    : null;
+  const resolvedRasterMode = normalizedRasterMode ?? (rasterizeOnMobile ? 'auto' : 'off');
+  const isCoarsePointer = useMemo(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return false;
+    }
+    return window.matchMedia('(pointer: coarse)').matches;
+  }, [viewport.w, viewport.h]);
+  const isSmallViewport = viewport.w > 0 ? viewport.w < 768 : false;
+  const shouldRasterize =
+    !exportMode &&
+    (resolvedRasterMode === 'on' ||
+      (resolvedRasterMode === 'auto' && rasterizeOnMobile && (isCoarsePointer || isSmallViewport)));
+
+  const xByIndex = useMemo(
+    () => allDataPoints.map((_, index) => getX(index)),
+    [allDataPoints, getX]
+  );
+  const averageDayWidth = useMemo(() => {
+    if (xByIndex.length < 2) {
+      return fallbackDayWidth;
+    }
+    let total = 0;
+    for (let idx = 1; idx < xByIndex.length; idx += 1) {
+      total += Math.max(xByIndex[idx] - xByIndex[idx - 1], 0);
+    }
+    return Math.max(total / (xByIndex.length - 1), fallbackDayWidth);
+  }, [fallbackDayWidth, xByIndex]);
+
+  const findNearestIndex = useCallback((values, target) => {
+    if (!values.length) return null;
+    let low = 0;
+    let high = values.length - 1;
+    while (low <= high) {
+      const mid = Math.floor((low + high) / 2);
+      const value = values[mid];
+      if (value === target) return mid;
+      if (value < target) {
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
+    if (low >= values.length) return values.length - 1;
+    if (high < 0) return 0;
+    return Math.abs(values[low] - target) < Math.abs(values[high] - target) ? low : high;
+  }, []);
+
+  const handleRasterPointer = useCallback(
+    (event) => {
+      if (!chartRef.current || !xByIndex.length) return;
+      const rect = chartRef.current.getBoundingClientRect();
+      let clientX;
+      let clientY;
+      if (event.type.startsWith('touch')) {
+        const touch = event.changedTouches[0];
+        clientX = touch?.clientX;
+        clientY = touch?.clientY;
+      } else {
+        clientX = event.clientX;
+        clientY = event.clientY;
+      }
+      if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) return;
+
+      const contentX = clientX - rect.left + chartRef.current.scrollLeft;
+      const contentY = clientY - rect.top + chartRef.current.scrollTop;
+      const minX = padding.left;
+      const maxX = chartWidth - padding.right;
+      if (contentX < minX || contentX > maxX) return;
+
+      const nearestIndex = findNearestIndex(xByIndex, contentX);
+      if (nearestIndex == null) return;
+      const targetX = xByIndex[nearestIndex];
+      const threshold = Math.max(averageDayWidth * 0.55, 6);
+      if (Math.abs(contentX - targetX) > threshold) return;
+
+      const point = allDataPoints[nearestIndex];
+      if (!isPointInteractive(point)) return;
+      handlePointInteractionAtIndex(nearestIndex, { clientX, clientY, contentX, contentY });
+    },
+    [
+      allDataPoints,
+      averageDayWidth,
+      chartRef,
+      chartWidth,
+      findNearestIndex,
+      handlePointInteractionAtIndex,
+      isPointInteractive,
+      padding.left,
+      padding.right,
+      xByIndex,
+    ]
+  );
+
+  const rasterizeChart = useCallback(() => {
+    if (!svgRef.current || !canvasRef.current) return;
+    const svgNode = svgRef.current;
+    const canvasNode = canvasRef.current;
+    const clonedSvg = svgNode.cloneNode(true);
+    clonedSvg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    clonedSvg.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+
+    const computed = typeof window !== 'undefined'
+      ? window.getComputedStyle(document.documentElement)
+      : null;
+    const cssVars = [
+      '--phase-rel',
+      '--phase-rel-stop',
+      '--phase-fertile',
+      '--phase-fertile-stop',
+      '--phase-post',
+      '--phase-post-stop',
+      '--phase-post-abs',
+      '--phase-post-abs-stop',
+      '--phase-text-shadow',
+      '--color-sensacion-fuerte',
+      '--color-apariencia-fuerte',
+      '--color-observaciones-fuerte',
+      '--foreground',
+    ];
+    const resolvedVars = cssVars
+      .map((name) => {
+        const value = computed?.getPropertyValue(name)?.trim();
+        return value ? `${name}: ${value};` : null;
+      })
+      .filter(Boolean)
+      .join(' ');
+    if (resolvedVars) {
+      const styleEl = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+      styleEl.textContent = `svg { ${resolvedVars} }`;
+      clonedSvg.insertBefore(styleEl, clonedSvg.firstChild);
+    }
+
+    const serializer = new XMLSerializer();
+    const svgString = serializer.serializeToString(clonedSvg);
+    const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+    if (rasterUrlRef.current) {
+      URL.revokeObjectURL(rasterUrlRef.current);
+      rasterUrlRef.current = null;
+    }
+    const url = URL.createObjectURL(svgBlob);
+    rasterUrlRef.current = url;
+
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+    img.onload = () => {
+      if (rasterTimeoutRef.current) {
+        window.clearTimeout(rasterTimeoutRef.current);
+        rasterTimeoutRef.current = null;
+      }
+      const context = canvasNode.getContext('2d');
+      if (!context) {
+        setRasterError(true);
+        setRasterReady(false);
+        setIsRasterizing(false);
+        URL.revokeObjectURL(url);
+        return;
+      }
+      canvasNode.width = chartWidth * dpr;
+      canvasNode.height = scrollableContentHeight * dpr;
+      canvasNode.style.width = `${chartWidth}px`;
+      canvasNode.style.height = `${scrollableContentHeight}px`;
+      context.setTransform(dpr, 0, 0, dpr, 0, 0);
+      context.clearRect(0, 0, chartWidth, scrollableContentHeight);
+      context.drawImage(img, 0, 0, chartWidth, scrollableContentHeight);
+      setRasterReady(true);
+      setRasterError(false);
+      setIsRasterizing(false);
+      URL.revokeObjectURL(url);
+    };
+    img.onerror = () => {
+      if (rasterTimeoutRef.current) {
+        window.clearTimeout(rasterTimeoutRef.current);
+        rasterTimeoutRef.current = null;
+      }
+      setRasterError(true);
+      setRasterReady(false);
+      setIsRasterizing(false);
+      URL.revokeObjectURL(url);
+    };
+    img.src = url;
+  }, [chartWidth, scrollableContentHeight]);
+
+  useEffect(() => {
+    if (!shouldRasterize) {
+      setRasterReady(false);
+      setRasterError(false);
+      setIsRasterizing(false);
+      if (rasterUrlRef.current) {
+        URL.revokeObjectURL(rasterUrlRef.current);
+        rasterUrlRef.current = null;
+      }
+      return;
+    }
+    if (!svgRef.current || chartWidth <= 0 || scrollableContentHeight <= 0) {
+      return;
+    }
+
+    setIsRasterizing(true);
+    setRasterError(false);
+    setRasterReady(false);
+    if (rasterTimeoutRef.current) {
+      window.clearTimeout(rasterTimeoutRef.current);
+    }
+
+    const timer = window.setTimeout(() => {
+      rasterizeChart();
+    }, 150);
+    const timeoutFallback = window.setTimeout(() => {
+      setRasterError(true);
+      setRasterReady(false);
+      setIsRasterizing(false);
+    }, 4000);
+    rasterTimeoutRef.current = timeoutFallback;
+
+    return () => {
+      window.clearTimeout(timer);
+      window.clearTimeout(timeoutFallback);
+      rasterTimeoutRef.current = null;
+    };
+  }, [
+    allDataPoints,
+    chartWidth,
+    scrollableContentHeight,
+    isFullScreen,
+    orientation,
+    forceLandscape,
+    padding,
+    showInterpretation,
+    showRelationsRow,
+    shouldRasterize,
+    textRowHeight,
+    rasterizeChart,
+  ]);
 
   const updateVisibleRange = useCallback(
     (scrollLeft = 0) => {
@@ -876,6 +1125,7 @@ const FertilityChart = ({
   const showLegend = !isFullScreen || visualOrientation === 'portrait';
   const handlePointInteractionSafe = exportMode ? () => {} : handlePointInteraction;
   const clearActivePointSafe = exportMode ? () => {} : clearActivePoint;
+  const showRasterLayer = shouldRasterize && !rasterError;
   return (
       <motion.div className="relative w-full h-full" initial={false}>
       
@@ -942,13 +1192,41 @@ const FertilityChart = ({
                   />
                 </div>
               )}
+              {showRasterLayer && (
+                <div
+                  className="absolute left-0 top-0"
+                  style={{ width: chartWidth, height: scrollableContentHeight }}
+                  data-chart-hit-area="true"
+                >
+                  <canvas
+                    ref={canvasRef}
+                    className="block"
+                    style={{
+                      width: chartWidth,
+                      height: scrollableContentHeight,
+                      opacity: rasterReady ? 1 : 0,
+                    }}
+                    onPointerUp={handleRasterPointer}
+                  />
+                  {isRasterizing && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-white/60 text-slate-500 text-sm">
+                      Cargando...
+                    </div>
+                  )}
+                </div>
+              )}
               <motion.svg
+                ref={svgRef}
                 width={chartWidth}
                 height={scrollableContentHeight}   
                 className="font-sans flex-shrink-0"
                 viewBox={`0 0 ${chartWidth} ${scrollableContentHeight}`} 
                 preserveAspectRatio="xMidYMid meet"
                 initial={false}
+                style={{
+                  visibility: showRasterLayer && rasterReady ? 'hidden' : 'visible',
+                  pointerEvents: showRasterLayer ? 'none' : 'auto',
+                }}
               >
           <defs>
             {/* Gradientes mejorados para la línea de temperatura */}

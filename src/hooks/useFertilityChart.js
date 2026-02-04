@@ -1080,21 +1080,58 @@ export const useFertilityChart = (
         setActivePoint(point);
       };
 
+      const handlePointInteractionAtIndex = (index, { clientX, clientY } = {}) => {
+        if (!chartRef.current) {
+          clearActivePoint();
+          return;
+        }
+        if (!Number.isInteger(index)) {
+          clearActivePoint();
+          return;
+        }
+        const point = allDataPoints[index];
+        if (!point) {
+          clearActivePoint();
+          return;
+        }
+
+        const chartRect = chartRef.current.getBoundingClientRect();
+        const svgX = getX(index);
+        const displayTemp = point.displayTemperature ?? point.temperature_chart ?? null;
+        const svgY = getY(displayTemp);
+
+        const safeClientX = Number.isFinite(clientX) ? clientX : chartRect.left;
+        const safeClientY = Number.isFinite(clientY) ? clientY : chartRect.top;
+
+        setTooltipPosition({
+          svgX,
+          svgY,
+          clientX: safeClientX - chartRect.left + chartRef.current.scrollLeft,
+          clientY: safeClientY - chartRect.top + chartRef.current.scrollTop,
+        });
+        setActiveIndex(index);
+        setActivePoint(point);
+      };
+
       
       useEffect(() => {
         const handleClickOutside = (event) => {
           if (tooltipRef.current && !tooltipRef.current.contains(event.target)) {
-             const chartPoints = chartRef.current?.querySelectorAll('circle, text, rect');
-             let isPointClick = false;
-             if(chartPoints){
-                for(let pointEl of chartPoints){
-                    if(pointEl.contains(event.target)){
-                        isPointClick = true;
-                        break;
-                    }
+            const target = event.target instanceof Element ? event.target : null;
+            if (target?.closest?.('[data-chart-hit-area=\"true\"]')) {
+              return;
+            }
+            const chartPoints = chartRef.current?.querySelectorAll('circle, text, rect');
+            let isPointClick = false;
+            if (chartPoints) {
+              for (let pointEl of chartPoints) {
+                if (pointEl.contains(event.target)) {
+                  isPointClick = true;
+                  break;
                 }
-             }
-            if(!isPointClick) clearActivePoint();
+              }
+            }
+            if (!isPointClick) clearActivePoint();
           }
         };
     
@@ -1114,6 +1151,8 @@ export const useFertilityChart = (
           clearActivePoint();
         }
       };
+
+      const isPointInteractive = (point) => Boolean(point?.isoDate) && !point?.isFutureDay;
 
       return {
         chartRef,
@@ -1143,8 +1182,10 @@ export const useFertilityChart = (
         getY,
         getX,
         handlePointInteraction,
+        handlePointInteractionAtIndex,
         clearActivePoint,
         handleToggleIgnore,
+        isPointInteractive,
         responsiveFontSize,
         baselineTemp,
         baselineStartIndex,
