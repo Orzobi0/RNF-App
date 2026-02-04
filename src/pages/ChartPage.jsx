@@ -504,6 +504,9 @@ const ChartPage = () => {
       endIndex = Math.min(daysInCycle, visibleDays);
     }
     scrollStart = Math.max(0, endIndex - visibleDays);
+    } else {
+    const endIndex = daysInCycle;
+    scrollStart = Math.max(0, endIndex - visibleDays);
   }
   const baseStyle = {
     backgroundColor: '#fff7fb',

@@ -7,8 +7,7 @@ import {
   createNewCycleEntry,
   updateCycleEntry,
   deleteCycleEntryDB,
-  archiveCycleDB,
-  createNewCycleDB,
+  startNewCycleDB,
   fetchCycleByIdDB,
   fetchCurrentCycleDB,
   fetchArchivedCyclesDB,
@@ -682,13 +681,8 @@ export const CycleDataProvider = ({ children }) => {
           }
         }
 
-        if (currentCycle.id) {
-          const archiveEndDate = format(addDays(startDateObj, -1), 'yyyy-MM-dd');
-          await archiveCycleDB(currentCycle.id, user.uid, archiveEndDate);
-        }
-
         const newStartDate = format(startDateObj, 'yyyy-MM-dd');
-        const newCycle = await createNewCycleDB(user.uid, newStartDate);
+        const newCycle = await startNewCycleDB(user.uid, currentCycle.id, newStartDate);
         setCurrentCycle({
           id: newCycle.id,
           startDate: newCycle.start_date,
@@ -699,13 +693,6 @@ export const CycleDataProvider = ({ children }) => {
         await loadCycleData({ silent: true });
       } catch (error) {
         console.error('Error starting new cycle:', error);
-        try {
-          if (currentCycle.id) {
-            await updateCycleDatesDB(currentCycle.id, user.uid, undefined, null);
-          }
-        } catch (e) {
-          console.error('Rollback failed:', e);
-        }
         toast({ title: 'Error', description: 'No se pudo iniciar el nuevo ciclo.', variant: 'destructive' });
         throw error;
       } finally {

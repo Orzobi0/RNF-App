@@ -214,6 +214,151 @@ export const createNewCycleDB = async (userId, startDate) => {
   return { id: docRef.id, start_date: startDate };
 };
 
+const resolveSplitEntryIsoDate = (entry) => {
+  if (entry.iso_date && isValid(parseISO(entry.iso_date))) {
+    return format(parseISO(entry.iso_date), 'yyyy-MM-dd');
+  }
+  if (typeof entry.timestamp === 'string' && isValid(parseISO(entry.timestamp))) {
+    return format(parseISO(entry.timestamp), 'yyyy-MM-dd');
+  }
+  const error = new Error('Entry has invalid date');
+  error.code = 'split-invalid-entry';
+  throw error;
+};
+
+export const splitCycleAtDate = async (userId, previousCycleId, newCycleId, startDateS) => {
+  if (!userId || !previousCycleId || !newCycleId || !startDateS) {
+    throw new Error('Missing data for cycle split');
+  }
+
+  const startDate = parseISO(startDateS);
+  if (!isValid(startDate)) {
+    throw new Error('Invalid split start date');
+  }
+
+  const previousEntriesRef = collection(db, `users/${userId}/cycles/${previousCycleId}/entries`);
+  const previousEntriesSnap = await getDocs(previousEntriesRef);
+  const entriesToMove = previousEntriesSnap.docs
+    .map((entryDoc) => {
+      const entryData = entryDoc.data();
+      const isoDate = resolveSplitEntryIsoDate(entryData);
+      return {
+        id: entryDoc.id,
+        ref: entryDoc.ref,
+        data: entryData,
+        isoDate,
+      };
+    })
+    .filter((entry) => parseISO(entry.isoDate) >= startDate);
+
+  if (!entriesToMove.length) {
+    return { movedEntries: 0 };
+  }
+
+  let batch = writeBatch(db);
+  let opCount = 0;
+
+  const ensureBatchCapacity = async () => {
+    if (opCount >= 400) {
+      await batch.commit();
+      batch = writeBatch(db);
+      opCount = 0;
+    }
+  };
+
+  const queueSet = async (ref, data) => {
+    await ensureBatchCapacity();
+    batch.set(ref, data);
+    opCount += 1;
+  };
+
+  const queueDelete = async (ref) => {
+    await ensureBatchCapacity();
+    batch.delete(ref);
+    opCount += 1;
+  };
+
+  for (const entry of entriesToMove) {
+    const newEntryRef = doc(db, `users/${userId}/cycles/${newCycleId}/entries/${entry.id}`);
+    const newCycleDay = generateCycleDaysForRecord(entry.isoDate, startDateS);
+    await queueSet(newEntryRef, { ...entry.data, cycle_day: newCycleDay });
+
+    const measurementsRef = collection(
+      db,
+      `users/${userId}/cycles/${previousCycleId}/entries/${entry.id}/measurements`
+    );
+    const measurementsSnap = await getDocs(measurementsRef);
+    for (const measurementDoc of measurementsSnap.docs) {
+      const newMeasurementRef = doc(
+        db,
+        `users/${userId}/cycles/${newCycleId}/entries/${entry.id}/measurements/${measurementDoc.id}`
+      );
+      await queueSet(newMeasurementRef, measurementDoc.data());
+      await queueDelete(measurementDoc.ref);
+    }
+
+    await queueDelete(entry.ref);
+  }
+
+  if (opCount > 0) {
+    await batch.commit();
+  }
+
+  return { movedEntries: entriesToMove.length };
+};
+
+export const startNewCycleDB = async (userId, previousCycleId, startDate) => {
+  if (!userId || !startDate) {
+    throw new Error('Missing user or start date');
+  }
+
+  const newStart = parseISO(startDate);
+  if (!isValid(newStart)) {
+    throw new Error('Invalid start date');
+  }
+
+  const cyclesRef = collection(db, `users/${userId}/cycles`);
+  const cyclesSnap = await getDocs(cyclesRef);
+  const overlapDoc = cyclesSnap.docs.find((docSnap) => {
+    if (docSnap.id === previousCycleId) return false;
+    const data = docSnap.data();
+    const start = data.start_date ? parseISO(data.start_date) : null;
+    const end = data.end_date ? parseISO(data.end_date) : null;
+    if (!start) return false;
+    const comparableEnd = end ?? new Date('9999-12-31');
+    return newStart >= start && newStart <= comparableEnd;
+  });
+
+  if (overlapDoc) {
+    const overlapInfo = {
+      id: overlapDoc.id,
+      startDate: overlapDoc.data().start_date,
+      endDate: overlapDoc.data().end_date,
+    };
+    const error = new Error('Cycle dates overlap with an existing cycle');
+    error.code = 'cycle-overlap';
+    error.conflictCycle = overlapInfo;
+    throw error;
+  }
+
+  const newCycleRef = doc(collection(db, `users/${userId}/cycles`));
+  await setDoc(newCycleRef, {
+    user_id: userId,
+    start_date: startDate,
+    ignored_auto_calculations: false,
+    end_date: null,
+  });
+
+  if (previousCycleId) {
+    await splitCycleAtDate(userId, previousCycleId, newCycleRef.id, startDate);
+    const previousRef = doc(db, `users/${userId}/cycles/${previousCycleId}`);
+    const dayBefore = format(addDays(startOfDay(newStart), -1), 'yyyy-MM-dd');
+    await updateDoc(previousRef, { end_date: dayBefore });
+  }
+
+  return { id: newCycleRef.id, start_date: startDate };
+};
+
 export const createNewCycleEntry = async (payload) => {
   const userId = payload.user_id;
   const timestamp = payload.timestamp ?? new Date().toISOString();

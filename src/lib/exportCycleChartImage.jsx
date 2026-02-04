@@ -71,7 +71,9 @@ async function svgToPngDataUrl(svgEl, { widthPx, heightPx, pixelRatio = 2, backg
   const ctx = canvas.getContext('2d');
   ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
   ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(img, 0, 0, widthPx, heightPx);
+
 
   return canvas.toDataURL('image/png');
 }
@@ -115,7 +117,7 @@ export async function renderCycleChartToPng({
   entries,
   widthPx,
   heightPx,
- pixelRatio = 1,
+ pixelRatio = 1.5,
 }) {
   if (typeof window === 'undefined') {
     throw new Error('renderCycleChartToPng solo está disponible en el navegador.');

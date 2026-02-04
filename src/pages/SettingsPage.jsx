@@ -37,7 +37,7 @@ const SettingsPage = () => {
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [selectedCycleIds, setSelectedCycleIds] = useState([]);
   const [exportFormat, setExportFormat] = useState('pdf');
-  const [includeChart, setIncludeChart] = useState(false);
+  const [includeRs, setIncludeRs] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
 
   const [newEmail, setNewEmail] = useState(user?.email || '');
@@ -85,15 +85,12 @@ const SettingsPage = () => {
   const resetExportState = () => {
     setSelectedCycleIds([]);
     setExportFormat('pdf');
-    setIncludeChart(false);
+    setIncludeRs(true);
     setIsExporting(false);
   };
 
   const handleFormatChange = (value) => {
     setExportFormat(value);
-    if (value !== 'pdf') {
-      setIncludeChart(false);
-    }
   };
 
   const handleCloseExportDialog = () => {
@@ -146,9 +143,9 @@ const SettingsPage = () => {
       const filename = `ciclos-${timestamp}.${exportFormat}`;
 
       if (exportFormat === 'pdf') {
-        await downloadCyclesAsPdf(cyclesToExport, filename, { includeChart });
+        await downloadCyclesAsPdf(cyclesToExport, filename, { includeRs });
       } else {
-        await downloadCyclesAsCsv(cyclesToExport, filename);
+        await downloadCyclesAsCsv(cyclesToExport, filename, { includeRs });
       }
 
       toast({
@@ -546,8 +543,8 @@ const SettingsPage = () => {
         onToggleAll={handleToggleAllCycles}
         format={exportFormat}
         onFormatChange={handleFormatChange}
-        includeChart={includeChart}
-        onIncludeChartChange={setIncludeChart}
+        includeRs={includeRs}
+        onIncludeRsChange={setIncludeRs}
         isProcessing={isExporting}
       />
     </div>

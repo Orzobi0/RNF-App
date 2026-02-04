@@ -221,7 +221,7 @@ const triggerDownload = (blob, filename) => {
   URL.revokeObjectURL(url);
 };
 
-export const formatCyclesForExport = (cycles = []) => {
+export const formatCyclesForExport = (cycles = [], { includeRs = true } = {}) => {
   if (!Array.isArray(cycles)) return [];
 
   return cycles.map((cycle, index) => {
@@ -238,7 +238,7 @@ const peakStatuses = computePeakStatuses(baseEntries);           // calcula pico
       formatFertilitySymbolLabel(entry?.fertility_symbol),
       entry?.observations ?? '',
       formatPeakStatus(entry, peakStatuses),
-      entry?.had_relations ? 'Sí' : '',
+      includeRs && entry?.had_relations ? 'Sí' : '',
 
     ]);
 
@@ -251,8 +251,8 @@ const peakStatuses = computePeakStatuses(baseEntries);           // calcula pico
   });
 };
 
-export const downloadCyclesAsCsv = (cycles, filename = 'ciclos.csv') => {
-  const formatted = formatCyclesForExport(cycles);
+export const downloadCyclesAsCsv = (cycles, filename = 'ciclos.csv', { includeRs = true } = {}) => {
+  const formatted = formatCyclesForExport(cycles, { includeRs });
   if (!formatted.length) return;
 
   const csvSections = formatted.map((cycle) => {
@@ -398,9 +398,9 @@ const renderCycleChart = (doc, cycleTitle, entries) => {
 export const downloadCyclesAsPdf = async (
   cycles,
   filename = 'ciclos.pdf',
-  { includeChart = false } = {},
+  { includeChart = true, includeRs = true } = {},
 ) => {
-  const formatted = formatCyclesForExport(cycles);
+  const formatted = formatCyclesForExport(cycles, { includeRs });
   if (!formatted.length) return;
 
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });

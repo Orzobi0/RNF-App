@@ -862,7 +862,7 @@ const FertilityChart = ({
     };
   }, [updateVisibleRange]);
 
-  const applyRotation = isFullScreen && forceLandscape && isViewportPortrait;
+  const applyRotation = !exportMode && isFullScreen && forceLandscape && isViewportPortrait;
   const visualOrientation = forceLandscape ? 'landscape' : orientation;
 
   // Clase del contenedor de scroll ajustada para rotación artificial
