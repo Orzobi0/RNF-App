@@ -3645,6 +3645,7 @@ const ModernFertilityDashboard = () => {
               setShowPostpartumExitDialog(true);
             }
           }}
+          currentCycleRecords={currentCycle?.data ?? []}
         />
         <PostpartumExitDialog
           isOpen={showPostpartumExitDialog}
@@ -4500,6 +4501,7 @@ const ModernFertilityDashboard = () => {
         onClose={() => setShowNewCycleDialog(false)}
         onConfirm={handleConfirmNewCycle}
         currentCycleStartDate={currentCycle.startDate}
+        currentCycleRecords={currentCycle?.data ?? []}
       />
       <PostpartumExitDialog
         isOpen={showPostpartumExitDialog}

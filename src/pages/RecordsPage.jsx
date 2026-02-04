@@ -1488,6 +1488,7 @@ const enterStart = -exitTarget;
               setShowPostpartumExitDialog(true);
             }
           }}
+          currentCycleRecords={cycle?.data ?? []}
         />
         <PostpartumExitDialog
           isOpen={showPostpartumExitDialog}
