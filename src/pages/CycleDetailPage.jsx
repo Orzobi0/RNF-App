@@ -37,7 +37,6 @@ const CycleDetailPage = () => {
     updateCycleDates,
     deleteCycle,
     checkCycleOverlap,
-    forceUpdateCycleStart,
     refreshData
   } = useCycleData();
   const { toast } = useToast();
@@ -142,16 +141,6 @@ const CycleDetailPage = () => {
     [cycleData?.id, user, updateCycleDates]
   );
 
-  const handleForceUpdateCycleStartForCycle = useCallback(
-    async (targetCycleId, startDate) => {
-      const idToUse = targetCycleId ?? cycleData?.id;
-      if (!user || !idToUse) return;
-
-      await forceUpdateCycleStart(idToUse, startDate);
-    },
-    [cycleData?.id, user, forceUpdateCycleStart]
-  );
-
   const handleRefreshData = useCallback(
     async (options) => {
       await refreshData(options);
@@ -237,7 +226,6 @@ const CycleDetailPage = () => {
         deleteRecord={handleDeleteRecordForCycle}
         updateCycleDates={handleUpdateCycleDatesForCycle}
         checkCycleOverlap={checkCycleOverlap}
-        forceUpdateCycleStart={handleForceUpdateCycleStartForCycle}
         refreshData={handleRefreshData}
         includeEndDate
         headerActions={headerActions}

@@ -18,6 +18,7 @@ const ChartLeftLegend = ({
   responsiveFontSize,
   textRowHeight,
   isFullScreen,
+  reduceMotion = false,
   graphBottomY,
   rowsZoneHeight,
   showRelationsRow = false,
@@ -67,7 +68,8 @@ const ChartLeftLegend = ({
     }
     return baseRows;
   }, [isFullScreen, relationsRowIndex, showRelationsRow]);
-
+  const MotionGroup = reduceMotion ? 'g' : motion.g;
+  const motionGroupProps = reduceMotion ? {} : { variants: itemVariants };
   return (
     <svg
       width={padding.left}
@@ -94,7 +96,7 @@ const ChartLeftLegend = ({
           : `.${temp.toFixed(1).split('.')[1]}`;
         
         return (
-          <motion.g key={`temp-tick-fixed-${i}`} variants={itemVariants}>
+          <MotionGroup key={`temp-tick-fixed-${i}`} {...motionGroupProps}>
             
             <text
               x={padding.left - responsiveFontSize(1.2)}
@@ -111,14 +113,14 @@ const ChartLeftLegend = ({
             >
               {labelText}
             </text>
-          </motion.g>
+          </MotionGroup>
         );
       })}
 
       
 
       {/* Etiquetas de filas con diseño mejorado */}
-      <motion.g variants={itemVariants}>
+      <MotionGroup {...motionGroupProps}>
         {legendRows.map(({ label, row, color, icon }) => {
           const iconX = padding.left - responsiveFontSize(2.8);
           const iconY = rowsTopY + rowH * row;
@@ -173,7 +175,7 @@ const ChartLeftLegend = ({
         );
         })}
         
-      </motion.g>
+      </MotionGroup>
 
     </svg>
     

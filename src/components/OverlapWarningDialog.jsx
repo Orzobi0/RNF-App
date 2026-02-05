@@ -10,7 +10,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 
-const OverlapWarningDialog = ({ isOpen, onCancel, onConfirm, conflictCycle }) => {
+const OverlapWarningDialog = ({ isOpen, onCancel, onConfirm, conflictCycle, message }) => {
   const formatDate = (date) => {
     if (!date) return null;
     try {
@@ -34,9 +34,10 @@ const OverlapWarningDialog = ({ isOpen, onCancel, onConfirm, conflictCycle }) =>
         <DialogHeader>
           <DialogTitle>Solapamiento detectado</DialogTitle>
           <DialogDescription className="text-gray-600">
-            {conflictCycle
-              ? `La nueva fecha se solapa con el ciclo que comenzó el ${formattedStart ?? 'sin inicio registrado'} y terminó el ${formattedEnd}. ¿Deseas ajustar las fechas y mover los registros al nuevo ciclo?`
-              : 'La nueva fecha de inicio se solapa con otro ciclo. ¿Deseas continuar?'}
+            {message ??
+              (conflictCycle
+                ? `La nueva fecha se solapa con el ciclo que comenzó el ${formattedStart ?? 'sin inicio registrado'} y terminó el ${formattedEnd}. ¿Deseas ajustar las fechas y mover los registros al nuevo ciclo?`
+                : 'La nueva fecha de inicio se solapa con otro ciclo. ¿Deseas continuar?')}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="sm:justify-end">

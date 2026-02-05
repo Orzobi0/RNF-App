@@ -61,6 +61,13 @@ const formatDate = (value) => {
   const year = parsed.getFullYear();
   return `${day}/${month}/${year}`;
 };
+const formatDayMonth = (value) => {
+  const parsed = parseDateOnly(value);
+  if (!parsed) return value ? String(value) : '';
+  const day = String(parsed.getDate()).padStart(2, '0');
+  const month = String(parsed.getMonth() + 1).padStart(2, '0');
+  return `${day}/${month}`;
+};
 
 const formatFertilitySymbolLabel = (symbolValue) => {
   if (!symbolValue || symbolValue === 'none') return '';
@@ -134,17 +141,15 @@ const toIsoLocal = (date) => {
 
 const buildFullTimelineEntries = (cycle, baseEntries = []) => {
   const base = Array.isArray(baseEntries) ? baseEntries : [];
-  if (!base.length) return base;
+  const start = parseDateOnly(cycle?.startDate ?? base[0]?.isoDate);
+  const end = parseDateOnly(cycle?.endDate ?? base[base.length - 1]?.isoDate);
+  if (!start || !end) return base;
 
   const byIso = new Map(
     base
       .filter((e) => e?.isoDate)
       .map((e) => [e.isoDate, e]),
   );
-
-  const start = parseDateOnly(cycle?.startDate ?? base[0]?.isoDate);
-  const end = parseDateOnly(cycle?.endDate ?? base[base.length - 1]?.isoDate);
-  if (!start || !end) return base;
 
   const cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate(), 12);
   const endNoon = new Date(end.getFullYear(), end.getMonth(), end.getDate(), 12);
@@ -155,11 +160,22 @@ const buildFullTimelineEntries = (cycle, baseEntries = []) => {
   while (cursor <= endNoon) {
     const isoDate = toIsoLocal(cursor);
     const existing = byIso.get(isoDate);
+    const resolvedDate = existing?.date ?? formatDayMonth(existing?.isoDate ?? isoDate);
 
     result.push(
       existing
-        ? { ...existing, cycleDay: existing.cycleDay ?? dayIndex }
-        : { isoDate, cycleDay: dayIndex },
+        ? {
+            ...existing,
+            id: existing.id ?? `entry-${isoDate}`,
+            cycleDay: existing.cycleDay ?? dayIndex,
+            date: resolvedDate,
+          }
+        : {
+            id: `placeholder-${isoDate}`,
+            isoDate,
+            cycleDay: dayIndex,
+            date: formatDayMonth(isoDate),
+          },
     );
 
     cursor.setDate(cursor.getDate() + 1);
@@ -205,7 +221,7 @@ const triggerDownload = (blob, filename) => {
   URL.revokeObjectURL(url);
 };
 
-export const formatCyclesForExport = (cycles = []) => {
+export const formatCyclesForExport = (cycles = [], { includeRs = true } = {}) => {
   if (!Array.isArray(cycles)) return [];
 
   return cycles.map((cycle, index) => {
@@ -222,7 +238,7 @@ const peakStatuses = computePeakStatuses(baseEntries);           // calcula pico
       formatFertilitySymbolLabel(entry?.fertility_symbol),
       entry?.observations ?? '',
       formatPeakStatus(entry, peakStatuses),
-      entry?.had_relations ? 'Sí' : '',
+      includeRs && entry?.had_relations ? 'Sí' : '',
 
     ]);
 
@@ -235,8 +251,8 @@ const peakStatuses = computePeakStatuses(baseEntries);           // calcula pico
   });
 };
 
-export const downloadCyclesAsCsv = (cycles, filename = 'ciclos.csv') => {
-  const formatted = formatCyclesForExport(cycles);
+export const downloadCyclesAsCsv = (cycles, filename = 'ciclos.csv', { includeRs = true } = {}) => {
+  const formatted = formatCyclesForExport(cycles, { includeRs });
   if (!formatted.length) return;
 
   const csvSections = formatted.map((cycle) => {
@@ -379,12 +395,12 @@ const renderCycleChart = (doc, cycleTitle, entries) => {
   });
 };
 
-export const downloadCyclesAsPdf = (
+export const downloadCyclesAsPdf = async (
   cycles,
   filename = 'ciclos.pdf',
-  { includeChart = false } = {},
+  { includeChart = true, includeRs = true } = {},
 ) => {
-  const formatted = formatCyclesForExport(cycles);
+  const formatted = formatCyclesForExport(cycles, { includeRs });
   if (!formatted.length) return;
 
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
@@ -411,7 +427,8 @@ export const downloadCyclesAsPdf = (
     ]),
   );
 
-  formatted.forEach((cycle, index) => {
+  for (let index = 0; index < formatted.length; index += 1) {
+    const cycle = formatted[index];
     if (index > 0) {
       doc.addPage();
     }
@@ -422,39 +439,101 @@ export const downloadCyclesAsPdf = (
     doc.setFont('helvetica', 'normal');
 
     autoTable(doc, {
-  head: [cycle.headers],
-  body: cycle.rows,
-  margin: { top: 32, left: horizontalMargin, right: horizontalMargin, bottom: 14 },
-  tableWidth,
-  styles: {
-    fontSize: 7,
-    cellPadding: { top: 1.6, right: 1.6, bottom: 1.6, left: 1.6 },
-    overflow: 'linebreak',
-    cellWidth: 'wrap',
-    halign: 'left',
-    valign: 'top',
-  },
-  headStyles: { fillColor: [216, 92, 112], textColor: [255, 255, 255], fontStyle: 'bold' },
-  alternateRowStyles: { fillColor: [255, 232, 238] },
-  columnStyles: computedColumnStyles,
+      head: [cycle.headers],
+      body: cycle.rows,
+      margin: { top: 32, left: horizontalMargin, right: horizontalMargin, bottom: 14 },
+      tableWidth,
+      styles: {
+        fontSize: 7,
+        cellPadding: { top: 1.6, right: 1.6, bottom: 1.6, left: 1.6 },
+        overflow: 'linebreak',
+        cellWidth: 'wrap',
+        halign: 'left',
+        valign: 'top',
+      },
+      headStyles: { fillColor: [216, 92, 112], textColor: [255, 255, 255], fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [255, 232, 238] },
+      columnStyles: computedColumnStyles,
 
-  didDrawPage: () => {
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(16);
-    doc.text(cycle.title, horizontalMargin, 24);
-    doc.setFont('helvetica', 'normal');
-  },
-});
+      didDrawPage: () => {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(16);
+        doc.text(cycle.title, horizontalMargin, 24);
+        doc.setFont('helvetica', 'normal');
+      },
+    });
 
-    
     if (includeChart) {
+      const baseEntries = ensureProcessedEntries(cycles[index]) ?? [];
+      const fullEntries = buildFullTimelineEntries(cycles[index], baseEntries);
       doc.addPage();
-      renderCycleChart(doc, cycle.title, ensureProcessedEntries(cycles[index]));
+      
+      try {
+        const { renderCycleChartToPng } = await import('@/lib/exportCycleChartImage');
+
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
+        const margin = 14;
+        const top = 35;
+        const bottom = 14;
+        const contentW = pageWidth - margin * 2;
+        const contentH = pageHeight - top - bottom;
+
+        // Mantén el mismo ratio que estabas usando (700/1600)
+        const ratio = 700 / 1600;
+        let wMm = contentW;
+        let hMm = wMm * ratio;
+        if (hMm > contentH) {
+          hMm = contentH;
+          wMm = hMm / ratio;
+        }
+
+        // 300 DPI reales para el tamaño final en el PDF
+        const targetDpi = 300;
+        const mmToIn = (mm) => mm / 25.4;
+        const widthPx = Math.round(mmToIn(wMm) * targetDpi);
+        const heightPx = Math.round(mmToIn(hMm) * targetDpi);
+
+        const img = await renderCycleChartToPng({
+          cycle: cycles[index],
+          entries: fullEntries,
+          widthPx,
+          heightPx,
+          pixelRatio: 1, // importante: ya estás subiendo px, no lo dupliques otra vez
+        });
+
+        const x = margin + (contentW - wMm) / 2;
+        const y = top;
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(16);
+        doc.text(`${cycle.title} · Gráfica`, margin, 22);
+        doc.setFont('helvetica', 'normal');
+        doc.addImage(img.dataUrl, 'PNG', x, y, wMm, hMm);
+                doc.setTextColor(16, 185, 129);
+        doc.setFontSize(10);
+        doc.text('PNG (FertilityChart)', 14, 30);
+        doc.setTextColor(0, 0, 0);
+
+            } catch (error) {
+        console.error('[PDF] Fallo renderCycleChartToPng, usando fallback jsPDF:', error);
+
+        // Marca en el PDF que has caído al fallback (para no ir a ciegas)
+        doc.setTextColor(220, 38, 38);
+        doc.setFontSize(10);
+        doc.text('FALLBACK (jsPDF)', 14, 30);
+        doc.setTextColor(0, 0, 0);
+
+        renderCycleChart(doc, cycle.title, fullEntries);
+      }
+
     }
-  });
+  }
 
   const blob = doc.output('blob');
   triggerDownload(blob, filename);
+  
 };
+
 
 export default formatCyclesForExport;

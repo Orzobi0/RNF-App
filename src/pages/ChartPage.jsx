@@ -399,7 +399,6 @@ const ChartPage = () => {
       if (forceLandscape) return;
       const nextOrientation = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
       setOrientation((prev) => (prev === nextOrientation ? prev : nextOrientation));
-      window.dispatchEvent(new Event('resize'));
     };
 
     window.addEventListener('resize', handleOrientationChange);
@@ -503,6 +502,9 @@ const ChartPage = () => {
     if (currentDayIndex < visibleDays - 1) {
       endIndex = Math.min(daysInCycle, visibleDays);
     }
+    scrollStart = Math.max(0, endIndex - visibleDays);
+    } else {
+    const endIndex = daysInCycle;
     scrollStart = Math.max(0, endIndex - visibleDays);
   }
   const baseStyle = {

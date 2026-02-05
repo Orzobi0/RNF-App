@@ -51,7 +51,7 @@ const DeletionDialog = ({
           <DialogTitle className="text-lg font-semibold text-fertiliapp-fuerte">{title}</DialogTitle>
           <DialogDescription className="text-slate-600">{message}</DialogDescription>
         </DialogHeader>
-        <DialogFooter className="sm:justify-end gap-2">
+        <DialogFooter className="sm:justify-end gap-3">
           <Button
             type="button"
             variant="outline"

@@ -4,7 +4,7 @@ import { useCycleData } from '@/hooks/useCycleData';
 import { HeaderIconButton, HeaderIconButtonPrimary } from '@/components/HeaderIconButton';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { format, parseISO } from 'date-fns';
+import { differenceInCalendarDays, format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Archive, Plus, Calendar, BarChart3, SlidersHorizontal } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -21,8 +21,6 @@ const ArchivedCyclesPage = () => {
     updateCycleDates,
     deleteCycle,
     checkCycleOverlap,
-    forceUpdateCycleStart,
-    forceShiftNextCycleStart,
   } = useCycleData();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -69,6 +67,13 @@ const ArchivedCyclesPage = () => {
   };
 
   const handleAddCycle = async ({ startDate, endDate }) => {
+    if (startDate && endDate && parseISO(endDate) < parseISO(startDate)) {
+      setAddCycleError({
+        message: 'La fecha de fin no puede ser anterior a la fecha de inicio.',
+        conflictCycle: null,
+      });
+      return;
+    }
     try {
       await addArchivedCycle(startDate, endDate);
       closeAddDialog();
@@ -93,23 +98,21 @@ const ArchivedCyclesPage = () => {
       const hasStartChange = startDate !== undefined && startDate !== currentStartDate;
       const hasEndChange = endDate !== undefined && endDate !== currentEndDate;
 
-      const startMovesEarlier =
-        hasStartChange && currentStartDate && startDate && parseISO(startDate) < parseISO(currentStartDate);
-
       const effectiveStartDate = hasStartChange ? startDate : currentStartDate;
       const effectiveEndDate = hasEndChange ? endDate : currentEndDate;
-
-      if (force && startMovesEarlier) {
-        await forceUpdateCycleStart(editingCycle.id, startDate);
-        if (endDate !== undefined) {
-          await updateCycleDates(editingCycle.id, undefined, endDate);
-        }
-        } else if (force && effectiveEndDate) {
-        await forceShiftNextCycleStart(editingCycle.id, effectiveEndDate, effectiveStartDate);
-        await updateCycleDates(editingCycle.id, startDate, endDate);
-      } else {
-        await updateCycleDates(editingCycle.id, startDate, endDate);
+      if (
+        effectiveStartDate &&
+        effectiveEndDate &&
+        parseISO(effectiveEndDate) < parseISO(effectiveStartDate)
+      ) {
+        setEditCycleError({
+          message: 'La fecha de fin no puede ser anterior a la fecha de inicio.',
+          conflictCycle: null,
+        });
+        return;
       }
+
+      await updateCycleDates(editingCycle.id, startDate, endDate);
       setEditingCycle(null);
       setEditCycleError(null);
     } catch (error) {
@@ -344,9 +347,18 @@ const ArchivedCyclesPage = () => {
               animate="show"
             >
               {filteredCycles.map((cycle) => {
-                const formatArchivedDate = (date) => format(parseISO(date), 'dd MMM yy', { locale: es });
-                const endDate = cycle.endDate ? formatArchivedDate(cycle.endDate) : 'En curso';
+                const formatArchivedDate = (date) => format(date, 'dd MMM yy', { locale: es });
+                const start = cycle.startDate ? parseISO(cycle.startDate) : null;
+                const end = cycle.endDate ? parseISO(cycle.endDate) : null;
+                const hasEndDate = Boolean(end);
+                const startToShow = start && end && end < start ? end : start;
+                const endToShow = start && end && end < start ? start : end;
+                const endDate = hasEndDate && endToShow ? formatArchivedDate(endToShow) : 'En curso';
                 const recordCount = cycle.data ? cycle.data.length : 0;
+                const durationDays =
+                  startToShow && endToShow
+                    ? Math.max(1, differenceInCalendarDays(endToShow, startToShow) + 1)
+                    : null;
 
                 return (
                   <motion.button
@@ -390,7 +402,7 @@ const ArchivedCyclesPage = () => {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
                             <h2 className="truncate text-[15px] font-semibold text-slate-700">
-                              {formatArchivedDate(cycle.startDate)} - {endDate}
+                              {startToShow ? formatArchivedDate(startToShow) : ''} - {endDate}
                             </h2>
                           </div>
                           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-slate-600">
@@ -400,11 +412,11 @@ const ArchivedCyclesPage = () => {
 
                             </div>
 
-                            {cycle.endDate && (
+                            {cycle.endDate && durationDays && (
                               <div className="flex items-center space-x-1">
                                 <Calendar className="w-4 h-4 text-slate-500" />
                                 <span>
-                                  {Math.ceil((parseISO(cycle.endDate) - parseISO(cycle.startDate)) / (1000 * 60 * 60 * 24)) + 1} días
+                                  {durationDays} días
                                 </span>
                               </div>
                         )}

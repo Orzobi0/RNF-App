@@ -74,8 +74,6 @@ export const RecordsExperience = ({
   isLoading: isLoadingProp,
   updateCycleDates: updateCycleDatesProp,
   checkCycleOverlap: checkCycleOverlapProp,
-  forceShiftNextCycleStart: forceShiftNextCycleStartProp,
-  forceUpdateCycleStart: forceUpdateCycleStartProp,
   startNewCycle: startNewCycleProp,
   refreshData: refreshDataProp,
   afterRecordsContent = null,
@@ -87,16 +85,16 @@ export const RecordsExperience = ({
 } = {}) => {
   const {
     currentCycle: contextCurrentCycle,
+    archivedCycles,
     addOrUpdateDataPoint: contextAddOrUpdateDataPoint,
     deleteRecord: contextDeleteRecord,
     isLoading: contextIsLoading,
     updateCycleDates: contextUpdateCycleDates,
     checkCycleOverlap: contextCheckCycleOverlap,
-    forceUpdateCycleStart: contextForceUpdateCycleStart,
-    forceShiftNextCycleStart: contextForceShiftNextCycleStart,
     startNewCycle: contextStartNewCycle,
     refreshData: contextRefreshData,
     getMeasurementsForEntry: contextGetMeasurementsForEntry,
+    undoCurrentCycle: contextUndoCurrentCycle,
   } = useCycleData();
   const { preferences, savePreferences } = useAuth();
   const cycle = cycleProp ?? contextCurrentCycle;
@@ -118,14 +116,6 @@ export const RecordsExperience = ({
     : async (cycleId, startDate, endDate) =>
         contextUpdateCycleDates(cycleId ?? cycle?.id, startDate, endDate);
   const checkCycleOverlap = checkCycleOverlapProp ?? contextCheckCycleOverlap;
-  const forceUpdateCycleStart = forceUpdateCycleStartProp
-    ? forceUpdateCycleStartProp
-    : async (cycleId, startDate) =>
-        contextForceUpdateCycleStart(cycleId ?? cycle?.id, startDate);
-  const forceShiftNextCycleStart = forceShiftNextCycleStartProp
-    ? forceShiftNextCycleStartProp
-    : async (cycleId, newEndDate, newStartDate) =>
-        contextForceShiftNextCycleStart(cycleId ?? cycle?.id, newEndDate, newStartDate);
   const startNewCycle = startNewCycleProp ?? contextStartNewCycle;
   const refreshData = refreshDataProp ?? contextRefreshData;
   const getMeasurementsForEntry = contextGetMeasurementsForEntry;
@@ -133,6 +123,8 @@ export const RecordsExperience = ({
   const [showForm, setShowForm] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [recordToDelete, setRecordToDelete] = useState(null);
+  const [showUndoCycleDialog, setShowUndoCycleDialog] = useState(false);
+  const [isUndoingCycle, setIsUndoingCycle] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [showStartDateEditor, setShowStartDateEditor] = useState(false);
@@ -153,6 +145,32 @@ export const RecordsExperience = ({
   const [showPostpartumExitDialog, setShowPostpartumExitDialog] = useState(false);
   const recordCount = cycle?.data?.length ?? 0;
   const isCurrentCycle = !cycle?.endDate;
+
+  const undoCandidate = useMemo(() => {
+    if (!contextCurrentCycle?.id || contextCurrentCycle?.endDate) return null;
+    if (!cycle?.id || cycle.id !== contextCurrentCycle.id) return null;
+    if (!contextCurrentCycle?.startDate) return null;
+    const parsedStart = parseISO(contextCurrentCycle.startDate);
+    if (!isValid(parsedStart)) return null;
+    const dayBefore = format(addDays(parsedStart, -1), 'yyyy-MM-dd');
+    const candidates = archivedCycles.filter((archived) => archived?.endDate === dayBefore);
+    if (!candidates.length) return null;
+    return candidates.sort((a, b) => (b.startDate || '').localeCompare(a.startDate || ''))[0];
+  }, [archivedCycles, contextCurrentCycle, cycle?.id]);
+
+  const undoRangeText = useMemo(() => {
+    if (!undoCandidate?.startDate || !undoCandidate?.endDate) return '';
+    const start = parseISO(undoCandidate.startDate);
+    const end = parseISO(undoCandidate.endDate);
+    if (!isValid(start) || !isValid(end)) return '';
+    const formatRangeDate = (date) => format(date, 'dd MMM yy', { locale: es }).replace('.', '');
+    return `${formatRangeDate(start)} - ${formatRangeDate(end)}`;
+  }, [undoCandidate]);
+
+  const undoCycleDescription = useMemo(() => {
+    const rangeSuffix = undoRangeText ? ` (${undoRangeText})` : '';
+    return `¿Quieres unir el ciclo actual al ciclo anterior${rangeSuffix}? Esta acción no se puede deshacer.`;
+  }, [undoRangeText]);
 
   const handleConfirmPostpartumExit = useCallback(async () => {
     setShowPostpartumExitDialog(false);
@@ -904,6 +922,20 @@ const enterStart = -exitTarget;
     setDraftEndDate(cycle?.endDate || '');
   }, [cycle?.startDate, cycle?.endDate, resetStartDateFlow]);
 
+  const handleConfirmUndoCycle = useCallback(async () => {
+    if (!contextCurrentCycle?.id) return;
+    setIsUndoingCycle(true);
+    try {
+      await contextUndoCurrentCycle(contextCurrentCycle.id);
+      setShowUndoCycleDialog(false);
+      closeStartDateEditor();
+    } catch (error) {
+      console.error('Failed to undo cycle', error);
+    } finally {
+      setIsUndoingCycle(false);
+    }
+  }, [closeStartDateEditor, contextCurrentCycle?.id, contextUndoCurrentCycle]);
+
   const handleDeleteCycleFromEditor = useCallback(() => {
     if (onRequestDeleteCycle) {
       closeStartDateEditor();
@@ -1100,12 +1132,6 @@ const enterStart = -exitTarget;
       const currentStartDate = cycle.startDate;
       const currentEndDate = cycle.endDate ?? undefined;
       const hasStartChange = pendingStartDate !== currentStartDate;
-      const startMovesEarlier =
-        hasStartChange &&
-        pendingStartDate &&
-        currentStartDate &&
-        isBefore(parseISO(pendingStartDate), parseISO(currentStartDate));
-
       const resolvedPendingEnd = pendingIncludeEndDate
         ? pendingEndDate ?? undefined
         : undefined;
@@ -1113,15 +1139,6 @@ const enterStart = -exitTarget;
         pendingIncludeEndDate &&
         pendingEndDate !== null &&
         resolvedPendingEnd !== currentEndDate;
-
-      if (startMovesEarlier) {
-        await forceUpdateCycleStart(cycle.id, pendingStartDate);
-      }
-      
-      if (hasEndChange && resolvedPendingEnd && forceShiftNextCycleStart) {
-        const effectiveStartDate = hasStartChange ? pendingStartDate : currentStartDate;
-        await forceShiftNextCycleStart(cycle.id, resolvedPendingEnd, effectiveStartDate);
-      }
 
       await updateCycleDates(
         cycle.id,
@@ -1153,8 +1170,6 @@ const enterStart = -exitTarget;
     pendingStartDate,
     pendingIncludeEndDate,
     pendingEndDate,
-    forceUpdateCycleStart,
-    forceShiftNextCycleStart,
     updateCycleDates,
     refreshData,
     toast,
@@ -1459,6 +1474,7 @@ const enterStart = -exitTarget;
               setShowPostpartumExitDialog(true);
             }
           }}
+          currentCycleRecords={cycle?.data ?? []}
         />
         <PostpartumExitDialog
           isOpen={showPostpartumExitDialog}
@@ -1528,7 +1544,7 @@ const enterStart = -exitTarget;
                   onEndDateChange={includeEndDate ? (value) => setDraftEndDate(value) : undefined}
                   onSave={handleSaveStartDate}
                   onCancel={closeStartDateEditor}
-                  isProcessing={isUpdatingStartDate}
+                  isProcessing={isUpdatingStartDate || isLoading || isUndoingCycle}
                   dateError={startDateError}
                   includeEndDate={includeEndDate}
                   showOverlapDialog={showOverlapDialog}
@@ -1543,6 +1559,8 @@ const enterStart = -exitTarget;
                       ? 'Actualiza las fechas del ciclo. Los registros se reorganizarán automáticamente.'
                       : 'Actualiza la fecha de inicio del ciclo actual. Los registros se reorganizarán automáticamente.'
                   }
+                  onUndoCycle={undoCandidate ? () => setShowUndoCycleDialog(true) : undefined}
+                  isUndoingCycle={isUndoingCycle}
                   onDeleteCycle={onRequestDeleteCycle ? handleDeleteCycleFromEditor : undefined}
                   deleteTitle={dateEditorDeleteTitle}
                   deleteDescription={dateEditorDeleteDescription}
@@ -1681,6 +1699,17 @@ const enterStart = -exitTarget;
           />
         </DialogContent>
       </Dialog>
+
+<DeletionDialog
+        isOpen={showUndoCycleDialog}
+        onClose={() => setShowUndoCycleDialog(false)}
+        onConfirm={handleConfirmUndoCycle}
+        title="Deshacer ciclo"
+        confirmLabel="Deshacer ciclo"
+        cancelLabel="Cancelar"
+        description={undoCycleDescription}
+        isProcessing={isUndoingCycle}
+      />
 
       <DeletionDialog
         isOpen={!!recordToDelete}

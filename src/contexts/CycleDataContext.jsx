@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
-import { format, startOfDay, parseISO, addDays, parse } from 'date-fns';
+import { format, startOfDay, parseISO, addDays, parse, isValid } from 'date-fns';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -7,8 +7,7 @@ import {
   createNewCycleEntry,
   updateCycleEntry,
   deleteCycleEntryDB,
-  archiveCycleDB,
-  createNewCycleDB,
+  startNewCycleDB,
   fetchCycleByIdDB,
   fetchCurrentCycleDB,
   fetchArchivedCyclesDB,
@@ -16,6 +15,7 @@ import {
   updateCycleDatesDB,
   updateCycleIgnoreAutoCalculations,
   deleteCycleDB,
+  undoCurrentCycleDB,
   forceUpdateCycleStart as forceUpdateCycleStartDB,
   forceShiftNextCycleStart as forceShiftNextCycleStartDB
 } from '@/lib/cycleDataHandler';
@@ -71,6 +71,17 @@ const normalizeDate = (date) => {
     return format(startOfDay(date.toDate()), 'yyyy-MM-dd');
   }
   return format(startOfDay(new Date(date)), 'yyyy-MM-dd');
+};
+
+const normalizeCycleRange = (startDate, endDate) => {
+  const normalizedStart = normalizeDate(startDate);
+  const normalizedEnd = normalizeDate(endDate);
+
+  if (normalizedStart && normalizedEnd && parseISO(normalizedEnd) < parseISO(normalizedStart)) {
+    return { startDate: normalizedEnd, endDate: normalizedStart };
+  }
+
+  return { startDate: normalizedStart, endDate: normalizedEnd };
 };
 
 const buildEntryForState = ({
@@ -203,8 +214,10 @@ export const CycleDataProvider = ({ children }) => {
 
         let currentCycleData = defaultCycleState;
         if (cycleToLoad) {
-          const startDate = normalizeDate(cycleToLoad.startDate);
-          const endDate = normalizeDate(cycleToLoad.endDate);
+          const { startDate, endDate } = normalizeCycleRange(
+            cycleToLoad.startDate,
+            cycleToLoad.endDate
+          );
           const processed = processCycleEntries(cycleToLoad.data, startDate);
           const filteredStart = filterEntriesByStartDate(processed, startDate);
           const filtered = filterEntriesByEndDate(filteredStart, endDate);
@@ -219,8 +232,10 @@ export const CycleDataProvider = ({ children }) => {
 
         const archivedData = await fetchArchivedCyclesDB(user.uid, cycleToLoad ? cycleToLoad.startDate : null);
         const archivedCyclesData = archivedData.map((cycle) => {
-          const aStart = normalizeDate(cycle.startDate);
-          const aEnd = normalizeDate(cycle.endDate);
+          const { startDate: aStart, endDate: aEnd } = normalizeCycleRange(
+            cycle.startDate,
+            cycle.endDate
+          );
           const processed = processCycleEntries(cycle.data || [], aStart);
           const filteredStart = filterEntriesByStartDate(processed, aStart);
           const filtered = filterEntriesByEndDate(filteredStart, aEnd);
@@ -666,13 +681,8 @@ export const CycleDataProvider = ({ children }) => {
           }
         }
 
-        if (currentCycle.id) {
-          const archiveEndDate = format(addDays(startDateObj, -1), 'yyyy-MM-dd');
-          await archiveCycleDB(currentCycle.id, user.uid, archiveEndDate);
-        }
-
         const newStartDate = format(startDateObj, 'yyyy-MM-dd');
-        const newCycle = await createNewCycleDB(user.uid, newStartDate);
+        const newCycle = await startNewCycleDB(user.uid, currentCycle.id, newStartDate);
         setCurrentCycle({
           id: newCycle.id,
           startDate: newCycle.start_date,
@@ -683,14 +693,32 @@ export const CycleDataProvider = ({ children }) => {
         await loadCycleData({ silent: true });
       } catch (error) {
         console.error('Error starting new cycle:', error);
-        try {
-          if (currentCycle.id) {
-            await updateCycleDatesDB(currentCycle.id, user.uid, undefined, null);
+        const formatDMY = (iso) => {
+          try { return format(parseISO(iso), 'dd/MM/yyyy'); } catch { return iso; }
+        };
+
+        const description = (() => {
+          if (error?.code === 'cycle-overlap') {
+            const c = error?.conflictCycle;
+            if (!c) return 'Las fechas coinciden con otro ciclo.';
+            const s = c.startDate ? formatDMY(c.startDate) : 'sin fecha de inicio';
+            const e = c.endDate ? formatDMY(c.endDate) : 'en curso';
+            return `Las fechas coinciden con el ciclo del ${s} al ${e}.`;
           }
-        } catch (e) {
-          console.error('Rollback failed:', e);
-        }
-        toast({ title: 'Error', description: 'No se pudo iniciar el nuevo ciclo.', variant: 'destructive' });
+          if (error?.code === 'split-date-conflict') {
+            const d = error?.conflictDate ? formatDMY(error.conflictDate) : 'esa fecha';
+            return `No se pudo dividir el ciclo porque el ciclo nuevo ya tiene más de un registro en ${d}. Esto suele venir de datos duplicados (por ejemplo, creados desde otra sesión o por un estado inconsistente).`;
+          }
+          if (error?.code === 'split-invalid-entry') {
+            return 'No se pudo dividir el ciclo porque hay registros con fecha inválida en el ciclo anterior.';
+          }
+          if (error?.code === 'split-invalid-date') {
+            return 'La fecha elegida para iniciar el ciclo no es válida.';
+          }
+          return 'No se pudo iniciar el nuevo ciclo.';
+        })();
+
+        toast({ title: 'Error', description, variant: 'destructive' });
         throw error;
       } finally {
         setIsLoading(false);
@@ -777,6 +805,48 @@ export const CycleDataProvider = ({ children }) => {
     },
     [user, loadCycleData, toast]
   );
+  const undoCurrentCycle = useCallback(
+    async (cycleIdToUndo) => {
+      if (!user?.uid || !cycleIdToUndo) return;
+
+      setIsLoading(true);
+      try {
+        await undoCurrentCycleDB(user.uid, cycleIdToUndo);
+        await loadCycleData({ silent: true });
+      } catch (error) {
+        console.error('Error undoing current cycle:', error);
+        const description = (() => {
+          switch (error.code) {
+            case 'no-previous-cycle':
+              return 'No hay un ciclo previo compatible para deshacer.';
+            case 'undo-not-current':
+              return 'Solo se puede deshacer el ciclo actual.';
+            case 'undo-invalid-entry':
+              return 'Hay registros con fecha inválida en el ciclo actual.';
+            case 'undo-date-conflict':
+              if (typeof error?.conflictDate === 'string') {
+    try {
+      const conflict = parseISO(error.conflictDate);
+      if (isValid(conflict)) {
+        return `El día ${format(conflict, 'dd/MM')} tiene un registro en el ciclo anterior.`;
+      }
+    } catch (e) {
+      // ignorar y caer al mensaje genérico
+    }
+  }
+              return 'El ciclo anterior ya tiene registros en una de las fechas.';
+            default:
+              return 'No se pudo deshacer el ciclo.';
+          }
+        })();
+        toast({ title: 'Error', description, variant: 'destructive' });
+        throw error;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [user, loadCycleData, toast]
+  );
 
   const checkCycleOverlap = useCallback(
     async (cycleIdToCheck, newStartDate, newEndDate) => {
@@ -799,18 +869,34 @@ export const CycleDataProvider = ({ children }) => {
   );
 
   const updateCycleDates = useCallback(
-    async (cycleIdToUpdate, newStartDate, newEndDate, force = false) => {
+    async (cycleIdToUpdate, newStartDate, newEndDate) => {
       if (!user?.uid) return;
+
+      const cycleToUpdate =
+        currentCycle?.id === cycleIdToUpdate
+          ? currentCycle
+          : archivedCycles.find((cycle) => cycle.id === cycleIdToUpdate);
+      const currentStartDate = cycleToUpdate?.startDate ?? null;
+      const currentEndDate = cycleToUpdate?.endDate ?? null;
+      const hasStartChange = newStartDate !== undefined && newStartDate !== currentStartDate;
+      const hasEndChange = newEndDate !== undefined && newEndDate !== currentEndDate;
 
       setIsLoading(true);
       try {
-        if (force && newStartDate) {
+        if (hasStartChange && newStartDate) {
           await forceUpdateCycleStartDB(user.uid, cycleIdToUpdate, newStartDate);
-          if (newEndDate !== undefined) {
-            await updateCycleDatesDB(cycleIdToUpdate, user.uid, undefined, newEndDate);
           }
-        } else {
-          await updateCycleDatesDB(cycleIdToUpdate, user.uid, newStartDate, newEndDate);
+        if (hasEndChange && newEndDate) {
+          const startForCalc = hasStartChange ? newStartDate : currentStartDate;
+          await forceShiftNextCycleStartDB(user.uid, cycleIdToUpdate, newEndDate, startForCalc);
+        }
+        if (hasStartChange || hasEndChange) {
+          await updateCycleDatesDB(
+            cycleIdToUpdate,
+            user.uid,
+            hasStartChange ? newStartDate : undefined,
+            hasEndChange ? newEndDate : undefined
+          );
         }
         await loadCycleData({ silent: true });
       } catch (error) {
@@ -825,20 +911,19 @@ export const CycleDataProvider = ({ children }) => {
         setIsLoading(false);
       }
     },
-    [user, loadCycleData, toast, buildOverlapDescription]
+    [user, currentCycle, archivedCycles, loadCycleData, toast, buildOverlapDescription]
   );
 
   const forceUpdateCycleStart = useCallback(
-    (cycleIdToUpdate, newStartDate) => updateCycleDates(cycleIdToUpdate, newStartDate, undefined, true),
+    (cycleIdToUpdate, newStartDate) =>
+      updateCycleDates(cycleIdToUpdate, newStartDate, undefined),
     [updateCycleDates]
   );
 
   const forceShiftNextCycleStart = useCallback(
-    async (cycleIdToUpdate, newEndDate, newStartDate) => {
-      if (!user?.uid || !cycleIdToUpdate || !newEndDate) return;
-      await forceShiftNextCycleStartDB(user.uid, cycleIdToUpdate, newEndDate, newStartDate);
-    },
-    [user]
+    (cycleIdToUpdate, newEndDate, newStartDate) =>
+      updateCycleDates(cycleIdToUpdate, newStartDate, newEndDate),
+    [updateCycleDates]
   );
 
   const getCycleById = useCallback(
@@ -850,8 +935,10 @@ export const CycleDataProvider = ({ children }) => {
         const cycleData = await fetchCycleByIdDB(user.uid, cycleIdToFetch);
         if (!cycleData) return null;
 
-        const startDate = normalizeDate(cycleData.startDate);
-        const endDate = normalizeDate(cycleData.endDate);
+        const { startDate, endDate } = normalizeCycleRange(
+          cycleData.startDate,
+          cycleData.endDate
+        );
         const processed = processCycleEntries(cycleData.data || [], startDate);
         const filteredStart = filterEntriesByStartDate(processed, startDate);
         const filtered = filterEntriesByEndDate(filteredStart, endDate);
@@ -973,7 +1060,8 @@ export const CycleDataProvider = ({ children }) => {
     setCycleIgnoreForAutoCalculations,
     addArchivedCycle,
     deleteCycle,
-    getMeasurementsForEntry
+    getMeasurementsForEntry,
+    undoCurrentCycle
   };
 
   return <CycleDataContext.Provider value={value}>{children}</CycleDataContext.Provider>;

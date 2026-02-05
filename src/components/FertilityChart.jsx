@@ -28,6 +28,7 @@ const FertilityChart = ({
   onShowPhaseInfo = null,
   isArchivedCycle = false,
   cycleEndDate = null,
+  exportMode = false,
 }) => {
   const {
     chartRef,
@@ -72,6 +73,7 @@ const FertilityChart = ({
     fertilityCalculatorCandidates,
     showRelationsRow
   );
+  const effectiveReduceMotion = reduceMotion || exportMode;
   const uniqueIdRef = useRef(null);
   if (!uniqueIdRef.current) {
     const randomSuffix = Math.random().toString(36).slice(2, 10);
@@ -79,6 +81,8 @@ const FertilityChart = ({
   }
   const uniqueId = uniqueIdRef.current;
   const getOverscanDays = useCallback((visibleDaysValue, totalPoints) => {
+    // Para ciclos normales, renderiza todo y evita el efecto “carga por trozos”
+  if (totalPoints <= 120) return totalPoints;
     const screens = visibleDaysValue >= 20 ? 1 : 2;
     const raw = Math.ceil(visibleDaysValue * screens);
     const capped = Math.min(raw, 24);
@@ -860,7 +864,7 @@ const FertilityChart = ({
     };
   }, [updateVisibleRange]);
 
-  const applyRotation = isFullScreen && forceLandscape && isViewportPortrait;
+  const applyRotation = !exportMode && isFullScreen && forceLandscape && isViewportPortrait;
   const visualOrientation = forceLandscape ? 'landscape' : orientation;
 
   // Clase del contenedor de scroll ajustada para rotación artificial
@@ -870,7 +874,8 @@ const FertilityChart = ({
     ? `${baseFullClass} h-full ${rotatedContainer ? 'overflow-y-auto overflow-x-auto' : 'overflow-x-auto overflow-y-auto'}`
     : `${baseFullClass} overflow-x-auto overflow-y-visible border border-pink-100/50`;
   const showLegend = !isFullScreen || visualOrientation === 'portrait';
-
+  const handlePointInteractionSafe = exportMode ? () => {} : handlePointInteraction;
+  const clearActivePointSafe = exportMode ? () => {} : clearActivePoint;
   return (
       <motion.div className="relative w-full h-full" initial={false}>
       
@@ -930,6 +935,7 @@ const FertilityChart = ({
                     responsiveFontSize={responsiveFontSize}
                     textRowHeight={textRowHeight}
                     isFullScreen={isFullScreen}
+                    reduceMotion={effectiveReduceMotion}
                     graphBottomY={graphBottomY}
                     rowsZoneHeight={rowsZoneHeight}
                     showRelationsRow={showRelationsRow}
@@ -1032,7 +1038,7 @@ const FertilityChart = ({
             responsiveFontSize={responsiveFontSize}
             isFullScreen={isFullScreen}
             showLeftLabels={!showLegend}
-            reduceMotion={reduceMotion}
+            reduceMotion={effectiveReduceMotion}
             isScrolling={isScrolling}
             graphBottomY={graphBottomY}
             chartAreaHeight={Math.max(chartHeight - padding.top - padding.bottom - (graphBottomInset || 0), 0)}
@@ -1154,7 +1160,7 @@ const FertilityChart = ({
             )}
             {/* Línea baseline mejorada */}
           {showInterpretation && shouldRenderBaseline && baselineY !== null && (
-            reduceMotion ? (
+            effectiveReduceMotion ? (
               
               <line
                 x1={baselineStartX}
@@ -1187,7 +1193,8 @@ const FertilityChart = ({
             getY={getY}
             baselineY={graphBottomY}
             temperatureField="displayTemperature"
-            reduceMotion={reduceMotion}
+            reduceMotion={effectiveReduceMotion}
+            connectGaps={!exportMode}
           />
           {temperatureRiseHighlightPath && (
             <g pointerEvents="none">
@@ -1244,8 +1251,8 @@ const FertilityChart = ({
             isFullScreen={isFullScreen}
             orientation={visualOrientation}
             responsiveFontSize={responsiveFontSize}
-            onPointInteraction={handlePointInteraction}
-            clearActivePoint={clearActivePoint}
+            onPointInteraction={handlePointInteractionSafe}
+            clearActivePoint={clearActivePointSafe}
             activePoint={activePoint}
             visibleRange={visibleRange}
             padding={padding}
@@ -1256,7 +1263,7 @@ const FertilityChart = ({
             graphBottomY={graphBottomY}
             rowsZoneHeight={rowsZoneHeight}
             compact={false}
-            reduceMotion={reduceMotion}
+            reduceMotion={effectiveReduceMotion}
             isScrolling={isScrolling}
             showInterpretation={showInterpretation}
             ovulationDetails={ovulationDetails}
@@ -1265,6 +1272,7 @@ const FertilityChart = ({
             baselineIndices={baselineIndices}
             graphBottomLift={graphBottomInset}
             showRelationsRow={showRelationsRow}
+            autoLabelStep={exportMode}
           />
 
         </motion.svg>
@@ -1273,7 +1281,7 @@ const FertilityChart = ({
         </div>
 
         {/* Tooltip mejorado */}
-        {activePoint && (
+        {!exportMode && activePoint && (
           <motion.div
             ref={tooltipRef}
             initial={{ opacity: 0, scale: 0.9, y: 10 }}
