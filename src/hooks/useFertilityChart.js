@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, useMemo, useCallback } from 'react';
-import { parseISO, differenceInCalendarDays } from 'date-fns';
+import { parseISO, differenceInCalendarDays, isAfter, startOfDay } from 'date-fns';
 import computePeakStatuses from '@/lib/computePeakStatuses';
 import { evaluateHighSequencePostpartum } from '../lib/evaluateHighSequencePostpartum';
 import {
@@ -1046,15 +1046,63 @@ export const useFertilityChart = (
         );
       };
       
+      const isPointInteractive = useCallback((point) => {
+        if (!point?.isoDate) return false;
+        try {
+          return !isAfter(
+            startOfDay(parseISO(point.isoDate)),
+            startOfDay(new Date())
+          );
+        } catch (error) {
+          return false;
+        }
+      }, []);
+
+      const setTooltipForPoint = useCallback(
+        (point, index, clientX, clientY) => {
+          if (!chartRef.current) return;
+          const chartRect = chartRef.current.getBoundingClientRect();
+          const svgX = getX(index);
+          const displayTemp = point.displayTemperature ?? point.temperature_chart ?? null;
+          const svgY = getY(displayTemp);
+
+          setTooltipPosition({
+            svgX,
+            svgY,
+            clientX: clientX - chartRect.left + chartRef.current.scrollLeft,
+            clientY: clientY - chartRect.top + chartRef.current.scrollTop,
+          });
+          setActiveIndex(index);
+          setActivePoint(point);
+        },
+        [chartRef, getX, getY]
+      );
+
+      const handlePointInteractionAtIndex = useCallback(
+        (index, coords = {}) => {
+          const point = allDataPoints[index];
+          if (!point || !isPointInteractive(point)) {
+            clearActivePoint();
+            return false;
+          }
+          const { clientX, clientY } = coords;
+          if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) {
+            return false;
+          }
+          setTooltipForPoint(point, index, clientX, clientY);
+          return true;
+        },
+        [allDataPoints, clearActivePoint, isPointInteractive, setTooltipForPoint]
+      );
+
       const handlePointInteraction = (point, index, event) => {
-        if (!point) {
+        if (!point || !isPointInteractive(point)) {
           clearActivePoint();
           return;
         }
 
-        // 1) Calcula la posición del ratón/tap
-        const chartRect = chartRef.current.getBoundingClientRect();
-        let clientX, clientY;
+        let clientX;
+        let clientY;
         if (event.type.startsWith('touch')) {
           const touch = event.changedTouches[0];
           clientX = touch.clientX;
@@ -1064,20 +1112,7 @@ export const useFertilityChart = (
           clientY = event.clientY;
         }
 
-        // 2) Mapea a coordenadas SVG
-        const svgX = getX(index);
-        const displayTemp = point.displayTemperature ?? point.temperature_chart ?? null;
-        const svgY = getY(displayTemp);
-
-        // 3) Fija posición y punto activo
-        setTooltipPosition({
-          svgX,
-          svgY,
-          clientX: clientX - chartRect.left + chartRef.current.scrollLeft,
-          clientY: clientY - chartRect.top + chartRef.current.scrollTop,
-        });
-        setActiveIndex(index);
-        setActivePoint(point);
+        setTooltipForPoint(point, index, clientX, clientY);
       };
 
       
@@ -1094,6 +1129,10 @@ export const useFertilityChart = (
                     }
                 }
              }
+             const isRasterClick = Boolean(event.target?.closest?.('[data-chart-raster="true"]'));
+            if (isRasterClick) {
+              return;
+            }
             if(!isPointClick) clearActivePoint();
           }
         };
@@ -1143,6 +1182,7 @@ export const useFertilityChart = (
         getY,
         getX,
         handlePointInteraction,
+        handlePointInteractionAtIndex,
         clearActivePoint,
         handleToggleIgnore,
         responsiveFontSize,
