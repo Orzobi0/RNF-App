@@ -111,6 +111,93 @@ async function assertPngNotBlank(dataUrl) {
 
   throw new Error('PNG generado en blanco');
 }
+async function trimWhiteBorderPng(
+  dataUrl,
+  {
+    threshold = 248,      // cuanto más alto, más “blanco” considera
+    alphaThreshold = 10,
+    padding = 12,         // deja un margen pequeño para no cortar texto
+    sampleMax = 700,      // para escanear rápido
+  } = {},
+) {
+  const img = new Image();
+  img.src = dataUrl;
+  await img.decode();
+
+  const w = img.width;
+  const h = img.height;
+
+  // Escaneo en versión reducida (más rápido)
+  const scale = Math.min(1, sampleMax / w);
+  const sw = Math.max(1, Math.round(w * scale));
+  const sh = Math.max(1, Math.round(h * scale));
+
+  const sCanvas = document.createElement('canvas');
+  sCanvas.width = sw;
+  sCanvas.height = sh;
+  const sCtx = sCanvas.getContext('2d');
+  sCtx.drawImage(img, 0, 0, sw, sh);
+
+  const { data } = sCtx.getImageData(0, 0, sw, sh);
+
+  let minX = sw, minY = sh, maxX = -1, maxY = -1;
+
+  for (let y = 0; y < sh; y += 1) {
+    for (let x = 0; x < sw; x += 1) {
+      const i = (y * sw + x) * 4;
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      const a = data[i + 3];
+
+      // Pixel “no blanco”
+      const visible = a > alphaThreshold;
+      const notWhite = r < threshold || g < threshold || b < threshold;
+
+      if (visible && notWhite) {
+        if (x < minX) minX = x;
+        if (y < minY) minY = y;
+        if (x > maxX) maxX = x;
+        if (y > maxY) maxY = y;
+      }
+    }
+  }
+
+  // Si no encuentra nada (todo blanco), no recorta
+  if (maxX < 0 || maxY < 0) {
+    return { dataUrl, widthPx: w, heightPx: h };
+  }
+
+  // Pasar a coordenadas originales
+  const inv = 1 / scale;
+  let left = Math.floor(minX * inv);
+  let top = Math.floor(minY * inv);
+  let right = Math.ceil((maxX + 1) * inv);
+  let bottom = Math.ceil((maxY + 1) * inv);
+
+  // Añadir padding
+  left = Math.max(0, left - padding);
+  top = Math.max(0, top - padding);
+  right = Math.min(w, right + padding);
+  bottom = Math.min(h, bottom + padding);
+
+  const outW = Math.max(1, right - left);
+  const outH = Math.max(1, bottom - top);
+
+  const outCanvas = document.createElement('canvas');
+  outCanvas.width = outW;
+  outCanvas.height = outH;
+  const oCtx = outCanvas.getContext('2d');
+
+  // Fondo blanco para evitar transparencias raras
+  oCtx.fillStyle = '#ffffff';
+  oCtx.fillRect(0, 0, outW, outH);
+
+  oCtx.drawImage(img, left, top, outW, outH, 0, 0, outW, outH);
+
+  return { dataUrl: outCanvas.toDataURL('image/png'), widthPx: outW, heightPx: outH };
+}
+
 
 export async function renderCycleChartToPng({
   cycle,
@@ -118,11 +205,22 @@ export async function renderCycleChartToPng({
   widthPx,
   heightPx,
  pixelRatio = 1.5,
+  visibleDays,
+  initialScrollIndex = 0,
 }) {
   if (typeof window === 'undefined') {
     throw new Error('renderCycleChartToPng solo está disponible en el navegador.');
   }
 
+  const safeVisibleDays = Math.max(
+    Number.isFinite(Number(visibleDays)) ? Number(visibleDays) : (entries?.length ?? 0),
+    1,
+  );
+  const maxStart = Math.max((entries?.length ?? 1) - 1, 0);
+  const safeInitialScrollIndex = Math.min(
+    Math.max(Number.isFinite(Number(initialScrollIndex)) ? Number(initialScrollIndex) : 0, 0),
+    maxStart,
+  );
   const container = document.createElement('div');
   container.style.position = 'fixed';
   container.style.left = '-10000px';
@@ -146,9 +244,9 @@ export async function renderCycleChartToPng({
         onToggleIgnore={() => {}}
         onEdit={() => {}}
         onTogglePeak={() => {}}
-        cycleId={cycle?.id ?? 'export'}
-        initialScrollIndex={0}
-        visibleDays={Math.max(entries?.length ?? 0, 1)}
+        cycleId={`${cycle?.id ?? 'export'}-${entries?.[0]?.isoDate ?? 'seg'}`}
+        initialScrollIndex={safeInitialScrollIndex}
+        visibleDays={safeVisibleDays}
         showInterpretation={false}
         reduceMotion
         forceLandscape
@@ -178,14 +276,23 @@ export async function renderCycleChartToPng({
 
     // Exporta el SVG real a PNG (esto sí respeta gradientes/defs del chart)
     const dataUrl = await svgToPngDataUrl(svg, {
-      widthPx,
-      heightPx,
-      pixelRatio,
-      background: '#ffffff',
-    });
+  widthPx,
+  heightPx,
+  pixelRatio,
+  background: '#ffffff',
+});
 
-    await assertPngNotBlank(dataUrl);
-    return { dataUrl, widthPx, heightPx };
+await assertPngNotBlank(dataUrl);
+
+// Recorta bordes blancos y devuelve el PNG “apretado”
+const trimmed = await trimWhiteBorderPng(dataUrl, { padding: 12 });
+
+return {
+  dataUrl: trimmed.dataUrl,
+  widthPx: trimmed.widthPx,
+  heightPx: trimmed.heightPx,
+};
+
 
 
   } finally {
