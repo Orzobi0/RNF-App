@@ -467,7 +467,7 @@ export const downloadCyclesAsPdf = async (
       const baseEntries = ensureProcessedEntries(cycles[index]) ?? [];
       const fullEntries = buildFullTimelineEntries(cycles[index], baseEntries);
       const chartsPerPage = 2;
-const slotGap = 2;
+      const slotGap = 2;
 
 const totalDays = fullEntries?.length ?? 0;
 
@@ -537,13 +537,17 @@ const overlapDays = 0;
     const { renderCycleChartToPng } = await import('@/lib/exportCycleChartImage');
 
     const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    const margin = 2;
-    const titleY = 10;
-    const contentTop = 12;
-    const bottom = 3;
-    const contentW = pageWidth - margin * 2;
-    const availableH = pageHeight - contentTop - bottom;
+ const pageHeight = doc.internal.pageSize.getHeight();
+
+ // Aire “ligero” (sin perder legibilidad)
+ const pageMarginX = 6;
+ const pageMarginTop = 8;
+ const pageMarginBottom = 6;
+
+ const titleY = pageMarginTop + 6;   // 14
+ const contentTop = titleY + 4;      // 18 (deja aire bajo el título)
+ const contentW = pageWidth - pageMarginX * 2;
+ const availableH = pageHeight - contentTop - pageMarginBottom;
     const slotH = (availableH - slotGap * (chartsPerPage - 1)) / chartsPerPage;
 
     const targetDpi = 300;
@@ -554,7 +558,7 @@ const overlapDays = 0;
       doc.addPage();
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(16);
-      doc.text(`${cycle.title} · Gráfica`, margin, titleY);
+      doc.text(`${cycle.title} · Gráfica`, pageMarginX, titleY);
       doc.setFont('helvetica', 'normal');
 
       for (let slot = 0; slot < chartsPerPage && segIdx < segments.length; slot += 1) {
@@ -562,25 +566,28 @@ const overlapDays = 0;
         segIdx += 1;
 
         const slotY = contentTop + slot * (slotH + slotGap);
-        const subtitleY = slotY + 4;
-        const imgAreaTop = slotY + 6;
-        const imgAreaH = slotH - 7;
+        const subtitleY = slotY + 5;
+        const imgAreaTop = slotY + 8;
+        const imgAreaH = slotH - 10;
 
         const datePart =
           seg.isoFrom && seg.isoTo ? ` (${formatDate(seg.isoFrom)}–${formatDate(seg.isoTo)})` : '';
 
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(11);
-        doc.text(`Días ${seg.dayFrom}–${seg.dayTo}${datePart}`, margin, subtitleY);
+        doc.text(`Días ${seg.dayFrom}–${seg.dayTo}${datePart}`, pageMarginX, subtitleY);
         doc.setFont('helvetica', 'normal');
 
         const segmentEntries = fullEntries.slice(seg.startIndex, seg.endExclusive);
         const daysInSeg = segmentEntries.length;
 
         const widthPx = Math.round(mmToIn(contentW) * targetDpi);
-        const heightFactor = daysInSeg >= 35 ? 0.78 : 0.85;
-        const exportHmm = imgAreaH * heightFactor;
+
+        // Renderiza “alto suficiente” para que el SVG ajuste por ancho y no deje bandas laterales.
+        // Luego el recorte quitará el sobrante vertical.
+        const exportHmm = imgAreaH; 
         const heightPx = Math.round(mmToIn(exportHmm) * targetDpi);
+
 
         const img = await renderCycleChartToPng({
           cycle: cycles[index],
@@ -602,7 +609,7 @@ const overlapDays = 0;
           drawW = drawH * imgRatio;
         }
 
-        const x = margin + (contentW - drawW) / 2;
+        const x = pageMarginX + (contentW - drawW) / 2;
         const y = imgAreaTop + (imgAreaH - drawH) / 2;
 
         doc.addImage(img.dataUrl, 'PNG', x, y, drawW, drawH);
