@@ -201,6 +201,7 @@ const ChartPoints = ({
   rowsZoneHeight,
   showRelationsRow = false,
   autoLabelStep = false,
+  isArchivedCycle = false,
 }) => {
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -251,7 +252,7 @@ const ChartPoints = ({
 
   const totalPoints = Array.isArray(data) ? data.length : 0;
   const isLongCycle = totalPoints > 60;
-  const perfMode = isLongCycle || isScrolling;
+  const perfMode = isLongCycle || isScrolling || isArchivedCycle;
   const MotionG = reduceMotion || perfMode ? 'g' : motion.g;
 
   const rowWidth = chartWidth - padding.left - padding.right;
@@ -1075,6 +1076,7 @@ const areEqual = (prev, next) => {
   if (prev.rowsZoneHeight !== next.rowsZoneHeight) return false;
   if (prev.showRelationsRow !== next.showRelationsRow) return false;
   if (prev.autoLabelStep !== next.autoLabelStep) return false;
+  if (prev.isArchivedCycle !== next.isArchivedCycle) return false;
 
   const prevRange = prev.visibleRange;
   const nextRange = next.visibleRange;

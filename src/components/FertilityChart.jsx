@@ -82,13 +82,17 @@ const FertilityChart = ({
   }
   const uniqueId = uniqueIdRef.current;
   const getOverscanDays = useCallback((visibleDaysValue, totalPoints) => {
-    // Para ciclos normales, renderiza todo y evita el efecto “carga por trozos”
-  if (totalPoints <= 120) return totalPoints;
-    const screens = visibleDaysValue >= 20 ? 1 : 2;
+    // En ciclos archivados priorizamos fluidez: render completo para tamaños medios.
+    const fullRenderThreshold = isArchivedCycle ? 220 : 120;
+    if (totalPoints <= fullRenderThreshold) return totalPoints;
+
+    const screens = isArchivedCycle
+      ? (visibleDaysValue >= 20 ? 2 : 3)
+      : (visibleDaysValue >= 20 ? 1 : 2);
     const raw = Math.ceil(visibleDaysValue * screens);
-    const capped = Math.min(raw, 24);
+    const capped = Math.min(raw, isArchivedCycle ? 48 : 24);
     return Math.max(capped, 12);
-  }, []);
+  }, [isArchivedCycle]);
 
   const initialRange = useMemo(() => {
     const total = allDataPoints.length;
@@ -1274,6 +1278,7 @@ const FertilityChart = ({
             graphBottomLift={graphBottomInset}
             showRelationsRow={showRelationsRow}
             autoLabelStep={exportMode}
+            isArchivedCycle={isArchivedCycle}
           />
 
         </motion.svg>
