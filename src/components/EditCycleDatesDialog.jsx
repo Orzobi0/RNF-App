@@ -206,7 +206,7 @@ const EditCycleDatesDialog = ({
                     }}
                     locale={es}
                     initialFocus
-                    month={selectedStartDate ?? activeCycleStart ?? new Date()}
+                    defaultMonth={selectedStartDate ?? activeCycleStart ?? new Date()}
                     enableSwipeNavigation
                     modifiers={{
                       hasRecord: recordedDates,
@@ -259,7 +259,7 @@ const EditCycleDatesDialog = ({
                       }}
                       locale={es}
                       initialFocus
-                      month={selectedEndDate ?? activeCycleEnd ?? activeCycleStart ?? new Date()}
+                      defaultMonth={selectedEndDate ?? activeCycleEnd ?? activeCycleStart ?? new Date()}
                       enableSwipeNavigation
                       modifiers={{
                         hasRecord: recordedDates,
