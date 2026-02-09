@@ -4438,6 +4438,7 @@ const ModernFertilityDashboard = () => {
                 cycle={currentCycle}
                 startDate={draftStartDate}
                 endDate={currentCycle.endDate}
+                otherCycles={[...(archivedCycles ?? []), currentCycle].filter(Boolean)}
                 onStartDateChange={(value) => setDraftStartDate(value)}
                 onSave={handleSaveStartDate}
                 onCancel={handleCloseStartDateEditor}

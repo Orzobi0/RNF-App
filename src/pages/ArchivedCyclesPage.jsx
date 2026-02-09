@@ -232,6 +232,7 @@ const ArchivedCyclesPage = () => {
           onConfirm={handleAddCycle}
           title="Añadir Ciclo Anterior"
           description="Ingresa las fechas de un ciclo previo para añadir registros."
+          otherCycles={allCycles}
           errorMessage={addCycleError?.message}
           conflictCycle={addCycleError?.conflictCycle}
           onResetError={() => setAddCycleError(null)}
@@ -450,6 +451,7 @@ const ArchivedCyclesPage = () => {
         onConfirm={handleAddCycle}
         title="Añadir Ciclo Anterior"
         description="Ingresa las fechas de un ciclo previo para añadir registros."
+        otherCycles={allCycles}
         errorMessage={addCycleError?.message}
         conflictCycle={addCycleError?.conflictCycle}
         onResetError={() => setAddCycleError(null)}
@@ -468,6 +470,8 @@ const ArchivedCyclesPage = () => {
         checkOverlap={checkCycleOverlap}
         title="Editar Fechas del Ciclo"
         description="Actualiza las fechas del ciclo."
+        cycleData={editingCycle?.data ?? []}
+        otherCycles={allCycles}
         errorMessage={editCycleError?.message}
         conflictCycle={editCycleError?.conflictCycle}
         onResetError={() => setEditCycleError(null)}

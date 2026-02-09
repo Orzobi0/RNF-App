@@ -9,9 +9,12 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import OverlapWarningDialog from './OverlapWarningDialog';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, isValid, startOfDay } from 'date-fns';
+import { es } from 'date-fns/locale';
+import { Calendar as CalendarIcon } from 'lucide-react';
 
 const EditCycleDatesDialog = ({
   isOpen,
@@ -27,6 +30,8 @@ const EditCycleDatesDialog = ({
   errorMessage,
   conflictCycle,
   onResetError,
+  cycleData = [],
+  otherCycles = [],
 }) => {
   const [startDate, setStartDate] = useState(initialStartDate || '');
   const [endDate, setEndDate] = useState(initialEndDate || '');
@@ -81,6 +86,36 @@ const EditCycleDatesDialog = ({
   };
 
   const conflictDetails = formatConflictDetails();
+
+  const toDate = (value) => {
+    if (!value) return null;
+    const parsed = parseISO(value);
+    return isValid(parsed) ? startOfDay(parsed) : null;
+  };
+
+  const selectedStartDate = toDate(startDate);
+  const selectedEndDate = toDate(endDate);
+
+  const recordedDates = (cycleData ?? [])
+    .map((record) => toDate(record?.isoDate))
+    .filter(Boolean);
+
+  const activeCycle = otherCycles.find((candidate) => candidate?.id === cycleId);
+  const activeCycleStart = toDate(activeCycle?.startDate);
+  const activeCycleEnd = toDate(activeCycle?.endDate);
+  const activeCycleRange = activeCycleStart
+    ? { from: activeCycleStart, to: activeCycleEnd ?? activeCycleStart }
+    : undefined;
+
+  const otherCycleRanges = (otherCycles ?? [])
+    .filter((candidate) => candidate?.id && candidate.id !== cycleId)
+    .map((candidate) => {
+      const start = toDate(candidate?.startDate);
+      const end = toDate(candidate?.endDate);
+      if (!start) return null;
+      return { from: start, to: end ?? start };
+    })
+    .filter(Boolean);
 
   const handleConfirm = async () => {
     if (includeEndDate && !endDate) {
@@ -137,26 +172,86 @@ const EditCycleDatesDialog = ({
               <label htmlFor="startDate" className="text-gray-700 text-sm">
                 Inicio del ciclo
               </label>
-              <Input
-                id="startDate"
-                type="date"
-                value={startDate}
-                onChange={(e) => handleStartChange(e.target.value)}
-                className="bg-gray-50 border-gray-200 text-gray-800"
-              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="mt-1 w-full justify-start border-gray-200 bg-gray-50 text-left font-normal text-gray-800"
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {selectedStartDate
+                      ? format(selectedStartDate, 'PPP', { locale: es })
+                      : 'Selecciona una fecha'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={selectedStartDate}
+                    onSelect={(selectedDate) => {
+                      if (!selectedDate) return;
+                      handleStartChange(format(startOfDay(selectedDate), 'yyyy-MM-dd'));
+                    }}
+                    locale={es}
+                    initialFocus
+                    modifiers={{
+                      hasRecord: recordedDates,
+                      inActiveCycle: activeCycleRange,
+                      inOtherCycle: otherCycleRanges,
+                    }}
+                    modifiersClassNames={{
+                      hasRecord:
+                        'relative after:content-[""] after:absolute after:inset-x-0 after:bottom-1 after:mx-auto after:h-1.5 after:w-1.5 after:rounded-full after:bg-fertiliapp-fuerte',
+                      inActiveCycle: 'in-cycle-soft-outline',
+                      inOtherCycle: 'in-other-cycle-soft-outline',
+                    }}
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
             {includeEndDate && (
               <div>
                 <label htmlFor="endDate" className="text-gray-700 text-sm">
                   Fin del ciclo
                 </label>
-                <Input
-                  id="endDate"
-                  type="date"
-                  value={endDate || ''}
-                  onChange={(e) => handleEndChange(e.target.value)}
-                  className="bg-gray-50 border-gray-200 text-gray-800"
-                />
+                 <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="mt-1 w-full justify-start border-gray-200 bg-gray-50 text-left font-normal text-gray-800"
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {selectedEndDate
+                        ? format(selectedEndDate, 'PPP', { locale: es })
+                        : 'Selecciona una fecha'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={selectedEndDate}
+                      onSelect={(selectedDate) => {
+                        if (!selectedDate) return;
+                        handleEndChange(format(startOfDay(selectedDate), 'yyyy-MM-dd'));
+                      }}
+                      locale={es}
+                      initialFocus
+                      modifiers={{
+                        hasRecord: recordedDates,
+                        inActiveCycle: activeCycleRange,
+                        inOtherCycle: otherCycleRanges,
+                      }}
+                      modifiersClassNames={{
+                        hasRecord:
+                          'relative after:content-[""] after:absolute after:inset-x-0 after:bottom-1 after:mx-auto after:h-1.5 after:w-1.5 after:rounded-full after:bg-fertiliapp-fuerte',
+                        inActiveCycle: 'in-cycle-soft-outline',
+                        inOtherCycle: 'in-other-cycle-soft-outline',
+                      }}
+                    />
+                  </PopoverContent>
+                </Popover>
                 {endDateError && (
                   <p className="text-red-500 text-sm mt-1">{endDateError}</p>
                 )}

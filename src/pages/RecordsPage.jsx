@@ -1540,6 +1540,7 @@ const enterStart = -exitTarget;
                   cycle={cycle}
                   startDate={draftStartDate}
                   endDate={includeEndDate ? draftEndDate : cycle?.endDate}
+                  otherCycles={[...(archivedCycles ?? []), contextCurrentCycle].filter(Boolean)}
                   onStartDateChange={(value) => setDraftStartDate(value)}
                   onEndDateChange={includeEndDate ? (value) => setDraftEndDate(value) : undefined}
                   onSave={handleSaveStartDate}

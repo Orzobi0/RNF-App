@@ -1,6 +1,10 @@
 import React from 'react';
-import { Trash2 } from 'lucide-react';
+import { format, parseISO, startOfDay, isValid } from 'date-fns';
+import { es } from 'date-fns/locale';
+import { Calendar as CalendarIcon, Trash2 } from 'lucide-react';
+import { Calendar } from '@/components/ui/calendar';
 import { Button } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import OverlapWarningDialog from '@/components/OverlapWarningDialog';
 
 const formatDateDisplay = (dateString) => {
@@ -46,6 +50,7 @@ const CycleDatesEditor = ({
   isDeletingCycle = false,
   onUndoCycle,
   isUndoingCycle = false,
+  otherCycles = [],
 }) => {
   const formattedStartDate = cycle?.startDate ? formatDateDisplay(cycle.startDate) : null;
   const formattedEndDate = cycle?.endDate ? formatDateDisplay(cycle.endDate) : 'En curso';
@@ -53,6 +58,33 @@ const CycleDatesEditor = ({
   const currentRangeLabel = formattedStartDate
     ? `Fecha actual: ${formattedStartDate}${includeEndDate ? ` — ${formattedEndDate}` : ''}`
     : null;
+  
+  const toDate = (value) => {
+    if (!value) return null;
+    const parsed = parseISO(value);
+    return isValid(parsed) ? startOfDay(parsed) : null;
+  };
+
+  const selectedStartDate = toDate(startDate);
+  const selectedEndDate = toDate(endDate);
+  const cycleStart = toDate(cycle?.startDate);
+  const cycleEnd = toDate(cycle?.endDate);
+
+  const recordedDates = (cycle?.data ?? [])
+    .map((record) => toDate(record?.isoDate))
+    .filter(Boolean);
+
+  const otherCycleRanges = otherCycles
+    .filter((candidate) => candidate?.id && cycle?.id && candidate.id !== cycle.id)
+    .map((candidate) => {
+      const start = toDate(candidate?.startDate);
+      const end = toDate(candidate?.endDate);
+      if (!start) return null;
+      return { from: start, to: end ?? start };
+    })
+    .filter(Boolean);
+
+  const activeCycleRange = cycleStart ? { from: cycleStart, to: cycleEnd ?? cycleStart } : undefined;  
   const handleStartChange = (event) => {
     if (onClearError) {
       onClearError();
@@ -85,22 +117,84 @@ const CycleDatesEditor = ({
             <div className={`grid ${includeEndDate ? 'grid-cols-2 gap-4' : 'grid-cols-1 gap-4'}`}>
               <label className="flex h-full flex-col text-sm text-slate-700">
                 Inicio del ciclo
-                <input
-                  type="date"
-                  value={startDate || ''}
-                  onChange={handleStartChange}
-                  className="mt-1 w-full rounded-lg border border-fertiliapp-suave bg-white px-3 py-2 text-slate-800 focus:border-fertiliapp-suave focus:outline-none focus:ring-2 focus:ring-fertiliapp-suave"
-                />
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="mt-1 w-full justify-start border-fertiliapp-suave bg-white text-left font-normal text-slate-800"
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {selectedStartDate
+                        ? format(selectedStartDate, 'PPP', { locale: es })
+                        : 'Selecciona una fecha'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={selectedStartDate}
+                      onSelect={(selectedDate) => {
+                        if (!selectedDate) return;
+                        handleStartChange({ target: { value: format(startOfDay(selectedDate), 'yyyy-MM-dd') } });
+                      }}
+                      locale={es}
+                      initialFocus
+                      modifiers={{
+                        hasRecord: recordedDates,
+                        inActiveCycle: activeCycleRange,
+                        inOtherCycle: otherCycleRanges,
+                      }}
+                      modifiersClassNames={{
+                        hasRecord:
+                          'relative after:content-[""] after:absolute after:inset-x-0 after:bottom-1 after:mx-auto after:h-1.5 after:w-1.5 after:rounded-full after:bg-fertiliapp-fuerte',
+                        inActiveCycle: 'in-cycle-soft-outline',
+                        inOtherCycle: 'in-other-cycle-soft-outline',
+                      }}
+                    />
+                  </PopoverContent>
+                </Popover>
               </label>
               {includeEndDate && (
                 <label className="flex h-full flex-col text-sm text-slate-700">
                   Fin del ciclo
-                  <input
-                    type="date"
-                    value={endDate || ''}
-                    onChange={handleEndChange}
-                    className="mt-1 w-full rounded-lg border border-fertiliapp-suave bg-white px-3 py-2 text-slate-800 focus:border-fertiliapp-suave focus:outline-none focus:ring-2 focus:ring-fertiliapp-suave"
-                  />
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="mt-1 w-full justify-start border-fertiliapp-suave bg-white text-left font-normal text-slate-800"
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {selectedEndDate
+                          ? format(selectedEndDate, 'PPP', { locale: es })
+                          : 'Selecciona una fecha'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={selectedEndDate}
+                        onSelect={(selectedDate) => {
+                          if (!selectedDate) return;
+                          handleEndChange({ target: { value: format(startOfDay(selectedDate), 'yyyy-MM-dd') } });
+                        }}
+                        locale={es}
+                        initialFocus
+                        modifiers={{
+                          hasRecord: recordedDates,
+                          inActiveCycle: activeCycleRange,
+                          inOtherCycle: otherCycleRanges,
+                        }}
+                        modifiersClassNames={{
+                          hasRecord:
+                            'relative after:content-[""] after:absolute after:inset-x-0 after:bottom-1 after:mx-auto after:h-1.5 after:w-1.5 after:rounded-full after:bg-fertiliapp-fuerte',
+                          inActiveCycle: 'in-cycle-soft-outline',
+                          inOtherCycle: 'in-other-cycle-soft-outline',
+                        }}
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </label>
               )}
             </div>
