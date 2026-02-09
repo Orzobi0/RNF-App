@@ -71,7 +71,8 @@ const FertilityChart = ({
     fertilityStartConfig,
     fertilityCalculatorCycles,
     fertilityCalculatorCandidates,
-    showRelationsRow
+    showRelationsRow,
+    exportMode
   );
   const effectiveReduceMotion = reduceMotion || exportMode;
   const uniqueIdRef = useRef(null);

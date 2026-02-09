@@ -436,7 +436,8 @@ export const useFertilityChart = (
   fertilityStartConfig = null,
   calculatorCycles = [],
   externalCalculatorCandidates = null,
-  showRelationsRow = false
+  showRelationsRow = false,
+  exportMode = false,
 ) => {
       const chartRef = useRef(null);
       const tooltipRef = useRef(null);
@@ -593,7 +594,23 @@ export const useFertilityChart = (
           if (isFullScreen) {
             let availW = window.innerWidth;
             let availH = window.innerHeight;
-
+             // ✅ En exportMode, el gráfico se renderiza dentro de un contenedor offscreen
+  // con widthPx/heightPx. Si usamos window.innerWidth, el layout queda "estrecho"
+  // y luego solo se reescala (no ganas espacio por día).
+  if (exportMode) {
+    const exportW =
+      chartRef.current?.clientWidth ||
+      parentEl?.clientWidth ||
+      parentW ||
+      availW;
+    const exportH =
+      chartRef.current?.clientHeight ||
+      parentEl?.clientHeight ||
+      parentH ||
+      availH;
+    availW = exportW;
+    availH = exportH;
+  }
             if (forceLandscape && availH > availW) {
               [availW, availH] = [availH, availW];
             }
@@ -644,7 +661,7 @@ export const useFertilityChart = (
             resizeObserver.disconnect();
           }
         };
-      }, [isFullScreen, data.length, visibleDays, orientation, forceLandscape]);
+      }, [isFullScreen, data.length, visibleDays, orientation, forceLandscape, exportMode]);
 
   const validDataForLine = useMemo(
     () =>
@@ -944,18 +961,48 @@ export const useFertilityChart = (
       const viewportHeight = dimensions.viewportHeight || dimensions.height;
       const viewportWidth = dimensions.viewportWidth || chartWidth;
       
-      const baseFontSize = 9;
+      const clamp = (min, value, max) => Math.min(max, Math.max(min, value));
+
+      // En export queremos letras legibles y que escalen según el "ancho por día"
+      // (si renderizas 35 días en un contenedor ancho, debe subir el tamaño).
+      const baseFontSize = exportMode ? 11 : 9;
+
       const responsiveFontSize = (multiplier = 1) => {
+        // Export: escala por ancho disponible por día (no por nº total de puntos)
+        if (exportMode) {
+          const vw = (dimensions.viewportWidth || viewportWidth || chartWidth || 1);
+          const perDayPx = vw / Math.max(Number(visibleDays) || 1, 1);
+
+          // Ajusta estos 3 números si quieres más/menos:
+          // - 0.33: agresividad (más alto => letras más grandes)
+          // - 11..15: límites base en px (antes de multiplier)
+          const base = clamp(11, perDayPx * 0.33, 15);
+          const scaled = base * multiplier;
+
+          // Límite final para que no se desmadre en tramos cortos
+          return clamp(10, scaled, 18);
+        }
+
+        // Normal (app): comportamiento actual
         if (!isFullScreen) return baseFontSize * multiplier;
         const smallerDim = Math.min(chartWidth, viewportHeight);
-        return Math.max(8, Math.min(baseFontSize * multiplier, smallerDim / (allDataPoints.length > 0 ? (40 / multiplier) : 40) ));
+        return Math.max(
+          8,
+          Math.min(
+            baseFontSize * multiplier,
+            smallerDim / (allDataPoints.length > 0 ? (40 / multiplier) : 40)
+          )
+        );
       };
 
       // In pantalla completa damos un poco más de altura a cada
       // fila de texto para permitir mostrar palabras más largas
       // en orientación vertical.
-      const textRowHeight = Math.round(responsiveFontSize(isFullScreen ? 1.6 : 2));
+      const textRowHeight = Math.round(
+        responsiveFontSize(isFullScreen ? (exportMode ? 1.45 : 1.6) : 2)
+      );
       const isLandscapeVisual = forceLandscape || orientation === 'landscape';
+      const isDenseExport = exportMode && isFullScreen && isLandscapeVisual && visibleDays >= 28;
       // Cálculo exacto para que la fila inferior "bese" el borde inferior del SVG.
       // Observaciones está en rowIndex = 9 (fullscreen) o 7.5 (no fullscreen).
       // rowBlockHeight/2 equivale a 1 (fullscreen) o 0.75 (no fullscreen).
@@ -976,7 +1023,7 @@ export const useFertilityChart = (
       const chartContentHeight = visibleRowsHeight + Math.max(minGraphArea, 0);
       const scrollableContentHeight = chartContentHeight + extraScrollableHeight;
 
-        const padding = { 
+        const basePadding = {
         top: isFullScreen
           ? Math.max(
               isLandscapeVisual ? 6 : 12,
@@ -998,6 +1045,14 @@ export const useFertilityChart = (
             )
           : 50
       };
+      // ✅ Solo export: menos padding lateral = más ancho útil por día (sin deformar)
+const padding = isDenseExport
+  ? {
+      ...basePadding,
+      left: Math.max(34, Math.round(basePadding.left * 0.78)),
+      right: Math.max(18, Math.round(basePadding.right * 0.60)),
+    }
+  : basePadding;
       
       // --- Levanta el suelo del área del gráfico (sin mover filas) ---
       // Ajusta cuántas "filas" quieres ganar de aire bajo el gráfico:
@@ -1013,10 +1068,12 @@ export const useFertilityChart = (
       };
 
       const getX = (index) => {
-        const extraMargin = (isFullScreen && !(forceLandscape || orientation === 'landscape')) ? 5 : 10;
+        const extraMargin = isDenseExport ? 2 : ((isFullScreen && !(forceLandscape || orientation === 'landscape')) ? 5 : 10);
         const daySpacing = (isFullScreen && !(forceLandscape || orientation === 'landscape')) ? 25 : 0;
-        const EXTRA_RIGHT_GAP = 15;
-        const edgePadding = isFullScreen
+        const EXTRA_RIGHT_GAP = isDenseExport ? 4 : 15;
+        const edgePadding = isDenseExport
+  ? 0
+  : isFullScreen
           ? Math.max(
               isLandscapeVisual ? 8 : 18,
               Math.min(chartWidth, viewportWidth) * (isLandscapeVisual ? 0.01 : 0.05)

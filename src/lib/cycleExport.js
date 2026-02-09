@@ -466,66 +466,162 @@ export const downloadCyclesAsPdf = async (
     if (includeChart) {
       const baseEntries = ensureProcessedEntries(cycles[index]) ?? [];
       const fullEntries = buildFullTimelineEntries(cycles[index], baseEntries);
+      const chartsPerPage = 2;
+      const slotGap = 2;
+
+const totalDays = fullEntries?.length ?? 0;
+
+// “Zoom” solo cuando empieza a apretarse de verdad
+const isLong = totalDays > 90;     // ajusta 80/90/100 según prefieras
+const isVeryLong = totalDays >= 160;
+
+// Días por tramo (menos días = más ancho por día)
+const chunkDays = isVeryLong ? 30 : isLong ? 35 : 50;
+
+// Yo quitaría solape para no repetir días (más claro)
+const overlapDays = 0;
+
+
+      doc.setFont('helvetica', 'normal');
+
+      if (!totalDays) {
+        doc.addPage();
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(16);
+        doc.text(`${cycle.title} · Gráfica`, horizontalMargin, 18);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(11);
+        doc.text('No hay datos para graficar.', horizontalMargin, 28);
+      } else {
+  const segments = [];
+  const step = Math.max(1, chunkDays - overlapDays);
+
+  for (let startIndex = 0; startIndex < totalDays; startIndex += step) {
+    const endExclusive = Math.min(startIndex + chunkDays, totalDays);
+    const fromEntry = fullEntries[startIndex];
+    const toEntry = fullEntries[endExclusive - 1];
+
+    segments.push({
+      startIndex,
+      endExclusive,
+      visibleDays: endExclusive - startIndex,
+      dayFrom: fromEntry?.cycleDay ?? startIndex + 1,
+      dayTo: toEntry?.cycleDay ?? endExclusive,
+      isoFrom: fromEntry?.isoDate ?? null,
+      isoTo: toEntry?.isoDate ?? null,
+    });
+
+    if (endExclusive === totalDays) break;
+  }
+
+  // Si el último segmento es muy corto, únelo al anterior
+  const minTailDays = 20;
+
+  if (segments.length > 1) {
+    const last = segments[segments.length - 1];
+    const lastLen = last.endExclusive - last.startIndex;
+
+    if (lastLen < minTailDays) {
+      const prev = segments[segments.length - 2];
+
+      prev.endExclusive = last.endExclusive;
+      prev.visibleDays = prev.endExclusive - prev.startIndex;
+      prev.dayTo = last.dayTo;
+      prev.isoTo = last.isoTo;
+
+      segments.pop();
+    }
+  }
+
+  try {
+    const { renderCycleChartToPng } = await import('@/lib/exportCycleChartImage');
+
+    const pageWidth = doc.internal.pageSize.getWidth();
+ const pageHeight = doc.internal.pageSize.getHeight();
+
+ // Aire “ligero” (sin perder legibilidad)
+ const pageMarginX = 6;
+ const pageMarginTop = 8;
+ const pageMarginBottom = 6;
+
+ const titleY = pageMarginTop + 6;   // 14
+ const contentTop = titleY + 4;      // 18 (deja aire bajo el título)
+ const contentW = pageWidth - pageMarginX * 2;
+ const availableH = pageHeight - contentTop - pageMarginBottom;
+    const slotH = (availableH - slotGap * (chartsPerPage - 1)) / chartsPerPage;
+
+    const targetDpi = 300;
+    const mmToIn = (mm) => mm / 25.4;
+
+    let segIdx = 0;
+    while (segIdx < segments.length) {
       doc.addPage();
-      
-      try {
-        const { renderCycleChartToPng } = await import('@/lib/exportCycleChartImage');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(16);
+      doc.text(`${cycle.title} · Gráfica`, pageMarginX, titleY);
+      doc.setFont('helvetica', 'normal');
 
-        const pageWidth = doc.internal.pageSize.getWidth();
-        const pageHeight = doc.internal.pageSize.getHeight();
-        const margin = 14;
-        const top = 35;
-        const bottom = 14;
-        const contentW = pageWidth - margin * 2;
-        const contentH = pageHeight - top - bottom;
+      for (let slot = 0; slot < chartsPerPage && segIdx < segments.length; slot += 1) {
+        const seg = segments[segIdx];
+        segIdx += 1;
 
-        // Mantén el mismo ratio que estabas usando (700/1600)
-        const ratio = 700 / 1600;
-        let wMm = contentW;
-        let hMm = wMm * ratio;
-        if (hMm > contentH) {
-          hMm = contentH;
-          wMm = hMm / ratio;
-        }
+        const slotY = contentTop + slot * (slotH + slotGap);
+        const subtitleY = slotY + 5;
+        const imgAreaTop = slotY + 8;
+        const imgAreaH = slotH - 10;
 
-        // 300 DPI reales para el tamaño final en el PDF
-        const targetDpi = 300;
-        const mmToIn = (mm) => mm / 25.4;
-        const widthPx = Math.round(mmToIn(wMm) * targetDpi);
-        const heightPx = Math.round(mmToIn(hMm) * targetDpi);
+        const datePart =
+          seg.isoFrom && seg.isoTo ? ` (${formatDate(seg.isoFrom)}–${formatDate(seg.isoTo)})` : '';
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(11);
+        doc.text(`Días ${seg.dayFrom}–${seg.dayTo}${datePart}`, pageMarginX, subtitleY);
+        doc.setFont('helvetica', 'normal');
+
+        const segmentEntries = fullEntries.slice(seg.startIndex, seg.endExclusive);
+        const daysInSeg = segmentEntries.length;
+
+        const widthPx = Math.round(mmToIn(contentW) * targetDpi);
+
+        // Renderiza “alto suficiente” para que el SVG ajuste por ancho y no deje bandas laterales.
+        // Luego el recorte quitará el sobrante vertical.
+        const exportHmm = imgAreaH; 
+        const heightPx = Math.round(mmToIn(exportHmm) * targetDpi);
+
 
         const img = await renderCycleChartToPng({
           cycle: cycles[index],
-          entries: fullEntries,
+          entries: segmentEntries,
           widthPx,
           heightPx,
-          pixelRatio: 1, // importante: ya estás subiendo px, no lo dupliques otra vez
+          pixelRatio: 1,
+          visibleDays: segmentEntries.length,
+          initialScrollIndex: 0,
         });
 
-        const x = margin + (contentW - wMm) / 2;
-        const y = top;
+        const imgRatio = img.widthPx / img.heightPx;
 
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(16);
-        doc.text(`${cycle.title} · Gráfica`, margin, 22);
-        doc.setFont('helvetica', 'normal');
-        doc.addImage(img.dataUrl, 'PNG', x, y, wMm, hMm);
-                doc.setTextColor(16, 185, 129);
-        doc.setFontSize(10);
-        doc.text('PNG (FertilityChart)', 14, 30);
-        doc.setTextColor(0, 0, 0);
+        let drawW = contentW;
+        let drawH = drawW / imgRatio;
 
-            } catch (error) {
-        console.error('[PDF] Fallo renderCycleChartToPng, usando fallback jsPDF:', error);
+        if (drawH > imgAreaH) {
+          drawH = imgAreaH;
+          drawW = drawH * imgRatio;
+        }
 
-        // Marca en el PDF que has caído al fallback (para no ir a ciegas)
-        doc.setTextColor(220, 38, 38);
-        doc.setFontSize(10);
-        doc.text('FALLBACK (jsPDF)', 14, 30);
-        doc.setTextColor(0, 0, 0);
+        const x = pageMarginX + (contentW - drawW) / 2;
+        const y = imgAreaTop + (imgAreaH - drawH) / 2;
 
-        renderCycleChart(doc, cycle.title, fullEntries);
+        doc.addImage(img.dataUrl, 'PNG', x, y, drawW, drawH);
       }
+    }
+  } catch (error) {
+    console.error('[PDF] Fallo export PNG por segmentos, usando fallback jsPDF:', error);
+    doc.addPage();
+    renderCycleChart(doc, cycle.title, fullEntries);
+  }
+}
+
 
     }
   }
