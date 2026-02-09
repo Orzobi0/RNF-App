@@ -1,5 +1,5 @@
 import React from 'react';
-import { format, parseISO, startOfDay, isValid } from 'date-fns';
+import { format, parseISO, startOfDay, isValid, isSameDay, isAfter, isBefore } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Calendar as CalendarIcon, Trash2 } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
@@ -85,6 +85,17 @@ const CycleDatesEditor = ({
     .filter(Boolean);
 
   const activeCycleRange = cycleStart ? { from: cycleStart, to: cycleEnd ?? cycleStart } : undefined;  
+  
+  const isRangeStart = (date, range) => Boolean(range?.from && isSameDay(date, range.from));
+  const isRangeEnd = (date, range) => {
+    if (!range?.to) return false;
+    return isSameDay(date, range.to) && !isSameDay(range.from, range.to);
+  };
+  const isRangeMiddle = (date, range) => {
+    if (!range?.from || !range?.to || isSameDay(range.from, range.to)) return false;
+    return isAfter(date, range.from) && isBefore(date, range.to);
+  };
+  const matchesAnyRange = (date, ranges, matcher) => ranges.some((range) => matcher(date, range));
   const handleStartChange = (event) => {
     if (onClearError) {
       onClearError();
@@ -140,16 +151,26 @@ const CycleDatesEditor = ({
                       }}
                       locale={es}
                       initialFocus
+                      month={selectedStartDate ?? cycleStart ?? new Date()}
+                      enableSwipeNavigation
                       modifiers={{
                         hasRecord: recordedDates,
-                        inActiveCycle: activeCycleRange,
-                        inOtherCycle: otherCycleRanges,
+                        inActiveCycleStart: (date) => isRangeStart(date, activeCycleRange),
+                        inActiveCycleMiddle: (date) => isRangeMiddle(date, activeCycleRange),
+                        inActiveCycleEnd: (date) => isRangeEnd(date, activeCycleRange),
+                        inOtherCycleStart: (date) => matchesAnyRange(date, otherCycleRanges, isRangeStart),
+                        inOtherCycleMiddle: (date) => matchesAnyRange(date, otherCycleRanges, isRangeMiddle),
+                        inOtherCycleEnd: (date) => matchesAnyRange(date, otherCycleRanges, isRangeEnd),
                       }}
                       modifiersClassNames={{
                         hasRecord:
                           'relative after:content-[""] after:absolute after:inset-x-0 after:bottom-1 after:mx-auto after:h-1.5 after:w-1.5 after:rounded-full after:bg-fertiliapp-fuerte',
-                        inActiveCycle: 'in-cycle-soft-outline',
-                        inOtherCycle: 'in-other-cycle-soft-outline',
+                        inActiveCycleStart: 'in-cycle-range-start',
+                        inActiveCycleMiddle: 'in-cycle-range-middle',
+                        inActiveCycleEnd: 'in-cycle-range-end',
+                        inOtherCycleStart: 'in-other-cycle-range-start',
+                        inOtherCycleMiddle: 'in-other-cycle-range-middle',
+                        inOtherCycleEnd: 'in-other-cycle-range-end',
                       }}
                     />
                   </PopoverContent>
@@ -181,16 +202,26 @@ const CycleDatesEditor = ({
                         }}
                         locale={es}
                         initialFocus
+                        month={selectedEndDate ?? cycleEnd ?? cycleStart ?? new Date()}
+                        enableSwipeNavigation
                         modifiers={{
                           hasRecord: recordedDates,
-                          inActiveCycle: activeCycleRange,
-                          inOtherCycle: otherCycleRanges,
+                          inActiveCycleStart: (date) => isRangeStart(date, activeCycleRange),
+                          inActiveCycleMiddle: (date) => isRangeMiddle(date, activeCycleRange),
+                          inActiveCycleEnd: (date) => isRangeEnd(date, activeCycleRange),
+                          inOtherCycleStart: (date) => matchesAnyRange(date, otherCycleRanges, isRangeStart),
+                          inOtherCycleMiddle: (date) => matchesAnyRange(date, otherCycleRanges, isRangeMiddle),
+                          inOtherCycleEnd: (date) => matchesAnyRange(date, otherCycleRanges, isRangeEnd),
                         }}
                         modifiersClassNames={{
                           hasRecord:
                             'relative after:content-[""] after:absolute after:inset-x-0 after:bottom-1 after:mx-auto after:h-1.5 after:w-1.5 after:rounded-full after:bg-fertiliapp-fuerte',
-                          inActiveCycle: 'in-cycle-soft-outline',
-                          inOtherCycle: 'in-other-cycle-soft-outline',
+                          inActiveCycleStart: 'in-cycle-range-start',
+                          inActiveCycleMiddle: 'in-cycle-range-middle',
+                          inActiveCycleEnd: 'in-cycle-range-end',
+                          inOtherCycleStart: 'in-other-cycle-range-start',
+                          inOtherCycleMiddle: 'in-other-cycle-range-middle',
+                          inOtherCycleEnd: 'in-other-cycle-range-end',
                         }}
                       />
                     </PopoverContent>
