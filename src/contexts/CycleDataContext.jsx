@@ -750,6 +750,23 @@ export const CycleDataProvider = ({ children }) => {
     return `Las fechas coinciden con el ciclo del ${formattedStart} al ${formattedEnd}.`;
   }, []);
 
+  const getErrorDescription = useCallback(
+    (error, fallbackMessage) => {
+      const conflictCycle = error?.conflictCycle ?? error?.details?.conflictCycle;
+
+      if (error?.code === 'cycle-overlap') {
+        return buildOverlapDescription(conflictCycle);
+      }
+
+      if (typeof error?.message === 'string' && error.message.trim()) {
+        return error.message;
+      }
+
+      return fallbackMessage;
+    },
+    [buildOverlapDescription]
+  );
+
   const addArchivedCycle = useCallback(
     async (startDate, endDate) => {
       if (!user?.uid) return;
@@ -774,17 +791,14 @@ export const CycleDataProvider = ({ children }) => {
         await loadCycleData({ silent: true });
       } catch (error) {
         console.error('Error adding archived cycle:', error);
-        const description =
-          error.code === 'cycle-overlap'
-            ? buildOverlapDescription(error.conflictCycle)
-            : 'No se pudo crear el ciclo.';
+        const description = getErrorDescription(error, 'No se pudo crear el ciclo.');
         toast({ title: 'Error', description, variant: 'destructive' });
         throw error;
       } finally {
         setIsLoading(false);
       }
     },
-    [user, loadCycleData, toast, buildOverlapDescription]
+    [user, loadCycleData, toast, getErrorDescription]
   );
 
   const deleteCycle = useCallback(
@@ -901,17 +915,14 @@ export const CycleDataProvider = ({ children }) => {
         await loadCycleData({ silent: true });
       } catch (error) {
         console.error('Error updating cycle dates:', error);
-        const description =
-          error.code === 'cycle-overlap'
-            ? buildOverlapDescription(error.conflictCycle)
-            : 'No se pudieron actualizar las fechas.';
+        const description = getErrorDescription(error, 'No se pudieron actualizar las fechas.');
         toast({ title: 'Error', description, variant: 'destructive' });
         throw error;
       } finally {
         setIsLoading(false);
       }
     },
-    [user, currentCycle, archivedCycles, loadCycleData, toast, buildOverlapDescription]
+    [user, currentCycle, archivedCycles, loadCycleData, toast, getErrorDescription]
   );
 
   const forceUpdateCycleStart = useCallback(
