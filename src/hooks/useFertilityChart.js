@@ -1059,15 +1059,23 @@ const padding = isDenseExport
       const GRAPH_BOTTOM_LIFT_ROWS = 4; // p.ej. 0.8 filas; prueba 0.6–1.2
       const graphBottomInset = Math.max(0, Math.round(textRowHeight * GRAPH_BOTTOM_LIFT_ROWS));
       const graphBottomY = chartContentHeight - padding.bottom - graphBottomInset;
-      const getY = (temp) => {
+      const getY = useCallback((temp) => {
         const effectiveHeight = chartContentHeight - padding.top - padding.bottom - graphBottomInset;
         if (temp === null || temp === undefined || tempRange === 0 || effectiveHeight <= 0) {
           return graphBottomY;
         }
         return graphBottomY - ((temp - tempMin) / tempRange) * effectiveHeight;
-      };
+      }, [
+        chartContentHeight,
+        padding.top,
+        padding.bottom,
+        graphBottomInset,
+        tempRange,
+        graphBottomY,
+        tempMin,
+      ]);
 
-      const getX = (index) => {
+      const getX = useCallback((index) => {
         const extraMargin = isDenseExport ? 2 : ((isFullScreen && !(forceLandscape || orientation === 'landscape')) ? 5 : 10);
         const daySpacing = (isFullScreen && !(forceLandscape || orientation === 'landscape')) ? 25 : 0;
         const EXTRA_RIGHT_GAP = isDenseExport ? 4 : 15;
@@ -1101,7 +1109,17 @@ const padding = isDenseExport
           index * (availableWidth / (allDataPoints.length === 1 ? 1 : pointsToDisplay)) +
           daySpacing * index
         );
-      };
+      }, [
+        isFullScreen,
+        forceLandscape,
+        orientation,
+        padding.left,
+        padding.right,
+        chartWidth,
+        viewportWidth,
+        allDataPoints.length,
+        isLandscapeVisual,
+      ]);
       
       const handlePointInteraction = (point, index, event) => {
         if (!point) {

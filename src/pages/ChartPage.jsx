@@ -479,11 +479,21 @@ const ChartPage = () => {
     : null;
   const daysInCycle = maxArchivedDays ? Math.min(computedDaysInCycle, maxArchivedDays) : computedDaysInCycle;
 
-  const fullCyclePlaceholders = generatePlaceholders(cycleStartDate, daysInCycle);
-  const mergedData = fullCyclePlaceholders.map((placeholder) => {
-    const existingRecord = cycleEntries.find((d) => d.isoDate === placeholder.isoDate);
-    return existingRecord ? { ...existingRecord, date: placeholder.date } : placeholder;
-  });
+  const fullCyclePlaceholders = useMemo(
+    () => generatePlaceholders(cycleStartDate, daysInCycle),
+    [cycleStartDate, daysInCycle]
+  );
+  const cycleEntriesByIsoDate = useMemo(
+    () => new Map(cycleEntries.map((entry) => [entry.isoDate, entry])),
+    [cycleEntries]
+  );
+  const mergedData = useMemo(
+    () => fullCyclePlaceholders.map((placeholder) => {
+      const existingRecord = cycleEntriesByIsoDate.get(placeholder.isoDate);
+      return existingRecord ? { ...existingRecord, date: placeholder.date } : placeholder;
+    }),
+    [cycleEntriesByIsoDate, fullCyclePlaceholders]
+  );
 
   const visualOrientation = forceLandscape ? 'landscape' : orientation;
   const visibleDays = isFullScreen

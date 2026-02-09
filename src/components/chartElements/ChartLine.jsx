@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 
 const ChartLine = ({
@@ -13,35 +13,51 @@ const ChartLine = ({
 }) => {
   if (!data || data.length < 2) return null;
 
-  let pathD = '';
-  let lastValidIndex = null;
-  const validPoints = [];
+  const { pathD, thinPathD, hasContinuousSegment } = useMemo(() => {
+    const dataById = new Map(data.map((entry) => [entry.id, entry]));
+    let linePath = '';
+    let lastValidIndex = null;
+    const validPoints = [];
 
   allDataPoints.forEach((point, index) => {
-    const dataPoint = data.find(dp => dp.id === point.id);
-    if (dataPoint && dataPoint[temperatureField] !== null && dataPoint[temperatureField] !== undefined && !dataPoint.ignored) {
-      const x = getX(index);
-      const y = getY(dataPoint[temperatureField]);
-      validPoints.push({ x, y });
-      if (lastValidIndex !== null && index === lastValidIndex + 1) {
-        pathD += ` L ${x} ${y}`;
-      } else {
-        pathD += `${pathD ? ' ' : ''}M ${x} ${y}`;
+      const dataPoint = dataById.get(point.id);
+      if (
+        dataPoint
+        && dataPoint[temperatureField] !== null
+        && dataPoint[temperatureField] !== undefined
+        && !dataPoint.ignored
+      ) {
+        const x = getX(index);
+        const y = getY(dataPoint[temperatureField]);
+        validPoints.push({ x, y });
+        if (lastValidIndex !== null && index === lastValidIndex + 1) {
+          linePath += ` L ${x} ${y}`;
+        } else {
+          linePath += `${linePath ? ' ' : ''}M ${x} ${y}`;
+        }
+        lastValidIndex = index;
       }
-      lastValidIndex = index;
+      });
+
+    if (validPoints.length < 2) {
+      return { pathD: '', thinPathD: '', hasContinuousSegment: false };
     }
-  });
-      
-  if (validPoints.length < 2) return null;
 
-  const hasContinuousSegment = pathD.includes("L");
+  const nextThinPathD =
+      connectGaps && validPoints.length > 1
+        ? validPoints
+            .map(({ x, y }, idx) => `${idx === 0 ? 'M' : 'L'} ${x} ${y}`)
+            .join(' ')
+        : '';
 
-  const thinPathD =
-    connectGaps && validPoints.length > 1
-      ? validPoints
-          .map(({ x, y }, idx) => `${idx === 0 ? 'M' : 'L'} ${x} ${y}`)
-          .join(' ')
-      : '';
+    return {
+      pathD: linePath,
+      thinPathD: nextThinPathD,
+      hasContinuousSegment: linePath.includes('L'),
+    };
+  }, [allDataPoints, data, getX, getY, temperatureField, connectGaps]);
+
+  if (!pathD) return null;
 
   return (
     <>
@@ -149,4 +165,4 @@ const ChartLine = ({
   );
 };
 
-export default ChartLine;
+export default React.memo(ChartLine);
