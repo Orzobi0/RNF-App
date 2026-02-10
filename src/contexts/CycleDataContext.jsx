@@ -19,12 +19,19 @@ import {
   forceUpdateCycleStart as forceUpdateCycleStartDB,
   forceShiftNextCycleStart as forceShiftNextCycleStartDB
 } from '@/lib/cycleDataHandler';
+import {
+  deleteRecordDB,
+  fetchRecordMeasurementsDB,
+  fetchRecordsInRangeDB,
+  upsertRecordDB,
+} from '@/lib/recordDataHandler';
 import { getCachedCycleData, saveCycleDataToCache, clearCycleDataCache } from '@/lib/cycleCache';
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { readBbtFromHealthConnect } from "@/lib/healthConnectSync";
 
 
 const CycleDataContext = createContext(null);
+const isRecordsDataModelV1 = import.meta.env.VITE_DATA_MODEL === 'records_v1';
 
 const defaultCycleState = {
   id: null,
@@ -82,6 +89,25 @@ const normalizeCycleRange = (startDate, endDate) => {
   }
 
   return { startDate: normalizedStart, endDate: normalizedEnd };
+};
+
+const getTodayIso = () => format(startOfDay(new Date()), 'yyyy-MM-dd');
+
+const hydrateCycleWithRecords = async (userId, cycleData) => {
+  const { startDate, endDate } = normalizeCycleRange(cycleData?.startDate, cycleData?.endDate);
+  const records = startDate
+    ? await fetchRecordsInRangeDB(userId, startDate, endDate ?? getTodayIso())
+    : [];
+  const processed = processCycleEntries(records, startDate);
+  const filteredStart = filterEntriesByStartDate(processed, startDate);
+  const filtered = filterEntriesByEndDate(filteredStart, endDate);
+
+  return {
+    ...cycleData,
+    startDate,
+    endDate,
+    data: filtered,
+  };
 };
 
 const buildEntryForState = ({
@@ -214,39 +240,54 @@ export const CycleDataProvider = ({ children }) => {
 
         let currentCycleData = defaultCycleState;
         if (cycleToLoad) {
-          const { startDate, endDate } = normalizeCycleRange(
-            cycleToLoad.startDate,
-            cycleToLoad.endDate
-          );
-          const processed = processCycleEntries(cycleToLoad.data, startDate);
-          const filteredStart = filterEntriesByStartDate(processed, startDate);
-          const filtered = filterEntriesByEndDate(filteredStart, endDate);
+          if (isRecordsDataModelV1) {
+            currentCycleData = await hydrateCycleWithRecords(user.uid, cycleToLoad);
+          } else {
+            const { startDate, endDate } = normalizeCycleRange(
+              cycleToLoad.startDate,
+              cycleToLoad.endDate
+            );
+            const processed = processCycleEntries(cycleToLoad.data, startDate);
+            const filteredStart = filterEntriesByStartDate(processed, startDate);
+            const filtered = filterEntriesByEndDate(filteredStart, endDate);
 
-          currentCycleData = {
-            ...cycleToLoad,
-            startDate,
-            endDate,
-            data: filtered
-          };
+            currentCycleData = {
+              ...cycleToLoad,
+              startDate,
+              endDate,
+              data: filtered
+            };
+          }
         }
 
         const archivedData = await fetchArchivedCyclesDB(user.uid, cycleToLoad ? cycleToLoad.startDate : null);
-        const archivedCyclesData = archivedData.map((cycle) => {
-          const { startDate: aStart, endDate: aEnd } = normalizeCycleRange(
-            cycle.startDate,
-            cycle.endDate
-          );
-          const processed = processCycleEntries(cycle.data || [], aStart);
-          const filteredStart = filterEntriesByStartDate(processed, aStart);
-          const filtered = filterEntriesByEndDate(filteredStart, aEnd);
-          return {
-            ...cycle,
-            startDate: aStart ?? format(startOfDay(new Date()), 'yyyy-MM-dd'),
-            endDate: aEnd,
-            needsCompletion: cycle.needsCompletion,
-            data: filtered
-          };
-        });
+        const archivedCyclesData = await Promise.all(
+          archivedData.map(async (cycle) => {
+            if (isRecordsDataModelV1) {
+              const hydratedCycle = await hydrateCycleWithRecords(user.uid, cycle);
+              return {
+                ...hydratedCycle,
+                startDate: hydratedCycle.startDate ?? getTodayIso(),
+                needsCompletion: cycle.needsCompletion,
+              };
+            }
+
+            const { startDate: aStart, endDate: aEnd } = normalizeCycleRange(
+              cycle.startDate,
+              cycle.endDate
+            );
+            const processed = processCycleEntries(cycle.data || [], aStart);
+            const filteredStart = filterEntriesByStartDate(processed, aStart);
+            const filtered = filterEntriesByEndDate(filteredStart, aEnd);
+            return {
+              ...cycle,
+              startDate: aStart ?? getTodayIso(),
+              endDate: aEnd,
+              needsCompletion: cycle.needsCompletion,
+              data: filtered
+            };
+          })
+        );
 
         setCurrentCycle(currentCycleData);
         setArchivedCycles(archivedCyclesData);
@@ -376,9 +417,13 @@ export const CycleDataProvider = ({ children }) => {
           existingPeakRecord &&
           existingPeakRecord.id !== targetRecord?.id
         ) {
-          await updateCycleEntry(user.uid, cycleIdToUse, existingPeakRecord.id, {
-            peak_marker: null,
-          });
+          if (isRecordsDataModelV1) {
+            await upsertRecordDB(user.uid, existingPeakRecord.isoDate, { peak_marker: null });
+          } else {
+            await updateCycleEntry(user.uid, cycleIdToUse, existingPeakRecord.id, {
+              peak_marker: null,
+            });
+          }
         }
 
         const measurementsList = Array.isArray(newData.measurements) ? newData.measurements : [];
@@ -441,7 +486,7 @@ export const CycleDataProvider = ({ children }) => {
           fertilitySymbolValue !== undefined &&
           fertilitySymbolValue !== '' &&
           fertilitySymbolValue !== 'none';
-          const hadRelationsValue = Boolean(
+        const hadRelationsValue = Boolean(
           newData.had_relations ?? newData.hadRelations ?? false
         );
         const isPeakMarked = newData.peak_marker === 'peak';
@@ -495,20 +540,38 @@ export const CycleDataProvider = ({ children }) => {
           const isRemovingPeak =
             peakMarkerProvided && targetRecord?.peak_marker === 'peak' && !isPeakMarked;
           if (isPayloadEmpty && isRemovingPeak) {
-            await deleteCycleEntryDB(user.uid, cycleIdToUse, targetRecord.id);
+            if (isRecordsDataModelV1) {
+              await deleteRecordDB(user.uid, targetRecord.isoDate ?? targetRecord.id);
+            } else {
+              await deleteCycleEntryDB(user.uid, cycleIdToUse, targetRecord.id);
+            }
             updateEntryState(cycleIdToUse, targetRecord.id, recordPayload, newData.isoDate, {
               remove: true,
             });
           } else {
-            await updateCycleEntry(user.uid, cycleIdToUse, targetRecord.id, recordPayload);
-            updateEntryState(cycleIdToUse, targetRecord.id, recordPayload, newData.isoDate);
+            if (isRecordsDataModelV1) {
+              await upsertRecordDB(user.uid, newData.isoDate, recordPayload, measurementsPayload);
+            } else {
+              await updateCycleEntry(user.uid, cycleIdToUse, targetRecord.id, recordPayload);
+            }
+            updateEntryState(
+              cycleIdToUse,
+              isRecordsDataModelV1 ? newData.isoDate : targetRecord.id,
+              recordPayload,
+              newData.isoDate
+            );
           }
         } else {
           if (isPayloadEmpty) {
             return;
           }
-          const created = await createNewCycleEntry(recordPayload);
-          savedEntryId = created?.id ?? null;
+          if (isRecordsDataModelV1) {
+            await upsertRecordDB(user.uid, newData.isoDate, recordPayload, measurementsPayload);
+            savedEntryId = newData.isoDate;
+          } else {
+            const created = await createNewCycleEntry(recordPayload);
+            savedEntryId = created?.id ?? null;
+          }
           if (savedEntryId) {
             updateEntryState(cycleIdToUse, savedEntryId, recordPayload, newData.isoDate);
           }
@@ -530,7 +593,9 @@ export const CycleDataProvider = ({ children }) => {
   const getMeasurementsForEntry = useCallback(
     async (cycleId, entryId) => {
       if (!user?.uid || !cycleId || !entryId) return [];
-      const measurements = await fetchEntryMeasurementsDB(user.uid, cycleId, entryId);
+      const measurements = isRecordsDataModelV1
+        ? await fetchRecordMeasurementsDB(user.uid, entryId)
+        : await fetchEntryMeasurementsDB(user.uid, cycleId, entryId);
       updateEntryMeasurementsState(cycleId, entryId, measurements);
       return measurements;
     },
@@ -544,7 +609,11 @@ export const CycleDataProvider = ({ children }) => {
 
       setIsLoading(true);
       try {
-        await deleteCycleEntryDB(user.uid, cycleIdToUse, recordId);
+        if (isRecordsDataModelV1) {
+          await deleteRecordDB(user.uid, recordId);
+        } else {
+          await deleteCycleEntryDB(user.uid, cycleIdToUse, recordId);
+        }
         await loadCycleData({ silent: true });
       } catch (error) {
         console.error('Error deleting record:', error);
@@ -598,7 +667,13 @@ export const CycleDataProvider = ({ children }) => {
 
       try {
         applyIgnoredState(newIgnoredState);
-        await updateCycleEntry(user.uid, cycleIdToUpdate, recordId, { ignored: newIgnoredState });
+        if (isRecordsDataModelV1) {
+          await upsertRecordDB(user.uid, recordToUpdate.isoDate ?? recordId, {
+            ignored: newIgnoredState,
+          });
+        } else {
+          await updateCycleEntry(user.uid, cycleIdToUpdate, recordId, { ignored: newIgnoredState });
+        }
 
         loadCycleData({ silent: true }).catch((error) =>
           console.error('Background cycle data refresh failed after toggling ignore state:', error)
@@ -946,6 +1021,14 @@ export const CycleDataProvider = ({ children }) => {
         const cycleData = await fetchCycleByIdDB(user.uid, cycleIdToFetch);
         if (!cycleData) return null;
 
+        if (isRecordsDataModelV1) {
+          const hydratedCycle = await hydrateCycleWithRecords(user.uid, cycleData);
+          return {
+            ...hydratedCycle,
+            startDate: hydratedCycle.startDate ?? getTodayIso(),
+          };
+        }
+
         const { startDate, endDate } = normalizeCycleRange(
           cycleData.startDate,
           cycleData.endDate
@@ -956,7 +1039,7 @@ export const CycleDataProvider = ({ children }) => {
 
         return {
           ...cycleData,
-          startDate: startDate ?? format(startOfDay(new Date()), 'yyyy-MM-dd'),
+          startDate: startDate ?? getTodayIso(),
           endDate,
           data: filtered
         };
