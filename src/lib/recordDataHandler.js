@@ -12,6 +12,8 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebaseClient';
+import { getDoc } from 'firebase/firestore';
+
 
 const toRecordDoc = (docSnap) => ({
   id: docSnap.id,
@@ -37,10 +39,14 @@ export const upsertRecordDB = async (
   recordPayload,
   measurementsPayload
 ) => {
+    console.log('[records_v1] upsertRecordDB', { userId, isoDate, hasMeasurements: Array.isArray(measurementsPayload) ? measurementsPayload.length : measurementsPayload });
+
   const recordRef = doc(db, `users/${userId}/records/${isoDate}`);
   const { measurements, cycle_id, user_id, ...payloadWithoutLegacyFields } = recordPayload || {};
 
-  await setDoc(
+  try {
+    await setDoc(
+    
     recordRef,
     {
       ...payloadWithoutLegacyFields,
@@ -48,6 +54,21 @@ export const upsertRecordDB = async (
     },
     { merge: true }
   );
+  
+  } catch (e) {
+  console.error('[records_v1] setDoc FAILED', e);
+  throw e;
+}
+console.log('[records_v1] setDoc OK', { path: recordRef.path });
+
+const snap = await getDoc(recordRef);
+console.log('[records_v1] after setDoc getDoc', {
+  exists: snap.exists(),
+  fromCache: snap.metadata.fromCache,
+  hasPendingWrites: snap.metadata.hasPendingWrites,
+  data: snap.data(),
+});
+
 
   if (measurementsPayload === undefined) {
     return { id: isoDate };

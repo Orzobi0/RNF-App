@@ -22,6 +22,13 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
+console.log(
+  '[firebaseClient]',
+  'MODE=', import.meta.env.MODE,
+  'PROJECT_ID=', firebaseConfig.projectId,
+  'DATA_MODEL=', import.meta.env.VITE_DATA_MODEL
+);
+
 export const db = getFirestore(app);
 export const auth = getAuth(app);
 
