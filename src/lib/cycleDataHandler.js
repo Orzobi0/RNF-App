@@ -12,6 +12,90 @@ import {
 import { db } from '@/lib/firebaseClient';
 import { format, differenceInDays, startOfDay, parseISO, compareAsc, addDays, isValid } from 'date-fns';
 
+const isDevEnvironment =
+  typeof import.meta !== 'undefined' && Boolean(import.meta?.env?.DEV);
+
+const toSerializableValue = (value) => {
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => toSerializableValue(item));
+  }
+  if (value && typeof value === 'object') {
+    return Object.entries(value).reduce((acc, [key, val]) => {
+      if (val !== undefined) {
+        acc[key] = toSerializableValue(val);
+      }
+      return acc;
+    }, {});
+  }
+  return value;
+};
+
+export class AppError extends Error {
+  constructor(code, title, message, details, action, cause) {
+    super(message);
+    this.name = 'AppError';
+    this.code = code;
+    this.title = title;
+    this.details = details ? toSerializableValue(details) : undefined;
+    this.action = action ? toSerializableValue(action) : undefined;
+    if (cause !== undefined) {
+      this.cause = cause;
+    }
+  }
+
+  toJSON() {
+    return {
+      code: this.code,
+      title: this.title,
+      message: this.message,
+      details: this.details,
+      action: this.action,
+    };
+  }
+}
+
+export const createAppError = (code, title, message, details, action, cause) =>
+  new AppError(code, title, message, details, action, cause);
+
+export const toPublicError = (err) => {
+  if (err instanceof AppError) {
+    return err.toJSON();
+  }
+
+  if (err instanceof Error) {
+    const details = isDevEnvironment && err.message
+      ? { debugMessage: err.message }
+      : undefined;
+    return createAppError(
+      'unknown',
+      'No se pudo completar la operación',
+      'Ha ocurrido un error inesperado. Inténtalo de nuevo en unos minutos.',
+      details,
+      { label: 'Reintentar' }
+    ).toJSON();
+  }
+
+  return createAppError(
+    'unknown',
+    'No se pudo completar la operación',
+    'Ha ocurrido un error inesperado. Inténtalo de nuevo en unos minutos.',
+    undefined,
+    { label: 'Reintentar' }
+  ).toJSON();
+};
+
+const formatCycleRange = (startDate, endDate) =>
+  endDate ? `${startDate} a ${endDate}` : `${startDate} en adelante`;
+
+const buildCycleOverlapMessage = (conflictCycle, proposedStart, proposedEnd) => {
+  const conflictRange = formatCycleRange(conflictCycle?.startDate, conflictCycle?.endDate);
+  const proposedRange = formatCycleRange(proposedStart, proposedEnd);
+  return `El rango ${proposedRange} se cruza con el ciclo ${conflictRange}. Cambia la fecha para que los ciclos no se superpongan.`;
+};
+
 const generateCycleDaysForRecord = (recordIsoDate, cycleStartIsoDate) => {
   if (!recordIsoDate || !cycleStartIsoDate) return 0;
   const rDate = startOfDay(parseISO(recordIsoDate));
@@ -199,10 +283,13 @@ export const createNewCycleDB = async (userId, startDate) => {
       startDate: overlapDoc.data().start_date,
       endDate: overlapDoc.data().end_date,
     };
-    const error = new Error('Cycle dates overlap with an existing cycle');
-    error.code = 'cycle-overlap';
-    error.conflictCycle = overlapInfo;
-    throw error;
+    throw createAppError(
+      'cycle-overlap',
+      'Las fechas se superponen',
+      buildCycleOverlapMessage(overlapInfo, startDate, null),
+      { conflictCycle: overlapInfo, proposedStart: startDate, proposedEnd: null },
+      { label: 'Cambiar fecha', hint: 'Elige una fecha de inicio que no pise otro ciclo.' }
+    );
   }
 
   const docRef = await addDoc(collection(db, `users/${userId}/cycles`), {
@@ -221,9 +308,13 @@ const resolveSplitEntryIsoDate = (entry) => {
   if (typeof entry.timestamp === 'string' && isValid(parseISO(entry.timestamp))) {
     return format(parseISO(entry.timestamp), 'yyyy-MM-dd');
   }
-  const error = new Error('Entry has invalid date');
-  error.code = 'split-invalid-entry';
-  throw error;
+  throw createAppError(
+    'split-invalid-entry',
+    'Hay una fecha inválida en un registro',
+    'No se pudo mover un registro porque su fecha no tiene un formato válido. Usa yyyy-MM-dd o una fecha ISO completa.',
+    { entryDate: entry?.iso_date ?? entry?.timestamp ?? null },
+    { label: 'Revisar fecha', hint: 'Corrige la fecha del registro y vuelve a intentarlo.' }
+  );
 };
 
 const sortCyclesByStartDate = (docs) =>
@@ -260,7 +351,13 @@ const moveEntriesWithMeasurementsDB = async ({
   toCycleStartIso,
 }) => {
   if (!userId || !fromCycleId || !toCycleId || !toCycleStartIso) {
-    throw new Error('Missing data for moving entries');
+    throw createAppError(
+      'split-invalid-entry',
+      'Faltan datos para mover registros',
+      'No se pudieron mover los registros porque faltan datos necesarios. Revisa la fecha y vuelve a intentarlo.',
+      { userId: userId ?? null, fromCycleId: fromCycleId ?? null, toCycleId: toCycleId ?? null, toCycleStartIso: toCycleStartIso ?? null },
+      { label: 'Revisar fecha' }
+    );
   }
 
   const sourceEntriesRef = collection(db, `users/${userId}/cycles/${fromCycleId}/entries`);
@@ -294,10 +391,13 @@ const moveEntriesWithMeasurementsDB = async ({
       continue;
     }
     if (targetEntriesByIso.has(iso)) {
-      const error = new Error('New cycle already has multiple entries for the same date');
-      error.code = 'split-date-conflict';
-      error.conflictDate = iso;
-      throw error;
+      throw createAppError(
+        'split-date-conflict',
+        'Hay fechas duplicadas',
+        `Ya existen entradas duplicadas para el día ${iso} en el ciclo destino.`,
+        { conflictDate: iso },
+        { label: 'Eliminar/combinar entradas duplicadas' }
+      );
     }
     targetEntriesByIso.set(iso, { id: targetDoc.id, ref: targetDoc.ref, data: targetDoc.data() });
   }
@@ -455,14 +555,24 @@ const recalcCycleDayForAllEntriesDB = async (userId, cycleId, cycleStartIso) => 
 
 export const splitCycleAtDate = async (userId, previousCycleId, newCycleId, startDateS) => {
   if (!userId || !previousCycleId || !newCycleId || !startDateS) {
-    throw new Error('Missing data for cycle split');
+    throw createAppError(
+      'split-invalid-entry',
+      'Faltan datos para dividir el ciclo',
+      'No se pudo dividir el ciclo porque faltan datos requeridos. Revisa la fecha elegida e inténtalo de nuevo.',
+      { userId: userId ?? null, previousCycleId: previousCycleId ?? null, newCycleId: newCycleId ?? null, startDate: startDateS ?? null },
+      { label: 'Revisar fecha' }
+    );
   }
 
   const startDate = parseISO(startDateS);
   if (!isValid(startDate)) {
-    const error = new Error('Invalid split start date');
-    error.code = 'split-invalid-date';
-    throw error;
+    throw createAppError(
+      'split-invalid-date',
+      'La fecha de inicio no es válida',
+      'La fecha ingresada para iniciar el nuevo ciclo no tiene un formato válido. Usa yyyy-MM-dd o ISO.',
+      { startDate: startDateS },
+      { label: 'Revisar fecha' }
+    );
   }
 
   const previousEntriesRef = collection(db, `users/${userId}/cycles/${previousCycleId}/entries`);
@@ -501,10 +611,13 @@ export const splitCycleAtDate = async (userId, previousCycleId, newCycleId, star
       continue;
     }
     if (newEntriesByIso.has(iso)) {
-      const error = new Error('New cycle already has multiple entries for the same date');
-      error.code = 'split-date-conflict';
-      error.conflictDate = iso; // 'yyyy-MM-dd'
-      throw error;
+      throw createAppError(
+        'split-date-conflict',
+        'Hay fechas duplicadas',
+        `Ya existen entradas duplicadas para el día ${iso} en el ciclo destino.`,
+        { conflictDate: iso },
+        { label: 'Eliminar/combinar entradas duplicadas' }
+      );
     }
     newEntriesByIso.set(iso, { id: d.id, ref: d.ref, data });
   }
@@ -623,12 +736,24 @@ export const splitCycleAtDate = async (userId, previousCycleId, newCycleId, star
 
 export const startNewCycleDB = async (userId, previousCycleId, startDate) => {
   if (!userId || !startDate) {
-    throw new Error('Missing user or start date');
+    throw createAppError(
+      'cycle-range-invalid',
+      'Faltan datos del ciclo',
+      'No se puede iniciar un ciclo nuevo sin la fecha de inicio.',
+      { userId: userId ?? null, startDate: startDate ?? null },
+      { label: 'Cambiar fecha' }
+    );
   }
 
   const newStart = parseISO(startDate);
   if (!isValid(newStart)) {
-    throw new Error('Invalid start date');
+    throw createAppError(
+      'cycle-range-invalid',
+      'La fecha de inicio no es válida',
+      'La fecha de inicio no tiene un formato válido. Corrígela e inténtalo de nuevo.',
+      { startDate },
+      { label: 'Cambiar fecha' }
+    );
   }
 
   const cyclesRef = collection(db, `users/${userId}/cycles`);
@@ -649,10 +774,13 @@ export const startNewCycleDB = async (userId, previousCycleId, startDate) => {
       startDate: overlapDoc.data().start_date,
       endDate: overlapDoc.data().end_date,
     };
-    const error = new Error('Cycle dates overlap with an existing cycle');
-    error.code = 'cycle-overlap';
-    error.conflictCycle = overlapInfo;
-    throw error;
+    throw createAppError(
+      'cycle-overlap',
+      'Las fechas se superponen',
+      buildCycleOverlapMessage(overlapInfo, startDate, null),
+      { conflictCycle: overlapInfo, proposedStart: startDate, proposedEnd: null },
+      { label: 'Cambiar fecha', hint: 'Elige una fecha de inicio fuera del rango en conflicto.' }
+    );
   }
 
   const newCycleRef = doc(collection(db, `users/${userId}/cycles`));
@@ -824,14 +952,30 @@ export const deleteCycleEntryDB = async (userId, cycleId, entryId) => {
 export const archiveCycleDB = async (cycleId, userId, endDate) => {
   const cycleRef = doc(db, `users/${userId}/cycles/${cycleId}`);
   const cycleSnap = await getDoc(cycleRef);
-  if (!cycleSnap.exists()) throw new Error('Cycle not found');
+  if (!cycleSnap.exists()) {
+    throw createAppError(
+      'unknown',
+      'No se encontró el ciclo',
+      'No pudimos archivar el ciclo porque ya no existe.',
+      { cycleId, userId },
+      { label: 'Actualizar pantalla' }
+    );
+  }
   await updateDoc(cycleRef, { end_date: endDate });
 };
 
 export const updateCycleDatesDB = async (cycleId, userId, startDate, endDate, validateOnly = false) => {
   const cycleRef = doc(db, `users/${userId}/cycles/${cycleId}`);
   const cycleSnap = await getDoc(cycleRef);
-  if (!cycleSnap.exists()) throw new Error('Cycle not found');
+  if (!cycleSnap.exists()) {
+    throw createAppError(
+      'unknown',
+      'No se encontró el ciclo',
+      'No pudimos actualizar las fechas porque el ciclo ya no existe.',
+      { cycleId, userId },
+      { label: 'Actualizar pantalla' }
+    );
+  }
   
   const currentData = cycleSnap.data();
   const proposedStart = startDate ?? currentData.start_date;
@@ -840,7 +984,13 @@ export const updateCycleDatesDB = async (cycleId, userId, startDate, endDate, va
   const proposedEndDate = proposedEnd ? parseISO(proposedEnd) : null;
 
   if (proposedStartDate && proposedEndDate && proposedEndDate < proposedStartDate) {
-    throw new Error('End date cannot be earlier than start date');
+    throw createAppError(
+      'cycle-range-invalid',
+      'Rango de fechas inválido',
+      'La fecha de fin no puede ser anterior a la fecha de inicio. Corrige la fecha final.',
+      { startDate: proposedStart, endDate: proposedEnd, invalidField: 'endDate' },
+      { label: 'Cambiar fecha' }
+    );
   }
 
   const cyclesRef = collection(db, `users/${userId}/cycles`);
@@ -869,10 +1019,13 @@ export const updateCycleDatesDB = async (cycleId, userId, startDate, endDate, va
   }
 
   if (overlapDoc) {
-    const error = new Error('Cycle dates overlap with an existing cycle');
-    error.code = 'cycle-overlap';
-    error.conflictCycle = overlapInfo;
-    throw error;
+    throw createAppError(
+      'cycle-overlap',
+      'Las fechas se superponen',
+      buildCycleOverlapMessage(overlapInfo, proposedStart, proposedEnd),
+      { conflictCycle: overlapInfo, proposedStart, proposedEnd },
+      { label: 'Cambiar fecha' }
+    );
   }
 
   const updatePayload = {};
@@ -897,7 +1050,13 @@ export const forceShiftNextCycleStart = async (
 
   const parsedNewEnd = startOfDay(parseISO(newEndDate));
   if (!isValid(parsedNewEnd)) {
-    throw new Error('Invalid end date');
+    throw createAppError(
+      'cycle-range-invalid',
+      'La fecha de fin no es válida',
+      'La fecha de fin no tiene un formato válido. Corrígela para continuar.',
+      { endDate: newEndDate, invalidField: 'endDate' },
+      { label: 'Cambiar fecha' }
+    );
   }
 
   const cyclesRef = collection(db, `users/${userId}/cycles`);
@@ -910,9 +1069,17 @@ export const forceShiftNextCycleStart = async (
   const effectiveCurrentStart = currentCycleStartDate || current.data.start_date || null;
   const currentStartDate = effectiveCurrentStart ? startOfDay(parseISO(effectiveCurrentStart)) : null;
   if (currentStartDate && parsedNewEnd < currentStartDate) {
-    const error = new Error('End date cannot be earlier than start date');
-    error.code = 'cycle-range-invalid';
-    throw error;
+    throw createAppError(
+      'cycle-range-invalid',
+      'Rango de fechas inválido',
+      'La fecha de fin no puede ser anterior al inicio del ciclo actual. Corrige la fecha final.',
+      {
+        startDate: effectiveCurrentStart || current.data.start_date || null,
+        endDate: newEndDate,
+        invalidField: 'endDate',
+      },
+      { label: 'Cambiar fecha' }
+    );
   }
 
   const proposedStart = startOfDay(addDays(parsedNewEnd, 1));
@@ -921,22 +1088,35 @@ export const forceShiftNextCycleStart = async (
   if (nextNext?.data?.start_date) {
     const nextNextStart = startOfDay(parseISO(nextNext.data.start_date));
     if (proposedStart >= nextNextStart) {
-      const error = new Error('Cycle dates overlap with an existing cycle');
-      error.code = 'cycle-overlap';
-      error.conflictCycle = {
+      const conflictCycle = {
         id: nextNext.id,
         startDate: nextNext.data.start_date,
         endDate: nextNext.data.end_date,
       };
-      throw error;
+      throw createAppError(
+        'cycle-overlap',
+        'Las fechas se superponen',
+        buildCycleOverlapMessage(conflictCycle, proposedStartIso, next.data.end_date ?? null),
+        { conflictCycle, proposedStart: proposedStartIso, proposedEnd: next.data.end_date ?? null },
+        { label: 'Cambiar fecha' }
+      );
     }
    }
    if (next.data.end_date) {
     const nextEnd = startOfDay(parseISO(next.data.end_date));
     if (proposedStart > nextEnd) {
-      const error = new Error('Cycle end is earlier than start');
-      error.code = 'cycle-range-invalid';
-      throw error;
+      throw createAppError(
+        'cycle-range-invalid',
+        'Rango de fechas inválido',
+        'La fecha de inicio propuesta para el siguiente ciclo queda después de su fecha de fin. Corrige las fechas.',
+        {
+          nextCycleId: next.id,
+          nextStartDate: proposedStartIso,
+          nextEndDate: next.data.end_date,
+          invalidField: 'startDate',
+        },
+        { label: 'Cambiar fecha' }
+      );
     }
   }
 const nextStart = startOfDay(parseISO(next.data.start_date));
@@ -962,7 +1142,13 @@ export const forceUpdateCycleStart = async (userId, currentCycleId, newStartDate
 
   const newStart = startOfDay(parseISO(newStartDate));
   if (!isValid(newStart)) {
-    throw new Error('Invalid start date');
+    throw createAppError(
+      'cycle-range-invalid',
+      'La fecha de inicio no es válida',
+      'La fecha de inicio no tiene un formato válido. Corrígela para continuar.',
+      { startDate: newStartDate, invalidField: 'startDate' },
+      { label: 'Cambiar fecha' }
+    );
   }
 
   const cyclesRef = collection(db, `users/${userId}/cycles`);
@@ -979,35 +1165,51 @@ export const forceUpdateCycleStart = async (userId, currentCycleId, newStartDate
   if (previous?.data?.start_date) {
     const previousStart = startOfDay(parseISO(previous.data.start_date));
     if (newStart <= previousStart) {
-      const error = new Error('Cycle dates overlap with an existing cycle');
-      error.code = 'cycle-overlap';
-      error.conflictCycle = {
+      const conflictCycle = {
         id: previous.id,
         startDate: previous.data.start_date,
         endDate: previous.data.end_date,
       };
-      throw error;
+      throw createAppError(
+        'cycle-overlap',
+        'Las fechas se superponen',
+        buildCycleOverlapMessage(conflictCycle, format(newStart, 'yyyy-MM-dd'), current.data.end_date ?? null),
+        { conflictCycle, proposedStart: format(newStart, 'yyyy-MM-dd'), proposedEnd: current.data.end_date ?? null },
+        { label: 'Cambiar fecha' }
+      );
     }
   }
 
   if (next?.data?.start_date) {
     const nextStart = startOfDay(parseISO(next.data.start_date));
     if (newStart >= nextStart) {
-      const error = new Error('Cycle dates overlap with an existing cycle');
-      error.code = 'cycle-overlap';
-      error.conflictCycle = {
+      const conflictCycle = {
         id: next.id,
         startDate: next.data.start_date,
         endDate: next.data.end_date,
       };
-      throw error;
+      throw createAppError(
+        'cycle-overlap',
+        'Las fechas se superponen',
+        buildCycleOverlapMessage(conflictCycle, format(newStart, 'yyyy-MM-dd'), current.data.end_date ?? null),
+        { conflictCycle, proposedStart: format(newStart, 'yyyy-MM-dd'), proposedEnd: current.data.end_date ?? null },
+        { label: 'Cambiar fecha' }
+      );
     }
   }
 
   if (currentEnd && newStart > currentEnd) {
-    const error = new Error('Cycle start is later than cycle end');
-    error.code = 'cycle-range-invalid';
-    throw error;
+    throw createAppError(
+      'cycle-range-invalid',
+      'Rango de fechas inválido',
+      'La fecha de inicio no puede ser posterior a la fecha de fin del ciclo. Corrige la fecha de inicio.',
+      {
+        startDate: format(newStart, 'yyyy-MM-dd'),
+        endDate: current.data.end_date,
+        invalidField: 'startDate',
+      },
+      { label: 'Cambiar fecha' }
+    );
   }
 
   if (previous) {
@@ -1047,26 +1249,46 @@ export const deleteCycleDB = async (userId, cycleId) => {
 
 export const undoCurrentCycleDB = async (userId, currentCycleId) => {
   if (!userId || !currentCycleId) {
-    throw new Error('Missing user or cycle ID');
+    throw createAppError(
+      'undo-not-current',
+      'No se puede deshacer este ciclo',
+      'Faltan datos para deshacer el ciclo actual. Vuelve a abrir el ciclo e inténtalo otra vez.',
+      { userId: userId ?? null, currentCycleId: currentCycleId ?? null },
+      { label: 'Volver al ciclo actual' }
+    );
   }
 
   const currentCycleRef = doc(db, `users/${userId}/cycles/${currentCycleId}`);
   const currentCycleSnap = await getDoc(currentCycleRef);
   if (!currentCycleSnap.exists()) {
-    throw new Error('Cycle not found');
+    throw createAppError(
+      'undo-not-current',
+      'No se encontró el ciclo actual',
+      'No pudimos deshacer el ciclo porque ya no existe.',
+      { currentCycleId },
+      { label: 'Actualizar pantalla' }
+    );
   }
 
   const currentData = currentCycleSnap.data();
   if (currentData.end_date !== null && currentData.end_date !== undefined) {
-    const error = new Error('Cannot undo a non-current cycle');
-    error.code = 'undo-not-current';
-    throw error;
+    throw createAppError(
+      'undo-not-current',
+      'Solo puedes deshacer el ciclo actual',
+      'Este ciclo ya está cerrado. Para deshacer, abre el ciclo actual.',
+      { currentCycleId, endDate: currentData.end_date },
+      { label: 'Volver al ciclo actual' }
+    );
   }
 
   if (!currentData.start_date || !isValid(parseISO(currentData.start_date))) {
-    const error = new Error('Current cycle has invalid start date');
-    error.code = 'undo-not-current';
-    throw error;
+    throw createAppError(
+      'undo-not-current',
+      'No se puede deshacer el ciclo',
+      'La fecha de inicio del ciclo actual no es válida. Corrige la fecha del ciclo actual.',
+      { currentCycleId, startDate: currentData.start_date ?? null },
+      { label: 'Cambiar fecha' }
+    );
   }
 
   const cyclesSnap = await getDocs(collection(db, `users/${userId}/cycles`));
@@ -1078,14 +1300,24 @@ export const undoCurrentCycleDB = async (userId, currentCycleId) => {
     .sort((a, b) => (b.start_date || '').localeCompare(a.start_date || ''));
 
   if (!previousCycles.length) {
-    const error = new Error('No previous cycle available');
-    error.code = 'no-previous-cycle';
-    throw error;
+    throw createAppError(
+      'no-previous-cycle',
+      'No hay un ciclo anterior para recuperar',
+      'No encontramos un ciclo previo que termine justo antes del ciclo actual. Revisa las fechas de tus ciclos.',
+      { currentCycleId, expectedPreviousEndDate: dayBefore },
+      { label: 'Revisar fechas de ciclos' }
+    );
   }
 
   const previousCycle = previousCycles[0];
   if (!previousCycle.start_date || !isValid(parseISO(previousCycle.start_date))) {
-    throw new Error('Previous cycle has invalid start date');
+    throw createAppError(
+      'no-previous-cycle',
+      'El ciclo anterior tiene una fecha inválida',
+      'No se puede deshacer porque el ciclo anterior tiene una fecha de inicio no válida.',
+      { previousCycleId: previousCycle.id, previousStartDate: previousCycle.start_date ?? null },
+      { label: 'Cambiar fecha' }
+    );
   }
 
   const resolveIsoDate = (entry) => {
@@ -1095,9 +1327,13 @@ export const undoCurrentCycleDB = async (userId, currentCycleId) => {
     if (typeof entry.timestamp === 'string' && isValid(parseISO(entry.timestamp))) {
       return format(parseISO(entry.timestamp), 'yyyy-MM-dd');
     }
-    const error = new Error('Entry has invalid date');
-    error.code = 'undo-invalid-entry';
-    throw error;
+    throw createAppError(
+      'split-invalid-entry',
+      'Hay una fecha inválida en un registro',
+      'No se pudo deshacer porque un registro tiene una fecha inválida. Usa yyyy-MM-dd o ISO.',
+      { entryDate: entry?.iso_date ?? entry?.timestamp ?? null },
+      { label: 'Revisar fecha' }
+    );
   };
 
   const resolveIsoDateForSet = (entry) => {
@@ -1136,10 +1372,13 @@ export const undoCurrentCycleDB = async (userId, currentCycleId) => {
     const entryData = entryDoc.data();
     const isoDate = resolveIsoDate(entryData);
     if (existingIsoDates.has(isoDate)) {
-      const error = new Error('Entry date conflicts with previous cycle');
-      error.code = 'undo-date-conflict';
-      error.conflictDate = isoDate;
-      throw error;
+      throw createAppError(
+        'undo-date-conflict',
+        'Hay conflicto de fechas al deshacer',
+        `Ya existe una entrada para el día ${isoDate} en el ciclo anterior.`,
+        { conflictDate: isoDate, previousCycleId: previousCycle.id },
+        { label: 'Eliminar/combinar entradas duplicadas' }
+      );
     }
     existingIsoDates.add(isoDate);
     return { ref: entryDoc.ref, id: entryDoc.id, data: entryData, isoDate };

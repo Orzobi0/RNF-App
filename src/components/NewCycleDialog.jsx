@@ -9,8 +9,11 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format, isValid, parseISO, startOfDay } from 'date-fns';
+import { es } from 'date-fns/locale';
+import { Calendar as CalendarIcon } from 'lucide-react';
 import OverlapWarningDialog from '@/components/OverlapWarningDialog';
 
 const NewCycleDialog = ({
@@ -72,6 +75,19 @@ const NewCycleDialog = ({
     return format(d, 'dd/MM/yyyy');
   })();
 
+  const selectedStartDate = startDate ? startOfDay(parseISO(startDate)) : null;
+  const recordedDates = currentCycleRecords
+    .map((record) => {
+      if (!record?.isoDate) return null;
+      const parsed = startOfDay(parseISO(record.isoDate));
+      return isValid(parsed) ? parsed : null;
+    })
+    .filter(Boolean);
+
+  const currentCycleRange = currentCycleStartDate
+    ? { from: startOfDay(parseISO(currentCycleStartDate)), to: startOfDay(new Date()) }
+    : undefined;
+
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
@@ -88,15 +104,47 @@ const NewCycleDialog = ({
             <label htmlFor="startDate" className="text-gray-700 text-sm">
               Fecha de inicio del nuevo ciclo
             </label>
-            <Input
-              id="startDate"
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              max={format(new Date(), 'yyyy-MM-dd')}
-              min={isFirstCycle ? undefined : format(parseISO(currentCycleStartDate), 'yyyy-MM-dd')}
-              className="bg-gray-50 border-gray-200 text-gray-800"
-            />
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="mt-1 w-full justify-start border-gray-200 bg-gray-50 text-left font-normal text-gray-800"
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {selectedStartDate
+                    ? format(selectedStartDate, 'PPP', { locale: es })
+                    : 'Selecciona una fecha'}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={selectedStartDate}
+                  onSelect={(selectedDate) => {
+                    if (!selectedDate) return;
+                    setStartDate(format(startOfDay(selectedDate), 'yyyy-MM-dd'));
+                  }}
+                  locale={es}
+                  initialFocus
+                  disabled={[
+                    { after: startOfDay(new Date()) },
+                    ...(isFirstCycle
+                      ? []
+                      : [{ before: startOfDay(parseISO(currentCycleStartDate)) }]),
+                  ]}
+                  modifiers={{
+                    hasRecord: recordedDates,
+                    inActiveCycle: currentCycleRange,
+                  }}
+                  modifiersClassNames={{
+                    hasRecord:
+                      'relative after:content-[""] after:absolute after:inset-x-0 after:bottom-1 after:mx-auto after:h-1.5 after:w-1.5 after:rounded-full after:bg-fertiliapp-fuerte',
+                    inActiveCycle: 'in-cycle-soft-outline',
+                  }}
+                />
+              </PopoverContent>
+            </Popover>
           </div>
           <DialogFooter className="sm:justify-end">
             <Button
