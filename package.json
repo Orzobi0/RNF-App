@@ -9,7 +9,10 @@
     "build": "vite build",
     "preview": "vite preview",
     "predeploy": "npm run build",
-    "deploy": "gh-pages -d dist"
+    "deploy": "gh-pages -d dist",
+    "dev:staging": "vite --mode staging",
+  "build:staging": "vite build --mode staging",
+  "preview:staging": "vite preview --mode staging"
   },
   "dependencies": {
     "@capacitor/android": "^5.7.8",

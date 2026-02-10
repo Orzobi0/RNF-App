@@ -1,7 +1,10 @@
 {
   "projects": {
-    "default": "rnf-app"
-  },
+  "default": "fertiliapp-staging",
+  "staging": "fertiliapp-staging",
+  "prod": "rnf-app"
+}
+,
   "targets": {
     "rnf-app": {
       "hosting": {
