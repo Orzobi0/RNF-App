@@ -17,7 +17,8 @@ import {
   deleteCycleDB,
   undoCurrentCycleDB,
   forceUpdateCycleStart as forceUpdateCycleStartDB,
-  forceShiftNextCycleStart as forceShiftNextCycleStartDB
+  forceShiftNextCycleStart as forceShiftNextCycleStartDB,
+  createCycleBeforeDB,
 } from '@/lib/cycleDataHandler';
 import {
   deleteRecordDB,
@@ -92,6 +93,36 @@ const normalizeCycleRange = (startDate, endDate) => {
 };
 
 const getTodayIso = () => format(startOfDay(new Date()), 'yyyy-MM-dd');
+
+const findCycleForIsoDate = (isoDate, currentCycleData, archivedCyclesData) => {
+  if (!isoDate) return null;
+  const allCycles = [currentCycleData, ...(Array.isArray(archivedCyclesData) ? archivedCyclesData : [])]
+    .filter((cycle) => cycle?.id && cycle?.startDate)
+    .sort((a, b) => (b.startDate || '').localeCompare(a.startDate || ''));
+
+  return (
+    allCycles.find((cycle) => {
+      const startsBeforeOrOnDate = cycle.startDate <= isoDate;
+      const endsAfterOrOnDate = !cycle.endDate || isoDate <= cycle.endDate;
+      return startsBeforeOrOnDate && endsAfterOrOnDate;
+    }) || null
+  );
+};
+
+const findClosestCycleForIsoDate = (isoDate, currentCycleData, archivedCyclesData) => {
+  if (!isoDate) return null;
+  const allCycles = [currentCycleData, ...(Array.isArray(archivedCyclesData) ? archivedCyclesData : [])]
+    .filter((cycle) => cycle?.id && cycle?.startDate)
+    .sort((a, b) => (a.startDate || '').localeCompare(b.startDate || ''));
+
+  if (!allCycles.length) return null;
+  if (isoDate < allCycles[0].startDate) return allCycles[0];
+
+  const firstAfterIsoDate = allCycles.find((cycle) => cycle.startDate > isoDate);
+  if (firstAfterIsoDate) return firstAfterIsoDate;
+
+  return allCycles[allCycles.length - 1];
+};
 
 const hydrateCycleWithRecords = async (userId, cycleData) => {
   const { startDate, endDate } = normalizeCycleRange(cycleData?.startDate, cycleData?.endDate);
@@ -388,8 +419,8 @@ export const CycleDataProvider = ({ children }) => {
 
   const addOrUpdateDataPoint = useCallback(
     async (newData, editingRecord, targetCycleId = null) => {
-      const cycleIdToUse = targetCycleId ?? currentCycle.id;
-      if (!user?.uid || !cycleIdToUse) {
+            let cycleIdToUse = targetCycleId ?? currentCycle.id;
+      if (!user?.uid) {
         console.error('User or cycle id is missing');
         throw new Error('User or cycle id is missing');
       }
@@ -397,6 +428,75 @@ export const CycleDataProvider = ({ children }) => {
       setIsLoading(true);
 
       try {
+        if (isRecordsDataModelV1) {
+          const matchingCycle = findCycleForIsoDate(newData.isoDate, currentCycle, archivedCycles);
+          if (matchingCycle?.id) {
+            if (matchingCycle.id !== cycleIdToUse) {
+              console.log(
+                `[records_v1] outside-cycle isoDate=${newData.isoDate} action=use-matching-cycle cycleId=${matchingCycle.id}`
+              );
+            }
+            cycleIdToUse = matchingCycle.id;
+          } else {
+            const closestCycle = findClosestCycleForIsoDate(newData.isoDate, currentCycle, archivedCycles);
+            if (!closestCycle?.id || !closestCycle?.startDate) {
+              throw new Error('No cycle available to place record in records_v1 model');
+            }
+
+            const choice = window.prompt(
+              `La fecha ${newData.isoDate} está fuera de todos los ciclos.\n` +
+                `Escribe 1 para mover el inicio del ciclo (${closestCycle.startDate})\n` +
+                `Escribe 2 para crear un ciclo nuevo anterior que incluya esa fecha.`
+            );
+
+            if (choice !== '1' && choice !== '2') {
+              console.log(
+                `[records_v1] outside-cycle isoDate=${newData.isoDate} action=cancelled choice=${choice ?? 'null'}`
+              );
+              return;
+            }
+
+            if (choice === '1') {
+              console.log(
+                `[records_v1] outside-cycle isoDate=${newData.isoDate} action=move-start cycleId=${closestCycle.id}`
+              );
+              await forceUpdateCycleStartDB(user.uid, closestCycle.id, newData.isoDate);
+            } else {
+              const newCycleEndDate = format(
+                addDays(startOfDay(parseISO(closestCycle.startDate)), -1),
+                'yyyy-MM-dd'
+              );
+              console.log(
+                `[records_v1] outside-cycle isoDate=${newData.isoDate} action=create-new-cycle start=${newData.isoDate} end=${newCycleEndDate}`
+              );
+              await createCycleBeforeDB(user.uid, newData.isoDate, newCycleEndDate);
+            }
+
+            await loadCycleData({ silent: true });
+
+            const refreshedCurrentCycle = await fetchCurrentCycleDB(user.uid);
+            const refreshedArchivedCycles = await fetchArchivedCyclesDB(
+              user.uid,
+              refreshedCurrentCycle ? refreshedCurrentCycle.startDate : null
+            );
+            const cycleAfterAdjustment = findCycleForIsoDate(
+              newData.isoDate,
+              refreshedCurrentCycle,
+              refreshedArchivedCycles
+            );
+
+            if (!cycleAfterAdjustment?.id) {
+              throw new Error('Could not resolve a cycle for record after outside-cycle adjustment');
+            }
+
+            cycleIdToUse = cycleAfterAdjustment.id;
+          }
+        }
+
+        if (!cycleIdToUse) {
+          throw new Error('Cycle id is missing');
+        }
+
         const targetCycle =
           cycleIdToUse === currentCycle.id
             ? currentCycle
