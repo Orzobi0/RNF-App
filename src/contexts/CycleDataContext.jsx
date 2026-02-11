@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import {
   processCycleEntries,
   createNewCycleEntry,
+  createNewCycleDB,
   updateCycleEntry,
   deleteCycleEntryDB,
   startNewCycleDB,
