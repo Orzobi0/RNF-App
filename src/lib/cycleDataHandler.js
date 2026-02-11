@@ -945,8 +945,29 @@ export const selectMeasurement = async (userId, cycleId, entryId, measurementId)
     mSnap.docs.map((d) => updateDoc(d.ref, { selected: d.id === measurementId }))
   );
 };
+
+const deleteDocRefsInBatches = async (docRefs, batchLimit = 400) => {
+  if (!Array.isArray(docRefs) || docRefs.length === 0) return;
+
+  for (let i = 0; i < docRefs.length; i += batchLimit) {
+    const chunk = docRefs.slice(i, i + batchLimit);
+    const batch = writeBatch(db);
+    chunk.forEach((ref) => batch.delete(ref));
+    await batch.commit();
+  }
+};
+
 export const deleteCycleEntryDB = async (userId, cycleId, entryId) => {
-  await deleteDoc(doc(db, `users/${userId}/cycles/${cycleId}/entries/${entryId}`));
+  const entryRef = doc(db, `users/${userId}/cycles/${cycleId}/entries/${entryId}`);
+  const measurementsRef = collection(
+    db,
+    `users/${userId}/cycles/${cycleId}/entries/${entryId}/measurements`
+  );
+  const measurementsSnap = await getDocs(measurementsRef);
+
+  const measurementRefs = measurementsSnap.docs.map((measurementDoc) => measurementDoc.ref);
+  await deleteDocRefsInBatches(measurementRefs);
+  await deleteDoc(entryRef);
 };
 
 export const archiveCycleDB = async (cycleId, userId, endDate) => {
@@ -1243,7 +1264,21 @@ export const forceUpdateCycleStart = async (userId, currentCycleId, newStartDate
 export const deleteCycleDB = async (userId, cycleId) => {
   const entriesRef = collection(db, `users/${userId}/cycles/${cycleId}/entries`);
   const entriesSnap = await getDocs(entriesRef);
-  await Promise.all(entriesSnap.docs.map((d) => deleteDoc(d.ref)));
+  
+  const measurementRefs = [];
+  for (const entryDoc of entriesSnap.docs) {
+    const measurementsRef = collection(
+      db,
+      `users/${userId}/cycles/${cycleId}/entries/${entryDoc.id}/measurements`
+    );
+    const measurementsSnap = await getDocs(measurementsRef);
+    measurementsSnap.docs.forEach((measurementDoc) => {
+      measurementRefs.push(measurementDoc.ref);
+    });
+  }
+
+  await deleteDocRefsInBatches(measurementRefs);
+  await deleteDocRefsInBatches(entriesSnap.docs.map((entryDoc) => entryDoc.ref));
   await deleteDoc(doc(db, `users/${userId}/cycles/${cycleId}`));
 };
 
@@ -1446,3 +1481,5 @@ export const undoCurrentCycleDB = async (userId, currentCycleId) => {
     await batch.commit();
   }
 };
+
+
