@@ -43,6 +43,7 @@ import {
 const VIEW_ALL_STORAGE_KEY_PREFIX = 'dataEntryForm:viewAll:';
 const DEFAULT_SECTION_STORAGE_KEY = '__default__';
 const RADIUS = { field: 'rounded-3xl', dropdown: 'rounded-3xl' };
+const isRecordsDataModelV1 = import.meta.env.VITE_DATA_MODEL === 'records_v1';
 const DataEntryFormFields = ({
   date,
   setDate,
@@ -120,9 +121,15 @@ const DataEntryFormFields = ({
     [isViewAll, sectionKeys, activeSection]
   );
 
-  const cycleStart = startOfDay(parseISO(cycleStartDate));
+  const cycleStart = cycleStartDate ? startOfDay(parseISO(cycleStartDate)) : null;
   const cycleEnd = cycleEndDate ? startOfDay(parseISO(cycleEndDate)) : null;
-  const disabledDateRanges = cycleEnd ? [{ before: cycleStart }, { after: cycleEnd }] : [{ before: cycleStart }];
+  const disabledDateRanges = isRecordsDataModelV1
+    ? undefined
+    : cycleStart
+      ? cycleEnd
+        ? [{ before: cycleStart }, { after: cycleEnd }]
+        : [{ before: cycleStart }]
+      : undefined;
   const selectedIsoDate = date ? format(date, 'yyyy-MM-dd') : null;
   const [dockOffset, setDockOffset] = useState(0);
   const appearanceInputRef = useRef(null);
