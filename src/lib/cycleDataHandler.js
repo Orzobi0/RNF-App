@@ -301,6 +301,68 @@ export const createNewCycleDB = async (userId, startDate) => {
   return { id: docRef.id, start_date: startDate };
 };
 
+export const createCycleBeforeDB = async (userId, startDateIso, endDateIso) => {
+  if (!userId || !startDateIso || !endDateIso) {
+    throw createAppError(
+      'cycle-range-invalid',
+      'Faltan fechas del ciclo',
+      'No se puede crear un ciclo sin fechas de inicio y fin válidas.',
+      { userId: userId ?? null, startDateIso: startDateIso ?? null, endDateIso: endDateIso ?? null },
+      { label: 'Cambiar fecha' }
+    );
+  }
+
+  const start = startOfDay(parseISO(startDateIso));
+  const end = startOfDay(parseISO(endDateIso));
+
+  if (!isValid(start) || !isValid(end) || start > end) {
+    throw createAppError(
+      'cycle-range-invalid',
+      'Rango de fechas inválido',
+      'La fecha de inicio debe ser igual o anterior a la fecha de fin.',
+      { startDateIso, endDateIso },
+      { label: 'Cambiar fecha' }
+    );
+  }
+
+  const cyclesRef = collection(db, `users/${userId}/cycles`);
+  const cyclesSnap = await getDocs(cyclesRef);
+
+  const overlapDoc = cyclesSnap.docs.find((docSnap) => {
+    const data = docSnap.data();
+    const cycleStart = data.start_date ? startOfDay(parseISO(data.start_date)) : null;
+    const cycleEnd = data.end_date ? startOfDay(parseISO(data.end_date)) : new Date('9999-12-31');
+
+    if (!cycleStart) return false;
+    return start <= cycleEnd && end >= cycleStart;
+  });
+
+  if (overlapDoc) {
+    const overlapInfo = {
+      id: overlapDoc.id,
+      startDate: overlapDoc.data().start_date,
+      endDate: overlapDoc.data().end_date,
+    };
+    throw createAppError(
+      'cycle-overlap',
+      'Las fechas se superponen',
+      buildCycleOverlapMessage(overlapInfo, startDateIso, endDateIso),
+      { conflictCycle: overlapInfo, proposedStart: startDateIso, proposedEnd: endDateIso },
+      { label: 'Cambiar fecha', hint: 'El rango debe quedar fuera de otros ciclos.' }
+    );
+  }
+
+  const cycleRef = doc(collection(db, `users/${userId}/cycles`));
+  await setDoc(cycleRef, {
+    user_id: userId,
+    start_date: startDateIso,
+    end_date: endDateIso,
+    ignored_auto_calculations: false,
+  });
+
+  return { id: cycleRef.id, start_date: startDateIso, end_date: endDateIso };
+};
+
 const resolveSplitEntryIsoDate = (entry) => {
   if (entry.iso_date && isValid(parseISO(entry.iso_date))) {
     return format(parseISO(entry.iso_date), 'yyyy-MM-dd');
