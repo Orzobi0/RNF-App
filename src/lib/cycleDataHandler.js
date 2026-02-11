@@ -863,6 +863,67 @@ export const startNewCycleDB = async (userId, previousCycleId, startDate) => {
   return { id: newCycleRef.id, start_date: startDate };
 };
 
+export const createCycleBeforeDB = async (userId, startDateIso, endDateIso) => {
+  if (!userId || !startDateIso || !endDateIso) {
+    throw createAppError(
+      'cycle-range-invalid',
+      'Faltan datos del ciclo',
+      'No se puede crear el ciclo sin fecha de inicio y fin.',
+      { userId: userId ?? null, startDateIso: startDateIso ?? null, endDateIso: endDateIso ?? null },
+      { label: 'Cambiar fecha' }
+    );
+  }
+
+  const proposedStart = startOfDay(parseISO(startDateIso));
+  const proposedEnd = startOfDay(parseISO(endDateIso));
+  if (!isValid(proposedStart) || !isValid(proposedEnd) || proposedEnd < proposedStart) {
+    throw createAppError(
+      'cycle-range-invalid',
+      'Rango de fechas inválido',
+      'La fecha de fin no puede ser anterior a la fecha de inicio. Corrige las fechas.',
+      { startDate: startDateIso, endDate: endDateIso, invalidField: 'endDate' },
+      { label: 'Cambiar fecha' }
+    );
+  }
+
+  const cyclesRef = collection(db, `users/${userId}/cycles`);
+  const cyclesSnap = await getDocs(cyclesRef);
+  const overlapDoc = cyclesSnap.docs.find((docSnap) => {
+    const data = docSnap.data();
+    if (!data.start_date) return false;
+    const cycleStart = startOfDay(parseISO(data.start_date));
+    const cycleEnd = data.end_date
+      ? startOfDay(parseISO(data.end_date))
+      : startOfDay(parseISO('9999-12-31'));
+    return proposedStart <= cycleEnd && cycleStart <= proposedEnd;
+  });
+
+  if (overlapDoc) {
+    const overlapInfo = {
+      id: overlapDoc.id,
+      startDate: overlapDoc.data().start_date,
+      endDate: overlapDoc.data().end_date,
+    };
+    throw createAppError(
+      'cycle-overlap',
+      'Las fechas se superponen',
+      buildCycleOverlapMessage(overlapInfo, startDateIso, endDateIso),
+      { conflictCycle: overlapInfo, proposedStart: startDateIso, proposedEnd: endDateIso },
+      { label: 'Cambiar fecha' }
+    );
+  }
+
+  const newCycleRef = doc(collection(db, `users/${userId}/cycles`));
+  await setDoc(newCycleRef, {
+    user_id: userId,
+    start_date: startDateIso,
+    end_date: endDateIso,
+    ignored_auto_calculations: false,
+  });
+
+  return { id: newCycleRef.id, start_date: startDateIso, end_date: endDateIso };
+};
+
 export const createNewCycleEntry = async (payload) => {
   const userId = payload.user_id;
   const timestamp = payload.timestamp ?? new Date().toISOString();
