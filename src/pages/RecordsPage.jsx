@@ -48,6 +48,7 @@ const CALENDAR_SWIPE_VELOCITY = 750;
 const CALENDAR_EXIT_OFFSET = 120;
 const CALENDAR_DRAG_LIMIT = 85;
 const CALENDAR_DRAG_ACTIVATION_THRESHOLD = 5;
+const isRecordsDataModelV1 = import.meta.env.VITE_DATA_MODEL === 'records_v1';
 const CALENDAR_SNAP_DURATION = 180;
 const isRecordsDataModelV1 = import.meta.env.VITE_DATA_MODEL === 'records_v1';
 // Formatea la temperatura para la UI. Devuelve null si el valor no es numérico.
