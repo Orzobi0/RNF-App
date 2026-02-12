@@ -17,7 +17,7 @@ import { ToastAction } from '@/components/ui/toast';
 import { HeaderIconButton, HeaderIconButtonPrimary } from '@/components/HeaderIconButton';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Edit, Plus, ClipboardList, Heart } from 'lucide-react';
+import { Edit, Plus, ClipboardList, Heart, AlertTriangle } from 'lucide-react';
 import NewCycleDialog from '@/components/NewCycleDialog';
 import {
   format,
@@ -42,6 +42,8 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import DataIssuesBanner from '@/components/DataIssuesBanner';
 import DataRepairDialog from '@/components/DataRepairDialog';
+import CycleGapWarningDialog from '@/components/CycleGapWarningDialog';
+import { getContiguityWarningForDraft, sortCyclesByStartDate } from '@/lib/cycleIntegrity';
 
 const getSymbolInfo = (symbolValue) =>
   FERTILITY_SYMBOL_OPTIONS.find((symbol) => symbol.value === symbolValue) || FERTILITY_SYMBOL_OPTIONS[0];
@@ -85,6 +87,7 @@ export const RecordsExperience = ({
   dateEditorDeleteDescription = 'Esta acción no se puede deshacer. Se eliminarán todos los registros asociados.',
   dateEditorDeleteLabel = 'Eliminar ciclo',
   isDeletingCycle = false,
+  cycleIntegrityWarning = null,
 } = {}) => {
   const {
     currentCycle: contextCurrentCycle,
@@ -146,6 +149,8 @@ export const RecordsExperience = ({
   const [pendingIncludeEndDate, setPendingIncludeEndDate] = useState(false);
   const [overlapCycle, setOverlapCycle] = useState(null);
   const [showOverlapDialog, setShowOverlapDialog] = useState(false);
+  const [showGapWarningDialog, setShowGapWarningDialog] = useState(false);
+  const [pendingGapWarning, setPendingGapWarning] = useState(null);
   const [isUpdatingStartDate, setIsUpdatingStartDate] = useState(false);
   const [selectedDate, setSelectedDate] = useState(null);
   const [defaultFormIsoDate, setDefaultFormIsoDate] = useState(null);
@@ -960,6 +965,18 @@ const enterStart = -exitTarget;
     setDraftEndDate(cycle?.endDate || '');
   }, [cycle?.startDate, cycle?.endDate, resetStartDateFlow]);
 
+  const handleAdjustFromIntegrity = useCallback((mode) => {
+    if (!cycleIntegrityWarning) return;
+    if ((mode === 'prev' || mode === 'both') && cycleIntegrityWarning.suggestedStartDate) {
+      setDraftStartDate(cycleIntegrityWarning.suggestedStartDate);
+    }
+    if ((mode === 'next' || mode === 'both') && cycleIntegrityWarning.suggestedEndDate && includeEndDate) {
+      setDraftEndDate(cycleIntegrityWarning.suggestedEndDate);
+    }
+    setStartDateError('');
+    setShowStartDateEditor(true);
+  }, [cycleIntegrityWarning, includeEndDate]);
+
   const handleConfirmUndoCycle = useCallback(async () => {
     if (!contextCurrentCycle?.id) return;
     setIsUndoingCycle(true);
@@ -1123,6 +1140,25 @@ const enterStart = -exitTarget;
         return;
       }
 
+      const allCyclesSorted = sortCyclesByStartDate([...(archivedCycles ?? []), contextCurrentCycle].filter(Boolean));
+      const gapWarning = getContiguityWarningForDraft({
+        cycles: allCyclesSorted,
+        cycleId: cycle.id,
+        draftStartDate,
+        draftEndDate: includeEndDate ? draftEndDate || undefined : undefined,
+      });
+
+      if (gapWarning.hasGapBefore || gapWarning.hasGapAfter) {
+        setPendingGapWarning({
+          ...gapWarning,
+          newStartDate: draftStartDate,
+          newEndDate: includeEndDate ? draftEndDate || undefined : undefined,
+        });
+        setShowGapWarningDialog(true);
+        setIsUpdatingStartDate(false);
+        return;
+      }
+
       await updateCycleDates(
         cycle.id,
         draftStartDate,
@@ -1157,6 +1193,8 @@ const enterStart = -exitTarget;
     includeEndDate,
     cycle?.id,
     checkCycleOverlap,
+    archivedCycles,
+    contextCurrentCycle,
     updateCycleDates,
     refreshData,
     toast,
@@ -1226,6 +1264,43 @@ const enterStart = -exitTarget;
     closeStartDateEditor,
     resetStartDateFlow,
   ]);
+
+  const handleConfirmGapSave = useCallback(async () => {
+    if (!cycle?.id || !pendingGapWarning) return;
+    setIsUpdatingStartDate(true);
+    setShowGapWarningDialog(false);
+    try {
+      await updateCycleDates(cycle.id, pendingGapWarning.newStartDate, pendingGapWarning.newEndDate);
+      await refreshData({ silent: true });
+      toast({ title: 'Fechas actualizadas', description: 'Se guardaron fechas no contiguas.' });
+      closeStartDateEditor();
+    } finally {
+      setIsUpdatingStartDate(false);
+      setPendingGapWarning(null);
+    }
+  }, [cycle?.id, pendingGapWarning, updateCycleDates, refreshData, toast, closeStartDateEditor]);
+
+  const handleConfirmGapAutoAdjust = useCallback(async () => {
+    if (!cycle?.id || !pendingGapWarning) return;
+    const nextStart = pendingGapWarning.autoAdjustStartDate
+      ? format(pendingGapWarning.autoAdjustStartDate, 'yyyy-MM-dd')
+      : pendingGapWarning.newStartDate;
+    const nextEnd = pendingGapWarning.autoAdjustEndDate
+      ? format(pendingGapWarning.autoAdjustEndDate, 'yyyy-MM-dd')
+      : pendingGapWarning.newEndDate;
+
+    setIsUpdatingStartDate(true);
+    setShowGapWarningDialog(false);
+    try {
+      await updateCycleDates(cycle.id, nextStart, nextEnd);
+      await refreshData({ silent: true });
+      toast({ title: 'Fechas auto-ajustadas', description: 'Se restauró la contigüidad del ciclo.' });
+      closeStartDateEditor();
+    } finally {
+      setIsUpdatingStartDate(false);
+      setPendingGapWarning(null);
+    }
+  }, [cycle?.id, pendingGapWarning, updateCycleDates, refreshData, toast, closeStartDateEditor]);
 
 
 
@@ -1592,6 +1667,27 @@ const enterStart = -exitTarget;
               </motion.div>
             
               <DataIssuesBanner issues={cycle?.issues} onReview={() => openDataRepairDialog?.(cycle?.id)} />
+              {cycleIntegrityWarning?.hasGap && (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3">
+                  <div className="flex items-start gap-2 text-amber-900">
+                    <AlertTriangle className="mt-0.5 h-4 w-4" />
+                    <div className="text-sm">
+                      <p className="font-semibold">Este ciclo tiene un hueco respecto al ciclo anterior/siguiente.</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {cycleIntegrityWarning.suggestedStartDate && (
+                          <Button size="sm" variant="outline" onClick={() => handleAdjustFromIntegrity('prev')}>Ajustar al anterior</Button>
+                        )}
+                        {cycleIntegrityWarning.suggestedEndDate && includeEndDate && (
+                          <Button size="sm" variant="outline" onClick={() => handleAdjustFromIntegrity('next')}>Ajustar al siguiente</Button>
+                        )}
+                        {cycleIntegrityWarning.suggestedStartDate && cycleIntegrityWarning.suggestedEndDate && includeEndDate && (
+                          <Button size="sm" onClick={() => handleAdjustFromIntegrity('both')}>Auto-ajustar ambos</Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
             {showStartDateEditor && (
               <motion.div
@@ -1803,6 +1899,16 @@ const enterStart = -exitTarget;
             : ''
         }
         isProcessing={isProcessing}
+      />
+      <CycleGapWarningDialog
+        isOpen={showGapWarningDialog}
+        warning={pendingGapWarning}
+        onCancel={() => {
+          setShowGapWarningDialog(false);
+          setPendingGapWarning(null);
+        }}
+        onConfirmSave={handleConfirmGapSave}
+        onConfirmAutoAdjust={handleConfirmGapAutoAdjust}
       />
     </div>
   );

@@ -5,9 +5,10 @@ import { useCycleData } from '@/hooks/useCycleData';
 import { useToast } from '@/components/ui/use-toast';
 import { HeaderIconButton, HeaderIconButtonPrimary } from '@/components/HeaderIconButton';
 import { ArrowLeft, BarChart3, Pencil, Plus } from 'lucide-react';
-import { differenceInDays, startOfDay, parseISO, format } from 'date-fns';
+import { addDays, differenceInDays, format, isValid, parseISO, startOfDay, subDays } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 import { RecordsExperience } from '@/pages/RecordsPage.jsx';
+import { computeCycleIntegrity, getNextCycleById, getPrevCycleById, sortCyclesByStartDate } from '@/lib/cycleIntegrity';
 
 const generateCycleDaysForRecord = (recordIsoDate, cycleStartIsoDate) => {
   const recordDate = startOfDay(parseISO(recordIsoDate));
@@ -31,6 +32,8 @@ const CycleDetailPage = () => {
   const { user } = useAuth();
   const {
     getCycleById,
+    currentCycle,
+    archivedCycles,
     isLoading: cycleDataHookIsLoading,
     addOrUpdateDataPoint,
     deleteRecord,
@@ -217,6 +220,30 @@ const CycleDetailPage = () => {
     );
   }
 
+  const orderedCycles = sortCyclesByStartDate([
+    ...(archivedCycles ?? []),
+    currentCycle,
+  ].filter(Boolean));
+  const integrityByCycleId = computeCycleIntegrity(orderedCycles);
+  const cycleIntegrity = integrityByCycleId[cycleData.id];
+  const prevCycle = getPrevCycleById(orderedCycles, cycleData.id);
+  const nextCycle = getNextCycleById(orderedCycles, cycleData.id);
+  const cycleIntegrityWarning = {
+    hasGap: Boolean(cycleIntegrity?.hasGapBefore || cycleIntegrity?.hasGapAfter),
+    suggestedStartDate: prevCycle?.endDate
+      ? (() => {
+          const parsed = parseISO(prevCycle.endDate);
+          return isValid(parsed) ? format(addDays(startOfDay(parsed), 1), 'yyyy-MM-dd') : null;
+        })()
+      : null,
+    suggestedEndDate: nextCycle?.startDate
+      ? (() => {
+          const parsed = parseISO(nextCycle.startDate);
+          return isValid(parsed) ? format(subDays(startOfDay(parsed), 1), 'yyyy-MM-dd') : null;
+        })()
+      : null,
+  };
+
   return (
     <div className="relative flex h-[calc(var(--app-vh,1vh)*100 - var(--bottom-nav-safe))] flex-col overflow-hidden">
       <RecordsExperience
@@ -237,6 +264,7 @@ const CycleDetailPage = () => {
             ? `Se eliminará el ciclo ${cycleRangeLabel} y todos sus registros asociados.`
             : 'Se eliminará este ciclo y todos sus registros asociados.'
         }
+        cycleIntegrityWarning={cycleIntegrityWarning}
       />
       <DeletionDialog
         isOpen={showCycleDeleteDialog}
