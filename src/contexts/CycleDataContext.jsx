@@ -329,7 +329,16 @@ export const CycleDataProvider = ({ children }) => {
       const currentData = Array.isArray(cycle.data) ? cycle.data : [];
 
       if (remove) {
-        return { ...cycle, data: currentData.filter((entry) => entry.id !== entryId) };
+        const nextData = currentData.filter((entry) => entry.id !== entryId);
+        return {
+          ...cycle,
+          data: nextData,
+          issues: detectCycleDataIssues({
+            cycleStartIso: cycle.startDate,
+            cycleEndIso: cycle.endDate,
+            entries: nextData,
+          }),
+        };
       }
 
       const existingEntry = currentData.find((entry) => entry.id === entryId) || null;
@@ -370,6 +379,29 @@ export const CycleDataProvider = ({ children }) => {
           : entry
       );
       return { ...cycle, data: nextData };
+    };
+
+    setCurrentCycle((prevCycle) => applyUpdate(prevCycle));
+    setArchivedCycles((prevCycles) => prevCycles.map((cycle) => applyUpdate(cycle)));
+  }, []);
+
+  const removeEntriesFromCycleState = useCallback((cycleId, entryIds) => {
+    const idsToRemove = new Set(Array.isArray(entryIds) ? entryIds.filter(Boolean) : []);
+    if (!cycleId || idsToRemove.size === 0) return;
+
+    const applyUpdate = (cycle) => {
+      if (!cycle || cycle.id !== cycleId) return cycle;
+      const currentData = Array.isArray(cycle.data) ? cycle.data : [];
+      const nextData = currentData.filter((entry) => !idsToRemove.has(entry.id));
+      return {
+        ...cycle,
+        data: nextData,
+        issues: detectCycleDataIssues({
+          cycleStartIso: cycle.startDate,
+          cycleEndIso: cycle.endDate,
+          entries: nextData,
+        }),
+      };
     };
 
     setCurrentCycle((prevCycle) => applyUpdate(prevCycle));
@@ -1105,20 +1137,24 @@ export const CycleDataProvider = ({ children }) => {
   const resolveDuplicateIssue = useCallback(async ({ cycleId, isoDate, winnerEntryId, loserEntryIds, moveMeasurements }) => {
     if (!user?.uid) return;
     await resolveDuplicateIsoDateDB({ userId: user.uid, cycleId, isoDate, winnerEntryId, loserEntryIds, moveMeasurements });
-    await loadCycleData({ silent: true });
-  }, [user, loadCycleData]);
+    removeEntriesFromCycleState(cycleId, loserEntryIds);
+    if (moveMeasurements) {
+   await loadCycleData({ silent: true });
+ }
+  }, [user, removeEntriesFromCycleState, loadCycleData]);
 
   const moveOutOfRangeEntry = useCallback(async ({ fromCycleId, toCycleId, entryId, isoDate }) => {
     if (!user?.uid) return;
     await moveEntryToCycleDB({ userId: user.uid, fromCycleId, toCycleId, entryId, isoDate, strategy: 'upsert-by-iso' });
+    removeEntriesFromCycleState(fromCycleId, [entryId]);
     await loadCycleData({ silent: true });
-  }, [user, loadCycleData]);
+  }, [user, loadCycleData, removeEntriesFromCycleState]);
 
   const deleteIssueEntry = useCallback(async ({ cycleId, entryId }) => {
     if (!user?.uid) return;
     await deleteEntryWithMeasurementsDB(user.uid, cycleId, entryId);
-    await loadCycleData({ silent: true });
-  }, [user, loadCycleData]);
+    removeEntriesFromCycleState(cycleId, [entryId]);
+  }, [user, removeEntriesFromCycleState]);
 
   const getPublicError = useCallback((error) => toPublicError(error), []);
 

@@ -1193,6 +1193,20 @@ const deleteDocRefsInBatches = async (docRefs, batchLimit = 400) => {
   }
 };
 
+const deleteEntryDeep = async ({ userId, cycleId, entryId, measurementRefs = null, batchLimit = 450 }) => {
+  const refsToDelete = Array.isArray(measurementRefs)
+    ? measurementRefs
+    : (
+      await getDocs(
+        collection(db, `users/${userId}/cycles/${cycleId}/entries/${entryId}/measurements`)
+      )
+    ).docs.map((measurementDoc) => measurementDoc.ref);
+  await deleteDocRefsInBatches(refsToDelete, batchLimit);
+
+  const loserEntryRef = doc(db, `users/${userId}/cycles/${cycleId}/entries/${entryId}`);
+  await deleteDoc(loserEntryRef);
+};
+
 export const deleteCycleEntryDB = async (userId, cycleId, entryId) => {
   const entryRef = doc(db, `users/${userId}/cycles/${cycleId}/entries/${entryId}`);
   const entrySnap = await getDoc(entryRef);
@@ -1266,9 +1280,13 @@ export const resolveDuplicateIsoDateDB = async ({
         await addDoc(winnerMeasurementsRef, measurementDoc.data());
       }
     }
-    await deleteDocRefsInBatches(loserMeasurementsSnap.docs.map((d) => d.ref));
-    const loserEntryRef = doc(db, `users/${userId}/cycles/${cycleId}/entries/${loserEntryId}`);
-    await deleteDoc(loserEntryRef);
+    await deleteEntryDeep({
+      userId,
+      cycleId,
+      entryId: loserEntryId,
+      measurementRefs: loserMeasurementsSnap.docs.map((measurementDoc) => measurementDoc.ref),
+      batchLimit: 450,
+    });
   }
 
   const indexRef = doc(db, `users/${userId}/cycles/${cycleId}/entries_by_iso/${isoDate}`);

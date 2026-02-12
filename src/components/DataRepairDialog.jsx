@@ -7,7 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 const formatDateLabel = (iso) => {
   if (!iso) return 'Fecha inválida';
   const d = parseISO(iso);
-  return isValid(d) ? format(d, 'dd/MM/yyyy') : iso;
+  return isValid(d) ? format(d, 'dd-MM-yyyy') : iso;
 };
 
 const EntryPreviewCard = ({ entry }) => {
@@ -41,6 +41,7 @@ const DataRepairDialog = ({
   const [selectedWinners, setSelectedWinners] = useState({});
   const [moveMeasurementsByIso, setMoveMeasurementsByIso] = useState({});
   const [targetCycleByEntry, setTargetCycleByEntry] = useState({});
+  const [pendingActionKey, setPendingActionKey] = useState(null);
 
   const issues = cycle?.issues;
 
@@ -53,6 +54,19 @@ const DataRepairDialog = ({
     }
     return map;
   }, [cycle?.id, cycles, issues?.outOfRange]);
+
+  
+  const sortedTargetCycles = useMemo(() => (
+    (cycles || [])
+      .filter((c) => c?.id !== cycle?.id)
+      .slice()
+      .sort((a, b) => {
+        const endA = a?.endDate || '9999-12-31';
+        const endB = b?.endDate || '9999-12-31';
+        if (endA !== endB) return endB.localeCompare(endA);
+        return (a?.startDate || '').localeCompare(b?.startDate || '');
+      })
+  ), [cycle?.id, cycles]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -102,15 +116,21 @@ const DataRepairDialog = ({
                     type="button"
                     onClick={async () => {
                       if (!window.confirm('¿Confirmas resolver este duplicado? Esta acción elimina registros duplicados.')) return;
-                      await onResolveDuplicate({
-                        cycleId: cycle.id,
-                        isoDate: dup.isoDate,
-                        winnerEntryId: winner,
-                        loserEntryIds: losers,
-                        moveMeasurements,
-                      });
+                      const actionKey = `resolve-${dup.isoDate}`;
+                      setPendingActionKey(actionKey);
+                      try {
+                        await onResolveDuplicate({
+                          cycleId: cycle.id,
+                          isoDate: dup.isoDate,
+                          winnerEntryId: winner,
+                          loserEntryIds: losers,
+                          moveMeasurements,
+                        });
+                      } finally {
+                        setPendingActionKey((prev) => (prev === actionKey ? null : prev));
+                      }
                     }}
-                    disabled={!losers.length}
+                    disabled={!losers.length || pendingActionKey === `resolve-${dup.isoDate}`}
                   >
                     Aplicar
                   </Button>
@@ -127,7 +147,7 @@ const DataRepairDialog = ({
               return (
                 <div key={issue.entryId} className="rounded-xl border p-3 space-y-2 bg-slate-50">
                   <div className="text-sm">
-                    Fecha: <b>{issue.isoDateResolved ?? 'inválida'}</b> · Rango ciclo: {cycle?.startDate} - {cycle?.endDate || 'abierto'}
+                    Fecha: <b>{issue.isoDateResolved ? formatDateLabel(issue.isoDateResolved) : 'inválida'}</b> · Rango ciclo: {formatDateLabel(cycle?.startDate)} - {cycle?.endDate ? formatDateLabel(cycle.endDate) : 'actualidad'}
                   </div>
                   <EntryPreviewCard entry={issue} />
                   <div className="flex flex-wrap items-center gap-2">
@@ -137,26 +157,30 @@ const DataRepairDialog = ({
                       onChange={(e) => setTargetCycleByEntry((prev) => ({ ...prev, [issue.entryId]: e.target.value }))}
                     >
                       <option value="">Seleccionar ciclo destino…</option>
-                      {(cycles || [])
-                        .filter((c) => c?.id !== cycle?.id)
-                        .map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.startDate} - {c.endDate || 'abierto'}
-                          </option>
-                        ))}
+                      {sortedTargetCycles.map((c) => (
+                        <option key={c.id} value={c.id}>                            
+                          {formatDateLabel(c.startDate)} - {c.endDate ? formatDateLabel(c.endDate) : 'actualidad'}
+                        </option>
+                      ))}
                     </select>
                     <Button
                       type="button"
                       variant="outline"
-                      disabled={!selectedTarget || !issue.isoDateResolved}
+                      disabled={!selectedTarget || !issue.isoDateResolved || pendingActionKey === `move-${issue.entryId}`}
                       onClick={async () => {
                         if (!window.confirm('¿Mover este registro al ciclo seleccionado?')) return;
-                        await onMoveOutOfRange({
-                          fromCycleId: cycle.id,
-                          toCycleId: selectedTarget,
-                          entryId: issue.entryId,
-                          isoDate: issue.isoDateResolved,
-                        });
+                        const actionKey = `move-${issue.entryId}`;
+                        setPendingActionKey(actionKey);
+                        try {
+                          await onMoveOutOfRange({
+                            fromCycleId: cycle.id,
+                            toCycleId: selectedTarget,
+                            entryId: issue.entryId,
+                            isoDate: issue.isoDateResolved,
+                          });
+                        } finally {
+                          setPendingActionKey((prev) => (prev === actionKey ? null : prev));
+                        }
                       }}
                     >
                       Mover
@@ -164,9 +188,16 @@ const DataRepairDialog = ({
                     <Button
                       type="button"
                       variant="destructive"
+                      disabled={pendingActionKey === `delete-${issue.entryId}`}
                       onClick={async () => {
                         if (!window.confirm('¿Eliminar este registro y sus mediciones?')) return;
-                        await onDeleteEntry({ cycleId: cycle.id, entryId: issue.entryId });
+                        const actionKey = `delete-${issue.entryId}`;
+                        setPendingActionKey(actionKey);
+                        try {
+                          await onDeleteEntry({ cycleId: cycle.id, entryId: issue.entryId });
+                        } finally {
+                          setPendingActionKey((prev) => (prev === actionKey ? null : prev));
+                        }
                       }}
                     >
                       Eliminar este registro
