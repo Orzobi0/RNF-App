@@ -6,11 +6,12 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { differenceInCalendarDays, format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Archive, Plus, Calendar, BarChart3, SlidersHorizontal } from 'lucide-react';
+import { Archive, Plus, Calendar, BarChart3, SlidersHorizontal, AlertTriangle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import EditCycleDatesDialog from '@/components/EditCycleDatesDialog';
 import DeletionDialog from '@/components/DeletionDialog';
 import { useToast } from '@/components/ui/use-toast';
+import { computeCycleIntegrity, sortCyclesByStartDate } from '@/lib/cycleIntegrity';
 
 const ArchivedCyclesPage = () => {
   const {
@@ -180,6 +181,7 @@ const ArchivedCyclesPage = () => {
     : archivedCycles;
 
   const hasCachedCycles = allCycles && allCycles.length > 0;
+  const integrityByCycleId = computeCycleIntegrity(sortCyclesByStartDate(allCycles));
 
   if (isLoading && !hasCachedCycles) {
     return (
@@ -360,6 +362,8 @@ const ArchivedCyclesPage = () => {
                   startToShow && endToShow
                     ? Math.max(1, differenceInCalendarDays(endToShow, startToShow) + 1)
                     : null;
+                const integrity = integrityByCycleId[cycle.id];
+                const isNonContiguous = Boolean(integrity?.hasGapBefore || integrity?.hasGapAfter);
 
                 return (
                   <motion.button
@@ -405,6 +409,13 @@ const ArchivedCyclesPage = () => {
                             <h2 className="truncate text-[15px] font-semibold text-slate-700">
                               {startToShow ? formatArchivedDate(startToShow) : ''} - {endDate}
                             </h2>
+                            {isNonContiguous && (
+                              <AlertTriangle
+                                className="h-4 w-4 text-amber-500"
+                                title="Ciclo no contiguo (hay hueco)"
+                                aria-label="Ciclo no contiguo (hay hueco)"
+                              />
+                            )}
                           </div>
                           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-slate-600">
                             <div className="flex items-center space-x-1">

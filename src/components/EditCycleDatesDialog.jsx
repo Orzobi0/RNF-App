@@ -15,6 +15,8 @@ import OverlapWarningDialog from './OverlapWarningDialog';
 import { format, parseISO, isValid, startOfDay, isSameDay, isAfter, isBefore } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Calendar as CalendarIcon } from 'lucide-react';
+import CycleGapWarningDialog from './CycleGapWarningDialog';
+import { getContiguityWarningForDraft, sortCyclesByStartDate } from '@/lib/cycleIntegrity';
 
 const EditCycleDatesDialog = ({
   isOpen,
@@ -39,6 +41,8 @@ const EditCycleDatesDialog = ({
   const [overlapCycle, setOverlapCycle] = useState(null);
   const [pendingPayload, setPendingPayload] = useState(null);
   const [showOverlapDialog, setShowOverlapDialog] = useState(false);
+  const [showGapWarningDialog, setShowGapWarningDialog] = useState(false);
+  const [gapWarning, setGapWarning] = useState(null);
 
   useBackClose(isOpen, onClose);
 
@@ -129,6 +133,12 @@ const EditCycleDatesDialog = ({
     .filter(Boolean);
 
   const handleConfirm = async () => {
+    const parsedStart = toDate(startDate);
+    const parsedEnd = includeEndDate ? toDate(endDate) : null;
+    if (!parsedStart || (includeEndDate && !parsedEnd)) {
+      setEndDateError('Ingresa fechas válidas.');
+      return;
+    }
     if (includeEndDate && !endDate) {
       setEndDateError('La fecha de fin es obligatoria');
       return;
@@ -153,6 +163,26 @@ const EditCycleDatesDialog = ({
         return;
       }
     }
+
+    if (cycleId) {
+      const sorted = sortCyclesByStartDate(otherCycles ?? []);
+      const warning = getContiguityWarningForDraft({
+        cycles: sorted,
+        cycleId,
+        draftStartDate: startDate,
+        draftEndDate: includeEndDate ? endDate || undefined : undefined,
+      });
+      if (warning.hasGapBefore || warning.hasGapAfter) {
+        setGapWarning({
+          ...warning,
+          newStartDate: startDate,
+          newEndDate: includeEndDate ? endDate || undefined : undefined,
+        });
+        setShowGapWarningDialog(true);
+        return;
+      }
+    }
+
     onConfirm(payload);
   };
 
@@ -304,6 +334,31 @@ const EditCycleDatesDialog = ({
           if (pendingPayload) {
             onConfirm({ ...pendingPayload, force: true });
           }
+        }}
+      />
+      <CycleGapWarningDialog
+        isOpen={showGapWarningDialog}
+        warning={gapWarning}
+        onCancel={() => {
+          setShowGapWarningDialog(false);
+          setGapWarning(null);
+        }}
+        onConfirmSave={() => {
+          setShowGapWarningDialog(false);
+          if (gapWarning) {
+            onConfirm({ startDate: gapWarning.newStartDate, endDate: gapWarning.newEndDate });
+          }
+        }}
+        onConfirmAutoAdjust={() => {
+          if (!gapWarning) return;
+          const adjustedStart = gapWarning.autoAdjustStartDate
+            ? format(gapWarning.autoAdjustStartDate, 'yyyy-MM-dd')
+            : gapWarning.newStartDate;
+          const adjustedEnd = gapWarning.autoAdjustEndDate
+            ? format(gapWarning.autoAdjustEndDate, 'yyyy-MM-dd')
+            : gapWarning.newEndDate;
+          setShowGapWarningDialog(false);
+          onConfirm({ startDate: adjustedStart, endDate: adjustedEnd });
         }}
       />
     </>
