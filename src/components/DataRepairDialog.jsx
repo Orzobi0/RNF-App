@@ -3,6 +3,7 @@ import { format, isValid, parseISO } from 'date-fns';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import DeletionDialog from '@/components/DeletionDialog';
 
 const formatDateLabel = (iso) => {
   if (!iso) return 'Fecha inválida';
@@ -44,6 +45,7 @@ const DataRepairDialog = ({
   const [pendingActionKey, setPendingActionKey] = useState(null);
   const [resolvedDuplicateDates, setResolvedDuplicateDates] = useState({});
   const [resolvedOutOfRangeEntries, setResolvedOutOfRangeEntries] = useState({});
+  const [confirmationState, setConfirmationState] = useState(null);
 
   const issues = cycle?.issues;
 
@@ -87,7 +89,20 @@ const DataRepairDialog = ({
     setSelectedWinners({});
     setMoveMeasurementsByIso({});
     setTargetCycleByEntry({});
+    setConfirmationState(null);
   }, [open, cycle?.id]);
+
+  const handleConfirmAction = async () => {
+    if (!confirmationState) return;
+    const { actionKey, execute } = confirmationState;
+    setPendingActionKey(actionKey);
+    try {
+      await execute();
+      setConfirmationState(null);
+    } finally {
+      setPendingActionKey((prev) => (prev === actionKey ? null : prev));
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -139,22 +154,24 @@ const DataRepairDialog = ({
                   </label>
                   <Button
                     type="button"
-                    onClick={async () => {
-                      if (!window.confirm('¿Confirmas resolver este duplicado? Esta acción elimina registros duplicados.')) return;
+                    onClick={() => {
                       const actionKey = `resolve-${dup.isoDate}`;
-                      setPendingActionKey(actionKey);
-                      try {
-                        await onResolveDuplicate({
-                          cycleId: cycle.id,
-                          isoDate: dup.isoDate,
-                          winnerEntryId: winner,
-                          loserEntryIds: losers,
-                          moveMeasurements,
-                        });
-                        setResolvedDuplicateDates((prev) => ({ ...prev, [dup.isoDate]: true }));
-                      } finally {
-                        setPendingActionKey((prev) => (prev === actionKey ? null : prev));
-                      }
+                      setConfirmationState({
+                        actionKey,
+                        title: 'Resolver duplicado',
+                        description: '¿Confirmas resolver este duplicado? Esta acción elimina registros duplicados.',
+                        confirmLabel: 'Resolver duplicado',
+                        execute: async () => {
+                          await onResolveDuplicate({
+                            cycleId: cycle.id,
+                            isoDate: dup.isoDate,
+                            winnerEntryId: winner,
+                            loserEntryIds: losers,
+                            moveMeasurements,
+                          });
+                          setResolvedDuplicateDates((prev) => ({ ...prev, [dup.isoDate]: true }));
+                        },
+                      });
                     }}
                     disabled={!losers.length || pendingActionKey === `resolve-${dup.isoDate}`}
                   >
@@ -193,21 +210,23 @@ const DataRepairDialog = ({
                       type="button"
                       variant="outline"
                       disabled={!selectedTarget || !issue.isoDateResolved || pendingActionKey === `move-${issue.entryId}`}
-                      onClick={async () => {
-                        if (!window.confirm('¿Mover este registro al ciclo seleccionado?')) return;
+                      onClick={() => {
                         const actionKey = `move-${issue.entryId}`;
-                        setPendingActionKey(actionKey);
-                        try {
-                          await onMoveOutOfRange({
-                            fromCycleId: cycle.id,
-                            toCycleId: selectedTarget,
-                            entryId: issue.entryId,
-                            isoDate: issue.isoDateResolved,
-                          });
-                          setResolvedOutOfRangeEntries((prev) => ({ ...prev, [issue.entryId]: true }));
-                        } finally {
-                          setPendingActionKey((prev) => (prev === actionKey ? null : prev));
-                        }
+                        setConfirmationState({
+                          actionKey,
+                          title: 'Mover registro',
+                          description: '¿Mover este registro al ciclo seleccionado?',
+                          confirmLabel: 'Mover',
+                          execute: async () => {
+                            await onMoveOutOfRange({
+                              fromCycleId: cycle.id,
+                              toCycleId: selectedTarget,
+                              entryId: issue.entryId,
+                              isoDate: issue.isoDateResolved,
+                            });
+                            setResolvedOutOfRangeEntries((prev) => ({ ...prev, [issue.entryId]: true }));
+                          },
+                        });
                       }}
                     >
                       Mover
@@ -216,16 +235,18 @@ const DataRepairDialog = ({
                       type="button"
                       variant="destructive"
                       disabled={pendingActionKey === `delete-${issue.entryId}`}
-                      onClick={async () => {
-                        if (!window.confirm('¿Eliminar este registro y sus mediciones?')) return;
+                      onClick={() => {
                         const actionKey = `delete-${issue.entryId}`;
-                        setPendingActionKey(actionKey);
-                        try {
-                          await onDeleteEntry({ cycleId: cycle.id, entryId: issue.entryId });
-                          setResolvedOutOfRangeEntries((prev) => ({ ...prev, [issue.entryId]: true }));
-                        } finally {
-                          setPendingActionKey((prev) => (prev === actionKey ? null : prev));
-                        }
+                        setConfirmationState({
+                          actionKey,
+                          title: 'Eliminar registro',
+                          description: '¿Eliminar este registro y sus mediciones?',
+                          confirmLabel: 'Eliminar',
+                          execute: async () => {
+                            await onDeleteEntry({ cycleId: cycle.id, entryId: issue.entryId });
+                            setResolvedOutOfRangeEntries((prev) => ({ ...prev, [issue.entryId]: true }));
+                          },
+                        });
                       }}
                     >
                       Eliminar este registro
@@ -237,6 +258,15 @@ const DataRepairDialog = ({
           </section>
         </div>
       </DialogContent>
+      <DeletionDialog
+        isOpen={Boolean(confirmationState)}
+        onClose={() => setConfirmationState(null)}
+        onConfirm={handleConfirmAction}
+        title={confirmationState?.title}
+        description={confirmationState?.description}
+        confirmLabel={confirmationState?.confirmLabel}
+        isProcessing={Boolean(confirmationState?.actionKey) && pendingActionKey === confirmationState?.actionKey}
+      />
     </Dialog>
   );
 };
