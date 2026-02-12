@@ -4,8 +4,8 @@ import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   processCycleEntries,
-  createNewCycleEntry,
   createNewCycleDB,
+  upsertCycleEntryByIsoDateDB,
   updateCycleEntry,
   deleteCycleEntryDB,
   startNewCycleDB,
@@ -508,7 +508,12 @@ export const CycleDataProvider = ({ children }) => {
           if (isPayloadEmpty) {
             return;
           }
-          const created = await createNewCycleEntry(recordPayload);
+          const created = await upsertCycleEntryByIsoDateDB(
+            user.uid,
+            cycleIdToUse,
+            newData.isoDate,
+            recordPayload
+          );
           savedEntryId = created?.id ?? null;
           if (savedEntryId) {
             updateEntryState(cycleIdToUse, savedEntryId, recordPayload, newData.isoDate);

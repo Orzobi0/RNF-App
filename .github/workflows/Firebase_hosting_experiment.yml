@@ -1,7 +1,7 @@
 name: Deploy experiment site on push
 on:
   push:
-    branches: [develop]
+    branches: [secundaria]
 jobs:
   deploy:
     runs-on: ubuntu-latest

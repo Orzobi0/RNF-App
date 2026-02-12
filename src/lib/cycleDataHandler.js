@@ -8,6 +8,9 @@ import {
   deleteDoc,
   setDoc,
   writeBatch,
+  query,
+  where,
+  limit,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebaseClient';
 import { format, differenceInDays, startOfDay, parseISO, compareAsc, addDays, isValid } from 'date-fns';
@@ -454,6 +457,8 @@ const moveEntriesWithMeasurementsDB = async ({
   for (const entry of entriesToMove) {
     const existingTarget = targetEntriesByIso.get(entry.isoDate);
     const newCycleDay = generateCycleDaysForRecord(entry.isoDate, toCycleStartIso);
+    const sourceIndexRef = doc(db, `users/${userId}/cycles/${fromCycleId}/entries_by_iso/${entry.isoDate}`);
+    const targetIndexRef = doc(db, `users/${userId}/cycles/${toCycleId}/entries_by_iso/${entry.isoDate}`);
 
     if (existingTarget) {
       const updatePayload = { cycle_day: newCycleDay };
@@ -465,6 +470,8 @@ const moveEntriesWithMeasurementsDB = async ({
         }
       }
       await queueUpdate(existingTarget.ref, updatePayload);
+      // Asegura índice en destino (apunta al entry existente)
+      await queueSet(targetIndexRef, { entryId: existingTarget.id });
 
       const measurementsRef = collection(
         db,
@@ -483,11 +490,15 @@ const moveEntriesWithMeasurementsDB = async ({
       }
 
       await queueDelete(entry.ref);
+      // Borra índice del origen (aunque no exista, no pasa nada)
+      await queueDelete(sourceIndexRef);
       continue;
     }
 
     const newEntryRef = doc(db, `users/${userId}/cycles/${toCycleId}/entries/${entry.id}`);
     await queueSet(newEntryRef, { ...entry.data, cycle_day: newCycleDay });
+    // Índice en destino (apunta al entry movido)
+    await queueSet(targetIndexRef, { entryId: entry.id });
 
     const measurementsRef = collection(
       db,
@@ -504,6 +515,7 @@ const moveEntriesWithMeasurementsDB = async ({
     }
 
     await queueDelete(entry.ref);
+    await queueDelete(sourceIndexRef);
   }
 
   if (opCount > 0) {
@@ -671,6 +683,8 @@ export const splitCycleAtDate = async (userId, previousCycleId, newCycleId, star
   for (const entry of entriesToMove) {
     const existingTarget = newEntriesByIso.get(entry.isoDate);
     const newCycleDay = generateCycleDaysForRecord(entry.isoDate, startDateS);
+    const sourceIndexRef = doc(db, `users/${userId}/cycles/${previousCycleId}/entries_by_iso/${entry.isoDate}`);
+    const targetIndexRef = doc(db, `users/${userId}/cycles/${newCycleId}/entries_by_iso/${entry.isoDate}`);
 
     // 2) Si ya hay entry en el destino para esa fecha, fusionamos (no petamos).
     if (existingTarget) {
@@ -683,6 +697,7 @@ export const splitCycleAtDate = async (userId, previousCycleId, newCycleId, star
         }
       }
       await queueUpdate(existingTarget.ref, updatePayload);
+      await queueSet(targetIndexRef, { entryId: existingTarget.id });
 
       const measurementsRef = collection(
         db,
@@ -703,12 +718,14 @@ export const splitCycleAtDate = async (userId, previousCycleId, newCycleId, star
 
       // Eliminamos el entry del ciclo anterior (su “contenido” ya queda en el destino)
       await queueDelete(entry.ref);
+      await queueDelete(sourceIndexRef);
       continue;
     }
 
     // 3) Caso normal: mover entry completo al destino
     const newEntryRef = doc(db, `users/${userId}/cycles/${newCycleId}/entries/${entry.id}`);
     await queueSet(newEntryRef, { ...entry.data, cycle_day: newCycleDay });
+    await queueSet(targetIndexRef, { entryId: entry.id });
 
     const measurementsRef = collection(
       db,
@@ -725,6 +742,7 @@ export const splitCycleAtDate = async (userId, previousCycleId, newCycleId, star
     }
 
     await queueDelete(entry.ref);
+    await queueDelete(sourceIndexRef);
   }
 
   if (opCount > 0) {
@@ -869,6 +887,116 @@ export const createNewCycleEntry = async (payload) => {
   return { id: null };
 };
 
+export const upsertCycleEntryByIsoDateDB = async (userId, cycleId, isoDate, payload) => {
+  if (!userId || !cycleId || !isoDate) {
+    throw createAppError(
+      'invalid-iso-date-upsert',
+      'Faltan datos para guardar el registro',
+      'No se pudo guardar porque faltan datos del ciclo o de la fecha.',
+      { userId: userId ?? null, cycleId: cycleId ?? null, isoDate: isoDate ?? null },
+      { label: 'Reintentar' }
+    );
+  }
+
+  const isoDateKey = String(isoDate);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(isoDateKey)) {
+    throw createAppError(
+      'invalid-iso-date-upsert',
+      'La fecha del registro no es válida',
+      'No se pudo guardar porque la fecha del día no tiene formato yyyy-MM-dd.',
+      { userId, cycleId, isoDate: isoDateKey },
+      { label: 'Revisar fecha' }
+    );
+  }
+
+  const entriesCollectionRef = collection(db, `users/${userId}/cycles/${cycleId}/entries`);
+  const indexRef = doc(db, `users/${userId}/cycles/${cycleId}/entries_by_iso/${isoDateKey}`);
+
+  const entryData = {
+    timestamp: payload.timestamp ?? new Date().toISOString(),
+    iso_date: isoDateKey,
+    temperature_raw: payload.temperature_raw ?? null,
+    temperature_corrected: payload.temperature_corrected ?? null,
+    use_corrected: Boolean(payload.use_corrected),
+    temperature_chart: payload.temperature_chart ?? null,
+    mucus_sensation: payload.mucus_sensation ?? null,
+    mucus_appearance: payload.mucus_appearance ?? null,
+    fertility_symbol: payload.fertility_symbol ?? null,
+    observations: payload.observations ?? null,
+    had_relations: Boolean(payload.had_relations ?? payload.hadRelations ?? false),
+    ignored: Boolean(payload.ignored ?? false),
+    peak_marker: payload.peak_marker ?? null,
+  };
+
+  // 1) Intentar resolver por índice (camino normal, rápido)
+  const indexSnap = await getDoc(indexRef);
+  if (indexSnap.exists()) {
+    const indexedEntryId = indexSnap.data()?.entryId;
+    if (!indexedEntryId) {
+      throw createAppError(
+        'duplicate-iso-date',
+        'Índice diario inválido',
+        `El índice para ${isoDateKey} no tiene entryId y no se puede continuar.`,
+        { userId, cycleId, isoDate: isoDateKey, indexDocId: indexSnap.id },
+        { label: 'Revisar datos duplicados' }
+      );
+    }
+    const indexedEntryRef = doc(entriesCollectionRef, indexedEntryId);
+    const batch = writeBatch(db);
+    batch.set(indexedEntryRef, entryData, { merge: true });
+    batch.set(indexRef, { entryId: indexedEntryId }, { merge: true });
+    await batch.commit();
+    var upsertResult = { id: indexedEntryId };
+  } else {
+    // 2) Legacy: buscar por iso_date fuera de transacción (tu SDK revienta si se hace dentro)
+    const entriesByIsoQuery = query(entriesCollectionRef, where('iso_date', '==', isoDateKey), limit(2));
+    const entriesByIsoSnap = await getDocs(entriesByIsoQuery);
+
+    if (entriesByIsoSnap.size > 1) {
+      const duplicateIds = entriesByIsoSnap.docs.map((entryDoc) => entryDoc.id);
+      throw createAppError(
+        'duplicate-iso-date',
+        'Hay registros duplicados para el mismo día',
+        `Encontramos más de un registro para ${isoDateKey}. Corrige los duplicados antes de guardar.`,
+        { userId, cycleId, isoDate: isoDateKey, duplicateEntryIds: duplicateIds },
+        { label: 'Revisar duplicados' }
+      );
+    }
+
+    const resolvedEntryRef =
+      entriesByIsoSnap.size === 1
+        ? entriesByIsoSnap.docs[0].ref
+        : doc(entriesCollectionRef, isoDateKey); // nuevo día => id determinista
+    const resolvedEntryId =
+      entriesByIsoSnap.size === 1 ? entriesByIsoSnap.docs[0].id : isoDateKey;
+
+    const batch = writeBatch(db);
+    batch.set(resolvedEntryRef, entryData, { merge: true });
+    batch.set(indexRef, { entryId: resolvedEntryId }, { merge: true });
+    await batch.commit();
+    var upsertResult = { id: resolvedEntryId };
+  }
+
+  if (
+    Array.isArray(payload.measurements) &&
+    (payload.measurements.length >= 2 || payload.measurements.length === 0)
+  ) {
+    const measurementsRef = collection(
+      db,
+      `users/${userId}/cycles/${cycleId}/entries/${upsertResult.id}/measurements`
+    );
+    const measurementsSnap = await getDocs(measurementsRef);
+    await deleteDocRefsInBatches(measurementsSnap.docs.map((measurementDoc) => measurementDoc.ref));
+    if (payload.measurements.length >= 2) {
+      for (const measurement of payload.measurements) {
+        await addDoc(measurementsRef, measurement);
+      }
+    }
+  }
+
+  return upsertResult;
+};
+
 export const updateCycleEntry = async (userId, cycleId, entryId, payload) => {
   const entryRef = doc(db, `users/${userId}/cycles/${cycleId}/entries/${entryId}`);
 
@@ -959,6 +1087,7 @@ const deleteDocRefsInBatches = async (docRefs, batchLimit = 400) => {
 
 export const deleteCycleEntryDB = async (userId, cycleId, entryId) => {
   const entryRef = doc(db, `users/${userId}/cycles/${cycleId}/entries/${entryId}`);
+  const entrySnap = await getDoc(entryRef);
   const measurementsRef = collection(
     db,
     `users/${userId}/cycles/${cycleId}/entries/${entryId}/measurements`
@@ -967,6 +1096,29 @@ export const deleteCycleEntryDB = async (userId, cycleId, entryId) => {
 
   const measurementRefs = measurementsSnap.docs.map((measurementDoc) => measurementDoc.ref);
   await deleteDocRefsInBatches(measurementRefs);
+  
+  const resolvedIsoDate = (() => {
+    if (!entrySnap.exists()) return null;
+    const entryData = entrySnap.data();
+    if (typeof entryData?.iso_date === 'string' && entryData.iso_date) return entryData.iso_date;
+    if (typeof entryData?.timestamp === 'string' && isValid(parseISO(entryData.timestamp))) {
+      return format(parseISO(entryData.timestamp), 'yyyy-MM-dd');
+    }
+    return null;
+  })();
+
+  if (resolvedIsoDate) {
+    const indexRef = doc(db, `users/${userId}/cycles/${cycleId}/entries_by_iso/${resolvedIsoDate}`);
+    const indexSnap = await getDoc(indexRef);
+    if (indexSnap.exists() && indexSnap.data()?.entryId === entryId) {
+      await deleteDoc(indexRef);
+    }
+  } else {
+    const indexesRef = collection(db, `users/${userId}/cycles/${cycleId}/entries_by_iso`);
+    const indexSnap = await getDocs(query(indexesRef, where('entryId', '==', entryId), limit(10)));
+    await deleteDocRefsInBatches(indexSnap.docs.map((indexDoc) => indexDoc.ref));
+  }
+
   await deleteDoc(entryRef);
 };
 
@@ -1264,6 +1416,8 @@ export const forceUpdateCycleStart = async (userId, currentCycleId, newStartDate
 export const deleteCycleDB = async (userId, cycleId) => {
   const entriesRef = collection(db, `users/${userId}/cycles/${cycleId}/entries`);
   const entriesSnap = await getDocs(entriesRef);
+  const entriesByIsoRef = collection(db, `users/${userId}/cycles/${cycleId}/entries_by_iso`);
+  const entriesByIsoSnap = await getDocs(entriesByIsoRef);
   
   const measurementRefs = [];
   for (const entryDoc of entriesSnap.docs) {
@@ -1279,6 +1433,7 @@ export const deleteCycleDB = async (userId, cycleId) => {
 
   await deleteDocRefsInBatches(measurementRefs);
   await deleteDocRefsInBatches(entriesSnap.docs.map((entryDoc) => entryDoc.ref));
+  await deleteDocRefsInBatches(entriesByIsoSnap.docs.map((indexDoc) => indexDoc.ref));
   await deleteDoc(doc(db, `users/${userId}/cycles/${cycleId}`));
 };
 
@@ -1455,6 +1610,14 @@ export const undoCurrentCycleDB = async (userId, currentCycleId) => {
     );
     const newCycleDay = generateCycleDaysForRecord(entry.isoDate, previousCycle.start_date);
     await queueSet(newEntryRef, { ...entry.data, cycle_day: newCycleDay });
+
+    // Índice en ciclo anterior
+    const prevIndexRef = doc(db, `users/${userId}/cycles/${previousCycle.id}/entries_by_iso/${entry.isoDate}`);
+    await queueSet(prevIndexRef, { entryId: entry.id });
+
+    // Limpia índice del ciclo actual (evita subcolecciones huérfanas)
+    const currentIndexRef = doc(db, `users/${userId}/cycles/${currentCycleId}/entries_by_iso/${entry.isoDate}`);
+    await queueDelete(currentIndexRef);
 
     const measurementsRef = collection(
       db,
