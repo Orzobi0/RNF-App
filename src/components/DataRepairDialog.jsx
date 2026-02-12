@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { format, isValid, parseISO } from 'date-fns';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -42,6 +42,8 @@ const DataRepairDialog = ({
   const [moveMeasurementsByIso, setMoveMeasurementsByIso] = useState({});
   const [targetCycleByEntry, setTargetCycleByEntry] = useState({});
   const [pendingActionKey, setPendingActionKey] = useState(null);
+  const [resolvedDuplicateDates, setResolvedDuplicateDates] = useState({});
+  const [resolvedOutOfRangeEntries, setResolvedOutOfRangeEntries] = useState({});
 
   const issues = cycle?.issues;
 
@@ -68,18 +70,41 @@ const DataRepairDialog = ({
       })
   ), [cycle?.id, cycles]);
 
+  const visibleDuplicates = useMemo(
+    () => (issues?.duplicates || []).filter((dup) => !resolvedDuplicateDates[dup.isoDate]),
+    [issues?.duplicates, resolvedDuplicateDates]
+  );
+
+  const visibleOutOfRange = useMemo(
+    () => (issues?.outOfRange || []).filter((issue) => !resolvedOutOfRangeEntries[issue.entryId]),
+    [issues?.outOfRange, resolvedOutOfRangeEntries]
+  );
+
+  useEffect(() => {
+    if (!open) return;
+    setResolvedDuplicateDates({});
+    setResolvedOutOfRangeEntries({});
+    setSelectedWinners({});
+    setMoveMeasurementsByIso({});
+    setTargetCycleByEntry({});
+  }, [open, cycle?.id]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Reparación manual de datos</DialogTitle>
+          <p className="text-sm text-slate-600">
+            Ciclo: <b>{formatDateLabel(cycle?.startDate)}</b> -{' '}
+            <b>{cycle?.endDate ? formatDateLabel(cycle.endDate) : 'actualidad'}</b>
+          </p>
         </DialogHeader>
 
         <div className="space-y-5">
           <section className="space-y-3">
             <h3 className="font-semibold">Duplicados</h3>
-            {(issues?.duplicates || []).length === 0 && <p className="text-sm text-slate-500">Sin duplicados.</p>}
-            {(issues?.duplicates || []).map((dup) => {
+            {visibleDuplicates.length === 0 && <p className="text-sm text-slate-500">Sin duplicados.</p>}
+            {visibleDuplicates.map((dup) => {
               const winner = selectedWinners[dup.isoDate] || dup.entries?.[0]?.entryId;
               const moveMeasurements = moveMeasurementsByIso[dup.isoDate] ?? false;
               const losers = dup.entries.map((entry) => entry.entryId).filter((id) => id !== winner);
@@ -126,6 +151,7 @@ const DataRepairDialog = ({
                           loserEntryIds: losers,
                           moveMeasurements,
                         });
+                        setResolvedDuplicateDates((prev) => ({ ...prev, [dup.isoDate]: true }));
                       } finally {
                         setPendingActionKey((prev) => (prev === actionKey ? null : prev));
                       }
@@ -141,13 +167,13 @@ const DataRepairDialog = ({
 
           <section className="space-y-3">
             <h3 className="font-semibold">Fuera de rango</h3>
-            {(issues?.outOfRange || []).length === 0 && <p className="text-sm text-slate-500">Sin registros fuera de rango.</p>}
-            {(issues?.outOfRange || []).map((issue) => {
+            {visibleOutOfRange.length === 0 && <p className="text-sm text-slate-500">Sin registros fuera de rango.</p>}
+            {visibleOutOfRange.map((issue) => {
               const selectedTarget = targetCycleByEntry[issue.entryId] || suggestedCycleByIso[issue.entryId] || '';
               return (
                 <div key={issue.entryId} className="rounded-xl border p-3 space-y-2 bg-slate-50">
                   <div className="text-sm">
-                    Fecha: <b>{issue.isoDateResolved ? formatDateLabel(issue.isoDateResolved) : 'inválida'}</b> · Rango ciclo: {formatDateLabel(cycle?.startDate)} - {cycle?.endDate ? formatDateLabel(cycle.endDate) : 'actualidad'}
+                    Fecha: <b>{issue.isoDateResolved ? formatDateLabel(issue.isoDateResolved) : 'inválida'}</b>
                   </div>
                   <EntryPreviewCard entry={issue} />
                   <div className="flex flex-wrap items-center gap-2">
@@ -178,6 +204,7 @@ const DataRepairDialog = ({
                             entryId: issue.entryId,
                             isoDate: issue.isoDateResolved,
                           });
+                          setResolvedOutOfRangeEntries((prev) => ({ ...prev, [issue.entryId]: true }));
                         } finally {
                           setPendingActionKey((prev) => (prev === actionKey ? null : prev));
                         }
@@ -195,6 +222,7 @@ const DataRepairDialog = ({
                         setPendingActionKey(actionKey);
                         try {
                           await onDeleteEntry({ cycleId: cycle.id, entryId: issue.entryId });
+                          setResolvedOutOfRangeEntries((prev) => ({ ...prev, [issue.entryId]: true }));
                         } finally {
                           setPendingActionKey((prev) => (prev === actionKey ? null : prev));
                         }
