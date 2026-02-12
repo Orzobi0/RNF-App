@@ -193,6 +193,34 @@ export const RecordsExperience = ({
     });
   }, [savePreferences]);
 
+  const refreshCycleIssues = useCallback(async () => {
+    if (!cycleProp?.id || !refreshData) return;
+    await refreshData({ silent: true });
+  }, [cycleProp?.id, refreshData]);
+
+  const handleResolveDuplicateIssue = useCallback(
+    async (payload) => {
+      await resolveDuplicateIssue(payload);
+      await refreshCycleIssues();
+    },
+    [refreshCycleIssues, resolveDuplicateIssue]
+  );
+
+  const handleMoveOutOfRangeIssue = useCallback(
+    async (payload) => {
+      await moveOutOfRangeEntry(payload);
+      await refreshCycleIssues();
+    },
+    [moveOutOfRangeEntry, refreshCycleIssues]
+  );
+
+  const handleDeleteIssueEntry = useCallback(
+    async (payload) => {
+      await deleteIssueEntry(payload);
+      await refreshCycleIssues();
+    },
+    [deleteIssueEntry, refreshCycleIssues]
+  );
   const resolvedHeaderTitle = useMemo(() => {
     if (headerTitle) return headerTitle;
 
@@ -1758,9 +1786,9 @@ const enterStart = -exitTarget;
         }}
         cycle={cycle}
         cycles={[...(archivedCycles || []), contextCurrentCycle].filter(Boolean)}
-        onResolveDuplicate={resolveDuplicateIssue}
-        onMoveOutOfRange={moveOutOfRangeEntry}
-        onDeleteEntry={deleteIssueEntry}
+        onResolveDuplicate={handleResolveDuplicateIssue}
+        onMoveOutOfRange={handleMoveOutOfRangeIssue}
+        onDeleteEntry={handleDeleteIssueEntry}
       />
 
       <DeletionDialog
