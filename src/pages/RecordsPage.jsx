@@ -13,6 +13,7 @@ import DeletionDialog from '@/components/DeletionDialog';
 import PostpartumExitDialog from '@/components/PostpartumExitDialog';
 import { useCycleData } from '@/hooks/useCycleData';
 import { useToast } from '@/components/ui/use-toast';
+import { ToastAction } from '@/components/ui/toast';
 import { HeaderIconButton, HeaderIconButtonPrimary } from '@/components/HeaderIconButton';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -39,6 +40,8 @@ import computePeakStatuses from '@/lib/computePeakStatuses';
 import { formatCycleMeta, formatCycleTitle } from '@/lib/formatCycleTitle';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
+import DataIssuesBanner from '@/components/DataIssuesBanner';
+import DataRepairDialog from '@/components/DataRepairDialog';
 
 const getSymbolInfo = (symbolValue) =>
   FERTILITY_SYMBOL_OPTIONS.find((symbol) => symbol.value === symbolValue) || FERTILITY_SYMBOL_OPTIONS[0];
@@ -95,6 +98,13 @@ export const RecordsExperience = ({
     refreshData: contextRefreshData,
     getMeasurementsForEntry: contextGetMeasurementsForEntry,
     undoCurrentCycle: contextUndoCurrentCycle,
+    repairDialogState,
+    openDataRepairDialog,
+    closeDataRepairDialog,
+    resolveDuplicateIssue,
+    moveOutOfRangeEntry,
+    deleteIssueEntry,
+    getPublicError,
   } = useCycleData();
   const { preferences, savePreferences } = useAuth();
   const cycle = cycleProp ?? contextCurrentCycle;
@@ -1097,12 +1107,18 @@ const enterStart = -exitTarget;
       });
       closeStartDateEditor();
     } catch (error) {
+      const publicError = getPublicError ? getPublicError(error) : null;
       console.error('Error updating start date from records page:', error);
-      setStartDateError('No se pudieron actualizar las fechas');
+      setStartDateError(publicError?.message || 'No se pudieron actualizar las fechas');
       toast({
-        title: 'Error',
-        description: 'No se pudieron actualizar las fechas.',
+        title: publicError?.title || 'Error',
+        description: publicError?.message || 'No se pudieron actualizar las fechas.',
         variant: 'destructive',
+        action: publicError?.action?.label === 'Revisar' ? (
+          <ToastAction altText="Revisar" onClick={() => openDataRepairDialog?.(cycle?.id)}>
+            Revisar
+          </ToastAction>
+        ) : undefined,
       });
     } finally {
       setIsUpdatingStartDate(false);
@@ -1152,12 +1168,18 @@ const enterStart = -exitTarget;
       });
       closeStartDateEditor();
     } catch (error) {
+      const publicError = getPublicError ? getPublicError(error) : null;
       console.error('Error adjusting cycle dates from records page:', error);
-      setStartDateError('No se pudieron actualizar las fechas');
+      setStartDateError(publicError?.message || 'No se pudieron actualizar las fechas');
       toast({
-        title: 'Error',
-        description: 'No se pudieron actualizar las fechas.',
+        title: publicError?.title || 'Error',
+        description: publicError?.message || 'No se pudieron actualizar las fechas.',
         variant: 'destructive',
+        action: publicError?.action?.label === 'Revisar' ? (
+          <ToastAction altText="Revisar" onClick={() => openDataRepairDialog?.(cycle?.id)}>
+            Revisar
+          </ToastAction>
+        ) : undefined,
       });
     } finally {
       setIsUpdatingStartDate(false);
@@ -1347,7 +1369,18 @@ const enterStart = -exitTarget;
         setInitialSectionKey(null);
       }
     } catch (error) {
-      toast({ title: 'Error', description: 'No se pudo guardar el registro', variant: 'destructive' });
+      const publicError = getPublicError ? getPublicError(error) : null;
+      const canReview = ['duplicate-iso-date', 'entry-out-of-range'].includes(publicError?.code);
+      toast({
+        title: publicError?.title || 'Error',
+        description: publicError?.message || 'No se pudo guardar el registro',
+        variant: 'destructive',
+        action: canReview ? (
+          <ToastAction altText="Revisar" onClick={() => openDataRepairDialog?.(cycle?.id)}>
+            Revisar
+          </ToastAction>
+        ) : undefined,
+      });
     } finally {
       setIsProcessing(false);
       if (keepFormOpen) {
@@ -1530,6 +1563,8 @@ const enterStart = -exitTarget;
                   </div>
               </motion.div>
             
+              <DataIssuesBanner issues={cycle?.issues} onReview={() => openDataRepairDialog?.(cycle?.id)} />
+
             {showStartDateEditor && (
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
@@ -1710,6 +1745,22 @@ const enterStart = -exitTarget;
         cancelLabel="Cancelar"
         description={undoCycleDescription}
         isProcessing={isUndoingCycle}
+      />
+
+      <DataRepairDialog
+        open={repairDialogState?.open && repairDialogState?.cycleId === cycle?.id}
+        onOpenChange={(nextOpen) => {
+          if (nextOpen) {
+            openDataRepairDialog?.(cycle?.id);
+          } else {
+            closeDataRepairDialog?.();
+          }
+        }}
+        cycle={cycle}
+        cycles={[...(archivedCycles || []), contextCurrentCycle].filter(Boolean)}
+        onResolveDuplicate={resolveDuplicateIssue}
+        onMoveOutOfRange={moveOutOfRangeEntry}
+        onDeleteEntry={deleteIssueEntry}
       />
 
       <DeletionDialog

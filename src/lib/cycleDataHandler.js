@@ -112,6 +112,91 @@ const normalizeTemp = (val) => {
   return isNaN(num) ? null : num;
 };
 
+export const resolveIsoDateFromEntryData = (entryData) => {
+  if (entryData?.iso_date && isValid(parseISO(entryData.iso_date))) {
+    return format(parseISO(entryData.iso_date), 'yyyy-MM-dd');
+  }
+  if (typeof entryData?.timestamp === 'string' && isValid(parseISO(entryData.timestamp))) {
+    return format(parseISO(entryData.timestamp), 'yyyy-MM-dd');
+  }
+  return null;
+};
+
+export const getEntryPreview = (entryData, measurementsCount = null) => ({
+  temperature_chart: normalizeTemp(entryData?.temperature_chart),
+  temperature_raw: normalizeTemp(entryData?.temperature_raw),
+  temperature_corrected: normalizeTemp(entryData?.temperature_corrected),
+  use_corrected: Boolean(entryData?.use_corrected),
+  timestamp: entryData?.timestamp ?? null,
+  mucus_sensation: entryData?.mucus_sensation ?? null,
+  mucus_appearance: entryData?.mucus_appearance ?? null,
+  fertility_symbol: entryData?.fertility_symbol ?? null,
+  observations: entryData?.observations ?? null,
+  had_relations: Boolean(entryData?.had_relations ?? entryData?.hadRelations ?? false),
+  ignored: Boolean(entryData?.ignored),
+  peak_marker: entryData?.peak_marker ?? null,
+  measurementsCount,
+});
+
+export const detectCycleDataIssues = ({ cycleStartIso, cycleEndIso, entries }) => {
+  const outOfRange = [];
+  const groupedByIso = new Map();
+  const safeEntries = Array.isArray(entries) ? entries : [];
+
+  for (const entry of safeEntries) {
+    const resolvedIso = resolveIsoDateFromEntryData(entry);
+    const entryId = entry?.id ?? null;
+    const preview = getEntryPreview(entry);
+
+    if (!resolvedIso) {
+      outOfRange.push({
+        entryId,
+        isoDateResolved: null,
+        reason: 'invalid-date',
+        entryPreview: preview,
+      });
+      continue;
+    }
+
+    if (!groupedByIso.has(resolvedIso)) {
+      groupedByIso.set(resolvedIso, []);
+    }
+    groupedByIso.get(resolvedIso).push({ entryId, preview });
+
+    if (cycleStartIso && resolvedIso < cycleStartIso) {
+      outOfRange.push({
+        entryId,
+        isoDateResolved: resolvedIso,
+        reason: 'before-cycle-start',
+        entryPreview: preview,
+      });
+    } else if (cycleEndIso && resolvedIso > cycleEndIso) {
+      outOfRange.push({
+        entryId,
+        isoDateResolved: resolvedIso,
+        reason: 'after-cycle-end',
+        entryPreview: preview,
+      });
+    }
+  }
+
+  const duplicates = [...groupedByIso.entries()]
+    .filter(([, groupedEntries]) => groupedEntries.length > 1)
+    .map(([isoDate, entriesForIso]) => ({ isoDate, entries: entriesForIso }));
+
+  const duplicateEntriesCount = duplicates.reduce((sum, item) => sum + item.entries.length, 0);
+
+  return {
+    outOfRange,
+    duplicates,
+    hasIssues: outOfRange.length > 0 || duplicates.length > 0,
+    summary: {
+      outOfRangeCount: outOfRange.length,
+      duplicateDaysCount: duplicates.length,
+      duplicateEntriesCount,
+    },
+  };
+};
 export const processCycleEntries = (entriesFromView, cycleStartIsoDate) => {
   if (!entriesFromView || !Array.isArray(entriesFromView) || !cycleStartIsoDate) return [];
 
@@ -911,6 +996,29 @@ export const upsertCycleEntryByIsoDateDB = async (userId, cycleId, isoDate, payl
 
   const entriesCollectionRef = collection(db, `users/${userId}/cycles/${cycleId}/entries`);
   const indexRef = doc(db, `users/${userId}/cycles/${cycleId}/entries_by_iso/${isoDateKey}`);
+  const cycleRef = doc(db, `users/${userId}/cycles/${cycleId}`);
+  const cycleSnap = await getDoc(cycleRef);
+  if (!cycleSnap.exists()) {
+    throw createAppError(
+      'unknown',
+      'No se encontró el ciclo',
+      'No se pudo guardar el registro porque el ciclo ya no existe.',
+      { userId, cycleId },
+      { label: 'Actualizar pantalla' }
+    );
+  }
+  const cycleData = cycleSnap.data();
+  const cycleStart = cycleData?.start_date ?? null;
+  const cycleEnd = cycleData?.end_date ?? null;
+  if ((cycleStart && isoDateKey < cycleStart) || (cycleEnd && isoDateKey > cycleEnd)) {
+    throw createAppError(
+      'entry-out-of-range',
+      'Fecha fuera del ciclo',
+      `El día ${isoDateKey} está fuera del rango del ciclo (${cycleStart} - ${cycleEnd || 'abierto'}).`,
+      { userId, cycleId, isoDate: isoDateKey, start: cycleStart, end: cycleEnd },
+      { label: 'Revisar', hint: 'Abre la herramienta de reparación para mover o eliminar el registro.' }
+    );
+  }
 
   const entryData = {
     timestamp: payload.timestamp ?? new Date().toISOString(),
@@ -1122,6 +1230,138 @@ export const deleteCycleEntryDB = async (userId, cycleId, entryId) => {
   await deleteDoc(entryRef);
 };
 
+export const deleteEntryWithMeasurementsDB = async (userId, cycleId, entryId) =>
+  deleteCycleEntryDB(userId, cycleId, entryId);
+
+export const resolveDuplicateIsoDateDB = async ({
+  userId,
+  cycleId,
+  isoDate,
+  winnerEntryId,
+  loserEntryIds,
+  moveMeasurements = true,
+}) => {
+  if (!userId || !cycleId || !isoDate || !winnerEntryId || !Array.isArray(loserEntryIds)) {
+    throw createAppError(
+      'duplicate-resolution-invalid-input',
+      'Faltan datos para resolver duplicados',
+      'No se pudo resolver el duplicado porque faltan datos.',
+      { userId, cycleId, isoDate, winnerEntryId, loserEntryIds }
+    );
+  }
+
+  const winnerMeasurementsRef = collection(
+    db,
+    `users/${userId}/cycles/${cycleId}/entries/${winnerEntryId}/measurements`
+  );
+
+  for (const loserEntryId of loserEntryIds) {
+    const loserMeasurementsRef = collection(
+      db,
+      `users/${userId}/cycles/${cycleId}/entries/${loserEntryId}/measurements`
+    );
+    const loserMeasurementsSnap = await getDocs(loserMeasurementsRef);
+    if (moveMeasurements) {
+      for (const measurementDoc of loserMeasurementsSnap.docs) {
+        await addDoc(winnerMeasurementsRef, measurementDoc.data());
+      }
+    }
+    await deleteDocRefsInBatches(loserMeasurementsSnap.docs.map((d) => d.ref));
+    const loserEntryRef = doc(db, `users/${userId}/cycles/${cycleId}/entries/${loserEntryId}`);
+    await deleteDoc(loserEntryRef);
+  }
+
+  const indexRef = doc(db, `users/${userId}/cycles/${cycleId}/entries_by_iso/${isoDate}`);
+  await setDoc(indexRef, { entryId: winnerEntryId }, { merge: true });
+  return { winnerEntryId, removedEntries: loserEntryIds.length };
+};
+
+export const moveEntryToCycleDB = async ({
+  userId,
+  fromCycleId,
+  toCycleId,
+  entryId,
+  isoDate,
+  strategy = 'upsert-by-iso',
+}) => {
+  if (!userId || !fromCycleId || !toCycleId || !entryId || !isoDate) {
+    throw createAppError(
+      'move-entry-invalid-input',
+      'Faltan datos para mover el registro',
+      'No se pudo mover el registro porque faltan datos obligatorios.',
+      { userId, fromCycleId, toCycleId, entryId, isoDate, strategy }
+    );
+  }
+
+  const fromEntryRef = doc(db, `users/${userId}/cycles/${fromCycleId}/entries/${entryId}`);
+  const fromEntrySnap = await getDoc(fromEntryRef);
+  if (!fromEntrySnap.exists()) {
+    throw createAppError(
+      'move-entry-not-found',
+      'Registro no encontrado',
+      'El registro que intentas mover ya no existe.',
+      { userId, fromCycleId, entryId }
+    );
+  }
+  const entryData = fromEntrySnap.data();
+
+  const toCycleRef = doc(db, `users/${userId}/cycles/${toCycleId}`);
+  const toCycleSnap = await getDoc(toCycleRef);
+  if (!toCycleSnap.exists()) {
+    throw createAppError('move-entry-invalid-target', 'Ciclo destino no encontrado', 'El ciclo destino no existe.');
+  }
+
+  const toCycleData = toCycleSnap.data();
+  const targetCycleDay = generateCycleDaysForRecord(isoDate, toCycleData?.start_date);
+
+  const targetEntriesRef = collection(db, `users/${userId}/cycles/${toCycleId}/entries`);
+  const existingTargetSnap = await getDocs(query(targetEntriesRef, where('iso_date', '==', isoDate), limit(2)));
+  if (existingTargetSnap.size > 1) {
+    throw createAppError(
+      'duplicate-iso-date',
+      'Hay registros duplicados en el ciclo destino',
+      `El ciclo destino ya tiene duplicados para ${isoDate}. Resuélvelos antes de mover este registro.`,
+      { toCycleId, isoDate }
+    );
+  }
+
+  const sourceMeasurementsRef = collection(
+    db,
+    `users/${userId}/cycles/${fromCycleId}/entries/${entryId}/measurements`
+  );
+  const sourceMeasurementsSnap = await getDocs(sourceMeasurementsRef);
+
+  let destinationEntryId = entryId;
+  if (strategy === 'upsert-by-iso' && existingTargetSnap.size === 1) {
+    const destinationEntryRef = existingTargetSnap.docs[0].ref;
+    destinationEntryId = existingTargetSnap.docs[0].id;
+    await setDoc(destinationEntryRef, { ...entryData, cycle_day: targetCycleDay, iso_date: isoDate }, { merge: true });
+
+    const destinationMeasurementsRef = collection(
+      db,
+      `users/${userId}/cycles/${toCycleId}/entries/${destinationEntryId}/measurements`
+    );
+    for (const measurementDoc of sourceMeasurementsSnap.docs) {
+      await addDoc(destinationMeasurementsRef, measurementDoc.data());
+    }
+  } else {
+    const destinationEntryRef = doc(db, `users/${userId}/cycles/${toCycleId}/entries/${entryId}`);
+    await setDoc(destinationEntryRef, { ...entryData, cycle_day: targetCycleDay, iso_date: isoDate }, { merge: true });
+    for (const measurementDoc of sourceMeasurementsSnap.docs) {
+      const destinationMeasurementRef = doc(
+        db,
+        `users/${userId}/cycles/${toCycleId}/entries/${entryId}/measurements/${measurementDoc.id}`
+      );
+      await setDoc(destinationMeasurementRef, measurementDoc.data(), { merge: true });
+    }
+  }
+
+  await deleteDocRefsInBatches(sourceMeasurementsSnap.docs.map((d) => d.ref));
+  await deleteDoc(fromEntryRef);
+  await deleteDoc(doc(db, `users/${userId}/cycles/${fromCycleId}/entries_by_iso/${isoDate}`));
+  await setDoc(doc(db, `users/${userId}/cycles/${toCycleId}/entries_by_iso/${isoDate}`), { entryId: destinationEntryId }, { merge: true });
+  return { destinationEntryId };
+};
 export const archiveCycleDB = async (cycleId, userId, endDate) => {
   const cycleRef = doc(db, `users/${userId}/cycles/${cycleId}`);
   const cycleSnap = await getDoc(cycleRef);

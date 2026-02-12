@@ -4,6 +4,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   processCycleEntries,
+  detectCycleDataIssues,
   createNewCycleDB,
   upsertCycleEntryByIsoDateDB,
   updateCycleEntry,
@@ -17,8 +18,12 @@ import {
   updateCycleIgnoreAutoCalculations,
   deleteCycleDB,
   undoCurrentCycleDB,
+  toPublicError,
   forceUpdateCycleStart as forceUpdateCycleStartDB,
-  forceShiftNextCycleStart as forceShiftNextCycleStartDB
+  forceShiftNextCycleStart as forceShiftNextCycleStartDB,
+  resolveDuplicateIsoDateDB,
+  moveEntryToCycleDB,
+  deleteEntryWithMeasurementsDB,
 } from '@/lib/cycleDataHandler';
 import { getCachedCycleData, saveCycleDataToCache, clearCycleDataCache } from '@/lib/cycleCache';
 import { getFunctions, httpsCallable } from "firebase/functions";
@@ -33,6 +38,12 @@ const defaultCycleState = {
   endDate: null,
   data: [],
   ignoredForAutoCalculations: false,
+  issues: {
+    outOfRange: [],
+    duplicates: [],
+    hasIssues: false,
+    summary: { outOfRangeCount: 0, duplicateDaysCount: 0, duplicateEntriesCount: 0 },
+  },
 };
 
 const filterEntriesByEndDate = (entries, endDate) => {
@@ -151,6 +162,7 @@ export const CycleDataProvider = ({ children }) => {
   const [currentCycle, setCurrentCycle] = useState(defaultCycleState);
   const [archivedCycles, setArchivedCycles] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [repairDialogState, setRepairDialogState] = useState({ open: false, cycleId: null });
   const hasLoadedRef = useRef(false);
   const lastUserIdRef = useRef(null);
 
@@ -227,7 +239,12 @@ export const CycleDataProvider = ({ children }) => {
             ...cycleToLoad,
             startDate,
             endDate,
-            data: filtered
+            data: filtered,
+            issues: detectCycleDataIssues({
+              cycleStartIso: startDate,
+              cycleEndIso: endDate,
+              entries: cycleToLoad.data,
+            }),
           };
         }
 
@@ -245,7 +262,12 @@ export const CycleDataProvider = ({ children }) => {
             startDate: aStart ?? format(startOfDay(new Date()), 'yyyy-MM-dd'),
             endDate: aEnd,
             needsCompletion: cycle.needsCompletion,
-            data: filtered
+            data: filtered,
+            issues: detectCycleDataIssues({
+              cycleStartIso: aStart,
+              cycleEndIso: aEnd,
+              entries: cycle.data || [],
+            }),
           };
         });
 
@@ -323,7 +345,15 @@ export const CycleDataProvider = ({ children }) => {
         ? currentData.map((entry) => (entry.id === entryId ? updatedEntry : entry))
         : sortEntriesByTimestamp([...currentData, updatedEntry]);
 
-      return { ...cycle, data: nextData };
+      return {
+        ...cycle,
+        data: nextData,
+        issues: detectCycleDataIssues({
+          cycleStartIso: cycle.startDate,
+          cycleEndIso: cycle.endDate,
+          entries: nextData,
+        }),
+      };
     };
 
     setCurrentCycle((prevCycle) => applyUpdate(prevCycle));
@@ -921,8 +951,9 @@ export const CycleDataProvider = ({ children }) => {
         await loadCycleData({ silent: true });
       } catch (error) {
         console.error('Error updating cycle dates:', error);
-        const description = getErrorDescription(error, 'No se pudieron actualizar las fechas.');
-        toast({ title: 'Error', description, variant: 'destructive' });
+        const publicError = toPublicError(error);
+        const description = publicError?.message || getErrorDescription(error, 'No se pudieron actualizar las fechas.');
+        toast({ title: publicError?.title || 'Error', description, variant: 'destructive' });
         throw error;
       } finally {
         setIsLoading(false);
@@ -964,7 +995,12 @@ export const CycleDataProvider = ({ children }) => {
           ...cycleData,
           startDate: startDate ?? format(startOfDay(new Date()), 'yyyy-MM-dd'),
           endDate,
-          data: filtered
+          data: filtered,
+          issues: detectCycleDataIssues({
+            cycleStartIso: startDate,
+            cycleEndIso: endDate,
+            entries: cycleData.data || [],
+          }),
         };
       } catch (error) {
         console.error('Error fetching cycle by ID:', error);
@@ -1058,6 +1094,34 @@ export const CycleDataProvider = ({ children }) => {
     }
   }, [user, currentCycle, loadCycleData, toast]);
 
+  const openDataRepairDialog = useCallback((cycleId = null) => {
+    setRepairDialogState({ open: true, cycleId: cycleId ?? currentCycle?.id ?? null });
+  }, [currentCycle?.id]);
+
+  const closeDataRepairDialog = useCallback(() => {
+    setRepairDialogState((prev) => ({ ...prev, open: false }));
+  }, []);
+
+  const resolveDuplicateIssue = useCallback(async ({ cycleId, isoDate, winnerEntryId, loserEntryIds, moveMeasurements }) => {
+    if (!user?.uid) return;
+    await resolveDuplicateIsoDateDB({ userId: user.uid, cycleId, isoDate, winnerEntryId, loserEntryIds, moveMeasurements });
+    await loadCycleData({ silent: true });
+  }, [user, loadCycleData]);
+
+  const moveOutOfRangeEntry = useCallback(async ({ fromCycleId, toCycleId, entryId, isoDate }) => {
+    if (!user?.uid) return;
+    await moveEntryToCycleDB({ userId: user.uid, fromCycleId, toCycleId, entryId, isoDate, strategy: 'upsert-by-iso' });
+    await loadCycleData({ silent: true });
+  }, [user, loadCycleData]);
+
+  const deleteIssueEntry = useCallback(async ({ cycleId, entryId }) => {
+    if (!user?.uid) return;
+    await deleteEntryWithMeasurementsDB(user.uid, cycleId, entryId);
+    await loadCycleData({ silent: true });
+  }, [user, loadCycleData]);
+
+  const getPublicError = useCallback((error) => toPublicError(error), []);
+
 
   const value = {
     currentCycle,
@@ -1078,7 +1142,14 @@ export const CycleDataProvider = ({ children }) => {
     addArchivedCycle,
     deleteCycle,
     getMeasurementsForEntry,
-    undoCurrentCycle
+    undoCurrentCycle,
+    repairDialogState,
+    openDataRepairDialog,
+    closeDataRepairDialog,
+    resolveDuplicateIssue,
+    moveOutOfRangeEntry,
+    deleteIssueEntry,
+    getPublicError,
   };
 
   return <CycleDataContext.Provider value={value}>{children}</CycleDataContext.Provider>;
