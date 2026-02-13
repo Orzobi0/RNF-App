@@ -27,6 +27,7 @@ const EditCycleDatesDialog = ({
   description,
   cycleId,
   checkOverlap,
+  checkOverlapForNewRange,
   errorMessage,
   conflictCycle,
   onResetError,
@@ -39,6 +40,7 @@ const EditCycleDatesDialog = ({
   const [overlapCycle, setOverlapCycle] = useState(null);
   const [pendingPayload, setPendingPayload] = useState(null);
   const [showOverlapDialog, setShowOverlapDialog] = useState(false);
+  const [overlapPlan, setOverlapPlan] = useState(null);
 
   useBackClose(isOpen, onClose);
 
@@ -149,10 +151,22 @@ const EditCycleDatesDialog = ({
       if (overlap) {
         setOverlapCycle(overlap);
         setPendingPayload(payload);
+        setOverlapPlan(null);
         setShowOverlapDialog(true);
         return;
       }
     }
+    
+    if (!cycleId && includeEndDate && checkOverlapForNewRange && startDate && endDate) {
+      const preview = await checkOverlapForNewRange(startDate, endDate);
+      if ((preview?.overlaps || []).length > 0) {
+        setOverlapPlan(preview);
+        setPendingPayload(payload);
+        setShowOverlapDialog(true);
+        return;
+      }
+    }
+
     onConfirm(payload);
   };
 
@@ -298,12 +312,28 @@ const EditCycleDatesDialog = ({
       <OverlapWarningDialog
         isOpen={showOverlapDialog}
         conflictCycle={overlapCycle}
-        onCancel={() => setShowOverlapDialog(false)}
+        message={overlapPlan
+          ? `Este nuevo ciclo afectará a ${overlapPlan.overlaps.length} ciclos. ¿Deseas continuar?`
+          : undefined}
+        impactSummary={overlapPlan
+          ? {
+            trims: (overlapPlan.summary?.trimStartCount || 0) + (overlapPlan.summary?.trimEndCount || 0),
+            splits: overlapPlan.summary?.splitCount || 0,
+            deletes: overlapPlan.summary?.deleteCount || 0,
+            movedEntries: overlapPlan.summary?.estimateMovedEntries || 0,
+          }
+          : undefined}
+        affectedCycles={overlapPlan?.overlaps || []}
+        onCancel={() => {
+          setShowOverlapDialog(false);
+          setOverlapPlan(null);
+        }}
         onConfirm={() => {
           setShowOverlapDialog(false);
           if (pendingPayload) {
-            onConfirm({ ...pendingPayload, force: true });
+            onConfirm({ ...pendingPayload, force: true, insertMode: Boolean(overlapPlan), plan: overlapPlan || undefined });
           }
+          setOverlapPlan(null);
         }}
       />
     </>

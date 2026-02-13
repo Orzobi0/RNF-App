@@ -418,6 +418,150 @@ const sortCyclesByStartDate = (docs) =>
     .sort((a, b) => compareAsc(a.start, b.start))
     .map(({ id, data }) => ({ id, data }));
 
+    const isIsoDateString = (value) => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
+
+const validateCycleRangeIsoDates = (startIso, endIso) => {
+  if (!isIsoDateString(startIso) || !isIsoDateString(endIso)) {
+    throw createAppError(
+      'cycle-range-invalid',
+      'Formato de fecha inválido',
+      'Las fechas deben tener formato yyyy-MM-dd.',
+      { startIso: startIso ?? null, endIso: endIso ?? null },
+      { label: 'Revisar fechas' }
+    );
+  }
+
+  const parsedStart = startOfDay(parseISO(startIso));
+  const parsedEnd = startOfDay(parseISO(endIso));
+  if (!isValid(parsedStart) || !isValid(parsedEnd) || parsedEnd < parsedStart) {
+    throw createAppError(
+      'cycle-range-invalid',
+      'Rango de fechas inválido',
+      'La fecha de fin no puede ser anterior a la fecha de inicio.',
+      { startIso, endIso },
+      { label: 'Revisar fechas' }
+    );
+  }
+};
+
+const fetchCyclesForUser = async (userId) => {
+  const cyclesSnap = await getDocs(collection(db, `users/${userId}/cycles`));
+  return cyclesSnap.docs
+    .map((docSnap) => ({
+      id: docSnap.id,
+      startDate: docSnap.data()?.start_date ?? null,
+      endDate: docSnap.data()?.end_date ?? null,
+      data: docSnap.data(),
+    }))
+    .filter((cycle) => cycle.startDate)
+    .sort((a, b) => a.startDate.localeCompare(b.startDate));
+};
+
+const INFINITE_END_ISO = '9999-12-31';
+const dayBeforeIso = (isoDate) => format(addDays(startOfDay(parseISO(isoDate)), -1), 'yyyy-MM-dd');
+const dayAfterIso = (isoDate) => format(addDays(startOfDay(parseISO(isoDate)), 1), 'yyyy-MM-dd');
+
+const buildInsertCycleRangePlanFromCycles = (cycles, startIso, endIso) => {
+  const overlaps = [];
+  const plan = [];
+
+  for (const cycle of cycles) {
+    const cycleStart = cycle.startDate;
+    const cycleEnd = cycle.endDate ?? INFINITE_END_ISO;
+    const intersects = cycleStart <= endIso && cycleEnd >= startIso;
+    if (!intersects) continue;
+
+    overlaps.push({ id: cycle.id, startDate: cycle.startDate, endDate: cycle.endDate ?? null });
+
+    const fullyCovered = startIso <= cycleStart && endIso >= cycleEnd && cycle.endDate !== null;
+    const containsRange = cycleStart < startIso && cycleEnd > endIso;
+    const overlapsStart = startIso <= cycleStart && endIso < cycleEnd;
+
+    if (fullyCovered) {
+      plan.push({ action: 'delete', cycleId: cycle.id, startDate: cycle.startDate, endDate: cycle.endDate ?? null });
+      continue;
+    }
+    if (containsRange) {
+      plan.push({
+        action: 'split',
+        cycleId: cycle.id,
+        startDate: cycle.startDate,
+        endDate: cycle.endDate ?? null,
+        leftEndDate: dayBeforeIso(startIso),
+        rightStartDate: dayAfterIso(endIso),
+        rightEndDate: cycle.endDate ?? null,
+      });
+      continue;
+    }
+    if (overlapsStart) {
+      plan.push({
+        action: 'trimStart',
+        cycleId: cycle.id,
+        startDate: cycle.startDate,
+        endDate: cycle.endDate ?? null,
+        newStartDate: dayAfterIso(endIso),
+      });
+      continue;
+    }
+
+    plan.push({
+      action: 'trimEnd',
+      cycleId: cycle.id,
+      startDate: cycle.startDate,
+      endDate: cycle.endDate ?? null,
+      newEndDate: dayBeforeIso(startIso),
+    });
+  }
+
+  const summary = {
+    trimStartCount: plan.filter((item) => item.action === 'trimStart').length,
+    trimEndCount: plan.filter((item) => item.action === 'trimEnd').length,
+    deleteCount: plan.filter((item) => item.action === 'delete').length,
+    splitCount: plan.filter((item) => item.action === 'split').length,
+    estimateMovedEntries: 0,
+  };
+
+  return { overlaps, plan, summary };
+};
+
+const countEntriesInRangeForCycle = async ({ userId, cycleId, startIso, endIso }) => {
+  const entriesSnap = await getDocs(collection(db, `users/${userId}/cycles/${cycleId}/entries`));
+  return entriesSnap.docs.reduce((count, entryDoc) => {
+    try {
+      const isoDate = resolveSplitEntryIsoDate(entryDoc.data());
+      return isoDate >= startIso && isoDate <= endIso ? count + 1 : count;
+    } catch (error) {
+      return count;
+    }
+  }, 0);
+};
+
+export const previewInsertCycleRangeDB = async ({ userId, proposedStartIso, proposedEndIso }) => {
+  if (!userId) return { overlaps: [], plan: [], summary: { trimStartCount: 0, trimEndCount: 0, deleteCount: 0, splitCount: 0, estimateMovedEntries: 0 } };
+
+  validateCycleRangeIsoDates(proposedStartIso, proposedEndIso);
+  const cycles = await fetchCyclesForUser(userId);
+  const result = buildInsertCycleRangePlanFromCycles(cycles, proposedStartIso, proposedEndIso);
+
+  let movedCount = 0;
+  for (const item of result.plan) {
+    movedCount += await countEntriesInRangeForCycle({
+      userId,
+      cycleId: item.cycleId,
+      startIso: proposedStartIso,
+      endIso: proposedEndIso,
+    });
+  }
+
+  return {
+    ...result,
+    summary: {
+      ...result.summary,
+      estimateMovedEntries: movedCount,
+    },
+  };
+};
+
 const findNeighbors = (sortedCycles, cycleId) => {
   const currentIndex = sortedCycles.findIndex((cycle) => cycle.id === cycleId);
   if (currentIndex === -1) {
@@ -835,6 +979,133 @@ export const splitCycleAtDate = async (userId, previousCycleId, newCycleId, star
   }
 
   return { movedEntries: entriesToMove.length };
+};
+
+export const insertCycleRangeDB = async ({ userId, startIso, endIso }) => {
+  if (!userId) return null;
+
+  validateCycleRangeIsoDates(startIso, endIso);
+  const cycles = await fetchCyclesForUser(userId);
+  const planning = buildInsertCycleRangePlanFromCycles(cycles, startIso, endIso);
+
+  const newCycleRef = doc(collection(db, `users/${userId}/cycles`));
+  await setDoc(newCycleRef, {
+    user_id: userId,
+    start_date: startIso,
+    end_date: endIso,
+    ignored_auto_calculations: false,
+  });
+
+  let movedEntriesCount = 0;
+  const changedCycles = [];
+
+  const runMoveToNewCycle = async (fromCycleId) => {
+    const result = await moveEntriesWithMeasurementsDB({
+      userId,
+      fromCycleId,
+      toCycleId: newCycleRef.id,
+      shouldMoveIsoDate: (isoDate) => isoDate >= startIso && isoDate <= endIso,
+      toCycleStartIso: startIso,
+    });
+    movedEntriesCount += result?.movedEntries ?? 0;
+  };
+
+  const splitActions = planning.plan.filter((item) => item.action === 'split');
+  for (const action of splitActions) {
+    await runMoveToNewCycle(action.cycleId);
+
+    const targetCycleRef = doc(db, `users/${userId}/cycles/${action.cycleId}`);
+    await updateDoc(targetCycleRef, { end_date: action.leftEndDate });
+
+    const rightCycleRef = doc(collection(db, `users/${userId}/cycles`));
+    await setDoc(rightCycleRef, {
+      user_id: userId,
+      start_date: action.rightStartDate,
+      end_date: action.rightEndDate,
+      ignored_auto_calculations: false,
+    });
+
+    const rightMove = await moveEntriesWithMeasurementsDB({
+      userId,
+      fromCycleId: action.cycleId,
+      toCycleId: rightCycleRef.id,
+      shouldMoveIsoDate: (isoDate) => isoDate >= action.rightStartDate,
+      toCycleStartIso: action.rightStartDate,
+    });
+    movedEntriesCount += rightMove?.movedEntries ?? 0;
+    await recalcCycleDayForAllEntriesDB(userId, rightCycleRef.id, action.rightStartDate);
+
+    changedCycles.push({
+      id: action.cycleId,
+      oldStart: action.startDate,
+      newStart: action.startDate,
+      oldEnd: action.endDate,
+      newEnd: action.leftEndDate,
+    });
+    changedCycles.push({
+      id: rightCycleRef.id,
+      oldStart: null,
+      newStart: action.rightStartDate,
+      oldEnd: null,
+      newEnd: action.rightEndDate,
+    });
+  }
+
+  const trimStartActions = planning.plan.filter((item) => item.action === 'trimStart');
+  for (const action of trimStartActions) {
+    await runMoveToNewCycle(action.cycleId);
+    const cycleRef = doc(db, `users/${userId}/cycles/${action.cycleId}`);
+    await updateDoc(cycleRef, { start_date: action.newStartDate });
+    await recalcCycleDayForAllEntriesDB(userId, action.cycleId, action.newStartDate);
+    changedCycles.push({
+      id: action.cycleId,
+      oldStart: action.startDate,
+      newStart: action.newStartDate,
+      oldEnd: action.endDate,
+      newEnd: action.endDate,
+    });
+  }
+
+  const trimEndActions = planning.plan.filter((item) => item.action === 'trimEnd');
+  for (const action of trimEndActions) {
+    await runMoveToNewCycle(action.cycleId);
+    const cycleRef = doc(db, `users/${userId}/cycles/${action.cycleId}`);
+    await updateDoc(cycleRef, { end_date: action.newEndDate });
+    changedCycles.push({
+      id: action.cycleId,
+      oldStart: action.startDate,
+      newStart: action.startDate,
+      oldEnd: action.endDate,
+      newEnd: action.newEndDate,
+    });
+  }
+
+  const deleteActions = planning.plan.filter((item) => item.action === 'delete');
+  for (const action of deleteActions) {
+    await runMoveToNewCycle(action.cycleId);
+    await deleteCycleDB(userId, action.cycleId);
+    changedCycles.push({
+      id: action.cycleId,
+      oldStart: action.startDate,
+      newStart: null,
+      oldEnd: action.endDate,
+      newEnd: null,
+    });
+  }
+
+  await recalcCycleDayForAllEntriesDB(userId, newCycleRef.id, startIso);
+
+  return {
+    newCycleId: newCycleRef.id,
+    movedEntriesCount,
+    overlaps: planning.overlaps,
+    plan: planning.plan,
+    summary: {
+      ...planning.summary,
+      estimateMovedEntries: movedEntriesCount,
+    },
+    changedCycles,
+  };
 };
 
 export const startNewCycleDB = async (userId, previousCycleId, startDate) => {
@@ -1477,7 +1748,7 @@ export const forceShiftNextCycleStart = async (
   newEndDate,
   currentCycleStartDate
 ) => {
-  if (!newEndDate) return;
+  if (!newEndDate) return { changedCycles: [], movedEntriesCount: 0, notes: [] };
 
   const parsedNewEnd = startOfDay(parseISO(newEndDate));
   if (!isValid(parsedNewEnd)) {
@@ -1495,8 +1766,9 @@ export const forceShiftNextCycleStart = async (
   const sortedCycles = sortCyclesByStartDate(cyclesSnap.docs);
   const { current, next, nextNext } = findNeighbors(sortedCycles, currentCycleId);
 
-  if (!current || !next) return;
+  if (!current || !next) return { changedCycles: [], movedEntriesCount: 0, notes: [] };
 
+  const summary = { changedCycles: [], movedEntriesCount: 0, notes: [] };
   const effectiveCurrentStart = currentCycleStartDate || current.data.start_date || null;
   const currentStartDate = effectiveCurrentStart ? startOfDay(parseISO(effectiveCurrentStart)) : null;
   if (currentStartDate && parsedNewEnd < currentStartDate) {
@@ -1532,8 +1804,8 @@ export const forceShiftNextCycleStart = async (
         { label: 'Cambiar fecha' }
       );
     }
-   }
-   if (next.data.end_date) {
+  }
+  if (next.data.end_date) {
     const nextEnd = startOfDay(parseISO(next.data.end_date));
     if (proposedStart > nextEnd) {
       throw createAppError(
@@ -1550,26 +1822,40 @@ export const forceShiftNextCycleStart = async (
       );
     }
   }
-const nextStart = startOfDay(parseISO(next.data.start_date));
+
+  const nextStart = startOfDay(parseISO(next.data.start_date));
   if (proposedStart > nextStart) {
-    await moveEntriesWithMeasurementsDB({
+    const moveResult = await moveEntriesWithMeasurementsDB({
       userId,
       fromCycleId: next.id,
       toCycleId: currentCycleId,
       shouldMoveIsoDate: (isoDate) => startOfDay(parseISO(isoDate)) < proposedStart,
       toCycleStartIso: effectiveCurrentStart || current.data.start_date,
     });
+    summary.movedEntriesCount += moveResult?.movedEntries ?? 0;
+    summary.notes.push('Se movieron registros desde el ciclo siguiente al actual.');
   } else if (proposedStart < nextStart) {
-    await splitCycleAtDate(userId, currentCycleId, next.id, proposedStartIso);
+    const splitResult = await splitCycleAtDate(userId, currentCycleId, next.id, proposedStartIso);
+    summary.movedEntriesCount += splitResult?.movedEntries ?? 0;
+    summary.notes.push('Se partió el ciclo actual para extender el siguiente.');
   }
 
   const nextCycleRef = doc(db, `users/${userId}/cycles/${next.id}`);
   await updateDoc(nextCycleRef, { start_date: proposedStartIso });
   await recalcCycleDayForAllEntriesDB(userId, next.id, proposedStartIso);
+  summary.changedCycles.push({
+    id: next.id,
+    oldStart: next.data.start_date,
+    newStart: proposedStartIso,
+    oldEnd: next.data.end_date ?? null,
+    newEnd: next.data.end_date ?? null,
+  });
+
+  return summary;
 };
 
 export const forceUpdateCycleStart = async (userId, currentCycleId, newStartDate) => {
-  if (!newStartDate) return;
+  if (!newStartDate) return { changedCycles: [], movedEntriesCount: 0, notes: [] };
 
   const newStart = startOfDay(parseISO(newStartDate));
   if (!isValid(newStart)) {
@@ -1587,8 +1873,9 @@ export const forceUpdateCycleStart = async (userId, currentCycleId, newStartDate
   const sortedCycles = sortCyclesByStartDate(cyclesSnap.docs);
   const { previous, current, next } = findNeighbors(sortedCycles, currentCycleId);
 
-  if (!current) return;
+  if (!current) return { changedCycles: [], movedEntriesCount: 0, notes: [] };
 
+  const summary = { changedCycles: [], movedEntriesCount: 0, notes: [] };
   const currentStartIso = current.data.start_date;
   const currentStart = currentStartIso ? startOfDay(parseISO(currentStartIso)) : null;
   const currentEnd = current.data.end_date ? startOfDay(parseISO(current.data.end_date)) : null;
@@ -1647,28 +1934,49 @@ export const forceUpdateCycleStart = async (userId, currentCycleId, newStartDate
     const prevRef = doc(db, `users/${userId}/cycles/${previous.id}`);
     const dayBefore = format(addDays(newStart, -1), 'yyyy-MM-dd');
     await updateDoc(prevRef, { end_date: dayBefore });
+    summary.changedCycles.push({
+      id: previous.id,
+      oldStart: previous.data.start_date,
+      newStart: previous.data.start_date,
+      oldEnd: previous.data.end_date ?? null,
+      newEnd: dayBefore,
+    });
 
     if (currentStart && newStart < currentStart) {
-      await moveEntriesWithMeasurementsDB({
+      const moveResult = await moveEntriesWithMeasurementsDB({
         userId,
         fromCycleId: previous.id,
         toCycleId: currentCycleId,
         shouldMoveIsoDate: (isoDate) => startOfDay(parseISO(isoDate)) >= newStart,
         toCycleStartIso: format(newStart, 'yyyy-MM-dd'),
       });
+      summary.movedEntriesCount += moveResult?.movedEntries ?? 0;
+      summary.notes.push('Se movieron registros desde el ciclo previo al ciclo editado.');
     } else if (currentStart && newStart > currentStart) {
-      await moveEntriesWithMeasurementsDB({
+      const moveResult = await moveEntriesWithMeasurementsDB({
         userId,
         fromCycleId: currentCycleId,
         toCycleId: previous.id,
         shouldMoveIsoDate: (isoDate) => startOfDay(parseISO(isoDate)) < newStart,
         toCycleStartIso: previous.data.start_date,
       });
+      summary.movedEntriesCount += moveResult?.movedEntries ?? 0;
+      summary.notes.push('Se movieron registros desde el ciclo editado al ciclo previo.');
     }
   }
   const currentRef = doc(db, `users/${userId}/cycles/${currentCycleId}`);
-  await updateDoc(currentRef, { start_date: format(newStart, 'yyyy-MM-dd') });
-  await recalcCycleDayForAllEntriesDB(userId, currentCycleId, format(newStart, 'yyyy-MM-dd'));
+  const newStartIso = format(newStart, 'yyyy-MM-dd');
+  await updateDoc(currentRef, { start_date: newStartIso });
+  await recalcCycleDayForAllEntriesDB(userId, currentCycleId, newStartIso);
+  summary.changedCycles.push({
+    id: currentCycleId,
+    oldStart: current.data.start_date,
+    newStart: newStartIso,
+    oldEnd: current.data.end_date ?? null,
+    newEnd: current.data.end_date ?? null,
+  });
+
+  return summary;
 };
 
 export const deleteCycleDB = async (userId, cycleId) => {

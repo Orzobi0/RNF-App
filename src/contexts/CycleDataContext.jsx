@@ -24,6 +24,8 @@ import {
   resolveDuplicateIsoDateDB,
   moveEntryToCycleDB,
   deleteEntryWithMeasurementsDB,
+  previewInsertCycleRangeDB,
+  insertCycleRangeDB,
 } from '@/lib/cycleDataHandler';
 import { getCachedCycleData, saveCycleDataToCache, clearCycleDataCache } from '@/lib/cycleCache';
 import { getFunctions, httpsCallable } from "firebase/functions";
@@ -94,6 +96,12 @@ const normalizeCycleRange = (startDate, endDate) => {
   }
 
   return { startDate: normalizedStart, endDate: normalizedEnd };
+};
+
+const formatUiDate = (isoDate) => {
+  if (!isoDate) return '—';
+  const parsed = parseISO(isoDate);
+  return isValid(parsed) ? format(parsed, 'dd/MM/yyyy') : isoDate;
 };
 
 const buildEntryForState = ({
@@ -835,6 +843,34 @@ export const CycleDataProvider = ({ children }) => {
     [buildOverlapDescription]
   );
 
+  const previewInsertCycleRange = useCallback(
+    async (startDate, endDate) => {
+      if (!user?.uid) return { overlaps: [], plan: [], summary: { trimStartCount: 0, trimEndCount: 0, deleteCount: 0, splitCount: 0, estimateMovedEntries: 0 } };
+      return previewInsertCycleRangeDB({ userId: user.uid, proposedStartIso: startDate, proposedEndIso: endDate });
+    },
+    [user]
+  );
+
+  const insertCycleRange = useCallback(
+    async (startDate, endDate) => {
+      if (!user?.uid) return null;
+      setIsLoading(true);
+      try {
+        const result = await insertCycleRangeDB({ userId: user.uid, startIso: startDate, endIso: endDate });
+        await loadCycleData({ silent: true });
+        return result;
+      } catch (error) {
+        console.error('Error inserting cycle range:', error);
+        const publicError = toPublicError(error);
+        toast({ title: publicError?.title || 'Error', description: publicError?.message || 'No se pudo insertar el ciclo.', variant: 'destructive' });
+        throw error;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [user, loadCycleData, toast]
+  );
+
   const addArchivedCycle = useCallback(
     async (startDate, endDate) => {
       if (!user?.uid) return;
@@ -965,12 +1001,15 @@ export const CycleDataProvider = ({ children }) => {
 
       setIsLoading(true);
       try {
+        const adjustmentSummaries = [];
         if (hasStartChange && newStartDate) {
-          await forceUpdateCycleStartDB(user.uid, cycleIdToUpdate, newStartDate);
-          }
+          const summary = await forceUpdateCycleStartDB(user.uid, cycleIdToUpdate, newStartDate);
+          if (summary) adjustmentSummaries.push(summary);
+        }
         if (hasEndChange && newEndDate) {
           const startForCalc = hasStartChange ? newStartDate : currentStartDate;
-          await forceShiftNextCycleStartDB(user.uid, cycleIdToUpdate, newEndDate, startForCalc);
+          const summary = await forceShiftNextCycleStartDB(user.uid, cycleIdToUpdate, newEndDate, startForCalc);
+          if (summary) adjustmentSummaries.push(summary);
         }
         if (hasStartChange || hasEndChange) {
           await updateCycleDatesDB(
@@ -981,6 +1020,22 @@ export const CycleDataProvider = ({ children }) => {
           );
         }
         await loadCycleData({ silent: true });
+        
+        const mergedSummary = adjustmentSummaries.reduce((acc, item) => ({
+          movedEntriesCount: acc.movedEntriesCount + (item?.movedEntriesCount || 0),
+          changedCycles: [...acc.changedCycles, ...(item?.changedCycles || [])],
+        }), { movedEntriesCount: 0, changedCycles: [] });
+
+        if (mergedSummary.changedCycles.length || mergedSummary.movedEntriesCount) {
+          const firstChange = mergedSummary.changedCycles[0];
+          const changeText = firstChange
+            ? `Se ajustó un ciclo: inicio ${formatUiDate(firstChange.oldStart)}→${formatUiDate(firstChange.newStart)}.`
+            : 'Se ajustaron ciclos relacionados.';
+          toast({
+            title: 'Fechas ajustadas',
+            description: `${changeText} Se movieron ${mergedSummary.movedEntriesCount} registros.`,
+          });
+        }
       } catch (error) {
         console.error('Error updating cycle dates:', error);
         const publicError = toPublicError(error);
@@ -1176,6 +1231,8 @@ export const CycleDataProvider = ({ children }) => {
     toggleIgnoreRecord,
     setCycleIgnoreForAutoCalculations,
     addArchivedCycle,
+    previewInsertCycleRange,
+    insertCycleRange,
     deleteCycle,
     getMeasurementsForEntry,
     undoCurrentCycle,

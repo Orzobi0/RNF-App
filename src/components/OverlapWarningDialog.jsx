@@ -10,7 +10,15 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 
-const OverlapWarningDialog = ({ isOpen, onCancel, onConfirm, conflictCycle, message }) => {
+const OverlapWarningDialog = ({
+  isOpen,
+  onCancel,
+  onConfirm,
+  conflictCycle,
+  message,
+  impactSummary,
+  affectedCycles = [],
+}) => {
   const formatDate = (date) => {
     if (!date) return null;
     try {
@@ -40,6 +48,27 @@ const OverlapWarningDialog = ({ isOpen, onCancel, onConfirm, conflictCycle, mess
                 : 'La nueva fecha de inicio se solapa con otro ciclo. ¿Deseas continuar?')}
           </DialogDescription>
         </DialogHeader>
+        
+        {impactSummary && (
+          <div className="rounded-md border border-pink-100 bg-pink-50 px-3 py-2 text-sm text-gray-700">
+            <ul className="list-disc space-y-1 pl-4">
+              <li>Recortes: {impactSummary.trims ?? 0}</li>
+              <li>Divisiones: {impactSummary.splits ?? 0}</li>
+              <li>Eliminaciones: {impactSummary.deletes ?? 0}</li>
+              <li>Registros movidos: {impactSummary.movedEntries ?? 0}</li>
+            </ul>
+            {affectedCycles.length > 0 && (
+              <p className="mt-2 text-xs text-gray-600">
+                Ejemplos: {affectedCycles.slice(0, 3).map((cycle) => {
+                  const start = formatDate(cycle.startDate) ?? 'sin inicio';
+                  const end = cycle.endDate ? formatDate(cycle.endDate) : 'en curso';
+                  return `${start}–${end}`;
+                }).join(', ')}
+              </p>
+            )}
+          </div>
+        )}
+
         <DialogFooter className="sm:justify-end">
           <Button variant="outline" onClick={onCancel} className="border-gray-300 text-titulo hover:bg-gray-100">Cancelar</Button>
           <Button variant="destructive" onClick={onConfirm} className="bg-fertiliapp-fuerte hover:bg-pink-700 text-white">Confirmar</Button>
