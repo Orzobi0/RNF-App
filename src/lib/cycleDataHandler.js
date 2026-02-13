@@ -90,8 +90,30 @@ export const toPublicError = (err) => {
   ).toJSON();
 };
 
-const formatCycleRange = (startDate, endDate) =>
-  endDate ? `${startDate} a ${endDate}` : `${startDate} en adelante`;
+const normalizeCycleRangeForDisplay = (startDate, endDate) => {
+  if (!startDate || !endDate) {
+    return { startDate, endDate };
+  }
+
+  const parsedStart = startOfDay(parseISO(startDate));
+  const parsedEnd = startOfDay(parseISO(endDate));
+  if (!isValid(parsedStart) || !isValid(parsedEnd)) {
+    return { startDate, endDate };
+  }
+
+  if (parsedEnd < parsedStart) {
+    return { startDate, endDate: startDate };
+  }
+
+  return { startDate, endDate };
+};
+
+const formatCycleRange = (startDate, endDate) => {
+  const normalizedRange = normalizeCycleRangeForDisplay(startDate, endDate);
+  return normalizedRange.endDate
+    ? `${normalizedRange.startDate} a ${normalizedRange.endDate}`
+    : `${normalizedRange.startDate} en adelante`;
+};
 
 const buildCycleOverlapMessage = (conflictCycle, proposedStart, proposedEnd) => {
   const conflictRange = formatCycleRange(conflictCycle?.startDate, conflictCycle?.endDate);
@@ -1764,7 +1786,7 @@ export const forceShiftNextCycleStart = async (
   const cyclesRef = collection(db, `users/${userId}/cycles`);
   const cyclesSnap = await getDocs(cyclesRef);
   const sortedCycles = sortCyclesByStartDate(cyclesSnap.docs);
-  const { current, next, nextNext } = findNeighbors(sortedCycles, currentCycleId);
+  const { current, next } = findNeighbors(sortedCycles, currentCycleId);
 
   if (!current || !next) return { changedCycles: [], movedEntriesCount: 0, notes: [] };
 
@@ -1788,68 +1810,85 @@ export const forceShiftNextCycleStart = async (
   const proposedStart = startOfDay(addDays(parsedNewEnd, 1));
   const proposedStartIso = format(proposedStart, 'yyyy-MM-dd');
 
-  if (nextNext?.data?.start_date) {
-    const nextNextStart = startOfDay(parseISO(nextNext.data.start_date));
-    if (proposedStart >= nextNextStart) {
-      const conflictCycle = {
-        id: nextNext.id,
-        startDate: nextNext.data.start_date,
-        endDate: nextNext.data.end_date,
-      };
-      throw createAppError(
-        'cycle-overlap',
-        'Las fechas se superponen',
-        buildCycleOverlapMessage(conflictCycle, proposedStartIso, next.data.end_date ?? null),
-        { conflictCycle, proposedStart: proposedStartIso, proposedEnd: next.data.end_date ?? null },
-        { label: 'Cambiar fecha' }
-      );
-    }
-  }
-  if (next.data.end_date) {
-    const nextEnd = startOfDay(parseISO(next.data.end_date));
-    if (proposedStart > nextEnd) {
-      throw createAppError(
-        'cycle-range-invalid',
-        'Rango de fechas inválido',
-        'La fecha de inicio propuesta para el siguiente ciclo queda después de su fecha de fin. Corrige las fechas.',
-        {
-          nextCycleId: next.id,
-          nextStartDate: proposedStartIso,
-          nextEndDate: next.data.end_date,
-          invalidField: 'startDate',
-        },
-        { label: 'Cambiar fecha' }
-      );
-    }
-  }
-
+  
   const nextStart = startOfDay(parseISO(next.data.start_date));
-  if (proposedStart > nextStart) {
+  if (proposedStart < nextStart) {
+    const splitResult = await splitCycleAtDate(userId, currentCycleId, next.id, proposedStartIso);
+    summary.movedEntriesCount += splitResult?.movedEntries ?? 0;
+    summary.notes.push('Se partió el ciclo actual para extender el siguiente.');
+
+    const nextCycleRef = doc(db, `users/${userId}/cycles/${next.id}`);
+    await updateDoc(nextCycleRef, { start_date: proposedStartIso });
+    await recalcCycleDayForAllEntriesDB(userId, next.id, proposedStartIso);
+    summary.changedCycles.push({
+      id: next.id,
+      oldStart: next.data.start_date,
+      newStart: proposedStartIso,
+      oldEnd: next.data.end_date ?? null,
+      newEnd: next.data.end_date ?? null,
+    });
+
+    return summary;
+  }
+  
+  const currentIndex = sortedCycles.findIndex((cycle) => cycle.id === currentCycleId);
+  const subsequentCycles =
+    currentIndex >= 0 ? sortedCycles.slice(currentIndex + 1) : [];
+
+  for (const affectedCycle of subsequentCycles) {
+    const affectedStartIso = affectedCycle?.data?.start_date;
+    if (!affectedStartIso) continue;
+
+    const affectedStart = startOfDay(parseISO(affectedStartIso));
+    if (!isValid(affectedStart) || affectedStart > parsedNewEnd) {
+      break;
+    }
+
     const moveResult = await moveEntriesWithMeasurementsDB({
       userId,
-      fromCycleId: next.id,
+      fromCycleId: affectedCycle.id,
       toCycleId: currentCycleId,
       shouldMoveIsoDate: (isoDate) => startOfDay(parseISO(isoDate)) < proposedStart,
       toCycleStartIso: effectiveCurrentStart || current.data.start_date,
     });
     summary.movedEntriesCount += moveResult?.movedEntries ?? 0;
-    summary.notes.push('Se movieron registros desde el ciclo siguiente al actual.');
-  } else if (proposedStart < nextStart) {
-    const splitResult = await splitCycleAtDate(userId, currentCycleId, next.id, proposedStartIso);
-    summary.movedEntriesCount += splitResult?.movedEntries ?? 0;
-    summary.notes.push('Se partió el ciclo actual para extender el siguiente.');
-  }
 
-  const nextCycleRef = doc(db, `users/${userId}/cycles/${next.id}`);
-  await updateDoc(nextCycleRef, { start_date: proposedStartIso });
-  await recalcCycleDayForAllEntriesDB(userId, next.id, proposedStartIso);
-  summary.changedCycles.push({
-    id: next.id,
-    oldStart: next.data.start_date,
-    newStart: proposedStartIso,
-    oldEnd: next.data.end_date ?? null,
-    newEnd: next.data.end_date ?? null,
-  });
+  const affectedEndIso = affectedCycle.data.end_date ?? null;
+    const affectedEnd = affectedEndIso ? startOfDay(parseISO(affectedEndIso)) : null;
+    const normalizedAffectedEnd =
+      affectedEnd && isValid(affectedEnd) && affectedEnd >= affectedStart
+        ? affectedEnd
+        : affectedStart;
+
+    const isClosedCycle = affectedEndIso !== null && affectedEndIso !== undefined;
+    const isFullyCovered = isClosedCycle && normalizedAffectedEnd <= parsedNewEnd;
+
+    if (isFullyCovered) {
+      await deleteCycleDB(userId, affectedCycle.id);
+      summary.changedCycles.push({
+        id: affectedCycle.id,
+        oldStart: affectedCycle.data.start_date,
+        newStart: null,
+        oldEnd: affectedCycle.data.end_date ?? null,
+        newEnd: null,
+      });
+      summary.notes.push('Se absorbió y eliminó un ciclo posterior cubierto por completo.');
+      continue;
+    }
+
+    const affectedCycleRef = doc(db, `users/${userId}/cycles/${affectedCycle.id}`);
+    await updateDoc(affectedCycleRef, { start_date: proposedStartIso });
+    await recalcCycleDayForAllEntriesDB(userId, affectedCycle.id, proposedStartIso);
+    summary.changedCycles.push({
+      id: affectedCycle.id,
+      oldStart: affectedCycle.data.start_date,
+      newStart: proposedStartIso,
+      oldEnd: affectedCycle.data.end_date ?? null,
+      newEnd: affectedCycle.data.end_date ?? null,
+    });
+    summary.notes.push('Se recortó el inicio del siguiente ciclo no cubierto completamente.');
+    break;
+  }
 
   return summary;
 };
