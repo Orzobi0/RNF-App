@@ -1026,16 +1026,36 @@ export const CycleDataProvider = ({ children }) => {
           changedCycles: [...acc.changedCycles, ...(item?.changedCycles || [])],
         }), { movedEntriesCount: 0, changedCycles: [] });
 
+        const formatUiDateSafe = (isoDate) => {
+          if (!isoDate) return '—';
+          try {
+            const parsed = parseISO(isoDate);
+            return isValid(parsed) ? format(parsed, 'dd/MM/yyyy') : isoDate;
+          } catch {
+            return isoDate;
+          }
+        };
+
         if (mergedSummary.changedCycles.length || mergedSummary.movedEntriesCount) {
-          const firstChange = mergedSummary.changedCycles[0];
-          const changeText = firstChange
-            ? `Se ajustó un ciclo: inicio ${formatUiDate(firstChange.oldStart)}→${formatUiDate(firstChange.newStart)}.`
-            : 'Se ajustaron ciclos relacionados.';
+          const changedCyclesDescription = mergedSummary.changedCycles
+            .map((c) =>
+              `${formatUiDateSafe(c.oldStart)} - ${formatUiDateSafe(c.oldEnd)} → ${formatUiDateSafe(c.newStart)} - ${formatUiDateSafe(c.newEnd)}`
+           )
+            .join('; ');
+
+          const movedEntriesDescription = `Se movieron ${mergedSummary.movedEntriesCount} registros.`;
+          const description = mergedSummary.changedCycles.length
+            ? `Ciclos ajustados: ${changedCyclesDescription}. ${movedEntriesDescription}`
+            : movedEntriesDescription;
+
           toast({
-            title: 'Fechas ajustadas',
-            description: `${changeText} Se movieron ${mergedSummary.movedEntriesCount} registros.`,
+            title: 'Fechas guardadas correctamente',
+            description,
+            duration: 9000,
           });
         }
+
+        return mergedSummary;
       } catch (error) {
         console.error('Error updating cycle dates:', error);
         const publicError = toPublicError(error);

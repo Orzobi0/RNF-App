@@ -42,25 +42,35 @@ const EditCycleDatesDialog = ({
   const [showOverlapDialog, setShowOverlapDialog] = useState(false);
   const [overlapPlan, setOverlapPlan] = useState(null);
 
-  const formatCycleDateShort = (value) => {
+  const formatCycleDateUi = (value) => {
     if (!value) return 'en curso';
     try {
-      return format(parseISO(value), 'dd MMM yy', { locale: es });
+      return format(parseISO(value), 'dd/MM/yyyy');
     } catch (error) {
       console.error('Error formatting cycle date', error);
       return value;
     }
   };
 
+  const findOverlapCycleById = (cycleId) => {
+    const list = overlapPlan?.overlaps || [];
+    return list.find((c) => c?.id === cycleId || c?.cycleId === cycleId) || null;
+  };
   const affectedCycleNames = (overlapPlan?.overlaps || []).map((cycle) => {
-    const start = formatCycleDateShort(cycle.startDate);
-    const end = cycle.endDate ? formatCycleDateShort(cycle.endDate) : 'en curso';
+    const start = formatCycleDateUi(cycle.startDate);
+    const end = cycle.endDate ? formatCycleDateUi(cycle.endDate) : 'en curso';
     return `${start} - ${end}`;
   });
 
   const overlapAdjustmentsPreview = (overlapPlan?.plan || []).flatMap((item) => {
     if (item.action === 'delete') {
-      return [{ cycleId: item.cycleId, type: 'delete' }];
+      const fromOverlap = findOverlapCycleById(item.cycleId);
+      return [{
+        cycleId: item.cycleId,
+        type: 'delete',
+        startDate: item.startDate ?? fromOverlap?.startDate,
+        endDate: item.endDate ?? fromOverlap?.endDate,
+      }];
     }
     if (item.action === 'split') {
       return [
@@ -355,12 +365,12 @@ const EditCycleDatesDialog = ({
       <OverlapWarningDialog
         isOpen={showOverlapDialog}
         conflictCycle={overlapCycle}
-        message={overlapPlan
-          ? `Este nuevo cambio afecta a los ciclos ${affectedCycleNames.join(', ')}. ¿Deseas continuar?`
-          : undefined}
+        message={overlapPlan ? '¿Deseas continuar con este cambio?' : undefined}
+        affectedCycles={affectedCycleNames}
         impactSummary={overlapPlan
           ? {
             trims: (overlapPlan.summary?.trimStartCount || 0) + (overlapPlan.summary?.trimEndCount || 0),
+            deletions: overlapPlan.summary?.deleteCount || 0,
             movedEntries: overlapPlan.summary?.estimateMovedEntries || 0,
           }
           : undefined}

@@ -3307,10 +3307,6 @@ const ModernFertilityDashboard = () => {
 
       await updateCycleDates(currentCycle.id, draftStartDate);
       await refreshData({ silent: true });
-      toast({
-        title: 'Fecha de inicio actualizada',
-        description: 'El ciclo se ha ajustado a la nueva fecha de inicio.',
-      });
       handleCloseStartDateEditor();
     } catch (error) {
       console.error('Error updating start date from dashboard:', error);
@@ -3345,10 +3341,6 @@ const ModernFertilityDashboard = () => {
     try {
       await updateCycleDates(currentCycle.id, pendingStartDate);
       await refreshData({ silent: true });
-      toast({
-        title: 'Fecha de inicio actualizada',
-        description: 'El ciclo se ha ajustado a la nueva fecha de inicio.',
-      });
       handleCloseStartDateEditor();
     } catch (error) {
       console.error('Error forcing start date from dashboard:', error);

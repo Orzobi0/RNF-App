@@ -1129,10 +1129,6 @@ const enterStart = -exitTarget;
         includeEndDate ? draftEndDate || undefined : undefined
       );
       await refreshData({ silent: true });
-      toast({
-        title: 'Fechas actualizadas',
-        description: 'El ciclo se ha ajustado a las nuevas fechas.',
-      });
       closeStartDateEditor();
     } catch (error) {
       const publicError = getPublicError ? getPublicError(error) : null;
@@ -1190,10 +1186,6 @@ const enterStart = -exitTarget;
         resolvedPendingEnd
       );
       await refreshData({ silent: true });
-      toast({
-        title: 'Fechas actualizadas',
-        description: 'El ciclo se ha ajustado a las nuevas fechas.',
-      });
       closeStartDateEditor();
     } catch (error) {
       const publicError = getPublicError ? getPublicError(error) : null;
