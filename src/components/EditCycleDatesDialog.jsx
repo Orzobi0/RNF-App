@@ -42,6 +42,49 @@ const EditCycleDatesDialog = ({
   const [showOverlapDialog, setShowOverlapDialog] = useState(false);
   const [overlapPlan, setOverlapPlan] = useState(null);
 
+  const formatCycleDateShort = (value) => {
+    if (!value) return 'en curso';
+    try {
+      return format(parseISO(value), 'dd MMM yy', { locale: es });
+    } catch (error) {
+      console.error('Error formatting cycle date', error);
+      return value;
+    }
+  };
+
+  const affectedCycleNames = (overlapPlan?.overlaps || []).map((cycle) => {
+    const start = formatCycleDateShort(cycle.startDate);
+    const end = cycle.endDate ? formatCycleDateShort(cycle.endDate) : 'en curso';
+    return `${start} - ${end}`;
+  });
+
+  const overlapAdjustmentsPreview = (overlapPlan?.plan || []).flatMap((item) => {
+    if (item.action === 'delete') {
+      return [{ cycleId: item.cycleId, type: 'delete' }];
+    }
+    if (item.action === 'split') {
+      return [
+        {
+          cycleId: item.cycleId,
+          type: 'split',
+          startDate: item.startDate,
+          endDate: item.leftEndDate,
+        },
+        {
+          cycleId: item.cycleId,
+          type: 'split',
+          startDate: item.rightStartDate,
+          endDate: item.rightEndDate,
+        },
+      ];
+    }
+    if (item.action === 'trimStart') {
+      return [{ cycleId: item.cycleId, type: 'trim', startDate: item.newStartDate, endDate: item.endDate }];
+    }
+
+    return [{ cycleId: item.cycleId, type: 'trim', startDate: item.startDate, endDate: item.newEndDate }];
+  });
+
   useBackClose(isOpen, onClose);
 
   useEffect(() => {
@@ -313,17 +356,15 @@ const EditCycleDatesDialog = ({
         isOpen={showOverlapDialog}
         conflictCycle={overlapCycle}
         message={overlapPlan
-          ? `Este nuevo ciclo afectará a ${overlapPlan.overlaps.length} ciclos. ¿Deseas continuar?`
+          ? `Este nuevo cambio afecta a los ciclos ${affectedCycleNames.join(', ')}. ¿Deseas continuar?`
           : undefined}
         impactSummary={overlapPlan
           ? {
             trims: (overlapPlan.summary?.trimStartCount || 0) + (overlapPlan.summary?.trimEndCount || 0),
-            splits: overlapPlan.summary?.splitCount || 0,
-            deletes: overlapPlan.summary?.deleteCount || 0,
             movedEntries: overlapPlan.summary?.estimateMovedEntries || 0,
           }
           : undefined}
-        affectedCycles={overlapPlan?.overlaps || []}
+        adjustedCyclesPreview={overlapAdjustmentsPreview}
         onCancel={() => {
           setShowOverlapDialog(false);
           setOverlapPlan(null);
