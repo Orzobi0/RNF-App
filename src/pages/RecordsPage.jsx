@@ -94,6 +94,7 @@ export const RecordsExperience = ({
     isLoading: contextIsLoading,
     updateCycleDates: contextUpdateCycleDates,
     checkCycleOverlap: contextCheckCycleOverlap,
+    previewUpdateCycleDates: contextPreviewUpdateCycleDates,
     previewStartNewCycle: contextPreviewStartNewCycle,
     startNewCycle: contextStartNewCycle,
     refreshData: contextRefreshData,
@@ -127,6 +128,7 @@ export const RecordsExperience = ({
     : async (cycleId, startDate, endDate) =>
         contextUpdateCycleDates(cycleId ?? cycle?.id, startDate, endDate);
   const checkCycleOverlap = checkCycleOverlapProp ?? contextCheckCycleOverlap;
+  const previewUpdateCycleDates = contextPreviewUpdateCycleDates;
   const previewStartNewCycle = contextPreviewStartNewCycle;
   const startNewCycle = startNewCycleProp ?? contextStartNewCycle;
   const refreshData = refreshDataProp ?? contextRefreshData;
@@ -147,6 +149,7 @@ export const RecordsExperience = ({
   const [pendingEndDate, setPendingEndDate] = useState(null);
   const [pendingIncludeEndDate, setPendingIncludeEndDate] = useState(false);
   const [overlapCycle, setOverlapCycle] = useState(null);
+  const [overlapImpactPreview, setOverlapImpactPreview] = useState(null);
   const [showOverlapDialog, setShowOverlapDialog] = useState(false);
   const [isUpdatingStartDate, setIsUpdatingStartDate] = useState(false);
   const [selectedDate, setSelectedDate] = useState(null);
@@ -930,6 +933,7 @@ const enterStart = -exitTarget;
     setPendingEndDate(null);
     setPendingIncludeEndDate(false);
     setOverlapCycle(null);
+    setOverlapImpactPreview(null);
     setShowOverlapDialog(false);
   }, []);
 
@@ -1106,20 +1110,36 @@ const enterStart = -exitTarget;
     setIsUpdatingStartDate(true);
 
     try {
+      const resolvedEndDate = includeEndDate ? draftEndDate || undefined : undefined;
+      const impactPreview = previewUpdateCycleDates
+        ? await previewUpdateCycleDates(cycle.id, draftStartDate, resolvedEndDate)
+        : null;
+
+      if (impactPreview) {
+        setPendingStartDate(draftStartDate);
+        setPendingEndDate(resolvedEndDate ?? null);
+        setPendingIncludeEndDate(!!includeEndDate);
+        setOverlapCycle(null);
+        setOverlapImpactPreview(impactPreview);
+        setShowOverlapDialog(true);
+        setIsUpdatingStartDate(false);
+        return;
+      }
+
       const overlap = checkCycleOverlap
         ? await checkCycleOverlap(
             cycle.id,
             draftStartDate,
-            includeEndDate ? draftEndDate || undefined : undefined
+            resolvedEndDate
           )
         : null;
 
       if (overlap) {
         setPendingStartDate(draftStartDate);
-        const resolvedEndDate = includeEndDate ? draftEndDate || undefined : undefined;
         setPendingEndDate(resolvedEndDate ?? null);
         setPendingIncludeEndDate(!!includeEndDate);
         setOverlapCycle(overlap);
+        setOverlapImpactPreview(null);
         setShowOverlapDialog(true);
         setIsUpdatingStartDate(false);
         return;
@@ -1155,6 +1175,7 @@ const enterStart = -exitTarget;
     includeEndDate,
     cycle?.id,
     checkCycleOverlap,
+    previewUpdateCycleDates,
     updateCycleDates,
     refreshData,
     toast,
@@ -1608,6 +1629,7 @@ const enterStart = -exitTarget;
                   includeEndDate={includeEndDate}
                   showOverlapDialog={showOverlapDialog}
                   overlapCycle={overlapCycle}
+                  overlapImpactPreview={overlapImpactPreview}
                   onConfirmOverlap={handleConfirmOverlapStart}
                   onCancelOverlap={handleCancelOverlapStart}
                   onClearError={() => setStartDateError('')}

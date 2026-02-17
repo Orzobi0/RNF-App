@@ -2162,24 +2162,6 @@ export const forceUpdateCycleStart = async (userId, currentCycleId, newStartDate
   const currentStart = currentStartIso ? startOfDay(parseISO(currentStartIso)) : null;
   const currentEnd = current.data.end_date ? startOfDay(parseISO(current.data.end_date)) : null;
 
-  if (previous?.data?.start_date) {
-    const previousStart = startOfDay(parseISO(previous.data.start_date));
-    if (newStart <= previousStart) {
-      const conflictCycle = {
-        id: previous.id,
-        startDate: previous.data.start_date,
-        endDate: previous.data.end_date,
-      };
-      throw createAppError(
-        'cycle-overlap',
-        'Las fechas se superponen',
-        buildCycleOverlapMessage(conflictCycle, format(newStart, 'yyyy-MM-dd'), current.data.end_date ?? null),
-        { conflictCycle, proposedStart: format(newStart, 'yyyy-MM-dd'), proposedEnd: current.data.end_date ?? null },
-        { label: 'Cambiar fecha' }
-      );
-    }
-  }
-
   if (next?.data?.start_date) {
     const nextStart = startOfDay(parseISO(next.data.start_date));
     if (newStart >= nextStart) {
@@ -2212,42 +2194,81 @@ export const forceUpdateCycleStart = async (userId, currentCycleId, newStartDate
     );
   }
 
-  if (previous) {
+  const newStartIso = format(newStart, 'yyyy-MM-dd');
+  const dayBeforeNewStartIso = format(addDays(newStart, -1), 'yyyy-MM-dd');
+
+  if (previous && currentStart && newStart > currentStart) {
     const prevRef = doc(db, `users/${userId}/cycles/${previous.id}`);
-    const dayBefore = format(addDays(newStart, -1), 'yyyy-MM-dd');
-    await updateDoc(prevRef, { end_date: dayBefore });
+    await updateDoc(prevRef, { end_date: dayBeforeNewStartIso });
     summary.changedCycles.push({
       id: previous.id,
       oldStart: previous.data.start_date,
       newStart: previous.data.start_date,
       oldEnd: previous.data.end_date ?? null,
-      newEnd: dayBefore,
+      newEnd: dayBeforeNewStartIso,
     });
 
-    if (currentStart && newStart < currentStart) {
+    const moveResult = await moveEntriesWithMeasurementsDB({
+      userId,
+      fromCycleId: currentCycleId,
+      toCycleId: previous.id,
+      shouldMoveIsoDate: (isoDate) => startOfDay(parseISO(isoDate)) < newStart,
+      toCycleStartIso: previous.data.start_date,
+    });
+    summary.movedEntriesCount += moveResult?.movedEntries ?? 0;
+    summary.notes.push('Se movieron registros desde el ciclo editado al ciclo previo.');
+  } else if (currentStart && newStart < currentStart) {
+    const currentIndex = sortedCycles.findIndex((candidate) => candidate.id === currentCycleId);
+    const previousCycles = currentIndex > 0 ? sortedCycles.slice(0, currentIndex).reverse() : [];
+
+    for (const previousCycle of previousCycles) {
+      const previousStartIso = previousCycle?.data?.start_date;
+      if (!previousStartIso) continue;
+
+      const previousStart = startOfDay(parseISO(previousStartIso));
+      if (!isValid(previousStart)) continue;
+
+      const previousEndIso = previousCycle.data.end_date ?? previousStartIso;
+      const previousEnd = startOfDay(parseISO(previousEndIso));
+      if (!isValid(previousEnd) || previousEnd < newStart) {
+        break;
+      }
       const moveResult = await moveEntriesWithMeasurementsDB({
         userId,
-        fromCycleId: previous.id,
+        fromCycleId: previousCycle.id,
         toCycleId: currentCycleId,
         shouldMoveIsoDate: (isoDate) => startOfDay(parseISO(isoDate)) >= newStart,
-        toCycleStartIso: format(newStart, 'yyyy-MM-dd'),
+        toCycleStartIso: newStartIso,
       });
       summary.movedEntriesCount += moveResult?.movedEntries ?? 0;
-      summary.notes.push('Se movieron registros desde el ciclo previo al ciclo editado.');
-    } else if (currentStart && newStart > currentStart) {
-      const moveResult = await moveEntriesWithMeasurementsDB({
-        userId,
-        fromCycleId: currentCycleId,
-        toCycleId: previous.id,
-        shouldMoveIsoDate: (isoDate) => startOfDay(parseISO(isoDate)) < newStart,
-        toCycleStartIso: previous.data.start_date,
+      
+      if (newStart <= previousStart) {
+        await deleteCycleDB(userId, previousCycle.id);
+        summary.changedCycles.push({
+          id: previousCycle.id,
+          oldStart: previousCycle.data.start_date,
+          newStart: null,
+          oldEnd: previousCycle.data.end_date ?? null,
+          newEnd: null,
+        });
+        summary.notes.push('Se absorbió y eliminó un ciclo previo cubierto por completo.');
+        continue;
+      }
+
+      const previousCycleRef = doc(db, `users/${userId}/cycles/${previousCycle.id}`);
+      await updateDoc(previousCycleRef, { end_date: dayBeforeNewStartIso });
+      summary.changedCycles.push({
+        id: previousCycle.id,
+        oldStart: previousCycle.data.start_date,
+        newStart: previousCycle.data.start_date,
+        oldEnd: previousCycle.data.end_date ?? null,
+        newEnd: dayBeforeNewStartIso,
       });
-      summary.movedEntriesCount += moveResult?.movedEntries ?? 0;
-      summary.notes.push('Se movieron registros desde el ciclo editado al ciclo previo.');
+      summary.notes.push('Se recortó el fin de un ciclo previo no cubierto completamente.');
+      break;
     }
   }
   const currentRef = doc(db, `users/${userId}/cycles/${currentCycleId}`);
-  const newStartIso = format(newStart, 'yyyy-MM-dd');
   await updateDoc(currentRef, { start_date: newStartIso });
   await recalcCycleDayForAllEntriesDB(userId, currentCycleId, newStartIso);
   summary.changedCycles.push({
@@ -2281,24 +2302,6 @@ export const previewForceUpdateCycleStartDB = async ({ userId, cycleId, newStart
   if (!current) return toImpactPayload({});
 
   const currentEnd = current.data.end_date ? startOfDay(parseISO(current.data.end_date)) : null;
-  if (previous?.data?.start_date) {
-    const previousStart = startOfDay(parseISO(previous.data.start_date));
-    if (newStart <= previousStart) {
-      const conflictCycle = {
-        id: previous.id,
-        startDate: previous.data.start_date,
-        endDate: previous.data.end_date,
-      };
-      throw createAppError(
-        'cycle-overlap',
-        'Las fechas se superponen',
-        buildCycleOverlapMessage(conflictCycle, format(newStart, 'yyyy-MM-dd'), current.data.end_date ?? null),
-        { conflictCycle, proposedStart: format(newStart, 'yyyy-MM-dd'), proposedEnd: current.data.end_date ?? null },
-        { label: 'Cambiar fecha' }
-      );
-    }
-  }
-
   if (next?.data?.start_date) {
     const nextStart = startOfDay(parseISO(next.data.start_date));
     if (newStart >= nextStart) {
@@ -2340,7 +2343,9 @@ export const previewForceUpdateCycleStartDB = async ({ userId, cycleId, newStart
   ];
   let movedEntries = 0;
 
-  if (previous) {
+  const currentStartIso = current.data.start_date;
+  const newStartIso = format(newStart, 'yyyy-MM-dd');
+  if (previous && currentStartIso && newStartIso > currentStartIso) {
     const dayBefore = format(addDays(newStart, -1), 'yyyy-MM-dd');
     affectedCycles.unshift({ cycleId: previous.id, startDate: previous.data.start_date, endDate: previous.data.end_date ?? null });
     adjustedCyclesPreview.unshift({
@@ -2350,20 +2355,58 @@ export const previewForceUpdateCycleStartDB = async ({ userId, cycleId, newStart
       endDate: dayBefore,
     });
 
-    const currentStartIso = current.data.start_date;
-    const newStartIso = format(newStart, 'yyyy-MM-dd');
-    if (currentStartIso && newStartIso < currentStartIso) {
+    movedEntries += await countEntriesByPredicateForCycle({
+      userId,
+      cycleId,
+      predicate: (isoDate) => isoDate >= currentStartIso && isoDate < newStartIso,
+    });
+  } else if (currentStartIso && newStartIso < currentStartIso) {
+    const dayBefore = format(addDays(newStart, -1), 'yyyy-MM-dd');
+    const currentIndex = sortedCycles.findIndex((candidate) => candidate.id === cycleId);
+    const previousCycles = currentIndex > 0 ? sortedCycles.slice(0, currentIndex).reverse() : [];
+
+    for (const previousCycle of previousCycles) {
+      const previousStartIso = previousCycle?.data?.start_date;
+      if (!previousStartIso) continue;
+
+      const previousStart = startOfDay(parseISO(previousStartIso));
+      if (!isValid(previousStart)) continue;
+
+      const previousEndIso = previousCycle.data.end_date ?? previousStartIso;
+      const previousEnd = startOfDay(parseISO(previousEndIso));
+      if (!isValid(previousEnd) || previousEnd < newStart) {
+        break;
+      }
+
+      affectedCycles.unshift({
+        cycleId: previousCycle.id,
+        startDate: previousCycle.data.start_date,
+        endDate: previousCycle.data.end_date ?? null,
+      });
+
       movedEntries += await countEntriesByPredicateForCycle({
         userId,
-        cycleId: previous.id,
-        predicate: (isoDate) => isoDate >= newStartIso && isoDate < currentStartIso,
+        cycleId: previousCycle.id,
+        predicate: (isoDate) => isoDate >= newStartIso,
       });
-    } else if (currentStartIso && newStartIso > currentStartIso) {
-      movedEntries += await countEntriesByPredicateForCycle({
-        userId,
-        cycleId,
-        predicate: (isoDate) => isoDate >= currentStartIso && isoDate < newStartIso,
+      
+      if (newStart <= previousStart) {
+        adjustedCyclesPreview.unshift({
+          cycleId: previousCycle.id,
+          type: 'delete',
+          startDate: previousCycle.data.start_date,
+          endDate: previousCycle.data.end_date ?? null,
+        });
+        continue;
+      }
+
+      adjustedCyclesPreview.unshift({
+        cycleId: previousCycle.id,
+        type: 'trim',
+        startDate: previousCycle.data.start_date,
+        endDate: dayBefore,
       });
+      break;
     }
   }
 
@@ -2371,8 +2414,8 @@ export const previewForceUpdateCycleStartDB = async ({ userId, cycleId, newStart
     affectedCycles,
     adjustedCyclesPreview,
     impactSummary: {
-      trimmedCycles: adjustedCyclesPreview.length,
-      deletedCycles: 0,
+      trimmedCycles: adjustedCyclesPreview.filter((item) => !isDeletedPreview(item)).length,
+      deletedCycles: adjustedCyclesPreview.filter((item) => isDeletedPreview(item)).length,
       movedEntries,
     },
   });
