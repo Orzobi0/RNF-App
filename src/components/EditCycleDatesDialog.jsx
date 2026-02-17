@@ -27,6 +27,7 @@ const EditCycleDatesDialog = ({
   description,
   cycleId,
   checkOverlap,
+  previewUpdateCycleDates,
   checkOverlapForNewRange,
   errorMessage,
   conflictCycle,
@@ -56,13 +57,13 @@ const EditCycleDatesDialog = ({
     const list = overlapPlan?.overlaps || [];
     return list.find((c) => c?.id === cycleId || c?.cycleId === cycleId) || null;
   };
-  const affectedCycleNames = (overlapPlan?.overlaps || []).map((cycle) => {
+  const affectedCycleNames = overlapPlan?.affectedCycles || (overlapPlan?.overlaps || []).map((cycle) => {
     const start = formatCycleDateUi(cycle.startDate);
     const end = cycle.endDate ? formatCycleDateUi(cycle.endDate) : 'en curso';
     return `${start} - ${end}`;
   });
 
-  const overlapAdjustmentsPreview = (overlapPlan?.plan || []).flatMap((item) => {
+  const overlapAdjustmentsPreview = (overlapPlan?.adjustedCyclesPreview || overlapPlan?.plan || []).flatMap((item) => {
     if (item.action === 'delete') {
       const fromOverlap = findOverlapCycleById(item.cycleId);
       return [{
@@ -195,12 +196,17 @@ const EditCycleDatesDialog = ({
     const payload = includeEndDate
       ? { startDate, endDate }
       : { startDate };
-    if (checkOverlap && cycleId && startDate) {
-      const overlap = await checkOverlap(
-        cycleId,
-        startDate,
-        includeEndDate ? endDate || undefined : undefined
-      );
+    if (previewUpdateCycleDates && cycleId && startDate) {
+      const preview = await previewUpdateCycleDates(cycleId, startDate, includeEndDate ? endDate || undefined : undefined);
+      if (preview) {
+        setOverlapCycle(null);
+        setPendingPayload(payload);
+        setOverlapPlan(preview);
+        setShowOverlapDialog(true);
+        return;
+      }
+    } else if (checkOverlap && cycleId && startDate) {
+      const overlap = await checkOverlap(cycleId, startDate, includeEndDate ? endDate || undefined : undefined);
       if (overlap) {
         setOverlapCycle(overlap);
         setPendingPayload(payload);
@@ -366,12 +372,16 @@ const EditCycleDatesDialog = ({
         isOpen={showOverlapDialog}
         conflictCycle={overlapCycle}
         message={overlapPlan ? '¿Deseas continuar con este cambio?' : undefined}
+        title={overlapPlan ? 'Este cambio ajustará otros ciclos' : undefined}
+        confirmLabel={overlapPlan ? 'Aplicar cambios' : undefined}
         affectedCycles={affectedCycleNames}
         impactSummary={overlapPlan
           ? {
-            trims: (overlapPlan.summary?.trimStartCount || 0) + (overlapPlan.summary?.trimEndCount || 0),
-            deletions: overlapPlan.summary?.deleteCount || 0,
-            movedEntries: overlapPlan.summary?.estimateMovedEntries || 0,
+            trimmedCycles:
+              overlapPlan.impactSummary?.trimmedCycles ??
+              (overlapPlan.summary?.trimStartCount || 0) + (overlapPlan.summary?.trimEndCount || 0),
+            deletedCycles: overlapPlan.impactSummary?.deletedCycles ?? (overlapPlan.summary?.deleteCount || 0),
+            movedEntries: overlapPlan.impactSummary?.movedEntries ?? (overlapPlan.summary?.estimateMovedEntries || 0),
           }
           : undefined}
         adjustedCyclesPreview={overlapAdjustmentsPreview}

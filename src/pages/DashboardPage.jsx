@@ -17,6 +17,7 @@ import { useNavigate } from 'react-router-dom';
 import CycleDatesEditor from '@/components/CycleDatesEditor';
 import DataEntryForm from '@/components/DataEntryForm';
 import DeletionDialog from '@/components/DeletionDialog';
+import OverlapWarningDialog from '@/components/OverlapWarningDialog';
 import { useToast } from '@/components/ui/use-toast';
 import NewCycleDialog from '@/components/NewCycleDialog';
 import PostpartumExitDialog from '@/components/PostpartumExitDialog';
@@ -1222,9 +1223,12 @@ const ModernFertilityDashboard = () => {
     isLoading,
     updateCycleDates,
     checkCycleOverlap,
+    previewUpdateCycleDates,
+    previewStartNewCycle,
     refreshData,
     setCycleIgnoreForAutoCalculations,
     undoCurrentCycle,
+    previewUndoCurrentCycle,
   } = useCycleData();
   const { toast } = useToast();
   const [showStartDateEditor, setShowStartDateEditor] = useState(false);
@@ -1232,6 +1236,7 @@ const ModernFertilityDashboard = () => {
   const [dateError, setDateError] = useState('');
   const [pendingStartDate, setPendingStartDate] = useState(null);
   const [overlapCycle, setOverlapCycle] = useState(null);
+  const [overlapImpactPreview, setOverlapImpactPreview] = useState(null);
   const [showOverlapDialog, setShowOverlapDialog] = useState(false);
   const [isUpdatingStartDate, setIsUpdatingStartDate] = useState(false);
   const { user, preferences, savePreferences } = useAuth();
@@ -1265,6 +1270,8 @@ const ModernFertilityDashboard = () => {
   const [isDeletingManualT8, setIsDeletingManualT8] = useState(false);
   const [pendingIgnoredCycleIds, setPendingIgnoredCycleIds] = useState([]);
   const [showUndoCycleDialog, setShowUndoCycleDialog] = useState(false);
+  const [showUndoImpactDialog, setShowUndoImpactDialog] = useState(false);
+  const [undoImpactPreview, setUndoImpactPreview] = useState(null);
   const [isUndoingCycle, setIsUndoingCycle] = useState(false);
 
   const manualCpmRestoreAttemptedRef = useRef(false);
@@ -3245,6 +3252,7 @@ const ModernFertilityDashboard = () => {
     setPendingStartDate(null);
     setOverlapCycle(null);
     setShowOverlapDialog(false);
+    setOverlapImpactPreview(null);
   }, []);
 
   const handleOpenStartDateEditor = useCallback(() => {
@@ -3263,9 +3271,36 @@ const ModernFertilityDashboard = () => {
 
   const handleConfirmUndoCycle = useCallback(async () => {
     if (!currentCycle?.id) return;
+    try {
+      const preview = await previewUndoCurrentCycle(currentCycle.id);
+      if (preview) {
+        setUndoImpactPreview(preview);
+        setShowUndoImpactDialog(true);
+        return;
+      }
+    } catch (error) {
+      console.error('Failed to preview undo cycle', error);
+      return;
+    }
+
     setIsUndoingCycle(true);
     try {
       await undoCurrentCycle(currentCycle.id);
+      setShowUndoCycleDialog(false);
+      handleCloseStartDateEditor();
+    } catch (error) {
+      console.error('Failed to undo cycle', error);
+    } finally {
+      setIsUndoingCycle(false);
+    }
+    }, [currentCycle?.id, handleCloseStartDateEditor, undoCurrentCycle, previewUndoCurrentCycle]);
+
+  const handleExecuteUndoCycle = useCallback(async () => {
+    if (!currentCycle?.id) return;
+    setIsUndoingCycle(true);
+    try {
+      await undoCurrentCycle(currentCycle.id);
+      setShowUndoImpactDialog(false);
       setShowUndoCycleDialog(false);
       handleCloseStartDateEditor();
     } catch (error) {
@@ -3293,13 +3328,14 @@ const ModernFertilityDashboard = () => {
     setIsUpdatingStartDate(true);
 
     try {
-      const overlap = checkCycleOverlap
-        ? await checkCycleOverlap(currentCycle.id, draftStartDate)
+      const preview = previewUpdateCycleDates
+        ? await previewUpdateCycleDates(currentCycle.id, draftStartDate)
         : null;
 
-      if (overlap) {
+      if (preview) {
         setPendingStartDate(draftStartDate);
-        setOverlapCycle(overlap);
+        setOverlapCycle(null);
+        setOverlapImpactPreview(preview);
         setShowOverlapDialog(true);
         setIsUpdatingStartDate(false);
         return;
@@ -3322,7 +3358,7 @@ const ModernFertilityDashboard = () => {
   }, [
     draftStartDate,
     currentCycle?.id,
-    checkCycleOverlap,
+    previewUpdateCycleDates,
     updateCycleDates,
     refreshData,
     toast,
@@ -3642,6 +3678,7 @@ const ModernFertilityDashboard = () => {
         <NewCycleDialog
           isOpen={showNewCycleDialog}
           onClose={() => setShowNewCycleDialog(false)}
+          onPreview={(selectedStartDate) => previewStartNewCycle?.(selectedStartDate, currentCycle?.id)}
           onConfirm={async (selectedStartDate) => {
             await startNewCycle(selectedStartDate);
             setShowNewCycleDialog(false);
@@ -4439,6 +4476,7 @@ const ModernFertilityDashboard = () => {
                 includeEndDate={false}
                 showOverlapDialog={showOverlapDialog}
                 overlapCycle={overlapCycle}
+                overlapImpactPreview={overlapImpactPreview}
                 onConfirmOverlap={handleConfirmOverlapStart}
                 onCancelOverlap={handleCancelOverlapStart}
                 onClearError={() => setDateError('')}
@@ -4463,6 +4501,21 @@ const ModernFertilityDashboard = () => {
         cancelLabel="Cancelar"
         description={undoCycleDescription}
         isProcessing={isUndoingCycle}
+      />
+
+<OverlapWarningDialog
+        isOpen={showUndoImpactDialog}
+        onCancel={() => {
+          setShowUndoImpactDialog(false);
+          setUndoImpactPreview(null);
+        }}
+        onConfirm={handleExecuteUndoCycle}
+        title="Este cambio ajustará otros ciclos"
+        description="Deshacer el ciclo actual unirá ciclos y moverá registros."
+        confirmLabel="Aplicar cambios"
+        affectedCycles={undoImpactPreview?.affectedCycles || []}
+        impactSummary={undoImpactPreview?.impactSummary}
+        adjustedCyclesPreview={undoImpactPreview?.adjustedCyclesPreview || []}
       />
 
       <Dialog
@@ -4506,6 +4559,7 @@ const ModernFertilityDashboard = () => {
       <NewCycleDialog
         isOpen={showNewCycleDialog}
         onClose={() => setShowNewCycleDialog(false)}
+        onPreview={(selectedStartDate) => previewStartNewCycle?.(selectedStartDate, currentCycle?.id)}
         onConfirm={handleConfirmNewCycle}
         currentCycleStartDate={currentCycle.startDate}
         currentCycleRecords={currentCycle?.data ?? []}

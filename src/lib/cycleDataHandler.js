@@ -558,6 +558,37 @@ const countEntriesInRangeForCycle = async ({ userId, cycleId, startIso, endIso }
   }, 0);
 };
 
+const countEntriesByPredicateForCycle = async ({ userId, cycleId, predicate }) => {
+  const entriesSnap = await getDocs(collection(db, `users/${userId}/cycles/${cycleId}/entries`));
+  return entriesSnap.docs.reduce((count, entryDoc) => {
+    try {
+      const isoDate = resolveSplitEntryIsoDate(entryDoc.data());
+      return predicate(isoDate, entryDoc.data()) ? count + 1 : count;
+    } catch (error) {
+      return count;
+    }
+  }, 0);
+};
+
+const toImpactPayload = ({ affectedCycles = [], adjustedCyclesPreview = [], impactSummary = {} }) => ({
+  affectedCycles,
+  adjustedCyclesPreview,
+  impactSummary: {
+    trimmedCycles: impactSummary.trimmedCycles ?? 0,
+    deletedCycles: impactSummary.deletedCycles ?? 0,
+    movedEntries: impactSummary.movedEntries ?? 0,
+  },
+});
+
+const isDeletedPreview = (preview) => preview?.type === 'delete' || preview?.deleted === true;
+
+const hasImpact = (impact) =>
+  Boolean(
+    (impact?.impactSummary?.trimmedCycles ?? 0) > 0 ||
+      (impact?.impactSummary?.deletedCycles ?? 0) > 0 ||
+      (impact?.impactSummary?.movedEntries ?? 0) > 0
+  );
+
 export const previewInsertCycleRangeDB = async ({ userId, proposedStartIso, proposedEndIso }) => {
   if (!userId) return { overlaps: [], plan: [], summary: { trimStartCount: 0, trimEndCount: 0, deleteCount: 0, splitCount: 0, estimateMovedEntries: 0 } };
 
@@ -1195,6 +1226,94 @@ export const startNewCycleDB = async (userId, previousCycleId, startDate) => {
   }
 
   return { id: newCycleRef.id, start_date: startDate };
+};
+
+export const previewStartNewCycleDB = async ({ userId, startDate, previousCycleId }) => {
+  if (!userId || !startDate) {
+    throw createAppError(
+      'cycle-range-invalid',
+      'Faltan datos del ciclo',
+      'No se puede iniciar un ciclo nuevo sin la fecha de inicio.',
+      { userId: userId ?? null, startDate: startDate ?? null },
+      { label: 'Cambiar fecha' }
+    );
+  }
+
+  const newStart = parseISO(startDate);
+  if (!isValid(newStart)) {
+    throw createAppError(
+      'cycle-range-invalid',
+      'La fecha de inicio no es válida',
+      'La fecha de inicio no tiene un formato válido. Corrígela e inténtalo de nuevo.',
+      { startDate },
+      { label: 'Cambiar fecha' }
+    );
+  }
+
+  const cyclesSnap = await getDocs(collection(db, `users/${userId}/cycles`));
+  const overlapDoc = cyclesSnap.docs.find((docSnap) => {
+    if (docSnap.id === previousCycleId) return false;
+    const data = docSnap.data();
+    const start = data.start_date ? parseISO(data.start_date) : null;
+    const end = data.end_date ? parseISO(data.end_date) : null;
+    if (!start) return false;
+    const comparableEnd = end ?? new Date('9999-12-31');
+    return newStart >= start && newStart <= comparableEnd;
+  });
+
+  if (overlapDoc) {
+    const overlapInfo = {
+      id: overlapDoc.id,
+      startDate: overlapDoc.data().start_date,
+      endDate: overlapDoc.data().end_date,
+    };
+    throw createAppError(
+      'cycle-overlap',
+      'Las fechas se superponen',
+      buildCycleOverlapMessage(overlapInfo, startDate, null),
+      { conflictCycle: overlapInfo, proposedStart: startDate, proposedEnd: null },
+      { label: 'Cambiar fecha', hint: 'Elige una fecha de inicio fuera del rango en conflicto.' }
+    );
+  }
+
+  if (!previousCycleId) return toImpactPayload({});
+
+  const previousDoc = cyclesSnap.docs.find((cycleDoc) => cycleDoc.id === previousCycleId);
+  if (!previousDoc?.exists()) return toImpactPayload({});
+
+  const previousData = previousDoc.data();
+  const movedEntries = await countEntriesByPredicateForCycle({
+    userId,
+    cycleId: previousCycleId,
+    predicate: (isoDate) => isoDate >= startDate,
+  });
+
+  const dayBefore = format(addDays(startOfDay(newStart), -1), 'yyyy-MM-dd');
+
+  return toImpactPayload({
+    affectedCycles: [
+      { cycleId: previousCycleId, startDate: previousData.start_date, endDate: previousData.end_date ?? null },
+    ],
+    adjustedCyclesPreview: [
+      {
+        cycleId: previousCycleId,
+        type: 'trim',
+        startDate: previousData.start_date,
+        endDate: dayBefore,
+      },
+      {
+        cycleId: 'new-cycle-preview',
+        type: 'new',
+        startDate,
+        endDate: null,
+      },
+    ],
+    impactSummary: {
+      trimmedCycles: 1,
+      deletedCycles: 0,
+      movedEntries,
+    },
+  });
 };
 
 export const createNewCycleEntry = async (payload) => {
@@ -1893,6 +2012,130 @@ export const forceShiftNextCycleStart = async (
   return summary;
 };
 
+export const previewForceShiftNextCycleStartDB = async ({ userId, cycleId, newEndDate, currentCycleStartDate }) => {
+  if (!newEndDate) return toImpactPayload({});
+
+  const parsedNewEnd = startOfDay(parseISO(newEndDate));
+  if (!isValid(parsedNewEnd)) {
+    throw createAppError(
+      'cycle-range-invalid',
+      'La fecha de fin no es válida',
+      'La fecha de fin no tiene un formato válido. Corrígela para continuar.',
+      { endDate: newEndDate, invalidField: 'endDate' },
+      { label: 'Cambiar fecha' }
+    );
+  }
+
+  const cyclesSnap = await getDocs(collection(db, `users/${userId}/cycles`));
+  const sortedCycles = sortCyclesByStartDate(cyclesSnap.docs);
+  const { current, next } = findNeighbors(sortedCycles, cycleId);
+  if (!current || !next) return toImpactPayload({});
+
+  const effectiveStartIso = currentCycleStartDate ?? current.data.start_date;
+  const currentStartIso = effectiveStartIso ?? null;
+  const currentStartDate = currentStartIso ? startOfDay(parseISO(currentStartIso)) : null;
+  if (currentStartDate && parsedNewEnd < currentStartDate) {
+    throw createAppError(
+      'cycle-range-invalid',
+      'Rango de fechas inválido',
+      'La fecha de fin no puede ser anterior al inicio del ciclo actual. Corrige la fecha final.',
+      { startDate: currentStartIso, endDate: newEndDate, invalidField: 'endDate' },
+      { label: 'Cambiar fecha' }
+    );
+  }
+
+  const proposedStartIso = format(addDays(parsedNewEnd, 1), 'yyyy-MM-dd');
+  const nextStart = startOfDay(parseISO(next.data.start_date));
+  const affectedCycles = [];
+  const adjustedCyclesPreview = [];
+  let movedEntries = 0;
+
+  if (proposedStartIso < next.data.start_date) {
+    movedEntries += await countEntriesByPredicateForCycle({
+      userId,
+      cycleId,
+      predicate: (isoDate) => isoDate >= proposedStartIso,
+    });
+
+    affectedCycles.push({ cycleId: next.id, startDate: next.data.start_date, endDate: next.data.end_date ?? null });
+    adjustedCyclesPreview.push({
+      cycleId: next.id,
+      type: 'trim',
+      startDate: proposedStartIso,
+      endDate: next.data.end_date ?? null,
+    });
+
+    return toImpactPayload({
+      affectedCycles,
+      adjustedCyclesPreview,
+      impactSummary: {
+        trimmedCycles: 1,
+        deletedCycles: 0,
+        movedEntries,
+      },
+    });
+  }
+
+  const currentIndex = sortedCycles.findIndex((candidate) => candidate.id === cycleId);
+  const subsequentCycles = currentIndex >= 0 ? sortedCycles.slice(currentIndex + 1) : [];
+
+  for (const affectedCycle of subsequentCycles) {
+    const affectedStartIso = affectedCycle?.data?.start_date;
+    if (!affectedStartIso) continue;
+
+    const affectedStart = startOfDay(parseISO(affectedStartIso));
+    if (!isValid(affectedStart) || affectedStart > parsedNewEnd) {
+      break;
+    }
+
+    movedEntries += await countEntriesByPredicateForCycle({
+      userId,
+      cycleId: affectedCycle.id,
+      predicate: (isoDate) => isoDate < proposedStartIso,
+    });
+
+    affectedCycles.push({
+      cycleId: affectedCycle.id,
+      startDate: affectedCycle.data.start_date,
+      endDate: affectedCycle.data.end_date ?? null,
+    });
+
+    const affectedEndIso = affectedCycle.data.end_date ?? null;
+    const affectedEnd = affectedEndIso ? startOfDay(parseISO(affectedEndIso)) : null;
+    const normalizedAffectedEnd =
+      affectedEnd && isValid(affectedEnd) && affectedEnd >= affectedStart ? affectedEnd : affectedStart;
+    const isClosedCycle = affectedEndIso !== null && affectedEndIso !== undefined;
+    const isFullyCovered = isClosedCycle && normalizedAffectedEnd <= parsedNewEnd;
+
+    if (isFullyCovered) {
+      adjustedCyclesPreview.push({
+        cycleId: affectedCycle.id,
+        type: 'delete',
+        startDate: affectedCycle.data.start_date,
+        endDate: affectedCycle.data.end_date ?? null,
+      });
+      continue;
+    }
+
+    adjustedCyclesPreview.push({
+      cycleId: affectedCycle.id,
+      type: 'trim',
+      startDate: proposedStartIso,
+      endDate: affectedCycle.data.end_date ?? null,
+    });
+    break;
+  }
+
+  return toImpactPayload({
+    affectedCycles,
+    adjustedCyclesPreview,
+    impactSummary: {
+      trimmedCycles: adjustedCyclesPreview.filter((item) => !isDeletedPreview(item)).length,
+      deletedCycles: adjustedCyclesPreview.filter((item) => isDeletedPreview(item)).length,
+      movedEntries,
+    },
+  });
+};
 export const forceUpdateCycleStart = async (userId, currentCycleId, newStartDate) => {
   if (!newStartDate) return { changedCycles: [], movedEntriesCount: 0, notes: [] };
 
@@ -2018,6 +2261,122 @@ export const forceUpdateCycleStart = async (userId, currentCycleId, newStartDate
   return summary;
 };
 
+export const previewForceUpdateCycleStartDB = async ({ userId, cycleId, newStartDate }) => {
+  if (!newStartDate) return toImpactPayload({});
+
+  const newStart = startOfDay(parseISO(newStartDate));
+  if (!isValid(newStart)) {
+    throw createAppError(
+      'cycle-range-invalid',
+      'La fecha de inicio no es válida',
+      'La fecha de inicio no tiene un formato válido. Corrígela para continuar.',
+      { startDate: newStartDate, invalidField: 'startDate' },
+      { label: 'Cambiar fecha' }
+    );
+  }
+
+  const cyclesSnap = await getDocs(collection(db, `users/${userId}/cycles`));
+  const sortedCycles = sortCyclesByStartDate(cyclesSnap.docs);
+  const { previous, current, next } = findNeighbors(sortedCycles, cycleId);
+  if (!current) return toImpactPayload({});
+
+  const currentEnd = current.data.end_date ? startOfDay(parseISO(current.data.end_date)) : null;
+  if (previous?.data?.start_date) {
+    const previousStart = startOfDay(parseISO(previous.data.start_date));
+    if (newStart <= previousStart) {
+      const conflictCycle = {
+        id: previous.id,
+        startDate: previous.data.start_date,
+        endDate: previous.data.end_date,
+      };
+      throw createAppError(
+        'cycle-overlap',
+        'Las fechas se superponen',
+        buildCycleOverlapMessage(conflictCycle, format(newStart, 'yyyy-MM-dd'), current.data.end_date ?? null),
+        { conflictCycle, proposedStart: format(newStart, 'yyyy-MM-dd'), proposedEnd: current.data.end_date ?? null },
+        { label: 'Cambiar fecha' }
+      );
+    }
+  }
+
+  if (next?.data?.start_date) {
+    const nextStart = startOfDay(parseISO(next.data.start_date));
+    if (newStart >= nextStart) {
+      const conflictCycle = {
+        id: next.id,
+        startDate: next.data.start_date,
+        endDate: next.data.end_date,
+      };
+      throw createAppError(
+        'cycle-overlap',
+        'Las fechas se superponen',
+        buildCycleOverlapMessage(conflictCycle, format(newStart, 'yyyy-MM-dd'), current.data.end_date ?? null),
+        { conflictCycle, proposedStart: format(newStart, 'yyyy-MM-dd'), proposedEnd: current.data.end_date ?? null },
+        { label: 'Cambiar fecha' }
+      );
+    }
+  }
+
+  if (currentEnd && newStart > currentEnd) {
+    throw createAppError(
+      'cycle-range-invalid',
+      'Rango de fechas inválido',
+      'La fecha de inicio no puede ser posterior a la fecha de fin del ciclo. Corrige la fecha de inicio.',
+      { startDate: format(newStart, 'yyyy-MM-dd'), endDate: current.data.end_date, invalidField: 'startDate' },
+      { label: 'Cambiar fecha' }
+    );
+  }
+
+  const affectedCycles = [
+    { cycleId: current.id, startDate: current.data.start_date, endDate: current.data.end_date ?? null },
+  ];
+  const adjustedCyclesPreview = [
+    {
+      cycleId: current.id,
+      type: 'trim',
+      startDate: format(newStart, 'yyyy-MM-dd'),
+      endDate: current.data.end_date ?? null,
+    },
+  ];
+  let movedEntries = 0;
+
+  if (previous) {
+    const dayBefore = format(addDays(newStart, -1), 'yyyy-MM-dd');
+    affectedCycles.unshift({ cycleId: previous.id, startDate: previous.data.start_date, endDate: previous.data.end_date ?? null });
+    adjustedCyclesPreview.unshift({
+      cycleId: previous.id,
+      type: 'trim',
+      startDate: previous.data.start_date,
+      endDate: dayBefore,
+    });
+
+    const currentStartIso = current.data.start_date;
+    const newStartIso = format(newStart, 'yyyy-MM-dd');
+    if (currentStartIso && newStartIso < currentStartIso) {
+      movedEntries += await countEntriesByPredicateForCycle({
+        userId,
+        cycleId: previous.id,
+        predicate: (isoDate) => isoDate >= newStartIso && isoDate < currentStartIso,
+      });
+    } else if (currentStartIso && newStartIso > currentStartIso) {
+      movedEntries += await countEntriesByPredicateForCycle({
+        userId,
+        cycleId,
+        predicate: (isoDate) => isoDate >= currentStartIso && isoDate < newStartIso,
+      });
+    }
+  }
+
+  return toImpactPayload({
+    affectedCycles,
+    adjustedCyclesPreview,
+    impactSummary: {
+      trimmedCycles: adjustedCyclesPreview.length,
+      deletedCycles: 0,
+      movedEntries,
+    },
+  });
+};
 export const deleteCycleDB = async (userId, cycleId) => {
   const entriesRef = collection(db, `users/${userId}/cycles/${cycleId}/entries`);
   const entriesSnap = await getDocs(entriesRef);
@@ -2251,3 +2610,131 @@ export const undoCurrentCycleDB = async (userId, currentCycleId) => {
 };
 
 
+export const previewUndoCurrentCycleDB = async ({ userId, currentCycleId }) => {
+  if (!userId || !currentCycleId) {
+    throw createAppError(
+      'undo-not-current',
+      'No se puede deshacer este ciclo',
+      'Faltan datos para deshacer el ciclo actual. Vuelve a abrir el ciclo e inténtalo otra vez.',
+      { userId: userId ?? null, currentCycleId: currentCycleId ?? null },
+      { label: 'Volver al ciclo actual' }
+    );
+  }
+
+  const currentCycleRef = doc(db, `users/${userId}/cycles/${currentCycleId}`);
+  const currentCycleSnap = await getDoc(currentCycleRef);
+  if (!currentCycleSnap.exists()) {
+    throw createAppError(
+      'undo-not-current',
+      'No se encontró el ciclo actual',
+      'No pudimos deshacer el ciclo porque ya no existe.',
+      { currentCycleId },
+      { label: 'Actualizar pantalla' }
+    );
+  }
+
+  const currentData = currentCycleSnap.data();
+  if (currentData.end_date !== null && currentData.end_date !== undefined) {
+    throw createAppError(
+      'undo-not-current',
+      'Solo puedes deshacer el ciclo actual',
+      'Este ciclo ya está cerrado. Para deshacer, abre el ciclo actual.',
+      { currentCycleId, endDate: currentData.end_date },
+      { label: 'Volver al ciclo actual' }
+    );
+  }
+
+  if (!currentData.start_date || !isValid(parseISO(currentData.start_date))) {
+    throw createAppError(
+      'undo-not-current',
+      'No se puede deshacer el ciclo',
+      'La fecha de inicio del ciclo actual no es válida. Corrige la fecha del ciclo actual.',
+      { currentCycleId, startDate: currentData.start_date ?? null },
+      { label: 'Cambiar fecha' }
+    );
+  }
+
+  const cyclesSnap = await getDocs(collection(db, `users/${userId}/cycles`));
+  const dayBefore = format(addDays(parseISO(currentData.start_date), -1), 'yyyy-MM-dd');
+  const previousCycles = cyclesSnap.docs
+    .filter((docSnap) => docSnap.id !== currentCycleId)
+    .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
+    .filter((cycle) => cycle.end_date === dayBefore)
+    .sort((a, b) => (b.start_date || '').localeCompare(a.start_date || ''));
+
+  if (!previousCycles.length) {
+    throw createAppError(
+      'no-previous-cycle',
+      'No hay un ciclo anterior para recuperar',
+      'No encontramos un ciclo previo que termine justo antes del ciclo actual. Revisa las fechas de tus ciclos.',
+      { currentCycleId, expectedPreviousEndDate: dayBefore },
+      { label: 'Revisar fechas de ciclos' }
+    );
+  }
+
+  const previousCycle = previousCycles[0];
+  if (!previousCycle.start_date || !isValid(parseISO(previousCycle.start_date))) {
+    throw createAppError(
+      'no-previous-cycle',
+      'El ciclo anterior tiene una fecha inválida',
+      'No se puede deshacer porque el ciclo anterior tiene una fecha de inicio no válida.',
+      { previousCycleId: previousCycle.id, previousStartDate: previousCycle.start_date ?? null },
+      { label: 'Cambiar fecha' }
+    );
+  }
+
+  const previousEntriesSnap = await getDocs(collection(db, `users/${userId}/cycles/${previousCycle.id}/entries`));
+  const existingIsoDates = new Set();
+  previousEntriesSnap.docs.forEach((entryDoc) => {
+    const data = entryDoc.data();
+    try {
+      const isoDate = resolveSplitEntryIsoDate(data);
+      if (isoDate) existingIsoDates.add(isoDate);
+    } catch (error) {
+      // ignore invalid entries in preview set builder
+    }
+  });
+
+  const currentEntriesSnap = await getDocs(collection(db, `users/${userId}/cycles/${currentCycleId}/entries`));
+  for (const entryDoc of currentEntriesSnap.docs) {
+    const entryData = entryDoc.data();
+    const isoDate = resolveSplitEntryIsoDate(entryData);
+    if (existingIsoDates.has(isoDate)) {
+      throw createAppError(
+        'undo-date-conflict',
+        'Hay conflicto de fechas al deshacer',
+        `Ya existe una entrada para el día ${isoDate} en el ciclo anterior.`,
+        { conflictDate: isoDate, previousCycleId: previousCycle.id },
+        { label: 'Eliminar/combinar entradas duplicadas' }
+      );
+    }
+    existingIsoDates.add(isoDate);
+  }
+
+  return toImpactPayload({
+    affectedCycles: [
+      { cycleId: previousCycle.id, startDate: previousCycle.start_date, endDate: previousCycle.end_date ?? null },
+      { cycleId: currentCycleId, startDate: currentData.start_date, endDate: currentData.end_date ?? null },
+    ],
+    adjustedCyclesPreview: [
+      {
+        cycleId: previousCycle.id,
+        type: 'trim',
+        startDate: previousCycle.start_date,
+        endDate: null,
+      },
+      {
+        cycleId: currentCycleId,
+        type: 'delete',
+        startDate: currentData.start_date,
+        endDate: currentData.end_date ?? null,
+      },
+    ],
+    impactSummary: {
+      trimmedCycles: 1,
+      deletedCycles: 1,
+      movedEntries: currentEntriesSnap.size,
+    },
+  });
+};
+export const shouldShowCycleImpactPreview = (impact) => hasImpact(impact);

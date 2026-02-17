@@ -35,6 +35,7 @@ const CycleDatesEditor = ({
   includeEndDate = true,
   showOverlapDialog = false,
   overlapCycle = null,
+  overlapImpactPreview = null,
   onConfirmOverlap,
   onCancelOverlap,
   title = 'Editar fechas del ciclo',
@@ -287,6 +288,12 @@ const CycleDatesEditor = ({
       <OverlapWarningDialog
         isOpen={showOverlapDialog}
         conflictCycle={overlapCycle}
+        title={overlapImpactPreview ? 'Este cambio ajustará otros ciclos' : undefined}
+        description={overlapImpactPreview ? 'Revisa el impacto antes de confirmar.' : undefined}
+        confirmLabel={overlapImpactPreview ? 'Aplicar cambios' : undefined}
+        affectedCycles={overlapImpactPreview?.affectedCycles || []}
+        impactSummary={overlapImpactPreview?.impactSummary}
+        adjustedCyclesPreview={overlapImpactPreview?.adjustedCyclesPreview || []}
         onCancel={onCancelOverlap}
         onConfirm={onConfirmOverlap}
       />

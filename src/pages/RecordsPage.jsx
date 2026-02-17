@@ -94,6 +94,7 @@ export const RecordsExperience = ({
     isLoading: contextIsLoading,
     updateCycleDates: contextUpdateCycleDates,
     checkCycleOverlap: contextCheckCycleOverlap,
+    previewStartNewCycle: contextPreviewStartNewCycle,
     startNewCycle: contextStartNewCycle,
     refreshData: contextRefreshData,
     getMeasurementsForEntry: contextGetMeasurementsForEntry,
@@ -126,6 +127,7 @@ export const RecordsExperience = ({
     : async (cycleId, startDate, endDate) =>
         contextUpdateCycleDates(cycleId ?? cycle?.id, startDate, endDate);
   const checkCycleOverlap = checkCycleOverlapProp ?? contextCheckCycleOverlap;
+  const previewStartNewCycle = contextPreviewStartNewCycle;
   const startNewCycle = startNewCycleProp ?? contextStartNewCycle;
   const refreshData = refreshDataProp ?? contextRefreshData;
   const getMeasurementsForEntry = contextGetMeasurementsForEntry;
@@ -1518,6 +1520,7 @@ const enterStart = -exitTarget;
         <NewCycleDialog
           isOpen={showNewCycleDialog}
           onClose={() => setShowNewCycleDialog(false)}
+          onPreview={(selectedStartDate) => previewStartNewCycle?.(selectedStartDate, cycle?.id)}
           onConfirm={async (selectedStartDate) => {
             await startNewCycle(selectedStartDate);
             setShowNewCycleDialog(false);

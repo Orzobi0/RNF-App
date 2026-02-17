@@ -21,6 +21,7 @@ const ArchivedCyclesPage = () => {
     updateCycleDates,
     deleteCycle,
     checkCycleOverlap,
+    previewUpdateCycleDates,
     previewInsertCycleRange,
     insertCycleRange,
   } = useCycleData();
@@ -475,6 +476,7 @@ const ArchivedCyclesPage = () => {
         initialEndDate={editingCycle?.endDate}
         cycleId={editingCycle?.id}
         checkOverlap={checkCycleOverlap}
+        previewUpdateCycleDates={previewUpdateCycleDates}
         title="Editar Fechas del Ciclo"
         description="Actualiza las fechas del ciclo."
         cycleData={editingCycle?.data ?? []}

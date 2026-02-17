@@ -26,6 +26,11 @@ import {
   deleteEntryWithMeasurementsDB,
   previewInsertCycleRangeDB,
   insertCycleRangeDB,
+  previewForceUpdateCycleStartDB,
+  previewForceShiftNextCycleStartDB,
+  previewStartNewCycleDB,
+  previewUndoCurrentCycleDB,
+  shouldShowCycleImpactPreview,
 } from '@/lib/cycleDataHandler';
 import { getCachedCycleData, saveCycleDataToCache, clearCycleDataCache } from '@/lib/cycleCache';
 import { getFunctions, httpsCallable } from "firebase/functions";
@@ -986,6 +991,75 @@ export const CycleDataProvider = ({ children }) => {
     [user]
   );
 
+  const previewUpdateCycleDates = useCallback(
+    async (cycleIdToUpdate, newStartDate, newEndDate) => {
+      if (!user?.uid || !cycleIdToUpdate) return null;
+
+      const cycleToUpdate =
+        currentCycle?.id === cycleIdToUpdate
+          ? currentCycle
+          : archivedCycles.find((cycle) => cycle.id === cycleIdToUpdate);
+      const currentStartDate = cycleToUpdate?.startDate ?? null;
+      const currentEndDate = cycleToUpdate?.endDate ?? null;
+      const hasStartChange = newStartDate !== undefined && newStartDate !== currentStartDate;
+      const hasEndChange = newEndDate !== undefined && newEndDate !== currentEndDate;
+
+      const collected = { affectedCycles: [], adjustedCyclesPreview: [], impactSummary: { trimmedCycles: 0, deletedCycles: 0, movedEntries: 0 } };
+
+      if (hasStartChange && newStartDate) {
+        const startPreview = await previewForceUpdateCycleStartDB({
+          userId: user.uid,
+          cycleId: cycleIdToUpdate,
+          newStartDate,
+        });
+        collected.affectedCycles.push(...(startPreview?.affectedCycles || []));
+        collected.adjustedCyclesPreview.push(...(startPreview?.adjustedCyclesPreview || []));
+        collected.impactSummary.trimmedCycles += startPreview?.impactSummary?.trimmedCycles || 0;
+        collected.impactSummary.deletedCycles += startPreview?.impactSummary?.deletedCycles || 0;
+        collected.impactSummary.movedEntries += startPreview?.impactSummary?.movedEntries || 0;
+      }
+
+      if (hasEndChange && newEndDate) {
+        const startForCalc = hasStartChange ? newStartDate : currentStartDate;
+        const endPreview = await previewForceShiftNextCycleStartDB({
+          userId: user.uid,
+          cycleId: cycleIdToUpdate,
+          newEndDate,
+          currentCycleStartDate: startForCalc,
+        });
+        collected.affectedCycles.push(...(endPreview?.affectedCycles || []));
+        collected.adjustedCyclesPreview.push(...(endPreview?.adjustedCyclesPreview || []));
+        collected.impactSummary.trimmedCycles += endPreview?.impactSummary?.trimmedCycles || 0;
+        collected.impactSummary.deletedCycles += endPreview?.impactSummary?.deletedCycles || 0;
+        collected.impactSummary.movedEntries += endPreview?.impactSummary?.movedEntries || 0;
+      }
+
+      if (!shouldShowCycleImpactPreview(collected)) return null;
+      return collected;
+    },
+    [user, currentCycle, archivedCycles]
+  );
+
+  const previewStartNewCycle = useCallback(
+    async (startDate, previousCycleId) => {
+      if (!user?.uid) return null;
+      const impact = await previewStartNewCycleDB({ userId: user.uid, startDate, previousCycleId });
+      if (!shouldShowCycleImpactPreview(impact)) return null;
+      return impact;
+    },
+    [user]
+  );
+
+  const previewUndoCurrentCycle = useCallback(
+    async (cycleIdToUndo) => {
+      if (!user?.uid || !cycleIdToUndo) return null;
+      const impact = await previewUndoCurrentCycleDB({ userId: user.uid, currentCycleId: cycleIdToUndo });
+      if (!shouldShowCycleImpactPreview(impact)) return null;
+      return impact;
+    },
+    [user]
+  );
+
   const updateCycleDates = useCallback(
     async (cycleIdToUpdate, newStartDate, newEndDate) => {
       if (!user?.uid) return;
@@ -1245,6 +1319,7 @@ export const CycleDataProvider = ({ children }) => {
     forceUpdateCycleStart,
     forceShiftNextCycleStart,
     checkCycleOverlap,
+    previewUpdateCycleDates,
     isLoading,
     getCycleById,
     refreshData,
@@ -1256,6 +1331,8 @@ export const CycleDataProvider = ({ children }) => {
     deleteCycle,
     getMeasurementsForEntry,
     undoCurrentCycle,
+    previewStartNewCycle,
+    previewUndoCurrentCycle,
     repairDialogState,
     openDataRepairDialog,
     closeDataRepairDialog,

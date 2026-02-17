@@ -20,12 +20,14 @@ const NewCycleDialog = ({
   isOpen,
   onClose,
   onConfirm,
+  onPreview,
   currentCycleStartDate,
   currentCycleRecords = [],
 }) => {
   const [startDate, setStartDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [showOverlapWarning, setShowOverlapWarning] = useState(false);
   const [pendingStartDate, setPendingStartDate] = useState(null);
+  const [impactPreview, setImpactPreview] = useState(null);
   useBackClose(isOpen, onClose);
 
   const isFirstCycle = !currentCycleStartDate;
@@ -48,7 +50,17 @@ const NewCycleDialog = ({
     });
   }, [currentCycleRecords, isFirstCycle, startDate]);
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
+    if (onPreview) {
+      const preview = await onPreview(startDate);
+      if (preview) {
+        setImpactPreview(preview);
+        setPendingStartDate(startDate);
+        setShowOverlapWarning(true);
+        return;
+      }
+    }
+
     if (!isFirstCycle && hasOverlapRecords) {
       setPendingStartDate(startDate);
       setShowOverlapWarning(true);
@@ -62,6 +74,7 @@ const NewCycleDialog = ({
     setShowOverlapWarning(false);
     onConfirm(pendingStartDate);
     setPendingStartDate(null);
+    setImpactPreview(null);
   };
 
   const formattedCurrentStart = !isFirstCycle
@@ -169,6 +182,7 @@ const NewCycleDialog = ({
         onCancel={() => {
           setShowOverlapWarning(false);
           setPendingStartDate(null);
+          setImpactPreview(null);
         }}
         onConfirm={handleConfirmOverlap}
         conflictCycle={
@@ -180,6 +194,12 @@ const NewCycleDialog = ({
               }
         }
         message="Este nuevo ciclo actual coincide en fechas con el ciclo anterior. Los registros se pasarán al nuevo ciclo si continúas. ¿Deseas continuar?"
+        title={impactPreview ? 'Este cambio ajustará otros ciclos' : undefined}
+        description={impactPreview ? 'Se aplicarán ajustes en ciclos y/o registros antes de guardar.' : undefined}
+        confirmLabel={impactPreview ? 'Aplicar cambios' : undefined}
+        affectedCycles={impactPreview?.affectedCycles || []}
+        impactSummary={impactPreview?.impactSummary}
+        adjustedCyclesPreview={impactPreview?.adjustedCyclesPreview || []}
       />
     </>
   );
