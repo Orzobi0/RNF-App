@@ -151,6 +151,13 @@ const EditCycleDatesDialog = ({
 
   const selectedStartDate = toDate(startDate);
   const selectedEndDate = toDate(endDate);
+  const today = startOfDay(new Date());
+
+  const resolveOpenRangeEnd = (start, end) => {
+    if (end) return end;
+    if (!start) return null;
+    return isAfter(start, today) ? start : today;
+  };
 
   const recordedDates = (cycleData ?? [])
     .map((record) => toDate(record?.isoDate))
@@ -159,8 +166,9 @@ const EditCycleDatesDialog = ({
   const activeCycle = otherCycles.find((candidate) => candidate?.id === cycleId);
   const activeCycleStart = toDate(activeCycle?.startDate);
   const activeCycleEnd = toDate(activeCycle?.endDate);
+  const activeCycleVisualEnd = resolveOpenRangeEnd(activeCycleStart, activeCycleEnd);
   const activeCycleRange = activeCycleStart
-    ? { from: activeCycleStart, to: activeCycleEnd ?? activeCycleStart }
+    ? { from: activeCycleStart, to: activeCycleVisualEnd ?? activeCycleStart }
     : undefined;
 
     const isRangeStart = (date, range) => Boolean(range?.from && isSameDay(date, range.from));
@@ -180,7 +188,7 @@ const EditCycleDatesDialog = ({
       const start = toDate(candidate?.startDate);
       const end = toDate(candidate?.endDate);
       if (!start) return null;
-      return { from: start, to: end ?? start };
+      return { from: start, to: resolveOpenRangeEnd(start, end) ?? start };
     })
     .filter(Boolean);
 

@@ -21,6 +21,16 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 
+const formatCyclePreviewDate = (isoDate) => {
+  if (!isoDate) return 'en curso';
+
+  try {
+    return format(parseISO(isoDate), 'dd-MM-yyyy');
+  } catch {
+    return isoDate;
+  }
+};
+
 const generateCycleDaysForRecord = (recordIsoDate, cycleStartIsoDate) => {
   const recordDate = startOfDay(parseISO(recordIsoDate));
   const startDate = startOfDay(parseISO(cycleStartIsoDate));
@@ -77,14 +87,14 @@ const CycleDetailPage = () => {
     const deleteStrategyOptions = useMemo(
     () => [
       {
-        value: ARCHIVED_CYCLE_DELETE_STRATEGY.DELETE,
-        title: strategyLabels[ARCHIVED_CYCLE_DELETE_STRATEGY.DELETE],
-        description: 'Borra el ciclo completo y todos sus registros asociados.',
-      },
-      {
         value: ARCHIVED_CYCLE_DELETE_STRATEGY.MERGE_PREV,
         title: strategyLabels[ARCHIVED_CYCLE_DELETE_STRATEGY.MERGE_PREV],
         description: 'Mueve todos los registros al ciclo anterior y extiende su fecha de fin.',
+      },
+      {
+        value: ARCHIVED_CYCLE_DELETE_STRATEGY.DELETE,
+        title: strategyLabels[ARCHIVED_CYCLE_DELETE_STRATEGY.DELETE],
+        description: 'Borra el ciclo completo y todos sus registros asociados.',
       },
       {
         value: ARCHIVED_CYCLE_DELETE_STRATEGY.MERGE_NEXT,
@@ -363,11 +373,21 @@ const CycleDetailPage = () => {
                 key={option.value}
                 type="button"
                 variant="outline"
-                className="h-auto w-full flex-col items-start gap-1 text-left"
+                className={`h-auto w-full flex-col items-start gap-1 text-left ${
+                  option.value === ARCHIVED_CYCLE_DELETE_STRATEGY.DELETE
+                    ? 'border-red-300 bg-red-100/80 hover:bg-red-200/80'
+                    : ''
+                }`}
                 disabled={isLoadingDeletePreview || isDeletingCycle}
                 onClick={() => handleSelectDeleteStrategy(option.value)}
               >
-                <span className="font-semibold text-slate-800">{option.title}</span>
+                <span
+                  className={`font-semibold ${
+                    option.value === ARCHIVED_CYCLE_DELETE_STRATEGY.DELETE ? 'text-red-700' : 'text-slate-800'
+                  }`}
+                >
+                  {option.title}
+                </span>
                 <span className="text-xs text-slate-600">{option.description}</span>
               </Button>
             ))}

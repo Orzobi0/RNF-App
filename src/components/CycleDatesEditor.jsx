@@ -70,6 +70,13 @@ const CycleDatesEditor = ({
   const selectedEndDate = toDate(endDate);
   const cycleStart = toDate(cycle?.startDate);
   const cycleEnd = toDate(cycle?.endDate);
+  const today = startOfDay(new Date());
+
+  const resolveOpenRangeEnd = (start, end) => {
+    if (end) return end;
+    if (!start) return null;
+    return isAfter(start, today) ? start : today;
+  };
 
   const recordedDates = (cycle?.data ?? [])
     .map((record) => toDate(record?.isoDate))
@@ -81,11 +88,13 @@ const CycleDatesEditor = ({
       const start = toDate(candidate?.startDate);
       const end = toDate(candidate?.endDate);
       if (!start) return null;
-      return { from: start, to: end ?? start };
+      return { from: start, to: resolveOpenRangeEnd(start, end) ?? start };
     })
     .filter(Boolean);
 
-  const activeCycleRange = cycleStart ? { from: cycleStart, to: cycleEnd ?? cycleStart } : undefined;  
+  const activeCycleRange = cycleStart
+    ? { from: cycleStart, to: resolveOpenRangeEnd(cycleStart, cycleEnd) ?? cycleStart }
+    : undefined; 
   
   const isRangeStart = (date, range) => Boolean(range?.from && isSameDay(date, range.from));
   const isRangeEnd = (date, range) => {
