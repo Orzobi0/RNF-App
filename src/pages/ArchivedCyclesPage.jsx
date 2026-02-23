@@ -21,6 +21,9 @@ const ArchivedCyclesPage = () => {
     updateCycleDates,
     deleteCycle,
     checkCycleOverlap,
+    previewUpdateCycleDates,
+    previewInsertCycleRange,
+    insertCycleRange,
   } = useCycleData();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -66,7 +69,7 @@ const ArchivedCyclesPage = () => {
     setAddCycleError(null);
   };
 
-  const handleAddCycle = async ({ startDate, endDate }) => {
+  const handleAddCycle = async ({ startDate, endDate, force, insertMode }) => {
     if (startDate && endDate && parseISO(endDate) < parseISO(startDate)) {
       setAddCycleError({
         message: 'La fecha de fin no puede ser anterior a la fecha de inicio.',
@@ -75,7 +78,11 @@ const ArchivedCyclesPage = () => {
       return;
     }
     try {
-      await addArchivedCycle(startDate, endDate);
+      if (insertMode && force) {
+        await insertCycleRange(startDate, endDate);
+      } else {
+        await addArchivedCycle(startDate, endDate);
+      }
       closeAddDialog();
     } catch (error) {
       const message = error.code === 'cycle-overlap'
@@ -455,6 +462,7 @@ const ArchivedCyclesPage = () => {
         errorMessage={addCycleError?.message}
         conflictCycle={addCycleError?.conflictCycle}
         onResetError={() => setAddCycleError(null)}
+        checkOverlapForNewRange={previewInsertCycleRange}
       />
       
       <EditCycleDatesDialog
@@ -468,6 +476,7 @@ const ArchivedCyclesPage = () => {
         initialEndDate={editingCycle?.endDate}
         cycleId={editingCycle?.id}
         checkOverlap={checkCycleOverlap}
+        previewUpdateCycleDates={previewUpdateCycleDates}
         title="Editar Fechas del Ciclo"
         description="Actualiza las fechas del ciclo."
         cycleData={editingCycle?.data ?? []}

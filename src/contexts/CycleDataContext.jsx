@@ -4,8 +4,9 @@ import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   processCycleEntries,
-  createNewCycleEntry,
+  detectCycleDataIssues,
   createNewCycleDB,
+  upsertCycleEntryByIsoDateDB,
   updateCycleEntry,
   deleteCycleEntryDB,
   startNewCycleDB,
@@ -16,9 +17,22 @@ import {
   updateCycleDatesDB,
   updateCycleIgnoreAutoCalculations,
   deleteCycleDB,
+  deleteArchivedCycleWithStrategyDB,
+  previewDeleteArchivedCycleWithStrategyDB,
   undoCurrentCycleDB,
+  toPublicError,
   forceUpdateCycleStart as forceUpdateCycleStartDB,
-  forceShiftNextCycleStart as forceShiftNextCycleStartDB
+  forceShiftNextCycleStart as forceShiftNextCycleStartDB,
+  resolveDuplicateIsoDateDB,
+  moveEntryToCycleDB,
+  deleteEntryWithMeasurementsDB,
+  previewInsertCycleRangeDB,
+  insertCycleRangeDB,
+  previewForceUpdateCycleStartDB,
+  previewForceShiftNextCycleStartDB,
+  previewStartNewCycleDB,
+  previewUndoCurrentCycleDB,
+  shouldShowCycleImpactPreview,
 } from '@/lib/cycleDataHandler';
 import { getCachedCycleData, saveCycleDataToCache, clearCycleDataCache } from '@/lib/cycleCache';
 import { getFunctions, httpsCallable } from "firebase/functions";
@@ -33,6 +47,12 @@ const defaultCycleState = {
   endDate: null,
   data: [],
   ignoredForAutoCalculations: false,
+  issues: {
+    outOfRange: [],
+    duplicates: [],
+    hasIssues: false,
+    summary: { outOfRangeCount: 0, duplicateDaysCount: 0, duplicateEntriesCount: 0 },
+  },
 };
 
 const filterEntriesByEndDate = (entries, endDate) => {
@@ -83,6 +103,12 @@ const normalizeCycleRange = (startDate, endDate) => {
   }
 
   return { startDate: normalizedStart, endDate: normalizedEnd };
+};
+
+const formatUiDate = (isoDate) => {
+  if (!isoDate) return '—';
+  const parsed = parseISO(isoDate);
+  return isValid(parsed) ? format(parsed, 'dd/MM/yyyy') : isoDate;
 };
 
 const buildEntryForState = ({
@@ -151,6 +177,7 @@ export const CycleDataProvider = ({ children }) => {
   const [currentCycle, setCurrentCycle] = useState(defaultCycleState);
   const [archivedCycles, setArchivedCycles] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [repairDialogState, setRepairDialogState] = useState({ open: false, cycleId: null });
   const hasLoadedRef = useRef(false);
   const lastUserIdRef = useRef(null);
 
@@ -227,7 +254,12 @@ export const CycleDataProvider = ({ children }) => {
             ...cycleToLoad,
             startDate,
             endDate,
-            data: filtered
+            data: filtered,
+            issues: detectCycleDataIssues({
+              cycleStartIso: startDate,
+              cycleEndIso: endDate,
+              entries: cycleToLoad.data,
+            }),
           };
         }
 
@@ -245,7 +277,12 @@ export const CycleDataProvider = ({ children }) => {
             startDate: aStart ?? format(startOfDay(new Date()), 'yyyy-MM-dd'),
             endDate: aEnd,
             needsCompletion: cycle.needsCompletion,
-            data: filtered
+            data: filtered,
+            issues: detectCycleDataIssues({
+              cycleStartIso: aStart,
+              cycleEndIso: aEnd,
+              entries: cycle.data || [],
+            }),
           };
         });
 
@@ -307,7 +344,16 @@ export const CycleDataProvider = ({ children }) => {
       const currentData = Array.isArray(cycle.data) ? cycle.data : [];
 
       if (remove) {
-        return { ...cycle, data: currentData.filter((entry) => entry.id !== entryId) };
+        const nextData = currentData.filter((entry) => entry.id !== entryId);
+        return {
+          ...cycle,
+          data: nextData,
+          issues: detectCycleDataIssues({
+            cycleStartIso: cycle.startDate,
+            cycleEndIso: cycle.endDate,
+            entries: nextData,
+          }),
+        };
       }
 
       const existingEntry = currentData.find((entry) => entry.id === entryId) || null;
@@ -323,7 +369,15 @@ export const CycleDataProvider = ({ children }) => {
         ? currentData.map((entry) => (entry.id === entryId ? updatedEntry : entry))
         : sortEntriesByTimestamp([...currentData, updatedEntry]);
 
-      return { ...cycle, data: nextData };
+      return {
+        ...cycle,
+        data: nextData,
+        issues: detectCycleDataIssues({
+          cycleStartIso: cycle.startDate,
+          cycleEndIso: cycle.endDate,
+          entries: nextData,
+        }),
+      };
     };
 
     setCurrentCycle((prevCycle) => applyUpdate(prevCycle));
@@ -340,6 +394,29 @@ export const CycleDataProvider = ({ children }) => {
           : entry
       );
       return { ...cycle, data: nextData };
+    };
+
+    setCurrentCycle((prevCycle) => applyUpdate(prevCycle));
+    setArchivedCycles((prevCycles) => prevCycles.map((cycle) => applyUpdate(cycle)));
+  }, []);
+
+  const removeEntriesFromCycleState = useCallback((cycleId, entryIds) => {
+    const idsToRemove = new Set(Array.isArray(entryIds) ? entryIds.filter(Boolean) : []);
+    if (!cycleId || idsToRemove.size === 0) return;
+
+    const applyUpdate = (cycle) => {
+      if (!cycle || cycle.id !== cycleId) return cycle;
+      const currentData = Array.isArray(cycle.data) ? cycle.data : [];
+      const nextData = currentData.filter((entry) => !idsToRemove.has(entry.id));
+      return {
+        ...cycle,
+        data: nextData,
+        issues: detectCycleDataIssues({
+          cycleStartIso: cycle.startDate,
+          cycleEndIso: cycle.endDate,
+          entries: nextData,
+        }),
+      };
     };
 
     setCurrentCycle((prevCycle) => applyUpdate(prevCycle));
@@ -508,7 +585,12 @@ export const CycleDataProvider = ({ children }) => {
           if (isPayloadEmpty) {
             return;
           }
-          const created = await createNewCycleEntry(recordPayload);
+          const created = await upsertCycleEntryByIsoDateDB(
+            user.uid,
+            cycleIdToUse,
+            newData.isoDate,
+            recordPayload
+          );
           savedEntryId = created?.id ?? null;
           if (savedEntryId) {
             updateEntryState(cycleIdToUse, savedEntryId, recordPayload, newData.isoDate);
@@ -768,6 +850,34 @@ export const CycleDataProvider = ({ children }) => {
     [buildOverlapDescription]
   );
 
+  const previewInsertCycleRange = useCallback(
+    async (startDate, endDate) => {
+      if (!user?.uid) return { overlaps: [], plan: [], summary: { trimStartCount: 0, trimEndCount: 0, deleteCount: 0, splitCount: 0, estimateMovedEntries: 0 } };
+      return previewInsertCycleRangeDB({ userId: user.uid, proposedStartIso: startDate, proposedEndIso: endDate });
+    },
+    [user]
+  );
+
+  const insertCycleRange = useCallback(
+    async (startDate, endDate) => {
+      if (!user?.uid) return null;
+      setIsLoading(true);
+      try {
+        const result = await insertCycleRangeDB({ userId: user.uid, startIso: startDate, endIso: endDate });
+        await loadCycleData({ silent: true });
+        return result;
+      } catch (error) {
+        console.error('Error inserting cycle range:', error);
+        const publicError = toPublicError(error);
+        toast({ title: publicError?.title || 'Error', description: publicError?.message || 'No se pudo insertar el ciclo.', variant: 'destructive' });
+        throw error;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [user, loadCycleData, toast]
+  );
+
   const addArchivedCycle = useCallback(
     async (startDate, endDate) => {
       if (!user?.uid) return;
@@ -813,6 +923,39 @@ export const CycleDataProvider = ({ children }) => {
       } catch (error) {
         console.error('Error deleting cycle:', error);
         toast({ title: 'Error', description: 'No se pudo eliminar el ciclo.', variant: 'destructive' });
+        throw error;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [user, loadCycleData, toast]
+  );
+  
+  const previewDeleteCycle = useCallback(
+    async (cycleId, strategy) => {
+      if (!user?.uid || !cycleId || !strategy) return null;
+      return previewDeleteArchivedCycleWithStrategyDB({ userId: user.uid, cycleId, strategy });
+    },
+    [user]
+  );
+
+  const deleteArchivedCycleWithStrategy = useCallback(
+    async (cycleId, strategy) => {
+      if (!user?.uid || !cycleId || !strategy) return null;
+
+      setIsLoading(true);
+      try {
+        const result = await deleteArchivedCycleWithStrategyDB({ userId: user.uid, cycleId, strategy });
+        await loadCycleData({ silent: true });
+        return result;
+      } catch (error) {
+        console.error('Error deleting archived cycle with strategy:', error);
+        const publicError = toPublicError(error);
+        toast({
+          title: publicError?.title || 'Error',
+          description: publicError?.message || 'No se pudo eliminar/fusionar el ciclo.',
+          variant: 'destructive',
+        });
         throw error;
       } finally {
         setIsLoading(false);
@@ -883,6 +1026,75 @@ export const CycleDataProvider = ({ children }) => {
     [user]
   );
 
+  const previewUpdateCycleDates = useCallback(
+    async (cycleIdToUpdate, newStartDate, newEndDate) => {
+      if (!user?.uid || !cycleIdToUpdate) return null;
+
+      const cycleToUpdate =
+        currentCycle?.id === cycleIdToUpdate
+          ? currentCycle
+          : archivedCycles.find((cycle) => cycle.id === cycleIdToUpdate);
+      const currentStartDate = cycleToUpdate?.startDate ?? null;
+      const currentEndDate = cycleToUpdate?.endDate ?? null;
+      const hasStartChange = newStartDate !== undefined && newStartDate !== currentStartDate;
+      const hasEndChange = newEndDate !== undefined && newEndDate !== currentEndDate;
+
+      const collected = { affectedCycles: [], adjustedCyclesPreview: [], impactSummary: { trimmedCycles: 0, deletedCycles: 0, movedEntries: 0 } };
+
+      if (hasStartChange && newStartDate) {
+        const startPreview = await previewForceUpdateCycleStartDB({
+          userId: user.uid,
+          cycleId: cycleIdToUpdate,
+          newStartDate,
+        });
+        collected.affectedCycles.push(...(startPreview?.affectedCycles || []));
+        collected.adjustedCyclesPreview.push(...(startPreview?.adjustedCyclesPreview || []));
+        collected.impactSummary.trimmedCycles += startPreview?.impactSummary?.trimmedCycles || 0;
+        collected.impactSummary.deletedCycles += startPreview?.impactSummary?.deletedCycles || 0;
+        collected.impactSummary.movedEntries += startPreview?.impactSummary?.movedEntries || 0;
+      }
+
+      if (hasEndChange && newEndDate) {
+        const startForCalc = hasStartChange ? newStartDate : currentStartDate;
+        const endPreview = await previewForceShiftNextCycleStartDB({
+          userId: user.uid,
+          cycleId: cycleIdToUpdate,
+          newEndDate,
+          currentCycleStartDate: startForCalc,
+        });
+        collected.affectedCycles.push(...(endPreview?.affectedCycles || []));
+        collected.adjustedCyclesPreview.push(...(endPreview?.adjustedCyclesPreview || []));
+        collected.impactSummary.trimmedCycles += endPreview?.impactSummary?.trimmedCycles || 0;
+        collected.impactSummary.deletedCycles += endPreview?.impactSummary?.deletedCycles || 0;
+        collected.impactSummary.movedEntries += endPreview?.impactSummary?.movedEntries || 0;
+      }
+
+      if (!shouldShowCycleImpactPreview(collected)) return null;
+      return collected;
+    },
+    [user, currentCycle, archivedCycles]
+  );
+
+  const previewStartNewCycle = useCallback(
+    async (startDate, previousCycleId) => {
+      if (!user?.uid) return null;
+      const impact = await previewStartNewCycleDB({ userId: user.uid, startDate, previousCycleId });
+      if (!shouldShowCycleImpactPreview(impact)) return null;
+      return impact;
+    },
+    [user]
+  );
+
+  const previewUndoCurrentCycle = useCallback(
+    async (cycleIdToUndo) => {
+      if (!user?.uid || !cycleIdToUndo) return null;
+      const impact = await previewUndoCurrentCycleDB({ userId: user.uid, currentCycleId: cycleIdToUndo });
+      if (!shouldShowCycleImpactPreview(impact)) return null;
+      return impact;
+    },
+    [user]
+  );
+
   const updateCycleDates = useCallback(
     async (cycleIdToUpdate, newStartDate, newEndDate) => {
       if (!user?.uid) return;
@@ -898,12 +1110,15 @@ export const CycleDataProvider = ({ children }) => {
 
       setIsLoading(true);
       try {
+        const adjustmentSummaries = [];
         if (hasStartChange && newStartDate) {
-          await forceUpdateCycleStartDB(user.uid, cycleIdToUpdate, newStartDate);
-          }
+          const summary = await forceUpdateCycleStartDB(user.uid, cycleIdToUpdate, newStartDate);
+          if (summary) adjustmentSummaries.push(summary);
+        }
         if (hasEndChange && newEndDate) {
           const startForCalc = hasStartChange ? newStartDate : currentStartDate;
-          await forceShiftNextCycleStartDB(user.uid, cycleIdToUpdate, newEndDate, startForCalc);
+          const summary = await forceShiftNextCycleStartDB(user.uid, cycleIdToUpdate, newEndDate, startForCalc);
+          if (summary) adjustmentSummaries.push(summary);
         }
         if (hasStartChange || hasEndChange) {
           await updateCycleDatesDB(
@@ -914,10 +1129,47 @@ export const CycleDataProvider = ({ children }) => {
           );
         }
         await loadCycleData({ silent: true });
+        
+        const mergedSummary = adjustmentSummaries.reduce((acc, item) => ({
+          movedEntriesCount: acc.movedEntriesCount + (item?.movedEntriesCount || 0),
+          changedCycles: [...acc.changedCycles, ...(item?.changedCycles || [])],
+        }), { movedEntriesCount: 0, changedCycles: [] });
+
+        const formatUiDateSafe = (isoDate) => {
+          if (!isoDate) return '—';
+          try {
+            const parsed = parseISO(isoDate);
+            return isValid(parsed) ? format(parsed, 'dd/MM/yyyy') : isoDate;
+          } catch {
+            return isoDate;
+          }
+        };
+
+        if (mergedSummary.changedCycles.length || mergedSummary.movedEntriesCount) {
+          const changedCyclesDescription = mergedSummary.changedCycles
+            .map((c) =>
+              `${formatUiDateSafe(c.oldStart)} - ${formatUiDateSafe(c.oldEnd)} → ${formatUiDateSafe(c.newStart)} - ${formatUiDateSafe(c.newEnd)}`
+           )
+            .join('; ');
+
+          const movedEntriesDescription = `Se movieron ${mergedSummary.movedEntriesCount} registros.`;
+          const description = mergedSummary.changedCycles.length
+            ? `Ciclos ajustados: ${changedCyclesDescription}. ${movedEntriesDescription}`
+            : movedEntriesDescription;
+
+          toast({
+            title: 'Fechas guardadas correctamente',
+            description,
+            duration: 9000,
+          });
+        }
+
+        return mergedSummary;
       } catch (error) {
         console.error('Error updating cycle dates:', error);
-        const description = getErrorDescription(error, 'No se pudieron actualizar las fechas.');
-        toast({ title: 'Error', description, variant: 'destructive' });
+        const publicError = toPublicError(error);
+        const description = publicError?.message || getErrorDescription(error, 'No se pudieron actualizar las fechas.');
+        toast({ title: publicError?.title || 'Error', description, variant: 'destructive' });
         throw error;
       } finally {
         setIsLoading(false);
@@ -959,7 +1211,12 @@ export const CycleDataProvider = ({ children }) => {
           ...cycleData,
           startDate: startDate ?? format(startOfDay(new Date()), 'yyyy-MM-dd'),
           endDate,
-          data: filtered
+          data: filtered,
+          issues: detectCycleDataIssues({
+            cycleStartIso: startDate,
+            cycleEndIso: endDate,
+            entries: cycleData.data || [],
+          }),
         };
       } catch (error) {
         console.error('Error fetching cycle by ID:', error);
@@ -1053,6 +1310,38 @@ export const CycleDataProvider = ({ children }) => {
     }
   }, [user, currentCycle, loadCycleData, toast]);
 
+  const openDataRepairDialog = useCallback((cycleId = null) => {
+    setRepairDialogState({ open: true, cycleId: cycleId ?? currentCycle?.id ?? null });
+  }, [currentCycle?.id]);
+
+  const closeDataRepairDialog = useCallback(() => {
+    setRepairDialogState((prev) => ({ ...prev, open: false }));
+  }, []);
+
+  const resolveDuplicateIssue = useCallback(async ({ cycleId, isoDate, winnerEntryId, loserEntryIds, moveMeasurements }) => {
+    if (!user?.uid) return;
+    await resolveDuplicateIsoDateDB({ userId: user.uid, cycleId, isoDate, winnerEntryId, loserEntryIds, moveMeasurements });
+    removeEntriesFromCycleState(cycleId, loserEntryIds);
+    if (moveMeasurements) {
+   await loadCycleData({ silent: true });
+ }
+  }, [user, removeEntriesFromCycleState, loadCycleData]);
+
+  const moveOutOfRangeEntry = useCallback(async ({ fromCycleId, toCycleId, entryId, isoDate }) => {
+    if (!user?.uid) return;
+    await moveEntryToCycleDB({ userId: user.uid, fromCycleId, toCycleId, entryId, isoDate, strategy: 'upsert-by-iso' });
+    removeEntriesFromCycleState(fromCycleId, [entryId]);
+    await loadCycleData({ silent: true });
+  }, [user, loadCycleData, removeEntriesFromCycleState]);
+
+  const deleteIssueEntry = useCallback(async ({ cycleId, entryId }) => {
+    if (!user?.uid) return;
+    await deleteEntryWithMeasurementsDB(user.uid, cycleId, entryId);
+    removeEntriesFromCycleState(cycleId, [entryId]);
+  }, [user, removeEntriesFromCycleState]);
+
+  const getPublicError = useCallback((error) => toPublicError(error), []);
+
 
   const value = {
     currentCycle,
@@ -1065,15 +1354,29 @@ export const CycleDataProvider = ({ children }) => {
     forceUpdateCycleStart,
     forceShiftNextCycleStart,
     checkCycleOverlap,
+    previewUpdateCycleDates,
     isLoading,
     getCycleById,
     refreshData,
     toggleIgnoreRecord,
     setCycleIgnoreForAutoCalculations,
     addArchivedCycle,
+    previewInsertCycleRange,
+    insertCycleRange,
     deleteCycle,
+    previewDeleteCycle,
+    deleteArchivedCycleWithStrategy,
     getMeasurementsForEntry,
-    undoCurrentCycle
+    undoCurrentCycle,
+    previewStartNewCycle,
+    previewUndoCurrentCycle,
+    repairDialogState,
+    openDataRepairDialog,
+    closeDataRepairDialog,
+    resolveDuplicateIssue,
+    moveOutOfRangeEntry,
+    deleteIssueEntry,
+    getPublicError,
   };
 
   return <CycleDataContext.Provider value={value}>{children}</CycleDataContext.Provider>;

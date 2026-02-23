@@ -27,6 +27,8 @@ const EditCycleDatesDialog = ({
   description,
   cycleId,
   checkOverlap,
+  previewUpdateCycleDates,
+  checkOverlapForNewRange,
   errorMessage,
   conflictCycle,
   onResetError,
@@ -39,6 +41,60 @@ const EditCycleDatesDialog = ({
   const [overlapCycle, setOverlapCycle] = useState(null);
   const [pendingPayload, setPendingPayload] = useState(null);
   const [showOverlapDialog, setShowOverlapDialog] = useState(false);
+  const [overlapPlan, setOverlapPlan] = useState(null);
+
+  const formatCycleDateUi = (value) => {
+    if (!value) return 'en curso';
+    try {
+      return format(parseISO(value), 'dd/MM/yyyy');
+    } catch (error) {
+      console.error('Error formatting cycle date', error);
+      return value;
+    }
+  };
+
+  const findOverlapCycleById = (cycleId) => {
+    const list = overlapPlan?.overlaps || [];
+    return list.find((c) => c?.id === cycleId || c?.cycleId === cycleId) || null;
+  };
+  const affectedCycleNames = overlapPlan?.affectedCycles || (overlapPlan?.overlaps || []).map((cycle) => {
+    const start = formatCycleDateUi(cycle.startDate);
+    const end = cycle.endDate ? formatCycleDateUi(cycle.endDate) : 'en curso';
+    return `${start} - ${end}`;
+  });
+
+  const overlapAdjustmentsPreview = (overlapPlan?.adjustedCyclesPreview || overlapPlan?.plan || []).flatMap((item) => {
+    if (item.action === 'delete') {
+      const fromOverlap = findOverlapCycleById(item.cycleId);
+      return [{
+        cycleId: item.cycleId,
+        type: 'delete',
+        startDate: item.startDate ?? fromOverlap?.startDate,
+        endDate: item.endDate ?? fromOverlap?.endDate,
+      }];
+    }
+    if (item.action === 'split') {
+      return [
+        {
+          cycleId: item.cycleId,
+          type: 'split',
+          startDate: item.startDate,
+          endDate: item.leftEndDate,
+        },
+        {
+          cycleId: item.cycleId,
+          type: 'split',
+          startDate: item.rightStartDate,
+          endDate: item.rightEndDate,
+        },
+      ];
+    }
+    if (item.action === 'trimStart') {
+      return [{ cycleId: item.cycleId, type: 'trim', startDate: item.newStartDate, endDate: item.endDate }];
+    }
+
+    return [{ cycleId: item.cycleId, type: 'trim', startDate: item.startDate, endDate: item.newEndDate }];
+  });
 
   useBackClose(isOpen, onClose);
 
@@ -95,6 +151,13 @@ const EditCycleDatesDialog = ({
 
   const selectedStartDate = toDate(startDate);
   const selectedEndDate = toDate(endDate);
+  const today = startOfDay(new Date());
+
+  const resolveOpenRangeEnd = (start, end) => {
+    if (end) return end;
+    if (!start) return null;
+    return isAfter(start, today) ? start : today;
+  };
 
   const recordedDates = (cycleData ?? [])
     .map((record) => toDate(record?.isoDate))
@@ -103,8 +166,9 @@ const EditCycleDatesDialog = ({
   const activeCycle = otherCycles.find((candidate) => candidate?.id === cycleId);
   const activeCycleStart = toDate(activeCycle?.startDate);
   const activeCycleEnd = toDate(activeCycle?.endDate);
+  const activeCycleVisualEnd = resolveOpenRangeEnd(activeCycleStart, activeCycleEnd);
   const activeCycleRange = activeCycleStart
-    ? { from: activeCycleStart, to: activeCycleEnd ?? activeCycleStart }
+    ? { from: activeCycleStart, to: activeCycleVisualEnd ?? activeCycleStart }
     : undefined;
 
     const isRangeStart = (date, range) => Boolean(range?.from && isSameDay(date, range.from));
@@ -124,7 +188,7 @@ const EditCycleDatesDialog = ({
       const start = toDate(candidate?.startDate);
       const end = toDate(candidate?.endDate);
       if (!start) return null;
-      return { from: start, to: end ?? start };
+      return { from: start, to: resolveOpenRangeEnd(start, end) ?? start };
     })
     .filter(Boolean);
 
@@ -140,19 +204,36 @@ const EditCycleDatesDialog = ({
     const payload = includeEndDate
       ? { startDate, endDate }
       : { startDate };
-    if (checkOverlap && cycleId && startDate) {
-      const overlap = await checkOverlap(
-        cycleId,
-        startDate,
-        includeEndDate ? endDate || undefined : undefined
-      );
+    if (previewUpdateCycleDates && cycleId && startDate) {
+      const preview = await previewUpdateCycleDates(cycleId, startDate, includeEndDate ? endDate || undefined : undefined);
+      if (preview) {
+        setOverlapCycle(null);
+        setPendingPayload(payload);
+        setOverlapPlan(preview);
+        setShowOverlapDialog(true);
+        return;
+      }
+    } else if (checkOverlap && cycleId && startDate) {
+      const overlap = await checkOverlap(cycleId, startDate, includeEndDate ? endDate || undefined : undefined);
       if (overlap) {
         setOverlapCycle(overlap);
+        setPendingPayload(payload);
+        setOverlapPlan(null);
+        setShowOverlapDialog(true);
+        return;
+      }
+    }
+    
+    if (!cycleId && includeEndDate && checkOverlapForNewRange && startDate && endDate) {
+      const preview = await checkOverlapForNewRange(startDate, endDate);
+      if ((preview?.overlaps || []).length > 0) {
+        setOverlapPlan(preview);
         setPendingPayload(payload);
         setShowOverlapDialog(true);
         return;
       }
     }
+
     onConfirm(payload);
   };
 
@@ -298,12 +379,30 @@ const EditCycleDatesDialog = ({
       <OverlapWarningDialog
         isOpen={showOverlapDialog}
         conflictCycle={overlapCycle}
-        onCancel={() => setShowOverlapDialog(false)}
+        message={overlapPlan ? '¿Deseas continuar con este cambio?' : undefined}
+        title={overlapPlan ? 'Este cambio ajustará otros ciclos' : undefined}
+        confirmLabel={overlapPlan ? 'Aplicar cambios' : undefined}
+        affectedCycles={affectedCycleNames}
+        impactSummary={overlapPlan
+          ? {
+            trimmedCycles:
+              overlapPlan.impactSummary?.trimmedCycles ??
+              (overlapPlan.summary?.trimStartCount || 0) + (overlapPlan.summary?.trimEndCount || 0),
+            deletedCycles: overlapPlan.impactSummary?.deletedCycles ?? (overlapPlan.summary?.deleteCount || 0),
+            movedEntries: overlapPlan.impactSummary?.movedEntries ?? (overlapPlan.summary?.estimateMovedEntries || 0),
+          }
+          : undefined}
+        adjustedCyclesPreview={overlapAdjustmentsPreview}
+        onCancel={() => {
+          setShowOverlapDialog(false);
+          setOverlapPlan(null);
+        }}
         onConfirm={() => {
           setShowOverlapDialog(false);
           if (pendingPayload) {
-            onConfirm({ ...pendingPayload, force: true });
+            onConfirm({ ...pendingPayload, force: true, insertMode: Boolean(overlapPlan), plan: overlapPlan || undefined });
           }
+          setOverlapPlan(null);
         }}
       />
     </>

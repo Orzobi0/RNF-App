@@ -8,6 +8,9 @@ import {
   deleteDoc,
   setDoc,
   writeBatch,
+  query,
+  where,
+  limit,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebaseClient';
 import { format, differenceInDays, startOfDay, parseISO, compareAsc, addDays, isValid } from 'date-fns';
@@ -87,8 +90,30 @@ export const toPublicError = (err) => {
   ).toJSON();
 };
 
-const formatCycleRange = (startDate, endDate) =>
-  endDate ? `${startDate} a ${endDate}` : `${startDate} en adelante`;
+const normalizeCycleRangeForDisplay = (startDate, endDate) => {
+  if (!startDate || !endDate) {
+    return { startDate, endDate };
+  }
+
+  const parsedStart = startOfDay(parseISO(startDate));
+  const parsedEnd = startOfDay(parseISO(endDate));
+  if (!isValid(parsedStart) || !isValid(parsedEnd)) {
+    return { startDate, endDate };
+  }
+
+  if (parsedEnd < parsedStart) {
+    return { startDate, endDate: startDate };
+  }
+
+  return { startDate, endDate };
+};
+
+const formatCycleRange = (startDate, endDate) => {
+  const normalizedRange = normalizeCycleRangeForDisplay(startDate, endDate);
+  return normalizedRange.endDate
+    ? `${normalizedRange.startDate} a ${normalizedRange.endDate}`
+    : `${normalizedRange.startDate} en adelante`;
+};
 
 const buildCycleOverlapMessage = (conflictCycle, proposedStart, proposedEnd) => {
   const conflictRange = formatCycleRange(conflictCycle?.startDate, conflictCycle?.endDate);
@@ -109,6 +134,91 @@ const normalizeTemp = (val) => {
   return isNaN(num) ? null : num;
 };
 
+export const resolveIsoDateFromEntryData = (entryData) => {
+  if (entryData?.iso_date && isValid(parseISO(entryData.iso_date))) {
+    return format(parseISO(entryData.iso_date), 'yyyy-MM-dd');
+  }
+  if (typeof entryData?.timestamp === 'string' && isValid(parseISO(entryData.timestamp))) {
+    return format(parseISO(entryData.timestamp), 'yyyy-MM-dd');
+  }
+  return null;
+};
+
+export const getEntryPreview = (entryData, measurementsCount = null) => ({
+  temperature_chart: normalizeTemp(entryData?.temperature_chart),
+  temperature_raw: normalizeTemp(entryData?.temperature_raw),
+  temperature_corrected: normalizeTemp(entryData?.temperature_corrected),
+  use_corrected: Boolean(entryData?.use_corrected),
+  timestamp: entryData?.timestamp ?? null,
+  mucus_sensation: entryData?.mucus_sensation ?? null,
+  mucus_appearance: entryData?.mucus_appearance ?? null,
+  fertility_symbol: entryData?.fertility_symbol ?? null,
+  observations: entryData?.observations ?? null,
+  had_relations: Boolean(entryData?.had_relations ?? entryData?.hadRelations ?? false),
+  ignored: Boolean(entryData?.ignored),
+  peak_marker: entryData?.peak_marker ?? null,
+  measurementsCount,
+});
+
+export const detectCycleDataIssues = ({ cycleStartIso, cycleEndIso, entries }) => {
+  const outOfRange = [];
+  const groupedByIso = new Map();
+  const safeEntries = Array.isArray(entries) ? entries : [];
+
+  for (const entry of safeEntries) {
+    const resolvedIso = resolveIsoDateFromEntryData(entry);
+    const entryId = entry?.id ?? null;
+    const preview = getEntryPreview(entry);
+
+    if (!resolvedIso) {
+      outOfRange.push({
+        entryId,
+        isoDateResolved: null,
+        reason: 'invalid-date',
+        entryPreview: preview,
+      });
+      continue;
+    }
+
+    if (!groupedByIso.has(resolvedIso)) {
+      groupedByIso.set(resolvedIso, []);
+    }
+    groupedByIso.get(resolvedIso).push({ entryId, preview });
+
+    if (cycleStartIso && resolvedIso < cycleStartIso) {
+      outOfRange.push({
+        entryId,
+        isoDateResolved: resolvedIso,
+        reason: 'before-cycle-start',
+        entryPreview: preview,
+      });
+    } else if (cycleEndIso && resolvedIso > cycleEndIso) {
+      outOfRange.push({
+        entryId,
+        isoDateResolved: resolvedIso,
+        reason: 'after-cycle-end',
+        entryPreview: preview,
+      });
+    }
+  }
+
+  const duplicates = [...groupedByIso.entries()]
+    .filter(([, groupedEntries]) => groupedEntries.length > 1)
+    .map(([isoDate, entriesForIso]) => ({ isoDate, entries: entriesForIso }));
+
+  const duplicateEntriesCount = duplicates.reduce((sum, item) => sum + item.entries.length, 0);
+
+  return {
+    outOfRange,
+    duplicates,
+    hasIssues: outOfRange.length > 0 || duplicates.length > 0,
+    summary: {
+      outOfRangeCount: outOfRange.length,
+      duplicateDaysCount: duplicates.length,
+      duplicateEntriesCount,
+    },
+  };
+};
 export const processCycleEntries = (entriesFromView, cycleStartIsoDate) => {
   if (!entriesFromView || !Array.isArray(entriesFromView) || !cycleStartIsoDate) return [];
 
@@ -330,6 +440,187 @@ const sortCyclesByStartDate = (docs) =>
     .sort((a, b) => compareAsc(a.start, b.start))
     .map(({ id, data }) => ({ id, data }));
 
+    const isIsoDateString = (value) => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
+
+const validateCycleRangeIsoDates = (startIso, endIso) => {
+  if (!isIsoDateString(startIso) || !isIsoDateString(endIso)) {
+    throw createAppError(
+      'cycle-range-invalid',
+      'Formato de fecha inválido',
+      'Las fechas deben tener formato yyyy-MM-dd.',
+      { startIso: startIso ?? null, endIso: endIso ?? null },
+      { label: 'Revisar fechas' }
+    );
+  }
+
+  const parsedStart = startOfDay(parseISO(startIso));
+  const parsedEnd = startOfDay(parseISO(endIso));
+  if (!isValid(parsedStart) || !isValid(parsedEnd) || parsedEnd < parsedStart) {
+    throw createAppError(
+      'cycle-range-invalid',
+      'Rango de fechas inválido',
+      'La fecha de fin no puede ser anterior a la fecha de inicio.',
+      { startIso, endIso },
+      { label: 'Revisar fechas' }
+    );
+  }
+};
+
+const fetchCyclesForUser = async (userId) => {
+  const cyclesSnap = await getDocs(collection(db, `users/${userId}/cycles`));
+  return cyclesSnap.docs
+    .map((docSnap) => ({
+      id: docSnap.id,
+      startDate: docSnap.data()?.start_date ?? null,
+      endDate: docSnap.data()?.end_date ?? null,
+      data: docSnap.data(),
+    }))
+    .filter((cycle) => cycle.startDate)
+    .sort((a, b) => a.startDate.localeCompare(b.startDate));
+};
+
+const INFINITE_END_ISO = '9999-12-31';
+const dayBeforeIso = (isoDate) => format(addDays(startOfDay(parseISO(isoDate)), -1), 'yyyy-MM-dd');
+const dayAfterIso = (isoDate) => format(addDays(startOfDay(parseISO(isoDate)), 1), 'yyyy-MM-dd');
+
+export const ARCHIVED_CYCLE_DELETE_STRATEGY = {
+  DELETE: 'delete',
+  MERGE_PREV: 'merge-prev',
+  MERGE_NEXT: 'merge-next',
+};
+
+const buildInsertCycleRangePlanFromCycles = (cycles, startIso, endIso) => {
+  const overlaps = [];
+  const plan = [];
+
+  for (const cycle of cycles) {
+    const cycleStart = cycle.startDate;
+    const cycleEnd = cycle.endDate ?? INFINITE_END_ISO;
+    const intersects = cycleStart <= endIso && cycleEnd >= startIso;
+    if (!intersects) continue;
+
+    overlaps.push({ id: cycle.id, startDate: cycle.startDate, endDate: cycle.endDate ?? null });
+
+    const fullyCovered = startIso <= cycleStart && endIso >= cycleEnd && cycle.endDate !== null;
+    const containsRange = cycleStart < startIso && cycleEnd > endIso;
+    const overlapsStart = startIso <= cycleStart && endIso < cycleEnd;
+
+    if (fullyCovered) {
+      plan.push({ action: 'delete', cycleId: cycle.id, startDate: cycle.startDate, endDate: cycle.endDate ?? null });
+      continue;
+    }
+    if (containsRange) {
+      plan.push({
+        action: 'split',
+        cycleId: cycle.id,
+        startDate: cycle.startDate,
+        endDate: cycle.endDate ?? null,
+        leftEndDate: dayBeforeIso(startIso),
+        rightStartDate: dayAfterIso(endIso),
+        rightEndDate: cycle.endDate ?? null,
+      });
+      continue;
+    }
+    if (overlapsStart) {
+      plan.push({
+        action: 'trimStart',
+        cycleId: cycle.id,
+        startDate: cycle.startDate,
+        endDate: cycle.endDate ?? null,
+        newStartDate: dayAfterIso(endIso),
+      });
+      continue;
+    }
+
+    plan.push({
+      action: 'trimEnd',
+      cycleId: cycle.id,
+      startDate: cycle.startDate,
+      endDate: cycle.endDate ?? null,
+      newEndDate: dayBeforeIso(startIso),
+    });
+  }
+
+  const summary = {
+    trimStartCount: plan.filter((item) => item.action === 'trimStart').length,
+    trimEndCount: plan.filter((item) => item.action === 'trimEnd').length,
+    deleteCount: plan.filter((item) => item.action === 'delete').length,
+    splitCount: plan.filter((item) => item.action === 'split').length,
+    estimateMovedEntries: 0,
+  };
+
+  return { overlaps, plan, summary };
+};
+
+const countEntriesInRangeForCycle = async ({ userId, cycleId, startIso, endIso }) => {
+  const entriesSnap = await getDocs(collection(db, `users/${userId}/cycles/${cycleId}/entries`));
+  return entriesSnap.docs.reduce((count, entryDoc) => {
+    try {
+      const isoDate = resolveSplitEntryIsoDate(entryDoc.data());
+      return isoDate >= startIso && isoDate <= endIso ? count + 1 : count;
+    } catch (error) {
+      return count;
+    }
+  }, 0);
+};
+
+const countEntriesByPredicateForCycle = async ({ userId, cycleId, predicate }) => {
+  const entriesSnap = await getDocs(collection(db, `users/${userId}/cycles/${cycleId}/entries`));
+  return entriesSnap.docs.reduce((count, entryDoc) => {
+    try {
+      const isoDate = resolveSplitEntryIsoDate(entryDoc.data());
+      return predicate(isoDate, entryDoc.data()) ? count + 1 : count;
+    } catch (error) {
+      return count;
+    }
+  }, 0);
+};
+
+const toImpactPayload = ({ affectedCycles = [], adjustedCyclesPreview = [], impactSummary = {} }) => ({
+  affectedCycles,
+  adjustedCyclesPreview,
+  impactSummary: {
+    trimmedCycles: impactSummary.trimmedCycles ?? 0,
+    deletedCycles: impactSummary.deletedCycles ?? 0,
+    movedEntries: impactSummary.movedEntries ?? 0,
+  },
+});
+
+const isDeletedPreview = (preview) => preview?.type === 'delete' || preview?.deleted === true;
+
+const hasImpact = (impact) =>
+  Boolean(
+    (impact?.impactSummary?.trimmedCycles ?? 0) > 0 ||
+      (impact?.impactSummary?.deletedCycles ?? 0) > 0 ||
+      (impact?.impactSummary?.movedEntries ?? 0) > 0
+  );
+
+export const previewInsertCycleRangeDB = async ({ userId, proposedStartIso, proposedEndIso }) => {
+  if (!userId) return { overlaps: [], plan: [], summary: { trimStartCount: 0, trimEndCount: 0, deleteCount: 0, splitCount: 0, estimateMovedEntries: 0 } };
+
+  validateCycleRangeIsoDates(proposedStartIso, proposedEndIso);
+  const cycles = await fetchCyclesForUser(userId);
+  const result = buildInsertCycleRangePlanFromCycles(cycles, proposedStartIso, proposedEndIso);
+
+  let movedCount = 0;
+  for (const item of result.plan) {
+    movedCount += await countEntriesInRangeForCycle({
+      userId,
+      cycleId: item.cycleId,
+      startIso: proposedStartIso,
+      endIso: proposedEndIso,
+    });
+  }
+
+  return {
+    ...result,
+    summary: {
+      ...result.summary,
+      estimateMovedEntries: movedCount,
+    },
+  };
+};
+
 const findNeighbors = (sortedCycles, cycleId) => {
   const currentIndex = sortedCycles.findIndex((cycle) => cycle.id === cycleId);
   if (currentIndex === -1) {
@@ -454,6 +745,8 @@ const moveEntriesWithMeasurementsDB = async ({
   for (const entry of entriesToMove) {
     const existingTarget = targetEntriesByIso.get(entry.isoDate);
     const newCycleDay = generateCycleDaysForRecord(entry.isoDate, toCycleStartIso);
+    const sourceIndexRef = doc(db, `users/${userId}/cycles/${fromCycleId}/entries_by_iso/${entry.isoDate}`);
+    const targetIndexRef = doc(db, `users/${userId}/cycles/${toCycleId}/entries_by_iso/${entry.isoDate}`);
 
     if (existingTarget) {
       const updatePayload = { cycle_day: newCycleDay };
@@ -465,6 +758,8 @@ const moveEntriesWithMeasurementsDB = async ({
         }
       }
       await queueUpdate(existingTarget.ref, updatePayload);
+      // Asegura índice en destino (apunta al entry existente)
+      await queueSet(targetIndexRef, { entryId: existingTarget.id });
 
       const measurementsRef = collection(
         db,
@@ -483,11 +778,15 @@ const moveEntriesWithMeasurementsDB = async ({
       }
 
       await queueDelete(entry.ref);
+      // Borra índice del origen (aunque no exista, no pasa nada)
+      await queueDelete(sourceIndexRef);
       continue;
     }
 
     const newEntryRef = doc(db, `users/${userId}/cycles/${toCycleId}/entries/${entry.id}`);
     await queueSet(newEntryRef, { ...entry.data, cycle_day: newCycleDay });
+    // Índice en destino (apunta al entry movido)
+    await queueSet(targetIndexRef, { entryId: entry.id });
 
     const measurementsRef = collection(
       db,
@@ -504,6 +803,7 @@ const moveEntriesWithMeasurementsDB = async ({
     }
 
     await queueDelete(entry.ref);
+    await queueDelete(sourceIndexRef);
   }
 
   if (opCount > 0) {
@@ -671,6 +971,8 @@ export const splitCycleAtDate = async (userId, previousCycleId, newCycleId, star
   for (const entry of entriesToMove) {
     const existingTarget = newEntriesByIso.get(entry.isoDate);
     const newCycleDay = generateCycleDaysForRecord(entry.isoDate, startDateS);
+    const sourceIndexRef = doc(db, `users/${userId}/cycles/${previousCycleId}/entries_by_iso/${entry.isoDate}`);
+    const targetIndexRef = doc(db, `users/${userId}/cycles/${newCycleId}/entries_by_iso/${entry.isoDate}`);
 
     // 2) Si ya hay entry en el destino para esa fecha, fusionamos (no petamos).
     if (existingTarget) {
@@ -683,6 +985,7 @@ export const splitCycleAtDate = async (userId, previousCycleId, newCycleId, star
         }
       }
       await queueUpdate(existingTarget.ref, updatePayload);
+      await queueSet(targetIndexRef, { entryId: existingTarget.id });
 
       const measurementsRef = collection(
         db,
@@ -703,12 +1006,14 @@ export const splitCycleAtDate = async (userId, previousCycleId, newCycleId, star
 
       // Eliminamos el entry del ciclo anterior (su “contenido” ya queda en el destino)
       await queueDelete(entry.ref);
+      await queueDelete(sourceIndexRef);
       continue;
     }
 
     // 3) Caso normal: mover entry completo al destino
     const newEntryRef = doc(db, `users/${userId}/cycles/${newCycleId}/entries/${entry.id}`);
     await queueSet(newEntryRef, { ...entry.data, cycle_day: newCycleDay });
+    await queueSet(targetIndexRef, { entryId: entry.id });
 
     const measurementsRef = collection(
       db,
@@ -725,6 +1030,7 @@ export const splitCycleAtDate = async (userId, previousCycleId, newCycleId, star
     }
 
     await queueDelete(entry.ref);
+    await queueDelete(sourceIndexRef);
   }
 
   if (opCount > 0) {
@@ -732,6 +1038,133 @@ export const splitCycleAtDate = async (userId, previousCycleId, newCycleId, star
   }
 
   return { movedEntries: entriesToMove.length };
+};
+
+export const insertCycleRangeDB = async ({ userId, startIso, endIso }) => {
+  if (!userId) return null;
+
+  validateCycleRangeIsoDates(startIso, endIso);
+  const cycles = await fetchCyclesForUser(userId);
+  const planning = buildInsertCycleRangePlanFromCycles(cycles, startIso, endIso);
+
+  const newCycleRef = doc(collection(db, `users/${userId}/cycles`));
+  await setDoc(newCycleRef, {
+    user_id: userId,
+    start_date: startIso,
+    end_date: endIso,
+    ignored_auto_calculations: false,
+  });
+
+  let movedEntriesCount = 0;
+  const changedCycles = [];
+
+  const runMoveToNewCycle = async (fromCycleId) => {
+    const result = await moveEntriesWithMeasurementsDB({
+      userId,
+      fromCycleId,
+      toCycleId: newCycleRef.id,
+      shouldMoveIsoDate: (isoDate) => isoDate >= startIso && isoDate <= endIso,
+      toCycleStartIso: startIso,
+    });
+    movedEntriesCount += result?.movedEntries ?? 0;
+  };
+
+  const splitActions = planning.plan.filter((item) => item.action === 'split');
+  for (const action of splitActions) {
+    await runMoveToNewCycle(action.cycleId);
+
+    const targetCycleRef = doc(db, `users/${userId}/cycles/${action.cycleId}`);
+    await updateDoc(targetCycleRef, { end_date: action.leftEndDate });
+
+    const rightCycleRef = doc(collection(db, `users/${userId}/cycles`));
+    await setDoc(rightCycleRef, {
+      user_id: userId,
+      start_date: action.rightStartDate,
+      end_date: action.rightEndDate,
+      ignored_auto_calculations: false,
+    });
+
+    const rightMove = await moveEntriesWithMeasurementsDB({
+      userId,
+      fromCycleId: action.cycleId,
+      toCycleId: rightCycleRef.id,
+      shouldMoveIsoDate: (isoDate) => isoDate >= action.rightStartDate,
+      toCycleStartIso: action.rightStartDate,
+    });
+    movedEntriesCount += rightMove?.movedEntries ?? 0;
+    await recalcCycleDayForAllEntriesDB(userId, rightCycleRef.id, action.rightStartDate);
+
+    changedCycles.push({
+      id: action.cycleId,
+      oldStart: action.startDate,
+      newStart: action.startDate,
+      oldEnd: action.endDate,
+      newEnd: action.leftEndDate,
+    });
+    changedCycles.push({
+      id: rightCycleRef.id,
+      oldStart: null,
+      newStart: action.rightStartDate,
+      oldEnd: null,
+      newEnd: action.rightEndDate,
+    });
+  }
+
+  const trimStartActions = planning.plan.filter((item) => item.action === 'trimStart');
+  for (const action of trimStartActions) {
+    await runMoveToNewCycle(action.cycleId);
+    const cycleRef = doc(db, `users/${userId}/cycles/${action.cycleId}`);
+    await updateDoc(cycleRef, { start_date: action.newStartDate });
+    await recalcCycleDayForAllEntriesDB(userId, action.cycleId, action.newStartDate);
+    changedCycles.push({
+      id: action.cycleId,
+      oldStart: action.startDate,
+      newStart: action.newStartDate,
+      oldEnd: action.endDate,
+      newEnd: action.endDate,
+    });
+  }
+
+  const trimEndActions = planning.plan.filter((item) => item.action === 'trimEnd');
+  for (const action of trimEndActions) {
+    await runMoveToNewCycle(action.cycleId);
+    const cycleRef = doc(db, `users/${userId}/cycles/${action.cycleId}`);
+    await updateDoc(cycleRef, { end_date: action.newEndDate });
+    changedCycles.push({
+      id: action.cycleId,
+      oldStart: action.startDate,
+      newStart: action.startDate,
+      oldEnd: action.endDate,
+      newEnd: action.newEndDate,
+    });
+  }
+
+  const deleteActions = planning.plan.filter((item) => item.action === 'delete');
+  for (const action of deleteActions) {
+    await runMoveToNewCycle(action.cycleId);
+    await deleteCycleDB(userId, action.cycleId);
+    changedCycles.push({
+      id: action.cycleId,
+      oldStart: action.startDate,
+      newStart: null,
+      oldEnd: action.endDate,
+      newEnd: null,
+    });
+  }
+
+  await recalcCycleDayForAllEntriesDB(userId, newCycleRef.id, startIso);
+
+  return {
+    newCycleId: newCycleRef.id,
+    movedEntriesCount,
+    overlaps: planning.overlaps,
+    plan: planning.plan,
+    summary: {
+      ...planning.summary,
+      estimateMovedEntries: movedEntriesCount,
+    },
+    changedCycles,
+  };
 };
 
 export const startNewCycleDB = async (userId, previousCycleId, startDate) => {
@@ -801,6 +1234,94 @@ export const startNewCycleDB = async (userId, previousCycleId, startDate) => {
   return { id: newCycleRef.id, start_date: startDate };
 };
 
+export const previewStartNewCycleDB = async ({ userId, startDate, previousCycleId }) => {
+  if (!userId || !startDate) {
+    throw createAppError(
+      'cycle-range-invalid',
+      'Faltan datos del ciclo',
+      'No se puede iniciar un ciclo nuevo sin la fecha de inicio.',
+      { userId: userId ?? null, startDate: startDate ?? null },
+      { label: 'Cambiar fecha' }
+    );
+  }
+
+  const newStart = parseISO(startDate);
+  if (!isValid(newStart)) {
+    throw createAppError(
+      'cycle-range-invalid',
+      'La fecha de inicio no es válida',
+      'La fecha de inicio no tiene un formato válido. Corrígela e inténtalo de nuevo.',
+      { startDate },
+      { label: 'Cambiar fecha' }
+    );
+  }
+
+  const cyclesSnap = await getDocs(collection(db, `users/${userId}/cycles`));
+  const overlapDoc = cyclesSnap.docs.find((docSnap) => {
+    if (docSnap.id === previousCycleId) return false;
+    const data = docSnap.data();
+    const start = data.start_date ? parseISO(data.start_date) : null;
+    const end = data.end_date ? parseISO(data.end_date) : null;
+    if (!start) return false;
+    const comparableEnd = end ?? new Date('9999-12-31');
+    return newStart >= start && newStart <= comparableEnd;
+  });
+
+  if (overlapDoc) {
+    const overlapInfo = {
+      id: overlapDoc.id,
+      startDate: overlapDoc.data().start_date,
+      endDate: overlapDoc.data().end_date,
+    };
+    throw createAppError(
+      'cycle-overlap',
+      'Las fechas se superponen',
+      buildCycleOverlapMessage(overlapInfo, startDate, null),
+      { conflictCycle: overlapInfo, proposedStart: startDate, proposedEnd: null },
+      { label: 'Cambiar fecha', hint: 'Elige una fecha de inicio fuera del rango en conflicto.' }
+    );
+  }
+
+  if (!previousCycleId) return toImpactPayload({});
+
+  const previousDoc = cyclesSnap.docs.find((cycleDoc) => cycleDoc.id === previousCycleId);
+  if (!previousDoc?.exists()) return toImpactPayload({});
+
+  const previousData = previousDoc.data();
+  const movedEntries = await countEntriesByPredicateForCycle({
+    userId,
+    cycleId: previousCycleId,
+    predicate: (isoDate) => isoDate >= startDate,
+  });
+
+  const dayBefore = format(addDays(startOfDay(newStart), -1), 'yyyy-MM-dd');
+
+  return toImpactPayload({
+    affectedCycles: [
+      { cycleId: previousCycleId, startDate: previousData.start_date, endDate: previousData.end_date ?? null },
+    ],
+    adjustedCyclesPreview: [
+      {
+        cycleId: previousCycleId,
+        type: 'trim',
+        startDate: previousData.start_date,
+        endDate: dayBefore,
+      },
+      {
+        cycleId: 'new-cycle-preview',
+        type: 'new',
+        startDate,
+        endDate: null,
+      },
+    ],
+    impactSummary: {
+      trimmedCycles: 1,
+      deletedCycles: 0,
+      movedEntries,
+    },
+  });
+};
+
 export const createNewCycleEntry = async (payload) => {
   const userId = payload.user_id;
   const timestamp = payload.timestamp ?? new Date().toISOString();
@@ -867,6 +1388,139 @@ export const createNewCycleEntry = async (payload) => {
   }
 
   return { id: null };
+};
+
+export const upsertCycleEntryByIsoDateDB = async (userId, cycleId, isoDate, payload) => {
+  if (!userId || !cycleId || !isoDate) {
+    throw createAppError(
+      'invalid-iso-date-upsert',
+      'Faltan datos para guardar el registro',
+      'No se pudo guardar porque faltan datos del ciclo o de la fecha.',
+      { userId: userId ?? null, cycleId: cycleId ?? null, isoDate: isoDate ?? null },
+      { label: 'Reintentar' }
+    );
+  }
+
+  const isoDateKey = String(isoDate);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(isoDateKey)) {
+    throw createAppError(
+      'invalid-iso-date-upsert',
+      'La fecha del registro no es válida',
+      'No se pudo guardar porque la fecha del día no tiene formato yyyy-MM-dd.',
+      { userId, cycleId, isoDate: isoDateKey },
+      { label: 'Revisar fecha' }
+    );
+  }
+
+  const entriesCollectionRef = collection(db, `users/${userId}/cycles/${cycleId}/entries`);
+  const indexRef = doc(db, `users/${userId}/cycles/${cycleId}/entries_by_iso/${isoDateKey}`);
+  const cycleRef = doc(db, `users/${userId}/cycles/${cycleId}`);
+  const cycleSnap = await getDoc(cycleRef);
+  if (!cycleSnap.exists()) {
+    throw createAppError(
+      'unknown',
+      'No se encontró el ciclo',
+      'No se pudo guardar el registro porque el ciclo ya no existe.',
+      { userId, cycleId },
+      { label: 'Actualizar pantalla' }
+    );
+  }
+  const cycleData = cycleSnap.data();
+  const cycleStart = cycleData?.start_date ?? null;
+  const cycleEnd = cycleData?.end_date ?? null;
+  if ((cycleStart && isoDateKey < cycleStart) || (cycleEnd && isoDateKey > cycleEnd)) {
+    throw createAppError(
+      'entry-out-of-range',
+      'Fecha fuera del ciclo',
+      `El día ${isoDateKey} está fuera del rango del ciclo (${cycleStart} - ${cycleEnd || 'abierto'}).`,
+      { userId, cycleId, isoDate: isoDateKey, start: cycleStart, end: cycleEnd },
+      { label: 'Revisar', hint: 'Abre la herramienta de reparación para mover o eliminar el registro.' }
+    );
+  }
+
+  const entryData = {
+    timestamp: payload.timestamp ?? new Date().toISOString(),
+    iso_date: isoDateKey,
+    temperature_raw: payload.temperature_raw ?? null,
+    temperature_corrected: payload.temperature_corrected ?? null,
+    use_corrected: Boolean(payload.use_corrected),
+    temperature_chart: payload.temperature_chart ?? null,
+    mucus_sensation: payload.mucus_sensation ?? null,
+    mucus_appearance: payload.mucus_appearance ?? null,
+    fertility_symbol: payload.fertility_symbol ?? null,
+    observations: payload.observations ?? null,
+    had_relations: Boolean(payload.had_relations ?? payload.hadRelations ?? false),
+    ignored: Boolean(payload.ignored ?? false),
+    peak_marker: payload.peak_marker ?? null,
+  };
+
+  // 1) Intentar resolver por índice (camino normal, rápido)
+  const indexSnap = await getDoc(indexRef);
+  if (indexSnap.exists()) {
+    const indexedEntryId = indexSnap.data()?.entryId;
+    if (!indexedEntryId) {
+      throw createAppError(
+        'duplicate-iso-date',
+        'Índice diario inválido',
+        `El índice para ${isoDateKey} no tiene entryId y no se puede continuar.`,
+        { userId, cycleId, isoDate: isoDateKey, indexDocId: indexSnap.id },
+        { label: 'Revisar datos duplicados' }
+      );
+    }
+    const indexedEntryRef = doc(entriesCollectionRef, indexedEntryId);
+    const batch = writeBatch(db);
+    batch.set(indexedEntryRef, entryData, { merge: true });
+    batch.set(indexRef, { entryId: indexedEntryId }, { merge: true });
+    await batch.commit();
+    var upsertResult = { id: indexedEntryId };
+  } else {
+    // 2) Legacy: buscar por iso_date fuera de transacción (tu SDK revienta si se hace dentro)
+    const entriesByIsoQuery = query(entriesCollectionRef, where('iso_date', '==', isoDateKey), limit(2));
+    const entriesByIsoSnap = await getDocs(entriesByIsoQuery);
+
+    if (entriesByIsoSnap.size > 1) {
+      const duplicateIds = entriesByIsoSnap.docs.map((entryDoc) => entryDoc.id);
+      throw createAppError(
+        'duplicate-iso-date',
+        'Hay registros duplicados para el mismo día',
+        `Encontramos más de un registro para ${isoDateKey}. Corrige los duplicados antes de guardar.`,
+        { userId, cycleId, isoDate: isoDateKey, duplicateEntryIds: duplicateIds },
+        { label: 'Revisar duplicados' }
+      );
+    }
+
+    const resolvedEntryRef =
+      entriesByIsoSnap.size === 1
+        ? entriesByIsoSnap.docs[0].ref
+        : doc(entriesCollectionRef, isoDateKey); // nuevo día => id determinista
+    const resolvedEntryId =
+      entriesByIsoSnap.size === 1 ? entriesByIsoSnap.docs[0].id : isoDateKey;
+
+    const batch = writeBatch(db);
+    batch.set(resolvedEntryRef, entryData, { merge: true });
+    batch.set(indexRef, { entryId: resolvedEntryId }, { merge: true });
+    await batch.commit();
+    var upsertResult = { id: resolvedEntryId };
+  }
+
+  if (
+    Array.isArray(payload.measurements) &&
+    (payload.measurements.length >= 2 || payload.measurements.length === 0)
+  ) {
+    const measurementsRef = collection(
+      db,
+      `users/${userId}/cycles/${cycleId}/entries/${upsertResult.id}/measurements`
+    );
+    const measurementsSnap = await getDocs(measurementsRef);
+    await deleteDocRefsInBatches(measurementsSnap.docs.map((measurementDoc) => measurementDoc.ref));
+    if (payload.measurements.length >= 2) {
+      for (const measurement of payload.measurements) {
+        await addDoc(measurementsRef, measurement);
+      }
+    }
+  }
+
+  return upsertResult;
 };
 
 export const updateCycleEntry = async (userId, cycleId, entryId, payload) => {
@@ -957,8 +1611,23 @@ const deleteDocRefsInBatches = async (docRefs, batchLimit = 400) => {
   }
 };
 
+const deleteEntryDeep = async ({ userId, cycleId, entryId, measurementRefs = null, batchLimit = 450 }) => {
+  const refsToDelete = Array.isArray(measurementRefs)
+    ? measurementRefs
+    : (
+      await getDocs(
+        collection(db, `users/${userId}/cycles/${cycleId}/entries/${entryId}/measurements`)
+      )
+    ).docs.map((measurementDoc) => measurementDoc.ref);
+  await deleteDocRefsInBatches(refsToDelete, batchLimit);
+
+  const loserEntryRef = doc(db, `users/${userId}/cycles/${cycleId}/entries/${entryId}`);
+  await deleteDoc(loserEntryRef);
+};
+
 export const deleteCycleEntryDB = async (userId, cycleId, entryId) => {
   const entryRef = doc(db, `users/${userId}/cycles/${cycleId}/entries/${entryId}`);
+  const entrySnap = await getDoc(entryRef);
   const measurementsRef = collection(
     db,
     `users/${userId}/cycles/${cycleId}/entries/${entryId}/measurements`
@@ -967,9 +1636,168 @@ export const deleteCycleEntryDB = async (userId, cycleId, entryId) => {
 
   const measurementRefs = measurementsSnap.docs.map((measurementDoc) => measurementDoc.ref);
   await deleteDocRefsInBatches(measurementRefs);
+  
+  const resolvedIsoDate = (() => {
+    if (!entrySnap.exists()) return null;
+    const entryData = entrySnap.data();
+    if (typeof entryData?.iso_date === 'string' && entryData.iso_date) return entryData.iso_date;
+    if (typeof entryData?.timestamp === 'string' && isValid(parseISO(entryData.timestamp))) {
+      return format(parseISO(entryData.timestamp), 'yyyy-MM-dd');
+    }
+    return null;
+  })();
+
+  if (resolvedIsoDate) {
+    const indexRef = doc(db, `users/${userId}/cycles/${cycleId}/entries_by_iso/${resolvedIsoDate}`);
+    const indexSnap = await getDoc(indexRef);
+    if (indexSnap.exists() && indexSnap.data()?.entryId === entryId) {
+      await deleteDoc(indexRef);
+    }
+  } else {
+    const indexesRef = collection(db, `users/${userId}/cycles/${cycleId}/entries_by_iso`);
+    const indexSnap = await getDocs(query(indexesRef, where('entryId', '==', entryId), limit(10)));
+    await deleteDocRefsInBatches(indexSnap.docs.map((indexDoc) => indexDoc.ref));
+  }
+
   await deleteDoc(entryRef);
 };
 
+export const deleteEntryWithMeasurementsDB = async (userId, cycleId, entryId) =>
+  deleteCycleEntryDB(userId, cycleId, entryId);
+
+export const resolveDuplicateIsoDateDB = async ({
+  userId,
+  cycleId,
+  isoDate,
+  winnerEntryId,
+  loserEntryIds,
+  moveMeasurements = true,
+}) => {
+  if (!userId || !cycleId || !isoDate || !winnerEntryId || !Array.isArray(loserEntryIds)) {
+    throw createAppError(
+      'duplicate-resolution-invalid-input',
+      'Faltan datos para resolver duplicados',
+      'No se pudo resolver el duplicado porque faltan datos.',
+      { userId, cycleId, isoDate, winnerEntryId, loserEntryIds }
+    );
+  }
+
+  const winnerMeasurementsRef = collection(
+    db,
+    `users/${userId}/cycles/${cycleId}/entries/${winnerEntryId}/measurements`
+  );
+
+  for (const loserEntryId of loserEntryIds) {
+    const loserMeasurementsRef = collection(
+      db,
+      `users/${userId}/cycles/${cycleId}/entries/${loserEntryId}/measurements`
+    );
+    const loserMeasurementsSnap = await getDocs(loserMeasurementsRef);
+    if (moveMeasurements) {
+      for (const measurementDoc of loserMeasurementsSnap.docs) {
+        await addDoc(winnerMeasurementsRef, measurementDoc.data());
+      }
+    }
+    await deleteEntryDeep({
+      userId,
+      cycleId,
+      entryId: loserEntryId,
+      measurementRefs: loserMeasurementsSnap.docs.map((measurementDoc) => measurementDoc.ref),
+      batchLimit: 450,
+    });
+  }
+
+  const indexRef = doc(db, `users/${userId}/cycles/${cycleId}/entries_by_iso/${isoDate}`);
+  await setDoc(indexRef, { entryId: winnerEntryId }, { merge: true });
+  return { winnerEntryId, removedEntries: loserEntryIds.length };
+};
+
+export const moveEntryToCycleDB = async ({
+  userId,
+  fromCycleId,
+  toCycleId,
+  entryId,
+  isoDate,
+  strategy = 'upsert-by-iso',
+}) => {
+  if (!userId || !fromCycleId || !toCycleId || !entryId || !isoDate) {
+    throw createAppError(
+      'move-entry-invalid-input',
+      'Faltan datos para mover el registro',
+      'No se pudo mover el registro porque faltan datos obligatorios.',
+      { userId, fromCycleId, toCycleId, entryId, isoDate, strategy }
+    );
+  }
+
+  const fromEntryRef = doc(db, `users/${userId}/cycles/${fromCycleId}/entries/${entryId}`);
+  const fromEntrySnap = await getDoc(fromEntryRef);
+  if (!fromEntrySnap.exists()) {
+    throw createAppError(
+      'move-entry-not-found',
+      'Registro no encontrado',
+      'El registro que intentas mover ya no existe.',
+      { userId, fromCycleId, entryId }
+    );
+  }
+  const entryData = fromEntrySnap.data();
+
+  const toCycleRef = doc(db, `users/${userId}/cycles/${toCycleId}`);
+  const toCycleSnap = await getDoc(toCycleRef);
+  if (!toCycleSnap.exists()) {
+    throw createAppError('move-entry-invalid-target', 'Ciclo destino no encontrado', 'El ciclo destino no existe.');
+  }
+
+  const toCycleData = toCycleSnap.data();
+  const targetCycleDay = generateCycleDaysForRecord(isoDate, toCycleData?.start_date);
+
+  const targetEntriesRef = collection(db, `users/${userId}/cycles/${toCycleId}/entries`);
+  const existingTargetSnap = await getDocs(query(targetEntriesRef, where('iso_date', '==', isoDate), limit(2)));
+  if (existingTargetSnap.size > 1) {
+    throw createAppError(
+      'duplicate-iso-date',
+      'Hay registros duplicados en el ciclo destino',
+      `El ciclo destino ya tiene duplicados para ${isoDate}. Resuélvelos antes de mover este registro.`,
+      { toCycleId, isoDate }
+    );
+  }
+
+  const sourceMeasurementsRef = collection(
+    db,
+    `users/${userId}/cycles/${fromCycleId}/entries/${entryId}/measurements`
+  );
+  const sourceMeasurementsSnap = await getDocs(sourceMeasurementsRef);
+
+  let destinationEntryId = entryId;
+  if (strategy === 'upsert-by-iso' && existingTargetSnap.size === 1) {
+    const destinationEntryRef = existingTargetSnap.docs[0].ref;
+    destinationEntryId = existingTargetSnap.docs[0].id;
+    await setDoc(destinationEntryRef, { ...entryData, cycle_day: targetCycleDay, iso_date: isoDate }, { merge: true });
+
+    const destinationMeasurementsRef = collection(
+      db,
+      `users/${userId}/cycles/${toCycleId}/entries/${destinationEntryId}/measurements`
+    );
+    for (const measurementDoc of sourceMeasurementsSnap.docs) {
+      await addDoc(destinationMeasurementsRef, measurementDoc.data());
+    }
+  } else {
+    const destinationEntryRef = doc(db, `users/${userId}/cycles/${toCycleId}/entries/${entryId}`);
+    await setDoc(destinationEntryRef, { ...entryData, cycle_day: targetCycleDay, iso_date: isoDate }, { merge: true });
+    for (const measurementDoc of sourceMeasurementsSnap.docs) {
+      const destinationMeasurementRef = doc(
+        db,
+        `users/${userId}/cycles/${toCycleId}/entries/${entryId}/measurements/${measurementDoc.id}`
+      );
+      await setDoc(destinationMeasurementRef, measurementDoc.data(), { merge: true });
+    }
+  }
+
+  await deleteDocRefsInBatches(sourceMeasurementsSnap.docs.map((d) => d.ref));
+  await deleteDoc(fromEntryRef);
+  await deleteDoc(doc(db, `users/${userId}/cycles/${fromCycleId}/entries_by_iso/${isoDate}`));
+  await setDoc(doc(db, `users/${userId}/cycles/${toCycleId}/entries_by_iso/${isoDate}`), { entryId: destinationEntryId }, { merge: true });
+  return { destinationEntryId };
+};
 export const archiveCycleDB = async (cycleId, userId, endDate) => {
   const cycleRef = doc(db, `users/${userId}/cycles/${cycleId}`);
   const cycleSnap = await getDoc(cycleRef);
@@ -1067,7 +1895,7 @@ export const forceShiftNextCycleStart = async (
   newEndDate,
   currentCycleStartDate
 ) => {
-  if (!newEndDate) return;
+  if (!newEndDate) return { changedCycles: [], movedEntriesCount: 0, notes: [] };
 
   const parsedNewEnd = startOfDay(parseISO(newEndDate));
   if (!isValid(parsedNewEnd)) {
@@ -1083,10 +1911,11 @@ export const forceShiftNextCycleStart = async (
   const cyclesRef = collection(db, `users/${userId}/cycles`);
   const cyclesSnap = await getDocs(cyclesRef);
   const sortedCycles = sortCyclesByStartDate(cyclesSnap.docs);
-  const { current, next, nextNext } = findNeighbors(sortedCycles, currentCycleId);
+  const { current, next } = findNeighbors(sortedCycles, currentCycleId);
 
-  if (!current || !next) return;
+  if (!current || !next) return { changedCycles: [], movedEntriesCount: 0, notes: [] };
 
+  const summary = { changedCycles: [], movedEntriesCount: 0, notes: [] };
   const effectiveCurrentStart = currentCycleStartDate || current.data.start_date || null;
   const currentStartDate = effectiveCurrentStart ? startOfDay(parseISO(effectiveCurrentStart)) : null;
   if (currentStartDate && parsedNewEnd < currentStartDate) {
@@ -1106,60 +1935,215 @@ export const forceShiftNextCycleStart = async (
   const proposedStart = startOfDay(addDays(parsedNewEnd, 1));
   const proposedStartIso = format(proposedStart, 'yyyy-MM-dd');
 
-  if (nextNext?.data?.start_date) {
-    const nextNextStart = startOfDay(parseISO(nextNext.data.start_date));
-    if (proposedStart >= nextNextStart) {
-      const conflictCycle = {
-        id: nextNext.id,
-        startDate: nextNext.data.start_date,
-        endDate: nextNext.data.end_date,
-      };
-      throw createAppError(
-        'cycle-overlap',
-        'Las fechas se superponen',
-        buildCycleOverlapMessage(conflictCycle, proposedStartIso, next.data.end_date ?? null),
-        { conflictCycle, proposedStart: proposedStartIso, proposedEnd: next.data.end_date ?? null },
-        { label: 'Cambiar fecha' }
-      );
-    }
-   }
-   if (next.data.end_date) {
-    const nextEnd = startOfDay(parseISO(next.data.end_date));
-    if (proposedStart > nextEnd) {
-      throw createAppError(
-        'cycle-range-invalid',
-        'Rango de fechas inválido',
-        'La fecha de inicio propuesta para el siguiente ciclo queda después de su fecha de fin. Corrige las fechas.',
-        {
-          nextCycleId: next.id,
-          nextStartDate: proposedStartIso,
-          nextEndDate: next.data.end_date,
-          invalidField: 'startDate',
-        },
-        { label: 'Cambiar fecha' }
-      );
-    }
+  
+  const nextStart = startOfDay(parseISO(next.data.start_date));
+  if (proposedStart < nextStart) {
+    const splitResult = await splitCycleAtDate(userId, currentCycleId, next.id, proposedStartIso);
+    summary.movedEntriesCount += splitResult?.movedEntries ?? 0;
+    summary.notes.push('Se partió el ciclo actual para extender el siguiente.');
+
+    const nextCycleRef = doc(db, `users/${userId}/cycles/${next.id}`);
+    await updateDoc(nextCycleRef, { start_date: proposedStartIso });
+    await recalcCycleDayForAllEntriesDB(userId, next.id, proposedStartIso);
+    summary.changedCycles.push({
+      id: next.id,
+      oldStart: next.data.start_date,
+      newStart: proposedStartIso,
+      oldEnd: next.data.end_date ?? null,
+      newEnd: next.data.end_date ?? null,
+    });
+
+    return summary;
   }
-const nextStart = startOfDay(parseISO(next.data.start_date));
-  if (proposedStart > nextStart) {
-    await moveEntriesWithMeasurementsDB({
+  
+  const currentIndex = sortedCycles.findIndex((cycle) => cycle.id === currentCycleId);
+  const subsequentCycles =
+    currentIndex >= 0 ? sortedCycles.slice(currentIndex + 1) : [];
+
+  for (const affectedCycle of subsequentCycles) {
+    const affectedStartIso = affectedCycle?.data?.start_date;
+    if (!affectedStartIso) continue;
+
+    const affectedStart = startOfDay(parseISO(affectedStartIso));
+    if (!isValid(affectedStart) || affectedStart > parsedNewEnd) {
+      break;
+    }
+
+    const moveResult = await moveEntriesWithMeasurementsDB({
       userId,
-      fromCycleId: next.id,
+      fromCycleId: affectedCycle.id,
       toCycleId: currentCycleId,
       shouldMoveIsoDate: (isoDate) => startOfDay(parseISO(isoDate)) < proposedStart,
       toCycleStartIso: effectiveCurrentStart || current.data.start_date,
     });
-  } else if (proposedStart < nextStart) {
-    await splitCycleAtDate(userId, currentCycleId, next.id, proposedStartIso);
+    summary.movedEntriesCount += moveResult?.movedEntries ?? 0;
+
+  const affectedEndIso = affectedCycle.data.end_date ?? null;
+    const affectedEnd = affectedEndIso ? startOfDay(parseISO(affectedEndIso)) : null;
+    const normalizedAffectedEnd =
+      affectedEnd && isValid(affectedEnd) && affectedEnd >= affectedStart
+        ? affectedEnd
+        : affectedStart;
+
+    const isClosedCycle = affectedEndIso !== null && affectedEndIso !== undefined;
+    const isFullyCovered = isClosedCycle && normalizedAffectedEnd <= parsedNewEnd;
+
+    if (isFullyCovered) {
+      await deleteCycleDB(userId, affectedCycle.id);
+      summary.changedCycles.push({
+        id: affectedCycle.id,
+        oldStart: affectedCycle.data.start_date,
+        newStart: null,
+        oldEnd: affectedCycle.data.end_date ?? null,
+        newEnd: null,
+      });
+      summary.notes.push('Se absorbió y eliminó un ciclo posterior cubierto por completo.');
+      continue;
+    }
+
+    const affectedCycleRef = doc(db, `users/${userId}/cycles/${affectedCycle.id}`);
+    await updateDoc(affectedCycleRef, { start_date: proposedStartIso });
+    await recalcCycleDayForAllEntriesDB(userId, affectedCycle.id, proposedStartIso);
+    summary.changedCycles.push({
+      id: affectedCycle.id,
+      oldStart: affectedCycle.data.start_date,
+      newStart: proposedStartIso,
+      oldEnd: affectedCycle.data.end_date ?? null,
+      newEnd: affectedCycle.data.end_date ?? null,
+    });
+    summary.notes.push('Se recortó el inicio del siguiente ciclo no cubierto completamente.');
+    break;
   }
 
-  const nextCycleRef = doc(db, `users/${userId}/cycles/${next.id}`);
-  await updateDoc(nextCycleRef, { start_date: proposedStartIso });
-  await recalcCycleDayForAllEntriesDB(userId, next.id, proposedStartIso);
+  return summary;
 };
 
+export const previewForceShiftNextCycleStartDB = async ({ userId, cycleId, newEndDate, currentCycleStartDate }) => {
+  if (!newEndDate) return toImpactPayload({});
+
+  const parsedNewEnd = startOfDay(parseISO(newEndDate));
+  if (!isValid(parsedNewEnd)) {
+    throw createAppError(
+      'cycle-range-invalid',
+      'La fecha de fin no es válida',
+      'La fecha de fin no tiene un formato válido. Corrígela para continuar.',
+      { endDate: newEndDate, invalidField: 'endDate' },
+      { label: 'Cambiar fecha' }
+    );
+  }
+
+  const cyclesSnap = await getDocs(collection(db, `users/${userId}/cycles`));
+  const sortedCycles = sortCyclesByStartDate(cyclesSnap.docs);
+  const { current, next } = findNeighbors(sortedCycles, cycleId);
+  if (!current || !next) return toImpactPayload({});
+
+  const effectiveStartIso = currentCycleStartDate ?? current.data.start_date;
+  const currentStartIso = effectiveStartIso ?? null;
+  const currentStartDate = currentStartIso ? startOfDay(parseISO(currentStartIso)) : null;
+  if (currentStartDate && parsedNewEnd < currentStartDate) {
+    throw createAppError(
+      'cycle-range-invalid',
+      'Rango de fechas inválido',
+      'La fecha de fin no puede ser anterior al inicio del ciclo actual. Corrige la fecha final.',
+      { startDate: currentStartIso, endDate: newEndDate, invalidField: 'endDate' },
+      { label: 'Cambiar fecha' }
+    );
+  }
+
+  const proposedStartIso = format(addDays(parsedNewEnd, 1), 'yyyy-MM-dd');
+  const nextStart = startOfDay(parseISO(next.data.start_date));
+  const affectedCycles = [];
+  const adjustedCyclesPreview = [];
+  let movedEntries = 0;
+
+  if (proposedStartIso < next.data.start_date) {
+    movedEntries += await countEntriesByPredicateForCycle({
+      userId,
+      cycleId,
+      predicate: (isoDate) => isoDate >= proposedStartIso,
+    });
+
+    affectedCycles.push({ cycleId: next.id, startDate: next.data.start_date, endDate: next.data.end_date ?? null });
+    adjustedCyclesPreview.push({
+      cycleId: next.id,
+      type: 'trim',
+      startDate: proposedStartIso,
+      endDate: next.data.end_date ?? null,
+    });
+
+    return toImpactPayload({
+      affectedCycles,
+      adjustedCyclesPreview,
+      impactSummary: {
+        trimmedCycles: 1,
+        deletedCycles: 0,
+        movedEntries,
+      },
+    });
+  }
+
+  const currentIndex = sortedCycles.findIndex((candidate) => candidate.id === cycleId);
+  const subsequentCycles = currentIndex >= 0 ? sortedCycles.slice(currentIndex + 1) : [];
+
+  for (const affectedCycle of subsequentCycles) {
+    const affectedStartIso = affectedCycle?.data?.start_date;
+    if (!affectedStartIso) continue;
+
+    const affectedStart = startOfDay(parseISO(affectedStartIso));
+    if (!isValid(affectedStart) || affectedStart > parsedNewEnd) {
+      break;
+    }
+
+    movedEntries += await countEntriesByPredicateForCycle({
+      userId,
+      cycleId: affectedCycle.id,
+      predicate: (isoDate) => isoDate < proposedStartIso,
+    });
+
+    affectedCycles.push({
+      cycleId: affectedCycle.id,
+      startDate: affectedCycle.data.start_date,
+      endDate: affectedCycle.data.end_date ?? null,
+    });
+
+    const affectedEndIso = affectedCycle.data.end_date ?? null;
+    const affectedEnd = affectedEndIso ? startOfDay(parseISO(affectedEndIso)) : null;
+    const normalizedAffectedEnd =
+      affectedEnd && isValid(affectedEnd) && affectedEnd >= affectedStart ? affectedEnd : affectedStart;
+    const isClosedCycle = affectedEndIso !== null && affectedEndIso !== undefined;
+    const isFullyCovered = isClosedCycle && normalizedAffectedEnd <= parsedNewEnd;
+
+    if (isFullyCovered) {
+      adjustedCyclesPreview.push({
+        cycleId: affectedCycle.id,
+        type: 'delete',
+        startDate: affectedCycle.data.start_date,
+        endDate: affectedCycle.data.end_date ?? null,
+      });
+      continue;
+    }
+
+    adjustedCyclesPreview.push({
+      cycleId: affectedCycle.id,
+      type: 'trim',
+      startDate: proposedStartIso,
+      endDate: affectedCycle.data.end_date ?? null,
+    });
+    break;
+  }
+
+  return toImpactPayload({
+    affectedCycles,
+    adjustedCyclesPreview,
+    impactSummary: {
+      trimmedCycles: adjustedCyclesPreview.filter((item) => !isDeletedPreview(item)).length,
+      deletedCycles: adjustedCyclesPreview.filter((item) => isDeletedPreview(item)).length,
+      movedEntries,
+    },
+  });
+};
 export const forceUpdateCycleStart = async (userId, currentCycleId, newStartDate) => {
-  if (!newStartDate) return;
+  if (!newStartDate) return { changedCycles: [], movedEntriesCount: 0, notes: [] };
 
   const newStart = startOfDay(parseISO(newStartDate));
   if (!isValid(newStart)) {
@@ -1177,29 +2161,12 @@ export const forceUpdateCycleStart = async (userId, currentCycleId, newStartDate
   const sortedCycles = sortCyclesByStartDate(cyclesSnap.docs);
   const { previous, current, next } = findNeighbors(sortedCycles, currentCycleId);
 
-  if (!current) return;
+  if (!current) return { changedCycles: [], movedEntriesCount: 0, notes: [] };
 
+  const summary = { changedCycles: [], movedEntriesCount: 0, notes: [] };
   const currentStartIso = current.data.start_date;
   const currentStart = currentStartIso ? startOfDay(parseISO(currentStartIso)) : null;
   const currentEnd = current.data.end_date ? startOfDay(parseISO(current.data.end_date)) : null;
-
-  if (previous?.data?.start_date) {
-    const previousStart = startOfDay(parseISO(previous.data.start_date));
-    if (newStart <= previousStart) {
-      const conflictCycle = {
-        id: previous.id,
-        startDate: previous.data.start_date,
-        endDate: previous.data.end_date,
-      };
-      throw createAppError(
-        'cycle-overlap',
-        'Las fechas se superponen',
-        buildCycleOverlapMessage(conflictCycle, format(newStart, 'yyyy-MM-dd'), current.data.end_date ?? null),
-        { conflictCycle, proposedStart: format(newStart, 'yyyy-MM-dd'), proposedEnd: current.data.end_date ?? null },
-        { label: 'Cambiar fecha' }
-      );
-    }
-  }
 
   if (next?.data?.start_date) {
     const nextStart = startOfDay(parseISO(next.data.start_date));
@@ -1233,37 +2200,237 @@ export const forceUpdateCycleStart = async (userId, currentCycleId, newStartDate
     );
   }
 
-  if (previous) {
-    const prevRef = doc(db, `users/${userId}/cycles/${previous.id}`);
-    const dayBefore = format(addDays(newStart, -1), 'yyyy-MM-dd');
-    await updateDoc(prevRef, { end_date: dayBefore });
+  const newStartIso = format(newStart, 'yyyy-MM-dd');
+  const dayBeforeNewStartIso = format(addDays(newStart, -1), 'yyyy-MM-dd');
 
-    if (currentStart && newStart < currentStart) {
-      await moveEntriesWithMeasurementsDB({
+  if (previous && currentStart && newStart > currentStart) {
+    const prevRef = doc(db, `users/${userId}/cycles/${previous.id}`);
+    await updateDoc(prevRef, { end_date: dayBeforeNewStartIso });
+    summary.changedCycles.push({
+      id: previous.id,
+      oldStart: previous.data.start_date,
+      newStart: previous.data.start_date,
+      oldEnd: previous.data.end_date ?? null,
+      newEnd: dayBeforeNewStartIso,
+    });
+
+    const moveResult = await moveEntriesWithMeasurementsDB({
+      userId,
+      fromCycleId: currentCycleId,
+      toCycleId: previous.id,
+      shouldMoveIsoDate: (isoDate) => startOfDay(parseISO(isoDate)) < newStart,
+      toCycleStartIso: previous.data.start_date,
+    });
+    summary.movedEntriesCount += moveResult?.movedEntries ?? 0;
+    summary.notes.push('Se movieron registros desde el ciclo editado al ciclo previo.');
+  } else if (currentStart && newStart < currentStart) {
+    const currentIndex = sortedCycles.findIndex((candidate) => candidate.id === currentCycleId);
+    const previousCycles = currentIndex > 0 ? sortedCycles.slice(0, currentIndex).reverse() : [];
+
+    for (const previousCycle of previousCycles) {
+      const previousStartIso = previousCycle?.data?.start_date;
+      if (!previousStartIso) continue;
+
+      const previousStart = startOfDay(parseISO(previousStartIso));
+      if (!isValid(previousStart)) continue;
+
+      const previousEndIso = previousCycle.data.end_date ?? previousStartIso;
+      const previousEnd = startOfDay(parseISO(previousEndIso));
+      if (!isValid(previousEnd) || previousEnd < newStart) {
+        break;
+      }
+      const moveResult = await moveEntriesWithMeasurementsDB({
         userId,
-        fromCycleId: previous.id,
+        fromCycleId: previousCycle.id,
         toCycleId: currentCycleId,
         shouldMoveIsoDate: (isoDate) => startOfDay(parseISO(isoDate)) >= newStart,
-        toCycleStartIso: format(newStart, 'yyyy-MM-dd'),
+        toCycleStartIso: newStartIso,
       });
-    } else if (currentStart && newStart > currentStart) {
-      await moveEntriesWithMeasurementsDB({
-        userId,
-        fromCycleId: currentCycleId,
-        toCycleId: previous.id,
-        shouldMoveIsoDate: (isoDate) => startOfDay(parseISO(isoDate)) < newStart,
-        toCycleStartIso: previous.data.start_date,
+      summary.movedEntriesCount += moveResult?.movedEntries ?? 0;
+      
+      if (newStart <= previousStart) {
+        await deleteCycleDB(userId, previousCycle.id);
+        summary.changedCycles.push({
+          id: previousCycle.id,
+          oldStart: previousCycle.data.start_date,
+          newStart: null,
+          oldEnd: previousCycle.data.end_date ?? null,
+          newEnd: null,
+        });
+        summary.notes.push('Se absorbió y eliminó un ciclo previo cubierto por completo.');
+        continue;
+      }
+
+      const previousCycleRef = doc(db, `users/${userId}/cycles/${previousCycle.id}`);
+      await updateDoc(previousCycleRef, { end_date: dayBeforeNewStartIso });
+      summary.changedCycles.push({
+        id: previousCycle.id,
+        oldStart: previousCycle.data.start_date,
+        newStart: previousCycle.data.start_date,
+        oldEnd: previousCycle.data.end_date ?? null,
+        newEnd: dayBeforeNewStartIso,
       });
+      summary.notes.push('Se recortó el fin de un ciclo previo no cubierto completamente.');
+      break;
     }
   }
   const currentRef = doc(db, `users/${userId}/cycles/${currentCycleId}`);
-  await updateDoc(currentRef, { start_date: format(newStart, 'yyyy-MM-dd') });
-  await recalcCycleDayForAllEntriesDB(userId, currentCycleId, format(newStart, 'yyyy-MM-dd'));
+  await updateDoc(currentRef, { start_date: newStartIso });
+  await recalcCycleDayForAllEntriesDB(userId, currentCycleId, newStartIso);
+  summary.changedCycles.push({
+    id: currentCycleId,
+    oldStart: current.data.start_date,
+    newStart: newStartIso,
+    oldEnd: current.data.end_date ?? null,
+    newEnd: current.data.end_date ?? null,
+  });
+
+  return summary;
 };
 
+export const previewForceUpdateCycleStartDB = async ({ userId, cycleId, newStartDate }) => {
+  if (!newStartDate) return toImpactPayload({});
+
+  const newStart = startOfDay(parseISO(newStartDate));
+  if (!isValid(newStart)) {
+    throw createAppError(
+      'cycle-range-invalid',
+      'La fecha de inicio no es válida',
+      'La fecha de inicio no tiene un formato válido. Corrígela para continuar.',
+      { startDate: newStartDate, invalidField: 'startDate' },
+      { label: 'Cambiar fecha' }
+    );
+  }
+
+  const cyclesSnap = await getDocs(collection(db, `users/${userId}/cycles`));
+  const sortedCycles = sortCyclesByStartDate(cyclesSnap.docs);
+  const { previous, current, next } = findNeighbors(sortedCycles, cycleId);
+  if (!current) return toImpactPayload({});
+
+  const currentEnd = current.data.end_date ? startOfDay(parseISO(current.data.end_date)) : null;
+  if (next?.data?.start_date) {
+    const nextStart = startOfDay(parseISO(next.data.start_date));
+    if (newStart >= nextStart) {
+      const conflictCycle = {
+        id: next.id,
+        startDate: next.data.start_date,
+        endDate: next.data.end_date,
+      };
+      throw createAppError(
+        'cycle-overlap',
+        'Las fechas se superponen',
+        buildCycleOverlapMessage(conflictCycle, format(newStart, 'yyyy-MM-dd'), current.data.end_date ?? null),
+        { conflictCycle, proposedStart: format(newStart, 'yyyy-MM-dd'), proposedEnd: current.data.end_date ?? null },
+        { label: 'Cambiar fecha' }
+      );
+    }
+  }
+
+  if (currentEnd && newStart > currentEnd) {
+    throw createAppError(
+      'cycle-range-invalid',
+      'Rango de fechas inválido',
+      'La fecha de inicio no puede ser posterior a la fecha de fin del ciclo. Corrige la fecha de inicio.',
+      { startDate: format(newStart, 'yyyy-MM-dd'), endDate: current.data.end_date, invalidField: 'startDate' },
+      { label: 'Cambiar fecha' }
+    );
+  }
+
+  const affectedCycles = [
+    { cycleId: current.id, startDate: current.data.start_date, endDate: current.data.end_date ?? null },
+  ];
+  const adjustedCyclesPreview = [
+    {
+      cycleId: current.id,
+      type: 'trim',
+      startDate: format(newStart, 'yyyy-MM-dd'),
+      endDate: current.data.end_date ?? null,
+    },
+  ];
+  let movedEntries = 0;
+
+  const currentStartIso = current.data.start_date;
+  const newStartIso = format(newStart, 'yyyy-MM-dd');
+  if (previous && currentStartIso && newStartIso > currentStartIso) {
+    const dayBefore = format(addDays(newStart, -1), 'yyyy-MM-dd');
+    affectedCycles.unshift({ cycleId: previous.id, startDate: previous.data.start_date, endDate: previous.data.end_date ?? null });
+    adjustedCyclesPreview.unshift({
+      cycleId: previous.id,
+      type: 'trim',
+      startDate: previous.data.start_date,
+      endDate: dayBefore,
+    });
+
+    movedEntries += await countEntriesByPredicateForCycle({
+      userId,
+      cycleId,
+      predicate: (isoDate) => isoDate >= currentStartIso && isoDate < newStartIso,
+    });
+  } else if (currentStartIso && newStartIso < currentStartIso) {
+    const dayBefore = format(addDays(newStart, -1), 'yyyy-MM-dd');
+    const currentIndex = sortedCycles.findIndex((candidate) => candidate.id === cycleId);
+    const previousCycles = currentIndex > 0 ? sortedCycles.slice(0, currentIndex).reverse() : [];
+
+    for (const previousCycle of previousCycles) {
+      const previousStartIso = previousCycle?.data?.start_date;
+      if (!previousStartIso) continue;
+
+      const previousStart = startOfDay(parseISO(previousStartIso));
+      if (!isValid(previousStart)) continue;
+
+      const previousEndIso = previousCycle.data.end_date ?? previousStartIso;
+      const previousEnd = startOfDay(parseISO(previousEndIso));
+      if (!isValid(previousEnd) || previousEnd < newStart) {
+        break;
+      }
+
+      affectedCycles.unshift({
+        cycleId: previousCycle.id,
+        startDate: previousCycle.data.start_date,
+        endDate: previousCycle.data.end_date ?? null,
+      });
+
+      movedEntries += await countEntriesByPredicateForCycle({
+        userId,
+        cycleId: previousCycle.id,
+        predicate: (isoDate) => isoDate >= newStartIso,
+      });
+      
+      if (newStart <= previousStart) {
+        adjustedCyclesPreview.unshift({
+          cycleId: previousCycle.id,
+          type: 'delete',
+          startDate: previousCycle.data.start_date,
+          endDate: previousCycle.data.end_date ?? null,
+        });
+        continue;
+      }
+
+      adjustedCyclesPreview.unshift({
+        cycleId: previousCycle.id,
+        type: 'trim',
+        startDate: previousCycle.data.start_date,
+        endDate: dayBefore,
+      });
+      break;
+    }
+  }
+
+  return toImpactPayload({
+    affectedCycles,
+    adjustedCyclesPreview,
+    impactSummary: {
+      trimmedCycles: adjustedCyclesPreview.filter((item) => !isDeletedPreview(item)).length,
+      deletedCycles: adjustedCyclesPreview.filter((item) => isDeletedPreview(item)).length,
+      movedEntries,
+    },
+  });
+};
 export const deleteCycleDB = async (userId, cycleId) => {
   const entriesRef = collection(db, `users/${userId}/cycles/${cycleId}/entries`);
   const entriesSnap = await getDocs(entriesRef);
+  const entriesByIsoRef = collection(db, `users/${userId}/cycles/${cycleId}/entries_by_iso`);
+  const entriesByIsoSnap = await getDocs(entriesByIsoRef);
   
   const measurementRefs = [];
   for (const entryDoc of entriesSnap.docs) {
@@ -1279,7 +2446,187 @@ export const deleteCycleDB = async (userId, cycleId) => {
 
   await deleteDocRefsInBatches(measurementRefs);
   await deleteDocRefsInBatches(entriesSnap.docs.map((entryDoc) => entryDoc.ref));
+  await deleteDocRefsInBatches(entriesByIsoSnap.docs.map((indexDoc) => indexDoc.ref));
   await deleteDoc(doc(db, `users/${userId}/cycles/${cycleId}`));
+};
+
+export const previewDeleteArchivedCycleWithStrategyDB = async ({ userId, cycleId, strategy }) => {
+  if (!userId || !cycleId || !Object.values(ARCHIVED_CYCLE_DELETE_STRATEGY).includes(strategy)) {
+    throw createAppError(
+      'delete-archived-cycle-invalid',
+      'Faltan datos para eliminar el ciclo',
+      'No se puede continuar porque faltan datos o la opción elegida no es válida.',
+      { userId: userId ?? null, cycleId: cycleId ?? null, strategy: strategy ?? null },
+      { label: 'Reintentar' }
+    );
+  }
+
+  const sortedCycles = await fetchCyclesForUser(userId);
+  const { previous, current, next } = findNeighbors(sortedCycles, cycleId);
+
+  if (!current) {
+    throw createAppError(
+      'cycle-not-found',
+      'No se encontró el ciclo',
+      'El ciclo que intentas eliminar ya no existe.',
+      { cycleId },
+      { label: 'Actualizar pantalla' }
+    );
+  }
+
+  if (current.endDate === null || current.endDate === undefined) {
+    throw createAppError(
+      'delete-archived-cycle-only',
+      'Este ciclo no está archivado',
+      'Solo puedes usar esta acción en ciclos archivados.',
+      { cycleId, endDate: current.endDate ?? null },
+      { label: 'Volver al ciclo actual' }
+    );
+  }
+
+  const entriesSnap = await getDocs(collection(db, `users/${userId}/cycles/${cycleId}/entries`));
+  const movedEntries = entriesSnap.size;
+  const affectedCycles = [{ cycleId: current.id, startDate: current.startDate, endDate: current.endDate ?? null }];
+  const adjustedCyclesPreview = [{ cycleId: current.id, type: 'delete', startDate: current.startDate, endDate: current.endDate ?? null }];
+
+  if (strategy === ARCHIVED_CYCLE_DELETE_STRATEGY.MERGE_PREV) {
+    if (!previous) {
+      throw createAppError(
+        'delete-archived-cycle-missing-neighbor',
+        'No hay ciclo anterior',
+        'No se puede fusionar porque este ciclo no tiene un ciclo anterior.',
+        { cycleId, strategy },
+        { label: 'Elegir otra opción' }
+      );
+    }
+
+    const newPrevEnd = current.endDate === null ? null : previous.endDate ? [previous.endDate, current.endDate].sort().at(-1) : current.endDate;
+    affectedCycles.unshift({ cycleId: previous.id, startDate: previous.startDate, endDate: previous.endDate ?? null });
+    adjustedCyclesPreview.unshift({
+      cycleId: previous.id,
+      type: 'trim',
+      startDate: previous.startDate,
+      endDate: newPrevEnd,
+    });
+  }
+
+  if (strategy === ARCHIVED_CYCLE_DELETE_STRATEGY.MERGE_NEXT) {
+    if (!next) {
+      throw createAppError(
+        'delete-archived-cycle-missing-neighbor',
+        'No hay ciclo siguiente',
+        'No se puede fusionar porque este ciclo no tiene un ciclo siguiente.',
+        { cycleId, strategy },
+        { label: 'Elegir otra opción' }
+      );
+    }
+
+    const newNextStart = [next.startDate, current.startDate].sort()[0];
+    affectedCycles.push({ cycleId: next.id, startDate: next.startDate, endDate: next.endDate ?? null });
+    adjustedCyclesPreview.push({
+      cycleId: next.id,
+      type: 'trim',
+      startDate: newNextStart,
+      endDate: next.endDate ?? null,
+    });
+  }
+
+  return {
+    strategy,
+    affectedCycles,
+    adjustedCyclesPreview,
+    impactSummary: {
+      trimmedCycles: adjustedCyclesPreview.filter((item) => item.type === 'trim').length,
+      deletedCycles: 1,
+      movedEntries,
+    },
+  };
+};
+
+export const deleteArchivedCycleWithStrategyDB = async ({ userId, cycleId, strategy }) => {
+  const preview = await previewDeleteArchivedCycleWithStrategyDB({ userId, cycleId, strategy });
+  if (strategy === ARCHIVED_CYCLE_DELETE_STRATEGY.DELETE) {
+    await deleteCycleDB(userId, cycleId);
+    return preview;
+  }
+
+  const sortedCycles = await fetchCyclesForUser(userId);
+  const { previous, current, next } = findNeighbors(sortedCycles, cycleId);
+
+  if (!current) {
+    throw createAppError(
+      'cycle-not-found',
+      'No se encontró el ciclo',
+      'El ciclo que intentas eliminar ya no existe.',
+      { cycleId },
+      { label: 'Actualizar pantalla' }
+    );
+  }
+
+  if (strategy === ARCHIVED_CYCLE_DELETE_STRATEGY.MERGE_PREV) {
+    if (!previous) {
+      throw createAppError(
+        'delete-archived-cycle-missing-neighbor',
+        'No hay ciclo anterior',
+        'No se puede fusionar porque este ciclo no tiene un ciclo anterior.',
+        { cycleId, strategy },
+        { label: 'Elegir otra opción' }
+      );
+    }
+
+    const previousCycleRef = doc(db, `users/${userId}/cycles/${previous.id}`);
+    const oldPreviousEnd = previous.endDate ?? null;
+    const newPreviousEnd = current.endDate === null ? null : previous.endDate ? [previous.endDate, current.endDate].sort().at(-1) : current.endDate;
+
+    await updateDoc(previousCycleRef, { end_date: newPreviousEnd });
+    try {
+      await moveEntriesWithMeasurementsDB({
+        userId,
+        fromCycleId: cycleId,
+        toCycleId: previous.id,
+        shouldMoveIsoDate: () => true,
+        toCycleStartIso: previous.startDate,
+      });
+    } catch (error) {
+      await updateDoc(previousCycleRef, { end_date: oldPreviousEnd });
+      throw error;
+    }
+
+    await deleteCycleDB(userId, cycleId);
+    return preview;
+  }
+
+  if (!next) {
+    throw createAppError(
+      'delete-archived-cycle-missing-neighbor',
+      'No hay ciclo siguiente',
+      'No se puede fusionar porque este ciclo no tiene un ciclo siguiente.',
+      { cycleId, strategy },
+      { label: 'Elegir otra opción' }
+    );
+  }
+
+  const nextCycleRef = doc(db, `users/${userId}/cycles/${next.id}`);
+  const oldNextStart = next.startDate;
+  const newNextStart = [next.startDate, current.startDate].sort()[0];
+
+  await updateDoc(nextCycleRef, { start_date: newNextStart });
+  try {
+    await moveEntriesWithMeasurementsDB({
+      userId,
+      fromCycleId: cycleId,
+      toCycleId: next.id,
+      shouldMoveIsoDate: () => true,
+      toCycleStartIso: newNextStart,
+    });
+    await recalcCycleDayForAllEntriesDB(userId, next.id, newNextStart);
+  } catch (error) {
+    await updateDoc(nextCycleRef, { start_date: oldNextStart });
+    throw error;
+  }
+
+  await deleteCycleDB(userId, cycleId);
+  return preview;
 };
 
 export const undoCurrentCycleDB = async (userId, currentCycleId) => {
@@ -1456,6 +2803,14 @@ export const undoCurrentCycleDB = async (userId, currentCycleId) => {
     const newCycleDay = generateCycleDaysForRecord(entry.isoDate, previousCycle.start_date);
     await queueSet(newEntryRef, { ...entry.data, cycle_day: newCycleDay });
 
+    // Índice en ciclo anterior
+    const prevIndexRef = doc(db, `users/${userId}/cycles/${previousCycle.id}/entries_by_iso/${entry.isoDate}`);
+    await queueSet(prevIndexRef, { entryId: entry.id });
+
+    // Limpia índice del ciclo actual (evita subcolecciones huérfanas)
+    const currentIndexRef = doc(db, `users/${userId}/cycles/${currentCycleId}/entries_by_iso/${entry.isoDate}`);
+    await queueDelete(currentIndexRef);
+
     const measurementsRef = collection(
       db,
       `users/${userId}/cycles/${currentCycleId}/entries/${entry.id}/measurements`
@@ -1483,3 +2838,131 @@ export const undoCurrentCycleDB = async (userId, currentCycleId) => {
 };
 
 
+export const previewUndoCurrentCycleDB = async ({ userId, currentCycleId }) => {
+  if (!userId || !currentCycleId) {
+    throw createAppError(
+      'undo-not-current',
+      'No se puede deshacer este ciclo',
+      'Faltan datos para deshacer el ciclo actual. Vuelve a abrir el ciclo e inténtalo otra vez.',
+      { userId: userId ?? null, currentCycleId: currentCycleId ?? null },
+      { label: 'Volver al ciclo actual' }
+    );
+  }
+
+  const currentCycleRef = doc(db, `users/${userId}/cycles/${currentCycleId}`);
+  const currentCycleSnap = await getDoc(currentCycleRef);
+  if (!currentCycleSnap.exists()) {
+    throw createAppError(
+      'undo-not-current',
+      'No se encontró el ciclo actual',
+      'No pudimos deshacer el ciclo porque ya no existe.',
+      { currentCycleId },
+      { label: 'Actualizar pantalla' }
+    );
+  }
+
+  const currentData = currentCycleSnap.data();
+  if (currentData.end_date !== null && currentData.end_date !== undefined) {
+    throw createAppError(
+      'undo-not-current',
+      'Solo puedes deshacer el ciclo actual',
+      'Este ciclo ya está cerrado. Para deshacer, abre el ciclo actual.',
+      { currentCycleId, endDate: currentData.end_date },
+      { label: 'Volver al ciclo actual' }
+    );
+  }
+
+  if (!currentData.start_date || !isValid(parseISO(currentData.start_date))) {
+    throw createAppError(
+      'undo-not-current',
+      'No se puede deshacer el ciclo',
+      'La fecha de inicio del ciclo actual no es válida. Corrige la fecha del ciclo actual.',
+      { currentCycleId, startDate: currentData.start_date ?? null },
+      { label: 'Cambiar fecha' }
+    );
+  }
+
+  const cyclesSnap = await getDocs(collection(db, `users/${userId}/cycles`));
+  const dayBefore = format(addDays(parseISO(currentData.start_date), -1), 'yyyy-MM-dd');
+  const previousCycles = cyclesSnap.docs
+    .filter((docSnap) => docSnap.id !== currentCycleId)
+    .map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }))
+    .filter((cycle) => cycle.end_date === dayBefore)
+    .sort((a, b) => (b.start_date || '').localeCompare(a.start_date || ''));
+
+  if (!previousCycles.length) {
+    throw createAppError(
+      'no-previous-cycle',
+      'No hay un ciclo anterior para recuperar',
+      'No encontramos un ciclo previo que termine justo antes del ciclo actual. Revisa las fechas de tus ciclos.',
+      { currentCycleId, expectedPreviousEndDate: dayBefore },
+      { label: 'Revisar fechas de ciclos' }
+    );
+  }
+
+  const previousCycle = previousCycles[0];
+  if (!previousCycle.start_date || !isValid(parseISO(previousCycle.start_date))) {
+    throw createAppError(
+      'no-previous-cycle',
+      'El ciclo anterior tiene una fecha inválida',
+      'No se puede deshacer porque el ciclo anterior tiene una fecha de inicio no válida.',
+      { previousCycleId: previousCycle.id, previousStartDate: previousCycle.start_date ?? null },
+      { label: 'Cambiar fecha' }
+    );
+  }
+
+  const previousEntriesSnap = await getDocs(collection(db, `users/${userId}/cycles/${previousCycle.id}/entries`));
+  const existingIsoDates = new Set();
+  previousEntriesSnap.docs.forEach((entryDoc) => {
+    const data = entryDoc.data();
+    try {
+      const isoDate = resolveSplitEntryIsoDate(data);
+      if (isoDate) existingIsoDates.add(isoDate);
+    } catch (error) {
+      // ignore invalid entries in preview set builder
+    }
+  });
+
+  const currentEntriesSnap = await getDocs(collection(db, `users/${userId}/cycles/${currentCycleId}/entries`));
+  for (const entryDoc of currentEntriesSnap.docs) {
+    const entryData = entryDoc.data();
+    const isoDate = resolveSplitEntryIsoDate(entryData);
+    if (existingIsoDates.has(isoDate)) {
+      throw createAppError(
+        'undo-date-conflict',
+        'Hay conflicto de fechas al deshacer',
+        `Ya existe una entrada para el día ${isoDate} en el ciclo anterior.`,
+        { conflictDate: isoDate, previousCycleId: previousCycle.id },
+        { label: 'Eliminar/combinar entradas duplicadas' }
+      );
+    }
+    existingIsoDates.add(isoDate);
+  }
+
+  return toImpactPayload({
+    affectedCycles: [
+      { cycleId: previousCycle.id, startDate: previousCycle.start_date, endDate: previousCycle.end_date ?? null },
+      { cycleId: currentCycleId, startDate: currentData.start_date, endDate: currentData.end_date ?? null },
+    ],
+    adjustedCyclesPreview: [
+      {
+        cycleId: previousCycle.id,
+        type: 'trim',
+        startDate: previousCycle.start_date,
+        endDate: null,
+      },
+      {
+        cycleId: currentCycleId,
+        type: 'delete',
+        startDate: currentData.start_date,
+        endDate: currentData.end_date ?? null,
+      },
+    ],
+    impactSummary: {
+      trimmedCycles: 1,
+      deletedCycles: 1,
+      movedEntries: currentEntriesSnap.size,
+    },
+  });
+};
+export const shouldShowCycleImpactPreview = (impact) => hasImpact(impact);
