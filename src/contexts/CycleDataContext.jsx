@@ -17,6 +17,8 @@ import {
   updateCycleDatesDB,
   updateCycleIgnoreAutoCalculations,
   deleteCycleDB,
+  deleteArchivedCycleWithStrategyDB,
+  previewDeleteArchivedCycleWithStrategyDB,
   undoCurrentCycleDB,
   toPublicError,
   forceUpdateCycleStart as forceUpdateCycleStartDB,
@@ -928,6 +930,39 @@ export const CycleDataProvider = ({ children }) => {
     },
     [user, loadCycleData, toast]
   );
+  
+  const previewDeleteCycle = useCallback(
+    async (cycleId, strategy) => {
+      if (!user?.uid || !cycleId || !strategy) return null;
+      return previewDeleteArchivedCycleWithStrategyDB({ userId: user.uid, cycleId, strategy });
+    },
+    [user]
+  );
+
+  const deleteArchivedCycleWithStrategy = useCallback(
+    async (cycleId, strategy) => {
+      if (!user?.uid || !cycleId || !strategy) return null;
+
+      setIsLoading(true);
+      try {
+        const result = await deleteArchivedCycleWithStrategyDB({ userId: user.uid, cycleId, strategy });
+        await loadCycleData({ silent: true });
+        return result;
+      } catch (error) {
+        console.error('Error deleting archived cycle with strategy:', error);
+        const publicError = toPublicError(error);
+        toast({
+          title: publicError?.title || 'Error',
+          description: publicError?.message || 'No se pudo eliminar/fusionar el ciclo.',
+          variant: 'destructive',
+        });
+        throw error;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [user, loadCycleData, toast]
+  );
   const undoCurrentCycle = useCallback(
     async (cycleIdToUndo) => {
       if (!user?.uid || !cycleIdToUndo) return;
@@ -1329,6 +1364,8 @@ export const CycleDataProvider = ({ children }) => {
     previewInsertCycleRange,
     insertCycleRange,
     deleteCycle,
+    previewDeleteCycle,
+    deleteArchivedCycleWithStrategy,
     getMeasurementsForEntry,
     undoCurrentCycle,
     previewStartNewCycle,

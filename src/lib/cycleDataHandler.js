@@ -483,6 +483,12 @@ const INFINITE_END_ISO = '9999-12-31';
 const dayBeforeIso = (isoDate) => format(addDays(startOfDay(parseISO(isoDate)), -1), 'yyyy-MM-dd');
 const dayAfterIso = (isoDate) => format(addDays(startOfDay(parseISO(isoDate)), 1), 'yyyy-MM-dd');
 
+export const ARCHIVED_CYCLE_DELETE_STRATEGY = {
+  DELETE: 'delete',
+  MERGE_PREV: 'merge-prev',
+  MERGE_NEXT: 'merge-next',
+};
+
 const buildInsertCycleRangePlanFromCycles = (cycles, startIso, endIso) => {
   const overlaps = [];
   const plan = [];
@@ -2442,6 +2448,185 @@ export const deleteCycleDB = async (userId, cycleId) => {
   await deleteDocRefsInBatches(entriesSnap.docs.map((entryDoc) => entryDoc.ref));
   await deleteDocRefsInBatches(entriesByIsoSnap.docs.map((indexDoc) => indexDoc.ref));
   await deleteDoc(doc(db, `users/${userId}/cycles/${cycleId}`));
+};
+
+export const previewDeleteArchivedCycleWithStrategyDB = async ({ userId, cycleId, strategy }) => {
+  if (!userId || !cycleId || !Object.values(ARCHIVED_CYCLE_DELETE_STRATEGY).includes(strategy)) {
+    throw createAppError(
+      'delete-archived-cycle-invalid',
+      'Faltan datos para eliminar el ciclo',
+      'No se puede continuar porque faltan datos o la opción elegida no es válida.',
+      { userId: userId ?? null, cycleId: cycleId ?? null, strategy: strategy ?? null },
+      { label: 'Reintentar' }
+    );
+  }
+
+  const sortedCycles = await fetchCyclesForUser(userId);
+  const { previous, current, next } = findNeighbors(sortedCycles, cycleId);
+
+  if (!current) {
+    throw createAppError(
+      'cycle-not-found',
+      'No se encontró el ciclo',
+      'El ciclo que intentas eliminar ya no existe.',
+      { cycleId },
+      { label: 'Actualizar pantalla' }
+    );
+  }
+
+  if (current.endDate === null || current.endDate === undefined) {
+    throw createAppError(
+      'delete-archived-cycle-only',
+      'Este ciclo no está archivado',
+      'Solo puedes usar esta acción en ciclos archivados.',
+      { cycleId, endDate: current.endDate ?? null },
+      { label: 'Volver al ciclo actual' }
+    );
+  }
+
+  const entriesSnap = await getDocs(collection(db, `users/${userId}/cycles/${cycleId}/entries`));
+  const movedEntries = entriesSnap.size;
+  const affectedCycles = [{ cycleId: current.id, startDate: current.startDate, endDate: current.endDate ?? null }];
+  const adjustedCyclesPreview = [{ cycleId: current.id, type: 'delete', startDate: current.startDate, endDate: current.endDate ?? null }];
+
+  if (strategy === ARCHIVED_CYCLE_DELETE_STRATEGY.MERGE_PREV) {
+    if (!previous) {
+      throw createAppError(
+        'delete-archived-cycle-missing-neighbor',
+        'No hay ciclo anterior',
+        'No se puede fusionar porque este ciclo no tiene un ciclo anterior.',
+        { cycleId, strategy },
+        { label: 'Elegir otra opción' }
+      );
+    }
+
+    const newPrevEnd = current.endDate === null ? null : previous.endDate ? [previous.endDate, current.endDate].sort().at(-1) : current.endDate;
+    affectedCycles.unshift({ cycleId: previous.id, startDate: previous.startDate, endDate: previous.endDate ?? null });
+    adjustedCyclesPreview.unshift({
+      cycleId: previous.id,
+      type: 'trim',
+      startDate: previous.startDate,
+      endDate: newPrevEnd,
+    });
+  }
+
+  if (strategy === ARCHIVED_CYCLE_DELETE_STRATEGY.MERGE_NEXT) {
+    if (!next) {
+      throw createAppError(
+        'delete-archived-cycle-missing-neighbor',
+        'No hay ciclo siguiente',
+        'No se puede fusionar porque este ciclo no tiene un ciclo siguiente.',
+        { cycleId, strategy },
+        { label: 'Elegir otra opción' }
+      );
+    }
+
+    const newNextStart = [next.startDate, current.startDate].sort()[0];
+    affectedCycles.push({ cycleId: next.id, startDate: next.startDate, endDate: next.endDate ?? null });
+    adjustedCyclesPreview.push({
+      cycleId: next.id,
+      type: 'trim',
+      startDate: newNextStart,
+      endDate: next.endDate ?? null,
+    });
+  }
+
+  return {
+    strategy,
+    affectedCycles,
+    adjustedCyclesPreview,
+    impactSummary: {
+      trimmedCycles: adjustedCyclesPreview.filter((item) => item.type === 'trim').length,
+      deletedCycles: 1,
+      movedEntries,
+    },
+  };
+};
+
+export const deleteArchivedCycleWithStrategyDB = async ({ userId, cycleId, strategy }) => {
+  const preview = await previewDeleteArchivedCycleWithStrategyDB({ userId, cycleId, strategy });
+  if (strategy === ARCHIVED_CYCLE_DELETE_STRATEGY.DELETE) {
+    await deleteCycleDB(userId, cycleId);
+    return preview;
+  }
+
+  const sortedCycles = await fetchCyclesForUser(userId);
+  const { previous, current, next } = findNeighbors(sortedCycles, cycleId);
+
+  if (!current) {
+    throw createAppError(
+      'cycle-not-found',
+      'No se encontró el ciclo',
+      'El ciclo que intentas eliminar ya no existe.',
+      { cycleId },
+      { label: 'Actualizar pantalla' }
+    );
+  }
+
+  if (strategy === ARCHIVED_CYCLE_DELETE_STRATEGY.MERGE_PREV) {
+    if (!previous) {
+      throw createAppError(
+        'delete-archived-cycle-missing-neighbor',
+        'No hay ciclo anterior',
+        'No se puede fusionar porque este ciclo no tiene un ciclo anterior.',
+        { cycleId, strategy },
+        { label: 'Elegir otra opción' }
+      );
+    }
+
+    const previousCycleRef = doc(db, `users/${userId}/cycles/${previous.id}`);
+    const oldPreviousEnd = previous.endDate ?? null;
+    const newPreviousEnd = current.endDate === null ? null : previous.endDate ? [previous.endDate, current.endDate].sort().at(-1) : current.endDate;
+
+    await updateDoc(previousCycleRef, { end_date: newPreviousEnd });
+    try {
+      await moveEntriesWithMeasurementsDB({
+        userId,
+        fromCycleId: cycleId,
+        toCycleId: previous.id,
+        shouldMoveIsoDate: () => true,
+        toCycleStartIso: previous.startDate,
+      });
+    } catch (error) {
+      await updateDoc(previousCycleRef, { end_date: oldPreviousEnd });
+      throw error;
+    }
+
+    await deleteCycleDB(userId, cycleId);
+    return preview;
+  }
+
+  if (!next) {
+    throw createAppError(
+      'delete-archived-cycle-missing-neighbor',
+      'No hay ciclo siguiente',
+      'No se puede fusionar porque este ciclo no tiene un ciclo siguiente.',
+      { cycleId, strategy },
+      { label: 'Elegir otra opción' }
+    );
+  }
+
+  const nextCycleRef = doc(db, `users/${userId}/cycles/${next.id}`);
+  const oldNextStart = next.startDate;
+  const newNextStart = [next.startDate, current.startDate].sort()[0];
+
+  await updateDoc(nextCycleRef, { start_date: newNextStart });
+  try {
+    await moveEntriesWithMeasurementsDB({
+      userId,
+      fromCycleId: cycleId,
+      toCycleId: next.id,
+      shouldMoveIsoDate: () => true,
+      toCycleStartIso: newNextStart,
+    });
+    await recalcCycleDayForAllEntriesDB(userId, next.id, newNextStart);
+  } catch (error) {
+    await updateDoc(nextCycleRef, { start_date: oldNextStart });
+    throw error;
+  }
+
+  await deleteCycleDB(userId, cycleId);
+  return preview;
 };
 
 export const undoCurrentCycleDB = async (userId, currentCycleId) => {
