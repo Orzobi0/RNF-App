@@ -26,7 +26,7 @@ const OverlapWarningDialog = ({
   const formatDate = (date) => {
     if (!date) return null;
     try {
-      return format(parseISO(date), 'dd/MM/yyyy');
+      return format(parseISO(date), 'dd-MM-yyyy');
     } catch (error) {
       console.error('Failed to format conflict cycle date', error);
       return date;
@@ -45,7 +45,7 @@ const OverlapWarningDialog = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onCancel}>
-      <DialogContent className="bg-white border-pink-100 text-gray-800">
+      <DialogContent className="bg-slate-50 border-slate-200 text-gray-800">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription className="text-gray-600">
@@ -57,8 +57,8 @@ const OverlapWarningDialog = ({
         </DialogHeader>
 
         {affectedCycles.length > 0 && (
-          <div className="rounded-md border border-pink-100 bg-white px-3 py-2 text-sm text-gray-700">
-            <p className="font-medium">Este nuevo cambio afecta a los ciclos:</p>
+          <div className="bg-slate-50 px-3 py-2 text-sm text-slate-700">
+            <p className="font-semibold">Este nuevo cambio afecta a los ciclos:</p>
             <ul className="mt-2 space-y-1 list-disc pl-4">
               {affectedCycles.map((cycle, index) => {
                 if (typeof cycle === 'string') {
@@ -73,7 +73,7 @@ const OverlapWarningDialog = ({
         )}
         
         {impactSummary && (
-          <div className="rounded-md border border-pink-100 bg-pink-50 px-3 py-2 text-sm text-gray-700">
+          <div className="bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800">
             <p>
               Esto implica {[
                 trimmedCount > 0 ? `${trimmedCount} recortes` : null,
@@ -85,8 +85,8 @@ const OverlapWarningDialog = ({
         )}
 
         {adjustedCyclesPreview.length > 0 && (
-          <div className="rounded-md border border-pink-100 bg-white px-3 py-2 text-sm text-gray-700">
-            <p className="font-medium">Los ciclos afectados quedarán así:</p>
+          <div className="bg-slate-50 px-3 py-2 text-sm text-slate-700">
+            <p className="font-semibold">Los ciclos afectados quedarán así:</p>
             <ul className="mt-2 list-disc space-y-1 pl-4">
               {adjustedCyclesPreview.map((cycle, index) => {
                const start = formatDate(cycle.startDate) ?? 'sin inicio';

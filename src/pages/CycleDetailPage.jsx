@@ -375,8 +375,8 @@ const CycleDetailPage = () => {
                 variant="outline"
                 className={`h-auto w-full flex-col items-start gap-1 text-left ${
                   option.value === ARCHIVED_CYCLE_DELETE_STRATEGY.DELETE
-                    ? 'border-red-300 bg-red-100/80 hover:bg-red-200/80'
-                    : ''
+                    ? 'border-red-200 bg-red-100/20 hover:bg-red-200/80'
+                    : 'border-gray-300 bg-slate-50 hover:bg-slate-100'
                 }`}
                 disabled={isLoadingDeletePreview || isDeletingCycle}
                 onClick={() => handleSelectDeleteStrategy(option.value)}
