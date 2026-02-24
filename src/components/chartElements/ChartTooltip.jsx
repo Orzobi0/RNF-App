@@ -116,6 +116,7 @@ const ChartTooltip = ({
   const hasRelations = Boolean(point.had_relations ?? point.hadRelations);
   const hasSymbol = symbolInfo && symbolInfo.value !== 'none';
   const hasTemperature = temp != null;
+  const isTemperatureIgnored = Boolean(point.ignored && hasTemperature);
   const hasMucusInfo = Boolean((mucusSensation && mucusSensation.trim()) || (mucusAppearance && mucusAppearance.trim()));
   const hasObservations = Boolean(observations && observations.trim());
   const hasAnyData = hasTemperature || hasSymbol || hasMucusInfo || hasObservations || hasRelations;
@@ -361,10 +362,22 @@ const ChartTooltip = ({
                         <div className="flex-1">
                           <div className="flex items-center justify-between gap-3">
                             <div className="flex items-baseline gap-2">
-                              <span className="text-md font-bold text-gray-800">
+                              <span
+                                className={
+                                  isTemperatureIgnored
+                                    ? 'text-md font-bold text-gray-400 line-through decoration-1'
+                                    : 'text-md font-bold text-gray-800'
+                                }
+                              >
                                 {parseFloat(temp).toFixed(2)}
                               </span>
-                              <span className="text-md text-gray-600">°C</span>
+                              <span
+                                className={
+                                  isTemperatureIgnored ? 'text-md text-gray-400' : 'text-md text-gray-600'
+                                }
+                              >
+                                °C
+                              </span>
                               {point.use_corrected && (
                                 <div
                                   className="w-2 h-2 bg-amber-500 rounded-full shadow-[0_0_4px_rgba(245,158,11,0.65)]"

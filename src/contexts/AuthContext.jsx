@@ -18,6 +18,78 @@ import normalizeBoolean from '@/lib/normalizeBoolean';
 
 const AuthContext = createContext(null);
 
+const PERSIST_REQUESTED_KEY = 'rnf_storage_persist_requested_v1';
+const getStandaloneMode = () =>
+  window.matchMedia?.('(display-mode: standalone)')?.matches || navigator.standalone === true;
+
+const ensurePersistentStorage = async (phase) => {
+  if (typeof navigator === 'undefined' || !navigator?.storage?.persist) return;
+
+  const attemptedKey = `rnf_storage_persist_attempted_${phase}_v1`;
+  try {
+    if (sessionStorage.getItem(attemptedKey) === '1') return;
+    sessionStorage.setItem(attemptedKey, '1');
+  } catch (storageError) {
+    // Ignore session storage errors.
+  }
+
+  let granted = false;
+
+  if (navigator.storage.persisted) {
+    try {
+      const alreadyPersisted = await navigator.storage.persisted();
+      if (alreadyPersisted) {
+        granted = true;
+        try {
+          localStorage.setItem(PERSIST_REQUESTED_KEY, '1');
+        } catch (storageError) {
+          // Ignore local storage errors.
+        }
+        if (import.meta.env.DEV) {
+          console.info('[storage:persist]', {
+            phase,
+            granted,
+            origin: window.location.origin,
+            standalone: getStandaloneMode(),
+          });
+        }
+        return;
+      }
+    } catch (storageError) {
+      // Ignore persisted check errors.
+    }
+  }
+
+  try {
+    if (localStorage.getItem(PERSIST_REQUESTED_KEY) === '1') {
+      localStorage.removeItem(PERSIST_REQUESTED_KEY);
+    }
+  } catch (storageError) {
+    // Ignore local storage errors.
+  }
+
+  try {
+    granted = Boolean(await navigator.storage.persist());
+    if (granted) {
+      try {
+        localStorage.setItem(PERSIST_REQUESTED_KEY, '1');
+      } catch (storageError) {
+        // Ignore local storage errors.
+      }
+    }
+  } catch (storageError) {
+    granted = false;
+  }
+
+  if (import.meta.env.DEV || granted === false) {
+    console.info('[storage:persist]', {
+      phase,
+      granted,
+      origin: window.location.origin,
+      standalone: getStandaloneMode(),
+    });
+  }
+};
 const COMBINE_MODE_OPTIONS = new Set(['estandar']);
 
 const normalizeCombineMode = (value) => {
@@ -89,6 +161,11 @@ export const AuthProvider = ({ children }) => {
       } catch (error) {
         // Si falla, seguimos igual, pero al menos lo intentamos.
       }
+      try {
+        await ensurePersistentStorage('boot');
+      } catch (storageError) {
+        // No es crítico si falla.
+      }
       if (cancelled) return;
 
       unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -102,23 +179,7 @@ export const AuthProvider = ({ children }) => {
           });
 
           try {
-            if (navigator?.storage?.persist) {
-              const key = 'rnf_storage_persist_requested_v1';
-              let already = false;
-              try {
-                already = localStorage.getItem(key) === '1';
-              } catch (storageError) {
-                // Ignore local storage errors.
-              }
-              if (!already) {
-                try {
-                  localStorage.setItem(key, '1');
-                } catch (storageError) {
-                  // Ignore local storage errors.
-                }
-                await navigator.storage.persist();
-              }
-            }
+            await ensurePersistentStorage('postlogin');
           } catch (storageError) {
             // No es crítico si falla.
           }

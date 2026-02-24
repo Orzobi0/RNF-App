@@ -85,6 +85,7 @@ const DayDetail = ({
   };
 
   const temperatureValue = details?.hasTemperature ? `${details.displayTemp} °C` : '—';
+  const isTemperatureIgnored = Boolean(details?.hasTemperature && details?.record?.ignored);
   const timeValue = details?.timeValue || '—';
   const hasTimeValue = Boolean(details?.timeValue);
   const mucusSensationValue = details?.hasMucusSensation ? details.mucusSensation : '—';
@@ -243,8 +244,8 @@ let peakIndicatorVariant = null;
             )}
           >
             <Thermometer className="h-5 w-5 shrink-0 opacity-80" />
-            <div className="flex items-center gap-1">
-              <span className="font-semibold">
+            <div className="flex items-center gap-1 flex-wrap">
+              <span className={cn('font-semibold', isTemperatureIgnored && 'text-slate-400 line-through decoration-1')}>
                 {renderChipValue(temperatureValue)}
               </span>
               {details?.showCorrectedIndicator && (
