@@ -18,7 +18,14 @@ export default function useBackClose(active, onClose) {
         : Math.random().toString(36).slice(2);
 
     let dismissedByPop = false;
-    const handlePopState = () => {
+    const handlePopState = (event) => {
+      // ✅ Si al hacer "back" el state nuevo ES nuestro overlay,
+      // significa que se ha cerrado un overlay hijo (o se ha vuelto a nuestro dummy state).
+      // NO cierres este overlay.
+      if (event?.state?.overlay === id) {
+        return;
+      }
+
       dismissedByPop = true;
       onClose();
     };

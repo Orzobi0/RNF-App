@@ -342,8 +342,8 @@ const CycleDetailPage = () => {
         isDeletingCycle={isDeletingCycle}
         dateEditorDeleteDescription={
           cycleRangeLabel
-            ? `Se eliminará el ciclo ${cycleRangeLabel} y todos sus registros asociados.`
-            : 'Se eliminará este ciclo y todos sus registros asociados.'
+            ? `Se eliminará este ciclo y todos sus registros.`
+            : 'Se eliminará este ciclo y todos sus registros.'
         }
       />
       <DeletionDialog
