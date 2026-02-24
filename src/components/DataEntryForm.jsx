@@ -26,6 +26,7 @@ const DataEntryForm = ({
   defaultIsoDate,
   focusedField,
   initialSectionKey = null,
+  onOpenNewCycle,
 }) => {
   const formRef = useRef(null);
   useBackClose(Boolean(onCancel), onCancel);
@@ -236,6 +237,7 @@ const DataEntryForm = ({
         onSyncTemperature={handleSyncTemperature}
         isSyncingTemperature={syncingHealthConnect}
         canSyncTemperature={Boolean(isAndroidApp && isAvailable)}
+        onOpenNewCycle={onOpenNewCycle}
       />
       <DataEntryFormActions
         onCancel={onCancel}

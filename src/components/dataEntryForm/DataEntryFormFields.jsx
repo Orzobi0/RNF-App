@@ -24,6 +24,7 @@ import {
   Heart,
   Edit3,
   RefreshCcw,
+  CalendarPlus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PeakModeButton } from '@/components/ui/peak-mode-button';
@@ -40,7 +41,7 @@ import {
   getToggleFeedback,
   SECTION_METADATA,
 } from '@/components/dataEntryForm/sectionLogic';
-const VIEW_ALL_STORAGE_KEY_PREFIX = 'dataEntryForm:viewAll:';
+const VIEW_ALL_STORAGE_KEY = 'dataEntryForm:viewAll:global';
 const DEFAULT_SECTION_STORAGE_KEY = '__default__';
 const RADIUS = { field: 'rounded-3xl', dropdown: 'rounded-3xl' };
 const DataEntryFormFields = ({
@@ -77,6 +78,7 @@ const DataEntryFormFields = ({
   onSyncTemperature = () => {},
   isSyncingTemperature = false,
   canSyncTemperature = false,
+  onOpenNewCycle = null,
 }) => {
   const [open, setOpen] = useState(false);
   const [correctionIndex, setCorrectionIndex] = useState(null);
@@ -422,16 +424,8 @@ const DataEntryFormFields = ({
     if (typeof window === 'undefined') {
       return;
     }
-
-    if (!selectedIsoDate) {
-      setIsViewAll(false);
-      return;
-    }
-
-    const storageKey = `${VIEW_ALL_STORAGE_KEY_PREFIX}${selectedIsoDate}`;
-
     try {
-      const stored = window.localStorage.getItem(storageKey);
+      const stored = window.localStorage.getItem(VIEW_ALL_STORAGE_KEY);
       if (stored === 'true') {
         setIsViewAll(true);
       } else if (stored === 'false') {
@@ -442,21 +436,19 @@ const DataEntryFormFields = ({
     } catch (error) {
       setIsViewAll(false);
     }
-  }, [selectedIsoDate]);
+  }, []);
 
   useEffect(() => {
-    if (typeof window === 'undefined' || !selectedIsoDate) {
+    if (typeof window === 'undefined') {
       return;
     }
 
-    const storageKey = `${VIEW_ALL_STORAGE_KEY_PREFIX}${selectedIsoDate}`;
-
     try {
-      window.localStorage.setItem(storageKey, isViewAll ? 'true' : 'false');
+      window.localStorage.setItem(VIEW_ALL_STORAGE_KEY, isViewAll ? 'true' : 'false');
     } catch (error) {
       // ignore storage failures silently
     }
-  }, [isViewAll, selectedIsoDate]);
+  }, [isViewAll]);
 
   useEffect(() => {
     if (correctionIndex !== null) {
@@ -1075,49 +1067,69 @@ const DataEntryFormFields = ({
 
   return (
     <>
-      <div className="space-y-2 rounded-3xl border border-fertiliapp bg-tarjeta p-3">
-        <Label htmlFor="date" className="flex items-center text-titulo text-sm font-semibold">
-          <CalendarDays className="mr-2 h-5 w-5 text-titulo" />
-          Fecha del Registro
-        </Label>
-        <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              className={cn(
-                'w-full justify-start text-left font-normal bg-white/70 border-fertiliapp-suave text-gray-800 hover:bg-white/70 hover:text-gray-800',
-                !date && 'text-muted-foreground'
-              )}
-              disabled={isProcessing}
-            >
-              {date ? format(date, 'PPP', { locale: es }) : <span>Selecciona una fecha</span>}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0 bg-white border-pink-200 text-gray-800 rounded-3xl" align="start">
-            <Calendar
-              mode="single"
-              selected={date}
-              onSelect={(selectedDate) => {
-                if (!selectedDate) {
-                  setOpen(false);
-                  return;
-                }
+      <div className="space-y-2">
+        <div className="col-span-3 space-y-2 rounded-3xl border border-fertiliapp bg-tarjeta p-3">
+          <Label htmlFor="date" className="relative flex items-center text-titulo text-sm font-semibold pr-16">
+  <span className="flex items-center">
+    <CalendarDays className="mr-2 h-5 w-5 text-titulo" />
+    Fecha del Registro
+  </span>
 
-                setDate(startOfDay(selectedDate));
-                setOpen(false);
-              }}
-              initialFocus
-              locale={es}
-              disabled={isProcessing ? () => true : disabledDateRanges}
-              modifiers={{ hasRecord: recordedDates }}
-              modifiersClassNames={{
-                hasRecord:
-                  'relative after:content-["" ] after:absolute after:inset-x-0 after:bottom-1 after:mx-auto after:w-1.5 after:h-1.5 after:rounded-full after:bg-fertiliapp-fuerte',
-              }}
-              className="[&_button]:text-gray-800 [&_button:hover]:bg-fertiliapp-suave [&_button[aria-selected=true]]:bg-fertiliapp-fuerte [&_button[aria-selected=true]]:text-white [&_button[aria-disabled=true]]:text-gray-400"
-            />
-          </PopoverContent>
-        </Popover>
+  <Button
+    type="button"
+    variant="ghost"
+    size="sm"
+    onClick={() => onOpenNewCycle?.(selectedIsoDate)}
+    disabled={isProcessing || !selectedIsoDate || typeof onOpenNewCycle !== 'function'}
+    className="absolute right-0 top-1/2 h-8 -translate-y-1/2 rounded-full px-2 text-[10px] font-semibold text-fertiliapp-fuerte hover:bg-fertiliapp-suave/50"
+    aria-label="Iniciar nuevo ciclo"
+  >
+    <CalendarPlus className="mr-1 h-5 w-5" />
+    <span className="flex flex-col leading-[12px] text-left">
+      <span>Nuevo</span>
+      <span>ciclo</span>
+    </span>
+  </Button>
+</Label>
+          <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className={cn(
+                  'w-full justify-start text-left font-normal bg-white/70 border-fertiliapp-suave text-gray-800 hover:bg-white/70 hover:text-gray-800',
+                  !date && 'text-muted-foreground'
+                )}
+                disabled={isProcessing}
+              >
+                {date ? format(date, 'PPP', { locale: es }) : <span>Selecciona una fecha</span>}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0 bg-white border-pink-200 text-gray-800 rounded-3xl" align="start">
+              <Calendar
+                mode="single"
+                selected={date}
+                onSelect={(selectedDate) => {
+                  if (!selectedDate) {
+                    setOpen(false);
+                    return;
+                  }
+
+                  setDate(startOfDay(selectedDate));
+                  setOpen(false);
+                  }}
+                initialFocus
+                locale={es}
+                disabled={isProcessing ? () => true : disabledDateRanges}
+                modifiers={{ hasRecord: recordedDates }}
+                modifiersClassNames={{
+                  hasRecord:
+                    'relative after:content-["" ] after:absolute after:inset-x-0 after:bottom-1 after:mx-auto after:w-1.5 after:h-1.5 after:rounded-full after:bg-fertiliapp-fuerte',
+                }}
+                className="[&_button]:text-gray-800 [&_button:hover]:bg-fertiliapp-suave [&_button[aria-selected=true]]:bg-fertiliapp-fuerte [&_button[aria-selected=true]]:text-white [&_button[aria-disabled=true]]:text-gray-400"
+              />
+            </PopoverContent>
+          </Popover>
+        </div>
       </div>
       <div className="mt-2">
         <div

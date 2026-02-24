@@ -157,6 +157,7 @@ export const RecordsExperience = ({
   const [focusedField, setFocusedField] = useState(null);
   const [initialSectionKey, setInitialSectionKey] = useState(null);
   const [showNewCycleDialog, setShowNewCycleDialog] = useState(false);
+  const [newCyclePrefillDate, setNewCyclePrefillDate] = useState(null);
   const [showPostpartumExitDialog, setShowPostpartumExitDialog] = useState(false);
   const recordCount = cycle?.data?.length ?? 0;
   const isCurrentCycle = !cycle?.endDate;
@@ -1337,6 +1338,11 @@ const enterStart = -exitTarget;
     setShowForm(true);
   }, [cycleDays, cycle?.startDate, selectedDate]);
 
+  const handleOpenNewCycleDialog = useCallback((initialIsoDate = null) => {
+    setNewCyclePrefillDate(initialIsoDate || selectedDate || null);
+    setShowNewCycleDialog(true);
+  }, [selectedDate]);
+
   const buildRecordPayloadForDate = useCallback(
     (isoDate, overrides = {}) => {
       const existingRecord = cycle?.data?.find((record) => record.isoDate === isoDate) || null;
@@ -1532,7 +1538,7 @@ const enterStart = -exitTarget;
         <div className="w-full space-y-4 rounded-3xl border border-rose-100/70 bg-white/80 p-4 text-center shadow-sm">
           <p className="text-[15px] font-semibold text-slate-800">No hay ciclo activo.</p>
           <button
-            onClick={() => setShowNewCycleDialog(true)}
+            onClick={() => handleOpenNewCycleDialog()}
             className="h-11 w-full rounded-full bg-fertiliapp-fuerte px-4 text-sm font-semibold text-white shadow-sm transition hover:brightness-95"
           >
             Iniciar ciclo
@@ -1540,11 +1546,15 @@ const enterStart = -exitTarget;
         </div>
         <NewCycleDialog
           isOpen={showNewCycleDialog}
-          onClose={() => setShowNewCycleDialog(false)}
+          onClose={() => {
+            setShowNewCycleDialog(false);
+            setNewCyclePrefillDate(null);
+          }}
           onPreview={(selectedStartDate) => previewStartNewCycle?.(selectedStartDate, cycle?.id)}
           onConfirm={async (selectedStartDate) => {
             await startNewCycle(selectedStartDate);
             setShowNewCycleDialog(false);
+            setNewCyclePrefillDate(null);
             setInitialSectionKey(null);
             setShowForm(true);
             if (preferences?.fertilityStartConfig?.postpartum === true) {
@@ -1552,6 +1562,7 @@ const enterStart = -exitTarget;
             }
           }}
           currentCycleRecords={cycle?.data ?? []}
+          initialStartDate={newCyclePrefillDate}
         />
         <PostpartumExitDialog
           isOpen={showPostpartumExitDialog}
@@ -1777,9 +1788,32 @@ const enterStart = -exitTarget;
             defaultIsoDate={defaultFormIsoDate}
             focusedField={focusedField}
             initialSectionKey={initialSectionKey}
+            onOpenNewCycle={handleOpenNewCycleDialog}
           />
         </DialogContent>
       </Dialog>
+
+<NewCycleDialog
+        isOpen={showNewCycleDialog}
+        onClose={() => {
+          setShowNewCycleDialog(false);
+          setNewCyclePrefillDate(null);
+        }}
+        onPreview={(selectedStartDate) => previewStartNewCycle?.(selectedStartDate, cycle?.id)}
+        onConfirm={async (selectedStartDate) => {
+          await startNewCycle(selectedStartDate);
+          setShowNewCycleDialog(false);
+          setNewCyclePrefillDate(null);
+          setInitialSectionKey(null);
+          setShowForm(true);
+          if (preferences?.fertilityStartConfig?.postpartum === true) {
+            setShowPostpartumExitDialog(true);
+          }
+        }}
+        currentCycleStartDate={cycle?.startDate}
+        currentCycleRecords={cycle?.data ?? []}
+        initialStartDate={newCyclePrefillDate}
+      />
 
 <DeletionDialog
         isOpen={showUndoCycleDialog}

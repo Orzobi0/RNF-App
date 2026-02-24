@@ -3403,6 +3403,7 @@ const ModernFertilityDashboard = () => {
   const [showForm, setShowForm] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showNewCycleDialog, setShowNewCycleDialog] = useState(false);
+  const [newCyclePrefillDate, setNewCyclePrefillDate] = useState(null);
   const [showPostpartumExitDialog, setShowPostpartumExitDialog] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [initialSectionKey, setInitialSectionKey] = useState(null);
@@ -3669,7 +3670,7 @@ const ModernFertilityDashboard = () => {
         <div className="w-full space-y-4 rounded-3xl border border-rose-100/70 bg-white/80 p-4 text-center shadow-sm">
           <p className="text-[15px] font-semibold text-slate-800">No hay ciclo activo.</p>
           <button
-            onClick={() => setShowNewCycleDialog(true)}
+            onClick={() => handleOpenNewCycleDialog()}
             className="h-11 w-full rounded-full bg-fertiliapp-fuerte px-4 text-sm font-semibold text-white shadow-sm transition hover:brightness-95"
           >
             Iniciar ciclo
@@ -3677,11 +3678,15 @@ const ModernFertilityDashboard = () => {
         </div>
         <NewCycleDialog
           isOpen={showNewCycleDialog}
-          onClose={() => setShowNewCycleDialog(false)}
+          onClose={() => {
+            setShowNewCycleDialog(false);
+            setNewCyclePrefillDate(null);
+          }}
           onPreview={(selectedStartDate) => previewStartNewCycle?.(selectedStartDate, currentCycle?.id)}
           onConfirm={async (selectedStartDate) => {
             await startNewCycle(selectedStartDate);
             setShowNewCycleDialog(false);
+            setNewCyclePrefillDate(null);
             setInitialSectionKey(null);
             setShowForm(true);
             if (preferences?.fertilityStartConfig?.postpartum === true) {
@@ -3689,6 +3694,7 @@ const ModernFertilityDashboard = () => {
             }
           }}
           currentCycleRecords={currentCycle?.data ?? []}
+          initialStartDate={newCyclePrefillDate}
         />
         <PostpartumExitDialog
           isOpen={showPostpartumExitDialog}
@@ -3728,12 +3734,18 @@ const ModernFertilityDashboard = () => {
   const handleConfirmNewCycle = async (selectedStartDate) => {
     await startNewCycle(selectedStartDate);
     setShowNewCycleDialog(false);
+    setNewCyclePrefillDate(null);
     setInitialSectionKey(null);
     setShowForm(true);
     if (preferences?.fertilityStartConfig?.postpartum === true) {
       setShowPostpartumExitDialog(true);
     }
   };
+
+  const handleOpenNewCycleDialog = useCallback((initialIsoDate = null) => {
+    setNewCyclePrefillDate(initialIsoDate || null);
+    setShowNewCycleDialog(true);
+  }, []);
 
   return (
     <>
@@ -4543,6 +4555,7 @@ const ModernFertilityDashboard = () => {
             cycleData={currentCycle.data}
             onDateSelect={handleDateSelect}
             initialSectionKey={initialSectionKey}
+            onOpenNewCycle={handleOpenNewCycleDialog}
           />
         </DialogContent>
       </Dialog>
@@ -4553,16 +4566,20 @@ const ModernFertilityDashboard = () => {
           setInitialSectionKey(null);
           setShowForm(true);
         }}
-        onAddCycle={() => setShowNewCycleDialog(true)}
+        onAddCycle={() => handleOpenNewCycleDialog()}
       />
 
       <NewCycleDialog
         isOpen={showNewCycleDialog}
-        onClose={() => setShowNewCycleDialog(false)}
+        onClose={() => {
+          setShowNewCycleDialog(false);
+          setNewCyclePrefillDate(null);
+        }}
         onPreview={(selectedStartDate) => previewStartNewCycle?.(selectedStartDate, currentCycle?.id)}
         onConfirm={handleConfirmNewCycle}
         currentCycleStartDate={currentCycle.startDate}
         currentCycleRecords={currentCycle?.data ?? []}
+        initialStartDate={newCyclePrefillDate}
       />
       <PostpartumExitDialog
         isOpen={showPostpartumExitDialog}
