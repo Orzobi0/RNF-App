@@ -243,6 +243,7 @@ export const RecordsExperience = ({
   const calendarHeightRef = useRef(0);
   const activeRecordLoadRef = useRef(null);
   const [calendarHeight, setCalendarHeight] = useState(0);
+  const cycleDatesEditorRef = useRef(null);
 
   const updateCalendarMetrics = useCallback(() => {
     const element = calendarContainerRef.current;
@@ -967,6 +968,41 @@ const enterStart = -exitTarget;
     setDraftEndDate(cycle?.endDate || '');
   }, [cycle?.startDate, cycle?.endDate, resetStartDateFlow]);
 
+  const toggleStartDateEditor = useCallback(() => {
+    if (showStartDateEditor) {
+      closeStartDateEditor();
+      return;
+    }
+    openStartDateEditor();
+  }, [closeStartDateEditor, openStartDateEditor, showStartDateEditor]);
+
+  useEffect(() => {
+    if (!showStartDateEditor) return;
+
+    const handleClickOutsideEditor = (event) => {
+      const target = event.target;
+
+      if (!(target instanceof Node)) return;
+      if (cycleDatesEditorRef.current?.contains(target)) return;
+      // Si has pulsado el botón que abre/cierra el editor, NO lo trates como click fuera
+    if (target instanceof Element && target.closest('[data-date-editor-toggle="true"]')) return;
+
+      const isInsidePopover =
+        typeof target.closest === 'function' &&
+        target.closest('[data-radix-popper-content-wrapper], [data-radix-popover-content]');
+
+      if (isInsidePopover) return;
+
+      closeStartDateEditor();
+    };
+
+    document.addEventListener('pointerdown', handleClickOutsideEditor, true);
+
+    return () => {
+      document.removeEventListener('pointerdown', handleClickOutsideEditor, true);
+    };
+  }, [closeStartDateEditor, showStartDateEditor]);
+
   const handleConfirmUndoCycle = useCallback(async () => {
     if (!contextCurrentCycle?.id) return;
     setIsUndoingCycle(true);
@@ -1483,7 +1519,7 @@ const enterStart = -exitTarget;
   };
 
   const headerActionProps = {
-    openDateEditor: openStartDateEditor,
+    openDateEditor: toggleStartDateEditor,
     openAddRecord: handleOpenAddRecord,
     isProcessing,
     isUpdatingDates: isUpdatingStartDate,
@@ -1495,11 +1531,12 @@ const enterStart = -exitTarget;
       ? headerActions(headerActionProps)
       : (
           <>
-            <HeaderIconButton
-              type="button"
-              onClick={openStartDateEditor}
-              className="text-subtitulo"
-              disabled={isProcessing || isUpdatingStartDate}
+              <HeaderIconButton
+                type="button"
+                onClick={toggleStartDateEditor}
+                data-date-editor-toggle="true"
+                className="text-subtitulo"
+                disabled={isProcessing || isUpdatingStartDate}
               aria-label={includeEndDate ? 'Editar fechas del ciclo' : 'Editar fecha de inicio'}
             >
               <Edit className="h-4 w-4" />
@@ -1622,6 +1659,7 @@ const enterStart = -exitTarget;
 
             {showStartDateEditor && (
               <motion.div
+                ref={cycleDatesEditorRef}
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4 }}

@@ -292,6 +292,7 @@ const CycleDetailPage = () => {
         <HeaderIconButton
           type="button"
           onClick={openDateEditor}
+          data-date-editor-toggle="true"
           aria-pressed={isUpdatingDates}
           disabled={isUpdatingDates}
           aria-label="Editar fechas del ciclo"
