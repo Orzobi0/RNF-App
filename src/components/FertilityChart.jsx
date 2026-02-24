@@ -6,6 +6,7 @@ import ChartPoints from '@/components/chartElements/ChartPoints';
 import ChartTooltip from '@/components/chartElements/ChartTooltip';
 import ChartLeftLegend from '@/components/chartElements/ChartLeftLegend';
 import { useFertilityChart } from '@/hooks/useFertilityChart';
+import { isAfter, parseISO, startOfDay } from 'date-fns';
 
 const FertilityChart = ({
   data,
@@ -112,6 +113,74 @@ const FertilityChart = ({
   const scrollRafRef = useRef(null);
   const [isScrolling, setIsScrolling] = useState(false);
   const scrollStopTimerRef = useRef(null);
+
+  const svgRef = useRef(null);
+
+  const getNearestDataIndexByX = useCallback((targetX) => {
+    const totalPoints = allDataPoints.length;
+    if (!Number.isFinite(targetX) || totalPoints === 0) return null;
+    if (totalPoints === 1) return 0;
+
+    let low = 0;
+    let high = totalPoints - 1;
+
+    while (low <= high) {
+      const mid = Math.floor((low + high) / 2);
+      const midX = getX(mid);
+
+      if (midX < targetX) {
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
+
+    const rightIndex = Math.min(Math.max(low, 0), totalPoints - 1);
+    const leftIndex = Math.max(rightIndex - 1, 0);
+    return Math.abs(getX(leftIndex) - targetX) <= Math.abs(getX(rightIndex) - targetX)
+      ? leftIndex
+      : rightIndex;
+  }, [allDataPoints, getX]);
+
+  const handleChartBackgroundInteraction = useCallback((event) => {
+    if (exportMode) return;
+
+    const clickedInteractiveElement = event.target?.closest?.('[data-chart-interactive="true"]');
+    if (clickedInteractiveElement) return;
+
+    const svgElement = svgRef.current;
+    if (!svgElement) return;
+
+    let svgX = null;
+    const ctm = svgElement.getScreenCTM();
+    if (ctm) {
+      const svgPoint = svgElement.createSVGPoint();
+      svgPoint.x = event.clientX;
+      svgPoint.y = event.clientY;
+      svgX = svgPoint.matrixTransform(ctm.inverse()).x;
+    }
+
+    if (!Number.isFinite(svgX)) {
+      const rect = svgElement.getBoundingClientRect();
+      if (!rect.width) return;
+      const fallbackWidth = svgElement.viewBox?.baseVal?.width || svgElement.clientWidth || rect.width;
+      svgX = ((event.clientX - rect.left) / rect.width) * fallbackWidth;
+    }
+
+    const index = getNearestDataIndexByX(svgX);
+    if (index == null) return;
+
+    const point = allDataPoints[index];
+    if (!point) return;
+
+    const isFuture = point.isoDate
+      ? isAfter(startOfDay(parseISO(point.isoDate)), startOfDay(new Date()))
+      : false;
+
+    if (isFuture) return;
+
+    handlePointInteraction(point, index, event);
+  }, [allDataPoints, exportMode, getNearestDataIndexByX, handlePointInteraction]);
 
   if (!allDataPoints || allDataPoints.length === 0) {
     return (
@@ -948,11 +1017,13 @@ const FertilityChart = ({
                 </div>
               )}
               <motion.svg
+                ref={svgRef}
                 width={chartWidth}
                 height={scrollableContentHeight}   
                 className="font-sans flex-shrink-0"
                 viewBox={`0 0 ${chartWidth} ${scrollableContentHeight}`} 
                 preserveAspectRatio="xMidYMid meet"
+                onClick={handleChartBackgroundInteraction}
                 initial={false}
               >
           <defs>
@@ -1150,6 +1221,7 @@ const FertilityChart = ({
                         role="button"
                         aria-label={tooltipText}
                         tabIndex={0}
+                        data-chart-interactive="true"
                         onClick={handleActivate}
                         onKeyDown={handleKeyDown}
                         style={{ cursor: 'pointer', userSelect: 'none', lineHeight: 1.2, textShadow: phaseTextShadow }}

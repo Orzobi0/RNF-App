@@ -1165,13 +1165,48 @@ const EMPTY_DAY_COLORS = {
 
 const FloatingActionButton = ({ onAddRecord, onAddCycle }) => {
   const [open, setOpen] = useState(false);
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+
+    const handlePointerDownOutside = (event) => {
+      if (!containerRef.current?.contains(event.target)) {
+        setOpen(false);
+      }
+    };
+
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDownOutside);
+    document.addEventListener('keydown', handleEscape);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDownOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [open]);
+
+  const handleAddRecord = () => {
+    setOpen(false);
+    onAddRecord();
+  };
+
+  const handleAddCycle = () => {
+    setOpen(false);
+    onAddCycle();
+  };
 
   return (
-    <div className="fixed right-4 top-12 md:top-6 flex flex-col-reverse items-end space-y-2 z-50">
+    <div ref={containerRef} className="fixed right-4 top-12 md:top-6 flex flex-col-reverse items-end space-y-2 z-50">
       {open && (
   <div className="flex flex-col space-y-2 mt-1">
     <motion.button
-      onClick={onAddRecord}
+      onClick={handleAddRecord}
       className="flex items-center gap-1 px-4 h-10 rounded-full bg-fertiliapp-fuerte hover:brightness-50 text-white/90 shadow-sm shadow-[#DD5665]"
       whileTap={{ scale: 0.80 }}
       whileHover={{ scale: 1.05 }}
@@ -1183,7 +1218,7 @@ const FloatingActionButton = ({ onAddRecord, onAddCycle }) => {
       <span className="text-sm font-medium tracking-tight">Añadir registro</span>
     </motion.button>
     <motion.button
-      onClick={onAddCycle}
+      onClick={handleAddCycle}
       className="flex items-center gap-3 px-4 h-10 rounded-full bg-white/80 hover:brightness-50 text-fertiliapp-fuerte shadow-sm shadow-[#DD5665]"
       whileTap={{ scale: 0.95 }}
       whileHover={{ scale: 1.05 }}

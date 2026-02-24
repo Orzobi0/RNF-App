@@ -1158,6 +1158,10 @@ const padding = isDenseExport
       
       useEffect(() => {
         const handleClickOutside = (event) => {
+          if (chartRef.current?.contains(event.target)) {
+            return;
+          }
+
           if (tooltipRef.current && !tooltipRef.current.contains(event.target)) {
              const chartPoints = chartRef.current?.querySelectorAll('circle, text, rect');
              let isPointClick = false;
