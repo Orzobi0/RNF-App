@@ -287,14 +287,15 @@ const CycleDetailPage = () => {
   ), []);
 
   const headerActions = useCallback(
-    ({ openDateEditor, openAddRecord, isProcessing, isUpdatingDates }) => (
+   ({ openDateEditor, openAddRecord, isProcessing, isDateEditorOpen }) => (
       <div className="flex items-center gap-2">
         <HeaderIconButton
           type="button"
           onClick={openDateEditor}
           data-date-editor-toggle="true"
-          aria-pressed={isUpdatingDates}
-          disabled={isUpdatingDates}
+          aria-pressed={isDateEditorOpen}
+          aria-expanded={isDateEditorOpen}
+          className="date-editor-toggle"
           aria-label="Editar fechas del ciclo"
         >
           <Pencil className="h-4 w-4" />

@@ -591,3 +591,15 @@
     );
   }
 }
+/* Botón lápiz: estado abierto (forzado con !important) */
+button.date-editor-toggle[aria-pressed="true"] {
+  background-color: #6B4254 !important; /* slate-900 */
+  border-color: #6B4254 !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.25) !important; /* halo */
+}
+
+/* Asegura que el icono (lucide) herede el color */
+button.date-editor-toggle[aria-pressed="true"] svg {
+  stroke: currentColor !important;
+}

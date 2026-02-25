@@ -1145,12 +1145,23 @@ const padding = isDenseExport
         const svgY = getY(displayTemp);
 
         // 3) Fija posición y punto activo
-        setTooltipPosition({
-          svgX,
-          svgY,
-          clientX: clientX - chartRect.left + chartRef.current.scrollLeft,
-          clientY: clientY - chartRect.top + chartRef.current.scrollTop,
-        });
+        const node = chartRef.current;
+
+const scrollLeft = node?.scrollLeft ?? 0;
+const scrollTop = node?.scrollTop ?? 0;
+const viewportWidth = node?.clientWidth ?? chartRect.width ?? 0;
+const viewportHeight = node?.clientHeight ?? chartRect.height ?? 0;
+
+setTooltipPosition({
+  svgX,
+  svgY,
+  clientX: clientX - chartRect.left + scrollLeft,
+  clientY: clientY - chartRect.top + scrollTop,
+  scrollLeft,
+  scrollTop,
+  viewportWidth,
+  viewportHeight,
+});
         setActiveIndex(index);
         setActivePoint(point);
       };

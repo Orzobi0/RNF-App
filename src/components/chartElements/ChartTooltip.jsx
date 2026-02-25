@@ -22,38 +22,85 @@ const ChartTooltip = ({
   if (!point) return null;
 
   // Escala reducida para que el tooltip ocupe menos espacio en pantalla
-  const scale = 0.6;
+  const scale = 0.7;
   const baseWidth = 200;
   const baseMinHeight = 120;
   const tooltipWidth = baseWidth * scale;
   const tooltipMinHeight = baseMinHeight * scale;
 
-  const tooltipRef = useRef(null);
+  const scaledRef = useRef(null); // mide el tamaño VISUAL (con transform: scale)
   const [tooltipHeight, setTooltipHeight] = useState(tooltipMinHeight);
   const [peakActionPending, setPeakActionPending] = useState(false);
 
   useEffect(() => {
-    if (tooltipRef.current) {
-      setTooltipHeight(tooltipRef.current.offsetHeight);
-    }
-    setPeakActionPending(false);
-  }, [point]);
+  // Medimos el tamaño VISUAL (afectado por scale) para:
+  // - posicionar bien
+  // - evitar “huecos” que bloquean taps
+  if (scaledRef.current) {
+    const rect = scaledRef.current.getBoundingClientRect();
+    if (rect?.height) setTooltipHeight(rect.height);
+  } else {
+    setTooltipHeight(tooltipMinHeight);
+  }
+  setPeakActionPending(false);
+}, [point, tooltipMinHeight]);
 
-  const flipHorizontal = position.clientX > chartWidth * 0.66;
-  const flipVertical = position.clientY + tooltipHeight > chartHeight;
+  const MARGIN = 10;
+const GAP = 12;
 
-  let x = flipHorizontal
-    ? position.clientX - tooltipWidth - 10
-    : position.clientX + 10;
+// En tu position ya tienes clientX/clientY y svgX/svgY.
+// Usamos el ancla del PUNTO (svgX/svgY) cuando existe, es más coherente que el dedo.
+const anchorX = Number.isFinite(position?.svgX) ? position.svgX : position.clientX;
+const anchorY = Number.isFinite(position?.clientY) ? position.clientY : position.svgY;
 
-  let y = flipVertical
-    ? position.clientY
-    : position.clientY + 10;
+// Viewport visible (coordenadas en el sistema del contenedor scrolleable)
+// Si no llegan, fallback al chart completo.
+const viewportWidth = Number.isFinite(position?.viewportWidth) ? position.viewportWidth : chartWidth;
+const viewportHeight = Number.isFinite(position?.viewportHeight) ? position.viewportHeight : chartHeight;
+const scrollLeft = Number.isFinite(position?.scrollLeft) ? position.scrollLeft : 0;
+const scrollTop = Number.isFinite(position?.scrollTop) ? position.scrollTop : 0;
 
-  if (x + tooltipWidth > chartWidth) x = chartWidth - tooltipWidth - 10;
-  if (y + tooltipHeight > chartHeight) y = chartHeight - tooltipHeight - 10;
-  if (x < 10) x = 10;
-  if (y < 10) y = 10;
+// Límites del viewport (en coordenadas de contenido)
+const viewLeft = scrollLeft;
+const viewRight = scrollLeft + viewportWidth;
+const viewTop = scrollTop;
+const viewBottom = scrollTop + viewportHeight;
+
+// Límites finales: no salirse del viewport y tampoco del contenido total
+const maxXByViewport = viewRight - tooltipWidth - MARGIN;
+const minXByViewport = viewLeft + MARGIN;
+const maxXByContent = chartWidth - tooltipWidth - MARGIN;
+const minXByContent = MARGIN;
+
+let xMin = Math.max(minXByViewport, minXByContent);
+let xMax = Math.min(maxXByViewport, maxXByContent);
+if (xMax < xMin) xMax = xMin;
+
+const maxYByViewport = viewBottom - tooltipHeight - MARGIN;
+const minYByViewport = viewTop + MARGIN;
+const maxYByContent = chartHeight - tooltipHeight - MARGIN;
+const minYByContent = MARGIN;
+
+let yMin = Math.max(minYByViewport, minYByContent);
+let yMax = Math.min(maxYByViewport, maxYByContent);
+if (yMax < yMin) yMax = yMin;
+
+// 1) X: preferimos derecha (lectura / pulgar derecho)
+//    Si no cabe, “pegamos” al borde derecho del viewport.
+//    Solo si aun así no hay sitio, intentamos izquierda.
+let x = anchorX + GAP;
+if (x > xMax) {
+  x = xMax; // pega al borde derecho visible
+  const leftCandidate = anchorX - tooltipWidth - GAP;
+  if (leftCandidate >= xMin) x = leftCandidate;
+}
+x = Math.max(xMin, Math.min(x, xMax));
+
+// 2) Y: por defecto ARRIBA (tu mejora pedida)
+//    Si no cabe arriba, lo bajamos.
+let y = anchorY - tooltipHeight - GAP;
+if (y < yMin) y = anchorY + GAP;
+y = Math.max(yMin, Math.min(y, yMax));
 
   const isPlaceholder = !point.id || String(point.id).startsWith('placeholder-');
   const temp = point.temperature_chart ?? point.displayTemperature ?? null;
@@ -225,7 +272,6 @@ const ChartTooltip = ({
 
   return (
     <motion.div
-      ref={tooltipRef}
       initial={{ opacity: 0, scale: 0.8, y: 20 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.8, y: 20 }}
@@ -234,9 +280,10 @@ const ChartTooltip = ({
         ease: [0.16, 1, 0.3, 1]
       }}
       className="absolute z-50"
-      style={{ top: y, left: x, width: tooltipWidth }}
+      style={{ top: y, left: x, width: tooltipWidth, height: tooltipHeight }}
     >
       <div
+        ref={scaledRef}
         className="origin-top-left"
         style={{ transform: `scale(${scale})`, width: baseWidth, minHeight: baseMinHeight }}
       >
@@ -244,55 +291,64 @@ const ChartTooltip = ({
         <div className="relative tooltip-surface--gradient backdrop-blur-xl rounded-3xl shadow-2xl overflow-hidden">
 
           {/* Botón de cerrar */}
-          <Button
-          variant="ghost"
-          size="icon"
-          onClick={onClose}
-          className="absolute top-2 right-2 z-20 text-gray-400 hover:text-fertiliapp-fuerte hover:bg-fertiliapp-suave rounded-full w-6 h-6 transition-all duration-200"
-          >
-            <XCircle size={20} />
-          </Button>
-
-          {/* Icono discreto de relaciones, bajo la X */}
-          {hasRelations && (
-            <div
-              className="absolute right-3 top-9 pointer-events-none"
-              aria-hidden="true"
-              title="Relaciones registradas"
-            >
-                <Heart className="w-4 h-4 text-fertiliapp-fuerte" fill="currentColor" />
-
-            </div>
-          )}
 
           <div className="p-2">
             {/* Header con fecha y día del ciclo */}
-            <div className="mb-2 relative">
-              <div className="w-5 h-5 bg-fertiliapp-fuerte rounded-full absolute top-2 left-2 flex items-center justify-center shadow-lg">
-                <Circle className="w-2 h-2 text-white" fill="currentColor" />
-              </div>
+<div className="mb-2 flex items-center justify-between gap-1">
+  {/* Izquierda: indicador + fecha/día */}
+  <div className="flex items-center gap-1 flex-1 min-w-0">
+    {/* Punto más compacto */}
+    <div className="w-3.5 h-3.5 bg-fertiliapp-fuerte rounded-full flex items-center justify-center shadow-lg shrink-0">
+      <Circle className="w-1 h-1 text-white" fill="currentColor" />
+    </div>
 
-              {/* Reservar espacio a la izquierda para que el texto no se pegue al punto */}
-              <div className="mb-1 pl-8">
-                <div className="flex items-baseline justify-start gap-2">
-                  <h3 className="font-bold text-left text-lg text-gray-800 tabular-nums tracking-wide">
-                    {dateToFormat
-                      ? format(parseISO(dateToFormat), 'dd/MM', { locale: es })
-                      : 'Fecha'}
-                  </h3>
-                  <span className="text-sm text-fertiliapp-fuerte font-medium whitespace-nowrap">
-                    Día {point.cycleDay || 'N/A'}
-                  </span>
-                </div>
-                {peakLabel && (
-                  <div className="mt-1 flex justify-start">
-                    <Badge className="bg-tarjeta text-fertiliapp-fuerte border border-fertiliapp-suave px-2 py-0 text-[11px]">
-                      {peakLabel}
-                    </Badge>
-                  </div>
-                )}
-              </div>
-              </div>
+    <div className="min-w-0 flex-1">
+      <div className="flex items-baseline gap-1 min-w-0">
+        {/* Fecha un pelín más pequeña + sin tracking-wide (da muchos px gratis) */}
+        <h3 className="font-bold text-left text-[17px] leading-none text-gray-800 tabular-nums tracking-normal shrink-0">
+          {dateToFormat ? format(parseISO(dateToFormat), 'dd/MM', { locale: es }) : 'Fecha'}
+        </h3>
+
+        {/* Día sin truncate, pero más compacto */}
+        <span className="text-[14px] leading-none text-fertiliapp-fuerte font-semibold whitespace-nowrap tabular-nums shrink-0">
+          Día {point.cycleDay || 'N/A'}
+        </span>
+      </div>
+
+      {peakLabel && (
+        <div className="mt-1 flex justify-start">
+          <Badge className="bg-tarjeta text-fertiliapp-fuerte border border-fertiliapp-suave px-2 py-0 text-[11px]">
+            {peakLabel}
+          </Badge>
+        </div>
+      )}
+    </div>
+  </div>
+
+  {/* Derecha: corazón (reservado siempre) + cerrar */}
+  <div className="flex items-center gap-0.5 shrink-0">
+    {/* Reserva hueco siempre para que NO cambie nada si hay/no hay corazón */}
+    <div
+      className={`w-6 h-6 rounded-full flex items-center justify-center bg-fertiliapp-suave/70 pointer-events-none ${
+        hasRelations ? 'opacity-100' : 'opacity-0'
+      }`}
+      aria-hidden="true"
+      title={hasRelations ? 'Relaciones registradas' : undefined}
+    >
+      <Heart className="w-3.5 h-3.5 text-fertiliapp-fuerte" fill="currentColor" />
+    </div>
+
+    <Button
+      variant="ghost"
+      onClick={onClose}
+      className="p-0 text-gray-600 hover:text-fertiliapp-fuerte hover:bg-fertiliapp-suave rounded-full w-[26px] h-[26px] transition-all duration-200"
+      aria-label="Cerrar"
+      title="Cerrar"
+    >
+      <XCircle size={18} />
+    </Button>
+  </div>
+</div>
 
           {showEmptyState ? (
             <div className="pt-1 space-y-3">

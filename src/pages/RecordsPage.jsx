@@ -1524,6 +1524,7 @@ const enterStart = -exitTarget;
     isProcessing,
     isUpdatingDates: isUpdatingStartDate,
     cycle,
+    isDateEditorOpen: showStartDateEditor,
   };
 
   const resolvedHeaderActions =
@@ -1531,17 +1532,23 @@ const enterStart = -exitTarget;
       ? headerActions(headerActionProps)
       : (
           <>
-              <HeaderIconButton
-                type="button"
-                onClick={toggleStartDateEditor}
-                data-date-editor-toggle="true"
-                className="text-subtitulo"
-                disabled={isProcessing || isUpdatingStartDate}
-              aria-label={includeEndDate ? 'Editar fechas del ciclo' : 'Editar fecha de inicio'}
-            >
-              <Edit className="h-4 w-4" />
-              <span className="sr-only">{includeEndDate ? 'Editar fechas del ciclo' : 'Editar fecha de inicio'}</span>
-            </HeaderIconButton>
+              <Button
+  type="button"
+  variant="outline"
+  size="icon"
+  onClick={toggleStartDateEditor}
+  data-date-editor-toggle="true"
+  disabled={isProcessing || isUpdatingStartDate}
+  aria-label={includeEndDate ? 'Editar fechas del ciclo' : 'Editar fecha de inicio'}
+  aria-pressed={showStartDateEditor}
+  aria-expanded={showStartDateEditor}
+  className="date-editor-toggle"
+>
+  <Edit className="h-4 w-4" />
+  <span className="sr-only">
+    {includeEndDate ? 'Editar fechas del ciclo' : 'Editar fecha de inicio'}
+  </span>
+</Button>
             <HeaderIconButtonPrimary
               type="button"
               onClick={handleOpenAddRecord}
