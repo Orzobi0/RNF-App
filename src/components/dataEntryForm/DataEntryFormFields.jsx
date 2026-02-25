@@ -16,7 +16,7 @@ import {
   Sprout,
   Clock,
   Check,
-  X,
+  Trash2,
   ChevronUp,
   ChevronDown,
   Circle,
@@ -734,8 +734,18 @@ const DataEntryFormFields = ({
           <div className="space-y-3 rounded-3xl border border-temp bg-temp-suave p-3 shadow-sm">
             {measurements.map((m, idx) => {
               const measurementSelectId = `measurement_select_${idx}`;
+              const isCorrectionOpen = correctionIndex === idx;
+              const isCorrected = Boolean(m.use_corrected);
               return (
-                <div key={idx} className="space-y-3 rounded-3xl border border-amber-200/60 bg-white/70 p-3">
+                <div
+   key={idx}
+   className={cn(
+     'space-y-3 rounded-3xl border bg-white/70 p-3 transition-colors',
+     m.selected && ignored
+       ? 'border-[#3A2430]/30 bg-[#e6d4dd]/40'
+       : 'border-amber-200/60'
+   )}
+ >
                   <div className="flex items-start justify-between gap-2">
                     <Label className="flex items-center text-amber-800 text-sm font-semibold">
                       <Thermometer className="mr-2 h-5 w-5 text-orange-500" />
@@ -743,7 +753,12 @@ const DataEntryFormFields = ({
                     </Label>
                     <label
                       htmlFor={measurementSelectId}
-                      className="flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50/70 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-amber-700 shadow-sm"
+                      className={cn(
+    'flex items-center gap-2 rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-wide shadow-sm',
+    m.selected && ignored
+      ? 'border-[#3A2430]/30 bg-[#e6d4dd]/70 text-[#3A2430]'
+      : 'border-amber-200 bg-amber-50/70 text-amber-700'
+  )}
                     >
                       <input
                         id={measurementSelectId}
@@ -754,6 +769,7 @@ const DataEntryFormFields = ({
                         className="h-3 w-3 text-orange-500 focus:ring-orange-400"
                       />
                       <span>gráfica</span>
+                      {m.selected && ignored && <EyeOff className="h-3 w-3" aria-hidden="true" />}
                     </label>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
@@ -790,9 +806,11 @@ const DataEntryFormFields = ({
                         aria-pressed={correctionIndex === idx}
                         className={cn(
                           'rounded-full border px-3 py-1 text-xs font-semibold transition-colors',
-                          correctionIndex === idx
-                            ? 'border-amber-500 bg-amber-600 text-white shadow-inner hover:bg-amber-600'
-                            : 'border-amber-200 bg-white/70 text-amber-700 hover:bg-amber-50'
+                          isCorrectionOpen
+      ? 'border-amber-500 bg-amber-600 text-white shadow-inner hover:bg-amber-600'
+      : isCorrected
+      ? 'border-amber-400 bg-amber-200/80 text-amber-900 hover:bg-amber-200'
+      : 'border-amber-200 bg-white/70 text-amber-700 hover:bg-amber-50'
                         )}
                         onClick={() => {
                           if (correctionIndex === idx) {
@@ -808,26 +826,32 @@ const DataEntryFormFields = ({
                           }
                         }}
                       >
-                        <Edit3 className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
-                        Corregir
+                        {isCorrected ? (
+    <Check className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+  ) : (
+    <Edit3 className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+  )}
+  {isCorrected ? 'Corregida' : 'Corregir'}
                       </Button>
                       {isEditing && Boolean(m.temperature) && (
                         <Button
                           type="button"
                           size="icon"
                           variant="outline"
-                          disabled={isProcessing}
+                          disabled={isProcessing || !m.selected}
                           onClick={() => handleIgnoredChange(!ignored)}
                           className={cn(
                             'h-9 w-9 rounded-full border transition-colors',
-                            ignored 
-                             ? 'border-amber-400 bg-amber-100 text-amber-900 hover:bg-amber-100'
-                             : 'border-amber-200 bg-white/80 text-amber-700 hover:bg-amber-50'
+                            !m.selected && 'opacity-40 cursor-not-allowed',
+      m.selected && ignored
+        ? 'border-[#3A2430] bg-[#3A2430] text-white shadow-sm ring-2 ring-[#e6d4dd]'
+        : 'border-amber-200 bg-white/80 text-amber-700 hover:bg-amber-50'
                           )}
-                          title={ignored ? 'Restaurar' : 'Despreciar'}
-                          aria-label={ignored ? 'Restaurar medición ignorada' : 'Despreciar medición seleccionada'}
+                          aria-pressed={m.selected ? ignored : false}
+    title={m.selected ? (ignored ? 'Restaurar' : 'Despreciar') : 'Selecciona esta medición para la gráfica'}
+    aria-label={m.selected ? (ignored ? 'Restaurar medición despreciada' : 'Despreciar medición de la gráfica') : 'Selecciona esta medición para la gráfica'}
                         >
-                          {ignored ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                          {m.selected && ignored ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </Button>
                       )}
                       {!m.confirmed && (
@@ -847,10 +871,10 @@ const DataEntryFormFields = ({
                             size="icon"
                             onClick={() => removeMeasurement(idx)}
                             disabled={isProcessing}
-                            className="h-7 w-7"
+                            className="h-9 w-9 rounded-full bg-rose-600 text-white hover:bg-rose-700 shadow-sm"
                             aria-label="Eliminar medición"
                           >
-                            <X className="h-4 w-4" />
+                            <Trash2 className="h-4 w-4" />
                           </Button>
                         </>
                       )}
@@ -867,10 +891,10 @@ const DataEntryFormFields = ({
                               size="icon"
                               onClick={() => removeMeasurement(idx)}
                               disabled={isProcessing}
-                              className="h-8 w-8"
+                              className="h-9 w-9 rounded-full bg-rose-600 text-white hover:bg-rose-700 shadow-sm"
                               aria-label="Eliminar medición"
                             >
-                              <X className="h-4 w-4" />
+                              <Trash2 className="h-4 w-4" />
                             </Button>
                           );
                         })()
