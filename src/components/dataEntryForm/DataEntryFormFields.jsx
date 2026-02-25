@@ -205,6 +205,24 @@ const DataEntryFormFields = ({
     [normalizeSectionKey, selectedIsoDate]
   );
 
+  const lastStatusIsoRef = useRef(selectedIsoDate);
+
+useEffect(() => {
+  if (lastStatusIsoRef.current === selectedIsoDate) return;
+  lastStatusIsoRef.current = selectedIsoDate;
+  setStatusMessages({ peak: null, relations: null });
+}, [selectedIsoDate]);
+
+useEffect(() => {
+  if (typeof window === 'undefined') return;
+  if (!statusMessages.peak && !statusMessages.relations) return;
+
+  const id = window.setTimeout(() => {
+    setStatusMessages({ peak: null, relations: null });
+  }, 4500);
+
+  return () => window.clearTimeout(id);
+}, [statusMessages.peak, statusMessages.relations]);
 
   useEffect(() => {
     if (!sectionKeys.length) {
@@ -374,7 +392,6 @@ const DataEntryFormFields = ({
   ]);
 
   useEffect(() => {
-    setStatusMessages({ peak: null, relations: null });
     initializedSectionsRef.current = false;
   
     userCollapsedRef.current = false;
@@ -1246,7 +1263,7 @@ const DataEntryFormFields = ({
           </button>
         </div>
       </div>
-      <div className="mt-2 space-y-1">
+      <div className="mt-2 space-y-1 px-2 sm:px-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <PeakModeButton
             mode={peakMode}
@@ -1281,16 +1298,27 @@ const DataEntryFormFields = ({
           </button>
         </div>
         {(existingPeakIsoDate || statusMessages.peak || statusMessages.relations) && (
-  <div className="flex items-center justify-between gap-2 text-[11px]">
-    <span className="text-slate-500">
-      {existingPeakIsoDate ? `Día pico: ${format(parseISO(existingPeakIsoDate), 'dd/MM')}` : ''}
-    </span>
+  <div className="mt-1 grid grid-cols-[1fr_auto] items-start gap-2 text-[11px]">
+    <div className="min-w-0">
+      {existingPeakIsoDate && (
+        <div className="text-slate-500">
+          {`Día pico: ${format(parseISO(existingPeakIsoDate), 'dd/MM')}`}
+        </div>
+      )}
+      {statusMessages.peak && (
+        <div className="font-medium text-rose-600" role="status" aria-live="polite">
+          {statusMessages.peak}
+        </div>
+      )}
+    </div>
 
-    {(statusMessages.peak || statusMessages.relations) && (
-      <span className="font-medium text-rose-600" role="status" aria-live="polite">
-        {statusMessages.peak ?? statusMessages.relations}
-      </span>
-    )}
+    <div className="text-right">
+      {statusMessages.relations && (
+        <div className="font-medium text-rose-600" role="status" aria-live="polite">
+          {statusMessages.relations}
+        </div>
+      )}
+    </div>
   </div>
 )}
 
