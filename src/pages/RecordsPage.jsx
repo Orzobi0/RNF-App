@@ -1532,23 +1532,21 @@ const enterStart = -exitTarget;
       ? headerActions(headerActionProps)
       : (
           <>
-              <Button
-  type="button"
-  variant="outline"
-  size="icon"
-  onClick={toggleStartDateEditor}
-  data-date-editor-toggle="true"
-  disabled={isProcessing || isUpdatingStartDate}
-  aria-label={includeEndDate ? 'Editar fechas del ciclo' : 'Editar fecha de inicio'}
-  aria-pressed={showStartDateEditor}
-  aria-expanded={showStartDateEditor}
-  className="date-editor-toggle"
->
+   <HeaderIconButton
+   type="button"
+   onClick={toggleStartDateEditor}
+   data-date-editor-toggle="true"
+   disabled={isProcessing || isUpdatingStartDate}
+   aria-label={includeEndDate ? 'Editar fechas del ciclo' : 'Editar fecha de inicio'}
+   aria-pressed={showStartDateEditor}
+   aria-expanded={showStartDateEditor}
+   className="date-editor-toggle"
+ >
   <Edit className="h-4 w-4" />
   <span className="sr-only">
     {includeEndDate ? 'Editar fechas del ciclo' : 'Editar fecha de inicio'}
   </span>
-</Button>
+</HeaderIconButton>
             <HeaderIconButtonPrimary
               type="button"
               onClick={handleOpenAddRecord}

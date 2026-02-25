@@ -787,7 +787,13 @@ const DataEntryFormFields = ({
                         size="xs"
                         variant="outline"
                         disabled={isProcessing}
-                        className="bg-slate-100/50 text-slate-600 text-xs rounded-3xl"
+                        aria-pressed={correctionIndex === idx}
+                        className={cn(
+                          'rounded-full border px-3 py-1 text-xs font-semibold transition-colors',
+                          correctionIndex === idx
+                            ? 'border-amber-500 bg-amber-600 text-white shadow-inner hover:bg-amber-600'
+                            : 'border-amber-200 bg-white/70 text-amber-700 hover:bg-amber-50'
+                        )}
                         onClick={() => {
                           if (correctionIndex === idx) {
                             setCorrectionIndex(null);
@@ -802,6 +808,7 @@ const DataEntryFormFields = ({
                           }
                         }}
                       >
+                        <Edit3 className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
                         Corregir
                       </Button>
                       {isEditing && Boolean(m.temperature) && (
@@ -812,8 +819,10 @@ const DataEntryFormFields = ({
                           disabled={isProcessing}
                           onClick={() => handleIgnoredChange(!ignored)}
                           className={cn(
-                            'h-7 w-7 border-amber-200 text-amber-600 transition-colors',
-                            ignored ? 'bg-slate-100 text-slate-500 hover:bg-slate-300/80 border-slate-300' : 'bg-white/70 hover:bg-slate-100'
+                            'h-9 w-9 rounded-full border transition-colors',
+                            ignored 
+                             ? 'border-amber-400 bg-amber-100 text-amber-900 hover:bg-amber-100'
+                             : 'border-amber-200 bg-white/80 text-amber-700 hover:bg-amber-50'
                           )}
                           title={ignored ? 'Restaurar' : 'Despreciar'}
                           aria-label={ignored ? 'Restaurar medición ignorada' : 'Despreciar medición seleccionada'}
