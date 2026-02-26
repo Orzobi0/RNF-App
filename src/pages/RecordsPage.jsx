@@ -157,6 +157,7 @@ export const RecordsExperience = ({
   const [focusedField, setFocusedField] = useState(null);
   const [initialSectionKey, setInitialSectionKey] = useState(null);
   const [showNewCycleDialog, setShowNewCycleDialog] = useState(false);
+  const [newCyclePrefillDate, setNewCyclePrefillDate] = useState(null);
   const [showPostpartumExitDialog, setShowPostpartumExitDialog] = useState(false);
   const recordCount = cycle?.data?.length ?? 0;
   const isCurrentCycle = !cycle?.endDate;
@@ -242,6 +243,7 @@ export const RecordsExperience = ({
   const calendarHeightRef = useRef(0);
   const activeRecordLoadRef = useRef(null);
   const [calendarHeight, setCalendarHeight] = useState(0);
+  const cycleDatesEditorRef = useRef(null);
 
   const updateCalendarMetrics = useCallback(() => {
     const element = calendarContainerRef.current;
@@ -966,6 +968,41 @@ const enterStart = -exitTarget;
     setDraftEndDate(cycle?.endDate || '');
   }, [cycle?.startDate, cycle?.endDate, resetStartDateFlow]);
 
+  const toggleStartDateEditor = useCallback(() => {
+    if (showStartDateEditor) {
+      closeStartDateEditor();
+      return;
+    }
+    openStartDateEditor();
+  }, [closeStartDateEditor, openStartDateEditor, showStartDateEditor]);
+
+  useEffect(() => {
+    if (!showStartDateEditor) return;
+
+    const handleClickOutsideEditor = (event) => {
+      const target = event.target;
+
+      if (!(target instanceof Node)) return;
+      if (cycleDatesEditorRef.current?.contains(target)) return;
+      // Si has pulsado el botón que abre/cierra el editor, NO lo trates como click fuera
+    if (target instanceof Element && target.closest('[data-date-editor-toggle="true"]')) return;
+
+      const isInsidePopover =
+        typeof target.closest === 'function' &&
+        target.closest('[data-radix-popper-content-wrapper], [data-radix-popover-content]');
+
+      if (isInsidePopover) return;
+
+      closeStartDateEditor();
+    };
+
+    document.addEventListener('pointerdown', handleClickOutsideEditor, true);
+
+    return () => {
+      document.removeEventListener('pointerdown', handleClickOutsideEditor, true);
+    };
+  }, [closeStartDateEditor, showStartDateEditor]);
+
   const handleConfirmUndoCycle = useCallback(async () => {
     if (!contextCurrentCycle?.id) return;
     setIsUndoingCycle(true);
@@ -1337,6 +1374,11 @@ const enterStart = -exitTarget;
     setShowForm(true);
   }, [cycleDays, cycle?.startDate, selectedDate]);
 
+  const handleOpenNewCycleDialog = useCallback((initialIsoDate = null) => {
+    setNewCyclePrefillDate(initialIsoDate || selectedDate || null);
+    setShowNewCycleDialog(true);
+  }, [selectedDate]);
+
   const buildRecordPayloadForDate = useCallback(
     (isoDate, overrides = {}) => {
       const existingRecord = cycle?.data?.find((record) => record.isoDate === isoDate) || null;
@@ -1477,11 +1519,12 @@ const enterStart = -exitTarget;
   };
 
   const headerActionProps = {
-    openDateEditor: openStartDateEditor,
+    openDateEditor: toggleStartDateEditor,
     openAddRecord: handleOpenAddRecord,
     isProcessing,
     isUpdatingDates: isUpdatingStartDate,
     cycle,
+    isDateEditorOpen: showStartDateEditor,
   };
 
   const resolvedHeaderActions =
@@ -1489,16 +1532,21 @@ const enterStart = -exitTarget;
       ? headerActions(headerActionProps)
       : (
           <>
-            <HeaderIconButton
-              type="button"
-              onClick={openStartDateEditor}
-              className="text-subtitulo"
-              disabled={isProcessing || isUpdatingStartDate}
-              aria-label={includeEndDate ? 'Editar fechas del ciclo' : 'Editar fecha de inicio'}
-            >
-              <Edit className="h-4 w-4" />
-              <span className="sr-only">{includeEndDate ? 'Editar fechas del ciclo' : 'Editar fecha de inicio'}</span>
-            </HeaderIconButton>
+   <HeaderIconButton
+   type="button"
+   onClick={toggleStartDateEditor}
+   data-date-editor-toggle="true"
+   disabled={isProcessing || isUpdatingStartDate}
+   aria-label={includeEndDate ? 'Editar fechas del ciclo' : 'Editar fecha de inicio'}
+   aria-pressed={showStartDateEditor}
+   aria-expanded={showStartDateEditor}
+   className="date-editor-toggle"
+ >
+  <Edit className="h-4 w-4" />
+  <span className="sr-only">
+    {includeEndDate ? 'Editar fechas del ciclo' : 'Editar fecha de inicio'}
+  </span>
+</HeaderIconButton>
             <HeaderIconButtonPrimary
               type="button"
               onClick={handleOpenAddRecord}
@@ -1532,7 +1580,7 @@ const enterStart = -exitTarget;
         <div className="w-full space-y-4 rounded-3xl border border-rose-100/70 bg-white/80 p-4 text-center shadow-sm">
           <p className="text-[15px] font-semibold text-slate-800">No hay ciclo activo.</p>
           <button
-            onClick={() => setShowNewCycleDialog(true)}
+            onClick={() => handleOpenNewCycleDialog()}
             className="h-11 w-full rounded-full bg-fertiliapp-fuerte px-4 text-sm font-semibold text-white shadow-sm transition hover:brightness-95"
           >
             Iniciar ciclo
@@ -1540,11 +1588,15 @@ const enterStart = -exitTarget;
         </div>
         <NewCycleDialog
           isOpen={showNewCycleDialog}
-          onClose={() => setShowNewCycleDialog(false)}
+          onClose={() => {
+            setShowNewCycleDialog(false);
+            setNewCyclePrefillDate(null);
+          }}
           onPreview={(selectedStartDate) => previewStartNewCycle?.(selectedStartDate, cycle?.id)}
           onConfirm={async (selectedStartDate) => {
             await startNewCycle(selectedStartDate);
             setShowNewCycleDialog(false);
+            setNewCyclePrefillDate(null);
             setInitialSectionKey(null);
             setShowForm(true);
             if (preferences?.fertilityStartConfig?.postpartum === true) {
@@ -1552,6 +1604,7 @@ const enterStart = -exitTarget;
             }
           }}
           currentCycleRecords={cycle?.data ?? []}
+          initialStartDate={newCyclePrefillDate}
         />
         <PostpartumExitDialog
           isOpen={showPostpartumExitDialog}
@@ -1611,6 +1664,7 @@ const enterStart = -exitTarget;
 
             {showStartDateEditor && (
               <motion.div
+                ref={cycleDatesEditorRef}
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4 }}
@@ -1777,9 +1831,32 @@ const enterStart = -exitTarget;
             defaultIsoDate={defaultFormIsoDate}
             focusedField={focusedField}
             initialSectionKey={initialSectionKey}
+            onOpenNewCycle={handleOpenNewCycleDialog}
           />
         </DialogContent>
       </Dialog>
+
+<NewCycleDialog
+        isOpen={showNewCycleDialog}
+        onClose={() => {
+          setShowNewCycleDialog(false);
+          setNewCyclePrefillDate(null);
+        }}
+        onPreview={(selectedStartDate) => previewStartNewCycle?.(selectedStartDate, cycle?.id)}
+        onConfirm={async (selectedStartDate) => {
+          await startNewCycle(selectedStartDate);
+          setShowNewCycleDialog(false);
+          setNewCyclePrefillDate(null);
+          setInitialSectionKey(null);
+          setShowForm(true);
+          if (preferences?.fertilityStartConfig?.postpartum === true) {
+            setShowPostpartumExitDialog(true);
+          }
+        }}
+        currentCycleStartDate={cycle?.startDate}
+        currentCycleRecords={cycle?.data ?? []}
+        initialStartDate={newCyclePrefillDate}
+      />
 
 <DeletionDialog
         isOpen={showUndoCycleDialog}

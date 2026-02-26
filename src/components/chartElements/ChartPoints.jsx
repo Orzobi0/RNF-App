@@ -625,7 +625,8 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
           ? {
               pointerEvents: 'all',
               style: { cursor: 'pointer' },
-              onClick: (e) => onPointInteraction(point, index, e)
+              onClick: (e) => onPointInteraction(point, index, e),
+              'data-chart-interactive': 'true'
             }
           : {};
 
@@ -768,6 +769,7 @@ const observationFontSize = obsRes.fontSize;
                   }}
                   pointerEvents="all"
                   onClick={(e) => onPointInteraction(point, index, e)}
+                  data-chart-interactive="true"
                 />
                 
                 

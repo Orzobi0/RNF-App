@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { format, startOfDay, parseISO } from 'date-fns';
 import { useToast } from '@/components/ui/use-toast';
 import { FERTILITY_SYMBOLS } from '@/config/fertilitySymbols';
@@ -363,6 +363,55 @@ export const useDataEntryForm = (
     };
   };
 
+  const buildDraftPayload = () => ({
+    isoDate: date ? format(date, 'yyyy-MM-dd') : null,
+    measurements,
+    mucusSensation,
+    mucusAppearance,
+    fertility_symbol: fertilitySymbol,
+    observations,
+    had_relations: hadRelations,
+    ignored,
+    peak_marker: peakTag === 'peak' ? 'peak' : null,
+  });
+
+
+  const applyDraftPayload = useCallback((draft) => {
+    if (!draft) {
+      return;
+    }
+
+    if (draft.isoDate) {
+      const parsedDate = startOfDay(parseISO(draft.isoDate));
+      if (!Number.isNaN(parsedDate.getTime())) {
+        setDate(parsedDate);
+      }
+    }
+
+    if (Array.isArray(draft.measurements) && draft.measurements.length > 0) {
+      const mapped = draft.measurements.map((m, index) => ({
+        temperature: m.temperature ?? '',
+        time: m.time || format(new Date(), 'HH:mm'),
+        selected: index === 0 ? true : !!m.selected,
+        temperature_corrected: m.temperature_corrected ?? '',
+        time_corrected: m.time_corrected || m.time || format(new Date(), 'HH:mm'),
+        use_corrected: !!m.use_corrected,
+        confirmed: true,
+      }));
+      if (!mapped.some((item) => item.selected)) {
+        mapped[0].selected = true;
+      }
+      setMeasurements(mapped);
+    }
+
+    setMucusSensation(draft.mucusSensation ?? draft.mucus_sensation ?? '');
+    setMucusAppearance(draft.mucusAppearance ?? draft.mucus_appearance ?? '');
+    setFertilitySymbol(draft.fertility_symbol || FERTILITY_SYMBOLS.NONE.value);
+    setObservations(draft.observations || '');
+    setHadRelations(Boolean(draft.had_relations ?? draft.hadRelations ?? false));
+    setIgnored(Boolean(draft.ignored));
+    setPeakTag(draft.peak_marker === 'peak' ? 'peak' : null);
+  }, []);
   const resetFormState = () => {
     setDate(getDefaultDate());
     setMeasurements([
@@ -432,6 +481,8 @@ export const useDataEntryForm = (
     existingPeakIsoDate,
     handleSubmit,
     submitCurrentState,
+    buildDraftPayload,
+    applyDraftPayload,
     hadRelations,
     setHadRelations,
   };

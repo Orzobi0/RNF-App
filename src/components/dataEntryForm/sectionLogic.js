@@ -54,8 +54,13 @@ export const getToggleFeedback = (type, previousValue, nextValue) => {
     return null;
   }
 
-  const label = type === 'peak' ? 'Día pico' : 'Relaciones sexuales';
-  return wasActive ? `Se ha actualizado ${label}` : `Se ha seleccionado ${label}`;
+  if (type === 'peak') {
+    // Si estaba activo y pasa a false => se quita
+    return wasActive ? 'Día pico: eliminado' : 'Día pico: seleccionado';
+  }
+
+  // relations
+  return wasActive ? 'Sin Relaciones sexuales' : 'Con Relaciones sexuales';
 };
 
 export const computePeakState = ({ peakTag, existingPeakIsoDate, selectedIsoDate }) => {

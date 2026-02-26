@@ -287,13 +287,15 @@ const CycleDetailPage = () => {
   ), []);
 
   const headerActions = useCallback(
-    ({ openDateEditor, openAddRecord, isProcessing, isUpdatingDates }) => (
+   ({ openDateEditor, openAddRecord, isProcessing, isDateEditorOpen }) => (
       <div className="flex items-center gap-2">
         <HeaderIconButton
           type="button"
           onClick={openDateEditor}
-          aria-pressed={isUpdatingDates}
-          disabled={isUpdatingDates}
+          data-date-editor-toggle="true"
+          aria-pressed={isDateEditorOpen}
+          aria-expanded={isDateEditorOpen}
+          className="date-editor-toggle"
           aria-label="Editar fechas del ciclo"
         >
           <Pencil className="h-4 w-4" />
@@ -341,8 +343,8 @@ const CycleDetailPage = () => {
         isDeletingCycle={isDeletingCycle}
         dateEditorDeleteDescription={
           cycleRangeLabel
-            ? `Se eliminará el ciclo ${cycleRangeLabel} y todos sus registros asociados.`
-            : 'Se eliminará este ciclo y todos sus registros asociados.'
+            ? `Se eliminará este ciclo y todos sus registros.`
+            : 'Se eliminará este ciclo y todos sus registros.'
         }
       />
       <DeletionDialog

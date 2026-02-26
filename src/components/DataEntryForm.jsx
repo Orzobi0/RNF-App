@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useMemo, useState } from 'react';
+import React, { useRef, useEffect, useMemo, useState, useCallback } from 'react';
 import DataEntryFormFields from '@/components/dataEntryForm/DataEntryFormFields';
 import DataEntryFormActions from '@/components/dataEntryForm/DataEntryFormActions';
 import { motion } from 'framer-motion';
@@ -26,6 +26,8 @@ const DataEntryForm = ({
   defaultIsoDate,
   focusedField,
   initialSectionKey = null,
+  onOpenNewCycle,
+  formDraft = null,
 }) => {
   const formRef = useRef(null);
   useBackClose(Boolean(onCancel), onCancel);
@@ -101,6 +103,8 @@ const DataEntryForm = ({
     existingPeakIsoDate,
     handleSubmit,
     submitCurrentState,
+    buildDraftPayload,
+    applyDraftPayload,
   } = useDataEntryForm(
     onSubmit,
     initialData,
@@ -111,6 +115,14 @@ const DataEntryForm = ({
     onDateSelect,
     defaultIsoDate,
   );
+  useEffect(() => {
+    if (!formDraft) {
+      return;
+    }
+
+    applyDraftPayload(formDraft);
+  }, [applyDraftPayload, formDraft]);
+
   const recordedDates = useMemo(
     () => cycleData.map((r) => parseISO(r.isoDate)),
     [cycleData]
@@ -170,6 +182,17 @@ const DataEntryForm = ({
       setSyncingHealthConnect(false);
     }
   };
+
+  const handleOpenNewCycle = useCallback(
+    (selectedIsoDate) => {
+      if (typeof onOpenNewCycle !== 'function') {
+        return;
+      }
+
+      onOpenNewCycle(selectedIsoDate, buildDraftPayload());
+    },
+    [buildDraftPayload, onOpenNewCycle]
+  );
 
   return (
     <motion.form
@@ -236,6 +259,7 @@ const DataEntryForm = ({
         onSyncTemperature={handleSyncTemperature}
         isSyncingTemperature={syncingHealthConnect}
         canSyncTemperature={Boolean(isAndroidApp && isAvailable)}
+        onOpenNewCycle={handleOpenNewCycle}
       />
       <DataEntryFormActions
         onCancel={onCancel}

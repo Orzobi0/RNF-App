@@ -45,6 +45,9 @@ import { MANUAL_CPM_DEDUCTION, buildCpmMetric } from '@/lib/metrics/cpm';
 import { buildT8Metric } from '@/lib/metrics/t8';
 import { getSymbolColorPalette } from '@/config/fertilitySymbols';
 
+const DATA_ENTRY_FORM_DRAFT_KEY = 'dashboard:data-entry-form-draft';
+
+
 const CycleOverviewCard = ({
   cycleData,
   onEdit,
@@ -1162,13 +1165,48 @@ const EMPTY_DAY_COLORS = {
 
 const FloatingActionButton = ({ onAddRecord, onAddCycle }) => {
   const [open, setOpen] = useState(false);
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+
+    const handlePointerDownOutside = (event) => {
+      if (!containerRef.current?.contains(event.target)) {
+        setOpen(false);
+      }
+    };
+
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDownOutside);
+    document.addEventListener('keydown', handleEscape);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDownOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [open]);
+
+  const handleAddRecord = () => {
+    setOpen(false);
+    onAddRecord();
+  };
+
+  const handleAddCycle = () => {
+    setOpen(false);
+    onAddCycle();
+  };
 
   return (
-    <div className="fixed right-4 top-12 md:top-6 flex flex-col-reverse items-end space-y-2 z-50">
+    <div ref={containerRef} className="fixed right-4 top-12 md:top-6 flex flex-col-reverse items-end space-y-2 z-50">
       {open && (
   <div className="flex flex-col space-y-2 mt-1">
     <motion.button
-      onClick={onAddRecord}
+      onClick={handleAddRecord}
       className="flex items-center gap-1 px-4 h-10 rounded-full bg-fertiliapp-fuerte hover:brightness-50 text-white/90 shadow-sm shadow-[#DD5665]"
       whileTap={{ scale: 0.80 }}
       whileHover={{ scale: 1.05 }}
@@ -1180,7 +1218,7 @@ const FloatingActionButton = ({ onAddRecord, onAddCycle }) => {
       <span className="text-sm font-medium tracking-tight">Añadir registro</span>
     </motion.button>
     <motion.button
-      onClick={onAddCycle}
+      onClick={handleAddCycle}
       className="flex items-center gap-3 px-4 h-10 rounded-full bg-white/80 hover:brightness-50 text-fertiliapp-fuerte shadow-sm shadow-[#DD5665]"
       whileTap={{ scale: 0.95 }}
       whileHover={{ scale: 1.05 }}
@@ -3403,9 +3441,11 @@ const ModernFertilityDashboard = () => {
   const [showForm, setShowForm] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showNewCycleDialog, setShowNewCycleDialog] = useState(false);
+  const [newCyclePrefillDate, setNewCyclePrefillDate] = useState(null);
   const [showPostpartumExitDialog, setShowPostpartumExitDialog] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [initialSectionKey, setInitialSectionKey] = useState(null);
+  const [formDraftToRestore, setFormDraftToRestore] = useState(null);
   const isPlaceholderRecord = Boolean(
     editingRecord && String(editingRecord.id || '').startsWith('placeholder-')
   );
@@ -3414,11 +3454,38 @@ const ModernFertilityDashboard = () => {
     return peakRecord?.isoDate || null;
   }, [currentCycle?.data]);
 
+  const [isNewCycleFlowFromForm, setIsNewCycleFlowFromForm] = useState(false);
+
+  const clearDataEntryDraft = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.removeItem(DATA_ENTRY_FORM_DRAFT_KEY);
+  }, []);
+
+  const saveDataEntryDraft = useCallback((draft) => {
+    if (typeof window === 'undefined' || !draft) return;
+    window.localStorage.setItem(DATA_ENTRY_FORM_DRAFT_KEY, JSON.stringify(draft));
+  }, []);
+
+  const loadDataEntryDraft = useCallback(() => {
+    if (typeof window === 'undefined') return null;
+
+    const stored = window.localStorage.getItem(DATA_ENTRY_FORM_DRAFT_KEY);
+    if (!stored) return null;
+
+    try {
+      return JSON.parse(stored);
+    } catch (error) {
+      return null;
+    }
+  }, []);
   const handleCloseForm = useCallback(() => {
+    clearDataEntryDraft();
     setShowForm(false);
     setEditingRecord(null);
     setInitialSectionKey(null);
-  }, []);
+  setIsNewCycleFlowFromForm(false);
+    setFormDraftToRestore(null);
+  }, [clearDataEntryDraft]);
 
   const handleConfirmPostpartumExit = useCallback(async () => {
     setShowPostpartumExitDialog(false);
@@ -3533,6 +3600,60 @@ const ModernFertilityDashboard = () => {
     },
     [addOrUpdateDataPoint, currentCycle?.id]
   );
+
+  const handleSave = async (data, { keepFormOpen = false } = {}) => {
+    setIsProcessing(true);
+    try {
+      await addOrUpdateDataPoint(data, editingRecord);
+      clearDataEntryDraft();
+      if (!keepFormOpen) {
+        setShowForm(false);
+        setEditingRecord(null);
+        setInitialSectionKey(null);
+        setIsNewCycleFlowFromForm(false);
+        setFormDraftToRestore(null);
+      }
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleCloseNewCycleDialog = useCallback(() => {
+    setShowNewCycleDialog(false);
+    setNewCyclePrefillDate(null);
+    if (isNewCycleFlowFromForm) {
+      setShowForm(true);
+      setFormDraftToRestore(loadDataEntryDraft());
+    }
+  }, [isNewCycleFlowFromForm, loadDataEntryDraft]);
+
+  const handleConfirmNewCycle = async (selectedStartDate) => {
+    await startNewCycle(selectedStartDate);
+    setShowNewCycleDialog(false);
+    setNewCyclePrefillDate(null);
+    if (isNewCycleFlowFromForm) {
+      setShowForm(true);
+      setFormDraftToRestore(loadDataEntryDraft());
+    } else {
+      setInitialSectionKey(null);
+      setShowForm(true);
+    }
+    if (preferences?.fertilityStartConfig?.postpartum === true) {
+      setShowPostpartumExitDialog(true);
+    }
+  };
+
+  const handleOpenNewCycleDialog = useCallback((initialIsoDate = null, draftPayload = null) => {
+    if (draftPayload) {
+      saveDataEntryDraft(draftPayload);
+      setFormDraftToRestore(draftPayload);
+      setIsNewCycleFlowFromForm(true);
+    } else {
+      setIsNewCycleFlowFromForm(false);
+    }
+    setNewCyclePrefillDate(initialIsoDate || null);
+    setShowNewCycleDialog(true);
+  }, [saveDataEntryDraft]);
 
   const currentDay = useMemo(() => {
     if (!currentCycle?.startDate) return null;
@@ -3669,7 +3790,7 @@ const ModernFertilityDashboard = () => {
         <div className="w-full space-y-4 rounded-3xl border border-rose-100/70 bg-white/80 p-4 text-center shadow-sm">
           <p className="text-[15px] font-semibold text-slate-800">No hay ciclo activo.</p>
           <button
-            onClick={() => setShowNewCycleDialog(true)}
+            onClick={() => handleOpenNewCycleDialog()}
             className="h-11 w-full rounded-full bg-fertiliapp-fuerte px-4 text-sm font-semibold text-white shadow-sm transition hover:brightness-95"
           >
             Iniciar ciclo
@@ -3677,18 +3798,11 @@ const ModernFertilityDashboard = () => {
         </div>
         <NewCycleDialog
           isOpen={showNewCycleDialog}
-          onClose={() => setShowNewCycleDialog(false)}
+          onClose={handleCloseNewCycleDialog}
           onPreview={(selectedStartDate) => previewStartNewCycle?.(selectedStartDate, currentCycle?.id)}
-          onConfirm={async (selectedStartDate) => {
-            await startNewCycle(selectedStartDate);
-            setShowNewCycleDialog(false);
-            setInitialSectionKey(null);
-            setShowForm(true);
-            if (preferences?.fertilityStartConfig?.postpartum === true) {
-              setShowPostpartumExitDialog(true);
-            }
-          }}
+          onConfirm={handleConfirmNewCycle}
           currentCycleRecords={currentCycle?.data ?? []}
+          initialStartDate={newCyclePrefillDate}
         />
         <PostpartumExitDialog
           isOpen={showPostpartumExitDialog}
@@ -3708,32 +3822,6 @@ const ModernFertilityDashboard = () => {
       </div>
     );
   }
-
- 
-
-  const handleSave = async (data, { keepFormOpen = false } = {}) => {
-    setIsProcessing(true);
-    try {
-      await addOrUpdateDataPoint(data, editingRecord);
-      if (!keepFormOpen) {
-        setShowForm(false);
-        setEditingRecord(null);
-        setInitialSectionKey(null);
-      }
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const handleConfirmNewCycle = async (selectedStartDate) => {
-    await startNewCycle(selectedStartDate);
-    setShowNewCycleDialog(false);
-    setInitialSectionKey(null);
-    setShowForm(true);
-    if (preferences?.fertilityStartConfig?.postpartum === true) {
-      setShowPostpartumExitDialog(true);
-    }
-  };
 
   return (
     <>
@@ -4523,14 +4611,26 @@ const ModernFertilityDashboard = () => {
         onOpenChange={(open) => {
           if (open) {
             setShowForm(true);
-          } else {
-            handleCloseForm();
+          return;
           }
+
+          if (isNewCycleFlowFromForm || showNewCycleDialog) {
+            return;
+          }
+          
+          handleCloseForm();
         }}
       >
         <DialogContent
           hideClose
           className="bg-transparent border-none p-0 text-gray-800 w-[90vw] sm:w-auto max-w-md sm:max-w-lg md:max-w-xl max-h-[85vh] overflow-y-auto"
+        onInteractOutside={(e) => {
+    // Evita que el click en el dialog "Nuevo ciclo" cierre el formulario (dialog padre)
+    e.preventDefault();
+  }}
+  onPointerDownOutside={(e) => {
+    e.preventDefault();
+  }}
         >
           <DataEntryForm
             onSubmit={handleSave}
@@ -4543,6 +4643,8 @@ const ModernFertilityDashboard = () => {
             cycleData={currentCycle.data}
             onDateSelect={handleDateSelect}
             initialSectionKey={initialSectionKey}
+            onOpenNewCycle={handleOpenNewCycleDialog}
+            formDraft={formDraftToRestore}
           />
         </DialogContent>
       </Dialog>
@@ -4553,16 +4655,17 @@ const ModernFertilityDashboard = () => {
           setInitialSectionKey(null);
           setShowForm(true);
         }}
-        onAddCycle={() => setShowNewCycleDialog(true)}
+        onAddCycle={() => handleOpenNewCycleDialog()}
       />
 
       <NewCycleDialog
         isOpen={showNewCycleDialog}
-        onClose={() => setShowNewCycleDialog(false)}
+        onClose={handleCloseNewCycleDialog}
         onPreview={(selectedStartDate) => previewStartNewCycle?.(selectedStartDate, currentCycle?.id)}
         onConfirm={handleConfirmNewCycle}
         currentCycleStartDate={currentCycle.startDate}
         currentCycleRecords={currentCycle?.data ?? []}
+        initialStartDate={newCyclePrefillDate}
       />
       <PostpartumExitDialog
         isOpen={showPostpartumExitDialog}

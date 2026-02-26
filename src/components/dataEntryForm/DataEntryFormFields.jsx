@@ -16,7 +16,7 @@ import {
   Sprout,
   Clock,
   Check,
-  X,
+  Trash2,
   ChevronUp,
   ChevronDown,
   Circle,
@@ -24,6 +24,7 @@ import {
   Heart,
   Edit3,
   RefreshCcw,
+  CalendarPlus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PeakModeButton } from '@/components/ui/peak-mode-button';
@@ -40,7 +41,7 @@ import {
   getToggleFeedback,
   SECTION_METADATA,
 } from '@/components/dataEntryForm/sectionLogic';
-const VIEW_ALL_STORAGE_KEY_PREFIX = 'dataEntryForm:viewAll:';
+const VIEW_ALL_STORAGE_KEY = 'dataEntryForm:viewAll:global';
 const DEFAULT_SECTION_STORAGE_KEY = '__default__';
 const RADIUS = { field: 'rounded-3xl', dropdown: 'rounded-3xl' };
 const DataEntryFormFields = ({
@@ -77,6 +78,7 @@ const DataEntryFormFields = ({
   onSyncTemperature = () => {},
   isSyncingTemperature = false,
   canSyncTemperature = false,
+  onOpenNewCycle = null,
 }) => {
   const [open, setOpen] = useState(false);
   const [correctionIndex, setCorrectionIndex] = useState(null);
@@ -203,6 +205,24 @@ const DataEntryFormFields = ({
     [normalizeSectionKey, selectedIsoDate]
   );
 
+  const lastStatusIsoRef = useRef(selectedIsoDate);
+
+useEffect(() => {
+  if (lastStatusIsoRef.current === selectedIsoDate) return;
+  lastStatusIsoRef.current = selectedIsoDate;
+  setStatusMessages({ peak: null, relations: null });
+}, [selectedIsoDate]);
+
+useEffect(() => {
+  if (typeof window === 'undefined') return;
+  if (!statusMessages.peak && !statusMessages.relations) return;
+
+  const id = window.setTimeout(() => {
+    setStatusMessages({ peak: null, relations: null });
+  }, 4500);
+
+  return () => window.clearTimeout(id);
+}, [statusMessages.peak, statusMessages.relations]);
 
   useEffect(() => {
     if (!sectionKeys.length) {
@@ -372,7 +392,6 @@ const DataEntryFormFields = ({
   ]);
 
   useEffect(() => {
-    setStatusMessages({ peak: null, relations: null });
     initializedSectionsRef.current = false;
   
     userCollapsedRef.current = false;
@@ -422,16 +441,8 @@ const DataEntryFormFields = ({
     if (typeof window === 'undefined') {
       return;
     }
-
-    if (!selectedIsoDate) {
-      setIsViewAll(false);
-      return;
-    }
-
-    const storageKey = `${VIEW_ALL_STORAGE_KEY_PREFIX}${selectedIsoDate}`;
-
     try {
-      const stored = window.localStorage.getItem(storageKey);
+      const stored = window.localStorage.getItem(VIEW_ALL_STORAGE_KEY);
       if (stored === 'true') {
         setIsViewAll(true);
       } else if (stored === 'false') {
@@ -442,21 +453,19 @@ const DataEntryFormFields = ({
     } catch (error) {
       setIsViewAll(false);
     }
-  }, [selectedIsoDate]);
+  }, []);
 
   useEffect(() => {
-    if (typeof window === 'undefined' || !selectedIsoDate) {
+    if (typeof window === 'undefined') {
       return;
     }
 
-    const storageKey = `${VIEW_ALL_STORAGE_KEY_PREFIX}${selectedIsoDate}`;
-
     try {
-      window.localStorage.setItem(storageKey, isViewAll ? 'true' : 'false');
+      window.localStorage.setItem(VIEW_ALL_STORAGE_KEY, isViewAll ? 'true' : 'false');
     } catch (error) {
       // ignore storage failures silently
     }
-  }, [isViewAll, selectedIsoDate]);
+  }, [isViewAll]);
 
   useEffect(() => {
     if (correctionIndex !== null) {
@@ -742,8 +751,18 @@ const DataEntryFormFields = ({
           <div className="space-y-3 rounded-3xl border border-temp bg-temp-suave p-3 shadow-sm">
             {measurements.map((m, idx) => {
               const measurementSelectId = `measurement_select_${idx}`;
+              const isCorrectionOpen = correctionIndex === idx;
+              const isCorrected = Boolean(m.use_corrected);
               return (
-                <div key={idx} className="space-y-3 rounded-3xl border border-amber-200/60 bg-white/70 p-3">
+                <div
+   key={idx}
+   className={cn(
+     'space-y-3 rounded-3xl border bg-white/70 p-3 transition-colors',
+     m.selected && ignored
+       ? 'border-[#3A2430]/30 bg-[#e6d4dd]/40'
+       : 'border-amber-200/60'
+   )}
+ >
                   <div className="flex items-start justify-between gap-2">
                     <Label className="flex items-center text-amber-800 text-sm font-semibold">
                       <Thermometer className="mr-2 h-5 w-5 text-orange-500" />
@@ -751,7 +770,12 @@ const DataEntryFormFields = ({
                     </Label>
                     <label
                       htmlFor={measurementSelectId}
-                      className="flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50/70 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-amber-700 shadow-sm"
+                      className={cn(
+    'flex items-center gap-2 rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-wide shadow-sm',
+    m.selected && ignored
+      ? 'border-[#3A2430]/30 bg-[#e6d4dd]/70 text-[#3A2430]'
+      : 'border-amber-200 bg-amber-50/70 text-amber-700'
+  )}
                     >
                       <input
                         id={measurementSelectId}
@@ -762,6 +786,7 @@ const DataEntryFormFields = ({
                         className="h-3 w-3 text-orange-500 focus:ring-orange-400"
                       />
                       <span>gráfica</span>
+                      {m.selected && ignored && <EyeOff className="h-3 w-3" aria-hidden="true" />}
                     </label>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
@@ -795,7 +820,15 @@ const DataEntryFormFields = ({
                         size="xs"
                         variant="outline"
                         disabled={isProcessing}
-                        className="bg-slate-100/50 text-slate-600 text-xs rounded-3xl"
+                        aria-pressed={correctionIndex === idx}
+                        className={cn(
+                          'rounded-full border px-3 py-1 text-xs font-semibold transition-colors',
+                          isCorrectionOpen
+      ? 'border-amber-500 bg-amber-600 text-white shadow-inner hover:bg-amber-600'
+      : isCorrected
+      ? 'border-amber-400 bg-amber-200/80 text-amber-900 hover:bg-amber-200'
+      : 'border-amber-200 bg-white/70 text-amber-700 hover:bg-amber-50'
+                        )}
                         onClick={() => {
                           if (correctionIndex === idx) {
                             setCorrectionIndex(null);
@@ -810,23 +843,32 @@ const DataEntryFormFields = ({
                           }
                         }}
                       >
-                        Corregir
+                        {isCorrected ? (
+    <Check className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+  ) : (
+    <Edit3 className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+  )}
+  {isCorrected ? 'Corregida' : 'Corregir'}
                       </Button>
                       {isEditing && Boolean(m.temperature) && (
                         <Button
                           type="button"
                           size="icon"
                           variant="outline"
-                          disabled={isProcessing}
+                          disabled={isProcessing || !m.selected}
                           onClick={() => handleIgnoredChange(!ignored)}
                           className={cn(
-                            'h-7 w-7 border-amber-200 text-amber-600 transition-colors',
-                            ignored ? 'bg-slate-100 text-slate-500 hover:bg-slate-300/80 border-slate-300' : 'bg-white/70 hover:bg-slate-100'
+                            'h-9 w-9 rounded-full border transition-colors',
+                            !m.selected && 'opacity-40 cursor-not-allowed',
+      m.selected && ignored
+        ? 'border-[#3A2430] bg-[#3A2430] text-white shadow-sm ring-2 ring-[#e6d4dd]'
+        : 'border-amber-200 bg-white/80 text-amber-700 hover:bg-amber-50'
                           )}
-                          title={ignored ? 'Restaurar' : 'Despreciar'}
-                          aria-label={ignored ? 'Restaurar medición ignorada' : 'Despreciar medición seleccionada'}
+                          aria-pressed={m.selected ? ignored : false}
+    title={m.selected ? (ignored ? 'Restaurar' : 'Despreciar') : 'Selecciona esta medición para la gráfica'}
+    aria-label={m.selected ? (ignored ? 'Restaurar medición despreciada' : 'Despreciar medición de la gráfica') : 'Selecciona esta medición para la gráfica'}
                         >
-                          {ignored ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                          {m.selected && ignored ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </Button>
                       )}
                       {!m.confirmed && (
@@ -846,10 +888,10 @@ const DataEntryFormFields = ({
                             size="icon"
                             onClick={() => removeMeasurement(idx)}
                             disabled={isProcessing}
-                            className="h-7 w-7"
+                            className="h-9 w-9 rounded-full bg-rose-600 text-white hover:bg-rose-700 shadow-sm"
                             aria-label="Eliminar medición"
                           >
-                            <X className="h-4 w-4" />
+                            <Trash2 className="h-4 w-4" />
                           </Button>
                         </>
                       )}
@@ -866,10 +908,10 @@ const DataEntryFormFields = ({
                               size="icon"
                               onClick={() => removeMeasurement(idx)}
                               disabled={isProcessing}
-                              className="h-8 w-8"
+                              className="h-9 w-9 rounded-full bg-rose-600 text-white hover:bg-rose-700 shadow-sm"
                               aria-label="Eliminar medición"
                             >
-                              <X className="h-4 w-4" />
+                              <Trash2 className="h-4 w-4" />
                             </Button>
                           );
                         })()
@@ -1075,49 +1117,69 @@ const DataEntryFormFields = ({
 
   return (
     <>
-      <div className="space-y-2 rounded-3xl border border-fertiliapp bg-tarjeta p-3">
-        <Label htmlFor="date" className="flex items-center text-titulo text-sm font-semibold">
-          <CalendarDays className="mr-2 h-5 w-5 text-titulo" />
-          Fecha del Registro
-        </Label>
-        <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              className={cn(
-                'w-full justify-start text-left font-normal bg-white/70 border-fertiliapp-suave text-gray-800 hover:bg-white/70 hover:text-gray-800',
-                !date && 'text-muted-foreground'
-              )}
-              disabled={isProcessing}
-            >
-              {date ? format(date, 'PPP', { locale: es }) : <span>Selecciona una fecha</span>}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0 bg-white border-pink-200 text-gray-800 rounded-3xl" align="start">
-            <Calendar
-              mode="single"
-              selected={date}
-              onSelect={(selectedDate) => {
-                if (!selectedDate) {
-                  setOpen(false);
-                  return;
-                }
+      <div className="space-y-2">
+        <div className="col-span-3 space-y-2 rounded-3xl border border-fertiliapp bg-tarjeta p-3">
+          <Label htmlFor="date" className="relative flex items-center text-titulo text-sm font-semibold pr-16">
+  <span className="flex items-center">
+    <CalendarDays className="mr-2 h-5 w-5 text-titulo" />
+    Fecha del Registro
+  </span>
 
-                setDate(startOfDay(selectedDate));
-                setOpen(false);
-              }}
-              initialFocus
-              locale={es}
-              disabled={isProcessing ? () => true : disabledDateRanges}
-              modifiers={{ hasRecord: recordedDates }}
-              modifiersClassNames={{
-                hasRecord:
-                  'relative after:content-["" ] after:absolute after:inset-x-0 after:bottom-1 after:mx-auto after:w-1.5 after:h-1.5 after:rounded-full after:bg-fertiliapp-fuerte',
-              }}
-              className="[&_button]:text-gray-800 [&_button:hover]:bg-fertiliapp-suave [&_button[aria-selected=true]]:bg-fertiliapp-fuerte [&_button[aria-selected=true]]:text-white [&_button[aria-disabled=true]]:text-gray-400"
-            />
-          </PopoverContent>
-        </Popover>
+  <Button
+    type="button"
+    variant="ghost"
+    size="sm"
+    onClick={() => onOpenNewCycle?.(selectedIsoDate)}
+    disabled={isProcessing || !selectedIsoDate || typeof onOpenNewCycle !== 'function'}
+    className="absolute right-0 top-1/2 h-8 -translate-y-1/2 rounded-full px-2 text-[10px] font-semibold text-fertiliapp-fuerte hover:bg-fertiliapp-suave/50"
+    aria-label="Iniciar nuevo ciclo"
+  >
+    <CalendarPlus className="mr-1 h-5 w-5" />
+    <span className="flex flex-col leading-[12px] text-left">
+      <span>Nuevo</span>
+      <span>ciclo</span>
+    </span>
+  </Button>
+</Label>
+          <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className={cn(
+                  'w-full justify-start text-left font-normal bg-white/70 border-fertiliapp-suave text-gray-800 hover:bg-white/70 hover:text-gray-800',
+                  !date && 'text-muted-foreground'
+                )}
+                disabled={isProcessing}
+              >
+                {date ? format(date, 'PPP', { locale: es }) : <span>Selecciona una fecha</span>}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0 bg-white border-pink-200 text-gray-800 rounded-3xl" align="start">
+              <Calendar
+                mode="single"
+                selected={date}
+                onSelect={(selectedDate) => {
+                  if (!selectedDate) {
+                    setOpen(false);
+                    return;
+                  }
+
+                  setDate(startOfDay(selectedDate));
+                  setOpen(false);
+                  }}
+                initialFocus
+                locale={es}
+                disabled={isProcessing ? () => true : disabledDateRanges}
+                modifiers={{ hasRecord: recordedDates }}
+                modifiersClassNames={{
+                  hasRecord:
+                    'relative after:content-["" ] after:absolute after:inset-x-0 after:bottom-1 after:mx-auto after:w-1.5 after:h-1.5 after:rounded-full after:bg-fertiliapp-fuerte',
+                }}
+                className="[&_button]:text-gray-800 [&_button:hover]:bg-fertiliapp-suave [&_button[aria-selected=true]]:bg-fertiliapp-fuerte [&_button[aria-selected=true]]:text-white [&_button[aria-disabled=true]]:text-gray-400"
+              />
+            </PopoverContent>
+          </Popover>
+        </div>
       </div>
       <div className="mt-2">
         <div
@@ -1201,7 +1263,7 @@ const DataEntryFormFields = ({
           </button>
         </div>
       </div>
-      <div className="mt-2 space-y-1">
+      <div className="mt-2 space-y-1 px-2 sm:px-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <PeakModeButton
             mode={peakMode}
@@ -1236,16 +1298,27 @@ const DataEntryFormFields = ({
           </button>
         </div>
         {(existingPeakIsoDate || statusMessages.peak || statusMessages.relations) && (
-  <div className="flex items-center justify-between gap-2 text-[11px]">
-    <span className="text-slate-500">
-      {existingPeakIsoDate ? `Día pico: ${format(parseISO(existingPeakIsoDate), 'dd/MM')}` : ''}
-    </span>
+  <div className="mt-1 grid grid-cols-[1fr_auto] items-start gap-2 text-[11px]">
+    <div className="min-w-0">
+      {existingPeakIsoDate && (
+        <div className="text-slate-500">
+          {`Día pico: ${format(parseISO(existingPeakIsoDate), 'dd/MM')}`}
+        </div>
+      )}
+      {statusMessages.peak && (
+        <div className="font-medium text-rose-600" role="status" aria-live="polite">
+          {statusMessages.peak}
+        </div>
+      )}
+    </div>
 
-    {(statusMessages.peak || statusMessages.relations) && (
-      <span className="font-medium text-rose-600" role="status" aria-live="polite">
-        {statusMessages.peak ?? statusMessages.relations}
-      </span>
-    )}
+    <div className="text-right">
+      {statusMessages.relations && (
+        <div className="font-medium text-rose-600" role="status" aria-live="polite">
+          {statusMessages.relations}
+        </div>
+      )}
+    </div>
   </div>
 )}
 

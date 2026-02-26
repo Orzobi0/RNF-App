@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import useBackClose from '@/hooks/useBackClose';
 import {
@@ -23,12 +23,24 @@ const NewCycleDialog = ({
   onPreview,
   currentCycleStartDate,
   currentCycleRecords = [],
+  initialStartDate,
 }) => {
-  const [startDate, setStartDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [startDate, setStartDate] = useState(initialStartDate || format(new Date(), 'yyyy-MM-dd'));
   const [showOverlapWarning, setShowOverlapWarning] = useState(false);
   const [pendingStartDate, setPendingStartDate] = useState(null);
   const [impactPreview, setImpactPreview] = useState(null);
   useBackClose(isOpen, onClose);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    setStartDate(initialStartDate || format(new Date(), 'yyyy-MM-dd'));
+    setShowOverlapWarning(false);
+    setPendingStartDate(null);
+    setImpactPreview(null);
+  }, [initialStartDate, isOpen]);
 
   const isFirstCycle = !currentCycleStartDate;
 
