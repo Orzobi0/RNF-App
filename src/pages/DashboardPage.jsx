@@ -667,8 +667,8 @@ const EMPTY_DAY_COLORS = {
           <div className="mb-3">
           <motion.div
             ref={circleRef}
-            className="relative inline-flex items-center justify-center mb-4 drop-shadow-[0_15px_35px_rgba(221,86,101,0.22)]"
-            style={{ width: viewBoxSize, height: viewBoxSize }}
+            className="relative mx-auto flex items-center justify-center mb-4 drop-shadow-[0_15px_35px_rgba(221,86,101,0.22)] aspect-square w-full"
+            style={{ maxWidth: viewBoxSize, touchAction: hasOverflow ? 'pan-y' : 'auto' }}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.18, ease: 'easeOut' }}
@@ -678,8 +678,9 @@ const EMPTY_DAY_COLORS = {
             onTouchEnd={handleTouchEnd}
           >
             <svg
-              className="w-full h-full wheel-no-tap"
+              className="block w-full h-full wheel-no-tap"
               viewBox={`0 0 ${viewBoxSize} ${viewBoxSize}`}
+              preserveAspectRatio="xMidYMid meet"
               onClick={() => setActivePoint(null)}
             >
               <defs>
@@ -751,6 +752,16 @@ const EMPTY_DAY_COLORS = {
                   <g key={index}>
 {/* Punto principal con sombra real */}
 <g filter={dot.isActive ? 'url(#activePointHighlight)' : dot.isToday ? "url(#bevel)" : undefined}>
+  <circle
+   cx={dot.x}
+   cy={dot.y}
+   r={dot.isToday ? 18 : 16}
+   fill="transparent"
+   pointerEvents="all"
+   onPointerDown={(e) => handleDotClick(dot, e)}
+   onClick={(e) => handleDotClick(dot, e)}
+   style={{ cursor: 'pointer' }}
+ />
   <motion.circle
   cx={dot.x}
   cy={dot.y}
@@ -911,20 +922,36 @@ const EMPTY_DAY_COLORS = {
                 );
               })}
             </svg>
-                        {activePoint && (
-              <div onClick={(e) => e.stopPropagation()}>
-                <ChartTooltip
-                  point={activePoint}
-                  position={tooltipPosition}
-                  chartWidth={circleRef.current?.clientWidth || 0}
-                  chartHeight={circleRef.current?.clientHeight || 0}
-                  onEdit={onEdit}
-                  onClose={() => setActivePoint(null)}
-                  onTogglePeak={onTogglePeak}
-                  currentPeakIsoDate={currentPeakIsoDate}
-                />
-              </div>
-            )}
+    <AnimatePresence initial={false}>
+   {activePoint && (
+     <motion.div
+      key={activePoint.isoDate ?? activePoint.cycleDay ?? activePoint.id}
+       onClick={(e) => e.stopPropagation()}
+       initial={prefersReducedMotion ? false : { opacity: 0, scale: 0.99, y: 1 }}
+       animate={
+         prefersReducedMotion
+           ? { opacity: 1 }
+           : { opacity: 1, scale: 1, y: 0, transition: { duration: 0.10, ease: 'easeOut' } }
+       }
+       exit={
+         prefersReducedMotion
+           ? { opacity: 0 }
+           : { opacity: 0, scale: 0.995, y: 1, transition: { duration: 0.06, ease: 'easeOut' } }
+       }
+     >
+       <ChartTooltip
+         point={activePoint}
+         position={tooltipPosition}
+         chartWidth={circleRef.current?.clientWidth || 0}
+         chartHeight={circleRef.current?.clientHeight || 0}
+         onEdit={onEdit}
+         onClose={() => setActivePoint(null)}
+         onTogglePeak={onTogglePeak}
+         currentPeakIsoDate={currentPeakIsoDate}
+       />
+     </motion.div>
+   )}
+ </AnimatePresence>
 
             
             {/* Contenido central */}
@@ -936,7 +963,7 @@ const EMPTY_DAY_COLORS = {
                 transition={{ duration: 0.1, delay: 0.1, ease: 'easeOut' }}
               >
                 <div className="flex items-center justify-center ">
-                  <p className="text-6xl font-semibold text-fertiliapp-fuerte leading-none">
+                  <p className="text-6xl font-semibold text-fertiliapp-fuerte leading-none tabular-nums">
                     {cycleData.currentDay}
                   </p>
                 </div>
