@@ -190,7 +190,7 @@ const ArchivedCyclesPage = () => {
 
   if (isLoading && !hasCachedCycles) {
     return (
-      <div className="relative flex h-[calc(var(--app-vh,1vh)*100 - var(--bottom-nav-safe))] flex-col items-center justify-center overflow-hidden">
+      <div className="relative flex min-h-full flex-col items-center justify-center py-10">
         <div className="text-center text-slate-600 p-8">Cargando ciclos archivados...</div>
       </div>
     );
@@ -198,7 +198,7 @@ const ArchivedCyclesPage = () => {
 
   if (!allCycles || allCycles.length === 0) {
     return (
-      <div className="relative flex h-[calc(var(--app-vh,1vh)*100 - var(--bottom-nav-safe))] flex-col bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100">
+      <div className="relative flex min-h-full flex-col items-center justify-center py-10">
         <div
           className="pointer-events-none absolute inset-0"
           style={{
@@ -278,12 +278,14 @@ const ArchivedCyclesPage = () => {
       }
     });
   return (
-    <div className="relative flex h-[calc(var(--app-vh,1vh)*100 - var(--bottom-nav-safe))] flex-col overflow-hidden">
-      <div className="relative z-10 flex flex-1">
-        <div className="w-full max-w-4xl mx-auto px-4 py-6 flex h-[calc(var(--app-vh,1vh)*100 - var(--bottom-nav-safe))] flex-col">
+  <div className="relative flex flex-col">
+    <div className="relative z-10">
+      {/* Sticky header (scroll global del <main>) */}
+      <div className="sticky top-0 z-30 pt-1 bg-white/10 backdrop-blur-md">
+        <div className="mx-auto w-full max-w-4xl px-4">
           {/* Header */}
           <motion.div
-  className="mb-4"
+            className="mb-3"
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
@@ -298,8 +300,13 @@ const ArchivedCyclesPage = () => {
                   </div>
                   <div className="truncate text-[13px] text-base">Historial de ciclos</div>
                 </div>
+
                 <div className="flex shrink-0 items-center gap-2">
-                  <HeaderIconButtonPrimary type="button" onClick={openAddDialog} aria-label="Añadir ciclo">
+                  <HeaderIconButtonPrimary
+                    type="button"
+                    onClick={openAddDialog}
+                    aria-label="Añadir ciclo"
+                  >
                     <Plus className="h-4 w-4" />
                     <span className="sr-only">Añadir ciclo</span>
                   </HeaderIconButtonPrimary>
@@ -316,194 +323,187 @@ const ArchivedCyclesPage = () => {
             </div>
           </motion.div>
 
-{isFilterOpen && (
-  <div className="mb-4 flex w-full justify-center">
-    <div className="flex w-full max-w-md items-center gap-2 rounded-3xl border border-fertiliapp-suave bg-white/90 px-3 py-2 shadow-sm">
-      <span className="text-xs font-medium text-slate-700">Año</span>
-      <select
-        id="year-filter"
-        value={selectedYear}
-        onChange={(event) => setSelectedYear(event.target.value)}
-        className="flex-1 rounded-3xl border border-pink-100 bg-white px-3 py-2 text-sm text-slate-700 shadow-inner focus:outline-none focus:ring-2 focus:ring-fertiliapp"
-      >
-        <option value="all">Todos</option>
-        {availableYears.map((year) => (
-          <option key={year} value={year}>
-            {year}
-          </option>
-        ))}
-      </select>
-    </div>
-  </div>
-)}
-
-
-          {/* Cycles List */}
-          <div className="flex-1 overflow-y-auto pr-1 sm:pr-0 pb-6">
-          <motion.div
-            className="space-y-3 px-1"
-              variants={{
-                hidden: { opacity: 0 },
-                show: {
-                  opacity: 1,
-                  transition: {
-                    staggerChildren: 0.1
-                  }
-                }
-              }}
-              initial="hidden"
-              animate="show"
-            >
-              {filteredCycles.map((cycle) => {
-                const formatArchivedDate = (date) => format(date, 'dd MMM yy', { locale: es });
-                const start = cycle.startDate ? parseISO(cycle.startDate) : null;
-                const end = cycle.endDate ? parseISO(cycle.endDate) : null;
-                const hasEndDate = Boolean(end);
-                const startToShow = start && end && end < start ? end : start;
-                const endToShow = start && end && end < start ? start : end;
-                const endDate = hasEndDate && endToShow ? formatArchivedDate(endToShow) : 'En curso';
-                const recordCount = cycle.data ? cycle.data.length : 0;
-                const durationDays =
-                  startToShow && endToShow
-                    ? Math.max(1, differenceInCalendarDays(endToShow, startToShow) + 1)
-                    : null;
-
-                return (
-                  <motion.button
-                    key={cycle.id}
-                    type="button"
-                    className="w-full max-w-[480px] mx-auto bg-white/80 backdrop-blur-md border border-fertiliapp-suave shadow-md hover:shadow-sm transition-all duration-300 hover:bg-white/90 rounded-3xl active:scale-[0.98] cursor-pointer select-none"
-                    variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }}
-                    onMouseDown={() => startLongPressDetection(cycle)}
-                    onMouseUp={() => cancelLongPressDetection(cycle)}
-                    onMouseLeave={() => cancelLongPressDetection(cycle, false)}
-                    onTouchStart={() => {
-                      isTouchMovingRef.current = false;
-                      startLongPressDetection(cycle);
-                    }}
-                    onTouchMove={() => {
-                      isTouchMovingRef.current = true;      // se está desplazando
-                      cancelLongPressDetection(cycle, false); // cancelamos long press pero NO navegamos
-                    }}
-                    onTouchEnd={() => {
-                      if (isTouchMovingRef.current) {
-                        // Ha sido un scroll, no un tap
-                        isTouchMovingRef.current = false;
-                        cancelLongPressDetection(cycle, false); // solo limpiar timeout
-                      } else {
-                        // Tap real: navegamos si no fue long press
-                        cancelLongPressDetection(cycle, true);
-                      }
-                    }}
-                  >
-                    <div className="p-2.5">
-                      {/* Información del ciclo */}
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        {/* Icono del ciclo */}
-                        <div className="flex flex-col items-center">
-                          <div className="w-10 h-10 bg-fertiliapp-fuerte rounded-full flex items-center justify-center flex-shrink-0">
-                            <Calendar className="w-5 h-5 text-white" />
-                          </div>
-                        </div>
-
-                          {/* Detalles del ciclo */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h2 className="truncate text-[15px] font-semibold text-slate-700">
-                              {startToShow ? formatArchivedDate(startToShow) : ''} - {endDate}
-                            </h2>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-slate-600">
-                            <div className="flex items-center space-x-1">
-                              <BarChart3 className="w-4 h-4 text-slate-500" />
-                              <span>{recordCount} registro{recordCount !== 1 ? 's' : ''}</span>
-
-                            </div>
-
-                            {cycle.endDate && durationDays && (
-                              <div className="flex items-center space-x-1">
-                                <Calendar className="w-4 h-4 text-slate-500" />
-                                <span>
-                                  {durationDays} días
-                                </span>
-                              </div>
-                        )}
-                            {cycle.isCurrent && (
-                              <Badge className="rounded-full bg-fertiliapp-fuerte px-2 py-0.5 text-[11px] text-white">
-                                Ciclo actual
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                      </motion.button>
-                );
-              })}
-              {filteredCycles.length === 0 && (
-                <div className="mt-6 rounded-3xl border border-dashed border-fertiliapp-suave bg-white/70 p-6 text-center text-slate-600 shadow-inner">
-                  No hay ciclos para el año seleccionado.
- 
-                </div>
-              )}
-            </motion.div>
-          </div>
+          {/* Filter (si quieres que también quede fijo, déjalo aquí) */}
+          {isFilterOpen && (
+            <div className="mb-3 flex w-full justify-center">
+              <div className="flex w-full max-w-md items-center gap-2 rounded-3xl border border-fertiliapp-suave bg-white/90 px-3 py-2 shadow-sm">
+                <span className="text-xs font-medium text-slate-700">Año</span>
+                <select
+                  id="year-filter"
+                  value={selectedYear}
+                  onChange={(event) => setSelectedYear(event.target.value)}
+                  className="flex-1 rounded-3xl border border-pink-100 bg-white px-3 py-2 text-sm text-slate-700 shadow-inner focus:outline-none focus:ring-2 focus:ring-fertiliapp"
+                >
+                  <option value="all">Todos</option>
+                  {availableYears.map((year) => (
+                    <option key={year} value={year}>
+                      {year}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Dialogs */}
-      <EditCycleDatesDialog
-        isOpen={showAddDialog}
-        onClose={closeAddDialog}
-        onConfirm={handleAddCycle}
-        title="Añadir Ciclo Anterior"
-        description="Ingresa las fechas de un ciclo previo para añadir registros."
-        otherCycles={allCycles}
-        errorMessage={addCycleError?.message}
-        conflictCycle={addCycleError?.conflictCycle}
-        onResetError={() => setAddCycleError(null)}
-        checkOverlapForNewRange={previewInsertCycleRange}
-      />
-      
-      <EditCycleDatesDialog
-        isOpen={!!editingCycle}
-        onClose={() => {
-          setEditingCycle(null);
-          setEditCycleError(null);
-        }}
-        onConfirm={handleUpdateCycle}
-        initialStartDate={editingCycle?.startDate}
-        initialEndDate={editingCycle?.endDate}
-        cycleId={editingCycle?.id}
-        checkOverlap={checkCycleOverlap}
-        previewUpdateCycleDates={previewUpdateCycleDates}
-        title="Editar Fechas del Ciclo"
-        description="Actualiza las fechas del ciclo."
-        cycleData={editingCycle?.data ?? []}
-        otherCycles={allCycles}
-        errorMessage={editCycleError?.message}
-        conflictCycle={editCycleError?.conflictCycle}
-        onResetError={() => setEditCycleError(null)}
-      />
-      <DeletionDialog
-        isOpen={!!cycleToDelete}
-        onClose={() => setCycleToDelete(null)}
-        onConfirm={handleConfirmDeleteCycle}
-        title="Eliminar ciclo"
-        confirmLabel="Eliminar ciclo"
-        description={
-          cycleToDelete
-            ? `¿Estás seguro de que quieres eliminar el ciclo ${format(parseISO(cycleToDelete.startDate), 'dd/MM/yyyy')} - ${
-                cycleToDelete.endDate
-                  ? format(parseISO(cycleToDelete.endDate), 'dd/MM/yyyy')
-                  : 'En curso'
-              }? Esta acción no se puede deshacer.`
-            : ''
-        }
-        isProcessing={isDeletingCycle}
-      />
+      {/* Cycles List: sin overflow interno, deja que scrollee el <main> */}
+      <div className="mx-auto w-full max-w-4xl px-4 pb-6">
+        <motion.div
+          className="space-y-3 px-1 pt-2"
+          variants={{
+            hidden: { opacity: 0 },
+            show: { opacity: 1, transition: { staggerChildren: 0.1 } },
+          }}
+          initial="hidden"
+          animate="show"
+        >
+          {filteredCycles.map((cycle) => {
+            const formatArchivedDate = (date) => format(date, 'dd MMM yy', { locale: es });
+            const start = cycle.startDate ? parseISO(cycle.startDate) : null;
+            const end = cycle.endDate ? parseISO(cycle.endDate) : null;
+            const hasEndDate = Boolean(end);
+            const startToShow = start && end && end < start ? end : start;
+            const endToShow = start && end && end < start ? start : end;
+            const endDate = hasEndDate && endToShow ? formatArchivedDate(endToShow) : 'En curso';
+            const recordCount = cycle.data ? cycle.data.length : 0;
+            const durationDays =
+              startToShow && endToShow
+                ? Math.max(1, differenceInCalendarDays(endToShow, startToShow) + 1)
+                : null;
+
+            return (
+              <motion.button
+                key={cycle.id}
+                type="button"
+                className="w-full max-w-[480px] mx-auto bg-white/80 backdrop-blur-md border border-fertiliapp-suave shadow-md hover:shadow-sm transition-all duration-300 hover:bg-white/90 rounded-3xl active:scale-[0.98] cursor-pointer select-none"
+                variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }}
+                onMouseDown={() => startLongPressDetection(cycle)}
+                onMouseUp={() => cancelLongPressDetection(cycle)}
+                onMouseLeave={() => cancelLongPressDetection(cycle, false)}
+                onTouchStart={() => {
+                  isTouchMovingRef.current = false;
+                  startLongPressDetection(cycle);
+                }}
+                onTouchMove={() => {
+                  isTouchMovingRef.current = true;
+                  cancelLongPressDetection(cycle, false);
+                }}
+                onTouchEnd={() => {
+                  if (isTouchMovingRef.current) {
+                    isTouchMovingRef.current = false;
+                    cancelLongPressDetection(cycle, false);
+                  } else {
+                    cancelLongPressDetection(cycle, true);
+                  }
+                }}
+              >
+                <div className="p-2.5">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className="flex flex-col items-center">
+                      <div className="w-10 h-10 bg-fertiliapp-fuerte rounded-full flex items-center justify-center flex-shrink-0">
+                        <Calendar className="w-5 h-5 text-white" />
+                      </div>
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h2 className="truncate text-[15px] font-semibold text-slate-700">
+                          {startToShow ? formatArchivedDate(startToShow) : ''} - {endDate}
+                        </h2>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-slate-600">
+                        <div className="flex items-center space-x-1">
+                          <BarChart3 className="w-4 h-4 text-slate-500" />
+                          <span>
+                            {recordCount} registro{recordCount !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+
+                        {cycle.endDate && durationDays && (
+                          <div className="flex items-center space-x-1">
+                            <Calendar className="w-4 h-4 text-slate-500" />
+                            <span>{durationDays} días</span>
+                          </div>
+                        )}
+
+                        {cycle.isCurrent && (
+                          <Badge className="rounded-full bg-fertiliapp-fuerte px-2 py-0.5 text-[11px] text-white">
+                            Ciclo actual
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </motion.button>
+            );
+          })}
+
+          {filteredCycles.length === 0 && (
+            <div className="mt-6 rounded-3xl border border-dashed border-fertiliapp-suave bg-white/70 p-6 text-center text-slate-600 shadow-inner">
+              No hay ciclos para el año seleccionado.
+            </div>
+          )}
+        </motion.div>
+      </div>
     </div>
-  );
+
+    {/* Dialogs */}
+    <EditCycleDatesDialog
+      isOpen={showAddDialog}
+      onClose={closeAddDialog}
+      onConfirm={handleAddCycle}
+      title="Añadir Ciclo Anterior"
+      description="Ingresa las fechas de un ciclo previo para añadir registros."
+      otherCycles={allCycles}
+      errorMessage={addCycleError?.message}
+      conflictCycle={addCycleError?.conflictCycle}
+      onResetError={() => setAddCycleError(null)}
+      checkOverlapForNewRange={previewInsertCycleRange}
+    />
+
+    <EditCycleDatesDialog
+      isOpen={!!editingCycle}
+      onClose={() => {
+        setEditingCycle(null);
+        setEditCycleError(null);
+      }}
+      onConfirm={handleUpdateCycle}
+      initialStartDate={editingCycle?.startDate}
+      initialEndDate={editingCycle?.endDate}
+      cycleId={editingCycle?.id}
+      checkOverlap={checkCycleOverlap}
+      previewUpdateCycleDates={previewUpdateCycleDates}
+      title="Editar Fechas del Ciclo"
+      description="Actualiza las fechas del ciclo."
+      cycleData={editingCycle?.data ?? []}
+      otherCycles={allCycles}
+      errorMessage={editCycleError?.message}
+      conflictCycle={editCycleError?.conflictCycle}
+      onResetError={() => setEditCycleError(null)}
+    />
+
+    <DeletionDialog
+      isOpen={!!cycleToDelete}
+      onClose={() => setCycleToDelete(null)}
+      onConfirm={handleConfirmDeleteCycle}
+      title="Eliminar ciclo"
+      confirmLabel="Eliminar ciclo"
+      description={
+        cycleToDelete
+          ? `¿Estás seguro de que quieres eliminar el ciclo ${format(parseISO(cycleToDelete.startDate), 'dd/MM/yyyy')} - ${
+              cycleToDelete.endDate
+                ? format(parseISO(cycleToDelete.endDate), 'dd/MM/yyyy')
+                : 'En curso'
+            }? Esta acción no se puede deshacer.`
+          : ''
+      }
+      isProcessing={isDeletingCycle}
+    />
+  </div>
+);
 };
 
 export default ArchivedCyclesPage;
