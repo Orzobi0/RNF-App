@@ -3,8 +3,8 @@ import BottomNav from './BottomNav';
 
 const MainLayout = ({ children, hideBottomNav = false }) => {
   const mainClass = hideBottomNav
-    ? 'relative z-10 flex-1 w-full overflow-y-auto'
-    : 'relative z-10 flex-1 w-full overflow-y-auto pb-[var(--bottom-nav-height)]';
+    ? 'relative z-10 flex-1 w-full overflow-y-auto pt-[env(safe-area-inset-top)]'
+    : 'relative z-10 flex-1 w-full overflow-y-auto pt-[env(safe-area-inset-top)] pb-[var(--bottom-nav-safe)]';
 
   return (
     <div className="relative flex min-h-app flex-col overflow-hidden">
