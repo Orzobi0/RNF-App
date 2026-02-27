@@ -4,7 +4,6 @@ import React, {
   useEffect,
   useMemo,
   useRef,
-  useLayoutEffect,
 } from 'react';
 import CycleDatesEditor from '@/components/CycleDatesEditor';
 import DataEntryForm from '@/components/DataEntryForm';
@@ -45,7 +44,6 @@ import DataRepairDialog from '@/components/DataRepairDialog';
 
 const getSymbolInfo = (symbolValue) =>
   FERTILITY_SYMBOL_OPTIONS.find((symbol) => symbol.value === symbolValue) || FERTILITY_SYMBOL_OPTIONS[0];
-const CALENDAR_BOUNDARY_OFFSET = 10;
 const CALENDAR_SWIPE_OFFSET = 60;
 const CALENDAR_SWIPE_VELOCITY = 750;
 const CALENDAR_EXIT_OFFSET = 120;
@@ -233,78 +231,13 @@ export const RecordsExperience = ({
     return formatCycleTitle({ startDate: cycle?.startDate, endDate: cycle?.endDate });
   }, [cycle?.endDate, cycle?.startDate, headerTitle]);
 
-    const resolvedHeaderMeta = useMemo(
+  const resolvedHeaderMeta = useMemo(
     () => formatCycleMeta({ startDate: cycle?.startDate, endDate: cycle?.endDate, recordCount }),
     [cycle?.endDate, cycle?.startDate, recordCount]
   );
   const isCalendarOpen = true;
-  const calendarContainerRef = useRef(null);
-  const recordsScrollRef = useRef(null);
-  const calendarHeightRef = useRef(0);
   const activeRecordLoadRef = useRef(null);
-  const [calendarHeight, setCalendarHeight] = useState(0);
   const cycleDatesEditorRef = useRef(null);
-
-  const updateCalendarMetrics = useCallback(() => {
-    const element = calendarContainerRef.current;
-
-    if (!element) {
-      calendarHeightRef.current = 0;
-      setCalendarHeight(0);
-      return;
-    }
-
-    const rect = element.getBoundingClientRect();
-    const measuredHeight = rect.height;
-
-    calendarHeightRef.current = measuredHeight;
-    setCalendarHeight((prev) => (Math.abs(prev - measuredHeight) > 0.5 ? measuredHeight : prev));
-  }, []);
-
-  useLayoutEffect(() => {
-    let animationFrame = window.requestAnimationFrame(updateCalendarMetrics);
-
-    const handleResize = () => {
-      if (animationFrame) {
-        window.cancelAnimationFrame(animationFrame);
-      }
-      animationFrame = window.requestAnimationFrame(updateCalendarMetrics);
-    };
-
-    window.addEventListener('resize', handleResize);
-
-    let observer;
-
-    if (typeof ResizeObserver !== 'undefined') {
-      observer = new ResizeObserver(() => {
-        if (animationFrame) {
-          window.cancelAnimationFrame(animationFrame);
-        }
-        animationFrame = window.requestAnimationFrame(updateCalendarMetrics);
-      });
-
-      if (calendarContainerRef.current) {
-        observer.observe(calendarContainerRef.current);
-      }
-    }
-
-    return () => {
-      window.removeEventListener('resize', handleResize);
-
-      if (observer) {
-        observer.disconnect();
-      }
-
-      if (animationFrame) {
-        window.cancelAnimationFrame(animationFrame);
-      }
-    };
-  }, [updateCalendarMetrics]);
-
-  const boundaryPx = useMemo(
-    () => Math.max(Math.round(calendarHeight + CALENDAR_BOUNDARY_OFFSET), CALENDAR_BOUNDARY_OFFSET),
-    [calendarHeight]
-  );
 
   useEffect(() => {
     setDraftStartDate(cycle?.startDate || '');
@@ -323,16 +256,6 @@ export const RecordsExperience = ({
       })
       .map((record) => record.isoDate);
   }, [cycle?.data]);
-
-  useEffect(() => {
-    const container = recordsScrollRef.current;
-    if (!container) {
-      return;
-    }
-
-    container.scrollTo({ top: 0, behavior: 'auto' });
-  }, []);
-
 
   const recordDateObjects = useMemo(() => {
     if (!cycle?.data?.length) return [];
@@ -1616,51 +1539,48 @@ const enterStart = -exitTarget;
   }
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden">      
-      <div className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-6 px-4 relative z-10">
-        <div
-          ref={calendarContainerRef}
-          className="sticky top-1 z-50 w-full max-w-lg mx-auto"
-        >
-          <div className="relative overflow-hidden rounded-2xl">
-            <div className="space-y-1.5 p-2 sm:p-2.5 relative z-10">
-              {/* Header */}
-              <motion.div
-                className="flex flex-col gap-2"
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5 }}
-              >
-                <div className="rounded-3xl border border-fertiliapp-suave bg-white/50 p-3 shadow-sm backdrop-blur-md">
-                  <div className="flex min-w-0 flex-1 flex-col gap-1">
-                    <div className="flex items-center justify-between gap-2 text-[10px] uppercase tracking-[0.18em] text-base">
-                      <div className="flex min-w-0 items-center gap-2">
-                        {resolvedTopAccessory && (
-                          <div className="flex items-center">{resolvedTopAccessory}</div>
-                        )}
-                        <span>{isCurrentCycle ? 'CICLO ACTUAL' : 'CICLO ARCHIVADO'}</span>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-2">{resolvedHeaderActions}</div>
-                    </div>
-                      <div className="flex min-w-0 items-center gap-2">
-                        <HeaderIcon className="h-5 w-5 text-subtitulo" />
-                        <span
-                          className={cn(
-                            'font-semibold text-titulo leading-tight',
-                            isCurrentCycle ? 'text-[21px] sm:text-[22px]' : 'text-[21px] sm:text-[22px]'
-                          )}
-                        >
-                          {resolvedHeaderTitle}
-                        </span>
-                      </div>
-                      {resolvedHeaderMeta && (
-                        <div className="text-[13px] text-base whitespace-nowrap">{resolvedHeaderMeta}</div>
-                      )}
-                    </div>
+    <div className="relative flex flex-col">     
+      <div className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-3 px-4 relative z-10">
+        <div className="sticky top-0 z-50 w-full pt-1 bg-transparent">
+          <motion.div
+            className="mx-auto flex w-full max-w-lg flex-col gap-2 px-2 sm:px-2.5"
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            <div className="rounded-3xl border border-fertiliapp-suave bg-white/20 p-3 shadow-sm backdrop-blur-md">
+              <div className="flex min-w-0 flex-1 flex-col gap-1">
+                <div className="flex items-center justify-between gap-2 text-[10px] uppercase tracking-[0.18em] text-base">
+                  <div className="flex min-w-0 items-center gap-2">
+                    {resolvedTopAccessory && (
+                      <div className="flex items-center">{resolvedTopAccessory}</div>
+                    )}
+                    <span>{isCurrentCycle ? 'CICLO ACTUAL' : 'CICLO ARCHIVADO'}</span>
                   </div>
-              </motion.div>
-            
-              <DataIssuesBanner issues={cycle?.issues} onReview={() => openDataRepairDialog?.(cycle?.id)} />
+              <div className="flex shrink-0 items-center gap-2">{resolvedHeaderActions}</div>
+                </div>
+                <div className="flex min-w-0 items-center gap-2">
+                  <HeaderIcon className="h-5 w-5 text-subtitulo" />
+                  <span
+                    className={cn(
+                      'font-semibold text-titulo leading-tight',
+                      isCurrentCycle ? 'text-[21px] sm:text-[22px]' : 'text-[21px] sm:text-[22px]'
+                    )}
+                  >
+                    {resolvedHeaderTitle}
+                  </span>
+                </div>
+                {resolvedHeaderMeta && (
+                  <div className="text-[13px] text-base whitespace-nowrap">{resolvedHeaderMeta}</div>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        </div>
+
+        <div className="relative mx-auto w-full max-w-lg overflow-visible rounded-2xl p-1.5 sm:p-2">
+          <div className="space-y-1.5 relative z-10">
+            <DataIssuesBanner issues={cycle?.issues} onReview={() => openDataRepairDialog?.(cycle?.id)} />
 
             {showStartDateEditor && (
               <motion.div
@@ -1749,27 +1669,18 @@ const enterStart = -exitTarget;
                   </div>
                 </motion.div>
               )}
-            </AnimatePresence>
-            </div>            
+            </AnimatePresence>       
           </div>
         </div>
 
 
         {/* Records List */}
-        <div
-          ref={recordsScrollRef}
-          className="sticky overflow-y-auto overscroll-contain w-full max-w-4xl mx-auto"
-          style={{
-            top: boundaryPx,
-            maxHeight: `calc((var(--app-vh, 1vh) * 100) - ${boundaryPx}px)`,
-            WebkitOverflowScrolling: 'touch',
-          }}
-        >
+        <div className="w-full max-w-4xl mx-auto">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.1 }}
-            className="relative space-y-2 px-1.5 pt-2 sm:px-2 lg:px-4"
+            className="relative space-y-2 px-1.5 pt-0 sm:px-2 lg:px-4"
           >
          
           {cycleDays.length === 0 ? (

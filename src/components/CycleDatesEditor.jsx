@@ -127,14 +127,12 @@ const CycleDatesEditor = ({
 
   return (
     <>
-      <div className={`${className} rounded-3xl border border-rose-100 bg-white/90 p-5 shadow-md`}>
+      <div className={`${className} rounded-3xl border border-rose-100 bg-white p-3 shadow-md`}>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <h2 className="text-lg font-semibold text-titulo mb-1">{title}</h2>
             <p className="text-sm text-slate-600">{description}</p>
-            {currentRangeLabel && (
-              <p className="text-xs text-slate-500 mt-1">{currentRangeLabel}</p>
-            )}
+
             <div className={`grid ${includeEndDate ? 'grid-cols-2 gap-4' : 'grid-cols-1 gap-4'}`}>
               <label className="flex h-full flex-col text-sm text-slate-700">
                 Inicio del ciclo
@@ -259,7 +257,7 @@ const CycleDatesEditor = ({
               </Button>
             </div>
             {onUndoCycle && (
-              <div className="mt-4 rounded-3xl bg-slate-200 border-slate-200 p-4 text-left">
+              <div className="mt-4 rounded-3xl bg-slate-300/50 border-slate-200 p-4 text-left">
                 <h3 className="font-semibold text-slate-800 mb-2">Deshacer ciclo</h3>
                 <p className="text-sm text-slate-700 mb-3">
                   Une el ciclo actual con el anterior y mueve todos los registros.
@@ -275,10 +273,10 @@ const CycleDatesEditor = ({
               </div>
             )}
             {onDeleteCycle && (
-              <div className="mt-6 rounded-3xl bg-slate-200 p-4 text-left">
+              <div className="mt-6 rounded-3xl bg-slate-300/50 p-4 text-left">
                 <h3 className="font-semibold text-slate-800 mb-2">{deleteTitle}</h3>
                 {deleteDescription && (
-                  <p className="text-sm text-slate-600 mb-3">{deleteDescription}</p>
+                  <p className="text-sm text-slate-700 mb-3">{deleteDescription}</p>
                 )}
                 <Button
                   type="button"
