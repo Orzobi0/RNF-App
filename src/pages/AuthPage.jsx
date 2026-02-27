@@ -92,17 +92,23 @@ const AuthPage = () => {
           <p className="text-gray-600 text-lg">{isLogin ? 'Inicia sesión para continuar' : 'Crea tu cuenta'}</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6" autoComplete="on">
           <div className="space-y-2">
             <Label htmlFor="email" className="flex items-center text-gray-700 text-lg">
               <Mail className="mr-2 h-5 w-5 text-fertiliapp-fuerte" /> Correo Electrónico
             </Label>
             <Input
               id="email"
+              name="email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="tu@email.com"
+              autoComplete="email"
+              inputMode="email"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
               required
               className="bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400 rounded-3xl focus:ring-fertiliapp-fuerte focus:border-fertiliapp-fuerte text-base py-3 px-4"
             />
@@ -114,10 +120,12 @@ const AuthPage = () => {
               <div className="relative">
                 <Input
                   id="password"
+                  name="password"
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
+                  autoComplete={isLogin ? "current-password" : "new-password"}
                   required
                   className="bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400 rounded-3xl focus:ring-fertiliapp-fuerte focus:border-fertiliapp-fuerte text-base py-3 px-4 pr-10"
                 />
@@ -153,10 +161,12 @@ const AuthPage = () => {
                 <div className="relative">
                   <Input
                     id="confirmPassword"
+                    name="confirmPassword"
                     type={showConfirmPassword ? 'text' : 'password'}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="••••••••"
+                    autoComplete="new-password"
                     required
                     className="bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400 focus:ring-fertiliapp-fuerte focus:border-fertiliapp-fuerte text-base py-3 px-4 pr-10"
                   />
@@ -175,7 +185,7 @@ const AuthPage = () => {
           <Button
             type="submit"
             disabled={loading}
-            className="w-full bg-fertiliapp-fuerte hover:brithness-95 text-white font-semibold py-3 text-lg shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105 flex items-center justify-center"
+            className="w-full bg-fertiliapp-fuerte hover:brightness-95 text-white font-semibold py-3 text-lg shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105 flex items-center justify-center"
           >
             {loading ? (
               <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>

@@ -9,6 +9,7 @@ import RouteErrorBoundary from '@/components/errors/RouteErrorBoundary';
 import RouteErrorFallback from '@/components/errors/RouteErrorFallback';
 import GlobalChunkErrorHandler from '@/components/errors/GlobalChunkErrorHandler';
 const AuthPage = lazy(() => import('@/pages/AuthPage'));
+const AuthActionPage = lazy(() => import('@/pages/AuthActionPage'));
 const DashboardPage = lazy(() => import('@/pages/DashboardPage'));
 const ArchivedCyclesPage = lazy(() => import('@/pages/ArchivedCyclesPage'));
 const CycleDetailPage = lazy(() => import('@/pages/CycleDetailPage'));
@@ -86,6 +87,7 @@ function AppContent() {
           <RouteErrorBoundary key={location.pathname} FallbackComponent={RouteErrorFallback}>
             <Routes>
               <Route path="/auth" element={user ? <Navigate to="/" replace /> : <AuthPage />} />
+              <Route path="/auth/action" element={<AuthActionPage />} />
               <Route
                 path="/"
                 element={
