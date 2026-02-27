@@ -110,7 +110,7 @@ const AuthPage = () => {
               autoCorrect="off"
               spellCheck={false}
               required
-              className="bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400 rounded-3xl focus:ring-fertiliapp-fuerte focus:border-fertiliapp-fuerte text-base py-3 px-4"
+              className="bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400 rounded-3xl focus:ring-fertiliapp-fuerte focus:border-fertiliapp-fuerte py-3 px-4"
             />
           </div>
             <div className="space-y-2">
@@ -127,7 +127,7 @@ const AuthPage = () => {
                   placeholder="••••••••"
                   autoComplete={isLogin ? "current-password" : "new-password"}
                   required
-                  className="bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400 rounded-3xl focus:ring-fertiliapp-fuerte focus:border-fertiliapp-fuerte text-base py-3 px-4 pr-10"
+                  className="bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400 rounded-3xl focus:ring-fertiliapp-fuerte focus:border-fertiliapp-fuerte py-3 px-4 pr-10"
                 />
                 <button
                   type="button"
@@ -168,7 +168,7 @@ const AuthPage = () => {
                     placeholder="••••••••"
                     autoComplete="new-password"
                     required
-                    className="bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400 focus:ring-fertiliapp-fuerte focus:border-fertiliapp-fuerte text-base py-3 px-4 pr-10"
+                    className="bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400 focus:ring-fertiliapp-fuerte focus:border-fertiliapp-fuerte py-3 px-4 pr-10"
                   />
                   <button
                     type="button"
