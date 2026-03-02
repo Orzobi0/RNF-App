@@ -1,7 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { Heart } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { parseISO, startOfDay, isAfter, isSameDay } from 'date-fns';
 import { getSymbolAppearance, getSymbolColorPalette } from '@/config/fertilitySymbols';
 // Colores consistentes con la dashboard pero con mejor contraste para el chart
 const SENSATION_COLOR = 'var(--color-sensacion-fuerte)';
@@ -265,9 +264,7 @@ const ChartPoints = ({
     : Math.max(totalPoints - 1, 0);
   const startIndex = totalPoints ? Math.max(0, Math.min(totalPoints - 1, rangeStart)) : 0;
   const endIndex = totalPoints ? Math.max(startIndex, Math.min(totalPoints - 1, rangeEnd)) : -1;
-  const today = useMemo(() => startOfDay(new Date()), []);
   const measureTextWidth = useMemo(() => createTextMeasurer(), []);
-  const textLayoutCacheRef = useRef(new Map());
   const cellWidth = totalPoints > 0 ? rowWidth / totalPoints : rowWidth;
   const maxWords = 2;
   const cellTextPadding = Math.min(12, Math.max(4, cellWidth * 0.12));
@@ -449,26 +446,43 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
     [availableTextWidth, measureTextWidth]
   );
 
-  useEffect(() => {
-    textLayoutCacheRef.current.clear();
-  }, [
-    totalPoints,
-    availableTextWidth,
-    baseSensationFontSize,
-    baseAppearanceFontSize,
-    baseObservationFontSize,
-  ]);
 
-  const getCachedLines = useCallback(
-    (cacheKey, text, fallback, baseFontSize, smallFontSize) => {
-      const existing = textLayoutCacheRef.current.get(cacheKey);
-      if (existing) return existing;
-      const resolved = resolveLines(text, fallback, baseFontSize, smallFontSize);
-      textLayoutCacheRef.current.set(cacheKey, resolved);
-      return resolved;
-    },
-    [resolveLines]
-  );
+
+  const precomputedLayouts = useMemo(() => {
+    const map = new Map();
+    data.forEach((point, index) => {
+      if (!point) return;
+      const isFuture = Boolean(point.isFutureDay);
+
+      const sensText = isFullScreen
+        ? limitWords(point.mucus_sensation, maxWords, isFuture ? '' : '–')
+        : point.mucus_sensation;
+      const aparText = isFullScreen
+        ? limitWords(point.mucus_appearance, maxWords, isFuture ? '' : '–')
+        : point.mucus_appearance;
+      const obsText = isFullScreen
+        ? limitWords(point.observations, maxWords, '')
+        : point.observations;
+
+      map.set(index, {
+        sens: resolveLines(sensText, isFuture ? '' : '–', baseSensationFontSize, smallSensationFontSize),
+        apar: resolveLines(aparText, isFuture ? '' : '–', baseAppearanceFontSize, smallAppearanceFontSize),
+        obs: resolveLines(obsText, '', baseObservationFontSize, smallObservationFontSize),
+      });
+    });
+    return map;
+  }, [
+    data,
+    isFullScreen,
+    maxWords,
+    resolveLines,
+    baseSensationFontSize,
+    smallSensationFontSize,
+    baseAppearanceFontSize,
+    smallAppearanceFontSize,
+    baseObservationFontSize,
+    smallObservationFontSize,
+  ]);
 
   const visibleIndices = useMemo(() => {
     if (!totalPoints || endIndex < startIndex) return [];
@@ -477,45 +491,6 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
 
   return (
     <>
-      {/* Definiciones mejoradas con estilo premium */}
-      <defs>
-        <filter id="rowShadowChart" x="-10%" y="-10%" width="120%" height="120%">
-          <feDropShadow dx="0" dy="2" stdDeviation="4" floodColor="rgba(244, 114, 182, 0.2)" />
-        </filter>
-        <pattern id="spotting-pattern-chart" patternUnits="userSpaceOnUse" width="6" height="6">
-          <rect width="6" height="6" fill="#fb7185" />
-          <circle cx="3" cy="3" r="1.5" fill="rgba(255,255,255,0.85)" />
-        </pattern>
-        
-        <filter id="pointGlow" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-          <feMerge>
-            <feMergeNode in="coloredBlur"/>
-            <feMergeNode in="SourceGraphic"/>
-          </feMerge>
-        </filter>
-
-
-        <radialGradient id="tempPointGradientChart" cx="30%" cy="30%">
-          <stop offset="0%" stopColor="#FDF2F8" />
-          <stop offset="50%" stopColor="#F9A8D4" />
-          <stop offset="85%" stopColor="#EC4899" />
-          <stop offset="100%" stopColor="#DB2777" />
-        </radialGradient>
-
-        <radialGradient id="tempPointIgnoredGradient" cx="30%" cy="30%">
-          <stop offset="0%" stopColor="#FFFFFF" />
-          <stop offset="80%" stopColor="#F8FAFC" />
-          <stop offset="100%" stopColor="#E2E8F0" />
-        </radialGradient>
-        <radialGradient id="ovulationPointGradient" cx="30%" cy="30%">
-          <stop offset="0%" stopColor="#dbeafe" />
-          <stop offset="50%" stopColor="#93c5fd" />
-          <stop offset="85%" stopColor="#3b82f6" />
-          <stop offset="100%" stopColor="#2563eb" />
-        </radialGradient>
-      </defs>
-
       {/* Fondos de filas sutiles alineados con las tarjetas -- ocultos en modo compacto */}
 
 
@@ -606,9 +581,7 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
           : (symbolInfo.value === 'white' ? 1.6 : 1);
 
 
-        const isFuture = point.isoDate
-          ? isAfter(startOfDay(parseISO(point.isoDate)), startOfDay(new Date()))
-          : false;
+        const isFuture = Boolean(point.isFutureDay);
 
           const symbolRectSize = responsiveFontSize(isFullScreen ? 1.8 : 2);
           const symbolTextY = symbolRowYBase - symbolRectSize * 0.75 + symbolRectSize / 2 + 2;
@@ -630,9 +603,7 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
             }
           : {};
 
-        const isTodayPoint = point.isoDate
-          ? isSameDay(parseISO(point.isoDate), today)
-          : false;
+        const isTodayPoint = Boolean(point.isToday);
         const highlightedTextFill = isTodayPoint ? TODAY_HIGHLIGHT_COLOR : baseTextFill;
 
         const hasHighOrder = highSequenceOrderMap.has(index);
@@ -658,28 +629,10 @@ const obsText = isFullScreen
   ? limitWords(point.observations, maxWords, '')
   : point.observations;
 
-const pointKey = `${point.isoDate || point.id || index}`;
-const sensRes = getCachedLines(
-  `${pointKey}-sens-${availableTextWidth}-${baseSensationFontSize}-${smallSensationFontSize}-${sensText ?? ''}`,
-  sensText,
-  isFuture ? '' : '–',
-  baseSensationFontSize,
-  smallSensationFontSize
-);
-const aparRes = getCachedLines(
-  `${pointKey}-apar-${availableTextWidth}-${baseAppearanceFontSize}-${smallAppearanceFontSize}-${aparText ?? ''}`,
-  aparText,
-  isFuture ? '' : '–',
-  baseAppearanceFontSize,
-  smallAppearanceFontSize
-);
-const obsRes = getCachedLines(
-  `${pointKey}-obs-${availableTextWidth}-${baseObservationFontSize}-${smallObservationFontSize}-${obsText ?? ''}`,
-  obsText,
-  '',
-  baseObservationFontSize,
-  smallObservationFontSize
-);
+const pointLayout = precomputedLayouts.get(index);
+const sensRes = pointLayout?.sens ?? resolveLines(sensText, isFuture ? '' : '–', baseSensationFontSize, smallSensationFontSize);
+const aparRes = pointLayout?.apar ?? resolveLines(aparText, isFuture ? '' : '–', baseAppearanceFontSize, smallAppearanceFontSize);
+const obsRes = pointLayout?.obs ?? resolveLines(obsText, '', baseObservationFontSize, smallObservationFontSize);
 
 const [sensLine1, sensLine2, sensLine3] = sensRes.lines;
 const [aparLine1, aparLine2, aparLine3] = aparRes.lines;

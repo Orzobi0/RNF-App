@@ -894,16 +894,31 @@ export const useFertilityChart = (
     ]
   );
 
-  const processedDataWithAssessments = useMemo(
-    () =>
-      processedData.map((entry, index) => {
-        if (!entry) return entry;
-        const isFutureDay = Number.isInteger(todayIndex) ? index > todayIndex : false;
-        // Ya no añadimos fertilityAssessment: solo marcamos si es futuro
-        return { ...entry, isFutureDay };
-      }),
-    [processedData, todayIndex]
-  );
+  const processedDataWithAssessments = useMemo(() => {
+    const now = new Date();
+    const todayStartTs = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+
+    return processedData.map((entry, index) => {
+      if (!entry) return entry;
+
+      let isoTs = null;
+      let dayStartTs = null;
+      if (entry.isoDate) {
+        const parsed = parseISO(entry.isoDate);
+        if (!Number.isNaN(parsed.getTime())) {
+          isoTs = parsed.getTime();
+          dayStartTs = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate()).getTime();
+        }
+      }
+
+      const isToday = dayStartTs != null && dayStartTs === todayStartTs;
+      const isFutureDay = Number.isInteger(todayIndex)
+        ? index > todayIndex
+        : dayStartTs != null && dayStartTs > todayStartTs;
+
+      return { ...entry, isoTs, dayStartTs, isToday, isFutureDay };
+    });
+  }, [processedData, todayIndex]);
 
   const allDataPoints = useMemo(
     () => processedDataWithAssessments.filter((d) => d && d.isoDate),

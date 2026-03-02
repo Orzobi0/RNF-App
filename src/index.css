@@ -603,3 +603,7 @@ button.date-editor-toggle[aria-pressed="true"] {
 button.date-editor-toggle[aria-pressed="true"] svg {
   stroke: currentColor !important;
 }
+[data-scrolling="1"] .fertility-chart-heavy-filter,
+[data-scrolling="1"] .fertility-chart-heavy-filter * {
+  filter: none !important;
+}
