@@ -8,8 +8,8 @@ const compactDate = (dateStr) => {
   return `${parseInt(d, 10)}/${parseInt(m, 10)}`;
 };
 
-const getLabelStep = ({ autoLabelStep, totalPoints, getX, responsiveFontSize, data, ctx }) => {
-  if (!autoLabelStep || totalPoints < 2 || !ctx) return 1;
+const getLabelStep = ({ totalPoints, getX, responsiveFontSize, data, ctx }) => {
+  if (totalPoints < 2 || !ctx) return 1;
   const dayWidth = Math.abs(getX(1) - getX(0));
   if (!Number.isFinite(dayWidth) || dayWidth <= 0) return 1;
   const samplePoint = data?.find((entry) => entry?.date || entry?.cycleDay != null) ?? {};
@@ -24,51 +24,54 @@ const getLabelStep = ({ autoLabelStep, totalPoints, getX, responsiveFontSize, da
 };
 
 const FertilityChartCanvas = ({
+  chartRef,
   chartWidth,
   chartHeight,
-  viewportHeight,
   scrollableContentHeight,
   padding,
   graphBottomY,
   rowsZoneHeight,
   textRowHeight,
+  allDataPoints,
   tempMin,
   tempMax,
   tempRange,
   getX,
   getY,
-  allDataPoints,
-  validDataMap,
+  responsiveFontSize,
   activeIndex,
-  interpretationSegments,
   showInterpretation,
-  baselineY,
+  interpretationSegments,
   shouldRenderBaseline,
+  baselineY,
   baselineStartX,
   baselineEndX,
-  responsiveFontSize,
-  handlePointInteraction,
-  chartRef,
-  autoLabelStep = false,
+  baselineStroke,
+  baselineDash,
+  baselineOpacity,
+  baselineWidth,
   todayIndex,
+  handlePointInteraction,
+  isRotatedForInput,
 }) => {
   const canvasRef = useRef(null);
   const rafRef = useRef(null);
   const xsRef = useRef([]);
   const ysTempRef = useRef([]);
   const visibleRef = useRef({ start: 0, end: -1 });
+  const canvasSizeRef = useRef({ viewportW: 0, viewportH: 0, dpr: 0 });
+  const pointerStateRef = useRef(null);
 
   useEffect(() => {
     xsRef.current = allDataPoints.map((_, i) => getX(i));
-  }, [allDataPoints, chartWidth, padding.left, padding.right, getX]);
+  }, [allDataPoints, getX]);
 
   useEffect(() => {
     ysTempRef.current = allDataPoints.map((point) => {
-      const valid = point && point.id != null ? validDataMap.get(point.id) : null;
-      const temp = valid?.displayTemperature;
+      const temp = point?.displayTemperature;
       return Number.isFinite(temp) ? getY(temp) : null;
     });
-  }, [allDataPoints, validDataMap, getY, tempMin, tempMax]);
+  }, [allDataPoints, getY, tempMin, tempMax]);
 
   const tempTicks = useMemo(() => {
     const ticks = [];
@@ -114,15 +117,19 @@ const FertilityChartCanvas = ({
     if (!canvas || !scroller) return;
 
     const viewportW = scroller.clientWidth;
-    const viewportH = viewportHeight;
+    const viewportH = scroller.clientHeight;
     const scrollLeft = scroller.scrollLeft;
     const scrollTop = scroller.scrollTop;
     const dpr = window.devicePixelRatio || 1;
 
-    canvas.width = Math.floor(viewportW * dpr);
-    canvas.height = Math.floor(viewportH * dpr);
-    canvas.style.width = `${viewportW}px`;
-    canvas.style.height = `${viewportH}px`;
+    const prev = canvasSizeRef.current;
+    if (prev.viewportW !== viewportW || prev.viewportH !== viewportH || prev.dpr !== dpr) {
+      canvas.width = Math.floor(viewportW * dpr);
+      canvas.height = Math.floor(viewportH * dpr);
+      canvas.style.width = `${viewportW}px`;
+      canvas.style.height = `${viewportH}px`;
+      canvasSizeRef.current = { viewportW, viewportH, dpr };
+    }
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -237,7 +244,7 @@ const FertilityChartCanvas = ({
     const dateRowY = graphBottomY + rowH * 1;
     const cycleDayRowY = graphBottomY + rowH * 2;
     const symbolRowY = graphBottomY + rowH * 3;
-    const labelStep = getLabelStep({ autoLabelStep, totalPoints: allDataPoints.length, getX, responsiveFontSize, data: allDataPoints, ctx });
+    const labelStep = getLabelStep({ totalPoints: allDataPoints.length, getX, responsiveFontSize, data: allDataPoints, ctx });
 
     for (let i = start; i <= end; i += 1) {
       const point = allDataPoints[i];
@@ -268,14 +275,17 @@ const FertilityChartCanvas = ({
     }
 
     if (showInterpretation && shouldRenderBaseline && Number.isFinite(baselineY)) {
-      ctx.strokeStyle = '#F59E0B';
-      ctx.lineWidth = 3;
-      ctx.setLineDash([6, 4]);
+      ctx.strokeStyle = baselineStroke || '#F59E0B';
+      ctx.lineWidth = baselineWidth || 3;
+      ctx.globalAlpha = Number.isFinite(baselineOpacity) ? baselineOpacity : 1;
+      const dashList = typeof baselineDash === 'string' ? baselineDash.split(/\s+/).map(Number).filter(Number.isFinite) : [];
+      ctx.setLineDash(dashList);
       ctx.beginPath();
       ctx.moveTo(baselineStartX, baselineY);
       ctx.lineTo(baselineEndX, baselineY);
       ctx.stroke();
       ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
     }
 
     if (activeIndex != null && xsRef.current[activeIndex] != null) {
@@ -289,7 +299,7 @@ const FertilityChartCanvas = ({
     }
 
     ctx.restore();
-  }, [chartRef, viewportHeight, findRange, chartWidth, padding, chartHeight, graphBottomY, rowsZoneHeight, showInterpretation, interpretationSegments, tempTicks, getY, responsiveFontSize, textRowHeight, autoLabelStep, allDataPoints, getX, todayIndex, shouldRenderBaseline, baselineY, baselineStartX, baselineEndX, activeIndex]);
+  }, [chartRef, findRange, chartWidth, padding, chartHeight, graphBottomY, rowsZoneHeight, showInterpretation, interpretationSegments, tempTicks, getY, responsiveFontSize, textRowHeight, allDataPoints, getX, todayIndex, shouldRenderBaseline, baselineY, baselineStartX, baselineEndX, baselineStroke, baselineDash, baselineOpacity, baselineWidth, activeIndex]);
 
   const scheduleDraw = useCallback(() => {
     if (rafRef.current) return;
@@ -318,13 +328,28 @@ const FertilityChartCanvas = ({
     };
   }, [chartRef, scheduleDraw]);
 
-  const onPointerDown = useCallback((event) => {
+  const getWorldX = useCallback((event) => {
     const scroller = chartRef.current;
-    if (!scroller || !allDataPoints.length) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    const worldX = event.clientX - rect.left + scroller.scrollLeft;
+    if (!scroller) return null;
+    const chartRect = scroller.getBoundingClientRect();
+    if (!chartRect.width || !chartRect.height) return null;
 
+    let localX = event.clientX - chartRect.left;
+    if (isRotatedForInput) {
+      const cx = chartRect.left + chartRect.width / 2;
+      const cy = chartRect.top + chartRect.height / 2;
+      const dx = event.clientX - cx;
+      const dy = event.clientY - cy;
+      const ux = dy;
+      const unrotW = chartRect.height || 1;
+      localX = ux + unrotW / 2;
+    }
+    return scroller.scrollLeft + localX;
+  }, [chartRef, isRotatedForInput]);
+
+  const getClosestIndex = useCallback((worldX) => {
     const xs = xsRef.current;
+    if (!xs.length || !Number.isFinite(worldX)) return null;
     let low = 0;
     let high = xs.length - 1;
     while (low <= high) {
@@ -334,7 +359,37 @@ const FertilityChartCanvas = ({
     }
     const right = Math.min(Math.max(low, 0), xs.length - 1);
     const left = Math.max(right - 1, 0);
-    const index = Math.abs(xs[left] - worldX) <= Math.abs(xs[right] - worldX) ? left : right;
+    return Math.abs(xs[left] - worldX) <= Math.abs(xs[right] - worldX) ? left : right;
+  }, []);
+
+  const onPointerDown = useCallback((event) => {
+    pointerStateRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      moved: false,
+    };
+  }, []);
+
+  const onPointerMove = useCallback((event) => {
+    const state = pointerStateRef.current;
+    if (!state || state.pointerId !== event.pointerId) return;
+    const dx = event.clientX - state.startX;
+    const dy = event.clientY - state.startY;
+    if (Math.hypot(dx, dy) > 8) {
+      state.moved = true;
+    }
+  }, []);
+
+  const onPointerUp = useCallback((event) => {
+    const state = pointerStateRef.current;
+    pointerStateRef.current = null;
+    if (!state || state.pointerId !== event.pointerId || state.moved) return;
+    if (!allDataPoints.length) return;
+
+    const worldX = getWorldX(event);
+    const index = getClosestIndex(worldX);
+    if (index == null) return;
 
     const point = allDataPoints[index];
     if (!point) return;
@@ -343,14 +398,17 @@ const FertilityChartCanvas = ({
       : false;
     if (isFuture) return;
     handlePointInteraction(point, index, event);
-  }, [allDataPoints, chartRef, handlePointInteraction]);
+  }, [allDataPoints, getClosestIndex, getWorldX, handlePointInteraction]);
 
   return (
     <div style={{ width: chartWidth, height: scrollableContentHeight, position: 'relative' }}>
       <canvas
         ref={canvasRef}
         onPointerDown={onPointerDown}
-        style={{ position: 'sticky', left: 0, top: 0, touchAction: 'manipulation' }}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={() => { pointerStateRef.current = null; }}
+        style={{ position: 'sticky', left: 0, top: 0, touchAction: 'pan-x pan-y' }}
       />
     </div>
   );

@@ -10,7 +10,12 @@ import { useFertilityChart } from '@/hooks/useFertilityChart';
 import { isAfter, parseISO, startOfDay } from 'date-fns';
 
 
-const USE_CANVAS = import.meta.env.VITE_CHART_CANVAS === '1' || true;
+const USE_CANVAS =
+  typeof import.meta !== 'undefined'
+  && import.meta?.env
+  && Object.prototype.hasOwnProperty.call(import.meta.env, 'VITE_CHART_CANVAS')
+    ? import.meta.env.VITE_CHART_CANVAS === '1'
+    : false;
 const FertilityChart = ({
   data,
   isFullScreen,
@@ -224,7 +229,6 @@ if (isRotated) {
 
   const chartWidth = dimensions.width;
   const chartHeight = dimensions.contentHeight ?? dimensions.height;
-  const viewportHeight = dimensions.viewportHeight ?? dimensions.height;
   const scrollableContentHeight = dimensions.scrollableContentHeight ?? chartHeight;
   const graphBottomY = chartHeight - padding.bottom - (graphBottomInset || 0);
   const rowsZoneHeight = Math.max(chartHeight - graphBottomY, 0);
@@ -1054,6 +1058,7 @@ const rotationStageStyle = isRotationStage
   const showLegend = !isFullScreen || visualOrientation === 'portrait';
   const handlePointInteractionSafe = exportMode ? () => {} : handlePointInteraction;
   const clearActivePointSafe = exportMode ? () => {} : clearActivePoint;
+  const useCanvasRenderer = USE_CANVAS && !exportMode;
   return (
       <motion.div className="relative w-full h-full" initial={false}>
       
@@ -1101,11 +1106,11 @@ const rotationStageStyle = isRotationStage
                   />
                 </div>
               )}
-              {USE_CANVAS && !exportMode ? (
+              {useCanvasRenderer ? (
                 <FertilityChartCanvas
-                  chartWidth={chartWidth}
+                chartRef={chartRef}  
+                chartWidth={chartWidth}
                   chartHeight={chartHeight}
-                  viewportHeight={viewportHeight}
                   scrollableContentHeight={scrollableContentHeight}
                   padding={padding}
                   graphBottomY={graphBottomY}
@@ -1116,20 +1121,22 @@ const rotationStageStyle = isRotationStage
                   tempRange={tempRange}
                   getX={getX}
                   getY={getY}
-                  allDataPoints={allDataPoints}
                   validDataMap={validDataMap}
                   activeIndex={activeIndex}
-                  interpretationSegments={interpretationSegments}
                   showInterpretation={showInterpretation}
-                  baselineY={baselineY}
+                  interpretationSegments={interpretationSegments}
                   shouldRenderBaseline={shouldRenderBaseline}
+                  baselineY={baselineY}
                   baselineStartX={baselineStartX}
                   baselineEndX={baselineEndX}
+                  baselineStroke={baselineStroke}
+                  baselineDash={baselineDash}
+                  baselineOpacity={baselineOpacity}
+                  baselineWidth={baselineWidth}
                   responsiveFontSize={responsiveFontSize}
                   handlePointInteraction={handlePointInteractionSafe}
-                  chartRef={chartRef}
-                  autoLabelStep
                   todayIndex={todayIndex}
+                  isRotatedForInput={!exportMode && isFullScreen && forceLandscape && isViewportPortrait}
                 />
               ) : (
               <motion.svg
