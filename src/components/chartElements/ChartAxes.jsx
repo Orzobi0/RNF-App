@@ -67,6 +67,7 @@ const ChartAxes = ({
         fill="url(#bgGradientChart)"
         opacity={2}
         rx={12}
+        className="fertility-chart-heavy-filter"
         style={{ filter: 'drop-shadow(0 4px 12px rgba(244, 114, 182, 0.1))' }}
       />
 {/* Fondo del área de gráfica con borde rosado sutil */}
@@ -80,6 +81,7 @@ const ChartAxes = ({
   strokeWidth="1"
   strokeOpacity="0.2"
   rx="12"
+  className="fertility-chart-heavy-filter"
   style={{ filter: 'url(#softShadow)' }}
 />
 
@@ -91,6 +93,7 @@ const ChartAxes = ({
   height={rowsZoneHeight}
   fill="url(#dataZoneGradient)"
   rx="8"
+  className="fertility-chart-heavy-filter"
   style={{ 
     filter: 'drop-shadow(0 -1px 2px rgba(244, 114, 182, 0.05))'
   }}
@@ -118,6 +121,7 @@ const ChartAxes = ({
               strokeWidth={isMajor ? 1.5 : 1}
               opacity={isMajor ? 0.5 : 0.3}
               strokeDasharray={isMajor ? '0' : '4,4'}
+              className="fertility-chart-heavy-filter"
               style={{ 
                 filter: isMajor && !perfMode ? 'drop-shadow(0 1px 3px rgba(244, 114, 182, 0.15))' : 'none',
                 opacity: isMajor ? 1 : 0.7
@@ -134,6 +138,7 @@ const ChartAxes = ({
                 fontWeight={isMajor ? "700" : "600"}
                 fill={isMajor ? '#be185d' : '#db2777'}
                 opacity={isMajor ? 0.9 : 0.7}
+                className="fertility-chart-heavy-filter"
                 style={{ 
                   filter: perfMode ? 'none' : 'url(#textShadow)',
                   fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
@@ -152,6 +157,7 @@ const ChartAxes = ({
               fontWeight={isMajor ? "700" : "600"}
               fill={isMajor ? '#be185d' : '#db2777'}
               opacity={isMajor ? 0.9 : 0.7}
+              className="fertility-chart-heavy-filter"
               style={{ 
                 filter: perfMode ? 'none' : 'url(#textShadow)',
                 fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
@@ -178,6 +184,7 @@ const ChartAxes = ({
               stroke="#fce7f3"
               strokeWidth="1"
               opacity="0.6"
+              className="fertility-chart-heavy-filter"
               style={{
                 filter: perfMode ? 'none' : 'drop-shadow(0 0 1px rgba(244, 114, 182, 0.05))',
               }}
@@ -219,6 +226,7 @@ const ChartAxes = ({
             fontSize={responsiveFontSize(1.4)}
             fontWeight="800"
             fill="#be185d"
+            className="fertility-chart-heavy-filter"
             style={{ 
               filter: perfMode ? 'none' : 'url(#textShadow)',
               fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'

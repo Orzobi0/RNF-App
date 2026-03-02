@@ -75,8 +75,9 @@ const FertilityChart = ({
     showRelationsRow,
     exportMode
   );
-  const effectiveReduceMotion = reduceMotion || exportMode;
   const isIOSWebKitDevice = useMemo(() => isIOSWebKit(), []);
+  const iosPerfMode = isIOSWebKitDevice && !exportMode;
+  const effectiveReduceMotion = reduceMotion || exportMode || iosPerfMode;
   const FULL_RENDER_THRESHOLD = 220;
   const uniqueIdRef = useRef(null);
   if (!uniqueIdRef.current) {
@@ -84,19 +85,20 @@ const FertilityChart = ({
     uniqueIdRef.current = `fertility-chart-${cycleId ?? 'default'}-${randomSuffix}`;
   }
   const uniqueId = uniqueIdRef.current;
+  const spottingPatternId = `${uniqueId}-spotting-pattern`;
   const fullRenderMode = allDataPoints.length <= FULL_RENDER_THRESHOLD;
   const getOverscanDays = useCallback((visibleDaysValue, totalPoints) => {
     if (totalPoints <= FULL_RENDER_THRESHOLD) return totalPoints;
 
-    const iosOverscanScreens = isIOSWebKitDevice ? (visibleDaysValue >= 20 ? 4 : 6) : 0;
+    const iosOverscanScreens = isIOSWebKitDevice ? (visibleDaysValue >= 20 ? 2 : 3) : 0;
     const baseScreens = isArchivedCycle
       ? (visibleDaysValue >= 20 ? 2 : 3)
       : (visibleDaysValue >= 20 ? 1 : 2);
     const screens = Math.max(baseScreens, iosOverscanScreens);
     const raw = Math.ceil(visibleDaysValue * screens);
-    const cap = isIOSWebKitDevice ? (isArchivedCycle ? 84 : 72) : (isArchivedCycle ? 48 : 24);
+    const cap = isIOSWebKitDevice ? (isArchivedCycle ? 64 : 56) : (isArchivedCycle ? 48 : 24);
     const capped = Math.min(raw, cap);
-    return Math.max(capped, 12);
+    return Math.max(capped, isIOSWebKitDevice ? 14 : 12);
   }, [isArchivedCycle, isIOSWebKitDevice]);
 
   const initialRange = useMemo(() => {
@@ -947,11 +949,21 @@ useEffect(() => {
 
       startIndex = Math.max(0, startIndex);
       endIndex = Math.min(totalPoints - 1, endIndex);
-      setVisibleRange((prev) =>
-        prev.startIndex === startIndex && prev.endIndex === endIndex
-          ? prev
-          : { startIndex, endIndex }
-      );
+      setVisibleRange((prev) => {
+        const nextRange =
+          prev.startIndex === startIndex && prev.endIndex === endIndex
+            ? prev
+            : { startIndex, endIndex };
+        if (import.meta.env.DEV && nextRange !== prev) {
+          console.debug('[FertilityChart] range metrics', {
+            visibleDays,
+            overscanDays,
+            visibleRange: { startIndex, endIndex },
+            renderedCount: endIndex - startIndex + 1,
+          });
+        }
+        return nextRange;
+      });
     },
     [allDataPoints.length, fullRenderMode, getOverscanDays, isIOSWebKitDevice, visibleDays]
   );
@@ -1216,8 +1228,8 @@ const rotationStageStyle = isRotationStage
               />
             </linearGradient>
             {/* Patrón unificado para spotting */}
-            <pattern id="spotting-pattern-chart" patternUnits="userSpaceOnUse" width="6" height="6">
-              <rect width="6" height="6" fill="#ef4444" />
+            <pattern id={spottingPatternId} patternUnits="userSpaceOnUse" width="6" height="6">
+              <rect width="6" height="6" fill="#fb7185" />
               <circle cx="3" cy="3" r="1.5" fill="rgba(255,255,255,0.85)" />
             </pattern>
 
@@ -1458,6 +1470,7 @@ const rotationStageStyle = isRotationStage
             temperatureField="displayTemperature"
             reduceMotion={effectiveReduceMotion}
             connectGaps={!exportMode}
+            isScrolling={isScrolling}
           />
           {temperatureRiseHighlightPath && (
             <g pointerEvents="none">
@@ -1537,6 +1550,7 @@ const rotationStageStyle = isRotationStage
             showRelationsRow={showRelationsRow}
             autoLabelStep={exportMode}
             isArchivedCycle={isArchivedCycle}
+            spottingPatternId={spottingPatternId}
           />
 
         </motion.svg>

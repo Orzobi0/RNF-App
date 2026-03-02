@@ -201,6 +201,7 @@ const ChartPoints = ({
   showRelationsRow = false,
   autoLabelStep = false,
   isArchivedCycle = false,
+  spottingPatternId = 'spotting-pattern-chart',
 }) => {
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -496,7 +497,8 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
 
       {/* Leyenda izquierda con tipografía premium */}
       {isFullScreen && orientation !== 'portrait' && (
-        <MotionG {...(reduceMotion || perfMode ? {} : { variants: itemVariants })}>
+        <g className="fertility-heavy-layer">
+          <MotionG {...(reduceMotion || perfMode ? {} : { variants: itemVariants })}>
           {[
             { label: 'Fecha', row: 1, color: isFullScreen ? "#374151" : "#6B7280" },
             { label: 'Día', row: 2, color: isFullScreen ? "#374151" : "#6B7280" },
@@ -524,7 +526,8 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
               {label}
             </text>
           ))}
-        </MotionG>
+          </MotionG>
+        </g>
       )}
 
       {visibleIndices.map((index) => {
@@ -571,7 +574,7 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
         const symbolInfo = getSymbolAppearance(point.fertility_symbol);
         const symbolPalette = getSymbolColorPalette(symbolInfo.value);
         const symbolFillStyle = symbolInfo.pattern === 'spotting-pattern'
-          ? 'url(#spotting-pattern-chart)'
+          ? `url(#${spottingPatternId})`
           : symbolPalette.main;
         const symbolStrokeColor = symbolPalette.border === 'none'
           ? 'none'
@@ -792,6 +795,7 @@ const observationFontSize = obsRes.fontSize;
                 </MotionG>
               )}
 
+            <g className="fertility-heavy-layer">
             {/* Fecha con estilo mejorado */}
             {shouldRenderXLabel && (
               <text
@@ -1000,6 +1004,7 @@ const observationFontSize = obsRes.fontSize;
                 />
               </g>
             )}
+            </g>
 
           </MotionG>
         );
@@ -1032,6 +1037,7 @@ const areEqual = (prev, next) => {
   if (prev.showRelationsRow !== next.showRelationsRow) return false;
   if (prev.autoLabelStep !== next.autoLabelStep) return false;
   if (prev.isArchivedCycle !== next.isArchivedCycle) return false;
+  if (prev.spottingPatternId !== next.spottingPatternId) return false;
 
   const prevRange = prev.visibleRange;
   const nextRange = next.visibleRange;

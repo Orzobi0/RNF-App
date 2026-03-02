@@ -10,6 +10,7 @@ const ChartLine = ({
   temperatureField = 'temperature',
   reduceMotion = false,
   connectGaps = true,
+  isScrolling = false,
 }) => {
   if (!data || data.length < 2) return null;
 
@@ -72,7 +73,7 @@ const ChartLine = ({
             strokeLinecap="round"
             strokeLinejoin="round"
             opacity={0.4}
-            style={{ filter: 'url(#lineGlow)' }}
+            style={{ filter: isScrolling ? 'none' : 'url(#lineGlow)' }}
             className="fertility-chart-heavy-filter"
           />
         ) : (
@@ -84,7 +85,7 @@ const ChartLine = ({
             strokeLinecap="round"
             strokeLinejoin="round"
             opacity={0.4}
-            style={{ filter: 'url(#lineGlow)' }}
+            style={{ filter: isScrolling ? 'none' : 'url(#lineGlow)' }}
             className="fertility-chart-heavy-filter"
             initial={{ pathLength: 0, opacity: 0 }}
             animate={{ pathLength: 1, opacity: 0.4 }}
@@ -131,7 +132,7 @@ const ChartLine = ({
             strokeWidth="3"
             strokeLinecap="round"
             strokeLinejoin="round"
-            style={{ filter: 'url(#lineShadow)' }}
+            style={{ filter: isScrolling ? 'none' : 'url(#lineShadow)' }}
             className="fertility-chart-heavy-filter"
           />
         ) : (
@@ -142,7 +143,7 @@ const ChartLine = ({
             strokeWidth="3"
             strokeLinecap="round"
             strokeLinejoin="round"
-            style={{ filter: 'url(#lineShadow)' }}
+            style={{ filter: isScrolling ? 'none' : 'url(#lineShadow)' }}
             className="fertility-chart-heavy-filter"
             initial={{ pathLength: 0, opacity: 0 }}
             animate={{ pathLength: 1, opacity: 1 }}
