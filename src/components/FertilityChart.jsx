@@ -1106,9 +1106,15 @@ const rotationStageStyle = isRotationStage
                   />
                 </div>
               )}
+              {useCanvasRenderer && (
+  <div className="absolute right-2 top-2 z-50 rounded bg-black/70 px-2 py-1 text-[10px] text-white">
+    CANVAS
+  </div>
+)}
               {useCanvasRenderer ? (
                 <FertilityChartCanvas
-                chartRef={chartRef}  
+                chartRef={chartRef}
+                allDataPoints={allDataPoints}  
                 chartWidth={chartWidth}
                   chartHeight={chartHeight}
                   scrollableContentHeight={scrollableContentHeight}

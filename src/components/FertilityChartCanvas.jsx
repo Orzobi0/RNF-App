@@ -32,7 +32,7 @@ const FertilityChartCanvas = ({
   graphBottomY,
   rowsZoneHeight,
   textRowHeight,
-  allDataPoints,
+  allDataPoints = [],
   tempMin,
   tempMax,
   tempRange,
