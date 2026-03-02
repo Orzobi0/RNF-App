@@ -942,11 +942,10 @@ const FertilityChart = ({
   const visualOrientation = forceLandscape ? 'landscape' : orientation;
 
   // Clase del contenedor de scroll ajustada para rotación artificial
-  const rotatedContainer = applyRotation;
   const baseFullClass = 'w-full h-full bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100';
   const containerClass = isFullScreen
-    ? `${baseFullClass} h-full ${rotatedContainer ? 'overflow-y-auto overflow-x-auto' : 'overflow-x-auto overflow-y-auto'}`
-    : `${baseFullClass} overflow-x-auto overflow-y-visible border border-pink-100/50`;
+    ? `${baseFullClass} h-full overflow-x-auto overflow-y-auto`
+    : `${baseFullClass} overflow-x-auto overflow-y-auto border border-pink-100/50`;
   const showLegend = !isFullScreen || visualOrientation === 'portrait';
   const handlePointInteractionSafe = exportMode ? () => {} : handlePointInteraction;
   const clearActivePointSafe = exportMode ? () => {} : clearActivePoint;
@@ -982,16 +981,7 @@ const FertilityChart = ({
             Cargando...
           </div>
         )}
-        <div className="inline-block" style={{ width: chartWidth, height: chartHeight }}>
-          {/*
-            Contenedor scrollable interno: mantiene la altura visible (viewportHeight)
-            igual que antes, pero permite que el contenido (SVG + filas extra) mida
-            más cuando showRelationsRow es true sin comprimir la zona de temperaturas.
-          */}
-          <div
-            className="relative h-full overflow-y-auto"
-            style={{ height: chartHeight, maxHeight: scrollableContentHeight }}
-          >
+        <div className="inline-block" style={{ width: chartWidth, minHeight: chartHeight }}>
             <div className="relative" style={{ width: chartWidth, height: scrollableContentHeight }}>
               {/* Leyenda izquierda mejorada */}
               {showLegend && (
@@ -1356,7 +1346,6 @@ const FertilityChart = ({
         </motion.svg>
             </div>
           </div>
-        </div>
 
         {/* Tooltip mejorado */}
         {!exportMode && activePoint && (

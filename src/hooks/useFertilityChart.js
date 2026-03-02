@@ -1018,9 +1018,11 @@ export const useFertilityChart = (
       const extraScrollableHeight = showRelationsRow
         ? Math.max(0, relationsBottomRowsExact - baseBottomRowsExact)
         : 0;
-      const visibleRowsHeight = showRelationsRow ? relationsBottomRowsExact : baseBottomRowsExact;
-      const minGraphArea = Math.max(viewportHeight - visibleRowsHeight, textRowHeight * (isFullScreen ? 10 : 8));
-      const chartContentHeight = visibleRowsHeight + Math.max(minGraphArea, 0);
+      const minGraphArea = Math.max(
+        viewportHeight - baseBottomRowsExact,
+        textRowHeight * (isFullScreen ? 10 : 8)
+      );
+      const chartContentHeight = baseBottomRowsExact + Math.max(minGraphArea, 0);
       const scrollableContentHeight = chartContentHeight + extraScrollableHeight;
 
         const basePadding = {
@@ -1056,11 +1058,14 @@ const padding = isDenseExport
       
       // --- Levanta el suelo del área del gráfico (sin mover filas) ---
       // Ajusta cuántas "filas" quieres ganar de aire bajo el gráfico:
-      const GRAPH_BOTTOM_LIFT_ROWS = 4; // p.ej. 0.8 filas; prueba 0.6–1.2
+      const GRAPH_BOTTOM_LIFT_ROWS = 1.5; // p.ej. 0.8 filas; prueba 0.6–1.2
       const graphBottomInset = Math.max(0, Math.round(textRowHeight * GRAPH_BOTTOM_LIFT_ROWS));
       const graphBottomY = chartContentHeight - padding.bottom - graphBottomInset;
       const getY = useCallback((temp) => {
-        const effectiveHeight = chartContentHeight - padding.top - padding.bottom - graphBottomInset;
+      const effectiveHeight = Math.max(
+          chartContentHeight - padding.top - padding.bottom - graphBottomInset,
+          textRowHeight * 6
+        );
         if (temp === null || temp === undefined || tempRange === 0 || effectiveHeight <= 0) {
           return graphBottomY;
         }
@@ -1070,6 +1075,7 @@ const padding = isDenseExport
         padding.top,
         padding.bottom,
         graphBottomInset,
+        textRowHeight,
         tempRange,
         graphBottomY,
         tempMin,

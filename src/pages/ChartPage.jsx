@@ -229,6 +229,7 @@ const ChartPage = () => {
   const [showInterpretation, setShowInterpretation] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [phaseOverlay, setPhaseOverlay] = useState(null);
+  const hasStoredRelationsRowPreferenceRef = useRef(false);
   const [chartSettings, setChartSettings] = useState(() => {
     const defaults = {
       showRelationsRow: DEFAULT_CHART_SETTINGS.showRelationsRow,
@@ -242,6 +243,9 @@ const ChartPage = () => {
       const stored = window.localStorage.getItem(CHART_SETTINGS_STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
+        if (parsed && Object.prototype.hasOwnProperty.call(parsed, 'showRelationsRow')) {
+          hasStoredRelationsRowPreferenceRef.current = true;
+        }
         const merged = {
           ...defaults,
           ...parsed,
@@ -280,10 +284,12 @@ const ChartPage = () => {
     const preferenceConfig = mergeFertilityStartConfig(preferences.fertilityStartConfig);
     let changed = false;
 
-    if (
+    const shouldSyncRelationsFromPreferences =
+      !hasStoredRelationsRowPreferenceRef.current &&
       typeof preferences.showRelationsRow === 'boolean' &&
-      prev.showRelationsRow !== preferences.showRelationsRow
-    ) {
+      prev.showRelationsRow !== preferences.showRelationsRow;
+
+    if (shouldSyncRelationsFromPreferences) {
       changed = true;
     }
 
@@ -303,7 +309,7 @@ const ChartPage = () => {
     return {
       ...prev,
       showRelationsRow:
-        typeof preferences.showRelationsRow === 'boolean'
+        shouldSyncRelationsFromPreferences
           ? preferences.showRelationsRow
           : prev.showRelationsRow,
       fertilityStartConfig: preferenceConfig,
@@ -533,15 +539,24 @@ const ChartPage = () => {
         ...baseStyle,
         height: APP_H,
         maxHeight: APP_H,
-        paddingTop: 'env(safe-area-inset-top)',
         paddingBottom: 'env(safe-area-inset-bottom)'
         }
     : {
         ...baseStyle,
         height: `calc(${APP_H} - ${NAVBAR_SAFE_VAR})`,
         maxHeight: `calc(${APP_H} - ${NAVBAR_SAFE_VAR})`,
-        paddingTop: 'env(safe-area-inset-top)',
       };
+
+      const controlsClassName = isFullScreen
+        ? 'fixed z-[60] flex flex-col items-center gap-2'
+        : 'absolute top-4 right-4 z-10 flex items-center gap-2';
+
+      const controlsStyle = isFullScreen
+        ? {
+            top: 'calc(env(safe-area-inset-top) + 8px)',
+            right: 'calc(env(safe-area-inset-right) + 8px)',
+          }
+        : undefined;
 
   const handleEdit = (record, sectionKey = null) => {
     setEditingRecord(record);
@@ -1161,8 +1176,8 @@ const ChartPage = () => {
       <div
         className={
           isFullScreen
-            ? 'fixed inset-0 z-50 h-app w-[100vw] overflow-y-auto overflow-x-hidden'
-            : 'relative w-full h-full overflow-y-auto overflow-x-hidden'}
+            ? 'fixed inset-0 z-50 h-app w-[100vw] overflow-hidden'
+            : 'relative w-full min-h-full overflow-x-hidden'}
         style={containerStyle}
       >
         {showBackToCycleRecords && !isFullScreen && (
@@ -1182,33 +1197,35 @@ const ChartPage = () => {
           </Button>
           
         )}
-        <Button
-          onClick={() => setSettingsOpen((prev) => !prev)}
-          variant="ghost"
-          size="icon"
-          className="absolute top-16 right-4 z-10 p-2 rounded-full bg-white/20 shadow-lg shadow-secundario text-secundario border hover:brightness-95"
-          aria-label="Ajustes"
-        >
-          <Settings className="h-4 w-4" />
-        </Button>
-        <Button
-          onClick={handleInterpretationClick}
-          onPointerUp={handleInterpretationPointerUp}
-          variant="ghost"
-          size="icon"
-          className={`absolute top-4 right-20 z-10 p-2 rounded-full transition-colors ${showInterpretation 
-            ? 'bg-fertiliapp-fuerte text-white shadow-lg shadow-fertiliapp-fuerte/50 border-fertiliapp-fuerte/70' 
-            : 'bg-white/20 text-fertiliapp-fuerte border border-fertiliapp-fuerte hover:brightness-95 shadow-md'}`}
-        >
-          {showInterpretation ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-        </Button>
-        <Button
-          onClick={handleToggleFullScreen}
-          className="absolute top-4 right-4 z-10 bg-white/20 rounded-full text-slate-600 hover:bg-pink-50/80 shadow-md border border-slate-400/50 backdrop-blur-sm"
-          aria-label={isFullScreen ? 'Salir de pantalla completa' : 'Rotar gráfico'}
-        >
-          <RotateCcw className="w-4 h-4" />
-        </Button>
+        <div className={controlsClassName} style={controlsStyle}>
+          <Button
+            onClick={() => setSettingsOpen((prev) => !prev)}
+            variant="ghost"
+            size="icon"
+            className="p-2 rounded-full bg-white/20 shadow-lg shadow-secundario text-secundario border hover:brightness-95"
+            aria-label="Ajustes"
+          >
+            <Settings className="h-4 w-4" />
+          </Button>
+          <Button
+            onClick={handleInterpretationClick}
+            onPointerUp={handleInterpretationPointerUp}
+            variant="ghost"
+            size="icon"
+            className={`p-2 rounded-full transition-colors ${showInterpretation 
+              ? 'bg-fertiliapp-fuerte text-white shadow-lg shadow-fertiliapp-fuerte/50 border-fertiliapp-fuerte/70' 
+              : 'bg-white/20 text-fertiliapp-fuerte border border-fertiliapp-fuerte hover:brightness-95 shadow-md'}`}
+          >
+            {showInterpretation ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </Button>
+          <Button
+            onClick={handleToggleFullScreen}
+            className="bg-white/20 rounded-full text-slate-600 hover:bg-pink-50/80 shadow-md border border-slate-400/50 backdrop-blur-sm"
+            aria-label={isFullScreen ? 'Salir de pantalla completa' : 'Rotar gráfico'}
+          >
+            <RotateCcw className="w-4 h-4" />
+          </Button>
+        </div>
         <FertilityChart
           data={mergedData}
           isFullScreen={isFullScreen}
