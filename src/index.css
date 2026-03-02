@@ -4,9 +4,16 @@
 
 @layer base {
   :root {
+    --app-height: calc(var(--app-vh, 1vh) * 100);
+    --safe-area-top: env(safe-area-inset-top, 0px);
+    --safe-area-bottom: env(safe-area-inset-bottom, 0px);
     /* Altura de la barra inferior y variante con safe-area */
     --bottom-nav-height: 4.2rem;
-    --bottom-nav-safe: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px));
+    --bottom-nav-safe: calc(var(--bottom-nav-height) + var(--safe-area-bottom));
+    /* Área útil del contenido principal: viewport - safe top - navbar(+safe bottom). */
+    --content-safe-height: calc(var(--app-height) - var(--safe-area-top) - var(--bottom-nav-safe));
+    /* Variante fullscreen: viewport - safe top - safe bottom (sin navbar). */
+    --content-safe-height-fullscreen: calc(var(--app-height) - var(--safe-area-top) - var(--safe-area-bottom));
     --background: 210 22.2% 96.5%;
     --foreground: 215 27.9% 16.9%;
     --card: 0 0% 100%;
@@ -373,10 +380,10 @@
     min-height: 100dvh;
   }
   .h-app {
-    height: calc(var(--app-vh, 1vh) * 100);
+    height: var(--app-height);
   }
   .min-h-app {
-    min-height: calc(var(--app-vh, 1vh) * 100);
+    min-height: var(--app-height);
   }
 
   /* Texto */

@@ -585,20 +585,15 @@ useEffect(() => {
       radial-gradient(140% 140% at 100% 100%, rgba(255,255,255,0.9) 0, rgba(255,247,250,0.3) 40%, transparent 70%)
     `
   };
-  const APP_H = 'calc(var(--app-vh, 1vh) * 100)';
-  const NAVBAR_SAFE_VAR = 'var(--bottom-nav-safe)';
-  const containerStyle = isFullScreen
-    ? {
-        ...baseStyle,
-        height: APP_H,
-        maxHeight: APP_H,
-        paddingBottom: 'env(safe-area-inset-bottom)'
-        }
-    : {
-        ...baseStyle,
-        height: `calc(${APP_H} - ${NAVBAR_SAFE_VAR})`,
-        maxHeight: `calc(${APP_H} - ${NAVBAR_SAFE_VAR})`,
-      };
+  const contentSafeHeightVar = isFullScreen
+    ? 'var(--content-safe-height-fullscreen)'
+    : 'var(--content-safe-height)';
+
+  const containerStyle = {
+    ...baseStyle,
+    height: contentSafeHeightVar,
+    maxHeight: contentSafeHeightVar,
+  };
 
       const controlsClassName = isFullScreen
         ? 'fixed z-[60] flex flex-col items-center gap-2'
