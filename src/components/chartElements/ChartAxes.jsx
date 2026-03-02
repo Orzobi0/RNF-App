@@ -109,6 +109,8 @@ const ChartAxes = ({
         </pattern>
       </defs>
 
+      <g pointerEvents="none">
+
       {/* Fondo con gradiente elegante inspirado en la dashboard */}
       <rect
         x={padding.left}
@@ -279,7 +281,7 @@ const ChartAxes = ({
           </text>
         </G>
       )}
-
+    </g>
     </>
   );
 };

@@ -74,6 +74,7 @@ const ChartLine = ({
           <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="rgba(244, 114, 182, 0.4)" />
         </filter>
       </defs>
+    <g pointerEvents="none">
 
       {/* Línea de respaldo con efecto glow */}
       {hasContinuousSegment && (
@@ -160,7 +161,7 @@ const ChartLine = ({
           />
         )
       )}
-
+    </g>
     </>
   );
 };

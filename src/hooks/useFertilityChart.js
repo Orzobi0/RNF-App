@@ -1204,34 +1204,21 @@ const padding = isDenseExport
 };
       
       useEffect(() => {
-        const handleClickOutside = (event) => {
-          if (chartRef.current?.contains(event.target)) {
-            return;
-          }
+        if (!activePoint) return undefined;
 
-          if (tooltipRef.current && !tooltipRef.current.contains(event.target)) {
-             const chartPoints = chartRef.current?.querySelectorAll('circle, text, rect');
-             let isPointClick = false;
-             if(chartPoints){
-                for(let pointEl of chartPoints){
-                    if(pointEl.contains(event.target)){
-                        isPointClick = true;
-                        break;
-                    }
-                }
-             }
-            if(!isPointClick) clearActivePoint();
-          }
+          const handlePointerDownOutside = (event) => {
+          const chartElement = chartRef.current;
+          const tooltipElement = tooltipRef.current;
+
+          if (tooltipElement?.contains(event.target)) return;
+          if (chartElement?.contains(event.target)) return;
+
+          clearActivePoint();
         };
-    
-        if (activePoint) {
-          document.addEventListener('mousedown', handleClickOutside);
-          document.addEventListener('touchstart', handleClickOutside);
-        }
+       document.addEventListener('pointerdown', handlePointerDownOutside, { passive: true });
     
         return () => {
-          document.removeEventListener('mousedown', handleClickOutside);
-          document.removeEventListener('touchstart', handleClickOutside);
+          document.removeEventListener('pointerdown', handlePointerDownOutside);
         };
       }, [activePoint, clearActivePoint]);
       const handleToggleIgnore = (recordId) => {

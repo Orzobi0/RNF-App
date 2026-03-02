@@ -180,9 +180,6 @@ const ChartPoints = ({
   isFullScreen,
   orientation,
   responsiveFontSize,
-  onPointInteraction,
-  clearActivePoint,
-  activePoint,
   visibleRange = null,
   padding,
   chartHeight,
@@ -516,6 +513,8 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
         </radialGradient>
       </defs>
 
+    <g pointerEvents="none">
+
       {/* Fondos de filas sutiles alineados con las tarjetas -- ocultos en modo compacto */}
 
 
@@ -620,15 +619,6 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
         const isPeakSeriesDay =
           isPeakMarker || ['1', '2', '3'].includes(peakStatus);
         const shouldRenderSymbol = !isPlaceholder && symbolInfo.value !== 'none';
-        const shouldEnableInteractions = Boolean(point.isoDate) && !isFuture;
-        const interactionProps = shouldEnableInteractions
-          ? {
-              pointerEvents: 'all',
-              style: { cursor: 'pointer' },
-              onClick: (e) => onPointInteraction(point, index, e),
-              'data-chart-interactive': 'true'
-            }
-          : {};
 
         const isTodayPoint = point.isoDate
           ? isSameDay(parseISO(point.isoDate), today)
@@ -706,7 +696,6 @@ const observationFontSize = obsRes.fontSize;
           <MotionG
             key={`pt-${index}-${point.isoDate || point.timestamp}`}
             {...(reduceMotion || perfMode ? {} : { variants: itemVariants })}
-            {...interactionProps}
           >
             {/* Punto de temperatura con diseño premium */}
             {hasTemp && (
@@ -762,14 +751,10 @@ const observationFontSize = obsRes.fontSize;
                           ? '#1d4ed8'
                           : '#E91E63'
                   }
-                  sstrokeWidth={isIgnoredForDisplay ? 1.5 : isPeakTemperaturePoint ? 2.2 : 2}
+                  strokeWidth={isIgnoredForDisplay ? 1.5 : isPeakTemperaturePoint ? 2.2 : 2}
                   style={{
                     filter: isPeakTemperaturePoint ? tooltipShadow : activeShadow,
-                    cursor: 'pointer'
                   }}
-                  pointerEvents="all"
-                  onClick={(e) => onPointInteraction(point, index, e)}
-                  data-chart-interactive="true"
                 />
                 
                 
@@ -1051,6 +1036,7 @@ const observationFontSize = obsRes.fontSize;
           </MotionG>
         );
       })}
+    </g>
     </>
   );
 };
@@ -1061,8 +1047,6 @@ const areEqual = (prev, next) => {
   if (prev.isFullScreen !== next.isFullScreen) return false;
   if (prev.orientation !== next.orientation) return false;
   if (prev.responsiveFontSize !== next.responsiveFontSize) return false;
-  if (prev.onPointInteraction !== next.onPointInteraction) return false;
-  if (prev.clearActivePoint !== next.clearActivePoint) return false;
   if (prev.chartHeight !== next.chartHeight || prev.chartWidth !== next.chartWidth) return false;
   if (prev.temperatureField !== next.temperatureField) return false;
   if (prev.textRowHeight !== next.textRowHeight) return false;
