@@ -58,57 +58,6 @@ const ChartAxes = ({
   return (
     <>
 
-      {/* Definiciones mejoradas con gradientes inspirados en la dashboard */}
-      <defs>
-        <linearGradient id="bgGradientChart" x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stopColor="#fffbfc" />
-          <stop offset="50%" stopColor="#fff5f7" />
-          <stop offset="100%" stopColor="#fff1f3" />
-        </linearGradient>
-        {/* AÑADE ESTE NUEVO GRADIENTE */}
-<linearGradient id="dataZoneGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-  <stop offset="0%"   stopColor="#fff7fb" />
-  <stop offset="50%"  stopColor="#ffe4f0" />
-  <stop offset="100%" stopColor="#fff7fb" />
-</linearGradient>
-
-        <linearGradient id="tempLineGradientChart" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#f472b6" />
-          <stop offset="30%" stopColor="#ec4899" />
-          <stop offset="70%" stopColor="#db2777" />
-          <stop offset="100%" stopColor="#be185d" />
-        </linearGradient>
-        
-        <filter id="softShadow">
-  <feGaussianBlur in="SourceAlpha" stdDeviation="2"/>
-  <feOffset dx="0" dy="1" result="offsetblur"/>
-  <feComponentTransfer>
-    <feFuncA type="linear" slope="0.2"/>
-  </feComponentTransfer>
-  <feMerge>
-    <feMergeNode/>
-    <feMergeNode in="SourceGraphic"/>
-  </feMerge>
-</filter>
-<filter id="pointGlow">
-  <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
-  <feMerge>
-    <feMergeNode in="coloredBlur"/>
-    <feMergeNode in="SourceGraphic"/>
-  </feMerge>
-</filter>
-        
-        <filter id="textShadow" x="-50%" y="-50%" width="200%" height="200%">
-          <feDropShadow dx="0" dy="1" stdDeviation="1" floodColor="rgba(255, 255, 255, 0.8)" />
-        </filter>
-
-        {/* Patrón unificado para spotting */}
-        <pattern id="spotting-pattern-chart" patternUnits="userSpaceOnUse" width="6" height="6">
-          <rect width="6" height="6" fill="#ef4444" />
-          <circle cx="3" cy="3" r="1.5" fill="rgba(255,255,255,0.85)" />
-        </pattern>
-      </defs>
-
       {/* Fondo con gradiente elegante inspirado en la dashboard */}
       <rect
         x={padding.left}
@@ -284,4 +233,26 @@ const ChartAxes = ({
   );
 };
 
-export default ChartAxes;
+const areEqual = (prev, next) => (
+  prev.chartWidth === next.chartWidth
+  && prev.chartHeight === next.chartHeight
+  && prev.tempMin === next.tempMin
+  && prev.tempMax === next.tempMax
+  && prev.tempRange === next.tempRange
+  && prev.isFullScreen === next.isFullScreen
+  && prev.showLeftLabels === next.showLeftLabels
+  && prev.reduceMotion === next.reduceMotion
+  && prev.isScrolling === next.isScrolling
+  && prev.graphBottomY === next.graphBottomY
+  && prev.chartAreaHeight === next.chartAreaHeight
+  && prev.rowsZoneHeight === next.rowsZoneHeight
+  && prev.padding === next.padding
+  && prev.getX === next.getX
+  && prev.getY === next.getY
+  && prev.responsiveFontSize === next.responsiveFontSize
+  && prev.allDataPoints === next.allDataPoints
+  && prev.visibleRange?.startIndex === next.visibleRange?.startIndex
+  && prev.visibleRange?.endIndex === next.visibleRange?.endIndex
+);
+
+export default React.memo(ChartAxes, areEqual);

@@ -6,7 +6,7 @@ import ChartPoints from '@/components/chartElements/ChartPoints';
 import ChartTooltip from '@/components/chartElements/ChartTooltip';
 import ChartLeftLegend from '@/components/chartElements/ChartLeftLegend';
 import { useFertilityChart } from '@/hooks/useFertilityChart';
-import { isAfter, parseISO, startOfDay } from 'date-fns';
+import { isIOSWebKit } from '@/lib/platform';
 
 const FertilityChart = ({
   data,
@@ -76,24 +76,28 @@ const FertilityChart = ({
     exportMode
   );
   const effectiveReduceMotion = reduceMotion || exportMode;
+  const isIOSWebKitDevice = useMemo(() => isIOSWebKit(), []);
+  const FULL_RENDER_THRESHOLD = 220;
   const uniqueIdRef = useRef(null);
   if (!uniqueIdRef.current) {
     const randomSuffix = Math.random().toString(36).slice(2, 10);
     uniqueIdRef.current = `fertility-chart-${cycleId ?? 'default'}-${randomSuffix}`;
   }
   const uniqueId = uniqueIdRef.current;
+  const fullRenderMode = allDataPoints.length <= FULL_RENDER_THRESHOLD;
   const getOverscanDays = useCallback((visibleDaysValue, totalPoints) => {
-    // En ciclos archivados priorizamos fluidez: render completo para tamaños medios.
-    const fullRenderThreshold = isArchivedCycle ? 220 : 120;
-    if (totalPoints <= fullRenderThreshold) return totalPoints;
+    if (totalPoints <= FULL_RENDER_THRESHOLD) return totalPoints;
 
-    const screens = isArchivedCycle
+    const iosOverscanScreens = isIOSWebKitDevice ? (visibleDaysValue >= 20 ? 4 : 6) : 0;
+    const baseScreens = isArchivedCycle
       ? (visibleDaysValue >= 20 ? 2 : 3)
       : (visibleDaysValue >= 20 ? 1 : 2);
+    const screens = Math.max(baseScreens, iosOverscanScreens);
     const raw = Math.ceil(visibleDaysValue * screens);
-    const capped = Math.min(raw, isArchivedCycle ? 48 : 24);
+    const cap = isIOSWebKitDevice ? (isArchivedCycle ? 84 : 72) : (isArchivedCycle ? 48 : 24);
+    const capped = Math.min(raw, cap);
     return Math.max(capped, 12);
-  }, [isArchivedCycle]);
+  }, [isArchivedCycle, isIOSWebKitDevice]);
 
   const initialRange = useMemo(() => {
     const total = allDataPoints.length;
@@ -112,6 +116,8 @@ const FertilityChart = ({
   const [visibleRange, setVisibleRange] = useState(initialRange);
   const scrollRafRef = useRef(null);
   const [isScrolling, setIsScrolling] = useState(false);
+  const isScrollingRef = useRef(false);
+  const lastFirstVisibleRef = useRef(null);
   const scrollStopTimerRef = useRef(null);
 
   const svgRef = useRef(null);
@@ -197,9 +203,7 @@ if (isRotated) {
     const point = allDataPoints[index];
     if (!point) return;
 
-    const isFuture = point.isoDate
-      ? isAfter(startOfDay(parseISO(point.isoDate)), startOfDay(new Date()))
-      : false;
+    const isFuture = Boolean(point.isFutureDay);
 
     if (isFuture) return;
 
@@ -914,6 +918,11 @@ useEffect(() => {
         setVisibleRange({ startIndex: 0, endIndex: -1 });
         return;
       }
+
+      if (fullRenderMode) {
+        setVisibleRange({ startIndex: 0, endIndex: totalPoints - 1 });
+        return;
+      }
       
       const viewportW = node.clientWidth || 1;
       const dayW = viewportW / Math.max(visibleDays, 1);
@@ -923,6 +932,15 @@ useEffect(() => {
 
       const firstVisible = Math.floor(scrollLeft / safeDayW);
       const lastVisible = Math.floor((scrollLeft + viewportW) / safeDayW);
+
+      const thresholdDays = isIOSWebKitDevice ? 2 : 1;
+      if (
+        Number.isInteger(lastFirstVisibleRef.current)
+        && Math.abs(firstVisible - lastFirstVisibleRef.current) < thresholdDays
+      ) {
+        return;
+      }
+      lastFirstVisibleRef.current = firstVisible;
 
       let startIndex = firstVisible - overscanDays;
       let endIndex = lastVisible + overscanDays;
@@ -935,14 +953,15 @@ useEffect(() => {
           : { startIndex, endIndex }
       );
     },
-    [allDataPoints.length, getOverscanDays, visibleDays]
+    [allDataPoints.length, fullRenderMode, getOverscanDays, isIOSWebKitDevice, visibleDays]
   );
 
   useEffect(() => {
     if (!chartRef.current) return;
     const dayWidth = chartRef.current.clientWidth / visibleDays;
     chartRef.current.scrollLeft = Math.max(0, dayWidth * initialScrollIndex);
-  updateVisibleRange(chartRef.current.scrollLeft);
+    lastFirstVisibleRef.current = null;
+    updateVisibleRange(chartRef.current.scrollLeft);
   }, [
     initialScrollIndex,
     visibleDays,
@@ -954,10 +973,37 @@ useEffect(() => {
   useEffect(() => {
     const node = chartRef.current;
     if (!node) return;
+
+    const setScrollingAttr = (value) => {
+      const attrValue = value ? '1' : '0';
+      node.setAttribute('data-scrolling', attrValue);
+      const svgNode = svgRef.current;
+      if (svgNode) {
+        svgNode.setAttribute('data-scrolling', attrValue);
+      }
+    };
+
+    setScrollingAttr(false);
+
     const handleScroll = () => {
-      setIsScrolling(true);
+      if (isIOSWebKitDevice) {
+        isScrollingRef.current = true;
+        setScrollingAttr(true);
+      } else {
+        setIsScrolling(true);
+      }
+
       if (scrollStopTimerRef.current) window.clearTimeout(scrollStopTimerRef.current);
-      scrollStopTimerRef.current = window.setTimeout(() => setIsScrolling(false), 140);
+      scrollStopTimerRef.current = window.setTimeout(() => {
+        if (isIOSWebKitDevice) {
+          isScrollingRef.current = false;
+          setScrollingAttr(false);
+        } else {
+          setIsScrolling(false);
+        }
+      }, 150);
+
+      if (fullRenderMode) return;
 
       if (scrollRafRef.current) return;
       scrollRafRef.current = window.requestAnimationFrame(() => {
@@ -968,6 +1014,7 @@ useEffect(() => {
     node.addEventListener('scroll', handleScroll, { passive: true });
     updateVisibleRange(node.scrollLeft);
     return () => {
+      setScrollingAttr(false);
       node.removeEventListener('scroll', handleScroll);
       if (scrollStopTimerRef.current) window.clearTimeout(scrollStopTimerRef.current);
       if (scrollRafRef.current) {
@@ -975,7 +1022,7 @@ useEffect(() => {
         scrollRafRef.current = null;
       }
     };
-  }, [updateVisibleRange]);
+  }, [fullRenderMode, isIOSWebKitDevice, updateVisibleRange]);
 
   const applyRotation = !exportMode && isFullScreen && forceLandscape && isViewportPortrait;
   const visualOrientation = forceLandscape ? 'landscape' : orientation;
@@ -1120,6 +1167,21 @@ const rotationStageStyle = isRotationStage
               <stop offset="0%" stopColor="rgba(244, 114, 182, 0.18)" />
               <stop offset="100%" stopColor="rgba(244, 114, 182, 0.02)" />
             </linearGradient>
+            <linearGradient id="tempLineGradientChartGlow" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#fbcfe8" />
+              <stop offset="50%" stopColor="#f472b6" />
+              <stop offset="100%" stopColor="#db2777" />
+            </linearGradient>
+            <linearGradient id="bgGradientChart" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#fffbfc" />
+              <stop offset="50%" stopColor="#fff5f7" />
+              <stop offset="100%" stopColor="#fff1f3" />
+            </linearGradient>
+            <linearGradient id="dataZoneGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#fff7fb" />
+              <stop offset="50%" stopColor="#ffe4f0" />
+              <stop offset="100%" stopColor="#fff7fb" />
+            </linearGradient>
             
             <linearGradient id={relativePhaseGradientId} x1="0%" y1="0%" x2="0%" y2="100%">
               <stop offset="0%" stopColor="var(--phase-rel)" stopOpacity="0" />
@@ -1167,6 +1229,30 @@ const rotationStageStyle = isRotationStage
                 <feMergeNode in="SourceGraphic"/>
               </feMerge>
             </filter>
+            <filter id="softShadow">
+              <feGaussianBlur in="SourceAlpha" stdDeviation="2"/>
+              <feOffset dx="0" dy="1" result="offsetblur"/>
+              <feComponentTransfer>
+                <feFuncA type="linear" slope="0.2"/>
+              </feComponentTransfer>
+              <feMerge>
+                <feMergeNode/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+            <filter id="textShadow" x="-50%" y="-50%" width="200%" height="200%">
+              <feDropShadow dx="0" dy="1" stdDeviation="1" floodColor="rgba(255, 255, 255, 0.8)" />
+            </filter>
+            <filter id="lineShadow" x="-50%" y="-50%" width="200%" height="200%">
+              <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="rgba(244, 114, 182, 0.4)" />
+            </filter>
+            <filter id="lineGlow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+              <feMerge>
+                <feMergeNode in="coloredBlur"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
 
             {/* Filtro para el resplandor de la línea baseline */}
             <filter id="baselineGlow" x="-50%" y="-50%" width="200%" height="200%">
@@ -1176,6 +1262,24 @@ const rotationStageStyle = isRotationStage
                 <feMergeNode in="SourceGraphic"/>
               </feMerge>
             </filter>
+            <radialGradient id="tempPointGradientChart" cx="30%" cy="30%">
+              <stop offset="0%" stopColor="#FDF2F8" />
+              <stop offset="50%" stopColor="#F9A8D4" />
+              <stop offset="85%" stopColor="#EC4899" />
+              <stop offset="100%" stopColor="#DB2777" />
+            </radialGradient>
+
+            <radialGradient id="tempPointIgnoredGradient" cx="30%" cy="30%">
+              <stop offset="0%" stopColor="#FFFFFF" />
+              <stop offset="80%" stopColor="#F8FAFC" />
+              <stop offset="100%" stopColor="#E2E8F0" />
+            </radialGradient>
+            <radialGradient id="ovulationPointGradient" cx="30%" cy="30%">
+              <stop offset="0%" stopColor="#dbeafe" />
+              <stop offset="50%" stopColor="#93c5fd" />
+              <stop offset="85%" stopColor="#3b82f6" />
+              <stop offset="100%" stopColor="#2563eb" />
+            </radialGradient>
           </defs>
 
           {/* Fondo transparente para interacciones */}
@@ -1192,12 +1296,12 @@ const rotationStageStyle = isRotationStage
             getY={getY}
             getX={getX}
             allDataPoints={allDataPoints}
-            visibleRange={visibleRange}
+            visibleRange={fullRenderMode ? null : visibleRange}
             responsiveFontSize={responsiveFontSize}
             isFullScreen={isFullScreen}
             showLeftLabels={!showLegend}
             reduceMotion={effectiveReduceMotion}
-            isScrolling={isScrolling}
+            isScrolling={isIOSWebKitDevice ? false : isScrolling}
             graphBottomY={graphBottomY}
             chartAreaHeight={Math.max(chartHeight - padding.top - padding.bottom - (graphBottomInset || 0), 0)}
             rowsZoneHeight={rowsZoneHeight}
@@ -1413,7 +1517,7 @@ const rotationStageStyle = isRotationStage
             onPointInteraction={handlePointInteractionSafe}
             clearActivePoint={clearActivePointSafe}
             activePoint={activePoint}
-            visibleRange={visibleRange}
+            visibleRange={fullRenderMode ? null : visibleRange}
             padding={padding}
             chartHeight={chartHeight}
             chartWidth={chartWidth}
@@ -1423,7 +1527,7 @@ const rotationStageStyle = isRotationStage
             rowsZoneHeight={rowsZoneHeight}
             compact={false}
             reduceMotion={effectiveReduceMotion}
-            isScrolling={isScrolling}
+            isScrolling={isIOSWebKitDevice ? false : isScrolling}
             showInterpretation={showInterpretation}
             ovulationDetails={ovulationDetails}
             baselineStartIndex={baselineStartIndex}

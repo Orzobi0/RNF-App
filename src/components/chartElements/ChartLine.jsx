@@ -61,20 +61,6 @@ const ChartLine = ({
 
   return (
     <>
-      {/* Definiciones para gradientes y filtros mejorados */}
-      <defs>
-        <linearGradient id="tempLineGradientChart" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#f472b6" />
-          <stop offset="30%" stopColor="#ec4899" />
-          <stop offset="70%" stopColor="#db2777" />
-          <stop offset="100%" stopColor="#be185d" />
-        </linearGradient>
-                
-        <filter id="lineShadow" x="-50%" y="-50%" width="200%" height="200%">
-          <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="rgba(244, 114, 182, 0.4)" />
-        </filter>
-      </defs>
-
       {/* Línea de respaldo con efecto glow */}
       {hasContinuousSegment && (
         reduceMotion ? (
@@ -87,6 +73,7 @@ const ChartLine = ({
             strokeLinejoin="round"
             opacity={0.4}
             style={{ filter: 'url(#lineGlow)' }}
+            className="fertility-chart-heavy-filter"
           />
         ) : (
           <motion.path
@@ -98,6 +85,7 @@ const ChartLine = ({
             strokeLinejoin="round"
             opacity={0.4}
             style={{ filter: 'url(#lineGlow)' }}
+            className="fertility-chart-heavy-filter"
             initial={{ pathLength: 0, opacity: 0 }}
             animate={{ pathLength: 1, opacity: 0.4 }}
             transition={{ duration: 0.8, ease: "easeInOut", delay: 0.2 }}
@@ -144,6 +132,7 @@ const ChartLine = ({
             strokeLinecap="round"
             strokeLinejoin="round"
             style={{ filter: 'url(#lineShadow)' }}
+            className="fertility-chart-heavy-filter"
           />
         ) : (
           <motion.path
@@ -154,6 +143,7 @@ const ChartLine = ({
             strokeLinecap="round"
             strokeLinejoin="round"
             style={{ filter: 'url(#lineShadow)' }}
+            className="fertility-chart-heavy-filter"
             initial={{ pathLength: 0, opacity: 0 }}
             animate={{ pathLength: 1, opacity: 1 }}
             transition={{ duration: 1, ease: "easeInOut", delay: 0.4 }}
