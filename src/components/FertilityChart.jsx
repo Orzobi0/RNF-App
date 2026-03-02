@@ -852,18 +852,33 @@ const FertilityChart = ({
   ]);
   
   // Detectar orientación real del viewport para rotación visual
-  const [viewport, setViewport] = useState({ w: typeof window !== 'undefined' ? window.innerWidth : 0, h: typeof window !== 'undefined' ? window.innerHeight : 0 });
-  const isViewportPortrait = viewport.w < viewport.h;
+  const [viewport, setViewport] = useState({
+  w: typeof window !== 'undefined' ? window.innerWidth : 0,
+  h: typeof window !== 'undefined' ? window.innerHeight : 0,
+});
+const isViewportPortrait = viewport.w < viewport.h;
 
-  useEffect(() => {
-    const onResize = () => setViewport({ w: window.innerWidth, h: window.innerHeight });
-    window.addEventListener('resize', onResize);
-    window.addEventListener('orientationchange', onResize);
-    return () => {
-      window.removeEventListener('resize', onResize);
-      window.removeEventListener('orientationchange', onResize);
-    };
-  }, []);
+useEffect(() => {
+  if (typeof window === 'undefined') return undefined;
+
+  let raf = 0;
+  const onResize = () => {
+    if (raf) cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(() => {
+      setViewport({ w: window.innerWidth, h: window.innerHeight });
+    });
+  };
+
+  window.addEventListener('resize', onResize);
+  window.addEventListener('orientationchange', onResize);
+  onResize();
+
+  return () => {
+    if (raf) cancelAnimationFrame(raf);
+    window.removeEventListener('resize', onResize);
+    window.removeEventListener('orientationchange', onResize);
+  };
+}, []);
 
   const updateVisibleRange = useCallback(
     (scrollLeft = 0) => {
@@ -941,6 +956,69 @@ const FertilityChart = ({
   const applyRotation = !exportMode && isFullScreen && forceLandscape && isViewportPortrait;
   const visualOrientation = forceLandscape ? 'landscape' : orientation;
 
+  const isRotationStage = !exportMode && isFullScreen && forceLandscape;
+
+// Angulo real que pintamos (0 o 90). Lo forzamos a animar al entrar.
+const [rotationAngle, setRotationAngle] = useState(applyRotation ? 90 : 0);
+const [rotationBooting, setRotationBooting] = useState(false);
+
+useEffect(() => {
+  if (!isRotationStage) {
+    setRotationBooting(false);
+    setRotationAngle(0);
+    return;
+  }
+
+  const target = applyRotation ? 90 : 0;
+
+  // Si no hay que rotar (viewport ya landscape), vuelve a 0 suave.
+  if (target === 0) {
+    setRotationBooting(false);
+    setRotationAngle(0);
+    return;
+  }
+
+  // Entrada a rotación: 1 frame oculto a 0deg, siguiente frame -> 90deg (se anima)
+  setRotationBooting(true);
+  setRotationAngle(0);
+
+  let raf1 = 0;
+  let raf2 = 0;
+
+  raf1 = requestAnimationFrame(() => {
+    setRotationAngle(90);
+    raf2 = requestAnimationFrame(() => setRotationBooting(false));
+  });
+
+  return () => {
+    if (raf1) cancelAnimationFrame(raf1);
+    if (raf2) cancelAnimationFrame(raf2);
+  };
+}, [applyRotation, isRotationStage]);
+
+const rotationStageStyle = isRotationStage
+  ? {
+      position: 'absolute',
+      top: '50%',
+      left: '50%',
+
+      // si el viewport está en portrait, “intercambiamos” para encajar la rotación
+      width: `${isViewportPortrait ? viewport.h : viewport.w}px`,
+      height: `${isViewportPortrait ? viewport.w : viewport.h}px`,
+
+      transform: `translate3d(-50%, -50%, 0) rotate(${rotationAngle}deg)`,
+      transformOrigin: 'center center',
+
+      // animación ligera
+      transition: effectiveReduceMotion
+        ? 'transform 120ms cubic-bezier(0.4, 0, 0.2, 1), opacity 120ms ease-out'
+        : 'transform 120ms cubic-bezier(0.2, 0, 0, 1), opacity 120ms ease',
+
+      willChange: 'transform, opacity',
+      opacity: rotationBooting ? 0 : 1,
+    }
+  : null;
+
   // Clase del contenedor de scroll ajustada para rotación artificial
   const baseFullClass = 'w-full h-full bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100';
   const containerClass = isFullScreen
@@ -958,22 +1036,12 @@ const FertilityChart = ({
         ref={chartRef}
         className={`relative p-0 ${isFullScreen ? '' : 'rounded-2xl'} ${containerClass}`}
         style={{
-          touchAction: 'auto',
-          boxShadow: isFullScreen
-            ? 'inset 0 1px 3px rgba(244, 114, 182, 0.1)'
-            : '0 8px 32px rgba(244, 114, 182, 0.12), 0 2px 8px rgba(244, 114, 182, 0.08)',
-          ...(applyRotation
-            ? {
-                position: 'absolute',
-                top: '50%',
-                left: '50%',
-                width: `${viewport.h}px`,
-                height: `${viewport.w}px`,
-                transform: 'translate(-50%, -50%) rotate(90deg)',
-                transformOrigin: 'center center',
-              }
-            : {})
-        }}
+  touchAction: 'auto',
+  boxShadow: isFullScreen
+    ? 'inset 0 1px 3px rgba(244, 114, 182, 0.1)'
+    : '0 8px 32px rgba(244, 114, 182, 0.12), 0 2px 8px rgba(244, 114, 182, 0.08)',
+  ...(rotationStageStyle ?? {}),
+}}
         initial={false}
       >
         {isLoading && (

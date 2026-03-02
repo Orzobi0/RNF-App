@@ -246,6 +246,41 @@ const applyRotation = isFullScreen && forceLandscape && viewport.w < viewport.h;
   const [isProcessing, setIsProcessing] = useState(false);
   const [showInterpretation, setShowInterpretation] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const DRAWER_ANIM_MS = 320; // >= 300ms (tu transition del drawer normal)
+const [drawerMounted, setDrawerMounted] = useState(false);
+
+useEffect(() => {
+  if (settingsOpen) setDrawerMounted(true);
+}, [settingsOpen]);
+
+const openSettings = useCallback(() => {
+  setDrawerMounted(true);
+  if (typeof window !== 'undefined') {
+    window.requestAnimationFrame(() => setSettingsOpen(true));
+  } else {
+    setSettingsOpen(true);
+  }
+}, []);
+
+const closeSettings = useCallback(() => {
+  setSettingsOpen(false);
+}, []);
+
+const toggleSettings = useCallback(() => {
+  if (settingsOpen) closeSettings();
+  else openSettings();
+}, [settingsOpen, openSettings, closeSettings]);
+
+useEffect(() => {
+  if (settingsOpen) return;
+  if (!drawerMounted) return;
+  if (typeof window === 'undefined') {
+    setDrawerMounted(false);
+    return;
+  }
+  const t = window.setTimeout(() => setDrawerMounted(false), DRAWER_ANIM_MS);
+  return () => window.clearTimeout(t);
+}, [settingsOpen, drawerMounted]);
   const [phaseOverlay, setPhaseOverlay] = useState(null);
   const hasStoredRelationsRowPreferenceRef = useRef(false);
   const [chartSettings, setChartSettings] = useState(() => {
@@ -1339,7 +1374,7 @@ const rotatedDrawerStyle = applyRotation
         )}
         <div className={controlsClassName} style={controlsStyle}>
           <Button
-            onClick={() => setSettingsOpen((prev) => !prev)}
+            onClick={toggleSettings}
             variant="ghost"
             size="icon"
             className="p-2 rounded-full bg-white/20 shadow-lg shadow-secundario text-secundario border hover:brightness-95"
@@ -1393,35 +1428,39 @@ const rotatedDrawerStyle = applyRotation
           cycleEndDate={targetCycle?.endDate ?? null}
         />
         
-        {/* Backdrop */}
-{settingsOpen && (
-  <div
-    className={`fixed inset-0 ${applyRotation ? 'z-[70]' : 'z-40'} bg-black/30`}
-    onClick={() => setSettingsOpen(false)}
-    aria-hidden="true"
-  />
-)}
+        {drawerMounted && (
+  <>
+    {/* Backdrop */}
+    {settingsOpen && (
+      <div
+        className={`fixed inset-0 ${applyRotation ? 'z-[70]' : 'z-40'} bg-black/30`}
+        onClick={closeSettings}
+        aria-hidden="true"
+      />
+    )}
 
-{/* Drawer */}
-{applyRotation ? (
-  <div
-    style={rotatedStageStyle}
-    onClick={() => setSettingsOpen(false)}
-    aria-hidden={!settingsOpen}
-  >
-    <div
-      style={rotatedDrawerStyle}
-      role="dialog"
-      aria-modal="true"
-      onClick={(e) => e.stopPropagation()}
-    >
-      {settingsDrawerInner}
-    </div>
-  </div>
-) : (
-  <div className={normalDrawerClassName} role="dialog" aria-modal="true">
-    {settingsDrawerInner}
-  </div>
+    {/* Drawer */}
+    {applyRotation ? (
+      <div
+        style={rotatedStageStyle}
+        onClick={closeSettings}
+        aria-hidden={!settingsOpen}
+      >
+        <div
+          style={rotatedDrawerStyle}
+          role="dialog"
+          aria-modal="true"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {settingsDrawerInner}
+        </div>
+      </div>
+    ) : (
+      <div className={normalDrawerClassName} role="dialog" aria-modal="true">
+        {settingsDrawerInner}
+      </div>
+    )}
+  </>
 )}
         <Overlay
           isOpen={Boolean(phaseOverlay)}
