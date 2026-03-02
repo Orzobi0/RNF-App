@@ -151,21 +151,45 @@ const FertilityChart = ({
     const svgElement = svgRef.current;
     if (!svgElement) return;
 
-    let svgX = null;
-    const ctm = svgElement.getScreenCTM();
-    if (ctm) {
-      const svgPoint = svgElement.createSVGPoint();
-      svgPoint.x = event.clientX;
-      svgPoint.y = event.clientY;
-      svgX = svgPoint.matrixTransform(ctm.inverse()).x;
-    }
+    // ✅ Detecta el modo rotado (fullscreen + forceLandscape + viewport portrait)
+const isRotated =
+  !exportMode &&
+  isFullScreen &&
+  forceLandscape &&
+  typeof window !== 'undefined' &&
+  window.innerWidth < window.innerHeight;
 
-    if (!Number.isFinite(svgX)) {
-      const rect = svgElement.getBoundingClientRect();
-      if (!rect.width) return;
-      const fallbackWidth = svgElement.viewBox?.baseVal?.width || svgElement.clientWidth || rect.width;
-      svgX = ((event.clientX - rect.left) / rect.width) * fallbackWidth;
-    }
+const rect = svgElement.getBoundingClientRect();
+if (!rect.width || !rect.height) return;
+
+// Ancho del sistema SVG (viewBox). Si no existe, usa el ancho del rect.
+const vbW =
+  svgElement.viewBox?.baseVal?.width ||
+  svgElement.clientWidth ||
+  rect.width;
+
+let svgX;
+
+// ✅ Si está rotado 90º por CSS, compensamos la rotación (inversa -90º)
+if (isRotated) {
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+
+  const dx = event.clientX - cx;
+  const dy = event.clientY - cy;
+
+  // inversa de rotate(90): rotate(-90)
+  const ux = dy;
+
+  // en rotación 90, el “ancho lógico” sin rotar equivale al alto del rect actual
+  const unrotW = rect.height || 1;
+
+  const px = ux + unrotW / 2;
+  svgX = (px / unrotW) * vbW;
+} else {
+  // ✅ Normal (sin rotación)
+  svgX = ((event.clientX - rect.left) / rect.width) * vbW;
+}
 
     const index = getNearestDataIndexByX(svgX);
     if (index == null) return;
@@ -1155,7 +1179,7 @@ const rotationStageStyle = isRotationStage
           </defs>
 
           {/* Fondo transparente para interacciones */}
-          <rect width="100%" height="100%" fill="transparent" />
+          <rect width="100%" height="100%" fill="transparent" pointerEvents="all" />
 
           {/* Ejes del gráfico */}
           <ChartAxes

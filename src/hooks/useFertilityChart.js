@@ -1127,51 +1127,81 @@ const padding = isDenseExport
         isLandscapeVisual,
       ]);
       
-      const handlePointInteraction = (point, index, event) => {
-        if (!point) {
-          clearActivePoint();
-          return;
-        }
+     const handlePointInteraction = (point, index, event) => {
+  if (!point) {
+    clearActivePoint();
+    return;
+  }
 
-        // 1) Calcula la posición del ratón/tap
-        const chartRect = chartRef.current.getBoundingClientRect();
-        let clientX, clientY;
-        if (event.type.startsWith('touch')) {
-          const touch = event.changedTouches[0];
-          clientX = touch.clientX;
-          clientY = touch.clientY;
-        } else {
-          clientX = event.clientX;
-          clientY = event.clientY;
-        }
+  const node = chartRef.current;
+  if (!node) return;
 
-        // 2) Mapea a coordenadas SVG
-        const svgX = getX(index);
-        const displayTemp = point.displayTemperature ?? point.temperature_chart ?? null;
-        const svgY = getY(displayTemp);
+  // 1) clientX/clientY (mouse/touch)
+  let clientX, clientY;
+  if (event?.changedTouches?.[0]) {
+    clientX = event.changedTouches[0].clientX;
+    clientY = event.changedTouches[0].clientY;
+  } else {
+    clientX = event.clientX;
+    clientY = event.clientY;
+  }
+  if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) return;
 
-        // 3) Fija posición y punto activo
-        const node = chartRef.current;
+  // 2) coordenadas del punto en el SVG (para lógica de tooltip)
+  const svgX = getX(index);
+  const displayTemp = point.displayTemperature ?? point.temperature_chart ?? null;
+  const svgY = getY(displayTemp);
 
-const scrollLeft = node?.scrollLeft ?? 0;
-const scrollTop = node?.scrollTop ?? 0;
-const viewportWidth = node?.clientWidth ?? chartRect.width ?? 0;
-const viewportHeight = node?.clientHeight ?? chartRect.height ?? 0;
+  // 3) bounding + scroll del contenedor
+  const chartRect = node.getBoundingClientRect();
+  const scrollLeft = node.scrollLeft ?? 0;
+  const scrollTop = node.scrollTop ?? 0;
+  const viewportWidth = node.clientWidth ?? chartRect.width ?? 0;
+  const viewportHeight = node.clientHeight ?? chartRect.height ?? 0;
 
-setTooltipPosition({
-  svgX,
-  svgY,
-  clientX: clientX - chartRect.left + scrollLeft,
-  clientY: clientY - chartRect.top + scrollTop,
-  scrollLeft,
-  scrollTop,
-  viewportWidth,
-  viewportHeight,
-});
-        setActiveIndex(index);
-        setActivePoint(point);
-      };
+  // 4) detectar rotación forzada
+  const isRotated =
+    !exportMode &&
+    isFullScreen &&
+    forceLandscape &&
+    typeof window !== 'undefined' &&
+    window.innerWidth < window.innerHeight;
 
+  // 5) localX/localY dentro del contenedor (compensando rotación si aplica)
+  let localX = clientX - chartRect.left;
+  let localY = clientY - chartRect.top;
+
+  if (isRotated) {
+    const cx = chartRect.left + chartRect.width / 2;
+    const cy = chartRect.top + chartRect.height / 2;
+    const dx = clientX - cx;
+    const dy = clientY - cy;
+
+    // inversa de rotate(90): rotate(-90)
+    const ux = dy;
+    const uy = -dx;
+
+    const unrotW = chartRect.height || 1;
+    const unrotH = chartRect.width || 1;
+
+    localX = ux + unrotW / 2;
+    localY = uy + unrotH / 2;
+  }
+
+  setTooltipPosition({
+    svgX,
+    svgY,
+    clientX: localX + scrollLeft,
+    clientY: localY + scrollTop,
+    scrollLeft,
+    scrollTop,
+    viewportWidth,
+    viewportHeight,
+  });
+
+  setActiveIndex(index);
+  setActivePoint(point);
+};
       
       useEffect(() => {
         const handleClickOutside = (event) => {
