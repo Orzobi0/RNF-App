@@ -5,9 +5,12 @@ import ChartLine from '@/components/chartElements/ChartLine';
 import ChartPoints from '@/components/chartElements/ChartPoints';
 import ChartTooltip from '@/components/chartElements/ChartTooltip';
 import ChartLeftLegend from '@/components/chartElements/ChartLeftLegend';
+import FertilityChartCanvas from '@/components/FertilityChartCanvas';
 import { useFertilityChart } from '@/hooks/useFertilityChart';
 import { isAfter, parseISO, startOfDay } from 'date-fns';
 
+
+const USE_CANVAS = import.meta.env.VITE_CHART_CANVAS === '1' || true;
 const FertilityChart = ({
   data,
   isFullScreen,
@@ -1098,6 +1101,37 @@ const rotationStageStyle = isRotationStage
                   />
                 </div>
               )}
+              {USE_CANVAS && !exportMode ? (
+                <FertilityChartCanvas
+                  chartWidth={chartWidth}
+                  chartHeight={chartHeight}
+                  viewportHeight={viewportHeight}
+                  scrollableContentHeight={scrollableContentHeight}
+                  padding={padding}
+                  graphBottomY={graphBottomY}
+                  rowsZoneHeight={rowsZoneHeight}
+                  textRowHeight={textRowHeight}
+                  tempMin={tempMin}
+                  tempMax={tempMax}
+                  tempRange={tempRange}
+                  getX={getX}
+                  getY={getY}
+                  allDataPoints={allDataPoints}
+                  validDataMap={validDataMap}
+                  activeIndex={activeIndex}
+                  interpretationSegments={interpretationSegments}
+                  showInterpretation={showInterpretation}
+                  baselineY={baselineY}
+                  shouldRenderBaseline={shouldRenderBaseline}
+                  baselineStartX={baselineStartX}
+                  baselineEndX={baselineEndX}
+                  responsiveFontSize={responsiveFontSize}
+                  handlePointInteraction={handlePointInteractionSafe}
+                  chartRef={chartRef}
+                  autoLabelStep
+                  todayIndex={todayIndex}
+                />
+              ) : (
               <motion.svg
                 ref={svgRef}
                 width={chartWidth}
@@ -1436,6 +1470,7 @@ const rotationStageStyle = isRotationStage
           />
 
         </motion.svg>
+        )}
             </div>
           </div>
 
