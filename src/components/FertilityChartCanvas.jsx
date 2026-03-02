@@ -2,6 +2,49 @@ import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { isAfter, parseISO, startOfDay } from 'date-fns';
 import { getSymbolAppearance, getSymbolColorPalette } from '@/config/fertilitySymbols';
 
+const SENSATION_COLOR = 'var(--color-sensacion-fuerte)';
+const APPEARANCE_COLOR = 'var(--color-apariencia-fuerte)';
+const OBSERVATION_COLOR = 'var(--color-observaciones-fuerte)';
+const DEFAULT_TEXT_FONT_FAMILY = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+
+const limitWords = (str = '', maxWords, fallback = '–') => {
+  if (!str) return fallback;
+  return str.split(/\s+/).slice(0, maxWords).join(' ');
+};
+
+const splitTextLinesByWidth = (ctx, str = '', { maxWidth, maxLines = 3, fontSize, fallback = '–' }) => {
+  if (!str) return [fallback, ...Array.from({ length: Math.max(0, maxLines - 1) }, () => '')];
+  const normalized = String(str).trim();
+  const hasSpaces = /\s/.test(normalized);
+  const tokens = hasSpaces ? normalized.split(/\s+/) : Array.from(normalized);
+  const sep = hasSpaces ? ' ' : '';
+  const lines = [];
+  const textWidth = (text) => ctx.measureText(text).width;
+
+  while (tokens.length && lines.length < maxLines) {
+    let line = '';
+    while (tokens.length) {
+      const next = tokens[0];
+      const candidate = line ? `${line}${sep}${next}` : next;
+      if (textWidth(candidate) <= maxWidth || !line) {
+        line = candidate;
+        tokens.shift();
+      } else {
+        break;
+      }
+    }
+    lines.push(line);
+  }
+
+  if (tokens.length && lines.length) {
+    let last = lines[lines.length - 1] || '';
+    while (last && textWidth(`${last}…`) > maxWidth) last = last.slice(0, -1);
+    lines[lines.length - 1] = last ? `${last}…` : '…';
+  }
+  while (lines.length < maxLines) lines.push('');
+  return lines;
+};
+
 const compactDate = (dateStr) => {
   if (!dateStr) return '';
   const [d, m] = String(dateStr).split('/');
@@ -64,6 +107,10 @@ const FertilityChartCanvas = ({
   todayIndex,
   handlePointInteraction,
   isRotatedForInput,
+  isFullScreen = false,
+  showRelationsRow = false,
+  isScrolling = false,
+  showLeftLegend = false,
 }) => {
   const canvasRef = useRef(null);
   const rafRef = useRef(null);
@@ -72,6 +119,8 @@ const FertilityChartCanvas = ({
   const visibleRef = useRef({ start: 0, end: -1 });
   const canvasSizeRef = useRef({ viewportW: 0, viewportH: 0, dpr: 0 });
   const pointerStateRef = useRef(null);
+  const textLayoutCacheRef = useRef(new Map());
+  const spottingPatternRef = useRef(null); 
 
   useEffect(() => {
     xsRef.current = allDataPoints.map((_, i) => getX(i));
@@ -158,6 +207,7 @@ const FertilityChartCanvas = ({
 
     const plotW = chartWidth - padding.left - padding.right;
     const chartAreaHeight = Math.max(chartHeight - padding.top - padding.bottom, 0);
+    const perfMode = allDataPoints.length > 60 || isScrolling;
 
     // Fondo suave (como el SVG)
     const bgGrad = ctx.createLinearGradient(0, padding.top, 0, padding.top + chartAreaHeight);
@@ -169,9 +219,9 @@ const FertilityChartCanvas = ({
 
     // "Tarjeta" blanca con borde rosado y sombra suave (parecido al SVG)
     ctx.save();
-    ctx.shadowColor = 'rgba(244, 114, 182, 0.10)';
-    ctx.shadowBlur = 12;
-   ctx.shadowOffsetY = 4;
+    ctx.shadowColor = perfMode ? 'transparent' : 'rgba(244, 114, 182, 0.10)';
+    ctx.shadowBlur = perfMode ? 0 : 12;
+    ctx.shadowOffsetY = perfMode ? 0 : 4;
     ctx.fillStyle = '#ffffff';
     buildRoundRectPath(ctx, padding.left, padding.top, plotW, chartAreaHeight, 12);
     ctx.fill();
@@ -306,10 +356,29 @@ const FertilityChartCanvas = ({
       ctx.fill();
     }
 
-    const rowH = Math.max(textRowHeight, Math.floor(rowsZoneHeight / 10));
+    const obsRowIndex = isFullScreen ? 9 : 7.5;
+    const halfBlock = isFullScreen ? 1 : 0.75;
+    const rowH = Math.max(textRowHeight, Math.floor(rowsZoneHeight / (obsRowIndex + halfBlock)));
     const dateRowY = graphBottomY + rowH * 1;
     const cycleDayRowY = graphBottomY + rowH * 2;
     const symbolRowY = graphBottomY + rowH * 3;
+    const mucusSensationRowY = graphBottomY + rowH * (isFullScreen ? 5 : 4.5);
+    const mucusAppearanceRowY = graphBottomY + rowH * (isFullScreen ? 7 : 6);
+    const observationsRowY = graphBottomY + rowH * (isFullScreen ? 9 : 7.5);
+    const relationsRowY = showRelationsRow ? observationsRowY + rowH * (isFullScreen ? 2 : 1.5) : null;
+    const dayW = xsRef.current.length > 1 ? Math.abs(xsRef.current[1] - xsRef.current[0]) : Math.max(8, (chartWidth - padding.left - padding.right) / Math.max(allDataPoints.length, 1));
+    const availableTextWidth = Math.max(0, dayW - Math.min(12, Math.max(4, dayW * 0.12)) * 2);
+    const rowLineHeight = responsiveFontSize(0.95);
+
+    for (let row = 1; row <= 9; row += 1) {
+      const y = graphBottomY + rowH * row - rowH * 0.5;
+      ctx.strokeStyle = 'rgba(244, 114, 182, 0.12)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(padding.left, y);
+      ctx.lineTo(chartWidth - padding.right, y);
+      ctx.stroke();
+    }
     const labelStep = getLabelStep({ totalPoints: allDataPoints.length, getX, responsiveFontSize, data: allDataPoints, ctx });
 
     for (let i = start; i <= end; i += 1) {
@@ -327,6 +396,9 @@ const FertilityChartCanvas = ({
       }
 
       const symbolInfo = getSymbolAppearance(point.fertility_symbol);
+      const isFuture = point.isoDate
+        ? isAfter(startOfDay(parseISO(point.isoDate)), startOfDay(new Date()))
+        : false;
       if (symbolInfo.value !== 'none') {
         const palette = getSymbolColorPalette(symbolInfo.value);
         const fill = palette.main || '#f9a8d4';
@@ -338,8 +410,27 @@ const FertilityChartCanvas = ({
         const r = 3;
 
         ctx.save();
-        ctx.fillStyle = fill;
-       buildRoundRectPath(ctx, rectX, rectY, rectW, rectH, r);
+        if (symbolInfo.pattern === 'spotting-pattern') {
+          if (!spottingPatternRef.current) {
+            const patternCanvas = document.createElement('canvas');
+            patternCanvas.width = 6;
+            patternCanvas.height = 6;
+            const pctx = patternCanvas.getContext('2d');
+            if (pctx) {
+              pctx.fillStyle = '#fb7185';
+              pctx.fillRect(0, 0, 6, 6);
+              pctx.fillStyle = 'rgba(255,255,255,0.85)';
+              pctx.beginPath();
+              pctx.arc(3, 3, 1.5, 0, Math.PI * 2);
+              pctx.fill();
+              spottingPatternRef.current = ctx.createPattern(patternCanvas, 'repeat');
+            }
+          }
+          ctx.fillStyle = spottingPatternRef.current || fill;
+        } else {
+          ctx.fillStyle = fill;
+        }
+        buildRoundRectPath(ctx, rectX, rectY, rectW, rectH, r);
         ctx.fill();
         if (border) {
           ctx.strokeStyle = border;
@@ -352,8 +443,73 @@ const FertilityChartCanvas = ({
       const peakStatus = point.peakStatus ? String(point.peakStatus).toUpperCase() : null;
       if (peakStatus) {
         ctx.fillStyle = peakStatus === 'P' || peakStatus === 'X' ? '#ec4899' : '#7f1d1d';
-        ctx.font = `800 ${responsiveFontSize(1.05)}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+        ctx.font = `800 ${responsiveFontSize(peakStatus === 'P' || peakStatus === 'X' ? 1.35 : 1.1)}px ${DEFAULT_TEXT_FONT_FAMILY}`;
         ctx.fillText(peakStatus === 'P' || peakStatus === 'X' ? '✖' : peakStatus, x, symbolRowY - 2);
+      }
+      
+      const sensText = isFullScreen ? limitWords(point.mucus_sensation, 2, isFuture ? '' : '–') : (point.mucus_sensation || (isFuture ? '' : '–'));
+      const aparText = isFullScreen ? limitWords(point.mucus_appearance, 2, isFuture ? '' : '–') : (point.mucus_appearance || (isFuture ? '' : '–'));
+      const obsText = isFullScreen ? limitWords(point.observations, 2, '') : (point.observations || '');
+      const layoutFor = (field, text, baseSize, smallSize, fallback) => {
+        const key = `${i}-${field}-${availableTextWidth}-${baseSize}-${smallSize}-${text || ''}`;
+        const found = textLayoutCacheRef.current.get(key);
+        if (found) return found;
+        ctx.font = `700 ${baseSize}px ${DEFAULT_TEXT_FONT_FAMILY}`;
+        const base = splitTextLinesByWidth(ctx, text, { maxWidth: availableTextWidth, maxLines: 3, fontSize: baseSize, fallback });
+        const resolved = base[2]
+          ? (() => {
+            ctx.font = `700 ${smallSize}px ${DEFAULT_TEXT_FONT_FAMILY}`;
+            return { lines: splitTextLinesByWidth(ctx, text, { maxWidth: availableTextWidth, maxLines: 3, fontSize: smallSize, fallback }), fontSize: smallSize };
+          })()
+          : { lines: base, fontSize: baseSize };
+        textLayoutCacheRef.current.set(key, resolved);
+        return resolved;
+      };
+      const sens = layoutFor('sens', sensText, responsiveFontSize(0.9), responsiveFontSize(0.8), isFuture ? '' : '–');
+      const apar = layoutFor('apar', aparText, responsiveFontSize(0.9), responsiveFontSize(0.8), isFuture ? '' : '–');
+      const obs = layoutFor('obs', obsText, responsiveFontSize(0.9), responsiveFontSize(0.8), '');
+      const drawMultiline = (lines, xPos, baseY, color, fontSize) => {
+        const count = Math.max(1, lines.filter((v) => v && String(v).trim()).length);
+        ctx.fillStyle = color;
+        ctx.font = `700 ${fontSize}px ${DEFAULT_TEXT_FONT_FAMILY}`;
+        ctx.textAlign = 'center';
+        const startY = baseY - ((count - 1) * rowLineHeight) / 2;
+        let lineIndex = 0;
+        lines.forEach((line) => {
+          if (!line) return;
+          ctx.fillText(line, xPos, startY + rowLineHeight * lineIndex);
+          lineIndex += 1;
+        });
+      };
+      drawMultiline(sens.lines, x, mucusSensationRowY, SENSATION_COLOR, sens.fontSize);
+      drawMultiline(apar.lines, x, mucusAppearanceRowY, APPEARANCE_COLOR, apar.fontSize);
+      drawMultiline(obs.lines, x, observationsRowY, OBSERVATION_COLOR, obs.fontSize);
+
+      const rawTemp = point.temperature_raw;
+      const correctedTemp = point.temperature_corrected;
+      const showCorrection = !perfMode && point.use_corrected && rawTemp != null && correctedTemp != null && Math.abs(correctedTemp - rawTemp) > 0.01;
+      if (showCorrection) {
+        const rawY = getY(rawTemp);
+        if (Number.isFinite(rawY) && Number.isFinite(y)) {
+          ctx.strokeStyle = 'rgba(148, 163, 184, 0.35)';
+          ctx.setLineDash([4, 4]);
+          ctx.beginPath();
+          ctx.moveTo(x, rawY);
+          ctx.lineTo(x, y);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.fillStyle = 'rgba(226, 232, 240, 0.6)';
+          ctx.strokeStyle = 'rgba(148, 163, 184, 0.5)';
+          ctx.beginPath();
+          ctx.arc(x, rawY, 3, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+        }
+      }
+      if (showRelationsRow && relationsRowY != null && point.hasRelations) {
+        ctx.fillStyle = '#be123c';
+        ctx.font = `700 ${responsiveFontSize(1.2)}px ${DEFAULT_TEXT_FONT_FAMILY}`;
+        ctx.fillText('♥', x, relationsRowY);
       }
     }
 
@@ -373,16 +529,33 @@ const FertilityChartCanvas = ({
 
     if (activeIndex != null && xsRef.current[activeIndex] != null) {
       const x = xsRef.current[activeIndex];
+      const prev = activeIndex > 0 ? xsRef.current[activeIndex - 1] : x;
+      const next = activeIndex < xsRef.current.length - 1 ? xsRef.current[activeIndex + 1] : x;
+      const fallback = Math.max((chartWidth - padding.left - padding.right) / Math.max(allDataPoints.length, 1), 0);
+      const dayWidth = Math.max(((next != null && prev != null ? next - prev : 0) || fallback), fallback, 0);
       ctx.strokeStyle = 'rgba(235, 171, 204,0.15)';
-      ctx.lineWidth = 6;
+      ctx.lineWidth = Math.max(2, dayWidth * 0.14);
       ctx.beginPath();
       ctx.moveTo(x, 0);
+      ctx.lineTo(x, graphBottomY);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(235, 171, 204,0.32)';
+      ctx.lineWidth = Math.max(4, dayWidth * 0.5);
+      ctx.beginPath();
+      ctx.moveTo(x, graphBottomY);
       ctx.lineTo(x, chartHeight);
       ctx.stroke();
     }
 
+    if (!showLeftLegend) {
+      ctx.fillStyle = '#be185d';
+      ctx.font = `800 ${responsiveFontSize(1.4)}px ${DEFAULT_TEXT_FONT_FAMILY}`;
+      ctx.textAlign = 'center';
+      ctx.fillText('°C', padding.left + responsiveFontSize(1.2), padding.top + responsiveFontSize(1.5));
+    }
+
     ctx.restore();
-  }, [chartRef, findRange, chartWidth, padding, chartHeight, graphBottomY, rowsZoneHeight, showInterpretation, interpretationSegments, tempTicks, getY, responsiveFontSize, textRowHeight, allDataPoints, getX, todayIndex, shouldRenderBaseline, baselineY, baselineStartX, baselineEndX, baselineStroke, baselineDash, baselineOpacity, baselineWidth, activeIndex]);
+  }, [chartRef, findRange, chartWidth, padding, chartHeight, graphBottomY, rowsZoneHeight, showInterpretation, interpretationSegments, tempTicks, getY, responsiveFontSize, textRowHeight, allDataPoints, getX, todayIndex, shouldRenderBaseline, baselineY, baselineStartX, baselineEndX, baselineStroke, baselineDash, baselineOpacity, baselineWidth, activeIndex, isFullScreen, showRelationsRow, isScrolling, showLeftLegend]);
 
   const scheduleDraw = useCallback(() => {
     if (rafRef.current) return;

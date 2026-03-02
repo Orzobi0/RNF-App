@@ -1143,6 +1143,10 @@ const rotationStageStyle = isRotationStage
                   handlePointInteraction={handlePointInteractionSafe}
                   todayIndex={todayIndex}
                   isRotatedForInput={!exportMode && isFullScreen && forceLandscape && isViewportPortrait}
+                  isFullScreen={isFullScreen}
+                  showRelationsRow={showRelationsRow}
+                  isScrolling={isScrolling}
+                  showLegend={showLegend}
                 />
               ) : (
               <motion.svg
