@@ -320,14 +320,14 @@ const CycleDetailPage = () => {
 
   if ((cycleDataHookIsLoading && !cycleData) || !cycleData) {
     return (
-      <div className="flex h-[calc(var(--app-vh,1vh)*100 - var(--bottom-nav-safe))] flex-col items-center justify-center overflow-hidden">
+      <div className="flex min-h-full flex-col items-center justify-center py-10">
         <p>Cargando detalles del ciclo...</p>
       </div>
     );
   }
 
   return (
-    <div className="relative flex h-[calc(var(--app-vh,1vh)*100 - var(--bottom-nav-safe))] flex-col overflow-hidden">
+    <div className="relative flex flex-col">
       <RecordsExperience
         cycle={cycleData}
         isLoading={cycleDataHookIsLoading}

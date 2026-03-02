@@ -286,7 +286,9 @@ export const AuthProvider = ({ children }) => {
 
   const resetPassword = async (email) => {
     try {
-      await sendPasswordResetEmail(auth, email);
+      await sendPasswordResetEmail(auth, email, {
+        url: `${window.location.origin}/auth`,
+      });
     } catch (error) {
       toast({ title: 'Error al restablecer contraseña', description: error.message, variant: 'destructive' });
       throw error;

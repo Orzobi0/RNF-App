@@ -222,13 +222,67 @@ const ChartPage = () => {
   );
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [forceLandscape, setForceLandscape] = useState(false);
+  const [viewport, setViewport] = useState(() => ({
+  w: typeof window !== 'undefined' ? window.innerWidth : 0,
+  h: typeof window !== 'undefined' ? window.innerHeight : 0,
+}));
+
+useEffect(() => {
+  if (typeof window === 'undefined') return undefined;
+  const onResize = () => setViewport({ w: window.innerWidth, h: window.innerHeight });
+  window.addEventListener('resize', onResize);
+  window.addEventListener('orientationchange', onResize);
+  onResize();
+  return () => {
+    window.removeEventListener('resize', onResize);
+    window.removeEventListener('orientationchange', onResize);
+  };
+}, []);
+
+const applyRotation = isFullScreen && forceLandscape && viewport.w < viewport.h;
   const [showForm, setShowForm] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [initialSectionKey, setInitialSectionKey] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showInterpretation, setShowInterpretation] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const DRAWER_ANIM_MS = 320; // >= 300ms (tu transition del drawer normal)
+const [drawerMounted, setDrawerMounted] = useState(false);
+
+useEffect(() => {
+  if (settingsOpen) setDrawerMounted(true);
+}, [settingsOpen]);
+
+const openSettings = useCallback(() => {
+  setDrawerMounted(true);
+  if (typeof window !== 'undefined') {
+    window.requestAnimationFrame(() => setSettingsOpen(true));
+  } else {
+    setSettingsOpen(true);
+  }
+}, []);
+
+const closeSettings = useCallback(() => {
+  setSettingsOpen(false);
+}, []);
+
+const toggleSettings = useCallback(() => {
+  if (settingsOpen) closeSettings();
+  else openSettings();
+}, [settingsOpen, openSettings, closeSettings]);
+
+useEffect(() => {
+  if (settingsOpen) return;
+  if (!drawerMounted) return;
+  if (typeof window === 'undefined') {
+    setDrawerMounted(false);
+    return;
+  }
+  const t = window.setTimeout(() => setDrawerMounted(false), DRAWER_ANIM_MS);
+  return () => window.clearTimeout(t);
+}, [settingsOpen, drawerMounted]);
   const [phaseOverlay, setPhaseOverlay] = useState(null);
+  const hasStoredRelationsRowPreferenceRef = useRef(false);
   const [chartSettings, setChartSettings] = useState(() => {
     const defaults = {
       showRelationsRow: DEFAULT_CHART_SETTINGS.showRelationsRow,
@@ -242,6 +296,9 @@ const ChartPage = () => {
       const stored = window.localStorage.getItem(CHART_SETTINGS_STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
+        if (parsed && Object.prototype.hasOwnProperty.call(parsed, 'showRelationsRow')) {
+          hasStoredRelationsRowPreferenceRef.current = true;
+        }
         const merged = {
           ...defaults,
           ...parsed,
@@ -280,10 +337,12 @@ const ChartPage = () => {
     const preferenceConfig = mergeFertilityStartConfig(preferences.fertilityStartConfig);
     let changed = false;
 
-    if (
+    const shouldSyncRelationsFromPreferences =
+      !hasStoredRelationsRowPreferenceRef.current &&
       typeof preferences.showRelationsRow === 'boolean' &&
-      prev.showRelationsRow !== preferences.showRelationsRow
-    ) {
+      prev.showRelationsRow !== preferences.showRelationsRow;
+
+    if (shouldSyncRelationsFromPreferences) {
       changed = true;
     }
 
@@ -303,7 +362,7 @@ const ChartPage = () => {
     return {
       ...prev,
       showRelationsRow:
-        typeof preferences.showRelationsRow === 'boolean'
+        shouldSyncRelationsFromPreferences
           ? preferences.showRelationsRow
           : prev.showRelationsRow,
       fertilityStartConfig: preferenceConfig,
@@ -533,15 +592,69 @@ const ChartPage = () => {
         ...baseStyle,
         height: APP_H,
         maxHeight: APP_H,
-        paddingTop: 'env(safe-area-inset-top)',
         paddingBottom: 'env(safe-area-inset-bottom)'
         }
     : {
         ...baseStyle,
         height: `calc(${APP_H} - ${NAVBAR_SAFE_VAR})`,
         maxHeight: `calc(${APP_H} - ${NAVBAR_SAFE_VAR})`,
-        paddingTop: 'env(safe-area-inset-top)',
       };
+
+      const controlsClassName = isFullScreen
+        ? 'fixed z-[60] flex flex-col items-center gap-2'
+        : 'absolute top-4 right-4 z-10 flex items-center gap-2';
+
+      const controlsStyle = isFullScreen
+        ? {
+            top: 'calc(env(safe-area-inset-top) + 8px)',
+            right: 'calc(env(safe-area-inset-right) + 8px)',
+          }
+        : undefined;
+
+        const fullscreenIconRotationClass = isFullScreen ? 'rotate-90' : '';
+      
+
+      const normalDrawerClassName =
+  `fixed top-0 right-0 z-50 h-app w-72 sm:w-80 transform transition-transform duration-300 ease-in-out ${
+    settingsOpen ? 'translate-x-0' : 'translate-x-full'
+  }`;
+
+const rotatedStageStyle = applyRotation
+  ? {
+      position: 'fixed',
+      left: '50%',
+      top: '50%',
+      width: `${viewport.h}px`,
+      height: `${viewport.w}px`,
+      transform: 'translate(-50%, -50%) rotate(90deg)',
+      transformOrigin: 'center center',
+      zIndex: 80,
+      pointerEvents: settingsOpen ? 'auto' : 'none',
+      boxSizing: 'border-box',
+
+      // padding “mapeando” safe-area al escenario rotado
+      paddingTop: 'calc(env(safe-area-inset-left) + 8px)',
+      paddingRight: 'calc(env(safe-area-inset-top) + 8px)',
+      paddingBottom: 'calc(env(safe-area-inset-right) + 8px)',
+      paddingLeft: 'calc(env(safe-area-inset-bottom) + 8px)',
+    }
+  : undefined;
+
+const rotatedDrawerStyle = applyRotation
+  ? {
+      position: 'absolute',
+      top: 0,
+      right: 0,
+      bottom: 0,
+
+      // “mitad derecha” del área visible (con límites)
+      width: 'clamp(280px, 50%, 420px)',
+
+      opacity: settingsOpen ? 1 : 0,
+      transform: settingsOpen ? 'translateX(0)' : 'translateX(16px)',
+      transition: 'opacity 180ms ease, transform 220ms ease',
+    }
+  : undefined;
 
   const handleEdit = (record, sectionKey = null) => {
     setEditingRecord(record);
@@ -635,7 +748,84 @@ const ChartPage = () => {
       });
     }
   };
-  
+  const settingsDrawerInner = (
+        <div className="flex h-full min-h-0 flex-col gap-6 rounded-xl border border-rose-100/60 bg-white p-6 shadow-xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold text-titulo">Ajustes del gráfico</h2>
+                <p className="text-sm text-slate-500">
+                  Personaliza la visualización del gráfico
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-slate-400 hover:text-slate-600"
+                onClick={() => setSettingsOpen(false)}
+                aria-label="Cerrar ajustes del gráfico"
+              >
+                ×
+              </Button>
+            </div>
+            <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
+              <div className="rounded-2xl border border-pink-100/70 bg-pink-50/40 p-4 flex items-start justify-between gap-3">
+                <div className="max-w-xs">
+                  <Label htmlFor="toggle-relations-row" className="text-sm font-semibold text-slate-700">
+                    Mostrar fila RS
+                  </Label>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Añade una fila dedicada a las relaciones sexuales debajo de la gráfica.
+                  </p>                 
+                </div>
+                <Checkbox
+                  id="toggle-relations-row"
+                  checked={chartSettings.showRelationsRow}
+                  onCheckedChange={handleRelationsSettingChange}
+                  className="mt-1"
+                />
+              </div>       
+              
+              <div className="rounded-2xl border border-red-100/70 bg-red-50/40 p-3">
+                <div className="flex items-start justify-between gap-3 pt-1">
+                  <div className="max-w-[65%]">
+                    <p className="text-sm font-semibold text-slate-700">Modo postparto</p>
+                  </div>
+                  <Checkbox
+                    checked={Boolean(fertilityConfig.postpartum)}
+                    onCheckedChange={handlePostpartumChange}
+                    className="mt-1"
+                  />
+                </div>
+              </div>     
+
+              <div className="rounded-2xl border border-amber-100/70 bg-amber-50/40 p-4 space-y-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-700">Calculadoras complementarias</h3>
+                  <p className="text-xs text-slate-500">
+                    CPM y T-8 se combinan con los perfiles activos, salvo que actives el modo posparto.
+                  </p>
+                </div>
+                {fertilityConfig.postpartum && (
+                  <p className="text-xs font-medium text-rose-500">
+                    El modo posparto está activo: CPM y T-8 se omiten del cálculo final.
+                  </p>
+                )}
+                <div className="space-y-2">
+                  {FERTILITY_CALCULATOR_OPTIONS.map((option) => (
+                    <div key={option.key} className="flex items-center justify-between gap-3">
+                      <span className="text-sm text-slate-700">{option.label}</span>
+                      <Checkbox
+                        checked={Boolean(fertilityConfig.calculators?.[option.key])}
+                        disabled={Boolean(fertilityConfig.postpartum)}
+                        onCheckedChange={(checked) => handleFertilityCalculatorChange(option.key, checked)}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>              
+            </div> 
+          </div>
+      );
   const locationStateCandidates = location?.state?.fertilityCalculatorCandidates;
   const cycleCandidates = targetCycle?.fertilityCalculatorCandidates;
   const storedFertilityCalculatorCandidates = useMemo(() => {
@@ -1161,8 +1351,8 @@ const ChartPage = () => {
       <div
         className={
           isFullScreen
-            ? 'fixed inset-0 z-50 h-app w-[100vw] overflow-y-auto overflow-x-hidden'
-            : 'relative w-full h-full overflow-y-auto overflow-x-hidden'}
+            ? 'fixed inset-0 z-50 h-app w-[100vw] overflow-hidden'
+            : 'relative w-full min-h-full overflow-x-hidden'}
         style={containerStyle}
       >
         {showBackToCycleRecords && !isFullScreen && (
@@ -1182,33 +1372,39 @@ const ChartPage = () => {
           </Button>
           
         )}
-        <Button
-          onClick={() => setSettingsOpen((prev) => !prev)}
-          variant="ghost"
-          size="icon"
-          className="absolute top-16 right-4 z-10 p-2 rounded-full bg-white/20 shadow-lg shadow-secundario text-secundario border hover:brightness-95"
-          aria-label="Ajustes"
-        >
-          <Settings className="h-4 w-4" />
-        </Button>
-        <Button
-          onClick={handleInterpretationClick}
-          onPointerUp={handleInterpretationPointerUp}
-          variant="ghost"
-          size="icon"
-          className={`absolute top-4 right-20 z-10 p-2 rounded-full transition-colors ${showInterpretation 
-            ? 'bg-fertiliapp-fuerte text-white shadow-lg shadow-fertiliapp-fuerte/50 border-fertiliapp-fuerte/70' 
-            : 'bg-white/20 text-fertiliapp-fuerte border border-fertiliapp-fuerte hover:brightness-95 shadow-md'}`}
-        >
-          {showInterpretation ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-        </Button>
-        <Button
-          onClick={handleToggleFullScreen}
-          className="absolute top-4 right-4 z-10 bg-white/20 rounded-full text-slate-600 hover:bg-pink-50/80 shadow-md border border-slate-400/50 backdrop-blur-sm"
-          aria-label={isFullScreen ? 'Salir de pantalla completa' : 'Rotar gráfico'}
-        >
-          <RotateCcw className="w-4 h-4" />
-        </Button>
+        <div className={controlsClassName} style={controlsStyle}>
+          <Button
+            onClick={toggleSettings}
+            variant="ghost"
+            size="icon"
+            className="p-2 rounded-full bg-white/20 shadow-lg shadow-secundario text-secundario border hover:brightness-95"
+            aria-label="Ajustes"
+          >
+            <Settings className={`h-4 w-4 transition-transform ${fullscreenIconRotationClass}`} />
+          </Button>
+          <Button
+            onClick={handleInterpretationClick}
+            onPointerUp={handleInterpretationPointerUp}
+            variant="ghost"
+            size="icon"
+            className={`p-2 rounded-full transition-colors ${showInterpretation 
+              ? 'bg-fertiliapp-fuerte text-white shadow-lg shadow-fertiliapp-fuerte/50 border-fertiliapp-fuerte/70' 
+              : 'bg-white/20 text-fertiliapp-fuerte border border-fertiliapp-fuerte hover:brightness-95 shadow-md'}`}
+          >
+            {showInterpretation ? (
+              <EyeOff className={`h-4 w-4 transition-transform ${fullscreenIconRotationClass}`} />
+            ) : (
+              <Eye className={`h-4 w-4 transition-transform ${fullscreenIconRotationClass}`} />
+            )}
+          </Button>
+          <Button
+            onClick={handleToggleFullScreen}
+            className="bg-white/20 rounded-full text-slate-600 hover:bg-pink-50/80 shadow-md border border-slate-400/50 backdrop-blur-sm"
+            aria-label={isFullScreen ? 'Salir de pantalla completa' : 'Rotar gráfico'}
+          >
+            <RotateCcw className={`w-4 h-4 transition-transform ${fullscreenIconRotationClass}`} />
+          </Button>
+        </div>
         <FertilityChart
           data={mergedData}
           isFullScreen={isFullScreen}
@@ -1232,99 +1428,40 @@ const ChartPage = () => {
           cycleEndDate={targetCycle?.endDate ?? null}
         />
         
-        {/* Backdrop */}
-        {settingsOpen && (
-            <div className="fixed inset-0 z-40 bg-black/30"
-            onClick={() => setSettingsOpen(false)}
-            aria-hidden="true"
-            />
-            )}
-            {/* Drawer fijo */}
-            <div className={`fixed top-0 right-0 z-50 h-app w-72 sm:w-80 transform transition-transform duration-300 ease-in-out ${
-              settingsOpen ? 'translate-x-0' : 'translate-x-full'
-            }`}
-            role="dialog"
-            aria-modal="true"
-            >
-            <div className="flex h-full flex-col gap-6 border-xl rounded-xl border-rose-100/60 bg-white p-6 shadow-xl">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-semibold text-titulo">Ajustes del gráfico</h2>
-                <p className="text-sm text-slate-500">
-                  Personaliza la visualización del gráfico
-                </p>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-slate-400 hover:text-slate-600"
-                onClick={() => setSettingsOpen(false)}
-                aria-label="Cerrar ajustes del gráfico"
-              >
-                ×
-              </Button>
-            </div>
-            <div className="space-y-4 overflow-y-auto pr-1">
-              <div className="rounded-2xl border border-pink-100/70 bg-pink-50/40 p-4 flex items-start justify-between gap-3">
-                <div className="max-w-xs">
-                  <Label htmlFor="toggle-relations-row" className="text-sm font-semibold text-slate-700">
-                    Mostrar fila RS
-                  </Label>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Añade una fila dedicada a las relaciones sexuales debajo de la gráfica.
-                  </p>                 
-                </div>
-                <Checkbox
-                  id="toggle-relations-row"
-                  checked={chartSettings.showRelationsRow}
-                  onCheckedChange={handleRelationsSettingChange}
-                  className="mt-1"
-                />
-              </div>       
-              
-              <div className="rounded-2xl border border-red-100/70 bg-red-50/40 p-3">
-                <div className="flex items-start justify-between gap-3 pt-1">
-                  <div className="max-w-[65%]">
-                    <p className="text-sm font-semibold text-slate-700">Modo postparto</p>
-                  </div>
-                  <Checkbox
-                    checked={Boolean(fertilityConfig.postpartum)}
-                    onCheckedChange={handlePostpartumChange}
-                    className="mt-1"
-                  />
-                </div>
-              </div>     
+        {drawerMounted && (
+  <>
+    {/* Backdrop */}
+    {settingsOpen && (
+      <div
+        className={`fixed inset-0 ${applyRotation ? 'z-[70]' : 'z-40'} bg-black/30`}
+        onClick={closeSettings}
+        aria-hidden="true"
+      />
+    )}
 
-              <div className="rounded-2xl border border-amber-100/70 bg-amber-50/40 p-4 space-y-3">
-                <div>
-                  <h3 className="text-sm font-semibold text-slate-700">Calculadoras complementarias</h3>
-                  <p className="text-xs text-slate-500">
-                    CPM y T-8 se combinan con los perfiles activos, salvo que actives el modo posparto.
-                  </p>
-                </div>
-                {fertilityConfig.postpartum && (
-                  <p className="text-xs font-medium text-rose-500">
-                    El modo posparto está activo: CPM y T-8 se omiten del cálculo final.
-                  </p>
-                )}
-                <div className="space-y-2">
-                  {FERTILITY_CALCULATOR_OPTIONS.map((option) => (
-                    <div key={option.key} className="flex items-center justify-between gap-3">
-                      <span className="text-sm text-slate-700">{option.label}</span>
-                      <Checkbox
-                        checked={Boolean(fertilityConfig.calculators?.[option.key])}
-                        disabled={Boolean(fertilityConfig.postpartum)}
-                        onCheckedChange={(checked) => handleFertilityCalculatorChange(option.key, checked)}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              
-            </div> 
-            </div>
+    {/* Drawer */}
+    {applyRotation ? (
+      <div
+        style={rotatedStageStyle}
+        onClick={closeSettings}
+        aria-hidden={!settingsOpen}
+      >
+        <div
+          style={rotatedDrawerStyle}
+          role="dialog"
+          aria-modal="true"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {settingsDrawerInner}
         </div>
+      </div>
+    ) : (
+      <div className={normalDrawerClassName} role="dialog" aria-modal="true">
+        {settingsDrawerInner}
+      </div>
+    )}
+  </>
+)}
         <Overlay
           isOpen={Boolean(phaseOverlay)}
           onClose={closePhaseOverlay}
