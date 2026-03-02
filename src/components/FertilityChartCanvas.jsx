@@ -23,6 +23,17 @@ const getLabelStep = ({ totalPoints, getX, responsiveFontSize, data, ctx }) => {
   return Math.max(1, Math.ceil(minLabelWidth / dayWidth));
 };
 
+// Helper: rounded rect compatible (sin depender de ctx.roundRect)
+const buildRoundRectPath = (ctx, x, y, w, h, r) => {
+  const radius = Math.max(0, Math.min(r, w / 2, h / 2));
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.arcTo(x + w, y, x + w, y + h, radius);
+  ctx.arcTo(x + w, y + h, x, y + h, radius);
+  ctx.arcTo(x, y + h, x, y, radius);
+  ctx.arcTo(x, y, x + w, y, radius);
+  ctx.closePath();
+};
 const FertilityChartCanvas = ({
   chartRef,
   chartWidth,
@@ -148,12 +159,29 @@ const FertilityChartCanvas = ({
     const plotW = chartWidth - padding.left - padding.right;
     const chartAreaHeight = Math.max(chartHeight - padding.top - padding.bottom, 0);
 
+    // Fondo suave (como el SVG)
     const bgGrad = ctx.createLinearGradient(0, padding.top, 0, padding.top + chartAreaHeight);
     bgGrad.addColorStop(0, '#fffbfc');
     bgGrad.addColorStop(0.5, '#fff5f7');
     bgGrad.addColorStop(1, '#fff1f3');
     ctx.fillStyle = bgGrad;
     ctx.fillRect(padding.left, padding.top, plotW, chartAreaHeight);
+
+    // "Tarjeta" blanca con borde rosado y sombra suave (parecido al SVG)
+    ctx.save();
+    ctx.shadowColor = 'rgba(244, 114, 182, 0.10)';
+    ctx.shadowBlur = 12;
+   ctx.shadowOffsetY = 4;
+    ctx.fillStyle = '#ffffff';
+    buildRoundRectPath(ctx, padding.left, padding.top, plotW, chartAreaHeight, 12);
+    ctx.fill();
+    ctx.restore();
+    ctx.save();
+    ctx.strokeStyle = 'rgba(244, 114, 182, 0.20)';
+    ctx.lineWidth = 1;
+    buildRoundRectPath(ctx, padding.left, padding.top, plotW, chartAreaHeight, 12);
+    ctx.stroke();
+    ctx.restore();
 
     const dataGrad = ctx.createLinearGradient(0, graphBottomY, 0, graphBottomY + rowsZoneHeight);
     dataGrad.addColorStop(0, '#fff7fb');
@@ -162,12 +190,18 @@ const FertilityChartCanvas = ({
     ctx.fillStyle = dataGrad;
     ctx.fillRect(padding.left, graphBottomY, plotW, rowsZoneHeight);
 
-    if (showInterpretation) {
+    // Bandas de interpretación (colores más parecidos al SVG)
+    if (showInterpretation && Array.isArray(interpretationSegments)) {
       interpretationSegments.forEach((segment) => {
         const { x, width } = segment.bounds || {};
         if (!Number.isFinite(x) || !Number.isFinite(width) || width <= 0) return;
         const grad = ctx.createLinearGradient(0, padding.top + chartAreaHeight * 0.5, 0, graphBottomY);
-        const c = segment.phase === 'fertile' ? 'rgba(244,63,94,0.28)' : segment.phase === 'postOvulatory' ? 'rgba(234,179,8,0.32)' : 'rgba(45,212,191,0.2)';
+        let c = 'rgba(203, 213, 225, 0.20)'; // nodata/fallback
+        if (segment.phase === 'relativeInfertile') c = 'rgba(16, 185, 129, 0.16)'; // verde suave
+        if (segment.phase === 'fertile') c = 'rgba(244, 114, 182, 0.22)'; // rosa
+        if (segment.phase === 'postOvulatory') c = segment.status === 'pending'
+          ? 'rgba(147, 197, 253, 0.24)' // azul claro
+          : 'rgba(59, 130, 246, 0.26)'; // azul más intenso
         grad.addColorStop(0, 'rgba(255,255,255,0)');
         grad.addColorStop(1, c);
         ctx.fillStyle = grad;
@@ -187,14 +221,19 @@ const FertilityChartCanvas = ({
       ctx.stroke();
       ctx.setLineDash([]);
 
-      const label = major ? temp.toFixed(1) : `.${temp.toFixed(1).split('.')[1]}`;
-      ctx.fillStyle = major ? '#be185d' : '#db2777';
-      ctx.font = `${major ? '700' : '600'} ${responsiveFontSize(1)}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
-      ctx.textBaseline = 'middle';
-      ctx.textAlign = 'left';
-      ctx.fillText(label, chartWidth - padding.right + responsiveFontSize(1), y);
-      ctx.textAlign = 'right';
-      ctx.fillText(label, padding.left - responsiveFontSize(1), y);
+      // Labels SOLO en major (evita el duplicado y queda más limpio)
+      if (major) {
+        const label = temp.toFixed(1);
+        ctx.fillStyle = '#be185d';
+        ctx.font = `700 ${responsiveFontSize(1)}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+        ctx.textBaseline = 'middle';
+
+        ctx.textAlign = 'right';
+        ctx.fillText(label, padding.left - responsiveFontSize(0.9), y);
+
+        ctx.textAlign = 'left';
+        ctx.fillText(label, chartWidth - padding.right + responsiveFontSize(0.9), y);
+      }
     });
 
     for (let i = start; i <= end; i += 1) {
@@ -208,8 +247,14 @@ const FertilityChartCanvas = ({
     }
 
     const ys = ysTempRef.current;
-    ctx.strokeStyle = '#ec4899';
-    ctx.lineWidth = 3;
+    const x0 = xsRef.current[Math.max(0, start)] ?? padding.left;
+    const x1 = xsRef.current[Math.min(xsRef.current.length - 1, end)] ?? (chartWidth - padding.right);
+    const lineGrad = ctx.createLinearGradient(x0, 0, x1, 0);
+    lineGrad.addColorStop(0, '#f472b6');
+    lineGrad.addColorStop(0.5, '#ec4899');
+    lineGrad.addColorStop(1, '#be185d');
+
+    ctx.strokeStyle = lineGrad;
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
     ctx.beginPath();
@@ -228,15 +273,36 @@ const FertilityChartCanvas = ({
         ctx.lineTo(x, y);
       }
     }
+    // Glow (como el SVG): doble trazo
+    ctx.save();
+    ctx.globalAlpha = 0.35;
+    ctx.lineWidth = 6;
+    ctx.stroke();
+    ctx.restore();
+    ctx.lineWidth = 3;
     ctx.stroke();
 
     for (let i = start; i <= end; i += 1) {
       const y = ys[i];
       if (y == null || !Number.isFinite(y)) continue;
       const x = xsRef.current[i];
-      ctx.fillStyle = i === todayIndex ? '#be185d' : '#ec4899';
+      const isToday = Number.isInteger(todayIndex) && i === todayIndex;
+      // Gradiente radial del punto (similar al SVG)
+      const g = ctx.createRadialGradient(x - 2, y - 2, 1, x, y, 5);
+      g.addColorStop(0, '#FDF2F8');
+      g.addColorStop(0.55, '#F9A8D4');
+      g.addColorStop(1, '#EC4899');
+      ctx.fillStyle = g;
+      ctx.strokeStyle = isToday ? '#be185d' : '#E91E63';
+      ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.arc(x, y, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      // Centro brillante
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.beginPath();
+      ctx.arc(x, y, 1.2, 0, Math.PI * 2);
       ctx.fill();
     }
 
@@ -263,8 +329,25 @@ const FertilityChartCanvas = ({
       const symbolInfo = getSymbolAppearance(point.fertility_symbol);
       if (symbolInfo.value !== 'none') {
         const palette = getSymbolColorPalette(symbolInfo.value);
-        ctx.fillStyle = palette.main || '#f9a8d4';
-        ctx.fillRect(x - 8, symbolRowY - 12, 16, 12);
+        const fill = palette.main || '#f9a8d4';
+        const border = palette.border && palette.border !== 'none' ? palette.border : null;
+        const rectX = x - 10;
+        const rectY = symbolRowY - 12;
+        const rectW = 20;
+        const rectH = 14;
+        const r = 3;
+
+        ctx.save();
+        ctx.fillStyle = fill;
+       buildRoundRectPath(ctx, rectX, rectY, rectW, rectH, r);
+        ctx.fill();
+        if (border) {
+          ctx.strokeStyle = border;
+          ctx.lineWidth = (symbolInfo.value === 'white') ? 1.6 : 1;
+          buildRoundRectPath(ctx, rectX, rectY, rectW, rectH, r);
+          ctx.stroke();
+        }
+        ctx.restore();
       }
       const peakStatus = point.peakStatus ? String(point.peakStatus).toUpperCase() : null;
       if (peakStatus) {
