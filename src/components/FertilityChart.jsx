@@ -4,8 +4,8 @@ import ChartPoints from '@/components/chartElements/ChartPoints';
 import ChartTooltip from '@/components/chartElements/ChartTooltip';
 import ChartLeftLegend from '@/components/chartElements/ChartLeftLegend';
 import FertilityChartCanvasOverlay from '@/components/chartElements/FertilityChartCanvasOverlay';
+import { getChartTheme } from '@/components/chartElements/chartTheme';
 import { useFertilityChart } from '@/hooks/useFertilityChart';
-import { isAfter, parseISO, startOfDay } from 'date-fns';
 
 const FertilityChart = ({
   data,
@@ -137,61 +137,7 @@ const FertilityChart = ({
       ? leftIndex
       : rightIndex;
   }, [allDataPoints, getX]);
-    const handleChartBackgroundInteraction = useCallback((event) => {
-    if (exportMode) return;
-
-    // Si el click fue sobre algo interactivo (puntos, textos de fase, etc), no hacemos nada.
-   const clickedInteractiveElement = event.target?.closest?.('[data-chart-interactive="true"]');
-    if (clickedInteractiveElement) return;
-
-    const scroller = chartRef.current;
-    if (!scroller) return;
-
-    const rect = scroller.getBoundingClientRect();
-    if (!rect.width || !rect.height) return;
-
-    // Mismo criterio de rotación que usabas
-    const isRotated =
-      isFullScreen &&
-      forceLandscape &&
-      typeof window !== 'undefined' &&
-      window.innerWidth < window.innerHeight;
-
-    let localX = event.clientX - rect.left;
-
-    if (isRotated) {
-      const cx = rect.left + rect.width / 2;
-      const cy = rect.top + rect.height / 2;
-      const dy = event.clientY - cy;
-      const unrotW = rect.height || 1;
-      localX = dy + unrotW / 2;
-    }
-
-    const worldX = scroller.scrollLeft + localX;
-    const index = getNearestDataIndexByX(worldX);
-    if (index == null) return;
-
-    const point = allDataPoints[index];
-    if (!point) return;
-
-    const isFuture = point.isoDate
-      ? isAfter(startOfDay(parseISO(point.isoDate)), startOfDay(new Date()))
-      : false;
-    if (isFuture) return;
-
-    handlePointInteraction(point, index, event);
-  }, [
-    allDataPoints,
-    chartRef,
-    exportMode,
-    forceLandscape,
-    getNearestDataIndexByX,
-    handlePointInteraction,
-    isFullScreen,
-  ]);
-
   
-
   if (!allDataPoints || allDataPoints.length === 0) {
     return (
       <div className="text-center p-8">
@@ -221,7 +167,8 @@ const FertilityChart = ({
     allDataPoints.length > 0
       ? getX(allDataPoints.length - 1)
       : chartWidth - padding.right;
-  const baselineStroke = confirmedRise ? '#F59E0B' : '#94A3B8';
+  const theme = getChartTheme();
+  const baselineStroke = confirmedRise ? theme.baseline.defaultStroke : theme.points.ignoredStroke;
   const baselineDash = confirmedRise ? '6 4' : '4 4';
   const baselineOpacity = confirmedRise ? 1 : 0.7;
   const baselineWidth = 3;
@@ -1027,7 +974,6 @@ const rotationStageStyle = isRotationStage
     : '0 8px 32px rgba(244, 114, 182, 0.12), 0 2px 8px rgba(244, 114, 182, 0.08)',
   ...(rotationStageStyle ?? {}),
 }}
-onClick={handleChartBackgroundInteraction}
 >
   {!exportMode && (
   <FertilityChartCanvasOverlay
@@ -1057,6 +1003,11 @@ onClick={handleChartBackgroundInteraction}
     baselineOpacity={baselineOpacity}
     baselineWidth={baselineWidth}
     temperatureRiseHighlightPath={temperatureRiseHighlightPath}
+    handlePointInteraction={handlePointInteractionSafe}
+    getNearestDataIndexByX={getNearestDataIndexByX}
+    isFullScreen={isFullScreen}
+    forceLandscape={forceLandscape}
+    exportMode={exportMode}
   />
 )}
       
@@ -1103,14 +1054,14 @@ onClick={handleChartBackgroundInteraction}
           <defs>
             {/* Gradientes mejorados para la línea de temperatura */}
             <linearGradient id="tempLineGradientChart" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#F472B6" />
-              <stop offset="50%" stopColor="#EC4899" />
-              <stop offset="100%" stopColor="#E91E63" />
+              <stop offset="0%" stopColor={theme.svg.temperatureGradient[0]} />
+              <stop offset="50%" stopColor={theme.svg.temperatureGradient[1]} />
+              <stop offset="100%" stopColor={theme.svg.temperatureGradient[2]} />
             </linearGradient>
             
             <linearGradient id="tempAreaGradientChart" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="rgba(244, 114, 182, 0.18)" />
-              <stop offset="100%" stopColor="rgba(244, 114, 182, 0.02)" />
+              <stop offset="0%" stopColor={theme.svg.areaGradientTop} />
+              <stop offset="100%" stopColor={theme.svg.areaGradientBottom} />
             </linearGradient>
             
             <linearGradient id={relativePhaseGradientId} x1="0%" y1="0%" x2="0%" y2="100%">

@@ -601,8 +601,8 @@ useEffect(() => {
       };
 
       const controlsClassName = isFullScreen
-        ? 'fixed z-[60] flex flex-col items-center gap-2'
-        : 'absolute top-4 right-4 z-10 flex items-center gap-2';
+        ? 'fixed z-[200] flex flex-col items-center gap-2'
+        : 'absolute top-4 right-4 z-[200] flex items-center gap-2';
 
       const controlsStyle = isFullScreen
         ? {
@@ -1372,7 +1372,13 @@ const rotatedDrawerStyle = applyRotation
           </Button>
           
         )}
-        <div className={controlsClassName} style={controlsStyle}>
+        <div
+          className={controlsClassName}
+          style={controlsStyle}
+          onPointerDownCapture={(e) => e.stopPropagation()}
+          onClickCapture={(e) => e.stopPropagation()}
+          onPointerUpCapture={(e) => e.stopPropagation()}
+        >
           <Button
             onClick={toggleSettings}
             variant="ghost"
