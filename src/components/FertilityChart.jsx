@@ -113,6 +113,13 @@ const FertilityChart = ({
   const scrollRafRef = useRef(null);
   const [isScrolling, setIsScrolling] = useState(false);
   const scrollStopTimerRef = useRef(null);
+  const pointerGestureRef = useRef({
+    pointerId: null,
+    startX: 0,
+    startY: 0,
+    startScrollLeft: 0,
+    moved: false,
+  });
   const getNearestDataIndexByX = useCallback((targetX) => {
     const totalPoints = allDataPoints.length;
     if (!Number.isFinite(targetX) || totalPoints === 0) return null;
@@ -138,59 +145,109 @@ const FertilityChart = ({
       ? leftIndex
       : rightIndex;
   }, [allDataPoints, getX]);
-  const handleChartPointerDown = useCallback((event) => {
-  if (exportMode) return;
+  const activateTooltipFromPointer = useCallback((event) => {
+    if (exportMode) return;
 
-  // Si tocaste algo interactivo (texto fase, iconos, puntos de filas...), no lo interceptes.
   const clickedInteractiveElement =
-    event.target?.closest?.('[data-chart-interactive="true"]');
-  if (clickedInteractiveElement) return;
+      event.target?.closest?.('[data-chart-interactive="true"]');
+    if (clickedInteractiveElement) return;
 
-  const scroller = chartRef.current;
-  if (!scroller) return;
+    const scroller = chartRef.current;
+    if (!scroller) return;
 
-  const rect = scroller.getBoundingClientRect();
-  if (!rect.width || !rect.height) return;
+    const rect = scroller.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
 
-  const isRotated =
-    isFullScreen &&
-    forceLandscape &&
-    typeof window !== 'undefined' &&
-    window.innerWidth < window.innerHeight;
+    const isRotated =
+      isFullScreen &&
+      forceLandscape &&
+      typeof window !== 'undefined' &&
+      window.innerWidth < window.innerHeight;
 
-  let localX = event.clientX - rect.left;
+    let localX = event.clientX - rect.left;
 
-  if (isRotated) {
-    const cx = rect.left + rect.width / 2;
-    const cy = rect.top + rect.height / 2;
-    const dy = event.clientY - cy;
-    const unrotW = rect.height || 1;
-    localX = dy + unrotW / 2;
-  }
+  
+    if (isRotated) {
+      const cy = rect.top + rect.height / 2;
+      const dy = event.clientY - cy;
+      const unrotW = rect.height || 1;
+      localX = dy + unrotW / 2;
+    }
 
-  const worldX = scroller.scrollLeft + localX;
-  const index = getNearestDataIndexByX(worldX);
-  if (index == null) return;
+    const worldX = scroller.scrollLeft + localX;
+    const index = getNearestDataIndexByX(worldX);
+    if (index == null) return;
 
-  const point = allDataPoints[index];
-  if (!point) return;
+    const point = allDataPoints[index];
+    if (!point) return;
 
-  // Bloqueo “futuro” (si lo sigues queriendo)
-  const isFuture = point.isoDate
-    ? isAfter(startOfDay(parseISO(point.isoDate)), startOfDay(new Date()))
-    : false;
-  if (isFuture) return;
+    const isFuture = point.isoDate
+      ? isAfter(startOfDay(parseISO(point.isoDate)), startOfDay(new Date()))
+      : false;
+    if (isFuture) return;
 
   handlePointInteraction(point, index, event);
-}, [
-  exportMode,
-  chartRef,
-  isFullScreen,
-  forceLandscape,
-  getNearestDataIndexByX,
-  allDataPoints,
-  handlePointInteraction,
-]);
+  }, [
+    exportMode,
+    chartRef,
+    isFullScreen,
+    forceLandscape,
+    getNearestDataIndexByX,
+    allDataPoints,
+    handlePointInteraction,
+  ]);
+
+  const handleChartPointerDown = useCallback((event) => {
+    if (exportMode) return;
+    const scroller = chartRef.current;
+    if (!scroller) return;
+    pointerGestureRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      startScrollLeft: scroller.scrollLeft,
+      moved: false,
+    };
+  }, [chartRef, exportMode]);
+
+  const handleChartPointerMove = useCallback((event) => {
+    const gesture = pointerGestureRef.current;
+    if (gesture.pointerId !== event.pointerId) return;
+    const movedX = Math.abs(event.clientX - gesture.startX);
+    const movedY = Math.abs(event.clientY - gesture.startY);
+    if (movedX > 8 || movedY > 8) {
+      gesture.moved = true;
+    }
+  }, []);
+
+  const handleChartPointerUp = useCallback((event) => {
+    const gesture = pointerGestureRef.current;
+    const scroller = chartRef.current;
+    const isSamePointer = gesture.pointerId === event.pointerId;
+    pointerGestureRef.current = {
+      pointerId: null,
+      startX: 0,
+      startY: 0,
+      startScrollLeft: 0,
+      moved: false,
+    };
+
+    if (!isSamePointer || !scroller) return;
+    const scrollDelta = Math.abs(scroller.scrollLeft - gesture.startScrollLeft);
+    if (gesture.moved || scrollDelta > 4 || isScrolling) return;
+
+    activateTooltipFromPointer(event);
+  }, [activateTooltipFromPointer, chartRef, isScrolling]);
+
+  const handleChartPointerCancel = useCallback(() => {
+    pointerGestureRef.current = {
+      pointerId: null,
+      startX: 0,
+      startY: 0,
+      startScrollLeft: 0,
+      moved: false,
+    };
+  }, []);
   
   if (!allDataPoints || allDataPoints.length === 0) {
     return (
@@ -1010,7 +1067,7 @@ const rotationStageStyle = isRotationStage
   const containerClass = isFullScreen
     ? `${baseFullClass} h-full overflow-x-auto overflow-y-auto`
     : `${baseFullClass} overflow-x-auto overflow-y-auto border border-pink-100/50`;
-  const showLegend = !isFullScreen || visualOrientation === 'portrait';
+  const showLegend = true;
   const handlePointInteractionSafe = exportMode ? () => {} : handlePointInteraction;
   const clearActivePointSafe = exportMode ? () => {} : clearActivePoint;
   return (
@@ -1099,6 +1156,9 @@ const rotationStageStyle = isRotationStage
                 preserveAspectRatio="xMidYMid meet"
                 initial={false}
                 onPointerDown={handleChartPointerDown}
+                onPointerMove={handleChartPointerMove}
+                onPointerUp={handleChartPointerUp}
+                onPointerCancel={handleChartPointerCancel}
               >
           <defs>
             {/* Gradientes mejorados para la línea de temperatura */}

@@ -615,7 +615,7 @@ useEffect(() => {
       
 
       const normalDrawerClassName =
-  `fixed top-0 right-0 z-50 h-app w-72 sm:w-80 transform transition-transform duration-300 ease-in-out ${
+  `fixed top-0 right-0 z-[320] h-app w-72 sm:w-80 transform transition-transform duration-300 ease-in-out ${
     settingsOpen ? 'translate-x-0' : 'translate-x-full'
   }`;
 
@@ -628,7 +628,7 @@ const rotatedStageStyle = applyRotation
       height: `${viewport.w}px`,
       transform: 'translate(-50%, -50%) rotate(90deg)',
       transformOrigin: 'center center',
-      zIndex: 80,
+      zIndex: 320,
       pointerEvents: settingsOpen ? 'auto' : 'none',
       boxSizing: 'border-box',
 
@@ -1439,7 +1439,7 @@ const rotatedDrawerStyle = applyRotation
     {/* Backdrop */}
     {settingsOpen && (
       <div
-        className={`fixed inset-0 ${applyRotation ? 'z-[70]' : 'z-40'} bg-black/30`}
+        className={`fixed inset-0 ${applyRotation ? 'z-[300]' : 'z-[300]'} bg-black/30`}
         onClick={closeSettings}
         aria-hidden="true"
       />
