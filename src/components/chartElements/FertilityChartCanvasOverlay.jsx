@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { isAfter, parseISO, startOfDay } from 'date-fns';
+import { getCanvasTheme } from '@/components/chartElements/chartTheme';
 
 const parseDash = (dash) => {
   if (!dash) return [];
@@ -53,6 +54,7 @@ const FertilityChartCanvasOverlay = ({
   const rafRef = useRef(0);
 
   const points = useMemo(() => allDataPoints || [], [allDataPoints]);
+  const theme = useMemo(() => getCanvasTheme(), []);
   const xs = useMemo(() => points.map((_, index) => getX(index)), [points, getX]);
   const ysTemp = useMemo(
     () => points.map((point) => (Number.isFinite(point?.displayTemperature) ? getY(point.displayTemperature) : null)),
@@ -90,6 +92,7 @@ const FertilityChartCanvasOverlay = ({
     const scrollLeft = node.scrollLeft || 0;
     const scrollTop = node.scrollTop || 0;
     const { width: viewportW, height: viewportH, dpr } = viewportSize;
+    const snap = (value) => Math.round(value * dpr) / dpr;
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, viewportW, viewportH);
@@ -106,9 +109,9 @@ const FertilityChartCanvasOverlay = ({
     const areaH = Math.max(graphBottomY - padding.top, 0);
 
     // Background card + rows zone
-    ctx.fillStyle = '#fff7fb';
+    ctx.fillStyle = theme.background.chartArea;
     ctx.fillRect(areaX, areaY, areaW, areaH);
-    ctx.fillStyle = '#fff7fb';
+    ctx.fillStyle = theme.background.rowsArea;
     ctx.fillRect(areaX, graphBottomY, areaW, rowsZoneHeight);
 
     // Temperature horizontal grid + right labels
@@ -122,20 +125,21 @@ const FertilityChartCanvasOverlay = ({
     ticks.forEach((temp) => {
       const y = getY(temp);
       const isMajor = temp.toFixed(1).endsWith('.0') || temp.toFixed(1).endsWith('.5');
+      const snappedY = snap(y);
       ctx.beginPath();
-      ctx.moveTo(areaX, y);
-      ctx.lineTo(chartWidth - padding.right, y);
-      ctx.strokeStyle = isMajor ? 'rgba(249,168,212,0.7)' : 'rgba(252,231,243,0.7)';
+      ctx.moveTo(snap(areaX), snappedY);
+      ctx.lineTo(snap(chartWidth - padding.right), snappedY);
+      ctx.strokeStyle = isMajor ? theme.grid.horizontalMajor : theme.grid.horizontalMinor;
       ctx.lineWidth = isMajor ? 1.2 : 1;
       ctx.setLineDash(isMajor ? [] : [4, 4]);
       ctx.stroke();
       ctx.setLineDash([]);
 
-      ctx.fillStyle = isMajor ? '#be185d' : '#db2777';
+      ctx.fillStyle = isMajor ? theme.grid.labelMajor : theme.grid.labelMinor;
       ctx.textBaseline = 'middle';
       ctx.textAlign = 'left';
       const labelText = isMajor ? temp.toFixed(1) : `.${temp.toFixed(1).split('.')[1]}`;
-      ctx.fillText(labelText, chartWidth - padding.right + responsiveFontSize(1), y);
+      ctx.fillText(labelText, snap(chartWidth - padding.right + responsiveFontSize(1)), snappedY);
     });
 
     // Vertical grid limited to visible range
@@ -145,9 +149,10 @@ const FertilityChartCanvasOverlay = ({
       const x = xs[i];
       if (!Number.isFinite(x)) continue;
       ctx.beginPath();
-      ctx.moveTo(x, padding.top);
-      ctx.lineTo(x, graphBottomY);
-      ctx.strokeStyle = 'rgba(252,231,243,0.85)';
+      const snappedX = snap(x);
+      ctx.moveTo(snappedX, snap(padding.top));
+      ctx.lineTo(snappedX, snap(graphBottomY));
+      ctx.strokeStyle = theme.grid.vertical;
       ctx.lineWidth = 1;
       ctx.stroke();
     }
@@ -158,11 +163,11 @@ const FertilityChartCanvasOverlay = ({
         const x = segment?.bounds?.x;
         const w = segment?.bounds?.width;
         if (!Number.isFinite(x) || !Number.isFinite(w) || w <= 0) return;
-        if (segment.phase === 'fertile') ctx.fillStyle = 'rgba(236,72,153,0.22)';
-        else if (segment.phase === 'relativeInfertile') ctx.fillStyle = 'rgba(16,185,129,0.2)';
-        else if (segment.phase === 'postOvulatory' && segment.status === 'absolute') ctx.fillStyle = 'rgba(37,99,235,0.24)';
-        else if (segment.phase === 'postOvulatory') ctx.fillStyle = 'rgba(14,165,233,0.24)';
-        else ctx.fillStyle = 'rgba(148,163,184,0.2)';
+        if (segment.phase === 'fertile') ctx.fillStyle = theme.interpretation.fertile;
+        else if (segment.phase === 'relativeInfertile') ctx.fillStyle = theme.interpretation.relativeInfertile;
+        else if (segment.phase === 'postOvulatory' && segment.status === 'absolute') ctx.fillStyle = theme.interpretation.postOvulatoryAbsolute;
+        else if (segment.phase === 'postOvulatory') ctx.fillStyle = theme.interpretation.postOvulatory;
+        else ctx.fillStyle = theme.interpretation.default;
         ctx.fillRect(x, graphBottomY - Math.max(areaH * 0.5, 0), w, Math.max(areaH * 0.5, 0));
       });
     }
@@ -171,7 +176,7 @@ const FertilityChartCanvasOverlay = ({
     if (showInterpretation && shouldRenderBaseline && Number.isFinite(baselineY)) {
       ctx.save();
       ctx.setLineDash(parseDash(baselineDash));
-      ctx.strokeStyle = baselineStroke || '#F59E0B';
+      ctx.strokeStyle = baselineStroke || theme.baseline.defaultStroke;
       ctx.globalAlpha = baselineOpacity ?? 1;
       ctx.lineWidth = baselineWidth || 3;
       ctx.beginPath();
@@ -184,6 +189,7 @@ const FertilityChartCanvasOverlay = ({
     // Temperature line and halo
     const drawPath = (lineWidth, strokeStyle, alpha = 1) => {
       let started = false;
+      let prevValidIndex = null;
       ctx.beginPath();
       for (let i = startIndex; i <= endIndex; i += 1) {
         const y = ysTemp[i];
@@ -193,12 +199,19 @@ const FertilityChartCanvasOverlay = ({
           continue;
         }
         const x = xs[i];
+        const snappedX = snap(x);
+        const snappedY = snap(y);
         if (!started) {
-          ctx.moveTo(x, y);
+          ctx.moveTo(snappedX, snappedY);
           started = true;
         } else {
-          ctx.lineTo(x, y);
+          if (prevValidIndex != null && i === prevValidIndex + 1) {
+            ctx.lineTo(snappedX, snappedY);
+          } else {
+            ctx.moveTo(snappedX, snappedY);
+          }
         }
+        prevValidIndex = i;
       }
       ctx.globalAlpha = alpha;
       ctx.strokeStyle = strokeStyle;
@@ -208,8 +221,33 @@ const FertilityChartCanvasOverlay = ({
       ctx.stroke();
       ctx.globalAlpha = 1;
     };
-    drawPath(6, 'rgba(233,30,99,0.22)', 1);
-    drawPath(3, '#E91E63', 1);
+    if (theme.temperature.haloWidth > 0) {
+      drawPath(theme.temperature.haloWidth, theme.temperature.halo, 1);
+    }
+    drawPath(theme.temperature.lineWidth, theme.temperature.line, 1);
+
+    let prevValidIndex = null;
+    for (let i = startIndex; i <= endIndex; i += 1) {
+      const y = ysTemp[i];
+      const p = points[i];
+      if (!Number.isFinite(y) || p?.ignored) continue;
+      if (prevValidIndex != null && i > prevValidIndex + 1) {
+        const prevY = ysTemp[prevValidIndex];
+        if (Number.isFinite(prevY)) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo(snap(xs[prevValidIndex]), snap(prevY));
+          ctx.lineTo(snap(xs[i]), snap(y));
+          ctx.strokeStyle = theme.temperature.gapStroke;
+          ctx.setLineDash(theme.temperature.gapDash);
+          ctx.lineWidth = theme.temperature.gapWidth;
+          ctx.globalAlpha = 0.8;
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+      prevValidIndex = i;
+    }
 
     // temperatureRiseHighlightPath
     if (temperatureRiseHighlightPath) {
@@ -218,7 +256,7 @@ const FertilityChartCanvasOverlay = ({
         ctx.beginPath();
         ctx.moveTo(numbers[0], numbers[1]);
         for (let i = 2; i < numbers.length; i += 2) ctx.lineTo(numbers[i], numbers[i + 1]);
-        ctx.strokeStyle = '#cc0e93';
+        ctx.strokeStyle = theme.highlight.risePath;
         ctx.lineWidth = 4;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
@@ -246,21 +284,21 @@ const FertilityChartCanvasOverlay = ({
         ctx.moveTo(x, rawY);
         ctx.lineTo(x, y);
         ctx.setLineDash([4, 4]);
-        ctx.strokeStyle = 'rgba(148,163,184,0.35)';
+        ctx.strokeStyle = theme.points.correctionLine;
         ctx.lineWidth = 1;
         ctx.stroke();
         ctx.setLineDash([]);
         ctx.beginPath();
         ctx.arc(x, rawY, 3, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(226,232,240,0.6)';
+        ctx.fillStyle = theme.points.correctionPointFill;
         ctx.fill();
       }
 
       ctx.beginPath();
       ctx.arc(x, y, 2.8, 0, Math.PI * 2);
-      ctx.fillStyle = isIgnoredForDisplay ? '#CBD5E1' : '#F472B6';
+      ctx.fillStyle = isIgnoredForDisplay ? theme.points.ignoredFill : theme.points.fill;
       ctx.fill();
-      ctx.strokeStyle = isIgnoredForDisplay ? '#94A3B8' : '#E91E63';
+      ctx.strokeStyle = isIgnoredForDisplay ? theme.points.ignoredStroke : theme.points.stroke;
       ctx.lineWidth = 2;
       ctx.stroke();
     }
@@ -275,15 +313,16 @@ const FertilityChartCanvasOverlay = ({
       const thinStrokeWidth = Math.max(3, Math.min(14, dayWidth * 0.4));
       const thickStrokeWidth = Math.max(thinStrokeWidth * 2, responsiveFontSize(0.85));
       ctx.beginPath();
-      ctx.moveTo(highlightX, 0);
-      ctx.lineTo(highlightX, graphBottomY);
-      ctx.strokeStyle = 'rgba(235,171,204,0.15)';
+      const snappedHighlightX = snap(highlightX);
+      ctx.moveTo(snappedHighlightX, 0);
+      ctx.lineTo(snappedHighlightX, snap(graphBottomY));
+      ctx.strokeStyle = theme.highlight.activeColumn;
       ctx.lineWidth = thinStrokeWidth;
       ctx.stroke();
 
       ctx.beginPath();
-      ctx.moveTo(highlightX, graphBottomY);
-      ctx.lineTo(highlightX, chartHeight);
+      ctx.moveTo(snappedHighlightX, snap(graphBottomY));
+      ctx.lineTo(snappedHighlightX, snap(chartHeight));
       ctx.lineWidth = thickStrokeWidth;
       ctx.stroke();
     }
@@ -322,6 +361,7 @@ const FertilityChartCanvasOverlay = ({
     points,
     responsiveFontSize,
     rowsZoneHeight,
+    theme,
     shouldRenderBaseline,
     showInterpretation,
     tempMax,
@@ -384,6 +424,7 @@ const FertilityChartCanvasOverlay = ({
       window.innerWidth < window.innerHeight;
 
     let localX = event.clientX - rect.left;
+    const localY = event.clientY - rect.top;
 
     if (isRotated) {
       const cx = rect.left + rect.width / 2;
@@ -396,6 +437,8 @@ const FertilityChartCanvasOverlay = ({
     }
 
     const worldX = node.scrollLeft + localX;
+    const worldY = node.scrollTop + localY;
+    if (worldY > graphBottomY) return;
     const index = getNearestDataIndexByX(worldX);
     if (index == null) return;
 
@@ -407,28 +450,48 @@ const FertilityChartCanvasOverlay = ({
     if (isFuture) return;
 
     handlePointInteraction(point, index, event);
-  }, [chartRef, exportMode, forceLandscape, getNearestDataIndexByX, handlePointInteraction, isFullScreen, points]);
+  }, [chartRef, exportMode, forceLandscape, getNearestDataIndexByX, graphBottomY, handlePointInteraction, isFullScreen, points]);
 
   return (
-  <canvas
-    ref={canvasRef}
-    style={{
-      position: 'sticky',
-      top: 0,
-      left: 0,
-      width: `${viewportSize.width}px`,
-      height: `${viewportSize.height}px`,
-      display: 'block',
-      marginBottom: `-${viewportSize.height}px`, // 👈 clave: no “empuja” el layout
-      zIndex: 0,
-      pointerEvents: 'none',
-    }}
-    width={Math.max(1, Math.floor(viewportSize.width * viewportSize.dpr))}
-    height={Math.max(1, Math.floor(viewportSize.height * viewportSize.dpr))}
-    data-chart-canvas-overlay="true"
-    aria-hidden="true"
-  />
-);
+    <>
+      <canvas
+        ref={canvasRef}
+        style={{
+          position: 'sticky',
+          top: 0,
+          left: 0,
+          width: `${viewportSize.width}px`,
+          height: `${viewportSize.height}px`,
+          display: 'block',
+          marginBottom: `-${viewportSize.height}px`,
+          zIndex: 0,
+          pointerEvents: 'none',
+        }}
+        width={Math.max(1, Math.floor(viewportSize.width * viewportSize.dpr))}
+        height={Math.max(1, Math.floor(viewportSize.height * viewportSize.dpr))}
+        data-chart-canvas-overlay="true"
+        aria-hidden="true"
+      />
+      {!exportMode && (
+        <div
+          style={{
+            position: 'sticky',
+            top: 0,
+            left: 0,
+            width: `${viewportSize.width}px`,
+            height: `${viewportSize.height}px`,
+            marginBottom: `-${viewportSize.height}px`,
+            zIndex: 5,
+            pointerEvents: 'auto',
+            background: 'transparent',
+          }}
+          onPointerDown={handleCanvasPointer}
+          data-chart-canvas-interaction="true"
+          aria-hidden="true"
+        />
+      )}
+    </>
+  );
 };
 
 export default FertilityChartCanvasOverlay;
