@@ -202,6 +202,7 @@ const ChartPoints = ({
   showRelationsRow = false,
   autoLabelStep = false,
   isArchivedCycle = false,
+  renderTemperatureLayer = true,
 }) => {
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -709,7 +710,7 @@ const observationFontSize = obsRes.fontSize;
             {...interactionProps}
           >
             {/* Punto de temperatura con diseño premium */}
-            {hasTemp && (
+            {renderTemperatureLayer && hasTemp && (
               <MotionG {...(reduceMotion || perfMode ? {} : { variants: pointVariants })}>
                 {/* Indicador de corrección: punto original y línea discontinua */}
                 {showCorrectionIndicator && rawY !== null && (
@@ -740,8 +741,6 @@ const observationFontSize = obsRes.fontSize;
                   </g>
                 )}
 
-               
-                {/* Punto principal con gradiente mejorado */}
                 <circle
                   cx={x}
                   cy={y}
@@ -771,9 +770,7 @@ const observationFontSize = obsRes.fontSize;
                   onClick={(e) => onPointInteraction(point, index, e)}
                   data-chart-interactive="true"
                 />
-                
-                
-                {/* Punto central brillante */}
+
                 {!isIgnoredForDisplay && (
                   <circle
                     cx={x}
@@ -798,7 +795,6 @@ const observationFontSize = obsRes.fontSize;
                         fontSize={numberFontSize}
                         fontWeight="900"
                         fill={HIGH_SEQUENCE_NUMBER_COLOR}
-
                         strokeWidth={numberStrokeWidth}
                         style={{
                           fontFamily:
@@ -1079,6 +1075,7 @@ const areEqual = (prev, next) => {
   if (prev.showRelationsRow !== next.showRelationsRow) return false;
   if (prev.autoLabelStep !== next.autoLabelStep) return false;
   if (prev.isArchivedCycle !== next.isArchivedCycle) return false;
+  if (prev.renderTemperatureLayer !== next.renderTemperatureLayer) return false;
 
   const prevRange = prev.visibleRange;
   const nextRange = next.visibleRange;
