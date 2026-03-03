@@ -5,6 +5,7 @@ import ChartTooltip from '@/components/chartElements/ChartTooltip';
 import ChartLeftLegend from '@/components/chartElements/ChartLeftLegend';
 import FertilityChartCanvasOverlay from '@/components/chartElements/FertilityChartCanvasOverlay';
 import { useFertilityChart } from '@/hooks/useFertilityChart';
+import { isAfter, parseISO, startOfDay } from 'date-fns';
 
 const FertilityChart = ({
   data,
@@ -111,7 +112,6 @@ const FertilityChart = ({
   const scrollRafRef = useRef(null);
   const [isScrolling, setIsScrolling] = useState(false);
   const scrollStopTimerRef = useRef(null);
-
   const getNearestDataIndexByX = useCallback((targetX) => {
     const totalPoints = allDataPoints.length;
     if (!Number.isFinite(targetX) || totalPoints === 0) return null;
@@ -137,6 +137,60 @@ const FertilityChart = ({
       ? leftIndex
       : rightIndex;
   }, [allDataPoints, getX]);
+    const handleChartBackgroundInteraction = useCallback((event) => {
+    if (exportMode) return;
+
+    // Si el click fue sobre algo interactivo (puntos, textos de fase, etc), no hacemos nada.
+   const clickedInteractiveElement = event.target?.closest?.('[data-chart-interactive="true"]');
+    if (clickedInteractiveElement) return;
+
+    const scroller = chartRef.current;
+    if (!scroller) return;
+
+    const rect = scroller.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+
+    // Mismo criterio de rotación que usabas
+    const isRotated =
+      isFullScreen &&
+      forceLandscape &&
+      typeof window !== 'undefined' &&
+      window.innerWidth < window.innerHeight;
+
+    let localX = event.clientX - rect.left;
+
+    if (isRotated) {
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      const dy = event.clientY - cy;
+      const unrotW = rect.height || 1;
+      localX = dy + unrotW / 2;
+    }
+
+    const worldX = scroller.scrollLeft + localX;
+    const index = getNearestDataIndexByX(worldX);
+    if (index == null) return;
+
+    const point = allDataPoints[index];
+    if (!point) return;
+
+    const isFuture = point.isoDate
+      ? isAfter(startOfDay(parseISO(point.isoDate)), startOfDay(new Date()))
+      : false;
+    if (isFuture) return;
+
+    handlePointInteraction(point, index, event);
+  }, [
+    allDataPoints,
+    chartRef,
+    exportMode,
+    forceLandscape,
+    getNearestDataIndexByX,
+    handlePointInteraction,
+    isFullScreen,
+  ]);
+
+  
 
   if (!allDataPoints || allDataPoints.length === 0) {
     return (
@@ -973,8 +1027,39 @@ const rotationStageStyle = isRotationStage
     : '0 8px 32px rgba(244, 114, 182, 0.12), 0 2px 8px rgba(244, 114, 182, 0.08)',
   ...(rotationStageStyle ?? {}),
 }}
-        initial={false}
-      >
+onClick={handleChartBackgroundInteraction}
+>
+  {!exportMode && (
+  <FertilityChartCanvasOverlay
+    chartRef={chartRef}
+    chartWidth={chartWidth}
+    chartHeight={chartHeight}
+    padding={padding}
+    graphBottomY={graphBottomY}
+    rowsZoneHeight={rowsZoneHeight}
+    allDataPoints={allDataPoints}
+    tempMin={tempMin}
+    tempMax={tempMax}
+    tempRange={tempRange}
+    getX={getX}
+    getY={getY}
+    responsiveFontSize={responsiveFontSize}
+    visibleRange={visibleRange}
+    activeIndex={activeIndex}
+    showInterpretation={showInterpretation}
+    interpretationSegments={interpretationSegments}
+    shouldRenderBaseline={shouldRenderBaseline}
+    baselineY={baselineY}
+    baselineStartX={baselineStartX}
+    baselineEndX={baselineEndX}
+    baselineStroke={baselineStroke}
+    baselineDash={baselineDash}
+    baselineOpacity={baselineOpacity}
+    baselineWidth={baselineWidth}
+    temperatureRiseHighlightPath={temperatureRiseHighlightPath}
+  />
+)}
+      
         {isLoading && (
           <div className="flex items-center justify-center w-full h-full text-slate-400">
             Cargando...
@@ -1005,48 +1090,12 @@ const rotationStageStyle = isRotationStage
                   />
                 </div>
               )}
-              <FertilityChartCanvasOverlay
-                chartRef={chartRef}
-                chartWidth={chartWidth}
-                chartHeight={chartHeight}
-                scrollableContentHeight={scrollableContentHeight}
-                padding={padding}
-                graphBottomY={graphBottomY}
-                rowsZoneHeight={rowsZoneHeight}
-                allDataPoints={allDataPoints}
-                tempMin={tempMin}
-                tempMax={tempMax}
-                tempRange={tempRange}
-                getX={getX}
-                getY={getY}
-                responsiveFontSize={responsiveFontSize}
-                visibleRange={visibleRange}
-                activeIndex={activeIndex}
-                todayIndex={todayIndex}
-                showInterpretation={showInterpretation}
-                interpretationSegments={interpretationSegments}
-                shouldRenderBaseline={shouldRenderBaseline}
-                baselineY={baselineY}
-                baselineStartX={baselineStartX}
-                baselineEndX={baselineEndX}
-                baselineStroke={baselineStroke}
-                baselineDash={baselineDash}
-                baselineOpacity={baselineOpacity}
-                baselineWidth={baselineWidth}
-                isScrolling={isScrolling}
-                isFullScreen={isFullScreen}
-                visualOrientation={visualOrientation}
-                forceLandscape={forceLandscape}
-                exportMode={exportMode}
-                temperatureRiseHighlightPath={temperatureRiseHighlightPath}
-                handlePointInteraction={handlePointInteractionSafe}
-                getNearestDataIndexByX={getNearestDataIndexByX}
-              />
+              
 
               <motion.svg
                 width={chartWidth}
                 height={scrollableContentHeight}   
-                className="font-sans flex-shrink-0 relative z-30" style={{ pointerEvents: "none" }}
+                className="font-sans flex-shrink-0 relative z-20"
                 viewBox={`0 0 ${chartWidth} ${scrollableContentHeight}`} 
                 preserveAspectRatio="xMidYMid meet"
                 initial={false}

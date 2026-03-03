@@ -87,7 +87,8 @@ const FertilityChartCanvasOverlay = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const { left: scrollLeft, top: scrollTop } = scrollRef.current;
+    const scrollLeft = node.scrollLeft || 0;
+    const scrollTop = node.scrollTop || 0;
     const { width: viewportW, height: viewportH, dpr } = viewportSize;
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -409,17 +410,25 @@ const FertilityChartCanvasOverlay = ({
   }, [chartRef, exportMode, forceLandscape, getNearestDataIndexByX, handlePointInteraction, isFullScreen, points]);
 
   return (
-    <canvas
-      ref={canvasRef}
-      className="absolute inset-0 z-20"
-      style={{ pointerEvents: exportMode ? 'none' : 'auto' }}
-      width={Math.max(1, viewportSize.width * viewportSize.dpr)}
-      height={Math.max(1, viewportSize.height * viewportSize.dpr)}
-      onClick={handleCanvasPointer}
-      data-chart-canvas-overlay="true"
-      aria-hidden="true"
-    />
-  );
+  <canvas
+    ref={canvasRef}
+    style={{
+      position: 'sticky',
+      top: 0,
+      left: 0,
+      width: `${viewportSize.width}px`,
+      height: `${viewportSize.height}px`,
+      display: 'block',
+      marginBottom: `-${viewportSize.height}px`, // 👈 clave: no “empuja” el layout
+      zIndex: 0,
+      pointerEvents: 'none',
+    }}
+    width={Math.max(1, Math.floor(viewportSize.width * viewportSize.dpr))}
+    height={Math.max(1, Math.floor(viewportSize.height * viewportSize.dpr))}
+    data-chart-canvas-overlay="true"
+    aria-hidden="true"
+  />
+);
 };
 
 export default FertilityChartCanvasOverlay;
