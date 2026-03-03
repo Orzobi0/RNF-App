@@ -3,34 +3,10 @@ import { Heart } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { parseISO, startOfDay, isAfter, isSameDay } from 'date-fns';
 import { getSymbolAppearance, getSymbolColorPalette } from '@/config/fertilitySymbols';
-// Colores consistentes con la dashboard pero con mejor contraste para el chart
-const SENSATION_COLOR = 'var(--color-sensacion-fuerte)';
-const APPEARANCE_COLOR = 'var(--color-apariencia-fuerte)';
-const OBSERVATION_COLOR = 'var(--color-observaciones-fuerte)';
-const HEART_COLOR = '#be123c';
+import { FONT_FAMILY, THEME } from '@/components/chartElements/chartTheme';
+import { getRowMetrics, getLabelStep } from '@/components/chartElements/chartLayout';
 
-const BACKGROUND_COLOR = 'rgba(252, 231, 243, 0.40)';
-const BORDER_COLOR = 'rgba(244, 114, 182, 0.08)';
-
-const ROW_BACKGROUND_FILL_SOFT_sens = '#EFF6FF';
-const ROW_BACKGROUND_FILL_SOFT_apa = '#ECFDF5';
-const ROW_BACKGROUND_FILL_SOFT_obs = '#F5F3FF';
-const ROW_TINT_ALPHA = 0.2;
-const SENSATION_BORDER_COLOR = 'rgba(14, 165, 233, 0.18)';
-const APPEARANCE_BORDER_COLOR = 'rgba(16, 185, 129, 0.18)';
-const OBSERVATION_BORDER_COLOR = 'rgba(139, 92, 246, 0.18)';
-const ROW_SHADOW = 'drop-shadow(0 1px 2px rgba(15, 23, 42, 0.08))';
-const CORRECTION_LINE_COLOR = 'rgba(148, 163, 184, 0.35)';
-const CORRECTION_POINT_FILL = 'rgba(226, 232, 240, 0.6)';
-const CORRECTION_POINT_STROKE = 'rgba(148, 163, 184, 0.5)';
 const PEAK_EMOJI = '✖';
-const POST_PEAK_MARKER_COLOR = '#7f1d1d';
-const PEAK_EMOJI_COLOR = '#ec4899';
-const PEAK_TEXT_SHADOW = 'drop-shadow(0 2px 4px rgba(244, 114, 182, 0.35))';
-const HIGH_SEQUENCE_NUMBER_COLOR = '#be185d';
-const BASELINE_NUMBER_COLOR = '#2563eb';
-const TODAY_HIGHLIGHT_COLOR = '#be185d';
-const SYMBOL_BORDER_FALLBACK = 'rgba(244, 114, 182, 0.35)';
 
 
 /** Quita ceros iniciales a día/mes */
@@ -40,8 +16,7 @@ const compactDate = (dateStr) => {
   return `${parseInt(d, 10)}/${parseInt(m, 10)}`;
 };
 
-const DEFAULT_TEXT_FONT_FAMILY =
-  '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+const DEFAULT_TEXT_FONT_FAMILY = FONT_FAMILY;
 
 const createTextMeasurer = () => {
   if (typeof document === 'undefined') {
@@ -199,6 +174,9 @@ const ChartPoints = ({
   showRelationsRow = false,
   autoLabelStep = false,
   isArchivedCycle = false,
+  ids,
+  theme = THEME,
+  renderMode = 'full',
 }) => {
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -224,28 +202,19 @@ const ChartPoints = ({
     }
   };
 
-  // --- Filas ancladas al final del área de gráfico (graphBottomY) y estiradas hasta abajo ---
-  const rowsTopY = graphBottomY; // el “techo” de las filas es justo donde acaba la gráfica
-  const obsRowIndex = isFullScreen ? 9 : 7.5;
-  const halfBlock = isFullScreen ? 1 : 0.75;
-  const relationsRowIndex = showRelationsRow
-    ? obsRowIndex + (isFullScreen ? 2 : 1.5)
-    : null;
-  const baseRowCount = obsRowIndex + halfBlock;
-  // altura ideal basada en el layout original para no comprimir filas existentes
-  const autoRowH = Math.max(1, Math.floor(rowsZoneHeight / baseRowCount));
-  // no reducimos por debajo del tamaño base (legibilidad), pero sí estiramos
-  const rowH = Math.max(textRowHeight, autoRowH);
-
-  const dateRowY = rowsTopY + rowH * 1;
-  const cycleDayRowY = rowsTopY + rowH * 2;
-  const symbolRowYBase = rowsTopY + rowH * 3;
-  const mucusSensationRowY = rowsTopY + rowH * (isFullScreen ? 5 : 4.5);
-  const mucusAppearanceRowY = rowsTopY + rowH * (isFullScreen ? 7 : 6);
-  const observationsRowY = rowsTopY + rowH * (isFullScreen ? 9 : 7.5);
-  const relationsRowY = showRelationsRow
-    ? observationsRowY + rowH * (isFullScreen ? 2 : 1.5)
-    : null;
+  const {
+    rowsTopY,
+    obsRowIndex,
+    rowH,
+    dateRowY,
+    cycleDayRowY,
+    symbolRowYBase,
+    mucusSensationRowY,
+    mucusAppearanceRowY,
+    observationsRowY,
+    relationsRowY,
+  } = getRowMetrics({ graphBottomY, isFullScreen, rowsZoneHeight, textRowHeight, showRelationsRow });
+  const relationsRowIndex = showRelationsRow ? obsRowIndex + (isFullScreen ? 2 : 1.5) : null;
 
   const totalPoints = Array.isArray(data) ? data.length : 0;
   const isLongCycle = totalPoints > 60;
@@ -277,25 +246,16 @@ const ChartPoints = ({
   const smallAppearanceFontSize = responsiveFontSize(0.8);
   const smallObservationFontSize = responsiveFontSize(0.8);
   const labelStep = useMemo(() => {
-    if (!autoLabelStep || totalPoints < 2) return 1;
-    const dayWidth = Math.abs(getX(1) - getX(0));
-    if (!Number.isFinite(dayWidth) || dayWidth <= 0) return 1;
-    const samplePoint = data?.find((entry) => entry?.date || entry?.cycleDay != null) ?? {};
-    const sampleDate = compactDate(samplePoint?.date || '00/00');
-    const sampleDay = String(samplePoint?.cycleDay ?? totalPoints ?? '');
-    const dateFontSize = responsiveFontSize(1.05);
-    const dayFontSize = responsiveFontSize(1);
-    const dateWidth = measureTextWidth(
-      sampleDate,
-      buildFontString(dateFontSize, 900, DEFAULT_TEXT_FONT_FAMILY)
-    );
-    const dayWidthText = measureTextWidth(
-      sampleDay,
-      buildFontString(dayFontSize, 900, DEFAULT_TEXT_FONT_FAMILY)
-    );
-    const minLabelWidth = Math.max(dateWidth, dayWidthText) + responsiveFontSize(0.8);
-    return Math.max(1, Math.ceil(minLabelWidth / dayWidth));
-  }, [autoLabelStep, totalPoints, getX, data, measureTextWidth, responsiveFontSize]);
+    if (!autoLabelStep) return 1;
+    return getLabelStep({
+      totalPoints,
+      getX,
+      responsiveFontSize,
+      data,
+      measureTextWidth,
+      fontFamily: DEFAULT_TEXT_FONT_FAMILY,
+    });
+  }, [autoLabelStep, totalPoints, getX, responsiveFontSize, data, measureTextWidth]);
 
   const highSequenceOrderMap = useMemo(() => {
     if (!showInterpretation) {
@@ -405,7 +365,7 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
   const rowLabelShadow = perfMode ? 'none' : 'drop-shadow(0 1px 2px rgba(255, 255, 255, 0.9))';
   const textShadowSoft = perfMode ? 'none' : 'drop-shadow(0 1px 1px rgba(255, 255, 255, 0.8))';
   const textShadowStrong = perfMode ? 'none' : 'drop-shadow(0 1px 2px rgba(255, 255, 255, 0.9))';
-  const peakShadow = perfMode ? 'none' : PEAK_TEXT_SHADOW;
+  const peakShadow = perfMode ? 'none' : 'drop-shadow(0 2px 4px rgba(244, 114, 182, 0.35))';
   const activeShadow = perfMode
     ? 'none'
     : 'drop-shadow(0 2px 4px rgba(244, 114, 182, 0.25))';
@@ -474,62 +434,24 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
 
   return (
     <>
-      {/* Definiciones mejoradas con estilo premium */}
-      <defs>
-        <filter id="rowShadowChart" x="-10%" y="-10%" width="120%" height="120%">
-          <feDropShadow dx="0" dy="2" stdDeviation="4" floodColor="rgba(244, 114, 182, 0.2)" />
-        </filter>
-        <pattern id="spotting-pattern-chart" patternUnits="userSpaceOnUse" width="6" height="6">
-          <rect width="6" height="6" fill="#fb7185" />
-          <circle cx="3" cy="3" r="1.5" fill="rgba(255,255,255,0.85)" />
-        </pattern>
-        
-        <filter id="pointGlow" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-          <feMerge>
-            <feMergeNode in="coloredBlur"/>
-            <feMergeNode in="SourceGraphic"/>
-          </feMerge>
-        </filter>
-
-
-        <radialGradient id="tempPointGradientChart" cx="30%" cy="30%">
-          <stop offset="0%" stopColor="#FDF2F8" />
-          <stop offset="50%" stopColor="#F9A8D4" />
-          <stop offset="85%" stopColor="#EC4899" />
-          <stop offset="100%" stopColor="#DB2777" />
-        </radialGradient>
-
-        <radialGradient id="tempPointIgnoredGradient" cx="30%" cy="30%">
-          <stop offset="0%" stopColor="#FFFFFF" />
-          <stop offset="80%" stopColor="#F8FAFC" />
-          <stop offset="100%" stopColor="#E2E8F0" />
-        </radialGradient>
-        <radialGradient id="ovulationPointGradient" cx="30%" cy="30%">
-          <stop offset="0%" stopColor="#dbeafe" />
-          <stop offset="50%" stopColor="#93c5fd" />
-          <stop offset="85%" stopColor="#3b82f6" />
-          <stop offset="100%" stopColor="#2563eb" />
-        </radialGradient>
-      </defs>
-
     <g pointerEvents="none">
+
 
       {/* Fondos de filas sutiles alineados con las tarjetas -- ocultos en modo compacto */}
 
 
       {/* Leyenda izquierda con tipografía premium */}
-      {isFullScreen && orientation !== 'portrait' && (
+      {renderMode !== 'tempsOnly' && isFullScreen && orientation !== 'portrait' && (
         <MotionG {...(reduceMotion || perfMode ? {} : { variants: itemVariants })}>
           {[
             { label: 'Fecha', row: 1, color: isFullScreen ? "#374151" : "#6B7280" },
             { label: 'Día', row: 2, color: isFullScreen ? "#374151" : "#6B7280" },
             { label: 'Símbolo', row: 3, color: isFullScreen ? "#374151" : "#6B7280" },
-            { label: 'Sens.', row: isFullScreen ? 5 : 4.5, color: SENSATION_COLOR },
-            { label: 'Apar.', row: isFullScreen ? 7 : 6, color: APPEARANCE_COLOR },
-            { label: 'Observ.', row: isFullScreen ? 9 : 7.5, color: OBSERVATION_COLOR },
+            { label: 'Sens.', row: isFullScreen ? 5 : 4.5, color: `var(${theme.rowColors.sensation.cssVar})` },
+            { label: 'Apar.', row: isFullScreen ? 7 : 6, color: `var(${theme.rowColors.appearance.cssVar})` },
+            { label: 'Observ.', row: isFullScreen ? 9 : 7.5, color: `var(${theme.rowColors.observation.cssVar})` },
             ...(showRelationsRow && relationsRowIndex != null
-              ? [{ label: 'RS', row: relationsRowIndex, color: HEART_COLOR }]
+              ? [{ label: 'RS', row: relationsRowIndex, color: theme.rowColors.relations.fallback }]
               : []),
           ].map(({ label, row, color }) => (
             <text
@@ -595,11 +517,11 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
         const symbolInfo = getSymbolAppearance(point.fertility_symbol);
         const symbolPalette = getSymbolColorPalette(symbolInfo.value);
         const symbolFillStyle = symbolInfo.pattern === 'spotting-pattern'
-          ? 'url(#spotting-pattern-chart)'
+          ? `url(#${ids.spottingPatternId})`
           : symbolPalette.main;
         const symbolStrokeColor = symbolPalette.border === 'none'
           ? 'none'
-          : (symbolPalette.border || SYMBOL_BORDER_FALLBACK);
+          : (symbolPalette.border || theme.symbol.borderFallback);
         const symbolStrokeWidth = symbolPalette.border === 'none'
           ? 0
           : (symbolInfo.value === 'white' ? 1.6 : 1);
@@ -623,7 +545,7 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
         const isTodayPoint = point.isoDate
           ? isSameDay(parseISO(point.isoDate), today)
           : false;
-        const highlightedTextFill = isTodayPoint ? TODAY_HIGHLIGHT_COLOR : baseTextFill;
+        const highlightedTextFill = isTodayPoint ? theme.misc.today : baseTextFill;
 
         const hasHighOrder = highSequenceOrderMap.has(index);
         const highOrder = hasHighOrder ? highSequenceOrderMap.get(index) : null;
@@ -698,7 +620,7 @@ const observationFontSize = obsRes.fontSize;
             {...(reduceMotion || perfMode ? {} : { variants: itemVariants })}
           >
             {/* Punto de temperatura con diseño premium */}
-            {hasTemp && (
+            {renderMode !== 'rowsOnly' && hasTemp && (
               <MotionG {...(reduceMotion || perfMode ? {} : { variants: pointVariants })}>
                 {/* Indicador de corrección: punto original y línea discontinua */}
                 {showCorrectionIndicator && rawY !== null && (
@@ -708,7 +630,7 @@ const observationFontSize = obsRes.fontSize;
                       y1={rawY}
                       x2={x}
                       y2={y}
-                      stroke={CORRECTION_LINE_COLOR}
+                      stroke={theme.misc.correctionLine}
                       strokeWidth={1}
                       strokeDasharray="4 4"
                     />
@@ -716,8 +638,8 @@ const observationFontSize = obsRes.fontSize;
                       cx={x}
                       cy={rawY}
                       r={3}
-                      fill={CORRECTION_POINT_FILL}
-                      stroke={CORRECTION_POINT_STROKE}
+                      fill={theme.misc.correctionPointFill}
+                      stroke={theme.misc.correctionPointStroke}
                       strokeWidth={1}
                     />
                     <circle
@@ -737,10 +659,10 @@ const observationFontSize = obsRes.fontSize;
                   r={isPeakTemperaturePoint ? 3.5 : 2.8}
                   fill={
                     isIgnoredForDisplay
-                      ? 'url(#tempPointIgnoredGradient)'
+                      ? `url(#${ids.tempPointIgnoredGradientId})`
                       : isPeakTemperaturePoint
-                        ? 'url(#ovulationPointGradient)'
-                        : 'url(#tempPointGradientChart)'
+                        ? `url(#${ids.ovulationPointGradientId})`
+                        : `url(#${ids.tempPointGradientId})`
                   }
                   stroke={
                     point.use_corrected && isCorrectedDisplayed
@@ -782,7 +704,7 @@ const observationFontSize = obsRes.fontSize;
                         textAnchor="middle"
                         fontSize={numberFontSize}
                         fontWeight="900"
-                        fill={HIGH_SEQUENCE_NUMBER_COLOR}
+                        fill={theme.misc.highSequenceNumber}
 
                         strokeWidth={numberStrokeWidth}
                         style={{
@@ -807,7 +729,7 @@ const observationFontSize = obsRes.fontSize;
                         textAnchor="middle"
                         fontSize={numberFontSize}
                         fontWeight="800"
-                        fill={BASELINE_NUMBER_COLOR}
+                        fill={theme.misc.baselineNumber}
                         stroke="#ffffff"
                         strokeWidth={numberStrokeWidth}
                         style={{
@@ -824,8 +746,9 @@ const observationFontSize = obsRes.fontSize;
                 </MotionG>
               )}
 
+
             {/* Fecha con estilo mejorado */}
-            {shouldRenderXLabel && (
+            {renderMode !== 'tempsOnly' && shouldRenderXLabel && (
               <text
                 x={x}
                 y={dateRowY}
@@ -843,7 +766,7 @@ const observationFontSize = obsRes.fontSize;
             )}
 
             {/* Día del ciclo con estilo mejorado */}
-            {shouldRenderXLabel && (
+            {renderMode !== 'tempsOnly' && shouldRenderXLabel && (
               <text
                 x={x}
                 y={cycleDayRowY}
@@ -861,7 +784,7 @@ const observationFontSize = obsRes.fontSize;
             )}
 
             {/* Símbolo mejorado con mejor diseño */}
-            {shouldRenderSymbol ? (
+            {renderMode !== 'tempsOnly' && (shouldRenderSymbol ? (
               <g>
                 {/* Sombra del símbolo */}
                 <rect
@@ -894,7 +817,7 @@ const observationFontSize = obsRes.fontSize;
                         textAnchor="middle"
                         fontSize={responsiveFontSize(1.35)}
                         fontWeight="900"
-                        fill={PEAK_EMOJI_COLOR}
+                        fill={theme.symbol.peakEmoji}
                         stroke="#fff"
                         strokeWidth={1.5}
                         paintOrder="stroke"
@@ -909,7 +832,7 @@ const observationFontSize = obsRes.fontSize;
                         textAnchor="middle"
                         fontSize={responsiveFontSize(peakStatus ? 1.1 : 1)}
                         fontWeight="800"
-                        fill={POST_PEAK_MARKER_COLOR}
+                        fill={theme.symbol.postPeak}
                         style={{ filter: textShadowStrong }}
                       >
                         {peakStatus}
@@ -918,7 +841,7 @@ const observationFontSize = obsRes.fontSize;
                   </g>
                 )}
               </g>
-            ) : (
+) : (
               <g>
                 {isPeakSeriesDay && (
                   <rect
@@ -927,7 +850,7 @@ const observationFontSize = obsRes.fontSize;
                     width={symbolRectSize * 1.4}
                     height={symbolRectSize}
                     fill="transparent"
-                    stroke={isPeakMarker ? PEAK_EMOJI_COLOR : POST_PEAK_MARKER_COLOR}
+                    stroke={isPeakMarker ? theme.symbol.peakEmoji : theme.symbol.postPeak}
                     strokeWidth={1}
                     rx={symbolRectSize * 0.2}
                   />
@@ -941,9 +864,9 @@ const observationFontSize = obsRes.fontSize;
                   )}
                   fill={
                     isPeakMarker
-                      ? PEAK_EMOJI_COLOR
+                      ? theme.symbol.peakEmoji
                       : isPostPeakMarker
-                        ? POST_PEAK_MARKER_COLOR
+                        ? theme.symbol.postPeak
                         : baseTextFill
                   }
                   fontWeight={isPeakMarker ? '900' : isPostPeakMarker ? '800' : '500'}
@@ -958,17 +881,17 @@ const observationFontSize = obsRes.fontSize;
                   {peakDisplay}
                 </text>
               </g>
-            )}
+            ))}
 
             {/* Textos con tipografía mejorada y colores premium */}
-            {!compact && (
+            {renderMode !== 'tempsOnly' && !compact && (
             <text 
               x={x} 
               y={sensY} 
               textAnchor="middle"
               fontSize={sensationFontSize} 
               fontWeight="700"
-              fill={SENSATION_COLOR}
+              fill={`var(${theme.rowColors.sensation.cssVar})`}
               style={{ 
                 fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
                 filter: textShadowStrong
@@ -980,14 +903,14 @@ const observationFontSize = obsRes.fontSize;
             </text>
             )}
 
-            {!compact && (
+            {renderMode !== 'tempsOnly' && !compact && (
             <text 
               x={x} 
               y={aparY} 
               textAnchor="middle"
               fontSize={appearanceFontSize} 
               fontWeight="700"
-              fill={APPEARANCE_COLOR}
+              fill={`var(${theme.rowColors.appearance.cssVar})`}
               style={{ 
                 fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
                 filter: textShadowStrong
@@ -999,14 +922,14 @@ const observationFontSize = obsRes.fontSize;
             </text>
             )}
             
-            {!compact && (
+            {renderMode !== 'tempsOnly' && !compact && (
             <text
               x={x}
               y={obsY}
               textAnchor="middle"
               fontSize={observationFontSize}
               fontWeight="700"
-              fill={OBSERVATION_COLOR}
+              fill={`var(${theme.rowColors.observation.cssVar})`}
               style={{
                 fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
                 filter: textShadowStrong
@@ -1018,7 +941,7 @@ const observationFontSize = obsRes.fontSize;
             </text>
             )}
 
-            {showRelationsRow && relationsRowY != null && hasRelations && (
+            {renderMode !== 'tempsOnly' && showRelationsRow && relationsRowY != null && hasRelations && (
               <g
                 transform={`translate(${x - relationsHeartSize / 2}, ${relationsRowY - relationsHeartSize / 2})`}
                 role="img"
@@ -1027,8 +950,8 @@ const observationFontSize = obsRes.fontSize;
                 <Heart
                   width={relationsHeartSize}
                   height={relationsHeartSize}
-                  color={HEART_COLOR}
-                  fill={HEART_COLOR}
+                  color={theme.rowColors.relations.fallback}
+                  fill={theme.rowColors.relations.fallback}
                 />
               </g>
             )}
@@ -1063,6 +986,9 @@ const areEqual = (prev, next) => {
   if (prev.showRelationsRow !== next.showRelationsRow) return false;
   if (prev.autoLabelStep !== next.autoLabelStep) return false;
   if (prev.isArchivedCycle !== next.isArchivedCycle) return false;
+  if (prev.renderMode !== next.renderMode) return false;
+  if (prev.ids !== next.ids) return false;
+  if (prev.theme !== next.theme) return false;
 
   const prevRange = prev.visibleRange;
   const nextRange = next.visibleRange;

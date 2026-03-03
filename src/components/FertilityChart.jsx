@@ -5,7 +5,11 @@ import ChartLine from '@/components/chartElements/ChartLine';
 import ChartPoints from '@/components/chartElements/ChartPoints';
 import ChartTooltip from '@/components/chartElements/ChartTooltip';
 import ChartLeftLegend from '@/components/chartElements/ChartLeftLegend';
+import ChartSvgDefs from '@/components/chartElements/ChartSvgDefs';
 import FertilityChartCanvas from '@/components/FertilityChartCanvas';
+import { THEME } from '@/components/chartElements/chartTheme';
+import { createChartIds } from '@/components/chartElements/chartIds';
+import { computeVisibleRange } from '@/components/chartElements/chartVisibleRange';
 import { useFertilityChart } from '@/hooks/useFertilityChart';
 import { isAfter, parseISO, startOfDay } from 'date-fns';
 
@@ -90,32 +94,17 @@ const FertilityChart = ({
     uniqueIdRef.current = `fertility-chart-${cycleId ?? 'default'}-${randomSuffix}`;
   }
   const uniqueId = uniqueIdRef.current;
-  const getOverscanDays = useCallback((visibleDaysValue, totalPoints) => {
-    // En ciclos archivados priorizamos fluidez: render completo para tamaños medios.
-    const fullRenderThreshold = isArchivedCycle ? 220 : 120;
-    if (totalPoints <= fullRenderThreshold) return totalPoints;
-
-    const screens = isArchivedCycle
-      ? (visibleDaysValue >= 20 ? 2 : 3)
-      : (visibleDaysValue >= 20 ? 1 : 2);
-    const raw = Math.ceil(visibleDaysValue * screens);
-    const capped = Math.min(raw, isArchivedCycle ? 48 : 24);
-    return Math.max(capped, 12);
-  }, [isArchivedCycle]);
+  const ids = useMemo(() => createChartIds(uniqueId), [uniqueId]);
+  const theme = THEME;
+  const xs = useMemo(() => allDataPoints.map((_, i) => getX(i)), [allDataPoints, getX]);
 
   const initialRange = useMemo(() => {
     const total = allDataPoints.length;
     if (!total) return { startIndex: 0, endIndex: -1 };
-
-    const overscanDays = getOverscanDays(visibleDays, total);
-    const startIndex = Math.max(0, Math.floor(initialScrollIndex) - overscanDays);
-    const endIndex = Math.min(
-      total - 1,
-      Math.floor(initialScrollIndex) + visibleDays + overscanDays
-    );
-
-    return { startIndex, endIndex };
-  }, [allDataPoints.length, getOverscanDays, initialScrollIndex, visibleDays]);
+    const safeStart = Math.max(0, Math.floor(initialScrollIndex));
+    const safeEnd = Math.min(total - 1, safeStart + visibleDays);
+    return { startIndex: safeStart, endIndex: safeEnd };
+  }, [allDataPoints.length, initialScrollIndex, visibleDays]);
 
   const [visibleRange, setVisibleRange] = useState(initialRange);
   const scrollRafRef = useRef(null);
@@ -911,39 +900,12 @@ useEffect(() => {
   };
 }, []);
 
-  const updateVisibleRange = useCallback(
-    (scrollLeft = 0) => {
-      const node = chartRef.current;
-      if (!node) return;
-
-      const totalPoints = allDataPoints.length;
-      if (!totalPoints) {
-        setVisibleRange({ startIndex: 0, endIndex: -1 });
-        return;
-      }
-      
-      const viewportW = node.clientWidth || 1;
-      const dayW = viewportW / Math.max(visibleDays, 1);
-      const safeDayW = dayW || 1;
-
-      const overscanDays = getOverscanDays(visibleDays, totalPoints);
-
-      const firstVisible = Math.floor(scrollLeft / safeDayW);
-      const lastVisible = Math.floor((scrollLeft + viewportW) / safeDayW);
-
-      let startIndex = firstVisible - overscanDays;
-      let endIndex = lastVisible + overscanDays;
-
-      startIndex = Math.max(0, startIndex);
-      endIndex = Math.min(totalPoints - 1, endIndex);
-      setVisibleRange((prev) =>
-        prev.startIndex === startIndex && prev.endIndex === endIndex
-          ? prev
-          : { startIndex, endIndex }
-      );
-    },
-    [allDataPoints.length, getOverscanDays, visibleDays]
-  );
+  const updateVisibleRange = useCallback((scrollLeft = 0) => {
+    const node = chartRef.current;
+    if (!node) return;
+    const next = computeVisibleRange({ xs, scrollLeft, viewportW: node.clientWidth || 1 });
+    setVisibleRange((prev) => (prev.startIndex === next.startIndex && prev.endIndex === next.endIndex ? prev : next));
+  }, [xs, chartRef]);
 
   useEffect(() => {
     if (!chartRef.current) return;
@@ -1059,6 +1021,32 @@ const rotationStageStyle = isRotationStage
   const handlePointInteractionSafe = exportMode ? () => {} : handlePointInteraction;
   const clearActivePointSafe = exportMode ? () => {} : clearActivePoint;
   const useCanvasRenderer = USE_CANVAS && !exportMode;
+  const overlayGroupRef = useRef(null);
+  const overlayRafRef = useRef(null);
+
+  useEffect(() => {
+    if (!useCanvasRenderer) return;
+    const node = chartRef.current;
+    if (!node) return;
+    const syncOverlay = () => {
+      if (!overlayGroupRef.current) return;
+      overlayGroupRef.current.setAttribute('transform', `translate(${-node.scrollLeft}, ${-node.scrollTop})`);
+    };
+    syncOverlay();
+    const onScroll = () => {
+      if (overlayRafRef.current) return;
+      overlayRafRef.current = window.requestAnimationFrame(() => {
+        overlayRafRef.current = null;
+        syncOverlay();
+      });
+    };
+    node.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      node.removeEventListener('scroll', onScroll);
+      if (overlayRafRef.current) cancelAnimationFrame(overlayRafRef.current);
+      overlayRafRef.current = null;
+    };
+  }, [useCanvasRenderer, chartRef]);
   return (
       <motion.div className="relative w-full h-full" initial={false}>
       
@@ -1103,6 +1091,8 @@ const rotationStageStyle = isRotationStage
                     graphBottomY={graphBottomY}
                     rowsZoneHeight={rowsZoneHeight}
                     showRelationsRow={showRelationsRow}
+                    ids={ids}
+                    theme={theme}
                   />
                 </div>
               )}
@@ -1112,6 +1102,7 @@ const rotationStageStyle = isRotationStage
   </div>
 )}
               {useCanvasRenderer ? (
+                <>
                 <FertilityChartCanvas
                 chartRef={chartRef}
                 allDataPoints={allDataPoints}  
@@ -1147,8 +1138,59 @@ const rotationStageStyle = isRotationStage
                   showRelationsRow={showRelationsRow}
                   isScrolling={isScrolling}
                   showLegend={showLegend}
+                  visibleRange={visibleRange}
                 />
-              ) : (
+ 
+                {useCanvasRenderer && (
+                  <svg
+                    className="pointer-events-none absolute inset-0 z-20"
+                    width={chartWidth}
+                    height={scrollableContentHeight}
+                    viewBox={`0 0 ${chartWidth} ${scrollableContentHeight}`}
+                    preserveAspectRatio="none"
+                    style={{ position: 'sticky', left: 0, top: 0 }}
+                  >
+                    <ChartSvgDefs ids={ids} theme={theme} />
+                    <g ref={overlayGroupRef}>
+                      <ChartPoints
+                        data={allDataPoints}
+                        getX={getX}
+                        getY={getY}
+                        isFullScreen={isFullScreen}
+                        orientation={visualOrientation}
+                        responsiveFontSize={responsiveFontSize}
+                        onPointInteraction={handlePointInteractionSafe}
+                        clearActivePoint={clearActivePointSafe}
+                        activePoint={activePoint}
+                        visibleRange={visibleRange}
+                        padding={padding}
+                        chartHeight={chartHeight}
+                        chartWidth={chartWidth}
+                        temperatureField="displayTemperature"
+                        textRowHeight={textRowHeight}
+                        graphBottomY={graphBottomY}
+                        rowsZoneHeight={rowsZoneHeight}
+                        compact={false}
+                        reduceMotion={effectiveReduceMotion}
+                        isScrolling={isScrolling}
+                        showInterpretation={showInterpretation}
+                        ovulationDetails={ovulationDetails}
+                        baselineStartIndex={baselineStartIndex}
+                        firstHighIndex={firstHighIndex}
+                        baselineIndices={baselineIndices}
+                        graphBottomLift={graphBottomInset}
+                        showRelationsRow={showRelationsRow}
+                        autoLabelStep={exportMode}
+                        isArchivedCycle={isArchivedCycle}
+                        ids={ids}
+                        theme={theme}
+                        renderMode="rowsOnly"
+                      />
+                    </g>
+                  </svg>
+                )}
+                </>
+             ) : (
               <motion.svg
                 ref={svgRef}
                 width={chartWidth}
@@ -1160,18 +1202,6 @@ const rotationStageStyle = isRotationStage
                 initial={false}
               >
           <defs>
-            {/* Gradientes mejorados para la línea de temperatura */}
-            <linearGradient id="tempLineGradientChart" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#F472B6" />
-              <stop offset="50%" stopColor="#EC4899" />
-              <stop offset="100%" stopColor="#E91E63" />
-            </linearGradient>
-            
-            <linearGradient id="tempAreaGradientChart" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="rgba(244, 114, 182, 0.18)" />
-              <stop offset="100%" stopColor="rgba(244, 114, 182, 0.02)" />
-            </linearGradient>
-            
             <linearGradient id={relativePhaseGradientId} x1="0%" y1="0%" x2="0%" y2="100%">
               <stop offset="0%" stopColor="var(--phase-rel)" stopOpacity="0" />
               <stop
@@ -1204,35 +1234,13 @@ const rotationStageStyle = isRotationStage
                 stopOpacity="var(--phase-post-abs-stop, 0.7)"
               />
             </linearGradient>
-            {/* Patrón unificado para spotting */}
-            <pattern id="spotting-pattern-chart" patternUnits="userSpaceOnUse" width="6" height="6">
-              <rect width="6" height="6" fill="#ef4444" />
-              <circle cx="3" cy="3" r="1.5" fill="rgba(255,255,255,0.85)" />
-            </pattern>
-
-            {/* Filtros para efectos de sombra */}
-            <filter id="chartShadow" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
-              <feMerge>
-                <feMergeNode in="coloredBlur"/>
-                <feMergeNode in="SourceGraphic"/>
-              </feMerge>
-            </filter>
-
-            {/* Filtro para el resplandor de la línea baseline */}
-            <filter id="baselineGlow" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation="1.5" result="coloredBlur"/>
-              <feMerge>
-                <feMergeNode in="coloredBlur"/>
-                <feMergeNode in="SourceGraphic"/>
-              </feMerge>
-            </filter>
           </defs>
 
           {/* Fondo transparente para interacciones */}
           <rect width="100%" height="100%" fill="transparent" pointerEvents="all" />
 
           {/* Ejes del gráfico */}
+          <ChartSvgDefs ids={ids} theme={theme} />
           <ChartAxes
             padding={padding}
             chartWidth={chartWidth}
@@ -1252,6 +1260,8 @@ const rotationStageStyle = isRotationStage
             graphBottomY={graphBottomY}
             chartAreaHeight={Math.max(chartHeight - padding.top - padding.bottom - (graphBottomInset || 0), 0)}
             rowsZoneHeight={rowsZoneHeight}
+            ids={ids}
+            theme={theme}
           />
           {showInterpretation &&
             interpretationSegments.length > 0 &&
@@ -1405,6 +1415,8 @@ const rotationStageStyle = isRotationStage
             temperatureField="displayTemperature"
             reduceMotion={effectiveReduceMotion}
             connectGaps={!exportMode}
+            ids={ids}
+            theme={theme}
           />
           {temperatureRiseHighlightPath && (
             <g pointerEvents="none">
@@ -1484,6 +1496,8 @@ const rotationStageStyle = isRotationStage
             showRelationsRow={showRelationsRow}
             autoLabelStep={exportMode}
             isArchivedCycle={isArchivedCycle}
+            ids={ids}
+            theme={theme}
           />
 
         </motion.svg>
