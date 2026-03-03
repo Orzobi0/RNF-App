@@ -1375,9 +1375,9 @@ const rotatedDrawerStyle = applyRotation
         <div
           className={controlsClassName}
           style={controlsStyle}
-          onPointerDownCapture={(e) => e.stopPropagation()}
-          onClickCapture={(e) => e.stopPropagation()}
-          onPointerUpCapture={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+          onPointerUp={(e) => e.stopPropagation()}
         >
           <Button
             onClick={toggleSettings}
