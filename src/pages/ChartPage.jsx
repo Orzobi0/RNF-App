@@ -179,15 +179,19 @@ const ChartPage = () => {
     ? preferences.t8Mode
     : 'auto';
     
-  const archivedCycleTitle = useMemo(() => {
-    if (!showBackToCycleRecords || !targetCycle?.startDate) {
+  const chartCycleLabel = useMemo(() => {
+    if (isViewingCurrentCycle) {
+      return 'Ciclo actual';
+    }
+
+    if (!targetCycle?.startDate) {
       return '';
     }
 
     const formatDate = (date) => {
       if (!date) return null;
       try {
-        return format(parseISO(date), 'dd/MM/yyyy');
+        return format(parseISO(date), 'dd-MM-yyyy');
       } catch (error) {
         console.error('Error formatting cycle date', error);
         return date;
@@ -202,7 +206,7 @@ const ChartPage = () => {
     }
 
     return `Ciclo ${start} - ${end}`;
-  }, [showBackToCycleRecords, targetCycle?.startDate, targetCycle?.endDate]);
+  }, [isViewingCurrentCycle, targetCycle?.startDate, targetCycle?.endDate]);
   const fertilityCalculatorCycles = useMemo(() => {
     const cycles = [];
     if (Array.isArray(archivedCycles) && archivedCycles.length > 0) {
@@ -1355,21 +1359,19 @@ const rotatedDrawerStyle = applyRotation
             : 'relative w-full min-h-full overflow-x-hidden'}
         style={containerStyle}
       >
-        {showBackToCycleRecords && !isFullScreen && (
-          <Button
-            asChild
-            variant="ghost"
-            className="absolute top-4 left-4 z-10 bg-white/20 text-slate-700 hover:brightness-95"
+        {chartCycleLabel && (
+          <div
+            className="pointer-events-none absolute left-1/2 z-[120] -translate-x-1/2 text-center"
+            style={{
+              top: isFullScreen
+                ? 'calc(env(safe-area-inset-top) + 12px)'
+                : '12px',
+            }}
           >
-            <Link to={`/cycle/${targetCycle.id}`} className="flex items-center gap-1">
-              <ArrowLeft className="h-4 w-4" />
-              {archivedCycleTitle && (
-                <span className="ml-1 text-xs font-semibold text-slate-700 sm:text-sm">
-                  {archivedCycleTitle}
-                </span>
-              )}
-            </Link>
-          </Button>
+            <span className="rounded-full bg-white/55 px-3 py-1 text-[11px] font-medium text-slate-500 backdrop-blur-sm">
+              {chartCycleLabel}
+            </span>
+          </div>
           
         )}
         <div
@@ -1379,6 +1381,19 @@ const rotatedDrawerStyle = applyRotation
           onClick={(e) => e.stopPropagation()}
           onPointerUp={(e) => e.stopPropagation()}
         >
+          {showBackToCycleRecords && (
+            <Button
+              asChild
+              variant="ghost"
+              size="icon"
+              className="p-2 rounded-full bg-white/20 shadow-lg shadow-fertiliapp text-fertiliapp border hover:brightness-95"
+              aria-label="Volver al ciclo"
+            >
+              <Link to={`/cycle/${targetCycle.id}`}>
+                <ArrowLeft className={`h-4 w-4 transition-transform ${fullscreenIconRotationClass}`} />
+              </Link>
+            </Button>
+          )}
           <Button
             onClick={toggleSettings}
             variant="ghost"
