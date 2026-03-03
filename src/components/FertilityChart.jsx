@@ -1,12 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import ChartAxes from '@/components/chartElements/ChartAxes';
-import ChartLine from '@/components/chartElements/ChartLine';
 import ChartPoints from '@/components/chartElements/ChartPoints';
 import ChartTooltip from '@/components/chartElements/ChartTooltip';
 import ChartLeftLegend from '@/components/chartElements/ChartLeftLegend';
+import FertilityChartCanvasOverlay from '@/components/chartElements/FertilityChartCanvasOverlay';
 import { useFertilityChart } from '@/hooks/useFertilityChart';
-import { isAfter, parseISO, startOfDay } from 'date-fns';
 
 const FertilityChart = ({
   data,
@@ -114,8 +112,6 @@ const FertilityChart = ({
   const [isScrolling, setIsScrolling] = useState(false);
   const scrollStopTimerRef = useRef(null);
 
-  const svgRef = useRef(null);
-
   const getNearestDataIndexByX = useCallback((targetX) => {
     const totalPoints = allDataPoints.length;
     if (!Number.isFinite(targetX) || totalPoints === 0) return null;
@@ -141,70 +137,6 @@ const FertilityChart = ({
       ? leftIndex
       : rightIndex;
   }, [allDataPoints, getX]);
-
-  const handleChartBackgroundInteraction = useCallback((event) => {
-    if (exportMode) return;
-
-    const clickedInteractiveElement = event.target?.closest?.('[data-chart-interactive="true"]');
-    if (clickedInteractiveElement) return;
-
-    const svgElement = svgRef.current;
-    if (!svgElement) return;
-
-    // ✅ Detecta el modo rotado (fullscreen + forceLandscape + viewport portrait)
-const isRotated =
-  !exportMode &&
-  isFullScreen &&
-  forceLandscape &&
-  typeof window !== 'undefined' &&
-  window.innerWidth < window.innerHeight;
-
-const rect = svgElement.getBoundingClientRect();
-if (!rect.width || !rect.height) return;
-
-// Ancho del sistema SVG (viewBox). Si no existe, usa el ancho del rect.
-const vbW =
-  svgElement.viewBox?.baseVal?.width ||
-  svgElement.clientWidth ||
-  rect.width;
-
-let svgX;
-
-// ✅ Si está rotado 90º por CSS, compensamos la rotación (inversa -90º)
-if (isRotated) {
-  const cx = rect.left + rect.width / 2;
-  const cy = rect.top + rect.height / 2;
-
-  const dx = event.clientX - cx;
-  const dy = event.clientY - cy;
-
-  // inversa de rotate(90): rotate(-90)
-  const ux = dy;
-
-  // en rotación 90, el “ancho lógico” sin rotar equivale al alto del rect actual
-  const unrotW = rect.height || 1;
-
-  const px = ux + unrotW / 2;
-  svgX = (px / unrotW) * vbW;
-} else {
-  // ✅ Normal (sin rotación)
-  svgX = ((event.clientX - rect.left) / rect.width) * vbW;
-}
-
-    const index = getNearestDataIndexByX(svgX);
-    if (index == null) return;
-
-    const point = allDataPoints[index];
-    if (!point) return;
-
-    const isFuture = point.isoDate
-      ? isAfter(startOfDay(parseISO(point.isoDate)), startOfDay(new Date()))
-      : false;
-
-    if (isFuture) return;
-
-    handlePointInteraction(point, index, event);
-  }, [allDataPoints, exportMode, getNearestDataIndexByX, handlePointInteraction]);
 
   if (!allDataPoints || allDataPoints.length === 0) {
     return (
@@ -240,32 +172,7 @@ if (isRotated) {
   const baselineOpacity = confirmedRise ? 1 : 0.7;
   const baselineWidth = 3;
   const isLoading = chartWidth === 0;
-  const highlightX = activeIndex != null ? getX(activeIndex) : null;
-  const prevX =
-    activeIndex != null
-      ? activeIndex > 0
-        ? getX(activeIndex - 1)
-        : highlightX
-      : null;
-  const nextX =
-    activeIndex != null
-      ? activeIndex < allDataPoints.length - 1
-        ? getX(activeIndex + 1)
-        : highlightX
-      : null;
-  const fallbackDayWidth = Math.max(
-    (chartWidth - padding.left - padding.right) / Math.max(allDataPoints.length, 1),
-    0
-  );
-  const dayWidth =
-    activeIndex != null
-      ? Math.max(
-          ((nextX != null && prevX != null ? nextX - prevX : 0) || fallbackDayWidth),
-          fallbackDayWidth,
-          0
-        )
-      : 0;
- 
+
 
   const validDataMap = useMemo(() => {
     const map = new Map();
@@ -1098,14 +1005,50 @@ const rotationStageStyle = isRotationStage
                   />
                 </div>
               )}
+              <FertilityChartCanvasOverlay
+                chartRef={chartRef}
+                chartWidth={chartWidth}
+                chartHeight={chartHeight}
+                scrollableContentHeight={scrollableContentHeight}
+                padding={padding}
+                graphBottomY={graphBottomY}
+                rowsZoneHeight={rowsZoneHeight}
+                allDataPoints={allDataPoints}
+                tempMin={tempMin}
+                tempMax={tempMax}
+                tempRange={tempRange}
+                getX={getX}
+                getY={getY}
+                responsiveFontSize={responsiveFontSize}
+                visibleRange={visibleRange}
+                activeIndex={activeIndex}
+                todayIndex={todayIndex}
+                showInterpretation={showInterpretation}
+                interpretationSegments={interpretationSegments}
+                shouldRenderBaseline={shouldRenderBaseline}
+                baselineY={baselineY}
+                baselineStartX={baselineStartX}
+                baselineEndX={baselineEndX}
+                baselineStroke={baselineStroke}
+                baselineDash={baselineDash}
+                baselineOpacity={baselineOpacity}
+                baselineWidth={baselineWidth}
+                isScrolling={isScrolling}
+                isFullScreen={isFullScreen}
+                visualOrientation={visualOrientation}
+                forceLandscape={forceLandscape}
+                exportMode={exportMode}
+                temperatureRiseHighlightPath={temperatureRiseHighlightPath}
+                handlePointInteraction={handlePointInteractionSafe}
+                getNearestDataIndexByX={getNearestDataIndexByX}
+              />
+
               <motion.svg
-                ref={svgRef}
                 width={chartWidth}
                 height={scrollableContentHeight}   
-                className="font-sans flex-shrink-0"
+                className="font-sans flex-shrink-0 relative z-30" style={{ pointerEvents: "none" }}
                 viewBox={`0 0 ${chartWidth} ${scrollableContentHeight}`} 
                 preserveAspectRatio="xMidYMid meet"
-                onClick={handleChartBackgroundInteraction}
                 initial={false}
               >
           <defs>
@@ -1178,30 +1121,6 @@ const rotationStageStyle = isRotationStage
             </filter>
           </defs>
 
-          {/* Fondo transparente para interacciones */}
-          <rect width="100%" height="100%" fill="transparent" pointerEvents="all" />
-
-          {/* Ejes del gráfico */}
-          <ChartAxes
-            padding={padding}
-            chartWidth={chartWidth}
-            chartHeight={chartHeight}
-            tempMin={tempMin}
-            tempMax={tempMax}
-            tempRange={tempRange}
-            getY={getY}
-            getX={getX}
-            allDataPoints={allDataPoints}
-            visibleRange={visibleRange}
-            responsiveFontSize={responsiveFontSize}
-            isFullScreen={isFullScreen}
-            showLeftLabels={!showLegend}
-            reduceMotion={effectiveReduceMotion}
-            isScrolling={isScrolling}
-            graphBottomY={graphBottomY}
-            chartAreaHeight={Math.max(chartHeight - padding.top - padding.bottom - (graphBottomInset || 0), 0)}
-            rowsZoneHeight={rowsZoneHeight}
-          />
           {showInterpretation &&
             interpretationSegments.length > 0 &&
             interpretationBandTop != null &&
@@ -1210,35 +1129,6 @@ const rotationStageStyle = isRotationStage
                 {interpretationSegments.map((segment) => {
                   const rectY = interpretationBandTop;
                   const rectHeight = interpretationBandHeight;
-                  const backgroundFill = (() => {
-                  // Postovulatoria
-                  if (segment.phase === 'postOvulatory') {
-                    return segment.status === 'pending'
-                      ? `url(#${postPendingGradientId})`
-                      : `url(#${postAbsoluteGradientId})`;
-                  }
-
-                  // Relativamente infértil (tanto el segmento "relative" como el "relative-default")
-                  if (segment.phase === 'relativeInfertile') {
-                    return `url(#${relativePhaseGradientId})`;
-                  }
-
-                  // Fértil
-                  if (segment.phase === 'fertile') {
-                    return `url(#${fertilePhaseGradientId})`;
-                  }
-
-                  // Nodata u otros → gris suave
-                  if (segment.phase === 'nodata') {
-                    return 'rgba(203, 213, 225, 0.2)';
-                  }
-
-                  // Fallback: trata cualquier cosa rara como fértil
-                  return `url(#${fertilePhaseGradientId})`;
-                })();
-
-                const rectFill = backgroundFill;
-
                   const minFontSize = isFullScreen ? 14 : 13;
                   const fontSize = Math.max(responsiveFontSize(1.1), minFontSize);
                   const isNarrow = segment.bounds.width < 120;
@@ -1284,14 +1174,6 @@ const rotationStageStyle = isRotationStage
 
                   return (
                     <g key={segment.key}>
-                      <rect
-                        x={segment.bounds.x}
-                        y={rectY}
-                        width={segment.bounds.width}
-                        height={rectHeight}
-                        fill={rectFill}
-                        pointerEvents="none"
-                      />
                       <text
                         x={textX}
                         y={textY}
@@ -1317,90 +1199,7 @@ const rotationStageStyle = isRotationStage
                 })}
               </g>
             )}
-            {/* Línea baseline mejorada */}
-          {showInterpretation && shouldRenderBaseline && baselineY !== null && (
-            effectiveReduceMotion ? (
-              
-              <line
-                x1={baselineStartX}
-                y1={baselineY}
-                x2={baselineEndX}
-                y2={baselineY}
-                stroke={baselineStroke}
-                strokeWidth={baselineWidth}
-                strokeDasharray={baselineDash}
-                opacity={baselineOpacity}
-              />
-            ) : (
-            <motion.path
-                d={`M ${baselineStartX} ${baselineY} L ${baselineEndX} ${baselineY}`}
-                stroke={baselineStroke}
-                strokeWidth={baselineWidth}
-                strokeDasharray={baselineDash}
-                opacity={baselineOpacity}
-                initial={{ pathLength: 0, opacity: 0 }}
-                animate={{ pathLength: 1, opacity: baselineOpacity }}
-                transition={{ duration: 4, ease: 'easeInOut', delay: 0.5 }}
-              />
-            )
-          )}
-          {/* Línea de temperatura */}
-          <ChartLine
-            data={validDataForLine}
-            allDataPoints={allDataPoints}
-            getX={getX}
-            getY={getY}
-            baselineY={graphBottomY}
-            temperatureField="displayTemperature"
-            reduceMotion={effectiveReduceMotion}
-            connectGaps={!exportMode}
-          />
-          {temperatureRiseHighlightPath && (
-            <g pointerEvents="none">
-
-              {/* Línea principal */}
-              <path
-                d={temperatureRiseHighlightPath}
-                fill="none"
-                stroke="#cc0e93"
-                strokeWidth={4}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                opacity={0.9}
-              />
-            </g>
-          )}
-
-          {activeIndex !== null && highlightX !== null && dayWidth > 0 && (
-            <g pointerEvents="none">
-              {(() => {
-                const chartAreaBottomY = graphBottomY;
-                const thinStrokeWidth = Math.max(3, Math.min(14, dayWidth * 0.4));
-                const thickStrokeWidth = Math.max(thinStrokeWidth * 2, textRowHeight * 0.85);
-
-                return (
-                  <>
-                    <line
-                      x1={highlightX}
-                      y1={0}
-                      x2={highlightX}
-                      y2={chartAreaBottomY}
-                      stroke="rgba(235, 171, 204,0.15)"
-                      strokeWidth={thinStrokeWidth}                      
-                    />
-                    <line
-                      x1={highlightX}
-                      y1={chartAreaBottomY}
-                      x2={highlightX}
-                      y2={chartHeight}
-                      stroke="rgba(235, 171, 204,0.15)"
-                      strokeWidth={thickStrokeWidth}                      
-                    />
-                  </>
-                );
-              })()}
-            </g>
-          )}
+  
 
           {/* Puntos del gráfico */}
           <ChartPoints
@@ -1433,6 +1232,7 @@ const rotationStageStyle = isRotationStage
             showRelationsRow={showRelationsRow}
             autoLabelStep={exportMode}
             isArchivedCycle={isArchivedCycle}
+            renderTemperatureLayer={false}
           />
 
         </motion.svg>
