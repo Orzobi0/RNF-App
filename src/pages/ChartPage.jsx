@@ -603,7 +603,7 @@ useEffect(() => {
         height: `calc(${APP_H} - ${NAVBAR_SAFE_VAR})`,
         maxHeight: `calc(${APP_H} - ${NAVBAR_SAFE_VAR})`,
       };
-
+      const useSeparatedControlsLayout = isFullScreen || visualOrientation === 'portrait';
       const controlsClassName = isFullScreen
         ? 'fixed z-[200] flex flex-col items-center gap-2'
         : 'absolute top-4 right-4 z-[200] flex items-center gap-2';
@@ -614,6 +614,8 @@ useEffect(() => {
             right: 'calc(env(safe-area-inset-right) + 8px)',
           }
         : undefined;
+
+        const isRotatedFullScreen = isFullScreen && applyRotation;
 
         const fullscreenIconRotationClass = isFullScreen ? 'rotate-90' : '';
       
@@ -1360,72 +1362,165 @@ const rotatedDrawerStyle = applyRotation
         style={containerStyle}
       >
         {chartCycleLabel && (
-          <div
-            className="pointer-events-none absolute left-1/2 z-[120] -translate-x-1/2 text-center"
-            style={{
-              top: isFullScreen
-                ? 'calc(env(safe-area-inset-top) + 12px)'
-                : '12px',
-            }}
-          >
-            <span className="rounded-full bg-white/55 px-3 py-1 text-[11px] font-medium text-slate-500 backdrop-blur-sm">
-              {chartCycleLabel}
-            </span>
-          </div>
-          
-        )}
+  <div className="pointer-events-none absolute z-[120]" style={{ inset: 0 }}>
+    {isRotatedFullScreen ? (
+      <div
+        style={{
+          position: 'absolute',
+          top: '50%',
+          right: 'calc(env(safe-area-inset-right) + 8px)',
+          transform: 'translateY(-50%)',
+        }}
+      >
         <div
-          className={controlsClassName}
-          style={controlsStyle}
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={(e) => e.stopPropagation()}
-          onPointerUp={(e) => e.stopPropagation()}
+          style={{
+            transform: 'rotate(90deg)',
+            transformOrigin: 'right center',
+          }}
         >
-          {showBackToCycleRecords && (
+          <span className="rounded-full bg-white/55 px-3 py-1 text-[11px] font-medium text-slate-500 backdrop-blur-sm">
+            {chartCycleLabel}
+          </span>
+        </div>
+      </div>
+    ) : (
+      <div
+        style={{
+          position: 'absolute',
+          left: '50%',
+          top: isFullScreen ? 'calc(env(safe-area-inset-top) + 12px)' : '12px',
+          transform: 'translateX(-50%)',
+        }}
+      >
+        <span className="rounded-full bg-white/55 px-3 py-1 text-[11px] font-medium text-slate-500 backdrop-blur-sm">
+          {chartCycleLabel}
+        </span>
+      </div>
+    )}
+  </div>
+)}
+        {isRotatedFullScreen ? (
+          <>
+            {showBackToCycleRecords && (
+              <div
+                className="fixed z-[200]"
+                style={{
+                  top: 'calc(env(safe-area-inset-top) + 8px)',
+                  left: 'calc(env(safe-area-inset-left) + 8px)',
+                }}
+              >
+                <Button
+                  asChild
+                  variant="ghost"
+                  size="icon"
+                  className="p-2 rounded-full bg-white/20 shadow-lg shadow-fertiliapp text-fertiliapp border hover:brightness-95"
+                  aria-label="Volver al ciclo"
+                >
+                  <Link to={`/cycle/${targetCycle.id}`}>
+                    <ArrowLeft className={`h-4 w-4 transition-transform ${fullscreenIconRotationClass}`} />
+                  </Link>
+                </Button>
+              </div>
+            )}
+            <div
+              className="fixed z-[200]"
+              style={{
+                top: 'calc(env(safe-area-inset-top) + 8px)',
+                right: 'calc(env(safe-area-inset-right) + 8px)',
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+              onPointerUp={(e) => e.stopPropagation()}
+            >
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  onClick={handleInterpretationClick}
+                  onPointerUp={handleInterpretationPointerUp}
+                  variant="ghost"
+                  size="icon"
+                  className={`p-2 rounded-full transition-colors ${showInterpretation
+                    ? 'bg-fertiliapp-fuerte text-white shadow-lg shadow-fertiliapp-fuerte/50 border-fertiliapp-fuerte/70'
+                    : 'bg-white/20 text-fertiliapp-fuerte border border-fertiliapp-fuerte hover:brightness-95 shadow-md'}`}
+                >
+                  {showInterpretation ? (
+                    <EyeOff className={`h-4 w-4 transition-transform ${fullscreenIconRotationClass}`} />
+                  ) : (
+                    <Eye className={`h-4 w-4 transition-transform ${fullscreenIconRotationClass}`} />
+                  )}
+                </Button>
+                <Button
+                  onClick={handleToggleFullScreen}
+                  className="bg-white/20 rounded-full text-slate-600 hover:bg-pink-50/80 shadow-md border border-slate-400/50 backdrop-blur-sm"
+                  aria-label={isFullScreen ? 'Salir de pantalla completa' : 'Rotar gráfico'}
+                >
+                  <RotateCcw className={`w-4 h-4 transition-transform ${fullscreenIconRotationClass}`} />
+                </Button>
+                <Button
+                  onClick={toggleSettings}
+                  variant="ghost"
+                  size="icon"
+                  className="col-start-2 p-2 rounded-full bg-white/20 shadow-lg shadow-secundario text-secundario border hover:brightness-95"
+                  aria-label="Ajustes"
+                >
+                  <Settings className={`h-4 w-4 transition-transform ${fullscreenIconRotationClass}`} />
+                </Button>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div
+            className={controlsClassName}
+            style={controlsStyle}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+            onPointerUp={(e) => e.stopPropagation()}
+          >
+            {showBackToCycleRecords && (
+              <Button
+                asChild
+                variant="ghost"
+                size="icon"
+                className="p-2 rounded-full bg-white/20 shadow-lg shadow-fertiliapp text-fertiliapp border hover:brightness-95"
+                aria-label="Volver al ciclo"
+              >
+                <Link to={`/cycle/${targetCycle.id}`}>
+                  <ArrowLeft className={`h-4 w-4 transition-transform ${fullscreenIconRotationClass}`} />
+                </Link>
+              </Button>
+            )}
             <Button
-              asChild
+              onClick={toggleSettings}
               variant="ghost"
               size="icon"
-              className="p-2 rounded-full bg-white/20 shadow-lg shadow-fertiliapp text-fertiliapp border hover:brightness-95"
-              aria-label="Volver al ciclo"
+              className="p-2 rounded-full bg-white/20 shadow-lg shadow-secundario text-secundario border hover:brightness-95"
+              aria-label="Ajustes"
             >
-              <Link to={`/cycle/${targetCycle.id}`}>
-                <ArrowLeft className={`h-4 w-4 transition-transform ${fullscreenIconRotationClass}`} />
-              </Link>
+              <Settings className={`h-4 w-4 transition-transform ${fullscreenIconRotationClass}`} />
             </Button>
-          )}
           <Button
-            onClick={toggleSettings}
-            variant="ghost"
-            size="icon"
-            className="p-2 rounded-full bg-white/20 shadow-lg shadow-secundario text-secundario border hover:brightness-95"
-            aria-label="Ajustes"
-          >
-            <Settings className={`h-4 w-4 transition-transform ${fullscreenIconRotationClass}`} />
-          </Button>
-          <Button
-            onClick={handleInterpretationClick}
-            onPointerUp={handleInterpretationPointerUp}
-            variant="ghost"
-            size="icon"
-            className={`p-2 rounded-full transition-colors ${showInterpretation 
-              ? 'bg-fertiliapp-fuerte text-white shadow-lg shadow-fertiliapp-fuerte/50 border-fertiliapp-fuerte/70' 
-              : 'bg-white/20 text-fertiliapp-fuerte border border-fertiliapp-fuerte hover:brightness-95 shadow-md'}`}
-          >
-            {showInterpretation ? (
-              <EyeOff className={`h-4 w-4 transition-transform ${fullscreenIconRotationClass}`} />
-            ) : (
-              <Eye className={`h-4 w-4 transition-transform ${fullscreenIconRotationClass}`} />
-            )}
-          </Button>
-          <Button
-            onClick={handleToggleFullScreen}
-            className="bg-white/20 rounded-full text-slate-600 hover:bg-pink-50/80 shadow-md border border-slate-400/50 backdrop-blur-sm"
-            aria-label={isFullScreen ? 'Salir de pantalla completa' : 'Rotar gráfico'}
-          >
-            <RotateCcw className={`w-4 h-4 transition-transform ${fullscreenIconRotationClass}`} />
-          </Button>
-        </div>
+              onClick={handleInterpretationClick}
+              onPointerUp={handleInterpretationPointerUp}
+              variant="ghost"
+              size="icon"
+              className={`p-2 rounded-full transition-colors ${showInterpretation
+                ? 'bg-fertiliapp-fuerte text-white shadow-lg shadow-fertiliapp-fuerte/50 border-fertiliapp-fuerte/70'
+                : 'bg-white/20 text-fertiliapp-fuerte border border-fertiliapp-fuerte hover:brightness-95 shadow-md'}`}
+            >
+              {showInterpretation ? (
+                <EyeOff className={`h-4 w-4 transition-transform ${fullscreenIconRotationClass}`} />
+              ) : (
+                <Eye className={`h-4 w-4 transition-transform ${fullscreenIconRotationClass}`} />
+              )}
+            </Button>
+            <Button
+              onClick={handleToggleFullScreen}
+              className="bg-white/20 rounded-full text-slate-600 hover:bg-pink-50/80 shadow-md border border-slate-400/50 backdrop-blur-sm"
+              aria-label={isFullScreen ? 'Salir de pantalla completa' : 'Rotar gráfico'}
+            >
+              <RotateCcw className={`w-4 h-4 transition-transform ${fullscreenIconRotationClass}`} />
+            </Button>
+          </div>
+        )}
         <FertilityChart
           data={mergedData}
           isFullScreen={isFullScreen}
