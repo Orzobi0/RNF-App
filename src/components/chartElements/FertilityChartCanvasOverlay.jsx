@@ -453,45 +453,25 @@ const FertilityChartCanvasOverlay = ({
   }, [chartRef, exportMode, forceLandscape, getNearestDataIndexByX, graphBottomY, handlePointInteraction, isFullScreen, points]);
 
   return (
-    <>
-      <canvas
-        ref={canvasRef}
-        style={{
-          position: 'sticky',
-          top: 0,
-          left: 0,
-          width: `${viewportSize.width}px`,
-          height: `${viewportSize.height}px`,
-          display: 'block',
-          marginBottom: `-${viewportSize.height}px`,
-          zIndex: 0,
-          pointerEvents: 'none',
-        }}
-        width={Math.max(1, Math.floor(viewportSize.width * viewportSize.dpr))}
-        height={Math.max(1, Math.floor(viewportSize.height * viewportSize.dpr))}
-        data-chart-canvas-overlay="true"
-        aria-hidden="true"
-      />
-      {!exportMode && (
-        <div
-          style={{
-            position: 'sticky',
-            top: 0,
-            left: 0,
-            width: `${viewportSize.width}px`,
-            height: `${viewportSize.height}px`,
-            marginBottom: `-${viewportSize.height}px`,
-            zIndex: 5,
-            pointerEvents: 'auto',
-            background: 'transparent',
-          }}
-          onPointerDown={handleCanvasPointer}
-          data-chart-canvas-interaction="true"
-          aria-hidden="true"
-        />
-      )}
-    </>
-  );
+  <canvas
+    ref={canvasRef}
+    style={{
+      position: 'sticky',
+      top: 0,
+      left: 0,
+      width: `${viewportSize.width}px`,
+      height: `${viewportSize.height}px`,
+      display: 'block',
+      marginBottom: `-${viewportSize.height}px`,
+      zIndex: 0,
+      pointerEvents: 'none',
+    }}
+    width={Math.max(1, Math.floor(viewportSize.width * viewportSize.dpr))}
+    height={Math.max(1, Math.floor(viewportSize.height * viewportSize.dpr))}
+    data-chart-canvas-overlay="true"
+    aria-hidden="true"
+  />
+);
 };
 
 export default FertilityChartCanvasOverlay;

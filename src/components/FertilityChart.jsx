@@ -6,6 +6,7 @@ import ChartLeftLegend from '@/components/chartElements/ChartLeftLegend';
 import FertilityChartCanvasOverlay from '@/components/chartElements/FertilityChartCanvasOverlay';
 import { getChartTheme } from '@/components/chartElements/chartTheme';
 import { useFertilityChart } from '@/hooks/useFertilityChart';
+import { isAfter, parseISO, startOfDay } from 'date-fns';
 
 const FertilityChart = ({
   data,
@@ -137,6 +138,59 @@ const FertilityChart = ({
       ? leftIndex
       : rightIndex;
   }, [allDataPoints, getX]);
+  const handleChartPointerDown = useCallback((event) => {
+  if (exportMode) return;
+
+  // Si tocaste algo interactivo (texto fase, iconos, puntos de filas...), no lo interceptes.
+  const clickedInteractiveElement =
+    event.target?.closest?.('[data-chart-interactive="true"]');
+  if (clickedInteractiveElement) return;
+
+  const scroller = chartRef.current;
+  if (!scroller) return;
+
+  const rect = scroller.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
+
+  const isRotated =
+    isFullScreen &&
+    forceLandscape &&
+    typeof window !== 'undefined' &&
+    window.innerWidth < window.innerHeight;
+
+  let localX = event.clientX - rect.left;
+
+  if (isRotated) {
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const dy = event.clientY - cy;
+    const unrotW = rect.height || 1;
+    localX = dy + unrotW / 2;
+  }
+
+  const worldX = scroller.scrollLeft + localX;
+  const index = getNearestDataIndexByX(worldX);
+  if (index == null) return;
+
+  const point = allDataPoints[index];
+  if (!point) return;
+
+  // Bloqueo “futuro” (si lo sigues queriendo)
+  const isFuture = point.isoDate
+    ? isAfter(startOfDay(parseISO(point.isoDate)), startOfDay(new Date()))
+    : false;
+  if (isFuture) return;
+
+  handlePointInteraction(point, index, event);
+}, [
+  exportMode,
+  chartRef,
+  isFullScreen,
+  forceLandscape,
+  getNearestDataIndexByX,
+  allDataPoints,
+  handlePointInteraction,
+]);
   
   if (!allDataPoints || allDataPoints.length === 0) {
     return (
@@ -1003,11 +1057,6 @@ const rotationStageStyle = isRotationStage
     baselineOpacity={baselineOpacity}
     baselineWidth={baselineWidth}
     temperatureRiseHighlightPath={temperatureRiseHighlightPath}
-    handlePointInteraction={handlePointInteractionSafe}
-    getNearestDataIndexByX={getNearestDataIndexByX}
-    isFullScreen={isFullScreen}
-    forceLandscape={forceLandscape}
-    exportMode={exportMode}
   />
 )}
       
@@ -1042,7 +1091,6 @@ const rotationStageStyle = isRotationStage
                 </div>
               )}
               
-
               <motion.svg
                 width={chartWidth}
                 height={scrollableContentHeight}   
@@ -1050,6 +1098,7 @@ const rotationStageStyle = isRotationStage
                 viewBox={`0 0 ${chartWidth} ${scrollableContentHeight}`} 
                 preserveAspectRatio="xMidYMid meet"
                 initial={false}
+                onPointerDown={handleChartPointerDown}
               >
           <defs>
             {/* Gradientes mejorados para la línea de temperatura */}
