@@ -1,0 +1,15 @@
+export const createChartIds = (prefix = 'fertility-chart') => ({
+  bgGradientId: `${prefix}-bg-gradient`,
+  dataZoneGradientId: `${prefix}-data-zone-gradient`,
+  tempLineGradientId: `${prefix}-temp-line-gradient`,
+  tempLineGlowGradientId: `${prefix}-temp-line-glow-gradient`,
+  tempPointGradientId: `${prefix}-temp-point-gradient`,
+  tempPointIgnoredGradientId: `${prefix}-temp-point-ignored-gradient`,
+  ovulationPointGradientId: `${prefix}-ovulation-point-gradient`,
+  textShadowFilterId: `${prefix}-text-shadow-filter`,
+  softShadowFilterId: `${prefix}-soft-shadow-filter`,
+  lineShadowFilterId: `${prefix}-line-shadow-filter`,
+  lineGlowFilterId: `${prefix}-line-glow-filter`,
+  pointGlowFilterId: `${prefix}-point-glow-filter`,
+  spottingPatternId: `${prefix}-spotting-pattern`,
+});
