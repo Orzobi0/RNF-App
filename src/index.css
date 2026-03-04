@@ -603,3 +603,55 @@ button.date-editor-toggle[aria-pressed="true"] {
 button.date-editor-toggle[aria-pressed="true"] svg {
   stroke: currentColor !important;
 }
+
+/* Fija colores aunque shadcn meta hover:text/bg */
+.chart-controls .bg-white\/20:hover,
+.chart-controls .bg-white\/20:active,
+.chart-controls .bg-white\/20:focus,
+.chart-controls .bg-white\/20:focus-visible {
+  background-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+.chart-controls .bg-fertiliapp-fuerte:hover,
+.chart-controls .bg-fertiliapp-fuerte:active,
+.chart-controls .bg-fertiliapp-fuerte:focus,
+.chart-controls .bg-fertiliapp-fuerte:focus-visible {
+  background-color: var(--color-fertiliapp-fuerte) !important;
+}
+
+.chart-controls .text-fertiliapp-fuerte:hover,
+.chart-controls .text-fertiliapp-fuerte:active,
+.chart-controls .text-fertiliapp-fuerte:focus,
+.chart-controls .text-fertiliapp-fuerte:focus-visible {
+  color: var(--color-fertiliapp-fuerte) !important;
+}
+
+.chart-controls .text-white:hover,
+.chart-controls .text-white:active,
+.chart-controls .text-white:focus,
+.chart-controls .text-white:focus-visible {
+  color: #fff !important;
+}
+/* Evita que ghost aplique hover:text-accent-foreground (blanco) en botones con text-slate-600 */
+.chart-controls .text-slate-600:hover,
+.chart-controls .text-slate-600:active,
+.chart-controls .text-slate-600:focus,
+.chart-controls .text-slate-600:focus-visible {
+  /* slate-600 = rgb(71 85 105) */
+  color: rgb(71 85 105) !important;
+}
+
+/* (Opcional pero recomendable) igual para otros colores que usas en chart-controls */
+.chart-controls .text-secundario:hover,
+.chart-controls .text-secundario:active,
+.chart-controls .text-secundario:focus,
+.chart-controls .text-secundario:focus-visible {
+  color: var(--color-secundario) !important;
+}
+
+.chart-controls .text-fertiliapp:hover,
+.chart-controls .text-fertiliapp:active,
+.chart-controls .text-fertiliapp:focus,
+.chart-controls .text-fertiliapp:focus-visible {
+  color: var(--color-fertiliapp) !important;
+}
