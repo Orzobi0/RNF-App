@@ -306,10 +306,17 @@ const ChartPoints = ({
       return new Map();
     }
 
-    const indices = Array.isArray(ovulationDetails?.highSequenceIndices)
+    const preferredIndices = Array.isArray(ovulationDetails?.usedIndices)
+      ? ovulationDetails.usedIndices
+      : null;
+    const fallbackIndices = Array.isArray(ovulationDetails?.highSequenceIndices)
       ? ovulationDetails.highSequenceIndices
       : [];
-
+    const firstHighIdx = Number(firstHighIndex);
+    const hasFirstHigh = Number.isInteger(firstHighIdx);
+    const indices = (preferredIndices ?? fallbackIndices)
+      .map((value) => Number(value))
+      .filter((idx) => Number.isInteger(idx) && (!hasFirstHigh || idx >= firstHighIdx));
     const isValidPoint = (idx) => {
       const point = data?.[idx];
       const calcTemperature =
@@ -332,19 +339,18 @@ const ChartPoints = ({
       }
     });
     return map;
-  }, [showInterpretation, ovulationDetails, totalPoints, data]);
+  }, [showInterpretation, ovulationDetails, totalPoints, data, firstHighIndex]);
 
   const baselineOrderMap = useMemo(() => {
     if (!showInterpretation) {
       return new Map();
     }
 
-    const indices = Array.isArray(baselineIndices) ? baselineIndices : [];
-    if (!indices.length) {
+    const firstHighIdx = Number(firstHighIndex);
+    if (!Number.isInteger(firstHighIdx)) {
       return new Map();
     }
 
-    const seen = new Set();
     const validIndices = [];
     const isValidPoint = (idx) => {
       const point = data?.[idx];
@@ -354,39 +360,9 @@ const ChartPoints = ({
         point?.ignoredForCalc != null ? point.ignoredForCalc : point?.ignored;
       return point && Number.isFinite(calcTemperature) && !ignoredForCalc;
     };
-    const findPreviousValidIndex = (startIndex) => {
-      for (let idx = startIndex; idx >= 0; idx -= 1) {
-        if (isValidPoint(idx)) {
-          return idx;
-        }
-      }
-      return null;
-    };
-    const addIndexIfValid = (value) => {
-      const idx = Number(value);
-      if (
-        Number.isInteger(idx)
-        && idx >= 0
-        && idx < totalPoints
-        && !seen.has(idx)
-        && isValidPoint(idx)
-      ) {
-        seen.add(idx);
+    for (let idx = firstHighIdx - 1; idx >= 0 && validIndices.length < 6; idx -= 1) {
+      if (isValidPoint(idx)) {
         validIndices.push(idx);
-      }
-    };
-
-    indices.forEach((value) => {
-      addIndexIfValid(value);
-    });
-    if (firstHighIndex != null) {
-      const firstHighIdx = Number(firstHighIndex);
-      if (Number.isInteger(firstHighIdx)) {
-        // Usar el último índice válido previo para evitar días ignorados/sin temp.
-        const previousValidIndex = findPreviousValidIndex(firstHighIdx - 1);
-        if (previousValidIndex != null) {
-          addIndexIfValid(previousValidIndex);
-        }
       }
     }
 
@@ -394,17 +370,13 @@ const ChartPoints = ({
       return new Map();
     }
 
-    const orderedAscending = [...validIndices].sort((a, b) => a - b);
-const map = new Map();
-let counter = 1;
-for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
-  if (counter > 6) break;   // 👈 límite máximo
-  map.set(orderedAscending[i], counter);
-  counter += 1;
-}
+  const map = new Map();
+    validIndices.forEach((idx, index) => {
+      map.set(idx, index + 1);
+    });
 
     return map;
-  }, [showInterpretation, baselineIndices, totalPoints, firstHighIndex, data]);
+  }, [showInterpretation, totalPoints, firstHighIndex, data]);
 
   const rowLabelShadow = perfMode ? 'none' : 'drop-shadow(0 1px 2px rgba(255, 255, 255, 0.9))';
   const textShadowSoft = perfMode ? 'none' : 'drop-shadow(0 1px 1px rgba(255, 255, 255, 0.8))';
@@ -783,58 +755,59 @@ const observationFontSize = obsRes.fontSize;
                   />
                 )}
 
-                {showInterpretation &&
-                  hasTemp &&
-                  !isIgnoredForDisplay &&
-                  hasHighOrder && (
-                    <g pointerEvents="none">
-                      <text
-                        x={x}
-                        y={highNumberY}
-                        textAnchor="middle"
-                        fontSize={numberFontSize}
-                        fontWeight="900"
-                        fill={HIGH_SEQUENCE_NUMBER_COLOR}
-                        strokeWidth={numberStrokeWidth}
-                        style={{
-                          fontFamily:
-                            '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                          paintOrder: 'stroke',
-                          filter: textShadowSoft,
-                        }}
-                      >
-                        {highOrder}
-                      </text>
-                    </g>
-                  )}
-                {showInterpretation &&
-                  hasTemp &&
-                  !isIgnoredForDisplay &&
-                  hasBaselineOrder && (
-                    <g pointerEvents="none">
-                      <text
-                        x={x}
-                        y={baselineNumberY}
-                        textAnchor="middle"
-                        fontSize={numberFontSize}
-                        fontWeight="800"
-                        fill={BASELINE_NUMBER_COLOR}
-                        stroke="#ffffff"
-                        strokeWidth={numberStrokeWidth}
-                        style={{
-                          fontFamily:
-                            '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                          paintOrder: 'stroke',
-                          filter: textShadowSoft,
-                        }}
-                      >
-                        {baselineOrder}
-                      </text>
-                    </g>
-                  )}
                 </MotionG>
               )}
 
+            {showInterpretation &&
+              hasTemp &&
+              !isIgnoredForDisplay &&
+              hasHighOrder && (
+                <g pointerEvents="none">
+                  <text
+                    x={x}
+                    y={highNumberY}
+                    textAnchor="middle"
+                    fontSize={numberFontSize}
+                    fontWeight="900"
+                    fill={HIGH_SEQUENCE_NUMBER_COLOR}
+                    stroke="#fff"
+                    strokeWidth={numberStrokeWidth}
+                    style={{
+                      fontFamily:
+                        '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                      paintOrder: 'stroke',
+                      filter: textShadowSoft,
+                    }}
+                  >
+                    {highOrder}
+                  </text>
+                </g>
+              )}
+            {showInterpretation &&
+              hasTemp &&
+              !isIgnoredForDisplay &&
+              hasBaselineOrder && (
+                <g pointerEvents="none">
+                  <text
+                    x={x}
+                    y={baselineNumberY}
+                    textAnchor="middle"
+                    fontSize={numberFontSize}
+                    fontWeight="800"
+                    fill={BASELINE_NUMBER_COLOR}
+                    stroke="#fff"
+                    strokeWidth={numberStrokeWidth}
+                    style={{
+                      fontFamily:
+                        '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                      paintOrder: 'stroke',
+                      filter: textShadowSoft,
+                    }}
+                  >
+                    {baselineOrder}
+                  </text>
+                </g>
+              )}
             {/* Fecha con estilo mejorado */}
             {shouldRenderXLabel && (
               <text
