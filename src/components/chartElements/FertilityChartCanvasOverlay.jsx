@@ -10,7 +10,43 @@ const parseDash = (dash) => {
     .map((item) => Number(item))
     .filter((item) => Number.isFinite(item) && item > 0);
 };
+const clamp01 = (v) => Math.max(0, Math.min(1, v));
 
+const parseRgba = (color) => {
+  if (!color) return null;
+  const s = String(color).trim();
+
+  // rgba(...) o rgb(...)
+  const m = s.match(/^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*(?:,\s*([\d.]+)\s*)?\)$/i);
+  if (m) {
+    return {
+      r: Number(m[1]),
+      g: Number(m[2]),
+      b: Number(m[3]),
+      a: m[4] == null ? 1 : Number(m[4]),
+    };
+  }
+
+  // #RRGGBB
+  const hex = s.match(/^#([0-9a-f]{6})$/i);
+  if (hex) {
+    const n = parseInt(hex[1], 16);
+    return {
+      r: (n >> 16) & 255,
+      g: (n >> 8) & 255,
+      b: n & 255,
+      a: 1,
+    };
+  }
+
+  return null;
+};
+
+const rgbaWithAlpha = (color, alpha) => {
+  const p = parseRgba(color);
+  if (!p) return color; // fallback
+  return `rgba(${p.r},${p.g},${p.b},${clamp01(alpha)})`;
+};
 const FertilityChartCanvasOverlay = ({
   chartRef,
   chartWidth,
@@ -52,6 +88,7 @@ const FertilityChartCanvasOverlay = ({
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0, dpr: 1 });
   const scrollRef = useRef({ left: 0, top: 0 });
   const rafRef = useRef(0);
+  const bandPaintCacheRef = useRef(new Map());
 
   const points = useMemo(() => allDataPoints || [], [allDataPoints]);
   const theme = useMemo(() => getCanvasTheme(), []);
@@ -157,20 +194,74 @@ const FertilityChartCanvasOverlay = ({
       ctx.stroke();
     }
 
-    // Interpretation band backgrounds
-    if (showInterpretation && Array.isArray(interpretationSegments)) {
-      interpretationSegments.forEach((segment) => {
-        const x = segment?.bounds?.x;
-        const w = segment?.bounds?.width;
-        if (!Number.isFinite(x) || !Number.isFinite(w) || w <= 0) return;
-        if (segment.phase === 'fertile') ctx.fillStyle = theme.interpretation.fertile;
-        else if (segment.phase === 'relativeInfertile') ctx.fillStyle = theme.interpretation.relativeInfertile;
-        else if (segment.phase === 'postOvulatory' && segment.status === 'absolute') ctx.fillStyle = theme.interpretation.postOvulatoryAbsolute;
-        else if (segment.phase === 'postOvulatory') ctx.fillStyle = theme.interpretation.postOvulatory;
-        else ctx.fillStyle = theme.interpretation.default;
-        ctx.fillRect(x, graphBottomY - Math.max(areaH * 0.5, 0), w, Math.max(areaH * 0.5, 0));
-      });
-    }
+    // Interpretation band backgrounds (premium gradient + subtle gloss)
+if (showInterpretation && Array.isArray(interpretationSegments)) {
+  const bandH = Math.max(areaH * 0.5, 0);
+  if (bandH > 0) {
+    const bandY = graphBottomY - bandH;
+
+    const getKey = (kind) => `${kind}:${Math.round(bandY * dpr)}:${Math.round(bandH * dpr)}:${dpr}`;
+
+    const resolveBaseColor = (segment) => {
+      if (segment.phase === 'fertile') return theme.interpretation.fertile;
+      if (segment.phase === 'relativeInfertile') return theme.interpretation.relativeInfertile;
+      if (segment.phase === 'postOvulatory' && segment.status === 'absolute') return theme.interpretation.postOvulatoryAbsolute;
+      if (segment.phase === 'postOvulatory') return theme.interpretation.postOvulatory;
+      return theme.interpretation.default;
+    };
+
+    const getPaint = (kind, baseColor) => {
+      const key = getKey(kind);
+      const cached = bandPaintCacheRef.current.get(key);
+      if (cached) return cached;
+
+      // intenta respetar el alpha del rgba original
+      const parsed = parseRgba(baseColor);
+      const baseA = parsed ? clamp01(parsed.a) : 0.22;
+
+      // gradiente principal
+      const g = ctx.createLinearGradient(0, bandY, 0, graphBottomY);
+      g.addColorStop(0.0, rgbaWithAlpha(baseColor, baseA * 0.08));  // casi nada arriba
+      g.addColorStop(0.55, rgbaWithAlpha(baseColor, baseA * 0.55)); // medio
+      g.addColorStop(1.0, rgbaWithAlpha(baseColor, baseA));         // abajo como ahora
+
+      // gloss (muy sutil)
+      const gloss = ctx.createLinearGradient(0, bandY, 0, bandY + bandH);
+      gloss.addColorStop(0.0, 'rgba(255,255,255,0.18)');
+      gloss.addColorStop(0.35, 'rgba(255,255,255,0.06)');
+      gloss.addColorStop(1.0, 'rgba(255,255,255,0.0)');
+
+      const out = { fill: g, gloss };
+      bandPaintCacheRef.current.set(key, out);
+      return out;
+    };
+
+    interpretationSegments.forEach((segment) => {
+      const x = segment?.bounds?.x;
+      const w = segment?.bounds?.width;
+      if (!Number.isFinite(x) || !Number.isFinite(w) || w <= 0) return;
+
+      const base = resolveBaseColor(segment);
+      const kind =
+        segment.phase === 'postOvulatory'
+          ? (segment.status === 'absolute' ? 'postAbs' : 'post')
+          : segment.phase || 'default';
+
+      const paint = getPaint(kind, base);
+
+      const sx = snap(x);
+      const sy = snap(bandY);
+      const sw = snap(w);
+      const sh = snap(bandH);
+
+      ctx.fillStyle = paint.fill;
+      ctx.fillRect(sx, sy, sw, sh);
+
+      ctx.fillStyle = paint.gloss;
+      ctx.fillRect(sx, sy, sw, sh);
+    });
+  }
+}
 
     // Baseline
     if (showInterpretation && shouldRenderBaseline && Number.isFinite(baselineY)) {
@@ -187,6 +278,18 @@ const FertilityChartCanvasOverlay = ({
     }
 
     // Temperature line and halo
+    // Gradient stroke for the temperature line (SVG-like look, still cheap in canvas)
+    const tempLineStroke = (() => {
+      const stops = theme.svg?.temperatureGradient;
+      if (!Array.isArray(stops) || stops.length < 3) return theme.temperature.line;
+      const left = padding.left;
+      const right = chartWidth - padding.right;
+      const g = ctx.createLinearGradient(left, 0, right, 0);
+      g.addColorStop(0, stops[0]);
+      g.addColorStop(0.5, stops[1]);
+      g.addColorStop(1, stops[2]);
+      return g;
+    })();
     const drawPath = (lineWidth, strokeStyle, alpha = 1) => {
       let started = false;
       let prevValidIndex = null;
@@ -224,7 +327,7 @@ const FertilityChartCanvasOverlay = ({
     if (theme.temperature.haloWidth > 0) {
       drawPath(theme.temperature.haloWidth, theme.temperature.halo, 1);
     }
-    drawPath(theme.temperature.lineWidth, theme.temperature.line, 1);
+    drawPath(theme.temperature.lineWidth, tempLineStroke, 1);
 
     let prevValidIndex = null;
     for (let i = startIndex; i <= endIndex; i += 1) {
@@ -288,10 +391,14 @@ const FertilityChartCanvasOverlay = ({
         ctx.lineWidth = 1;
         ctx.stroke();
         ctx.setLineDash([]);
-        ctx.beginPath();
-        ctx.arc(x, rawY, 3, 0, Math.PI * 2);
-        ctx.fillStyle = theme.points.correctionPointFill;
-        ctx.fill();
+        // Raw (discarded) point: render like an ignored point
+  ctx.beginPath();
+  ctx.arc(x, rawY, 2.8, 0, Math.PI * 2);
+  ctx.fillStyle = theme.points.discardedFill ?? theme.points.ignoredFill;
+  ctx.fill();
+  ctx.strokeStyle = theme.points.discardedStroke ?? theme.points.ignoredStroke;
+  ctx.lineWidth = 2;
+  ctx.stroke();
       }
 
       ctx.beginPath();

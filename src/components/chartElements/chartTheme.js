@@ -32,8 +32,13 @@ export const chartTheme = {
   points: {
     fill: '#F472B6',
     stroke: '#E91E63',
-    ignoredFill: '#CBD5E1',
-    ignoredStroke: '#94A3B8',
+    // Ignorados: más claritos (menos protagonistas)
+ ignoredFill: '#F1F5F9',     // slate-100
+ ignoredStroke: '#CBD5E1',   // slate-300
+
+ // Punto "raw" descartado por corrección: más oscuro (se nota)
+ discardedFill: '#CBD5E1',   // era tu ignoredFill antiguo (más marcado)
+ discardedStroke: '#94A3B8', // era tu ignoredStroke antiguo
     correctionLine: 'rgba(148,163,184,0.35)',
     correctionPointFill: 'rgba(226,232,240,0.6)',
   },
