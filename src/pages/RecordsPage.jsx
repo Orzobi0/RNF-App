@@ -16,7 +16,7 @@ import { ToastAction } from '@/components/ui/toast';
 import { HeaderIconButton, HeaderIconButtonPrimary } from '@/components/HeaderIconButton';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Edit, Plus, ClipboardList, Heart } from 'lucide-react';
+import { Edit, Plus, ClipboardList, Heart, Loader2 } from 'lucide-react';
 import NewCycleDialog from '@/components/NewCycleDialog';
 import {
   format,
@@ -903,28 +903,30 @@ const enterStart = -exitTarget;
     if (!showStartDateEditor) return;
 
     const handleClickOutsideEditor = (event) => {
-      const target = event.target;
+  // Si hay un diálogo de confirmación abierto, NO cierres el editor.
+  if (showOverlapDialog) return;
 
-      if (!(target instanceof Node)) return;
-      if (cycleDatesEditorRef.current?.contains(target)) return;
-      // Si has pulsado el botón que abre/cierra el editor, NO lo trates como click fuera
-    if (target instanceof Element && target.closest('[data-date-editor-toggle="true"]')) return;
+  const target = event.target;
+  if (!(target instanceof Node)) return;
+  if (cycleDatesEditorRef.current?.contains(target)) return;
 
-      const isInsidePopover =
-        typeof target.closest === 'function' &&
-        target.closest('[data-radix-popper-content-wrapper], [data-radix-popover-content]');
+  if (target instanceof Element && target.closest('[data-date-editor-toggle="true"]')) return;
 
-      if (isInsidePopover) return;
+  const isInsidePopover =
+    typeof target.closest === 'function' &&
+    target.closest('[data-radix-popper-content-wrapper], [data-radix-popover-content]');
 
-      closeStartDateEditor();
-    };
+  if (isInsidePopover) return;
+
+  closeStartDateEditor();
+};
 
     document.addEventListener('pointerdown', handleClickOutsideEditor, true);
 
     return () => {
       document.removeEventListener('pointerdown', handleClickOutsideEditor, true);
     };
-  }, [closeStartDateEditor, showStartDateEditor]);
+  }, [closeStartDateEditor, showStartDateEditor, showOverlapDialog]);
 
   const handleConfirmUndoCycle = useCallback(async () => {
     if (!contextCurrentCycle?.id) return;
@@ -1539,7 +1541,20 @@ const enterStart = -exitTarget;
   }
 
   return (
-    <div className="relative flex flex-col">     
+    <div className="relative flex flex-col">   
+    {isUpdatingStartDate && (
+  <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/25 backdrop-blur-sm">
+    <div className="rounded-3xl border border-fertiliapp-suave bg-white/90 px-5 py-4 shadow-lg">
+      <div className="flex items-center gap-3">
+        <Loader2 className="h-5 w-5 animate-spin text-fertiliapp-fuerte" />
+        <div className="min-w-0">
+          <div className="font-semibold text-titulo">Aplicando cambios…</div>
+          <div className="text-sm text-base">Puede tardar unos segundos.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+)}  
       <div className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-3 px-4 relative z-10">
         <div className="sticky top-0 z-50 w-full pt-1 bg-transparent">
           <motion.div
