@@ -20,11 +20,11 @@ const BottomNav = () => {
 
   return (
   <nav
-    className="fixed bottom-0 left-0 right-0 z-50 border-fertiliapp-suave bg-white/90 backdrop-blur-md supports-[backdrop-filter]:bg-white/90 h-[var(--bottom-nav-safe)] rounded-t-2xl shadow-[0_-8px_24px_rgba(244,114,182,0.12)]"
+    className="fixed bottom-0 left-0 right-0 z-50 border-fertiliapp-suave bg-white/90 backdrop-blur-md supports-[backdrop-filter]:bg-white/90 h-[var(--bottom-nav-safe)] rounded-t-3xl shadow-[0_-8px_24px_rgba(244,114,182,0.12)]"
     aria-label="Navegación inferior"
   >
     {/* Barra visible con altura fija (igual en Android y iPhone) */}
-    <div className="mx-auto w-full max-w-md h-[var(--bottom-nav-height)] pt-2">
+    <div className="mx-auto w-full max-w-md h-[var(--bottom-nav-height)] pt-3.5">
       <ul className="grid h-full w-full grid-cols-5 items-start gap-2 px-2">
         {links.map(({ to, label, icon: Icon, isActive: computeActive }) => (
           <li key={to} className="flex">

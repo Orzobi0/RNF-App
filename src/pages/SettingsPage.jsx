@@ -298,10 +298,9 @@ const SettingsPage = () => {
   }, [refreshPermissions]);
 
   return (
-     <div className="relative flex h-[calc(var(--app-vh,1vh)*100 - var(--bottom-nav-safe))] flex-col overflow-hidden">
+     <div className="relative flex min-h-full flex-col">
       <div
         className="relative z-10 mx-auto flex w-full max-w-2xl flex-1 flex-col box-border px-4 py-6"
-        style={{ paddingBottom: 'calc(var(--bottom-nav-safe) + 4rem)' }}
       >
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -390,31 +389,44 @@ const SettingsPage = () => {
             buttonClassName="bg-fertiliapp-fuerte hover:brightness-95"
             forceVisible={forceInstallPrompt}
           />
+          <div className="mt-auto pt-6">
+  <div className="h-px w-full bg-pink-100/70 mb-6" />
+  <div className="bg-white/80 backdrop-blur p-4 rounded-3xl shadow flex items-center justify-between">
+    <div>
+      <p className="text-sm text-slate-500">Sesión</p>
+      <p className="font-medium text-slate-700">Cerrar sesión de tu cuenta</p>
+    </div>
+    <Button
+      variant="destructive"
+      onClick={() => setShowLogoutDialog(true)}
+      className="ml-4"
+      disabled={loadingLogout}
+    >
+      Cerrar sesión
+    </Button>
+  </div>
+</div>
         </div>
 
       </div>
 
-      <div
-        className="fixed left-0 right-0 bottom-0 z-20 flex justify-center pointer-events-none"
-        style={{ bottom: 'var(--bottom-nav-safe)' }}
-      >
-        <div className="mx-auto w-full max-w-2xl px-4 pb-6 pointer-events-auto">
-          <div className="bg-white/80 backdrop-blur p-4 rounded-3xl shadow flex items-center justify-between">
-            <div>
-              <p className="text-sm text-slate-500">Sesión</p>
-              <p className="font-medium text-slate-700">Cerrar sesión de tu cuenta</p>
-            </div>
-            <Button
-              variant="destructive"
-              onClick={() => setShowLogoutDialog(true)}
-              className="ml-4"
-              disabled={loadingLogout}
-            >
-              Cerrar sesión
-            </Button>
-          </div>
-        </div>
-      </div>
+      <div className="mt-auto pt-6">
+  <div className="h-px w-full bg-pink-100/70 mb-6" />
+  <div className="bg-white/80 backdrop-blur p-4 rounded-3xl shadow flex items-center justify-between">
+    <div>
+      <p className="text-sm text-slate-500">Sesión</p>
+      <p className="font-medium text-slate-700">Cerrar sesión de tu cuenta</p>
+    </div>
+    <Button
+      variant="destructive"
+      onClick={() => setShowLogoutDialog(true)}
+      className="ml-4"
+      disabled={loadingLogout}
+    >
+      Cerrar sesión
+    </Button>
+  </div>
+</div>
 
 
       <Dialog open={showEmailDialog} onOpenChange={setShowEmailDialog}>
