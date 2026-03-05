@@ -75,6 +75,10 @@ const FertilityChart = ({
     showRelationsRow,
     exportMode
   );
+  const isIOS =
+  typeof navigator !== 'undefined' &&
+  (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
   const effectiveReduceMotion = reduceMotion || exportMode;
   const uniqueIdRef = useRef(null);
   if (!uniqueIdRef.current) {
@@ -266,10 +270,12 @@ const FertilityChart = ({
   const chartHeight = dimensions.contentHeight ?? dimensions.height;
   const viewportHeight = dimensions.viewportHeight ?? dimensions.height;
   const scrollableContentHeight = dimensions.scrollableContentHeight ?? chartHeight;
-const needsVerticalScroll =
+  const verticalThreshold = isIOS ? 24 : 2;
+  const needsVerticalScroll =
   Number.isFinite(scrollableContentHeight) &&
   Number.isFinite(viewportHeight) &&
-  scrollableContentHeight > viewportHeight;
+  scrollableContentHeight > viewportHeight + verticalThreshold;
+  const allowVerticalScroll = needsVerticalScroll || showRelationsRow;
   const graphBottomY = chartHeight - padding.bottom - (graphBottomInset || 0);
   const rowsZoneHeight = Math.max(chartHeight - graphBottomY, 0);
   const baselineY = baselineTemp != null ? getY(baselineTemp) : null;
@@ -1002,12 +1008,9 @@ useEffect(() => {
 
   const applyRotation = !exportMode && isFullScreen && forceLandscape && isViewportPortrait;
   const visualOrientation = forceLandscape ? 'landscape' : orientation;
-  const isIOS =
-    typeof navigator !== 'undefined' &&
-    (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
-      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
   const isIOSFakeLandscape = isIOS && applyRotation;
   const isRotationStage = !exportMode && isFullScreen && forceLandscape;
+  const shouldRotateStage = isRotationStage && applyRotation;
 
 // Angulo real que pintamos (0 o 90). Lo forzamos a animar al entrar.
 const [rotationAngle, setRotationAngle] = useState(applyRotation ? 90 : 0);
@@ -1047,34 +1050,51 @@ useEffect(() => {
   };
 }, [applyRotation, isRotationStage]);
 
-const rotationStageStyle = isRotationStage
+const rotationStageStyle = shouldRotateStage
   ? {
       position: 'absolute',
       top: '50%',
       left: '50%',
-
-      // si el viewport está en portrait, “intercambiamos” para encajar la rotación
       width: `${isViewportPortrait ? viewport.h : viewport.w}px`,
       height: `${isViewportPortrait ? viewport.w : viewport.h}px`,
-
       transform: `translate3d(-50%, -50%, 0) rotate(${rotationAngle}deg)`,
       transformOrigin: 'center center',
-
-      // animación ligera
       transition: effectiveReduceMotion
         ? 'transform 120ms cubic-bezier(0.4, 0, 0.2, 1), opacity 120ms ease-out'
         : 'transform 120ms cubic-bezier(0.2, 0, 0, 1), opacity 120ms ease',
-
       willChange: 'transform, opacity',
       opacity: rotationBooting ? 0 : 1,
     }
   : null;
 
+const safeAreaStyle = isFullScreen
+  ? (shouldRotateStage
+      ? {
+          // contenido rotado 90º: mapeo de safe-area
+          paddingTop: 'env(safe-area-inset-left)',
+          paddingRight: 'env(safe-area-inset-top)',
+          paddingBottom: 'env(safe-area-inset-right)',
+          paddingLeft: 'env(safe-area-inset-bottom)',
+          boxSizing: 'border-box',
+        }
+      : {
+          paddingTop: 'env(safe-area-inset-top)',
+          paddingRight: 'env(safe-area-inset-right)',
+          paddingBottom: 'env(safe-area-inset-bottom)',
+          paddingLeft: 'env(safe-area-inset-left)',
+          boxSizing: 'border-box',
+        })
+  : null;
+
+const rotationWrapperStyle = rotationStageStyle
+  ? { ...rotationStageStyle, ...(safeAreaStyle ?? {}) }
+  : safeAreaStyle ?? undefined;
+
   // Clase del contenedor de scroll ajustada para rotación artificial
   const baseFullClass = 'w-full h-full bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100';
   const containerClass = isFullScreen
-    ? `${baseFullClass} h-full overflow-x-auto ${needsVerticalScroll ? 'overflow-y-auto' : 'overflow-y-hidden'}`
-    : `${baseFullClass} overflow-x-auto ${needsVerticalScroll ? 'overflow-y-auto' : 'overflow-y-hidden'} border border-pink-100/50`;
+    ? `${baseFullClass} h-full overflow-x-auto ${allowVerticalScroll ? 'overflow-y-auto' : 'overflow-y-hidden'}`
+    : `${baseFullClass} overflow-x-auto ${allowVerticalScroll ? 'overflow-y-auto' : 'overflow-y-hidden'} border border-pink-100/50`;
   const showLegend = true;
   const handlePointInteractionSafe = exportMode ? () => {} : handlePointInteraction;
   const clearActivePointSafe = exportMode ? () => {} : clearActivePoint;
@@ -1085,7 +1105,7 @@ const rotationStageStyle = isRotationStage
    className="relative w-full h-full bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100"
    initial={false}
  >
-      <div className="relative w-full h-full" style={rotationStageStyle ?? undefined}>
+      <div className="relative w-full h-full" style={rotationWrapperStyle}>
       {showCanvasOverlay && (
    <div
      className={`absolute inset-0 overflow-hidden pointer-events-none ${isFullScreen ? '' : 'rounded-2xl'}`}
@@ -1129,7 +1149,9 @@ const rotationStageStyle = isRotationStage
         style={{
         background: showCanvasOverlay ? 'transparent' : undefined,
   // Sin scroll vertical real, bloquea el pan-y para que iOS no “arrastre” la página.
-  touchAction: isIOSFakeLandscape ? 'pan-x' : needsVerticalScroll ? 'pan-x pan-y' : 'pan-x',
+  touchAction: shouldRotateStage
+   ? 'pan-x pan-y'
+   : (allowVerticalScroll ? 'pan-x pan-y' : 'pan-x'),
   // Evita que el scroll “salte” al body cuando llegas al borde (scroll chaining)
   overscrollBehavior: isIOSFakeLandscape ? 'none' : 'contain',
   overscrollBehaviorY: isIOSFakeLandscape ? 'none' : 'contain',

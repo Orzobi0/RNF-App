@@ -412,20 +412,6 @@ const SettingsPage = () => {
 
       <div className="mt-auto pt-6">
   <div className="h-px w-full bg-pink-100/70 mb-6" />
-  <div className="bg-white/80 backdrop-blur p-4 rounded-3xl shadow flex items-center justify-between">
-    <div>
-      <p className="text-sm text-slate-500">Sesión</p>
-      <p className="font-medium text-slate-700">Cerrar sesión de tu cuenta</p>
-    </div>
-    <Button
-      variant="destructive"
-      onClick={() => setShowLogoutDialog(true)}
-      className="ml-4"
-      disabled={loadingLogout}
-    >
-      Cerrar sesión
-    </Button>
-  </div>
 </div>
 
 
