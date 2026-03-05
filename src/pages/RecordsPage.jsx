@@ -899,34 +899,6 @@ const enterStart = -exitTarget;
     openStartDateEditor();
   }, [closeStartDateEditor, openStartDateEditor, showStartDateEditor]);
 
-  useEffect(() => {
-    if (!showStartDateEditor) return;
-
-    const handleClickOutsideEditor = (event) => {
-  // Si hay un diálogo de confirmación abierto, NO cierres el editor.
-  if (showOverlapDialog) return;
-
-  const target = event.target;
-  if (!(target instanceof Node)) return;
-  if (cycleDatesEditorRef.current?.contains(target)) return;
-
-  if (target instanceof Element && target.closest('[data-date-editor-toggle="true"]')) return;
-
-  const isInsidePopover =
-    typeof target.closest === 'function' &&
-    target.closest('[data-radix-popper-content-wrapper], [data-radix-popover-content]');
-
-  if (isInsidePopover) return;
-
-  closeStartDateEditor();
-};
-
-    document.addEventListener('pointerdown', handleClickOutsideEditor, true);
-
-    return () => {
-      document.removeEventListener('pointerdown', handleClickOutsideEditor, true);
-    };
-  }, [closeStartDateEditor, showStartDateEditor, showOverlapDialog]);
 
   const handleConfirmUndoCycle = useCallback(async () => {
     if (!contextCurrentCycle?.id) return;
@@ -1624,11 +1596,6 @@ const enterStart = -exitTarget;
                   onClearError={() => setStartDateError('')}
                   saveLabel={includeEndDate ? 'Guardar fechas' : 'Guardar cambios'}
                   title={includeEndDate ? 'Editar fechas del ciclo' : 'Editar fecha de inicio'}
-                  description={
-                    includeEndDate
-                      ? 'Actualiza las fechas del ciclo. Los registros se reorganizarán automáticamente.'
-                      : 'Actualiza la fecha de inicio del ciclo actual. Los registros se reorganizarán automáticamente.'
-                  }
                   onUndoCycle={undoCandidate ? () => setShowUndoCycleDialog(true) : undefined}
                   isUndoingCycle={isUndoingCycle}
                   onDeleteCycle={onRequestDeleteCycle ? handleDeleteCycleFromEditor : undefined}

@@ -39,7 +39,7 @@ const CycleDatesEditor = ({
   onConfirmOverlap,
   onCancelOverlap,
   title = 'Editar fechas del ciclo',
-  description = 'Actualiza las fechas de inicio y fin del ciclo. Guarda los cambios cuando termines.',
+  description = 'Actualiza las fechas de inicio y fin del ciclo.',
   saveLabel = 'Guardar',
   cancelLabel = 'Cancelar',
   onClearError,
@@ -131,7 +131,6 @@ const CycleDatesEditor = ({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <h2 className="text-lg font-semibold text-titulo mb-1">{title}</h2>
-            <p className="text-sm text-slate-600">{description}</p>
 
             <div className={`grid ${includeEndDate ? 'grid-cols-2 gap-4' : 'grid-cols-1 gap-4'}`}>
               <label className="flex h-full flex-col text-sm text-slate-700">
