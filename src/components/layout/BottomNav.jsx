@@ -20,7 +20,7 @@ const BottomNav = () => {
 
   return (
   <nav
-    className="fixed bottom-0 left-0 right-0 z-50 border-fertiliapp-suave bg-white/90 backdrop-blur-md supports-[backdrop-filter]:bg-white/90 pb-[env(safe-area-inset-bottom)]"
+    className="fixed bottom-0 left-0 right-0 z-50 border-fertiliapp-suave bg-white/90 backdrop-blur-md supports-[backdrop-filter]:bg-white/90 h-[var(--bottom-nav-safe)]"
     aria-label="Navegación inferior"
   >
     {/* Barra visible con altura fija (igual en Android y iPhone) */}
@@ -65,6 +65,8 @@ const BottomNav = () => {
         ))}
       </ul>
     </div>
+    {/* Relleno safe-area (mismo cálculo que usa MainLayout) */}
+    <div aria-hidden className="h-[var(--safe-bottom-clamped)]" />
   </nav>
 );
 };

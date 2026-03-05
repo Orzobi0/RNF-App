@@ -365,9 +365,6 @@ let peakIndicatorVariant = null;
     </div>
   </div>
 
-  {!isTextExpanded && overflow.sensation && (
-    <span className="ml-1 shrink-0 text-slate-400 font-bold" aria-hidden="true">…</span>
-  )}
 </button>
           <button
   type="button"
@@ -393,9 +390,6 @@ let peakIndicatorVariant = null;
     </div>
   </div>
 
-  {!isTextExpanded && overflow.appearance && (
-    <span className="ml-1 shrink-0 text-slate-400 font-bold" aria-hidden="true">…</span>
-  )}
 </button>
         </div>
 
@@ -426,9 +420,6 @@ let peakIndicatorVariant = null;
     </div>
   </div>
 
-  {!isTextExpanded && overflow.observations && (
-    <span className="ml-1 shrink-0 text-slate-400 font-bold" aria-hidden="true">…</span>
-  )}
 </button>
           <button
             type="button"
