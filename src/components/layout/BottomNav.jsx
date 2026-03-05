@@ -20,18 +20,18 @@ const BottomNav = () => {
 
   return (
   <nav
-    className="fixed bottom-0 left-0 right-0 z-50 border-fertiliapp-suave bg-white/90 backdrop-blur-md supports-[backdrop-filter]:bg-white/90 h-[var(--bottom-nav-safe)]"
+    className="fixed bottom-0 left-0 right-0 z-50 border-fertiliapp-suave bg-white/90 backdrop-blur-md supports-[backdrop-filter]:bg-white/90 h-[var(--bottom-nav-safe)] rounded-t-2xl shadow-[0_-8px_24px_rgba(244,114,182,0.12)]"
     aria-label="Navegación inferior"
   >
     {/* Barra visible con altura fija (igual en Android y iPhone) */}
     <div className="mx-auto w-full max-w-md h-[var(--bottom-nav-height)] pt-2">
-      <ul className="grid h-full w-full grid-cols-5 items-center gap-2 px-2">
+      <ul className="grid h-full w-full grid-cols-5 items-start gap-2 px-2">
         {links.map(({ to, label, icon: Icon, isActive: computeActive }) => (
           <li key={to} className="flex">
             <NavLink
               to={to}
               aria-label={label}
-              className="group relative flex w-full flex-col items-center rounded-lg px-2 py-2 text-center transition-[color,transform] duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-pink-300/60"
+              className="group relative flex w-full flex-col items-center rounded-lg px-2 py-1 text-center transition-[color,transform] duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-pink-300/60"
             >
               {({ isActive }) => {
                 const customActive = computeActive ? computeActive(location.pathname) : false;

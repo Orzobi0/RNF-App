@@ -5,7 +5,7 @@
 @layer base {
   :root {
     /* Altura de la barra inferior y variante con safe-area */
-    --bottom-nav-height: 4.2rem;
+    --bottom-nav-height: 4.8rem;
     ----safe-bottom: env(safe-area-inset-bottom, 0px);
  /* evita valores locos si iOS arranca raro */
     --safe-bottom-clamped: clamp(0px, var(--safe-bottom), 34px);

@@ -1527,7 +1527,7 @@ const enterStart = -exitTarget;
     </div>
   </div>
 )}  
-      <div className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-3 px-4 relative z-10">
+      <div className="relative z-10 mx-auto grid w-full max-w-6xl grid-cols-1 gap-3 px-4 pb-24">
         <div className="sticky top-0 z-50 w-full pt-1 bg-transparent">
           <motion.div
             className="mx-auto flex w-full max-w-lg flex-col gap-2 px-2 sm:px-2.5"
