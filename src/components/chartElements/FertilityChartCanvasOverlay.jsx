@@ -528,13 +528,9 @@ if (showInterpretation && Array.isArray(interpretationSegments)) {
   <canvas
     ref={canvasRef}
     style={{
-      position: 'sticky',
-      top: 0,
-      left: 0,
-      width: `${viewportSize.width}px`,
-      height: `${viewportSize.height}px`,
+      position: 'absolute',
+      inset: 0,
       display: 'block',
-      marginBottom: `-${viewportSize.height}px`,
       zIndex: 0,
       // canvas overlay solo render, interacción en SVG para evitar problemas de precisión en eventos pointer con zoom o pantallas de alta densidad
       pointerEvents: 'none',

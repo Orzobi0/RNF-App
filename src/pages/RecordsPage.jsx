@@ -1712,10 +1712,8 @@ const enterStart = -exitTarget;
       >
         <DialogContent
   hideClose
-  className="bg-white border-pink-100 text-gray-800 w-[96vw] h-[92vh] sm:h-auto sm:max-h-[92vh] max-w-2xl overflow-hidden p-0 rounded-2xl"
+  className="bg-transparent border-none p-0 text-gray-800 w-[96vw] sm:w-auto max-w-2xl max-h-[92vh] overflow-y-auto"
 >
-  <div className="flex h-full flex-col">
-    <div className="flex-1 overflow-y-auto p-4 sm:p-6">
       <DataEntryForm
         onSubmit={handleSave}
         onCancel={handleCloseForm}
@@ -1739,8 +1737,6 @@ const enterStart = -exitTarget;
           });
         }}
       />
-    </div>
-  </div>
 </DialogContent>
       </Dialog>
 

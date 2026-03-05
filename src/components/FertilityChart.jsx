@@ -266,10 +266,10 @@ const FertilityChart = ({
   const chartHeight = dimensions.contentHeight ?? dimensions.height;
   const viewportHeight = dimensions.viewportHeight ?? dimensions.height;
   const scrollableContentHeight = dimensions.scrollableContentHeight ?? chartHeight;
-  const needsVerticalScroll =
+const needsVerticalScroll =
   Number.isFinite(scrollableContentHeight) &&
   Number.isFinite(viewportHeight) &&
-  scrollableContentHeight > viewportHeight + 2;
+  scrollableContentHeight > viewportHeight;
   const graphBottomY = chartHeight - padding.bottom - (graphBottomInset || 0);
   const rowsZoneHeight = Math.max(chartHeight - graphBottomY, 0);
   const baselineY = baselineTemp != null ? getY(baselineTemp) : null;
@@ -1002,7 +1002,11 @@ useEffect(() => {
 
   const applyRotation = !exportMode && isFullScreen && forceLandscape && isViewportPortrait;
   const visualOrientation = forceLandscape ? 'landscape' : orientation;
-
+  const isIOS =
+    typeof navigator !== 'undefined' &&
+    (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
+  const isIOSFakeLandscape = isIOS && applyRotation;
   const isRotationStage = !exportMode && isFullScreen && forceLandscape;
 
 // Angulo real que pintamos (0 o 90). Lo forzamos a animar al entrar.
@@ -1074,58 +1078,68 @@ const rotationStageStyle = isRotationStage
   const showLegend = true;
   const handlePointInteractionSafe = exportMode ? () => {} : handlePointInteraction;
   const clearActivePointSafe = exportMode ? () => {} : clearActivePoint;
+  const showCanvasOverlay =
+  !exportMode && chartWidth > 0 && chartHeight > 0 && scrollableContentHeight > 0;
   return (
-      <motion.div className="relative w-full h-full" initial={false}>
-      
+      <motion.div
+   className="relative w-full h-full bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100"
+   initial={false}
+ >
+      <div className="relative w-full h-full" style={rotationStageStyle ?? undefined}>
+      {showCanvasOverlay && (
+   <div
+     className={`absolute inset-0 overflow-hidden pointer-events-none ${isFullScreen ? '' : 'rounded-2xl'}`}
+     style={{ zIndex: 0 }}
+   >
+          <FertilityChartCanvasOverlay
+            chartRef={chartRef}
+            chartWidth={chartWidth}
+            chartHeight={chartHeight}
+            scrollableContentHeight={scrollableContentHeight}
+            padding={padding}
+            graphBottomY={graphBottomY}
+            allDataPoints={allDataPoints}
+            tempMin={tempMin}
+            tempMax={tempMax}
+            tempRange={tempRange}
+            getX={getX}
+            getY={getY}
+            responsiveFontSize={responsiveFontSize}
+            visibleRange={visibleRange}
+            activeIndex={activeIndex}
+            showInterpretation={showInterpretation}
+            interpretationSegments={interpretationSegments}
+            shouldRenderBaseline={shouldRenderBaseline}
+            baselineY={baselineY}
+            baselineStartX={baselineStartX}
+            baselineEndX={baselineEndX}
+            baselineStroke={baselineStroke}
+            baselineDash={baselineDash}
+            baselineOpacity={baselineOpacity}
+            baselineWidth={baselineWidth}
+            temperatureRiseHighlightPath={temperatureRiseHighlightPath}
+          />
+        </div>
+      )}
 
       {/* Contenedor principal del gráfico */}
       <motion.div
         ref={chartRef}
-        className={`relative p-0 ${isFullScreen ? '' : 'rounded-2xl'} ${containerClass}`}
+        className={`relative z-10 p-0 ${isFullScreen ? '' : 'rounded-2xl'} ${containerClass}`}
         style={{
+        background: showCanvasOverlay ? 'transparent' : undefined,
   // Sin scroll vertical real, bloquea el pan-y para que iOS no “arrastre” la página.
-  touchAction: needsVerticalScroll ? 'pan-x pan-y' : 'pan-x',
+  touchAction: isIOSFakeLandscape ? 'pan-x' : needsVerticalScroll ? 'pan-x pan-y' : 'pan-x',
   // Evita que el scroll “salte” al body cuando llegas al borde (scroll chaining)
-  overscrollBehavior: 'contain',
-  overscrollBehaviorY: 'contain',
-  WebkitOverflowScrolling: 'touch',
+  overscrollBehavior: isIOSFakeLandscape ? 'none' : 'contain',
+  overscrollBehaviorY: isIOSFakeLandscape ? 'none' : 'contain',
+  WebkitOverflowScrolling: isIOSFakeLandscape ? 'auto' : 'touch',
   boxShadow: isFullScreen
     ? 'inset 0 1px 3px rgba(244, 114, 182, 0.1)'
     : '0 8px 32px rgba(244, 114, 182, 0.12), 0 2px 8px rgba(244, 114, 182, 0.08)',
-  ...(rotationStageStyle ?? {}),
 }}
 >
-  {!exportMode && chartWidth > 0 && chartHeight > 0 && scrollableContentHeight > 0 && (
-  <FertilityChartCanvasOverlay
-    chartRef={chartRef}
-    chartWidth={chartWidth}
-    chartHeight={chartHeight}
-    scrollableContentHeight={scrollableContentHeight}
-    padding={padding}
-    graphBottomY={graphBottomY}
-    allDataPoints={allDataPoints}
-    tempMin={tempMin}
-    tempMax={tempMax}
-    tempRange={tempRange}
-    getX={getX}
-    getY={getY}
-    responsiveFontSize={responsiveFontSize}
-    visibleRange={visibleRange}
-    activeIndex={activeIndex}
-    showInterpretation={showInterpretation}
-    interpretationSegments={interpretationSegments}
-    shouldRenderBaseline={shouldRenderBaseline}
-    baselineY={baselineY}
-    baselineStartX={baselineStartX}
-    baselineEndX={baselineEndX}
-    baselineStroke={baselineStroke}
-    baselineDash={baselineDash}
-    baselineOpacity={baselineOpacity}
-    baselineWidth={baselineWidth}
-    temperatureRiseHighlightPath={temperatureRiseHighlightPath}
-  />
-)}
-      
+
         {isLoading && (
           <div className="flex items-center justify-center w-full h-full text-slate-400">
             Cargando...
@@ -1380,6 +1394,7 @@ const rotationStageStyle = isRotationStage
           </motion.div>
         )}
       </motion.div>
+      </div>
     </motion.div>
   );
 };
