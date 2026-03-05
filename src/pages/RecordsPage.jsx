@@ -1710,23 +1710,38 @@ const enterStart = -exitTarget;
           }
         }}
       >
-        <DialogContent hideClose className="bg-white border-pink-100 text-gray-800 w-[90vw] sm:w-auto max-w-md sm:max-w-lg md:max-w-xl max-h-[85vh] overflow-y-auto p-4 sm:p-6 rounded-2xl">
-          <DataEntryForm
-            onSubmit={handleSave}
-            onCancel={handleCloseForm}
-            initialData={editingRecord}
-            cycleStartDate={cycle?.startDate}
-            cycleEndDate={cycle?.endDate}
-            isProcessing={isProcessing || isDetailLoading}
-            isEditing={!!editingRecord}
-            cycleData={cycle?.data}
-            onDateSelect={handleDateSelect}
-            defaultIsoDate={defaultFormIsoDate}
-            focusedField={focusedField}
-            initialSectionKey={initialSectionKey}
-            onOpenNewCycle={handleOpenNewCycleDialog}
-          />
-        </DialogContent>
+        <DialogContent
+  hideClose
+  className="bg-white border-pink-100 text-gray-800 w-[96vw] h-[92vh] sm:h-auto sm:max-h-[92vh] max-w-2xl overflow-hidden p-0 rounded-2xl"
+>
+  <div className="flex h-full flex-col">
+    <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+      <DataEntryForm
+        onSubmit={handleSave}
+        onCancel={handleCloseForm}
+        initialData={editingRecord}
+        cycleStartDate={cycle?.startDate}
+        cycleEndDate={cycle?.endDate}
+        isProcessing={isProcessing || isDetailLoading}
+        isEditing={!!editingRecord}
+        cycleData={cycle?.data}
+        onDateSelect={handleDateSelect}
+        defaultIsoDate={defaultFormIsoDate}
+        focusedField={focusedField}
+        initialSectionKey={initialSectionKey}
+        onOpenNewCycle={handleOpenNewCycleDialog}
+        onJumpToDayDetail={(iso) => {
+          if (!iso) return;
+          setSelectedDate(iso);
+          handleCloseForm();
+          requestAnimationFrame(() => {
+            document.getElementById('day-detail-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          });
+        }}
+      />
+    </div>
+  </div>
+</DialogContent>
       </Dialog>
 
 <NewCycleDialog

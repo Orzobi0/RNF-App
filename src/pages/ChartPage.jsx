@@ -591,7 +591,6 @@ useEffect(() => {
     `
   };
   const APP_H = 'calc(var(--app-vh, 1vh) * 100)';
-  const NAVBAR_SAFE_VAR = 'var(--bottom-nav-safe)';
   const containerStyle = isFullScreen
     ? {
         ...baseStyle,
@@ -601,8 +600,10 @@ useEffect(() => {
         }
     : {
         ...baseStyle,
-        height: `calc(${APP_H} - ${NAVBAR_SAFE_VAR})`,
-        maxHeight: `calc(${APP_H} - ${NAVBAR_SAFE_VAR})`,
+        // En modo normal, MainLayout ya gestiona el espacio de bottom-nav/safe-area.
+      // Forzar 100vh aquí en iOS crea “scroll fantasma” y offsets raros.
+      height: '100%',
+      maxHeight: '100%',
       };
 
       const isRotatedFullScreen = isFullScreen && applyRotation;
@@ -743,7 +744,7 @@ const rotatedDrawerStyle = applyRotation
     }
   };
   const settingsDrawerInner = (
-        <div className="flex h-full min-h-0 flex-col gap-6 rounded-xl border border-rose-100/60 bg-white p-6 shadow-xl">
+        <div className="flex h-full min-h-0 flex-col gap-6 rounded-xl border border-rose-100/60 bg-white p-6 pt-[calc(env(safe-area-inset-top)+24px)] shadow-xl">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-lg font-semibold text-titulo">Ajustes del gráfico</h2>
@@ -1346,7 +1347,7 @@ const rotatedDrawerStyle = applyRotation
         className={
           isFullScreen
             ? 'fixed inset-0 z-50 h-app w-[100vw] overflow-hidden'
-            : 'relative w-full min-h-full overflow-x-hidden'}
+            : 'relative w-full h-full overflow-hidden'}
         style={containerStyle}
       >
         {chartCycleLabel && (

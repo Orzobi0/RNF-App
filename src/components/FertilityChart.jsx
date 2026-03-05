@@ -266,6 +266,10 @@ const FertilityChart = ({
   const chartHeight = dimensions.contentHeight ?? dimensions.height;
   const viewportHeight = dimensions.viewportHeight ?? dimensions.height;
   const scrollableContentHeight = dimensions.scrollableContentHeight ?? chartHeight;
+  const needsVerticalScroll =
+  Number.isFinite(scrollableContentHeight) &&
+  Number.isFinite(viewportHeight) &&
+  scrollableContentHeight > viewportHeight + 2;
   const graphBottomY = chartHeight - padding.bottom - (graphBottomInset || 0);
   const rowsZoneHeight = Math.max(chartHeight - graphBottomY, 0);
   const baselineY = baselineTemp != null ? getY(baselineTemp) : null;
@@ -1065,8 +1069,8 @@ const rotationStageStyle = isRotationStage
   // Clase del contenedor de scroll ajustada para rotación artificial
   const baseFullClass = 'w-full h-full bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100';
   const containerClass = isFullScreen
-    ? `${baseFullClass} h-full overflow-x-auto overflow-y-auto`
-    : `${baseFullClass} overflow-x-auto overflow-y-auto border border-pink-100/50`;
+    ? `${baseFullClass} h-full overflow-x-auto ${needsVerticalScroll ? 'overflow-y-auto' : 'overflow-y-hidden'}`
+    : `${baseFullClass} overflow-x-auto ${needsVerticalScroll ? 'overflow-y-auto' : 'overflow-y-hidden'} border border-pink-100/50`;
   const showLegend = true;
   const handlePointInteractionSafe = exportMode ? () => {} : handlePointInteraction;
   const clearActivePointSafe = exportMode ? () => {} : clearActivePoint;
@@ -1079,7 +1083,12 @@ const rotationStageStyle = isRotationStage
         ref={chartRef}
         className={`relative p-0 ${isFullScreen ? '' : 'rounded-2xl'} ${containerClass}`}
         style={{
-  touchAction: 'auto',
+  // Sin scroll vertical real, bloquea el pan-y para que iOS no “arrastre” la página.
+  touchAction: needsVerticalScroll ? 'pan-x pan-y' : 'pan-x',
+  // Evita que el scroll “salte” al body cuando llegas al borde (scroll chaining)
+  overscrollBehavior: 'contain',
+  overscrollBehaviorY: 'contain',
+  WebkitOverflowScrolling: 'touch',
   boxShadow: isFullScreen
     ? 'inset 0 1px 3px rgba(244, 114, 182, 0.1)'
     : '0 8px 32px rgba(244, 114, 182, 0.12), 0 2px 8px rgba(244, 114, 182, 0.08)',
