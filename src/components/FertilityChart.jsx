@@ -1086,14 +1086,14 @@ const rotationStageStyle = isRotationStage
   ...(rotationStageStyle ?? {}),
 }}
 >
-  {!exportMode && (
+  {!exportMode && chartWidth > 0 && chartHeight > 0 && scrollableContentHeight > 0 && (
   <FertilityChartCanvasOverlay
     chartRef={chartRef}
     chartWidth={chartWidth}
     chartHeight={chartHeight}
+    scrollableContentHeight={scrollableContentHeight}
     padding={padding}
     graphBottomY={graphBottomY}
-    rowsZoneHeight={rowsZoneHeight}
     allDataPoints={allDataPoints}
     tempMin={tempMin}
     tempMax={tempMax}

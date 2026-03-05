@@ -1521,7 +1521,7 @@ const enterStart = -exitTarget;
         <Loader2 className="h-5 w-5 animate-spin text-fertiliapp-fuerte" />
         <div className="min-w-0">
           <div className="font-semibold text-titulo">Aplicando cambios…</div>
-          <div className="text-sm text-base">Puede tardar unos segundos.</div>
+          <div className="text-sm">Puede tardar unos segundos.</div>
         </div>
       </div>
     </div>

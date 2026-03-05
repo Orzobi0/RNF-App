@@ -647,9 +647,11 @@ export const useFertilityChart = (
 
         updateDimensions();
         window.addEventListener('resize', updateDimensions);
+        window.addEventListener('orientationchange', updateDimensions);
         
         let resizeObserver;
-        if (chartRef.current) {
+        const canObserve = typeof window !== 'undefined' && typeof window.ResizeObserver === 'function';
+        if (canObserve && chartRef.current) {
           const targetEl = chartRef.current.parentElement || chartRef.current;
           resizeObserver = new ResizeObserver(updateDimensions);
           resizeObserver.observe(targetEl);
@@ -657,6 +659,7 @@ export const useFertilityChart = (
         
         return () => {
           window.removeEventListener('resize', updateDimensions);
+          window.removeEventListener('orientationchange', updateDimensions);
           if (resizeObserver) {
             resizeObserver.disconnect();
           }
