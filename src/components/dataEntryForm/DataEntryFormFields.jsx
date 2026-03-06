@@ -120,12 +120,12 @@ const DataEntryFormFields = ({
 
   const sectionKeys = useMemo(() => sectionOrder.map((section) => section.key), [sectionOrder]);
 
-  const normalizeInitialSectionKey = (key) => {
+  const normalizeInitialSectionKey = useCallback((key) => {
   if (['symbol', 'sensation', 'appearance'].includes(key)) {
     return 'moco';
   }
   return key;
-};
+}, []);
 
 const [isViewAll, setIsViewAll] = useState(readStoredViewAllPreference);
 const [activeSection, setActiveSection] = useState(() => {
@@ -1139,74 +1139,138 @@ useEffect(() => {
   return (
     <>
       <div className="space-y-2">
-        <div className="col-span-3 space-y-2 rounded-3xl border border-fertiliapp bg-tarjeta p-3">
-          <Label htmlFor="date" className="relative flex items-center text-titulo text-sm font-semibold pr-16">
-  <span className="flex items-center">
-    <CalendarDays className="mr-2 h-5 w-5 text-titulo" />
-    Fecha del Registro
-  </span>
+  <div className="col-span-3 space-y-2 rounded-3xl border border-fertiliapp bg-tarjeta p-3">
+    <Label htmlFor="date" className="flex items-center text-titulo text-sm font-semibold">
+      <CalendarDays className="mr-2 h-5 w-5 text-titulo" />
+      Fecha del Registro
+    </Label>
 
-  <Button
-    type="button"
-    variant="ghost"
-    size="sm"
-    onClick={() => onOpenNewCycle?.(selectedIsoDate)}
-    disabled={isProcessing || !selectedIsoDate || typeof onOpenNewCycle !== 'function'}
-    className="absolute right-0 top-1/2 h-8 -translate-y-1/2 rounded-full px-2 text-[10px] font-semibold text-fertiliapp-fuerte hover:bg-fertiliapp-suave/50"
-    aria-label="Iniciar nuevo ciclo"
-  >
-    <CalendarPlus className="mr-1 h-5 w-5" />
-    <span className="flex flex-col leading-[12px] text-left">
-      <span>Nuevo</span>
-      <span>ciclo</span>
-    </span>
-  </Button>
-</Label>
-          <Popover open={open} onOpenChange={setOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className={cn(
-                  'w-full justify-start text-left font-normal bg-white/70 border-fertiliapp-suave text-gray-800 hover:bg-white/70 hover:text-gray-800',
-                  !date && 'text-muted-foreground'
-                )}
-                disabled={isProcessing}
-              >
-                {date ? format(date, 'PPP', { locale: es }) : <span>Selecciona una fecha</span>}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0 bg-white border-pink-200 text-gray-800 rounded-3xl" align="start">
-              <Calendar
-                mode="single"
-                selected={date}
-                onSelect={(selectedDate) => {
-                  if (!selectedDate) {
-                    setOpen(false);
-                    return;
-                  }
+    <div className="flex items-stretch gap-2">
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            className={cn(
+              'h-11 min-w-0 flex-[3.5] justify-start text-left font-normal bg-white/70 border-fertiliapp-suave text-gray-800 hover:bg-white/70 hover:text-gray-800',
+              !date && 'text-muted-foreground'
+            )}
+            disabled={isProcessing}
+          >
+            <span className="truncate">
+              {date ? format(date, 'PPP', { locale: es }) : 'Selecciona una fecha'}
+            </span>
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0 bg-white border-pink-200 text-gray-800 rounded-3xl" align="start">
+          <Calendar
+            mode="single"
+            selected={date}
+            onSelect={(selectedDate) => {
+              if (!selectedDate) {
+                setOpen(false);
+                return;
+              }
 
-                  setDate(startOfDay(selectedDate));
-                  setOpen(false);
-                  }}
-                initialFocus
-                locale={es}
-                disabled={isProcessing ? () => true : disabledDateRanges}
-                modifiers={{ hasRecord: recordedDates }}
-                modifiersClassNames={{
-                  hasRecord:
-                    'relative after:content-["" ] after:absolute after:inset-x-0 after:bottom-1 after:mx-auto after:w-1.5 after:h-1.5 after:rounded-full after:bg-fertiliapp-fuerte',
-                }}
-                className="[&_button]:text-gray-800 [&_button:hover]:bg-fertiliapp-suave [&_button[aria-selected=true]]:bg-fertiliapp-fuerte [&_button[aria-selected=true]]:text-white [&_button[aria-disabled=true]]:text-gray-400"
-              />
-            </PopoverContent>
-          </Popover>
+              setDate(startOfDay(selectedDate));
+              setOpen(false);
+            }}
+            initialFocus
+            locale={es}
+            disabled={isProcessing ? () => true : disabledDateRanges}
+            modifiers={{ hasRecord: recordedDates }}
+            modifiersClassNames={{
+              hasRecord:
+                'relative after:content-["" ] after:absolute after:inset-x-0 after:bottom-1 after:mx-auto after:w-1.5 after:h-1.5 after:rounded-full after:bg-fertiliapp-fuerte',
+            }}
+            className="[&_button]:text-gray-800 [&_button:hover]:bg-fertiliapp-suave [&_button[aria-selected=true]]:bg-fertiliapp-fuerte [&_button[aria-selected=true]]:text-white [&_button[aria-disabled=true]]:text-gray-400"
+          />
+        </PopoverContent>
+      </Popover>
+
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => onOpenNewCycle?.(selectedIsoDate)}
+        disabled={isProcessing || !selectedIsoDate || typeof onOpenNewCycle !== 'function'}
+        className="h-11 flex-[1.15] rounded-2xl border-fertiliapp-suave bg-white/70 px-2 text-[10px] font-semibold text-fertiliapp-fuerte hover:bg-fertiliapp-suave/50"
+        aria-label="Iniciar nuevo ciclo"
+      >
+        <CalendarPlus className="mr-1 h-4 w-4 shrink-0" />
+        <span className="flex flex-col leading-[11px] text-left">
+          <span>Nuevo</span>
+          <span>ciclo</span>
+        </span>
+      </Button>
+    </div>
+  </div>
+</div>
+      <div className="mt-1 space-y-0.5 px-2 sm:px-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <PeakModeButton
+            mode={peakMode}
+            size="md"
+            onClick={togglePeakTag}
+            aria-pressed={isPeakDay}
+            aria-label={peakAriaLabel}
+            disabled={isProcessing || !selectedIsoDate}
+          />
+          {canSyncTemperature && (
+            <button
+              type="button"
+              className={syncTemperatureClasses}
+              onClick={onSyncTemperature}
+              disabled={isProcessing || isSyncingTemperature || !canSyncTemperature}
+              aria-label="Sincronizar temperaturas"
+            >
+              <RefreshCcw className="h-3.5 w-3.5" aria-hidden="true" />
+              {isSyncingTemperature ? 'Sincronizando...' : '+ temperatura'}
+            </button>
+          )}
+          <button
+            type="button"
+            className={relationsButtonClasses}
+            onClick={handleRelationsToggle}
+            disabled={isProcessing || !selectedIsoDate}
+            aria-pressed={hadRelations}
+            aria-label={hadRelations ? 'Desmarcar relaciones sexuales' : 'Marcar relaciones sexuales'}
+          >
+            <Heart className={cn('h-4 w-4', hadRelations ? 'text-rose-500 fill-current' : 'text-slate-400')} aria-hidden="true" />
+            <span className="text-xs font-semibold uppercase tracking-wide">RS</span>
+          </button>
         </div>
-      </div>
+        {(existingPeakIsoDate || statusMessages.peak || statusMessages.relations) && (
+  <div className="mt-1 grid grid-cols-[1fr_auto] items-start gap-2 text-[11px]">
+    <div className="min-w-0">
+      {existingPeakIsoDate && (
+        <div className="text-slate-500">
+          {`Día pico: ${format(parseISO(existingPeakIsoDate), 'dd/MM')}`}
+        </div>
+      )}
+      {statusMessages.peak && (
+        <div className="font-medium text-rose-600" role="status" aria-live="polite">
+          {statusMessages.peak}
+        </div>
+      )}
+    </div>
+
+    <div className="text-right">
+      {statusMessages.relations && (
+        <div className="font-medium text-rose-600" role="status" aria-live="polite">
+          {statusMessages.relations}
+        </div>
+      )}
+    </div>
+  </div>
+)}
+    </div>
+
+
       <div className="mt-2">
         <div
           ref={dockRef}
           className={cn(
-            'sticky top-4 z-20 flex w-full items-center gap-2 rounded-3xl border border-pink-200/70 bg-white/80 px-2 py-2 shadow-sm transition-opacity duration-200 backdrop-blur supports-[backdrop-filter]:backdrop-blur-lg sm:top-6',
+            'sticky top-4 z-20 flex w-full items-center gap-1.5 rounded-3xl border border-pink-200/70 bg-white/80 px-2 py-1.5 shadow-sm transition-opacity duration-200 backdrop-blur supports-[backdrop-filter]:backdrop-blur-lg sm:top-6',
             isViewAll ? 'opacity-80' : 'opacity-100'
           )}
         >
@@ -1284,67 +1348,8 @@ useEffect(() => {
           </button>
         </div>
       </div>
-      <div className="mt-2 space-y-1 px-2 sm:px-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <PeakModeButton
-            mode={peakMode}
-            size="md"
-            onClick={togglePeakTag}
-            aria-pressed={isPeakDay}
-            aria-label={peakAriaLabel}
-            disabled={isProcessing || !selectedIsoDate}
-          />
-          {canSyncTemperature && (
-            <button
-              type="button"
-              className={syncTemperatureClasses}
-              onClick={onSyncTemperature}
-              disabled={isProcessing || isSyncingTemperature || !canSyncTemperature}
-              aria-label="Sincronizar temperaturas"
-            >
-              <RefreshCcw className="h-3.5 w-3.5" aria-hidden="true" />
-              {isSyncingTemperature ? 'Sincronizando...' : '+ temperatura'}
-            </button>
-          )}
-          <button
-            type="button"
-            className={relationsButtonClasses}
-            onClick={handleRelationsToggle}
-            disabled={isProcessing || !selectedIsoDate}
-            aria-pressed={hadRelations}
-            aria-label={hadRelations ? 'Desmarcar relaciones sexuales' : 'Marcar relaciones sexuales'}
-          >
-            <Heart className={cn('h-4 w-4', hadRelations ? 'text-rose-500 fill-current' : 'text-slate-400')} aria-hidden="true" />
-            <span className="text-xs font-semibold uppercase tracking-wide">RS</span>
-          </button>
-        </div>
-        {(existingPeakIsoDate || statusMessages.peak || statusMessages.relations) && (
-  <div className="mt-1 grid grid-cols-[1fr_auto] items-start gap-2 text-[11px]">
-    <div className="min-w-0">
-      {existingPeakIsoDate && (
-        <div className="text-slate-500">
-          {`Día pico: ${format(parseISO(existingPeakIsoDate), 'dd/MM')}`}
-        </div>
-      )}
-      {statusMessages.peak && (
-        <div className="font-medium text-rose-600" role="status" aria-live="polite">
-          {statusMessages.peak}
-        </div>
-      )}
-    </div>
-
-    <div className="text-right">
-      {statusMessages.relations && (
-        <div className="font-medium text-rose-600" role="status" aria-live="polite">
-          {statusMessages.relations}
-        </div>
-      )}
-    </div>
-  </div>
-)}
-
-      </div>
-      <div className="mt-2" ref={sectionsContainerRef}>
+      
+      <div className="mt-1" ref={sectionsContainerRef}>
         <AnimatePresence initial={false}>
           {sectionOrder
             .filter((section) => openSectionKeys.includes(section.key))
@@ -1360,7 +1365,7 @@ useEffect(() => {
                 transition={{ duration: 0.18, ease: 'easeInOut' }}
                 className="overflow-hidden"
               >
-                <div className="pt-2">
+                <div className="pt-1">
                   {renderSectionContent(section.key)}
                 </div>
               </motion.div>

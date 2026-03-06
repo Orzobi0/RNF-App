@@ -4576,7 +4576,7 @@ const ModernFertilityDashboard = () => {
           >
             <DialogContent
               hideClose
-              className="bg-transparent border-none p-0 text-gray-800 w-[90vw] sm:w-auto max-w-md sm:max-w-lg md:max-w-xl max-h-[85vh] overflow-y-auto"
+              className="bg-transparent border-none p-0 text-gray-800 w-[96vw] sm:w-auto max-w-2xl max-h-[92dvh] overflow-hidden"
             >
               <CycleDatesEditor
                 cycle={currentCycle}
@@ -4649,8 +4649,9 @@ const ModernFertilityDashboard = () => {
         }}
       >
         <DialogContent
+          unestyled
           hideClose
-          className="bg-transparent border-none p-0 text-gray-800 w-[90vw] sm:w-auto max-w-md sm:max-w-lg md:max-w-xl max-h-[85vh] overflow-y-auto"
+          className="bg-transparent border-none p-0 text-gray-800 w-[96vw] max-w-2xl h-[92dvh] max-h-[92dvh] overflow-hidden shadow-none"
         onInteractOutside={(e) => {
     // Evita que el click en el dialog "Nuevo ciclo" cierre el formulario (dialog padre)
     e.preventDefault();
