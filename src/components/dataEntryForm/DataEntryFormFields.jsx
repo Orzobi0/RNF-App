@@ -44,6 +44,19 @@ import {
 const VIEW_ALL_STORAGE_KEY = 'dataEntryForm:viewAll:global';
 const DEFAULT_SECTION_STORAGE_KEY = '__default__';
 const RADIUS = { field: 'rounded-3xl', dropdown: 'rounded-3xl' };
+
+const readStoredViewAllPreference = () => {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  try {
+    return window.localStorage.getItem(VIEW_ALL_STORAGE_KEY) === 'true';
+  } catch (error) {
+    return false;
+  }
+};
+
 const DataEntryFormFields = ({
   date,
   setDate,
@@ -107,8 +120,20 @@ const DataEntryFormFields = ({
 
   const sectionKeys = useMemo(() => sectionOrder.map((section) => section.key), [sectionOrder]);
 
-  const [isViewAll, setIsViewAll] = useState(false);
-  const [activeSection, setActiveSection] = useState(() => sectionKeys[0] ?? null);
+  const normalizeInitialSectionKey = (key) => {
+  if (['symbol', 'sensation', 'appearance'].includes(key)) {
+    return 'moco';
+  }
+  return key;
+};
+
+const [isViewAll, setIsViewAll] = useState(readStoredViewAllPreference);
+const [activeSection, setActiveSection] = useState(() => {
+  const normalizedInitial = normalizeInitialSectionKey(initialSectionKey);
+  return sectionKeys.includes(normalizedInitial)
+    ? normalizedInitial
+    : sectionKeys[0] ?? null;
+});
   const dockRef = useRef(null);
   const sectionsContainerRef = useRef(null);
   const pendingScrollTargetRef = useRef(null);
@@ -436,24 +461,6 @@ useEffect(() => {
     setActiveSection((current) => (current === fallbackSection ? current : fallbackSection));
     pendingScrollTargetRef.current = fallbackSection;
   }, [date, sectionKeys, selectedIsoDate, initialSectionKey, normalizeSectionKey]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-    try {
-      const stored = window.localStorage.getItem(VIEW_ALL_STORAGE_KEY);
-      if (stored === 'true') {
-        setIsViewAll(true);
-      } else if (stored === 'false') {
-        setIsViewAll(false);
-      } else {
-        setIsViewAll(false);
-      }
-    } catch (error) {
-      setIsViewAll(false);
-    }
-  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') {

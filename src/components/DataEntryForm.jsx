@@ -36,6 +36,18 @@ const DataEntryForm = ({
   const { syncHealthConnectTemperatures } = useCycleData();
   const { isAvailable, hasPermissions, refreshPermissions, isAndroidApp } = useHealthConnect();
   const [syncingHealthConnect, setSyncingHealthConnect] = useState(false);
+  const normalizeFocusedField = useCallback((field) => {
+  switch (field) {
+    case 'sensation':
+      return 'mucusSensation';
+    case 'appearance':
+      return 'mucusAppearance';
+    case 'symbol':
+      return 'fertilitySymbol';
+    default:
+      return field;
+  }
+}, []);
 
   useEffect(() => {
     const form = formRef.current;
@@ -52,29 +64,47 @@ const DataEntryForm = ({
   }, []);
 
   useEffect(() => {
-    if (!focusedField) {
-      return;
-    }
+  if (!focusedField) {
+    return;
+  }
 
-    const form = formRef.current;
-    if (!form) {
-      return;
-    }
+  const form = formRef.current;
+  if (!form) {
+    return;
+  }
 
-    const focusTarget = form.querySelector(`[data-field="${focusedField}"]`);
+  const normalizedField = normalizeFocusedField(focusedField);
+  let frameId = null;
+  let attempts = 0;
+
+  const tryFocus = () => {
+    const focusTarget = form.querySelector(`[data-field="${normalizedField}"]`);
 
     if (focusTarget) {
-      requestAnimationFrame(() => {
-        if (typeof focusTarget.scrollIntoView === 'function') {
-          focusTarget.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
+      if (typeof focusTarget.scrollIntoView === 'function') {
+        focusTarget.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
 
-        if (typeof focusTarget.focus === 'function') {
-          focusTarget.focus();
-        }
-      });
+      if (typeof focusTarget.focus === 'function') {
+        focusTarget.focus();
+      }
+      return;
     }
-  }, [focusedField]);
+
+    attempts += 1;
+    if (attempts < 8) {
+      frameId = requestAnimationFrame(tryFocus);
+    }
+  };
+
+  frameId = requestAnimationFrame(tryFocus);
+
+  return () => {
+    if (frameId) {
+      cancelAnimationFrame(frameId);
+    }
+  };
+}, [focusedField, normalizeFocusedField, initialSectionKey]);
 
 
   const {
