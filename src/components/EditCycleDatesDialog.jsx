@@ -42,6 +42,8 @@ const EditCycleDatesDialog = ({
   const [pendingPayload, setPendingPayload] = useState(null);
   const [showOverlapDialog, setShowOverlapDialog] = useState(false);
   const [overlapPlan, setOverlapPlan] = useState(null);
+  const [isStartCalendarOpen, setIsStartCalendarOpen] = useState(false);
+  const [isEndCalendarOpen, setIsEndCalendarOpen] = useState(false);
 
   const formatCycleDateUi = (value) => {
     if (!value) return 'en curso';
@@ -264,7 +266,7 @@ const EditCycleDatesDialog = ({
               <label htmlFor="startDate" className="text-gray-700 text-sm">
                 Inicio del ciclo
               </label>
-              <Popover>
+              <Popover open={isStartCalendarOpen} onOpenChange={setIsStartCalendarOpen}>
                 <PopoverTrigger asChild>
                   <Button
                     type="button"
@@ -284,6 +286,7 @@ const EditCycleDatesDialog = ({
                     onSelect={(selectedDate) => {
                       if (!selectedDate) return;
                       handleStartChange(format(startOfDay(selectedDate), 'yyyy-MM-dd'));
+                      setIsStartCalendarOpen(false);
                     }}
                     locale={es}
                     initialFocus
@@ -317,7 +320,7 @@ const EditCycleDatesDialog = ({
                 <label htmlFor="endDate" className="text-gray-700 text-sm">
                   Fin del ciclo
                 </label>
-                 <Popover>
+                 <Popover open={isEndCalendarOpen} onOpenChange={setIsEndCalendarOpen}>
                   <PopoverTrigger asChild>
                     <Button
                       type="button"
@@ -337,6 +340,7 @@ const EditCycleDatesDialog = ({
                       onSelect={(selectedDate) => {
                         if (!selectedDate) return;
                         handleEndChange(format(startOfDay(selectedDate), 'yyyy-MM-dd'));
+                        setIsEndCalendarOpen(false);
                       }}
                       locale={es}
                       initialFocus
