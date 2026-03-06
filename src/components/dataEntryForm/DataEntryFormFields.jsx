@@ -666,36 +666,50 @@ useEffect(() => {
   const filledByDockItem = filledState.dock;
 
   useEffect(() => {
-    if (!isEditing) {
-      initializedSectionsRef.current = false;
-      return;
-    }
+  if (!isEditing) {
+    initializedSectionsRef.current = false;
+    return;
+  }
 
-    if (initializedSectionsRef.current) {
-      return;
-    }
+  if (initializedSectionsRef.current) {
+    return;
+  }
 
-    const filledKeys = sectionKeys.filter((key) => filledBySection[key]);
+  const normalizedInitialSectionKey = normalizeSectionKey(initialSectionKey);
+  const hasExplicitInitialSection = Boolean(
+    normalizedInitialSectionKey && sectionKeys.includes(normalizedInitialSectionKey)
+  );
 
-    if (filledKeys.length === 0) {
-      initializedSectionsRef.current = true;
-      return;
-    }
-
-    const preferredSection = filledKeys.includes(activeSection)
-      ? activeSection
-      : filledKeys[0];
-
-    registerActiveSection(preferredSection);
-    pendingScrollTargetRef.current = preferredSection;
+  if (hasExplicitInitialSection) {
+    registerActiveSection(normalizedInitialSectionKey);
+    pendingScrollTargetRef.current = normalizedInitialSectionKey;
     initializedSectionsRef.current = true;
-  }, [
-    activeSection,
-    filledBySection,
-    isEditing,
-    registerActiveSection,
-    sectionKeys,
-  ]);
+    return;
+  }
+
+  const filledKeys = sectionKeys.filter((key) => filledBySection[key]);
+
+  if (filledKeys.length === 0) {
+    initializedSectionsRef.current = true;
+    return;
+  }
+
+  const preferredSection = filledKeys.includes(activeSection)
+    ? activeSection
+    : filledKeys[0];
+
+  registerActiveSection(preferredSection);
+  pendingScrollTargetRef.current = preferredSection;
+  initializedSectionsRef.current = true;
+}, [
+  activeSection,
+  filledBySection,
+  initialSectionKey,
+  isEditing,
+  normalizeSectionKey,
+  registerActiveSection,
+  sectionKeys,
+]);
 
   useEffect(() => {
     if (!isEditing) {
