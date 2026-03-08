@@ -162,21 +162,25 @@ const FertilityChart = ({
     const rect = scroller.getBoundingClientRect();
     if (!rect.width || !rect.height) return;
 
-    const isRotated =
-      isFullScreen &&
-      forceLandscape &&
-      typeof window !== 'undefined' &&
-      window.innerWidth < window.innerHeight;
+    const vv =
+  typeof window !== 'undefined' ? window.visualViewport : null;
 
-    let localX = event.clientX - rect.left;
+const adjustedClientX = event.clientX - (vv?.offsetLeft ?? 0);
+const adjustedClientY = event.clientY - (vv?.offsetTop ?? 0);
 
-  
-    if (isRotated) {
-      const cy = rect.top + rect.height / 2;
-      const dy = event.clientY - cy;
-      const unrotW = rect.height || 1;
-      localX = dy + unrotW / 2;
-    }
+const isRotated =
+  isFullScreen &&
+  forceLandscape &&
+  ((vv?.width ?? window.innerWidth ?? 0) < (vv?.height ?? window.innerHeight ?? 0));
+
+let localX = adjustedClientX - rect.left;
+
+if (isRotated) {
+  const cy = rect.top + rect.height / 2;
+  const dy = adjustedClientY - cy;
+  const unrotW = rect.height || 1;
+  localX = dy + unrotW / 2;
+}
 
     const worldX = scroller.scrollLeft + localX;
     const index = getNearestDataIndexByX(worldX);
@@ -979,17 +983,19 @@ useEffect(() => {
   );
 
   useEffect(() => {
-    if (!chartRef.current) return;
-    const dayWidth = chartRef.current.clientWidth / visibleDays;
-    chartRef.current.scrollLeft = Math.max(0, dayWidth * initialScrollIndex);
+  if (!chartRef.current) return;
+  const dayWidth = chartRef.current.clientWidth / visibleDays;
+  chartRef.current.scrollLeft = Math.max(0, dayWidth * initialScrollIndex);
   updateVisibleRange(chartRef.current.scrollLeft);
-  }, [
-    initialScrollIndex,
-    visibleDays,
-    dimensions.width,
-    orientation,
-    updateVisibleRange,
-  ]);
+}, [
+  initialScrollIndex,
+  visibleDays,
+  dimensions.width,
+  dimensions.viewportWidth,
+  dimensions.viewportHeight,
+  orientation,
+  updateVisibleRange,
+]);
 
   useEffect(() => {
     const node = chartRef.current;

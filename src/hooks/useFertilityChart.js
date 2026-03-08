@@ -591,60 +591,46 @@ export const useFertilityChart = (
           let viewportWidth;
           let viewportHeight;
 
-          if (isFullScreen) {
-            // ✅ IMPORTANTE: en iPhone con notch, el wrapper mete safe-area padding.
-     // window.inner* NO representa el área útil del chart.
-     let availW =
-       chartRef.current.clientWidth ||
-       parentEl.clientWidth ||
-       parentW ||
-       window.innerWidth;
-     let availH =
-       chartRef.current.clientHeight ||
-       parentEl.clientHeight ||
-       parentH ||
-       window.innerHeight;
-             // ✅ En exportMode, el gráfico se renderiza dentro de un contenedor offscreen
-  // con widthPx/heightPx. Si usamos window.innerWidth, el layout queda "estrecho"
-  // y luego solo se reescala (no ganas espacio por día).
-  if (exportMode) {
-    const exportW =
-      chartRef.current?.clientWidth ||
-      parentEl?.clientWidth ||
-      parentW ||
-      availW;
-    const exportH =
-      chartRef.current?.clientHeight ||
-      parentEl?.clientHeight ||
-      parentH ||
-      availH;
-    availW = exportW;
-    availH = exportH;
+          const nodeW = Math.max(
+  1,
+  chartRef.current?.clientWidth ||
+    parentEl?.clientWidth ||
+    parentW ||
+    1
+);
+
+const nodeH = Math.max(
+  1,
+  chartRef.current?.clientHeight ||
+    parentEl?.clientHeight ||
+    parentH ||
+    1
+);
+
+if (isFullScreen) {
+  containerWidth = nodeW;
+  viewportWidth = nodeW;
+  viewportHeight = nodeH;
+
+  if (orientation === 'portrait' && !forceLandscape) {
+    const legendSpace = Math.max(30, nodeW * 0.05);
+    const perDayWidth = (nodeW - legendSpace) / visibleDays;
+    newWidth = perDayWidth * data.length;
+  } else {
+    const perDayWidth = nodeW / visibleDays;
+    newWidth = perDayWidth * data.length;
   }
-            if (forceLandscape && availH > availW) {
-              [availW, availH] = [availH, availW];
-            }
 
-            containerWidth = availW;
-            viewportWidth = availW;
-            viewportHeight = availH;
-            if (orientation === 'portrait' && !forceLandscape) {
-              const legendSpace = Math.max(30, availW * 0.05);
-              const perDayWidth = (availW - legendSpace) / visibleDays;
-              newWidth = perDayWidth * data.length;
+  newHeight = nodeH;
+} else {
+  containerWidth = nodeW;
+  viewportWidth = nodeW;
+  viewportHeight = nodeH;
 
-            } else {
-              const perDayWidth = availW / visibleDays;
-              newWidth = perDayWidth * data.length;
-            }
-            newHeight = availH;
-          } else {
-            const perDayWidth = containerWidth / visibleDays;
-            newWidth = perDayWidth * data.length;
-            newHeight = parentH;
-            viewportWidth = containerWidth;
-            viewportHeight = parentH;
-          }
+  const perDayWidth = nodeW / visibleDays;
+  newWidth = perDayWidth * data.length;
+  newHeight = nodeH;
+}
           
         
           setDimensions({
@@ -662,10 +648,16 @@ export const useFertilityChart = (
         let resizeObserver;
         const canObserve = typeof window !== 'undefined' && typeof window.ResizeObserver === 'function';
         if (canObserve && chartRef.current) {
-          const targetEl = chartRef.current.parentElement || chartRef.current;
-          resizeObserver = new ResizeObserver(updateDimensions);
-          resizeObserver.observe(targetEl);
-        }
+  const node = chartRef.current;
+  const targetEl = node.parentElement;
+
+  resizeObserver = new ResizeObserver(updateDimensions);
+  resizeObserver.observe(node);
+
+  if (targetEl && targetEl !== node) {
+    resizeObserver.observe(targetEl);
+  }
+}
         
         return () => {
           window.removeEventListener('resize', updateDimensions);
@@ -1151,14 +1143,20 @@ const padding = isDenseExport
 
   // 1) clientX/clientY (mouse/touch)
   let clientX, clientY;
-  if (event?.changedTouches?.[0]) {
-    clientX = event.changedTouches[0].clientX;
-    clientY = event.changedTouches[0].clientY;
-  } else {
-    clientX = event.clientX;
-    clientY = event.clientY;
-  }
-  if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) return;
+if (event?.changedTouches?.[0]) {
+  clientX = event.changedTouches[0].clientX;
+  clientY = event.changedTouches[0].clientY;
+} else {
+  clientX = event.clientX;
+  clientY = event.clientY;
+}
+if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) return;
+
+const vv =
+  typeof window !== 'undefined' ? window.visualViewport : null;
+
+const adjustedClientX = clientX - (vv?.offsetLeft ?? 0);
+const adjustedClientY = clientY - (vv?.offsetTop ?? 0);
 
   // 2) coordenadas del punto en el SVG (para lógica de tooltip)
   const svgX = getX(index);
@@ -1174,21 +1172,19 @@ const padding = isDenseExport
 
   // 4) detectar rotación forzada
   const isRotated =
-    !exportMode &&
-    isFullScreen &&
-    forceLandscape &&
-    typeof window !== 'undefined' &&
-    window.innerWidth < window.innerHeight;
+  !exportMode &&
+  isFullScreen &&
+  forceLandscape &&
+  ((vv?.width ?? window.innerWidth ?? 0) < (vv?.height ?? window.innerHeight ?? 0));
 
-  // 5) localX/localY dentro del contenedor (compensando rotación si aplica)
-  let localX = clientX - chartRect.left;
-  let localY = clientY - chartRect.top;
+let localX = adjustedClientX - chartRect.left;
+let localY = adjustedClientY - chartRect.top;
 
   if (isRotated) {
     const cx = chartRect.left + chartRect.width / 2;
     const cy = chartRect.top + chartRect.height / 2;
-    const dx = clientX - cx;
-    const dy = clientY - cy;
+    const dx = adjustedClientX - cx;
+const dy = adjustedClientY - cy;
 
     // inversa de rotate(90): rotate(-90)
     const ux = dy;
