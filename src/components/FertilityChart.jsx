@@ -905,31 +905,42 @@ const FertilityChart = ({
   ]);
   
   // Detectar orientación real del viewport para rotación visual
-  const [viewport, setViewport] = useState({
-  w: typeof window !== 'undefined' ? window.innerWidth : 0,
-  h: typeof window !== 'undefined' ? window.innerHeight : 0,
-});
+  const readViewport = () => {
+  if (typeof window === 'undefined') return { w: 0, h: 0 };
+  const vv = window.visualViewport;
+  const w = vv?.width ?? window.innerWidth ?? 0;
+  const h = vv?.height ?? window.innerHeight ?? 0;
+  return { w: Math.round(w), h: Math.round(h) };
+};
+
+const [viewport, setViewport] = useState(readViewport);
 const isViewportPortrait = viewport.w < viewport.h;
 
 useEffect(() => {
   if (typeof window === 'undefined') return undefined;
 
   let raf = 0;
+  const vv = window.visualViewport;
+
   const onResize = () => {
     if (raf) cancelAnimationFrame(raf);
-    raf = requestAnimationFrame(() => {
-      setViewport({ w: window.innerWidth, h: window.innerHeight });
-    });
+    raf = requestAnimationFrame(() => setViewport(readViewport()));
   };
 
   window.addEventListener('resize', onResize);
   window.addEventListener('orientationchange', onResize);
+
+  vv?.addEventListener('resize', onResize);
+  vv?.addEventListener('scroll', onResize); // en iOS cambia al mostrar/ocultar barras/teclado
+
   onResize();
 
   return () => {
     if (raf) cancelAnimationFrame(raf);
     window.removeEventListener('resize', onResize);
     window.removeEventListener('orientationchange', onResize);
+    vv?.removeEventListener('resize', onResize);
+    vv?.removeEventListener('scroll', onResize);
   };
 }, []);
 
