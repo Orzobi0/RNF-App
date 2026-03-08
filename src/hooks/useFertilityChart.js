@@ -592,8 +592,18 @@ export const useFertilityChart = (
           let viewportHeight;
 
           if (isFullScreen) {
-            let availW = window.innerWidth;
-            let availH = window.innerHeight;
+            // ✅ IMPORTANTE: en iPhone con notch, el wrapper mete safe-area padding.
+     // window.inner* NO representa el área útil del chart.
+     let availW =
+       chartRef.current.clientWidth ||
+       parentEl.clientWidth ||
+       parentW ||
+       window.innerWidth;
+     let availH =
+       chartRef.current.clientHeight ||
+       parentEl.clientHeight ||
+       parentH ||
+       window.innerHeight;
              // ✅ En exportMode, el gráfico se renderiza dentro de un contenedor offscreen
   // con widthPx/heightPx. Si usamos window.innerWidth, el layout queda "estrecho"
   // y luego solo se reescala (no ganas espacio por día).

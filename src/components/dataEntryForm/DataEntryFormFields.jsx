@@ -134,6 +134,7 @@ const [activeSection, setActiveSection] = useState(() => {
     ? normalizedInitial
     : sectionKeys[0] ?? null;
 });
+  const stickyHeaderRef = useRef(null);  
   const dockRef = useRef(null);
   const sectionsContainerRef = useRef(null);
   const pendingScrollTargetRef = useRef(null);
@@ -182,27 +183,31 @@ const [activeSection, setActiveSection] = useState(() => {
   }, []);
 
   const recomputeDockOffset = useCallback(() => {
-    const dock = dockRef.current;
-    if (!dock) return;
-    const rect = dock.getBoundingClientRect();
-    const computedTop = parseFloat(getComputedStyle(dock).top || '0');
-    const safeTop = Number.isNaN(computedTop) ? 0 : computedTop;
-    setDockOffset((rect?.height || 0) + safeTop + 12); // 12px de margen
-  }, []);
+  const stickyHeader = stickyHeaderRef.current;
+  if (!stickyHeader) return;
+
+  const rect = stickyHeader.getBoundingClientRect();
+  setDockOffset((rect?.height || 0) + 12);
+}, []);
 
  useEffect(() => {
-   recomputeDockOffset();
-   const ro = new ResizeObserver(() => recomputeDockOffset());
-   if (dockRef.current) ro.observe(dockRef.current);
-   const onResize = () => recomputeDockOffset();
-   window.addEventListener('resize', onResize);
-   window.addEventListener('orientationchange', onResize);
-   return () => {
-     ro.disconnect();
-     window.removeEventListener('resize', onResize);
-     window.removeEventListener('orientationchange', onResize);
-   };
- }, [recomputeDockOffset]);
+  recomputeDockOffset();
+  const ro = new ResizeObserver(() => recomputeDockOffset());
+
+  if (stickyHeaderRef.current) {
+    ro.observe(stickyHeaderRef.current);
+  }
+
+  const onResize = () => recomputeDockOffset();
+  window.addEventListener('resize', onResize);
+  window.addEventListener('orientationchange', onResize);
+
+  return () => {
+    ro.disconnect();
+    window.removeEventListener('resize', onResize);
+    window.removeEventListener('orientationchange', onResize);
+  };
+}, [recomputeDockOffset]);
 
   const triggerHapticFeedback = useCallback(() => {
     if (typeof window === 'undefined') {
@@ -1138,142 +1143,165 @@ useEffect(() => {
 
   return (
     <>
-      <div className="space-y-2">
-  <div className="col-span-3 space-y-2 rounded-3xl border border-fertiliapp bg-tarjeta p-3">
-    <Label htmlFor="date" className="flex items-center text-titulo text-sm font-semibold">
-      <CalendarDays className="mr-2 h-5 w-5 text-titulo" />
-      Fecha del Registro
-    </Label>
+      <div
+  ref={stickyHeaderRef}
+  className="sticky top-0 z-30 isolate -mx-1 overflow-hidden rounded-b-3xl bg-form-surface px-1 pb-2 pt-1"
+>
+  <div className="absolute inset-0 z-0 rounded-3xl bg-form-surface" />
+  <div className="absolute inset-x-0 bottom-0 z-0 h-6 bg-form-surface" />
+  <div className="relative z-10 rounded-b-3xl bg-form-surface">
+    <div className="space-y-2">
+      <div className="col-span-3 space-y-2 rounded-3xl border border-fertiliapp bg-tarjeta shadow-sm p-3">
+        <Label htmlFor="date" className="flex items-center text-titulo text-sm font-semibold">
+          <CalendarDays className="mr-2 h-5 w-5 text-titulo" />
+          Fecha del Registro
+        </Label>
 
-    <div className="flex items-stretch gap-2">
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
+        <div className="flex items-stretch gap-2">
+          <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className={cn(
+                  'h-11 min-w-0 flex-[3.5] justify-start text-left font-normal bg-white border-fertiliapp-suave text-gray-800 hover:bg-white hover:text-gray-800',
+                  !date && 'text-muted-foreground'
+                )}
+                disabled={isProcessing}
+              >
+                <span className="truncate">
+                  {date ? format(date, 'PPP', { locale: es }) : 'Selecciona una fecha'}
+                </span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0 bg-white border-pink-200 text-gray-800 rounded-3xl" align="start">
+              <Calendar
+                mode="single"
+                selected={date}
+                onSelect={(selectedDate) => {
+                  if (!selectedDate) {
+                    setOpen(false);
+                    return;
+                  }
+
+                  setDate(startOfDay(selectedDate));
+                  setOpen(false);
+                }}
+                initialFocus
+                locale={es}
+                disabled={isProcessing ? () => true : disabledDateRanges}
+                modifiers={{ hasRecord: recordedDates }}
+                modifiersClassNames={{
+                  hasRecord:
+                    'relative after:content-[""] after:absolute after:inset-x-0 after:bottom-1 after:mx-auto after:w-1.5 after:h-1.5 after:rounded-full after:bg-fertiliapp-fuerte',
+                }}
+                className="[&_button]:text-gray-800 [&_button:hover]:bg-fertiliapp-suave [&_button[aria-selected=true]]:bg-fertiliapp-fuerte [&_button[aria-selected=true]]:text-white [&_button[aria-disabled=true]]:text-gray-400"
+              />
+            </PopoverContent>
+          </Popover>
+
           <Button
+            type="button"
             variant="outline"
-            className={cn(
-              'h-11 min-w-0 flex-[3.5] justify-start text-left font-normal bg-white/70 border-fertiliapp-suave text-gray-800 hover:bg-white/70 hover:text-gray-800',
-              !date && 'text-muted-foreground'
-            )}
-            disabled={isProcessing}
+            size="sm"
+            onClick={() => onOpenNewCycle?.(selectedIsoDate)}
+            disabled={isProcessing || !selectedIsoDate || typeof onOpenNewCycle !== 'function'}
+            className="h-11 flex-[1.15] rounded-2xl border-fertiliapp-suave bg-white px-2 text-[10px] font-semibold text-fertiliapp-fuerte hover:bg-fertiliapp-suave/60"
+            aria-label="Iniciar nuevo ciclo"
           >
-            <span className="truncate">
-              {date ? format(date, 'PPP', { locale: es }) : 'Selecciona una fecha'}
+            <CalendarPlus className="mr-1 h-4 w-4 shrink-0" />
+            <span className="flex flex-col leading-[11px] text-left">
+              <span>Nuevo</span>
+              <span>ciclo</span>
             </span>
           </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-auto p-0 bg-white border-pink-200 text-gray-800 rounded-3xl" align="start">
-          <Calendar
-            mode="single"
-            selected={date}
-            onSelect={(selectedDate) => {
-              if (!selectedDate) {
-                setOpen(false);
-                return;
-              }
-
-              setDate(startOfDay(selectedDate));
-              setOpen(false);
-            }}
-            initialFocus
-            locale={es}
-            disabled={isProcessing ? () => true : disabledDateRanges}
-            modifiers={{ hasRecord: recordedDates }}
-            modifiersClassNames={{
-              hasRecord:
-                'relative after:content-["" ] after:absolute after:inset-x-0 after:bottom-1 after:mx-auto after:w-1.5 after:h-1.5 after:rounded-full after:bg-fertiliapp-fuerte',
-            }}
-            className="[&_button]:text-gray-800 [&_button:hover]:bg-fertiliapp-suave [&_button[aria-selected=true]]:bg-fertiliapp-fuerte [&_button[aria-selected=true]]:text-white [&_button[aria-disabled=true]]:text-gray-400"
-          />
-        </PopoverContent>
-      </Popover>
-
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={() => onOpenNewCycle?.(selectedIsoDate)}
-        disabled={isProcessing || !selectedIsoDate || typeof onOpenNewCycle !== 'function'}
-        className="h-11 flex-[1.15] rounded-2xl border-fertiliapp-suave bg-white/70 px-2 text-[10px] font-semibold text-fertiliapp-fuerte hover:bg-fertiliapp-suave/50"
-        aria-label="Iniciar nuevo ciclo"
-      >
-        <CalendarPlus className="mr-1 h-4 w-4 shrink-0" />
-        <span className="flex flex-col leading-[11px] text-left">
-          <span>Nuevo</span>
-          <span>ciclo</span>
-        </span>
-      </Button>
+        </div>
+      </div>
     </div>
-  </div>
-</div>
-      <div className="mt-1 space-y-0.5 px-2 sm:px-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <PeakModeButton
-            mode={peakMode}
-            size="md"
-            onClick={togglePeakTag}
-            aria-pressed={isPeakDay}
-            aria-label={peakAriaLabel}
-            disabled={isProcessing || !selectedIsoDate}
-          />
-          {canSyncTemperature && (
-            <button
-              type="button"
-              className={syncTemperatureClasses}
-              onClick={onSyncTemperature}
-              disabled={isProcessing || isSyncingTemperature || !canSyncTemperature}
-              aria-label="Sincronizar temperaturas"
-            >
-              <RefreshCcw className="h-3.5 w-3.5" aria-hidden="true" />
-              {isSyncingTemperature ? 'Sincronizando...' : '+ temperatura'}
-            </button>
-          )}
+                
+
+    <div className="mt-1 space-y-0.5 px-2 sm:px-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <PeakModeButton
+          mode={peakMode}
+          size="md"
+          onClick={togglePeakTag}
+          aria-pressed={isPeakDay}
+          aria-label={peakAriaLabel}
+          disabled={isProcessing || !selectedIsoDate}
+        />
+        {canSyncTemperature && (
           <button
             type="button"
-            className={relationsButtonClasses}
-            onClick={handleRelationsToggle}
-            disabled={isProcessing || !selectedIsoDate}
-            aria-pressed={hadRelations}
-            aria-label={hadRelations ? 'Desmarcar relaciones sexuales' : 'Marcar relaciones sexuales'}
+            className={cn(
+              'inline-flex items-center gap-1 rounded-full border border-amber-200 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-700 shadow-sm transition-colors',
+              canSyncTemperature && !isSyncingTemperature
+                ? 'hover:bg-amber-50'
+                : 'cursor-not-allowed opacity-60'
+            )}
+            onClick={onSyncTemperature}
+            disabled={isProcessing || isSyncingTemperature || !canSyncTemperature}
+            aria-label="Sincronizar temperaturas"
           >
-            <Heart className={cn('h-4 w-4', hadRelations ? 'text-rose-500 fill-current' : 'text-slate-400')} aria-hidden="true" />
-            <span className="text-xs font-semibold uppercase tracking-wide">RS</span>
+            <RefreshCcw className="h-3.5 w-3.5" aria-hidden="true" />
+            {isSyncingTemperature ? 'Sincronizando...' : '+ temperatura'}
           </button>
-        </div>
-        {(existingPeakIsoDate || statusMessages.peak || statusMessages.relations) && (
-  <div className="mt-1 grid grid-cols-[1fr_auto] items-start gap-2 text-[11px]">
-    <div className="min-w-0">
-      {existingPeakIsoDate && (
-        <div className="text-slate-500">
-          {`Día pico: ${format(parseISO(existingPeakIsoDate), 'dd/MM')}`}
-        </div>
-      )}
-      {statusMessages.peak && (
-        <div className="font-medium text-rose-600" role="status" aria-live="polite">
-          {statusMessages.peak}
-        </div>
-      )}
-    </div>
-
-    <div className="text-right">
-      {statusMessages.relations && (
-        <div className="font-medium text-rose-600" role="status" aria-live="polite">
-          {statusMessages.relations}
-        </div>
-      )}
-    </div>
-  </div>
-)}
-    </div>
-
-
-      <div className="mt-2">
-        <div
-          ref={dockRef}
-          className={cn(
-            'sticky top-4 z-20 flex w-full items-center gap-1.5 rounded-3xl border border-pink-200/70 bg-white/80 px-2 py-1.5 shadow-sm transition-opacity duration-200 backdrop-blur supports-[backdrop-filter]:backdrop-blur-lg sm:top-6',
-            isViewAll ? 'opacity-80' : 'opacity-100'
-          )}
+        )}
+        <button
+          type="button"
+          className={relationsButtonClasses}
+          onClick={handleRelationsToggle}
+          disabled={isProcessing || !selectedIsoDate}
+          aria-pressed={hadRelations}
+          aria-label={hadRelations ? 'Desmarcar relaciones sexuales' : 'Marcar relaciones sexuales'}
         >
+          <Heart className={cn('h-4 w-4', hadRelations ? 'text-rose-500 fill-current' : 'text-slate-400')} aria-hidden="true" />
+          <span className="text-xs font-semibold uppercase tracking-wide">RS</span>
+        </button>
+      </div>
+
+      {(existingPeakIsoDate || statusMessages.peak || statusMessages.relations) && (
+        <div className="mt-1 grid grid-cols-[1fr_auto] items-start gap-2 text-[11px]">
+          <div className="min-w-0">
+            {existingPeakIsoDate && (
+              <div className="text-slate-500">
+                {`Día pico: ${format(parseISO(existingPeakIsoDate), 'dd/MM')}`}
+              </div>
+            )}
+            {statusMessages.peak && (
+              <div className="font-medium text-rose-600" role="status" aria-live="polite">
+                {statusMessages.peak}
+              </div>
+            )}
+          </div>
+
+          <div className="text-right">
+            {statusMessages.relations && (
+              <div className="font-medium text-rose-600" role="status" aria-live="polite">
+                {statusMessages.relations}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+
+    <div className="mt-2">
+      <motion.div
+        ref={dockRef}
+        animate={{
+          width: isViewAll ? '70%' : '100%',
+        }}
+        transition={{ duration: 0.22, ease: 'easeOut' }}
+        className="mx-auto"
+      >
+        <div
+  className={cn(
+    'flex w-full items-center rounded-3xl border border-pink-200 bg-white shadow-sm transition-all duration-200',
+    isViewAll
+      ? 'min-h-[36px] gap-1 px-1 py-[2px] opacity-90'
+      : 'min-h-[50px] gap-1.5 px-2 py-1.5 opacity-100'
+  )}
+>
           <div className="flex flex-1 items-center gap-1 sm:gap-2">
             {dockItems.map((item) => {
               const Icon = item.icon;
@@ -1284,6 +1312,7 @@ useEffect(() => {
               const isFilled = filledByDockItem[item.key] ?? filledBySection[targetSectionKey];
               const idleTextClass = styles.idleText ?? 'text-slate-500';
               const filledTextClass = styles.filledText ?? idleTextClass;
+
               return (
                 <button
                   key={item.key}
@@ -1291,22 +1320,24 @@ useEffect(() => {
                   onPointerDown={(e) => handleSectionPointerDown(e, targetSectionKey)}
                   onClick={() => handleSectionClick(targetSectionKey)}
                   className={cn(
-                    'flex h-11 w-11 items-center justify-center rounded-full border-2 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 touch-manipulation',
-                    styles.focusRing,
-                    isActive
-                      ? cn(
-                          'shadow-inner scale-105',
-                          styles.activeBorder,
-                          styles.activeBg,
-                          styles.activeText
-                        )
-                      : cn(
-                          'border-transparent bg-transparent hover:bg-slate-100',
-                          isFilled ? filledTextClass : idleTextClass
-                        ),
-                    !isActive && isViewAll && 'opacity-70',
-                    'min-h-[44px] min-w-[44px]'
-                  )}
+  'flex items-center justify-center rounded-full border-2 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 touch-manipulation',
+  isViewAll
+    ? 'h-7 w-7 min-h-[20px] min-w-[36px]'
+    : 'h-11 w-11 min-h-[44px] min-w-[44px]',
+  styles.focusRing,
+  isActive
+    ? cn(
+        'shadow-inner scale-105',
+        styles.activeBorder,
+        styles.activeBg,
+        styles.activeText
+      )
+    : cn(
+        'border-transparent bg-transparent hover:bg-slate-100',
+        isFilled ? filledTextClass : idleTextClass
+      ),
+  !isActive && isViewAll && 'opacity-70'
+)}
                   aria-label={item.ariaLabel}
                   aria-expanded={isExpanded}
                   aria-controls={`${targetSectionKey}-panel`}
@@ -1314,7 +1345,8 @@ useEffect(() => {
                 >
                   <Icon
                     className={cn(
-                      'h-5 w-5 transition-colors duration-200',
+                      'transition-all duration-200',
+                      isViewAll ? 'h-3 w-3' : 'h-5 w-5',
                       isActive
                         ? styles.activeText
                         : isFilled
@@ -1328,11 +1360,15 @@ useEffect(() => {
               );
             })}
           </div>
+
           <button
             type="button"
             onClick={handleViewAllToggle}
             className={cn(
-              'ml-auto inline-flex min-h-[32px] min-w-[32px] items-center justify-center rounded-full border px-3 text-xs font-semibold uppercase tracking-wide transition-all duration-200',
+              'ml-auto inline-flex items-center justify-center rounded-full border text-xs font-semibold uppercase tracking-wide transition-all duration-200',
+              isViewAll
+                ? 'min-h-[28px] min-w-[28px] px-2'
+                : 'min-h-[32px] min-w-[32px] px-3',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-pink-200',
               isViewAll
                 ? 'border-pink-200 bg-pink-50/80 text-pink-600 shadow-inner'
@@ -1341,15 +1377,24 @@ useEffect(() => {
             aria-pressed={isViewAll}
             aria-label={isViewAll ? 'Compactar secciones' : 'Ver todas las secciones'}
           >
-            <span className="text-lg leading-none" aria-hidden="true">
+            <span
+              className={cn(
+                'leading-none transition-all duration-200',
+                isViewAll ? 'text-base' : 'text-lg'
+              )}
+              aria-hidden="true"
+            >
               {isViewAll ? '⇤' : '⇵'}
-              </span>
-              <span className="sr-only">{isViewAll ? 'Compactar' : 'Todo'}</span>
+            </span>
+            <span className="sr-only">{isViewAll ? 'Compactar' : 'Todo'}</span>
           </button>
         </div>
-      </div>
-      
-      <div className="mt-1" ref={sectionsContainerRef}>
+      </motion.div>
+    </div>
+  </div>
+</div>
+
+<div className="relative z-0 mt-1" ref={sectionsContainerRef}>
         <AnimatePresence initial={false}>
           {sectionOrder
             .filter((section) => openSectionKeys.includes(section.key))

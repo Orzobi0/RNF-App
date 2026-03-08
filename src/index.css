@@ -43,7 +43,9 @@
     --color-fertiliapp: #E37988;           /* rosa Fertiliapp (botones, enlaces, detalles) */
     --color-fertiliapp-fuerte: #D85C70;    /* rosa más fuerte (número grande centro) */
     --color-fertiliapp-suave: #FBCBD6;     /* rosa de apoyo / degradados */
-    --color-fondo-tarjeta: #FFE8EE;        /* fondo de cards */
+    --color-fondo-tarjeta: #FFE8EE;  
+    --color-form-surface: #f8eef1;
+          /* fondo de cards */
 
     /* Símbolos */
     --color-verde-fertil: #67C5A4;
@@ -401,6 +403,7 @@
   .bg-secundario-fuerte { background-color: var(--color-secundario-fuerte); }
   .bg-secundario-suave { background-color: var(--color-secundario-suave); }
   .bg-secundario-fondo { background-color: var(--color-secundario-fondo); }
+  .bg-form-surface { background-color: var(--color-form-surface); }
 
     /* Ring de foco en tonos Fertiliapp */
   .ring-fertiliapp-suave { --tw-ring-color: var(--color-fertiliapp-suave); }

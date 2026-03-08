@@ -596,7 +596,7 @@ useEffect(() => {
         ...baseStyle,
         height: APP_H,
         maxHeight: APP_H,
-        paddingBottom: 'env(safe-area-inset-bottom)'
+        boxSizing: 'border-box',
         }
     : {
         ...baseStyle,
@@ -604,6 +604,7 @@ useEffect(() => {
       // Forzar 100vh aquí en iOS crea “scroll fantasma” y offsets raros.
       height: '100%',
       maxHeight: '100%',
+      boxSizing: 'border-box',
       };
 
       const isRotatedFullScreen = isFullScreen && applyRotation;
