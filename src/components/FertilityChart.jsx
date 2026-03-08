@@ -1088,7 +1088,10 @@ const safeAreaStyle = isFullScreen
   ? (shouldRotateStage
       ? {
           boxSizing: 'border-box',
-          padding: 0,
+          paddingTop: 0,
+          paddingRight: 0,
+          paddingBottom: 0,
+          paddingLeft: 'calc(env(safe-area-inset-top) + 8px)',
         }
       : {
           paddingTop: 'env(safe-area-inset-top)',
