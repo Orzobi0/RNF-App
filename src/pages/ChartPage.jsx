@@ -611,22 +611,17 @@ useEffect(() => {
       radial-gradient(140% 140% at 100% 100%, rgba(255,255,255,0.9) 0, rgba(255,247,250,0.3) 40%, transparent 70%)
     `
   };
-  const APP_H = 'calc(var(--app-vh, 1vh) * 100)';
   const containerStyle = isFullScreen
-    ? {
-        ...baseStyle,
-        height: APP_H,
-        maxHeight: APP_H,
-        boxSizing: 'border-box',
-        }
-    : {
-        ...baseStyle,
-        // En modo normal, MainLayout ya gestiona el espacio de bottom-nav/safe-area.
-      // Forzar 100vh aquí en iOS crea “scroll fantasma” y offsets raros.
+  ? {
+      ...baseStyle,
+      boxSizing: 'border-box',
+    }
+  : {
+      ...baseStyle,
       height: '100%',
       maxHeight: '100%',
       boxSizing: 'border-box',
-      };
+    };
 
       const isRotatedFullScreen = isFullScreen && applyRotation;
       
@@ -1373,12 +1368,13 @@ const rotatedDrawerStyle = applyRotation
   return (
     <MainLayout hideBottomNav={isFullScreen}>
       <div
-        className={
-          isFullScreen
-            ? 'fixed inset-0 z-50 h-app w-[100vw] overflow-hidden'
-            : 'relative w-full h-full overflow-hidden'}
-        style={containerStyle}
-      >
+  className={
+    isFullScreen
+      ? 'fixed inset-0 z-50 overflow-hidden'
+      : 'relative w-full h-full overflow-hidden'
+  }
+  style={containerStyle}
+>
         {chartCycleLabel && (
   <div className="pointer-events-none absolute z-[120]" style={{ inset: 0 }}>
     {isRotatedFullScreen ? (

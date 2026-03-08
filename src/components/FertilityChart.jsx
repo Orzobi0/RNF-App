@@ -1087,12 +1087,8 @@ const rotationStageStyle = shouldRotateStage
 const safeAreaStyle = isFullScreen
   ? (shouldRotateStage
       ? {
-          // contenido rotado 90º: mapeo de safe-area
-          paddingTop: 'env(safe-area-inset-left)',
-          paddingRight: 'env(safe-area-inset-top)',
-          paddingBottom: 'env(safe-area-inset-right)',
-          paddingLeft: 'env(safe-area-inset-bottom)',
           boxSizing: 'border-box',
+          padding: 0,
         }
       : {
           paddingTop: 'env(safe-area-inset-top)',
