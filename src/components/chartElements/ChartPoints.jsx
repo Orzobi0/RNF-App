@@ -203,6 +203,9 @@ const ChartPoints = ({
   autoLabelStep = false,
   isArchivedCycle = false,
   renderTemperatureLayer = true,
+  manualModeEnabled = false,
+  manualBaselineTemp = null,
+  isPointEligibleForManualMode = null,
 }) => {
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -548,6 +551,15 @@ const ChartPoints = ({
           point[temperatureField] === correctedTemp;
         const isIgnoredForDisplay =
           point.ignored || (point.use_corrected && !isCorrectedDisplayed);
+          const shouldConsiderForManualMode = typeof isPointEligibleForManualMode === 'function'
+          ? isPointEligibleForManualMode(point, index)
+          : true;
+        const matchesManualBaseline =
+          manualModeEnabled &&
+          shouldConsiderForManualMode &&
+          Number.isFinite(manualBaselineTemp) &&
+          Number.isFinite(point?.displayTemperature) &&
+          Number(point.displayTemperature) === Number(manualBaselineTemp);
         const hasRelations = Boolean(point.had_relations ?? point.hadRelations);
         const hasAnyRecord = hasTemp
           || point.mucus_sensation
@@ -711,6 +723,17 @@ const observationFontSize = obsRes.fontSize;
                       fill="rgba(255, 255, 255, 0.6)"
                     />
                   </g>
+                )}
+              {matchesManualBaseline && (
+                  <circle
+                    cx={x}
+                    cy={y}
+                    r={6.2}
+                    fill="rgba(124, 58, 237, 0.16)"
+                    stroke="rgba(124, 58, 237, 0.38)"
+                    strokeWidth={1.2}
+                    pointerEvents="none"
+                  />
                 )}
 
                 <circle
@@ -1049,6 +1072,9 @@ const areEqual = (prev, next) => {
   if (prev.autoLabelStep !== next.autoLabelStep) return false;
   if (prev.isArchivedCycle !== next.isArchivedCycle) return false;
   if (prev.renderTemperatureLayer !== next.renderTemperatureLayer) return false;
+  if (prev.manualModeEnabled !== next.manualModeEnabled) return false;
+  if (prev.manualBaselineTemp !== next.manualBaselineTemp) return false;
+  if (prev.isPointEligibleForManualMode !== next.isPointEligibleForManualMode) return false;
 
   const prevRange = prev.visibleRange;
   const nextRange = next.visibleRange;

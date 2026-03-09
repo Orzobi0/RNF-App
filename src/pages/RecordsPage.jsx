@@ -671,7 +671,7 @@ export const RecordsExperience = ({
           ? 'text-subtitulo font-semibold'
           : activeModifiers.outside
           ? inCurrentShownCycle
-            ? 'text-slate-700'
+            ? 'text-slate-600'
             : 'text-slate-600'
           : 'text-slate-700'
       );
@@ -684,8 +684,10 @@ export const RecordsExperience = ({
             'pointer-events-none absolute inset-0 rounded-full transition-opacity',
             symbolInfo?.color ?? '',
             symbolInfo?.pattern === 'spotting-pattern' ? 'calendar-spotting-dot' : '',
-            symbolValue === 'white' ? 'ring-1 ring-slate-300/70' : '',
-            isSelected ? 'opacity-50' : 'opacity-25'
+            symbolValue === 'white' ? 'bg-rose-50 ring-1 ring-rose-300/90 shadow-sm' : '',
+ symbolValue === 'white'
+   ? isSelected ? 'opacity-90' : 'opacity-100'
+   : isSelected ? 'opacity-50' : 'opacity-25'
           )
         : null;
 
@@ -1696,7 +1698,7 @@ const enterStart = -exitTarget;
 
                       classNames={calendarClassNames}
                       modifiersClassNames={{
-                        hasRecord: 'font-semibold text-slate-900',
+                        hasRecord: 'text-slate-900 hover:text-slate-900 hover:bg-rose-50',
                         outsideCycle: 'text-slate-300 hover:text-slate-300 hover:bg-transparent',
                         insideCycleNoRecord:
                           'text-slate-900 hover:text-slate-900 hover:bg-rose-50',

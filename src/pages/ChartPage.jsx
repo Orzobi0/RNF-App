@@ -271,6 +271,7 @@ const applyRotation = isFullScreen && forceLandscape && viewport.w < viewport.h;
   const [initialSectionKey, setInitialSectionKey] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showInterpretation, setShowInterpretation] = useState(false);
+  const [showManualBaseline, setShowManualBaseline] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const DRAWER_ANIM_MS = 320; // >= 300ms (tu transition del drawer normal)
 const [drawerMounted, setDrawerMounted] = useState(false);
@@ -1419,7 +1420,9 @@ const rotatedDrawerStyle = applyRotation
           showBackToCycleRecords={showBackToCycleRecords}
           targetCycleId={targetCycle.id}
           showInterpretation={showInterpretation}
+          showManualBaseline={showManualBaseline}
           onToggleInterpretation={handleInterpretationClick}
+          onToggleManualBaseline={() => setShowManualBaseline((prev) => !prev)}
           onInterpretationPointerUp={handleInterpretationPointerUp}
           onToggleFullScreen={handleToggleFullScreen}
           onToggleSettings={toggleSettings}
@@ -1435,6 +1438,7 @@ const rotatedDrawerStyle = applyRotation
           initialScrollIndex={scrollStart}
           visibleDays={visibleDays}
           showInterpretation={showInterpretation}
+          showManualBaseline={showManualBaseline}
           reduceMotion={true}
           forceLandscape={forceLandscape || orientation === 'landscape'}
           currentPeakIsoDate={currentPeakIsoDate}

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Eye, EyeOff, RotateCcw, Settings } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff, RotateCcw, Settings, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const BTN_BASE =
@@ -8,11 +8,11 @@ const BTN_BASE =
 
 const getSlots = (mode) => {
   // Grid 2x2
-  // normal (arriba dcha): [interpret, rotate; empty, settings]
-  if (mode === 'normal') return ['interpretation', 'rotate', 'empty', 'settings'];
+  // normal (arriba dcha): [interpret, manual; rotate, settings]
+  if (mode === 'normal') return ['interpretation', 'manualBaseline', 'rotate', 'settings'];
 
-  // fullscreen (abajo dcha): [empty, interpret; settings, rotate]
-  return ['empty', 'interpretation', 'settings', 'rotate'];
+ // fullscreen (abajo dcha): [manual, interpret; settings, rotate]
+  return ['manualBaseline', 'interpretation', 'settings', 'rotate'];
 };
 
 const ChartControls = ({
@@ -20,7 +20,9 @@ const ChartControls = ({
   showBackToCycleRecords,
   targetCycleId,
   showInterpretation,
+  showManualBaseline,
   onToggleInterpretation,
+  onToggleManualBaseline,
   onInterpretationPointerUp,
   onToggleFullScreen,
   onToggleSettings,
@@ -59,6 +61,23 @@ const ChartControls = ({
         ) : (
           <Eye className={`h-4 w-4 transition-transform ${iconRotationClass}`} />
         )}
+      </Button>
+    ),
+    manualBaseline: (
+      <Button
+        key="manualBaseline"
+        type="button"
+        onClick={onToggleManualBaseline}
+        variant="ghost"
+        size="icon"
+        className={`${BTN_BASE} transition-colors ${
+          showManualBaseline
+            ? 'bg-violet-500 text-white shadow-lg shadow-violet-500/50 border-violet-500'
+            : 'bg-white/20 text-violet-700 border-violet-400'
+        }`}
+        aria-label={showManualBaseline ? 'Ocultar baseline manual' : 'Mostrar baseline manual'}
+      >
+        <SlidersHorizontal className={`h-4 w-4 transition-transform ${iconRotationClass}`} />
       </Button>
     ),
     rotate: (
