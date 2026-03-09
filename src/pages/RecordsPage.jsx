@@ -417,6 +417,7 @@ export const RecordsExperience = ({
       ),
       day_selected: '',
       day_today: '',
+      day_outside: 'opacity-100',
     }),
     []
   );
@@ -541,10 +542,96 @@ export const RecordsExperience = ({
     [peakStatuses, recordDetailsByIso]
   );
 
+  const cycleDays = useMemo(() => {
+    if (!cycle?.startDate) return [];
+
+    const startDate = parseISO(cycle.startDate);
+    if (!isValid(startDate)) {
+      return [];
+    }
+
+    const cycleStartDay = startOfDay(startDate);
+    const today = startOfDay(new Date());
+
+    let rangeEnd = cycleRange?.to ? startOfDay(cycleRange.to) : today;
+    if (isAfter(rangeEnd, today)) {
+      rangeEnd = today;
+    }
+    if (isBefore(rangeEnd, cycleStartDay)) {
+      rangeEnd = cycleStartDay;
+    }
+
+    const totalDays = differenceInCalendarDays(rangeEnd, cycleStartDay) + 1;
+    if (totalDays <= 0) {
+      return [];
+    }
+
+    const days = [];
+    for (let offset = totalDays - 1; offset >= 0; offset -= 1) {
+      const currentDate = addDays(cycleStartDay, offset);
+      const isoDate = format(currentDate, 'yyyy-MM-dd');
+      const cycleDay = differenceInCalendarDays(currentDate, cycleStartDay) + 1;
+      const details = recordDetailsByIso.get(isoDate) || null;
+
+      days.push({
+        isoDate,
+        date: currentDate,
+        cycleDay,
+        details,
+      });
+    }
+
+    return days;
+  }, [cycle?.startDate, cycleRange, recordDetailsByIso]);
+
+  const cycleDayIsoSet = useMemo(
+    () => new Set(cycleDays.map((day) => day.isoDate)),
+    [cycleDays]
+  );
+
+  const previousCycleIntervals = useMemo(() => {
+    if (!isCurrentCycle || !Array.isArray(archivedCycles) || !cycle?.id) {
+      return [];
+    }
+
+    return archivedCycles
+      .filter(
+        (archived) =>
+          archived?.id &&
+          archived.id !== cycle.id &&
+          archived?.startDate &&
+          archived?.endDate
+      )
+      .map((archived) => {
+        const fromDate = startOfDay(parseISO(archived.startDate));
+        const toDate = startOfDay(parseISO(archived.endDate));
+
+        if (!isValid(fromDate) || !isValid(toDate)) return null;
+
+        return {
+          cycleId: archived.id,
+          from: fromDate,
+          to: toDate,
+          startIso: archived.startDate,
+          endIso: archived.endDate,
+        };
+      })
+      .filter(Boolean);
+  }, [archivedCycles, cycle?.id, isCurrentCycle]);
+
   const renderCalendarDay = useCallback(
     ({ date, activeModifiers }) => {
       const iso = format(date, 'yyyy-MM-dd');
       const details = recordDetailsByIso.get(iso);
+      const inCurrentShownCycle = cycleDayIsoSet.has(iso);
+      const previousInterval =
+        !inCurrentShownCycle &&
+        previousCycleIntervals.find(
+          (interval) => !isBefore(date, interval.from) && !isAfter(date, interval.to)
+        );
+      const showArchivedCycleRange = Boolean(previousInterval);
+      const showLeftBorder = showArchivedCycleRange && iso === previousInterval.startIso;
+      const showRightBorder = showArchivedCycleRange && iso === previousInterval.endIso;
 
       const hasTemperature = details?.hasTemperature ?? false;
       const hasMucus = details?.hasMucus ?? false;
@@ -574,7 +661,7 @@ export const RecordsExperience = ({
       const shouldShowSymbolBackground = Boolean(symbolValue && symbolValue !== 'none');
       const numberClass = cn(
         'relative z-10 text-[1.15rem] leading-none',
-        activeModifiers.outside || activeModifiers.outsideCycle
+        activeModifiers.outsideCycle
           ? 'text-slate-300'
           : isSelected
           ? shouldShowSymbolBackground
@@ -582,6 +669,8 @@ export const RecordsExperience = ({
             : 'text-fertiliapp-fuerte'
           : isToday
           ? 'text-subtitulo font-semibold'
+          : activeModifiers.outside
+          ? 'text-slate-600'
           : 'text-slate-700'
       );
 
@@ -600,6 +689,16 @@ export const RecordsExperience = ({
 
       return (
   <div className="relative flex h-full w-full flex-col items-center justify-center">
+    {showArchivedCycleRange && (
+      <span
+        aria-hidden="true"
+        className={cn(
+          'pointer-events-none absolute inset-[2px] border-slate-300/70 border-t border-b',
+          showLeftBorder ? 'border-l rounded-l-2xl' : '',
+          showRightBorder ? 'border-r rounded-r-2xl' : ''
+        )}
+      />
+    )}
     {/* Número centrado con posible fondo de símbolo */}
     <span className="relative inline-flex h-8 w-8 items-center justify-center leading-none -mt-[1px]">
       {isToday && !isSelected && !(activeModifiers.outside || activeModifiers.outsideCycle) && (
@@ -647,54 +746,7 @@ export const RecordsExperience = ({
 );
 
     },
-    [peakStatuses, recordDetailsByIso]
-  );
-
-  const cycleDays = useMemo(() => {
-    if (!cycle?.startDate) return [];
-
-    const startDate = parseISO(cycle.startDate);
-    if (!isValid(startDate)) {
-      return [];
-    }
-
-    const cycleStartDay = startOfDay(startDate);
-    const today = startOfDay(new Date());
-
-    let rangeEnd = cycleRange?.to ? startOfDay(cycleRange.to) : today;
-    if (isAfter(rangeEnd, today)) {
-      rangeEnd = today;
-    }
-    if (isBefore(rangeEnd, cycleStartDay)) {
-      rangeEnd = cycleStartDay;
-    }
-
-    const totalDays = differenceInCalendarDays(rangeEnd, cycleStartDay) + 1;
-    if (totalDays <= 0) {
-      return [];
-    }
-
-    const days = [];
-    for (let offset = totalDays - 1; offset >= 0; offset -= 1) {
-      const currentDate = addDays(cycleStartDay, offset);
-      const isoDate = format(currentDate, 'yyyy-MM-dd');
-      const cycleDay = differenceInCalendarDays(currentDate, cycleStartDay) + 1;
-      const details = recordDetailsByIso.get(isoDate) || null;
-
-      days.push({
-        isoDate,
-        date: currentDate,
-        cycleDay,
-        details,
-      });
-    }
-
-    return days;
-  }, [cycle?.startDate, cycleRange, recordDetailsByIso]);
-
-  const cycleDayIsoSet = useMemo(
-    () => new Set(cycleDays.map((day) => day.isoDate)),
-    [cycleDays]
+    [cycleDayIsoSet, peakStatuses, previousCycleIntervals, recordDetailsByIso]
   );
 
   const cycleDayMap = useMemo(() => {
@@ -1643,7 +1695,7 @@ const enterStart = -exitTarget;
                       classNames={calendarClassNames}
                       modifiersClassNames={{
                         hasRecord: 'font-semibold text-slate-900',
-                        outsideCycle: 'text-slate-300 opacity-50 hover:text-slate-300 hover:bg-transparent',
+                        outsideCycle: 'text-slate-300 hover:text-slate-300 hover:bg-transparent',
                         insideCycleNoRecord:
                           'text-slate-900 hover:text-slate-900 hover:bg-rose-50',
                       }}
