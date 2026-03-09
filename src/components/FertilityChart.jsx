@@ -286,7 +286,7 @@ const FertilityChart = ({
 const bubbleHeight = 24;
 const gapBetweenBubbleAndButton = 4;
 const blockHeight = bubbleHeight + gapBetweenBubbleAndButton + buttonSize;
-const rightGap = isFullScreen ? 8 : 4;
+const rightGap = isFullScreen ? 16 : 20;
 const topGap = isFullScreen ? 8 : 4;
 const bottomGap = isFullScreen ? 8 : 4;
 
@@ -1671,7 +1671,32 @@ const rotationWrapperStyle = rotationStageStyle
         </motion.svg>
             </div>
           </div>
-        {manualModeEnabled && Number.isFinite(manualBaselineY) && (
+        
+
+        {/* Tooltip mejorado */}
+        {!exportMode && activePoint && (
+          <motion.div
+            ref={tooltipRef}
+            initial={{ opacity: 0, scale: 0.9, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 10 }}
+            transition={{ duration: 0.12, ease: "easeOut" }}
+          >
+            <ChartTooltip
+              point={activePoint}
+              position={tooltipPosition}
+              chartWidth={chartWidth}
+              chartHeight={chartHeight}
+              onToggleIgnore={handleToggleIgnore}
+              onEdit={onEdit}
+              onClose={clearActivePoint}
+              onTogglePeak={onTogglePeak}
+              currentPeakIsoDate={currentPeakIsoDate}
+            />
+          </motion.div>
+        )}
+      </motion.div>
+      {manualModeEnabled && Number.isFinite(manualBaselineY) && (
   <div className="pointer-events-none absolute inset-0 z-30">
     <div
       className="absolute flex flex-col items-center gap-1"
@@ -1699,30 +1724,6 @@ const rotationWrapperStyle = rotationStageStyle
     </div>
   </div>
 )}
-
-        {/* Tooltip mejorado */}
-        {!exportMode && activePoint && (
-          <motion.div
-            ref={tooltipRef}
-            initial={{ opacity: 0, scale: 0.9, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: 10 }}
-            transition={{ duration: 0.12, ease: "easeOut" }}
-          >
-            <ChartTooltip
-              point={activePoint}
-              position={tooltipPosition}
-              chartWidth={chartWidth}
-              chartHeight={chartHeight}
-              onToggleIgnore={handleToggleIgnore}
-              onEdit={onEdit}
-              onClose={clearActivePoint}
-              onTogglePeak={onTogglePeak}
-              currentPeakIsoDate={currentPeakIsoDate}
-            />
-          </motion.div>
-        )}
-      </motion.div>
       </div>
     </motion.div>
   );
