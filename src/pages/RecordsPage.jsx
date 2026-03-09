@@ -589,8 +589,8 @@ export const RecordsExperience = ({
     [cycleDays]
   );
 
-  const previousCycleIntervals = useMemo(() => {
-    if (!isCurrentCycle || !Array.isArray(archivedCycles) || !cycle?.id) {
+  const archivedCycleIntervals = useMemo(() => {
+    if (!Array.isArray(archivedCycles) || !cycle?.id) {
       return [];
     }
 
@@ -617,21 +617,21 @@ export const RecordsExperience = ({
         };
       })
       .filter(Boolean);
-  }, [archivedCycles, cycle?.id, isCurrentCycle]);
+  }, [archivedCycles, cycle?.id]);
 
   const renderCalendarDay = useCallback(
     ({ date, activeModifiers }) => {
       const iso = format(date, 'yyyy-MM-dd');
       const details = recordDetailsByIso.get(iso);
       const inCurrentShownCycle = cycleDayIsoSet.has(iso);
-      const previousInterval =
+      const archivedInterval =
         !inCurrentShownCycle &&
-        previousCycleIntervals.find(
+        archivedCycleIntervals.find(
           (interval) => !isBefore(date, interval.from) && !isAfter(date, interval.to)
         );
-      const showArchivedCycleRange = Boolean(previousInterval);
-      const showLeftBorder = showArchivedCycleRange && iso === previousInterval.startIso;
-      const showRightBorder = showArchivedCycleRange && iso === previousInterval.endIso;
+      const showArchivedCycleRange = Boolean(archivedInterval);
+      const showLeftBorder = showArchivedCycleRange && iso === archivedInterval.startIso;
+      const showRightBorder = showArchivedCycleRange && iso === archivedInterval.endIso;
 
       const hasTemperature = details?.hasTemperature ?? false;
       const hasMucus = details?.hasMucus ?? false;
@@ -670,7 +670,9 @@ export const RecordsExperience = ({
           : isToday
           ? 'text-subtitulo font-semibold'
           : activeModifiers.outside
-          ? 'text-slate-600'
+          ? inCurrentShownCycle
+            ? 'text-slate-700'
+            : 'text-slate-600'
           : 'text-slate-700'
       );
 
@@ -746,7 +748,7 @@ export const RecordsExperience = ({
 );
 
     },
-    [cycleDayIsoSet, peakStatuses, previousCycleIntervals, recordDetailsByIso]
+    [archivedCycleIntervals, cycleDayIsoSet, peakStatuses, recordDetailsByIso]
   );
 
   const cycleDayMap = useMemo(() => {
