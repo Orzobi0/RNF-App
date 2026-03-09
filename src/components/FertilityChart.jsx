@@ -1089,9 +1089,9 @@ const safeAreaStyle = isFullScreen
       ? {
           boxSizing: 'border-box',
           paddingTop: 0,
-          paddingRight: 0,
+          paddingRight: 'calc(env(safe-area-inset-top) + 8px)',
           paddingBottom: 0,
-          paddingLeft: 'calc(env(safe-area-inset-top) + 8px)',
+          paddingLeft: 0,
         }
       : {
           paddingTop: 'env(safe-area-inset-top)',
