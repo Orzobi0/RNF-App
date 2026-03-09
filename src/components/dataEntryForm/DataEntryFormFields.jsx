@@ -1177,6 +1177,7 @@ useEffect(() => {
               <Calendar
                 mode="single"
                 selected={date}
+                defaultMonth={date ?? undefined}
                 onSelect={(selectedDate) => {
                   if (!selectedDate) {
                     setOpen(false);

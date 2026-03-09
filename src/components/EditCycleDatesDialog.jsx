@@ -154,6 +154,7 @@ const EditCycleDatesDialog = ({
   const selectedStartDate = toDate(startDate);
   const selectedEndDate = toDate(endDate);
   const today = startOfDay(new Date());
+  const shouldBlockFutureDates = !cycleId && includeEndDate;
 
   const resolveOpenRangeEnd = (start, end) => {
     if (end) return end;
@@ -195,6 +196,16 @@ const EditCycleDatesDialog = ({
     .filter(Boolean);
 
   const handleConfirm = async () => {
+    if (shouldBlockFutureDates && selectedStartDate && isAfter(selectedStartDate, today)) {
+      setEndDateError('La fecha de inicio no puede ser posterior a hoy.');
+      return;
+    }
+  
+    if (shouldBlockFutureDates && selectedEndDate && isAfter(selectedEndDate, today)) {
+      setEndDateError('La fecha de fin no puede ser posterior a hoy.');
+      return;
+    }
+
     if (includeEndDate && !endDate) {
       setEndDateError('La fecha de fin es obligatoria');
       return;
@@ -292,6 +303,7 @@ const EditCycleDatesDialog = ({
                     initialFocus
                     defaultMonth={selectedStartDate ?? activeCycleStart ?? new Date()}
                     enableSwipeNavigation
+                    disabled={shouldBlockFutureDates ? { after: today } : undefined}
                     modifiers={{
                       hasRecord: recordedDates,
                       inActiveCycleStart: (date) => isRangeStart(date, activeCycleRange),
@@ -346,6 +358,7 @@ const EditCycleDatesDialog = ({
                       initialFocus
                       defaultMonth={selectedEndDate ?? activeCycleEnd ?? activeCycleStart ?? new Date()}
                       enableSwipeNavigation
+                      disabled={shouldBlockFutureDates ? { after: today } : undefined}
                       modifiers={{
                         hasRecord: recordedDates,
                         inActiveCycleStart: (date) => isRangeStart(date, activeCycleRange),
