@@ -639,6 +639,7 @@ export const RecordsExperience = ({
       const peakStatus = details?.peakStatus ?? peakStatuses[iso] ?? null;
       const symbolInfo = details?.symbolInfo;
       const symbolValue = symbolInfo?.value;
+      const isWhiteSymbol = symbolValue === 'white';
       const isSelected = activeModifiers.selected;
       const isToday = activeModifiers.today;
       {/* Punto de temperatura */}
@@ -665,14 +666,16 @@ export const RecordsExperience = ({
           ? 'text-slate-300'
           : isSelected
           ? shouldShowSymbolBackground
-            ? 'text-white'
+            ? isWhiteSymbol
+              ? 'text-fertiliapp-fuerte'
+              : 'text-white'
             : 'text-fertiliapp-fuerte'
           : isToday
           ? 'text-subtitulo font-semibold'
           : activeModifiers.outside
           ? inCurrentShownCycle
             ? 'text-slate-600'
-            : 'text-slate-600'
+            : 'text-slate-700'
           : 'text-slate-700'
       );
 

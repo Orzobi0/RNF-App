@@ -207,6 +207,11 @@ const ChartPoints = ({
   manualBaselineTemp = null,
   isPointEligibleForManualMode = null,
 }) => {
+  const normalizeTemp2 = useCallback((value) => {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return null;
+    return Number(numeric.toFixed(2));
+  }, []);
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
     visible: { 
@@ -559,7 +564,7 @@ const ChartPoints = ({
           shouldConsiderForManualMode &&
           Number.isFinite(manualBaselineTemp) &&
           Number.isFinite(point?.displayTemperature) &&
-          Number(point.displayTemperature) === Number(manualBaselineTemp);
+          normalizeTemp2(point.displayTemperature) === normalizeTemp2(manualBaselineTemp);
         const hasRelations = Boolean(point.had_relations ?? point.hadRelations);
         const hasAnyRecord = hasTemp
           || point.mucus_sensation

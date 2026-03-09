@@ -87,11 +87,37 @@ const FertilityChart = ({
     uniqueIdRef.current = `fertility-chart-${cycleId ?? 'default'}-${randomSuffix}`;
   }
   const uniqueId = uniqueIdRef.current;
-  const MANUAL_DRAG_THRESHOLD_PX = 14;
+  const MANUAL_DRAG_THRESHOLD_PX = 10;
+  const normalizeTemp2 = useCallback((value) => {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return null;
+    return Number(numeric.toFixed(2));
+  }, []);
+  const areTempsEqual2 = useCallback((left, right) => {
+    const normalizedLeft = normalizeTemp2(left);
+    const normalizedRight = normalizeTemp2(right);
+    return normalizedLeft != null && normalizedRight != null && normalizedLeft === normalizedRight;
+  }, [normalizeTemp2]);
+  const findNearestSnapTemp = useCallback((target, snapTemps) => {
+    if (!Array.isArray(snapTemps) || !snapTemps.length) return null;
+    const normalizedTarget = normalizeTemp2(target);
+    if (normalizedTarget == null) return snapTemps[Math.floor(snapTemps.length / 2)];
+    let nearest = snapTemps[0];
+    let minDiff = Math.abs(normalizedTarget - nearest);
+    for (let index = 1; index < snapTemps.length; index += 1) {
+      const snap = snapTemps[index];
+      const diff = Math.abs(normalizedTarget - snap);
+      if (diff < minDiff) {
+        nearest = snap;
+        minDiff = diff;
+      }
+    }
+    return nearest;
+  }, [normalizeTemp2]);
 
   const isPointEligibleForManualMode = useCallback((point, index) => {
     if (!point || !Number.isFinite(point?.displayTemperature)) return false;
-    if (point?.ignored) return false;
+    if (point?.ignoredForCalc ?? point?.ignored) return false;
     if (isArchivedCycle) {
       if (!cycleEndDate) return true;
       return typeof point?.isoDate === 'string' ? point.isoDate <= cycleEndDate : true;
@@ -145,13 +171,13 @@ const FertilityChart = ({
   const manualSnapTemps = useMemo(() => {
     const set = new Set();
     manualEligiblePoints.forEach((point) => {
-      const value = Number(point?.displayTemperature);
-      if (Number.isFinite(value)) {
+      const value = normalizeTemp2(point?.displayTemperature);
+      if (value != null) {
         set.add(value.toFixed(2));
       }
     });
     return Array.from(set).map(Number).sort((a, b) => a - b);
-  }, [manualEligiblePoints]);
+  }, [manualEligiblePoints, normalizeTemp2]);
   const [manualBaselineTemp, setManualBaselineTemp] = useState(null);
   useEffect(() => {
     if (!manualSnapTemps.length) {
@@ -159,19 +185,20 @@ const FertilityChart = ({
       return;
     }
     setManualBaselineTemp((prev) => {
-      if (!Number.isFinite(prev)) return manualSnapTemps[Math.floor(manualSnapTemps.length / 2)];
-      let nearest = manualSnapTemps[0];
-      let min = Math.abs(prev - nearest);
-      for (let i = 1; i < manualSnapTemps.length; i += 1) {
-        const diff = Math.abs(prev - manualSnapTemps[i]);
-        if (diff < min) {
-          nearest = manualSnapTemps[i];
-          min = diff;
+      const normalizedPrev = normalizeTemp2(prev);
+      if (normalizedPrev != null) {
+        const exactMatch = manualSnapTemps.find((value) => areTempsEqual2(value, normalizedPrev));
+        if (exactMatch != null) {
+          return exactMatch;
         }
+      return findNearestSnapTemp(normalizedPrev, manualSnapTemps);
       }
-      return nearest;
+      if (Number.isFinite(baselineTemp)) {
+        return findNearestSnapTemp(baselineTemp, manualSnapTemps);
+      }
+      return manualSnapTemps[Math.floor(manualSnapTemps.length / 2)];
     });
-  }, [manualSnapTemps]);
+  }, [manualSnapTemps, baselineTemp, normalizeTemp2, areTempsEqual2, findNearestSnapTemp]);
   const manualBaselineY = Number.isFinite(manualBaselineTemp) ? getY(manualBaselineTemp) : null;
   const manualBaselinePlusTemp = Number.isFinite(manualBaselineTemp)
     ? Number((manualBaselineTemp + 0.2).toFixed(2))
@@ -200,22 +227,38 @@ const FertilityChart = ({
     }
   }, [manualModeEnabled, manualSnapTemps.length]);
   const handleManualBaselinePointerMove = useCallback((event) => {
-    const state = manualDragRef.current;
-    if (!state.dragging || state.pointerId !== event.pointerId) return;
-    event.preventDefault();
-    const deltaY = event.clientY - state.startY;
-    state.startY = event.clientY;
-    state.accumDelta += deltaY;
-    const steps = Math.trunc(state.accumDelta / MANUAL_DRAG_THRESHOLD_PX);
-    if (!steps) return;
-    state.accumDelta -= steps * MANUAL_DRAG_THRESHOLD_PX;
-    setManualBaselineTemp((prev) => {
-      if (!manualSnapTemps.length) return prev;
-      const currentIndex = Math.max(0, manualSnapTemps.findIndex((value) => value === prev));
-      const nextIndex = Math.min(manualSnapTemps.length - 1, Math.max(0, currentIndex + steps));
-      return manualSnapTemps[nextIndex];
-    });
-  }, [manualSnapTemps]);
+  const state = manualDragRef.current;
+  if (!state.dragging || state.pointerId !== event.pointerId) return;
+
+  event.preventDefault();
+  event.stopPropagation();
+
+  const deltaY = event.clientY - state.startY;
+  state.startY = event.clientY;
+  state.accumDelta += deltaY;
+
+  const steps = Math.trunc(state.accumDelta / MANUAL_DRAG_THRESHOLD_PX);
+  if (!steps) return;
+
+  state.accumDelta -= steps * MANUAL_DRAG_THRESHOLD_PX;
+
+  setManualBaselineTemp((prev) => {
+    if (!manualSnapTemps.length) return prev;
+
+    const normalizedPrev = normalizeTemp2(prev);
+    const exactIndex = manualSnapTemps.findIndex((value) => areTempsEqual2(value, normalizedPrev));
+    const nearestValue = findNearestSnapTemp(normalizedPrev, manualSnapTemps);
+    const nearestIndex = manualSnapTemps.findIndex((value) => areTempsEqual2(value, nearestValue));
+    const currentIndex = exactIndex >= 0 ? exactIndex : Math.max(0, nearestIndex);
+
+    const nextIndex = Math.min(
+      manualSnapTemps.length - 1,
+      Math.max(0, currentIndex - steps)
+    );
+
+    return manualSnapTemps[nextIndex];
+  });
+}, [manualSnapTemps, normalizeTemp2, areTempsEqual2, findNearestSnapTemp]);
   const handleManualBaselinePointerUp = useCallback((event) => {
     const state = manualDragRef.current;
     if (state.pointerId !== event.pointerId) return;
@@ -227,6 +270,57 @@ const FertilityChart = ({
   const handleManualBaselinePointerCancel = useCallback(() => {
     manualDragRef.current = { dragging: false, pointerId: null, startY: 0, accumDelta: 0 };
   }, []);
+  const overlayRootRef = useRef(null);
+  const [manualHandleStyle, setManualHandleStyle] = useState({ top: 0, left: 0 });
+  useEffect(() => {
+    if (!manualModeEnabled || !Number.isFinite(manualBaselineY)) return undefined;
+
+    const updateHandlePosition = () => {
+      const scroller = chartRef.current;
+      const overlayRoot = overlayRootRef.current;
+      if (!scroller || !overlayRoot) return;
+
+      const scrollerRect = scroller.getBoundingClientRect();
+      const rootRect = overlayRoot.getBoundingClientRect();
+      const buttonSize = 40;
+const bubbleHeight = 24;
+const gapBetweenBubbleAndButton = 4;
+const blockHeight = bubbleHeight + gapBetweenBubbleAndButton + buttonSize;
+const rightGap = isFullScreen ? 8 : 4;
+const topGap = isFullScreen ? 8 : 4;
+const bottomGap = isFullScreen ? 8 : 4;
+
+const localY = manualBaselineY - scroller.scrollTop;
+const clampedCenterY = Math.min(
+  scroller.clientHeight - bottomGap - buttonSize / 2,
+  Math.max(topGap + buttonSize / 2, localY)
+);
+
+const top =
+  scrollerRect.top -
+  rootRect.top +
+  clampedCenterY -
+  (bubbleHeight + gapBetweenBubbleAndButton + buttonSize / 2);
+
+const left = scrollerRect.right - rootRect.left - buttonSize - rightGap;
+
+setManualHandleStyle({ top, left });
+    };
+
+    updateHandlePosition();
+    const scroller = chartRef.current;
+    scroller?.addEventListener('scroll', updateHandlePosition, { passive: true });
+    window.addEventListener('resize', updateHandlePosition);
+    window.visualViewport?.addEventListener('resize', updateHandlePosition);
+    window.visualViewport?.addEventListener('scroll', updateHandlePosition);
+
+    return () => {
+      scroller?.removeEventListener('scroll', updateHandlePosition);
+      window.removeEventListener('resize', updateHandlePosition);
+      window.visualViewport?.removeEventListener('resize', updateHandlePosition);
+      window.visualViewport?.removeEventListener('scroll', updateHandlePosition);
+    };
+  }, [manualModeEnabled, manualBaselineY, chartRef, isFullScreen]);
   const getNearestDataIndexByX = useCallback((targetX) => {
     const totalPoints = allDataPoints.length;
     if (!Number.isFinite(targetX) || totalPoints === 0) return null;
@@ -413,11 +507,12 @@ if (isRotated) {
     for (let index = start; index <= end; index += 1) {
       const point = allDataPoints[index];
       if (!isPointEligibleForManualMode(point, index)) continue;
-      if (!Number.isFinite(point?.displayTemperature)) continue;
-      list.push({ index, value: Number(point.displayTemperature), x: getX(index), y: getY(point.displayTemperature) });
+      const normalizedTemp = normalizeTemp2(point?.displayTemperature);
+      if (normalizedTemp == null) continue;
+      list.push({ index, value: normalizedTemp, x: getX(index), y: getY(normalizedTemp) });
     }
     return list;
-  }, [manualModeEnabled, allDataPoints, visibleRange, isPointEligibleForManualMode, getX, getY]);
+  }, [manualModeEnabled, allDataPoints, visibleRange, isPointEligibleForManualMode, getX, getY, normalizeTemp2]);
 
   const validDataMap = useMemo(() => {
     const map = new Map();
@@ -1237,10 +1332,14 @@ const rotationWrapperStyle = rotationStageStyle
   !exportMode && chartWidth > 0 && chartHeight > 0 && scrollableContentHeight > 0;
   return (
       <motion.div
-   className="relative w-full h-full bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100"
-   initial={false}
- >
-      <div className="relative w-full h-full" style={rotationWrapperStyle}>
+  className="relative w-full h-full bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100"
+  initial={false}
+>
+  <div
+    ref={overlayRootRef}
+    className="relative w-full h-full"
+    style={rotationWrapperStyle}
+  >
       {showCanvasOverlay && (
    <div
      className={`absolute inset-0 overflow-hidden pointer-events-none ${isFullScreen ? '' : 'rounded-2xl'}`}
@@ -1513,19 +1612,6 @@ const rotationWrapperStyle = rotationStageStyle
                 strokeDasharray="7 5"
                 opacity={0.92}
               />
-              <g transform={`translate(${Math.max(padding.left + 8, baselineStartX + 8)}, ${manualBaselineY - 18})`}>
-                <rect x={0} y={-12} rx={8} ry={8} width={66} height={20} fill="rgba(124,58,237,0.92)" />
-                <text
-                  x={33}
-                  y={2}
-                  textAnchor="middle"
-                  fontSize={responsiveFontSize(0.95)}
-                  fill="#fff"
-                  fontWeight={700}
-                >
-                  {manualBaselineTemp.toFixed(2)}°
-                </text>
-              </g>
               {manualLabelPoints.map((labelPoint) => (
                 <text
                   key={`manual-label-${labelPoint.index}`}
@@ -1586,34 +1672,34 @@ const rotationWrapperStyle = rotationStageStyle
             </div>
           </div>
         {manualModeEnabled && Number.isFinite(manualBaselineY) && (
-          <div
-            className="pointer-events-none absolute inset-0 z-30"
-            style={{
-              transform: `translateY(${-((chartRef.current?.scrollTop) || 0)}px)`,
-            }}
-          >
-            <div
-              className="absolute right-1"
-              style={{ top: manualBaselineY - 20 }}
-            >
-              <button
-                type="button"
-                className="pointer-events-auto h-10 w-10 rounded-full border border-violet-500 bg-white text-violet-700 shadow-lg"
-                onPointerDown={handleManualBaselinePointerDown}
-                onPointerMove={handleManualBaselinePointerMove}
-                onPointerUp={handleManualBaselinePointerUp}
-                onPointerCancel={handleManualBaselinePointerCancel}
-                data-chart-interactive="true"
-                data-manual-baseline-interactive="true"
-                aria-label="Arrastrar baseline manual"
-                title="Arrastrar baseline manual"
-              >
-                ↕
-              </button>
-            </div>
-          </div>
-        )}
-        
+  <div className="pointer-events-none absolute inset-0 z-30">
+    <div
+      className="absolute flex flex-col items-center gap-1"
+      style={manualHandleStyle}
+    >
+      <div className="rounded-full bg-violet-600/95 px-2 py-1 text-[11px] font-bold text-white shadow-md">
+        {manualBaselineTemp.toFixed(2)}°
+      </div>
+
+      <button
+        type="button"
+        className="pointer-events-auto h-10 w-10 rounded-full border border-violet-500 bg-white text-violet-700 shadow-lg select-none"
+        style={{ touchAction: 'none' }}
+        onPointerDown={handleManualBaselinePointerDown}
+        onPointerMove={handleManualBaselinePointerMove}
+        onPointerUp={handleManualBaselinePointerUp}
+        onPointerCancel={handleManualBaselinePointerCancel}
+        data-chart-interactive="true"
+        data-manual-baseline-interactive="true"
+        aria-label="Arrastrar baseline manual"
+        title="Arrastrar baseline manual"
+      >
+        ↕
+      </button>
+    </div>
+  </div>
+)}
+
         {/* Tooltip mejorado */}
         {!exportMode && activePoint && (
           <motion.div
