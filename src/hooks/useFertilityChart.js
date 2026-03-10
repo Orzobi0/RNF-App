@@ -438,6 +438,7 @@ export const useFertilityChart = (
   externalCalculatorCandidates = null,
   showRelationsRow = false,
   exportMode = false,
+  rotatedSafeStartInsetPx = 0,
 ) => {
       const chartRef = useRef(null);
       const tooltipRef = useRef(null);
@@ -1030,6 +1031,22 @@ if (isFullScreen) {
       const chartContentHeight = baseBottomRowsExact + Math.max(minGraphArea, 0);
       const scrollableContentHeight = chartContentHeight + extraScrollableHeight;
 
+const effectiveRotatedInset = Math.max(0, Number(rotatedSafeStartInsetPx) || 0);
+
+const computedRight = isFullScreen
+  ? Math.max(
+      isLandscapeVisual ? 35 : 30,
+      Math.min(chartWidth, viewportWidth) * (isLandscapeVisual ? 0.02 : 0.05)
+    )
+  : 50;
+
+const computedLeft = isFullScreen
+  ? Math.max(
+      isLandscapeVisual ? 45 : 20,
+      Math.min(chartWidth, viewportWidth) * (isLandscapeVisual ? 0.02 : 0.05)
+    )
+  : 50;
+
 const basePadding = {
   top: isFullScreen
     ? Math.max(
@@ -1038,18 +1055,12 @@ const basePadding = {
       )
     : 12,
   right: isFullScreen
-    ? Math.max(
-        isLandscapeVisual ? 35 : 30,
-        Math.min(chartWidth, viewportWidth) * (isLandscapeVisual ? 0.02 : 0.05)
-      )
+    ? Math.max(12, computedRight - effectiveRotatedInset)
     : 50,
   bottom: Math.max(0, bottomRowsExact - 1),
   left: isFullScreen
-   ? Math.max(
-       isLandscapeVisual ? 45 : 20,
-       Math.min(chartWidth, viewportWidth) * (isLandscapeVisual ? 0.02 : 0.05)
-     )
-   : 50,
+    ? computedLeft + effectiveRotatedInset
+    : 50,
 };
       // ✅ Solo export: menos padding lateral = más ancho útil por día (sin deformar)
 const padding = isDenseExport

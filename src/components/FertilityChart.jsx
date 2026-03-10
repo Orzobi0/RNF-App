@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { MoveVertical } from 'lucide-react';
 import { motion } from 'framer-motion';
 import ChartPoints from '@/components/chartElements/ChartPoints';
 import ChartTooltip from '@/components/chartElements/ChartTooltip';
@@ -98,9 +99,28 @@ useEffect(() => {
   const applyRotation = !exportMode && isFullScreen && forceLandscape && isViewportPortrait;
   const visualOrientation = forceLandscape ? 'landscape' : orientation;
   const isIOSFakeLandscape = isIOS && applyRotation;
-  const rotatedSafeInset = isIOSFakeLandscape
-   ? 'calc(env(safe-area-inset-top) + 8px)'
-   : 0;
+  const [rotatedSafeStartInsetPx, setRotatedSafeStartInsetPx] = useState(0);
+
+useEffect(() => {
+  if (typeof window === 'undefined' || typeof document === 'undefined' || !isIOSFakeLandscape) {
+    setRotatedSafeStartInsetPx(0);
+    return;
+  }
+
+  const probe = document.createElement('div');
+  probe.style.position = 'fixed';
+  probe.style.top = '0';
+  probe.style.left = '0';
+  probe.style.visibility = 'hidden';
+  probe.style.pointerEvents = 'none';
+  probe.style.paddingTop = 'env(safe-area-inset-top)';
+  document.body.appendChild(probe);
+
+  const measured = parseFloat(window.getComputedStyle(probe).paddingTop) || 0;
+  document.body.removeChild(probe);
+
+  setRotatedSafeStartInsetPx(Math.round(measured + 8));
+}, [isIOSFakeLandscape, viewport.w, viewport.h]);
    
   const {
     chartRef,
@@ -144,7 +164,8 @@ useEffect(() => {
     fertilityCalculatorCycles,
     fertilityCalculatorCandidates,
     showRelationsRow,
-    exportMode
+    exportMode,
+    rotatedSafeStartInsetPx
   );
   
   const MANUAL_DRAG_THRESHOLD_PX = 10;
@@ -267,21 +288,23 @@ useEffect(() => {
     ? getY(manualBaselinePlusTemp)
     : null;
   const manualDragRef = useRef({
-    dragging: false,
-    pointerId: null,
-    startY: 0,
-    accumDelta: 0,
-  });
+  dragging: false,
+  pointerId: null,
+  startX: 0,
+  startY: 0,
+  accumDelta: 0,
+});
   const handleManualBaselinePointerDown = useCallback((event) => {
     if (!manualModeEnabled || manualSnapTemps.length < 2) return;
     event.preventDefault();
     event.stopPropagation();
     manualDragRef.current = {
-      dragging: true,
-      pointerId: event.pointerId,
-      startY: event.clientY,
-      accumDelta: 0,
-    };
+  dragging: true,
+  pointerId: event.pointerId,
+  startX: event.clientX,
+  startY: event.clientY,
+  accumDelta: 0,
+};
     if (typeof event.currentTarget?.setPointerCapture === 'function') {
       event.currentTarget.setPointerCapture(event.pointerId);
     }
@@ -293,9 +316,29 @@ useEffect(() => {
   event.preventDefault();
   event.stopPropagation();
 
-  const deltaY = event.clientY - state.startY;
-  state.startY = event.clientY;
-  state.accumDelta += deltaY;
+  const vv =
+    typeof window !== 'undefined' ? window.visualViewport : null;
+
+  const isRotatedManualViewport =
+    isFullScreen &&
+    forceLandscape &&
+    ((vv?.width ?? window.innerWidth ?? 0) < (vv?.height ?? window.innerHeight ?? 0));
+
+  let primaryDelta = 0;
+
+  if (isRotatedManualViewport) {
+    // En vista rotada, el gesto útil es lateral.
+    // Derecha = subir baseline, izquierda = bajar baseline.
+    primaryDelta = event.clientX - state.startX;
+    state.startX = event.clientX;
+    state.startY = event.clientY;
+  } else {
+    primaryDelta = event.clientY - state.startY;
+    state.startY = event.clientY;
+    state.startX = event.clientX;
+  }
+
+  state.accumDelta += primaryDelta;
 
   const steps = Math.trunc(state.accumDelta / MANUAL_DRAG_THRESHOLD_PX);
   if (!steps) return;
@@ -318,69 +361,144 @@ useEffect(() => {
 
     return manualSnapTemps[nextIndex];
   });
-}, [manualSnapTemps, normalizeTemp2, areTempsEqual2, findNearestSnapTemp]);
+}, [
+  manualSnapTemps,
+  normalizeTemp2,
+  areTempsEqual2,
+  findNearestSnapTemp,
+  isFullScreen,
+  forceLandscape,
+]);
   const handleManualBaselinePointerUp = useCallback((event) => {
     const state = manualDragRef.current;
     if (state.pointerId !== event.pointerId) return;
     if (typeof event.currentTarget?.releasePointerCapture === 'function') {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
-    manualDragRef.current = { dragging: false, pointerId: null, startY: 0, accumDelta: 0 };
+    manualDragRef.current = {
+  dragging: false,
+  pointerId: null,
+  startX: 0,
+  startY: 0,
+  accumDelta: 0,
+};
   }, []);
   const handleManualBaselinePointerCancel = useCallback(() => {
-    manualDragRef.current = { dragging: false, pointerId: null, startY: 0, accumDelta: 0 };
+    manualDragRef.current = {
+  dragging: false,
+  pointerId: null,
+  startX: 0,
+  startY: 0,
+  accumDelta: 0,
+};
   }, []);
-  const overlayRootRef = useRef(null);
-  const [manualHandleStyle, setManualHandleStyle] = useState({ top: 0, left: 0 });
+  const [manualHandleStyle, setManualHandleStyle] = useState({
+  top: 0,
+  left: 0,
+  transform: 'none',
+  transformOrigin: 'center center',
+});
   useEffect(() => {
-    if (!manualModeEnabled || !Number.isFinite(manualBaselineY)) return undefined;
+  if (!manualModeEnabled || !Number.isFinite(manualBaselineY)) return undefined;
 
-    const updateHandlePosition = () => {
-      const scroller = chartRef.current;
-      const overlayRoot = overlayRootRef.current;
-      if (!scroller || !overlayRoot) return;
-
-      const scrollerRect = scroller.getBoundingClientRect();
-      const rootRect = overlayRoot.getBoundingClientRect();
-      const buttonSize = 40;
-const bubbleHeight = 24;
-const gapBetweenBubbleAndButton = 4;
-const blockHeight = bubbleHeight + gapBetweenBubbleAndButton + buttonSize;
-const rightGap = isFullScreen ? 16 : 20;
-const topGap = isFullScreen ? 8 : 4;
-const bottomGap = isFullScreen ? 8 : 4;
-
-const localY = manualBaselineY - scroller.scrollTop;
-const clampedCenterY = Math.min(
-  scroller.clientHeight - bottomGap - buttonSize / 2,
-  Math.max(topGap + buttonSize / 2, localY)
-);
-
-const top =
-  scrollerRect.top -
-  rootRect.top +
-  clampedCenterY -
-  (bubbleHeight + gapBetweenBubbleAndButton + buttonSize / 2);
-
-const left = scrollerRect.right - rootRect.left - buttonSize - rightGap;
-
-setManualHandleStyle({ top, left });
-    };
-
-    updateHandlePosition();
+  const updateHandlePosition = () => {
     const scroller = chartRef.current;
-    scroller?.addEventListener('scroll', updateHandlePosition, { passive: true });
-    window.addEventListener('resize', updateHandlePosition);
-    window.visualViewport?.addEventListener('resize', updateHandlePosition);
-    window.visualViewport?.addEventListener('scroll', updateHandlePosition);
+    const host = stageHostRef.current;
+    if (!scroller || !host) return;
 
-    return () => {
-      scroller?.removeEventListener('scroll', updateHandlePosition);
-      window.removeEventListener('resize', updateHandlePosition);
-      window.visualViewport?.removeEventListener('resize', updateHandlePosition);
-      window.visualViewport?.removeEventListener('scroll', updateHandlePosition);
-    };
-  }, [manualModeEnabled, manualBaselineY, chartRef, isFullScreen]);
+    const scrollerRect = scroller.getBoundingClientRect();
+    const hostRect = host.getBoundingClientRect();
+    const vv =
+      typeof window !== 'undefined' ? window.visualViewport : null;
+
+    const isRotatedManualViewport =
+      isFullScreen &&
+      forceLandscape &&
+      ((vv?.width ?? window.innerWidth ?? 0) < (vv?.height ?? window.innerHeight ?? 0));
+
+    const buttonSize = 40;
+    const bubbleHeight = 24;
+    const gapBetweenBubbleAndButton = 4;
+    const blockHeight = bubbleHeight + gapBetweenBubbleAndButton + buttonSize;
+
+    const rightGap = isFullScreen ? 36 : 40;
+    const topGap = isFullScreen ? 10 : 4;
+    const bottomGap = isFullScreen ? 10 : 4;
+    const lateralGap = isFullScreen ? 12 : 8;
+
+    const localY = manualBaselineY - scroller.scrollTop;
+
+    // Modo normal: sigue la línea en vertical y queda pegado a la derecha visible
+    if (!isRotatedManualViewport) {
+      const clampedCenterY = Math.min(
+        scroller.clientHeight - bottomGap - buttonSize / 2,
+        Math.max(topGap + buttonSize / 2, localY)
+      );
+
+      const top =
+        scrollerRect.top -
+        hostRect.top +
+        clampedCenterY -
+        blockHeight / 2;
+
+      const left =
+        scrollerRect.right -
+        hostRect.left -
+        buttonSize -
+        rightGap;
+
+      setManualHandleStyle({
+        top,
+        left,
+        transform: 'none',
+        transformOrigin: 'center center',
+      });
+      return;
+    }
+
+    // Fullscreen rotado:
+    // la Y del gráfico pasa a ser desplazamiento horizontal en pantalla.
+    const clampedHorizontalCenter = Math.min(
+      scroller.clientHeight - lateralGap - buttonSize / 2,
+      Math.max(lateralGap + buttonSize / 2, localY)
+    );
+
+    const left =
+      scrollerRect.right -
+      hostRect.left -
+      clampedHorizontalCenter -
+      buttonSize / 2;
+
+    // Lo anclamos al borde inferior visible del chart, no dentro del wrapper rotado.
+    const top =
+      scrollerRect.bottom -
+      hostRect.top -
+      blockHeight -
+      bottomGap;
+
+    setManualHandleStyle({
+      top,
+      left,
+      transform: 'none',
+      transformOrigin: 'center center',
+    });
+  };
+
+  updateHandlePosition();
+
+  const scroller = chartRef.current;
+  scroller?.addEventListener('scroll', updateHandlePosition, { passive: true });
+  window.addEventListener('resize', updateHandlePosition);
+  window.visualViewport?.addEventListener('resize', updateHandlePosition);
+  window.visualViewport?.addEventListener('scroll', updateHandlePosition);
+
+  return () => {
+    scroller?.removeEventListener('scroll', updateHandlePosition);
+    window.removeEventListener('resize', updateHandlePosition);
+    window.visualViewport?.removeEventListener('resize', updateHandlePosition);
+    window.visualViewport?.removeEventListener('scroll', updateHandlePosition);
+  };
+}, [manualModeEnabled, manualBaselineY, chartRef, isFullScreen, forceLandscape]);
   const getNearestDataIndexByX = useCallback((targetX) => {
     const totalPoints = allDataPoints.length;
     if (!Number.isFinite(targetX) || totalPoints === 0) return null;
@@ -1324,7 +1442,7 @@ const safeAreaStyle = isFullScreen
           paddingTop: 0,
           paddingRight: 0,
           paddingBottom: 0,
-          paddingLeft: rotatedSafeInset,
+          paddingLeft: 0,
         }
       : {
           paddingTop: 'env(safe-area-inset-top)',
@@ -1356,10 +1474,9 @@ const rotationWrapperStyle = rotationStageStyle
   initial={false}
 >
   <div
-    ref={overlayRootRef}
-    className="relative w-full h-full"
-    style={rotationWrapperStyle}
-  >
+  className="relative w-full h-full"
+  style={rotationWrapperStyle}
+>
       {showCanvasOverlay && (
    <div
      className={`absolute inset-0 overflow-hidden pointer-events-none ${isFullScreen ? '' : 'rounded-2xl'}`}
@@ -1716,7 +1833,8 @@ const rotationWrapperStyle = rotationStageStyle
           </motion.div>
         )}
       </motion.div>
-      {manualModeEnabled && Number.isFinite(manualBaselineY) && (
+      </div>
+    {manualModeEnabled && Number.isFinite(manualBaselineY) && (
   <div className="pointer-events-none absolute inset-0 z-30">
     <div
       className="absolute flex flex-col items-center gap-1"
@@ -1727,24 +1845,23 @@ const rotationWrapperStyle = rotationStageStyle
       </div>
 
       <button
-        type="button"
-        className="pointer-events-auto h-10 w-10 rounded-full border border-violet-500 bg-white text-violet-700 shadow-lg select-none"
-        style={{ touchAction: 'none' }}
-        onPointerDown={handleManualBaselinePointerDown}
-        onPointerMove={handleManualBaselinePointerMove}
-        onPointerUp={handleManualBaselinePointerUp}
-        onPointerCancel={handleManualBaselinePointerCancel}
-        data-chart-interactive="true"
-        data-manual-baseline-interactive="true"
-        aria-label="Arrastrar baseline manual"
-        title="Arrastrar baseline manual"
-      >
-        ↕
-      </button>
+  type="button"
+  className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full border border-violet-500 bg-white text-violet-700 shadow-lg select-none"
+  style={{ touchAction: 'none' }}
+  onPointerDown={handleManualBaselinePointerDown}
+  onPointerMove={handleManualBaselinePointerMove}
+  onPointerUp={handleManualBaselinePointerUp}
+  onPointerCancel={handleManualBaselinePointerCancel}
+  data-chart-interactive="true"
+  data-manual-baseline-interactive="true"
+  aria-label="Arrastrar baseline manual"
+  title="Arrastrar baseline manual"
+>
+  <MoveVertical className="h-4 w-4" strokeWidth={2.2} />
+</button>
     </div>
   </div>
-)}
-      </div>
+)}  
     </motion.div>
   );
 };
