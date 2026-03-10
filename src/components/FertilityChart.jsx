@@ -38,6 +38,7 @@ const isIOS =
   (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
   const effectiveReduceMotion = reduceMotion || exportMode;
+    const stageHostRef = useRef(null);
   const uniqueIdRef = useRef(null);
   if (!uniqueIdRef.current) {
     const randomSuffix = Math.random().toString(36).slice(2, 10);
@@ -213,7 +214,6 @@ useEffect(() => {
 
   const [visibleRange, setVisibleRange] = useState(initialRange);
   const scrollRafRef = useRef(null);
-  const stageHostRef = useRef(null);
   const [isScrolling, setIsScrolling] = useState(false);
   const scrollStopTimerRef = useRef(null);
   const pointerGestureRef = useRef({
