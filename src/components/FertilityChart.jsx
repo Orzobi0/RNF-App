@@ -48,10 +48,19 @@ const isIOS =
   // Detectar orientación real del viewport para rotación visual
   const readViewport = () => {
   if (typeof window === 'undefined') return { w: 0, h: 0 };
-  const vv = window.visualViewport;
-  const w = vv?.width ?? window.innerWidth ?? 0;
-  const h = vv?.height ?? window.innerHeight ?? 0;
-  return { w: Math.round(w), h: Math.round(h) };
+
+  const host = stageHostRef.current;
+  if (host) {
+    const rect = host.getBoundingClientRect();
+    const w = rect.width || window.innerWidth || 0;
+    const h = rect.height || window.innerHeight || 0;
+    return { w: Math.round(w), h: Math.round(h) };
+  }
+
+  return {
+    w: Math.round(window.innerWidth || 0),
+    h: Math.round(window.innerHeight || 0),
+  };
 };
 
 const [viewport, setViewport] = useState(readViewport);
@@ -204,6 +213,7 @@ useEffect(() => {
 
   const [visibleRange, setVisibleRange] = useState(initialRange);
   const scrollRafRef = useRef(null);
+  const stageHostRef = useRef(null);
   const [isScrolling, setIsScrolling] = useState(false);
   const scrollStopTimerRef = useRef(null);
   const pointerGestureRef = useRef({
@@ -1312,7 +1322,7 @@ const safeAreaStyle = isFullScreen
       ? {
           boxSizing: 'border-box',
           paddingTop: 0,
-          paddingRight: rotatedSafeInset,
+          paddingRight: 0,
           paddingBottom: 0,
           paddingLeft: 0,
         }
@@ -1341,6 +1351,7 @@ const rotationWrapperStyle = rotationStageStyle
   !exportMode && chartWidth > 0 && chartHeight > 0 && scrollableContentHeight > 0;
   return (
       <motion.div
+  ref={stageHostRef}
   className="relative w-full h-full bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100"
   initial={false}
 >
