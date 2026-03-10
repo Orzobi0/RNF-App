@@ -1324,7 +1324,7 @@ const safeAreaStyle = isFullScreen
           paddingTop: 0,
           paddingRight: 0,
           paddingBottom: 0,
-          paddingLeft: 0,
+          paddingLeft: rotatedSafeInset,
         }
       : {
           paddingTop: 'env(safe-area-inset-top)',
