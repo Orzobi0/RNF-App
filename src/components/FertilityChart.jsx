@@ -168,7 +168,7 @@ useEffect(() => {
     rotatedSafeStartInsetPx
   );
   
-  const MANUAL_DRAG_THRESHOLD_PX = 10;
+  const MANUAL_DRAG_THRESHOLD_PX = 14;
   const normalizeTemp2 = useCallback((value) => {
     const numeric = Number(value);
     if (!Number.isFinite(numeric)) return null;
@@ -259,27 +259,60 @@ useEffect(() => {
     });
     return Array.from(set).map(Number).sort((a, b) => a - b);
   }, [manualEligiblePoints, normalizeTemp2]);
+
+    const getNearestManualSnapIndex = useCallback((temp) => {
+  if (!manualSnapTemps.length) return -1;
+
+  const normalizedTemp = normalizeTemp2(temp);
+  const exactIndex = manualSnapTemps.findIndex((value) =>
+    areTempsEqual2(value, normalizedTemp)
+  );
+
+  if (exactIndex >= 0) return exactIndex;
+
+  const nearestValue = findNearestSnapTemp(normalizedTemp, manualSnapTemps);
+  return manualSnapTemps.findIndex((value) => areTempsEqual2(value, nearestValue));
+}, [manualSnapTemps, normalizeTemp2, areTempsEqual2, findNearestSnapTemp]);
+
   const [manualBaselineTemp, setManualBaselineTemp] = useState(null);
   useEffect(() => {
-    if (!manualSnapTemps.length) {
-      setManualBaselineTemp(null);
-      return;
-    }
-    setManualBaselineTemp((prev) => {
-      const normalizedPrev = normalizeTemp2(prev);
-      if (normalizedPrev != null) {
-        const exactMatch = manualSnapTemps.find((value) => areTempsEqual2(value, normalizedPrev));
-        if (exactMatch != null) {
-          return exactMatch;
-        }
+  if (!manualSnapTemps.length) {
+    setManualBaselineTemp(null);
+    return;
+  }
+
+  setManualBaselineTemp((prev) => {
+    const normalizedPrev = normalizeTemp2(prev);
+
+    // Si ya había una baseline manual previa, la respetamos
+    if (normalizedPrev != null) {
+      const exactMatch = manualSnapTemps.find((value) => areTempsEqual2(value, normalizedPrev));
+      if (exactMatch != null) {
+        return exactMatch;
+      }
       return findNearestSnapTemp(normalizedPrev, manualSnapTemps);
-      }
-      if (Number.isFinite(baselineTemp)) {
-        return findNearestSnapTemp(baselineTemp, manualSnapTemps);
-      }
-      return manualSnapTemps[Math.floor(manualSnapTemps.length / 2)];
-    });
-  }, [manualSnapTemps, baselineTemp, normalizeTemp2, areTempsEqual2, findNearestSnapTemp]);
+    }
+
+    // Primera activación: arrancar cerca del centro visual de la gráfica
+    const chartMidTemp =
+      Number.isFinite(tempMin) && Number.isFinite(tempMax)
+        ? Number(((tempMin + tempMax) / 2).toFixed(2))
+        : null;
+
+    if (chartMidTemp != null) {
+      return findNearestSnapTemp(chartMidTemp, manualSnapTemps);
+    }
+
+    return manualSnapTemps[Math.floor(manualSnapTemps.length / 2)];
+  });
+}, [
+  manualSnapTemps,
+  tempMin,
+  tempMax,
+  normalizeTemp2,
+  areTempsEqual2,
+  findNearestSnapTemp,
+]);
   const manualBaselineY = Number.isFinite(manualBaselineTemp) ? getY(manualBaselineTemp) : null;
   const manualBaselinePlusTemp = Number.isFinite(manualBaselineTemp)
     ? Number((manualBaselineTemp + 0.2).toFixed(2))
@@ -293,22 +326,26 @@ useEffect(() => {
   startX: 0,
   startY: 0,
   accumDelta: 0,
+  activeSnapIndex: null,
 });
   const handleManualBaselinePointerDown = useCallback((event) => {
     if (!manualModeEnabled || manualSnapTemps.length < 2) return;
     event.preventDefault();
     event.stopPropagation();
-    manualDragRef.current = {
+    const startSnapIndex = Math.max(0, getNearestManualSnapIndex(manualBaselineTemp));
+
+manualDragRef.current = {
   dragging: true,
   pointerId: event.pointerId,
   startX: event.clientX,
   startY: event.clientY,
   accumDelta: 0,
+  activeSnapIndex: startSnapIndex,
 };
     if (typeof event.currentTarget?.setPointerCapture === 'function') {
       event.currentTarget.setPointerCapture(event.pointerId);
     }
-  }, [manualModeEnabled, manualSnapTemps.length]);
+  }, [manualModeEnabled, manualSnapTemps.length, getNearestManualSnapIndex, manualBaselineTemp]);
   const handleManualBaselinePointerMove = useCallback((event) => {
   const state = manualDragRef.current;
   if (!state.dragging || state.pointerId !== event.pointerId) return;
@@ -327,9 +364,9 @@ useEffect(() => {
   let primaryDelta = 0;
 
   if (isRotatedManualViewport) {
-    // En vista rotada, el gesto útil es lateral.
-    // Derecha = subir baseline, izquierda = bajar baseline.
-    primaryDelta = event.clientX - state.startX;
+    // En fullscreen rotado invertimos el eje:
+    // mover el dedo hacia "abajo del móvil" debe bajar la línea.
+    primaryDelta = state.startX - event.clientX;
     state.startX = event.clientX;
     state.startY = event.clientY;
   } else {
@@ -340,32 +377,33 @@ useEffect(() => {
 
   state.accumDelta += primaryDelta;
 
-  const steps = Math.trunc(state.accumDelta / MANUAL_DRAG_THRESHOLD_PX);
-  if (!steps) return;
+  if (Math.abs(state.accumDelta) < MANUAL_DRAG_THRESHOLD_PX) return;
+  if (!manualSnapTemps.length) return;
 
-  state.accumDelta -= steps * MANUAL_DRAG_THRESHOLD_PX;
+  const direction = state.accumDelta > 0 ? 1 : -1;
 
-  setManualBaselineTemp((prev) => {
-    if (!manualSnapTemps.length) return prev;
+  const currentIndex =
+    Number.isInteger(state.activeSnapIndex) && state.activeSnapIndex >= 0
+      ? state.activeSnapIndex
+      : Math.max(0, getNearestManualSnapIndex(manualBaselineTemp));
 
-    const normalizedPrev = normalizeTemp2(prev);
-    const exactIndex = manualSnapTemps.findIndex((value) => areTempsEqual2(value, normalizedPrev));
-    const nearestValue = findNearestSnapTemp(normalizedPrev, manualSnapTemps);
-    const nearestIndex = manualSnapTemps.findIndex((value) => areTempsEqual2(value, nearestValue));
-    const currentIndex = exactIndex >= 0 ? exactIndex : Math.max(0, nearestIndex);
+  const nextIndex = Math.min(
+    manualSnapTemps.length - 1,
+    Math.max(0, currentIndex - direction)
+  );
 
-    const nextIndex = Math.min(
-      manualSnapTemps.length - 1,
-      Math.max(0, currentIndex - steps)
-    );
+  if (nextIndex === currentIndex) {
+    state.accumDelta = 0;
+    return;
+  }
 
-    return manualSnapTemps[nextIndex];
-  });
+  state.activeSnapIndex = nextIndex;
+  state.accumDelta -= direction * MANUAL_DRAG_THRESHOLD_PX;
+  setManualBaselineTemp(manualSnapTemps[nextIndex]);
 }, [
   manualSnapTemps,
-  normalizeTemp2,
-  areTempsEqual2,
-  findNearestSnapTemp,
+  getNearestManualSnapIndex,
+  manualBaselineTemp,
   isFullScreen,
   forceLandscape,
 ]);
@@ -381,6 +419,7 @@ useEffect(() => {
   startX: 0,
   startY: 0,
   accumDelta: 0,
+  activeSnapIndex: null,
 };
   }, []);
   const handleManualBaselinePointerCancel = useCallback(() => {
@@ -390,6 +429,7 @@ useEffect(() => {
   startX: 0,
   startY: 0,
   accumDelta: 0,
+  activeSnapIndex: null,
 };
   }, []);
   const [manualHandleStyle, setManualHandleStyle] = useState({
@@ -398,8 +438,14 @@ useEffect(() => {
   transform: 'none',
   transformOrigin: 'center center',
 });
-  useEffect(() => {
+
+useEffect(() => {
   if (!manualModeEnabled || !Number.isFinite(manualBaselineY)) return undefined;
+
+  let raf1 = 0;
+  let raf2 = 0;
+  let raf3 = 0;
+  let delayedMeasure = 0;
 
   const updateHandlePosition = () => {
     const scroller = chartRef.current;
@@ -408,6 +454,11 @@ useEffect(() => {
 
     const scrollerRect = scroller.getBoundingClientRect();
     const hostRect = host.getBoundingClientRect();
+
+    if (!scrollerRect.width || !scrollerRect.height || !hostRect.width || !hostRect.height) {
+      return;
+    }
+
     const vv =
       typeof window !== 'undefined' ? window.visualViewport : null;
 
@@ -428,7 +479,6 @@ useEffect(() => {
 
     const localY = manualBaselineY - scroller.scrollTop;
 
-    // Modo normal: sigue la línea en vertical y queda pegado a la derecha visible
     if (!isRotatedManualViewport) {
       const clampedCenterY = Math.min(
         scroller.clientHeight - bottomGap - buttonSize / 2,
@@ -456,8 +506,6 @@ useEffect(() => {
       return;
     }
 
-    // Fullscreen rotado:
-    // la Y del gráfico pasa a ser desplazamiento horizontal en pantalla.
     const clampedHorizontalCenter = Math.min(
       scroller.clientHeight - lateralGap - buttonSize / 2,
       Math.max(lateralGap + buttonSize / 2, localY)
@@ -469,7 +517,6 @@ useEffect(() => {
       clampedHorizontalCenter -
       buttonSize / 2;
 
-    // Lo anclamos al borde inferior visible del chart, no dentro del wrapper rotado.
     const top =
       scrollerRect.bottom -
       hostRect.top -
@@ -479,12 +526,19 @@ useEffect(() => {
     setManualHandleStyle({
       top,
       left,
-      transform: 'none',
+      transform: 'rotate(90deg)',
       transformOrigin: 'center center',
     });
   };
 
   updateHandlePosition();
+
+  // Re-mediciones extra para cuando entras en fullscreen con la baseline ya activa
+  raf1 = window.requestAnimationFrame(updateHandlePosition);
+  raf2 = window.requestAnimationFrame(() => {
+    raf3 = window.requestAnimationFrame(updateHandlePosition);
+  });
+  delayedMeasure = window.setTimeout(updateHandlePosition, 180);
 
   const scroller = chartRef.current;
   scroller?.addEventListener('scroll', updateHandlePosition, { passive: true });
@@ -493,12 +547,31 @@ useEffect(() => {
   window.visualViewport?.addEventListener('scroll', updateHandlePosition);
 
   return () => {
+    if (raf1) window.cancelAnimationFrame(raf1);
+    if (raf2) window.cancelAnimationFrame(raf2);
+    if (raf3) window.cancelAnimationFrame(raf3);
+    if (delayedMeasure) window.clearTimeout(delayedMeasure);
+
     scroller?.removeEventListener('scroll', updateHandlePosition);
     window.removeEventListener('resize', updateHandlePosition);
     window.visualViewport?.removeEventListener('resize', updateHandlePosition);
     window.visualViewport?.removeEventListener('scroll', updateHandlePosition);
   };
-}, [manualModeEnabled, manualBaselineY, chartRef, isFullScreen, forceLandscape]);
+}, [
+  manualModeEnabled,
+  manualBaselineY,
+  chartRef,
+  isFullScreen,
+  forceLandscape,
+  applyRotation,
+  viewport.w,
+  viewport.h,
+  dimensions.width,
+  dimensions.viewportWidth,
+  dimensions.viewportHeight,
+  dimensions.contentHeight,
+]);
+
   const getNearestDataIndexByX = useCallback((targetX) => {
     const totalPoints = allDataPoints.length;
     if (!Number.isFinite(targetX) || totalPoints === 0) return null;
