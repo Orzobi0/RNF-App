@@ -572,13 +572,10 @@ useEffect(() => {
   };
 
   const handleUseCorrectedChange = (index, checked) => {
-    const nextValue = checked === true;
-    updateMeasurement(index, 'use_corrected', nextValue);
+  const nextValue = checked === true;
+  updateMeasurement(index, 'use_corrected', nextValue);
+};
 
-    if (!nextValue && correctionIndex === index) {
-      setCorrectionIndex(null);
-    }
-  };
   const relationsButtonClasses = cn(
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-transparent disabled:cursor-not-allowed disabled:opacity-60',
     hadRelations
@@ -774,7 +771,7 @@ useEffect(() => {
     switch (key) {
       case 'temperature':
         return (
-          <div className="space-y-3 rounded-3xl border border-temp bg-temp-suave p-3 shadow-sm">
+          <div className="space-y-2 rounded-3xl border border-temp bg-temp-suave p-2.5 shadow-sm">
             {measurements.map((m, idx) => {
               const measurementSelectId = `measurement_select_${idx}`;
               const isCorrectionOpen = correctionIndex === idx;
@@ -783,15 +780,15 @@ useEffect(() => {
                 <div
    key={idx}
    className={cn(
-     'space-y-3 rounded-3xl border bg-white/70 p-3 transition-colors',
+     'space-y-2 rounded-3xl border bg-white/70 p-2.5 transition-colors',
      m.selected && ignored
        ? 'border-[#3A2430]/30 bg-[#e6d4dd]/40'
        : 'border-amber-200/60'
    )}
  >
                   <div className="flex items-start justify-between gap-2">
-                    <Label className="flex items-center text-amber-800 text-sm font-semibold">
-                      <Thermometer className="mr-2 h-5 w-5 text-orange-500" />
+                    <Label className="flex items-center text-amber-800 text-[13px] font-semibold">
+                    <Thermometer className="mr-1 h-4 w-4 text-orange-500" />
                       Medición {idx + 1}
                     </Label>
                     <label
@@ -826,7 +823,10 @@ useEffect(() => {
                       onChange={(e) => updateMeasurement(idx, 'temperature', e.target.value)}
                       onInput={(e) => updateMeasurement(idx, 'temperature', e.target.value)}
                       placeholder="36.50"
-                      className={cn("bg-white/70 border-amber-200 text-amber-800 font-semibold placeholder-gray-400 focus:border-orange-500 focus:ring-orange-500 ", RADIUS.field)}
+                      className={cn(
+  "h-9 bg-white/70 border-amber-200 text-amber-800 font-semibold placeholder-gray-400 focus:border-orange-500 focus:ring-orange-500",
+  RADIUS.field
+)}
                       disabled={isProcessing}
                     />
                     <Input
@@ -834,194 +834,219 @@ useEffect(() => {
                       type="time"
                       value={m.time}
                       onChange={(e) => updateMeasurement(idx, 'time', e.target.value)}
-                      className={cn("bg-white/70 border-amber-200 text-gray-600 font-semibold placeholder-gray-400 focus:border-orange-500 focus:ring-orange-500", RADIUS.field)}
+                      className={cn(
+  "h-9 bg-white/70 border-amber-200 text-gray-600 font-semibold placeholder-gray-400 focus:border-orange-500 focus:ring-orange-500",
+  RADIUS.field
+)}
                       disabled={isProcessing}
                     />
                   </div>
 
-                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Button
-                        type="button"
-                        size="xs"
-                        variant="outline"
-                        disabled={isProcessing}
-                        aria-pressed={correctionIndex === idx}
-                        className={cn(
-                          'rounded-full border px-3 py-1 text-xs font-semibold transition-colors',
-                          isCorrectionOpen
-      ? 'border-amber-500 bg-amber-600 text-white shadow-inner hover:bg-amber-600'
-      : isCorrected
-      ? 'border-amber-400 bg-amber-200/80 text-amber-900 hover:bg-amber-200'
-      : 'border-amber-200 bg-white/70 text-amber-700 hover:bg-amber-50'
-                        )}
-                        onClick={() => {
-                          if (correctionIndex === idx) {
-                            setCorrectionIndex(null);
-                          } else {
-                            setCorrectionIndex(idx);
-                            if (m.temperature_corrected === '' || m.temperature_corrected === undefined) {
-                              updateMeasurement(idx, 'temperature_corrected', m.temperature);
-                            }
-                            if (!m.time_corrected) {
-                              updateMeasurement(idx, 'time_corrected', m.time);
-                            }
-                          }
-                        }}
-                      >
-                        {isCorrected ? (
-    <Check className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
-  ) : (
-    <Edit3 className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
-  )}
-  {isCorrected ? 'Corregida' : 'Corregir'}
-                      </Button>
-                      {isEditing && Boolean(m.temperature) && (
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="outline"
-                          disabled={isProcessing || !m.selected}
-                          onClick={() => handleIgnoredChange(!ignored)}
-                          className={cn(
-                            'h-9 w-9 rounded-full border transition-colors',
-                            !m.selected && 'opacity-40 cursor-not-allowed',
-      m.selected && ignored
-        ? 'border-[#3A2430] bg-[#3A2430] text-white shadow-sm ring-2 ring-[#e6d4dd]'
-        : 'border-amber-200 bg-white/80 text-amber-700 hover:bg-amber-50'
-                          )}
-                          aria-pressed={m.selected ? ignored : false}
-    title={m.selected ? (ignored ? 'Restaurar' : 'Despreciar') : 'Selecciona esta medición para la gráfica'}
-    aria-label={m.selected ? (ignored ? 'Restaurar medición despreciada' : 'Despreciar medición de la gráfica') : 'Selecciona esta medición para la gráfica'}
-                        >
-                          {m.selected && ignored ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </Button>
-                      )}
-                      {!m.confirmed && (
-                        <>
-                          <Button
-                            type="button"
-                            size="icon"
-                            onClick={() => confirmMeasurement(idx)}
-                            disabled={isProcessing}
-                            className="h-7 w-7 bg-green-600"
-                            aria-label="Confirmar medición"
-                          >
-                            <Check className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            type="button"
-                            size="icon"
-                            onClick={() => removeMeasurement(idx)}
-                            disabled={isProcessing}
-                            className="h-9 w-9 rounded-full bg-rose-600 text-white hover:bg-rose-700 shadow-sm"
-                            aria-label="Eliminar medición"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </>
-                      )}
-                      {m.confirmed && isEditing && (
-                        (() => {
-                          const isEmptyMeasurement =
-                            String(m.temperature ?? '').trim() === '' &&
-                            String(m.temperature_corrected ?? '').trim() === '';
-                          const canRemove = measurements.length > 1 || isEmptyMeasurement;
-                          if (!canRemove) return null;
-                          return (
-                            <Button
-                              type="button"
-                              size="icon"
-                              onClick={() => removeMeasurement(idx)}
-                              disabled={isProcessing}
-                              className="h-9 w-9 rounded-full bg-rose-600 text-white hover:bg-rose-700 shadow-sm"
-                              aria-label="Eliminar medición"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          );
-                        })()
-                      )}
-                    </div>
-                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+  <div className="flex flex-wrap items-center gap-2">
+    <Button
+      type="button"
+      size="xs"
+      variant="outline"
+      disabled={isProcessing}
+      aria-pressed={correctionIndex === idx}
+      className={cn(
+        'rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition-colors',
+        isCorrectionOpen
+          ? 'border-amber-500 bg-amber-600 text-white shadow-inner hover:bg-amber-600'
+          : isCorrected
+          ? 'border-amber-400 bg-amber-200/80 text-amber-900 hover:bg-amber-200'
+          : 'border-amber-200 bg-white/70 text-amber-700 hover:bg-amber-50'
+      )}
+      onClick={() => {
+        if (correctionIndex === idx) {
+          setCorrectionIndex(null);
+        } else {
+          setCorrectionIndex(idx);
+          if (m.temperature_corrected === '' || m.temperature_corrected === undefined) {
+            updateMeasurement(idx, 'temperature_corrected', m.temperature);
+          }
+          if (!m.time_corrected) {
+            updateMeasurement(idx, 'time_corrected', m.time);
+          }
+        }
+      }}
+    >
+      {isCorrected ? (
+        <Check className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+      ) : (
+        <Edit3 className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+      )}
+      {isCorrected ? 'Corregida' : 'Corregir'}
+    </Button>
 
-                  {correctionIndex === idx && (
-                    <div className="mt-2 space-y-2 rounded-3xl border border-temp bg-white/80 p-3">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Input
-                          type="number"
-                          step="0.01"
-                          min="34.0"
-                          max="40.0"
-                          value={m.temperature_corrected}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            updateMeasurement(idx, 'temperature_corrected', value);
-                            if (!m.use_corrected) {
-                              updateMeasurement(idx, 'use_corrected', true);
-                            }
-                          }}
-                          className={cn("bg-white/70 border-amber-200 placeholder-gray-400 focus:border-orange-500 focus:ring-orange-500 text-orange-700 font-semibold", RADIUS.field)}
-                          disabled={isProcessing}
-                        />
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="outline"
-                          disabled={isProcessing}
-                          onClick={() => handleTempAdjust(idx, 0.1)}
-                          aria-label="Aumentar temperatura corregida"
-                        >
-                          <ChevronUp className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="outline"
-                          disabled={isProcessing}
-                          onClick={() => handleTempAdjust(idx, -0.1)}
-                          aria-label="Disminuir temperatura corregida"
-                        >
-                          <ChevronDown className="h-4 w-4" />
-                        </Button>
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-orange-500" />
-                          <Input
-                            type="time"
-                            value={m.time_corrected}
-                            onChange={(e) => updateMeasurement(idx, 'time_corrected', e.target.value)}
-                            className="bg-white/70 border-amber-200 text-gray-800 focus:border-orange-500 focus:ring-orange-500"
-                            disabled={isProcessing}
-                          />
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Checkbox
-                          id={`use_corrected_${idx}`}
-                          checked={m.use_corrected}
-                          onCheckedChange={(checked) => handleUseCorrectedChange(idx, checked)}
-                        />
-                        <Label htmlFor={`use_corrected_${idx}`} className="text-xs">
-                          Usar valor corregido
-                        </Label>
-                      </div>
-                    </div>
-                  )}
+    {isEditing && Boolean(m.temperature) && (
+      <Button
+        type="button"
+        size="icon"
+        variant="outline"
+        disabled={isProcessing || !m.selected}
+        onClick={() => handleIgnoredChange(!ignored)}
+        className={cn(
+          'h-9 w-9 rounded-full border transition-colors',
+          !m.selected && 'opacity-40 cursor-not-allowed',
+          m.selected && ignored
+            ? 'border-[#3A2430] bg-[#3A2430] text-white shadow-sm ring-2 ring-[#e6d4dd]'
+            : 'border-amber-200 bg-white/80 text-amber-700 hover:bg-amber-50'
+        )}
+        aria-pressed={m.selected ? ignored : false}
+        title={m.selected ? (ignored ? 'Restaurar' : 'Despreciar') : 'Selecciona esta medición para la gráfica'}
+        aria-label={m.selected ? (ignored ? 'Restaurar medición despreciada' : 'Despreciar medición de la gráfica') : 'Selecciona esta medición para la gráfica'}
+      >
+        {m.selected && ignored ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+      </Button>
+    )}
+
+    {!m.confirmed && (
+      <>
+        <Button
+          type="button"
+          size="icon"
+          onClick={() => confirmMeasurement(idx)}
+          disabled={isProcessing}
+          className="h-7 w-7 bg-white text-green-600"
+          aria-label="Confirmar medición"
+        >
+          <Check className="h-4 w-4" />
+        </Button>
+        <Button
+          type="button"
+          size="icon"
+          onClick={() => removeMeasurement(idx)}
+          disabled={isProcessing}
+          className="h-7 w-7 rounded-full bg-white text-rose-600 shadow-sm"
+          aria-label="Eliminar medición"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </>
+    )}
+
+    {m.confirmed && isEditing && (
+      (() => {
+        const isEmptyMeasurement =
+          String(m.temperature ?? '').trim() === '' &&
+          String(m.temperature_corrected ?? '').trim() === '';
+        const canRemove = measurements.length > 1 || isEmptyMeasurement;
+        if (!canRemove) return null;
+        return (
+          <Button
+            type="button"
+            size="icon"
+            onClick={() => removeMeasurement(idx)}
+            disabled={isProcessing}
+            className="h-7 w-7 rounded-full bg-white text-rose-600 hover:bg-rose-700 shadow-sm"
+            aria-label="Eliminar medición"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        );
+      })()
+    )}
+  </div>
+
+  {idx === measurements.length - 1 && (
+    <Button
+      type="button"
+      onClick={addMeasurement}
+      disabled={isProcessing}
+      size="xs"
+      variant="outline"
+      className="ml-auto flex items-center gap-1 rounded-full border-amber-300/50 bg-amber-50/80 px-2.5 py-1 text-[11px] text-amber-600 shadow-sm transition-colors hover:bg-amber-100"
+      aria-label="Añadir una nueva medición"
+    >
+      <Plus className="h-3 w-3" />
+      Medición
+    </Button>
+  )}
+</div>
+
+                  
+                {correctionIndex === idx && (
+  <div className="mt-1.5 space-y-2 rounded-3xl border border-temp bg-white/80 p-2.5">
+    <div className="grid grid-cols-2 gap-2">
+      <Input
+        type="number"
+        step="0.01"
+        min="34.0"
+        max="40.0"
+        value={m.temperature_corrected}
+        onChange={(e) => {
+          const value = e.target.value;
+          updateMeasurement(idx, 'temperature_corrected', value);
+          if (!m.use_corrected) {
+            updateMeasurement(idx, 'use_corrected', true);
+          }
+        }}
+        className={cn(
+          "h-9 bg-white/70 border-amber-200 placeholder-gray-400 focus:border-orange-500 focus:ring-orange-500 text-orange-700 font-semibold",
+          RADIUS.field
+        )}
+        disabled={isProcessing}
+      />
+
+      <Input
+        type="time"
+        value={m.time_corrected}
+        onChange={(e) => updateMeasurement(idx, 'time_corrected', e.target.value)}
+        className={cn(
+          "h-9 bg-white/70 border-amber-200 text-gray-800 focus:border-orange-500 focus:ring-orange-500",
+          RADIUS.field
+        )}
+        disabled={isProcessing}
+      />
+    </div>
+
+    <div className="flex items-center gap-2">
+      <Button
+        type="button"
+        size="icon"
+        variant="outline"
+        disabled={isProcessing}
+        onClick={() => handleTempAdjust(idx, 0.1)}
+        className="h-8 w-8 rounded-full bg-white text-orange-800 border-amber-200"
+        aria-label="Aumentar temperatura corregida"
+      >
+        <ChevronUp className="h-4 w-4" />
+      </Button>
+
+      <Button
+        type="button"
+        size="icon"
+        variant="outline"
+        disabled={isProcessing}
+        onClick={() => handleTempAdjust(idx, -0.1)}
+        className="h-8 w-8 rounded-full bg-white text-orange-600 border-amber-200"
+        aria-label="Disminuir temperatura corregida"
+      >
+        <ChevronDown className="h-4 w-4" />
+      </Button>
+
+      <div className="ml-auto flex items-center gap-2">
+        <Checkbox
+          id={`use_corrected_${idx}`}
+          checked={m.use_corrected}
+          onCheckedChange={(checked) => handleUseCorrectedChange(idx, checked)}
+        />
+        <Label
+          htmlFor={`use_corrected_${idx}`}
+          className="text-xs font-medium text-slate-700"
+        >
+          Usar valor corregido
+        </Label>
+      </div>
+    </div>
+  </div>
+)}
                 </div>
               );
             })}
-            <Button
-              type="button"
-              onClick={addMeasurement}
-              disabled={isProcessing}
-              size="xs"
-              variant="outline"
-              className="ml-auto flex items-center gap-1 rounded-full border-amber-300/50 bg-amber-50/80 px-3 py-2 text-xs text-amber-600 shadow-sm transition-colors hover:bg-amber-100"
-              aria-label="Añadir una nueva medición"
-            >
-              <Plus className="h-3 w-3" />
-              Medición
-            </Button>
+
           </div>
         );
       case 'moco': {
