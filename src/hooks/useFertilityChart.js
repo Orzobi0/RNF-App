@@ -1030,28 +1030,27 @@ if (isFullScreen) {
       const chartContentHeight = baseBottomRowsExact + Math.max(minGraphArea, 0);
       const scrollableContentHeight = chartContentHeight + extraScrollableHeight;
 
-        const basePadding = {
-        top: isFullScreen
-          ? Math.max(
-              isLandscapeVisual ? 6 : 12,
-              viewportHeight * (isLandscapeVisual ? 0.015 : 0.03)
-            )
-          : 12, 
-        right: isFullScreen
-          ? Math.max(
-              isLandscapeVisual ? 35 : 30,
-              Math.min(chartWidth, viewportWidth) * (isLandscapeVisual ? 0.02 : 0.05)
-            )
-          : 50, 
-        // 👇 Ajuste exacto. Si quieres que quede "pegadísimo", puedes restar 1px.
-        bottom: Math.max(0, bottomRowsExact - 1),
-        left: isFullScreen
-          ? Math.max(
-              isLandscapeVisual ? 45 : 20,
-              Math.min(chartWidth, viewportWidth) * (isLandscapeVisual ? 0.02 : 0.05)
-            )
-          : 50
-      };
+const basePadding = {
+  top: isFullScreen
+    ? Math.max(
+        isLandscapeVisual ? 6 : 12,
+        viewportHeight * (isLandscapeVisual ? 0.015 : 0.03)
+      )
+    : 12,
+  right: isFullScreen
+    ? Math.max(
+        isLandscapeVisual ? 35 : 30,
+        Math.min(chartWidth, viewportWidth) * (isLandscapeVisual ? 0.02 : 0.05)
+      )
+    : 50,
+  bottom: Math.max(0, bottomRowsExact - 1),
+  left: isFullScreen
+   ? Math.max(
+       isLandscapeVisual ? 45 : 20,
+       Math.min(chartWidth, viewportWidth) * (isLandscapeVisual ? 0.02 : 0.05)
+     )
+   : 50,
+};
       // ✅ Solo export: menos padding lateral = más ancho útil por día (sin deformar)
 const padding = isDenseExport
   ? {

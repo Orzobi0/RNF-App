@@ -32,6 +32,66 @@ const FertilityChart = ({
   cycleEndDate = null,
   exportMode = false,
 }) => {
+
+const isIOS =
+  typeof navigator !== 'undefined' &&
+  (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
+  const effectiveReduceMotion = reduceMotion || exportMode;
+  const uniqueIdRef = useRef(null);
+  if (!uniqueIdRef.current) {
+    const randomSuffix = Math.random().toString(36).slice(2, 10);
+    uniqueIdRef.current = `fertility-chart-${cycleId ?? 'default'}-${randomSuffix}`;
+  }
+  const uniqueId = uniqueIdRef.current;
+
+  // Detectar orientación real del viewport para rotación visual
+  const readViewport = () => {
+  if (typeof window === 'undefined') return { w: 0, h: 0 };
+  const vv = window.visualViewport;
+  const w = vv?.width ?? window.innerWidth ?? 0;
+  const h = vv?.height ?? window.innerHeight ?? 0;
+  return { w: Math.round(w), h: Math.round(h) };
+};
+
+const [viewport, setViewport] = useState(readViewport);
+const isViewportPortrait = viewport.w < viewport.h;
+
+useEffect(() => {
+  if (typeof window === 'undefined') return undefined;
+
+  let raf = 0;
+  const vv = window.visualViewport;
+
+  const onResize = () => {
+    if (raf) cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(() => setViewport(readViewport()));
+  };
+
+  window.addEventListener('resize', onResize);
+  window.addEventListener('orientationchange', onResize);
+
+  vv?.addEventListener('resize', onResize);
+  vv?.addEventListener('scroll', onResize); // en iOS cambia al mostrar/ocultar barras/teclado
+
+  onResize();
+
+  return () => {
+    if (raf) cancelAnimationFrame(raf);
+    window.removeEventListener('resize', onResize);
+    window.removeEventListener('orientationchange', onResize);
+    vv?.removeEventListener('resize', onResize);
+    vv?.removeEventListener('scroll', onResize);
+  };
+}, []);
+
+  const applyRotation = !exportMode && isFullScreen && forceLandscape && isViewportPortrait;
+  const visualOrientation = forceLandscape ? 'landscape' : orientation;
+  const isIOSFakeLandscape = isIOS && applyRotation;
+  const rotatedSafeInset = isIOSFakeLandscape
+   ? 'calc(env(safe-area-inset-top) + 8px)'
+   : 0;
+   
   const {
     chartRef,
     tooltipRef,
@@ -76,17 +136,7 @@ const FertilityChart = ({
     showRelationsRow,
     exportMode
   );
-  const isIOS =
-  typeof navigator !== 'undefined' &&
-  (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
-    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
-  const effectiveReduceMotion = reduceMotion || exportMode;
-  const uniqueIdRef = useRef(null);
-  if (!uniqueIdRef.current) {
-    const randomSuffix = Math.random().toString(36).slice(2, 10);
-    uniqueIdRef.current = `fertility-chart-${cycleId ?? 'default'}-${randomSuffix}`;
-  }
-  const uniqueId = uniqueIdRef.current;
+  
   const MANUAL_DRAG_THRESHOLD_PX = 10;
   const normalizeTemp2 = useCallback((value) => {
     const numeric = Number(value);
@@ -466,7 +516,6 @@ if (isRotated) {
       </div>
     );
   }
-
   const chartWidth = dimensions.width;
   const chartHeight = dimensions.contentHeight ?? dimensions.height;
   const viewportHeight = dimensions.viewportHeight ?? dimensions.height;
@@ -1122,45 +1171,7 @@ if (isRotated) {
     getY,
   ]);
   
-  // Detectar orientación real del viewport para rotación visual
-  const readViewport = () => {
-  if (typeof window === 'undefined') return { w: 0, h: 0 };
-  const vv = window.visualViewport;
-  const w = vv?.width ?? window.innerWidth ?? 0;
-  const h = vv?.height ?? window.innerHeight ?? 0;
-  return { w: Math.round(w), h: Math.round(h) };
-};
-
-const [viewport, setViewport] = useState(readViewport);
-const isViewportPortrait = viewport.w < viewport.h;
-
-useEffect(() => {
-  if (typeof window === 'undefined') return undefined;
-
-  let raf = 0;
-  const vv = window.visualViewport;
-
-  const onResize = () => {
-    if (raf) cancelAnimationFrame(raf);
-    raf = requestAnimationFrame(() => setViewport(readViewport()));
-  };
-
-  window.addEventListener('resize', onResize);
-  window.addEventListener('orientationchange', onResize);
-
-  vv?.addEventListener('resize', onResize);
-  vv?.addEventListener('scroll', onResize); // en iOS cambia al mostrar/ocultar barras/teclado
-
-  onResize();
-
-  return () => {
-    if (raf) cancelAnimationFrame(raf);
-    window.removeEventListener('resize', onResize);
-    window.removeEventListener('orientationchange', onResize);
-    vv?.removeEventListener('resize', onResize);
-    vv?.removeEventListener('scroll', onResize);
-  };
-}, []);
+  
 
   const updateVisibleRange = useCallback(
     (scrollLeft = 0) => {
@@ -1237,9 +1248,7 @@ useEffect(() => {
     };
   }, [updateVisibleRange]);
 
-  const applyRotation = !exportMode && isFullScreen && forceLandscape && isViewportPortrait;
-  const visualOrientation = forceLandscape ? 'landscape' : orientation;
-  const isIOSFakeLandscape = isIOS && applyRotation;
+
   const isRotationStage = !exportMode && isFullScreen && forceLandscape;
   const shouldRotateStage = isRotationStage && applyRotation;
 
@@ -1303,7 +1312,7 @@ const safeAreaStyle = isFullScreen
       ? {
           boxSizing: 'border-box',
           paddingTop: 0,
-          paddingRight: 'calc(env(safe-area-inset-top) + 8px)',
+          paddingRight: rotatedSafeInset,
           paddingBottom: 0,
           paddingLeft: 0,
         }
