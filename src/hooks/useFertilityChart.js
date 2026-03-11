@@ -439,6 +439,7 @@ export const useFertilityChart = (
   showRelationsRow = false,
   exportMode = false,
   rotatedSafeStartInsetPx = 0,
+  rotatedSafeEndInsetPx = 0,
 ) => {
       const chartRef = useRef(null);
       const tooltipRef = useRef(null);
@@ -1031,7 +1032,8 @@ if (isFullScreen) {
       const chartContentHeight = baseBottomRowsExact + Math.max(minGraphArea, 0);
       const scrollableContentHeight = chartContentHeight + extraScrollableHeight;
 
-const effectiveRotatedInset = Math.max(0, Number(rotatedSafeStartInsetPx) || 0);
+const effectiveRotatedStartInset = Math.max(0, Number(rotatedSafeStartInsetPx) || 0);
+const effectiveRotatedEndInset = Math.max(0, Number(rotatedSafeEndInsetPx) || 0);
 
 const computedRight = isFullScreen
   ? Math.max(
@@ -1055,11 +1057,11 @@ const basePadding = {
       )
     : 12,
   right: isFullScreen
-    ? Math.max(12, computedRight - effectiveRotatedInset)
+    ? computedRight + effectiveRotatedEndInset
     : 50,
   bottom: Math.max(0, bottomRowsExact - 1),
   left: isFullScreen
-    ? computedLeft + effectiveRotatedInset
+    ? computedLeft + effectiveRotatedStartInset
     : 50,
 };
       // ✅ Solo export: menos padding lateral = más ancho útil por día (sin deformar)

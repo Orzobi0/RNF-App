@@ -100,10 +100,12 @@ useEffect(() => {
   const visualOrientation = forceLandscape ? 'landscape' : orientation;
   const isIOSFakeLandscape = isIOS && applyRotation;
   const [rotatedSafeStartInsetPx, setRotatedSafeStartInsetPx] = useState(0);
+  const [rotatedSafeEndInsetPx, setRotatedSafeEndInsetPx] = useState(0);
 
 useEffect(() => {
   if (typeof window === 'undefined' || typeof document === 'undefined' || !isIOSFakeLandscape) {
     setRotatedSafeStartInsetPx(0);
+    setRotatedSafeEndInsetPx(0);
     return;
   }
 
@@ -114,12 +116,17 @@ useEffect(() => {
   probe.style.visibility = 'hidden';
   probe.style.pointerEvents = 'none';
   probe.style.paddingTop = 'env(safe-area-inset-top)';
+  probe.style.paddingBottom = 'env(safe-area-inset-bottom)';
   document.body.appendChild(probe);
 
-  const measured = parseFloat(window.getComputedStyle(probe).paddingTop) || 0;
+  const computed = window.getComputedStyle(probe);
+  const measuredTop = parseFloat(computed.paddingTop) || 0;
+  const measuredBottom = parseFloat(computed.paddingBottom) || 0;
+
   document.body.removeChild(probe);
 
-  setRotatedSafeStartInsetPx(Math.round(measured + 8));
+  setRotatedSafeStartInsetPx(Math.round(measuredTop + 8));
+  setRotatedSafeEndInsetPx(Math.round(measuredBottom + 4));
 }, [isIOSFakeLandscape, viewport.w, viewport.h]);
    
   const {
@@ -165,7 +172,8 @@ useEffect(() => {
     fertilityCalculatorCandidates,
     showRelationsRow,
     exportMode,
-    rotatedSafeStartInsetPx
+    rotatedSafeStartInsetPx,
+    rotatedSafeEndInsetPx
   );
   
   const MANUAL_DRAG_THRESHOLD_PX = 14;
