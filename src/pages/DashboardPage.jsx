@@ -70,8 +70,9 @@ const circleRef = useRef(null);
 const wheelDragRef = useRef({
   pointerId: null,
   startOffset: 0,
-  lastAngle: 0,
-  accumulatedAngle: 0,
+  lastX: 0,
+  lastY: 0,
+  accumulatedDrag: 0,
   moved: false,
 });
 const ringDragActiveRef = useRef(false);
@@ -436,6 +437,8 @@ const EMPTY_DAY_COLORS = {
 
 
   const stepAngleRadians = (2 * Math.PI) / totalDots;
+  const dragDistancePerStep = ((2 * Math.PI * radius) / totalDots) * 0.8;
+const dragStartThreshold = dragDistancePerStep * 0.14;
   const getLocalSvgPoint = useCallback(
   (event) => {
     if (!circleRef.current) return null;
@@ -458,48 +461,31 @@ const EMPTY_DAY_COLORS = {
   },
   [viewBoxSize]
 );
-const isPointInDragRing = useCallback(
-  (event) => {
-    const point = getLocalSvgPoint(event);
-    if (!point) return false;
-
-    const dx = point.x - center;
-    const dy = point.y - center;
-    const distance = Math.hypot(dx, dy);
-
-    // corona invisible más ancha que el aro visual
-    const inner = radius - 34;
-    const outer = radius + 34;
-
-    return distance >= inner && distance <= outer;
-  },
-  [center, getLocalSvgPoint, radius]
-);
-const getPointerAngle = useCallback(
+const buildWheelDragState = useCallback(
   (event) => {
     const point = getLocalSvgPoint(event);
     if (!point) return null;
 
-    return Math.atan2(point.y - center, point.x - center);
+    return {
+      pointerId: event.pointerId,
+      startOffset: wheelOffset,
+      lastX: point.x,
+      lastY: point.y,
+      accumulatedDrag: 0,
+      moved: false,
+    };
   },
-  [center, getLocalSvgPoint]
+  [getLocalSvgPoint, wheelOffset]
 );
 
-const normalizeAngleDelta = useCallback((delta) => {
-  let normalized = delta;
-
-  while (normalized > Math.PI) normalized -= Math.PI * 2;
-  while (normalized < -Math.PI) normalized += Math.PI * 2;
-
-  return normalized;
-}, []);
 
 const resetWheelDrag = useCallback(() => {
   wheelDragRef.current = {
     pointerId: null,
     startOffset: 0,
-    lastAngle: 0,
-    accumulatedAngle: 0,
+    lastX: 0,
+    lastY: 0,
+    accumulatedDrag: 0,
     moved: false,
   };
 }, []);
@@ -588,22 +574,15 @@ const handleDotPointerDown = useCallback(
     if (!hasOverflow) return;
     if (event.button !== undefined && event.button !== 0) return;
 
-    const angle = getPointerAngle(event);
-    if (angle === null) return;
+    const nextDragState = buildWheelDragState(event);
+    if (!nextDragState) return;
 
     event.stopPropagation();
 
-    wheelDragRef.current = {
-      pointerId: event.pointerId,
-      startOffset: wheelOffset,
-      lastAngle: angle,
-      accumulatedAngle: 0,
-      moved: false,
-    };
-
+    wheelDragRef.current = nextDragState;
     event.currentTarget.setPointerCapture?.(event.pointerId);
   },
-  [getPointerAngle, hasOverflow, wheelOffset]
+  [buildWheelDragState, hasOverflow]
 );
 
 const handleDotPointerMove = useCallback(
@@ -613,30 +592,39 @@ const handleDotPointerMove = useCallback(
     const drag = wheelDragRef.current;
     if (drag.pointerId !== event.pointerId) return;
 
-    const angle = getPointerAngle(event);
-    if (angle === null) return;
+    const point = getLocalSvgPoint(event);
+    if (!point) return;
 
     event.preventDefault();
 
-    const delta = normalizeAngleDelta(angle - drag.lastAngle);
-    drag.lastAngle = angle;
-    drag.accumulatedAngle += delta;
+    const deltaX = point.x - drag.lastX;
+    const deltaY = point.y - drag.lastY;
+    drag.lastX = point.x;
+    drag.lastY = point.y;
 
-    if (!drag.moved && Math.abs(drag.accumulatedAngle) >= stepAngleRadians * 0.08) {
+    const currentAngle = Math.atan2(point.y - center, point.x - center);
+    const tangentX = -Math.sin(currentAngle);
+    const tangentY = Math.cos(currentAngle);
+
+    const projectedDelta = deltaX * tangentX + deltaY * tangentY;
+    drag.accumulatedDrag += projectedDelta;
+
+    if (!drag.moved && Math.abs(drag.accumulatedDrag) >= dragStartThreshold) {
       drag.moved = true;
       suppressDotClickRef.current = true;
       setActivePoint(null);
     }
 
-    const rawSteps = drag.accumulatedAngle / stepAngleRadians;
-    const steppedDelta = rawSteps > 0 ? Math.floor(rawSteps) : Math.ceil(rawSteps);
+    const steppedDelta =
+      drag.accumulatedDrag > 0
+        ? Math.floor(drag.accumulatedDrag / dragDistancePerStep)
+        : Math.ceil(drag.accumulatedDrag / dragDistancePerStep);
 
-    // OJO: signo invertido para que los puntos sigan al dedo
     const nextOffset = clampOffset(drag.startOffset - steppedDelta);
 
     setWheelOffset((previous) => (previous === nextOffset ? previous : nextOffset));
   },
-  [clampOffset, getPointerAngle, hasOverflow, normalizeAngleDelta, stepAngleRadians]
+  [center, clampOffset, dragDistancePerStep, dragStartThreshold, getLocalSvgPoint, hasOverflow]
 );
 
 const handleDotPointerUp = useCallback(
@@ -689,23 +677,16 @@ const handleRingPointerDown = useCallback(
     if (!hasOverflow) return;
     if (event.button !== undefined && event.button !== 0) return;
 
-    const angle = getPointerAngle(event);
-    if (angle === null) return;
+    const nextDragState = buildWheelDragState(event);
+    if (!nextDragState) return;
 
     ringDragActiveRef.current = true;
     setActivePoint(null);
-
-    wheelDragRef.current = {
-      pointerId: event.pointerId,
-      startOffset: wheelOffset,
-      lastAngle: angle,
-      accumulatedAngle: 0,
-      moved: false,
-    };
+    wheelDragRef.current = nextDragState;
 
     event.currentTarget.setPointerCapture?.(event.pointerId);
   },
-  [getPointerAngle, hasOverflow, wheelOffset]
+  [buildWheelDragState, hasOverflow]
 );
 
 const handleRingPointerMove = useCallback(
@@ -716,27 +697,37 @@ const handleRingPointerMove = useCallback(
     const drag = wheelDragRef.current;
     if (drag.pointerId !== event.pointerId) return;
 
-    const angle = getPointerAngle(event);
-    if (angle === null) return;
+    const point = getLocalSvgPoint(event);
+    if (!point) return;
 
     event.preventDefault();
 
-    const delta = normalizeAngleDelta(angle - drag.lastAngle);
-    drag.lastAngle = angle;
-    drag.accumulatedAngle += delta;
+    const deltaX = point.x - drag.lastX;
+    const deltaY = point.y - drag.lastY;
+    drag.lastX = point.x;
+    drag.lastY = point.y;
 
-    // umbral un poco más sensible
-    if (!drag.moved && Math.abs(drag.accumulatedAngle) >= stepAngleRadians * 0.08) {
+    const currentAngle = Math.atan2(point.y - center, point.x - center);
+    const tangentX = -Math.sin(currentAngle);
+    const tangentY = Math.cos(currentAngle);
+
+    const projectedDelta = deltaX * tangentX + deltaY * tangentY;
+    drag.accumulatedDrag += projectedDelta;
+
+    if (!drag.moved && Math.abs(drag.accumulatedDrag) >= dragStartThreshold) {
       drag.moved = true;
     }
 
-    const rawSteps = drag.accumulatedAngle / stepAngleRadians;
-    const steppedDelta = rawSteps > 0 ? Math.floor(rawSteps) : Math.ceil(rawSteps);
+    const steppedDelta =
+      drag.accumulatedDrag > 0
+        ? Math.floor(drag.accumulatedDrag / dragDistancePerStep)
+        : Math.ceil(drag.accumulatedDrag / dragDistancePerStep);
+
     const nextOffset = clampOffset(drag.startOffset - steppedDelta);
 
     setWheelOffset((previous) => (previous === nextOffset ? previous : nextOffset));
   },
-  [clampOffset, getPointerAngle, hasOverflow, normalizeAngleDelta, stepAngleRadians]
+  [center, clampOffset, dragDistancePerStep, dragStartThreshold, getLocalSvgPoint, hasOverflow]
 );
 
 const handleRingPointerUp = useCallback(

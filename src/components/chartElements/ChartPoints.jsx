@@ -386,7 +386,6 @@ const ChartPoints = ({
     return map;
   }, [showInterpretation, totalPoints, firstHighIndex, data]);
 
-  const rowLabelShadow = perfMode ? 'none' : 'drop-shadow(0 1px 2px rgba(255, 255, 255, 0.9))';
   const textShadowSoft = perfMode ? 'none' : 'drop-shadow(0 1px 1px rgba(255, 255, 255, 0.8))';
   const textShadowStrong = perfMode ? 'none' : 'drop-shadow(0 1px 2px rgba(255, 255, 255, 0.9))';
   const peakShadow = perfMode ? 'none' : PEAK_TEXT_SHADOW;
@@ -498,40 +497,6 @@ const ChartPoints = ({
       </defs>
 
       {/* Fondos de filas sutiles alineados con las tarjetas -- ocultos en modo compacto */}
-
-
-      {/* Leyenda izquierda con tipografía premium */}
-      {isFullScreen && orientation !== 'portrait' && (
-        <MotionG {...(reduceMotion || perfMode ? {} : { variants: itemVariants })}>
-          {[
-            { label: 'Fecha', row: 1, color: isFullScreen ? "#374151" : "#6B7280" },
-            { label: 'Día', row: 2, color: isFullScreen ? "#374151" : "#6B7280" },
-            { label: 'Símbolo', row: 3, color: isFullScreen ? "#374151" : "#6B7280" },
-            { label: 'Sens.', row: isFullScreen ? 5 : 4.5, color: SENSATION_COLOR },
-            { label: 'Apar.', row: isFullScreen ? 7 : 6, color: APPEARANCE_COLOR },
-            { label: 'Observ.', row: isFullScreen ? 9 : 7.5, color: OBSERVATION_COLOR },
-            ...(showRelationsRow && relationsRowIndex != null
-              ? [{ label: 'RS', row: relationsRowIndex, color: HEART_COLOR }]
-              : []),
-          ].map(({ label, row, color }) => (
-            <text
-              key={label}
-              x={padding.left - responsiveFontSize(0.5)}
-              y={rowsTopY + rowH * row}
-              textAnchor="end"
-              fontSize={responsiveFontSize(1.05)}
-              fontWeight="700"
-              fill={color}
-              style={{ 
-                filter: rowLabelShadow,
-                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-              }}
-            >
-              {label}
-            </text>
-          ))}
-        </MotionG>
-      )}
 
       {visibleIndices.map((index) => {
         const point = data[index];
