@@ -1,19 +1,39 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Eye, EyeOff, RotateCcw, Settings, SlidersHorizontal } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  ArrowLeft,
+  Eye,
+  Layers,
+  RotateCcw,
+  SlidersHorizontal,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const BTN_BASE =
-  'h-9 w-9 p-2 rounded-full border shadow-md backdrop-blur-sm';
+  'h-9 w-9 p-2 rounded-full border shadow-md backdrop-blur-sm transition-all duration-200';
 
-const getSlots = (mode) => {
-  // Grid 2x2
-  // normal (arriba dcha): [interpret, manual; rotate, settings]
-  if (mode === 'normal') return ['interpretation', 'manualBaseline', 'rotate', 'settings'];
+const MINI_BTN_BASE =
+  'h-8 w-8 rounded-full border shadow-md backdrop-blur-sm flex items-center justify-center transition-all duration-200';
 
- // fullscreen (abajo dcha): [manual, interpret; settings, rotate]
-  return ['manualBaseline', 'interpretation', 'settings', 'rotate'];
-};
+const QuickLayersIcon = ({ className = '' }) => (
+  <Layers className={className} aria-hidden="true" />
+);
+
+const ManualBaselineIcon = ({ className = '' }) => (
+  <svg
+    className={className}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <line x1="3" y1="12" x2="25" y2="12" strokeDasharray="4 4" />
+  </svg>
+);
 
 const ChartControls = ({
   isFullScreen,
@@ -27,110 +47,219 @@ const ChartControls = ({
   onToggleFullScreen,
   onToggleSettings,
 }) => {
-  const mode = isFullScreen ? 'fullscreen' : 'normal';
+  const [isQuickPanelOpen, setIsQuickPanelOpen] = useState(false);
+const [quickIconPulse, setQuickIconPulse] = useState(false);
+const quickPanelRef = useRef(null);
+
+  useEffect(() => {
+    if (!isQuickPanelOpen) return;
+
+    const handlePointerDown = (event) => {
+      if (quickPanelRef.current && !quickPanelRef.current.contains(event.target)) {
+        setIsQuickPanelOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setIsQuickPanelOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isQuickPanelOpen]);
+
   const iconRotationClass = isFullScreen ? 'rotate-90' : '';
 
-  const backPos = isFullScreen
+  const topGroupPos = isFullScreen
     ? 'fixed top-[calc(env(safe-area-inset-top)+8px)] right-[calc(env(safe-area-inset-right)+8px)]'
     : 'absolute top-3 left-3';
 
-  const actionsPos = isFullScreen
+  const bottomGroupPos = isFullScreen
     ? 'fixed right-[calc(env(safe-area-inset-right)+8px)] bottom-[calc(env(safe-area-inset-bottom)+8px)]'
     : 'absolute top-3 right-3';
 
-  const slots = getSlots(mode);
+  const isRightAlignedTopGroup = isFullScreen;
 
-  const controls = {
-    interpretation: (
-      <Button
-        key="interpretation"
-        type="button"
-        onClick={onToggleInterpretation}
-        onPointerUp={onInterpretationPointerUp}
-        variant="ghost"
-        size="icon"
-        className={`${BTN_BASE} transition-colors ${
-          showInterpretation
-            ? 'bg-fertiliapp-fuerte text-white shadow-lg shadow-fertiliapp-fuerte/50 border-fertiliapp-fuerte'
-            : 'bg-white/20 text-fertiliapp-fuerte border-fertiliapp-fuerte'
-        }`}
-        aria-label={showInterpretation ? 'Ocultar interpretación' : 'Mostrar interpretación'}
-      >
-        {showInterpretation ? (
-          <EyeOff className={`h-4 w-4 transition-transform ${iconRotationClass}`} />
-        ) : (
-          <Eye className={`h-4 w-4 transition-transform ${iconRotationClass}`} />
-        )}
-      </Button>
-    ),
-    manualBaseline: (
-      <Button
-        key="manualBaseline"
-        type="button"
-        onClick={onToggleManualBaseline}
-        variant="ghost"
-        size="icon"
-        className={`${BTN_BASE} transition-colors ${
-          showManualBaseline
-            ? 'bg-violet-500 text-white shadow-lg shadow-violet-500/50 border-violet-500'
-            : 'bg-white/20 text-violet-700 border-violet-400'
-        }`}
-        aria-label={showManualBaseline ? 'Ocultar baseline manual' : 'Mostrar baseline manual'}
-      >
-        <SlidersHorizontal className={`h-4 w-4 transition-transform ${iconRotationClass}`} />
-      </Button>
-    ),
-    rotate: (
-      <Button
-        key="rotate"
-        type="button"
-        onClick={onToggleFullScreen}
-        variant="ghost"
-        size="icon"
-        className={`${BTN_BASE} bg-white/20 text-slate-600`}
-        aria-label={isFullScreen ? 'Salir de pantalla completa' : 'Rotar gráfico'}
-      >
-        <RotateCcw className={`h-4 w-4 transition-transform ${iconRotationClass}`} />
-      </Button>
-    ),
-    settings: (
-      <Button
-        key="settings"
-        type="button"
-        onClick={onToggleSettings}
-        variant="ghost"
-        size="icon"
-        className={`${BTN_BASE} bg-white/20 text-secundario border border-secundario shadow-lg shadow-secundario`}
-        aria-label="Ajustes"
-      >
-        <Settings className={`h-4 w-4 transition-transform ${iconRotationClass}`} />
-      </Button>
-    ),
+  const quickAccessButtonClass = (() => {
+    if (showInterpretation && showManualBaseline) {
+      return 'bg-white/85 text-fuchsia-600 border-fuchsia-300 shadow-lg shadow-fuchsia-200/50';
+    }
+
+    if (showInterpretation) {
+      return 'bg-white/85 text-fertiliapp-fuerte border-fertiliapp-fuerte shadow-lg shadow-fertiliapp-fuerte/20';
+    }
+
+    if (showManualBaseline) {
+      return 'bg-white/85 text-violet-600 border-violet-400 shadow-lg shadow-violet-300/20';
+    }
+
+    return 'bg-white/20 text-slate-600 border-white/70';
+  })();
+
+  const handleToggleQuickPanel = () => {
+  setQuickIconPulse(false);
+
+  requestAnimationFrame(() => {
+    setQuickIconPulse(true);
+  });
+
+  setIsQuickPanelOpen((prev) => !prev);
+};
+
+  const handleToggleSettings = () => {
+    setIsQuickPanelOpen(false);
+    onToggleSettings();
+  };
+
+  const handleToggleFullScreen = () => {
+    setIsQuickPanelOpen(false);
+    onToggleFullScreen();
+  };
+
+  const handleQuickInterpretation = () => {
+    onToggleInterpretation();
+    setIsQuickPanelOpen(false);
+  };
+
+  const handleQuickBaseline = () => {
+    onToggleManualBaseline();
+    setIsQuickPanelOpen(false);
   };
 
   return (
     <>
-      {showBackToCycleRecords && targetCycleId && (
-        <div className={`chart-controls z-[200] ${backPos}`} data-chart-interactive="true">
+      <div
+        className={`chart-controls z-[200] ${topGroupPos}`}
+        data-chart-interactive="true"
+      >
+        <div className={`flex flex-col gap-2 ${isRightAlignedTopGroup ? 'items-end' : 'items-start'}`}>
+          {showBackToCycleRecords && targetCycleId && (
+            <Button
+              asChild
+              variant="ghost"
+              size="icon"
+              className={`${BTN_BASE} bg-white/20 text-fertiliapp border border-fertiliapp shadow-lg shadow-fertiliapp/20`}
+              aria-label="Volver al ciclo"
+            >
+              <Link to={`/cycle/${targetCycleId}`}>
+                <ArrowLeft className={`h-4 w-4 transition-transform ${iconRotationClass}`} />
+              </Link>
+            </Button>
+          )}
+
+          <div ref={quickPanelRef} className="relative">
+            <motion.button
+              type="button"
+              onClick={handleToggleQuickPanel}
+              aria-label="Opciones rápidas de visualización"
+              aria-expanded={isQuickPanelOpen}
+              aria-haspopup="menu"
+              className={`${BTN_BASE} ${quickAccessButtonClass} flex items-center justify-center`}
+              whileTap={{ scale: 0.94 }}
+              whileHover={{ scale: 1.04 }}
+              style={{ filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.10))' }}
+            >
+              <motion.span
+  animate={quickIconPulse ? { rotate: [0, 90, 0] } : { rotate: 0 }}
+  transition={{ duration: 0.35, ease: 'easeInOut' }}
+>
+  <QuickLayersIcon className={`h-4 w-4 transition-transform ${iconRotationClass}`} />
+</motion.span>
+            </motion.button>
+
+            <AnimatePresence initial={false}>
+              {isQuickPanelOpen && (
+                <motion.div
+  initial={{ opacity: 0 }}
+  animate={{ opacity: 1 }}
+  exit={{ opacity: 0 }}
+  transition={{ duration: 0.12, ease: 'linear' }}
+  className={`absolute top-[calc(100%+8px)] flex flex-col gap-2 ${
+    isRightAlignedTopGroup ? 'right-0 items-end' : 'left-0 items-start'
+  }`}
+>
+                  <motion.button
+  type="button"
+  onClick={handleQuickInterpretation}
+  onPointerUp={onInterpretationPointerUp}
+  aria-label="Mostrar u ocultar interpretación"
+  aria-pressed={showInterpretation}
+  className={`${MINI_BTN_BASE} ${
+    showInterpretation
+      ? 'bg-fertiliapp-fuerte text-white border-fertiliapp-fuerte shadow-fertiliapp-fuerte/30'
+      : 'bg-white/80 text-fertiliapp-fuerte border-fertiliapp-fuerte/60'
+  }`}
+  whileTap={{ scale: 0.92 }}
+  whileHover={{ scale: 1.04 }}
+  initial={{ opacity: 0, y: -6 }}
+  animate={{ opacity: 1, y: 0 }}
+  exit={{ opacity: 0, y: -4 }}
+  transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+  style={{ filter: 'drop-shadow(0 4px 10px rgba(221, 86, 101, 0.18))' }}
+>
+                    <Eye className={`h-4 w-4 transition-transform ${iconRotationClass}`} />
+                  </motion.button>
+
+                  <motion.button
+  type="button"
+  onClick={handleQuickBaseline}
+  aria-label="Mostrar u ocultar línea base"
+  aria-pressed={showManualBaseline}
+  className={`${MINI_BTN_BASE} ${
+    showManualBaseline
+      ? 'bg-violet-500 text-white border-violet-500 shadow-violet-400/30'
+      : 'bg-white/80 text-violet-600 border-violet-300'
+  }`}
+  whileTap={{ scale: 0.92 }}
+  whileHover={{ scale: 1.04 }}
+  initial={{ opacity: 0, y: -6 }}
+  animate={{ opacity: 1, y: 0 }}
+  exit={{ opacity: 0, y: -4 }}
+  transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+  style={{ filter: 'drop-shadow(0 4px 10px rgba(139, 92, 246, 0.16))' }}
+>
+                    <ManualBaselineIcon className={`h-4 w-4 transition-transform ${iconRotationClass}`} />
+                  </motion.button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
+      </div>
+
+      <div
+        className={`chart-controls z-[200] ${bottomGroupPos}`}
+        data-chart-interactive="true"
+      >
+        <div className="flex flex-col gap-2 items-end">
           <Button
-            asChild
+            type="button"
+            onClick={handleToggleFullScreen}
             variant="ghost"
             size="icon"
-            className={`${BTN_BASE} bg-white/20 text-fertiliapp border border-fertiliapp shadow-lg shadow-fertiliapp`}
-            aria-label="Volver al ciclo"
+            className={`${BTN_BASE} bg-white/20 text-slate-600 border-white/70`}
+            aria-label={isFullScreen ? 'Salir de pantalla completa' : 'Rotar gráfico'}
           >
-            <Link to={`/cycle/${targetCycleId}`}>
-              <ArrowLeft className={`h-4 w-4 transition-transform ${iconRotationClass}`} />
-            </Link>
+            <RotateCcw className={`h-4 w-4 transition-transform ${iconRotationClass}`} />
           </Button>
-        </div>
-      )}
 
-      <div className={`chart-controls z-[200] ${actionsPos}`} data-chart-interactive="true">
-        <div className="grid grid-cols-2 gap-2">
-          {slots.map((slot, i) =>
-            slot === 'empty' ? <div key={`empty-${i}`} className="h-9 w-9" /> : controls[slot]
-          )}
+          <Button
+            type="button"
+            onClick={handleToggleSettings}
+            variant="ghost"
+            size="icon"
+            className={`${BTN_BASE} bg-white/20 text-secundario border border-secundario shadow-lg shadow-secundario/20`}
+            aria-label="Ajustes"
+          >
+            <SlidersHorizontal className={`h-4 w-4 transition-transform ${iconRotationClass}`} />
+          </Button>
         </div>
       </div>
     </>

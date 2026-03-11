@@ -7,7 +7,7 @@ import { getSymbolAppearance, getSymbolColorPalette } from '@/config/fertilitySy
 const SENSATION_COLOR = 'var(--color-sensacion-fuerte)';
 const APPEARANCE_COLOR = 'var(--color-apariencia-fuerte)';
 const OBSERVATION_COLOR = 'var(--color-observaciones-fuerte)';
-const HEART_COLOR = '#be123c';
+const HEART_COLOR = '#ec003c';
 
 const BACKGROUND_COLOR = 'rgba(252, 231, 243, 0.40)';
 const BORDER_COLOR = 'rgba(244, 114, 182, 0.08)';

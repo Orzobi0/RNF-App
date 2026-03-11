@@ -66,9 +66,17 @@ const CycleOverviewCard = ({
   const [isCalcOpen, setIsCalcOpen] = useState(false);
   const [recentlyChangedDays, setRecentlyChangedDays] = useState([]);
   const hasInitializedWheelRef = useRef(true);
-  const touchStartXRef = useRef(null);
-  const circleRef = useRef(null);
-  const recentSignaturesRef = useRef(new Map());
+const circleRef = useRef(null);
+const wheelDragRef = useRef({
+  pointerId: null,
+  startOffset: 0,
+  lastAngle: 0,
+  accumulatedAngle: 0,
+  moved: false,
+});
+const ringDragActiveRef = useRef(false);
+const suppressDotClickRef = useRef(false);
+const recentSignaturesRef = useRef(new Map());
   const splashTimeoutRef = useRef(null);
   const prefersReducedMotion = useReducedMotion();
   const cycleStartDate = cycleData.startDate ? parseISO(cycleData.startDate) : null;
@@ -283,42 +291,6 @@ const changeOffsetRaf = useCallback((delta) => {
     [changeOffset, hasOverflow]
   );
 
-  const handleTouchStart = useCallback((event) => {
-    if (!hasOverflow) {
-      return;
-    }
-
-    touchStartXRef.current = event.touches?.[0]?.clientX ?? null;
-  }, [hasOverflow]);
-
-  const handleTouchMove = useCallback(
-    (event) => {
-      if (!hasOverflow || touchStartXRef.current === null) {
-        return;
-      }
-
-      const currentX = event.touches?.[0]?.clientX ?? null;
-
-      if (currentX === null) {
-        return;
-      }
-
-      const deltaX = currentX - touchStartXRef.current;
-
-      if (Math.abs(deltaX) < 24) {
-        return;
-      }
-
-      changeOffsetRaf(deltaX < 0 ? 1 : -1);
-      touchStartXRef.current = currentX;
-    },
-    [changeOffset, hasOverflow]
-  );
-
-  const handleTouchEnd = useCallback(() => {
-    touchStartXRef.current = null;
-  }, []);
-
   // Colores suaves con mejor contraste
   const getSymbolColor = useCallback(
     (symbolValue) => ({
@@ -464,6 +436,73 @@ const EMPTY_DAY_COLORS = {
 
 
   const stepAngleRadians = (2 * Math.PI) / totalDots;
+  const getLocalSvgPoint = useCallback(
+  (event) => {
+    if (!circleRef.current) return null;
+
+    const rect = circleRef.current.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+
+    const clientX = event.clientX;
+    const clientY = event.clientY;
+
+    if (clientX == null || clientY == null) return null;
+
+    return {
+      x: ((clientX - rect.left) / rect.width) * viewBoxSize,
+      y: ((clientY - rect.top) / rect.height) * viewBoxSize,
+      clientX,
+      clientY,
+      rect,
+    };
+  },
+  [viewBoxSize]
+);
+const isPointInDragRing = useCallback(
+  (event) => {
+    const point = getLocalSvgPoint(event);
+    if (!point) return false;
+
+    const dx = point.x - center;
+    const dy = point.y - center;
+    const distance = Math.hypot(dx, dy);
+
+    // corona invisible más ancha que el aro visual
+    const inner = radius - 34;
+    const outer = radius + 34;
+
+    return distance >= inner && distance <= outer;
+  },
+  [center, getLocalSvgPoint, radius]
+);
+const getPointerAngle = useCallback(
+  (event) => {
+    const point = getLocalSvgPoint(event);
+    if (!point) return null;
+
+    return Math.atan2(point.y - center, point.x - center);
+  },
+  [center, getLocalSvgPoint]
+);
+
+const normalizeAngleDelta = useCallback((delta) => {
+  let normalized = delta;
+
+  while (normalized > Math.PI) normalized -= Math.PI * 2;
+  while (normalized < -Math.PI) normalized += Math.PI * 2;
+
+  return normalized;
+}, []);
+
+const resetWheelDrag = useCallback(() => {
+  wheelDragRef.current = {
+    pointerId: null,
+    startOffset: 0,
+    lastAngle: 0,
+    accumulatedAngle: 0,
+    moved: false,
+  };
+}, []);
   const seamAngle = -Math.PI / 2 - stepAngleRadians / 2;
   const seamInnerRadius = radius - 18;
   const seamOuterRadius = radius + 10;
@@ -481,67 +520,262 @@ const EMPTY_DAY_COLORS = {
     setActivePoint(null);
   }, [wheelOffset, hasOverflow]);
 
-  const handleDotClick = (dot, event) => {
+  const handleDotClick = useCallback((dot, event) => {
+  event.stopPropagation();
+
+  if (!circleRef.current) {
+    setActivePoint(null);
+    return;
+  }
+
+  const point = getLocalSvgPoint(event);
+  if (!point) {
+    setActivePoint(null);
+    return;
+  }
+
+  const placeholderRecord = dot.canShowPlaceholder && dot.isoDate
+    ? {
+        id: `placeholder-${dot.isoDate}`,
+        isoDate: dot.isoDate,
+        cycleDay: dot.day,
+        fertility_symbol: null,
+        mucus_sensation: '',
+        mucusSensation: '',
+        mucus_appearance: '',
+        mucusAppearance: '',
+        observations: '',
+        temperature_chart: null,
+        displayTemperature: null,
+        ignored: false,
+        peakStatus: dot.peakStatus,
+        peak_marker: dot.peakStatus === 'P' ? 'peak' : null,
+      }
+    : null;
+
+  const targetRecord = dot.record
+    ? {
+        ...dot.record,
+        cycleDay: dot.record.cycleDay ?? dot.day,
+        peakStatus: dot.peakStatus,
+        peak_marker:
+          dot.record.peak_marker ?? (dot.peakStatus === 'P' ? 'peak' : null),
+      }
+    : placeholderRecord;
+
+  if (targetRecord && currentPeakIsoDate && targetRecord.isoDate === currentPeakIsoDate) {
+    targetRecord.peak_marker = 'peak';
+    targetRecord.peakStatus = targetRecord.peakStatus || 'P';
+  }
+
+  if (!targetRecord) {
+    setActivePoint(null);
+    return;
+  }
+
+  setTooltipPosition({
+    clientX: point.clientX - point.rect.left,
+    clientY: point.clientY - point.rect.top,
+  });
+
+  setActivePoint(targetRecord);
+}, [currentPeakIsoDate, getLocalSvgPoint]);
+
+const handleDotPointerDown = useCallback(
+  (event) => {
+    suppressDotClickRef.current = false;
+
+    if (!hasOverflow) return;
+    if (event.button !== undefined && event.button !== 0) return;
+
+    const angle = getPointerAngle(event);
+    if (angle === null) return;
+
     event.stopPropagation();
-    if (!circleRef.current) {
+
+    wheelDragRef.current = {
+      pointerId: event.pointerId,
+      startOffset: wheelOffset,
+      lastAngle: angle,
+      accumulatedAngle: 0,
+      moved: false,
+    };
+
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  },
+  [getPointerAngle, hasOverflow, wheelOffset]
+);
+
+const handleDotPointerMove = useCallback(
+  (event) => {
+    if (!hasOverflow) return;
+
+    const drag = wheelDragRef.current;
+    if (drag.pointerId !== event.pointerId) return;
+
+    const angle = getPointerAngle(event);
+    if (angle === null) return;
+
+    event.preventDefault();
+
+    const delta = normalizeAngleDelta(angle - drag.lastAngle);
+    drag.lastAngle = angle;
+    drag.accumulatedAngle += delta;
+
+    if (!drag.moved && Math.abs(drag.accumulatedAngle) >= stepAngleRadians * 0.08) {
+      drag.moved = true;
+      suppressDotClickRef.current = true;
       setActivePoint(null);
+    }
+
+    const rawSteps = drag.accumulatedAngle / stepAngleRadians;
+    const steppedDelta = rawSteps > 0 ? Math.floor(rawSteps) : Math.ceil(rawSteps);
+
+    // OJO: signo invertido para que los puntos sigan al dedo
+    const nextOffset = clampOffset(drag.startOffset - steppedDelta);
+
+    setWheelOffset((previous) => (previous === nextOffset ? previous : nextOffset));
+  },
+  [clampOffset, getPointerAngle, hasOverflow, normalizeAngleDelta, stepAngleRadians]
+);
+
+const handleDotPointerUp = useCallback(
+  (event) => {
+    const drag = wheelDragRef.current;
+
+    if (hasOverflow && drag.pointerId !== event.pointerId) return;
+
+    event.stopPropagation();
+
+    try {
+      if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+        event.currentTarget.releasePointerCapture?.(event.pointerId);
+      }
+    } catch {}
+
+    resetWheelDrag();
+  },
+  [hasOverflow, resetWheelDrag]
+);
+const handleDotTap = useCallback(
+  (dot, event) => {
+    if (suppressDotClickRef.current) {
+      suppressDotClickRef.current = false;
       return;
     }
-    const rect = circleRef.current.getBoundingClientRect();
-    let clientX, clientY;
-    if (event.touches && event.touches[0]) {
-      clientX = event.touches[0].clientX;
-      clientY = event.touches[0].clientY;
-    } else {
-      clientX = event.clientX;
-      clientY = event.clientY;
+
+    handleDotClick(dot, event);
+  },
+  [handleDotClick]
+);
+
+const handleDotPointerCancel = useCallback(
+  (event) => {
+    const drag = wheelDragRef.current;
+    if (drag.pointerId !== event.pointerId) return;
+
+    try {
+      if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+        event.currentTarget.releasePointerCapture?.(event.pointerId);
+      }
+    } catch {}
+
+    resetWheelDrag();
+  },
+  [resetWheelDrag]
+);
+const handleRingPointerDown = useCallback(
+  (event) => {
+    if (!hasOverflow) return;
+    if (event.button !== undefined && event.button !== 0) return;
+
+    const angle = getPointerAngle(event);
+    if (angle === null) return;
+
+    ringDragActiveRef.current = true;
+    setActivePoint(null);
+
+    wheelDragRef.current = {
+      pointerId: event.pointerId,
+      startOffset: wheelOffset,
+      lastAngle: angle,
+      accumulatedAngle: 0,
+      moved: false,
+    };
+
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  },
+  [getPointerAngle, hasOverflow, wheelOffset]
+);
+
+const handleRingPointerMove = useCallback(
+  (event) => {
+    if (!hasOverflow) return;
+    if (!ringDragActiveRef.current) return;
+
+    const drag = wheelDragRef.current;
+    if (drag.pointerId !== event.pointerId) return;
+
+    const angle = getPointerAngle(event);
+    if (angle === null) return;
+
+    event.preventDefault();
+
+    const delta = normalizeAngleDelta(angle - drag.lastAngle);
+    drag.lastAngle = angle;
+    drag.accumulatedAngle += delta;
+
+    // umbral un poco más sensible
+    if (!drag.moved && Math.abs(drag.accumulatedAngle) >= stepAngleRadians * 0.08) {
+      drag.moved = true;
     }
-    const placeholderRecord = dot.canShowPlaceholder && dot.isoDate
-      ? {
-          id: `placeholder-${dot.isoDate}`,
-          isoDate: dot.isoDate,
-          cycleDay: dot.day,
-          fertility_symbol: null,
-          mucus_sensation: '',
-          mucusSensation: '',
-          mucus_appearance: '',
-          mucusAppearance: '',
-          observations: '',
-          temperature_chart: null,
-          displayTemperature: null,
-          ignored: false,
-          peakStatus: dot.peakStatus,
-          peak_marker: dot.peakStatus === 'P' ? 'peak' : null,
-        }
-      : null;
 
-    const targetRecord = dot.record
-      ? {
-          ...dot.record,
-          cycleDay: dot.record.cycleDay ?? dot.day,
-          peakStatus: dot.peakStatus,
-          peak_marker:
-            dot.record.peak_marker ?? (dot.peakStatus === 'P' ? 'peak' : null),
-        }
-      : placeholderRecord;
-    if (targetRecord && currentPeakIsoDate && targetRecord.isoDate === currentPeakIsoDate) {
-      targetRecord.peak_marker = 'peak';
-      targetRecord.peakStatus = targetRecord.peakStatus || 'P';
-    }
-  
+    const rawSteps = drag.accumulatedAngle / stepAngleRadians;
+    const steppedDelta = rawSteps > 0 ? Math.floor(rawSteps) : Math.ceil(rawSteps);
+    const nextOffset = clampOffset(drag.startOffset - steppedDelta);
 
-    if (!targetRecord) {
-      setActivePoint(null);
-      return;
-    }
+    setWheelOffset((previous) => (previous === nextOffset ? previous : nextOffset));
+  },
+  [clampOffset, getPointerAngle, hasOverflow, normalizeAngleDelta, stepAngleRadians]
+);
 
-    setTooltipPosition({
-      clientX: clientX - rect.left,
-      clientY: clientY - rect.top
-    });
-    setActivePoint(targetRecord);
-  };
+const handleRingPointerUp = useCallback(
+  (event) => {
+    if (!ringDragActiveRef.current) return;
 
+    const drag = wheelDragRef.current;
+    if (drag.pointerId !== event.pointerId) return;
+
+    try {
+      if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+        event.currentTarget.releasePointerCapture?.(event.pointerId);
+      }
+    } catch {}
+
+    ringDragActiveRef.current = false;
+    resetWheelDrag();
+  },
+  [resetWheelDrag]
+);
+
+const handleRingPointerCancel = useCallback(
+  (event) => {
+    if (!ringDragActiveRef.current) return;
+
+    const drag = wheelDragRef.current;
+    if (drag.pointerId !== event.pointerId) return;
+
+    try {
+      if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+        event.currentTarget.releasePointerCapture?.(event.pointerId);
+      }
+    } catch {}
+
+    ringDragActiveRef.current = false;
+    resetWheelDrag();
+  },
+  [resetWheelDrag]
+);
   useEffect(() => {
     if (!activePoint) return;
     const handleOutside = (e) => {
@@ -666,17 +900,14 @@ const EMPTY_DAY_COLORS = {
           {/* Círculo de progreso redimensionado */}
           <div className="mb-3">
           <motion.div
-            ref={circleRef}
-            className="relative mx-auto flex items-center justify-center mb-4 drop-shadow-[0_15px_35px_rgba(221,86,101,0.22)] aspect-square w-full"
-            style={{ maxWidth: viewBoxSize, touchAction: hasOverflow ? 'pan-y' : 'auto' }}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.18, ease: 'easeOut' }}
-            onWheel={handleWheelScroll}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
-          >
+  ref={circleRef}
+  className="relative mx-auto flex items-center justify-center mb-4 drop-shadow-[0_15px_35px_rgba(221,86,101,0.22)] aspect-square w-full"
+  style={{ maxWidth: viewBoxSize, touchAction: 'pan-y' }}
+  initial={{ opacity: 0 }}
+  animate={{ opacity: 1 }}
+  transition={{ duration: 0.18, ease: 'easeOut' }}
+  onWheel={handleWheelScroll}
+>
             <svg
               className="block w-full h-full wheel-no-tap"
               viewBox={`0 0 ${viewBoxSize} ${viewBoxSize}`}
@@ -721,21 +952,46 @@ const EMPTY_DAY_COLORS = {
                   </defs>
 
               {/* Círculo base sutil */}
-              <circle cx={center} cy={center} r={radius - 28} fill="url(#ringGlow)" stroke="rgba(255,225,228,0.8)" strokeWidth={1.2}
-              filter="url(#circleDepthShadow)"
-              />
+              <circle
+  cx={center}
+  cy={center}
+  r={radius - 28}
+  fill="url(#ringGlow)"
+  stroke="rgba(255,225,228,0.8)"
+  strokeWidth={1.2}
+  filter="url(#circleDepthShadow)"
+  pointerEvents="none"
+/>
+              <circle
+  cx={center}
+  cy={center}
+  r={radius}
+  fill="transparent"
+  stroke="transparent"
+  strokeWidth={115}
+  pointerEvents={hasOverflow ? 'stroke' : 'none'}
+  onPointerDown={handleRingPointerDown}
+  onPointerMove={handleRingPointerMove}
+  onPointerUp={handleRingPointerUp}
+  onPointerCancel={handleRingPointerCancel}
+  style={{
+    touchAction: hasOverflow ? 'none' : 'auto',
+    cursor: hasOverflow ? 'grab' : 'default',
+  }}
+/>
               {hasOverflow && (
-                <line
-                  x1={seamStartX}
-                  y1={seamStartY}
-                  x2={seamEndX}
-                  y2={seamEndY}
-                  stroke="rgba(244,63,94,0.55)"
-                  strokeWidth={5}
-                  strokeLinecap="round"
-                  opacity={0.8}
-                />
-              )}
+  <line
+    x1={seamStartX}
+    y1={seamStartY}
+    x2={seamEndX}
+    y2={seamEndY}
+    stroke="rgba(244,63,94,0.55)"
+    strokeWidth={5}
+    strokeLinecap="round"
+    opacity={0.8}
+    pointerEvents="none"
+  />
+)}
 
               {/* Puntos de progreso */}
   <motion.g
@@ -753,15 +1009,21 @@ const EMPTY_DAY_COLORS = {
 {/* Punto principal con sombra real */}
 <g filter={dot.isActive ? 'url(#activePointHighlight)' : dot.isToday ? "url(#bevel)" : undefined}>
   <circle
-   cx={dot.x}
-   cy={dot.y}
-   r={dot.isToday ? 18 : 16}
-   fill="transparent"
-   pointerEvents="all"
-   onPointerDown={(e) => handleDotClick(dot, e)}
-   onClick={(e) => handleDotClick(dot, e)}
-   style={{ cursor: 'pointer' }}
- />
+  cx={dot.x}
+  cy={dot.y}
+  r={dot.isToday ? 18 : 16}
+  fill="transparent"
+  pointerEvents="all"
+  onPointerDown={handleDotPointerDown}
+  onPointerMove={handleDotPointerMove}
+  onPointerUp={handleDotPointerUp}
+  onPointerCancel={handleDotPointerCancel}
+  onClick={(e) => handleDotTap(dot, e)}
+  style={{
+    cursor: hasOverflow ? 'grab' : 'pointer',
+    touchAction: hasOverflow ? 'none' : 'auto',
+  }}
+/>
   <motion.circle
   cx={dot.x}
   cy={dot.y}
@@ -777,21 +1039,19 @@ const EMPTY_DAY_COLORS = {
     : dot.isActive 
       ? "url(#dotShadow)" 
       : undefined}
-
   strokeLinecap="round"
-  onClick={(e) => handleDotClick(dot, e)}
   initial={false}
   whileTap={
     prefersReducedMotion || !hasInitializedWheelRef.current
       ? undefined
       : {
-          y: 2,              // se hunde un pelín
-          scale: 0.75,       // se comprime un poco
+          y: 2,
+          scale: 0.75,
           opacity: 0.95,
           transition: { duration: 0.08, ease: 'easeOut' },
         }
   }
-  style={{ cursor: 'pointer' }}
+  style={{ pointerEvents: 'none' }}
 />
 
 </g>

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { differenceInCalendarDays, format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Archive, Plus, Calendar, BarChart3, SlidersHorizontal } from 'lucide-react';
+import { Archive, Plus, Calendar, ChartSpline, SlidersHorizontal } from 'lucide-react';
 import { motion } from 'framer-motion';
 import EditCycleDatesDialog from '@/components/EditCycleDatesDialog';
 import DeletionDialog from '@/components/DeletionDialog';
@@ -411,7 +411,7 @@ const ArchivedCyclesPage = () => {
 
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-slate-600">
                         <div className="flex items-center space-x-1">
-                          <BarChart3 className="w-4 h-4 text-slate-500" />
+                          <ChartSpline className="w-4 h-4 text-slate-500" />
                           <span>
                             {recordCount} registro{recordCount !== 1 ? 's' : ''}
                           </span>

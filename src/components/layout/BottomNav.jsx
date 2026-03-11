@@ -1,13 +1,13 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Heart, BarChart3, Calendar, Archive, User } from 'lucide-react';
+import { Heart, ChartSpline, Calendar, Archive, User } from 'lucide-react';
 
 const BottomNav = () => {
   const location = useLocation();
 
   const links = [
     { to: '/records', label: 'Mis registros', icon: Calendar },
-    { to: '/chart', label: 'Gráfica', icon: BarChart3 },
+    { to: '/chart', label: 'Gráfica', icon: ChartSpline },
     { to: '/', label: 'Ciclo actual', icon: Heart },
     {
       to: '/archived-cycles',

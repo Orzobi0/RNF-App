@@ -762,7 +762,7 @@ const rotatedDrawerStyle = applyRotation
     }
   };
   const settingsDrawerInner = (
-        <div className="flex h-full min-h-0 flex-col gap-6 rounded-xl border border-rose-100/60 bg-white p-6 pt-[calc(env(safe-area-inset-top)+24px)] shadow-xl">
+        <div className="flex h-full min-h-0 flex-col gap-6 rounded-l-2xl border border-rose-100/60 bg-white p-6 pt-[calc(env(safe-area-inset-top)+24px)] shadow-xl">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-lg font-semibold text-titulo">Ajustes del gráfico</h2>
