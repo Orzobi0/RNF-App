@@ -23,9 +23,9 @@ const ROW_SHADOW = 'drop-shadow(0 1px 2px rgba(15, 23, 42, 0.08))';
 const CORRECTION_LINE_COLOR = 'rgba(148, 163, 184, 0.35)';
 const CORRECTION_POINT_FILL = 'rgba(226, 232, 240, 0.6)';
 const CORRECTION_POINT_STROKE = 'rgba(148, 163, 184, 0.5)';
-const PEAK_EMOJI = '✖';
 const POST_PEAK_MARKER_COLOR = '#7f1d1d';
-const PEAK_EMOJI_COLOR = '#ec4899';
+const PEAK_MARKER_COLOR = '#db2777';
+const PEAK_MARKER_OUTLINE = 'rgba(255,255,255,0.96)';
 const PEAK_TEXT_SHADOW = 'drop-shadow(0 2px 4px rgba(244, 114, 182, 0.35))';
 const HIGH_SEQUENCE_NUMBER_COLOR = '#be185d';
 const BASELINE_NUMBER_COLOR = '#2563eb';
@@ -567,11 +567,15 @@ const ChartPoints = ({
 
           const symbolRectSize = responsiveFontSize(isFullScreen ? 1.8 : 2);
           const symbolTextY = symbolRowYBase - symbolRectSize * 0.75 + symbolRectSize / 2 + 2;
+          const peakMarkerCenterY = symbolRowYBase - symbolRectSize * 0.25;
+          const peakMarkerArm = 4;
+          const peakMarkerOutlineWidth = 4;
+          const peakMarkerStrokeWidth = 2;
 
         const peakStatus = point.peakStatus ? String(point.peakStatus).toUpperCase() : null;
         const isPeakMarker = peakStatus === 'P' || peakStatus === 'X';
         const isPostPeakMarker = peakStatus && !isPeakMarker;
-        const peakDisplay = isPeakMarker ? PEAK_EMOJI : peakStatus || '–';
+        const peakDisplay = peakStatus || '–';
         const isPeakSeriesDay =
           isPeakMarker || ['1', '2', '3'].includes(peakStatus);
         const shouldRenderSymbol = !isPlaceholder && symbolInfo.value !== 'none';
@@ -865,21 +869,45 @@ const observationFontSize = obsRes.fontSize;
                 {peakStatus && (
                   <g pointerEvents="none">
                     {isPeakMarker ? (
-                      <text
-                        x={x}
-                        y={symbolTextY}
-                        textAnchor="middle"
-                        fontSize={responsiveFontSize(1.35)}
-                        fontWeight="900"
-                        fill={PEAK_EMOJI_COLOR}
-                        stroke="#fff"
-                        strokeWidth={1.5}
-                        paintOrder="stroke"
-                        style={{ filter: peakShadow }}
-                      >
-                        {PEAK_EMOJI}
-                      </text>
-                    ) : (
+  <g style={{ filter: peakShadow }}>
+    <line
+      x1={x - peakMarkerArm}
+      y1={peakMarkerCenterY - peakMarkerArm}
+      x2={x + peakMarkerArm}
+      y2={peakMarkerCenterY + peakMarkerArm}
+      stroke={PEAK_MARKER_OUTLINE}
+      strokeWidth={peakMarkerOutlineWidth}
+      strokeLinecap="round"
+    />
+    <line
+      x1={x + peakMarkerArm}
+      y1={peakMarkerCenterY - peakMarkerArm}
+      x2={x - peakMarkerArm}
+      y2={peakMarkerCenterY + peakMarkerArm}
+      stroke={PEAK_MARKER_OUTLINE}
+      strokeWidth={peakMarkerOutlineWidth}
+      strokeLinecap="round"
+    />
+    <line
+      x1={x - peakMarkerArm}
+      y1={peakMarkerCenterY - peakMarkerArm}
+      x2={x + peakMarkerArm}
+      y2={peakMarkerCenterY + peakMarkerArm}
+      stroke={PEAK_MARKER_COLOR}
+      strokeWidth={peakMarkerStrokeWidth}
+      strokeLinecap="round"
+    />
+    <line
+      x1={x + peakMarkerArm}
+      y1={peakMarkerCenterY - peakMarkerArm}
+      x2={x - peakMarkerArm}
+      y2={peakMarkerCenterY + peakMarkerArm}
+      stroke={PEAK_MARKER_COLOR}
+      strokeWidth={peakMarkerStrokeWidth}
+      strokeLinecap="round"
+    />
+  </g>
+) : (
                       <text
                         x={x}
                         y={symbolTextY}
@@ -904,36 +932,65 @@ const observationFontSize = obsRes.fontSize;
                     width={symbolRectSize * 1.4}
                     height={symbolRectSize}
                     fill="transparent"
-                    stroke={isPeakMarker ? PEAK_EMOJI_COLOR : POST_PEAK_MARKER_COLOR}
+                    stroke={isPeakMarker ? PEAK_MARKER_COLOR : POST_PEAK_MARKER_COLOR}
                     strokeWidth={1}
                     rx={symbolRectSize * 0.2}
                   />
                 )}
-                <text
-                  x={x}
-                  y={symbolTextY}
-                  textAnchor="middle"
-                  fontSize={responsiveFontSize(
-                    isPeakMarker ? 1.35 : isPostPeakMarker ? 1.1 : 1
-                  )}
-                  fill={
-                    isPeakMarker
-                      ? PEAK_EMOJI_COLOR
-                      : isPostPeakMarker
-                        ? POST_PEAK_MARKER_COLOR
-                        : baseTextFill
-                  }
-                  fontWeight={isPeakMarker ? '900' : isPostPeakMarker ? '800' : '500'}
-                  style={{
-                    filter: isPeakMarker
-                      ? peakShadow
-                      : isPostPeakMarker
-                        ? textShadowStrong
-                        : textShadowSoft
-                  }}
-                >
-                  {peakDisplay}
-                </text>
+                {isPeakMarker ? (
+  <g pointerEvents="none" style={{ filter: peakShadow }}>
+    <line
+      x1={x - peakMarkerArm}
+      y1={peakMarkerCenterY - peakMarkerArm}
+      x2={x + peakMarkerArm}
+      y2={peakMarkerCenterY + peakMarkerArm}
+      stroke={PEAK_MARKER_OUTLINE}
+      strokeWidth={peakMarkerOutlineWidth}
+      strokeLinecap="round"
+    />
+    <line
+      x1={x + peakMarkerArm}
+      y1={peakMarkerCenterY - peakMarkerArm}
+      x2={x - peakMarkerArm}
+      y2={peakMarkerCenterY + peakMarkerArm}
+      stroke={PEAK_MARKER_OUTLINE}
+      strokeWidth={peakMarkerOutlineWidth}
+      strokeLinecap="round"
+    />
+    <line
+      x1={x - peakMarkerArm}
+      y1={peakMarkerCenterY - peakMarkerArm}
+      x2={x + peakMarkerArm}
+      y2={peakMarkerCenterY + peakMarkerArm}
+      stroke={PEAK_MARKER_COLOR}
+      strokeWidth={peakMarkerStrokeWidth}
+      strokeLinecap="round"
+    />
+    <line
+      x1={x + peakMarkerArm}
+      y1={peakMarkerCenterY - peakMarkerArm}
+      x2={x - peakMarkerArm}
+      y2={peakMarkerCenterY + peakMarkerArm}
+      stroke={PEAK_MARKER_COLOR}
+      strokeWidth={peakMarkerStrokeWidth}
+      strokeLinecap="round"
+    />
+  </g>
+) : (
+  <text
+    x={x}
+    y={symbolTextY}
+    textAnchor="middle"
+    fontSize={responsiveFontSize(isPostPeakMarker ? 1.1 : 1)}
+    fill={isPostPeakMarker ? POST_PEAK_MARKER_COLOR : baseTextFill}
+    fontWeight={isPostPeakMarker ? '800' : '500'}
+    style={{
+      filter: isPostPeakMarker ? textShadowStrong : textShadowSoft
+    }}
+  >
+    {peakDisplay}
+  </text>
+)}
               </g>
             )}
 

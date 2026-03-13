@@ -843,6 +843,43 @@ const handleRingPointerCancel = useCallback(
     );
   };
 
+  const renderCompactCalcItem = ({
+  label,
+  value,
+  onClick,
+  ariaLabel,
+  modeLabel = null,
+  emphasize = false,
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className="flex flex-col items-center gap-1 px-1 py-0.5"
+    aria-label={ariaLabel}
+  >
+    <span className="flex min-h-[1.6rem] items-end justify-center text-center text-[10px] font-medium leading-tight text-gray-700">
+      {label}
+    </span>
+
+    <div className="relative flex h-9 items-center justify-center">
+      <div
+        className={`flex h-9 w-9 items-center justify-center rounded-full border border-rose-200/70 text-rose-700 shadow-sm ${
+          emphasize
+            ? 'bg-white/80 text-sm font-semibold'
+            : 'bg-white/70 text-base font-bold'
+        }`}
+      >
+        {value ?? '—'}
+      </div>
+
+      {modeLabel ? (
+        <span className="pointer-events-none absolute left-1/2 top-[72%] -translate-x-1/2 rounded-full px-1.5 py-[1px] text-[8px] font-semibold leading-none text-rose-600 shadow-sm">
+          {modeLabel}
+        </span>
+      ) : null}
+    </div>
+  </button>
+);
   return (
     <div className="relative flex flex-col space-y-4">
       {/* Fecha actual - Parte superior con padding reducido */}
@@ -880,7 +917,7 @@ const handleRingPointerCancel = useCallback(
       >
         {/* Tarjeta SOLO para el círculo + navegación */}
         
-        <div className="relative overflow-hidden rounded-[75px]   p-4  mb-4">
+        <div className="relative overflow-hidden rounded-[75px]   p-4  mb-2">
         <div className="pointer-events-none absolute inset-0">
         {/* halo desde arriba como antes */}
         <div className="absolute inset-0 " />
@@ -1144,22 +1181,48 @@ const handleRingPointerCancel = useCallback(
 
                 const { x: labelX, y: labelY } = rotatePoint(dot.x, dot.y);
 
-                if (dot.peakStatus === 'P') {
-                  return (
-                    <text
-                      x={labelX}
-                      y={labelY + 4}
-                      textAnchor="middle"
-                      fontSize="14"
-                      fontWeight="900"
-                      fill="#ec4899"
-                      style={{ pointerEvents: 'none' }}
-                    >
-                      ✖
-                    </text>
-                  );
-                }
-
+if (dot.peakStatus === 'P') {
+  return (
+    <g key={`peak-${index}`} pointerEvents="none">
+      <line
+        x1={labelX - 4}
+        y1={labelY - 4}
+        x2={labelX + 4}
+        y2={labelY + 4}
+        stroke="rgba(255,255,255,0.96)"
+        strokeWidth="4"
+        strokeLinecap="round"
+      />
+      <line
+        x1={labelX + 4}
+        y1={labelY - 4}
+        x2={labelX - 4}
+        y2={labelY + 4}
+        stroke="rgba(255,255,255,0.96)"
+        strokeWidth="4"
+        strokeLinecap="round"
+      />
+      <line
+        x1={labelX - 4}
+        y1={labelY - 4}
+        x2={labelX + 4}
+        y2={labelY + 4}
+        stroke="#db2777"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <line
+        x1={labelX + 4}
+        y1={labelY - 4}
+        x2={labelX - 4}
+        y2={labelY + 4}
+        stroke="#db2777"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </g>
+  );
+}
                 return (
                   <text x={labelX} 
                   y={labelY + 4} 
@@ -1272,7 +1335,7 @@ const handleRingPointerCancel = useCallback(
 </div>
 
         {/* Leyenda e información del ciclo con diseño mejorado */}
-        <div className="grid grid-cols-2 gap-4 mx-2 mb-6 mt-2 flex-shrink-0 items-start">
+        <div className="grid grid-cols-2 gap-4 mx-2 mb-3 mt-0 flex-shrink-0 items-start">
           
           {/* Leyenda de colores */}
           <motion.div
@@ -1306,8 +1369,8 @@ const handleRingPointerCancel = useCallback(
                   {[
                     { label: 'Menstrual', color: '#fb7185' },
                     { label: 'Moco (Fértil)', color: '#fdf5f8', stroke: '#fb7185' },
-                    { label: 'Seco', color: '#67C5A4' },
-                    { label: 'Moco (No fértil)', color: '#F7B944' },
+                    { label: 'Seca/Sin moco', color: '#67C5A4' },
+                    { label: 'No seca/Moco', color: '#F7B944' },
                     { label: 'Spotting', color: '#fb7185', stroke: '#fee2e2', pattern: true },
                     { label: 'Hoy', isToday: true }
                   ].map(item => (
@@ -1363,75 +1426,45 @@ const handleRingPointerCancel = useCallback(
             <AnimatePresence initial={false}>
               {isCalcOpen && (
                 <motion.div
-                  key="calc-card"
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.25, ease: 'easeInOut' }}
-                  className="grid grid-cols-2 gap-2.5 rounded-3xl bg-white/40 p-2 overflow-hidden"
-                >
-                  {/* Fila 1 - Ciclo más corto / CPM */}
-                  <button
-                    type="button"
-                    onClick={handleOpenCpmDialog}
-                    className="flex flex-col items-center gap-1.5"
-                    aria-label="Editar CPM (Ciclo más corto)"
-                  >
-                    <span className="flex items-center justify-center text-[10px] font-medium text-gray-700 leading-tight text-center h-8">Ciclo más corto</span>
-                    <div className="h-10 flex items-end">
-                      <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/70 shadow-sm w-10 h-10 text-base font-bold text-rose-700">
-                        {cpmMetric?.baseFormatted ?? '—'}
-                      </div>
-                    </div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleOpenCpmDialog}
-                    className="flex flex-col items-center gap-1.5"
-                    aria-label="Editar CPM (resultado)"
-                  >
-                    <span className="flex items-center justify-center text-[10px] font-medium text-gray-700 leading-tight text-center h-8">CPM</span>
-                    <div className="h-10 flex items-end">
-                      <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/80 shadow-sm w-10 h-10 text-sm font-semibold text-rose-700">
-                        {cpmMetric?.finalFormatted ?? '—'}
-                      </div>
-                    </div>
-                    <span className="text-[9px] font-semibold text-rose-600 mt-0.5">
-                      {cpmMetric?.modeLabel ?? 'Auto'}
-                    </span>
-                  </button>
+  key="calc-card"
+  initial={{ height: 0, opacity: 0 }}
+  animate={{ height: 'auto', opacity: 1 }}
+  exit={{ height: 0, opacity: 0 }}
+  transition={{ duration: 0.25, ease: 'easeInOut' }}
+  className="grid grid-cols-2 gap-x-2 gap-y-2 rounded-3xl bg-white/40 p-1.5 overflow-hidden"
+>
+  {renderCompactCalcItem({
+    label: 'Ciclo más corto',
+    value: cpmMetric?.baseFormatted ?? '—',
+    onClick: handleOpenCpmDialog,
+    ariaLabel: 'Editar CPM (Ciclo más corto)',
+  })}
 
-                  {/* Fila 2 - Día de subida / T-8 */}
-                  <button
-                    type="button"
-                    onClick={handleOpenT8Dialog}
-                    className="flex flex-col items-center gap-1.5"
-                    aria-label="Editar T-8 (Día de subida)"
-                  >
-                    <span className="flex items-center justify-center text-[10px] font-medium text-gray-700 leading-tight text-center h-8">Día de subida</span>
-                    <div className="h-10 flex items-end">
-                      <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/70 shadow-sm w-10 h-10 text-base font-bold text-rose-700">
-                        {t8Metric?.baseFormatted ?? '—'}
-                      </div>
-                    </div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleOpenT8Dialog}
-                    className="flex flex-col items-center gap-1.5"
-                    aria-label="Editar T-8 (resultado)"
-                  >
-                    <span className="flex items-center justify-center text-[10px] font-medium text-gray-700 leading-tight text-center h-8">T-8</span>
-                    <div className="h-10 flex items-end">
-                      <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/80 shadow-sm w-10 h-10 text-sm font-semibold text-rose-700">
-                        {t8Metric?.finalFormatted ?? '—'}
-                      </div>
-                    </div>
-                    <span className="text-[9px] font-semibold text-rose-600 mt-0.5">
-                      {t8Metric?.modeLabel ?? 'Auto'}
-                    </span>
-                  </button>
-                </motion.div>
+  {renderCompactCalcItem({
+    label: 'CPM',
+    value: cpmMetric?.finalFormatted ?? '—',
+    onClick: handleOpenCpmDialog,
+    ariaLabel: 'Editar CPM (resultado)',
+    modeLabel: cpmMetric?.modeLabel ?? 'Auto',
+    emphasize: true,
+  })}
+
+  {renderCompactCalcItem({
+    label: 'Día de subida',
+    value: t8Metric?.baseFormatted ?? '—',
+    onClick: handleOpenT8Dialog,
+    ariaLabel: 'Editar T-8 (Día de subida)',
+  })}
+
+  {renderCompactCalcItem({
+    label: 'T-8',
+    value: t8Metric?.finalFormatted ?? '—',
+    onClick: handleOpenT8Dialog,
+    ariaLabel: 'Editar T-8 (resultado)',
+    modeLabel: t8Metric?.modeLabel ?? 'Auto',
+    emphasize: true,
+  })}
+</motion.div>
               )}
             </AnimatePresence>
           </motion.div>
@@ -2638,6 +2671,27 @@ const ModernFertilityDashboard = () => {
             ? 'Sin usar'
             : 'Automático';
     const cycles = computedCpmData.cyclesConsidered ?? [];
+
+const displayCycles = [...cycles].sort((a, b) => {
+  const parseSafe = (value) => {
+    if (!value) return null;
+    try {
+      const parsed = parseISO(value);
+      return Number.isNaN(parsed.getTime()) ? null : parsed;
+    } catch {
+      return null;
+    }
+  };
+
+  const startA = parseSafe(a.startDate);
+  const startB = parseSafe(b.startDate);
+
+  if (!startA && !startB) return 0;
+  if (!startA) return 1;
+  if (!startB) return -1;
+
+  return startB - startA; // más reciente arriba
+});
     const canCompute = Boolean(computedCpmData.canCompute);
     const ignoredCount = computedCpmData.ignoredCount ?? 0;
     const deduction =
@@ -2700,8 +2754,8 @@ const ModernFertilityDashboard = () => {
       cycleCount,
       requiredCycles,
       canCompute,
-      detailsAvailable: cycles.length > 0,
-      cycles,
+      detailsAvailable: displayCycles.length > 0,
+      cycles: displayCycles,  
       deduction,
       shortestCycle,
       value: automaticValue,

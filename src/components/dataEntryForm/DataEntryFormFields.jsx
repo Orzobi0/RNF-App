@@ -17,8 +17,7 @@ import {
   Clock,
   Check,
   Trash2,
-  ChevronUp,
-  ChevronDown,
+  Minus,
   Circle,
   Plus,
   Heart,
@@ -1001,31 +1000,35 @@ useEffect(() => {
         disabled={isProcessing}
       />
     </div>
+<div className="flex items-center gap-2">
+  <div className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50/70 p-[2px] shadow-sm">
+    <Button
+      type="button"
+      variant="ghost"
+      disabled={isProcessing}
+      onClick={() => handleTempAdjust(idx, -0.1)}
+      className="relative h-7 w-10 rounded-full px-0 text-orange-700 hover:bg-white/90 hover:text-orange-800"
+      aria-label="Disminuir temperatura corregida 0,10 grados"
+      title="Bajar 0,10 °C"
+    >
+      <span className="leading-none text-base font-semibold">−</span>
 
-    <div className="flex items-center gap-2">
-      <Button
-        type="button"
-        size="icon"
-        variant="outline"
-        disabled={isProcessing}
-        onClick={() => handleTempAdjust(idx, 0.1)}
-        className="h-8 w-8 rounded-full bg-white text-orange-800 border-amber-200"
-        aria-label="Aumentar temperatura corregida"
-      >
-        <ChevronUp className="h-4 w-4" />
-      </Button>
+    </Button>
 
-      <Button
-        type="button"
-        size="icon"
-        variant="outline"
-        disabled={isProcessing}
-        onClick={() => handleTempAdjust(idx, -0.1)}
-        className="h-8 w-8 rounded-full bg-white text-orange-600 border-amber-200"
-        aria-label="Disminuir temperatura corregida"
-      >
-        <ChevronDown className="h-4 w-4" />
-      </Button>
+    <Button
+      type="button"
+      variant="ghost"
+      disabled={isProcessing}
+      onClick={() => handleTempAdjust(idx, 0.1)}
+      className="relative h-7 w-10 rounded-full px-0 text-orange-800 hover:bg-white/90 hover:text-orange-900"
+      aria-label="Aumentar temperatura corregida 0,10 grados"
+      title="Subir 0,10 °C"
+    >
+      <span className="leading-none text-base font-semibold">+</span>
+
+    </Button>
+  </div>
+
 
       <div className="ml-auto flex items-center gap-2">
         <Checkbox
