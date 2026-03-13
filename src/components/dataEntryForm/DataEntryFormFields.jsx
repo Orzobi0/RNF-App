@@ -218,6 +218,10 @@ const [activeSection, setActiveSection] = useState(() => {
     }
   }, []);
 
+  const preventPressFocus = useCallback((event) => {
+  event.preventDefault();
+}, []);
+
   const registerActiveSection = useCallback(
     (key) => {
       const normalizedKey = normalizeSectionKey(key);
@@ -1003,30 +1007,30 @@ useEffect(() => {
 <div className="flex items-center gap-2">
   <div className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50/70 p-[2px] shadow-sm">
     <Button
-      type="button"
-      variant="ghost"
-      disabled={isProcessing}
-      onClick={() => handleTempAdjust(idx, -0.1)}
-      className="relative h-7 w-10 rounded-full px-0 text-orange-700 hover:bg-white/90 hover:text-orange-800"
-      aria-label="Disminuir temperatura corregida 0,10 grados"
-      title="Bajar 0,10 °C"
-    >
-      <span className="leading-none text-base font-semibold">−</span>
+  type="button"
+  variant="ghost"
+  disabled={isProcessing}
+  onMouseDown={preventPressFocus}
+  onClick={() => handleTempAdjust(idx, -0.1)}
+  className="relative h-7 w-10 rounded-full px-0 text-orange-700 hover:bg-white/90 hover:text-orange-800"
+  aria-label="Disminuir temperatura corregida 0,10 grados"
+  title="Bajar 0,10 °C"
+>
+  <span className="leading-none text-base font-semibold">−</span>
+</Button>
 
-    </Button>
-
-    <Button
-      type="button"
-      variant="ghost"
-      disabled={isProcessing}
-      onClick={() => handleTempAdjust(idx, 0.1)}
-      className="relative h-7 w-10 rounded-full px-0 text-orange-800 hover:bg-white/90 hover:text-orange-900"
-      aria-label="Aumentar temperatura corregida 0,10 grados"
-      title="Subir 0,10 °C"
-    >
-      <span className="leading-none text-base font-semibold">+</span>
-
-    </Button>
+<Button
+  type="button"
+  variant="ghost"
+  disabled={isProcessing}
+  onMouseDown={preventPressFocus}
+  onClick={() => handleTempAdjust(idx, 0.1)}
+  className="relative h-7 w-10 rounded-full px-0 text-orange-800 hover:bg-white/90 hover:text-orange-900"
+  aria-label="Aumentar temperatura corregida 0,10 grados"
+  title="Subir 0,10 °C"
+>
+  <span className="leading-none text-base font-semibold">+</span>
+</Button>
   </div>
 
 
