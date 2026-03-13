@@ -66,9 +66,18 @@ const CycleOverviewCard = ({
   const [isCalcOpen, setIsCalcOpen] = useState(false);
   const [recentlyChangedDays, setRecentlyChangedDays] = useState([]);
   const hasInitializedWheelRef = useRef(true);
-  const touchStartXRef = useRef(null);
-  const circleRef = useRef(null);
-  const recentSignaturesRef = useRef(new Map());
+const circleRef = useRef(null);
+const wheelDragRef = useRef({
+  pointerId: null,
+  startOffset: 0,
+  lastX: 0,
+  lastY: 0,
+  accumulatedDrag: 0,
+  moved: false,
+});
+const ringDragActiveRef = useRef(false);
+const suppressDotClickRef = useRef(false);
+const recentSignaturesRef = useRef(new Map());
   const splashTimeoutRef = useRef(null);
   const prefersReducedMotion = useReducedMotion();
   const cycleStartDate = cycleData.startDate ? parseISO(cycleData.startDate) : null;
@@ -283,42 +292,6 @@ const changeOffsetRaf = useCallback((delta) => {
     [changeOffset, hasOverflow]
   );
 
-  const handleTouchStart = useCallback((event) => {
-    if (!hasOverflow) {
-      return;
-    }
-
-    touchStartXRef.current = event.touches?.[0]?.clientX ?? null;
-  }, [hasOverflow]);
-
-  const handleTouchMove = useCallback(
-    (event) => {
-      if (!hasOverflow || touchStartXRef.current === null) {
-        return;
-      }
-
-      const currentX = event.touches?.[0]?.clientX ?? null;
-
-      if (currentX === null) {
-        return;
-      }
-
-      const deltaX = currentX - touchStartXRef.current;
-
-      if (Math.abs(deltaX) < 24) {
-        return;
-      }
-
-      changeOffsetRaf(deltaX < 0 ? 1 : -1);
-      touchStartXRef.current = currentX;
-    },
-    [changeOffset, hasOverflow]
-  );
-
-  const handleTouchEnd = useCallback(() => {
-    touchStartXRef.current = null;
-  }, []);
-
   // Colores suaves con mejor contraste
   const getSymbolColor = useCallback(
     (symbolValue) => ({
@@ -464,6 +437,58 @@ const EMPTY_DAY_COLORS = {
 
 
   const stepAngleRadians = (2 * Math.PI) / totalDots;
+  const dragDistancePerStep = ((2 * Math.PI * radius) / totalDots) * 0.8;
+const dragStartThreshold = dragDistancePerStep * 0.14;
+  const getLocalSvgPoint = useCallback(
+  (event) => {
+    if (!circleRef.current) return null;
+
+    const rect = circleRef.current.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+
+    const clientX = event.clientX;
+    const clientY = event.clientY;
+
+    if (clientX == null || clientY == null) return null;
+
+    return {
+      x: ((clientX - rect.left) / rect.width) * viewBoxSize,
+      y: ((clientY - rect.top) / rect.height) * viewBoxSize,
+      clientX,
+      clientY,
+      rect,
+    };
+  },
+  [viewBoxSize]
+);
+const buildWheelDragState = useCallback(
+  (event) => {
+    const point = getLocalSvgPoint(event);
+    if (!point) return null;
+
+    return {
+      pointerId: event.pointerId,
+      startOffset: wheelOffset,
+      lastX: point.x,
+      lastY: point.y,
+      accumulatedDrag: 0,
+      moved: false,
+    };
+  },
+  [getLocalSvgPoint, wheelOffset]
+);
+
+
+const resetWheelDrag = useCallback(() => {
+  wheelDragRef.current = {
+    pointerId: null,
+    startOffset: 0,
+    lastX: 0,
+    lastY: 0,
+    accumulatedDrag: 0,
+    moved: false,
+  };
+}, []);
   const seamAngle = -Math.PI / 2 - stepAngleRadians / 2;
   const seamInnerRadius = radius - 18;
   const seamOuterRadius = radius + 10;
@@ -481,67 +506,267 @@ const EMPTY_DAY_COLORS = {
     setActivePoint(null);
   }, [wheelOffset, hasOverflow]);
 
-  const handleDotClick = (dot, event) => {
+  const handleDotClick = useCallback((dot, event) => {
+  event.stopPropagation();
+
+  if (!circleRef.current) {
+    setActivePoint(null);
+    return;
+  }
+
+  const point = getLocalSvgPoint(event);
+  if (!point) {
+    setActivePoint(null);
+    return;
+  }
+
+  const placeholderRecord = dot.canShowPlaceholder && dot.isoDate
+    ? {
+        id: `placeholder-${dot.isoDate}`,
+        isoDate: dot.isoDate,
+        cycleDay: dot.day,
+        fertility_symbol: null,
+        mucus_sensation: '',
+        mucusSensation: '',
+        mucus_appearance: '',
+        mucusAppearance: '',
+        observations: '',
+        temperature_chart: null,
+        displayTemperature: null,
+        ignored: false,
+        peakStatus: dot.peakStatus,
+        peak_marker: dot.peakStatus === 'P' ? 'peak' : null,
+      }
+    : null;
+
+  const targetRecord = dot.record
+    ? {
+        ...dot.record,
+        cycleDay: dot.record.cycleDay ?? dot.day,
+        peakStatus: dot.peakStatus,
+        peak_marker:
+          dot.record.peak_marker ?? (dot.peakStatus === 'P' ? 'peak' : null),
+      }
+    : placeholderRecord;
+
+  if (targetRecord && currentPeakIsoDate && targetRecord.isoDate === currentPeakIsoDate) {
+    targetRecord.peak_marker = 'peak';
+    targetRecord.peakStatus = targetRecord.peakStatus || 'P';
+  }
+
+  if (!targetRecord) {
+    setActivePoint(null);
+    return;
+  }
+
+  setTooltipPosition({
+    clientX: point.clientX - point.rect.left,
+    clientY: point.clientY - point.rect.top,
+  });
+
+  setActivePoint(targetRecord);
+}, [currentPeakIsoDate, getLocalSvgPoint]);
+
+const handleDotPointerDown = useCallback(
+  (event) => {
+    suppressDotClickRef.current = false;
+
+    if (!hasOverflow) return;
+    if (event.button !== undefined && event.button !== 0) return;
+
+    const nextDragState = buildWheelDragState(event);
+    if (!nextDragState) return;
+
     event.stopPropagation();
-    if (!circleRef.current) {
+
+    wheelDragRef.current = nextDragState;
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  },
+  [buildWheelDragState, hasOverflow]
+);
+
+const handleDotPointerMove = useCallback(
+  (event) => {
+    if (!hasOverflow) return;
+
+    const drag = wheelDragRef.current;
+    if (drag.pointerId !== event.pointerId) return;
+
+    const point = getLocalSvgPoint(event);
+    if (!point) return;
+
+    event.preventDefault();
+
+    const deltaX = point.x - drag.lastX;
+    const deltaY = point.y - drag.lastY;
+    drag.lastX = point.x;
+    drag.lastY = point.y;
+
+    const currentAngle = Math.atan2(point.y - center, point.x - center);
+    const tangentX = -Math.sin(currentAngle);
+    const tangentY = Math.cos(currentAngle);
+
+    const projectedDelta = deltaX * tangentX + deltaY * tangentY;
+    drag.accumulatedDrag += projectedDelta;
+
+    if (!drag.moved && Math.abs(drag.accumulatedDrag) >= dragStartThreshold) {
+      drag.moved = true;
+      suppressDotClickRef.current = true;
       setActivePoint(null);
+    }
+
+    const steppedDelta =
+      drag.accumulatedDrag > 0
+        ? Math.floor(drag.accumulatedDrag / dragDistancePerStep)
+        : Math.ceil(drag.accumulatedDrag / dragDistancePerStep);
+
+    const nextOffset = clampOffset(drag.startOffset - steppedDelta);
+
+    setWheelOffset((previous) => (previous === nextOffset ? previous : nextOffset));
+  },
+  [center, clampOffset, dragDistancePerStep, dragStartThreshold, getLocalSvgPoint, hasOverflow]
+);
+
+const handleDotPointerUp = useCallback(
+  (event) => {
+    const drag = wheelDragRef.current;
+
+    if (hasOverflow && drag.pointerId !== event.pointerId) return;
+
+    event.stopPropagation();
+
+    try {
+      if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+        event.currentTarget.releasePointerCapture?.(event.pointerId);
+      }
+    } catch {}
+
+    resetWheelDrag();
+  },
+  [hasOverflow, resetWheelDrag]
+);
+const handleDotTap = useCallback(
+  (dot, event) => {
+    if (suppressDotClickRef.current) {
+      suppressDotClickRef.current = false;
       return;
     }
-    const rect = circleRef.current.getBoundingClientRect();
-    let clientX, clientY;
-    if (event.touches && event.touches[0]) {
-      clientX = event.touches[0].clientX;
-      clientY = event.touches[0].clientY;
-    } else {
-      clientX = event.clientX;
-      clientY = event.clientY;
+
+    handleDotClick(dot, event);
+  },
+  [handleDotClick]
+);
+
+const handleDotPointerCancel = useCallback(
+  (event) => {
+    const drag = wheelDragRef.current;
+    if (drag.pointerId !== event.pointerId) return;
+
+    try {
+      if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+        event.currentTarget.releasePointerCapture?.(event.pointerId);
+      }
+    } catch {}
+
+    resetWheelDrag();
+  },
+  [resetWheelDrag]
+);
+const handleRingPointerDown = useCallback(
+  (event) => {
+    if (!hasOverflow) return;
+    if (event.button !== undefined && event.button !== 0) return;
+
+    const nextDragState = buildWheelDragState(event);
+    if (!nextDragState) return;
+
+    ringDragActiveRef.current = true;
+    setActivePoint(null);
+    wheelDragRef.current = nextDragState;
+
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  },
+  [buildWheelDragState, hasOverflow]
+);
+
+const handleRingPointerMove = useCallback(
+  (event) => {
+    if (!hasOverflow) return;
+    if (!ringDragActiveRef.current) return;
+
+    const drag = wheelDragRef.current;
+    if (drag.pointerId !== event.pointerId) return;
+
+    const point = getLocalSvgPoint(event);
+    if (!point) return;
+
+    event.preventDefault();
+
+    const deltaX = point.x - drag.lastX;
+    const deltaY = point.y - drag.lastY;
+    drag.lastX = point.x;
+    drag.lastY = point.y;
+
+    const currentAngle = Math.atan2(point.y - center, point.x - center);
+    const tangentX = -Math.sin(currentAngle);
+    const tangentY = Math.cos(currentAngle);
+
+    const projectedDelta = deltaX * tangentX + deltaY * tangentY;
+    drag.accumulatedDrag += projectedDelta;
+
+    if (!drag.moved && Math.abs(drag.accumulatedDrag) >= dragStartThreshold) {
+      drag.moved = true;
     }
-    const placeholderRecord = dot.canShowPlaceholder && dot.isoDate
-      ? {
-          id: `placeholder-${dot.isoDate}`,
-          isoDate: dot.isoDate,
-          cycleDay: dot.day,
-          fertility_symbol: null,
-          mucus_sensation: '',
-          mucusSensation: '',
-          mucus_appearance: '',
-          mucusAppearance: '',
-          observations: '',
-          temperature_chart: null,
-          displayTemperature: null,
-          ignored: false,
-          peakStatus: dot.peakStatus,
-          peak_marker: dot.peakStatus === 'P' ? 'peak' : null,
-        }
-      : null;
 
-    const targetRecord = dot.record
-      ? {
-          ...dot.record,
-          cycleDay: dot.record.cycleDay ?? dot.day,
-          peakStatus: dot.peakStatus,
-          peak_marker:
-            dot.record.peak_marker ?? (dot.peakStatus === 'P' ? 'peak' : null),
-        }
-      : placeholderRecord;
-    if (targetRecord && currentPeakIsoDate && targetRecord.isoDate === currentPeakIsoDate) {
-      targetRecord.peak_marker = 'peak';
-      targetRecord.peakStatus = targetRecord.peakStatus || 'P';
-    }
-  
+    const steppedDelta =
+      drag.accumulatedDrag > 0
+        ? Math.floor(drag.accumulatedDrag / dragDistancePerStep)
+        : Math.ceil(drag.accumulatedDrag / dragDistancePerStep);
 
-    if (!targetRecord) {
-      setActivePoint(null);
-      return;
-    }
+    const nextOffset = clampOffset(drag.startOffset - steppedDelta);
 
-    setTooltipPosition({
-      clientX: clientX - rect.left,
-      clientY: clientY - rect.top
-    });
-    setActivePoint(targetRecord);
-  };
+    setWheelOffset((previous) => (previous === nextOffset ? previous : nextOffset));
+  },
+  [center, clampOffset, dragDistancePerStep, dragStartThreshold, getLocalSvgPoint, hasOverflow]
+);
 
+const handleRingPointerUp = useCallback(
+  (event) => {
+    if (!ringDragActiveRef.current) return;
+
+    const drag = wheelDragRef.current;
+    if (drag.pointerId !== event.pointerId) return;
+
+    try {
+      if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+        event.currentTarget.releasePointerCapture?.(event.pointerId);
+      }
+    } catch {}
+
+    ringDragActiveRef.current = false;
+    resetWheelDrag();
+  },
+  [resetWheelDrag]
+);
+
+const handleRingPointerCancel = useCallback(
+  (event) => {
+    if (!ringDragActiveRef.current) return;
+
+    const drag = wheelDragRef.current;
+    if (drag.pointerId !== event.pointerId) return;
+
+    try {
+      if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+        event.currentTarget.releasePointerCapture?.(event.pointerId);
+      }
+    } catch {}
+
+    ringDragActiveRef.current = false;
+    resetWheelDrag();
+  },
+  [resetWheelDrag]
+);
   useEffect(() => {
     if (!activePoint) return;
     const handleOutside = (e) => {
@@ -618,6 +843,43 @@ const EMPTY_DAY_COLORS = {
     );
   };
 
+  const renderCompactCalcItem = ({
+  label,
+  value,
+  onClick,
+  ariaLabel,
+  modeLabel = null,
+  emphasize = false,
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className="flex flex-col items-center gap-1 px-1 py-0.5"
+    aria-label={ariaLabel}
+  >
+    <span className="flex min-h-[1.6rem] items-end justify-center text-center text-[10px] font-medium leading-tight text-gray-700">
+      {label}
+    </span>
+
+    <div className="relative flex h-9 items-center justify-center">
+      <div
+        className={`flex h-9 w-9 items-center justify-center rounded-full border border-rose-200/70 text-rose-700 shadow-sm ${
+          emphasize
+            ? 'bg-white/80 text-sm font-semibold'
+            : 'bg-white/70 text-base font-bold'
+        }`}
+      >
+        {value ?? '—'}
+      </div>
+
+      {modeLabel ? (
+        <span className="pointer-events-none absolute left-1/2 top-[72%] -translate-x-1/2 rounded-full px-1.5 py-[1px] text-[8px] font-semibold leading-none text-rose-600 shadow-sm">
+          {modeLabel}
+        </span>
+      ) : null}
+    </div>
+  </button>
+);
   return (
     <div className="relative flex flex-col space-y-4">
       {/* Fecha actual - Parte superior con padding reducido */}
@@ -655,7 +917,7 @@ const EMPTY_DAY_COLORS = {
       >
         {/* Tarjeta SOLO para el círculo + navegación */}
         
-        <div className="relative overflow-hidden rounded-[75px]   p-4  mb-4">
+        <div className="relative overflow-hidden rounded-[75px]   p-4  mb-2">
         <div className="pointer-events-none absolute inset-0">
         {/* halo desde arriba como antes */}
         <div className="absolute inset-0 " />
@@ -666,17 +928,14 @@ const EMPTY_DAY_COLORS = {
           {/* Círculo de progreso redimensionado */}
           <div className="mb-3">
           <motion.div
-            ref={circleRef}
-            className="relative mx-auto flex items-center justify-center mb-4 drop-shadow-[0_15px_35px_rgba(221,86,101,0.22)] aspect-square w-full"
-            style={{ maxWidth: viewBoxSize, touchAction: hasOverflow ? 'pan-y' : 'auto' }}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.18, ease: 'easeOut' }}
-            onWheel={handleWheelScroll}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
-          >
+  ref={circleRef}
+  className="relative mx-auto flex items-center justify-center mb-4 drop-shadow-[0_15px_35px_rgba(221,86,101,0.22)] aspect-square w-full"
+  style={{ maxWidth: viewBoxSize, touchAction: 'pan-y' }}
+  initial={{ opacity: 0 }}
+  animate={{ opacity: 1 }}
+  transition={{ duration: 0.18, ease: 'easeOut' }}
+  onWheel={handleWheelScroll}
+>
             <svg
               className="block w-full h-full wheel-no-tap"
               viewBox={`0 0 ${viewBoxSize} ${viewBoxSize}`}
@@ -721,21 +980,46 @@ const EMPTY_DAY_COLORS = {
                   </defs>
 
               {/* Círculo base sutil */}
-              <circle cx={center} cy={center} r={radius - 28} fill="url(#ringGlow)" stroke="rgba(255,225,228,0.8)" strokeWidth={1.2}
-              filter="url(#circleDepthShadow)"
-              />
+              <circle
+  cx={center}
+  cy={center}
+  r={radius - 28}
+  fill="url(#ringGlow)"
+  stroke="rgba(255,225,228,0.8)"
+  strokeWidth={1.2}
+  filter="url(#circleDepthShadow)"
+  pointerEvents="none"
+/>
+              <circle
+  cx={center}
+  cy={center}
+  r={radius}
+  fill="transparent"
+  stroke="transparent"
+  strokeWidth={115}
+  pointerEvents={hasOverflow ? 'stroke' : 'none'}
+  onPointerDown={handleRingPointerDown}
+  onPointerMove={handleRingPointerMove}
+  onPointerUp={handleRingPointerUp}
+  onPointerCancel={handleRingPointerCancel}
+  style={{
+    touchAction: hasOverflow ? 'none' : 'auto',
+    cursor: hasOverflow ? 'grab' : 'default',
+  }}
+/>
               {hasOverflow && (
-                <line
-                  x1={seamStartX}
-                  y1={seamStartY}
-                  x2={seamEndX}
-                  y2={seamEndY}
-                  stroke="rgba(244,63,94,0.55)"
-                  strokeWidth={5}
-                  strokeLinecap="round"
-                  opacity={0.8}
-                />
-              )}
+  <line
+    x1={seamStartX}
+    y1={seamStartY}
+    x2={seamEndX}
+    y2={seamEndY}
+    stroke="rgba(244,63,94,0.55)"
+    strokeWidth={5}
+    strokeLinecap="round"
+    opacity={0.8}
+    pointerEvents="none"
+  />
+)}
 
               {/* Puntos de progreso */}
   <motion.g
@@ -753,15 +1037,21 @@ const EMPTY_DAY_COLORS = {
 {/* Punto principal con sombra real */}
 <g filter={dot.isActive ? 'url(#activePointHighlight)' : dot.isToday ? "url(#bevel)" : undefined}>
   <circle
-   cx={dot.x}
-   cy={dot.y}
-   r={dot.isToday ? 18 : 16}
-   fill="transparent"
-   pointerEvents="all"
-   onPointerDown={(e) => handleDotClick(dot, e)}
-   onClick={(e) => handleDotClick(dot, e)}
-   style={{ cursor: 'pointer' }}
- />
+  cx={dot.x}
+  cy={dot.y}
+  r={dot.isToday ? 18 : 16}
+  fill="transparent"
+  pointerEvents="all"
+  onPointerDown={handleDotPointerDown}
+  onPointerMove={handleDotPointerMove}
+  onPointerUp={handleDotPointerUp}
+  onPointerCancel={handleDotPointerCancel}
+  onClick={(e) => handleDotTap(dot, e)}
+  style={{
+    cursor: hasOverflow ? 'grab' : 'pointer',
+    touchAction: hasOverflow ? 'none' : 'auto',
+  }}
+/>
   <motion.circle
   cx={dot.x}
   cy={dot.y}
@@ -777,21 +1067,19 @@ const EMPTY_DAY_COLORS = {
     : dot.isActive 
       ? "url(#dotShadow)" 
       : undefined}
-
   strokeLinecap="round"
-  onClick={(e) => handleDotClick(dot, e)}
   initial={false}
   whileTap={
     prefersReducedMotion || !hasInitializedWheelRef.current
       ? undefined
       : {
-          y: 2,              // se hunde un pelín
-          scale: 0.75,       // se comprime un poco
+          y: 2,
+          scale: 0.75,
           opacity: 0.95,
           transition: { duration: 0.08, ease: 'easeOut' },
         }
   }
-  style={{ cursor: 'pointer' }}
+  style={{ pointerEvents: 'none' }}
 />
 
 </g>
@@ -893,22 +1181,48 @@ const EMPTY_DAY_COLORS = {
 
                 const { x: labelX, y: labelY } = rotatePoint(dot.x, dot.y);
 
-                if (dot.peakStatus === 'P') {
-                  return (
-                    <text
-                      x={labelX}
-                      y={labelY + 4}
-                      textAnchor="middle"
-                      fontSize="14"
-                      fontWeight="900"
-                      fill="#ec4899"
-                      style={{ pointerEvents: 'none' }}
-                    >
-                      ✖
-                    </text>
-                  );
-                }
-
+if (dot.peakStatus === 'P') {
+  return (
+    <g key={`peak-${index}`} pointerEvents="none">
+      <line
+        x1={labelX - 4}
+        y1={labelY - 4}
+        x2={labelX + 4}
+        y2={labelY + 4}
+        stroke="rgba(255,255,255,0.96)"
+        strokeWidth="4"
+        strokeLinecap="round"
+      />
+      <line
+        x1={labelX + 4}
+        y1={labelY - 4}
+        x2={labelX - 4}
+        y2={labelY + 4}
+        stroke="rgba(255,255,255,0.96)"
+        strokeWidth="4"
+        strokeLinecap="round"
+      />
+      <line
+        x1={labelX - 4}
+        y1={labelY - 4}
+        x2={labelX + 4}
+        y2={labelY + 4}
+        stroke="#db2777"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <line
+        x1={labelX + 4}
+        y1={labelY - 4}
+        x2={labelX - 4}
+        y2={labelY + 4}
+        stroke="#db2777"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </g>
+  );
+}
                 return (
                   <text x={labelX} 
                   y={labelY + 4} 
@@ -1021,7 +1335,7 @@ const EMPTY_DAY_COLORS = {
 </div>
 
         {/* Leyenda e información del ciclo con diseño mejorado */}
-        <div className="grid grid-cols-2 gap-4 mx-2 mb-6 mt-2 flex-shrink-0 items-start">
+        <div className="grid grid-cols-2 gap-4 mx-2 mb-3 mt-0 flex-shrink-0 items-start">
           
           {/* Leyenda de colores */}
           <motion.div
@@ -1055,8 +1369,8 @@ const EMPTY_DAY_COLORS = {
                   {[
                     { label: 'Menstrual', color: '#fb7185' },
                     { label: 'Moco (Fértil)', color: '#fdf5f8', stroke: '#fb7185' },
-                    { label: 'Seco', color: '#67C5A4' },
-                    { label: 'Moco (No fértil)', color: '#F7B944' },
+                    { label: 'Seca/Sin moco', color: '#67C5A4' },
+                    { label: 'No seca/Moco', color: '#F7B944' },
                     { label: 'Spotting', color: '#fb7185', stroke: '#fee2e2', pattern: true },
                     { label: 'Hoy', isToday: true }
                   ].map(item => (
@@ -1112,75 +1426,45 @@ const EMPTY_DAY_COLORS = {
             <AnimatePresence initial={false}>
               {isCalcOpen && (
                 <motion.div
-                  key="calc-card"
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.25, ease: 'easeInOut' }}
-                  className="grid grid-cols-2 gap-2.5 rounded-3xl bg-white/40 p-2 overflow-hidden"
-                >
-                  {/* Fila 1 - Ciclo más corto / CPM */}
-                  <button
-                    type="button"
-                    onClick={handleOpenCpmDialog}
-                    className="flex flex-col items-center gap-1.5"
-                    aria-label="Editar CPM (Ciclo más corto)"
-                  >
-                    <span className="flex items-center justify-center text-[10px] font-medium text-gray-700 leading-tight text-center h-8">Ciclo más corto</span>
-                    <div className="h-10 flex items-end">
-                      <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/70 shadow-sm w-10 h-10 text-base font-bold text-rose-700">
-                        {cpmMetric?.baseFormatted ?? '—'}
-                      </div>
-                    </div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleOpenCpmDialog}
-                    className="flex flex-col items-center gap-1.5"
-                    aria-label="Editar CPM (resultado)"
-                  >
-                    <span className="flex items-center justify-center text-[10px] font-medium text-gray-700 leading-tight text-center h-8">CPM</span>
-                    <div className="h-10 flex items-end">
-                      <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/80 shadow-sm w-10 h-10 text-sm font-semibold text-rose-700">
-                        {cpmMetric?.finalFormatted ?? '—'}
-                      </div>
-                    </div>
-                    <span className="text-[9px] font-semibold text-rose-600 mt-0.5">
-                      {cpmMetric?.modeLabel ?? 'Auto'}
-                    </span>
-                  </button>
+  key="calc-card"
+  initial={{ height: 0, opacity: 0 }}
+  animate={{ height: 'auto', opacity: 1 }}
+  exit={{ height: 0, opacity: 0 }}
+  transition={{ duration: 0.25, ease: 'easeInOut' }}
+  className="grid grid-cols-2 gap-x-2 gap-y-2 rounded-3xl bg-white/40 p-1.5 overflow-hidden"
+>
+  {renderCompactCalcItem({
+    label: 'Ciclo más corto',
+    value: cpmMetric?.baseFormatted ?? '—',
+    onClick: handleOpenCpmDialog,
+    ariaLabel: 'Editar CPM (Ciclo más corto)',
+  })}
 
-                  {/* Fila 2 - Día de subida / T-8 */}
-                  <button
-                    type="button"
-                    onClick={handleOpenT8Dialog}
-                    className="flex flex-col items-center gap-1.5"
-                    aria-label="Editar T-8 (Día de subida)"
-                  >
-                    <span className="flex items-center justify-center text-[10px] font-medium text-gray-700 leading-tight text-center h-8">Día de subida</span>
-                    <div className="h-10 flex items-end">
-                      <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/70 shadow-sm w-10 h-10 text-base font-bold text-rose-700">
-                        {t8Metric?.baseFormatted ?? '—'}
-                      </div>
-                    </div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleOpenT8Dialog}
-                    className="flex flex-col items-center gap-1.5"
-                    aria-label="Editar T-8 (resultado)"
-                  >
-                    <span className="flex items-center justify-center text-[10px] font-medium text-gray-700 leading-tight text-center h-8">T-8</span>
-                    <div className="h-10 flex items-end">
-                      <div className="flex items-center justify-center rounded-full border border-rose-200/70 bg-white/80 shadow-sm w-10 h-10 text-sm font-semibold text-rose-700">
-                        {t8Metric?.finalFormatted ?? '—'}
-                      </div>
-                    </div>
-                    <span className="text-[9px] font-semibold text-rose-600 mt-0.5">
-                      {t8Metric?.modeLabel ?? 'Auto'}
-                    </span>
-                  </button>
-                </motion.div>
+  {renderCompactCalcItem({
+    label: 'CPM',
+    value: cpmMetric?.finalFormatted ?? '—',
+    onClick: handleOpenCpmDialog,
+    ariaLabel: 'Editar CPM (resultado)',
+    modeLabel: cpmMetric?.modeLabel ?? 'Auto',
+    emphasize: true,
+  })}
+
+  {renderCompactCalcItem({
+    label: 'Día de subida',
+    value: t8Metric?.baseFormatted ?? '—',
+    onClick: handleOpenT8Dialog,
+    ariaLabel: 'Editar T-8 (Día de subida)',
+  })}
+
+  {renderCompactCalcItem({
+    label: 'T-8',
+    value: t8Metric?.finalFormatted ?? '—',
+    onClick: handleOpenT8Dialog,
+    ariaLabel: 'Editar T-8 (resultado)',
+    modeLabel: t8Metric?.modeLabel ?? 'Auto',
+    emphasize: true,
+  })}
+</motion.div>
               )}
             </AnimatePresence>
           </motion.div>
@@ -2387,6 +2671,27 @@ const ModernFertilityDashboard = () => {
             ? 'Sin usar'
             : 'Automático';
     const cycles = computedCpmData.cyclesConsidered ?? [];
+
+const displayCycles = [...cycles].sort((a, b) => {
+  const parseSafe = (value) => {
+    if (!value) return null;
+    try {
+      const parsed = parseISO(value);
+      return Number.isNaN(parsed.getTime()) ? null : parsed;
+    } catch {
+      return null;
+    }
+  };
+
+  const startA = parseSafe(a.startDate);
+  const startB = parseSafe(b.startDate);
+
+  if (!startA && !startB) return 0;
+  if (!startA) return 1;
+  if (!startB) return -1;
+
+  return startB - startA; // más reciente arriba
+});
     const canCompute = Boolean(computedCpmData.canCompute);
     const ignoredCount = computedCpmData.ignoredCount ?? 0;
     const deduction =
@@ -2449,8 +2754,8 @@ const ModernFertilityDashboard = () => {
       cycleCount,
       requiredCycles,
       canCompute,
-      detailsAvailable: cycles.length > 0,
-      cycles,
+      detailsAvailable: displayCycles.length > 0,
+      cycles: displayCycles,  
       deduction,
       shortestCycle,
       value: automaticValue,
@@ -4576,7 +4881,7 @@ const ModernFertilityDashboard = () => {
           >
             <DialogContent
               hideClose
-              className="bg-transparent border-none p-0 text-gray-800 w-[90vw] sm:w-auto max-w-md sm:max-w-lg md:max-w-xl max-h-[85vh] overflow-y-auto"
+              className="bg-transparent border-none p-0 text-gray-800 w-[96vw] sm:w-auto max-w-2xl max-h-[92dvh] overflow-hidden"
             >
               <CycleDatesEditor
                 cycle={currentCycle}
@@ -4649,8 +4954,9 @@ const ModernFertilityDashboard = () => {
         }}
       >
         <DialogContent
+          unestyled
           hideClose
-          className="bg-transparent border-none p-0 text-gray-800 w-[90vw] sm:w-auto max-w-md sm:max-w-lg md:max-w-xl max-h-[85vh] overflow-y-auto"
+          className="bg-transparent border-none p-0 text-gray-800 w-[96vw] max-w-2xl h-[92dvh] max-h-[92dvh] overflow-hidden shadow-none"
         onInteractOutside={(e) => {
     // Evita que el click en el dialog "Nuevo ciclo" cierre el formulario (dialog padre)
     e.preventDefault();

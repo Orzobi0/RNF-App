@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
@@ -14,7 +14,6 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-
 const DayDetail = ({
   isoDate,
   cycleDay,
@@ -57,6 +56,71 @@ const DayDetail = ({
     if (!isoDate || !onAdd) return;
     onAdd(isoDate);
   };
+  const [isTextExpanded, setIsTextExpanded] = useState(false);
+const [overflow, setOverflow] = useState({
+  sensation: false,
+  appearance: false,
+  observations: false,
+});
+
+const sensationTextRef = useRef(null);
+const appearanceTextRef = useRef(null);
+const observationsTextRef = useRef(null);
+// Textos "raw" (sin placeholder) para detectar overflow real
+const sensationRaw = String(details?.mucusSensation ?? '').trim();
+const appearanceRaw = String(details?.mucusAppearance ?? '').trim();
+const observationsRaw = String(details?.observationsText ?? '').trim();
+
+// Valores que pintas en UI (con placeholder)
+const mucusSensationValue = sensationRaw || '—';
+const mucusAppearanceValue = appearanceRaw || '—';
+const observationsValue = observationsRaw || '';
+
+useEffect(() => {
+  setIsTextExpanded(false);
+  setOverflow({ sensation: false, appearance: false, observations: false });
+}, [isoDate]);
+
+const isOverflowing = (el) => {
+  if (!el) return false;
+  // para truncate y para line-clamp (altura)
+  return el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1;
+};
+
+const recomputeOverflow = useCallback(() => {
+  if (isTextExpanded) {
+    setOverflow({ sensation: false, appearance: false, observations: false });
+    return;
+  }
+  setOverflow({
+    sensation: isOverflowing(sensationTextRef.current),
+    appearance: isOverflowing(appearanceTextRef.current),
+    observations: isOverflowing(observationsTextRef.current),
+  });
+}, [isTextExpanded]);
+
+useEffect(() => {
+  // esperar a layout estable (iOS)
+  const id = requestAnimationFrame(() => recomputeOverflow());
+  return () => cancelAnimationFrame(id);
+}, [recomputeOverflow, sensationRaw, appearanceRaw, observationsRaw]);
+
+useEffect(() => {
+  const ro = new ResizeObserver(() => recomputeOverflow());
+  if (sensationTextRef.current) ro.observe(sensationTextRef.current);
+  if (appearanceTextRef.current) ro.observe(appearanceTextRef.current);
+  if (observationsTextRef.current) ro.observe(observationsTextRef.current);
+  return () => ro.disconnect();
+}, [recomputeOverflow]);
+
+const smartOpen = (key, sectionKey, fieldName) => {
+  // si está truncado y aún no hemos expandido => expandir TODO primero
+  if (!isTextExpanded && overflow[key]) {
+    setIsTextExpanded(true);
+    return;
+  }
+  handleSectionOpen(sectionKey, fieldName);
+};
 
   const handleSectionOpen = (sectionKey, fieldName = null) => {
     if (details?.record && onEdit) {
@@ -88,10 +152,11 @@ const DayDetail = ({
   const isTemperatureIgnored = Boolean(details?.hasTemperature && details?.record?.ignored);
   const timeValue = details?.timeValue || '—';
   const hasTimeValue = Boolean(details?.timeValue);
-  const mucusSensationValue = details?.hasMucusSensation ? details.mucusSensation : '—';
-  const mucusAppearanceValue = details?.hasMucusAppearance ? details.mucusAppearance : '—';
-  const observationsValue = details?.observationsText?.trim();
   const hasRelations = Boolean(details?.hasRelations);
+
+const isSensationLong = sensationRaw.length > 18;
+const isAppearanceLong = appearanceRaw.length > 18;
+const isObservationsLong = observationsRaw.length > 60;
 
 // Normalizamos el indicador de pico para la UI
 let peakIndicatorLabel = null;
@@ -277,57 +342,85 @@ let peakIndicatorVariant = null;
         {/* Fila 2: moco */}
         <div className="grid grid-cols-2 gap-3">
           <button
-            type="button"
-            onClick={() => handleSectionOpen('sensation', 'mucusSensation')}
-            className={cn(
-              chipBaseClass,
-              'text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200',
-              details?.hasMucusSensation
-                ? 'border-sky-100 bg-sky-50 text-sky-800'
-                : 'border-sky-50 bg-sky-50 text-slate-400'
-            )}
-          >
-            <Droplets className="h-5 w-5 shrink-0 opacity-80" />
-            <span className="font-semibold">
-              {renderChipValue(mucusSensationValue)}
-            </span>
-          </button>
+  type="button"
+  onClick={() => smartOpen('sensation', 'sensation', 'mucusSensation')}
+  className={cn(
+    chipBaseClass,
+    'items-start text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200',
+    details?.hasMucusSensation
+      ? 'border-sky-100 bg-sky-50 text-sky-800'
+      : 'border-sky-50 bg-sky-50 text-slate-400'
+  )}
+>
+  <Droplets className="h-5 w-5 shrink-0 opacity-80 mt-0.5" />
+  <div className="flex-1 min-w-0">
+    <div
+      ref={sensationTextRef}
+      className={cn(
+        'font-semibold',
+        isTextExpanded ? 'whitespace-pre-wrap break-words' : 'truncate'
+      )}
+    >
+      {renderChipValue(mucusSensationValue)}
+    </div>
+  </div>
+
+</button>
           <button
-            type="button"
-            onClick={() => handleSectionOpen('appearance', 'mucusAppearance')}
-            className={cn(
-              chipBaseClass,
-              'text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200',
-              details?.hasMucusAppearance
-                ? 'border-emerald-100 bg-emerald-50 text-emerald-800'
-                : 'border-emerald-50 bg-emerald-50 text-slate-400'
-            )}
-          >
-            <Circle className="h-5 w-5 shrink-0 opacity-80" />
-            <span className="font-semibold">
-              {renderChipValue(mucusAppearanceValue)}
-            </span>
-          </button>
+  type="button"
+  onClick={() => smartOpen('appearance', 'appearance', 'mucusAppearance')}
+  className={cn(
+    chipBaseClass,
+    'items-start text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200',
+    details?.hasMucusAppearance
+      ? 'border-emerald-100 bg-emerald-50 text-emerald-800'
+      : 'border-emerald-50 bg-emerald-50 text-slate-400'
+  )}
+>
+  <Circle className="h-5 w-5 shrink-0 opacity-80 mt-0.5" />
+  <div className="flex-1 min-w-0">
+    <div
+      ref={appearanceTextRef}
+      className={cn(
+        'font-semibold',
+        isTextExpanded ? 'whitespace-pre-wrap break-words' : 'truncate'
+      )}
+    >
+      {renderChipValue(mucusAppearanceValue)}
+    </div>
+  </div>
+
+</button>
         </div>
 
         {/* Fila 3: observaciones + RS */}
         <div className="flex items-center gap-3">
           <button
-            type="button"
-            onClick={() => handleSectionOpen('observations', 'observations')}
-            className={cn(
-              chipBaseClass,
-              'flex-1 min-w-0 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200',
-              observationsValue
-                ? 'border-violet-100 bg-violet-50 text-violet-800'
-                : 'border-violet-100 bg-violet-50 text-slate-400'
-            )}
-          >
-            <FileText className="h-5 w-5 shrink-0 opacity-80" />
-            <span className="truncate">
-              {renderChipValue(observationsValue, { placeholder: '-' })}
-            </span>
-          </button>
+  type="button"
+  onClick={() => smartOpen('observations', 'observations', 'observations')}
+  className={cn(
+    chipBaseClass,
+    'flex-1 min-w-0 items-start text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200',
+    observationsRaw
+      ? 'border-violet-100 bg-violet-50 text-violet-800'
+      : 'border-violet-100 bg-violet-50 text-slate-400'
+  )}
+>
+  <FileText className="h-5 w-5 shrink-0 opacity-80 mt-0.5" />
+  <div className="flex-1 min-w-0">
+    <div
+      ref={observationsTextRef}
+      className={cn(
+        'font-semibold whitespace-pre-wrap break-words',
+        !isTextExpanded &&
+          '[display:-webkit-box] [-webkit-line-clamp:2] [-webkit-box-orient:vertical] overflow-hidden'
+      )}
+    >
+      {renderChipValue(observationsValue, { placeholder: '-' })}
+    </div>
+  </div>
+
+</button>
           <button
             type="button"
             onClick={handleRelationsToggle}

@@ -17,8 +17,7 @@ import {
   Clock,
   Check,
   Trash2,
-  ChevronUp,
-  ChevronDown,
+  Minus,
   Circle,
   Plus,
   Heart,
@@ -44,6 +43,19 @@ import {
 const VIEW_ALL_STORAGE_KEY = 'dataEntryForm:viewAll:global';
 const DEFAULT_SECTION_STORAGE_KEY = '__default__';
 const RADIUS = { field: 'rounded-3xl', dropdown: 'rounded-3xl' };
+
+const readStoredViewAllPreference = () => {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  try {
+    return window.localStorage.getItem(VIEW_ALL_STORAGE_KEY) === 'true';
+  } catch (error) {
+    return false;
+  }
+};
+
 const DataEntryFormFields = ({
   date,
   setDate,
@@ -107,8 +119,21 @@ const DataEntryFormFields = ({
 
   const sectionKeys = useMemo(() => sectionOrder.map((section) => section.key), [sectionOrder]);
 
-  const [isViewAll, setIsViewAll] = useState(false);
-  const [activeSection, setActiveSection] = useState(() => sectionKeys[0] ?? null);
+  const normalizeInitialSectionKey = useCallback((key) => {
+  if (['symbol', 'sensation', 'appearance'].includes(key)) {
+    return 'moco';
+  }
+  return key;
+}, []);
+
+const [isViewAll, setIsViewAll] = useState(readStoredViewAllPreference);
+const [activeSection, setActiveSection] = useState(() => {
+  const normalizedInitial = normalizeInitialSectionKey(initialSectionKey);
+  return sectionKeys.includes(normalizedInitial)
+    ? normalizedInitial
+    : sectionKeys[0] ?? null;
+});
+  const stickyHeaderRef = useRef(null);  
   const dockRef = useRef(null);
   const sectionsContainerRef = useRef(null);
   const pendingScrollTargetRef = useRef(null);
@@ -157,27 +182,31 @@ const DataEntryFormFields = ({
   }, []);
 
   const recomputeDockOffset = useCallback(() => {
-    const dock = dockRef.current;
-    if (!dock) return;
-    const rect = dock.getBoundingClientRect();
-    const computedTop = parseFloat(getComputedStyle(dock).top || '0');
-    const safeTop = Number.isNaN(computedTop) ? 0 : computedTop;
-    setDockOffset((rect?.height || 0) + safeTop + 12); // 12px de margen
-  }, []);
+  const stickyHeader = stickyHeaderRef.current;
+  if (!stickyHeader) return;
+
+  const rect = stickyHeader.getBoundingClientRect();
+  setDockOffset((rect?.height || 0) + 12);
+}, []);
 
  useEffect(() => {
-   recomputeDockOffset();
-   const ro = new ResizeObserver(() => recomputeDockOffset());
-   if (dockRef.current) ro.observe(dockRef.current);
-   const onResize = () => recomputeDockOffset();
-   window.addEventListener('resize', onResize);
-   window.addEventListener('orientationchange', onResize);
-   return () => {
-     ro.disconnect();
-     window.removeEventListener('resize', onResize);
-     window.removeEventListener('orientationchange', onResize);
-   };
- }, [recomputeDockOffset]);
+  recomputeDockOffset();
+  const ro = new ResizeObserver(() => recomputeDockOffset());
+
+  if (stickyHeaderRef.current) {
+    ro.observe(stickyHeaderRef.current);
+  }
+
+  const onResize = () => recomputeDockOffset();
+  window.addEventListener('resize', onResize);
+  window.addEventListener('orientationchange', onResize);
+
+  return () => {
+    ro.disconnect();
+    window.removeEventListener('resize', onResize);
+    window.removeEventListener('orientationchange', onResize);
+  };
+}, [recomputeDockOffset]);
 
   const triggerHapticFeedback = useCallback(() => {
     if (typeof window === 'undefined') {
@@ -188,6 +217,10 @@ const DataEntryFormFields = ({
       window.navigator.vibrate(10);
     }
   }, []);
+
+  const preventPressFocus = useCallback((event) => {
+  event.preventDefault();
+}, []);
 
   const registerActiveSection = useCallback(
     (key) => {
@@ -441,24 +474,6 @@ useEffect(() => {
     if (typeof window === 'undefined') {
       return;
     }
-    try {
-      const stored = window.localStorage.getItem(VIEW_ALL_STORAGE_KEY);
-      if (stored === 'true') {
-        setIsViewAll(true);
-      } else if (stored === 'false') {
-        setIsViewAll(false);
-      } else {
-        setIsViewAll(false);
-      }
-    } catch (error) {
-      setIsViewAll(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
 
     try {
       window.localStorage.setItem(VIEW_ALL_STORAGE_KEY, isViewAll ? 'true' : 'false');
@@ -560,13 +575,10 @@ useEffect(() => {
   };
 
   const handleUseCorrectedChange = (index, checked) => {
-    const nextValue = checked === true;
-    updateMeasurement(index, 'use_corrected', nextValue);
+  const nextValue = checked === true;
+  updateMeasurement(index, 'use_corrected', nextValue);
+};
 
-    if (!nextValue && correctionIndex === index) {
-      setCorrectionIndex(null);
-    }
-  };
   const relationsButtonClasses = cn(
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-transparent disabled:cursor-not-allowed disabled:opacity-60',
     hadRelations
@@ -659,36 +671,50 @@ useEffect(() => {
   const filledByDockItem = filledState.dock;
 
   useEffect(() => {
-    if (!isEditing) {
-      initializedSectionsRef.current = false;
-      return;
-    }
+  if (!isEditing) {
+    initializedSectionsRef.current = false;
+    return;
+  }
 
-    if (initializedSectionsRef.current) {
-      return;
-    }
+  if (initializedSectionsRef.current) {
+    return;
+  }
 
-    const filledKeys = sectionKeys.filter((key) => filledBySection[key]);
+  const normalizedInitialSectionKey = normalizeSectionKey(initialSectionKey);
+  const hasExplicitInitialSection = Boolean(
+    normalizedInitialSectionKey && sectionKeys.includes(normalizedInitialSectionKey)
+  );
 
-    if (filledKeys.length === 0) {
-      initializedSectionsRef.current = true;
-      return;
-    }
-
-    const preferredSection = filledKeys.includes(activeSection)
-      ? activeSection
-      : filledKeys[0];
-
-    registerActiveSection(preferredSection);
-    pendingScrollTargetRef.current = preferredSection;
+  if (hasExplicitInitialSection) {
+    registerActiveSection(normalizedInitialSectionKey);
+    pendingScrollTargetRef.current = normalizedInitialSectionKey;
     initializedSectionsRef.current = true;
-  }, [
-    activeSection,
-    filledBySection,
-    isEditing,
-    registerActiveSection,
-    sectionKeys,
-  ]);
+    return;
+  }
+
+  const filledKeys = sectionKeys.filter((key) => filledBySection[key]);
+
+  if (filledKeys.length === 0) {
+    initializedSectionsRef.current = true;
+    return;
+  }
+
+  const preferredSection = filledKeys.includes(activeSection)
+    ? activeSection
+    : filledKeys[0];
+
+  registerActiveSection(preferredSection);
+  pendingScrollTargetRef.current = preferredSection;
+  initializedSectionsRef.current = true;
+}, [
+  activeSection,
+  filledBySection,
+  initialSectionKey,
+  isEditing,
+  normalizeSectionKey,
+  registerActiveSection,
+  sectionKeys,
+]);
 
   useEffect(() => {
     if (!isEditing) {
@@ -748,7 +774,7 @@ useEffect(() => {
     switch (key) {
       case 'temperature':
         return (
-          <div className="space-y-3 rounded-3xl border border-temp bg-temp-suave p-3 shadow-sm">
+          <div className="space-y-2 rounded-3xl border border-temp bg-temp-suave p-2.5 shadow-sm">
             {measurements.map((m, idx) => {
               const measurementSelectId = `measurement_select_${idx}`;
               const isCorrectionOpen = correctionIndex === idx;
@@ -757,15 +783,15 @@ useEffect(() => {
                 <div
    key={idx}
    className={cn(
-     'space-y-3 rounded-3xl border bg-white/70 p-3 transition-colors',
+     'space-y-2 rounded-3xl border bg-white/70 p-2.5 transition-colors',
      m.selected && ignored
        ? 'border-[#3A2430]/30 bg-[#e6d4dd]/40'
        : 'border-amber-200/60'
    )}
  >
                   <div className="flex items-start justify-between gap-2">
-                    <Label className="flex items-center text-amber-800 text-sm font-semibold">
-                      <Thermometer className="mr-2 h-5 w-5 text-orange-500" />
+                    <Label className="flex items-center text-amber-800 text-[13px] font-semibold">
+                    <Thermometer className="mr-1 h-4 w-4 text-orange-500" />
                       Medición {idx + 1}
                     </Label>
                     <label
@@ -800,7 +826,10 @@ useEffect(() => {
                       onChange={(e) => updateMeasurement(idx, 'temperature', e.target.value)}
                       onInput={(e) => updateMeasurement(idx, 'temperature', e.target.value)}
                       placeholder="36.50"
-                      className={cn("bg-white/70 border-amber-200 text-amber-800 font-semibold placeholder-gray-400 focus:border-orange-500 focus:ring-orange-500 ", RADIUS.field)}
+                      className={cn(
+  "h-9 bg-white/70 border-amber-200 text-amber-800 font-semibold placeholder-gray-400 focus:border-orange-500 focus:ring-orange-500",
+  RADIUS.field
+)}
                       disabled={isProcessing}
                     />
                     <Input
@@ -808,194 +837,223 @@ useEffect(() => {
                       type="time"
                       value={m.time}
                       onChange={(e) => updateMeasurement(idx, 'time', e.target.value)}
-                      className={cn("bg-white/70 border-amber-200 text-gray-600 font-semibold placeholder-gray-400 focus:border-orange-500 focus:ring-orange-500", RADIUS.field)}
+                      className={cn(
+  "h-9 bg-white/70 border-amber-200 text-gray-600 font-semibold placeholder-gray-400 focus:border-orange-500 focus:ring-orange-500",
+  RADIUS.field
+)}
                       disabled={isProcessing}
                     />
                   </div>
 
-                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Button
-                        type="button"
-                        size="xs"
-                        variant="outline"
-                        disabled={isProcessing}
-                        aria-pressed={correctionIndex === idx}
-                        className={cn(
-                          'rounded-full border px-3 py-1 text-xs font-semibold transition-colors',
-                          isCorrectionOpen
-      ? 'border-amber-500 bg-amber-600 text-white shadow-inner hover:bg-amber-600'
-      : isCorrected
-      ? 'border-amber-400 bg-amber-200/80 text-amber-900 hover:bg-amber-200'
-      : 'border-amber-200 bg-white/70 text-amber-700 hover:bg-amber-50'
-                        )}
-                        onClick={() => {
-                          if (correctionIndex === idx) {
-                            setCorrectionIndex(null);
-                          } else {
-                            setCorrectionIndex(idx);
-                            if (m.temperature_corrected === '' || m.temperature_corrected === undefined) {
-                              updateMeasurement(idx, 'temperature_corrected', m.temperature);
-                            }
-                            if (!m.time_corrected) {
-                              updateMeasurement(idx, 'time_corrected', m.time);
-                            }
-                          }
-                        }}
-                      >
-                        {isCorrected ? (
-    <Check className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
-  ) : (
-    <Edit3 className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
-  )}
-  {isCorrected ? 'Corregida' : 'Corregir'}
-                      </Button>
-                      {isEditing && Boolean(m.temperature) && (
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="outline"
-                          disabled={isProcessing || !m.selected}
-                          onClick={() => handleIgnoredChange(!ignored)}
-                          className={cn(
-                            'h-9 w-9 rounded-full border transition-colors',
-                            !m.selected && 'opacity-40 cursor-not-allowed',
-      m.selected && ignored
-        ? 'border-[#3A2430] bg-[#3A2430] text-white shadow-sm ring-2 ring-[#e6d4dd]'
-        : 'border-amber-200 bg-white/80 text-amber-700 hover:bg-amber-50'
-                          )}
-                          aria-pressed={m.selected ? ignored : false}
-    title={m.selected ? (ignored ? 'Restaurar' : 'Despreciar') : 'Selecciona esta medición para la gráfica'}
-    aria-label={m.selected ? (ignored ? 'Restaurar medición despreciada' : 'Despreciar medición de la gráfica') : 'Selecciona esta medición para la gráfica'}
-                        >
-                          {m.selected && ignored ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </Button>
-                      )}
-                      {!m.confirmed && (
-                        <>
-                          <Button
-                            type="button"
-                            size="icon"
-                            onClick={() => confirmMeasurement(idx)}
-                            disabled={isProcessing}
-                            className="h-7 w-7 bg-green-600"
-                            aria-label="Confirmar medición"
-                          >
-                            <Check className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            type="button"
-                            size="icon"
-                            onClick={() => removeMeasurement(idx)}
-                            disabled={isProcessing}
-                            className="h-9 w-9 rounded-full bg-rose-600 text-white hover:bg-rose-700 shadow-sm"
-                            aria-label="Eliminar medición"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </>
-                      )}
-                      {m.confirmed && isEditing && (
-                        (() => {
-                          const isEmptyMeasurement =
-                            String(m.temperature ?? '').trim() === '' &&
-                            String(m.temperature_corrected ?? '').trim() === '';
-                          const canRemove = measurements.length > 1 || isEmptyMeasurement;
-                          if (!canRemove) return null;
-                          return (
-                            <Button
-                              type="button"
-                              size="icon"
-                              onClick={() => removeMeasurement(idx)}
-                              disabled={isProcessing}
-                              className="h-9 w-9 rounded-full bg-rose-600 text-white hover:bg-rose-700 shadow-sm"
-                              aria-label="Eliminar medición"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          );
-                        })()
-                      )}
-                    </div>
-                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+  <div className="flex flex-wrap items-center gap-2">
+    <Button
+      type="button"
+      size="xs"
+      variant="outline"
+      disabled={isProcessing}
+      aria-pressed={correctionIndex === idx}
+      className={cn(
+        'rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition-colors',
+        isCorrectionOpen
+          ? 'border-amber-500 bg-amber-600 text-white shadow-inner hover:bg-amber-600'
+          : isCorrected
+          ? 'border-amber-400 bg-amber-200/80 text-amber-900 hover:bg-amber-200'
+          : 'border-amber-200 bg-white/70 text-amber-700 hover:bg-amber-50'
+      )}
+      onClick={() => {
+        if (correctionIndex === idx) {
+          setCorrectionIndex(null);
+        } else {
+          setCorrectionIndex(idx);
+          if (m.temperature_corrected === '' || m.temperature_corrected === undefined) {
+            updateMeasurement(idx, 'temperature_corrected', m.temperature);
+          }
+          if (!m.time_corrected) {
+            updateMeasurement(idx, 'time_corrected', m.time);
+          }
+        }
+      }}
+    >
+      {isCorrected ? (
+        <Check className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+      ) : (
+        <Edit3 className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+      )}
+      {isCorrected ? 'Corregida' : 'Corregir'}
+    </Button>
 
-                  {correctionIndex === idx && (
-                    <div className="mt-2 space-y-2 rounded-3xl border border-temp bg-white/80 p-3">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Input
-                          type="number"
-                          step="0.01"
-                          min="34.0"
-                          max="40.0"
-                          value={m.temperature_corrected}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            updateMeasurement(idx, 'temperature_corrected', value);
-                            if (!m.use_corrected) {
-                              updateMeasurement(idx, 'use_corrected', true);
-                            }
-                          }}
-                          className={cn("bg-white/70 border-amber-200 placeholder-gray-400 focus:border-orange-500 focus:ring-orange-500 text-orange-700 font-semibold", RADIUS.field)}
-                          disabled={isProcessing}
-                        />
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="outline"
-                          disabled={isProcessing}
-                          onClick={() => handleTempAdjust(idx, 0.1)}
-                          aria-label="Aumentar temperatura corregida"
-                        >
-                          <ChevronUp className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="outline"
-                          disabled={isProcessing}
-                          onClick={() => handleTempAdjust(idx, -0.1)}
-                          aria-label="Disminuir temperatura corregida"
-                        >
-                          <ChevronDown className="h-4 w-4" />
-                        </Button>
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-orange-500" />
-                          <Input
-                            type="time"
-                            value={m.time_corrected}
-                            onChange={(e) => updateMeasurement(idx, 'time_corrected', e.target.value)}
-                            className="bg-white/70 border-amber-200 text-gray-800 focus:border-orange-500 focus:ring-orange-500"
-                            disabled={isProcessing}
-                          />
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Checkbox
-                          id={`use_corrected_${idx}`}
-                          checked={m.use_corrected}
-                          onCheckedChange={(checked) => handleUseCorrectedChange(idx, checked)}
-                        />
-                        <Label htmlFor={`use_corrected_${idx}`} className="text-xs">
-                          Usar valor corregido
-                        </Label>
-                      </div>
-                    </div>
-                  )}
+    {isEditing && Boolean(m.temperature) && (
+      <Button
+        type="button"
+        size="icon"
+        variant="outline"
+        disabled={isProcessing || !m.selected}
+        onClick={() => handleIgnoredChange(!ignored)}
+        className={cn(
+          'h-9 w-9 rounded-full border transition-colors',
+          !m.selected && 'opacity-40 cursor-not-allowed',
+          m.selected && ignored
+            ? 'border-[#3A2430] bg-[#3A2430] text-white shadow-sm ring-2 ring-[#e6d4dd]'
+            : 'border-amber-200 bg-white/80 text-amber-700 hover:bg-amber-50'
+        )}
+        aria-pressed={m.selected ? ignored : false}
+        title={m.selected ? (ignored ? 'Restaurar' : 'Despreciar') : 'Selecciona esta medición para la gráfica'}
+        aria-label={m.selected ? (ignored ? 'Restaurar medición despreciada' : 'Despreciar medición de la gráfica') : 'Selecciona esta medición para la gráfica'}
+      >
+        {m.selected && ignored ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+      </Button>
+    )}
+
+    {!m.confirmed && (
+      <>
+        <Button
+          type="button"
+          size="icon"
+          onClick={() => confirmMeasurement(idx)}
+          disabled={isProcessing}
+          className="h-7 w-7 bg-white text-green-600"
+          aria-label="Confirmar medición"
+        >
+          <Check className="h-4 w-4" />
+        </Button>
+        <Button
+          type="button"
+          size="icon"
+          onClick={() => removeMeasurement(idx)}
+          disabled={isProcessing}
+          className="h-7 w-7 rounded-full bg-white text-rose-600 shadow-sm"
+          aria-label="Eliminar medición"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </>
+    )}
+
+    {m.confirmed && isEditing && (
+      (() => {
+        const isEmptyMeasurement =
+          String(m.temperature ?? '').trim() === '' &&
+          String(m.temperature_corrected ?? '').trim() === '';
+        const canRemove = measurements.length > 1 || isEmptyMeasurement;
+        if (!canRemove) return null;
+        return (
+          <Button
+            type="button"
+            size="icon"
+            onClick={() => removeMeasurement(idx)}
+            disabled={isProcessing}
+            className="h-7 w-7 rounded-full bg-white text-rose-600 hover:bg-rose-700 shadow-sm"
+            aria-label="Eliminar medición"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        );
+      })()
+    )}
+  </div>
+
+  {idx === measurements.length - 1 && (
+    <Button
+      type="button"
+      onClick={addMeasurement}
+      disabled={isProcessing}
+      size="xs"
+      variant="outline"
+      className="ml-auto flex items-center gap-1 rounded-full border-amber-300/50 bg-amber-50/80 px-2.5 py-1 text-[11px] text-amber-600 shadow-sm transition-colors hover:bg-amber-100"
+      aria-label="Añadir una nueva medición"
+    >
+      <Plus className="h-3 w-3" />
+      Medición
+    </Button>
+  )}
+</div>
+
+                  
+                {correctionIndex === idx && (
+  <div className="mt-1.5 space-y-2 rounded-3xl border border-temp bg-white/80 p-2.5">
+    <div className="grid grid-cols-2 gap-2">
+      <Input
+        type="number"
+        step="0.01"
+        min="34.0"
+        max="40.0"
+        value={m.temperature_corrected}
+        onChange={(e) => {
+          const value = e.target.value;
+          updateMeasurement(idx, 'temperature_corrected', value);
+          if (!m.use_corrected) {
+            updateMeasurement(idx, 'use_corrected', true);
+          }
+        }}
+        className={cn(
+          "h-9 bg-white/70 border-amber-200 placeholder-gray-400 focus:border-orange-500 focus:ring-orange-500 text-orange-700 font-semibold",
+          RADIUS.field
+        )}
+        disabled={isProcessing}
+      />
+
+      <Input
+        type="time"
+        value={m.time_corrected}
+        onChange={(e) => updateMeasurement(idx, 'time_corrected', e.target.value)}
+        className={cn(
+          "h-9 bg-white/70 border-amber-200 text-gray-800 focus:border-orange-500 focus:ring-orange-500",
+          RADIUS.field
+        )}
+        disabled={isProcessing}
+      />
+    </div>
+<div className="flex items-center gap-2">
+  <div className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50/70 p-[2px] shadow-sm">
+    <Button
+  type="button"
+  variant="ghost"
+  disabled={isProcessing}
+  onMouseDown={preventPressFocus}
+  onClick={() => handleTempAdjust(idx, -0.1)}
+  className="relative h-7 w-10 rounded-full px-0 text-orange-700 hover:bg-white/90 hover:text-orange-800"
+  aria-label="Disminuir temperatura corregida 0,10 grados"
+  title="Bajar 0,10 °C"
+>
+  <span className="leading-none text-base font-semibold">−</span>
+</Button>
+
+<Button
+  type="button"
+  variant="ghost"
+  disabled={isProcessing}
+  onMouseDown={preventPressFocus}
+  onClick={() => handleTempAdjust(idx, 0.1)}
+  className="relative h-7 w-10 rounded-full px-0 text-orange-800 hover:bg-white/90 hover:text-orange-900"
+  aria-label="Aumentar temperatura corregida 0,10 grados"
+  title="Subir 0,10 °C"
+>
+  <span className="leading-none text-base font-semibold">+</span>
+</Button>
+  </div>
+
+
+      <div className="ml-auto flex items-center gap-2">
+        <Checkbox
+          id={`use_corrected_${idx}`}
+          checked={m.use_corrected}
+          onCheckedChange={(checked) => handleUseCorrectedChange(idx, checked)}
+        />
+        <Label
+          htmlFor={`use_corrected_${idx}`}
+          className="text-xs font-medium text-slate-700"
+        >
+          Usar valor corregido
+        </Label>
+      </div>
+    </div>
+  </div>
+)}
                 </div>
               );
             })}
-            <Button
-              type="button"
-              onClick={addMeasurement}
-              disabled={isProcessing}
-              size="xs"
-              variant="outline"
-              className="ml-auto flex items-center gap-1 rounded-full border-amber-300/50 bg-amber-50/80 px-3 py-2 text-xs text-amber-600 shadow-sm transition-colors hover:bg-amber-100"
-              aria-label="Añadir una nueva medición"
-            >
-              <Plus className="h-3 w-3" />
-              Medición
-            </Button>
+
           </div>
         );
       case 'moco': {
@@ -1117,47 +1175,41 @@ useEffect(() => {
 
   return (
     <>
-      <div className="space-y-2">
-        <div className="col-span-3 space-y-2 rounded-3xl border border-fertiliapp bg-tarjeta p-3">
-          <Label htmlFor="date" className="relative flex items-center text-titulo text-sm font-semibold pr-16">
-  <span className="flex items-center">
-    <CalendarDays className="mr-2 h-5 w-5 text-titulo" />
-    Fecha del Registro
-  </span>
+      <div
+  ref={stickyHeaderRef}
+  className="sticky top-0 z-30 isolate -mx-1 overflow-hidden rounded-b-3xl bg-form-surface px-1 pb-2 pt-1"
+>
+  <div className="absolute inset-0 z-0 rounded-3xl bg-form-surface" />
+  <div className="absolute inset-x-0 bottom-0 z-0 h-6 bg-form-surface" />
+  <div className="relative z-10 rounded-b-3xl bg-form-surface">
+    <div className="space-y-2">
+      <div className="col-span-3 space-y-2 rounded-3xl border border-fertiliapp bg-tarjeta shadow-sm p-3">
+        <Label htmlFor="date" className="flex items-center text-titulo text-sm font-semibold">
+          <CalendarDays className="mr-2 h-5 w-5 text-titulo" />
+          Fecha del Registro
+        </Label>
 
-  <Button
-    type="button"
-    variant="ghost"
-    size="sm"
-    onClick={() => onOpenNewCycle?.(selectedIsoDate)}
-    disabled={isProcessing || !selectedIsoDate || typeof onOpenNewCycle !== 'function'}
-    className="absolute right-0 top-1/2 h-8 -translate-y-1/2 rounded-full px-2 text-[10px] font-semibold text-fertiliapp-fuerte hover:bg-fertiliapp-suave/50"
-    aria-label="Iniciar nuevo ciclo"
-  >
-    <CalendarPlus className="mr-1 h-5 w-5" />
-    <span className="flex flex-col leading-[12px] text-left">
-      <span>Nuevo</span>
-      <span>ciclo</span>
-    </span>
-  </Button>
-</Label>
+        <div className="flex items-stretch gap-2">
           <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
                 className={cn(
-                  'w-full justify-start text-left font-normal bg-white/70 border-fertiliapp-suave text-gray-800 hover:bg-white/70 hover:text-gray-800',
+                  'h-11 min-w-0 flex-[3.5] justify-start text-left font-normal bg-white border-fertiliapp-suave text-gray-800 hover:bg-white hover:text-gray-800',
                   !date && 'text-muted-foreground'
                 )}
                 disabled={isProcessing}
               >
-                {date ? format(date, 'PPP', { locale: es }) : <span>Selecciona una fecha</span>}
+                <span className="truncate">
+                  {date ? format(date, 'PPP', { locale: es }) : 'Selecciona una fecha'}
+                </span>
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0 bg-white border-pink-200 text-gray-800 rounded-3xl" align="start">
               <Calendar
                 mode="single"
                 selected={date}
+                defaultMonth={date ?? undefined}
                 onSelect={(selectedDate) => {
                   if (!selectedDate) {
                     setOpen(false);
@@ -1166,29 +1218,123 @@ useEffect(() => {
 
                   setDate(startOfDay(selectedDate));
                   setOpen(false);
-                  }}
+                }}
                 initialFocus
                 locale={es}
                 disabled={isProcessing ? () => true : disabledDateRanges}
                 modifiers={{ hasRecord: recordedDates }}
                 modifiersClassNames={{
                   hasRecord:
-                    'relative after:content-["" ] after:absolute after:inset-x-0 after:bottom-1 after:mx-auto after:w-1.5 after:h-1.5 after:rounded-full after:bg-fertiliapp-fuerte',
+                    'relative after:content-[""] after:absolute after:inset-x-0 after:bottom-1 after:mx-auto after:w-1.5 after:h-1.5 after:rounded-full after:bg-fertiliapp-fuerte',
                 }}
                 className="[&_button]:text-gray-800 [&_button:hover]:bg-fertiliapp-suave [&_button[aria-selected=true]]:bg-fertiliapp-fuerte [&_button[aria-selected=true]]:text-white [&_button[aria-disabled=true]]:text-gray-400"
               />
             </PopoverContent>
           </Popover>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => onOpenNewCycle?.(selectedIsoDate)}
+            disabled={isProcessing || !selectedIsoDate || typeof onOpenNewCycle !== 'function'}
+            className="h-11 flex-[1.15] rounded-2xl border-fertiliapp-suave bg-white px-2 text-[10px] font-semibold text-fertiliapp-fuerte hover:bg-fertiliapp-suave/60"
+            aria-label="Iniciar nuevo ciclo"
+          >
+            <CalendarPlus className="mr-1 h-4 w-4 shrink-0" />
+            <span className="flex flex-col leading-[11px] text-left">
+              <span>Nuevo</span>
+              <span>ciclo</span>
+            </span>
+          </Button>
         </div>
       </div>
-      <div className="mt-2">
-        <div
-          ref={dockRef}
-          className={cn(
-            'sticky top-4 z-20 flex w-full items-center gap-2 rounded-3xl border border-pink-200/70 bg-white/80 px-2 py-2 shadow-sm transition-opacity duration-200 backdrop-blur supports-[backdrop-filter]:backdrop-blur-lg sm:top-6',
-            isViewAll ? 'opacity-80' : 'opacity-100'
-          )}
+    </div>
+                
+
+    <div className="mt-1 space-y-0.5 px-2 sm:px-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <PeakModeButton
+          mode={peakMode}
+          size="md"
+          onClick={togglePeakTag}
+          aria-pressed={isPeakDay}
+          aria-label={peakAriaLabel}
+          disabled={isProcessing || !selectedIsoDate}
+        />
+        {canSyncTemperature && (
+          <button
+            type="button"
+            className={cn(
+              'inline-flex items-center gap-1 rounded-full border border-amber-200 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-700 shadow-sm transition-colors',
+              canSyncTemperature && !isSyncingTemperature
+                ? 'hover:bg-amber-50'
+                : 'cursor-not-allowed opacity-60'
+            )}
+            onClick={onSyncTemperature}
+            disabled={isProcessing || isSyncingTemperature || !canSyncTemperature}
+            aria-label="Sincronizar temperaturas"
+          >
+            <RefreshCcw className="h-3.5 w-3.5" aria-hidden="true" />
+            {isSyncingTemperature ? 'Sincronizando...' : '+ temperatura'}
+          </button>
+        )}
+        <button
+          type="button"
+          className={relationsButtonClasses}
+          onClick={handleRelationsToggle}
+          disabled={isProcessing || !selectedIsoDate}
+          aria-pressed={hadRelations}
+          aria-label={hadRelations ? 'Desmarcar relaciones sexuales' : 'Marcar relaciones sexuales'}
         >
+          <Heart className={cn('h-4 w-4', hadRelations ? 'text-rose-500 fill-current' : 'text-slate-400')} aria-hidden="true" />
+          <span className="text-xs font-semibold uppercase tracking-wide">RS</span>
+        </button>
+      </div>
+
+      {(existingPeakIsoDate || statusMessages.peak || statusMessages.relations) && (
+        <div className="mt-1 grid grid-cols-[1fr_auto] items-start gap-2 text-[11px]">
+          <div className="min-w-0">
+            {existingPeakIsoDate && (
+              <div className="text-slate-500">
+                {`Día pico: ${format(parseISO(existingPeakIsoDate), 'dd/MM')}`}
+              </div>
+            )}
+            {statusMessages.peak && (
+              <div className="font-medium text-rose-600" role="status" aria-live="polite">
+                {statusMessages.peak}
+              </div>
+            )}
+          </div>
+
+          <div className="text-right">
+            {statusMessages.relations && (
+              <div className="font-medium text-rose-600" role="status" aria-live="polite">
+                {statusMessages.relations}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+
+    <div className="mt-2">
+      <motion.div
+        ref={dockRef}
+        animate={{
+          width: isViewAll ? '70%' : '100%',
+        }}
+        transition={{ duration: 0.22, ease: 'easeOut' }}
+        className="mx-auto"
+      >
+        <div
+  className={cn(
+    'flex w-full items-center rounded-3xl border border-pink-200 bg-white shadow-sm transition-all duration-200',
+    isViewAll
+      ? 'min-h-[36px] gap-1 px-1 py-[2px] opacity-90'
+      : 'min-h-[50px] gap-1.5 px-2 py-1.5 opacity-100'
+  )}
+>
           <div className="flex flex-1 items-center gap-1 sm:gap-2">
             {dockItems.map((item) => {
               const Icon = item.icon;
@@ -1199,6 +1345,7 @@ useEffect(() => {
               const isFilled = filledByDockItem[item.key] ?? filledBySection[targetSectionKey];
               const idleTextClass = styles.idleText ?? 'text-slate-500';
               const filledTextClass = styles.filledText ?? idleTextClass;
+
               return (
                 <button
                   key={item.key}
@@ -1206,22 +1353,24 @@ useEffect(() => {
                   onPointerDown={(e) => handleSectionPointerDown(e, targetSectionKey)}
                   onClick={() => handleSectionClick(targetSectionKey)}
                   className={cn(
-                    'flex h-11 w-11 items-center justify-center rounded-full border-2 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 touch-manipulation',
-                    styles.focusRing,
-                    isActive
-                      ? cn(
-                          'shadow-inner scale-105',
-                          styles.activeBorder,
-                          styles.activeBg,
-                          styles.activeText
-                        )
-                      : cn(
-                          'border-transparent bg-transparent hover:bg-slate-100',
-                          isFilled ? filledTextClass : idleTextClass
-                        ),
-                    !isActive && isViewAll && 'opacity-70',
-                    'min-h-[44px] min-w-[44px]'
-                  )}
+  'flex items-center justify-center rounded-full border-2 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 touch-manipulation',
+  isViewAll
+    ? 'h-7 w-7 min-h-[20px] min-w-[36px]'
+    : 'h-11 w-11 min-h-[44px] min-w-[44px]',
+  styles.focusRing,
+  isActive
+    ? cn(
+        'shadow-inner scale-105',
+        styles.activeBorder,
+        styles.activeBg,
+        styles.activeText
+      )
+    : cn(
+        'border-transparent bg-transparent hover:bg-slate-100',
+        isFilled ? filledTextClass : idleTextClass
+      ),
+  !isActive && isViewAll && 'opacity-70'
+)}
                   aria-label={item.ariaLabel}
                   aria-expanded={isExpanded}
                   aria-controls={`${targetSectionKey}-panel`}
@@ -1229,7 +1378,8 @@ useEffect(() => {
                 >
                   <Icon
                     className={cn(
-                      'h-5 w-5 transition-colors duration-200',
+                      'transition-all duration-200',
+                      isViewAll ? 'h-3 w-3' : 'h-5 w-5',
                       isActive
                         ? styles.activeText
                         : isFilled
@@ -1243,11 +1393,15 @@ useEffect(() => {
               );
             })}
           </div>
+
           <button
             type="button"
             onClick={handleViewAllToggle}
             className={cn(
-              'ml-auto inline-flex min-h-[32px] min-w-[32px] items-center justify-center rounded-full border px-3 text-xs font-semibold uppercase tracking-wide transition-all duration-200',
+              'ml-auto inline-flex items-center justify-center rounded-full border text-xs font-semibold uppercase tracking-wide transition-all duration-200',
+              isViewAll
+                ? 'min-h-[28px] min-w-[28px] px-2'
+                : 'min-h-[32px] min-w-[32px] px-3',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-pink-200',
               isViewAll
                 ? 'border-pink-200 bg-pink-50/80 text-pink-600 shadow-inner'
@@ -1256,74 +1410,24 @@ useEffect(() => {
             aria-pressed={isViewAll}
             aria-label={isViewAll ? 'Compactar secciones' : 'Ver todas las secciones'}
           >
-            <span className="text-lg leading-none" aria-hidden="true">
-              {isViewAll ? '⇤' : '⇵'}
-              </span>
-              <span className="sr-only">{isViewAll ? 'Compactar' : 'Todo'}</span>
-          </button>
-        </div>
-      </div>
-      <div className="mt-2 space-y-1 px-2 sm:px-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <PeakModeButton
-            mode={peakMode}
-            size="md"
-            onClick={togglePeakTag}
-            aria-pressed={isPeakDay}
-            aria-label={peakAriaLabel}
-            disabled={isProcessing || !selectedIsoDate}
-          />
-          {canSyncTemperature && (
-            <button
-              type="button"
-              className={syncTemperatureClasses}
-              onClick={onSyncTemperature}
-              disabled={isProcessing || isSyncingTemperature || !canSyncTemperature}
-              aria-label="Sincronizar temperaturas"
+            <span
+              className={cn(
+                'leading-none transition-all duration-200',
+                isViewAll ? 'text-base' : 'text-lg'
+              )}
+              aria-hidden="true"
             >
-              <RefreshCcw className="h-3.5 w-3.5" aria-hidden="true" />
-              {isSyncingTemperature ? 'Sincronizando...' : '+ temperatura'}
-            </button>
-          )}
-          <button
-            type="button"
-            className={relationsButtonClasses}
-            onClick={handleRelationsToggle}
-            disabled={isProcessing || !selectedIsoDate}
-            aria-pressed={hadRelations}
-            aria-label={hadRelations ? 'Desmarcar relaciones sexuales' : 'Marcar relaciones sexuales'}
-          >
-            <Heart className={cn('h-4 w-4', hadRelations ? 'text-rose-500 fill-current' : 'text-slate-400')} aria-hidden="true" />
-            <span className="text-xs font-semibold uppercase tracking-wide">RS</span>
+              {isViewAll ? '⇤' : '⇵'}
+            </span>
+            <span className="sr-only">{isViewAll ? 'Compactar' : 'Todo'}</span>
           </button>
         </div>
-        {(existingPeakIsoDate || statusMessages.peak || statusMessages.relations) && (
-  <div className="mt-1 grid grid-cols-[1fr_auto] items-start gap-2 text-[11px]">
-    <div className="min-w-0">
-      {existingPeakIsoDate && (
-        <div className="text-slate-500">
-          {`Día pico: ${format(parseISO(existingPeakIsoDate), 'dd/MM')}`}
-        </div>
-      )}
-      {statusMessages.peak && (
-        <div className="font-medium text-rose-600" role="status" aria-live="polite">
-          {statusMessages.peak}
-        </div>
-      )}
-    </div>
-
-    <div className="text-right">
-      {statusMessages.relations && (
-        <div className="font-medium text-rose-600" role="status" aria-live="polite">
-          {statusMessages.relations}
-        </div>
-      )}
+      </motion.div>
     </div>
   </div>
-)}
+</div>
 
-      </div>
-      <div className="mt-2" ref={sectionsContainerRef}>
+<div className="relative z-0 mt-1" ref={sectionsContainerRef}>
         <AnimatePresence initial={false}>
           {sectionOrder
             .filter((section) => openSectionKeys.includes(section.key))
@@ -1339,7 +1443,7 @@ useEffect(() => {
                 transition={{ duration: 0.18, ease: 'easeInOut' }}
                 className="overflow-hidden"
               >
-                <div className="pt-2">
+                <div className="pt-1">
                   {renderSectionContent(section.key)}
                 </div>
               </motion.div>

@@ -10,11 +10,12 @@ import FertilityChart from '@/components/FertilityChart';
 import { useCycleData } from '@/hooks/useCycleData';
 import { differenceInDays, format, parseISO, startOfDay } from 'date-fns';
 import generatePlaceholders from '@/lib/generatePlaceholders';
-import { RotateCcw, Eye, EyeOff, ArrowLeft, Settings, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import DataEntryForm from '@/components/DataEntryForm';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import NewCycleDialog from '@/components/NewCycleDialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import {
@@ -26,6 +27,7 @@ import Overlay from '@/components/ui/Overlay';
 import { useAuth } from '@/contexts/AuthContext';
 import { computeOvulationMetrics } from '@/hooks/useFertilityChart';
 import normalizeBoolean from '@/lib/normalizeBoolean';
+import ChartControls from '@/components/ChartControls';
 
 const CHART_SETTINGS_STORAGE_KEY = 'fertility-chart-settings';
 
@@ -104,7 +106,9 @@ const ChartPage = () => {
     isLoading,
     addOrUpdateDataPoint,
     toggleIgnoreRecord,
-    getCycleById
+    getCycleById,
+    previewStartNewCycle,
+    startNewCycle,
   } = useCycleData();
 
   const [fetchedCycle, setFetchedCycle] = useState(null);
@@ -179,15 +183,19 @@ const ChartPage = () => {
     ? preferences.t8Mode
     : 'auto';
     
-  const archivedCycleTitle = useMemo(() => {
-    if (!showBackToCycleRecords || !targetCycle?.startDate) {
+  const chartCycleLabel = useMemo(() => {
+    if (isViewingCurrentCycle) {
+      return 'Ciclo actual';
+    }
+
+    if (!targetCycle?.startDate) {
       return '';
     }
 
     const formatDate = (date) => {
       if (!date) return null;
       try {
-        return format(parseISO(date), 'dd/MM/yyyy');
+        return format(parseISO(date), 'dd-MM-yyyy');
       } catch (error) {
         console.error('Error formatting cycle date', error);
         return date;
@@ -202,7 +210,7 @@ const ChartPage = () => {
     }
 
     return `Ciclo ${start} - ${end}`;
-  }, [showBackToCycleRecords, targetCycle?.startDate, targetCycle?.endDate]);
+  }, [isViewingCurrentCycle, targetCycle?.startDate, targetCycle?.endDate]);
   const fertilityCalculatorCycles = useMemo(() => {
     const cycles = [];
     if (Array.isArray(archivedCycles) && archivedCycles.length > 0) {
@@ -222,20 +230,41 @@ const ChartPage = () => {
   );
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [forceLandscape, setForceLandscape] = useState(false);
-  const [viewport, setViewport] = useState(() => ({
-  w: typeof window !== 'undefined' ? window.innerWidth : 0,
-  h: typeof window !== 'undefined' ? window.innerHeight : 0,
-}));
+  const readViewport = () => {
+  if (typeof window === 'undefined') return { w: 0, h: 0 };
+  const vv = window.visualViewport;
+  const w = vv?.width ?? window.innerWidth ?? 0;
+  const h = vv?.height ?? window.innerHeight ?? 0;
+  return { w: Math.round(w), h: Math.round(h) };
+};
+
+const [viewport, setViewport] = useState(readViewport);
 
 useEffect(() => {
   if (typeof window === 'undefined') return undefined;
-  const onResize = () => setViewport({ w: window.innerWidth, h: window.innerHeight });
+
+  let raf = 0;
+  const vv = window.visualViewport;
+
+  const onResize = () => {
+    if (raf) cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(() => setViewport(readViewport()));
+  };
+
   window.addEventListener('resize', onResize);
   window.addEventListener('orientationchange', onResize);
+
+  vv?.addEventListener('resize', onResize);
+  vv?.addEventListener('scroll', onResize); // en iOS cambia al mostrar/ocultar barras/teclado
+
   onResize();
+
   return () => {
+    if (raf) cancelAnimationFrame(raf);
     window.removeEventListener('resize', onResize);
     window.removeEventListener('orientationchange', onResize);
+    vv?.removeEventListener('resize', onResize);
+    vv?.removeEventListener('scroll', onResize);
   };
 }, []);
 
@@ -243,8 +272,11 @@ const applyRotation = isFullScreen && forceLandscape && viewport.w < viewport.h;
   const [showForm, setShowForm] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [initialSectionKey, setInitialSectionKey] = useState(null);
+  const [showNewCycleDialog, setShowNewCycleDialog] = useState(false);
+  const [newCyclePrefillDate, setNewCyclePrefillDate] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showInterpretation, setShowInterpretation] = useState(false);
+  const [showManualBaseline, setShowManualBaseline] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const DRAWER_ANIM_MS = 320; // >= 300ms (tu transition del drawer normal)
 const [drawerMounted, setDrawerMounted] = useState(false);
@@ -585,37 +617,23 @@ useEffect(() => {
       radial-gradient(140% 140% at 100% 100%, rgba(255,255,255,0.9) 0, rgba(255,247,250,0.3) 40%, transparent 70%)
     `
   };
-  const APP_H = 'calc(var(--app-vh, 1vh) * 100)';
-  const NAVBAR_SAFE_VAR = 'var(--bottom-nav-safe)';
   const containerStyle = isFullScreen
-    ? {
-        ...baseStyle,
-        height: APP_H,
-        maxHeight: APP_H,
-        paddingBottom: 'env(safe-area-inset-bottom)'
-        }
-    : {
-        ...baseStyle,
-        height: `calc(${APP_H} - ${NAVBAR_SAFE_VAR})`,
-        maxHeight: `calc(${APP_H} - ${NAVBAR_SAFE_VAR})`,
-      };
+  ? {
+      ...baseStyle,
+      boxSizing: 'border-box',
+    }
+  : {
+      ...baseStyle,
+      height: '100%',
+      maxHeight: '100%',
+      boxSizing: 'border-box',
+    };
 
-      const controlsClassName = isFullScreen
-        ? 'fixed z-[60] flex flex-col items-center gap-2'
-        : 'absolute top-4 right-4 z-10 flex items-center gap-2';
-
-      const controlsStyle = isFullScreen
-        ? {
-            top: 'calc(env(safe-area-inset-top) + 8px)',
-            right: 'calc(env(safe-area-inset-right) + 8px)',
-          }
-        : undefined;
-
-        const fullscreenIconRotationClass = isFullScreen ? 'rotate-90' : '';
+      const isRotatedFullScreen = isFullScreen && applyRotation;
       
 
       const normalDrawerClassName =
-  `fixed top-0 right-0 z-50 h-app w-72 sm:w-80 transform transition-transform duration-300 ease-in-out ${
+  `fixed top-0 right-0 z-[320] h-app w-72 sm:w-80 transform transition-transform duration-300 ease-in-out ${
     settingsOpen ? 'translate-x-0' : 'translate-x-full'
   }`;
 
@@ -628,7 +646,7 @@ const rotatedStageStyle = applyRotation
       height: `${viewport.w}px`,
       transform: 'translate(-50%, -50%) rotate(90deg)',
       transformOrigin: 'center center',
-      zIndex: 80,
+      zIndex: 320,
       pointerEvents: settingsOpen ? 'auto' : 'none',
       boxSizing: 'border-box',
 
@@ -749,7 +767,7 @@ const rotatedDrawerStyle = applyRotation
     }
   };
   const settingsDrawerInner = (
-        <div className="flex h-full min-h-0 flex-col gap-6 rounded-xl border border-rose-100/60 bg-white p-6 shadow-xl">
+        <div className="flex h-full min-h-0 flex-col gap-6 rounded-l-2xl border border-rose-100/60 bg-white p-6 pt-[calc(env(safe-area-inset-top)+24px)] shadow-xl">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-lg font-semibold text-titulo">Ajustes del gráfico</h2>
@@ -1071,6 +1089,11 @@ const rotatedDrawerStyle = applyRotation
     setInitialSectionKey(null);
   }, []);
 
+  const handleOpenNewCycleDialog = useCallback((initialIsoDate = null) => {
+    setNewCyclePrefillDate(initialIsoDate || editingRecord?.isoDate || null);
+    setShowNewCycleDialog(true);
+  }, [editingRecord?.isoDate]);
+
   const handleSave = async (data, { keepFormOpen = false } = {}) => {
     if (!targetCycle?.id) return;
     setIsProcessing(true);
@@ -1334,6 +1357,13 @@ const rotatedDrawerStyle = applyRotation
     if (!isFullScreen) {
       setIsFullScreen(true);
       setForceLandscape(true);
+      if (typeof window !== 'undefined') {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        window.dispatchEvent(new Event('resize'));
+      });
+    });
+  }
     return;
     }
     
@@ -1349,62 +1379,64 @@ const rotatedDrawerStyle = applyRotation
   return (
     <MainLayout hideBottomNav={isFullScreen}>
       <div
-        className={
-          isFullScreen
-            ? 'fixed inset-0 z-50 h-app w-[100vw] overflow-hidden'
-            : 'relative w-full min-h-full overflow-x-hidden'}
-        style={containerStyle}
+  className={
+    isFullScreen
+      ? 'fixed inset-0 z-50 overflow-hidden'
+      : 'relative w-full h-full overflow-hidden'
+  }
+  style={containerStyle}
+>
+        {chartCycleLabel && (
+  <div className="pointer-events-none absolute z-[120]" style={{ inset: 0 }}>
+    {isRotatedFullScreen ? (
+      <div
+        style={{
+          position: 'absolute',
+          top: '50%',
+          right: 'calc(env(safe-area-inset-right) + 8px)',
+          transform: 'translateY(-50%)',
+        }}
       >
-        {showBackToCycleRecords && !isFullScreen && (
-          <Button
-            asChild
-            variant="ghost"
-            className="absolute top-4 left-4 z-10 bg-white/20 text-slate-700 hover:brightness-95"
-          >
-            <Link to={`/cycle/${targetCycle.id}`} className="flex items-center gap-1">
-              <ArrowLeft className="h-4 w-4" />
-              {archivedCycleTitle && (
-                <span className="ml-1 text-xs font-semibold text-slate-700 sm:text-sm">
-                  {archivedCycleTitle}
-                </span>
-              )}
-            </Link>
-          </Button>
-          
-        )}
-        <div className={controlsClassName} style={controlsStyle}>
-          <Button
-            onClick={toggleSettings}
-            variant="ghost"
-            size="icon"
-            className="p-2 rounded-full bg-white/20 shadow-lg shadow-secundario text-secundario border hover:brightness-95"
-            aria-label="Ajustes"
-          >
-            <Settings className={`h-4 w-4 transition-transform ${fullscreenIconRotationClass}`} />
-          </Button>
-          <Button
-            onClick={handleInterpretationClick}
-            onPointerUp={handleInterpretationPointerUp}
-            variant="ghost"
-            size="icon"
-            className={`p-2 rounded-full transition-colors ${showInterpretation 
-              ? 'bg-fertiliapp-fuerte text-white shadow-lg shadow-fertiliapp-fuerte/50 border-fertiliapp-fuerte/70' 
-              : 'bg-white/20 text-fertiliapp-fuerte border border-fertiliapp-fuerte hover:brightness-95 shadow-md'}`}
-          >
-            {showInterpretation ? (
-              <EyeOff className={`h-4 w-4 transition-transform ${fullscreenIconRotationClass}`} />
-            ) : (
-              <Eye className={`h-4 w-4 transition-transform ${fullscreenIconRotationClass}`} />
-            )}
-          </Button>
-          <Button
-            onClick={handleToggleFullScreen}
-            className="bg-white/20 rounded-full text-slate-600 hover:bg-pink-50/80 shadow-md border border-slate-400/50 backdrop-blur-sm"
-            aria-label={isFullScreen ? 'Salir de pantalla completa' : 'Rotar gráfico'}
-          >
-            <RotateCcw className={`w-4 h-4 transition-transform ${fullscreenIconRotationClass}`} />
-          </Button>
+        <div
+          style={{
+            transform: 'rotate(90deg)',
+            transformOrigin: 'right center',
+          }}
+        >
+          <span className="rounded-full bg-white/55 px-3 py-1 text-[11px] font-medium text-slate-500 backdrop-blur-sm">
+            {chartCycleLabel}
+          </span>
         </div>
+      </div>
+    ) : (
+      <div
+        style={{
+          position: 'absolute',
+          left: '50%',
+          top: isFullScreen ? 'calc(env(safe-area-inset-top) + 12px)' : '12px',
+          transform: 'translateX(-50%)',
+        }}
+      >
+        <span className="rounded-full bg-white/55 px-3 py-1 text-[11px] font-medium text-slate-500 backdrop-blur-sm">
+          {chartCycleLabel}
+        </span>
+      </div>
+    )}
+  </div>
+)}
+        <ChartControls
+          isFullScreen={isFullScreen}
+          visualOrientation={visualOrientation}
+          showBackToCycleRecords={showBackToCycleRecords}
+          targetCycleId={targetCycle.id}
+          showInterpretation={showInterpretation}
+          showManualBaseline={showManualBaseline}
+          onToggleInterpretation={handleInterpretationClick}
+          onToggleManualBaseline={() => setShowManualBaseline((prev) => !prev)}
+          onInterpretationPointerUp={handleInterpretationPointerUp}
+          onToggleFullScreen={handleToggleFullScreen}
+          onToggleSettings={toggleSettings}
+        />
         <FertilityChart
           data={mergedData}
           isFullScreen={isFullScreen}
@@ -1416,6 +1448,7 @@ const rotatedDrawerStyle = applyRotation
           initialScrollIndex={scrollStart}
           visibleDays={visibleDays}
           showInterpretation={showInterpretation}
+          showManualBaseline={showManualBaseline}
           reduceMotion={true}
           forceLandscape={forceLandscape || orientation === 'landscape'}
           currentPeakIsoDate={currentPeakIsoDate}
@@ -1433,7 +1466,7 @@ const rotatedDrawerStyle = applyRotation
     {/* Backdrop */}
     {settingsOpen && (
       <div
-        className={`fixed inset-0 ${applyRotation ? 'z-[70]' : 'z-40'} bg-black/30`}
+        className={`fixed inset-0 ${applyRotation ? 'z-[300]' : 'z-[300]'} bg-black/30`}
         onClick={closeSettings}
         aria-hidden="true"
       />
@@ -1528,9 +1561,27 @@ const rotatedDrawerStyle = applyRotation
               cycleData={targetCycle.data}
               onDateSelect={handleDateSelect}
               initialSectionKey={initialSectionKey}
+              onOpenNewCycle={handleOpenNewCycleDialog}
             />
           </DialogContent>
         </Dialog>
+        
+        <NewCycleDialog
+          isOpen={showNewCycleDialog}
+          onClose={() => {
+            setShowNewCycleDialog(false);
+            setNewCyclePrefillDate(null);
+          }}
+          onPreview={(selectedStartDate) => previewStartNewCycle?.(selectedStartDate, targetCycle?.id)}
+          onConfirm={async (selectedStartDate) => {
+            await startNewCycle(selectedStartDate);
+            setShowNewCycleDialog(false);
+            setNewCyclePrefillDate(null);
+          }}
+          currentCycleStartDate={targetCycle?.startDate}
+          currentCycleRecords={targetCycle?.data ?? []}
+          initialStartDate={newCyclePrefillDate}
+        />
       </div>
     </MainLayout>
   );

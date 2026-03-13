@@ -5,8 +5,11 @@
 @layer base {
   :root {
     /* Altura de la barra inferior y variante con safe-area */
-    --bottom-nav-height: 4.2rem;
-    --bottom-nav-safe: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px));
+    --bottom-nav-height: 4.8rem;
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+ /* evita valores locos si iOS arranca raro */
+    --safe-bottom-clamped: clamp(0px, var(--safe-bottom), 34px);
+    --bottom-nav-safe: calc(var(--bottom-nav-height) + var(--safe-bottom-clamped));
     --background: 210 22.2% 96.5%;
     --foreground: 215 27.9% 16.9%;
     --card: 0 0% 100%;
@@ -40,7 +43,9 @@
     --color-fertiliapp: #E37988;           /* rosa Fertiliapp (botones, enlaces, detalles) */
     --color-fertiliapp-fuerte: #D85C70;    /* rosa más fuerte (número grande centro) */
     --color-fertiliapp-suave: #FBCBD6;     /* rosa de apoyo / degradados */
-    --color-fondo-tarjeta: #FFE8EE;        /* fondo de cards */
+    --color-fondo-tarjeta: #FFE8EE;  
+    --color-form-surface: #f8eef1;
+          /* fondo de cards */
 
     /* Símbolos */
     --color-verde-fertil: #67C5A4;
@@ -118,9 +123,7 @@
   body,
   #root {
     height: 100%;
-    min-height: 100vh;   /* fallback universal */
-    min-height: 100svh;  /* viewport “estable” (si lo soporta) */
-    min-height: 100dvh;  /* viewport dinámico (si lo soporta) */
+    min-height: 100vh;   /* fallback simple */
   }
 
   * {
@@ -244,9 +247,7 @@
 }
 
 .app-background {
-  min-height: 100vh;   /* fallback */
-  min-height: 100svh;  /* mejor en móviles */
-  min-height: 100dvh;  /* mejor si soportado */
+  min-height: 100vh;
   background:
     radial-gradient(circle at 50% -10%, rgba(255, 255, 255, 0.7) 0, transparent 60%),
     linear-gradient(to bottom,
@@ -402,6 +403,7 @@
   .bg-secundario-fuerte { background-color: var(--color-secundario-fuerte); }
   .bg-secundario-suave { background-color: var(--color-secundario-suave); }
   .bg-secundario-fondo { background-color: var(--color-secundario-fondo); }
+  .bg-form-surface { background-color: var(--color-form-surface); }
 
     /* Ring de foco en tonos Fertiliapp */
   .ring-fertiliapp-suave { --tw-ring-color: var(--color-fertiliapp-suave); }
@@ -602,4 +604,56 @@ button.date-editor-toggle[aria-pressed="true"] {
 /* Asegura que el icono (lucide) herede el color */
 button.date-editor-toggle[aria-pressed="true"] svg {
   stroke: currentColor !important;
+}
+
+/* Fija colores aunque shadcn meta hover:text/bg */
+.chart-controls .bg-white\/20:hover,
+.chart-controls .bg-white\/20:active,
+.chart-controls .bg-white\/20:focus,
+.chart-controls .bg-white\/20:focus-visible {
+  background-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+.chart-controls .bg-fertiliapp-fuerte:hover,
+.chart-controls .bg-fertiliapp-fuerte:active,
+.chart-controls .bg-fertiliapp-fuerte:focus,
+.chart-controls .bg-fertiliapp-fuerte:focus-visible {
+  background-color: var(--color-fertiliapp-fuerte) !important;
+}
+
+.chart-controls .text-fertiliapp-fuerte:hover,
+.chart-controls .text-fertiliapp-fuerte:active,
+.chart-controls .text-fertiliapp-fuerte:focus,
+.chart-controls .text-fertiliapp-fuerte:focus-visible {
+  color: var(--color-fertiliapp-fuerte) !important;
+}
+
+.chart-controls .text-white:hover,
+.chart-controls .text-white:active,
+.chart-controls .text-white:focus,
+.chart-controls .text-white:focus-visible {
+  color: #fff !important;
+}
+/* Evita que ghost aplique hover:text-accent-foreground (blanco) en botones con text-slate-600 */
+.chart-controls .text-slate-600:hover,
+.chart-controls .text-slate-600:active,
+.chart-controls .text-slate-600:focus,
+.chart-controls .text-slate-600:focus-visible {
+  /* slate-600 = rgb(71 85 105) */
+  color: rgb(71 85 105) !important;
+}
+
+/* (Opcional pero recomendable) igual para otros colores que usas en chart-controls */
+.chart-controls .text-secundario:hover,
+.chart-controls .text-secundario:active,
+.chart-controls .text-secundario:focus,
+.chart-controls .text-secundario:focus-visible {
+  color: var(--color-secundario) !important;
+}
+
+.chart-controls .text-fertiliapp:hover,
+.chart-controls .text-fertiliapp:active,
+.chart-controls .text-fertiliapp:focus,
+.chart-controls .text-fertiliapp:focus-visible {
+  color: var(--color-fertiliapp) !important;
 }

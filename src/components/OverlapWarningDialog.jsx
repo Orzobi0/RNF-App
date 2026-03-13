@@ -44,8 +44,17 @@ const OverlapWarningDialog = ({
     : 'actualmente en curso';
 
   return (
-    <Dialog open={isOpen} onOpenChange={onCancel}>
-      <DialogContent className="bg-slate-50 border-slate-200 text-gray-800">
+    <Dialog
+  open={isOpen}
+  onOpenChange={(open) => {
+    if (!open) onCancel?.();
+  }}
+>
+      <DialogContent
+  className="bg-slate-50 border-slate-200 text-gray-800"
+  onPointerDownOutside={(e) => e.preventDefault()}
+  onInteractOutside={(e) => e.preventDefault()}
+>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription className="text-gray-600">
@@ -102,9 +111,32 @@ const OverlapWarningDialog = ({
         )}
 
         <DialogFooter className="sm:justify-end">
-          <Button variant="outline" onClick={onCancel} className="border-gray-300 text-titulo hover:bg-gray-100">Cancelar</Button>
-          <Button variant="destructive" onClick={onConfirm} className="bg-fertiliapp-fuerte hover:bg-pink-700 text-white">{confirmLabel}</Button>
-        </DialogFooter>
+  <Button
+    type="button"
+    variant="outline"
+    onClick={(e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      onCancel?.();
+    }}
+    className="border-gray-300 text-titulo hover:bg-gray-100"
+  >
+    Cancelar
+  </Button>
+
+  <Button
+    type="button"
+    variant="destructive"
+    onClick={(e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      onConfirm?.();
+    }}
+    className="bg-fertiliapp-fuerte hover:bg-pink-700 text-white"
+  >
+    {confirmLabel}
+  </Button>
+</DialogFooter>
       </DialogContent>
     </Dialog>
   );

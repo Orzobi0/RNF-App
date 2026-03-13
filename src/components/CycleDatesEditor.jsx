@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { format, parseISO, startOfDay, isValid, isSameDay, isAfter, isBefore } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Calendar as CalendarIcon, Trash2 } from 'lucide-react';
@@ -39,7 +39,7 @@ const CycleDatesEditor = ({
   onConfirmOverlap,
   onCancelOverlap,
   title = 'Editar fechas del ciclo',
-  description = 'Actualiza las fechas de inicio y fin del ciclo. Guarda los cambios cuando termines.',
+  description = 'Actualiza las fechas de inicio y fin del ciclo.',
   saveLabel = 'Guardar',
   cancelLabel = 'Cancelar',
   onClearError,
@@ -60,6 +60,9 @@ const CycleDatesEditor = ({
     ? `Fecha actual: ${formattedStartDate}${includeEndDate ? ` — ${formattedEndDate}` : ''}`
     : null;
   
+  const [isStartCalendarOpen, setIsStartCalendarOpen] = useState(false);
+  const [isEndCalendarOpen, setIsEndCalendarOpen] = useState(false);
+
   const toDate = (value) => {
     if (!value) return null;
     const parsed = parseISO(value);
@@ -131,12 +134,11 @@ const CycleDatesEditor = ({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <h2 className="text-lg font-semibold text-titulo mb-1">{title}</h2>
-            <p className="text-sm text-slate-600">{description}</p>
 
             <div className={`grid ${includeEndDate ? 'grid-cols-2 gap-4' : 'grid-cols-1 gap-4'}`}>
               <label className="flex h-full flex-col text-sm text-slate-700">
                 Inicio del ciclo
-                <Popover>
+                <Popover open={isStartCalendarOpen} onOpenChange={setIsStartCalendarOpen}>
                   <PopoverTrigger asChild>
                     <Button
                       type="button"
@@ -156,6 +158,7 @@ const CycleDatesEditor = ({
                       onSelect={(selectedDate) => {
                         if (!selectedDate) return;
                         handleStartChange({ target: { value: format(startOfDay(selectedDate), 'yyyy-MM-dd') } });
+                        setIsStartCalendarOpen(false);
                       }}
                       locale={es}
                       initialFocus
@@ -187,7 +190,7 @@ const CycleDatesEditor = ({
               {includeEndDate && (
                 <label className="flex h-full flex-col text-sm text-slate-700">
                   Fin del ciclo
-                  <Popover>
+                  <Popover open={isEndCalendarOpen} onOpenChange={setIsEndCalendarOpen}>
                     <PopoverTrigger asChild>
                       <Button
                         type="button"
@@ -207,6 +210,7 @@ const CycleDatesEditor = ({
                         onSelect={(selectedDate) => {
                           if (!selectedDate) return;
                           handleEndChange({ target: { value: format(startOfDay(selectedDate), 'yyyy-MM-dd') } });
+                          setIsEndCalendarOpen(false);
                         }}
                         locale={es}
                         initialFocus

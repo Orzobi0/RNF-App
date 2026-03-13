@@ -64,7 +64,7 @@ const ChartLeftLegend = ({
       { label: 'Obs.', row: isFullScreen ? 9 : 7.5, color: OBSERVATION_COLOR, icon: { type: 'text', value: '✦' } },
     ];
     if (showRelationsRow && relationsRowIndex != null) {
-      baseRows.push({ label: 'RS', row: relationsRowIndex, color: '#f44336', icon: { type: 'heart' } });
+      baseRows.push({ label: 'RS', row: relationsRowIndex, color: '#ec003c', icon: { type: 'heart' } });
     }
     return baseRows;
   }, [isFullScreen, relationsRowIndex, showRelationsRow]);
@@ -146,7 +146,7 @@ const ChartLeftLegend = ({
               </text>
             )}
             {icon?.type === 'heart' && (
-              <g transform={`translate(${iconX - iconSize / 2}, ${iconY - iconSize / 2})`} opacity={0.7}>
+              <g transform={`translate(${iconX - iconSize}, ${iconY - iconSize})`} opacity={0.7}>
                 <Heart
                   width={iconSize}
                   height={iconSize}
@@ -155,8 +155,7 @@ const ChartLeftLegend = ({
                   aria-hidden="true"
                 />
               </g>
-            )}
-            
+            )}            
             <text
               x={padding.left - responsiveFontSize(0.8)}
               y={rowsTopY + rowH * row}

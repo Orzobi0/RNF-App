@@ -16,7 +16,7 @@ import { ToastAction } from '@/components/ui/toast';
 import { HeaderIconButton, HeaderIconButtonPrimary } from '@/components/HeaderIconButton';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Edit, Plus, ClipboardList, Heart } from 'lucide-react';
+import { Edit, Plus, ClipboardList, Heart, Loader2 } from 'lucide-react';
 import NewCycleDialog from '@/components/NewCycleDialog';
 import {
   format,
@@ -417,6 +417,7 @@ export const RecordsExperience = ({
       ),
       day_selected: '',
       day_today: '',
+      day_outside: 'opacity-100',
     }),
     []
   );
@@ -541,10 +542,96 @@ export const RecordsExperience = ({
     [peakStatuses, recordDetailsByIso]
   );
 
+  const cycleDays = useMemo(() => {
+    if (!cycle?.startDate) return [];
+
+    const startDate = parseISO(cycle.startDate);
+    if (!isValid(startDate)) {
+      return [];
+    }
+
+    const cycleStartDay = startOfDay(startDate);
+    const today = startOfDay(new Date());
+
+    let rangeEnd = cycleRange?.to ? startOfDay(cycleRange.to) : today;
+    if (isAfter(rangeEnd, today)) {
+      rangeEnd = today;
+    }
+    if (isBefore(rangeEnd, cycleStartDay)) {
+      rangeEnd = cycleStartDay;
+    }
+
+    const totalDays = differenceInCalendarDays(rangeEnd, cycleStartDay) + 1;
+    if (totalDays <= 0) {
+      return [];
+    }
+
+    const days = [];
+    for (let offset = totalDays - 1; offset >= 0; offset -= 1) {
+      const currentDate = addDays(cycleStartDay, offset);
+      const isoDate = format(currentDate, 'yyyy-MM-dd');
+      const cycleDay = differenceInCalendarDays(currentDate, cycleStartDay) + 1;
+      const details = recordDetailsByIso.get(isoDate) || null;
+
+      days.push({
+        isoDate,
+        date: currentDate,
+        cycleDay,
+        details,
+      });
+    }
+
+    return days;
+  }, [cycle?.startDate, cycleRange, recordDetailsByIso]);
+
+  const cycleDayIsoSet = useMemo(
+    () => new Set(cycleDays.map((day) => day.isoDate)),
+    [cycleDays]
+  );
+
+  const archivedCycleIntervals = useMemo(() => {
+    if (!Array.isArray(archivedCycles) || !cycle?.id) {
+      return [];
+    }
+
+    return archivedCycles
+      .filter(
+        (archived) =>
+          archived?.id &&
+          archived.id !== cycle.id &&
+          archived?.startDate &&
+          archived?.endDate
+      )
+      .map((archived) => {
+        const fromDate = startOfDay(parseISO(archived.startDate));
+        const toDate = startOfDay(parseISO(archived.endDate));
+
+        if (!isValid(fromDate) || !isValid(toDate)) return null;
+
+        return {
+          cycleId: archived.id,
+          from: fromDate,
+          to: toDate,
+          startIso: archived.startDate,
+          endIso: archived.endDate,
+        };
+      })
+      .filter(Boolean);
+  }, [archivedCycles, cycle?.id]);
+
   const renderCalendarDay = useCallback(
     ({ date, activeModifiers }) => {
       const iso = format(date, 'yyyy-MM-dd');
       const details = recordDetailsByIso.get(iso);
+      const inCurrentShownCycle = cycleDayIsoSet.has(iso);
+      const archivedInterval =
+        !inCurrentShownCycle &&
+        archivedCycleIntervals.find(
+          (interval) => !isBefore(date, interval.from) && !isAfter(date, interval.to)
+        );
+      const showArchivedCycleRange = Boolean(archivedInterval);
+      const showLeftBorder = showArchivedCycleRange && iso === archivedInterval.startIso;
+      const showRightBorder = showArchivedCycleRange && iso === archivedInterval.endIso;
 
       const hasTemperature = details?.hasTemperature ?? false;
       const hasMucus = details?.hasMucus ?? false;
@@ -552,6 +639,7 @@ export const RecordsExperience = ({
       const peakStatus = details?.peakStatus ?? peakStatuses[iso] ?? null;
       const symbolInfo = details?.symbolInfo;
       const symbolValue = symbolInfo?.value;
+      const isWhiteSymbol = symbolValue === 'white';
       const isSelected = activeModifiers.selected;
       const isToday = activeModifiers.today;
       {/* Punto de temperatura */}
@@ -574,14 +662,20 @@ export const RecordsExperience = ({
       const shouldShowSymbolBackground = Boolean(symbolValue && symbolValue !== 'none');
       const numberClass = cn(
         'relative z-10 text-[1.15rem] leading-none',
-        activeModifiers.outside || activeModifiers.outsideCycle
+        activeModifiers.outsideCycle
           ? 'text-slate-300'
           : isSelected
           ? shouldShowSymbolBackground
-            ? 'text-white'
+            ? isWhiteSymbol
+              ? 'text-fertiliapp-fuerte'
+              : 'text-white'
             : 'text-fertiliapp-fuerte'
           : isToday
           ? 'text-subtitulo font-semibold'
+          : activeModifiers.outside
+          ? inCurrentShownCycle
+            ? 'text-slate-600'
+            : 'text-slate-700'
           : 'text-slate-700'
       );
 
@@ -593,13 +687,25 @@ export const RecordsExperience = ({
             'pointer-events-none absolute inset-0 rounded-full transition-opacity',
             symbolInfo?.color ?? '',
             symbolInfo?.pattern === 'spotting-pattern' ? 'calendar-spotting-dot' : '',
-            symbolValue === 'white' ? 'ring-1 ring-slate-300/70' : '',
-            isSelected ? 'opacity-50' : 'opacity-25'
+            symbolValue === 'white' ? 'bg-rose-50 ring-1 ring-rose-300/90 shadow-sm' : '',
+ symbolValue === 'white'
+   ? isSelected ? 'opacity-90' : 'opacity-100'
+   : isSelected ? 'opacity-50' : 'opacity-25'
           )
         : null;
 
       return (
   <div className="relative flex h-full w-full flex-col items-center justify-center">
+    {showArchivedCycleRange && (
+      <span
+        aria-hidden="true"
+        className={cn(
+          'pointer-events-none absolute inset-[2px] border-slate-300/70 border-t border-b',
+          showLeftBorder ? 'border-l rounded-l-2xl' : '',
+          showRightBorder ? 'border-r rounded-r-2xl' : ''
+        )}
+      />
+    )}
     {/* Número centrado con posible fondo de símbolo */}
     <span className="relative inline-flex h-8 w-8 items-center justify-center leading-none -mt-[1px]">
       {isToday && !isSelected && !(activeModifiers.outside || activeModifiers.outsideCycle) && (
@@ -647,54 +753,7 @@ export const RecordsExperience = ({
 );
 
     },
-    [peakStatuses, recordDetailsByIso]
-  );
-
-  const cycleDays = useMemo(() => {
-    if (!cycle?.startDate) return [];
-
-    const startDate = parseISO(cycle.startDate);
-    if (!isValid(startDate)) {
-      return [];
-    }
-
-    const cycleStartDay = startOfDay(startDate);
-    const today = startOfDay(new Date());
-
-    let rangeEnd = cycleRange?.to ? startOfDay(cycleRange.to) : today;
-    if (isAfter(rangeEnd, today)) {
-      rangeEnd = today;
-    }
-    if (isBefore(rangeEnd, cycleStartDay)) {
-      rangeEnd = cycleStartDay;
-    }
-
-    const totalDays = differenceInCalendarDays(rangeEnd, cycleStartDay) + 1;
-    if (totalDays <= 0) {
-      return [];
-    }
-
-    const days = [];
-    for (let offset = totalDays - 1; offset >= 0; offset -= 1) {
-      const currentDate = addDays(cycleStartDay, offset);
-      const isoDate = format(currentDate, 'yyyy-MM-dd');
-      const cycleDay = differenceInCalendarDays(currentDate, cycleStartDay) + 1;
-      const details = recordDetailsByIso.get(isoDate) || null;
-
-      days.push({
-        isoDate,
-        date: currentDate,
-        cycleDay,
-        details,
-      });
-    }
-
-    return days;
-  }, [cycle?.startDate, cycleRange, recordDetailsByIso]);
-
-  const cycleDayIsoSet = useMemo(
-    () => new Set(cycleDays.map((day) => day.isoDate)),
-    [cycleDays]
+    [archivedCycleIntervals, cycleDayIsoSet, peakStatuses, recordDetailsByIso]
   );
 
   const cycleDayMap = useMemo(() => {
@@ -899,32 +958,6 @@ const enterStart = -exitTarget;
     openStartDateEditor();
   }, [closeStartDateEditor, openStartDateEditor, showStartDateEditor]);
 
-  useEffect(() => {
-    if (!showStartDateEditor) return;
-
-    const handleClickOutsideEditor = (event) => {
-      const target = event.target;
-
-      if (!(target instanceof Node)) return;
-      if (cycleDatesEditorRef.current?.contains(target)) return;
-      // Si has pulsado el botón que abre/cierra el editor, NO lo trates como click fuera
-    if (target instanceof Element && target.closest('[data-date-editor-toggle="true"]')) return;
-
-      const isInsidePopover =
-        typeof target.closest === 'function' &&
-        target.closest('[data-radix-popper-content-wrapper], [data-radix-popover-content]');
-
-      if (isInsidePopover) return;
-
-      closeStartDateEditor();
-    };
-
-    document.addEventListener('pointerdown', handleClickOutsideEditor, true);
-
-    return () => {
-      document.removeEventListener('pointerdown', handleClickOutsideEditor, true);
-    };
-  }, [closeStartDateEditor, showStartDateEditor]);
 
   const handleConfirmUndoCycle = useCallback(async () => {
     if (!contextCurrentCycle?.id) return;
@@ -1539,8 +1572,21 @@ const enterStart = -exitTarget;
   }
 
   return (
-    <div className="relative flex flex-col">     
-      <div className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-3 px-4 relative z-10">
+    <div className="relative flex flex-col">   
+    {isUpdatingStartDate && (
+  <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/25 backdrop-blur-sm">
+    <div className="rounded-3xl border border-fertiliapp-suave bg-white/90 px-5 py-4 shadow-lg">
+      <div className="flex items-center gap-3">
+        <Loader2 className="h-5 w-5 animate-spin text-fertiliapp-fuerte" />
+        <div className="min-w-0">
+          <div className="font-semibold text-titulo">Aplicando cambios…</div>
+          <div className="text-sm">Puede tardar unos segundos.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+)}  
+      <div className="relative z-10 mx-auto grid w-full max-w-6xl grid-cols-1 gap-3 px-4 pb-24">
         <div className="sticky top-0 z-50 w-full pt-1 bg-transparent">
           <motion.div
             className="mx-auto flex w-full max-w-lg flex-col gap-2 px-2 sm:px-2.5"
@@ -1609,11 +1655,6 @@ const enterStart = -exitTarget;
                   onClearError={() => setStartDateError('')}
                   saveLabel={includeEndDate ? 'Guardar fechas' : 'Guardar cambios'}
                   title={includeEndDate ? 'Editar fechas del ciclo' : 'Editar fecha de inicio'}
-                  description={
-                    includeEndDate
-                      ? 'Actualiza las fechas del ciclo. Los registros se reorganizarán automáticamente.'
-                      : 'Actualiza la fecha de inicio del ciclo actual. Los registros se reorganizarán automáticamente.'
-                  }
                   onUndoCycle={undoCandidate ? () => setShowUndoCycleDialog(true) : undefined}
                   isUndoingCycle={isUndoingCycle}
                   onDeleteCycle={onRequestDeleteCycle ? handleDeleteCycleFromEditor : undefined}
@@ -1660,8 +1701,8 @@ const enterStart = -exitTarget;
 
                       classNames={calendarClassNames}
                       modifiersClassNames={{
-                        hasRecord: 'font-semibold text-slate-900',
-                        outsideCycle: 'text-slate-300 opacity-50 hover:text-slate-300 hover:bg-transparent',
+                        hasRecord: 'text-slate-900 hover:text-slate-900 hover:bg-rose-50',
+                        outsideCycle: 'text-slate-300 hover:text-slate-300 hover:bg-transparent',
                         insideCycleNoRecord:
                           'text-slate-900 hover:text-slate-900 hover:bg-rose-50',
                       }}
@@ -1728,23 +1769,35 @@ const enterStart = -exitTarget;
           }
         }}
       >
-        <DialogContent hideClose className="bg-white border-pink-100 text-gray-800 w-[90vw] sm:w-auto max-w-md sm:max-w-lg md:max-w-xl max-h-[85vh] overflow-y-auto p-4 sm:p-6 rounded-2xl">
-          <DataEntryForm
-            onSubmit={handleSave}
-            onCancel={handleCloseForm}
-            initialData={editingRecord}
-            cycleStartDate={cycle?.startDate}
-            cycleEndDate={cycle?.endDate}
-            isProcessing={isProcessing || isDetailLoading}
-            isEditing={!!editingRecord}
-            cycleData={cycle?.data}
-            onDateSelect={handleDateSelect}
-            defaultIsoDate={defaultFormIsoDate}
-            focusedField={focusedField}
-            initialSectionKey={initialSectionKey}
-            onOpenNewCycle={handleOpenNewCycleDialog}
-          />
-        </DialogContent>
+        <DialogContent
+  unstyled
+  hideClose
+  className="bg-transparent border-none p-0 text-gray-800 w-[96vw] max-w-2xl h-[92dvh] max-h-[92dvh] overflow-hidden shadow-none"
+>
+      <DataEntryForm
+        onSubmit={handleSave}
+        onCancel={handleCloseForm}
+        initialData={editingRecord}
+        cycleStartDate={cycle?.startDate}
+        cycleEndDate={cycle?.endDate}
+        isProcessing={isProcessing || isDetailLoading}
+        isEditing={!!editingRecord}
+        cycleData={cycle?.data}
+        onDateSelect={handleDateSelect}
+        defaultIsoDate={defaultFormIsoDate}
+        focusedField={focusedField}
+        initialSectionKey={initialSectionKey}
+        onOpenNewCycle={handleOpenNewCycleDialog}
+        onJumpToDayDetail={(iso) => {
+          if (!iso) return;
+          setSelectedDate(iso);
+          handleCloseForm();
+          requestAnimationFrame(() => {
+            document.getElementById('day-detail-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          });
+        }}
+      />
+</DialogContent>
       </Dialog>
 
 <NewCycleDialog

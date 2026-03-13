@@ -4,7 +4,8 @@ import React from 'react';
 
     const DataEntryFormActions = ({ onCancel, isProcessing, isEditing }) => {
       return (
-        <div className="flex space-x-3 pt-2">
+        <div className="mt-3 shrink-0 border-t border-pink-100 pt-3 bg-white/40 backdrop-blur rounded-xl">
+          <div className="flex space-x-3">
           {onCancel && (
             <Button
               type="button"
@@ -29,6 +30,7 @@ import React from 'react';
             )}
             {isEditing ? 'Actualizar' : 'Guardar'}
           </Button>
+        </div>
         </div>
       );
     };

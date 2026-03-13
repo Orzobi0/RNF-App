@@ -4,7 +4,7 @@ import DeletionDialog from '@/components/DeletionDialog';
 import { useCycleData } from '@/hooks/useCycleData';
 import { useToast } from '@/components/ui/use-toast';
 import { HeaderIconButton, HeaderIconButtonPrimary } from '@/components/HeaderIconButton';
-import { ArrowLeft, BarChart3, Pencil, Plus } from 'lucide-react';
+import { ArrowLeft, ChartSpline, Pencil, Plus } from 'lucide-react';
 import { differenceInDays, startOfDay, parseISO, format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 import { RecordsExperience } from '@/pages/RecordsPage.jsx';
@@ -302,7 +302,7 @@ const CycleDetailPage = () => {
         </HeaderIconButton>
         <HeaderIconButton asChild>
           <Link to={`/chart/${cycleId}`} aria-label="Ver gráfica del ciclo">
-            <BarChart3 className="h-4 w-4" />
+            <ChartSpline className="h-4 w-4" />
           </Link>
         </HeaderIconButton>
         <HeaderIconButtonPrimary

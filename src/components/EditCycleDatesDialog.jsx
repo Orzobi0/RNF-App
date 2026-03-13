@@ -42,6 +42,8 @@ const EditCycleDatesDialog = ({
   const [pendingPayload, setPendingPayload] = useState(null);
   const [showOverlapDialog, setShowOverlapDialog] = useState(false);
   const [overlapPlan, setOverlapPlan] = useState(null);
+  const [isStartCalendarOpen, setIsStartCalendarOpen] = useState(false);
+  const [isEndCalendarOpen, setIsEndCalendarOpen] = useState(false);
 
   const formatCycleDateUi = (value) => {
     if (!value) return 'en curso';
@@ -152,6 +154,7 @@ const EditCycleDatesDialog = ({
   const selectedStartDate = toDate(startDate);
   const selectedEndDate = toDate(endDate);
   const today = startOfDay(new Date());
+  const shouldBlockFutureDates = !cycleId && includeEndDate;
 
   const resolveOpenRangeEnd = (start, end) => {
     if (end) return end;
@@ -193,6 +196,16 @@ const EditCycleDatesDialog = ({
     .filter(Boolean);
 
   const handleConfirm = async () => {
+    if (shouldBlockFutureDates && selectedStartDate && isAfter(selectedStartDate, today)) {
+      setEndDateError('La fecha de inicio no puede ser posterior a hoy.');
+      return;
+    }
+  
+    if (shouldBlockFutureDates && selectedEndDate && isAfter(selectedEndDate, today)) {
+      setEndDateError('La fecha de fin no puede ser posterior a hoy.');
+      return;
+    }
+
     if (includeEndDate && !endDate) {
       setEndDateError('La fecha de fin es obligatoria');
       return;
@@ -264,7 +277,7 @@ const EditCycleDatesDialog = ({
               <label htmlFor="startDate" className="text-gray-700 text-sm">
                 Inicio del ciclo
               </label>
-              <Popover>
+              <Popover open={isStartCalendarOpen} onOpenChange={setIsStartCalendarOpen}>
                 <PopoverTrigger asChild>
                   <Button
                     type="button"
@@ -284,11 +297,13 @@ const EditCycleDatesDialog = ({
                     onSelect={(selectedDate) => {
                       if (!selectedDate) return;
                       handleStartChange(format(startOfDay(selectedDate), 'yyyy-MM-dd'));
+                      setIsStartCalendarOpen(false);
                     }}
                     locale={es}
                     initialFocus
                     defaultMonth={selectedStartDate ?? activeCycleStart ?? new Date()}
                     enableSwipeNavigation
+                    disabled={shouldBlockFutureDates ? { after: today } : undefined}
                     modifiers={{
                       hasRecord: recordedDates,
                       inActiveCycleStart: (date) => isRangeStart(date, activeCycleRange),
@@ -317,7 +332,7 @@ const EditCycleDatesDialog = ({
                 <label htmlFor="endDate" className="text-gray-700 text-sm">
                   Fin del ciclo
                 </label>
-                 <Popover>
+                 <Popover open={isEndCalendarOpen} onOpenChange={setIsEndCalendarOpen}>
                   <PopoverTrigger asChild>
                     <Button
                       type="button"
@@ -337,11 +352,13 @@ const EditCycleDatesDialog = ({
                       onSelect={(selectedDate) => {
                         if (!selectedDate) return;
                         handleEndChange(format(startOfDay(selectedDate), 'yyyy-MM-dd'));
+                        setIsEndCalendarOpen(false);
                       }}
                       locale={es}
                       initialFocus
                       defaultMonth={selectedEndDate ?? activeCycleEnd ?? activeCycleStart ?? new Date()}
                       enableSwipeNavigation
+                      disabled={shouldBlockFutureDates ? { after: today } : undefined}
                       modifiers={{
                         hasRecord: recordedDates,
                         inActiveCycleStart: (date) => isRangeStart(date, activeCycleRange),

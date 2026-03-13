@@ -1,7 +1,7 @@
 name: Deploy experiment site on push
 on:
   push:
-    branches: [secundaria2]
+    branches: [marzo_canvas]
 jobs:
   deploy:
     runs-on: ubuntu-latest

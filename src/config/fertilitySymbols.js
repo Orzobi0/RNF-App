@@ -1,9 +1,9 @@
 export const FERTILITY_SYMBOLS = {
   NONE: { value: 'none', label: 'Sin Símbolo', color: 'bg-slate-200', textColor: '#64748b' },
-  MENSTRUATION: { value: 'red', label: 'Menstruación', color: 'bg-[#fb7185]', textColor: '#ffffff' },
+  MENSTRUATION: { value: 'red', label: 'Sangrado', color: 'bg-[#fb7185]', textColor: '#ffffff' },
   FERTILE: { value: 'white', label: 'Moco (Fértil)', color: 'bg-[#fdf5f8] border-2 border-[rgba(251,113,133,0.6)]', textColor: '#4B2E3B' },
-  INFERTILE: { value: 'green', label: 'Seco', color: 'bg-verde-fertil', textColor: '#ffffff' },
-  NON_FERTILE_MUCUS: { value: 'yellow', label: 'Moco (No fértil)', color: 'bg-amarillo-moco', textColor: '#3A2430' },
+  INFERTILE: { value: 'green', label: 'Seca/Sin moco', color: 'bg-verde-fertil', textColor: '#ffffff' },
+  NON_FERTILE_MUCUS: { value: 'yellow', label: 'No seca/Moco', color: 'bg-amarillo-moco', textColor: '#3A2430' },
   SPOTTING: { value: 'spot', label: 'Spotting', color: 'spotting-pattern-icon', textColor: '#ffffff', pattern: 'spotting-pattern' },
 };
 

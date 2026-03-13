@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { MoveVertical } from 'lucide-react';
 import { motion } from 'framer-motion';
-import ChartAxes from '@/components/chartElements/ChartAxes';
-import ChartLine from '@/components/chartElements/ChartLine';
 import ChartPoints from '@/components/chartElements/ChartPoints';
 import ChartTooltip from '@/components/chartElements/ChartTooltip';
 import ChartLeftLegend from '@/components/chartElements/ChartLeftLegend';
+import FertilityChartCanvasOverlay from '@/components/chartElements/FertilityChartCanvasOverlay';
+import { getChartTheme } from '@/components/chartElements/chartTheme';
 import { useFertilityChart } from '@/hooks/useFertilityChart';
 import { isAfter, parseISO, startOfDay } from 'date-fns';
 
@@ -19,6 +20,7 @@ const FertilityChart = ({
   initialScrollIndex = 0,
   visibleDays = 5,
   showInterpretation = false,
+  showManualBaseline = false,
   reduceMotion = false,
   forceLandscape = false,
   currentPeakIsoDate = null,
@@ -31,6 +33,102 @@ const FertilityChart = ({
   cycleEndDate = null,
   exportMode = false,
 }) => {
+
+const isIOS =
+  typeof navigator !== 'undefined' &&
+  (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
+  const effectiveReduceMotion = reduceMotion || exportMode;
+    const stageHostRef = useRef(null);
+  const uniqueIdRef = useRef(null);
+  if (!uniqueIdRef.current) {
+    const randomSuffix = Math.random().toString(36).slice(2, 10);
+    uniqueIdRef.current = `fertility-chart-${cycleId ?? 'default'}-${randomSuffix}`;
+  }
+  const uniqueId = uniqueIdRef.current;
+
+  // Detectar orientación real del viewport para rotación visual
+  const readViewport = () => {
+  if (typeof window === 'undefined') return { w: 0, h: 0 };
+
+  const host = stageHostRef.current;
+  if (host) {
+    const rect = host.getBoundingClientRect();
+    const w = rect.width || window.innerWidth || 0;
+    const h = rect.height || window.innerHeight || 0;
+    return { w: Math.round(w), h: Math.round(h) };
+  }
+
+  return {
+    w: Math.round(window.innerWidth || 0),
+    h: Math.round(window.innerHeight || 0),
+  };
+};
+
+const [viewport, setViewport] = useState(readViewport);
+const isViewportPortrait = viewport.w < viewport.h;
+
+useEffect(() => {
+  if (typeof window === 'undefined') return undefined;
+
+  let raf = 0;
+  const vv = window.visualViewport;
+
+  const onResize = () => {
+    if (raf) cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(() => setViewport(readViewport()));
+  };
+
+  window.addEventListener('resize', onResize);
+  window.addEventListener('orientationchange', onResize);
+
+  vv?.addEventListener('resize', onResize);
+  vv?.addEventListener('scroll', onResize); // en iOS cambia al mostrar/ocultar barras/teclado
+
+  onResize();
+
+  return () => {
+    if (raf) cancelAnimationFrame(raf);
+    window.removeEventListener('resize', onResize);
+    window.removeEventListener('orientationchange', onResize);
+    vv?.removeEventListener('resize', onResize);
+    vv?.removeEventListener('scroll', onResize);
+  };
+}, []);
+
+  const applyRotation = !exportMode && isFullScreen && forceLandscape && isViewportPortrait;
+  const visualOrientation = forceLandscape ? 'landscape' : orientation;
+  const isIOSFakeLandscape = isIOS && applyRotation;
+  const [rotatedSafeStartInsetPx, setRotatedSafeStartInsetPx] = useState(0);
+  const [rotatedSafeEndInsetPx, setRotatedSafeEndInsetPx] = useState(0);
+
+useEffect(() => {
+  if (typeof window === 'undefined' || typeof document === 'undefined' || !isIOSFakeLandscape) {
+    setRotatedSafeStartInsetPx(0);
+    setRotatedSafeEndInsetPx(0);
+    return;
+  }
+
+  const probe = document.createElement('div');
+  probe.style.position = 'fixed';
+  probe.style.top = '0';
+  probe.style.left = '0';
+  probe.style.visibility = 'hidden';
+  probe.style.pointerEvents = 'none';
+  probe.style.paddingTop = 'env(safe-area-inset-top)';
+  probe.style.paddingBottom = 'env(safe-area-inset-bottom)';
+  document.body.appendChild(probe);
+
+  const computed = window.getComputedStyle(probe);
+  const measuredTop = parseFloat(computed.paddingTop) || 0;
+  const measuredBottom = parseFloat(computed.paddingBottom) || 0;
+
+  document.body.removeChild(probe);
+
+  setRotatedSafeStartInsetPx(Math.round(measuredTop + 8));
+  setRotatedSafeEndInsetPx(Math.round(measuredBottom + 4));
+}, [isIOSFakeLandscape, viewport.w, viewport.h]);
+   
   const {
     chartRef,
     tooltipRef,
@@ -73,15 +171,49 @@ const FertilityChart = ({
     fertilityCalculatorCycles,
     fertilityCalculatorCandidates,
     showRelationsRow,
-    exportMode
+    exportMode,
+    rotatedSafeStartInsetPx,
+    rotatedSafeEndInsetPx
   );
-  const effectiveReduceMotion = reduceMotion || exportMode;
-  const uniqueIdRef = useRef(null);
-  if (!uniqueIdRef.current) {
-    const randomSuffix = Math.random().toString(36).slice(2, 10);
-    uniqueIdRef.current = `fertility-chart-${cycleId ?? 'default'}-${randomSuffix}`;
-  }
-  const uniqueId = uniqueIdRef.current;
+  
+  const MANUAL_DRAG_THRESHOLD_PX = 14;
+  const normalizeTemp2 = useCallback((value) => {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return null;
+    return Number(numeric.toFixed(2));
+  }, []);
+  const areTempsEqual2 = useCallback((left, right) => {
+    const normalizedLeft = normalizeTemp2(left);
+    const normalizedRight = normalizeTemp2(right);
+    return normalizedLeft != null && normalizedRight != null && normalizedLeft === normalizedRight;
+  }, [normalizeTemp2]);
+  const findNearestSnapTemp = useCallback((target, snapTemps) => {
+    if (!Array.isArray(snapTemps) || !snapTemps.length) return null;
+    const normalizedTarget = normalizeTemp2(target);
+    if (normalizedTarget == null) return snapTemps[Math.floor(snapTemps.length / 2)];
+    let nearest = snapTemps[0];
+    let minDiff = Math.abs(normalizedTarget - nearest);
+    for (let index = 1; index < snapTemps.length; index += 1) {
+      const snap = snapTemps[index];
+      const diff = Math.abs(normalizedTarget - snap);
+      if (diff < minDiff) {
+        nearest = snap;
+        minDiff = diff;
+      }
+    }
+    return nearest;
+  }, [normalizeTemp2]);
+
+  const isPointEligibleForManualMode = useCallback((point, index) => {
+    if (!point || !Number.isFinite(point?.displayTemperature)) return false;
+    if (point?.ignoredForCalc ?? point?.ignored) return false;
+    if (isArchivedCycle) {
+      if (!cycleEndDate) return true;
+      return typeof point?.isoDate === 'string' ? point.isoDate <= cycleEndDate : true;
+    }
+    if (!Number.isInteger(todayIndex)) return true;
+    return index <= todayIndex;
+  }, [isArchivedCycle, cycleEndDate, todayIndex]);
   const getOverscanDays = useCallback((visibleDaysValue, totalPoints) => {
     // En ciclos archivados priorizamos fluidez: render completo para tamaños medios.
     const fullRenderThreshold = isArchivedCycle ? 220 : 120;
@@ -113,8 +245,340 @@ const FertilityChart = ({
   const scrollRafRef = useRef(null);
   const [isScrolling, setIsScrolling] = useState(false);
   const scrollStopTimerRef = useRef(null);
+  const pointerGestureRef = useRef({
+    pointerId: null,
+    startX: 0,
+    startY: 0,
+    startScrollLeft: 0,
+    moved: false,
+  });
+  const manualModeEnabled = showManualBaseline;
+  const manualEligiblePoints = useMemo(
+    () => allDataPoints.filter((point, index) => isPointEligibleForManualMode(point, index)),
+    [allDataPoints, isPointEligibleForManualMode]
+  );
+  const manualSnapTemps = useMemo(() => {
+    const set = new Set();
+    manualEligiblePoints.forEach((point) => {
+      const value = normalizeTemp2(point?.displayTemperature);
+      if (value != null) {
+        set.add(value.toFixed(2));
+      }
+    });
+    return Array.from(set).map(Number).sort((a, b) => a - b);
+  }, [manualEligiblePoints, normalizeTemp2]);
 
-  const svgRef = useRef(null);
+    const getNearestManualSnapIndex = useCallback((temp) => {
+  if (!manualSnapTemps.length) return -1;
+
+  const normalizedTemp = normalizeTemp2(temp);
+  const exactIndex = manualSnapTemps.findIndex((value) =>
+    areTempsEqual2(value, normalizedTemp)
+  );
+
+  if (exactIndex >= 0) return exactIndex;
+
+  const nearestValue = findNearestSnapTemp(normalizedTemp, manualSnapTemps);
+  return manualSnapTemps.findIndex((value) => areTempsEqual2(value, nearestValue));
+}, [manualSnapTemps, normalizeTemp2, areTempsEqual2, findNearestSnapTemp]);
+
+  const [manualBaselineTemp, setManualBaselineTemp] = useState(null);
+  useEffect(() => {
+  if (!manualSnapTemps.length) {
+    setManualBaselineTemp(null);
+    return;
+  }
+
+  setManualBaselineTemp((prev) => {
+    const normalizedPrev = normalizeTemp2(prev);
+
+    // Si ya había una baseline manual previa, la respetamos
+    if (normalizedPrev != null) {
+      const exactMatch = manualSnapTemps.find((value) => areTempsEqual2(value, normalizedPrev));
+      if (exactMatch != null) {
+        return exactMatch;
+      }
+      return findNearestSnapTemp(normalizedPrev, manualSnapTemps);
+    }
+
+    // Primera activación: arrancar cerca del centro visual de la gráfica
+    const chartMidTemp =
+      Number.isFinite(tempMin) && Number.isFinite(tempMax)
+        ? Number(((tempMin + tempMax) / 2).toFixed(2))
+        : null;
+
+    if (chartMidTemp != null) {
+      return findNearestSnapTemp(chartMidTemp, manualSnapTemps);
+    }
+
+    return manualSnapTemps[Math.floor(manualSnapTemps.length / 2)];
+  });
+}, [
+  manualSnapTemps,
+  tempMin,
+  tempMax,
+  normalizeTemp2,
+  areTempsEqual2,
+  findNearestSnapTemp,
+]);
+  const manualBaselineY = Number.isFinite(manualBaselineTemp) ? getY(manualBaselineTemp) : null;
+  const manualBaselinePlusTemp = Number.isFinite(manualBaselineTemp)
+    ? Number((manualBaselineTemp + 0.2).toFixed(2))
+    : null;
+  const manualBaselinePlusY = Number.isFinite(manualBaselinePlusTemp)
+    ? getY(manualBaselinePlusTemp)
+    : null;
+  const manualDragRef = useRef({
+  dragging: false,
+  pointerId: null,
+  startX: 0,
+  startY: 0,
+  accumDelta: 0,
+  activeSnapIndex: null,
+});
+  const handleManualBaselinePointerDown = useCallback((event) => {
+    if (!manualModeEnabled || manualSnapTemps.length < 2) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const startSnapIndex = Math.max(0, getNearestManualSnapIndex(manualBaselineTemp));
+
+manualDragRef.current = {
+  dragging: true,
+  pointerId: event.pointerId,
+  startX: event.clientX,
+  startY: event.clientY,
+  accumDelta: 0,
+  activeSnapIndex: startSnapIndex,
+};
+    if (typeof event.currentTarget?.setPointerCapture === 'function') {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
+  }, [manualModeEnabled, manualSnapTemps.length, getNearestManualSnapIndex, manualBaselineTemp]);
+  const handleManualBaselinePointerMove = useCallback((event) => {
+  const state = manualDragRef.current;
+  if (!state.dragging || state.pointerId !== event.pointerId) return;
+
+  event.preventDefault();
+  event.stopPropagation();
+
+  const vv =
+    typeof window !== 'undefined' ? window.visualViewport : null;
+
+  const isRotatedManualViewport =
+    isFullScreen &&
+    forceLandscape &&
+    ((vv?.width ?? window.innerWidth ?? 0) < (vv?.height ?? window.innerHeight ?? 0));
+
+  let primaryDelta = 0;
+
+  if (isRotatedManualViewport) {
+    // En fullscreen rotado invertimos el eje:
+    // mover el dedo hacia "abajo del móvil" debe bajar la línea.
+    primaryDelta = state.startX - event.clientX;
+    state.startX = event.clientX;
+    state.startY = event.clientY;
+  } else {
+    primaryDelta = event.clientY - state.startY;
+    state.startY = event.clientY;
+    state.startX = event.clientX;
+  }
+
+  state.accumDelta += primaryDelta;
+
+  if (Math.abs(state.accumDelta) < MANUAL_DRAG_THRESHOLD_PX) return;
+  if (!manualSnapTemps.length) return;
+
+  const direction = state.accumDelta > 0 ? 1 : -1;
+
+  const currentIndex =
+    Number.isInteger(state.activeSnapIndex) && state.activeSnapIndex >= 0
+      ? state.activeSnapIndex
+      : Math.max(0, getNearestManualSnapIndex(manualBaselineTemp));
+
+  const nextIndex = Math.min(
+    manualSnapTemps.length - 1,
+    Math.max(0, currentIndex - direction)
+  );
+
+  if (nextIndex === currentIndex) {
+    state.accumDelta = 0;
+    return;
+  }
+
+  state.activeSnapIndex = nextIndex;
+  state.accumDelta -= direction * MANUAL_DRAG_THRESHOLD_PX;
+  setManualBaselineTemp(manualSnapTemps[nextIndex]);
+}, [
+  manualSnapTemps,
+  getNearestManualSnapIndex,
+  manualBaselineTemp,
+  isFullScreen,
+  forceLandscape,
+]);
+  const handleManualBaselinePointerUp = useCallback((event) => {
+    const state = manualDragRef.current;
+    if (state.pointerId !== event.pointerId) return;
+    if (typeof event.currentTarget?.releasePointerCapture === 'function') {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    manualDragRef.current = {
+  dragging: false,
+  pointerId: null,
+  startX: 0,
+  startY: 0,
+  accumDelta: 0,
+  activeSnapIndex: null,
+};
+  }, []);
+  const handleManualBaselinePointerCancel = useCallback(() => {
+    manualDragRef.current = {
+  dragging: false,
+  pointerId: null,
+  startX: 0,
+  startY: 0,
+  accumDelta: 0,
+  activeSnapIndex: null,
+};
+  }, []);
+  const [manualHandleStyle, setManualHandleStyle] = useState({
+  top: 0,
+  left: 0,
+  transform: 'none',
+  transformOrigin: 'center center',
+});
+
+useEffect(() => {
+  if (!manualModeEnabled || !Number.isFinite(manualBaselineY)) return undefined;
+
+  let raf1 = 0;
+  let raf2 = 0;
+  let raf3 = 0;
+  let delayedMeasure = 0;
+
+  const updateHandlePosition = () => {
+    const scroller = chartRef.current;
+    const host = stageHostRef.current;
+    if (!scroller || !host) return;
+
+    const scrollerRect = scroller.getBoundingClientRect();
+    const hostRect = host.getBoundingClientRect();
+
+    if (!scrollerRect.width || !scrollerRect.height || !hostRect.width || !hostRect.height) {
+      return;
+    }
+
+    const vv =
+      typeof window !== 'undefined' ? window.visualViewport : null;
+
+    const isRotatedManualViewport =
+      isFullScreen &&
+      forceLandscape &&
+      ((vv?.width ?? window.innerWidth ?? 0) < (vv?.height ?? window.innerHeight ?? 0));
+
+    const buttonSize = 40;
+    const bubbleHeight = 24;
+    const gapBetweenBubbleAndButton = 4;
+    const blockHeight = bubbleHeight + gapBetweenBubbleAndButton + buttonSize;
+
+    const rightGap = isFullScreen ? 36 : 40;
+    const topGap = isFullScreen ? 10 : 4;
+    const bottomGap = isFullScreen ? 10 : 4;
+    const lateralGap = isFullScreen ? 12 : 8;
+
+    const localY = manualBaselineY - scroller.scrollTop;
+
+    if (!isRotatedManualViewport) {
+      const clampedCenterY = Math.min(
+        scroller.clientHeight - bottomGap - buttonSize / 2,
+        Math.max(topGap + buttonSize / 2, localY)
+      );
+
+      const top =
+        scrollerRect.top -
+        hostRect.top +
+        clampedCenterY -
+        blockHeight / 2;
+
+      const left =
+        scrollerRect.right -
+        hostRect.left -
+        buttonSize -
+        rightGap;
+
+      setManualHandleStyle({
+        top,
+        left,
+        transform: 'none',
+        transformOrigin: 'center center',
+      });
+      return;
+    }
+
+    const clampedHorizontalCenter = Math.min(
+      scroller.clientHeight - lateralGap - buttonSize / 2,
+      Math.max(lateralGap + buttonSize / 2, localY)
+    );
+
+    const left =
+      scrollerRect.right -
+      hostRect.left -
+      clampedHorizontalCenter -
+      buttonSize / 2;
+
+    const top =
+      scrollerRect.bottom -
+      hostRect.top -
+      blockHeight -
+      bottomGap;
+
+    setManualHandleStyle({
+      top,
+      left,
+      transform: 'rotate(90deg)',
+      transformOrigin: 'center center',
+    });
+  };
+
+  updateHandlePosition();
+
+  // Re-mediciones extra para cuando entras en fullscreen con la baseline ya activa
+  raf1 = window.requestAnimationFrame(updateHandlePosition);
+  raf2 = window.requestAnimationFrame(() => {
+    raf3 = window.requestAnimationFrame(updateHandlePosition);
+  });
+  delayedMeasure = window.setTimeout(updateHandlePosition, 180);
+
+  const scroller = chartRef.current;
+  scroller?.addEventListener('scroll', updateHandlePosition, { passive: true });
+  window.addEventListener('resize', updateHandlePosition);
+  window.visualViewport?.addEventListener('resize', updateHandlePosition);
+  window.visualViewport?.addEventListener('scroll', updateHandlePosition);
+
+  return () => {
+    if (raf1) window.cancelAnimationFrame(raf1);
+    if (raf2) window.cancelAnimationFrame(raf2);
+    if (raf3) window.cancelAnimationFrame(raf3);
+    if (delayedMeasure) window.clearTimeout(delayedMeasure);
+
+    scroller?.removeEventListener('scroll', updateHandlePosition);
+    window.removeEventListener('resize', updateHandlePosition);
+    window.visualViewport?.removeEventListener('resize', updateHandlePosition);
+    window.visualViewport?.removeEventListener('scroll', updateHandlePosition);
+  };
+}, [
+  manualModeEnabled,
+  manualBaselineY,
+  chartRef,
+  isFullScreen,
+  forceLandscape,
+  applyRotation,
+  viewport.w,
+  viewport.h,
+  dimensions.width,
+  dimensions.viewportWidth,
+  dimensions.viewportHeight,
+  dimensions.contentHeight,
+]);
 
   const getNearestDataIndexByX = useCallback((targetX) => {
     const totalPoints = allDataPoints.length;
@@ -141,57 +605,41 @@ const FertilityChart = ({
       ? leftIndex
       : rightIndex;
   }, [allDataPoints, getX]);
-
-  const handleChartBackgroundInteraction = useCallback((event) => {
+  const activateTooltipFromPointer = useCallback((event) => {
     if (exportMode) return;
 
-    const clickedInteractiveElement = event.target?.closest?.('[data-chart-interactive="true"]');
+  const clickedInteractiveElement =
+      event.target?.closest?.('[data-chart-interactive="true"], [data-manual-baseline-interactive="true"]');
     if (clickedInteractiveElement) return;
 
-    const svgElement = svgRef.current;
-    if (!svgElement) return;
+    const scroller = chartRef.current;
+    if (!scroller) return;
 
-    // ✅ Detecta el modo rotado (fullscreen + forceLandscape + viewport portrait)
+    const rect = scroller.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+
+    const vv =
+  typeof window !== 'undefined' ? window.visualViewport : null;
+
+const adjustedClientX = event.clientX - (vv?.offsetLeft ?? 0);
+const adjustedClientY = event.clientY - (vv?.offsetTop ?? 0);
+
 const isRotated =
-  !exportMode &&
   isFullScreen &&
   forceLandscape &&
-  typeof window !== 'undefined' &&
-  window.innerWidth < window.innerHeight;
+  ((vv?.width ?? window.innerWidth ?? 0) < (vv?.height ?? window.innerHeight ?? 0));
 
-const rect = svgElement.getBoundingClientRect();
-if (!rect.width || !rect.height) return;
+let localX = adjustedClientX - rect.left;
 
-// Ancho del sistema SVG (viewBox). Si no existe, usa el ancho del rect.
-const vbW =
-  svgElement.viewBox?.baseVal?.width ||
-  svgElement.clientWidth ||
-  rect.width;
-
-let svgX;
-
-// ✅ Si está rotado 90º por CSS, compensamos la rotación (inversa -90º)
 if (isRotated) {
-  const cx = rect.left + rect.width / 2;
   const cy = rect.top + rect.height / 2;
-
-  const dx = event.clientX - cx;
-  const dy = event.clientY - cy;
-
-  // inversa de rotate(90): rotate(-90)
-  const ux = dy;
-
-  // en rotación 90, el “ancho lógico” sin rotar equivale al alto del rect actual
+  const dy = adjustedClientY - cy;
   const unrotW = rect.height || 1;
-
-  const px = ux + unrotW / 2;
-  svgX = (px / unrotW) * vbW;
-} else {
-  // ✅ Normal (sin rotación)
-  svgX = ((event.clientX - rect.left) / rect.width) * vbW;
+  localX = dy + unrotW / 2;
 }
 
-    const index = getNearestDataIndexByX(svgX);
+    const worldX = scroller.scrollLeft + localX;
+    const index = getNearestDataIndexByX(worldX);
     if (index == null) return;
 
     const point = allDataPoints[index];
@@ -200,12 +648,71 @@ if (isRotated) {
     const isFuture = point.isoDate
       ? isAfter(startOfDay(parseISO(point.isoDate)), startOfDay(new Date()))
       : false;
-
     if (isFuture) return;
 
-    handlePointInteraction(point, index, event);
-  }, [allDataPoints, exportMode, getNearestDataIndexByX, handlePointInteraction]);
+  handlePointInteraction(point, index, event);
+  }, [
+    exportMode,
+    chartRef,
+    isFullScreen,
+    forceLandscape,
+    getNearestDataIndexByX,
+    allDataPoints,
+    handlePointInteraction,
+  ]);
 
+  const handleChartPointerDown = useCallback((event) => {
+    if (exportMode) return;
+    const scroller = chartRef.current;
+    if (!scroller) return;
+    pointerGestureRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      startScrollLeft: scroller.scrollLeft,
+      moved: false,
+    };
+  }, [chartRef, exportMode]);
+
+  const handleChartPointerMove = useCallback((event) => {
+    const gesture = pointerGestureRef.current;
+    if (gesture.pointerId !== event.pointerId) return;
+    const movedX = Math.abs(event.clientX - gesture.startX);
+    const movedY = Math.abs(event.clientY - gesture.startY);
+    if (movedX > 8 || movedY > 8) {
+      gesture.moved = true;
+    }
+  }, []);
+
+  const handleChartPointerUp = useCallback((event) => {
+    const gesture = pointerGestureRef.current;
+    const scroller = chartRef.current;
+    const isSamePointer = gesture.pointerId === event.pointerId;
+    pointerGestureRef.current = {
+      pointerId: null,
+      startX: 0,
+      startY: 0,
+      startScrollLeft: 0,
+      moved: false,
+    };
+
+    if (!isSamePointer || !scroller) return;
+    const scrollDelta = Math.abs(scroller.scrollLeft - gesture.startScrollLeft);
+    if (gesture.moved || scrollDelta > 4 || isScrolling) return;
+
+    activateTooltipFromPointer(event);
+  }, [activateTooltipFromPointer, chartRef, isScrolling]);
+
+  const handleChartPointerCancel = useCallback(() => {
+    pointerGestureRef.current = {
+      pointerId: null,
+      startX: 0,
+      startY: 0,
+      startScrollLeft: 0,
+      moved: false,
+    };
+  }, []);
+  
   if (!allDataPoints || allDataPoints.length === 0) {
     return (
       <div className="text-center p-8">
@@ -218,11 +725,16 @@ if (isRotated) {
       </div>
     );
   }
-
   const chartWidth = dimensions.width;
   const chartHeight = dimensions.contentHeight ?? dimensions.height;
   const viewportHeight = dimensions.viewportHeight ?? dimensions.height;
   const scrollableContentHeight = dimensions.scrollableContentHeight ?? chartHeight;
+  const verticalThreshold = isIOS ? 24 : 2;
+  const needsVerticalScroll =
+  Number.isFinite(scrollableContentHeight) &&
+  Number.isFinite(viewportHeight) &&
+  scrollableContentHeight > viewportHeight + verticalThreshold;
+  const allowVerticalScroll = needsVerticalScroll || showRelationsRow;
   const graphBottomY = chartHeight - padding.bottom - (graphBottomInset || 0);
   const rowsZoneHeight = Math.max(chartHeight - graphBottomY, 0);
   const baselineY = baselineTemp != null ? getY(baselineTemp) : null;
@@ -235,37 +747,30 @@ if (isRotated) {
     allDataPoints.length > 0
       ? getX(allDataPoints.length - 1)
       : chartWidth - padding.right;
-  const baselineStroke = confirmedRise ? '#F59E0B' : '#94A3B8';
+  const theme = getChartTheme();
+  const baselineStroke = confirmedRise ? theme.baseline.defaultStroke : theme.points.ignoredStroke;
   const baselineDash = confirmedRise ? '6 4' : '4 4';
   const baselineOpacity = confirmedRise ? 1 : 0.7;
   const baselineWidth = 3;
   const isLoading = chartWidth === 0;
-  const highlightX = activeIndex != null ? getX(activeIndex) : null;
-  const prevX =
-    activeIndex != null
-      ? activeIndex > 0
-        ? getX(activeIndex - 1)
-        : highlightX
-      : null;
-  const nextX =
-    activeIndex != null
-      ? activeIndex < allDataPoints.length - 1
-        ? getX(activeIndex + 1)
-        : highlightX
-      : null;
-  const fallbackDayWidth = Math.max(
-    (chartWidth - padding.left - padding.right) / Math.max(allDataPoints.length, 1),
-    0
-  );
-  const dayWidth =
-    activeIndex != null
-      ? Math.max(
-          ((nextX != null && prevX != null ? nextX - prevX : 0) || fallbackDayWidth),
-          fallbackDayWidth,
-          0
-        )
-      : 0;
- 
+
+  const manualLabelPoints = useMemo(() => {
+    if (!manualModeEnabled) return [];
+    const total = allDataPoints.length;
+    if (!total) return [];
+    const overscan = 2;
+    const start = Math.max(0, (visibleRange?.startIndex ?? 0) - overscan);
+    const end = Math.min(total - 1, (visibleRange?.endIndex ?? (total - 1)) + overscan);
+    const list = [];
+    for (let index = start; index <= end; index += 1) {
+      const point = allDataPoints[index];
+      if (!isPointEligibleForManualMode(point, index)) continue;
+      const normalizedTemp = normalizeTemp2(point?.displayTemperature);
+      if (normalizedTemp == null) continue;
+      list.push({ index, value: normalizedTemp, x: getX(index), y: getY(normalizedTemp) });
+    }
+    return list;
+  }, [manualModeEnabled, allDataPoints, visibleRange, isPointEligibleForManualMode, getX, getY, normalizeTemp2]);
 
   const validDataMap = useMemo(() => {
     const map = new Map();
@@ -875,34 +1380,7 @@ if (isRotated) {
     getY,
   ]);
   
-  // Detectar orientación real del viewport para rotación visual
-  const [viewport, setViewport] = useState({
-  w: typeof window !== 'undefined' ? window.innerWidth : 0,
-  h: typeof window !== 'undefined' ? window.innerHeight : 0,
-});
-const isViewportPortrait = viewport.w < viewport.h;
-
-useEffect(() => {
-  if (typeof window === 'undefined') return undefined;
-
-  let raf = 0;
-  const onResize = () => {
-    if (raf) cancelAnimationFrame(raf);
-    raf = requestAnimationFrame(() => {
-      setViewport({ w: window.innerWidth, h: window.innerHeight });
-    });
-  };
-
-  window.addEventListener('resize', onResize);
-  window.addEventListener('orientationchange', onResize);
-  onResize();
-
-  return () => {
-    if (raf) cancelAnimationFrame(raf);
-    window.removeEventListener('resize', onResize);
-    window.removeEventListener('orientationchange', onResize);
-  };
-}, []);
+  
 
   const updateVisibleRange = useCallback(
     (scrollLeft = 0) => {
@@ -939,17 +1417,19 @@ useEffect(() => {
   );
 
   useEffect(() => {
-    if (!chartRef.current) return;
-    const dayWidth = chartRef.current.clientWidth / visibleDays;
-    chartRef.current.scrollLeft = Math.max(0, dayWidth * initialScrollIndex);
+  if (!chartRef.current) return;
+  const dayWidth = chartRef.current.clientWidth / visibleDays;
+  chartRef.current.scrollLeft = Math.max(0, dayWidth * initialScrollIndex);
   updateVisibleRange(chartRef.current.scrollLeft);
-  }, [
-    initialScrollIndex,
-    visibleDays,
-    dimensions.width,
-    orientation,
-    updateVisibleRange,
-  ]);
+}, [
+  initialScrollIndex,
+  visibleDays,
+  dimensions.width,
+  dimensions.viewportWidth,
+  dimensions.viewportHeight,
+  orientation,
+  updateVisibleRange,
+]);
 
   useEffect(() => {
     const node = chartRef.current;
@@ -977,10 +1457,9 @@ useEffect(() => {
     };
   }, [updateVisibleRange]);
 
-  const applyRotation = !exportMode && isFullScreen && forceLandscape && isViewportPortrait;
-  const visualOrientation = forceLandscape ? 'landscape' : orientation;
 
   const isRotationStage = !exportMode && isFullScreen && forceLandscape;
+  const shouldRotateStage = isRotationStage && applyRotation;
 
 // Angulo real que pintamos (0 o 90). Lo forzamos a animar al entrar.
 const [rotationAngle, setRotationAngle] = useState(applyRotation ? 90 : 0);
@@ -1020,54 +1499,121 @@ useEffect(() => {
   };
 }, [applyRotation, isRotationStage]);
 
-const rotationStageStyle = isRotationStage
+const rotationStageStyle = shouldRotateStage
   ? {
       position: 'absolute',
       top: '50%',
       left: '50%',
-
-      // si el viewport está en portrait, “intercambiamos” para encajar la rotación
       width: `${isViewportPortrait ? viewport.h : viewport.w}px`,
       height: `${isViewportPortrait ? viewport.w : viewport.h}px`,
-
       transform: `translate3d(-50%, -50%, 0) rotate(${rotationAngle}deg)`,
       transformOrigin: 'center center',
-
-      // animación ligera
       transition: effectiveReduceMotion
         ? 'transform 120ms cubic-bezier(0.4, 0, 0.2, 1), opacity 120ms ease-out'
         : 'transform 120ms cubic-bezier(0.2, 0, 0, 1), opacity 120ms ease',
-
       willChange: 'transform, opacity',
       opacity: rotationBooting ? 0 : 1,
     }
   : null;
 
+const safeAreaStyle = isFullScreen
+  ? (shouldRotateStage
+      ? {
+          boxSizing: 'border-box',
+          paddingTop: 0,
+          paddingRight: 0,
+          paddingBottom: 0,
+          paddingLeft: 0,
+        }
+      : {
+          paddingTop: 'env(safe-area-inset-top)',
+          paddingRight: 'env(safe-area-inset-right)',
+          paddingBottom: 'env(safe-area-inset-bottom)',
+          paddingLeft: 'env(safe-area-inset-left)',
+          boxSizing: 'border-box',
+        })
+  : null;
+
+const rotationWrapperStyle = rotationStageStyle
+  ? { ...rotationStageStyle, ...(safeAreaStyle ?? {}) }
+  : safeAreaStyle ?? undefined;
+
   // Clase del contenedor de scroll ajustada para rotación artificial
   const baseFullClass = 'w-full h-full bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100';
   const containerClass = isFullScreen
-    ? `${baseFullClass} h-full overflow-x-auto overflow-y-auto`
-    : `${baseFullClass} overflow-x-auto overflow-y-auto border border-pink-100/50`;
-  const showLegend = !isFullScreen || visualOrientation === 'portrait';
+    ? `${baseFullClass} h-full overflow-x-auto ${allowVerticalScroll ? 'overflow-y-auto' : 'overflow-y-hidden'}`
+    : `${baseFullClass} overflow-x-auto ${allowVerticalScroll ? 'overflow-y-auto' : 'overflow-y-hidden'} border border-pink-100/50`;
+  const showLegend = true;
   const handlePointInteractionSafe = exportMode ? () => {} : handlePointInteraction;
   const clearActivePointSafe = exportMode ? () => {} : clearActivePoint;
+  const showCanvasOverlay =
+  !exportMode && chartWidth > 0 && chartHeight > 0 && scrollableContentHeight > 0;
   return (
-      <motion.div className="relative w-full h-full" initial={false}>
-      
+      <motion.div
+  ref={stageHostRef}
+  className="relative w-full h-full bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100"
+  initial={false}
+>
+  <div
+  className="relative w-full h-full"
+  style={rotationWrapperStyle}
+>
+      {showCanvasOverlay && (
+   <div
+     className={`absolute inset-0 overflow-hidden pointer-events-none ${isFullScreen ? '' : 'rounded-2xl'}`}
+     style={{ zIndex: 0 }}
+   >
+          <FertilityChartCanvasOverlay
+            chartRef={chartRef}
+            chartWidth={chartWidth}
+            chartHeight={chartHeight}
+            scrollableContentHeight={scrollableContentHeight}
+            padding={padding}
+            graphBottomY={graphBottomY}
+            allDataPoints={allDataPoints}
+            tempMin={tempMin}
+            tempMax={tempMax}
+            tempRange={tempRange}
+            getX={getX}
+            getY={getY}
+            responsiveFontSize={responsiveFontSize}
+            visibleRange={visibleRange}
+            activeIndex={activeIndex}
+            showInterpretation={showInterpretation}
+            interpretationSegments={interpretationSegments}
+            shouldRenderBaseline={shouldRenderBaseline}
+            baselineY={baselineY}
+            baselineStartX={baselineStartX}
+            baselineEndX={baselineEndX}
+            baselineStroke={baselineStroke}
+            baselineDash={baselineDash}
+            baselineOpacity={baselineOpacity}
+            baselineWidth={baselineWidth}
+            temperatureRiseHighlightPath={temperatureRiseHighlightPath}
+          />
+        </div>
+      )}
 
       {/* Contenedor principal del gráfico */}
       <motion.div
         ref={chartRef}
-        className={`relative p-0 ${isFullScreen ? '' : 'rounded-2xl'} ${containerClass}`}
+        className={`relative z-10 p-0 ${isFullScreen ? '' : 'rounded-2xl'} ${containerClass}`}
         style={{
-  touchAction: 'auto',
+        background: showCanvasOverlay ? 'transparent' : undefined,
+  // Sin scroll vertical real, bloquea el pan-y para que iOS no “arrastre” la página.
+  touchAction: shouldRotateStage
+   ? 'pan-x pan-y'
+   : (allowVerticalScroll ? 'pan-x pan-y' : 'pan-x'),
+  // Evita que el scroll “salte” al body cuando llegas al borde (scroll chaining)
+  overscrollBehavior: isIOSFakeLandscape ? 'none' : 'contain',
+  overscrollBehaviorY: isIOSFakeLandscape ? 'none' : 'contain',
+  WebkitOverflowScrolling: isIOSFakeLandscape ? 'auto' : 'touch',
   boxShadow: isFullScreen
     ? 'inset 0 1px 3px rgba(244, 114, 182, 0.1)'
     : '0 8px 32px rgba(244, 114, 182, 0.12), 0 2px 8px rgba(244, 114, 182, 0.08)',
-  ...(rotationStageStyle ?? {}),
 }}
-        initial={false}
-      >
+>
+
         {isLoading && (
           <div className="flex items-center justify-center w-full h-full text-slate-400">
             Cargando...
@@ -1098,27 +1644,30 @@ const rotationStageStyle = isRotationStage
                   />
                 </div>
               )}
+              
               <motion.svg
-                ref={svgRef}
                 width={chartWidth}
                 height={scrollableContentHeight}   
-                className="font-sans flex-shrink-0"
+                className="font-sans flex-shrink-0 relative z-20"
                 viewBox={`0 0 ${chartWidth} ${scrollableContentHeight}`} 
                 preserveAspectRatio="xMidYMid meet"
-                onClick={handleChartBackgroundInteraction}
                 initial={false}
+                onPointerDown={handleChartPointerDown}
+                onPointerMove={handleChartPointerMove}
+                onPointerUp={handleChartPointerUp}
+                onPointerCancel={handleChartPointerCancel}
               >
           <defs>
             {/* Gradientes mejorados para la línea de temperatura */}
             <linearGradient id="tempLineGradientChart" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#F472B6" />
-              <stop offset="50%" stopColor="#EC4899" />
-              <stop offset="100%" stopColor="#E91E63" />
+              <stop offset="0%" stopColor={theme.svg.temperatureGradient[0]} />
+              <stop offset="50%" stopColor={theme.svg.temperatureGradient[1]} />
+              <stop offset="100%" stopColor={theme.svg.temperatureGradient[2]} />
             </linearGradient>
             
             <linearGradient id="tempAreaGradientChart" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="rgba(244, 114, 182, 0.18)" />
-              <stop offset="100%" stopColor="rgba(244, 114, 182, 0.02)" />
+              <stop offset="0%" stopColor={theme.svg.areaGradientTop} />
+              <stop offset="100%" stopColor={theme.svg.areaGradientBottom} />
             </linearGradient>
             
             <linearGradient id={relativePhaseGradientId} x1="0%" y1="0%" x2="0%" y2="100%">
@@ -1178,30 +1727,6 @@ const rotationStageStyle = isRotationStage
             </filter>
           </defs>
 
-          {/* Fondo transparente para interacciones */}
-          <rect width="100%" height="100%" fill="transparent" pointerEvents="all" />
-
-          {/* Ejes del gráfico */}
-          <ChartAxes
-            padding={padding}
-            chartWidth={chartWidth}
-            chartHeight={chartHeight}
-            tempMin={tempMin}
-            tempMax={tempMax}
-            tempRange={tempRange}
-            getY={getY}
-            getX={getX}
-            allDataPoints={allDataPoints}
-            visibleRange={visibleRange}
-            responsiveFontSize={responsiveFontSize}
-            isFullScreen={isFullScreen}
-            showLeftLabels={!showLegend}
-            reduceMotion={effectiveReduceMotion}
-            isScrolling={isScrolling}
-            graphBottomY={graphBottomY}
-            chartAreaHeight={Math.max(chartHeight - padding.top - padding.bottom - (graphBottomInset || 0), 0)}
-            rowsZoneHeight={rowsZoneHeight}
-          />
           {showInterpretation &&
             interpretationSegments.length > 0 &&
             interpretationBandTop != null &&
@@ -1210,35 +1735,6 @@ const rotationStageStyle = isRotationStage
                 {interpretationSegments.map((segment) => {
                   const rectY = interpretationBandTop;
                   const rectHeight = interpretationBandHeight;
-                  const backgroundFill = (() => {
-                  // Postovulatoria
-                  if (segment.phase === 'postOvulatory') {
-                    return segment.status === 'pending'
-                      ? `url(#${postPendingGradientId})`
-                      : `url(#${postAbsoluteGradientId})`;
-                  }
-
-                  // Relativamente infértil (tanto el segmento "relative" como el "relative-default")
-                  if (segment.phase === 'relativeInfertile') {
-                    return `url(#${relativePhaseGradientId})`;
-                  }
-
-                  // Fértil
-                  if (segment.phase === 'fertile') {
-                    return `url(#${fertilePhaseGradientId})`;
-                  }
-
-                  // Nodata u otros → gris suave
-                  if (segment.phase === 'nodata') {
-                    return 'rgba(203, 213, 225, 0.2)';
-                  }
-
-                  // Fallback: trata cualquier cosa rara como fértil
-                  return `url(#${fertilePhaseGradientId})`;
-                })();
-
-                const rectFill = backgroundFill;
-
                   const minFontSize = isFullScreen ? 14 : 13;
                   const fontSize = Math.max(responsiveFontSize(1.1), minFontSize);
                   const isNarrow = segment.bounds.width < 120;
@@ -1284,14 +1780,6 @@ const rotationStageStyle = isRotationStage
 
                   return (
                     <g key={segment.key}>
-                      <rect
-                        x={segment.bounds.x}
-                        y={rectY}
-                        width={segment.bounds.width}
-                        height={rectHeight}
-                        fill={rectFill}
-                        pointerEvents="none"
-                      />
                       <text
                         x={textX}
                         y={textY}
@@ -1317,88 +1805,47 @@ const rotationStageStyle = isRotationStage
                 })}
               </g>
             )}
-            {/* Línea baseline mejorada */}
-          {showInterpretation && shouldRenderBaseline && baselineY !== null && (
-            effectiveReduceMotion ? (
-              
+  
+          {manualModeEnabled && Number.isFinite(manualBaselineY) && (
+            <g pointerEvents="none">
+              {Number.isFinite(manualBaselinePlusY) && (
+                <line
+                  x1={baselineStartX}
+                  x2={baselineEndX}
+                  y1={manualBaselinePlusY}
+                  y2={manualBaselinePlusY}
+                  stroke="#a78bfa"
+                  strokeWidth={1}
+                  strokeDasharray="3 6"
+                  opacity={0.38}
+                />
+              )}
               <line
                 x1={baselineStartX}
-                y1={baselineY}
                 x2={baselineEndX}
-                y2={baselineY}
-                stroke={baselineStroke}
-                strokeWidth={baselineWidth}
-                strokeDasharray={baselineDash}
-                opacity={baselineOpacity}
+                y1={manualBaselineY}
+                y2={manualBaselineY}
+                stroke="#7c3aed"
+                strokeWidth={2.2}
+                strokeDasharray="7 5"
+                opacity={0.92}
               />
-            ) : (
-            <motion.path
-                d={`M ${baselineStartX} ${baselineY} L ${baselineEndX} ${baselineY}`}
-                stroke={baselineStroke}
-                strokeWidth={baselineWidth}
-                strokeDasharray={baselineDash}
-                opacity={baselineOpacity}
-                initial={{ pathLength: 0, opacity: 0 }}
-                animate={{ pathLength: 1, opacity: baselineOpacity }}
-                transition={{ duration: 4, ease: 'easeInOut', delay: 0.5 }}
-              />
-            )
-          )}
-          {/* Línea de temperatura */}
-          <ChartLine
-            data={validDataForLine}
-            allDataPoints={allDataPoints}
-            getX={getX}
-            getY={getY}
-            baselineY={graphBottomY}
-            temperatureField="displayTemperature"
-            reduceMotion={effectiveReduceMotion}
-            connectGaps={!exportMode}
-          />
-          {temperatureRiseHighlightPath && (
-            <g pointerEvents="none">
-
-              {/* Línea principal */}
-              <path
-                d={temperatureRiseHighlightPath}
-                fill="none"
-                stroke="#cc0e93"
-                strokeWidth={4}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                opacity={0.9}
-              />
-            </g>
-          )}
-
-          {activeIndex !== null && highlightX !== null && dayWidth > 0 && (
-            <g pointerEvents="none">
-              {(() => {
-                const chartAreaBottomY = graphBottomY;
-                const thinStrokeWidth = Math.max(3, Math.min(14, dayWidth * 0.4));
-                const thickStrokeWidth = Math.max(thinStrokeWidth * 2, textRowHeight * 0.85);
-
-                return (
-                  <>
-                    <line
-                      x1={highlightX}
-                      y1={0}
-                      x2={highlightX}
-                      y2={chartAreaBottomY}
-                      stroke="rgba(235, 171, 204,0.15)"
-                      strokeWidth={thinStrokeWidth}                      
-                    />
-                    <line
-                      x1={highlightX}
-                      y1={chartAreaBottomY}
-                      x2={highlightX}
-                      y2={chartHeight}
-                      stroke="rgba(235, 171, 204,0.15)"
-                      strokeWidth={thickStrokeWidth}                      
-                    />
-                  </>
-                );
-              })()}
+              {manualLabelPoints.map((labelPoint) => (
+                <text
+                  key={`manual-label-${labelPoint.index}`}
+                  x={labelPoint.x}
+                  y={labelPoint.y - 10}
+                  textAnchor="middle"
+                  fontSize={responsiveFontSize(0.78)}
+                  fontWeight={700}
+                  fill="#4c1d95"
+                  stroke="#fff"
+                  strokeWidth={1}
+                  paintOrder="stroke"
+                >
+                  {labelPoint.value.toFixed(2)}
+                </text>
+              ))}
             </g>
           )}
 
@@ -1433,11 +1880,16 @@ const rotationStageStyle = isRotationStage
             showRelationsRow={showRelationsRow}
             autoLabelStep={exportMode}
             isArchivedCycle={isArchivedCycle}
+            renderTemperatureLayer={false}
+            manualModeEnabled={manualModeEnabled}
+            manualBaselineTemp={manualBaselineTemp}
+            isPointEligibleForManualMode={isPointEligibleForManualMode}
           />
 
         </motion.svg>
             </div>
           </div>
+        
 
         {/* Tooltip mejorado */}
         {!exportMode && activePoint && (
@@ -1462,6 +1914,35 @@ const rotationStageStyle = isRotationStage
           </motion.div>
         )}
       </motion.div>
+      </div>
+    {manualModeEnabled && Number.isFinite(manualBaselineY) && (
+  <div className="pointer-events-none absolute inset-0 z-30">
+    <div
+      className="absolute flex flex-col items-center gap-1"
+      style={manualHandleStyle}
+    >
+      <div className="rounded-full bg-violet-600/95 px-2 py-1 text-[11px] font-bold text-white shadow-md">
+        {manualBaselineTemp.toFixed(2)}°
+      </div>
+
+      <button
+  type="button"
+  className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full border border-violet-500 bg-white text-violet-700 shadow-lg select-none"
+  style={{ touchAction: 'none' }}
+  onPointerDown={handleManualBaselinePointerDown}
+  onPointerMove={handleManualBaselinePointerMove}
+  onPointerUp={handleManualBaselinePointerUp}
+  onPointerCancel={handleManualBaselinePointerCancel}
+  data-chart-interactive="true"
+  data-manual-baseline-interactive="true"
+  aria-label="Arrastrar baseline manual"
+  title="Arrastrar baseline manual"
+>
+  <MoveVertical className="h-4 w-4" strokeWidth={2.2} />
+</button>
+    </div>
+  </div>
+)}  
     </motion.div>
   );
 };

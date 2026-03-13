@@ -36,6 +36,18 @@ const DataEntryForm = ({
   const { syncHealthConnectTemperatures } = useCycleData();
   const { isAvailable, hasPermissions, refreshPermissions, isAndroidApp } = useHealthConnect();
   const [syncingHealthConnect, setSyncingHealthConnect] = useState(false);
+  const normalizeFocusedField = useCallback((field) => {
+  switch (field) {
+    case 'sensation':
+      return 'mucusSensation';
+    case 'appearance':
+      return 'mucusAppearance';
+    case 'symbol':
+      return 'fertilitySymbol';
+    default:
+      return field;
+  }
+}, []);
 
   useEffect(() => {
     const form = formRef.current;
@@ -52,29 +64,47 @@ const DataEntryForm = ({
   }, []);
 
   useEffect(() => {
-    if (!focusedField) {
-      return;
-    }
+  if (!focusedField) {
+    return;
+  }
 
-    const form = formRef.current;
-    if (!form) {
-      return;
-    }
+  const form = formRef.current;
+  if (!form) {
+    return;
+  }
 
-    const focusTarget = form.querySelector(`[data-field="${focusedField}"]`);
+  const normalizedField = normalizeFocusedField(focusedField);
+  let frameId = null;
+  let attempts = 0;
+
+  const tryFocus = () => {
+    const focusTarget = form.querySelector(`[data-field="${normalizedField}"]`);
 
     if (focusTarget) {
-      requestAnimationFrame(() => {
-        if (typeof focusTarget.scrollIntoView === 'function') {
-          focusTarget.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
+      if (typeof focusTarget.scrollIntoView === 'function') {
+        focusTarget.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
 
-        if (typeof focusTarget.focus === 'function') {
-          focusTarget.focus();
-        }
-      });
+      if (typeof focusTarget.focus === 'function') {
+        focusTarget.focus();
+      }
+      return;
     }
-  }, [focusedField]);
+
+    attempts += 1;
+    if (attempts < 8) {
+      frameId = requestAnimationFrame(tryFocus);
+    }
+  };
+
+  frameId = requestAnimationFrame(tryFocus);
+
+  return () => {
+    if (frameId) {
+      cancelAnimationFrame(frameId);
+    }
+  };
+}, [focusedField, normalizeFocusedField, initialSectionKey]);
 
 
   const {
@@ -196,77 +226,81 @@ const DataEntryForm = ({
 
   return (
     <motion.form
-      ref={formRef}
-      onSubmit={handleSubmit}
-      className="space-y-4 bg-fertiliapp-secundario backdrop-blur-xl p-4 sm:p-6 rounded-3xl border-2 border-fertiliapp-suave shadow-[0_4px_20px_rgba(244,114,182,0.25)] w-full"
-      initial={{ opacity: 0, y: -20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.18, ease: 'easeOut' }}
-    >
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-fertiliapp-fuerte rounded-full flex items-center justify-center shadow-lg">
-            <Edit3 className="w-4 h-4 text-white" />
-          </div>
-          <h2 className="text-xl font-bold text-fertiliapp-fuerte">
-            {isEditing ? 'Editar Registro' : 'Añadir Registro'}
-          </h2>
-        </div>
-        {onCancel && (
-          <Button
-            type="button"
-            onClick={onCancel}
-            variant="ghost"
-            size="icon"
-            className="text-gray-400 hover:text-fertiliapp-fuerte hover:bg-pink-50 rounded-full"
-          >
-            <XCircle className="h-5 w-5" />
-          </Button>
-        )}
+  ref={formRef}
+  onSubmit={handleSubmit}
+  className="flex h-[92dvh] max-h-[92dvh] min-h-0 w-full flex-col rounded-3xl border-2 border-white bg-fertiliapp-secundario p-3 shadow-[0_24px_70px_rgba(15,23,42,0.22),0_10px_30px_rgba(244,114,182,0.22)] backdrop-blur-xl sm:p-4 overflow-hidden"
+  initial={{ opacity: 0, y: -20 }}
+  animate={{ opacity: 1, y: 0 }}
+  transition={{ duration: 0.18, ease: 'easeOut' }}
+>
+  <div className="mb-3 flex items-center justify-between shrink-0">
+    <div className="flex items-center gap-3">
+      <div className="w-8 h-8 bg-fertiliapp-fuerte rounded-full flex items-center justify-center shadow-lg">
+        <Edit3 className="w-4 h-4 text-white" />
       </div>
-      <DataEntryFormFields
-        date={date}
-        setDate={setDate}
-        measurements={measurements}
-        addMeasurement={addMeasurement}
-        updateMeasurement={updateMeasurement}
-        removeMeasurement={removeMeasurement}
-        confirmMeasurement={confirmMeasurement}
-        selectMeasurement={selectMeasurement}
-        mucusSensation={mucusSensation}
-        setMucusSensation={setMucusSensation}
-        mucusAppearance={mucusAppearance}
-        setMucusAppearance={setMucusAppearance}
-        fertilitySymbol={fertilitySymbol}
-        setFertilitySymbol={setFertilitySymbol}
-        observations={observations}
-        setObservations={setObservations}
-        hadRelations={hadRelations}
-        setHadRelations={setHadRelations}
-        ignored={ignored}
-        setIgnored={setIgnored}
-        peakTag={peakTag}
-        setPeakTag={setPeakTag}
-        existingPeakIsoDate={existingPeakIsoDate}
-        isProcessing={isProcessing}
-        isEditing={isEditing}
-        initialData={initialData}
-        cycleStartDate={cycleStartDate}
-        cycleEndDate={cycleEndDate}
-        recordedDates={recordedDates}
-        submitCurrentState={submitCurrentState}
-        initialSectionKey={initialSectionKey}
-        onSyncTemperature={handleSyncTemperature}
-        isSyncingTemperature={syncingHealthConnect}
-        canSyncTemperature={Boolean(isAndroidApp && isAvailable)}
-        onOpenNewCycle={handleOpenNewCycle}
-      />
-      <DataEntryFormActions
-        onCancel={onCancel}
-        isProcessing={isProcessing}
-        isEditing={isEditing}
-      />
-    </motion.form>
+      <h2 className="text-xl font-bold text-fertiliapp-fuerte">
+        {isEditing ? 'Editar Registro' : 'Añadir Registro'}
+      </h2>
+    </div>
+    {onCancel && (
+      <Button
+        type="button"
+        onClick={onCancel}
+        variant="ghost"
+        size="icon"
+        className="text-gray-400 hover:text-fertiliapp-fuerte hover:bg-pink-50 rounded-full"
+      >
+        <XCircle className="h-5 w-5" />
+      </Button>
+    )}
+  </div>
+
+  <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+    <DataEntryFormFields
+      date={date}
+      setDate={setDate}
+      measurements={measurements}
+      addMeasurement={addMeasurement}
+      updateMeasurement={updateMeasurement}
+      removeMeasurement={removeMeasurement}
+      confirmMeasurement={confirmMeasurement}
+      selectMeasurement={selectMeasurement}
+      mucusSensation={mucusSensation}
+      setMucusSensation={setMucusSensation}
+      mucusAppearance={mucusAppearance}
+      setMucusAppearance={setMucusAppearance}
+      fertilitySymbol={fertilitySymbol}
+      setFertilitySymbol={setFertilitySymbol}
+      observations={observations}
+      setObservations={setObservations}
+      hadRelations={hadRelations}
+      setHadRelations={setHadRelations}
+      ignored={ignored}
+      setIgnored={setIgnored}
+      peakTag={peakTag}
+      setPeakTag={setPeakTag}
+      existingPeakIsoDate={existingPeakIsoDate}
+      isProcessing={isProcessing}
+      isEditing={isEditing}
+      initialData={initialData}
+      cycleStartDate={cycleStartDate}
+      cycleEndDate={cycleEndDate}
+      recordedDates={recordedDates}
+      submitCurrentState={submitCurrentState}
+      initialSectionKey={initialSectionKey}
+      onSyncTemperature={handleSyncTemperature}
+      isSyncingTemperature={syncingHealthConnect}
+      canSyncTemperature={Boolean(isAndroidApp && isAvailable)}
+      onOpenNewCycle={handleOpenNewCycle}
+    />
+  </div>
+
+  <DataEntryFormActions
+    onCancel={onCancel}
+    isProcessing={isProcessing}
+    isEditing={isEditing}
+  />
+</motion.form>
   );
 };
 

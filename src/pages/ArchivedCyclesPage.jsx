@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { differenceInCalendarDays, format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Archive, Plus, Calendar, BarChart3, SlidersHorizontal } from 'lucide-react';
+import { Archive, Plus, Calendar, ChartSpline, SlidersHorizontal } from 'lucide-react';
 import { motion } from 'framer-motion';
 import EditCycleDatesDialog from '@/components/EditCycleDatesDialog';
 import DeletionDialog from '@/components/DeletionDialog';
@@ -350,14 +350,11 @@ const ArchivedCyclesPage = () => {
       {/* Cycles List: sin overflow interno, deja que scrollee el <main> */}
       <div className="mx-auto w-full max-w-4xl px-4 pb-6">
         <motion.div
-          className="space-y-3 px-1 pt-2"
-          variants={{
-            hidden: { opacity: 0 },
-            show: { opacity: 1, transition: { staggerChildren: 0.1 } },
-          }}
-          initial="hidden"
-          animate="show"
-        >
+  className="space-y-3 px-1 pt-2"
+  initial={{ opacity: 0, y: 8 }}
+  animate={{ opacity: 1, y: 0 }}
+  transition={{ duration: 0.22, ease: 'easeOut' }}
+>
           {filteredCycles.map((cycle) => {
             const formatArchivedDate = (date) => format(date, 'dd MMM yy', { locale: es });
             const start = cycle.startDate ? parseISO(cycle.startDate) : null;
@@ -377,7 +374,6 @@ const ArchivedCyclesPage = () => {
                 key={cycle.id}
                 type="button"
                 className="w-full max-w-[480px] mx-auto bg-white/80 backdrop-blur-md border border-fertiliapp-suave shadow-md hover:shadow-sm transition-all duration-300 hover:bg-white/90 rounded-3xl active:scale-[0.98] cursor-pointer select-none"
-                variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }}
                 onMouseDown={() => startLongPressDetection(cycle)}
                 onMouseUp={() => cancelLongPressDetection(cycle)}
                 onMouseLeave={() => cancelLongPressDetection(cycle, false)}
@@ -415,7 +411,7 @@ const ArchivedCyclesPage = () => {
 
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-slate-600">
                         <div className="flex items-center space-x-1">
-                          <BarChart3 className="w-4 h-4 text-slate-500" />
+                          <ChartSpline className="w-4 h-4 text-slate-500" />
                           <span>
                             {recordCount} registro{recordCount !== 1 ? 's' : ''}
                           </span>

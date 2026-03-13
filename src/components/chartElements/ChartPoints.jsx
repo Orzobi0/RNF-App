@@ -7,7 +7,7 @@ import { getSymbolAppearance, getSymbolColorPalette } from '@/config/fertilitySy
 const SENSATION_COLOR = 'var(--color-sensacion-fuerte)';
 const APPEARANCE_COLOR = 'var(--color-apariencia-fuerte)';
 const OBSERVATION_COLOR = 'var(--color-observaciones-fuerte)';
-const HEART_COLOR = '#be123c';
+const HEART_COLOR = '#ec003c';
 
 const BACKGROUND_COLOR = 'rgba(252, 231, 243, 0.40)';
 const BORDER_COLOR = 'rgba(244, 114, 182, 0.08)';
@@ -23,9 +23,9 @@ const ROW_SHADOW = 'drop-shadow(0 1px 2px rgba(15, 23, 42, 0.08))';
 const CORRECTION_LINE_COLOR = 'rgba(148, 163, 184, 0.35)';
 const CORRECTION_POINT_FILL = 'rgba(226, 232, 240, 0.6)';
 const CORRECTION_POINT_STROKE = 'rgba(148, 163, 184, 0.5)';
-const PEAK_EMOJI = '✖';
 const POST_PEAK_MARKER_COLOR = '#7f1d1d';
-const PEAK_EMOJI_COLOR = '#ec4899';
+const PEAK_MARKER_COLOR = '#db2777';
+const PEAK_MARKER_OUTLINE = 'rgba(255,255,255,0.96)';
 const PEAK_TEXT_SHADOW = 'drop-shadow(0 2px 4px rgba(244, 114, 182, 0.35))';
 const HIGH_SEQUENCE_NUMBER_COLOR = '#be185d';
 const BASELINE_NUMBER_COLOR = '#2563eb';
@@ -202,7 +202,16 @@ const ChartPoints = ({
   showRelationsRow = false,
   autoLabelStep = false,
   isArchivedCycle = false,
+  renderTemperatureLayer = true,
+  manualModeEnabled = false,
+  manualBaselineTemp = null,
+  isPointEligibleForManualMode = null,
 }) => {
+  const normalizeTemp2 = useCallback((value) => {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return null;
+    return Number(numeric.toFixed(2));
+  }, []);
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
     visible: { 
@@ -305,10 +314,17 @@ const ChartPoints = ({
       return new Map();
     }
 
-    const indices = Array.isArray(ovulationDetails?.highSequenceIndices)
+    const preferredIndices = Array.isArray(ovulationDetails?.usedIndices)
+      ? ovulationDetails.usedIndices
+      : null;
+    const fallbackIndices = Array.isArray(ovulationDetails?.highSequenceIndices)
       ? ovulationDetails.highSequenceIndices
       : [];
-
+    const firstHighIdx = Number(firstHighIndex);
+    const hasFirstHigh = Number.isInteger(firstHighIdx);
+    const indices = (preferredIndices ?? fallbackIndices)
+      .map((value) => Number(value))
+      .filter((idx) => Number.isInteger(idx) && (!hasFirstHigh || idx >= firstHighIdx));
     const isValidPoint = (idx) => {
       const point = data?.[idx];
       const calcTemperature =
@@ -331,19 +347,18 @@ const ChartPoints = ({
       }
     });
     return map;
-  }, [showInterpretation, ovulationDetails, totalPoints, data]);
+  }, [showInterpretation, ovulationDetails, totalPoints, data, firstHighIndex]);
 
   const baselineOrderMap = useMemo(() => {
     if (!showInterpretation) {
       return new Map();
     }
 
-    const indices = Array.isArray(baselineIndices) ? baselineIndices : [];
-    if (!indices.length) {
+    const firstHighIdx = Number(firstHighIndex);
+    if (!Number.isInteger(firstHighIdx)) {
       return new Map();
     }
 
-    const seen = new Set();
     const validIndices = [];
     const isValidPoint = (idx) => {
       const point = data?.[idx];
@@ -353,39 +368,9 @@ const ChartPoints = ({
         point?.ignoredForCalc != null ? point.ignoredForCalc : point?.ignored;
       return point && Number.isFinite(calcTemperature) && !ignoredForCalc;
     };
-    const findPreviousValidIndex = (startIndex) => {
-      for (let idx = startIndex; idx >= 0; idx -= 1) {
-        if (isValidPoint(idx)) {
-          return idx;
-        }
-      }
-      return null;
-    };
-    const addIndexIfValid = (value) => {
-      const idx = Number(value);
-      if (
-        Number.isInteger(idx)
-        && idx >= 0
-        && idx < totalPoints
-        && !seen.has(idx)
-        && isValidPoint(idx)
-      ) {
-        seen.add(idx);
+    for (let idx = firstHighIdx - 1; idx >= 0 && validIndices.length < 6; idx -= 1) {
+      if (isValidPoint(idx)) {
         validIndices.push(idx);
-      }
-    };
-
-    indices.forEach((value) => {
-      addIndexIfValid(value);
-    });
-    if (firstHighIndex != null) {
-      const firstHighIdx = Number(firstHighIndex);
-      if (Number.isInteger(firstHighIdx)) {
-        // Usar el último índice válido previo para evitar días ignorados/sin temp.
-        const previousValidIndex = findPreviousValidIndex(firstHighIdx - 1);
-        if (previousValidIndex != null) {
-          addIndexIfValid(previousValidIndex);
-        }
       }
     }
 
@@ -393,19 +378,14 @@ const ChartPoints = ({
       return new Map();
     }
 
-    const orderedAscending = [...validIndices].sort((a, b) => a - b);
-const map = new Map();
-let counter = 1;
-for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
-  if (counter > 6) break;   // 👈 límite máximo
-  map.set(orderedAscending[i], counter);
-  counter += 1;
-}
+  const map = new Map();
+    validIndices.forEach((idx, index) => {
+      map.set(idx, index + 1);
+    });
 
     return map;
-  }, [showInterpretation, baselineIndices, totalPoints, firstHighIndex, data]);
+  }, [showInterpretation, totalPoints, firstHighIndex, data]);
 
-  const rowLabelShadow = perfMode ? 'none' : 'drop-shadow(0 1px 2px rgba(255, 255, 255, 0.9))';
   const textShadowSoft = perfMode ? 'none' : 'drop-shadow(0 1px 1px rgba(255, 255, 255, 0.8))';
   const textShadowStrong = perfMode ? 'none' : 'drop-shadow(0 1px 2px rgba(255, 255, 255, 0.9))';
   const peakShadow = perfMode ? 'none' : PEAK_TEXT_SHADOW;
@@ -518,40 +498,6 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
 
       {/* Fondos de filas sutiles alineados con las tarjetas -- ocultos en modo compacto */}
 
-
-      {/* Leyenda izquierda con tipografía premium */}
-      {isFullScreen && orientation !== 'portrait' && (
-        <MotionG {...(reduceMotion || perfMode ? {} : { variants: itemVariants })}>
-          {[
-            { label: 'Fecha', row: 1, color: isFullScreen ? "#374151" : "#6B7280" },
-            { label: 'Día', row: 2, color: isFullScreen ? "#374151" : "#6B7280" },
-            { label: 'Símbolo', row: 3, color: isFullScreen ? "#374151" : "#6B7280" },
-            { label: 'Sens.', row: isFullScreen ? 5 : 4.5, color: SENSATION_COLOR },
-            { label: 'Apar.', row: isFullScreen ? 7 : 6, color: APPEARANCE_COLOR },
-            { label: 'Observ.', row: isFullScreen ? 9 : 7.5, color: OBSERVATION_COLOR },
-            ...(showRelationsRow && relationsRowIndex != null
-              ? [{ label: 'RS', row: relationsRowIndex, color: HEART_COLOR }]
-              : []),
-          ].map(({ label, row, color }) => (
-            <text
-              key={label}
-              x={padding.left - responsiveFontSize(0.5)}
-              y={rowsTopY + rowH * row}
-              textAnchor="end"
-              fontSize={responsiveFontSize(1.05)}
-              fontWeight="700"
-              fill={color}
-              style={{ 
-                filter: rowLabelShadow,
-                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-              }}
-            >
-              {label}
-            </text>
-          ))}
-        </MotionG>
-      )}
-
       {visibleIndices.map((index) => {
         const point = data[index];
         if (!point) return null;
@@ -575,6 +521,15 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
           point[temperatureField] === correctedTemp;
         const isIgnoredForDisplay =
           point.ignored || (point.use_corrected && !isCorrectedDisplayed);
+          const shouldConsiderForManualMode = typeof isPointEligibleForManualMode === 'function'
+          ? isPointEligibleForManualMode(point, index)
+          : true;
+        const matchesManualBaseline =
+          manualModeEnabled &&
+          shouldConsiderForManualMode &&
+          Number.isFinite(manualBaselineTemp) &&
+          Number.isFinite(point?.displayTemperature) &&
+          normalizeTemp2(point.displayTemperature) === normalizeTemp2(manualBaselineTemp);
         const hasRelations = Boolean(point.had_relations ?? point.hadRelations);
         const hasAnyRecord = hasTemp
           || point.mucus_sensation
@@ -612,11 +567,15 @@ for (let i = orderedAscending.length - 1; i >= 0; i -= 1) {
 
           const symbolRectSize = responsiveFontSize(isFullScreen ? 1.8 : 2);
           const symbolTextY = symbolRowYBase - symbolRectSize * 0.75 + symbolRectSize / 2 + 2;
+          const peakMarkerCenterY = symbolRowYBase - symbolRectSize * 0.25;
+          const peakMarkerArm = 4;
+          const peakMarkerOutlineWidth = 4;
+          const peakMarkerStrokeWidth = 2;
 
         const peakStatus = point.peakStatus ? String(point.peakStatus).toUpperCase() : null;
         const isPeakMarker = peakStatus === 'P' || peakStatus === 'X';
         const isPostPeakMarker = peakStatus && !isPeakMarker;
-        const peakDisplay = isPeakMarker ? PEAK_EMOJI : peakStatus || '–';
+        const peakDisplay = peakStatus || '–';
         const isPeakSeriesDay =
           isPeakMarker || ['1', '2', '3'].includes(peakStatus);
         const shouldRenderSymbol = !isPlaceholder && symbolInfo.value !== 'none';
@@ -709,7 +668,7 @@ const observationFontSize = obsRes.fontSize;
             {...interactionProps}
           >
             {/* Punto de temperatura con diseño premium */}
-            {hasTemp && (
+            {renderTemperatureLayer && hasTemp && (
               <MotionG {...(reduceMotion || perfMode ? {} : { variants: pointVariants })}>
                 {/* Indicador de corrección: punto original y línea discontinua */}
                 {showCorrectionIndicator && rawY !== null && (
@@ -739,9 +698,18 @@ const observationFontSize = obsRes.fontSize;
                     />
                   </g>
                 )}
+              {matchesManualBaseline && (
+                  <circle
+                    cx={x}
+                    cy={y}
+                    r={6.2}
+                    fill="rgba(124, 58, 237, 0.16)"
+                    stroke="rgba(124, 58, 237, 0.38)"
+                    strokeWidth={1.2}
+                    pointerEvents="none"
+                  />
+                )}
 
-               
-                {/* Punto principal con gradiente mejorado */}
                 <circle
                   cx={x}
                   cy={y}
@@ -771,9 +739,7 @@ const observationFontSize = obsRes.fontSize;
                   onClick={(e) => onPointInteraction(point, index, e)}
                   data-chart-interactive="true"
                 />
-                
-                
-                {/* Punto central brillante */}
+
                 {!isIgnoredForDisplay && (
                   <circle
                     cx={x}
@@ -786,59 +752,59 @@ const observationFontSize = obsRes.fontSize;
                   />
                 )}
 
-                {showInterpretation &&
-                  hasTemp &&
-                  !isIgnoredForDisplay &&
-                  hasHighOrder && (
-                    <g pointerEvents="none">
-                      <text
-                        x={x}
-                        y={highNumberY}
-                        textAnchor="middle"
-                        fontSize={numberFontSize}
-                        fontWeight="900"
-                        fill={HIGH_SEQUENCE_NUMBER_COLOR}
-
-                        strokeWidth={numberStrokeWidth}
-                        style={{
-                          fontFamily:
-                            '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                          paintOrder: 'stroke',
-                          filter: textShadowSoft,
-                        }}
-                      >
-                        {highOrder}
-                      </text>
-                    </g>
-                  )}
-                {showInterpretation &&
-                  hasTemp &&
-                  !isIgnoredForDisplay &&
-                  hasBaselineOrder && (
-                    <g pointerEvents="none">
-                      <text
-                        x={x}
-                        y={baselineNumberY}
-                        textAnchor="middle"
-                        fontSize={numberFontSize}
-                        fontWeight="800"
-                        fill={BASELINE_NUMBER_COLOR}
-                        stroke="#ffffff"
-                        strokeWidth={numberStrokeWidth}
-                        style={{
-                          fontFamily:
-                            '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                          paintOrder: 'stroke',
-                          filter: textShadowSoft,
-                        }}
-                      >
-                        {baselineOrder}
-                      </text>
-                    </g>
-                  )}
                 </MotionG>
               )}
 
+            {showInterpretation &&
+              hasTemp &&
+              !isIgnoredForDisplay &&
+              hasHighOrder && (
+                <g pointerEvents="none">
+                  <text
+                    x={x}
+                    y={highNumberY}
+                    textAnchor="middle"
+                    fontSize={numberFontSize}
+                    fontWeight="900"
+                    fill={HIGH_SEQUENCE_NUMBER_COLOR}
+                    stroke="#fff"
+                    strokeWidth={numberStrokeWidth}
+                    style={{
+                      fontFamily:
+                        '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                      paintOrder: 'stroke',
+                      filter: textShadowSoft,
+                    }}
+                  >
+                    {highOrder}
+                  </text>
+                </g>
+              )}
+            {showInterpretation &&
+              hasTemp &&
+              !isIgnoredForDisplay &&
+              hasBaselineOrder && (
+                <g pointerEvents="none">
+                  <text
+                    x={x}
+                    y={baselineNumberY}
+                    textAnchor="middle"
+                    fontSize={numberFontSize}
+                    fontWeight="800"
+                    fill={BASELINE_NUMBER_COLOR}
+                    stroke="#fff"
+                    strokeWidth={numberStrokeWidth}
+                    style={{
+                      fontFamily:
+                        '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                      paintOrder: 'stroke',
+                      filter: textShadowSoft,
+                    }}
+                  >
+                    {baselineOrder}
+                  </text>
+                </g>
+              )}
             {/* Fecha con estilo mejorado */}
             {shouldRenderXLabel && (
               <text
@@ -903,21 +869,45 @@ const observationFontSize = obsRes.fontSize;
                 {peakStatus && (
                   <g pointerEvents="none">
                     {isPeakMarker ? (
-                      <text
-                        x={x}
-                        y={symbolTextY}
-                        textAnchor="middle"
-                        fontSize={responsiveFontSize(1.35)}
-                        fontWeight="900"
-                        fill={PEAK_EMOJI_COLOR}
-                        stroke="#fff"
-                        strokeWidth={1.5}
-                        paintOrder="stroke"
-                        style={{ filter: peakShadow }}
-                      >
-                        {PEAK_EMOJI}
-                      </text>
-                    ) : (
+  <g style={{ filter: peakShadow }}>
+    <line
+      x1={x - peakMarkerArm}
+      y1={peakMarkerCenterY - peakMarkerArm}
+      x2={x + peakMarkerArm}
+      y2={peakMarkerCenterY + peakMarkerArm}
+      stroke={PEAK_MARKER_OUTLINE}
+      strokeWidth={peakMarkerOutlineWidth}
+      strokeLinecap="round"
+    />
+    <line
+      x1={x + peakMarkerArm}
+      y1={peakMarkerCenterY - peakMarkerArm}
+      x2={x - peakMarkerArm}
+      y2={peakMarkerCenterY + peakMarkerArm}
+      stroke={PEAK_MARKER_OUTLINE}
+      strokeWidth={peakMarkerOutlineWidth}
+      strokeLinecap="round"
+    />
+    <line
+      x1={x - peakMarkerArm}
+      y1={peakMarkerCenterY - peakMarkerArm}
+      x2={x + peakMarkerArm}
+      y2={peakMarkerCenterY + peakMarkerArm}
+      stroke={PEAK_MARKER_COLOR}
+      strokeWidth={peakMarkerStrokeWidth}
+      strokeLinecap="round"
+    />
+    <line
+      x1={x + peakMarkerArm}
+      y1={peakMarkerCenterY - peakMarkerArm}
+      x2={x - peakMarkerArm}
+      y2={peakMarkerCenterY + peakMarkerArm}
+      stroke={PEAK_MARKER_COLOR}
+      strokeWidth={peakMarkerStrokeWidth}
+      strokeLinecap="round"
+    />
+  </g>
+) : (
                       <text
                         x={x}
                         y={symbolTextY}
@@ -942,36 +932,65 @@ const observationFontSize = obsRes.fontSize;
                     width={symbolRectSize * 1.4}
                     height={symbolRectSize}
                     fill="transparent"
-                    stroke={isPeakMarker ? PEAK_EMOJI_COLOR : POST_PEAK_MARKER_COLOR}
+                    stroke={isPeakMarker ? PEAK_MARKER_COLOR : POST_PEAK_MARKER_COLOR}
                     strokeWidth={1}
                     rx={symbolRectSize * 0.2}
                   />
                 )}
-                <text
-                  x={x}
-                  y={symbolTextY}
-                  textAnchor="middle"
-                  fontSize={responsiveFontSize(
-                    isPeakMarker ? 1.35 : isPostPeakMarker ? 1.1 : 1
-                  )}
-                  fill={
-                    isPeakMarker
-                      ? PEAK_EMOJI_COLOR
-                      : isPostPeakMarker
-                        ? POST_PEAK_MARKER_COLOR
-                        : baseTextFill
-                  }
-                  fontWeight={isPeakMarker ? '900' : isPostPeakMarker ? '800' : '500'}
-                  style={{
-                    filter: isPeakMarker
-                      ? peakShadow
-                      : isPostPeakMarker
-                        ? textShadowStrong
-                        : textShadowSoft
-                  }}
-                >
-                  {peakDisplay}
-                </text>
+                {isPeakMarker ? (
+  <g pointerEvents="none" style={{ filter: peakShadow }}>
+    <line
+      x1={x - peakMarkerArm}
+      y1={peakMarkerCenterY - peakMarkerArm}
+      x2={x + peakMarkerArm}
+      y2={peakMarkerCenterY + peakMarkerArm}
+      stroke={PEAK_MARKER_OUTLINE}
+      strokeWidth={peakMarkerOutlineWidth}
+      strokeLinecap="round"
+    />
+    <line
+      x1={x + peakMarkerArm}
+      y1={peakMarkerCenterY - peakMarkerArm}
+      x2={x - peakMarkerArm}
+      y2={peakMarkerCenterY + peakMarkerArm}
+      stroke={PEAK_MARKER_OUTLINE}
+      strokeWidth={peakMarkerOutlineWidth}
+      strokeLinecap="round"
+    />
+    <line
+      x1={x - peakMarkerArm}
+      y1={peakMarkerCenterY - peakMarkerArm}
+      x2={x + peakMarkerArm}
+      y2={peakMarkerCenterY + peakMarkerArm}
+      stroke={PEAK_MARKER_COLOR}
+      strokeWidth={peakMarkerStrokeWidth}
+      strokeLinecap="round"
+    />
+    <line
+      x1={x + peakMarkerArm}
+      y1={peakMarkerCenterY - peakMarkerArm}
+      x2={x - peakMarkerArm}
+      y2={peakMarkerCenterY + peakMarkerArm}
+      stroke={PEAK_MARKER_COLOR}
+      strokeWidth={peakMarkerStrokeWidth}
+      strokeLinecap="round"
+    />
+  </g>
+) : (
+  <text
+    x={x}
+    y={symbolTextY}
+    textAnchor="middle"
+    fontSize={responsiveFontSize(isPostPeakMarker ? 1.1 : 1)}
+    fill={isPostPeakMarker ? POST_PEAK_MARKER_COLOR : baseTextFill}
+    fontWeight={isPostPeakMarker ? '800' : '500'}
+    style={{
+      filter: isPostPeakMarker ? textShadowStrong : textShadowSoft
+    }}
+  >
+    {peakDisplay}
+  </text>
+)}
               </g>
             )}
 
@@ -1079,6 +1098,10 @@ const areEqual = (prev, next) => {
   if (prev.showRelationsRow !== next.showRelationsRow) return false;
   if (prev.autoLabelStep !== next.autoLabelStep) return false;
   if (prev.isArchivedCycle !== next.isArchivedCycle) return false;
+  if (prev.renderTemperatureLayer !== next.renderTemperatureLayer) return false;
+  if (prev.manualModeEnabled !== next.manualModeEnabled) return false;
+  if (prev.manualBaselineTemp !== next.manualBaselineTemp) return false;
+  if (prev.isPointEligibleForManualMode !== next.isPointEligibleForManualMode) return false;
 
   const prevRange = prev.visibleRange;
   const nextRange = next.visibleRange;
