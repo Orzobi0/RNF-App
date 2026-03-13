@@ -15,6 +15,7 @@ import MainLayout from '@/components/layout/MainLayout';
 import DataEntryForm from '@/components/DataEntryForm';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import NewCycleDialog from '@/components/NewCycleDialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import {
@@ -105,7 +106,9 @@ const ChartPage = () => {
     isLoading,
     addOrUpdateDataPoint,
     toggleIgnoreRecord,
-    getCycleById
+    getCycleById,
+    previewStartNewCycle,
+    startNewCycle,
   } = useCycleData();
 
   const [fetchedCycle, setFetchedCycle] = useState(null);
@@ -269,6 +272,8 @@ const applyRotation = isFullScreen && forceLandscape && viewport.w < viewport.h;
   const [showForm, setShowForm] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [initialSectionKey, setInitialSectionKey] = useState(null);
+  const [showNewCycleDialog, setShowNewCycleDialog] = useState(false);
+  const [newCyclePrefillDate, setNewCyclePrefillDate] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showInterpretation, setShowInterpretation] = useState(false);
   const [showManualBaseline, setShowManualBaseline] = useState(false);
@@ -1084,6 +1089,11 @@ const rotatedDrawerStyle = applyRotation
     setInitialSectionKey(null);
   }, []);
 
+  const handleOpenNewCycleDialog = useCallback((initialIsoDate = null) => {
+    setNewCyclePrefillDate(initialIsoDate || editingRecord?.isoDate || null);
+    setShowNewCycleDialog(true);
+  }, [editingRecord?.isoDate]);
+
   const handleSave = async (data, { keepFormOpen = false } = {}) => {
     if (!targetCycle?.id) return;
     setIsProcessing(true);
@@ -1551,9 +1561,27 @@ const rotatedDrawerStyle = applyRotation
               cycleData={targetCycle.data}
               onDateSelect={handleDateSelect}
               initialSectionKey={initialSectionKey}
+              onOpenNewCycle={handleOpenNewCycleDialog}
             />
           </DialogContent>
         </Dialog>
+        
+        <NewCycleDialog
+          isOpen={showNewCycleDialog}
+          onClose={() => {
+            setShowNewCycleDialog(false);
+            setNewCyclePrefillDate(null);
+          }}
+          onPreview={(selectedStartDate) => previewStartNewCycle?.(selectedStartDate, targetCycle?.id)}
+          onConfirm={async (selectedStartDate) => {
+            await startNewCycle(selectedStartDate);
+            setShowNewCycleDialog(false);
+            setNewCyclePrefillDate(null);
+          }}
+          currentCycleStartDate={targetCycle?.startDate}
+          currentCycleRecords={targetCycle?.data ?? []}
+          initialStartDate={newCyclePrefillDate}
+        />
       </div>
     </MainLayout>
   );
