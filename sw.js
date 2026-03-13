@@ -42,6 +42,13 @@ async function cacheFirst(request) {
   if (network && network.ok) await putInCache(request, network.clone());
   return network;
 }
+function fetchWithTimeout(resource, options = {}, timeoutMs = 1200) {
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), timeoutMs);
+
+  return fetch(resource, { ...options, signal: controller.signal })
+    .finally(() => clearTimeout(t));
+}
 
 async function getMissingBuildAsset() {
   if (!BUILD_ASSETS.length) return null;
@@ -172,58 +179,66 @@ self.addEventListener('fetch', (event) => {
   }
 
   // Para navegación (index.html, rutas SPA)
-  if (event.request.mode === 'navigate') {
-    event.respondWith(
-      (async () => {
-      // Cache-first para app shell (abre instantáneo) + update en segundo plano
-        const cachedIndex = await matchActiveCache(INDEX_URL);
-        if (cachedIndex) {
-           // Si el caché del build está incompleto y no hay red, evitamos pantalla en negro.
-          const missingAsset = await getMissingBuildAsset();
-          if (missingAsset) {
-            try {
-              const response = await fetch(missingAsset, { cache: 'no-cache' });
-              if (response && response.ok) {
-                await putInCache(missingAsset, response.clone());
-              } else {
-                const offline = await matchActiveCache(OFFLINE_URL);
-                if (offline) return offline;
-              }
-            } catch {
-              const offline = await matchActiveCache(OFFLINE_URL);
-              if (offline) return offline;
-            }
-          }
-          event.waitUntil(
-            (async () => {
-              try {
-                const networkIndex = await fetch(INDEX_URL, { cache: 'no-cache' });
-                if (networkIndex && networkIndex.ok) {
-                  await putInCache(INDEX_URL, networkIndex.clone());
-                }
-              } catch {}
-            })()
-          );
-          return cachedIndex;
-        }
+if (event.request.mode === 'navigate') {
+  event.respondWith(
+    (async () => {
+      const cachedIndex = await matchActiveCache(INDEX_URL);
 
-        // Si todavía no hay index en caché (primer arranque), intenta red
-        try {
-          const networkIndex = await fetch(INDEX_URL, { cache: 'no-cache' });
-          if (networkIndex && networkIndex.ok) await putInCache(INDEX_URL, networkIndex.clone());
+      // 1) Intento de red rápido: si llega, ya ven la última versión
+      try {
+        const networkIndex = await fetchWithTimeout(
+          INDEX_URL,
+          { cache: 'no-cache' },
+          1200 // 800-2000 según prefieras rapidez vs. “siempre nueva”
+        );
+
+        if (networkIndex && networkIndex.ok) {
+          await putInCache(INDEX_URL, networkIndex.clone());
           return networkIndex;
-        } catch (error) {
+        }
+      } catch {
+        // timeout o fallo: seguimos a fallback
+      }
+
+      // 2) Si no llega la red a tiempo, devolvemos caché si existe
+      if (cachedIndex) {
+        // refresco en segundo plano para el próximo arranque
+        event.waitUntil(
+          (async () => {
+            try {
+              const fresh = await fetch(INDEX_URL, { cache: 'no-cache' });
+              if (fresh && fresh.ok) await putInCache(INDEX_URL, fresh.clone());
+            } catch {}
+          })()
+        );
+
+        // tu protección contra build incompleto (evita pantalla negra)
+        const missingAsset = await getMissingBuildAsset();
+        if (missingAsset) {
           const offline = await matchActiveCache(OFFLINE_URL);
           if (offline) return offline;
-          return new Response(
-            '<h1>Sin conexión</h1><p>No se pudo cargar la aplicación.</p>',
-            { headers: { 'Content-Type': 'text/html' }, status: 503 }
-          );
         }
-      })()
-    );
-    return;
-  }
+
+        return cachedIndex;
+      }
+
+      // 3) Primer arranque sin caché -> red o offline
+      try {
+        const networkIndex = await fetch(INDEX_URL, { cache: 'no-cache' });
+        if (networkIndex && networkIndex.ok) await putInCache(INDEX_URL, networkIndex.clone());
+        return networkIndex;
+      } catch {
+        const offline = await matchActiveCache(OFFLINE_URL);
+        if (offline) return offline;
+        return new Response(
+          '<h1>Sin conexión</h1><p>No se pudo cargar la aplicación.</p>',
+          { headers: { 'Content-Type': 'text/html' }, status: 503 }
+        );
+      }
+    })()
+  );
+  return;
+}
 
   // Para otros recursos (JS, CSS, etc.)
   event.respondWith(
