@@ -19,14 +19,18 @@ const DEFAULT_TEMP_MAX = 37.5;
 
 export const computeOvulationMetrics = (processedData = [], options = {}) => {
   const { postpartum = false } = options;
+
   const getCalcTemperature = (point) =>
     point?.calcTemperature != null ? point.calcTemperature : point?.displayTemperature;
+
   const isIgnoredForCalc = (point) =>
     point?.ignoredForCalc != null ? point.ignoredForCalc : point?.ignored;
+
   const isValid = (p) => p && getCalcTemperature(p) != null && !isIgnoredForCalc(p);
   const isValidTemperaturePoint = (p) => isValid(p) && Number.isFinite(getCalcTemperature(p));
+
   const windowSize = 6;
-  const borderlineTolerance = 0.05;
+
   const isDev =
     typeof import.meta !== 'undefined'
       ? Boolean(import.meta?.env?.DEV)
@@ -34,112 +38,77 @@ export const computeOvulationMetrics = (processedData = [], options = {}) => {
 
   const findPreviousValidIndex = (startIndex, predicate = isValidTemperaturePoint) => {
     if (!Number.isInteger(startIndex)) return null;
+
     for (let idx = startIndex; idx >= 0; idx -= 1) {
       const point = processedData[idx];
       if (predicate(point)) {
         return idx;
       }
     }
+
     return null;
+  };
+
+  const getPreviousValidEntries = (beforeIndex, count = windowSize) => {
+    const entries = [];
+
+    for (let idx = beforeIndex - 1; idx >= 0 && entries.length < count; idx -= 1) {
+      const point = processedData[idx];
+      if (!isValidTemperaturePoint(point)) continue;
+
+      entries.push({
+        index: idx,
+        temp: getCalcTemperature(point),
+      });
+    }
+
+    return entries.length === count ? entries.reverse() : [];
+  };
+
+  const buildBaselineCandidate = (highIndex) => {
+    const point = processedData[highIndex];
+    if (!isValidTemperaturePoint(point)) return null;
+
+    const currentTemp = getCalcTemperature(point);
+    const previousEntries = getPreviousValidEntries(highIndex, windowSize);
+
+    if (previousEntries.length !== windowSize) return null;
+
+    const isFirstHigh = previousEntries.every((entry) => entry.temp < currentTemp);
+    if (!isFirstHigh) return null;
+
+    const baselineTemp = previousEntries.reduce(
+      (max, entry) => (entry.temp > max ? entry.temp : max),
+      previousEntries[0].temp
+    );
+
+    return {
+      baselineTemp,
+      baselineStartIndex: previousEntries[0].index,
+      baselineIndices: previousEntries.map((entry) => entry.index),
+      firstHighIndex: highIndex,
+    };
   };
 
   const filterValidIndices = (indices, predicate = isValidTemperaturePoint) => {
     if (!Array.isArray(indices) || indices.length === 0) return [];
+
     const seen = new Set();
     const result = [];
+
     indices.forEach((value) => {
       const idx = Number(value);
       if (!Number.isInteger(idx) || idx < 0 || idx >= processedData.length) return;
       if (seen.has(idx)) return;
+
       const point = processedData[idx];
       if (!predicate(point)) return;
+
       seen.add(idx);
       result.push(idx);
     });
+
     return result;
-  };
-
-  const getBaselineInfo = (entries) => {
-    if (!entries || entries.length !== windowSize) return null;
-    const temps = entries.map((entry) => entry.temp);
-    if (temps.some((value) => !Number.isFinite(value))) return null;
-
-  
-    const maxTemp = temps.reduce(
-      (max, current) => (current > max ? current : max),
-      temps[0]
-    );
-    const borderlineCount = temps.reduce((count, current) => {
-      if (current >= maxTemp - borderlineTolerance && current < maxTemp) {
-        return count + 1;
-      }
-      return count;
-    }, 0);
-
-    if (borderlineCount >= 2) {
-      return null;
-    }
-
-    return {
-      baselineTemp: maxTemp,
-      baselineStartIndex: entries[0].index,
-      baselineIndices: entries.map((entry) => entry.index),
-      baselineBorderlineCount: borderlineCount,
-    };
-  };
-
-  const findBaselineFromIndex = (startIndex) => {
-    const slidingWindow = [];
-
-    for (let idx = startIndex; idx < processedData.length; idx += 1) {
-      const candidate = processedData[idx];
-      if (!isValid(candidate)) {
-        continue;
-      }
-
-      const temperature = getCalcTemperature(candidate);
-      if (!Number.isFinite(temperature)) {
-        continue;
-      }
-
-      slidingWindow.push({ index: idx, temp: temperature });
-      if (slidingWindow.length > windowSize) {
-        slidingWindow.shift();
-      }
-    
-
-      if (slidingWindow.length === windowSize) {
-        const baselineInfo = getBaselineInfo(slidingWindow);
-        if (!baselineInfo) {
-          continue;
-        }
-
-        let firstHighIndex = null;
-        for (let j = idx + 1; j < processedData.length; j += 1) {
-          const potentialHigh = processedData[j];
-          if (!isValid(potentialHigh)) {
-            continue;
-          }
-          const potentialTemp = getCalcTemperature(potentialHigh);
-          if (!Number.isFinite(potentialTemp)) {
-            continue;
-          }
-          if (potentialTemp > baselineInfo.baselineTemp) {
-            firstHighIndex = j;
-            break;
-          }
-        }
-
-        return {
-          baselineTemp: baselineInfo.baselineTemp,
-          baselineStartIndex: baselineInfo.baselineStartIndex,
-          baselineIndices: baselineInfo.baselineIndices,
-          baselineBorderlineCount: baselineInfo.baselineBorderlineCount,
-          firstHighIndex,
-        };
-      }
-    }
-      return null;
   };
 
   const emptyDetails = {
@@ -147,239 +116,213 @@ export const computeOvulationMetrics = (processedData = [], options = {}) => {
     confirmationIndex: null,
     infertileStartIndex: null,
     rule: null,
-    highSequenceIndices: [],
+    sequenceDisplayIndices: [],
+    highOnlyIndices: [],
     usedIndices: [],
     ovulationIndex: null,
+  };
+
+  const evaluateHighSequenceStandard = ({
+    baselineTemp: currentBaselineTemp,
+    firstHighIndex: sequenceStartIndex,
+  }) => {
+    if (sequenceStartIndex == null) {
+      return { confirmed: false };
+    }
+
+    const requiredRise = Number((currentBaselineTemp + 0.2).toFixed(2));
+    const targetHighCount = 3;
+    const maxDisplayDays = targetHighCount + 1; // 4
+
+    const sequenceDisplayIndices = [];
+    const highOnlyIndices = [];
+    let lineOrBelowCount = 0;
+    let mode = null; // null | 'first-exception' | 'second-exception'
+
+    const addSequenceDay = (index, temp) => {
+      sequenceDisplayIndices.push(index);
+      if (temp > currentBaselineTemp) {
+        highOnlyIndices.push(index);
+      } else {
+        lineOrBelowCount += 1;
+      }
+    };
+
+    const buildResult = ({
+      confirmed = false,
+      confirmationIndex = null,
+      rule = null,
+      requireRebaseline = false,
+    } = {}) => ({
+      confirmed,
+      confirmationIndex,
+      infertileStartIndex: confirmed ? confirmationIndex : null,
+      rule,
+      requireRebaseline,
+      sequenceDisplayIndices: [...sequenceDisplayIndices],
+      highOnlyIndices: [...highOnlyIndices],
+      usedIndices: [...sequenceDisplayIndices],
+      ovulationIndex: sequenceStartIndex,
+    });
+
+    for (let idx = sequenceStartIndex; idx < processedData.length; idx += 1) {
+      const point = processedData[idx];
+      if (!point) break;
+
+      if (isIgnoredForCalc(point)) continue;
+
+      const temp = getCalcTemperature(point);
+      if (!Number.isFinite(temp)) break;
+
+      const isHigh = temp > currentBaselineTemp;
+      const isAtLeastPlusPointTwo = temp >= requiredRise;
+
+      addSequenceDay(idx, temp);
+
+      const dayNumber = sequenceDisplayIndices.length;
+
+      if (dayNumber === 1 && !isHigh) {
+        return buildResult({ requireRebaseline: true });
+      }
+
+      if (lineOrBelowCount >= 2) {
+        return buildResult({ requireRebaseline: true });
+      }
+
+      if (dayNumber < targetHighCount) {
+        continue;
+      }
+
+      if (dayNumber === targetHighCount) {
+        if (lineOrBelowCount === 0) {
+          if (!isHigh) {
+            return buildResult({ requireRebaseline: true });
+          }
+
+          if (isAtLeastPlusPointTwo) {
+            return buildResult({
+              confirmed: true,
+              confirmationIndex: idx,
+              rule: '3-high',
+            });
+          }
+
+          mode = 'first-exception';
+          continue;
+        }
+
+        if (lineOrBelowCount === 1) {
+          mode = 'second-exception';
+          continue;
+        }
+
+        return buildResult({ requireRebaseline: true });
+      }
+
+      if (dayNumber === maxDisplayDays) {
+        if (mode === 'first-exception') {
+          if (!isHigh) {
+            return buildResult({ requireRebaseline: true });
+          }
+
+          return buildResult({
+            confirmed: true,
+            confirmationIndex: idx,
+            rule: 'german-3+1',
+          });
+        }
+
+        if (mode === 'second-exception') {
+          if (isHigh && isAtLeastPlusPointTwo) {
+            return buildResult({
+              confirmed: true,
+              confirmationIndex: idx,
+              rule: 'german-2nd-exception',
+            });
+          }
+
+          return buildResult({ requireRebaseline: true });
+        }
+
+        return buildResult({ requireRebaseline: true });
+      }
+
+      return buildResult({ requireRebaseline: true });
+    }
+
+    return buildResult();
   };
 
   let baselineTemp = null;
   let baselineStartIndex = null;
   let firstHighIndex = null;
   let baselineIndices = [];
-  let baselineBorderlineCount = null;
-
   let confirmedDetails = emptyDetails;
-  let searchStartIndex = 0;
 
-const evaluateHighSequence = ({
-  baselineTemp: currentBaselineTemp,
-  firstHighIndex: sequenceStartIndex,
-}) => {
-  if (sequenceStartIndex == null) {
-    return { confirmed: false };
-  }
+  for (let candidateIndex = 0; candidateIndex < processedData.length; candidateIndex += 1) {
+    const baselineInfo = buildBaselineCandidate(candidateIndex);
+    if (!baselineInfo) continue;
 
-  const requiredRise = currentBaselineTemp + 0.2;
-  const highs = [];
-  const sequenceIndices = [];
-  const seenSequenceIndices = new Set();
-  const addSequenceIndex = (index) => {
-    if (index == null || seenSequenceIndices.has(index)) return;
-    seenSequenceIndices.add(index);
-    sequenceIndices.push(index);
-  };
-  let ex2Active = false;          // 2ª excepción activa
-  let lineOrBelowCount = 0;       // para detectar “dos valores en línea/bajo”
-  let slipUsed = false;
-  // Evitamos usar index-1 porque puede apuntar a un día ignorado o sin temperatura.
-  const precedingLowIndex = findPreviousValidIndex(sequenceStartIndex - 1);
+    baselineTemp = baselineInfo.baselineTemp;
+    baselineStartIndex = baselineInfo.baselineStartIndex;
+    baselineIndices = [...baselineInfo.baselineIndices];
+    firstHighIndex = baselineInfo.firstHighIndex;
 
-  const buildUsedIndices = () =>
-    precedingLowIndex != null
-      ? [precedingLowIndex, ...sequenceIndices]
-      : [...sequenceIndices];
+    const evaluation = postpartum
+      ? evaluateHighSequencePostpartum({
+          ...baselineInfo,
+          processedData,
+          isValid,
+          findPreviousValidIndex,
+        })
+      : evaluateHighSequenceStandard(baselineInfo);
 
-    const ensureRebaseline = () => ({
-    confirmed: false,
-    requireRebaseline: true,
-    usedIndices: buildUsedIndices(),
-    highSequenceIndices: [...sequenceIndices],
-  });
-
-  for (let idx = sequenceStartIndex; idx < processedData.length; idx++) {
-    const point = processedData[idx];
-
-    if (!point) break;
-    const ignored = isIgnoredForCalc(point);
-    if (ignored) continue; // trastorno/ignorado NO rompe
-
-    const temp = getCalcTemperature(point);
-    if (!Number.isFinite(temp)) break; // ausencia de dato => rompe (consecutivas)
-
-    // --- Caso normal: temperatura alta ---
-    if (temp > currentBaselineTemp) {
-      addSequenceIndex(idx);
-      highs.push({ index: idx, temp });
- // Si estamos en 2ª excepción, NO se combinan excepciones:
-      // confirmación cuando consigues el 3er ALTO “real”, y este debe ser >= +0.2
-      if (ex2Active) {
-        if (highs.length === 3) {
-          if (temp >= requiredRise) {
-            return {
-              confirmed: true,
-              confirmationIndex: idx,
-              usedIndices: buildUsedIndices(),
-              highSequenceIndices: [...sequenceIndices],
-              rule: "german-2nd-exception",
-            };
-          }
-          return ensureRebaseline();
-        }
-        continue;
-      }
-      // Regla normal: 3-high
-      if (highs.length === 3 && highs[2].temp >= requiredRise) {
-        
-        return {
-          confirmed: true,
-          confirmationIndex: highs[2].index,
-          usedIndices: buildUsedIndices(),
-          highSequenceIndices: [...sequenceIndices],
-          rule: "3-high",
-        };
-      }
-
-      // 1ª excepción: tercer alto <+0.2 → pedir un 4º > baseline
-      if (highs.length === 4 && highs[2].temp < requiredRise && highs[3].temp > currentBaselineTemp) {
-        
-        return {
-          confirmed: true,
-          confirmationIndex: highs[3].index,
-          usedIndices: buildUsedIndices(),
-          highSequenceIndices: [...sequenceIndices],
-          rule: "german-3+1",
-        };
-      }
-
-      // Regla 5-high
-      if (highs.length === 5 && highs[3].temp > currentBaselineTemp && highs[4].temp >= requiredRise) {
-        
-        return {
-          confirmed: true,
-          confirmationIndex: highs[4].index,
-          usedIndices: buildUsedIndices(),
-          highSequenceIndices: [...sequenceIndices],
-          rule: "5-high",
-        };
-      }
-
+    if (!evaluation?.confirmed) {
       continue;
     }
 
-    // --- Línea / ligeramente por debajo (2ª excepción) ---
-    const isLineOrSlightlyBelow =
-      temp <= currentBaselineTemp && temp >= currentBaselineTemp - 0.05;
+    const boundedConfirmation = Number.isInteger(evaluation.confirmationIndex)
+      ? Math.max(0, Math.min(evaluation.confirmationIndex, processedData.length - 1))
+      : null;
 
-    if (isLineOrSlightlyBelow && highs.length > 0 && highs.length < 3) {
-      lineOrBelowCount += 1;
-      addSequenceIndex(idx);
-      // Si hay DOS valores en línea/bajo => rebaseline (PDF)
-      if (lineOrBelowCount >= 2) return ensureRebaseline();
-      ex2Active = true;
-      // OJO: este día NO cuenta como “alto” (no meterlo en highs)
-      continue;
-    }
-
-
-    // --- Slip permitido ---
-    if (!slipUsed && !ex2Active && highs.length > 0 && highs.length < 3) {
-      slipUsed = true;
-      addSequenceIndex(idx);
-      continue;
-    }
+    confirmedDetails = {
+      confirmed: true,
+      confirmationIndex: boundedConfirmation,
+      infertileStartIndex: boundedConfirmation,
+      rule: evaluation.rule,
+      sequenceDisplayIndices: evaluation.sequenceDisplayIndices ?? [],
+      highOnlyIndices: evaluation.highOnlyIndices ?? [],
+      usedIndices: evaluation.usedIndices ?? [],
+      ovulationIndex: evaluation.ovulationIndex ?? baselineInfo.firstHighIndex ?? null,
+    };
 
     break;
   }
 
-  return {
-    confirmed: false,
-    usedIndices: buildUsedIndices(),
-    highSequenceIndices: [...sequenceIndices],
-  };
-};
-
-
-  while (searchStartIndex < processedData.length) {
-    const baselineInfo = findBaselineFromIndex(searchStartIndex);
-    if (!baselineInfo) {
-      break;
-    }
-
-    baselineTemp = baselineInfo.baselineTemp;
-    baselineStartIndex = baselineInfo.baselineStartIndex;
-    baselineIndices = Array.isArray(baselineInfo.baselineIndices)
-      ? [...baselineInfo.baselineIndices]
-      : [];
-    firstHighIndex = baselineInfo.firstHighIndex;
-    baselineBorderlineCount = baselineInfo.baselineBorderlineCount;
-
-    if (firstHighIndex == null) {
-      searchStartIndex = baselineStartIndex + 1;
-      continue;
-    }
-
-    const evaluation = postpartum
-      ? evaluateHighSequencePostpartum({
-        ...baselineInfo,
-        processedData,
-        isValid,
-        findPreviousValidIndex,
-      })
-      : evaluateHighSequence(baselineInfo);
-    if (evaluation?.requireRebaseline) {
-      searchStartIndex = baselineStartIndex + 1;
-      continue;
-    }
-
-    if (evaluation?.confirmed) {
-      const firstSequenceIndex = evaluation.highSequenceIndices?.length
-        ? evaluation.highSequenceIndices[0]
-        : null;
-        const boundedConfirmation = Number.isInteger(evaluation.confirmationIndex)
-        ? Math.max(0, Math.min(evaluation.confirmationIndex, processedData.length - 1))
-        : null;
-      let infertileStartIndex = null;
-      if (boundedConfirmation != null) {
-        const candidate = boundedConfirmation;
-        infertileStartIndex = Math.max(0, Math.min(candidate, processedData.length - 1));
-      }
-
-      confirmedDetails = {
-        confirmed: true,
-        confirmationIndex: boundedConfirmation,
-        infertileStartIndex,
-        rule: evaluation.rule,
-        highSequenceIndices: evaluation.highSequenceIndices ?? evaluation.usedIndices,
-        usedIndices: evaluation.usedIndices,
-        ovulationIndex:
-          firstHighIndex != null
-            ? firstHighIndex
-            : firstSequenceIndex != null
-              ? firstSequenceIndex
-              : null,
-      };
-      break;
-    }
-        searchStartIndex = baselineStartIndex + 1;
-  }
-
   const filteredBaselineIndices = filterValidIndices(baselineIndices);
-  const filteredHighSequenceIndices = filterValidIndices(confirmedDetails?.highSequenceIndices);
+  const filteredSequenceDisplayIndices = filterValidIndices(
+    confirmedDetails?.sequenceDisplayIndices
+  );
+  const filteredHighOnlyIndices = filterValidIndices(
+    confirmedDetails?.highOnlyIndices
+  );
   const filteredUsedIndices = filterValidIndices(confirmedDetails?.usedIndices);
+
   const filteredDetails = {
     ...confirmedDetails,
-    highSequenceIndices: filteredHighSequenceIndices,
+    sequenceDisplayIndices: filteredSequenceDisplayIndices,
+    highOnlyIndices: filteredHighOnlyIndices,
     usedIndices: filteredUsedIndices,
+
+    // compat con partes de la UI que aún leen este campo
+    highSequenceIndices: filteredSequenceDisplayIndices,
   };
 
   if (isDev) {
-    // Manual repro (dev):
-    // 1) Día X: raw alta, corregida baja, use_corrected = true.
-    // 2) Marcar ignored = true y activar "mostrar".
-    // 3) Verificar que numeración/interpretación no salta índices inexistentes.
     const formatPoint = (index) => {
       const point = processedData[index];
       if (!point) return null;
+
       return {
         index,
         isoDate: point.isoDate,
@@ -407,22 +350,26 @@ const evaluateHighSequence = ({
     console.log('ovulationDetails', {
       rule: filteredDetails?.rule,
       confirmationIndex: filteredDetails?.confirmationIndex,
-      highSequenceIndices: filteredHighSequenceIndices,
-      usedIndices: filteredUsedIndices,
+      sequenceDisplayIndices: filteredDetails?.sequenceDisplayIndices,
+      highOnlyIndices: filteredDetails?.highOnlyIndices,
+      usedIndices: filteredDetails?.usedIndices,
     });
     logList('baselineIndices', filteredBaselineIndices);
-    logList('highSequenceIndices', filteredHighSequenceIndices);
+    logList('sequenceDisplayIndices', filteredDetails?.sequenceDisplayIndices ?? []);
+    logList('highOnlyIndices', filteredDetails?.highOnlyIndices ?? []);
     logList('usedIndices', filteredUsedIndices);
     console.groupEnd();
   }
 
-  return {
-    baselineTemp,
-    baselineStartIndex,
-    firstHighIndex,
-    baselineIndices: filteredBaselineIndices,
-    ovulationDetails: filteredDetails,
-  };
+  const shouldExposeConfirmedBaseline = Boolean(filteredDetails?.confirmed);
+
+return {
+  baselineTemp: shouldExposeConfirmedBaseline ? baselineTemp : null,
+  baselineStartIndex: shouldExposeConfirmedBaseline ? baselineStartIndex : null,
+  firstHighIndex: shouldExposeConfirmedBaseline ? firstHighIndex : null,
+  baselineIndices: shouldExposeConfirmedBaseline ? filteredBaselineIndices : [],
+  ovulationDetails: filteredDetails,
+};
 };
 
 export const useFertilityChart = (

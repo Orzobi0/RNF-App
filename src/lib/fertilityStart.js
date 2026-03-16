@@ -14,6 +14,26 @@ const SYMBOL_FLOOR = {
   white: 0.4,
 };
 
+const TEMPERATURE_RULE_LABELS = {
+  '3-high': 'subida confirmada en 3 días altos',
+  'german-3+1': 'subida confirmada con la 1.ª excepción',
+  'german-2nd-exception': 'subida confirmada con la 2.ª excepción',
+  'pp-after-3-high': 'subida confirmada en postparto tras un día alto extra',
+  'pp-after-german-3+1': 'subida confirmada en postparto con la 1.ª excepción y un día alto extra',
+  'pp-after-german-2nd-exception': 'subida confirmada en postparto con la 2.ª excepción y un día alto extra',
+};
+
+const getTemperatureRuleLabel = (rule) =>
+  TEMPERATURE_RULE_LABELS[rule] ?? 'subida de temperatura confirmada';
+
+const joinHumanList = (items = []) => {
+  const filtered = items.filter(Boolean);
+  if (filtered.length === 0) return '';
+  if (filtered.length === 1) return filtered[0];
+  if (filtered.length === 2) return `${filtered[0]} y ${filtered[1]}`;
+  return `${filtered.slice(0, -1).join(', ')} y ${filtered[filtered.length - 1]}`;
+};
+
 const clamp = (value, min = 0, max = 1) => {
   if (!Number.isFinite(value)) return min;
   if (value < min) return min;
@@ -570,12 +590,14 @@ export const computeFertilityStartOutput = ({
   const combineMode = validModes.has(rawCombineMode) ? rawCombineMode : 'estandar';
 
   const {
-    postPeakStartIndex = null,
-    temperatureInfertileStartIndex = null,
-    temperatureConfirmationIndex = null,
-    temperatureRule = null,
-    todayIndex = null,
-  } = context || {};
+  peakDayIndex = null,
+  postPeakStartIndex = null,
+  peakThirdDayIndex = null,
+  temperatureInfertileStartIndex = null,
+  temperatureConfirmationIndex = null,
+  temperatureRule = null,
+  todayIndex = null,
+} = context || {};
 
   const { days, bipScore } = normalizeCycleDays(processedData);
 
@@ -597,8 +619,14 @@ export const computeFertilityStartOutput = ({
     return null;
   };
 
-  const explicitPeakIndex = findLastPeakMarkerIndex();
-  const effectivePeakIndex = isValidIndex(explicitPeakIndex) ? explicitPeakIndex : null;
+  const contextPeakIndex = isValidIndex(peakDayIndex) ? peakDayIndex : null;
+const contextPeakThirdIndex = isValidIndex(peakThirdDayIndex) ? peakThirdDayIndex : null;
+const contextPostPeakStartIndex = isValidIndex(postPeakStartIndex) ? postPeakStartIndex : null;
+
+const explicitPeakIndex = findLastPeakMarkerIndex();
+const explicitPeakIndexValid = isValidIndex(explicitPeakIndex) ? explicitPeakIndex : null;
+
+const effectivePeakIndex = contextPeakIndex ?? explicitPeakIndexValid;
 
   // Si no hay pico marcado por la usuaria, no se fuerza ningún pico.
   // La infertilidad por moco no se basará en un P inventado.
@@ -680,8 +708,8 @@ export const computeFertilityStartOutput = ({
       : null;
   let fertileEndIndex = null;
   if (fertileStartIndex != null && lastIndex != null && lastIndex >= fertileStartIndex) {
-    if (Number.isInteger(postPeakStartIndex)) {
-      const candidate = Math.max(fertileStartIndex, Math.min(postPeakStartIndex - 1, lastIndex));
+    if (contextPostPeakStartIndex != null) {
+   const candidate = Math.max(fertileStartIndex, Math.min(contextPostPeakStartIndex - 1, lastIndex));
       fertileEndIndex = candidate >= fertileStartIndex ? candidate : fertileStartIndex;
       } else if (isValidIndex(effectivePeakIndex)) {
       const peakBound = Math.min(lastIndex, effectivePeakIndex + 2);
@@ -769,28 +797,41 @@ export const computeFertilityStartOutput = ({
   }
 
   const temperatureConfirmationIdx = clampIndexWithin(temperatureConfirmationIndex);
-  const temperatureInfertileIdx = clampIndexWithin(temperatureInfertileStartIndex);
-  let tPlus3Index = temperatureConfirmationIdx;
-  if (tPlus3Index == null && temperatureInfertileIdx != null) {
-    const candidate = clampIndexWithin(temperatureInfertileIdx - 1);
-    if (candidate != null && candidate >= 0) tPlus3Index = candidate;
-  }
+const temperatureStartIdx = clampIndexWithin(temperatureInfertileStartIndex);
 
-  const mucusInfertileStartIndex = (postpartum ? pPlus4Index : pPlus3Index) ?? null;
+const temperatureClosureReferenceIndex =
+  temperatureConfirmationIdx != null
+    ? temperatureConfirmationIdx
+    : temperatureStartIdx != null
+      ? clampIndexWithin(temperatureStartIdx - 1)
+      : null;
+
+const derivedPostPeakStartIndex =
+  contextPostPeakStartIndex ??
+  (contextPeakThirdIndex != null ? clampIndexWithin(contextPeakThirdIndex + 1) : null);
+
+const fallbackMucusStartIndex = (postpartum ? pPlus4Index : pPlus3Index) ?? null;
+const mucusInfertileStartIndex = derivedPostPeakStartIndex ?? fallbackMucusStartIndex;
+
+const mucusClosureReferenceIndex =
+  contextPeakThirdIndex ??
+  (postpartum ? pPlus4Index : pPlus3Index) ??
+  (mucusInfertileStartIndex != null ? clampIndexWithin(mucusInfertileStartIndex - 1) : null);
 
   const waitingStartIndex = null;
 
-  const estimateStartIndexCandidates = [mucusInfertileStartIndex, temperatureInfertileIdx].filter(
-    (idx) => Number.isInteger(idx)
-  );
+  const estimateStartIndexCandidates = [mucusInfertileStartIndex, temperatureStartIdx].filter(
+  (idx) => Number.isInteger(idx)
+);
   const firstEstimateIndex =
     estimateStartIndexCandidates.length > 0 ? Math.min(...estimateStartIndexCandidates) : null;
 
   const hasMucusClosure = Number.isInteger(mucusInfertileStartIndex);
-  const hasTemperatureClosure = Number.isInteger(temperatureInfertileIdx);
-  const absoluteStartIndex = hasMucusClosure && hasTemperatureClosure
-    ? Math.max(mucusInfertileStartIndex, temperatureInfertileIdx)
-    : null;
+  const hasTemperatureClosure = Number.isInteger(temperatureStartIdx);
+
+const absoluteStartIndex = hasMucusClosure && hasTemperatureClosure
+  ? Math.max(mucusInfertileStartIndex, temperatureStartIdx)
+  : null;
 
     if (fertileStartIndex != null && lastIndex != null && lastIndex >= fertileStartIndex) {
     if (Number.isInteger(firstEstimateIndex)) {
@@ -808,59 +849,65 @@ export const computeFertilityStartOutput = ({
       : null;
 
   const postOvulatoryStartIndex = firstEstimateIndex;
-  const mucusClosureLabel = postpartum ? 'P+4' : 'P+3';
 
-  let closureDetail = null;
-  if (hasMucusClosure && hasTemperatureClosure) {
-  closureDetail = `${mucusClosureLabel} y T+3`;
-} else if (hasMucusClosure) {
-  closureDetail = mucusClosureLabel;
+const temperatureRuleLabel = getTemperatureRuleLabel(temperatureRule);
+
+const closureCriteria = [];
+if (hasMucusClosure) {
+  closureCriteria.push(postpartum ? 'el criterio postpico' : 'el criterio de moco');
 }
- else if (hasTemperatureClosure) {
-    closureDetail = temperatureRule ?? 'Temperatura';
-  }
-  const PROFILE_LABELS = {
-    estandar: 'modo estándar',
-    marcador: 'marcador explícito',
-  };
+if (hasTemperatureClosure) {
+  closureCriteria.push('la subida de temperatura');
+}
 
-  const profileMode = aggregate?.selectedMode ?? combineMode ?? 'estandar';
-  const usedCandidates = aggregate?.usedCandidates ?? [];
-  const hasProfileSource = usedCandidates.some((candidate) => candidate?.kind === 'profile');
-  const hasCalculatorSource = usedCandidates.some((candidate) => candidate?.kind === 'calculator');
-  const hasMucusObservations = days.some(
-    (day) =>
-      day?.entryFlags?.hasAppearance ||
-      day?.entryFlags?.hasSensation ||
-      (day?.symbolDetected && day.symbolDetected !== 'none')
-  );
+const closureDetail =
+  closureCriteria.length > 0 ? joinHumanList(closureCriteria) : null;
 
-  let fertileHeaderText = `Fase fértil abierta (${PROFILE_LABELS[profileMode] ?? profileMode}).`;
-  if (profileMode === 'marcador') {
-    fertileHeaderText = 'Fase fértil abierta (ajustada por tus marcadores).';
-  } else if (hasProfileSource && hasMucusObservations) {
-    fertileHeaderText = 'Fase fértil abierta (basada en tus observaciones de moco).';
-  } else if (hasCalculatorSource && !hasProfileSource) {
-    fertileHeaderText = 'Inicio fértil estimado por calculadora (según tus ciclos anteriores).';
-  }
+const PROFILE_LABELS = {
+  estandar: 'modo estándar',
+  marcador: 'marcador explícito',
+};
 
-  const hasAbsoluteClosure = hasMucusClosure && hasTemperatureClosure;
+const profileMode = aggregate?.selectedMode ?? combineMode ?? 'estandar';
+const usedCandidates = aggregate?.usedCandidates ?? [];
+const hasProfileSource = usedCandidates.some((candidate) => candidate?.kind === 'profile');
+const hasCalculatorSource = usedCandidates.some((candidate) => candidate?.kind === 'calculator');
+const hasMucusObservations = days.some(
+  (day) =>
+    day?.entryFlags?.hasAppearance ||
+    day?.entryFlags?.hasSensation ||
+    (day?.symbolDetected && day.symbolDetected !== 'none')
+);
 
-  const infertileTitleAbsolute = 'Infertilidad absoluta postovulatoria';
-  const infertileDetailText = closureDetail ?? 'criterio indeterminado';
-  const infertileBodyAbsolute = `Ventana cerrada por doble criterio: ${infertileDetailText}.`;
-  const referencePeakIndex = clampIndexWithin(effectivePeakIndex);
+let fertileHeaderText = `Fase fértil abierta (${PROFILE_LABELS[profileMode] ?? profileMode}).`;
+if (profileMode === 'marcador') {
+  fertileHeaderText = 'Fase fértil abierta (ajustada por tus marcadores).';
+} else if (hasProfileSource && hasMucusObservations) {
+  fertileHeaderText = 'Fase fértil abierta (basada en tus observaciones de moco).';
+} else if (hasCalculatorSource && !hasProfileSource) {
+  fertileHeaderText = 'Inicio fértil estimado a partir de tus ciclos anteriores.';
+}
 
-  const peakDateLabel = formatDateLabel(referencePeakIndex);
-  const temperatureDateLabel = formatDateLabel(tPlus3Index);
-  const infertileTitleMucus = 'Infertilidad estimada por moco';
-  const infertileBodyMucus = peakDateLabel
-    ? `Fase de infertilidad alcanzada por determinación de día pico el ${peakDateLabel}.`
-    : 'Fase de infertilidad alcanzada por determinación de día pico.';
-  const infertileTitleTemperature = 'Infertilidad estimada por temperatura';
-  const infertileBodyTemperature = temperatureDateLabel
-    ? `Infertilidad estimada por temperatura desde el ${temperatureDateLabel}.`
-    : 'Infertilidad estimada por temperatura.';
+const hasAbsoluteClosure = hasMucusClosure && hasTemperatureClosure;
+
+const infertileTitleAbsolute = 'Ventana fértil cerrada';
+const infertileBodyAbsolute = closureDetail
+  ? `La ventana fértil ya puede darse por cerrada porque se ha confirmado ${closureDetail}.`
+  : 'La ventana fértil ya puede darse por cerrada porque se han cumplido los criterios de cierre.';
+
+const referencePeakIndex = clampIndexWithin(effectivePeakIndex);
+const peakDateLabel = formatDateLabel(referencePeakIndex);
+const temperatureDateLabel = formatDateLabel(temperatureClosureReferenceIndex);
+
+const infertileTitleMucus = 'Cierre estimado por moco';
+const infertileBodyMucus = peakDateLabel
+  ? `Ya se cumple el criterio de moco tras el pico observado el ${peakDateLabel}. Falta confirmar también la temperatura para cerrar la ventana con doble criterio.`
+  : 'Ya se cumple el criterio de moco. Falta confirmar también la temperatura para cerrar la ventana con doble criterio.';
+
+const infertileTitleTemperature = 'Cierre estimado por temperatura';
+const infertileBodyTemperature = temperatureDateLabel
+  ? `La subida de temperatura quedó confirmada el ${temperatureDateLabel} (${temperatureRuleLabel}). Falta el criterio de moco para cerrar la ventana con doble criterio.`
+  : `La subida de temperatura quedó confirmada (${temperatureRuleLabel}). Falta el criterio de moco para cerrar la ventana con doble criterio.`;
 
   const dailyAssessments = new Array(days.length).fill(null);
   let lastRecordedLevel = null;
@@ -939,7 +986,7 @@ export const computeFertilityStartOutput = ({
         infertileTitle = infertileTitleMucus;
         infertileBody = infertileBodyMucus;
         infertileStatus = 'mucus';
-      } else if (hasTemperatureClosure && i >= temperatureInfertileIdx) {
+      } else if (hasTemperatureClosure && i >= temperatureStartIdx) {
         infertileTitle = infertileTitleTemperature;
         infertileBody = infertileBodyTemperature;
         infertileStatus = 'temperature';
@@ -998,10 +1045,7 @@ export const computeFertilityStartOutput = ({
     const strongSigns =
       day.M >= 2 || day.symbolDetected === 'M+' || day.symbolDetected === 'F' || day.S >= 3;
 
-    const isWaitingCandidate =
-      waitingStartIndex != null &&
-      i >= waitingStartIndex &&
-      (tPlus3Index == null || i <= tPlus3Index);
+    const isWaitingCandidate = false;
 
     let effectiveLevel = rawLevel;
     let state = null;
@@ -1049,10 +1093,6 @@ export const computeFertilityStartOutput = ({
     let body;
 
     switch (state) {
-      case 'waiting':
-        title = 'Fertilidad en espera de confirmación por temperatura';
-        body = `Final de moco alcanzado (≥${mucusClosureLabel}). Ventana mantenida hasta confirmación térmica (T+3).`;
-        break;
       case 'aumento':
         title = 'Aumento de fertilidad';
         body = reasonsText ? `Signos en aumento: ${reasonsText}.` : 'Signos en aumento.';
@@ -1140,21 +1180,26 @@ export const computeFertilityStartOutput = ({
     }
   }
   const debug = {
-    bipScore,
-    effectivePeakIndex,
-    candidatesBeforeAggregate,
-    closureDetail,
-    waitingStartIndex,
-    pPlus3Index,
-    pPlus4Index,
-    temperatureConfirmationIndex: tPlus3Index,
-    temperatureInfertileIndex: temperatureInfertileIdx,
-    temperatureRule: temperatureRule ?? null,
-    mucusInfertileStartIndex,
-    postOvulatoryStartIndex,
-    firstEstimateIndex,
-    absoluteStartIndex,
-  };
+  bipScore,
+  effectivePeakIndex,
+  contextPeakIndex,
+  contextPeakThirdIndex,
+  contextPostPeakStartIndex,
+  candidatesBeforeAggregate,
+  closureDetail,
+  waitingStartIndex,
+  pPlus3Index,
+  pPlus4Index,
+  mucusClosureReferenceIndex,
+  temperatureConfirmationIndex: temperatureConfirmationIdx,
+  temperatureClosureReferenceIndex,
+  temperatureInfertileIndex: temperatureStartIdx,
+  temperatureRule: temperatureRule ?? null,
+  mucusInfertileStartIndex,
+  postOvulatoryStartIndex,
+  firstEstimateIndex,
+  absoluteStartIndex,
+};
 
   return {
     fertileStartFinalIndex,
@@ -1165,8 +1210,8 @@ export const computeFertilityStartOutput = ({
             endIndex: fertileEndIndex,
             waitingStartIndex,
             closureDetail,
-            temperatureConfirmationIndex: tPlus3Index,
-            temperatureInfertileStartIndex: temperatureInfertileIdx,
+            temperatureConfirmationIndex: temperatureConfirmationIdx,
+            temperatureInfertileStartIndex: temperatureStartIdx,
             mucusInfertileStartIndex,
             postOvulatoryStartIndex,
             temperatureRule: temperatureRule ?? null,
