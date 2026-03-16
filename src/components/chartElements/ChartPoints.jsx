@@ -310,16 +310,17 @@ const ChartPoints = ({
   }, [autoLabelStep, totalPoints, getX, data, measureTextWidth, responsiveFontSize]);
 
   const highSequenceOrderMap = useMemo(() => {
-    if (!showInterpretation) {
-      return new Map();
-    }
+  if (!showInterpretation || !ovulationDetails?.confirmed) {
+    return new Map();
+  }
 
-    const preferredIndices = Array.isArray(ovulationDetails?.usedIndices)
-      ? ovulationDetails.usedIndices
-      : null;
-    const fallbackIndices = Array.isArray(ovulationDetails?.highSequenceIndices)
-      ? ovulationDetails.highSequenceIndices
-      : [];
+    const preferredIndices = Array.isArray(ovulationDetails?.sequenceDisplayIndices)
+  ? ovulationDetails.sequenceDisplayIndices
+  : null;
+
+const fallbackIndices = Array.isArray(ovulationDetails?.highSequenceIndices)
+  ? ovulationDetails.highSequenceIndices
+  : [];
     const firstHighIdx = Number(firstHighIndex);
     const hasFirstHigh = Number.isInteger(firstHighIdx);
     const indices = (preferredIndices ?? fallbackIndices)
@@ -350,9 +351,9 @@ const ChartPoints = ({
   }, [showInterpretation, ovulationDetails, totalPoints, data, firstHighIndex]);
 
   const baselineOrderMap = useMemo(() => {
-    if (!showInterpretation) {
-      return new Map();
-    }
+  if (!showInterpretation || !ovulationDetails?.confirmed) {
+    return new Map();
+  }
 
     const firstHighIdx = Number(firstHighIndex);
     if (!Number.isInteger(firstHighIdx)) {
@@ -730,7 +731,7 @@ const observationFontSize = obsRes.fontSize;
                           ? '#1d4ed8'
                           : '#E91E63'
                   }
-                  sstrokeWidth={isIgnoredForDisplay ? 1.5 : isPeakTemperaturePoint ? 2.2 : 2}
+                  strokeWidth={isIgnoredForDisplay ? 1.5 : isPeakTemperaturePoint ? 2.2 : 2}
                   style={{
                     filter: isPeakTemperaturePoint ? tooltipShadow : activeShadow,
                     cursor: 'pointer'

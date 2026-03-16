@@ -922,10 +922,12 @@ if (isRotated) {
       : null;
 
     const tempStartIndex = Number.isInteger(
-      fertilityStart?.fertileWindow?.temperatureInfertileStartIndex
-    )
-      ? fertilityStart.fertileWindow.temperatureInfertileStartIndex
-      : null;
+  fertilityStart?.fertileWindow?.temperatureInfertileStartIndex
+)
+  ? fertilityStart.fertileWindow.temperatureInfertileStartIndex
+  : Number.isInteger(ovulationDetails?.infertileStartIndex)
+    ? ovulationDetails.infertileStartIndex
+    : null;
 
     const computedPostStart = [mucusStartIndex, tempStartIndex]
       .filter((idx) => Number.isInteger(idx))
@@ -949,23 +951,27 @@ if (isRotated) {
         : null;
 
     const temperatureDetails = {
-      confirmed: Boolean(ovulationDetails?.confirmed),
-      rule: ovulationDetails?.rule ?? null,
-      baselineTemp: ovulationDetails?.baselineTemp ?? null,
-      baselineIndices: Array.isArray(ovulationDetails?.baselineIndices)
-        ? ovulationDetails.baselineIndices
-        : [],
-      firstHighIndex: Number.isInteger(ovulationDetails?.firstHighIndex)
-        ? ovulationDetails.firstHighIndex
-        : null,
-      highSequenceIndices: Array.isArray(ovulationDetails?.highSequenceIndices)
-        ? ovulationDetails.highSequenceIndices
-        : [],
-      confirmationIndex: Number.isInteger(ovulationDetails?.confirmationIndex)
-        ? ovulationDetails.confirmationIndex
-        : null,
-      startIndex: tempStartIndex,
-    };
+  confirmed: Boolean(ovulationDetails?.confirmed),
+  rule: ovulationDetails?.rule ?? null,
+  baselineTemp: ovulationDetails?.baselineTemp ?? null,
+  baselineIndices: Array.isArray(ovulationDetails?.baselineIndices)
+    ? ovulationDetails.baselineIndices
+    : [],
+  firstHighIndex: Number.isInteger(ovulationDetails?.firstHighIndex)
+    ? ovulationDetails.firstHighIndex
+    : null,
+  highSequenceIndices: Array.isArray(ovulationDetails?.highSequenceIndices)
+    ? ovulationDetails.highSequenceIndices
+    : [],
+  confirmationIndex: Number.isInteger(
+    fertilityStart?.fertileWindow?.temperatureConfirmationIndex
+  )
+    ? fertilityStart.fertileWindow.temperatureConfirmationIndex
+    : Number.isInteger(ovulationDetails?.confirmationIndex)
+      ? ovulationDetails.confirmationIndex
+      : null,
+  startIndex: tempStartIndex,
+};
 
     const mucusDetails = {
       peakDayIndex: Number.isInteger(ovulationDetails?.peakDayIndex)
