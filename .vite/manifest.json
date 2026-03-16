@@ -1,141 +1,141 @@
 {
-  "_DeletionDialog-bCp9snLy.js": {
-    "file": "assets/DeletionDialog-bCp9snLy.js",
+  "_DeletionDialog-DkzzQtIS.js": {
+    "file": "assets/DeletionDialog-DkzzQtIS.js",
     "name": "DeletionDialog",
     "imports": [
       "index.html",
-      "_useBackClose-D1lmwBv3.js",
-      "_useCycleData-B4xWB9L3.js"
+      "_useBackClose-BcaGvc8q.js",
+      "_useCycleData-BLjMPsqZ.js"
     ]
   },
-  "_FertilityChart-Cm8JkbWL.js": {
-    "file": "assets/FertilityChart-Cm8JkbWL.js",
+  "_FertilityChart-0KqqY01e.js": {
+    "file": "assets/FertilityChart-0KqqY01e.js",
     "name": "FertilityChart",
     "imports": [
       "index.html",
-      "_computePeakStatuses-CJs7t6px.js",
-      "_useCycleData-B4xWB9L3.js",
-      "_badge-BBff8gyJ.js",
-      "_useFertilityChart-DTY92tkI.js"
+      "_computePeakStatuses-GK-cv84j.js",
+      "_useCycleData-BLjMPsqZ.js",
+      "_badge-BI_W-Xeh.js",
+      "_useFertilityChart-CM2XhD33.js"
     ]
   },
-  "_HeaderIconButton-IRAKzCtv.js": {
-    "file": "assets/HeaderIconButton-IRAKzCtv.js",
+  "_HeaderIconButton-DxLBMTn6.js": {
+    "file": "assets/HeaderIconButton-DxLBMTn6.js",
     "name": "HeaderIconButton",
     "imports": [
       "index.html"
     ]
   },
-  "_InstallPrompt-BLf8D9mr.js": {
-    "file": "assets/InstallPrompt-BLf8D9mr.js",
+  "_InstallPrompt-Ccw_drFG.js": {
+    "file": "assets/InstallPrompt-Ccw_drFG.js",
     "name": "InstallPrompt",
     "imports": [
       "index.html"
     ]
   },
-  "_NewCycleDialog-By-Mr2V0.js": {
-    "file": "assets/NewCycleDialog-By-Mr2V0.js",
+  "_NewCycleDialog-BYtpTbvQ.js": {
+    "file": "assets/NewCycleDialog-BYtpTbvQ.js",
     "name": "NewCycleDialog",
     "imports": [
       "index.html",
-      "_label-Lg8s8odD.js",
-      "_useBackClose-D1lmwBv3.js",
-      "_computePeakStatuses-CJs7t6px.js",
-      "_peak-mode-button-3nwB-3dR.js",
-      "_badge-BBff8gyJ.js",
-      "_eye-BW5nwwNU.js",
-      "_useCycleData-B4xWB9L3.js"
+      "_label-D4T57ErK.js",
+      "_useBackClose-BcaGvc8q.js",
+      "_computePeakStatuses-GK-cv84j.js",
+      "_peak-mode-button-XVZwlrje.js",
+      "_badge-BI_W-Xeh.js",
+      "_eye-BgV_X9kO.js",
+      "_useCycleData-BLjMPsqZ.js"
     ]
   },
-  "_PostpartumExitDialog-BR0AhYEa.js": {
-    "file": "assets/PostpartumExitDialog-BR0AhYEa.js",
+  "_PostpartumExitDialog-C74BXvO5.js": {
+    "file": "assets/PostpartumExitDialog-C74BXvO5.js",
     "name": "PostpartumExitDialog",
     "imports": [
       "index.html",
-      "_useBackClose-D1lmwBv3.js",
-      "_badge-BBff8gyJ.js",
-      "_NewCycleDialog-By-Mr2V0.js",
-      "_useCycleData-B4xWB9L3.js"
+      "_useBackClose-BcaGvc8q.js",
+      "_badge-BI_W-Xeh.js",
+      "_NewCycleDialog-BYtpTbvQ.js",
+      "_useCycleData-BLjMPsqZ.js"
     ]
   },
-  "_arrow-left-BALgW13Y.js": {
-    "file": "assets/arrow-left-BALgW13Y.js",
+  "_arrow-left-CFJ7OIfm.js": {
+    "file": "assets/arrow-left-CFJ7OIfm.js",
     "name": "arrow-left",
     "imports": [
       "index.html"
     ]
   },
-  "_badge-BBff8gyJ.js": {
-    "file": "assets/badge-BBff8gyJ.js",
+  "_badge-BI_W-Xeh.js": {
+    "file": "assets/badge-BI_W-Xeh.js",
     "name": "badge",
     "imports": [
       "index.html"
     ]
   },
-  "_computePeakStatuses-CJs7t6px.js": {
-    "file": "assets/computePeakStatuses-CJs7t6px.js",
+  "_computePeakStatuses-GK-cv84j.js": {
+    "file": "assets/computePeakStatuses-GK-cv84j.js",
     "name": "computePeakStatuses",
     "imports": [
       "index.html",
-      "_useCycleData-B4xWB9L3.js"
+      "_useCycleData-BLjMPsqZ.js"
     ]
   },
-  "_eye-BW5nwwNU.js": {
-    "file": "assets/eye-BW5nwwNU.js",
+  "_eye-BgV_X9kO.js": {
+    "file": "assets/eye-BgV_X9kO.js",
     "name": "eye",
     "imports": [
       "index.html"
     ]
   },
-  "_label-Lg8s8odD.js": {
-    "file": "assets/label-Lg8s8odD.js",
+  "_label-D4T57ErK.js": {
+    "file": "assets/label-D4T57ErK.js",
     "name": "label",
     "imports": [
       "index.html"
     ]
   },
-  "_peak-mode-button-3nwB-3dR.js": {
-    "file": "assets/peak-mode-button-3nwB-3dR.js",
+  "_peak-mode-button-XVZwlrje.js": {
+    "file": "assets/peak-mode-button-XVZwlrje.js",
     "name": "peak-mode-button",
     "imports": [
       "index.html"
     ]
   },
-  "_sliders-horizontal-BzDsJc0K.js": {
-    "file": "assets/sliders-horizontal-BzDsJc0K.js",
+  "_sliders-horizontal-CTi9c4UF.js": {
+    "file": "assets/sliders-horizontal-CTi9c4UF.js",
     "name": "sliders-horizontal",
     "imports": [
       "index.html"
     ]
   },
-  "_useBackClose-D1lmwBv3.js": {
-    "file": "assets/useBackClose-D1lmwBv3.js",
+  "_useBackClose-BcaGvc8q.js": {
+    "file": "assets/useBackClose-BcaGvc8q.js",
     "name": "useBackClose",
     "imports": [
       "index.html",
-      "_badge-BBff8gyJ.js",
-      "_useCycleData-B4xWB9L3.js"
+      "_badge-BI_W-Xeh.js",
+      "_useCycleData-BLjMPsqZ.js"
     ]
   },
-  "_useCycleData-B4xWB9L3.js": {
-    "file": "assets/useCycleData-B4xWB9L3.js",
+  "_useCycleData-BLjMPsqZ.js": {
+    "file": "assets/useCycleData-BLjMPsqZ.js",
     "name": "useCycleData",
     "imports": [
       "index.html"
     ]
   },
-  "_useFertilityChart-DTY92tkI.js": {
-    "file": "assets/useFertilityChart-DTY92tkI.js",
+  "_useFertilityChart-CM2XhD33.js": {
+    "file": "assets/useFertilityChart-CM2XhD33.js",
     "name": "useFertilityChart",
     "imports": [
       "index.html",
-      "_badge-BBff8gyJ.js",
-      "_peak-mode-button-3nwB-3dR.js",
-      "_computePeakStatuses-CJs7t6px.js"
+      "_badge-BI_W-Xeh.js",
+      "_peak-mode-button-XVZwlrje.js",
+      "_computePeakStatuses-GK-cv84j.js"
     ]
   },
   "index.html": {
-    "file": "assets/index-DjG9GSIi.js",
+    "file": "assets/index-Df05meCf.js",
     "name": "index",
     "src": "index.html",
     "isEntry": true,
@@ -157,7 +157,7 @@
     ]
   },
   "node_modules/@capacitor/app/dist/esm/web.js": {
-    "file": "assets/web-yTvb5drA.js",
+    "file": "assets/web-g3wr7gOW.js",
     "name": "web",
     "src": "node_modules/@capacitor/app/dist/esm/web.js",
     "isDynamicEntry": true,
@@ -166,7 +166,7 @@
     ]
   },
   "node_modules/canvg/lib/index.es.js": {
-    "file": "assets/index.es-JEeYlFlM.js",
+    "file": "assets/index.es-C0S9GqpU.js",
     "name": "index.es",
     "src": "node_modules/canvg/lib/index.es.js",
     "isDynamicEntry": true,
@@ -175,7 +175,7 @@
     ]
   },
   "node_modules/capacitor-health-connect/dist/esm/index.js": {
-    "file": "assets/index-C-1bY5bk.js",
+    "file": "assets/index-DLT9KTUD.js",
     "name": "index",
     "src": "node_modules/capacitor-health-connect/dist/esm/index.js",
     "isDynamicEntry": true,
@@ -196,152 +196,152 @@
     "isDynamicEntry": true
   },
   "src/lib/exportCycleChartImage.jsx": {
-    "file": "assets/exportCycleChartImage-BOvP7gN3.js",
+    "file": "assets/exportCycleChartImage-BeiFjUNh.js",
     "name": "exportCycleChartImage",
     "src": "src/lib/exportCycleChartImage.jsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
-      "_FertilityChart-Cm8JkbWL.js",
-      "_computePeakStatuses-CJs7t6px.js",
-      "_useCycleData-B4xWB9L3.js",
-      "_badge-BBff8gyJ.js",
-      "_useFertilityChart-DTY92tkI.js",
-      "_peak-mode-button-3nwB-3dR.js"
+      "_FertilityChart-0KqqY01e.js",
+      "_computePeakStatuses-GK-cv84j.js",
+      "_useCycleData-BLjMPsqZ.js",
+      "_badge-BI_W-Xeh.js",
+      "_useFertilityChart-CM2XhD33.js",
+      "_peak-mode-button-XVZwlrje.js"
     ]
   },
   "src/pages/ArchivedCyclesPage.jsx": {
-    "file": "assets/ArchivedCyclesPage-DuLzJUng.js",
+    "file": "assets/ArchivedCyclesPage-7VB7h-Kq.js",
     "name": "ArchivedCyclesPage",
     "src": "src/pages/ArchivedCyclesPage.jsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
-      "_useCycleData-B4xWB9L3.js",
-      "_HeaderIconButton-IRAKzCtv.js",
-      "_badge-BBff8gyJ.js",
-      "_useBackClose-D1lmwBv3.js",
-      "_DeletionDialog-bCp9snLy.js",
-      "_sliders-horizontal-BzDsJc0K.js"
+      "_useCycleData-BLjMPsqZ.js",
+      "_HeaderIconButton-DxLBMTn6.js",
+      "_badge-BI_W-Xeh.js",
+      "_useBackClose-BcaGvc8q.js",
+      "_DeletionDialog-DkzzQtIS.js",
+      "_sliders-horizontal-CTi9c4UF.js"
     ]
   },
   "src/pages/AuthActionPage.jsx": {
-    "file": "assets/AuthActionPage-B_zBwYU0.js",
+    "file": "assets/AuthActionPage-BtCmpk2q.js",
     "name": "AuthActionPage",
     "src": "src/pages/AuthActionPage.jsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
-      "_label-Lg8s8odD.js",
-      "_eye-BW5nwwNU.js"
+      "_label-D4T57ErK.js",
+      "_eye-BgV_X9kO.js"
     ]
   },
   "src/pages/AuthPage.jsx": {
-    "file": "assets/AuthPage-BDmRz3A5.js",
+    "file": "assets/AuthPage-CetatOIK.js",
     "name": "AuthPage",
     "src": "src/pages/AuthPage.jsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
-      "_label-Lg8s8odD.js",
-      "_InstallPrompt-BLf8D9mr.js",
-      "_eye-BW5nwwNU.js"
+      "_label-D4T57ErK.js",
+      "_InstallPrompt-Ccw_drFG.js",
+      "_eye-BgV_X9kO.js"
     ]
   },
   "src/pages/ChartPage.jsx": {
-    "file": "assets/ChartPage-BCO4PqsL.js",
+    "file": "assets/ChartPage-1f32uLSq.js",
     "name": "ChartPage",
     "src": "src/pages/ChartPage.jsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
-      "_FertilityChart-Cm8JkbWL.js",
-      "_useCycleData-B4xWB9L3.js",
-      "_NewCycleDialog-By-Mr2V0.js",
-      "_computePeakStatuses-CJs7t6px.js",
-      "_label-Lg8s8odD.js",
-      "_useFertilityChart-DTY92tkI.js",
-      "_arrow-left-BALgW13Y.js",
-      "_eye-BW5nwwNU.js",
-      "_sliders-horizontal-BzDsJc0K.js",
-      "_badge-BBff8gyJ.js",
-      "_useBackClose-D1lmwBv3.js",
-      "_peak-mode-button-3nwB-3dR.js"
+      "_FertilityChart-0KqqY01e.js",
+      "_useCycleData-BLjMPsqZ.js",
+      "_NewCycleDialog-BYtpTbvQ.js",
+      "_computePeakStatuses-GK-cv84j.js",
+      "_label-D4T57ErK.js",
+      "_useFertilityChart-CM2XhD33.js",
+      "_arrow-left-CFJ7OIfm.js",
+      "_eye-BgV_X9kO.js",
+      "_sliders-horizontal-CTi9c4UF.js",
+      "_badge-BI_W-Xeh.js",
+      "_useBackClose-BcaGvc8q.js",
+      "_peak-mode-button-XVZwlrje.js"
     ]
   },
   "src/pages/CycleDetailPage.jsx": {
-    "file": "assets/CycleDetailPage-Dh9DEnzh.js",
+    "file": "assets/CycleDetailPage-U31bN2C8.js",
     "name": "CycleDetailPage",
     "src": "src/pages/CycleDetailPage.jsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
-      "_DeletionDialog-bCp9snLy.js",
-      "_useCycleData-B4xWB9L3.js",
-      "_HeaderIconButton-IRAKzCtv.js",
+      "_DeletionDialog-DkzzQtIS.js",
+      "_useCycleData-BLjMPsqZ.js",
+      "_HeaderIconButton-DxLBMTn6.js",
       "src/pages/RecordsPage.jsx",
-      "_arrow-left-BALgW13Y.js",
-      "_useBackClose-D1lmwBv3.js",
-      "_PostpartumExitDialog-BR0AhYEa.js",
-      "_badge-BBff8gyJ.js",
-      "_NewCycleDialog-By-Mr2V0.js",
-      "_label-Lg8s8odD.js",
-      "_computePeakStatuses-CJs7t6px.js",
-      "_peak-mode-button-3nwB-3dR.js",
-      "_eye-BW5nwwNU.js"
+      "_arrow-left-CFJ7OIfm.js",
+      "_useBackClose-BcaGvc8q.js",
+      "_PostpartumExitDialog-C74BXvO5.js",
+      "_badge-BI_W-Xeh.js",
+      "_NewCycleDialog-BYtpTbvQ.js",
+      "_label-D4T57ErK.js",
+      "_computePeakStatuses-GK-cv84j.js",
+      "_peak-mode-button-XVZwlrje.js",
+      "_eye-BgV_X9kO.js"
     ]
   },
   "src/pages/DashboardPage.jsx": {
-    "file": "assets/DashboardPage-By-W2gAR.js",
+    "file": "assets/DashboardPage-C2VOZzgt.js",
     "name": "DashboardPage",
     "src": "src/pages/DashboardPage.jsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
-      "_PostpartumExitDialog-BR0AhYEa.js",
-      "_NewCycleDialog-By-Mr2V0.js",
-      "_DeletionDialog-bCp9snLy.js",
-      "_useBackClose-D1lmwBv3.js",
-      "_useCycleData-B4xWB9L3.js",
-      "_useFertilityChart-DTY92tkI.js",
-      "_computePeakStatuses-CJs7t6px.js",
-      "_label-Lg8s8odD.js",
-      "_badge-BBff8gyJ.js",
-      "_peak-mode-button-3nwB-3dR.js",
-      "_eye-BW5nwwNU.js"
+      "_PostpartumExitDialog-C74BXvO5.js",
+      "_NewCycleDialog-BYtpTbvQ.js",
+      "_DeletionDialog-DkzzQtIS.js",
+      "_useBackClose-BcaGvc8q.js",
+      "_useCycleData-BLjMPsqZ.js",
+      "_useFertilityChart-CM2XhD33.js",
+      "_computePeakStatuses-GK-cv84j.js",
+      "_label-D4T57ErK.js",
+      "_badge-BI_W-Xeh.js",
+      "_peak-mode-button-XVZwlrje.js",
+      "_eye-BgV_X9kO.js"
     ]
   },
   "src/pages/RecordsPage.jsx": {
-    "file": "assets/RecordsPage-D2WD9Ci2.js",
+    "file": "assets/RecordsPage-Dt0KBSIW.js",
     "name": "RecordsPage",
     "src": "src/pages/RecordsPage.jsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
-      "_PostpartumExitDialog-BR0AhYEa.js",
-      "_NewCycleDialog-By-Mr2V0.js",
-      "_badge-BBff8gyJ.js",
-      "_peak-mode-button-3nwB-3dR.js",
-      "_DeletionDialog-bCp9snLy.js",
-      "_useCycleData-B4xWB9L3.js",
-      "_HeaderIconButton-IRAKzCtv.js",
-      "_useBackClose-D1lmwBv3.js",
-      "_computePeakStatuses-CJs7t6px.js",
-      "_label-Lg8s8odD.js",
-      "_eye-BW5nwwNU.js"
+      "_PostpartumExitDialog-C74BXvO5.js",
+      "_NewCycleDialog-BYtpTbvQ.js",
+      "_badge-BI_W-Xeh.js",
+      "_peak-mode-button-XVZwlrje.js",
+      "_DeletionDialog-DkzzQtIS.js",
+      "_useCycleData-BLjMPsqZ.js",
+      "_HeaderIconButton-DxLBMTn6.js",
+      "_useBackClose-BcaGvc8q.js",
+      "_computePeakStatuses-GK-cv84j.js",
+      "_label-D4T57ErK.js",
+      "_eye-BgV_X9kO.js"
     ]
   },
   "src/pages/SettingsPage.jsx": {
-    "file": "assets/SettingsPage-DmtWq7kD.js",
+    "file": "assets/SettingsPage-BV0_saXx.js",
     "name": "SettingsPage",
     "src": "src/pages/SettingsPage.jsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
-      "_label-Lg8s8odD.js",
-      "_computePeakStatuses-CJs7t6px.js",
-      "_useCycleData-B4xWB9L3.js",
-      "_InstallPrompt-BLf8D9mr.js"
+      "_label-D4T57ErK.js",
+      "_computePeakStatuses-GK-cv84j.js",
+      "_useCycleData-BLjMPsqZ.js",
+      "_InstallPrompt-Ccw_drFG.js"
     ],
     "dynamicImports": [
       "node_modules/@capacitor/app/dist/esm/web.js",
