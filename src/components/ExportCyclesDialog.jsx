@@ -18,7 +18,52 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+const parseDateOnly = (value) => {
+  if (!value) return null;
+  if (value instanceof Date) return new Date(value.getFullYear(), value.getMonth(), value.getDate());
 
+  const str = String(value).trim();
+
+  const iso = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (iso) {
+    return new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+  }
+
+  const dmy = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if (dmy) {
+    let year = Number(dmy[3]);
+    if (year < 100) year += 2000;
+    return new Date(year, Number(dmy[2]) - 1, Number(dmy[1]));
+  }
+
+  const parsed = new Date(str);
+  if (!Number.isNaN(parsed.getTime())) {
+    return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+  }
+
+  return null;
+};
+
+const formatDate = (value) => {
+  const parsed = parseDateOnly(value);
+  if (!parsed) return '';
+  const day = String(parsed.getDate()).padStart(2, '0');
+  const month = String(parsed.getMonth() + 1).padStart(2, '0');
+  const year = parsed.getFullYear();
+  return `${day}/${month}/${year}`;
+};
+
+const buildCycleLabel = (cycle) => {
+  const start = formatDate(cycle?.startDate);
+  const end = cycle?.type === 'current'
+    ? 'actualidad'
+    : formatDate(cycle?.endDate);
+
+  if (start && end) return `Ciclo ${start} - ${end}`;
+  if (start && cycle?.type === 'current') return `Ciclo ${start} - actualidad`;
+  if (start) return `Ciclo ${start}`;
+  return cycle?.name || 'Ciclo';
+};
 const ExportCyclesDialog = ({
   isOpen,
   onClose,
@@ -69,14 +114,12 @@ const ExportCyclesDialog = ({
           disabled={isProcessing}
         />
         <div className="flex flex-col gap-1">
-          <Label htmlFor={checkboxId} className="text-base font-medium text-slate-700">
-            {cycle.name}
-          </Label>
-          <p className="text-sm text-slate-500">
-            Inicio: {cycle.startDate ? cycle.startDate : 'N/D'} · Fin:{' '}
-            {cycle.endDate ? cycle.endDate : cycle.type === 'current' ? 'En curso' : 'N/D'} · Registros:{' '}
-            {cycle.recordCount ?? 0}
-          </p>
+          <Label htmlFor={checkboxId} className="text-sm font-medium text-slate-700">
+  {buildCycleLabel(cycle)}
+</Label>
+<p className="text-sm text-slate-500">
+  Registros: {cycle.recordCount ?? 0}
+</p>
         </div>
       </div>
     );

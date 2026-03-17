@@ -8,6 +8,7 @@ const ChartRightStickyTempLegend = ({
   tempRange,
   getY,
   responsiveFontSize,
+  ...restProps
 }) => {
   const railRef = useRef(null);
 
@@ -71,6 +72,7 @@ const ChartRightStickyTempLegend = ({
     <div
       className="absolute inset-0 pointer-events-none z-30 overflow-hidden"
       aria-hidden="true"
+      {...restProps}
     >
       <svg
         ref={railRef}

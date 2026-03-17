@@ -153,7 +153,7 @@ const FertilityChartCanvasOverlay = ({
       ctx.moveTo(snap(areaX), snappedY);
       ctx.lineTo(snap(chartWidth - padding.right), snappedY);
       ctx.strokeStyle = isMajor ? theme.grid.horizontalMajor : theme.grid.horizontalMinor;
-      ctx.lineWidth = isMajor ? 1.2 : 1;
+      ctx.lineWidth = isMajor ? 1.2 : 1.3;
       ctx.setLineDash(isMajor ? [] : [4, 4]);
       ctx.stroke();
       ctx.setLineDash([]);

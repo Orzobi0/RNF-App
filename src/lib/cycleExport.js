@@ -189,12 +189,14 @@ const buildFullTimelineEntries = (cycle, baseEntries = []) => {
 
 const inferCycleTitle = (cycle, index) => {
   const formattedStart = formatDate(cycle?.startDate);
-  const formattedEnd = formatDate(cycle?.endDate);
+  const formattedEnd = cycle?.type === 'current'
+    ? 'actualidad'
+    : formatDate(cycle?.endDate);
 
   if (formattedStart && formattedEnd) return `Ciclo ${formattedStart} - ${formattedEnd}`;
+  if (formattedStart && cycle?.type === 'current') return `Ciclo ${formattedStart} - actualidad`;
   if (formattedStart) return `Ciclo ${formattedStart}`;
   if (cycle?.name) return cycle.name;
-  if (cycle?.type === 'current') return 'Ciclo actual';
   if (cycle?.id) return `Ciclo ${cycle.id}`;
   return `Ciclo ${index + 1}`;
 };
@@ -550,7 +552,7 @@ const overlapDays = 0;
  const availableH = pageHeight - contentTop - pageMarginBottom;
     const slotH = (availableH - slotGap * (chartsPerPage - 1)) / chartsPerPage;
 
-    const targetDpi = 300;
+    const targetDpi = 330;
     const mmToIn = (mm) => mm / 25.4;
 
     let segIdx = 0;
@@ -590,14 +592,14 @@ const overlapDays = 0;
 
 
         const img = await renderCycleChartToPng({
-          cycle: cycles[index],
-          entries: segmentEntries,
-          widthPx,
-          heightPx,
-          pixelRatio: 1,
-          visibleDays: segmentEntries.length,
-          initialScrollIndex: 0,
-        });
+  cycle: cycles[index],
+  entries: segmentEntries,
+  widthPx,
+  heightPx,
+  pixelRatio: 1.75,
+  visibleDays: segmentEntries.length,
+  initialScrollIndex: 0,
+});
 
         const imgRatio = img.widthPx / img.heightPx;
 

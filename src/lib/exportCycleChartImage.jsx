@@ -3,19 +3,66 @@ import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import FertilityChart from '@/components/FertilityChart';
 
-async function waitForSvgReady(container, timeoutMs = 2500) {
+function canvasHasVisiblePixels(canvas) {
+  if (!canvas || canvas.width <= 1 || canvas.height <= 1) return false;
+
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (!ctx) return false;
+
+  try {
+    const sampleSize = 64;
+    const w = Math.max(1, Math.min(sampleSize, canvas.width));
+    const h = Math.max(1, Math.min(sampleSize, canvas.height));
+    const startX = Math.max(0, Math.floor((canvas.width - w) / 2));
+    const startY = Math.max(0, Math.floor((canvas.height - h) / 2));
+
+    const { data } = ctx.getImageData(startX, startY, w, h);
+
+    for (let i = 3; i < data.length; i += 4) {
+      if (data[i] > 0) return true;
+    }
+
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+async function waitForChartReady(container, timeoutMs = 3000) {
   const start = performance.now();
 
   while (performance.now() - start < timeoutMs) {
-    const svg = container.querySelector('svg');
-    if (svg) {
+    const svg = container.querySelector('[data-export-target="fertility-chart-main"]');
+    const canvas = container.querySelector('canvas[data-chart-canvas-overlay="true"]');
+
+    const svgReady = (() => {
+      if (!svg) return false;
       const rect = svg.getBoundingClientRect();
-      if (rect.width > 50 && rect.height > 50) return svg;
+      return rect.width > 50 && rect.height > 50;
+    })();
+
+    const canvasReady = (() => {
+      if (!canvas) return false;
+      const rect = canvas.getBoundingClientRect();
+      return (
+        rect.width > 50 &&
+        rect.height > 50 &&
+        canvas.width > 1 &&
+        canvas.height > 1 &&
+        canvasHasVisiblePixels(canvas)
+      );
+    })();
+
+    if (svgReady && canvasReady) {
+      await new Promise((r) => requestAnimationFrame(r));
+      await new Promise((r) => requestAnimationFrame(r));
+      return { svg, canvas };
     }
+
     await new Promise((r) => requestAnimationFrame(r));
   }
 
-  throw new Error('No se pudo renderizar el SVG del gráfico (timeout).');
+  throw new Error('No se pudo renderizar el gráfico para exportar (canvas/svg timeout).');
 }
 function copyCssVars(fromEl, toEl) {
   const vars = [
@@ -36,7 +83,7 @@ function copyCssVars(fromEl, toEl) {
   });
 }
 
-async function svgToPngDataUrl(svgEl, { widthPx, heightPx, pixelRatio = 2, background = '#ffffff' }) {
+async function svgToImageBitmap(svgEl, { widthPx, heightPx, background = '#ffffff' }) {
   const xmlns = 'http://www.w3.org/2000/svg';
   const cloned = svgEl.cloneNode(true);
 
@@ -64,18 +111,109 @@ async function svgToPngDataUrl(svgEl, { widthPx, heightPx, pixelRatio = 2, backg
   img.src = url;
   await img.decode();
 
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.round(widthPx * pixelRatio);
-  canvas.height = Math.round(heightPx * pixelRatio);
+  return img;
+}
 
-  const ctx = canvas.getContext('2d');
-  ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(img, 0, 0, widthPx, heightPx);
+async function drawDomElementToCanvas(ctx, element, destination, pixelRatio) {
+  if (!element) return;
 
+  const rect = element.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) return;
 
-  return canvas.toDataURL('image/png');
+  const image = await svgToImageBitmap(element, {
+    widthPx: rect.width,
+    heightPx: rect.height,
+    background: 'transparent',
+  });
+
+  ctx.drawImage(
+    image,
+    destination.x,
+    destination.y,
+    rect.width * pixelRatio,
+    rect.height * pixelRatio,
+  );
+}
+
+async function renderCompositeChartToPng({
+  container,
+  svgEl,
+  canvasEl,
+  widthPx,
+  heightPx,
+  pixelRatio,
+}) {
+  const outputCanvas = document.createElement('canvas');
+  outputCanvas.width = Math.max(1, Math.round(widthPx * pixelRatio));
+  outputCanvas.height = Math.max(1, Math.round(heightPx * pixelRatio));
+
+  const ctx = outputCanvas.getContext('2d');
+  if (!ctx) throw new Error('No se pudo inicializar el canvas de exportación.');
+
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  const exportBg = '#fce7f3';
+ctx.fillStyle = exportBg;
+ctx.fillRect(0, 0, outputCanvas.width, outputCanvas.height);
+
+  const containerRect = container.getBoundingClientRect();
+  const svgRect = svgEl.getBoundingClientRect();
+
+  const baseX = Math.round((svgRect.left - containerRect.left) * pixelRatio);
+  const baseY = Math.round((svgRect.top - containerRect.top) * pixelRatio);
+
+  if (canvasEl && canvasEl.width > 1 && canvasEl.height > 1) {
+    const canvasRect = canvasEl.getBoundingClientRect();
+    const dx = Math.round((canvasRect.left - containerRect.left) * pixelRatio);
+    const dy = Math.round((canvasRect.top - containerRect.top) * pixelRatio);
+    const dw = Math.round(canvasRect.width * pixelRatio);
+    const dh = Math.round(canvasRect.height * pixelRatio);
+
+    ctx.drawImage(canvasEl, 0, 0, canvasEl.width, canvasEl.height, dx, dy, dw, dh);
+  }
+
+  const leftLegend = container.querySelector('[data-export-left-legend="true"] svg');
+  if (leftLegend) {
+    const leftRect = leftLegend.getBoundingClientRect();
+    await drawDomElementToCanvas(
+      ctx,
+      leftLegend,
+      {
+        x: Math.round((leftRect.left - containerRect.left) * pixelRatio),
+        y: Math.round((leftRect.top - containerRect.top) * pixelRatio),
+      },
+      pixelRatio,
+    );
+  }
+
+  const svgImage = await svgToImageBitmap(svgEl, {
+    widthPx: svgRect.width,
+    heightPx: svgRect.height,
+    background: 'transparent',
+  });
+
+  ctx.drawImage(
+    svgImage,
+    baseX,
+    baseY,
+    Math.round(svgRect.width * pixelRatio),
+    Math.round(svgRect.height * pixelRatio),
+  );
+
+  const rightLegend = container.querySelector('[data-export-right-legend="true"] svg');
+  if (rightLegend) {
+    const rightRect = rightLegend.getBoundingClientRect();
+    await drawDomElementToCanvas(
+      ctx,
+      rightLegend,
+      {
+        x: Math.round((rightRect.left - containerRect.left) * pixelRatio),
+        y: Math.round((rightRect.top - containerRect.top) * pixelRatio),
+      },
+      pixelRatio,
+    );
+  }
+
+  return outputCanvas.toDataURL('image/png');
 }
 
 async function assertPngNotBlank(dataUrl) {
@@ -272,15 +410,18 @@ export async function renderCycleChartToPng({
     // Espera a fuentes y a que exista el SVG con tamaño
     if (document.fonts?.ready) await document.fonts.ready;
 
-    const svg = await waitForSvgReady(container);
+    const { svg, canvas } = await waitForChartReady(container);
+    await new Promise((r) => requestAnimationFrame(r));
+await new Promise((r) => requestAnimationFrame(r));
 
-    // Exporta el SVG real a PNG (esto sí respeta gradientes/defs del chart)
-    const dataUrl = await svgToPngDataUrl(svg, {
-  widthPx,
-  heightPx,
-  pixelRatio,
-  background: '#ffffff',
-});
+    const dataUrl = await renderCompositeChartToPng({
+      container,
+      svgEl: svg,
+      canvasEl: canvas,
+      widthPx,
+      heightPx,
+      pixelRatio,
+    });
 
 await assertPngNotBlank(dataUrl);
 

@@ -1554,7 +1554,7 @@ const rotationWrapperStyle = rotationStageStyle
   const handlePointInteractionSafe = exportMode ? () => {} : handlePointInteraction;
   const clearActivePointSafe = exportMode ? () => {} : clearActivePoint;
   const showCanvasOverlay =
-  !exportMode && chartWidth > 0 && chartHeight > 0 && scrollableContentHeight > 0;
+  chartWidth > 0 && chartHeight > 0 && scrollableContentHeight > 0;
   return (
       <motion.div
   ref={stageHostRef}
@@ -1597,6 +1597,7 @@ const rotationWrapperStyle = rotationStageStyle
               {showLegend && (
                 <div
                   className="absolute left-0 top-0 h-full bg-transparent pointer-events-none z-10"
+                  data-export-left-legend="true"
                   style={{ width: padding.left }}
                 >
                   <ChartLeftLegend
@@ -1648,6 +1649,7 @@ const rotationWrapperStyle = rotationStageStyle
 
               <motion.svg
                 width={chartWidth}
+                data-export-target="fertility-chart-main"
                 height={scrollableContentHeight}   
                 className="font-sans flex-shrink-0 relative z-20"
                 viewBox={`0 0 ${chartWidth} ${scrollableContentHeight}`} 
@@ -1918,6 +1920,7 @@ const rotationWrapperStyle = rotationStageStyle
               {showCanvasOverlay && (
   <ChartRightStickyTempLegend
     chartRef={chartRef}
+    data-export-right-legend="true"
     padding={padding}
     tempMin={tempMin}
     tempMax={tempMax}
