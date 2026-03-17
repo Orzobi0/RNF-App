@@ -257,6 +257,8 @@ if (showInterpretation && Array.isArray(interpretationSegments)) {
       ctx.stroke();
       ctx.restore();
     }
+    const isWithinTemperaturePlotArea = (y) =>
+      Number.isFinite(y) && y >= padding.top && y <= graphBottomY;
 
     // Temperature line and halo
     // Gradient stroke for the temperature line (SVG-like look, still cheap in canvas)
@@ -278,7 +280,7 @@ if (showInterpretation && Array.isArray(interpretationSegments)) {
       for (let i = startIndex; i <= endIndex; i += 1) {
         const y = ysTemp[i];
         const p = points[i];
-        if (!Number.isFinite(y) || p?.ignored) {
+        if (!isWithinTemperaturePlotArea(y) || p?.ignored) {
           started = false;
           continue;
         }
@@ -314,7 +316,7 @@ if (showInterpretation && Array.isArray(interpretationSegments)) {
     for (let i = startIndex; i <= endIndex; i += 1) {
       const y = ysTemp[i];
       const p = points[i];
-      if (!Number.isFinite(y) || p?.ignored) continue;
+      if (!isWithinTemperaturePlotArea(y) || p?.ignored) continue;
       if (prevValidIndex != null && i > prevValidIndex + 1) {
         const prevY = ysTemp[prevValidIndex];
         if (Number.isFinite(prevY)) {
@@ -358,21 +360,47 @@ if (showInterpretation && Array.isArray(interpretationSegments)) {
       const x = xs[i];
       const rawTemp = p.temperature_raw;
       const correctedTemp = p.temperature_corrected;
-      const showCorrection = p.use_corrected && rawTemp != null && correctedTemp != null && Math.abs(correctedTemp - rawTemp) > 0.01;
-      const rawY = showCorrection ? getY(rawTemp) : null;
-      const isCorrectedDisplayed = p.use_corrected && correctedTemp != null && p.displayTemperature === correctedTemp;
-      const isIgnoredForDisplay = p.ignored || (p.use_corrected && !isCorrectedDisplayed);
+      const showCorrection =
+  p.use_corrected &&
+  rawTemp != null &&
+  correctedTemp != null &&
+  Math.abs(correctedTemp - rawTemp) > 0.01;
 
-      if (showCorrection && Number.isFinite(rawY)) {
-        ctx.beginPath();
-        ctx.moveTo(x, rawY);
-        ctx.lineTo(x, y);
-        ctx.setLineDash([4, 4]);
-        ctx.strokeStyle = theme.points.correctionLine;
-        ctx.lineWidth = 1;
-        ctx.stroke();
-        ctx.setLineDash([]);
-        // Raw (discarded) point: render like an ignored point
+const rawY = showCorrection ? getY(rawTemp) : null;
+const clampedRawY = Number.isFinite(rawY)
+  ? Math.min(graphBottomY, Math.max(padding.top, rawY))
+  : null;
+
+const isCorrectedDisplayed =
+  p.use_corrected &&
+  correctedTemp != null &&
+  p.displayTemperature === correctedTemp;
+
+const isIgnoredForDisplay =
+  p.ignored || (p.use_corrected && !isCorrectedDisplayed);
+
+const shouldDrawCorrectionLine =
+  showCorrection &&
+  isWithinTemperaturePlotArea(y) &&
+  Number.isFinite(clampedRawY) &&
+  clampedRawY !== y;
+
+const shouldDrawRawDiscardedPoint =
+  showCorrection &&
+  isWithinTemperaturePlotArea(rawY);
+
+if (shouldDrawCorrectionLine) {
+  ctx.beginPath();
+  ctx.moveTo(x, clampedRawY);
+  ctx.lineTo(x, y);
+  ctx.setLineDash([4, 4]);
+  ctx.strokeStyle = theme.points.correctionLine;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+if (shouldDrawRawDiscardedPoint) {
   ctx.beginPath();
   ctx.arc(x, rawY, 2.8, 0, Math.PI * 2);
   ctx.fillStyle = theme.points.discardedFill ?? theme.points.ignoredFill;
@@ -380,15 +408,17 @@ if (showInterpretation && Array.isArray(interpretationSegments)) {
   ctx.strokeStyle = theme.points.discardedStroke ?? theme.points.ignoredStroke;
   ctx.lineWidth = 2;
   ctx.stroke();
-      }
+}
 
-      ctx.beginPath();
-      ctx.arc(x, y, 2.8, 0, Math.PI * 2);
-      ctx.fillStyle = isIgnoredForDisplay ? theme.points.ignoredFill : theme.points.fill;
-      ctx.fill();
-      ctx.strokeStyle = isIgnoredForDisplay ? theme.points.ignoredStroke : theme.points.stroke;
-      ctx.lineWidth = 2;
-      ctx.stroke();
+      if (isWithinTemperaturePlotArea(y)) {
+        ctx.beginPath();
+        ctx.arc(x, y, 2.8, 0, Math.PI * 2);
+        ctx.fillStyle = isIgnoredForDisplay ? theme.points.ignoredFill : theme.points.fill;
+        ctx.fill();
+        ctx.strokeStyle = isIgnoredForDisplay ? theme.points.ignoredStroke : theme.points.stroke;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
     }
 
     // Active highlight
