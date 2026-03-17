@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import ChartPoints from '@/components/chartElements/ChartPoints';
 import ChartTooltip from '@/components/chartElements/ChartTooltip';
 import ChartLeftLegend from '@/components/chartElements/ChartLeftLegend';
+import ChartRightStickyTempLegend from '@/components/chartElements/ChartRightStickyTempLegend';
 import FertilityChartCanvasOverlay from '@/components/chartElements/FertilityChartCanvasOverlay';
 import { getChartTheme } from '@/components/chartElements/chartTheme';
 import { useFertilityChart } from '@/hooks/useFertilityChart';
@@ -1889,7 +1890,7 @@ const rotationWrapperStyle = rotationStageStyle
         </motion.svg>
             </div>
           </div>
-        
+
 
         {/* Tooltip mejorado */}
         {!exportMode && activePoint && (
@@ -1914,6 +1915,17 @@ const rotationWrapperStyle = rotationStageStyle
           </motion.div>
         )}
       </motion.div>
+              {showCanvasOverlay && (
+  <ChartRightStickyTempLegend
+    chartRef={chartRef}
+    padding={padding}
+    tempMin={tempMin}
+    tempMax={tempMax}
+    tempRange={tempRange}
+    getY={getY}
+    responsiveFontSize={responsiveFontSize}
+  />
+)}
       </div>
     {manualModeEnabled && Number.isFinite(manualBaselineY) && (
   <div className="pointer-events-none absolute inset-0 z-30">

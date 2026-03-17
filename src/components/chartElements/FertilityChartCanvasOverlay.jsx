@@ -138,14 +138,13 @@ const FertilityChartCanvasOverlay = ({
     ctx.fillStyle = theme.background.rowsArea;
     ctx.fillRect(areaX, graphBottomY, areaW, rowsContentHeight);
 
-    // Temperature horizontal grid + right labels
+    // Temperature horizontal grid
     const ticks = [];
     const tickIncrement = tempRange > 0 && tempRange <= 2.5 ? 0.1 : 0.5;
     const from = tempRange > 0 ? tempMin : 35.8;
     const to = tempRange > 0 ? tempMax : 37.2;
     for (let t = from; t <= to + 1e-9; t += tickIncrement) ticks.push(Number(t.toFixed(1)));
 
-    ctx.font = `700 ${responsiveFontSize(1)}px -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif`;
     ticks.forEach((temp) => {
       const y = getY(temp);
       const isMajor = temp.toFixed(1).endsWith('.0') || temp.toFixed(1).endsWith('.5');
@@ -159,11 +158,6 @@ const FertilityChartCanvasOverlay = ({
       ctx.stroke();
       ctx.setLineDash([]);
 
-      ctx.fillStyle = isMajor ? theme.grid.labelMajor : theme.grid.labelMinor;
-      ctx.textBaseline = 'middle';
-      ctx.textAlign = 'left';
-      const labelText = isMajor ? temp.toFixed(1) : `.${temp.toFixed(1).split('.')[1]}`;
-      ctx.fillText(labelText, snap(chartWidth - padding.right + responsiveFontSize(1)), snappedY);
     });
 
     // Vertical grid limited to visible range
