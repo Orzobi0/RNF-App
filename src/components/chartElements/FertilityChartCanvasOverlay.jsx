@@ -47,7 +47,6 @@ const rgbaWithAlpha = (color, alpha) => {
   return `rgba(${p.r},${p.g},${p.b},${clamp01(alpha)})`;
 };
 const FertilityChartCanvasOverlay = ({
-  chartRef,
   chartWidth,
   chartHeight,
   scrollableContentHeight,
@@ -60,7 +59,6 @@ const FertilityChartCanvasOverlay = ({
   getX,
   getY,
   responsiveFontSize,
-  visibleRange,
   activeIndex,
   showInterpretation,
   interpretationSegments,
@@ -72,14 +70,10 @@ const FertilityChartCanvasOverlay = ({
   baselineDash,
   baselineOpacity,
   baselineWidth,
-  isScrolling,
-  isFullScreen,
-  visualOrientation,
   temperatureRiseHighlightPath,
 }) => {
   const canvasRef = useRef(null);
-  const [viewportSize, setViewportSize] = useState({ width: 0, height: 0, dpr: 1 });
-  const scrollRef = useRef({ left: 0, top: 0 });
+  const [devicePixelRatio, setDevicePixelRatio] = useState(1);
   const rafRef = useRef(0);
   const bandPaintCacheRef = useRef(new Map());
 
@@ -90,42 +84,39 @@ const FertilityChartCanvasOverlay = ({
     () => points.map((point) => (Number.isFinite(point?.displayTemperature) ? getY(point.displayTemperature) : null)),
     [points, getY]
   );
+  const contentHeight =
+  Number.isFinite(scrollableContentHeight) && scrollableContentHeight > 0
+    ? scrollableContentHeight
+    : chartHeight;
+  const syncCanvasSize = useCallback(() => {
+  const canvas = canvasRef.current;
+  if (!canvas) return;
 
-  const syncViewportSize = useCallback(() => {
-    const node = chartRef?.current;
-    const canvas = canvasRef.current;
-    if (!node || !canvas) return;
-    const width = Math.max(1, node.clientWidth || 1);
-    const height = Math.max(1, node.clientHeight || 1);
-    const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 3));
+  const width = Math.max(1, chartWidth || 1);
+  const height = Math.max(1, contentHeight || 1);
+  const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 3));
 
-    if (canvas.width !== Math.floor(width * dpr) || canvas.height !== Math.floor(height * dpr)) {
-      canvas.width = Math.floor(width * dpr);
-      canvas.height = Math.floor(height * dpr);
-      canvas.style.width = `${width}px`;
-      canvas.style.height = `${height}px`;
-    }
+  if (
+    canvas.width !== Math.floor(width * dpr) ||
+    canvas.height !== Math.floor(height * dpr)
+  ) {
+    canvas.width = Math.floor(width * dpr);
+    canvas.height = Math.floor(height * dpr);
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+  }
 
-    setViewportSize((prev) => {
-      if (prev.width === width && prev.height === height && prev.dpr === dpr) return prev;
-      return { width, height, dpr };
-    });
-  }, [chartRef]);
+  setDevicePixelRatio((prev) => (prev === dpr ? prev : dpr));
+}, [chartWidth, contentHeight]);
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
-    const node = chartRef?.current;
-    if (!canvas || !node || !viewportSize.width || !viewportSize.height) return;
+    if (!canvas || !chartWidth) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const scrollLeft = node.scrollLeft || 0;
-    const scrollTop = node.scrollTop || 0;
-    const { width: viewportW, height: viewportH, dpr } = viewportSize;
-    const contentHeight =
-      Number.isFinite(scrollableContentHeight) && scrollableContentHeight > 0
-        ? scrollableContentHeight
-        : chartHeight;
+    const dpr = Math.max(1, Math.min(devicePixelRatio || 1, 3));
+    const contentW = chartWidth;
     const snap = (value) => Math.round(value * dpr) / dpr;
 
     const areaW = chartWidth - padding.left - padding.right;
@@ -135,13 +126,7 @@ const FertilityChartCanvasOverlay = ({
     }
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, viewportW, viewportH);
-
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(0, 0, viewportW, viewportH);
-    ctx.clip();
-    ctx.translate(-scrollLeft, -scrollTop);
+    ctx.clearRect(0, 0, contentW, contentHeight);
 
     const areaX = padding.left;
     const areaY = padding.top;
@@ -153,14 +138,13 @@ const FertilityChartCanvasOverlay = ({
     ctx.fillStyle = theme.background.rowsArea;
     ctx.fillRect(areaX, graphBottomY, areaW, rowsContentHeight);
 
-    // Temperature horizontal grid + right labels
+    // Temperature horizontal grid
     const ticks = [];
     const tickIncrement = tempRange > 0 && tempRange <= 2.5 ? 0.1 : 0.5;
     const from = tempRange > 0 ? tempMin : 35.8;
     const to = tempRange > 0 ? tempMax : 37.2;
     for (let t = from; t <= to + 1e-9; t += tickIncrement) ticks.push(Number(t.toFixed(1)));
 
-    ctx.font = `700 ${responsiveFontSize(1)}px -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif`;
     ticks.forEach((temp) => {
       const y = getY(temp);
       const isMajor = temp.toFixed(1).endsWith('.0') || temp.toFixed(1).endsWith('.5');
@@ -169,21 +153,16 @@ const FertilityChartCanvasOverlay = ({
       ctx.moveTo(snap(areaX), snappedY);
       ctx.lineTo(snap(chartWidth - padding.right), snappedY);
       ctx.strokeStyle = isMajor ? theme.grid.horizontalMajor : theme.grid.horizontalMinor;
-      ctx.lineWidth = isMajor ? 1.2 : 1;
+      ctx.lineWidth = isMajor ? 1.2 : 1.3;
       ctx.setLineDash(isMajor ? [] : [4, 4]);
       ctx.stroke();
       ctx.setLineDash([]);
 
-      ctx.fillStyle = isMajor ? theme.grid.labelMajor : theme.grid.labelMinor;
-      ctx.textBaseline = 'middle';
-      ctx.textAlign = 'left';
-      const labelText = isMajor ? temp.toFixed(1) : `.${temp.toFixed(1).split('.')[1]}`;
-      ctx.fillText(labelText, snap(chartWidth - padding.right + responsiveFontSize(1)), snappedY);
     });
 
     // Vertical grid limited to visible range
-    const startIndex = Math.max(0, visibleRange?.startIndex ?? 0);
-    const endIndex = Math.min(points.length - 1, visibleRange?.endIndex ?? points.length - 1);
+    const startIndex = 0;
+    const endIndex = Math.min(points.length - 1, points.length - 1);
     for (let i = startIndex; i <= endIndex; i += 1) {
       const x = xs[i];
       if (!Number.isFinite(x)) continue;
@@ -278,6 +257,8 @@ if (showInterpretation && Array.isArray(interpretationSegments)) {
       ctx.stroke();
       ctx.restore();
     }
+    const isWithinTemperaturePlotArea = (y) =>
+      Number.isFinite(y) && y >= padding.top && y <= graphBottomY;
 
     // Temperature line and halo
     // Gradient stroke for the temperature line (SVG-like look, still cheap in canvas)
@@ -299,7 +280,7 @@ if (showInterpretation && Array.isArray(interpretationSegments)) {
       for (let i = startIndex; i <= endIndex; i += 1) {
         const y = ysTemp[i];
         const p = points[i];
-        if (!Number.isFinite(y) || p?.ignored) {
+        if (!isWithinTemperaturePlotArea(y) || p?.ignored) {
           started = false;
           continue;
         }
@@ -335,7 +316,7 @@ if (showInterpretation && Array.isArray(interpretationSegments)) {
     for (let i = startIndex; i <= endIndex; i += 1) {
       const y = ysTemp[i];
       const p = points[i];
-      if (!Number.isFinite(y) || p?.ignored) continue;
+      if (!isWithinTemperaturePlotArea(y) || p?.ignored) continue;
       if (prevValidIndex != null && i > prevValidIndex + 1) {
         const prevY = ysTemp[prevValidIndex];
         if (Number.isFinite(prevY)) {
@@ -379,21 +360,47 @@ if (showInterpretation && Array.isArray(interpretationSegments)) {
       const x = xs[i];
       const rawTemp = p.temperature_raw;
       const correctedTemp = p.temperature_corrected;
-      const showCorrection = p.use_corrected && rawTemp != null && correctedTemp != null && Math.abs(correctedTemp - rawTemp) > 0.01;
-      const rawY = showCorrection ? getY(rawTemp) : null;
-      const isCorrectedDisplayed = p.use_corrected && correctedTemp != null && p.displayTemperature === correctedTemp;
-      const isIgnoredForDisplay = p.ignored || (p.use_corrected && !isCorrectedDisplayed);
+      const showCorrection =
+  p.use_corrected &&
+  rawTemp != null &&
+  correctedTemp != null &&
+  Math.abs(correctedTemp - rawTemp) > 0.01;
 
-      if (showCorrection && Number.isFinite(rawY)) {
-        ctx.beginPath();
-        ctx.moveTo(x, rawY);
-        ctx.lineTo(x, y);
-        ctx.setLineDash([4, 4]);
-        ctx.strokeStyle = theme.points.correctionLine;
-        ctx.lineWidth = 1;
-        ctx.stroke();
-        ctx.setLineDash([]);
-        // Raw (discarded) point: render like an ignored point
+const rawY = showCorrection ? getY(rawTemp) : null;
+const clampedRawY = Number.isFinite(rawY)
+  ? Math.min(graphBottomY, Math.max(padding.top, rawY))
+  : null;
+
+const isCorrectedDisplayed =
+  p.use_corrected &&
+  correctedTemp != null &&
+  p.displayTemperature === correctedTemp;
+
+const isIgnoredForDisplay =
+  p.ignored || (p.use_corrected && !isCorrectedDisplayed);
+
+const shouldDrawCorrectionLine =
+  showCorrection &&
+  isWithinTemperaturePlotArea(y) &&
+  Number.isFinite(clampedRawY) &&
+  clampedRawY !== y;
+
+const shouldDrawRawDiscardedPoint =
+  showCorrection &&
+  isWithinTemperaturePlotArea(rawY);
+
+if (shouldDrawCorrectionLine) {
+  ctx.beginPath();
+  ctx.moveTo(x, clampedRawY);
+  ctx.lineTo(x, y);
+  ctx.setLineDash([4, 4]);
+  ctx.strokeStyle = theme.points.correctionLine;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+if (shouldDrawRawDiscardedPoint) {
   ctx.beginPath();
   ctx.arc(x, rawY, 2.8, 0, Math.PI * 2);
   ctx.fillStyle = theme.points.discardedFill ?? theme.points.ignoredFill;
@@ -401,15 +408,17 @@ if (showInterpretation && Array.isArray(interpretationSegments)) {
   ctx.strokeStyle = theme.points.discardedStroke ?? theme.points.ignoredStroke;
   ctx.lineWidth = 2;
   ctx.stroke();
-      }
+}
 
-      ctx.beginPath();
-      ctx.arc(x, y, 2.8, 0, Math.PI * 2);
-      ctx.fillStyle = isIgnoredForDisplay ? theme.points.ignoredFill : theme.points.fill;
-      ctx.fill();
-      ctx.strokeStyle = isIgnoredForDisplay ? theme.points.ignoredStroke : theme.points.stroke;
-      ctx.lineWidth = 2;
-      ctx.stroke();
+      if (isWithinTemperaturePlotArea(y)) {
+        ctx.beginPath();
+        ctx.arc(x, y, 2.8, 0, Math.PI * 2);
+        ctx.fillStyle = isIgnoredForDisplay ? theme.points.ignoredFill : theme.points.fill;
+        ctx.fill();
+        ctx.strokeStyle = isIgnoredForDisplay ? theme.points.ignoredStroke : theme.points.stroke;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
     }
 
     // Active highlight
@@ -440,89 +449,69 @@ if (showInterpretation && Array.isArray(interpretationSegments)) {
     if (DEBUG) {
       ctx.fillStyle = 'rgba(15,23,42,0.75)';
       ctx.font = '11px monospace';
-      ctx.fillText(`vp ${viewportW}x${viewportH} scroll ${scrollLeft}/${scrollTop}`, scrollLeft + 8, scrollTop + 14);
-      ctx.fillText(`chartH ${chartHeight} contentH ${contentHeight} graphBottomY ${graphBottomY}`, scrollLeft + 8, scrollTop + 28);
+      ctx.fillText(`canvas ${contentW}x${contentHeight}`, 8, 14);
+      ctx.fillText(`chartH ${chartHeight} contentH ${contentHeight} graphBottomY ${graphBottomY}`, 8, 28);
       ctx.beginPath();
-      ctx.moveTo(scrollLeft, graphBottomY);
-      ctx.lineTo(scrollLeft + viewportW, graphBottomY);
+      ctx.moveTo(0, graphBottomY);
+      ctx.lineTo(contentW, graphBottomY);
       ctx.strokeStyle = 'rgba(220,38,38,0.7)';
       ctx.lineWidth = 1;
       ctx.stroke();
     }
-
-    ctx.restore();
   }, [
-    activeIndex,
-    baselineDash,
-    baselineEndX,
-    baselineOpacity,
-    baselineStartX,
-    baselineStroke,
-    baselineWidth,
-    baselineY,
-    chartHeight,
-    chartRef,
-    chartWidth,
-    getY,
-    graphBottomY,
-    interpretationSegments,
-    padding,
-    points,
-    responsiveFontSize,
-    scrollableContentHeight,
-    theme,
-    shouldRenderBaseline,
-    showInterpretation,
-    tempMax,
-    tempMin,
-    tempRange,
-    temperatureRiseHighlightPath,
-    viewportSize,
-    visibleRange,
-    xs,
-    ysTemp,
-  ]);
+  activeIndex,
+  baselineDash,
+  baselineEndX,
+  baselineOpacity,
+  baselineStartX,
+  baselineStroke,
+  baselineWidth,
+  baselineY,
+  chartWidth,
+  contentHeight,
+  devicePixelRatio,
+  getY,
+  graphBottomY,
+  interpretationSegments,
+  padding,
+  points,
+  responsiveFontSize,
+  theme,
+  shouldRenderBaseline,
+  showInterpretation,
+  tempMax,
+  tempMin,
+  tempRange,
+  temperatureRiseHighlightPath,
+  xs,
+  ysTemp,
+]);
 
   useEffect(() => {
-    syncViewportSize();
-    const node = chartRef?.current;
-    if (!node) return undefined;
+  if (typeof window === 'undefined') return undefined;
 
-    const canObserve = typeof window !== 'undefined' && typeof window.ResizeObserver === 'function';
-    let ro;
-    if (canObserve) {
-      ro = new ResizeObserver(syncViewportSize);
-      ro.observe(node);
-    }
+  syncCanvasSize();
 
-    const onResize = () => syncViewportSize();
-    window.addEventListener('resize', onResize);
-    window.addEventListener('orientationchange', onResize);
+  const onResize = () => syncCanvasSize();
+  window.addEventListener('resize', onResize);
+  window.addEventListener('orientationchange', onResize);
 
-    const onScroll = () => {
-      scrollRef.current = { left: node.scrollLeft, top: node.scrollTop };
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(draw);
-    };
-
-    scrollRef.current = { left: node.scrollLeft, top: node.scrollTop };
-    node.addEventListener('scroll', onScroll, { passive: true });
-
-    return () => {
-      if (ro) {
-        ro.disconnect();
-      }
-      window.removeEventListener('resize', onResize);
-      window.removeEventListener('orientationchange', onResize);
-      node.removeEventListener('scroll', onScroll);
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    };
-  }, [chartRef, draw, syncViewportSize]);
-
-  useEffect(() => {
+  return () => {
+    window.removeEventListener('resize', onResize);
+    window.removeEventListener('orientationchange', onResize);
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    rafRef.current = requestAnimationFrame(draw);
-  }, [draw, isScrolling, isFullScreen, visualOrientation]);
+  };
+}, [syncCanvasSize]);
+
+useEffect(() => {
+  if (rafRef.current) cancelAnimationFrame(rafRef.current);
+  rafRef.current = requestAnimationFrame(draw);
+
+  return () => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+  };
+}, [draw]);
+
 
   return (
   <canvas
@@ -535,8 +524,8 @@ if (showInterpretation && Array.isArray(interpretationSegments)) {
       // canvas overlay solo render, interacción en SVG para evitar problemas de precisión en eventos pointer con zoom o pantallas de alta densidad
       pointerEvents: 'none',
     }}
-    width={Math.max(1, Math.floor(viewportSize.width * viewportSize.dpr))}
-    height={Math.max(1, Math.floor(viewportSize.height * viewportSize.dpr))}
+    width={Math.max(1, Math.floor(chartWidth * devicePixelRatio))}
+    height={Math.max(1, Math.floor(contentHeight * devicePixelRatio))}
     data-chart-canvas-overlay="true"
     aria-hidden="true"
   />

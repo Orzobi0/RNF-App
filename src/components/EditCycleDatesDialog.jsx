@@ -14,7 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import OverlapWarningDialog from './OverlapWarningDialog';
 import { format, parseISO, isValid, startOfDay, isSameDay, isAfter, isBefore } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Calendar as CalendarIcon } from 'lucide-react';
+import { Calendar as CalendarIcon, Loader2 } from 'lucide-react';
 
 const EditCycleDatesDialog = ({
   isOpen,
@@ -44,6 +44,7 @@ const EditCycleDatesDialog = ({
   const [overlapPlan, setOverlapPlan] = useState(null);
   const [isStartCalendarOpen, setIsStartCalendarOpen] = useState(false);
   const [isEndCalendarOpen, setIsEndCalendarOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const formatCycleDateUi = (value) => {
     if (!value) return 'en curso';
@@ -247,11 +248,29 @@ const EditCycleDatesDialog = ({
       }
     }
 
-    onConfirm(payload);
+    setIsSubmitting(true);
+try {
+  await onConfirm(payload);
+} finally {
+  setIsSubmitting(false);
+}
   };
 
   return (
     <>
+    {isSubmitting && (
+  <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/25 backdrop-blur-sm">
+    <div className="rounded-3xl border border-fertiliapp-suave bg-white/90 px-5 py-4 shadow-lg">
+      <div className="flex items-center gap-3">
+        <Loader2 className="h-5 w-5 animate-spin text-fertiliapp-fuerte" />
+        <div className="min-w-0">
+          <div className="font-semibold text-titulo">Aplicando cambios…</div>
+          <div className="text-sm">Puede tardar unos segundos.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
       <Dialog open={isOpen} onOpenChange={onClose}>
         <DialogContent className="bg-white border-pink-100 text-gray-800">
           <DialogHeader>
@@ -388,8 +407,23 @@ const EditCycleDatesDialog = ({
             )}
           </div>
           <DialogFooter className="sm:justify-end">
-            <Button variant="outline" onClick={onClose} className="border-gray-300 text-titulo hover:bg-gray-100">Cancelar</Button>
-            <Button variant="primary" onClick={handleConfirm} className="bg-pink-600 hover:bg-pink-700 text-white">Guardar</Button>
+            <Button
+  variant="outline"
+  onClick={onClose}
+  disabled={isSubmitting}
+  className="border-gray-300 text-titulo hover:bg-gray-100"
+>
+  Cancelar
+</Button>
+
+<Button
+  variant="primary"
+  onClick={handleConfirm}
+  disabled={isSubmitting}
+  className="bg-pink-600 hover:bg-pink-700 text-white"
+>
+  {isSubmitting ? 'Aplicando…' : 'Guardar'}
+</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -414,13 +448,25 @@ const EditCycleDatesDialog = ({
           setShowOverlapDialog(false);
           setOverlapPlan(null);
         }}
-        onConfirm={() => {
-          setShowOverlapDialog(false);
-          if (pendingPayload) {
-            onConfirm({ ...pendingPayload, force: true, insertMode: Boolean(overlapPlan), plan: overlapPlan || undefined });
-          }
-          setOverlapPlan(null);
-        }}
+        onConfirm={async () => {
+  setShowOverlapDialog(false);
+
+  if (pendingPayload) {
+    setIsSubmitting(true);
+    try {
+      await onConfirm({
+        ...pendingPayload,
+        force: true,
+        insertMode: Boolean(overlapPlan),
+        plan: overlapPlan || undefined,
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  setOverlapPlan(null);
+}}
       />
     </>
   );

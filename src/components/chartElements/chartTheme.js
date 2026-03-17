@@ -5,7 +5,7 @@ export const chartTheme = {
   },
   grid: {
     horizontalMajor: 'rgba(249,168,212,0.7)',
-    horizontalMinor: 'rgba(252,231,243,0.7)',
+    horizontalMinor: 'rgba(252,231,243,0.9)',
     vertical: 'rgba(252,231,243,0.85)',
     labelMajor: '#be185d',
     labelMinor: '#db2777',

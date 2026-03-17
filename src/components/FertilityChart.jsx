@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import ChartPoints from '@/components/chartElements/ChartPoints';
 import ChartTooltip from '@/components/chartElements/ChartTooltip';
 import ChartLeftLegend from '@/components/chartElements/ChartLeftLegend';
+import ChartRightStickyTempLegend from '@/components/chartElements/ChartRightStickyTempLegend';
 import FertilityChartCanvasOverlay from '@/components/chartElements/FertilityChartCanvasOverlay';
 import { getChartTheme } from '@/components/chartElements/chartTheme';
 import { useFertilityChart } from '@/hooks/useFertilityChart';
@@ -1553,7 +1554,7 @@ const rotationWrapperStyle = rotationStageStyle
   const handlePointInteractionSafe = exportMode ? () => {} : handlePointInteraction;
   const clearActivePointSafe = exportMode ? () => {} : clearActivePoint;
   const showCanvasOverlay =
-  !exportMode && chartWidth > 0 && chartHeight > 0 && scrollableContentHeight > 0;
+  chartWidth > 0 && chartHeight > 0 && scrollableContentHeight > 0;
   return (
       <motion.div
   ref={stageHostRef}
@@ -1564,41 +1565,6 @@ const rotationWrapperStyle = rotationStageStyle
   className="relative w-full h-full"
   style={rotationWrapperStyle}
 >
-      {showCanvasOverlay && (
-   <div
-     className={`absolute inset-0 overflow-hidden pointer-events-none ${isFullScreen ? '' : 'rounded-2xl'}`}
-     style={{ zIndex: 0 }}
-   >
-          <FertilityChartCanvasOverlay
-            chartRef={chartRef}
-            chartWidth={chartWidth}
-            chartHeight={chartHeight}
-            scrollableContentHeight={scrollableContentHeight}
-            padding={padding}
-            graphBottomY={graphBottomY}
-            allDataPoints={allDataPoints}
-            tempMin={tempMin}
-            tempMax={tempMax}
-            tempRange={tempRange}
-            getX={getX}
-            getY={getY}
-            responsiveFontSize={responsiveFontSize}
-            visibleRange={visibleRange}
-            activeIndex={activeIndex}
-            showInterpretation={showInterpretation}
-            interpretationSegments={interpretationSegments}
-            shouldRenderBaseline={shouldRenderBaseline}
-            baselineY={baselineY}
-            baselineStartX={baselineStartX}
-            baselineEndX={baselineEndX}
-            baselineStroke={baselineStroke}
-            baselineDash={baselineDash}
-            baselineOpacity={baselineOpacity}
-            baselineWidth={baselineWidth}
-            temperatureRiseHighlightPath={temperatureRiseHighlightPath}
-          />
-        </div>
-      )}
 
       {/* Contenedor principal del gráfico */}
       <motion.div
@@ -1631,6 +1597,7 @@ const rotationWrapperStyle = rotationStageStyle
               {showLegend && (
                 <div
                   className="absolute left-0 top-0 h-full bg-transparent pointer-events-none z-10"
+                  data-export-left-legend="true"
                   style={{ width: padding.left }}
                 >
                   <ChartLeftLegend
@@ -1650,9 +1617,39 @@ const rotationWrapperStyle = rotationStageStyle
                   />
                 </div>
               )}
-              
+              {showCanvasOverlay && (
+                <FertilityChartCanvasOverlay
+  key={`canvas-${chartWidth}-${scrollableContentHeight}-${isFullScreen ? 'fs' : 'normal'}-${applyRotation ? 'rot' : 'flat'}-${viewport.w}-${viewport.h}`}
+  chartWidth={chartWidth}
+  chartHeight={chartHeight}
+  scrollableContentHeight={scrollableContentHeight}
+  padding={padding}
+  graphBottomY={graphBottomY}
+  allDataPoints={allDataPoints}
+  tempMin={tempMin}
+  tempMax={tempMax}
+  tempRange={tempRange}
+  getX={getX}
+  getY={getY}
+  responsiveFontSize={responsiveFontSize}
+  activeIndex={activeIndex}
+  showInterpretation={showInterpretation}
+  interpretationSegments={interpretationSegments}
+  shouldRenderBaseline={shouldRenderBaseline}
+  baselineY={baselineY}
+  baselineStartX={baselineStartX}
+  baselineEndX={baselineEndX}
+  baselineStroke={baselineStroke}
+  baselineDash={baselineDash}
+  baselineOpacity={baselineOpacity}
+  baselineWidth={baselineWidth}
+  temperatureRiseHighlightPath={temperatureRiseHighlightPath}
+/>
+              )}
+
               <motion.svg
                 width={chartWidth}
+                data-export-target="fertility-chart-main"
                 height={scrollableContentHeight}   
                 className="font-sans flex-shrink-0 relative z-20"
                 viewBox={`0 0 ${chartWidth} ${scrollableContentHeight}`} 
@@ -1895,7 +1892,7 @@ const rotationWrapperStyle = rotationStageStyle
         </motion.svg>
             </div>
           </div>
-        
+
 
         {/* Tooltip mejorado */}
         {!exportMode && activePoint && (
@@ -1920,6 +1917,18 @@ const rotationWrapperStyle = rotationStageStyle
           </motion.div>
         )}
       </motion.div>
+              {showCanvasOverlay && (
+  <ChartRightStickyTempLegend
+    chartRef={chartRef}
+    data-export-right-legend="true"
+    padding={padding}
+    tempMin={tempMin}
+    tempMax={tempMax}
+    tempRange={tempRange}
+    getY={getY}
+    responsiveFontSize={responsiveFontSize}
+  />
+)}
       </div>
     {manualModeEnabled && Number.isFinite(manualBaselineY) && (
   <div className="pointer-events-none absolute inset-0 z-30">

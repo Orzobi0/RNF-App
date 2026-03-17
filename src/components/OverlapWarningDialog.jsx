@@ -16,7 +16,7 @@ const OverlapWarningDialog = ({
   onConfirm,
   conflictCycle,
   message,
-  title = 'Solapamiento detectado',
+  title = 'Estas fechas coinciden con otro ciclo',
   description,
   confirmLabel = 'Confirmar',
   affectedCycles = [],
@@ -26,7 +26,7 @@ const OverlapWarningDialog = ({
   const formatDate = (date) => {
     if (!date) return null;
     try {
-      return format(parseISO(date), 'dd-MM-yyyy');
+      return format(parseISO(date), 'dd/MM/yyyy');
     } catch (error) {
       console.error('Failed to format conflict cycle date', error);
       return date;
@@ -60,14 +60,14 @@ const OverlapWarningDialog = ({
           <DialogDescription className="text-gray-600">
             {description ?? message ??
               (conflictCycle
-                ? `La nueva fecha se solapa con el ciclo que comenzó el ${formattedStart ?? 'sin inicio registrado'} y terminó el ${formattedEnd}. ¿Deseas ajustar las fechas y mover los registros al nuevo ciclo?`
-                : 'La nueva fecha de inicio se solapa con otro ciclo. ¿Deseas continuar?')}
+                ? `La fecha que has elegido coincide con otro ciclo, del ${formattedStart ?? 'sin inicio registrado'} al ${formattedEnd}. Si continúas, se ajustarán otros ciclos y algunos registros podrán moverse.`
+                : 'La fecha que has elegido coincide con otro ciclo. ¿Deseas continuar?')}
           </DialogDescription>
         </DialogHeader>
 
         {affectedCycles.length > 0 && (
           <div className="bg-slate-50 px-3 py-2 text-sm text-slate-700">
-            <p className="font-semibold">Este nuevo cambio afecta a los ciclos:</p>
+            <p className="font-semibold">Este cambio afecta a los ciclos:</p>
             <ul className="mt-2 space-y-1 list-disc pl-4">
               {affectedCycles.map((cycle, index) => {
                 if (typeof cycle === 'string') {
@@ -84,24 +84,24 @@ const OverlapWarningDialog = ({
         {impactSummary && (
           <div className="bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800">
             <p>
-              Esto implica {[
-                trimmedCount > 0 ? `${trimmedCount} recortes` : null,
-                deletedCount > 0 ? `${deletedCount} eliminaciones` : null,
-                movedCount > 0 ? `${movedCount} registros movidos` : null,
-              ].filter(Boolean).join(' y ') || 'sin recortes, eliminaciones ni movimientos de registros'}.
+              Este cambio hará lo siguiente: {[
+                trimmedCount > 0 ? `${trimmedCount} ciclo${trimmedCount === 1 ? '' : 's'} ajustado${trimmedCount === 1 ? '' : 's'}` : null,
+                deletedCount > 0 ? `${deletedCount} ciclo${deletedCount === 1 ? '' : 's'} eliminado${deletedCount === 1 ? '' : 's'}` : null,
+                movedCount > 0 ? `${movedCount} registro${movedCount === 1 ? '' : 's'} movido${movedCount === 1 ? '' : 's'}` : null,
+              ].filter(Boolean).join(' y ') || 'no afectará a otros ciclos ni moverá registros'}.
             </p>
           </div>
         )}
 
         {adjustedCyclesPreview.length > 0 && (
           <div className="bg-slate-50 px-3 py-2 text-sm text-slate-700">
-            <p className="font-semibold">Los ciclos afectados quedarán así:</p>
+            <p className="font-semibold">Así quedarán los ciclos afectados:</p>
             <ul className="mt-2 list-disc space-y-1 pl-4">
               {adjustedCyclesPreview.map((cycle, index) => {
                const start = formatDate(cycle.startDate) ?? 'sin inicio';
                const end = cycle.endDate ? formatDate(cycle.endDate) : 'en curso';
                 if (cycle.type === 'delete' || cycle.deleted) {
-                  return <li key={`${cycle.cycleId}-delete-${index}`}>{start} - {end} (eliminado)</li>;
+                  return <li key={`${cycle.cycleId}-delete-${index}`}>{start} - {end} (se eliminará)</li>;
                 }
 
                 return <li key={`${cycle.cycleId}-${cycle.startDate}-${index}`}>{start} - {end}</li>;

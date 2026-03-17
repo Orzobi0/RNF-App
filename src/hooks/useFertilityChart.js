@@ -984,8 +984,8 @@ const effectiveRotatedEndInset = Math.max(0, Number(rotatedSafeEndInsetPx) || 0)
 
 const computedRight = isFullScreen
   ? Math.max(
-      isLandscapeVisual ? 35 : 30,
-      Math.min(chartWidth, viewportWidth) * (isLandscapeVisual ? 0.02 : 0.05)
+      isLandscapeVisual ? 16 : 30,
+      Math.min(chartWidth, viewportWidth) * (isLandscapeVisual ? 0.01 : 0.05)
     )
   : 50;
 
@@ -996,6 +996,10 @@ const computedLeft = isFullScreen
     )
   : 50;
 
+  const cappedRotatedEndInset = isLandscapeVisual
+   ? Math.min(effectiveRotatedEndInset, 12)
+   : effectiveRotatedEndInset;
+
 const basePadding = {
   top: isFullScreen
     ? Math.max(
@@ -1004,7 +1008,7 @@ const basePadding = {
       )
     : 12,
   right: isFullScreen
-    ? computedRight + effectiveRotatedEndInset
+    ? computedRight + cappedRotatedEndInset + (isLandscapeVisual ? 8 : 0)
     : 50,
   bottom: Math.max(0, bottomRowsExact - 1),
   left: isFullScreen
