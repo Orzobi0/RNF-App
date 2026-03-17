@@ -1564,41 +1564,6 @@ const rotationWrapperStyle = rotationStageStyle
   className="relative w-full h-full"
   style={rotationWrapperStyle}
 >
-      {showCanvasOverlay && (
-   <div
-     className={`absolute inset-0 overflow-hidden pointer-events-none ${isFullScreen ? '' : 'rounded-2xl'}`}
-     style={{ zIndex: 0 }}
-   >
-          <FertilityChartCanvasOverlay
-            chartRef={chartRef}
-            chartWidth={chartWidth}
-            chartHeight={chartHeight}
-            scrollableContentHeight={scrollableContentHeight}
-            padding={padding}
-            graphBottomY={graphBottomY}
-            allDataPoints={allDataPoints}
-            tempMin={tempMin}
-            tempMax={tempMax}
-            tempRange={tempRange}
-            getX={getX}
-            getY={getY}
-            responsiveFontSize={responsiveFontSize}
-            visibleRange={visibleRange}
-            activeIndex={activeIndex}
-            showInterpretation={showInterpretation}
-            interpretationSegments={interpretationSegments}
-            shouldRenderBaseline={shouldRenderBaseline}
-            baselineY={baselineY}
-            baselineStartX={baselineStartX}
-            baselineEndX={baselineEndX}
-            baselineStroke={baselineStroke}
-            baselineDash={baselineDash}
-            baselineOpacity={baselineOpacity}
-            baselineWidth={baselineWidth}
-            temperatureRiseHighlightPath={temperatureRiseHighlightPath}
-          />
-        </div>
-      )}
 
       {/* Contenedor principal del gráfico */}
       <motion.div
@@ -1650,7 +1615,36 @@ const rotationWrapperStyle = rotationStageStyle
                   />
                 </div>
               )}
-              
+              {showCanvasOverlay && (
+                <FertilityChartCanvasOverlay
+  key={`canvas-${chartWidth}-${scrollableContentHeight}-${isFullScreen ? 'fs' : 'normal'}-${applyRotation ? 'rot' : 'flat'}-${viewport.w}-${viewport.h}`}
+  chartWidth={chartWidth}
+  chartHeight={chartHeight}
+  scrollableContentHeight={scrollableContentHeight}
+  padding={padding}
+  graphBottomY={graphBottomY}
+  allDataPoints={allDataPoints}
+  tempMin={tempMin}
+  tempMax={tempMax}
+  tempRange={tempRange}
+  getX={getX}
+  getY={getY}
+  responsiveFontSize={responsiveFontSize}
+  activeIndex={activeIndex}
+  showInterpretation={showInterpretation}
+  interpretationSegments={interpretationSegments}
+  shouldRenderBaseline={shouldRenderBaseline}
+  baselineY={baselineY}
+  baselineStartX={baselineStartX}
+  baselineEndX={baselineEndX}
+  baselineStroke={baselineStroke}
+  baselineDash={baselineDash}
+  baselineOpacity={baselineOpacity}
+  baselineWidth={baselineWidth}
+  temperatureRiseHighlightPath={temperatureRiseHighlightPath}
+/>
+              )}
+
               <motion.svg
                 width={chartWidth}
                 height={scrollableContentHeight}   

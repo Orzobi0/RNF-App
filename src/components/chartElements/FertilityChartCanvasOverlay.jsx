@@ -47,7 +47,6 @@ const rgbaWithAlpha = (color, alpha) => {
   return `rgba(${p.r},${p.g},${p.b},${clamp01(alpha)})`;
 };
 const FertilityChartCanvasOverlay = ({
-  chartRef,
   chartWidth,
   chartHeight,
   scrollableContentHeight,
@@ -60,7 +59,6 @@ const FertilityChartCanvasOverlay = ({
   getX,
   getY,
   responsiveFontSize,
-  visibleRange,
   activeIndex,
   showInterpretation,
   interpretationSegments,
@@ -72,14 +70,10 @@ const FertilityChartCanvasOverlay = ({
   baselineDash,
   baselineOpacity,
   baselineWidth,
-  isScrolling,
-  isFullScreen,
-  visualOrientation,
   temperatureRiseHighlightPath,
 }) => {
   const canvasRef = useRef(null);
-  const [viewportSize, setViewportSize] = useState({ width: 0, height: 0, dpr: 1 });
-  const scrollRef = useRef({ left: 0, top: 0 });
+  const [devicePixelRatio, setDevicePixelRatio] = useState(1);
   const rafRef = useRef(0);
   const bandPaintCacheRef = useRef(new Map());
 
@@ -90,42 +84,39 @@ const FertilityChartCanvasOverlay = ({
     () => points.map((point) => (Number.isFinite(point?.displayTemperature) ? getY(point.displayTemperature) : null)),
     [points, getY]
   );
+  const contentHeight =
+  Number.isFinite(scrollableContentHeight) && scrollableContentHeight > 0
+    ? scrollableContentHeight
+    : chartHeight;
+  const syncCanvasSize = useCallback(() => {
+  const canvas = canvasRef.current;
+  if (!canvas) return;
 
-  const syncViewportSize = useCallback(() => {
-    const node = chartRef?.current;
-    const canvas = canvasRef.current;
-    if (!node || !canvas) return;
-    const width = Math.max(1, node.clientWidth || 1);
-    const height = Math.max(1, node.clientHeight || 1);
-    const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 3));
+  const width = Math.max(1, chartWidth || 1);
+  const height = Math.max(1, contentHeight || 1);
+  const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 3));
 
-    if (canvas.width !== Math.floor(width * dpr) || canvas.height !== Math.floor(height * dpr)) {
-      canvas.width = Math.floor(width * dpr);
-      canvas.height = Math.floor(height * dpr);
-      canvas.style.width = `${width}px`;
-      canvas.style.height = `${height}px`;
-    }
+  if (
+    canvas.width !== Math.floor(width * dpr) ||
+    canvas.height !== Math.floor(height * dpr)
+  ) {
+    canvas.width = Math.floor(width * dpr);
+    canvas.height = Math.floor(height * dpr);
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+  }
 
-    setViewportSize((prev) => {
-      if (prev.width === width && prev.height === height && prev.dpr === dpr) return prev;
-      return { width, height, dpr };
-    });
-  }, [chartRef]);
+  setDevicePixelRatio((prev) => (prev === dpr ? prev : dpr));
+}, [chartWidth, contentHeight]);
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
-    const node = chartRef?.current;
-    if (!canvas || !node || !viewportSize.width || !viewportSize.height) return;
+    if (!canvas || !chartWidth) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const scrollLeft = node.scrollLeft || 0;
-    const scrollTop = node.scrollTop || 0;
-    const { width: viewportW, height: viewportH, dpr } = viewportSize;
-    const contentHeight =
-      Number.isFinite(scrollableContentHeight) && scrollableContentHeight > 0
-        ? scrollableContentHeight
-        : chartHeight;
+    const dpr = Math.max(1, Math.min(devicePixelRatio || 1, 3));
+    const contentW = chartWidth;
     const snap = (value) => Math.round(value * dpr) / dpr;
 
     const areaW = chartWidth - padding.left - padding.right;
@@ -135,13 +126,7 @@ const FertilityChartCanvasOverlay = ({
     }
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, viewportW, viewportH);
-
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(0, 0, viewportW, viewportH);
-    ctx.clip();
-    ctx.translate(-scrollLeft, -scrollTop);
+    ctx.clearRect(0, 0, contentW, contentHeight);
 
     const areaX = padding.left;
     const areaY = padding.top;
@@ -182,8 +167,8 @@ const FertilityChartCanvasOverlay = ({
     });
 
     // Vertical grid limited to visible range
-    const startIndex = Math.max(0, visibleRange?.startIndex ?? 0);
-    const endIndex = Math.min(points.length - 1, visibleRange?.endIndex ?? points.length - 1);
+    const startIndex = 0;
+    const endIndex = Math.min(points.length - 1, points.length - 1);
     for (let i = startIndex; i <= endIndex; i += 1) {
       const x = xs[i];
       if (!Number.isFinite(x)) continue;
@@ -440,89 +425,69 @@ if (showInterpretation && Array.isArray(interpretationSegments)) {
     if (DEBUG) {
       ctx.fillStyle = 'rgba(15,23,42,0.75)';
       ctx.font = '11px monospace';
-      ctx.fillText(`vp ${viewportW}x${viewportH} scroll ${scrollLeft}/${scrollTop}`, scrollLeft + 8, scrollTop + 14);
-      ctx.fillText(`chartH ${chartHeight} contentH ${contentHeight} graphBottomY ${graphBottomY}`, scrollLeft + 8, scrollTop + 28);
+      ctx.fillText(`canvas ${contentW}x${contentHeight}`, 8, 14);
+      ctx.fillText(`chartH ${chartHeight} contentH ${contentHeight} graphBottomY ${graphBottomY}`, 8, 28);
       ctx.beginPath();
-      ctx.moveTo(scrollLeft, graphBottomY);
-      ctx.lineTo(scrollLeft + viewportW, graphBottomY);
+      ctx.moveTo(0, graphBottomY);
+      ctx.lineTo(contentW, graphBottomY);
       ctx.strokeStyle = 'rgba(220,38,38,0.7)';
       ctx.lineWidth = 1;
       ctx.stroke();
     }
-
-    ctx.restore();
   }, [
-    activeIndex,
-    baselineDash,
-    baselineEndX,
-    baselineOpacity,
-    baselineStartX,
-    baselineStroke,
-    baselineWidth,
-    baselineY,
-    chartHeight,
-    chartRef,
-    chartWidth,
-    getY,
-    graphBottomY,
-    interpretationSegments,
-    padding,
-    points,
-    responsiveFontSize,
-    scrollableContentHeight,
-    theme,
-    shouldRenderBaseline,
-    showInterpretation,
-    tempMax,
-    tempMin,
-    tempRange,
-    temperatureRiseHighlightPath,
-    viewportSize,
-    visibleRange,
-    xs,
-    ysTemp,
-  ]);
+  activeIndex,
+  baselineDash,
+  baselineEndX,
+  baselineOpacity,
+  baselineStartX,
+  baselineStroke,
+  baselineWidth,
+  baselineY,
+  chartWidth,
+  contentHeight,
+  devicePixelRatio,
+  getY,
+  graphBottomY,
+  interpretationSegments,
+  padding,
+  points,
+  responsiveFontSize,
+  theme,
+  shouldRenderBaseline,
+  showInterpretation,
+  tempMax,
+  tempMin,
+  tempRange,
+  temperatureRiseHighlightPath,
+  xs,
+  ysTemp,
+]);
 
   useEffect(() => {
-    syncViewportSize();
-    const node = chartRef?.current;
-    if (!node) return undefined;
+  if (typeof window === 'undefined') return undefined;
 
-    const canObserve = typeof window !== 'undefined' && typeof window.ResizeObserver === 'function';
-    let ro;
-    if (canObserve) {
-      ro = new ResizeObserver(syncViewportSize);
-      ro.observe(node);
-    }
+  syncCanvasSize();
 
-    const onResize = () => syncViewportSize();
-    window.addEventListener('resize', onResize);
-    window.addEventListener('orientationchange', onResize);
+  const onResize = () => syncCanvasSize();
+  window.addEventListener('resize', onResize);
+  window.addEventListener('orientationchange', onResize);
 
-    const onScroll = () => {
-      scrollRef.current = { left: node.scrollLeft, top: node.scrollTop };
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(draw);
-    };
-
-    scrollRef.current = { left: node.scrollLeft, top: node.scrollTop };
-    node.addEventListener('scroll', onScroll, { passive: true });
-
-    return () => {
-      if (ro) {
-        ro.disconnect();
-      }
-      window.removeEventListener('resize', onResize);
-      window.removeEventListener('orientationchange', onResize);
-      node.removeEventListener('scroll', onScroll);
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    };
-  }, [chartRef, draw, syncViewportSize]);
-
-  useEffect(() => {
+  return () => {
+    window.removeEventListener('resize', onResize);
+    window.removeEventListener('orientationchange', onResize);
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    rafRef.current = requestAnimationFrame(draw);
-  }, [draw, isScrolling, isFullScreen, visualOrientation]);
+  };
+}, [syncCanvasSize]);
+
+useEffect(() => {
+  if (rafRef.current) cancelAnimationFrame(rafRef.current);
+  rafRef.current = requestAnimationFrame(draw);
+
+  return () => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+  };
+}, [draw]);
+
 
   return (
   <canvas
@@ -535,8 +500,8 @@ if (showInterpretation && Array.isArray(interpretationSegments)) {
       // canvas overlay solo render, interacción en SVG para evitar problemas de precisión en eventos pointer con zoom o pantallas de alta densidad
       pointerEvents: 'none',
     }}
-    width={Math.max(1, Math.floor(viewportSize.width * viewportSize.dpr))}
-    height={Math.max(1, Math.floor(viewportSize.height * viewportSize.dpr))}
+    width={Math.max(1, Math.floor(chartWidth * devicePixelRatio))}
+    height={Math.max(1, Math.floor(contentHeight * devicePixelRatio))}
     data-chart-canvas-overlay="true"
     aria-hidden="true"
   />
