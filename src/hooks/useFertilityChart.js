@@ -1008,7 +1008,7 @@ const basePadding = {
       )
     : 12,
   right: isFullScreen
-    ? computedRight + cappedRotatedEndInset
+    ? computedRight + cappedRotatedEndInset + (isLandscapeVisual ? 8 : 0)
     : 50,
   bottom: Math.max(0, bottomRowsExact - 1),
   left: isFullScreen
