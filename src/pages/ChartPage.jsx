@@ -1537,8 +1537,9 @@ const rotatedDrawerStyle = applyRotation
 
         <Dialog open={showForm} onOpenChange={handleFormOpenChange}>
           <DialogContent
+            unstyled
             hideClose
-            className="bg-transparent border-none p-0 text-gray-800 w-[90vw] sm:w-auto max-w-md sm:max-w-lg md:max-w-xl max-h-[85vh] overflow-y-auto"
+            className="bg-transparent border-none p-0 text-gray-800 w-[96vw] max-w-2xl h-[92dvh] max-h-[92dvh] overflow-hidden shadow-none"
             onInteractOutside={(event) => {
               if (Date.now() < keepFormOpenUntilRef.current) {
                 event.preventDefault();

@@ -22,40 +22,33 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 );
 
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    const swUrl = new URL('sw.js', import.meta.env.BASE_URL);
+  const swUrl = `${import.meta.env.BASE_URL}sw.js`;
 
-    // Si cambia el SW controlador, recargamos una sola vez
-    let refreshing = false;
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (refreshing) return;
-      refreshing = true;
-      window.location.reload();
-    });
-
-    navigator.serviceWorker
-      .register(swUrl, { updateViaCache: 'none' })
-      .then((registration) => {
-        const tryUpdate = () => registration.update().catch(() => {});
-
-        // Al cargar
-        tryUpdate();
-
-        // Al volver a primer plano (iOS lo agradece muchísimo)
-        document.addEventListener('visibilitychange', () => {
-          if (document.visibilityState === 'visible') tryUpdate();
-        });
-
-        // Al volver el foco a la ventana
-        window.addEventListener('focus', tryUpdate);
-
-        // Mientras esté abierta (cada 10 min)
-        setInterval(tryUpdate, 10 * 60 * 1000);
-      })
-      .catch((error) => {
-        console.error('Service worker registration failed:', error);
-      });
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (refreshing) return;
+    refreshing = true;
+    window.location.reload();
   });
+
+  navigator.serviceWorker
+    .register(swUrl, { updateViaCache: 'none' })
+    .then((registration) => {
+      const tryUpdate = () => registration.update().catch(() => {});
+
+      tryUpdate();
+
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') tryUpdate();
+      });
+
+      window.addEventListener('focus', tryUpdate);
+
+      setInterval(tryUpdate, 10 * 60 * 1000);
+    })
+    .catch((error) => {
+      console.error('Service worker registration failed:', error);
+    });
 }
 
 
