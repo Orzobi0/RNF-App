@@ -3336,26 +3336,41 @@ const displayCycles = [...cycles].sort((a, b) => {
   );
 
   const handleSaveCpm = useCallback(async () => {
-    const selectedMode = cpmSelectionDraft;
+  const selectedMode = cpmSelectionDraft;
 
-    if (selectedMode === 'manual') {
-      const saved = await handleSaveManualCpm();
-      if (!saved) {
-        return;
-      }
-
-      setCpmSelection('manual');
-      setCpmSelectionDraft('manual');
-      await persistCpmMode('manual');
+  if (selectedMode === 'manual') {
+    const saved = await handleSaveManualCpm();
+    if (!saved) {
       return;
     }
 
-    const nextMode = ['auto', 'none'].includes(selectedMode) ? selectedMode : 'auto';
-    setCpmSelection(nextMode);
-    setCpmSelectionDraft(nextMode);
-    await persistCpmMode(nextMode);
-    handleCloseCpmDialog();
-  }, [cpmSelectionDraft, handleCloseCpmDialog, handleSaveManualCpm, persistCpmMode]);
+    setCpmSelection('manual');
+    setCpmSelectionDraft('manual');
+    await persistCpmMode('manual');
+    return;
+  }
+
+  const nextMode = ['auto', 'none'].includes(selectedMode) ? selectedMode : 'auto';
+
+  setCpmSelection(nextMode);
+  setCpmSelectionDraft(nextMode);
+  await persistCpmMode(nextMode);
+  handleCloseCpmDialog();
+
+  toast({
+    title: 'CPM actualizado',
+    description:
+      nextMode === 'auto'
+        ? 'Ahora se usa el cálculo automático del CPM.'
+        : 'El CPM ya no se tendrá en cuenta.',
+  });
+}, [
+  cpmSelectionDraft,
+  handleCloseCpmDialog,
+  handleSaveManualCpm,
+  persistCpmMode,
+  toast,
+]);
 
   const handleOpenT8Dialog = useCallback(() => {
   const hasManualBase =
@@ -3597,26 +3612,41 @@ const displayCycles = [...cycles].sort((a, b) => {
   );
 
   const handleSaveT8 = useCallback(async () => {
-    const selectedMode = t8SelectionDraft;
+  const selectedMode = t8SelectionDraft;
 
-    if (selectedMode === 'manual') {
-      const saved = await handleSaveManualT8();
-      if (!saved) {
-        return;
-      }
-
-      setT8Selection('manual');
-      setT8SelectionDraft('manual');
-      await persistT8Mode('manual');
+  if (selectedMode === 'manual') {
+    const saved = await handleSaveManualT8();
+    if (!saved) {
       return;
     }
 
-    const nextMode = ['auto', 'none'].includes(selectedMode) ? selectedMode : 'auto';
-    setT8Selection(nextMode);
-    setT8SelectionDraft(nextMode);
-    await persistT8Mode(nextMode);
-    handleCloseT8Dialog();
-  }, [handleCloseT8Dialog, handleSaveManualT8, persistT8Mode, t8SelectionDraft]);
+    setT8Selection('manual');
+    setT8SelectionDraft('manual');
+    await persistT8Mode('manual');
+    return;
+  }
+
+  const nextMode = ['auto', 'none'].includes(selectedMode) ? selectedMode : 'auto';
+
+  setT8Selection(nextMode);
+  setT8SelectionDraft(nextMode);
+  await persistT8Mode(nextMode);
+  handleCloseT8Dialog();
+
+  toast({
+    title: 'T-8 actualizado',
+    description:
+      nextMode === 'auto'
+        ? 'Ahora se usa el cálculo automático del T-8.'
+        : 'El T-8 ya no se tendrá en cuenta.',
+  });
+}, [
+  handleCloseT8Dialog,
+  handleSaveManualT8,
+  persistT8Mode,
+  t8SelectionDraft,
+  toast,
+]);
 
   const resetStartDateFlow = useCallback(() => {
     setPendingStartDate(null);
