@@ -206,6 +206,7 @@ const ChartPoints = ({
   manualModeEnabled = false,
   manualBaselineTemp = null,
   isPointEligibleForManualMode = null,
+  exportMode = false,
 }) => {
   const normalizeTemp2 = useCallback((value) => {
     const numeric = Number(value);
@@ -235,7 +236,7 @@ const ChartPoints = ({
       }
     }
   };
-
+  const rowLineHeight = responsiveFontSize(0.95);
   // --- Filas ancladas al final del área de gráfico (graphBottomY) y estiradas hasta abajo ---
   const rowsTopY = graphBottomY; // el “techo” de las filas es justo donde acaba la gráfica
   const obsRowIndex = isFullScreen ? 9 : 7.5;
@@ -243,7 +244,8 @@ const ChartPoints = ({
   const relationsRowIndex = showRelationsRow
     ? obsRowIndex + (isFullScreen ? 2 : 1.5)
     : null;
-  const baseRowCount = obsRowIndex + halfBlock;
+  const exportExtraRows = exportMode ? 6 : 0;
+  const baseRowCount = obsRowIndex + halfBlock + exportExtraRows;
   // altura ideal basada en el layout original para no comprimir filas existentes
   const autoRowH = Math.max(1, Math.floor(rowsZoneHeight / baseRowCount));
   // no reducimos por debajo del tamaño base (legibilidad), pero sí estiramos
@@ -252,11 +254,23 @@ const ChartPoints = ({
   const dateRowY = rowsTopY + rowH * 1;
   const cycleDayRowY = rowsTopY + rowH * 2;
   const symbolRowYBase = rowsTopY + rowH * 3;
-  const mucusSensationRowY = rowsTopY + rowH * (isFullScreen ? 5 : 4.5);
-  const mucusAppearanceRowY = rowsTopY + rowH * (isFullScreen ? 7 : 6);
-  const observationsRowY = rowsTopY + rowH * (isFullScreen ? 9 : 7.5);
+  const exportTextBlockHeight = rowLineHeight * 3;
+  const exportSensationBlockTop = rowsTopY + rowH * (isFullScreen ? 4 : 3.5);
+  const exportAppearanceBlockTop = exportSensationBlockTop + exportTextBlockHeight;
+  const exportObservationBlockTop = exportAppearanceBlockTop + exportTextBlockHeight;
+  const mucusSensationRowY = exportMode
+    ? exportSensationBlockTop + exportTextBlockHeight / 2
+    : rowsTopY + rowH * (isFullScreen ? 5 : 4.5);
+  const mucusAppearanceRowY = exportMode
+    ? exportAppearanceBlockTop + exportTextBlockHeight / 2
+    : rowsTopY + rowH * (isFullScreen ? 7 : 6);
+  const observationsRowY = exportMode
+    ? exportObservationBlockTop + exportTextBlockHeight / 2
+    : rowsTopY + rowH * (isFullScreen ? 9 : 7.5);
   const relationsRowY = showRelationsRow
-    ? observationsRowY + rowH * (isFullScreen ? 2 : 1.5)
+    ? (exportMode
+      ? exportObservationBlockTop + exportTextBlockHeight + rowH
+      : observationsRowY + rowH * (isFullScreen ? 2 : 1.5))
     : null;
 
   const totalPoints = Array.isArray(data) ? data.length : 0;
@@ -278,10 +292,8 @@ const ChartPoints = ({
   const measureTextWidth = useMemo(() => createTextMeasurer(), []);
   const textLayoutCacheRef = useRef(new Map());
   const cellWidth = totalPoints > 0 ? rowWidth / totalPoints : rowWidth;
-  const maxWords = 2;
   const cellTextPadding = Math.min(12, Math.max(4, cellWidth * 0.12));
   const availableTextWidth = Math.max(0, cellWidth - cellTextPadding * 2);
-  const rowLineHeight = responsiveFontSize(0.95);
   const baseSensationFontSize = responsiveFontSize(0.9);
   const baseAppearanceFontSize = responsiveFontSize(0.9);
   const baseObservationFontSize = responsiveFontSize(0.9);
@@ -606,17 +618,23 @@ const fallbackIndices = Array.isArray(ovulationDetails?.highSequenceIndices)
 
 
         // Límites de texto
-        const sensText = isFullScreen
-  ? limitWords(point.mucus_sensation, maxWords, isFuture ? '' : '–')
-  : point.mucus_sensation;
+      const sensText = exportMode
+          ? (point.mucus_sensation ?? '')
+          : isFullScreen
+            ? limitWords(point.mucus_sensation, 2, isFuture ? '' : '–')
+            : point.mucus_sensation;
 
-const aparText = isFullScreen
-  ? limitWords(point.mucus_appearance, maxWords, isFuture ? '' : '–')
-  : point.mucus_appearance;
+        const aparText = exportMode
+          ? (point.mucus_appearance ?? '')
+          : isFullScreen
+            ? limitWords(point.mucus_appearance, 2, isFuture ? '' : '–')
+            : point.mucus_appearance;
 
-const obsText = isFullScreen
-  ? limitWords(point.observations, maxWords, '')
-  : point.observations;
+        const obsText = exportMode
+          ? (point.observations ?? '')
+          : isFullScreen
+            ? limitWords(point.observations, 2, '')
+            : point.observations;
 
 const pointKey = `${point.isoDate || point.id || index}`;
 const sensRes = getCachedLines(
@@ -658,9 +676,20 @@ const observationFontSize = obsRes.fontSize;
 
         const centeredY = (baseY, lines) => baseY - ((lines - 1) * rowLineHeight) / 2;
 
-        const sensY = centeredY(mucusSensationRowY, sensCount);
-        const aparY = centeredY(mucusAppearanceRowY, aparCount);
-        const obsY  = centeredY(observationsRowY, obsCount);
+        const centeredYInBlock = (blockTop, lines) => {
+          const usedHeight = lines * rowLineHeight;
+          return blockTop + Math.max(0, (exportTextBlockHeight - usedHeight) / 2) + rowLineHeight * 0.5;
+        };
+
+        const sensY = exportMode
+          ? centeredYInBlock(exportSensationBlockTop, sensCount)
+          : centeredY(mucusSensationRowY, sensCount);
+        const aparY = exportMode
+          ? centeredYInBlock(exportAppearanceBlockTop, aparCount)
+          : centeredY(mucusAppearanceRowY, aparCount);
+        const obsY  = exportMode
+          ? centeredYInBlock(exportObservationBlockTop, obsCount)
+          : centeredY(observationsRowY, obsCount);
 
         return (
           <MotionG

@@ -22,6 +22,7 @@ const ChartLeftLegend = ({
   graphBottomY,
   rowsZoneHeight,
   showRelationsRow = false,
+  exportMode = false,
 }) => {
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -51,23 +52,43 @@ const ChartLeftLegend = ({
   const relationsRowIndex = showRelationsRow
     ? obsRowIndex + (isFullScreen ? 2 : 1.5)
     : null;
-  const baseRowCount = obsRowIndex + halfBlock;
+  const exportExtraRows = exportMode ? 6 : 0;
+  const baseRowCount = obsRowIndex + halfBlock + exportExtraRows;
   const autoRowH = Math.max(1, Math.floor(rowsZoneHeight / baseRowCount));
   const rowH = Math.max(textRowHeight, autoRowH);
+  const rowLineHeight = responsiveFontSize(0.95);
+  const exportTextBlockHeight = rowLineHeight * 3;
+  const exportSensationCenterY = rowsTopY + rowH * (isFullScreen ? 4 : 3.5) + exportTextBlockHeight / 2;
+  const exportAppearanceCenterY = exportSensationCenterY + exportTextBlockHeight;
+  const exportObservationCenterY = exportAppearanceCenterY + exportTextBlockHeight;
   const legendRows = useMemo(() => {
     const baseRows = [
-      { label: 'Fecha', row: 1, color: isFullScreen ? '#374151' : '#374151', icon: null },
-      { label: 'Día', row: 2, color: isFullScreen ? '#374151' : '#374151', icon: null },
-      { label: 'Símbolo', row: 3, color: isFullScreen ? '#374151' : '#374151', icon: null },
-      { label: 'Sens.', row: isFullScreen ? 5 : 4.5, color: SENSATION_COLOR, icon: { type: 'text', value: '◊' } },
-      { label: 'Apar.', row: isFullScreen ? 7 : 6, color: APPEARANCE_COLOR, icon: { type: 'text', value: '○' } },
-      { label: 'Obs.', row: isFullScreen ? 9 : 7.5, color: OBSERVATION_COLOR, icon: { type: 'text', value: '✦' } },
+      { label: 'Fecha', y: rowsTopY + rowH * 1, color: isFullScreen ? '#374151' : '#374151', icon: null },
+      { label: 'Día', y: rowsTopY + rowH * 2, color: isFullScreen ? '#374151' : '#374151', icon: null },
+      { label: 'Símbolo', y: rowsTopY + rowH * 3, color: isFullScreen ? '#374151' : '#374151', icon: null },
+      { label: 'Sens.', y: exportMode ? exportSensationCenterY : rowsTopY + rowH * (isFullScreen ? 5 : 4.5), color: SENSATION_COLOR, icon: { type: 'text', value: '◊' } },
+      { label: 'Apar.', y: exportMode ? exportAppearanceCenterY : rowsTopY + rowH * (isFullScreen ? 7 : 6), color: APPEARANCE_COLOR, icon: { type: 'text', value: '○' } },
+      { label: 'Obs.', y: exportMode ? exportObservationCenterY : rowsTopY + rowH * (isFullScreen ? 9 : 7.5), color: OBSERVATION_COLOR, icon: { type: 'text', value: '✦' } },
     ];
     if (showRelationsRow && relationsRowIndex != null) {
-      baseRows.push({ label: 'RS', row: relationsRowIndex, color: '#ec003c', icon: { type: 'heart' } });
+      const relationsY = exportMode
+        ? exportObservationCenterY + exportTextBlockHeight / 2 + rowH
+        : rowsTopY + rowH * relationsRowIndex;
+      baseRows.push({ label: 'RS', y: relationsY, color: '#ec003c', icon: { type: 'heart' } });
     }
     return baseRows;
-  }, [isFullScreen, relationsRowIndex, showRelationsRow]);
+  }, [
+    exportAppearanceCenterY,
+    exportMode,
+    exportObservationCenterY,
+    exportSensationCenterY,
+    exportTextBlockHeight,
+    isFullScreen,
+    relationsRowIndex,
+    rowH,
+    rowsTopY,
+    showRelationsRow,
+  ]);
   const MotionGroup = reduceMotion ? 'g' : motion.g;
   const motionGroupProps = reduceMotion ? {} : { variants: itemVariants };
   return (
@@ -121,9 +142,9 @@ const ChartLeftLegend = ({
 
       {/* Etiquetas de filas con diseño mejorado */}
       <MotionGroup {...motionGroupProps}>
-        {legendRows.map(({ label, row, color, icon }) => {
+        {legendRows.map(({ label, y, color, icon }) => {
           const iconX = padding.left - responsiveFontSize(2.8);
-          const iconY = rowsTopY + rowH * row;
+          const iconY = y;
           const iconSize = responsiveFontSize(0.95);
           return (
           <g key={label}>
@@ -158,7 +179,7 @@ const ChartLeftLegend = ({
             )}            
             <text
               x={padding.left - responsiveFontSize(0.8)}
-              y={rowsTopY + rowH * row}
+              y={y}
               textAnchor="end"
               fontSize={responsiveFontSize(1.05)}
               fontWeight="800"

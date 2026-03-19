@@ -596,7 +596,7 @@ const overlapDays = 0;
   entries: segmentEntries,
   widthPx,
   heightPx,
-  pixelRatio: 1.75,
+  pixelRatio: 2,
   visibleDays: segmentEntries.length,
   initialScrollIndex: 0,
 });

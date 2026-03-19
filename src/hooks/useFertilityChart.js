@@ -965,7 +965,9 @@ if (isFullScreen) {
       const halfBlock = isFullScreen ? 1 : 0.75;
       const baseBottomRowsExact = Math.round(textRowHeight * (obsRowIndex + halfBlock));
       const relationsBottomRowsExact = Math.round(textRowHeight * (relationsRowIndex + halfBlock));
-      const bottomRowsExact = baseBottomRowsExact;
+      const exportExtraTextRows = exportMode ? 6 : 0;
+      const exportExtraBottomPx = exportExtraTextRows * textRowHeight;
+      const bottomRowsExact = baseBottomRowsExact + exportExtraBottomPx;
 
       // Cuando hay fila de RS añadimos altura extra equivalente al espacio adicional de filas
       // inferior para que la zona de temperaturas no se comprima y el extra sea scrollable.
@@ -973,10 +975,10 @@ if (isFullScreen) {
         ? Math.max(0, relationsBottomRowsExact - baseBottomRowsExact)
         : 0;
       const minGraphArea = Math.max(
-        viewportHeight - baseBottomRowsExact,
+        viewportHeight - bottomRowsExact,
         textRowHeight * (isFullScreen ? 10 : 8)
       );
-      const chartContentHeight = baseBottomRowsExact + Math.max(minGraphArea, 0);
+      const chartContentHeight = bottomRowsExact + Math.max(minGraphArea, 0);
       const scrollableContentHeight = chartContentHeight + extraScrollableHeight;
 
 const effectiveRotatedStartInset = Math.max(0, Number(rotatedSafeStartInsetPx) || 0);

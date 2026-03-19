@@ -1614,6 +1614,7 @@ const rotationWrapperStyle = rotationStageStyle
                     graphBottomY={graphBottomY}
                     rowsZoneHeight={rowsZoneHeight}
                     showRelationsRow={showRelationsRow}
+                    exportMode={exportMode}
                   />
                 </div>
               )}
@@ -1887,6 +1888,7 @@ const rotationWrapperStyle = rotationStageStyle
             manualModeEnabled={manualModeEnabled}
             manualBaselineTemp={manualBaselineTemp}
             isPointEligibleForManualMode={isPointEligibleForManualMode}
+            exportMode={exportMode}
           />
 
         </motion.svg>

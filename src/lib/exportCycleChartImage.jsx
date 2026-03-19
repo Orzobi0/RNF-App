@@ -342,7 +342,7 @@ export async function renderCycleChartToPng({
   entries,
   widthPx,
   heightPx,
- pixelRatio = 1.5,
+  pixelRatio = 2.2,
   visibleDays,
   initialScrollIndex = 0,
 }) {
