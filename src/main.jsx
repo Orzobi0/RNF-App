@@ -1,7 +1,7 @@
-
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from '@/App';
+import { initGlobalErrorTracking, trackEvent, trackException } from '@/lib/analytics';
 import '@/index.css';
 
 // Canonical host: evita que alguien abra la app desde *.firebaseapp.com
@@ -14,6 +14,13 @@ if (typeof window !== 'undefined') {
     window.location.replace(url.toString());
   }
 }
+
+void trackEvent('app_boot', {
+  app_section: 'web',
+  env: import.meta.env.MODE,
+});
+
+initGlobalErrorTracking();
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
@@ -48,7 +55,9 @@ if ('serviceWorker' in navigator) {
     })
     .catch((error) => {
       console.error('Service worker registration failed:', error);
+
+      void trackException(error, {
+        error_type: 'service_worker_register',
+      });
     });
 }
-
-

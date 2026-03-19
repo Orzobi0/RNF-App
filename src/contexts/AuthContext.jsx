@@ -15,6 +15,7 @@ import {
 import { deleteField, doc, getDoc, setDoc, getDocFromCache } from 'firebase/firestore';
 import { useToast } from '@/components/ui/use-toast';
 import normalizeBoolean from '@/lib/normalizeBoolean';
+import { trackEvent, trackLogin, trackSignUp } from '@/lib/analytics';
 
 const AuthContext = createContext(null);
 
@@ -262,38 +263,66 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = async (email, password) => {
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
-    } catch (error) {
-      toast({ title: 'Error al iniciar sesión', description: error.message, variant: 'destructive' });
-      throw error;
-    }
-  };
+  try {
+    await signInWithEmailAndPassword(auth, email, password);
+
+    void trackLogin('email');
+  } catch (error) {
+    void trackEvent('auth_error', {
+      auth_action: 'login',
+      auth_method: 'email',
+      error_code: String(error?.code || 'unknown').slice(0, 50),
+    });
+
+    toast({ title: 'Error al iniciar sesión', description: error.message, variant: 'destructive' });
+    throw error;
+  }
+};
 
   const register = async (email, password) => {
-    try {
-      const { user } = await createUserWithEmailAndPassword(auth, email, password);
-      const actionCodeSettings = {
-        url: `${window.location.origin}/auth`,
-      };
-      await sendEmailVerification(user, actionCodeSettings);
-      await signOut(auth);
-    } catch (error) {
-      toast({ title: 'Error al registrarse', description: error.message, variant: 'destructive' });
-      throw error;
-    }
-  };
+  try {
+    const { user } = await createUserWithEmailAndPassword(auth, email, password);
+    const actionCodeSettings = {
+      url: `${window.location.origin}/auth`,
+    };
+
+    await sendEmailVerification(user, actionCodeSettings);
+
+    void trackSignUp('email');
+
+    await signOut(auth);
+  } catch (error) {
+    void trackEvent('auth_error', {
+      auth_action: 'register',
+      auth_method: 'email',
+      error_code: String(error?.code || 'unknown').slice(0, 50),
+    });
+
+    toast({ title: 'Error al registrarse', description: error.message, variant: 'destructive' });
+    throw error;
+  }
+};
 
   const resetPassword = async (email) => {
-    try {
-      await sendPasswordResetEmail(auth, email, {
-        url: `${window.location.origin}/auth`,
-      });
-    } catch (error) {
-      toast({ title: 'Error al restablecer contraseña', description: error.message, variant: 'destructive' });
-      throw error;
-    }
-  };
+  try {
+    await sendPasswordResetEmail(auth, email, {
+      url: `${window.location.origin}/auth`,
+    });
+
+    void trackEvent('password_reset_request', {
+      auth_method: 'email',
+    });
+  } catch (error) {
+    void trackEvent('auth_error', {
+      auth_action: 'reset_password',
+      auth_method: 'email',
+      error_code: String(error?.code || 'unknown').slice(0, 50),
+    });
+
+    toast({ title: 'Error al restablecer contraseña', description: error.message, variant: 'destructive' });
+    throw error;
+  }
+};
 
   const logout = async () => {
     try {

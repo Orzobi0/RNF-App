@@ -149,6 +149,7 @@ useEffect(() => {
     handlePointInteraction,
     handleToggleIgnore,
     responsiveFontSize,
+    bottomRowsResponsiveFontSize,
     clearActivePoint,
     baselineTemp,
     baselineStartIndex,
@@ -1608,12 +1609,14 @@ const rotationWrapperStyle = rotationStageStyle
                     tempRange={tempRange}
                     getY={getY}
                     responsiveFontSize={responsiveFontSize}
+                    bottomRowsResponsiveFontSize={bottomRowsResponsiveFontSize}
                     textRowHeight={textRowHeight}
                     isFullScreen={isFullScreen}
                     reduceMotion={effectiveReduceMotion}
                     graphBottomY={graphBottomY}
                     rowsZoneHeight={rowsZoneHeight}
                     showRelationsRow={showRelationsRow}
+                    exportMode={exportMode}
                   />
                 </div>
               )}
@@ -1860,6 +1863,7 @@ const rotationWrapperStyle = rotationStageStyle
             isFullScreen={isFullScreen}
             orientation={visualOrientation}
             responsiveFontSize={responsiveFontSize}
+            bottomRowsResponsiveFontSize={bottomRowsResponsiveFontSize}
             onPointInteraction={handlePointInteractionSafe}
             clearActivePoint={clearActivePointSafe}
             activePoint={activePoint}
@@ -1887,6 +1891,7 @@ const rotationWrapperStyle = rotationStageStyle
             manualModeEnabled={manualModeEnabled}
             manualBaselineTemp={manualBaselineTemp}
             isPointEligibleForManualMode={isPointEligibleForManualMode}
+            exportMode={exportMode}
           />
 
         </motion.svg>

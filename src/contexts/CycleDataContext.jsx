@@ -37,6 +37,7 @@ import {
 import { getCachedCycleData, saveCycleDataToCache, clearCycleDataCache } from '@/lib/cycleCache';
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { readBbtFromHealthConnect } from "@/lib/healthConnectSync";
+import { trackEvent } from '@/lib/analytics';
 
 
 const CycleDataContext = createContext(null);
@@ -426,6 +427,7 @@ export const CycleDataProvider = ({ children }) => {
   const addOrUpdateDataPoint = useCallback(
     async (newData, editingRecord, targetCycleId = null) => {
       const cycleIdToUse = targetCycleId ?? currentCycle.id;
+      const isEditing = Boolean(editingRecord);
       if (!user?.uid || !cycleIdToUse) {
         console.error('User or cycle id is missing');
         throw new Error('User or cycle id is missing');
@@ -596,11 +598,26 @@ export const CycleDataProvider = ({ children }) => {
             updateEntryState(cycleIdToUse, savedEntryId, recordPayload, newData.isoDate);
           }
         }
-
+        void trackEvent('cycle_record_save', {
+  action: isEditing ? 'update' : 'create',
+  cycle_scope: cycleIdToUse === currentCycle.id ? 'current' : 'archived',
+  has_temperature: hasTemperatureData,
+  has_mucus:
+    mucusSensationValue !== '' || mucusAppearanceValue !== '',
+  has_relations: hadRelationsValue,
+  has_peak: isPeakMarked,
+  has_observations: observationsValue !== '',
+  measurement_count: validMeasurements.length,
+});
         loadCycleData({ silent: true }).catch((error) =>
           console.error('Background cycle data refresh failed after save:', error)
         );
       } catch (error) {
+        void trackEvent('cycle_record_save_error', {
+  action: isEditing ? 'update' : 'create',
+  cycle_scope: cycleIdToUse === currentCycle.id ? 'current' : 'archived',
+  error_code: String(error?.code || 'unknown').slice(0, 50),
+});
         console.error('Error adding/updating data point:', error);
         throw error;
       } finally {
@@ -628,8 +645,15 @@ export const CycleDataProvider = ({ children }) => {
       setIsLoading(true);
       try {
         await deleteCycleEntryDB(user.uid, cycleIdToUse, recordId);
+        void trackEvent('cycle_record_delete', {
+  cycle_scope: cycleIdToUse === currentCycle.id ? 'current' : 'archived',
+});
         await loadCycleData({ silent: true });
       } catch (error) {
+        void trackEvent('cycle_record_delete_error', {
+  cycle_scope: cycleIdToUse === currentCycle.id ? 'current' : 'archived',
+  error_code: String(error?.code || 'unknown').slice(0, 50),
+});
         console.error('Error deleting record:', error);
         throw error;
       } finally {
