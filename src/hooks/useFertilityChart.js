@@ -917,27 +917,10 @@ if (isFullScreen) {
       
       const clamp = (min, value, max) => Math.min(max, Math.max(min, value));
 
-      // En export queremos letras legibles y que escalen según el "ancho por día"
-      // (si renderizas 35 días en un contenedor ancho, debe subir el tamaño).
-      const baseFontSize = exportMode ? 11 : 9;
+      const baseFontSize = 9;
 
       const responsiveFontSize = (multiplier = 1) => {
-        // Export: escala por ancho disponible por día (no por nº total de puntos)
-        if (exportMode) {
-          const vw = (dimensions.viewportWidth || viewportWidth || chartWidth || 1);
-          const perDayPx = vw / Math.max(Number(visibleDays) || 1, 1);
-
-          // Ajusta estos 3 números si quieres más/menos:
-          // - 0.33: agresividad (más alto => letras más grandes)
-          // - 11..15: límites base en px (antes de multiplier)
-          const base = clamp(11, perDayPx * 0.33, 15);
-          const scaled = base * multiplier;
-
-          // Límite final para que no se desmadre en tramos cortos
-          return clamp(10, scaled, 18);
-        }
-
-        // Normal (app): comportamiento actual
+        // General (app-like): mantener comportamiento de la app también en export.
         if (!isFullScreen) return baseFontSize * multiplier;
         const smallerDim = Math.min(chartWidth, viewportHeight);
         return Math.max(
@@ -948,12 +931,22 @@ if (isFullScreen) {
           )
         );
       };
+      const bottomRowsResponsiveFontSize = (multiplier = 1) => {
+        if (exportMode) {
+          const vw = dimensions.viewportWidth || viewportWidth || chartWidth || 1;
+          const perDayPx = vw / Math.max(Number(visibleDays) || 1, 1);
+          const base = clamp(11, perDayPx * 0.33, 15);
+          const scaled = base * multiplier;
+          return clamp(10, scaled, 18);
+        }
 
+        return responsiveFontSize(multiplier);
+      };
       // In pantalla completa damos un poco más de altura a cada
       // fila de texto para permitir mostrar palabras más largas
       // en orientación vertical.
       const textRowHeight = Math.round(
-        responsiveFontSize(isFullScreen ? (exportMode ? 1.45 : 1.6) : 2)
+        bottomRowsResponsiveFontSize(isFullScreen ? (exportMode ? 1.45 : 1.6) : 2)
       );
       const isLandscapeVisual = forceLandscape || orientation === 'landscape';
       const isDenseExport = exportMode && isFullScreen && isLandscapeVisual && visibleDays >= 28;
@@ -1001,7 +994,8 @@ const computedLeft = isFullScreen
   const cappedRotatedEndInset = isLandscapeVisual
    ? Math.min(effectiveRotatedEndInset, 12)
    : effectiveRotatedEndInset;
-
+const fullScreenRightPadding = computedRight + cappedRotatedEndInset + (isLandscapeVisual ? 8 : 0);
+const minRightLegendSpace = isFullScreen && isLandscapeVisual ? 36 : 0;
 const basePadding = {
   top: isFullScreen
     ? Math.max(
@@ -1010,21 +1004,14 @@ const basePadding = {
       )
     : 12,
   right: isFullScreen
-    ? computedRight + cappedRotatedEndInset + (isLandscapeVisual ? 8 : 0)
+    ? Math.max(fullScreenRightPadding, minRightLegendSpace)
     : 50,
   bottom: Math.max(0, bottomRowsExact - 1),
   left: isFullScreen
     ? computedLeft + effectiveRotatedStartInset
     : 50,
 };
-      // ✅ Solo export: menos padding lateral = más ancho útil por día (sin deformar)
-const padding = isDenseExport
-  ? {
-      ...basePadding,
-      left: Math.max(34, Math.round(basePadding.left * 0.78)),
-      right: Math.max(18, Math.round(basePadding.right * 0.60)),
-    }
-  : basePadding;
+      const padding = basePadding;
       
       // --- Levanta el suelo del área del gráfico (sin mover filas) ---
       // Ajusta cuántas "filas" quieres ganar de aire bajo el gráfico:
@@ -1246,6 +1233,7 @@ const dy = adjustedClientY - cy;
         clearActivePoint,
         handleToggleIgnore,
         responsiveFontSize,
+        bottomRowsResponsiveFontSize,
         baselineTemp,
         baselineStartIndex,
         baselineIndices,

@@ -180,6 +180,7 @@ const ChartPoints = ({
   isFullScreen,
   orientation,
   responsiveFontSize,
+  bottomRowsResponsiveFontSize = responsiveFontSize,
   onPointInteraction,
   clearActivePoint,
   activePoint,
@@ -236,7 +237,7 @@ const ChartPoints = ({
       }
     }
   };
-  const rowLineHeight = responsiveFontSize(0.95);
+  const rowLineHeight = bottomRowsResponsiveFontSize(0.95);
   // --- Filas ancladas al final del área de gráfico (graphBottomY) y estiradas hasta abajo ---
   const rowsTopY = graphBottomY; // el “techo” de las filas es justo donde acaba la gráfica
   const obsRowIndex = isFullScreen ? 9 : 7.5;
@@ -294,12 +295,12 @@ const ChartPoints = ({
   const cellWidth = totalPoints > 0 ? rowWidth / totalPoints : rowWidth;
   const cellTextPadding = Math.min(12, Math.max(4, cellWidth * 0.12));
   const availableTextWidth = Math.max(0, cellWidth - cellTextPadding * 2);
-  const baseSensationFontSize = responsiveFontSize(0.9);
-  const baseAppearanceFontSize = responsiveFontSize(0.9);
-  const baseObservationFontSize = responsiveFontSize(0.9);
-  const smallSensationFontSize = responsiveFontSize(0.8);
-  const smallAppearanceFontSize = responsiveFontSize(0.8);
-  const smallObservationFontSize = responsiveFontSize(0.8);
+  const baseSensationFontSize = bottomRowsResponsiveFontSize(0.9);
+  const baseAppearanceFontSize = bottomRowsResponsiveFontSize(0.9);
+  const baseObservationFontSize = bottomRowsResponsiveFontSize(0.9);
+  const smallSensationFontSize = bottomRowsResponsiveFontSize(0.8);
+  const smallAppearanceFontSize = bottomRowsResponsiveFontSize(0.8);
+  const smallObservationFontSize = bottomRowsResponsiveFontSize(0.8);
   const labelStep = useMemo(() => {
     if (!autoLabelStep || totalPoints < 2) return 1;
     const dayWidth = Math.abs(getX(1) - getX(0));
@@ -1110,6 +1111,7 @@ const areEqual = (prev, next) => {
   if (prev.isFullScreen !== next.isFullScreen) return false;
   if (prev.orientation !== next.orientation) return false;
   if (prev.responsiveFontSize !== next.responsiveFontSize) return false;
+  if (prev.bottomRowsResponsiveFontSize !== next.bottomRowsResponsiveFontSize) return false;
   if (prev.onPointInteraction !== next.onPointInteraction) return false;
   if (prev.clearActivePoint !== next.clearActivePoint) return false;
   if (prev.chartHeight !== next.chartHeight || prev.chartWidth !== next.chartWidth) return false;

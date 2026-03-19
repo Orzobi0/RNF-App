@@ -16,6 +16,7 @@ const ChartLeftLegend = ({
   tempRange,
   getY,
   responsiveFontSize,
+  bottomRowsResponsiveFontSize = responsiveFontSize,
   textRowHeight,
   isFullScreen,
   reduceMotion = false,
@@ -56,7 +57,7 @@ const ChartLeftLegend = ({
   const baseRowCount = obsRowIndex + halfBlock + exportExtraRows;
   const autoRowH = Math.max(1, Math.floor(rowsZoneHeight / baseRowCount));
   const rowH = Math.max(textRowHeight, autoRowH);
-  const rowLineHeight = responsiveFontSize(0.95);
+  const rowLineHeight = bottomRowsResponsiveFontSize(0.95);
   const exportTextBlockHeight = rowLineHeight * 3;
   const exportSensationCenterY = rowsTopY + rowH * (isFullScreen ? 4 : 3.5) + exportTextBlockHeight / 2;
   const exportAppearanceCenterY = exportSensationCenterY + exportTextBlockHeight;
@@ -143,9 +144,11 @@ const ChartLeftLegend = ({
       {/* Etiquetas de filas con diseño mejorado */}
       <MotionGroup {...motionGroupProps}>
         {legendRows.map(({ label, y, color, icon }) => {
-          const iconX = padding.left - responsiveFontSize(2.8);
+          const isBottomRowLabel = label === 'Sens.' || label === 'Apar.' || label === 'Obs.';
+          const labelFont = isBottomRowLabel ? bottomRowsResponsiveFontSize : responsiveFontSize;
+          const iconX = padding.left - labelFont(2.8);
           const iconY = y;
-          const iconSize = responsiveFontSize(0.95);
+          const iconSize = labelFont(0.95);
           return (
           <g key={label}>
             {/* Indicador visual para las categorías de datos */}
@@ -154,7 +157,7 @@ const ChartLeftLegend = ({
                 x={iconX}
                 y={iconY}
                 textAnchor="middle"
-                fontSize={responsiveFontSize(0.8)}
+                fontSize={labelFont(0.8)}
                 fontWeight="600"
                 fill={color}
                 opacity={0.7}
@@ -178,10 +181,10 @@ const ChartLeftLegend = ({
               </g>
             )}            
             <text
-              x={padding.left - responsiveFontSize(0.8)}
+              x={padding.left - labelFont(0.8)}
               y={y}
               textAnchor="end"
-              fontSize={responsiveFontSize(1.05)}
+              fontSize={labelFont(1.05)}
               fontWeight="800"
               fill={color}
               style={{ 
