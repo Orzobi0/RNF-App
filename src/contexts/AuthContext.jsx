@@ -15,7 +15,7 @@ import {
 import { deleteField, doc, getDoc, setDoc, getDocFromCache } from 'firebase/firestore';
 import { useToast } from '@/components/ui/use-toast';
 import normalizeBoolean from '@/lib/normalizeBoolean';
-import { trackEvent, trackLogin, trackSignUp } from '@/lib/analytics';
+import { trackEvent, trackLogin, trackSignUp, setAnalyticsUserId } from '@/lib/analytics';
 
 const AuthContext = createContext(null);
 
@@ -171,6 +171,7 @@ export const AuthProvider = ({ children }) => {
 
       unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
         if (firebaseUser) {
+          void setAnalyticsUserId(firebaseUser.uid);
           setUser({
             id: firebaseUser.uid,
             uid: firebaseUser.uid,
@@ -247,6 +248,7 @@ export const AuthProvider = ({ children }) => {
             setPreferences(defaultPreferences);
           }
         } else {
+          void setAnalyticsUserId(null);
           setUser(null);
           setPreferences(null);
         }
