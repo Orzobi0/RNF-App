@@ -1,5 +1,5 @@
 // src/lib/analytics.js
-import { logEvent } from 'firebase/analytics';
+import { logEvent, setUserId } from 'firebase/analytics';
 import { getFirebaseAnalytics } from '@/lib/firebaseClient';
 
 const toSafeText = (value, max = 100) => {
@@ -17,6 +17,13 @@ export const trackEvent = async (name, params = {}) => {
   if (!analytics) return;
 
   logEvent(analytics, name, params);
+};
+
+export const setAnalyticsUserId = async (userId) => {
+  const analytics = await getFirebaseAnalytics();
+  if (!analytics) return;
+
+  setUserId(analytics, userId ?? null);
 };
 
 export const trackException = async (error, extra = {}) => {
