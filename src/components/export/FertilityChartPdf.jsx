@@ -25,6 +25,9 @@ const PALETTE = {
   rowAlt: '#fffafd',
 };
 
+const DEFAULT_TEMP_MIN = 36.0;
+const DEFAULT_TEMP_MAX = 37.5;
+
 const TEXT_RULES = {
   date: { maxLines: 1, maxCharsBase: 11 },
   cycleDay: { maxLines: 1, maxCharsBase: 6 },
@@ -232,14 +235,26 @@ const FertilityChartPdf = ({ entries = [], width = 1600, height = 900, title = '
   .map((entry, index) => resolveTemperaturePoint(entry, index))
   .filter(Boolean);
 
-const displayTemperatures = temperaturePoints
+const calculationTemperatures = temperaturePoints
+  .filter((point) => !point.ignored)
   .map((point) => point.displayTemperature)
   .filter((value) => value !== null);
 
-const safeMin = displayTemperatures.length ? Math.min(...displayTemperatures) : 36;
-const safeMax = displayTemperatures.length ? Math.max(...displayTemperatures) : 37;
-    const minTemp = Math.floor((safeMin - 0.2) * 10) / 10;
-    const maxTemp = Math.ceil((safeMax + 0.2) * 10) / 10;
+const safeMin = calculationTemperatures.length
+  ? Math.min(...calculationTemperatures)
+  : DEFAULT_TEMP_MIN;
+const safeMax = calculationTemperatures.length
+  ? Math.max(...calculationTemperatures)
+  : DEFAULT_TEMP_MAX;
+    const desiredRange = DEFAULT_TEMP_MAX - DEFAULT_TEMP_MIN;
+    let minTemp = Math.floor((Math.min(safeMin, DEFAULT_TEMP_MIN) - 0.1) * 10) / 10;
+    let maxTemp = Math.ceil((Math.max(safeMax, DEFAULT_TEMP_MAX) + 0.1) * 10) / 10;
+
+    if (maxTemp - minTemp < desiredRange) {
+      const midpoint = (minTemp + maxTemp) / 2;
+      minTemp = Math.floor((midpoint - desiredRange / 2) * 10) / 10;
+      maxTemp = Math.ceil((midpoint + desiredRange / 2) * 10) / 10;
+    }
 
     const dayCount = Math.max(1, entries.length);
     const chartLeft = margin.left + panelPadding + 88;
@@ -483,31 +498,51 @@ const safeMax = displayTemperatures.length ? Math.max(...displayTemperatures) : 
           strokeLinejoin="round"
         />
       )}
-      
+
       {points.map((point) => {
         const cx = getX(point.index);
         const cy = getY(point.displayTemperature);
+        const rawOutOfRangeTop =
+          point.hasCorrection &&
+          point.raw !== null &&
+          point.raw > layout.maxTemp;
+        const rawOutOfRangeBottom =
+          point.hasCorrection &&
+          point.raw !== null &&
+          point.raw < layout.minTemp;
         const rawVisible =
-  point.hasCorrection &&
-  point.raw !== null &&
-  inDisplayRange(point.raw);
+          point.hasCorrection &&
+          point.raw !== null &&
+          inDisplayRange(point.raw);
         const rawY = rawVisible ? getY(point.raw) : null;
+        const rawClampedY = rawOutOfRangeTop
+          ? getY(layout.maxTemp)
+          : rawOutOfRangeBottom
+            ? getY(layout.minTemp)
+            : rawY;
+        const showClampedCorrection =
+          point.hasCorrection &&
+          point.raw !== null &&
+          rawClampedY !== null &&
+          Math.abs(rawClampedY - cy) > 0.001;
         const isIgnored = point.ignored;
 
         return (
           <g key={`p-${point.index}`}>
-            {rawVisible && rawY !== null ? (
+            {showClampedCorrection ? (
               <>
                 <line
                   x1={cx}
-                  y1={rawY}
+                  y1={rawClampedY}
                   x2={cx}
                   y2={cy}
                   stroke={PALETTE.correctionLine}
                   strokeWidth="1"
                   strokeDasharray="4 4"
                 />
-                <circle cx={cx} cy={rawY} r="2.8" fill="#dbe1ea" stroke="#9aa5b8" strokeWidth="1" />
+                {rawVisible && rawY !== null ? (
+                  <circle cx={cx} cy={rawY} r="2.8" fill="#dbe1ea" stroke="#9aa5b8" strokeWidth="1" />
+                ) : null}
               </>
             ) : null}
             <circle cx={cx} cy={cy} r="4.2" fill="#ffffff" fillOpacity="0.96" />
