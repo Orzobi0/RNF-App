@@ -314,26 +314,43 @@ const safeMax = displayTemperatures.length ? Math.max(...displayTemperatures) : 
     .filter((point) => point.displayTemperature !== null)
     .filter((point) => inDisplayRange(point.displayTemperature));
 
-  // Replica 1:1 de continuidad de la app:
-  // - La línea principal solo usa puntos válidos NO ignorados.
-  // - Segmento sólido si los índices son consecutivos.
-  // - Segmento discontinuo si hay gap de índice.
-const linePoints = points;
+   // - La línea principal solo usa puntos válidos NO ignorados y tramos consecutivos.
+  // - La línea secundaria conecta todos los puntos válidos en orden cuando hay huecos.
+  const linePoints = points.filter((point) => !point.ignored);
 
-const segments = [];
-for (let idx = 1; idx < linePoints.length; idx += 1) {
-  const prev = linePoints[idx - 1];
-  const curr = linePoints[idx];
+  let mainPath = '';
+  let lastValidIndex = null;
+  let hasIndexGaps = false;
 
-  segments.push({
-    path: `M ${getX(prev.index)} ${getY(prev.displayTemperature)} L ${getX(curr.index)} ${getY(curr.displayTemperature)}`,
-    dashed: curr.index !== prev.index + 1,
+  linePoints.forEach((point) => {
+    const x = getX(point.index);
+    const y = getY(point.displayTemperature);
+
+    if (lastValidIndex !== null) {
+      if (point.index === lastValidIndex + 1) {
+        mainPath += ` L ${x} ${y}`;
+      } else {
+        mainPath += `${mainPath ? ' ' : ''}M ${x} ${y}`;
+        hasIndexGaps = true;
+      }
+    } else {
+      mainPath = `M ${x} ${y}`;
+    }
+
+    lastValidIndex = point.index;
   });
-}
 
-const solidSegments = segments.filter((segment) => !segment.dashed);
-const dashedSegments = segments.filter((segment) => segment.dashed);
-
+    const hasContinuousSegment = mainPath.includes('L');
+  const gapConnectorPath =
+    hasIndexGaps && linePoints.length > 1
+      ? linePoints
+          .map((point, idx) => {
+            const x = getX(point.index);
+            const y = getY(point.displayTemperature);
+            return `${idx === 0 ? 'M' : 'L'} ${x} ${y}`;
+          })
+          .join(' ')
+      : '';
 
   let rowCursor = layout.rowsTop;
 
@@ -431,45 +448,42 @@ const dashedSegments = segments.filter((segment) => segment.dashed);
         Temperatura (°C)
       </text>
 
-       {segments.map((segment, segmentIndex) => (
-  <path
-    key={`temp-base-${segmentIndex}`}
-    d={segment.path}
-    fill="none"
-    stroke={PALETTE.tempLineHalo}
-    strokeOpacity="0.95"
-    strokeWidth="2.4"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    strokeDasharray={segment.dashed ? '5 5' : undefined}
-  />
-))}
+   {hasContinuousSegment && (
+        <path
+          d={mainPath}
+          fill="none"
+          stroke={PALETTE.tempLineHalo}
+          strokeOpacity="0.95"
+          strokeWidth="2.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      )}
 
-{solidSegments.map((segment, segmentIndex) => (
-  <path
-    key={`temp-solid-${segmentIndex}`}
-    d={segment.path}
-    fill="none"
-    stroke="url(#pdf-temp-line-gradient)"
-    strokeWidth="1.9"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  />
-))}
+      {gapConnectorPath && (
+        <path
+          d={gapConnectorPath}
+          fill="none"
+          stroke="#cf6f95"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeDasharray="5 5"
+          strokeOpacity="0.85"
+        />
+      )}
 
-{dashedSegments.map((segment, segmentIndex) => (
-  <path
-    key={`temp-dashed-${segmentIndex}`}
-    d={segment.path}
-    fill="none"
-    stroke="#cf6f95"
-    strokeWidth="1.8"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    strokeDasharray="5 5"
-  />
-))}
-
+      {hasContinuousSegment && (
+        <path
+          d={mainPath}
+          fill="none"
+          stroke="url(#pdf-temp-line-gradient)"
+          strokeWidth="1.9"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      )}
+      
       {points.map((point) => {
         const cx = getX(point.index);
         const cy = getY(point.displayTemperature);
