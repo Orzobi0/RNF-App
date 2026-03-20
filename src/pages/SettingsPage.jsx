@@ -37,6 +37,7 @@ const SettingsPage = () => {
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [selectedCycleIds, setSelectedCycleIds] = useState([]);
   const [exportFormat, setExportFormat] = useState('pdf');
+  const [pdfContentMode, setPdfContentMode] = useState('chart');
   const [includeRs, setIncludeRs] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
 
@@ -85,6 +86,7 @@ const SettingsPage = () => {
   const resetExportState = () => {
     setSelectedCycleIds([]);
     setExportFormat('pdf');
+    setPdfContentMode('chart');
     setIncludeRs(true);
     setIsExporting(false);
   };
@@ -143,14 +145,17 @@ const SettingsPage = () => {
       const filename = `ciclos-${timestamp}.${exportFormat}`;
 
       if (exportFormat === 'pdf') {
-  await downloadCyclesAsPdf(cyclesToExport, filename, {
-    includeChart: true,
-    includeRs,
-    chartOnly: true,
-  });
-} else {
-  await downloadCyclesAsCsv(cyclesToExport, filename, { includeRs });
-}
+        const includeChart = pdfContentMode !== 'table';
+        const chartOnly = pdfContentMode === 'chart';
+
+        await downloadCyclesAsPdf(cyclesToExport, filename, {
+          includeChart,
+          includeRs,
+          chartOnly,
+        });
+      } else {
+        await downloadCyclesAsCsv(cyclesToExport, filename, { includeRs });
+      }
 
       toast({
         title: 'Exportación completada',
@@ -545,6 +550,8 @@ const SettingsPage = () => {
         onToggleAll={handleToggleAllCycles}
         format={exportFormat}
         onFormatChange={handleFormatChange}
+        pdfContentMode={pdfContentMode}
+        onPdfContentModeChange={setPdfContentMode}
         includeRs={includeRs}
         onIncludeRsChange={setIncludeRs}
         isProcessing={isExporting}
