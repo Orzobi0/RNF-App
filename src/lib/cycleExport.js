@@ -561,6 +561,10 @@ export const downloadCyclesAsPdf = async (
     triggerDownload(blob, filename);
     return;
   }
+if (includeChart) {
+    await exportChartOnlyPdf({ doc, cycles, formatted, includeRs, horizontalMargin });
+    doc.addPage();
+  }
 
   for (let index = 0; index < formatted.length; index += 1) {
     const cycle = formatted[index];
@@ -598,118 +602,6 @@ export const downloadCyclesAsPdf = async (
       },
     });
 
-    if (includeChart) {
-      const baseEntries = ensureProcessedEntries(cycles[index]) ?? [];
-      const fullEntries = buildFullTimelineEntries(cycles[index], baseEntries);
-      const chartsPerPage = 2;
-      const slotGap = 2;
-
-const totalDays = fullEntries?.length ?? 0;
-
-      doc.setFont('helvetica', 'normal');
-
-      if (!totalDays) {
-        doc.addPage();
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(16);
-        doc.text(`${cycle.title} · Gráfica`, horizontalMargin, 18);
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(11);
-        doc.text('No hay datos para graficar.', horizontalMargin, 28);
-      } else {
-  const segments = buildFixedChartSegments(fullEntries, 31);
-
-  try {
-    const { renderCycleChartToPng } = await import('@/lib/exportCycleChartImage');
-
-    const pageWidth = doc.internal.pageSize.getWidth();
- const pageHeight = doc.internal.pageSize.getHeight();
-
- // Aire “ligero” (sin perder legibilidad)
- const pageMarginX = 6;
- const pageMarginTop = 8;
- const pageMarginBottom = 6;
-
- const titleY = pageMarginTop + 6;   // 14
- const contentTop = titleY + 4;      // 18 (deja aire bajo el título)
- const contentW = pageWidth - pageMarginX * 2;
- const availableH = pageHeight - contentTop - pageMarginBottom;
-    const slotH = (availableH - slotGap * (chartsPerPage - 1)) / chartsPerPage;
-
-    const targetDpi = 330;
-    const mmToIn = (mm) => mm / 25.4;
-
-    let segIdx = 0;
-    while (segIdx < segments.length) {
-      doc.addPage();
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(16);
-      doc.text(`${cycle.title} · Gráfica`, pageMarginX, titleY);
-      doc.setFont('helvetica', 'normal');
-
-      for (let slot = 0; slot < chartsPerPage && segIdx < segments.length; slot += 1) {
-        const seg = segments[segIdx];
-        segIdx += 1;
-
-        const slotY = contentTop + slot * (slotH + slotGap);
-        const subtitleY = slotY + 5;
-        const imgAreaTop = slotY + 8;
-        const imgAreaH = slotH - 10;
-
-        const datePart =
-          seg.isoFrom && seg.isoTo ? ` (${formatDate(seg.isoFrom)}–${formatDate(seg.isoTo)})` : '';
-
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(11);
-        doc.text(`Días ${seg.dayFrom}–${seg.dayTo}${datePart}`, pageMarginX, subtitleY);
-        doc.setFont('helvetica', 'normal');
-
-        const segmentEntries = fullEntries.slice(seg.startIndex, seg.endExclusive);
-        const daysInSeg = segmentEntries.length;
-
-        const widthPx = Math.round(mmToIn(contentW) * targetDpi);
-
-        // Renderiza “alto suficiente” para que el SVG ajuste por ancho y no deje bandas laterales.
-        // Luego el recorte quitará el sobrante vertical.
-        const exportHmm = imgAreaH; 
-        const heightPx = Math.round(mmToIn(exportHmm) * targetDpi);
-
-
-        const img = await renderCycleChartToPng({
-  cycle: cycles[index],
-  entries: segmentEntries,
-  widthPx,
-  heightPx,
-  pixelRatio: 2,
-  visibleDays: segmentEntries.length,
-  initialScrollIndex: 0,
-});
-
-        const imgRatio = img.widthPx / img.heightPx;
-
-        let drawW = contentW;
-        let drawH = drawW / imgRatio;
-
-        if (drawH > imgAreaH) {
-          drawH = imgAreaH;
-          drawW = drawH * imgRatio;
-        }
-
-        const x = pageMarginX + (contentW - drawW) / 2;
-        const y = imgAreaTop + (imgAreaH - drawH) / 2;
-
-        doc.addImage(img.dataUrl, 'PNG', x, y, drawW, drawH);
-      }
-    }
-  } catch (error) {
-    console.error('[PDF] Fallo export PNG por segmentos, usando fallback jsPDF:', error);
-    doc.addPage();
-    renderCycleChart(doc, cycle.title, fullEntries);
-  }
-}
-
-
-    }
   }
 
   const blob = doc.output('blob');
