@@ -309,25 +309,31 @@ const safeMax = displayTemperatures.length ? Math.max(...displayTemperatures) : 
   const inDisplayRange = (temp) =>
   temp !== null && temp >= layout.minTemp && temp <= layout.maxTemp;
 
-const points = layout.temperaturePoints
-  .filter(Boolean)
-  .filter((point) => point.displayTemperature !== null)
-  .filter((point) => inDisplayRange(point.displayTemperature));
+  const points = layout.temperaturePoints
+    .filter(Boolean)
+    .filter((point) => point.displayTemperature !== null)
+    .filter((point) => inDisplayRange(point.displayTemperature));
 
-  const solidSegments = [];
-  const dashedSegments = [];
-  for (let idx = 1; idx < points.length; idx += 1) {
-    const prev = points[idx - 1];
-    const curr = points[idx];
-    const isConsecutiveByDay =
-      prev.cycleDay !== null && curr.cycleDay !== null
-        ? curr.cycleDay - prev.cycleDay === 1
-        : curr.index - prev.index === 1;
+  // Replica 1:1 de continuidad de la app:
+  // - La línea principal solo usa puntos válidos NO ignorados.
+  // - Segmento sólido si los índices son consecutivos.
+  // - Segmento discontinuo si hay gap de índice.
+const linePoints = points;
 
-    const segment = `M ${getX(prev.index)} ${getY(prev.displayTemperature)} L ${getX(curr.index)} ${getY(curr.displayTemperature)}`;
-    if (isConsecutiveByDay) solidSegments.push(segment);
-    else dashedSegments.push(segment);
-  };
+const segments = [];
+for (let idx = 1; idx < linePoints.length; idx += 1) {
+  const prev = linePoints[idx - 1];
+  const curr = linePoints[idx];
+
+  segments.push({
+    path: `M ${getX(prev.index)} ${getY(prev.displayTemperature)} L ${getX(curr.index)} ${getY(curr.displayTemperature)}`,
+    dashed: curr.index !== prev.index + 1,
+  });
+}
+
+const solidSegments = segments.filter((segment) => !segment.dashed);
+const dashedSegments = segments.filter((segment) => segment.dashed);
+
 
   let rowCursor = layout.rowsTop;
 
@@ -425,44 +431,44 @@ const points = layout.temperaturePoints
         Temperatura (°C)
       </text>
 
-       {[...solidSegments, ...dashedSegments].map((segment, segmentIndex) => (
-        <path
-          key={`temp-base-${segmentIndex}`}
-          d={segment}
-          fill="none"
-          stroke={PALETTE.tempLineHalo}
-          strokeOpacity="0.95"
-          strokeWidth="2.4"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeDasharray={segmentIndex >= solidSegments.length ? '5 5' : undefined}
-        />
-      ))}
+       {segments.map((segment, segmentIndex) => (
+  <path
+    key={`temp-base-${segmentIndex}`}
+    d={segment.path}
+    fill="none"
+    stroke={PALETTE.tempLineHalo}
+    strokeOpacity="0.95"
+    strokeWidth="2.4"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    strokeDasharray={segment.dashed ? '5 5' : undefined}
+  />
+))}
 
-      {solidSegments.map((segment, segmentIndex) => (
-        <path
-          key={`temp-solid-${segmentIndex}`}
-          d={segment}
-          fill="none"
-          stroke="url(#pdf-temp-line-gradient)"
-          strokeWidth="1.9"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      ))}
+{solidSegments.map((segment, segmentIndex) => (
+  <path
+    key={`temp-solid-${segmentIndex}`}
+    d={segment.path}
+    fill="none"
+    stroke="url(#pdf-temp-line-gradient)"
+    strokeWidth="1.9"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  />
+))}
 
-      {dashedSegments.map((segment, segmentIndex) => (
-        <path
-          key={`temp-dashed-${segmentIndex}`}
-          d={segment}
-          fill="none"
-          stroke="#cf6f95"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeDasharray="5 5"
-        />
-      ))}
+{dashedSegments.map((segment, segmentIndex) => (
+  <path
+    key={`temp-dashed-${segmentIndex}`}
+    d={segment.path}
+    fill="none"
+    stroke="#cf6f95"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    strokeDasharray="5 5"
+  />
+))}
 
       {points.map((point) => {
         const cx = getX(point.index);
