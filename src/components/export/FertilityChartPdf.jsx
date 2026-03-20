@@ -15,6 +15,7 @@ const PALETTE = {
   text: '#546174',
   textMuted: '#7c889b',
   tempLine: '#e25576',
+  tempLineHalo: '#f9a8be',
   tempPoint: '#e25576',
   rowHeaderBg: '#fdeaf2',
   rowBorder: '#f0d5df',
@@ -143,23 +144,19 @@ const FertilityChartPdf = ({ entries = [], width = 1600, height = 900, title = '
     const titleH = 30;
 
     const panelInnerH = height - margin.top - margin.bottom - panelPadding * 2 - titleH;
-    const graphAreaH = Math.round(panelInnerH * 0.32);
-    const dayBandH = Math.round(panelInnerH * 0.07);
-    const rowsAreaH = panelInnerH - graphAreaH - dayBandH;
+    const graphAreaH = Math.round(panelInnerH * 0.3);
+    const rowsAreaH = panelInnerH - graphAreaH;
 
     const rows = [
-      { key: 'date', label: 'Fecha', weight: 1 },
-      { key: 'cycleDay', label: 'Día', weight: 1 },
-      { key: 'fertility_symbol', label: 'Símbolo', weight: 1 },
-      { key: 'mucusSensation', label: 'Sensación', weight: 1.35 },
-      { key: 'mucusAppearance', label: 'Apariencia', weight: 1.35 },
-      { key: 'observations', label: 'Observaciones', weight: 1.75 },
+      { key: 'date', label: 'Fecha', minHeight: 21, lineHeight: 11, paddingY: 5 },
+      { key: 'cycleDay', label: 'Día', minHeight: 21, lineHeight: 11, paddingY: 5 },
+      { key: 'fertility_symbol', label: 'Símbolo', minHeight: 25, lineHeight: 10, paddingY: 5 },
+      { key: 'mucusSensation', label: 'Sensación', minHeight: 24, lineHeight: 11, paddingY: 5 },
+      { key: 'mucusAppearance', label: 'Apariencia', minHeight: 24, lineHeight: 11, paddingY: 5 },
+      { key: 'observations', label: 'Observaciones', minHeight: 27, lineHeight: 11, paddingY: 6 },
     ];
 
-    if (includeRs) rows.push({ key: 'had_relations', label: 'RS', weight: 0.9 });
-
-    const totalWeight = rows.reduce((acc, row) => acc + row.weight, 0);
-    const rowHeights = rows.map((row) => (rowsAreaH / totalWeight) * row.weight);
+    if (includeRs) rows.push({ key: 'had_relations', label: 'RS', minHeight: 21, lineHeight: 11, paddingY: 5 });
 
     const temperatures = entries.map(resolveTemperature).filter((v) => v !== null);
     const safeMin = temperatures.length ? Math.min(...temperatures) : 36;
@@ -181,8 +178,22 @@ const FertilityChartPdf = ({ entries = [], width = 1600, height = 900, title = '
     const titleY = panelY + panelPadding + 8;
     const chartTop = panelY + panelPadding + titleH;
     const chartBottom = chartTop + graphAreaH;
-    const dayBandTop = chartBottom;
-    const rowsTop = dayBandTop + dayBandH;
+    const rowsTop = chartBottom;
+    const rowHeights = rows.map((row) => {
+      const maxLines = Math.max(
+        1,
+        ...entries.map((entry) => {
+          if (row.key === 'fertility_symbol') {
+            const symbol = getSymbolAppearance(entry?.fertility_symbol);
+            return symbol && symbol.value !== 'none' ? 1 : 0;
+          }
+          return getCellLines(entry, row.key, colW).length;
+        }),
+      );
+      return Math.max(row.minHeight, row.paddingY * 2 + maxLines * row.lineHeight);
+    });
+    const rowsContentH = rowHeights.reduce((acc, value) => acc + value, 0);
+    const rowsBottom = Math.min(panelY + panelPadding + titleH + graphAreaH + rowsAreaH, rowsTop + rowsContentH);
 
     return {
       margin,
@@ -193,10 +204,10 @@ const FertilityChartPdf = ({ entries = [], width = 1600, height = 900, title = '
       panelH,
       titleY,
       graphAreaH,
-      dayBandH,
       rowsAreaH,
       rows,
       rowHeights,
+      rowsBottom,
       minTemp,
       maxTemp,
       ticks: buildTempTicks(minTemp, maxTemp),
@@ -206,7 +217,6 @@ const FertilityChartPdf = ({ entries = [], width = 1600, height = 900, title = '
       colW,
       chartTop,
       chartBottom,
-      dayBandTop,
       rowsTop,
       dayCount,
     };
@@ -293,7 +303,7 @@ const FertilityChartPdf = ({ entries = [], width = 1600, height = 900, title = '
 
       {entries.map((entry, index) => {
         const x = getX(index);
-        const major = entry?.cycleDay ? entry.cycleDay % 2 === 0 : index % 2 === 1;
+        const major = entry?.cycleDay ? entry.cycleDay % 4 === 0 : index % 4 === 3;
         return (
           <line
             key={`v-${entry?.id ?? index}`}
@@ -302,7 +312,7 @@ const FertilityChartPdf = ({ entries = [], width = 1600, height = 900, title = '
             x2={x}
             y2={layout.chartBottom}
             stroke={major ? PALETTE.verticalMajor : PALETTE.verticalMinor}
-            strokeWidth="0.8"
+            strokeWidth={major ? 0.75 : 0.55}
           />
         );
       })}
@@ -322,52 +332,38 @@ const FertilityChartPdf = ({ entries = [], width = 1600, height = 900, title = '
       </text>
 
       {path ? (
-        <path
-          d={path}
-          fill="none"
-          stroke="url(#pdf-temp-line-gradient)"
-          strokeWidth="2.6"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
+         <>
+          <path
+            d={path}
+            fill="none"
+            stroke={PALETTE.tempLineHalo}
+            strokeOpacity="0.8"
+            strokeWidth="5.4"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path
+            d={path}
+            fill="none"
+            stroke="url(#pdf-temp-line-gradient)"
+            strokeWidth="2.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </>
       ) : null}
 
-      {points.map((point) => (
-        <circle
-          key={`p-${point.index}`}
-          cx={getX(point.index)}
-          cy={getY(point.temperature)}
-          r="4.2"
-          fill={PALETTE.tempPoint}
-          stroke="#ffffff"
-          strokeWidth="1.2"
-        />
-))}
-      <rect
-        x={layout.margin.left + layout.panelPadding}
-        y={layout.dayBandTop}
-        width={layout.chartLeft - (layout.margin.left + layout.panelPadding)}
-        height={layout.dayBandH}
-        fill={PALETTE.rowHeaderBg}
-        stroke={PALETTE.rowBorder}
-      />
-      <text
-        x={layout.margin.left + layout.panelPadding + 10}
-        y={layout.dayBandTop + layout.dayBandH / 2 + 4}
-        fontSize="12"
-        fontWeight="700"
-        fill={PALETTE.text}
-      >
-        Registro diario
-      </text>
-      <rect
-        x={layout.chartLeft}
-        y={layout.dayBandTop}
-        width={layout.chartW}
-        height={layout.dayBandH}
-        fill="#fff"
-        stroke={PALETTE.rowBorder}
-      />
+      {points.map((point) => {
+        const cx = getX(point.index);
+        const cy = getY(point.temperature);
+        return (
+          <g key={`p-${point.index}`}>
+            <circle cx={cx} cy={cy} r="5.2" fill="#ffffff" fillOpacity="0.96" />
+            <circle cx={cx} cy={cy} r="4.4" fill={PALETTE.tempPoint} stroke="#ffffff" strokeWidth="1.4" />
+            <circle cx={cx - 0.9} cy={cy - 1} r="1.2" fill="#ffe4ec" fillOpacity="0.95" />
+          </g>
+        );
+      })}
 
       {layout.rows.map((row, rowIndex) => {
         const rowH = layout.rowHeights[rowIndex];
@@ -401,7 +397,7 @@ const FertilityChartPdf = ({ entries = [], width = 1600, height = 900, title = '
               const x = layout.chartLeft + colIndex * layout.colW;
               const cx = x + layout.colW / 2;
               const lines = getCellLines(entry, row.key, layout.colW);
-              const lineGap = 12;
+              const lineGap = row.lineHeight;
               const textStartY = y + Math.max(14, rowH / 2 - ((lines.length - 1) * lineGap) / 2);
 
               return (
@@ -412,14 +408,9 @@ const FertilityChartPdf = ({ entries = [], width = 1600, height = 900, title = '
                       {drawSymbol({
                         entry,
                         x: cx,
-                        y: y + rowH * 0.42,
-                        size: Math.min(rowH * 0.62, layout.colW * 0.52),
+                        y: y + rowH * 0.5,
+                        size: Math.min(rowH * 0.68, layout.colW * 0.58),
                       })}
-                      {lines[0] ? (
-                        <text x={cx} y={y + rowH - 8} fontSize="10" textAnchor="middle" fill={PALETTE.textMuted}>
-                          {lines[0]}
-                        </text>
-                      ) : null}
                     </>
                   ) : (
                     lines.map((line, lineIndex) => (
@@ -438,10 +429,11 @@ const FertilityChartPdf = ({ entries = [], width = 1600, height = 900, title = '
                 </g>
               );
             })}
-            <line x1={layout.chartRight} y1={y} x2={layout.chartRight} y2={y + rowH} stroke={PALETTE.Border} strokeWidth="0.8" />
+            <line x1={layout.chartRight} y1={y} x2={layout.chartRight} y2={y + rowH} stroke={PALETTE.rowBorder} strokeWidth="0.8" />
           </g>
         );
       })}
+      <line x1={layout.chartLeft} y1={layout.rowsBottom} x2={layout.chartRight} y2={layout.rowsBottom} stroke={PALETTE.rowBorder} strokeWidth="0.8" />
     </svg>
   );
 };

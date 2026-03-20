@@ -471,7 +471,7 @@ const exportChartOnlyPdf = async ({ doc, cycles, formatted, includeRs, horizonta
 
       const contentW = pageWidth - pageMarginX * 2;
       const rawContentH = pageHeight - pageMarginTop - pageMarginBottom - 14;
-      const contentH = Math.min(rawContentH, pageHeight * 0.84);
+      const contentH = Math.min(rawContentH, rawContentH * 0.73);
       const contentY = pageMarginTop + 12 + (rawContentH - contentH) / 2;
       const targetDpi = 280;
       const mmToPx = (mm) => (mm / 25.4) * targetDpi;
