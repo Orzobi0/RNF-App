@@ -143,10 +143,14 @@ const SettingsPage = () => {
       const filename = `ciclos-${timestamp}.${exportFormat}`;
 
       if (exportFormat === 'pdf') {
-        await downloadCyclesAsPdf(cyclesToExport, filename, { includeRs });
-      } else {
-        await downloadCyclesAsCsv(cyclesToExport, filename, { includeRs });
-      }
+  await downloadCyclesAsPdf(cyclesToExport, filename, {
+    includeChart: true,
+    includeRs,
+    chartOnly: true,
+  });
+} else {
+  await downloadCyclesAsCsv(cyclesToExport, filename, { includeRs });
+}
 
       toast({
         title: 'Exportación completada',

@@ -3,6 +3,7 @@ import { computePeakStatuses } from '@/lib/computePeakStatuses';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { getSymbolAppearance } from '@/config/fertilitySymbols';
+import { renderCycleChartPdfToPng } from '@/lib/exportCycleChartPdfImage';
 
 
 const cycleHeaders = [
@@ -397,10 +398,101 @@ const renderCycleChart = (doc, cycleTitle, entries) => {
   });
 };
 
+const buildBalancedChartSegments = (entries = [], targetDaysPerPage = 32) => {
+  const totalDays = entries?.length ?? 0;
+  if (!totalDays) return [];
+
+  const pages = Math.max(1, Math.ceil(totalDays / targetDaysPerPage));
+  const baseSize = Math.floor(totalDays / pages);
+  const remainder = totalDays % pages;
+
+  const segments = [];
+  let cursor = 0;
+  for (let pageIndex = 0; pageIndex < pages; pageIndex += 1) {
+    const size = baseSize + (pageIndex < remainder ? 1 : 0);
+    const startIndex = cursor;
+    const endExclusive = Math.min(totalDays, cursor + size);
+    const fromEntry = entries[startIndex];
+    const toEntry = entries[endExclusive - 1];
+
+    segments.push({
+      startIndex,
+      endExclusive,
+      visibleDays: endExclusive - startIndex,
+      dayFrom: fromEntry?.cycleDay ?? startIndex + 1,
+      dayTo: toEntry?.cycleDay ?? endExclusive,
+      isoFrom: fromEntry?.isoDate ?? null,
+      isoTo: toEntry?.isoDate ?? null,
+    });
+    cursor = endExclusive;
+  }
+
+  return segments.filter((segment) => segment.visibleDays > 0);
+};
+
+const exportChartOnlyPdf = async ({ doc, cycles, formatted, includeRs, horizontalMargin }) => {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const pageMarginX = 8;
+  const pageMarginTop = 10;
+  const pageMarginBottom = 8;
+
+  for (let cycleIndex = 0; cycleIndex < formatted.length; cycleIndex += 1) {
+    const cycle = formatted[cycleIndex];
+    const baseEntries = ensureProcessedEntries(cycles[cycleIndex]) ?? [];
+    const fullEntries = buildFullTimelineEntries(cycles[cycleIndex], baseEntries);
+    const segments = buildBalancedChartSegments(fullEntries, 32);
+
+    if (!segments.length) {
+      if (cycleIndex > 0) doc.addPage();
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(16);
+      doc.text(`${cycle.title} · Gráfica`, horizontalMargin, 18);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      doc.text('No hay datos para graficar.', horizontalMargin, 30);
+      continue;
+    }
+
+    for (let segmentIndex = 0; segmentIndex < segments.length; segmentIndex += 1) {
+      if (cycleIndex > 0 || segmentIndex > 0) doc.addPage();
+      const segment = segments[segmentIndex];
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(15);
+      doc.text(`${cycle.title} · Gráfica`, pageMarginX, pageMarginTop + 4);
+
+      const datePart =
+        segment.isoFrom && segment.isoTo
+          ? ` (${formatDate(segment.isoFrom)}–${formatDate(segment.isoTo)})`
+          : '';
+      doc.setFontSize(10);
+      doc.text(`Días ${segment.dayFrom}–${segment.dayTo}${datePart}`, pageMarginX, pageMarginTop + 10);
+
+      const contentW = pageWidth - pageMarginX * 2;
+      const contentH = pageHeight - pageMarginTop - pageMarginBottom - 14;
+      const targetDpi = 280;
+      const mmToPx = (mm) => (mm / 25.4) * targetDpi;
+      const segmentEntries = fullEntries.slice(segment.startIndex, segment.endExclusive);
+
+      const image = await renderCycleChartPdfToPng({
+        entries: segmentEntries,
+        title: `${cycle.title} · Días ${segment.dayFrom}–${segment.dayTo}`,
+        includeRs,
+        widthPx: Math.round(mmToPx(contentW)),
+        heightPx: Math.round(mmToPx(contentH)),
+        pixelRatio: 1.75,
+      });
+
+      doc.addImage(image.dataUrl, 'PNG', pageMarginX, pageMarginTop + 12, contentW, contentH);
+    }
+  }
+};
+
 export const downloadCyclesAsPdf = async (
   cycles,
   filename = 'ciclos.pdf',
-  { includeChart = true, includeRs = true } = {},
+  { includeChart = true, includeRs = true, chartOnly = false } = {},
 ) => {
   const formatted = formatCyclesForExport(cycles, { includeRs });
   if (!formatted.length) return;
@@ -428,6 +520,13 @@ export const downloadCyclesAsPdf = async (
       },
     ]),
   );
+
+  if (chartOnly) {
+    await exportChartOnlyPdf({ doc, cycles, formatted, includeRs, horizontalMargin });
+    const blob = doc.output('blob');
+    triggerDownload(blob, filename);
+    return;
+  }
 
   for (let index = 0; index < formatted.length; index += 1) {
     const cycle = formatted[index];
