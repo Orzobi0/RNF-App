@@ -15,8 +15,11 @@ const PALETTE = {
   text: '#546174',
   textMuted: '#7c889b',
   tempLine: '#e25576',
-  tempLineHalo: '#f9a8be',
+  tempLineHalo: '#fff2f7',
   tempPoint: '#e25576',
+  tempPointIgnoredFill: '#d4dbe6',
+  tempPointIgnoredStroke: '#8a95a8',
+  correctionLine: '#9aa5b8',
   rowHeaderBg: '#fdeaf2',
   rowBorder: '#f0d5df',
   rowAlt: '#fffafd',
@@ -25,22 +28,90 @@ const PALETTE = {
 const TEXT_RULES = {
   date: { maxLines: 1, maxCharsBase: 11 },
   cycleDay: { maxLines: 1, maxCharsBase: 6 },
-  fertility_symbol: { maxLines: 2, maxCharsBase: 12 },
-  mucusSensation: { maxLines: 3, maxCharsBase: 20 },
-  mucusAppearance: { maxLines: 3, maxCharsBase: 20 },
-  observations: { maxLines: 4, maxCharsBase: 24 },
+  fertility_symbol: { maxLines: 1, maxCharsBase: 12 },
+  mucusSensation: { maxLines: 5, maxCharsBase: 22 },
+  mucusAppearance: { maxLines: 5, maxCharsBase: 22 },
+  observations: { maxLines: 5, maxCharsBase: 24 },
   had_relations: { maxLines: 1, maxCharsBase: 4 },
 };
 
-const resolveTemperature = (entry) => {
-  const value =
-    entry?.displayTemperature ??
-    entry?.temperature_chart ??
-    entry?.temperature_corrected ??
-    entry?.temperature_raw ??
-    null;
-  const parsed = Number(String(value).replace(',', '.'));
+const normalizeTemp = (value) => {
+  if (value === null || value === undefined) return null;
+
+  const normalized = String(value).trim().replace(',', '.');
+  if (!normalized) return null;
+
+  const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : null;
+};
+
+const toSafeBool = (value) => {
+  if (value === true || value === false) return value;
+  if (typeof value === 'number') return value === 1;
+
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (['1', 'true', 'yes', 'si', 'sí'].includes(normalized)) return true;
+    if (['0', 'false', 'no', ''].includes(normalized)) return false;
+  }
+
+  return false;
+};
+
+const resolveTemperaturePoint = (entry, index) => {
+  const measurements = Array.isArray(entry?.measurements) ? entry.measurements : [];
+  const selectedMeasurement =
+    measurements.find((measurement) => measurement?.selected) ?? null;
+
+  const useCorrected = toSafeBool(
+    selectedMeasurement?.use_corrected ?? entry?.use_corrected
+  );
+
+  const raw = normalizeTemp(
+    selectedMeasurement?.temperature ??
+      entry?.temperature_raw ??
+      entry?.temperature_chart ??
+      null
+  );
+
+  const corrected = normalizeTemp(
+    selectedMeasurement?.temperature_corrected ??
+      entry?.temperature_corrected ??
+      null
+  );
+
+  const displayTemperature = normalizeTemp(
+  entry?.displayTemperature ??
+    (useCorrected ? corrected : raw) ??
+    corrected ??
+    raw
+);
+
+if (displayTemperature === null) return null;
+
+  const ignored = toSafeBool(
+    selectedMeasurement?.ignoredForCalc ??
+      selectedMeasurement?.ignored ??
+      entry?.ignoredForCalc ??
+      entry?.ignored
+  );
+
+  const hasCorrection =
+    useCorrected &&
+    raw !== null &&
+    corrected !== null &&
+    Math.abs(corrected - raw) > 1e-6 &&
+    Math.abs(displayTemperature - corrected) < 1e-6;
+
+  return {
+  index,
+  cycleDay: Number.isFinite(Number(entry?.cycleDay)) ? Number(entry.cycleDay) : index + 1,
+  displayTemperature,
+  raw,
+  corrected,
+  ignored,
+  hasCorrection,
+};
 };
 
 const buildTempTicks = (minTemp, maxTemp) => {
@@ -86,8 +157,6 @@ const wrapTextWithLimit = (text, maxCharsPerLine, maxLines) => {
   });
 
   if (current) lines.push(current);
-
-
   if (lines.length <= maxLines) return lines;
 
   const truncated = lines.slice(0, maxLines);
@@ -142,25 +211,33 @@ const FertilityChartPdf = ({ entries = [], width = 1600, height = 900, title = '
     const margin = { top: 20, right: 24, bottom: 18, left: 24 };
     const panelPadding = 14;
     const titleH = 30;
+    const chartRowsGap = 6;
 
     const panelInnerH = height - margin.top - margin.bottom - panelPadding * 2 - titleH;
-    const graphAreaH = Math.round(panelInnerH * 0.3);
+    const graphAreaH = Math.round(panelInnerH * 0.27);
     const rowsAreaH = panelInnerH - graphAreaH;
 
     const rows = [
-      { key: 'date', label: 'Fecha', minHeight: 21, lineHeight: 11, paddingY: 5 },
-      { key: 'cycleDay', label: 'Día', minHeight: 21, lineHeight: 11, paddingY: 5 },
-      { key: 'fertility_symbol', label: 'Símbolo', minHeight: 25, lineHeight: 10, paddingY: 5 },
-      { key: 'mucusSensation', label: 'Sensación', minHeight: 24, lineHeight: 11, paddingY: 5 },
-      { key: 'mucusAppearance', label: 'Apariencia', minHeight: 24, lineHeight: 11, paddingY: 5 },
-      { key: 'observations', label: 'Observaciones', minHeight: 27, lineHeight: 11, paddingY: 6 },
+      { key: 'date', label: 'Fecha', minHeight: 17, lineHeight: 9.5, paddingY: 3.5 },
+      { key: 'cycleDay', label: 'Día', minHeight: 17, lineHeight: 9.5, paddingY: 3.5 },
+      { key: 'fertility_symbol', label: 'Símbolo', minHeight: 20, lineHeight: 10, paddingY: 3.8 },
+      { key: 'mucusSensation', label: 'Sensación', minHeight: 18, lineHeight: 9.8, paddingY: 3.5 },
+      { key: 'mucusAppearance', label: 'Apariencia', minHeight: 18, lineHeight: 9.8, paddingY: 3.5 },
+      { key: 'observations', label: 'Observaciones', minHeight: 18, lineHeight: 9.8, paddingY: 3.5 },
     ];
 
-    if (includeRs) rows.push({ key: 'had_relations', label: 'RS', minHeight: 21, lineHeight: 11, paddingY: 5 });
+    if (includeRs) rows.push({ key: 'had_relations', label: 'RS', minHeight: 17, lineHeight: 9.5, paddingY: 3.5 });
 
-    const temperatures = entries.map(resolveTemperature).filter((v) => v !== null);
-    const safeMin = temperatures.length ? Math.min(...temperatures) : 36;
-    const safeMax = temperatures.length ? Math.max(...temperatures) : 37;
+    const temperaturePoints = entries
+  .map((entry, index) => resolveTemperaturePoint(entry, index))
+  .filter(Boolean);
+
+const displayTemperatures = temperaturePoints
+  .map((point) => point.displayTemperature)
+  .filter((value) => value !== null);
+
+const safeMin = displayTemperatures.length ? Math.min(...displayTemperatures) : 36;
+const safeMax = displayTemperatures.length ? Math.max(...displayTemperatures) : 37;
     const minTemp = Math.floor((safeMin - 0.2) * 10) / 10;
     const maxTemp = Math.ceil((safeMax + 0.2) * 10) / 10;
 
@@ -178,7 +255,7 @@ const FertilityChartPdf = ({ entries = [], width = 1600, height = 900, title = '
     const titleY = panelY + panelPadding + 8;
     const chartTop = panelY + panelPadding + titleH;
     const chartBottom = chartTop + graphAreaH;
-    const rowsTop = chartBottom;
+    const rowsTop = chartBottom + chartRowsGap;
     const rowHeights = rows.map((row) => {
       const maxLines = Math.max(
         1,
@@ -205,6 +282,7 @@ const FertilityChartPdf = ({ entries = [], width = 1600, height = 900, title = '
       titleY,
       graphAreaH,
       rowsAreaH,
+      chartRowsGap,
       rows,
       rowHeights,
       rowsBottom,
@@ -219,6 +297,7 @@ const FertilityChartPdf = ({ entries = [], width = 1600, height = 900, title = '
       chartBottom,
       rowsTop,
       dayCount,
+      temperaturePoints,
     };
   }, [entries, height, includeRs, width]);
 
@@ -227,13 +306,28 @@ const FertilityChartPdf = ({ entries = [], width = 1600, height = 900, title = '
   const getY = (temperature) =>
     layout.chartBottom - ((temperature - layout.minTemp) / tempRange) * layout.graphAreaH;
 
-  const points = entries
-    .map((entry, index) => ({ index, temperature: resolveTemperature(entry) }))
-    .filter((point) => point.temperature !== null);
+  const inDisplayRange = (temp) =>
+  temp !== null && temp >= layout.minTemp && temp <= layout.maxTemp;
 
-  const path = points
-    .map((point, idx) => `${idx === 0 ? 'M' : 'L'} ${getX(point.index)} ${getY(point.temperature)}`)
-    .join(' ');
+const points = layout.temperaturePoints
+  .filter(Boolean)
+  .filter((point) => point.displayTemperature !== null)
+  .filter((point) => inDisplayRange(point.displayTemperature));
+
+  const solidSegments = [];
+  const dashedSegments = [];
+  for (let idx = 1; idx < points.length; idx += 1) {
+    const prev = points[idx - 1];
+    const curr = points[idx];
+    const isConsecutiveByDay =
+      prev.cycleDay !== null && curr.cycleDay !== null
+        ? curr.cycleDay - prev.cycleDay === 1
+        : curr.index - prev.index === 1;
+
+    const segment = `M ${getX(prev.index)} ${getY(prev.displayTemperature)} L ${getX(curr.index)} ${getY(curr.displayTemperature)}`;
+    if (isConsecutiveByDay) solidSegments.push(segment);
+    else dashedSegments.push(segment);
+  };
 
   let rowCursor = layout.rowsTop;
 
@@ -331,36 +425,80 @@ const FertilityChartPdf = ({ entries = [], width = 1600, height = 900, title = '
         Temperatura (°C)
       </text>
 
-      {path ? (
-         <>
-          <path
-            d={path}
-            fill="none"
-            stroke={PALETTE.tempLineHalo}
-            strokeOpacity="0.8"
-            strokeWidth="5.4"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <path
-            d={path}
-            fill="none"
-            stroke="url(#pdf-temp-line-gradient)"
-            strokeWidth="2.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </>
-      ) : null}
+       {[...solidSegments, ...dashedSegments].map((segment, segmentIndex) => (
+        <path
+          key={`temp-base-${segmentIndex}`}
+          d={segment}
+          fill="none"
+          stroke={PALETTE.tempLineHalo}
+          strokeOpacity="0.95"
+          strokeWidth="2.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeDasharray={segmentIndex >= solidSegments.length ? '5 5' : undefined}
+        />
+      ))}
+
+      {solidSegments.map((segment, segmentIndex) => (
+        <path
+          key={`temp-solid-${segmentIndex}`}
+          d={segment}
+          fill="none"
+          stroke="url(#pdf-temp-line-gradient)"
+          strokeWidth="1.9"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      ))}
+
+      {dashedSegments.map((segment, segmentIndex) => (
+        <path
+          key={`temp-dashed-${segmentIndex}`}
+          d={segment}
+          fill="none"
+          stroke="#cf6f95"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeDasharray="5 5"
+        />
+      ))}
 
       {points.map((point) => {
         const cx = getX(point.index);
-        const cy = getY(point.temperature);
+        const cy = getY(point.displayTemperature);
+        const rawVisible =
+  point.hasCorrection &&
+  point.raw !== null &&
+  inDisplayRange(point.raw);
+        const rawY = rawVisible ? getY(point.raw) : null;
+        const isIgnored = point.ignored;
+
         return (
           <g key={`p-${point.index}`}>
-            <circle cx={cx} cy={cy} r="5.2" fill="#ffffff" fillOpacity="0.96" />
-            <circle cx={cx} cy={cy} r="4.4" fill={PALETTE.tempPoint} stroke="#ffffff" strokeWidth="1.4" />
-            <circle cx={cx - 0.9} cy={cy - 1} r="1.2" fill="#ffe4ec" fillOpacity="0.95" />
+            {rawVisible && rawY !== null ? (
+              <>
+                <line
+                  x1={cx}
+                  y1={rawY}
+                  x2={cx}
+                  y2={cy}
+                  stroke={PALETTE.correctionLine}
+                  strokeWidth="1"
+                  strokeDasharray="4 4"
+                />
+                <circle cx={cx} cy={rawY} r="2.8" fill="#dbe1ea" stroke="#9aa5b8" strokeWidth="1" />
+              </>
+            ) : null}
+            <circle cx={cx} cy={cy} r="4.2" fill="#ffffff" fillOpacity="0.96" />
+            <circle
+              cx={cx}
+              cy={cy}
+              r="3.4"
+              fill={isIgnored ? PALETTE.tempPointIgnoredFill : PALETTE.tempPoint}
+              stroke={isIgnored ? PALETTE.tempPointIgnoredStroke : '#ffffff'}
+              strokeWidth="1.25"
+            />
           </g>
         );
       })}
@@ -398,7 +536,7 @@ const FertilityChartPdf = ({ entries = [], width = 1600, height = 900, title = '
               const cx = x + layout.colW / 2;
               const lines = getCellLines(entry, row.key, layout.colW);
               const lineGap = row.lineHeight;
-              const textStartY = y + Math.max(14, rowH / 2 - ((lines.length - 1) * lineGap) / 2);
+              const textStartY = y + Math.max(12, rowH / 2 - ((lines.length - 1) * lineGap) / 2);
 
               return (
                 <g key={`${row.key}-${entry?.id ?? colIndex}`}>
@@ -418,7 +556,7 @@ const FertilityChartPdf = ({ entries = [], width = 1600, height = 900, title = '
                         key={`${row.key}-${colIndex}-${lineIndex}`}
                         x={cx}
                         y={textStartY + lineIndex * lineGap}
-                        fontSize="11"
+                        fontSize="10.8"
                         textAnchor="middle"
                         fill={PALETTE.text}
                       >

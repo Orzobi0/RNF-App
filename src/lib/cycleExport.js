@@ -398,20 +398,13 @@ const renderCycleChart = (doc, cycleTitle, entries) => {
   });
 };
 
-const buildBalancedChartSegments = (entries = [], targetDaysPerPage = 32) => {
+const buildFixedChartSegments = (entries = [], maxDaysPerPage = 31, tinyTailThreshold = 10) => {
   const totalDays = entries?.length ?? 0;
   if (!totalDays) return [];
 
-  const pages = Math.max(1, Math.ceil(totalDays / targetDaysPerPage));
-  const baseSize = Math.floor(totalDays / pages);
-  const remainder = totalDays % pages;
-
   const segments = [];
-  let cursor = 0;
-  for (let pageIndex = 0; pageIndex < pages; pageIndex += 1) {
-    const size = baseSize + (pageIndex < remainder ? 1 : 0);
-    const startIndex = cursor;
-    const endExclusive = Math.min(totalDays, cursor + size);
+  for (let startIndex = 0; startIndex < totalDays; startIndex += maxDaysPerPage) {
+    const endExclusive = Math.min(totalDays, startIndex + maxDaysPerPage);
     const fromEntry = entries[startIndex];
     const toEntry = entries[endExclusive - 1];
 
@@ -424,7 +417,46 @@ const buildBalancedChartSegments = (entries = [], targetDaysPerPage = 32) => {
       isoFrom: fromEntry?.isoDate ?? null,
       isoTo: toEntry?.isoDate ?? null,
     });
-    cursor = endExclusive;
+    }
+
+  if (segments.length > 1) {
+    const last = segments[segments.length - 1];
+    const prev = segments[segments.length - 2];
+    const lastSize = last.endExclusive - last.startIndex;
+    const combined = last.endExclusive - prev.startIndex;
+
+    if (lastSize > 0 && lastSize < tinyTailThreshold && combined <= maxDaysPerPage * 2) {
+      const firstSize = Math.min(maxDaysPerPage, Math.ceil(combined / 2));
+      const secondSize = combined - firstSize;
+      if (secondSize > 0) {
+        const firstEndExclusive = prev.startIndex + firstSize;
+        const secondStartIndex = firstEndExclusive;
+        const firstFromEntry = entries[prev.startIndex];
+        const firstToEntry = entries[firstEndExclusive - 1];
+        const secondFromEntry = entries[secondStartIndex];
+        const secondToEntry = entries[last.endExclusive - 1];
+
+        segments[segments.length - 2] = {
+          startIndex: prev.startIndex,
+          endExclusive: firstEndExclusive,
+          visibleDays: firstEndExclusive - prev.startIndex,
+          dayFrom: firstFromEntry?.cycleDay ?? prev.startIndex + 1,
+          dayTo: firstToEntry?.cycleDay ?? firstEndExclusive,
+          isoFrom: firstFromEntry?.isoDate ?? null,
+          isoTo: firstToEntry?.isoDate ?? null,
+        };
+
+        segments[segments.length - 1] = {
+          startIndex: secondStartIndex,
+          endExclusive: last.endExclusive,
+          visibleDays: last.endExclusive - secondStartIndex,
+          dayFrom: secondFromEntry?.cycleDay ?? secondStartIndex + 1,
+          dayTo: secondToEntry?.cycleDay ?? last.endExclusive,
+          isoFrom: secondFromEntry?.isoDate ?? null,
+          isoTo: secondToEntry?.isoDate ?? null,
+        };
+      }
+    }
   }
 
   return segments.filter((segment) => segment.visibleDays > 0);
@@ -441,7 +473,7 @@ const exportChartOnlyPdf = async ({ doc, cycles, formatted, includeRs, horizonta
     const cycle = formatted[cycleIndex];
     const baseEntries = ensureProcessedEntries(cycles[cycleIndex]) ?? [];
     const fullEntries = buildFullTimelineEntries(cycles[cycleIndex], baseEntries);
-    const segments = buildBalancedChartSegments(fullEntries, 32);
+    const segments = buildFixedChartSegments(fullEntries, 31);
 
     if (!segments.length) {
       if (cycleIndex > 0) doc.addPage();
@@ -574,17 +606,6 @@ export const downloadCyclesAsPdf = async (
 
 const totalDays = fullEntries?.length ?? 0;
 
-// “Zoom” solo cuando empieza a apretarse de verdad
-const isLong = totalDays > 90;     // ajusta 80/90/100 según prefieras
-const isVeryLong = totalDays >= 160;
-
-// Días por tramo (menos días = más ancho por día)
-const chunkDays = isVeryLong ? 30 : isLong ? 35 : 50;
-
-// Yo quitaría solape para no repetir días (más claro)
-const overlapDays = 0;
-
-
       doc.setFont('helvetica', 'normal');
 
       if (!totalDays) {
@@ -596,45 +617,7 @@ const overlapDays = 0;
         doc.setFontSize(11);
         doc.text('No hay datos para graficar.', horizontalMargin, 28);
       } else {
-  const segments = [];
-  const step = Math.max(1, chunkDays - overlapDays);
-
-  for (let startIndex = 0; startIndex < totalDays; startIndex += step) {
-    const endExclusive = Math.min(startIndex + chunkDays, totalDays);
-    const fromEntry = fullEntries[startIndex];
-    const toEntry = fullEntries[endExclusive - 1];
-
-    segments.push({
-      startIndex,
-      endExclusive,
-      visibleDays: endExclusive - startIndex,
-      dayFrom: fromEntry?.cycleDay ?? startIndex + 1,
-      dayTo: toEntry?.cycleDay ?? endExclusive,
-      isoFrom: fromEntry?.isoDate ?? null,
-      isoTo: toEntry?.isoDate ?? null,
-    });
-
-    if (endExclusive === totalDays) break;
-  }
-
-  // Si el último segmento es muy corto, únelo al anterior
-  const minTailDays = 20;
-
-  if (segments.length > 1) {
-    const last = segments[segments.length - 1];
-    const lastLen = last.endExclusive - last.startIndex;
-
-    if (lastLen < minTailDays) {
-      const prev = segments[segments.length - 2];
-
-      prev.endExclusive = last.endExclusive;
-      prev.visibleDays = prev.endExclusive - prev.startIndex;
-      prev.dayTo = last.dayTo;
-      prev.isoTo = last.isoTo;
-
-      segments.pop();
-    }
-  }
+  const segments = buildFixedChartSegments(fullEntries, 31);
 
   try {
     const { renderCycleChartToPng } = await import('@/lib/exportCycleChartImage');

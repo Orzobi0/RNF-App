@@ -49,7 +49,7 @@ export async function renderCycleChartPdfToPng({
   if (!ctx) {
     throw new Error('No se pudo inicializar canvas para exportación de gráfica PDF.');
   }
-
+  ctx.imageSmoothingEnabled = true;
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
