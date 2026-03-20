@@ -470,7 +470,9 @@ const exportChartOnlyPdf = async ({ doc, cycles, formatted, includeRs, horizonta
       doc.text(`Días ${segment.dayFrom}–${segment.dayTo}${datePart}`, pageMarginX, pageMarginTop + 10);
 
       const contentW = pageWidth - pageMarginX * 2;
-      const contentH = pageHeight - pageMarginTop - pageMarginBottom - 14;
+      const rawContentH = pageHeight - pageMarginTop - pageMarginBottom - 14;
+      const contentH = Math.min(rawContentH, pageHeight * 0.84);
+      const contentY = pageMarginTop + 12 + (rawContentH - contentH) / 2;
       const targetDpi = 280;
       const mmToPx = (mm) => (mm / 25.4) * targetDpi;
       const segmentEntries = fullEntries.slice(segment.startIndex, segment.endExclusive);
@@ -484,7 +486,7 @@ const exportChartOnlyPdf = async ({ doc, cycles, formatted, includeRs, horizonta
         pixelRatio: 1.75,
       });
 
-      doc.addImage(image.dataUrl, 'PNG', pageMarginX, pageMarginTop + 12, contentW, contentH);
+      doc.addImage(image.dataUrl, 'PNG', pageMarginX, contentY, contentW, contentH);
     }
   }
 };
