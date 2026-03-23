@@ -213,7 +213,7 @@ const ExportCyclesDialog = ({
               <SelectContent>
                 <SelectItem value="chart">Gráfica</SelectItem>
                 <SelectItem value="table">Tabla</SelectItem>
-                <SelectItem value="chart-and-table">Gráfica + tabla</SelectItem>
+                <SelectItem value="chart-and-table">Gráfica + Tabla</SelectItem>
               </SelectContent>
             </Select>
           </div>
