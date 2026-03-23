@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ToastAction } from '@/components/ui/toast';
-import { downloadCyclesAsCsv, downloadCyclesAsPdf } from '@/lib/cycleExport';
+import { downloadCyclesAsPdf } from '@/lib/cycleExport';
 import ExportCyclesDialog from '@/components/ExportCyclesDialog';
 import { useCycleData } from '@/hooks/useCycleData';
 import InstallPrompt from '@/components/InstallPrompt';
@@ -36,7 +36,6 @@ const SettingsPage = () => {
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [selectedCycleIds, setSelectedCycleIds] = useState([]);
-  const [exportFormat, setExportFormat] = useState('pdf');
   const [pdfContentMode, setPdfContentMode] = useState('chart');
   const [includeRs, setIncludeRs] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
@@ -85,14 +84,9 @@ const SettingsPage = () => {
 
   const resetExportState = () => {
     setSelectedCycleIds([]);
-    setExportFormat('pdf');
     setPdfContentMode('chart');
     setIncludeRs(true);
     setIsExporting(false);
-  };
-
-  const handleFormatChange = (value) => {
-    setExportFormat(value);
   };
 
   const handleCloseExportDialog = () => {
@@ -142,20 +136,15 @@ const SettingsPage = () => {
       }
 
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const filename = `ciclos-${timestamp}.${exportFormat}`;
+      const filename = `ciclos-${timestamp}.pdf`;
+      const includeChart = pdfContentMode !== 'table';
+      const chartOnly = pdfContentMode === 'chart';
 
-      if (exportFormat === 'pdf') {
-        const includeChart = pdfContentMode !== 'table';
-        const chartOnly = pdfContentMode === 'chart';
-
-        await downloadCyclesAsPdf(cyclesToExport, filename, {
-          includeChart,
-          includeRs,
-          chartOnly,
-        });
-      } else {
-        await downloadCyclesAsCsv(cyclesToExport, filename, { includeRs });
-      }
+      await downloadCyclesAsPdf(cyclesToExport, filename, {
+        includeChart,
+        includeRs,
+        chartOnly,
+      });
 
       toast({
         title: 'Exportación completada',
@@ -548,8 +537,7 @@ const SettingsPage = () => {
         selectedIds={selectedCycleIds}
         onToggleId={handleToggleCycle}
         onToggleAll={handleToggleAllCycles}
-        format={exportFormat}
-        onFormatChange={handleFormatChange}
+        format="pdf"
         pdfContentMode={pdfContentMode}
         onPdfContentModeChange={setPdfContentMode}
         includeRs={includeRs}

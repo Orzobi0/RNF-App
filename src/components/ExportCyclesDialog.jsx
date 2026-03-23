@@ -10,13 +10,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 const parseDateOnly = (value) => {
   if (!value) return null;
@@ -85,7 +79,6 @@ const ExportCyclesDialog = ({
   onToggleId,
   onToggleAll,
   format,
-  onFormatChange,
   pdfContentMode,
   onPdfContentModeChange,
   includeRs,
@@ -148,7 +141,7 @@ const ExportCyclesDialog = ({
         <DialogHeader>
           <DialogTitle>Exportar ciclos</DialogTitle>
           <DialogDescription>
-            Selecciona los ciclos que deseas exportar y el formato de archivo.
+            Selecciona los ciclos que deseas exportar.
           </DialogDescription>
         </DialogHeader>
 
@@ -206,20 +199,6 @@ const ExportCyclesDialog = ({
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="export-format" className="text-sm font-medium text-slate-700">
-              Formato
-            </Label>
-            <Select value={format} onValueChange={onFormatChange} disabled={isProcessing}>
-              <SelectTrigger id="export-format" className="w-full">
-                <SelectValue placeholder="Selecciona un formato" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="pdf">PDF</SelectItem>
-                <SelectItem value="csv">CSV</SelectItem>                
-              </SelectContent>
-            </Select>
-          </div>
-                    <div className="space-y-2">
             <Label htmlFor="export-pdf-content" className="text-sm font-medium text-slate-700">
               Contenido del PDF
             </Label>
