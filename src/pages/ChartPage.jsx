@@ -1270,58 +1270,50 @@ const rotatedDrawerStyle = applyRotation
         }
 
       } else if (phase === 'postOvulatory') {
-        const displayLabel = (info?.displayLabel ?? info?.label ?? '').toLowerCase();
-        const status = info?.status ?? reasons?.status ?? null;
-        const tempConfirmationDate = formatDateFromIndex(
-          Number.isInteger(reasons?.temperature?.confirmationIndex)
-            ? reasons.temperature.confirmationIndex
-            : Number.isInteger(reasons?.temperature?.startIndex)
-              ? reasons.temperature.startIndex
-              : fertileWindow?.temperatureInfertileStartIndex
-        );
-        const peakDate = formatDateFromIndex(reasons?.mucus?.peakDayIndex);
-        const mucusInfertileDate = formatDateFromIndex(
-          Number.isInteger(reasons?.mucus?.infertileStartIndex)
-            ? reasons.mucus.infertileStartIndex
-            : info?.startIndex
-        );
-        const segmentStartDate = formatDateFromIndex(info?.startIndex);
+  const displayLabel = (info?.displayLabel ?? info?.label ?? '').toLowerCase();
+  const status = info?.status ?? reasons?.status ?? null;
 
-        if (status === 'absolute' || info?.displayLabel === 'Infertilidad absoluta') {
-          title = 'Infertilidad postovulatoria confirmada';
-          message = `Comienza el ${segmentStartDate}.`;
-          description = `Confirmada por temperatura (${tempConfirmationDate}) y 3.º/4.º día postpico (${mucusInfertileDate}).`;
-        } else if (displayLabel.includes('moco')) {
-          title = 'Infertilidad post-pico';
-          // Índice real donde empieza la infertilidad por moco (lo que se está dibujando)
-          const mucusInfertileIndex =
-            Number.isInteger(reasons?.mucus?.infertileStartIndex)
-              ? reasons.mucus.infertileStartIndex
-              : Number.isInteger(info?.startIndex)
-                ? info.startIndex
-                : null;
+  const tempConfirmationDate = formatDateFromIndex(
+    Number.isInteger(reasons?.temperature?.confirmationIndex)
+      ? reasons.temperature.confirmationIndex
+      : Number.isInteger(reasons?.temperature?.startIndex)
+        ? reasons.temperature.startIndex
+        : fertileWindow?.temperatureInfertileStartIndex
+  );
 
-          const peakIndex = Number.isInteger(reasons?.mucus?.peakDayIndex)
-            ? reasons.mucus.peakDayIndex
-            : null;
+  const peakDate = formatDateFromIndex(reasons?.mucus?.peakDayIndex);
 
-          let postPicoLabel = 'día postpico';
-          if (Number.isInteger(mucusInfertileIndex) && Number.isInteger(peakIndex)) {
-            const delta = mucusInfertileIndex - peakIndex;
-            if (delta === 3) postPicoLabel = '3.º día postpico';
-            else if (delta === 4) postPicoLabel = '4.º día postpico';
-          }
-          message = `Alcanzada el ${segmentStartDate} por ${postPicoLabel}. Día pico: ${peakDate}.`;
-          description = 'A la espera de confirmación por temperatura.';
-        } else if (displayLabel.includes('temperatura')) {
-          title = 'Infertilidad postovulatoria por temperatura';
-          message = `Temperatura confirmada el ${tempConfirmationDate}.`;
-          description = 'A la espera de determinación del día pico.';
-        } else {
-          title = 'Fase postovulatoria';
-          message = 'Interpretación postovulatoria disponible.';
-          description = status === 'pending' ? 'Pendiente completar el segundo criterio.' : null;
-        }
+  const mucusInfertileDate = formatDateFromIndex(
+    Number.isInteger(reasons?.mucus?.infertileStartIndex)
+      ? reasons.mucus.infertileStartIndex
+      : info?.startIndex
+  );
+
+  const segmentStartDate = formatDateFromIndex(info?.startIndex);
+
+  if (status === 'absolute' || info?.displayLabel === 'Infertilidad postovulatoria confirmada') {
+  title = 'Infertilidad postovulatoria confirmada';
+  message = `Fase confirmada desde el ${segmentStartDate}.`;
+  description = 'Confirmada por doble criterio: temperatura y moco.';
+} else if (displayLabel.includes('moco')) {
+    title = 'Infertilidad estimada por moco';
+    message = `Comienza el ${segmentStartDate}.`;
+    description =
+      `Inicio tras completar el 3.º día postpico.` +
+      `${peakDate !== '—' ? ` Día pico: ${peakDate}.` : ''}` +
+      ` A la espera de confirmación por temperatura.`;
+  } else if (displayLabel.includes('temperatura')) {
+    title = 'Infertilidad estimada por temperatura';
+    message = `Comienza el ${segmentStartDate}.`;
+    description =
+      tempConfirmationDate !== '—'
+        ? `Temperatura confirmada el ${tempConfirmationDate}. A la espera del criterio de moco.`
+        : 'Temperatura confirmada. A la espera del criterio de moco.';
+  } else {
+    title = 'Fase postovulatoria';
+    message = 'Interpretación postovulatoria disponible.';
+    description = status === 'pending' ? 'Pendiente completar el segundo criterio.' : null;
+  }
       } else if (phase === 'nodata') {
         const status = reasons?.status ?? info?.status ?? null;
         if (status === 'no-fertile-window') {
