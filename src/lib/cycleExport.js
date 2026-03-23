@@ -52,7 +52,17 @@ const parseDateOnly = (value) => {
 
   return null;
 };
-
+const PDF_THEME = {
+  pageBg: [255, 248, 251],
+  panelBg: [255, 255, 255],
+  panelBorder: [246, 220, 230],
+  headerBg: [253, 234, 242],
+  accent: [143, 26, 85],
+  accentSoft: [216, 92, 112],
+  text: [84, 97, 116],
+  muted: [124, 136, 155],
+  white: [255, 255, 255],
+};
 const formatDate = (value) => {
   const parsed = parseDateOnly(value);
   if (!parsed) return value ? String(value) : '';
@@ -202,6 +212,20 @@ const inferCycleTitle = (cycle, index) => {
   return `Ciclo ${index + 1}`;
 };
 
+const getCycleDateRangeLabel = (cycle) => {
+  const formattedStart = formatDate(cycle?.startDate);
+  const formattedEnd =
+    cycle?.type === 'current'
+      ? 'actualidad'
+      : formatDate(cycle?.endDate);
+
+  if (formattedStart && formattedEnd) {
+    return `${formattedStart} - ${formattedEnd}`;
+  }
+  if (formattedStart) return formattedStart;
+  return 'sin fechas';
+};
+
 const escapeCsvField = (value) => {
   if (value === null || value === undefined) return '';
   const stringValue = String(value);
@@ -318,11 +342,6 @@ const renderCycleChart = (doc, cycleTitle, entries) => {
   const chartWidth = chartRight - chartLeft;
   const chartHeight = chartBottom - chartTop;
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(16);
-  doc.text(`${cycleTitle} · Gráfica`, margin, 20);
-  doc.setFont('helvetica', 'normal');
-
   if (!chartData.length) {
     doc.setFontSize(11);
     doc.text('No hay datos de temperatura para graficar.', margin, chartTop);
@@ -397,7 +416,83 @@ const renderCycleChart = (doc, cycleTitle, entries) => {
     doc.circle(x, y, 0.8, 'F');
   });
 };
+const drawRoundedPanel = (doc, x, y, w, h, radius = 4, style = 'FD') => {
+  doc.roundedRect(x, y, w, h, radius, radius, style);
+};
 
+const drawPdfPageChrome = (doc, { title, subtitle = '', badge = '' }) => {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+
+  // Fondo general
+  doc.setFillColor(...PDF_THEME.pageBg);
+  doc.rect(0, 0, pageWidth, pageHeight, 'F');
+
+  // Marco exterior suave
+  doc.setDrawColor(...PDF_THEME.panelBorder);
+  doc.setLineWidth(0.35);
+  drawRoundedPanel(doc, 6, 6, pageWidth - 12, pageHeight - 12, 5, 'S');
+
+  // Cabecera
+  doc.setFillColor(...PDF_THEME.headerBg);
+  drawRoundedPanel(doc, 8, 8, pageWidth - 16, 18, 5, 'F');
+
+  // Título
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(15);
+  doc.setTextColor(...PDF_THEME.accent);
+  doc.text(title, 14, 18);
+
+  // Subtítulo
+  if (subtitle) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9.5);
+    doc.setTextColor(...PDF_THEME.muted);
+    doc.text(subtitle, 14, 23);
+  }
+
+  // Badge derecha
+  if (badge) {
+    const badgeW = 18;
+    const badgeH = 8;
+    const badgeX = pageWidth - 14 - badgeW;
+    const badgeY = 12;
+
+    doc.setFillColor(...PDF_THEME.accentSoft);
+    drawRoundedPanel(doc, badgeX, badgeY, badgeW, badgeH, 3, 'F');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(...PDF_THEME.white);
+    doc.text(badge, badgeX + badgeW / 2, badgeY + 5.4, { align: 'center' });
+  }
+};
+
+const drawSectionCard = (doc, x, y, w, h) => {
+  doc.setFillColor(...PDF_THEME.panelBg);
+  doc.setDrawColor(...PDF_THEME.panelBorder);
+  doc.setLineWidth(0.3);
+  drawRoundedPanel(doc, x, y, w, h, 4, 'FD');
+};
+
+const drawSectionTitle = (doc, { x, y, title = '', subtitle = '' }) => {
+  let currentY = y;
+
+  if (title) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11.5);
+    doc.setTextColor(...PDF_THEME.accent);
+    doc.text(title, x, currentY);
+    currentY += 5;
+  }
+
+  if (subtitle) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(...PDF_THEME.muted);
+    doc.text(subtitle, x, currentY);
+  }
+};
 const buildFixedChartSegments = (entries = [], maxDaysPerPage = 31, tinyTailThreshold = 10) => {
   const totalDays = entries?.length ?? 0;
   if (!totalDays) return [];
@@ -466,39 +561,48 @@ const exportChartOnlyPdf = async ({ doc, cycles, formatted, includeRs, horizonta
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const pageMarginX = 8;
-  const pageMarginTop = 8;
-  const pageMarginBottom = 8;
-  const titleH = 5;
-  const subtitleH = 4;
-  const headerGap = 2;
-  const chartGap = 5;
-  const cycleGap = 7;
+const pageMarginTop = 30;
+const pageMarginBottom = 10;
+const titleH = 6;
+const subtitleH = 4;
+const headerGap = 3;
+const chartGap = 6;
+const cycleGap = 8;
 
   let cursorY = pageMarginTop;
   let isFirstPage = true;
 
-  const startNewPage = () => {
-    if (!isFirstPage) doc.addPage();
-    isFirstPage = false;
-    cursorY = pageMarginTop;
-  };
+  const startNewPage = (pageTitle = 'Gráfica del ciclo') => {
+  if (!isFirstPage) doc.addPage();
+  isFirstPage = false;
+
+  drawPdfPageChrome(doc, {
+    title: pageTitle,
+    subtitle: 'Exportación PDF',
+    badge: 'FertiliApp',
+  });
+
+  cursorY = pageMarginTop;
+};
 
   for (let cycleIndex = 0; cycleIndex < formatted.length; cycleIndex += 1) {
     const cycle = formatted[cycleIndex];
     const baseEntries = ensureProcessedEntries(cycles[cycleIndex]) ?? [];
     const fullEntries = buildFullTimelineEntries(cycles[cycleIndex], baseEntries);
     const segments = buildFixedChartSegments(fullEntries, 31);
+    const cycleRangeLabel = getCycleDateRangeLabel(cycles[cycleIndex]);
+if (isFirstPage) {
+  startNewPage(`Gráfica del ciclo ${cycleRangeLabel}`);
+}
 
     if (!segments.length) {
-      startNewPage();
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(16);
-      doc.text(`${cycle.title} · Gráfica`, horizontalMargin, 18);
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(11);
-      doc.text('No hay datos para graficar.', horizontalMargin, 30);
-      continue;
-    }
+  startNewPage(`Gráfica del ciclo ${cycleRangeLabel}`);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(11);
+  doc.setTextColor(...PDF_THEME.text);
+  doc.text('No hay datos para graficar.', horizontalMargin, 38);
+  continue;
+}
 
     for (let segmentIndex = 0; segmentIndex < segments.length; segmentIndex += 1) {
       const segment = segments[segmentIndex];
@@ -525,23 +629,44 @@ const exportChartOnlyPdf = async ({ doc, cycles, formatted, includeRs, horizonta
       const blockHeight = titleH + subtitleH + headerGap + imageHeightMm + chartGap;
       const requiredHeight = blockHeight + (segmentIndex === segments.length - 1 ? cycleGap : 0);
       const fitsCurrentPage = cursorY + requiredHeight <= pageHeight - pageMarginBottom;
-      if (!fitsCurrentPage) startNewPage();
+      if (!fitsCurrentPage) {
+  startNewPage(`Gráfica del ciclo ${cycleRangeLabel}`);
+}
       else if (isFirstPage) isFirstPage = false;
 
-      const titleY = cursorY + titleH;
-      const subtitleY = titleY + subtitleH + 1;
-      const contentY = subtitleY + headerGap;
+      const cardX = pageMarginX;
+const cardY = cursorY;
+const cardW = contentW;
+const cardInnerPad = 4;
 
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(15);
-      doc.text(`${cycle.title} · Gráfica`, pageMarginX, titleY);
+const titleY = cardY + 6;
+const subtitleY = titleY;
+const contentY = subtitleY + 5 + headerGap;
 
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10);
-      doc.text(`Días ${segment.dayFrom}–${segment.dayTo}${datePart}`, pageMarginX, subtitleY);
-      doc.addImage(image.dataUrl, 'PNG', pageMarginX, contentY, contentW, imageHeightMm);
+const cardH =
+  (contentY - cardY) +
+  imageHeightMm +
+  cardInnerPad;
 
-      cursorY = contentY + imageHeightMm + chartGap;
+drawSectionCard(doc, cardX, cardY, cardW, cardH);
+
+drawSectionTitle(doc, {
+  x: cardX + cardInnerPad,
+  y: titleY,
+  title: '',
+  subtitle: `Días ${segment.dayFrom}–${segment.dayTo}${datePart}`,
+});
+
+doc.addImage(
+  image.dataUrl,
+  'PNG',
+  cardX + cardInnerPad,
+  contentY,
+  cardW - cardInnerPad * 2,
+  imageHeightMm
+);
+
+cursorY = cardY + cardH + chartGap;
       if (segmentIndex === segments.length - 1) {
         cursorY += cycleGap;
       }
@@ -589,14 +714,11 @@ export const downloadCyclesAsPdf = async (
   }
 if (includeChart) {
     await exportChartOnlyPdf({ doc, cycles, formatted, includeRs, horizontalMargin });
-    doc.addPage();
-  }
+}
 
   for (let index = 0; index < formatted.length; index += 1) {
     const cycle = formatted[index];
-    if (index > 0) {
       doc.addPage();
-    }
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(16);
@@ -606,26 +728,36 @@ if (includeChart) {
     autoTable(doc, {
       head: [cycle.headers],
       body: cycle.rows,
-      margin: { top: 32, left: horizontalMargin, right: horizontalMargin, bottom: 14 },
+      margin: { top: 34, left: horizontalMargin, right: horizontalMargin, bottom: 14 },
       tableWidth,
-      styles: {
-        fontSize: 7,
-        cellPadding: { top: 1.6, right: 1.6, bottom: 1.6, left: 1.6 },
-        overflow: 'linebreak',
-        cellWidth: 'wrap',
-        halign: 'left',
-        valign: 'top',
-      },
-      headStyles: { fillColor: [216, 92, 112], textColor: [255, 255, 255], fontStyle: 'bold' },
+      headStyles: {
+  fillColor: [216, 92, 112],
+  textColor: [255, 255, 255],
+  fontStyle: 'bold',
+  lineColor: [216, 92, 112],
+  lineWidth: 0.15,
+},
       alternateRowStyles: { fillColor: [255, 232, 238] },
+      styles: {
+  fontSize: 7,
+  cellPadding: { top: 1.6, right: 1.6, bottom: 1.6, left: 1.6 },
+  overflow: 'linebreak',
+  cellWidth: 'wrap',
+  halign: 'left',
+  valign: 'top',
+  textColor: PDF_THEME.text,
+  lineColor: PDF_THEME.panelBorder,
+  lineWidth: 0.15,
+},
       columnStyles: computedColumnStyles,
 
-      didDrawPage: () => {
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(16);
-        doc.text(cycle.title, horizontalMargin, 24);
-        doc.setFont('helvetica', 'normal');
-      },
+  willDrawPage: () => {
+  drawPdfPageChrome(doc, {
+    title: `Datos del ciclo ${getCycleDateRangeLabel(cycles[index])}`,
+    subtitle: 'Exportación PDF',
+    badge: 'DATOS',
+  });
+},
     });
 
   }
