@@ -561,48 +561,49 @@ const exportChartOnlyPdf = async ({ doc, cycles, formatted, includeRs, horizonta
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const pageMarginX = 8;
-const pageMarginTop = 30;
-const pageMarginBottom = 10;
-const titleH = 6;
-const subtitleH = 4;
-const headerGap = 3;
-const chartGap = 6;
-const cycleGap = 8;
+  const pageMarginTop = 30;
+  const pageMarginBottom = 10;
+  const headerGap = 1.5;
+  const chartGap = 5;
+  const cycleGap = 6;
 
   let cursorY = pageMarginTop;
   let isFirstPage = true;
 
   const startNewPage = (pageTitle = 'Gráfica del ciclo') => {
-  if (!isFirstPage) doc.addPage();
-  isFirstPage = false;
+    if (!isFirstPage) doc.addPage();
+    isFirstPage = false;
 
-  drawPdfPageChrome(doc, {
-    title: pageTitle,
-    subtitle: 'Exportación PDF',
-    badge: 'FertiliApp',
-  });
+    drawPdfPageChrome(doc, {
+      title: pageTitle,
+      subtitle: 'Exportación PDF',
+      badge: 'FertiliApp',
+    });
 
-  cursorY = pageMarginTop;
-};
+    cursorY = pageMarginTop;
+  };
 
   for (let cycleIndex = 0; cycleIndex < formatted.length; cycleIndex += 1) {
     const cycle = formatted[cycleIndex];
-    const baseEntries = ensureProcessedEntries(cycles[cycleIndex]) ?? [];
-    const fullEntries = buildFullTimelineEntries(cycles[cycleIndex], baseEntries);
+    const rawCycle = cycles[cycleIndex];
+
+    const baseEntries = ensureProcessedEntries(rawCycle) ?? [];
+    const fullEntries = buildFullTimelineEntries(rawCycle, baseEntries);
     const segments = buildFixedChartSegments(fullEntries, 31);
-    const cycleRangeLabel = getCycleDateRangeLabel(cycles[cycleIndex]);
-if (isFirstPage) {
-  startNewPage(`Gráfica del ciclo ${cycleRangeLabel}`);
-}
+    const cycleRangeLabel = getCycleDateRangeLabel(rawCycle);
+
+    if (isFirstPage) {
+      startNewPage(`Gráfica del ciclo ${cycleRangeLabel}`);
+    }
 
     if (!segments.length) {
-  startNewPage(`Gráfica del ciclo ${cycleRangeLabel}`);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(11);
-  doc.setTextColor(...PDF_THEME.text);
-  doc.text('No hay datos para graficar.', horizontalMargin, 38);
-  continue;
-}
+      startNewPage(`Gráfica del ciclo ${cycleRangeLabel}`);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      doc.setTextColor(...PDF_THEME.text);
+      doc.text('No hay datos para graficar.', horizontalMargin, 38);
+      continue;
+    }
 
     for (let segmentIndex = 0; segmentIndex < segments.length; segmentIndex += 1) {
       const segment = segments[segmentIndex];
@@ -624,49 +625,52 @@ if (isFirstPage) {
         widthPx: Math.round(mmToPx(contentW)),
         heightPx: Math.round(mmToPx((pageHeight - pageMarginTop - pageMarginBottom) * 0.9)),
         pixelRatio: 1.75,
+        embedded: true,
+        showTitle: false,
       });
+
       const imageHeightMm = contentW * (image.heightPx / image.widthPx);
-      const blockHeight = titleH + subtitleH + headerGap + imageHeightMm + chartGap;
+      const cardTopPad = 6;
+      const textToImageGap = 2.5;
+      const cardBottomPad = 4;
+
+      const cardH = cardTopPad + textToImageGap + headerGap + imageHeightMm + cardBottomPad;
+      const blockHeight = cardH + chartGap;
       const requiredHeight = blockHeight + (segmentIndex === segments.length - 1 ? cycleGap : 0);
       const fitsCurrentPage = cursorY + requiredHeight <= pageHeight - pageMarginBottom;
+
       if (!fitsCurrentPage) {
-  startNewPage(`Gráfica del ciclo ${cycleRangeLabel}`);
-}
-      else if (isFirstPage) isFirstPage = false;
+        startNewPage(`Gráfica del ciclo ${cycleRangeLabel}`);
+      }
 
       const cardX = pageMarginX;
-const cardY = cursorY;
-const cardW = contentW;
-const cardInnerPad = 4;
+      const cardY = cursorY;
+      const cardW = contentW;
+      const cardInnerPad = 4;
 
-const titleY = cardY + 6;
-const subtitleY = titleY;
-const contentY = subtitleY + 5 + headerGap;
+      const subtitleY = cardY + cardTopPad;
+      const contentY = subtitleY + textToImageGap + headerGap;
 
-const cardH =
-  (contentY - cardY) +
-  imageHeightMm +
-  cardInnerPad;
+      drawSectionCard(doc, cardX, cardY, cardW, cardH);
 
-drawSectionCard(doc, cardX, cardY, cardW, cardH);
+      drawSectionTitle(doc, {
+        x: cardX + cardInnerPad,
+        y: subtitleY,
+        title: '',
+        subtitle: `Días ${segment.dayFrom}–${segment.dayTo}${datePart}`,
+      });
 
-drawSectionTitle(doc, {
-  x: cardX + cardInnerPad,
-  y: titleY,
-  title: '',
-  subtitle: `Días ${segment.dayFrom}–${segment.dayTo}${datePart}`,
-});
+      doc.addImage(
+        image.dataUrl,
+        'PNG',
+        cardX + cardInnerPad,
+        contentY,
+        cardW - cardInnerPad * 2,
+        imageHeightMm
+      );
 
-doc.addImage(
-  image.dataUrl,
-  'PNG',
-  cardX + cardInnerPad,
-  contentY,
-  cardW - cardInnerPad * 2,
-  imageHeightMm
-);
+      cursorY = cardY + cardH + chartGap;
 
-cursorY = cardY + cardH + chartGap;
       if (segmentIndex === segments.length - 1) {
         cursorY += cycleGap;
       }
@@ -717,8 +721,10 @@ if (includeChart) {
 }
 
   for (let index = 0; index < formatted.length; index += 1) {
-    const cycle = formatted[index];
-      doc.addPage();
+  const cycle = formatted[index];
+  if (includeChart || index > 0) {
+    doc.addPage();
+  }
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(16);

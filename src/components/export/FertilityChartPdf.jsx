@@ -209,16 +209,27 @@ const drawSymbol = ({ entry, x, y, size }) => {
   );
 };
 
-const FertilityChartPdf = ({ entries = [], width = 1600, height = 900, title = '', includeRs = true }) => {
+const FertilityChartPdf = ({
+  entries = [],
+  width = 1600,
+  height = 900,
+  title = '',
+  includeRs = true,
+  embedded = false,
+  showTitle = true,
+}) => {
   const layout = useMemo(() => {
-    const margin = { top: 20, right: 24, bottom: 18, left: 24 };
-    const panelPadding = 14;
-    const titleH = 30;
-    const chartRowsGap = 6;
+    const margin = embedded
+  ? { top: 8, right: 24, bottom: 18, left: 24 }
+  : { top: 20, right: 24, bottom: 18, left: 24 };
 
-    const panelInnerH = height - margin.top - margin.bottom - panelPadding * 2 - titleH;
-    const graphAreaH = Math.round(panelInnerH * 0.27);
-    const rowsAreaH = panelInnerH - graphAreaH;
+const panelPadding = embedded ? 10 : 14;
+const titleH = showTitle ? 30 : 0;
+const chartRowsGap = 6;
+
+const panelInnerH = height - margin.top - margin.bottom - panelPadding * 2 - titleH;
+const graphAreaH = Math.round(panelInnerH * 0.27);
+const rowsAreaH = panelInnerH - graphAreaH;
 
     const rows = [
       { key: 'date', label: 'Fecha', minHeight: 17, lineHeight: 9.5, paddingY: 3.5 },
@@ -317,7 +328,7 @@ const safeMax = calculationTemperatures.length
       dayCount,
       temperaturePoints,
     };
-  }, [entries, height, includeRs, width]);
+  }, [embedded, entries, height, includeRs, showTitle, width]);
 
   const tempRange = Math.max(layout.maxTemp - layout.minTemp, 0.1);
   const getX = (index) => layout.chartLeft + layout.colW * (index + 0.5);
@@ -397,9 +408,11 @@ const safeMax = calculationTemperatures.length
         stroke={PALETTE.panelBorder}
       />
 
-      <text x={layout.chartLeft} y={layout.titleY} fontSize="20" fontWeight="700" fill={PALETTE.textStrong}>
-        {title}
-      </text>
+      {showTitle ? (
+  <text x={layout.chartLeft} y={layout.titleY} fontSize="20" fontWeight="700" fill={PALETTE.textStrong}>
+    {title}
+  </text>
+) : null}
 
       <rect
         x={layout.chartLeft}

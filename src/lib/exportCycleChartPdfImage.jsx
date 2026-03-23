@@ -25,6 +25,8 @@ export async function renderCycleChartPdfToPng({
   title,
   includeRs = true,
   pixelRatio = 2,
+  embedded = false,
+  showTitle = true,
 }) {
   if (typeof window === 'undefined') {
     throw new Error('renderCycleChartPdfToPng solo está disponible en navegador.');
@@ -35,12 +37,14 @@ export async function renderCycleChartPdfToPng({
 
   const svgMarkup = renderToStaticMarkup(
     <FertilityChartPdf
-      entries={entries}
-      width={safeWidth}
-      height={safeHeight}
-      title={title}
-      includeRs={includeRs}
-    />,
+  entries={entries}
+  width={safeWidth}
+  height={safeHeight}
+  title={title}
+  includeRs={includeRs}
+  embedded={embedded}
+  showTitle={showTitle}
+/>
   );
   const renderedWidth = extractSvgDimension(svgMarkup, 'width', safeWidth);
   const renderedHeight = extractSvgDimension(svgMarkup, 'height', safeHeight);
