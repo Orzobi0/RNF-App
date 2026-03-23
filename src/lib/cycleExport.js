@@ -466,8 +466,22 @@ const exportChartOnlyPdf = async ({ doc, cycles, formatted, includeRs, horizonta
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const pageMarginX = 8;
-  const pageMarginTop = 10;
+  const pageMarginTop = 8;
   const pageMarginBottom = 8;
+  const titleH = 5;
+  const subtitleH = 4;
+  const headerGap = 2;
+  const chartGap = 5;
+  const cycleGap = 7;
+
+  let cursorY = pageMarginTop;
+  let isFirstPage = true;
+
+  const startNewPage = () => {
+    if (!isFirstPage) doc.addPage();
+    isFirstPage = false;
+    cursorY = pageMarginTop;
+  };
 
   for (let cycleIndex = 0; cycleIndex < formatted.length; cycleIndex += 1) {
     const cycle = formatted[cycleIndex];
@@ -476,7 +490,7 @@ const exportChartOnlyPdf = async ({ doc, cycles, formatted, includeRs, horizonta
     const segments = buildFixedChartSegments(fullEntries, 31);
 
     if (!segments.length) {
-      if (cycleIndex > 0) doc.addPage();
+      startNewPage();
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(16);
       doc.text(`${cycle.title} · Gráfica`, horizontalMargin, 18);
@@ -487,24 +501,14 @@ const exportChartOnlyPdf = async ({ doc, cycles, formatted, includeRs, horizonta
     }
 
     for (let segmentIndex = 0; segmentIndex < segments.length; segmentIndex += 1) {
-      if (cycleIndex > 0 || segmentIndex > 0) doc.addPage();
       const segment = segments[segmentIndex];
-
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(15);
-      doc.text(`${cycle.title} · Gráfica`, pageMarginX, pageMarginTop + 4);
 
       const datePart =
         segment.isoFrom && segment.isoTo
           ? ` (${formatDate(segment.isoFrom)}–${formatDate(segment.isoTo)})`
           : '';
-      doc.setFontSize(10);
-      doc.text(`Días ${segment.dayFrom}–${segment.dayTo}${datePart}`, pageMarginX, pageMarginTop + 10);
 
       const contentW = pageWidth - pageMarginX * 2;
-      const rawContentH = pageHeight - pageMarginTop - pageMarginBottom - 14;
-      const contentH = Math.min(rawContentH, rawContentH * 0.73);
-      const contentY = pageMarginTop + 12 + (rawContentH - contentH) / 2;
       const targetDpi = 280;
       const mmToPx = (mm) => (mm / 25.4) * targetDpi;
       const segmentEntries = fullEntries.slice(segment.startIndex, segment.endExclusive);
@@ -514,11 +518,33 @@ const exportChartOnlyPdf = async ({ doc, cycles, formatted, includeRs, horizonta
         title: `${cycle.title} · Días ${segment.dayFrom}–${segment.dayTo}`,
         includeRs,
         widthPx: Math.round(mmToPx(contentW)),
-        heightPx: Math.round(mmToPx(contentH)),
+        heightPx: Math.round(mmToPx((pageHeight - pageMarginTop - pageMarginBottom) * 0.9)),
         pixelRatio: 1.75,
       });
+      const imageHeightMm = contentW * (image.heightPx / image.widthPx);
+      const blockHeight = titleH + subtitleH + headerGap + imageHeightMm + chartGap;
+      const requiredHeight = blockHeight + (segmentIndex === segments.length - 1 ? cycleGap : 0);
+      const fitsCurrentPage = cursorY + requiredHeight <= pageHeight - pageMarginBottom;
+      if (!fitsCurrentPage) startNewPage();
+      else if (isFirstPage) isFirstPage = false;
 
-      doc.addImage(image.dataUrl, 'PNG', pageMarginX, contentY, contentW, contentH);
+      const titleY = cursorY + titleH;
+      const subtitleY = titleY + subtitleH + 1;
+      const contentY = subtitleY + headerGap;
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(15);
+      doc.text(`${cycle.title} · Gráfica`, pageMarginX, titleY);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.text(`Días ${segment.dayFrom}–${segment.dayTo}${datePart}`, pageMarginX, subtitleY);
+      doc.addImage(image.dataUrl, 'PNG', pageMarginX, contentY, contentW, imageHeightMm);
+
+      cursorY = contentY + imageHeightMm + chartGap;
+      if (segmentIndex === segments.length - 1) {
+        cursorY += cycleGap;
+      }
     }
   }
 };

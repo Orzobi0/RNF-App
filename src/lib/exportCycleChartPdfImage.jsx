@@ -12,6 +12,12 @@ const loadSvgImage = (svgMarkup, widthPx, heightPx) =>
     img.height = heightPx;
   });
 
+  const extractSvgDimension = (svgMarkup, key, fallback) => {
+  const match = svgMarkup.match(new RegExp(`${key}="([0-9.]+)"`));
+  const value = match ? Number(match[1]) : NaN;
+  return Number.isFinite(value) && value > 0 ? Math.round(value) : fallback;
+};
+
 export async function renderCycleChartPdfToPng({
   entries,
   widthPx,
@@ -36,15 +42,15 @@ export async function renderCycleChartPdfToPng({
       includeRs={includeRs}
     />,
   );
-
+  const renderedWidth = extractSvgDimension(svgMarkup, 'width', safeWidth);
+  const renderedHeight = extractSvgDimension(svgMarkup, 'height', safeHeight);
   const svgDataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgMarkup)}`;
 
-  const image = await loadSvgImage(svgMarkup, safeWidth, safeHeight);
+  const image = await loadSvgImage(svgMarkup, renderedWidth, renderedHeight);
 
   const canvas = document.createElement('canvas');
-  canvas.width = Math.round(safeWidth * pixelRatio);
-  canvas.height = Math.round(safeHeight * pixelRatio);
-
+  canvas.width = Math.round(renderedWidth * pixelRatio);
+  canvas.height = Math.round(renderedHeight * pixelRatio);
   const ctx = canvas.getContext('2d');
   if (!ctx) {
     throw new Error('No se pudo inicializar canvas para exportación de gráfica PDF.');

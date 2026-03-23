@@ -265,7 +265,6 @@ const safeMax = calculationTemperatures.length
     const panelX = margin.left;
     const panelY = margin.top;
     const panelW = width - margin.left - margin.right;
-    const panelH = height - margin.top - margin.bottom;
 
     const titleY = panelY + panelPadding + 8;
     const chartTop = panelY + panelPadding + titleH;
@@ -285,7 +284,10 @@ const safeMax = calculationTemperatures.length
       return Math.max(row.minHeight, row.paddingY * 2 + maxLines * row.lineHeight);
     });
     const rowsContentH = rowHeights.reduce((acc, value) => acc + value, 0);
-    const rowsBottom = Math.min(panelY + panelPadding + titleH + graphAreaH + rowsAreaH, rowsTop + rowsContentH);
+    const rowsBottom = rowsTop + rowsContentH;
+    const panelContentBottom = rowsBottom + panelPadding;
+    const panelH = panelContentBottom - panelY;
+    const svgHeight = panelContentBottom + margin.bottom;
 
     return {
       margin,
@@ -294,6 +296,7 @@ const safeMax = calculationTemperatures.length
       panelY,
       panelW,
       panelH,
+      svgHeight,
       titleY,
       graphAreaH,
       rowsAreaH,
@@ -370,7 +373,7 @@ const safeMax = calculationTemperatures.length
   let rowCursor = layout.rowsTop;
 
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+    <svg xmlns="http://www.w3.org/2000/svg" width={width} height={layout.svgHeight} viewBox={`0 0 ${width} ${layout.svgHeight}`}>
       <defs>
         <linearGradient id="pdf-temp-line-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
           <stop offset="0%" stopColor="#f9738f" />
@@ -383,7 +386,7 @@ const safeMax = calculationTemperatures.length
         </pattern>
       </defs>
 
-      <rect x="0" y="0" width={width} height={height} fill={PALETTE.pageBg} />
+      <rect x="0" y="0" width={width} height={layout.svgHeight} fill={PALETTE.pageBg} />
       <rect
         x={layout.panelX}
         y={layout.panelY}
