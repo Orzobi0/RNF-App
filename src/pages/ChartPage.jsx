@@ -1296,14 +1296,14 @@ const rotatedDrawerStyle = applyRotation
   message = `Fase confirmada desde el ${segmentStartDate}.`;
   description = 'Confirmada por doble criterio: temperatura y moco.';
 } else if (displayLabel.includes('moco')) {
-    title = 'Infertilidad por moco';
+    title = 'Infertilidad estimada por moco';
     message = `Comienza el ${segmentStartDate}.`;
     description =
       `Inicio tras completar el 3.º día postpico.` +
       `${peakDate !== '—' ? ` Día pico: ${peakDate}.` : ''}` +
       ` A la espera de confirmación por temperatura.`;
   } else if (displayLabel.includes('temperatura')) {
-    title = 'Infertilidad por temperatura';
+    title = 'Infertilidad estimada por temperatura';
     message = `Comienza el ${segmentStartDate}.`;
     description =
       tempConfirmationDate !== '—'
