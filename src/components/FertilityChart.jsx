@@ -998,9 +998,9 @@ if (isRotated) {
     let status = 'pending';
     let message = '';
     let label = 'Infertilidad postovulatoria';
-    let tooltip = 'Fase postovulatoria: se ha cumplido un criterio de cierre; falta el segundo para confirmar la infertilidad absoluta.';
+    let tooltip = 'Fase postovulatoria: se ha cumplido un criterio de cierre; falta el segundo para confirmar la infertilidad postovulatoria.';
 
-    const absoluteLabel = 'Infertilidad absoluta';
+    const absoluteLabel = 'Infertilidad postovulatoria confirmada';
     const absoluteMessage = 'Fase postovulatoria alcanzada (se ha confirmado día pico y subida de temperatura).';
     const absoluteTooltip = 'Confirmación completa: doble criterio (día pico + temperatura).';
     const formatDay = (idx) => (Number.isInteger(idx) ? `D${idx + 1}` : '—');

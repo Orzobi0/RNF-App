@@ -1287,7 +1287,7 @@ const rotatedDrawerStyle = applyRotation
         );
         const segmentStartDate = formatDateFromIndex(info?.startIndex);
 
-        if (status === 'absolute' || info?.displayLabel === 'Infertilidad absoluta') {
+        if (status === 'absolute' || info?.displayLabel === 'Infertilidad postovulatoria confirmada') {
           title = 'Infertilidad postovulatoria confirmada';
           message = `Comienza el ${segmentStartDate}.`;
           description = `Confirmada por temperatura (${tempConfirmationDate}) y 3.º/4.º día postpico (${mucusInfertileDate}).`;
