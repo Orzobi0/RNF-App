@@ -44,6 +44,7 @@ export async function renderCycleChartPdfToPng({
   includeRs={includeRs}
   embedded={embedded}
   showTitle={showTitle}
+  fixedDaySlots={31}
 />
   );
   const renderedWidth = extractSvgDimension(svgMarkup, 'width', safeWidth);

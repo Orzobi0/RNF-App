@@ -217,6 +217,7 @@ const FertilityChartPdf = ({
   includeRs = true,
   embedded = false,
   showTitle = true,
+  fixedDaySlots = 31,
 }) => {
   const layout = useMemo(() => {
     const margin = embedded
@@ -268,10 +269,18 @@ const safeMax = calculationTemperatures.length
     }
 
     const dayCount = Math.max(1, entries.length);
-    const chartLeft = margin.left + panelPadding + 88;
-    const chartRight = width - margin.right - panelPadding;
-    const chartW = chartRight - chartLeft;
-    const colW = chartW / dayCount;
+const chartLeft = margin.left + panelPadding + 88;
+
+const maxChartRight = width - margin.right - panelPadding;
+const maxChartW = maxChartRight - chartLeft;
+
+// 31 huecos estándar.
+// Si algún día hubiese más de 31, no desbordamos: reducimos para que siga cabiendo.
+const slotCount = Math.max(dayCount, fixedDaySlots);
+
+const colW = maxChartW / slotCount;
+const chartW = colW * dayCount;
+const chartRight = chartLeft + chartW;
 
     const panelX = margin.left;
     const panelY = margin.top;
@@ -328,7 +337,7 @@ const safeMax = calculationTemperatures.length
       dayCount,
       temperaturePoints,
     };
-  }, [embedded, entries, height, includeRs, showTitle, width]);
+  }, [embedded, entries, fixedDaySlots, height, includeRs, showTitle, width]);
 
   const tempRange = Math.max(layout.maxTemp - layout.minTemp, 0.1);
   const getX = (index) => layout.chartLeft + layout.colW * (index + 0.5);
