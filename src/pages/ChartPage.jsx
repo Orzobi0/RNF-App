@@ -1505,7 +1505,7 @@ const rotatedDrawerStyle = applyRotation
           showInterpretation={showInterpretation}
           showManualBaseline={showManualBaseline}
           reduceMotion={true}
-          forceLandscape={forceLandscape || orientation === 'landscape'}
+          forceLandscape={forceLandscape}
           currentPeakIsoDate={currentPeakIsoDate}
           showRelationsRow={chartSettings.showRelationsRow}
           fertilityStartConfig={fertilityStartConfig}
