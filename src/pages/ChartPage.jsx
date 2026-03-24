@@ -1362,7 +1362,7 @@ const rotatedDrawerStyle = applyRotation
             transformOrigin: 'right center',
           }}
         >
-          <div className="flex items-center justify-center gap-1">
+          <div className="flex items-center justify-center gap-2 pt-3">
   <div className="whitespace-nowrap text-center text-[11px] font-medium leading-tight text-slate-500">
     {chartCycleLabel}
   </div>

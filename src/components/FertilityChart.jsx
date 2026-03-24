@@ -1390,6 +1390,64 @@ source: status === 'absolute' ? 'absolute' : estimatedSource,
   const fertilePhaseGradientId = `${uniqueId}-phase-fertile-gradient`;
   const postPendingGradientId = `${uniqueId}-phase-post-pending-gradient`;
   const postAbsoluteGradientId = `${uniqueId}-phase-post-absolute-gradient`;
+  const FULL_LABEL_MIN_WIDTH = 160;
+  const SHORT_LABEL_MIN_WIDTH = 94;
+  const PHASE_RAIL_HEIGHT = 6;
+  const PHASE_RAIL_HITBOX_HEIGHT = 22;
+  const SEGMENT_SHORT_LABELS = {
+    relativeInfertile: 'Rel. infértil',
+    fertile: 'Fértil',
+    postOvulatory_pending: 'Inf. estimada',
+    postOvulatory_absolute: 'Confirmada',
+    nodata: 'Sin ventana fértil',
+  };
+  const estimateSegmentTextWidth = (label, fontSize) => {
+    if (!label) return 0;
+    return label.length * Math.max(fontSize * 0.56, 1);
+  };
+  const getShortSegmentLabel = (segment) => {
+    if (segment.phase === 'postOvulatory') {
+      if (segment.source === 'mucus') return 'Inf. moco';
+      if (segment.source === 'temperature') return 'Inf. temp.';
+      if (segment.status === 'absolute') return SEGMENT_SHORT_LABELS.postOvulatory_absolute;
+      return SEGMENT_SHORT_LABELS.postOvulatory_pending;
+    }
+    return SEGMENT_SHORT_LABELS[segment.phase] ?? '';
+  };
+  const resolveSegmentDisplayLabel = (segment, fontSize) => {
+    const fullLabel = segment.displayLabel ?? segment.message ?? '';
+    const shortLabel = getShortSegmentLabel(segment);
+    const availableWidth = Math.max(segment.bounds.width - 16, 0);
+    const fullFits =
+      segment.bounds.width >= FULL_LABEL_MIN_WIDTH &&
+      estimateSegmentTextWidth(fullLabel, fontSize) <= availableWidth;
+
+    if (fullFits) return fullLabel;
+
+    const shortFits =
+      shortLabel &&
+      segment.bounds.width >= SHORT_LABEL_MIN_WIDTH &&
+      estimateSegmentTextWidth(shortLabel, fontSize) <= availableWidth;
+
+    return shortFits ? shortLabel : '';
+  };
+  const getSegmentRailColors = (segment) => {
+    if (segment.phase === 'relativeInfertile') {
+      return { fill: 'rgba(6, 95, 70, 0.72)', stroke: 'rgba(6, 95, 70, 0.92)' };
+    }
+    if (segment.phase === 'fertile') {
+      return { fill: 'rgba(157, 23, 77, 0.7)', stroke: 'rgba(136, 19, 55, 0.9)' };
+    }
+    if (segment.phase === 'postOvulatory') {
+      return segment.status === 'pending'
+        ? { fill: 'rgba(3, 105, 161, 0.72)', stroke: 'rgba(3, 105, 161, 0.95)' }
+        : { fill: 'rgba(30, 58, 138, 0.72)', stroke: 'rgba(30, 58, 138, 0.95)' };
+    }
+    if (segment.phase === 'nodata') {
+      return { fill: 'rgba(71, 85, 105, 0.7)', stroke: 'rgba(51, 65, 85, 0.9)' };
+    }
+    return { fill: 'rgba(15, 23, 42, 0.65)', stroke: 'rgba(15, 23, 42, 0.9)' };
+  };
   const getSegmentTextColor = (segment) => {
     if (segment.phase === 'relativeInfertile') {
       return '#065F46';
@@ -1794,23 +1852,22 @@ const rotationWrapperStyle = rotationStageStyle
                   const rectHeight = interpretationBandHeight;
                   const minFontSize = isFullScreen ? 14 : 13;
                   const fontSize = Math.max(responsiveFontSize(1.1), minFontSize);
-                  const isNarrow = segment.bounds.width < 120;
-                  const availableWidth = Math.max(segment.bounds.width - 16, 0);
-                  const approxCharWidth = Math.max(fontSize * 0.58, 1);
-                  const maxChars = Math.max(1, Math.floor(availableWidth / approxCharWidth));
                   const tooltipText = segment.tooltip ?? segment.displayLabel ?? segment.message ?? '';
-                  let displayText = segment.displayLabel ?? segment.message ?? '';
-                  if (isNarrow && displayText.length > maxChars) {
-                    const sliceLength = Math.max(maxChars - 1, 1);
-                    const truncated = displayText.slice(0, sliceLength).trimEnd();
-                    displayText = `${truncated}${displayText.length > sliceLength ? '…' : ''}`;
-                  }
-                  const textX = isNarrow
-                    ? segment.bounds.x + 8
-                    : segment.bounds.x + segment.bounds.width / 2;
-                  const textAnchor = isNarrow ? 'start' : 'middle';
-                  const textY = rectY + rectHeight / 2;
+                  const displayText = resolveSegmentDisplayLabel(segment, fontSize);
+                  const textX = segment.bounds.x + segment.bounds.width / 2;
+                  const textAnchor = 'middle';
+                  const textY = rectY + rectHeight * 0.46;
                   const textFillColor = getSegmentTextColor(segment);
+                  const railY = rectY + rectHeight - PHASE_RAIL_HEIGHT;
+                  const railHitboxY = Math.max(
+                    rectY,
+                    railY - (PHASE_RAIL_HITBOX_HEIGHT - PHASE_RAIL_HEIGHT)
+                  );
+                  const railHitboxHeight = Math.max(
+                    1,
+                    Math.min(PHASE_RAIL_HITBOX_HEIGHT, rectY + rectHeight - railHitboxY)
+                  );
+                  const railColors = getSegmentRailColors(segment);
                   const handleActivate = (event) => {
                     if (typeof event?.stopPropagation === 'function') {
                       event.stopPropagation();
@@ -1838,26 +1895,55 @@ const rotationWrapperStyle = rotationStageStyle
 
                   return (
                     <g key={segment.key}>
-                      <text
-                        x={textX}
-                        y={textY}
-                        fill={textFillColor}
-                        fontSize={fontSize}
-                        fontWeight={600}
-                        dominantBaseline="middle"
-                        textAnchor={textAnchor}
+                      <rect
+                        x={segment.bounds.x}
+                        y={railY}
+                        width={segment.bounds.width}
+                        height={PHASE_RAIL_HEIGHT}
+                        rx={2}
+                        fill={railColors.fill}
+                        stroke={railColors.stroke}
+                        strokeWidth={0.6}
+                        pointerEvents="none"
+                      />
+                      <rect
+                        x={segment.bounds.x}
+                        y={railHitboxY}
+                        width={segment.bounds.width}
+                        height={railHitboxHeight}
+                        fill="transparent"
                         role="button"
                         aria-label={tooltipText}
                         tabIndex={0}
                         data-chart-interactive="true"
                         onClick={handleActivate}
                         onKeyDown={handleKeyDown}
-                        style={{ cursor: 'pointer', userSelect: 'none', lineHeight: 1.2, textShadow: phaseTextShadow }}
-                        pointerEvents="auto"
+                        style={{ cursor: 'pointer' }}
                       >
                         <title>{tooltipText}</title>
-                        {displayText}
-                      </text>
+                        </rect>
+                      {displayText ? (
+                        <text
+                          x={textX}
+                          y={textY}
+                          fill={textFillColor}
+                          fontSize={fontSize}
+                          fontWeight={600}
+                          dominantBaseline="middle"
+                          textAnchor={textAnchor}
+                          role="button"
+                          aria-label={tooltipText}
+                          tabIndex={0}
+                          data-chart-interactive="true"
+                          onClick={handleActivate}
+                          onKeyDown={handleKeyDown}
+                          style={{ cursor: 'pointer', userSelect: 'none', lineHeight: 1.2, textShadow: phaseTextShadow }}
+                          pointerEvents="auto"
+                        >
+                          <title>{tooltipText}</title>
+                          {displayText}
+                        </text>
+                      ) : null}
                     </g>
                   );
                 })}
