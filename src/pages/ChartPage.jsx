@@ -26,7 +26,6 @@ import { useParams, Link, useLocation } from 'react-router-dom';
 import Overlay from '@/components/ui/Overlay';
 import { useAuth } from '@/contexts/AuthContext';
 import { computeOvulationMetrics } from '@/hooks/useFertilityChart';
-import normalizeBoolean from '@/lib/normalizeBoolean';
 import ChartControls from '@/components/ChartControls';
 
 const CHART_SETTINGS_STORAGE_KEY = 'fertility-chart-settings';
@@ -54,7 +53,6 @@ const normalizeCombineMode = (value) => {
 
 const createDefaultFertilityStartConfig = () => ({
   calculators: { cpm: true, t8: true },
-  postpartum: false,
   combineMode: 'estandar',
 });
 
@@ -72,7 +70,6 @@ const mergeFertilityStartConfig = (incoming) => {
   const base = createDefaultFertilityStartConfig();
   const merged = {
     calculators: { ...base.calculators },
-    postpartum: base.postpartum,
     combineMode: base.combineMode,
   };
 
@@ -87,11 +84,6 @@ const mergeFertilityStartConfig = (incoming) => {
     if (normalizedMode) {
       merged.combineMode = normalizedMode;
     }
-
-    const normalizedPostpartum = normalizeBoolean(incoming.postpartum);
-    if (normalizedPostpartum !== null) {
-      merged.postpartum = normalizedPostpartum;
-    }   
   }
 
   return merged;
@@ -109,6 +101,7 @@ const ChartPage = () => {
     getCycleById,
     previewStartNewCycle,
     startNewCycle,
+    updateCyclePostpartumMode,
   } = useCycleData();
 
   const [fetchedCycle, setFetchedCycle] = useState(null);
@@ -341,17 +334,6 @@ useEffect(() => {
           merged.showRelationsRow = Boolean(parsed.showRelationsRow);
         }
         merged.fertilityStartConfig = mergeFertilityStartConfig(parsed?.fertilityStartConfig);
-        const normalizedPostpartum = normalizeBoolean(parsed?.fertilityStartConfig?.postpartum);
-        if (parsed?.fertilityStartConfig?.postpartum != null && normalizedPostpartum === null) {
-          try {
-            window.localStorage.setItem(
-              CHART_SETTINGS_STORAGE_KEY,
-              JSON.stringify({ ...parsed, fertilityStartConfig: merged.fertilityStartConfig })
-            );
-          } catch (error) {
-            console.warn('No se pudieron limpiar los ajustes del gráfico.', error);
-          }
-        }
         return merged;
       }
     } catch (error) {
@@ -379,7 +361,6 @@ useEffect(() => {
     }
 
     if (currentConfig.combineMode !== preferenceConfig.combineMode) changed = true;
-    if (currentConfig.postpartum !== preferenceConfig.postpartum) changed = true;
 
     if (
       Object.keys(currentConfig.calculators ?? {}).some(
@@ -406,17 +387,19 @@ useEffect(() => {
     () => mergeFertilityStartConfig(chartSettings.fertilityStartConfig),
     [chartSettings.fertilityStartConfig]
   );
+  const cyclePostpartumMode = Boolean(targetCycle?.postpartumMode);
 
   const fertilityStartConfig = useMemo(
     () => ({
       ...fertilityConfig,
+      postpartum: cyclePostpartumMode,
       calculators: {
         ...fertilityConfig.calculators,
-        cpm: fertilityConfig.calculators.cpm && cpmSelection !== 'none',
-        t8: fertilityConfig.calculators.t8 && t8Selection !== 'none',
+        cpm: !cyclePostpartumMode && fertilityConfig.calculators.cpm && cpmSelection !== 'none',
+        t8: !cyclePostpartumMode && fertilityConfig.calculators.t8 && t8Selection !== 'none',
       },
     }),
-    [fertilityConfig, cpmSelection, t8Selection]
+    [fertilityConfig, cpmSelection, t8Selection, cyclePostpartumMode]
   );
 
   useEffect(() => {
@@ -735,36 +718,10 @@ const rotatedDrawerStyle = applyRotation
   };
   
   const handlePostpartumChange = (checked) => {
-    let nextConfig = null;
-    setChartSettings((prev) => {
-      const currentConfig = mergeFertilityStartConfig(prev.fertilityStartConfig);
-      const nextValue = checked === true;
-      if (currentConfig.postpartum === nextValue) {
-        return prev;
-      }
-      const baseCalculators =
-      currentConfig.calculators ?? createDefaultFertilityStartConfig().calculators;
-      const nextCalculators = {
-        ...baseCalculators,
-        cpm: !nextValue,
-        t8: !nextValue,
-      };
-      nextConfig = {
-        ...currentConfig,
-        postpartum: nextValue,
-        calculators: nextCalculators,
-      };
-      return {
-        ...prev,
-        fertilityStartConfig: nextConfig,
-      };
+    if (!targetCycle?.id || typeof updateCyclePostpartumMode !== 'function') return;
+    updateCyclePostpartumMode(targetCycle.id, checked === true).catch((error) => {
+      console.error('Failed to persist postpartum mode for cycle', error);
     });
-    
-    if (nextConfig && typeof savePreferences === 'function') {
-      savePreferences({ fertilityStartConfig: nextConfig }).catch((error) => {
-        console.error('Failed to persist postpartum preference', error);
-      });
-    }
   };
   const settingsDrawerInner = (
         <div className="flex h-full min-h-0 flex-col gap-6 rounded-l-2xl border border-rose-100/60 bg-white p-6 pt-[calc(env(safe-area-inset-top)+24px)] shadow-xl">
@@ -809,7 +766,7 @@ const rotatedDrawerStyle = applyRotation
                     <p className="text-sm font-semibold text-slate-700">Modo postparto</p>
                   </div>
                   <Checkbox
-                    checked={Boolean(fertilityConfig.postpartum)}
+                    checked={cyclePostpartumMode}
                     onCheckedChange={handlePostpartumChange}
                     className="mt-1"
                   />
@@ -823,7 +780,7 @@ const rotatedDrawerStyle = applyRotation
                     CPM y T-8 se combinan con los perfiles activos, salvo que actives el modo posparto.
                   </p>
                 </div>
-                {fertilityConfig.postpartum && (
+                {cyclePostpartumMode && (
                   <p className="text-xs font-medium text-rose-500">
                     El modo posparto está activo: CPM y T-8 se omiten del cálculo final.
                   </p>
@@ -834,7 +791,7 @@ const rotatedDrawerStyle = applyRotation
                       <span className="text-sm text-slate-700">{option.label}</span>
                       <Checkbox
                         checked={Boolean(fertilityConfig.calculators?.[option.key])}
-                        disabled={Boolean(fertilityConfig.postpartum)}
+                        disabled={cyclePostpartumMode}
                         onCheckedChange={(checked) => handleFertilityCalculatorChange(option.key, checked)}
                       />
                     </div>
@@ -1188,7 +1145,7 @@ const rotatedDrawerStyle = applyRotation
           ? reasons.fertileStartFinalIndex
           : null;
 
-      const postpartumActive = Boolean(fertilityConfig?.postpartum);
+      const postpartumActive = cyclePostpartumMode;
       const hasActiveCalculators = !postpartumActive
         && Boolean(fertilityConfig?.calculators?.cpm || fertilityConfig?.calculators?.t8);
 
@@ -1342,7 +1299,7 @@ const rotatedDrawerStyle = applyRotation
         postpartumActive,
       });
     },
-    [fertilityConfig, formatDateFromIndex, mergedData.length, setPhaseOverlay]
+    [cyclePostpartumMode, fertilityConfig, formatDateFromIndex, mergedData.length, setPhaseOverlay]
   );
 
   const handleToggleFullScreen = () => {

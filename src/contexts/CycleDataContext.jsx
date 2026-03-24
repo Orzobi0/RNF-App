@@ -16,6 +16,7 @@ import {
   fetchEntryMeasurementsDB,
   updateCycleDatesDB,
   updateCycleIgnoreAutoCalculations,
+  updateCyclePostpartumModeDB,
   deleteCycleDB,
   deleteArchivedCycleWithStrategyDB,
   previewDeleteArchivedCycleWithStrategyDB,
@@ -48,6 +49,7 @@ const defaultCycleState = {
   endDate: null,
   data: [],
   ignoredForAutoCalculations: false,
+  postpartumMode: false,
   issues: {
     outOfRange: [],
     duplicates: [],
@@ -55,6 +57,11 @@ const defaultCycleState = {
     summary: { outOfRangeCount: 0, duplicateDaysCount: 0, duplicateEntriesCount: 0 },
   },
 };
+
+const normalizeCycleForState = (cycle) => ({
+  ...cycle,
+  postpartumMode: cycle?.postpartumMode === true,
+});
 
 const filterEntriesByEndDate = (entries, endDate) => {
   if (!endDate) return entries;
@@ -211,8 +218,14 @@ export const CycleDataProvider = ({ children }) => {
         try {
           const cached = await getCachedCycleData(user.uid);
           if (cached) {
-            setCurrentCycle(cached.currentCycle ?? defaultCycleState);
-            setArchivedCycles(cached.archivedCycles ?? []);
+            setCurrentCycle(
+              cached.currentCycle ? normalizeCycleForState(cached.currentCycle) : defaultCycleState
+            );
+            setArchivedCycles(
+              Array.isArray(cached.archivedCycles)
+                ? cached.archivedCycles.map((cycle) => normalizeCycleForState(cycle))
+                : []
+            );
             hasLoadedRef.current = true;
             cachedDataApplied = true;
             if (!silent) {
@@ -252,7 +265,7 @@ export const CycleDataProvider = ({ children }) => {
           const filtered = filterEntriesByEndDate(filteredStart, endDate);
 
           currentCycleData = {
-            ...cycleToLoad,
+            ...normalizeCycleForState(cycleToLoad),
             startDate,
             endDate,
             data: filtered,
@@ -274,7 +287,7 @@ export const CycleDataProvider = ({ children }) => {
           const filteredStart = filterEntriesByStartDate(processed, aStart);
           const filtered = filterEntriesByEndDate(filteredStart, aEnd);
           return {
-            ...cycle,
+            ...normalizeCycleForState(cycle),
             startDate: aStart ?? format(startOfDay(new Date()), 'yyyy-MM-dd'),
             endDate: aEnd,
             needsCompletion: cycle.needsCompletion,
@@ -305,8 +318,14 @@ export const CycleDataProvider = ({ children }) => {
           try {
             const cached = await getCachedCycleData(user.uid);
             if (cached) {
-              setCurrentCycle(cached.currentCycle ?? defaultCycleState);
-              setArchivedCycles(cached.archivedCycles ?? []);
+              setCurrentCycle(
+                cached.currentCycle ? normalizeCycleForState(cached.currentCycle) : defaultCycleState
+              );
+              setArchivedCycles(
+                Array.isArray(cached.archivedCycles)
+                  ? cached.archivedCycles.map((cycle) => normalizeCycleForState(cycle))
+                  : []
+              );
               hasLoadedRef.current = true;
             } else {
               setCurrentCycle(defaultCycleState);
@@ -796,6 +815,7 @@ export const CycleDataProvider = ({ children }) => {
           endDate: null,
           data: [],
           ignoredForAutoCalculations: false,
+          postpartumMode: false,
         });
         await loadCycleData({ silent: true });
       } catch (error) {
@@ -1232,7 +1252,7 @@ export const CycleDataProvider = ({ children }) => {
         const filtered = filterEntriesByEndDate(filteredStart, endDate);
 
         return {
-          ...cycleData,
+          ...normalizeCycleForState(cycleData),
           startDate: startDate ?? format(startOfDay(new Date()), 'yyyy-MM-dd'),
           endDate,
           data: filtered,
@@ -1250,6 +1270,44 @@ export const CycleDataProvider = ({ children }) => {
       }
     },
     [user]
+  );
+
+  const updateCyclePostpartumMode = useCallback(
+    async (cycleIdToUpdate, value) => {
+      if (!user?.uid || !cycleIdToUpdate) return;
+      const nextValue = value === true;
+      const previousCurrentCycle = currentCycle;
+      const previousArchivedCycles = archivedCycles;
+
+      const updateCycle = (cycle) => {
+        if (!cycle || cycle.id !== cycleIdToUpdate) return cycle;
+        return { ...cycle, postpartumMode: nextValue };
+      };
+
+      setCurrentCycle((prevCycle) => updateCycle(prevCycle));
+      setArchivedCycles((prevCycles) => prevCycles.map((cycle) => updateCycle(cycle)));
+
+      try {
+        await updateCyclePostpartumModeDB(user.uid, cycleIdToUpdate, nextValue);
+        loadCycleData({ silent: true }).catch((error) =>
+          console.error(
+            'Background cycle data refresh failed after updating postpartum mode:',
+            error
+          )
+        );
+      } catch (error) {
+        console.error('Error updating cycle postpartum mode:', error);
+        setCurrentCycle(previousCurrentCycle);
+        setArchivedCycles(previousArchivedCycles);
+        toast({
+          title: 'Error',
+          description: 'No se pudo actualizar el modo posparto del ciclo.',
+          variant: 'destructive',
+        });
+        throw error;
+      }
+    },
+    [user, currentCycle, archivedCycles, loadCycleData, toast]
   );
 
   const refreshData = useCallback(
@@ -1384,6 +1442,7 @@ export const CycleDataProvider = ({ children }) => {
     refreshData,
     toggleIgnoreRecord,
     setCycleIgnoreForAutoCalculations,
+    updateCyclePostpartumMode,
     addArchivedCycle,
     previewInsertCycleRange,
     insertCycleRange,

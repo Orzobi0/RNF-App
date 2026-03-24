@@ -1576,6 +1576,7 @@ const ModernFertilityDashboard = () => {
     previewStartNewCycle,
     refreshData,
     setCycleIgnoreForAutoCalculations,
+    updateCyclePostpartumMode,
     undoCurrentCycle,
     previewUndoCurrentCycle,
   } = useCycleData();
@@ -3805,6 +3806,7 @@ const displayCycles = [...cycles].sort((a, b) => {
   const [showNewCycleDialog, setShowNewCycleDialog] = useState(false);
   const [newCyclePrefillDate, setNewCyclePrefillDate] = useState(null);
   const [showPostpartumExitDialog, setShowPostpartumExitDialog] = useState(false);
+  const [pendingPostpartumExitCycleId, setPendingPostpartumExitCycleId] = useState(null);
   const [editingRecord, setEditingRecord] = useState(null);
   const [initialSectionKey, setInitialSectionKey] = useState(null);
   const [formDraftToRestore, setFormDraftToRestore] = useState(null);
@@ -3851,14 +3853,10 @@ const displayCycles = [...cycles].sort((a, b) => {
 
   const handleConfirmPostpartumExit = useCallback(async () => {
     setShowPostpartumExitDialog(false);
-    if (typeof savePreferences !== 'function') return;
-    await savePreferences({
-      fertilityStartConfig: {
-        postpartum: false,
-        calculators: { cpm: true, t8: true },
-      },
-    });
-  }, [savePreferences]);
+    if (!pendingPostpartumExitCycleId || typeof updateCyclePostpartumMode !== 'function') return;
+    await updateCyclePostpartumMode(pendingPostpartumExitCycleId, false);
+    setPendingPostpartumExitCycleId(null);
+  }, [pendingPostpartumExitCycleId, updateCyclePostpartumMode]);
 
   const handleDateSelect = useCallback((record) => {
     setEditingRecord(record);
@@ -3990,6 +3988,8 @@ const displayCycles = [...cycles].sort((a, b) => {
   }, [isNewCycleFlowFromForm, loadDataEntryDraft]);
 
   const handleConfirmNewCycle = async (selectedStartDate) => {
+    const previousCycleId = currentCycle?.id ?? null;
+    const shouldPromptPostpartumExit = Boolean(currentCycle?.postpartumMode);
     await startNewCycle(selectedStartDate);
     setShowNewCycleDialog(false);
     setNewCyclePrefillDate(null);
@@ -4000,7 +4000,8 @@ const displayCycles = [...cycles].sort((a, b) => {
       setInitialSectionKey(null);
       setShowForm(true);
     }
-    if (preferences?.fertilityStartConfig?.postpartum === true) {
+    if (shouldPromptPostpartumExit && previousCycleId) {
+      setPendingPostpartumExitCycleId(previousCycleId);
       setShowPostpartumExitDialog(true);
     }
   };

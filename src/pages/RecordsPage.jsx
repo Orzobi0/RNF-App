@@ -38,7 +38,6 @@ import { FERTILITY_SYMBOL_OPTIONS } from '@/config/fertilitySymbols';
 import computePeakStatuses from '@/lib/computePeakStatuses';
 import { formatCycleMeta, formatCycleTitle } from '@/lib/formatCycleTitle';
 import { cn } from '@/lib/utils';
-import { useAuth } from '@/contexts/AuthContext';
 import DataIssuesBanner from '@/components/DataIssuesBanner';
 import DataRepairDialog from '@/components/DataRepairDialog';
 
@@ -98,6 +97,7 @@ export const RecordsExperience = ({
     refreshData: contextRefreshData,
     getMeasurementsForEntry: contextGetMeasurementsForEntry,
     undoCurrentCycle: contextUndoCurrentCycle,
+    updateCyclePostpartumMode: contextUpdateCyclePostpartumMode,
     repairDialogState,
     openDataRepairDialog,
     closeDataRepairDialog,
@@ -106,7 +106,6 @@ export const RecordsExperience = ({
     deleteIssueEntry,
     getPublicError,
   } = useCycleData();
-  const { preferences, savePreferences } = useAuth();
   const cycle = cycleProp ?? contextCurrentCycle;
   const isLoading = isLoadingProp ?? contextIsLoading;
   const addOrUpdateDataPoint = addOrUpdateDataPointProp
@@ -157,6 +156,7 @@ export const RecordsExperience = ({
   const [showNewCycleDialog, setShowNewCycleDialog] = useState(false);
   const [newCyclePrefillDate, setNewCyclePrefillDate] = useState(null);
   const [showPostpartumExitDialog, setShowPostpartumExitDialog] = useState(false);
+  const [pendingPostpartumExitCycleId, setPendingPostpartumExitCycleId] = useState(null);
   const recordCount = cycle?.data?.length ?? 0;
   const isCurrentCycle = !cycle?.endDate;
 
@@ -188,14 +188,10 @@ export const RecordsExperience = ({
 
   const handleConfirmPostpartumExit = useCallback(async () => {
     setShowPostpartumExitDialog(false);
-    if (typeof savePreferences !== 'function') return;
-    await savePreferences({
-      fertilityStartConfig: {
-        postpartum: false,
-        calculators: { cpm: true, t8: true },
-      },
-    });
-  }, [savePreferences]);
+    if (!pendingPostpartumExitCycleId || typeof contextUpdateCyclePostpartumMode !== 'function') return;
+    await contextUpdateCyclePostpartumMode(pendingPostpartumExitCycleId, false);
+    setPendingPostpartumExitCycleId(null);
+  }, [contextUpdateCyclePostpartumMode, pendingPostpartumExitCycleId]);
 
   const refreshCycleIssues = useCallback(async () => {
     if (!cycleProp?.id || !refreshData) return;
@@ -1550,12 +1546,15 @@ const enterStart = -exitTarget;
           }}
           onPreview={(selectedStartDate) => previewStartNewCycle?.(selectedStartDate, cycle?.id)}
           onConfirm={async (selectedStartDate) => {
+            const previousCycleId = cycle?.id ?? null;
+            const shouldPromptPostpartumExit = Boolean(cycle?.postpartumMode);
             await startNewCycle(selectedStartDate);
             setShowNewCycleDialog(false);
             setNewCyclePrefillDate(null);
             setInitialSectionKey(null);
             setShowForm(true);
-            if (preferences?.fertilityStartConfig?.postpartum === true) {
+            if (shouldPromptPostpartumExit && previousCycleId) {
+              setPendingPostpartumExitCycleId(previousCycleId);
               setShowPostpartumExitDialog(true);
             }
           }}
@@ -1808,12 +1807,15 @@ const enterStart = -exitTarget;
         }}
         onPreview={(selectedStartDate) => previewStartNewCycle?.(selectedStartDate, cycle?.id)}
         onConfirm={async (selectedStartDate) => {
+          const previousCycleId = cycle?.id ?? null;
+          const shouldPromptPostpartumExit = Boolean(cycle?.postpartumMode);
           await startNewCycle(selectedStartDate);
           setShowNewCycleDialog(false);
           setNewCyclePrefillDate(null);
           setInitialSectionKey(null);
           setShowForm(true);
-          if (preferences?.fertilityStartConfig?.postpartum === true) {
+          if (shouldPromptPostpartumExit && previousCycleId) {
+            setPendingPostpartumExitCycleId(previousCycleId);
             setShowPostpartumExitDialog(true);
           }
         }}
