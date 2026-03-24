@@ -15,10 +15,10 @@ const toSafeText = (value, max = 100) => {
 export const trackEvent = async (name, params = {}) => {
   const analytics = await getFirebaseAnalytics();
   if (!analytics) return;
-  // Dashboard note:
-  // - "Usuarios reales diarios" se calcula con eventos autenticados (con user_id).
-  // - `app_boot` es solo telemetría técnica y no base de DAU reales.
-  // - `auth_session_ready` es el evento base recomendado para usuarios identificados diarios.
+// Nota:
+// - "Usuarios reales diarios" se puede leer mejor usando `sesion_lista` con user_id.
+// - `app_boot` es telemetría técnica, no una métrica principal de uso real.
+// - `registro_guardado` es el evento principal para analizar uso funcional.
   logEvent(analytics, name, params);
 };
 
@@ -72,17 +72,64 @@ export const trackLogin = (method = 'unknown') => {
 export const trackSignUp = (method = 'unknown') => {
   return trackEvent('sign_up', { method });
 };
+export const trackSessionReady = ({
+  proveedor = 'unknown',
+} = {}) => {
+  return trackEvent('sesion_lista', {
+    proveedor_autenticacion: proveedor,
+    estado_sesion: 'autenticada',
+    alcance_metrica: 'usuarios_identificados_diarios',
+  });
+};
 
 export const trackDailyRecordSaved = ({
-  entryMode = 'manual',
-  hasTemperature = false,
-  hasSymptoms = false,
-  hasMucus = false,
+  accion = 'crear',
+  ambitoCiclo = 'actual',
+  tieneTemperatura = false,
+  tieneMoco = false,
+  tieneRelaciones = false,
+  tienePico = false,
+  tieneObservaciones = false,
+  cantidadMediciones = 0,
 } = {}) => {
-  return trackEvent('save_daily_record', {
-    entry_mode: entryMode,
-    has_temperature: hasTemperature,
-    has_symptoms: hasSymptoms,
-    has_mucus: hasMucus,
+  return trackEvent('registro_guardado', {
+    accion,
+    ambito_ciclo: ambitoCiclo,
+    tiene_temperatura: tieneTemperatura,
+    tiene_moco: tieneMoco,
+    tiene_relaciones: tieneRelaciones,
+    tiene_pico: tienePico,
+    tiene_observaciones: tieneObservaciones,
+    cantidad_mediciones: cantidadMediciones,
+  });
+};
+
+export const trackRecordDeleted = ({
+  ambitoCiclo = 'actual',
+} = {}) => {
+  return trackEvent('registro_eliminado', {
+    ambito_ciclo: ambitoCiclo,
+  });
+};
+
+export const trackRecordSaveError = ({
+  accion = 'crear',
+  ambitoCiclo = 'actual',
+  codigoError = 'unknown',
+} = {}) => {
+  return trackEvent('error_guardado_registro', {
+    accion,
+    ambito_ciclo: ambitoCiclo,
+    codigo_error: codigoError,
+  });
+};
+
+export const trackRecordDeleteError = ({
+  ambitoCiclo = 'actual',
+  codigoError = 'unknown',
+} = {}) => {
+  return trackEvent('error_eliminado_registro', {
+    ambito_ciclo: ambitoCiclo,
+    codigo_error: codigoError,
   });
 };

@@ -14,7 +14,13 @@ import {
 } from 'firebase/auth';
 import { deleteField, doc, getDoc, setDoc, getDocFromCache } from 'firebase/firestore';
 import { useToast } from '@/components/ui/use-toast';
-import { trackEvent, trackLogin, trackSignUp, setAnalyticsUserId } from '@/lib/analytics';
+import {
+  trackEvent,
+  trackLogin,
+  trackSignUp,
+  setAnalyticsUserId,
+  trackSessionReady,
+} from '@/lib/analytics';
 
 const AuthContext = createContext(null);
 
@@ -164,11 +170,9 @@ export const AuthProvider = ({ children }) => {
       unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
         if (firebaseUser) {
           void setAnalyticsUserId(firebaseUser.uid);
-          void trackEvent('auth_session_ready', {
-            auth_provider: firebaseUser.providerData?.[0]?.providerId || 'unknown',
-            session_state: 'authenticated',
-            metric_scope: 'identified_daily_users',
-          });
+          void trackSessionReady({
+  proveedor: firebaseUser.providerData?.[0]?.providerId || 'unknown',
+});
           setUser({
             id: firebaseUser.uid,
             uid: firebaseUser.uid,

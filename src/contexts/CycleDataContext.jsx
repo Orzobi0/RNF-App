@@ -38,7 +38,12 @@ import {
 import { getCachedCycleData, saveCycleDataToCache, clearCycleDataCache } from '@/lib/cycleCache';
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { readBbtFromHealthConnect } from "@/lib/healthConnectSync";
-import { trackEvent } from '@/lib/analytics';
+import {
+  trackDailyRecordSaved,
+  trackRecordDeleted,
+  trackRecordSaveError,
+  trackRecordDeleteError,
+} from '@/lib/analytics';
 
 
 const CycleDataContext = createContext(null);
@@ -553,7 +558,13 @@ export const CycleDataProvider = ({ children }) => {
           observationsValue === '' &&
           !hadRelationsValue &&
           !isPeakMarked;
-
+          const fueEliminadoPorVaciado = Boolean(
+              targetRecord &&
+              isPayloadEmpty &&
+              peakMarkerProvided &&
+              targetRecord?.peak_marker === 'peak' &&
+              !isPeakMarked
+            );
         const hadMultipleMeasurements =
           !!targetRecord?.measurementsLoaded &&
           Array.isArray(targetRecord?.measurements) &&
@@ -617,23 +628,30 @@ export const CycleDataProvider = ({ children }) => {
             updateEntryState(cycleIdToUse, savedEntryId, recordPayload, newData.isoDate);
           }
         }
-        void trackEvent(isEditing ? 'cycle_record_updated' : 'cycle_record_created', {
-          cycle_scope: cycleIdToUse === currentCycle.id ? 'current' : 'archived',
-          has_temperature: hasTemperatureData,
-          has_mucus: mucusSensationValue !== '' || mucusAppearanceValue !== '',
-          has_relations: hadRelationsValue,
-          has_peak: isPeakMarked,
-          has_observations: observationsValue !== '',
-          measurement_count: validMeasurements.length,
-        });
+        if (fueEliminadoPorVaciado) {
+  void trackRecordDeleted({
+    ambitoCiclo: cycleIdToUse === currentCycle.id ? 'actual' : 'archivado',
+  });
+} else {
+  void trackDailyRecordSaved({
+    accion: isEditing ? 'editar' : 'crear',
+    ambitoCiclo: cycleIdToUse === currentCycle.id ? 'actual' : 'archivado',
+    tieneTemperatura: hasTemperatureData,
+    tieneMoco: mucusSensationValue !== '' || mucusAppearanceValue !== '',
+    tieneRelaciones: hadRelationsValue,
+    tienePico: isPeakMarked,
+    tieneObservaciones: observationsValue !== '',
+    cantidadMediciones: validMeasurements.length,
+  });
+}
         loadCycleData({ silent: true }).catch((error) =>
           console.error('Background cycle data refresh failed after save:', error)
         );
       } catch (error) {
-        void trackEvent('cycle_record_save_error', {
-  action: isEditing ? 'update' : 'create',
-  cycle_scope: cycleIdToUse === currentCycle.id ? 'current' : 'archived',
-  error_code: String(error?.code || 'unknown').slice(0, 50),
+        void trackRecordSaveError({
+  accion: isEditing ? 'editar' : 'crear',
+  ambitoCiclo: cycleIdToUse === currentCycle.id ? 'actual' : 'archivado',
+  codigoError: String(error?.code || 'unknown').slice(0, 50),
 });
         console.error('Error adding/updating data point:', error);
         throw error;
@@ -662,14 +680,14 @@ export const CycleDataProvider = ({ children }) => {
       setIsLoading(true);
       try {
         await deleteCycleEntryDB(user.uid, cycleIdToUse, recordId);
-        void trackEvent('cycle_record_delete', {
-  cycle_scope: cycleIdToUse === currentCycle.id ? 'current' : 'archived',
+        void trackRecordDeleted({
+  ambitoCiclo: cycleIdToUse === currentCycle.id ? 'actual' : 'archivado',
 });
         await loadCycleData({ silent: true });
       } catch (error) {
-        void trackEvent('cycle_record_delete_error', {
-  cycle_scope: cycleIdToUse === currentCycle.id ? 'current' : 'archived',
-  error_code: String(error?.code || 'unknown').slice(0, 50),
+        void trackRecordDeleteError({
+  ambitoCiclo: cycleIdToUse === currentCycle.id ? 'actual' : 'archivado',
+  codigoError: String(error?.code || 'unknown').slice(0, 50),
 });
         console.error('Error deleting record:', error);
         throw error;
