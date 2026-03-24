@@ -164,6 +164,11 @@ export const AuthProvider = ({ children }) => {
       unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
         if (firebaseUser) {
           void setAnalyticsUserId(firebaseUser.uid);
+          void trackEvent('auth_session_ready', {
+            auth_provider: firebaseUser.providerData?.[0]?.providerId || 'unknown',
+            session_state: 'authenticated',
+            metric_scope: 'identified_daily_users',
+          });
           setUser({
             id: firebaseUser.uid,
             uid: firebaseUser.uid,

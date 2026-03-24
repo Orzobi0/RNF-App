@@ -15,7 +15,10 @@ const toSafeText = (value, max = 100) => {
 export const trackEvent = async (name, params = {}) => {
   const analytics = await getFirebaseAnalytics();
   if (!analytics) return;
-
+  // Dashboard note:
+  // - "Usuarios reales diarios" se calcula con eventos autenticados (con user_id).
+  // - `app_boot` es solo telemetría técnica y no base de DAU reales.
+  // - `auth_session_ready` es el evento base recomendado para usuarios identificados diarios.
   logEvent(analytics, name, params);
 };
 

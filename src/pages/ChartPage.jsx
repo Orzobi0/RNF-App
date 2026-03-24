@@ -223,6 +223,15 @@ const ChartPage = () => {
   );
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [forceLandscape, setForceLandscape] = useState(false);
+  const isIPhoneOrIPod = useMemo(() => {
+    if (typeof navigator === 'undefined') return false;
+    const ua = navigator.userAgent || '';
+    return /iPhone|iPod/i.test(ua);
+  }, []);
+  const autoFullscreenRef = useRef(false);
+  const suppressAutoFullscreenUntilPortraitRef = useRef(false);
+  const isFullScreenRef = useRef(isFullScreen);
+  const forceLandscapeRef = useRef(forceLandscape);
   const readViewport = () => {
   if (typeof window === 'undefined') return { w: 0, h: 0 };
   const vv = window.visualViewport;
@@ -248,7 +257,7 @@ useEffect(() => {
   window.addEventListener('orientationchange', onResize);
 
   vv?.addEventListener('resize', onResize);
-  vv?.addEventListener('scroll', onResize); // en iOS cambia al mostrar/ocultar barras/teclado
+  vv?.addEventListener('scroll', onResize);
 
   onResize();
 
@@ -467,24 +476,69 @@ useEffect(() => {
   }, [orientation, isFullScreen]);
   
   useEffect(() => {
-    if (typeof window === 'undefined') return undefined;
+    isFullScreenRef.current = isFullScreen;
+  }, [isFullScreen]);
 
-    const handleOrientationChange = () => {
-      if (forceLandscape) return;
-      const nextOrientation = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
-      setOrientation((prev) => (prev === nextOrientation ? prev : nextOrientation));
-    };
-
-    window.addEventListener('resize', handleOrientationChange);
-    window.addEventListener('orientationchange', handleOrientationChange);
-
-    handleOrientationChange();
-
-    return () => {
-      window.removeEventListener('resize', handleOrientationChange);
-      window.removeEventListener('orientationchange', handleOrientationChange);
-    };
+  useEffect(() => {
+    forceLandscapeRef.current = forceLandscape;
   }, [forceLandscape]);
+  useEffect(() => {
+  if (typeof window === 'undefined') return undefined;
+
+  let raf = 0;
+
+  const handleOrientationChange = () => {
+    if (raf) cancelAnimationFrame(raf);
+
+    raf = requestAnimationFrame(() => {
+      const nextOrientation =
+        window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
+
+      setOrientation((prev) => (prev === nextOrientation ? prev : nextOrientation));
+
+      if (!isIPhoneOrIPod) return;
+
+      if (nextOrientation === 'landscape') {
+        if (suppressAutoFullscreenUntilPortraitRef.current) {
+          return;
+        }
+
+        const shouldEnableAutoFullscreen =
+          !isFullScreenRef.current && !forceLandscapeRef.current;
+
+        if (shouldEnableAutoFullscreen) {
+          autoFullscreenRef.current = true;
+          setIsFullScreen((prev) => (prev ? prev : true));
+          setForceLandscape((prev) => (prev ? prev : true));
+          isFullScreenRef.current = true;
+          forceLandscapeRef.current = true;
+        }
+        return;
+      }
+
+      suppressAutoFullscreenUntilPortraitRef.current = false;
+
+      if (autoFullscreenRef.current) {
+        autoFullscreenRef.current = false;
+        setForceLandscape((prev) => (prev ? false : prev));
+        setIsFullScreen((prev) => (prev ? false : prev));
+        forceLandscapeRef.current = false;
+        isFullScreenRef.current = false;
+      }
+    });
+  };
+
+  window.addEventListener('resize', handleOrientationChange);
+  window.addEventListener('orientationchange', handleOrientationChange);
+
+  handleOrientationChange();
+
+  return () => {
+    if (raf) cancelAnimationFrame(raf);
+    window.removeEventListener('resize', handleOrientationChange);
+    window.removeEventListener('orientationchange', handleOrientationChange);
+  };
+}, [isIPhoneOrIPod]);
   if (showLoading) {
     return (
       <MainLayout>
@@ -1313,27 +1367,45 @@ const rotatedDrawerStyle = applyRotation
   );
 
   const handleToggleFullScreen = () => {
-    if (!isFullScreen) {
-      setIsFullScreen(true);
-      setForceLandscape(true);
-      if (typeof window !== 'undefined') {
-    requestAnimationFrame(() => {
+  const isCurrentlyLandscape =
+    typeof window !== 'undefined' && window.innerWidth > window.innerHeight;
+
+  if (!isFullScreen) {
+    autoFullscreenRef.current = false;
+    suppressAutoFullscreenUntilPortraitRef.current = false;
+
+    isFullScreenRef.current = true;
+    forceLandscapeRef.current = true;
+
+    setIsFullScreen(true);
+    setForceLandscape(true);
+
+    if (typeof window !== 'undefined') {
       requestAnimationFrame(() => {
-        window.dispatchEvent(new Event('resize'));
+        requestAnimationFrame(() => {
+          window.dispatchEvent(new Event('resize'));
+        });
       });
-    });
-  }
-    return;
     }
-    
-    setForceLandscape(false);
-    const nextOrientation =
-      typeof window !== 'undefined' && window.innerWidth > window.innerHeight
-        ? 'landscape'
-        : 'portrait';
-    setOrientation(nextOrientation);
-    setIsFullScreen(false);
-  };
+    return;
+  }
+
+  autoFullscreenRef.current = false;
+  suppressAutoFullscreenUntilPortraitRef.current = isCurrentlyLandscape;
+
+  forceLandscapeRef.current = false;
+  isFullScreenRef.current = false;
+
+  setForceLandscape(false);
+
+  const nextOrientation =
+    typeof window !== 'undefined' && window.innerWidth > window.innerHeight
+      ? 'landscape'
+      : 'portrait';
+
+  setOrientation(nextOrientation);
+  setIsFullScreen(false);
+};
 
   return (
     <MainLayout hideBottomNav={isFullScreen}>

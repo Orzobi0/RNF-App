@@ -617,17 +617,15 @@ export const CycleDataProvider = ({ children }) => {
             updateEntryState(cycleIdToUse, savedEntryId, recordPayload, newData.isoDate);
           }
         }
-        void trackEvent('cycle_record_save', {
-  action: isEditing ? 'update' : 'create',
-  cycle_scope: cycleIdToUse === currentCycle.id ? 'current' : 'archived',
-  has_temperature: hasTemperatureData,
-  has_mucus:
-    mucusSensationValue !== '' || mucusAppearanceValue !== '',
-  has_relations: hadRelationsValue,
-  has_peak: isPeakMarked,
-  has_observations: observationsValue !== '',
-  measurement_count: validMeasurements.length,
-});
+        void trackEvent(isEditing ? 'cycle_record_updated' : 'cycle_record_created', {
+          cycle_scope: cycleIdToUse === currentCycle.id ? 'current' : 'archived',
+          has_temperature: hasTemperatureData,
+          has_mucus: mucusSensationValue !== '' || mucusAppearanceValue !== '',
+          has_relations: hadRelationsValue,
+          has_peak: isPeakMarked,
+          has_observations: observationsValue !== '',
+          measurement_count: validMeasurements.length,
+        });
         loadCycleData({ silent: true }).catch((error) =>
           console.error('Background cycle data refresh failed after save:', error)
         );
@@ -1279,6 +1277,25 @@ export const CycleDataProvider = ({ children }) => {
     [user]
   );
 
+const getCycleFromState = useCallback(
+  (cycleIdToFind) => {
+    if (!cycleIdToFind) return null;
+
+    const targetId = String(cycleIdToFind);
+
+    if (currentCycle?.id && String(currentCycle.id) === targetId) {
+      return currentCycle;
+    }
+
+    return (
+      archivedCycles.find(
+        (cycle) => cycle?.id && String(cycle.id) === targetId
+      ) || null
+    );
+  },
+  [archivedCycles, currentCycle]
+);
+
   const updateCyclePostpartumMode = useCallback(
     async (cycleIdToUpdate, value) => {
       if (!user?.uid || !cycleIdToUpdate) return;
@@ -1446,6 +1463,7 @@ export const CycleDataProvider = ({ children }) => {
     previewUpdateCycleDates,
     isLoading,
     getCycleById,
+    getCycleFromState,
     refreshData,
     toggleIgnoreRecord,
     setCycleIgnoreForAutoCalculations,
