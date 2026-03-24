@@ -1352,9 +1352,17 @@ const rotatedDrawerStyle = applyRotation
             transformOrigin: 'right center',
           }}
         >
-          <span className="rounded-full bg-white/55 px-3 py-1 text-[11px] font-medium text-slate-500 backdrop-blur-sm">
-            {chartCycleLabel}
-          </span>
+          <div className="flex flex-col items-center gap-1.5">
+  <div className="text-center text-[11px] font-medium leading-tight text-slate-500">
+    {chartCycleLabel}
+  </div>
+
+  {cyclePostpartumMode && (
+    <span className="whitespace-nowrap rounded-full border border-rose-200 bg-rose-50/90 px-3 py-1 text-[11px] font-semibold text-rose-600 backdrop-blur-sm">
+      Modo postparto
+    </span>
+  )}
+</div>
         </div>
       </div>
     ) : (
@@ -1366,9 +1374,17 @@ const rotatedDrawerStyle = applyRotation
           transform: 'translateX(-50%)',
         }}
       >
-        <span className="rounded-full bg-white/55 px-3 py-1 text-[11px] font-medium text-slate-500 backdrop-blur-sm">
-          {chartCycleLabel}
-        </span>
+        <div className="flex flex-col items-center gap-1.5">
+  <div className="text-center text-[11px] font-medium leading-tight text-slate-500">
+    {chartCycleLabel}
+  </div>
+
+  {cyclePostpartumMode && (
+    <span className="whitespace-nowrap rounded-full border border-rose-200 bg-rose-50/90 px-3 py-1 text-[11px] font-semibold text-rose-600 backdrop-blur-sm">
+      Modo postparto
+    </span>
+  )}
+</div>
       </div>
     )}
   </div>

@@ -1616,7 +1616,14 @@ const enterStart = -exitTarget;
                   </span>
                 </div>
                 {resolvedHeaderMeta && (
-                  <div className="text-[13px] text-base whitespace-nowrap">{resolvedHeaderMeta}</div>
+                  <div className="flex flex-wrap items-center gap-2 text-[13px] text-base">
+                    <span className="whitespace-nowrap">{resolvedHeaderMeta}</span>
+                    {cycle?.postpartumMode && (
+                      <Badge className="rounded-full border border-rose-200 bg-rose-50 px-2.5 py-0.5 text-[11px] font-semibold text-rose-600 hover:bg-rose-50">
+                        Modo postparto
+                      </Badge>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
