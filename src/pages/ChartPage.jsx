@@ -10,7 +10,7 @@ import FertilityChart from '@/components/FertilityChart';
 import { useCycleData } from '@/hooks/useCycleData';
 import { differenceInDays, format, parseISO, startOfDay } from 'date-fns';
 import generatePlaceholders from '@/lib/generatePlaceholders';
-import { X } from 'lucide-react';
+import { Baby, X } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import DataEntryForm from '@/components/DataEntryForm';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
@@ -761,17 +761,27 @@ const rotatedDrawerStyle = applyRotation
               </div>       
               
               <div className="rounded-2xl border border-red-100/70 bg-red-50/40 p-3">
-                <div className="flex items-start justify-between gap-3 pt-1">
-                  <div className="max-w-[65%]">
-                    <p className="text-sm font-semibold text-slate-700">Modo postparto</p>
-                  </div>
-                  <Checkbox
-                    checked={cyclePostpartumMode}
-                    onCheckedChange={handlePostpartumChange}
-                    className="mt-1"
-                  />
-                </div>
-              </div>     
+  <div className="flex items-start justify-between gap-3 pt-1">
+    <div className="max-w-[75%]">
+      <div className="flex items-center gap-2">
+        <span className="inline-flex items-center justify-center rounded-full border border-rose-200 bg-rose-50/90 p-1 text-rose-600">
+          <Baby className="h-3.5 w-3.5" aria-hidden="true" />
+        </span>
+        <p className="text-sm font-semibold text-slate-700">Modo postparto</p>
+      </div>
+
+      <p className="mt-1 text-xs leading-relaxed text-slate-500">
+        Esta configuración se guardará solo para este ciclo.
+      </p>
+    </div>
+
+    <Checkbox
+      checked={cyclePostpartumMode}
+      onCheckedChange={handlePostpartumChange}
+      className="mt-1"
+    />
+  </div>
+</div>  
 
               <div className="rounded-2xl border border-amber-100/70 bg-amber-50/40 p-4 space-y-3">
                 <div>
@@ -1352,14 +1362,18 @@ const rotatedDrawerStyle = applyRotation
             transformOrigin: 'right center',
           }}
         >
-          <div className="flex flex-col items-center gap-1.5">
-  <div className="text-center text-[11px] font-medium leading-tight text-slate-500">
+          <div className="flex items-center justify-center gap-1">
+  <div className="whitespace-nowrap text-center text-[11px] font-medium leading-tight text-slate-500">
     {chartCycleLabel}
   </div>
 
   {cyclePostpartumMode && (
-    <span className="whitespace-nowrap rounded-full border border-rose-200 bg-rose-50/90 px-3 py-1 text-[11px] font-semibold text-rose-600 backdrop-blur-sm">
-      Modo postparto
+    <span
+      className="inline-flex items-center justify-center rounded-full border border-rose-200 bg-rose-50/90 p-1.5 text-rose-600 backdrop-blur-sm"
+      aria-label="Modo postparto activado"
+      title="Modo postparto activado"
+    >
+      <Baby className="h-3.5 w-3.5" aria-hidden="true" />
     </span>
   )}
 </div>
@@ -1374,14 +1388,18 @@ const rotatedDrawerStyle = applyRotation
           transform: 'translateX(-50%)',
         }}
       >
-        <div className="flex flex-col items-center gap-1.5">
-  <div className="text-center text-[11px] font-medium leading-tight text-slate-500">
+        <div className="flex items-center justify-center gap-1.5">
+  <div className="whitespace-nowrap text-center text-[11px] font-medium leading-tight text-slate-500">
     {chartCycleLabel}
   </div>
 
   {cyclePostpartumMode && (
-    <span className="whitespace-nowrap rounded-full border border-rose-200 bg-rose-50/90 px-3 py-1 text-[11px] font-semibold text-rose-600 backdrop-blur-sm">
-      Modo postparto
+    <span
+      className="inline-flex items-center justify-center rounded-full border border-rose-200 bg-rose-50/90 p-1.5 text-rose-600 backdrop-blur-sm"
+      aria-label="Modo postparto activado"
+      title="Modo postparto activado"
+    >
+      <Baby className="h-3.5 w-3.5" aria-hidden="true" />
     </span>
   )}
 </div>

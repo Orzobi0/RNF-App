@@ -16,7 +16,7 @@ import { ToastAction } from '@/components/ui/toast';
 import { HeaderIconButton, HeaderIconButtonPrimary } from '@/components/HeaderIconButton';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Edit, Plus, ClipboardList, Heart, Loader2 } from 'lucide-react';
+import { Baby, Edit, Plus, ClipboardList, Heart, Loader2 } from 'lucide-react';
 import NewCycleDialog from '@/components/NewCycleDialog';
 import {
   format,
@@ -1619,8 +1619,12 @@ const enterStart = -exitTarget;
                   <div className="flex flex-wrap items-center gap-2 text-[13px] text-base">
                     <span className="whitespace-nowrap">{resolvedHeaderMeta}</span>
                     {cycle?.postpartumMode && (
-                      <Badge className="rounded-full border border-rose-200 bg-rose-50 px-2.5 py-0.5 text-[11px] font-semibold text-rose-600 hover:bg-rose-50">
-                        Modo postparto
+                      <Badge
+                        className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-rose-200 bg-rose-50 p-0 text-rose-600 hover:bg-rose-50"
+                        aria-label="Modo postparto activado"
+                        title="Modo postparto activado"
+                      >
+                        <Baby className="h-3.5 w-3.5" aria-hidden="true" />
                       </Badge>
                     )}
                   </div>
