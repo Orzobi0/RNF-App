@@ -10,6 +10,7 @@ import {
   ChevronRight,
   HelpCircle,
   Ban,
+  Baby,
   CheckCircle2,
   Loader2,
 } from 'lucide-react';
@@ -59,6 +60,7 @@ const CycleOverviewCard = ({
   t8Metric = {},
 }) => {
   const records = cycleData.records || [];
+  const isPostpartumModeEnabled = Boolean(cycleData?.postpartumMode);
   const [activePoint, setActivePoint] = useState(null);
   const [tooltipPosition, setTooltipPosition] = useState({ clientX: 0, clientY: 0 });
   const [isSymbolsOpen, setIsSymbolsOpen] = useState(false);
@@ -898,12 +900,22 @@ const handleRingPointerCancel = useCallback(
         <button
           type="button"
           onClick={onEditStartDate}
-          className="inline-flex items-center gap-1.5 rounded-full bg-white/60 px-3 py-1.5 text-sm font-semibold text-subtitulo shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-rose-300 focus:ring-offset-2 focus:ring-offset-transparent hover:bg-white"
+          className="inline-flex items-center gap-2 rounded-full bg-white/60 px-3 py-1.5 text-sm font-semibold text-subtitulo shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-rose-300 focus:ring-offset-2 focus:ring-offset-transparent hover:bg-white"
           title="Editar fecha de inicio del ciclo"
         >
           <Edit className="w-4 h-4" />
           {`Ciclo actual`}
-        </button>
+          </button>
+          {cycleData?.postpartumMode && (
+            <Badge
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-rose-200 bg-rose-50 p-0 text-rose-600 hover:bg-rose-50"
+              aria-label="Modo postparto activado"
+              title="Modo postparto activado"
+            >
+              <Baby className="h-4 w-4" aria-hidden="true" />
+            </Badge>
+          )}
+        
 
       </motion.div>
 
