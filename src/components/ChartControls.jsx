@@ -37,6 +37,7 @@ const ManualBaselineIcon = ({ className = '' }) => (
 
 const ChartControls = ({
   isFullScreen,
+  isLandscapeFullscreen = false,
   showBackToCycleRecords,
   targetCycleId,
   showInterpretation,
@@ -75,17 +76,26 @@ const quickPanelRef = useRef(null);
     };
   }, [isQuickPanelOpen]);
 
-  const iconRotationClass = isFullScreen ? 'rotate-90' : '';
+  const iconRotationClass =
+  isFullScreen && !isLandscapeFullscreen ? 'rotate-90' : '';
 
   const topGroupPos = isFullScreen
-    ? 'fixed top-[calc(env(safe-area-inset-top)+8px)] right-[calc(env(safe-area-inset-right)+8px)]'
-    : 'absolute top-3 left-3';
+  ? 'fixed top-[calc(env(safe-area-inset-top)+8px)] right-[calc(env(safe-area-inset-right)+8px)]'
+  : 'absolute top-3 left-3';
 
-  const bottomGroupPos = isFullScreen
-    ? 'fixed right-[calc(env(safe-area-inset-right)+8px)] bottom-[calc(env(safe-area-inset-bottom)+8px)]'
-    : 'absolute top-3 right-3';
+const bottomGroupPos = isFullScreen
+  ? 'fixed right-[calc(env(safe-area-inset-right)+8px)] bottom-[calc(env(safe-area-inset-bottom)+8px)]'
+  : 'absolute top-3 right-3';
 
-  const isRightAlignedTopGroup = isFullScreen;
+const isRightAlignedTopGroup = isFullScreen;
+
+const topGroupLayout = isLandscapeFullscreen
+  ? 'gap-1.5'
+  : 'gap-2';
+
+const bottomGroupLayout = isLandscapeFullscreen
+  ? 'gap-1.5'
+  : 'gap-2';
 
   const quickAccessButtonClass = (() => {
     if (showInterpretation && showManualBaseline) {
@@ -139,7 +149,11 @@ const quickPanelRef = useRef(null);
         className={`chart-controls z-[200] ${topGroupPos}`}
         data-chart-interactive="true"
       >
-        <div className={`flex flex-col gap-2 ${isRightAlignedTopGroup ? 'items-end' : 'items-start'}`}>
+        <div
+  className={`flex flex-col ${topGroupLayout} ${
+    isRightAlignedTopGroup ? 'items-end' : 'items-start'
+  }`}
+>
           {showBackToCycleRecords && targetCycleId && (
             <Button
               asChild
@@ -238,13 +252,17 @@ const quickPanelRef = useRef(null);
         className={`chart-controls z-[200] ${bottomGroupPos}`}
         data-chart-interactive="true"
       >
-        <div className="flex flex-col gap-2 items-end">
+        <div className={`flex flex-col ${bottomGroupLayout} items-end`}>
           <Button
             type="button"
             onClick={handleToggleFullScreen}
             variant="ghost"
             size="icon"
-            className={`${BTN_BASE} bg-white/20 text-slate-600 border-white/70`}
+            className={`${BTN_BASE} ${
+  isLandscapeFullscreen
+    ? 'bg-white/70 text-slate-700 border-white/80'
+    : 'bg-white/20 text-slate-600 border-white/70'
+}`}
             aria-label={isFullScreen ? 'Salir de pantalla completa' : 'Rotar gráfico'}
           >
             <RotateCcw className={`h-4 w-4 transition-transform ${iconRotationClass}`} />

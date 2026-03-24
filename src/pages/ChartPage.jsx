@@ -624,6 +624,7 @@ useEffect(() => {
   );
 
   const visualOrientation = forceLandscape ? 'landscape' : orientation;
+  const isLandscapeFullscreen = isFullScreen && visualOrientation === 'landscape';
   const visibleDays = isFullScreen
     ? (visualOrientation === 'portrait'
         ? VISIBLE_DAYS_FULLSCREEN_PORTRAIT
@@ -1390,6 +1391,30 @@ const rotatedDrawerStyle = applyRotation
     return;
   }
 
+  // Si venimos de auto-fullscreen por giro de iPhone,
+  // el primer toque convierte el modo en manual fijo
+  // en vez de sacarnos del fullscreen.
+  if (autoFullscreenRef.current) {
+    autoFullscreenRef.current = false;
+    suppressAutoFullscreenUntilPortraitRef.current = true;
+
+    isFullScreenRef.current = true;
+    forceLandscapeRef.current = true;
+
+    setIsFullScreen(true);
+    setForceLandscape(true);
+
+    if (typeof window !== 'undefined') {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          window.dispatchEvent(new Event('resize'));
+        });
+      });
+    }
+    return;
+  }
+
+  // Salida real de fullscreen manual
   autoFullscreenRef.current = false;
   suppressAutoFullscreenUntilPortraitRef.current = isCurrentlyLandscape;
 
@@ -1482,6 +1507,7 @@ const rotatedDrawerStyle = applyRotation
         <ChartControls
           isFullScreen={isFullScreen}
           visualOrientation={visualOrientation}
+          isLandscapeFullscreen={isLandscapeFullscreen}
           showBackToCycleRecords={showBackToCycleRecords}
           targetCycleId={targetCycle.id}
           showInterpretation={showInterpretation}

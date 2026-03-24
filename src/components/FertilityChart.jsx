@@ -2070,6 +2070,7 @@ const rotationWrapperStyle = rotationStageStyle
     tempRange={tempRange}
     getY={getY}
     responsiveFontSize={responsiveFontSize}
+    isLandscapeFullscreen={isFullScreen && (forceLandscape || orientation === 'landscape')}
   />
 )}
       </div>
