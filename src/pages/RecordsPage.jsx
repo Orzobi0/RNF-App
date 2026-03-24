@@ -9,7 +9,6 @@ import CycleDatesEditor from '@/components/CycleDatesEditor';
 import DataEntryForm from '@/components/DataEntryForm';
 import DayDetail from '@/components/DayDetail';
 import DeletionDialog from '@/components/DeletionDialog';
-import PostpartumExitDialog from '@/components/PostpartumExitDialog';
 import { useCycleData } from '@/hooks/useCycleData';
 import { useToast } from '@/components/ui/use-toast';
 import { ToastAction } from '@/components/ui/toast';
@@ -97,7 +96,6 @@ export const RecordsExperience = ({
     refreshData: contextRefreshData,
     getMeasurementsForEntry: contextGetMeasurementsForEntry,
     undoCurrentCycle: contextUndoCurrentCycle,
-    updateCyclePostpartumMode: contextUpdateCyclePostpartumMode,
     repairDialogState,
     openDataRepairDialog,
     closeDataRepairDialog,
@@ -155,8 +153,6 @@ export const RecordsExperience = ({
   const [initialSectionKey, setInitialSectionKey] = useState(null);
   const [showNewCycleDialog, setShowNewCycleDialog] = useState(false);
   const [newCyclePrefillDate, setNewCyclePrefillDate] = useState(null);
-  const [showPostpartumExitDialog, setShowPostpartumExitDialog] = useState(false);
-  const [pendingPostpartumExitCycleId, setPendingPostpartumExitCycleId] = useState(null);
   const recordCount = cycle?.data?.length ?? 0;
   const isCurrentCycle = !cycle?.endDate;
 
@@ -185,13 +181,6 @@ export const RecordsExperience = ({
     const rangeSuffix = undoRangeText ? ` (${undoRangeText})` : '';
     return `¿Quieres unir el ciclo actual al ciclo anterior${rangeSuffix}? Esta acción no se puede deshacer.`;
   }, [undoRangeText]);
-
-  const handleConfirmPostpartumExit = useCallback(async () => {
-    setShowPostpartumExitDialog(false);
-    if (!pendingPostpartumExitCycleId || typeof contextUpdateCyclePostpartumMode !== 'function') return;
-    await contextUpdateCyclePostpartumMode(pendingPostpartumExitCycleId, false);
-    setPendingPostpartumExitCycleId(null);
-  }, [contextUpdateCyclePostpartumMode, pendingPostpartumExitCycleId]);
 
   const refreshCycleIssues = useCallback(async () => {
     if (!cycleProp?.id || !refreshData) return;
@@ -1546,25 +1535,14 @@ const enterStart = -exitTarget;
           }}
           onPreview={(selectedStartDate) => previewStartNewCycle?.(selectedStartDate, cycle?.id)}
           onConfirm={async (selectedStartDate) => {
-            const previousCycleId = cycle?.id ?? null;
-            const shouldPromptPostpartumExit = Boolean(cycle?.postpartumMode);
             await startNewCycle(selectedStartDate);
             setShowNewCycleDialog(false);
             setNewCyclePrefillDate(null);
             setInitialSectionKey(null);
             setShowForm(true);
-            if (shouldPromptPostpartumExit && previousCycleId) {
-              setPendingPostpartumExitCycleId(previousCycleId);
-              setShowPostpartumExitDialog(true);
-            }
           }}
           currentCycleRecords={cycle?.data ?? []}
           initialStartDate={newCyclePrefillDate}
-        />
-        <PostpartumExitDialog
-          isOpen={showPostpartumExitDialog}
-          onClose={() => setShowPostpartumExitDialog(false)}
-          onConfirm={handleConfirmPostpartumExit}
         />
       </div>
     );
@@ -1818,17 +1796,11 @@ const enterStart = -exitTarget;
         }}
         onPreview={(selectedStartDate) => previewStartNewCycle?.(selectedStartDate, cycle?.id)}
         onConfirm={async (selectedStartDate) => {
-          const previousCycleId = cycle?.id ?? null;
-          const shouldPromptPostpartumExit = Boolean(cycle?.postpartumMode);
           await startNewCycle(selectedStartDate);
           setShowNewCycleDialog(false);
           setNewCyclePrefillDate(null);
           setInitialSectionKey(null);
           setShowForm(true);
-          if (shouldPromptPostpartumExit && previousCycleId) {
-            setPendingPostpartumExitCycleId(previousCycleId);
-            setShowPostpartumExitDialog(true);
-          }
         }}
         currentCycleStartDate={cycle?.startDate}
         currentCycleRecords={cycle?.data ?? []}

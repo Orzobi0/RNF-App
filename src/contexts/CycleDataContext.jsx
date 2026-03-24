@@ -808,6 +808,7 @@ export const CycleDataProvider = ({ children }) => {
         }
 
         const newStartDate = format(startDateObj, 'yyyy-MM-dd');
+        const wasPostpartumModeEnabled = Boolean(currentCycle?.postpartumMode);
         const newCycle = await startNewCycleDB(user.uid, currentCycle.id, newStartDate);
         setCurrentCycle({
           id: newCycle.id,
@@ -817,6 +818,12 @@ export const CycleDataProvider = ({ children }) => {
           ignoredForAutoCalculations: false,
           postpartumMode: false,
         });
+        if (wasPostpartumModeEnabled) {
+          toast({
+            title: 'Modo postparto desactivado',
+            description: 'Se ha desactivado el modo postparto por inicio de nuevo ciclo.',
+          });
+        }
         await loadCycleData({ silent: true });
       } catch (error) {
         console.error('Error starting new cycle:', error);

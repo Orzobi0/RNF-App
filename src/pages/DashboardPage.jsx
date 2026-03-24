@@ -20,7 +20,6 @@ import DeletionDialog from '@/components/DeletionDialog';
 import OverlapWarningDialog from '@/components/OverlapWarningDialog';
 import { useToast } from '@/components/ui/use-toast';
 import NewCycleDialog from '@/components/NewCycleDialog';
-import PostpartumExitDialog from '@/components/PostpartumExitDialog';
 import {
   Dialog,
   DialogContent,
@@ -1576,7 +1575,6 @@ const ModernFertilityDashboard = () => {
     previewStartNewCycle,
     refreshData,
     setCycleIgnoreForAutoCalculations,
-    updateCyclePostpartumMode,
     undoCurrentCycle,
     previewUndoCurrentCycle,
   } = useCycleData();
@@ -3805,8 +3803,6 @@ const displayCycles = [...cycles].sort((a, b) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showNewCycleDialog, setShowNewCycleDialog] = useState(false);
   const [newCyclePrefillDate, setNewCyclePrefillDate] = useState(null);
-  const [showPostpartumExitDialog, setShowPostpartumExitDialog] = useState(false);
-  const [pendingPostpartumExitCycleId, setPendingPostpartumExitCycleId] = useState(null);
   const [editingRecord, setEditingRecord] = useState(null);
   const [initialSectionKey, setInitialSectionKey] = useState(null);
   const [formDraftToRestore, setFormDraftToRestore] = useState(null);
@@ -3850,13 +3846,6 @@ const displayCycles = [...cycles].sort((a, b) => {
   setIsNewCycleFlowFromForm(false);
     setFormDraftToRestore(null);
   }, [clearDataEntryDraft]);
-
-  const handleConfirmPostpartumExit = useCallback(async () => {
-    setShowPostpartumExitDialog(false);
-    if (!pendingPostpartumExitCycleId || typeof updateCyclePostpartumMode !== 'function') return;
-    await updateCyclePostpartumMode(pendingPostpartumExitCycleId, false);
-    setPendingPostpartumExitCycleId(null);
-  }, [pendingPostpartumExitCycleId, updateCyclePostpartumMode]);
 
   const handleDateSelect = useCallback((record) => {
     setEditingRecord(record);
@@ -3988,8 +3977,6 @@ const displayCycles = [...cycles].sort((a, b) => {
   }, [isNewCycleFlowFromForm, loadDataEntryDraft]);
 
   const handleConfirmNewCycle = async (selectedStartDate) => {
-    const previousCycleId = currentCycle?.id ?? null;
-    const shouldPromptPostpartumExit = Boolean(currentCycle?.postpartumMode);
     await startNewCycle(selectedStartDate);
     setShowNewCycleDialog(false);
     setNewCyclePrefillDate(null);
@@ -3999,10 +3986,6 @@ const displayCycles = [...cycles].sort((a, b) => {
     } else {
       setInitialSectionKey(null);
       setShowForm(true);
-    }
-    if (shouldPromptPostpartumExit && previousCycleId) {
-      setPendingPostpartumExitCycleId(previousCycleId);
-      setShowPostpartumExitDialog(true);
     }
   };
 
@@ -4166,11 +4149,6 @@ const displayCycles = [...cycles].sort((a, b) => {
           onConfirm={handleConfirmNewCycle}
           currentCycleRecords={currentCycle?.data ?? []}
           initialStartDate={newCyclePrefillDate}
-        />
-        <PostpartumExitDialog
-          isOpen={showPostpartumExitDialog}
-          onClose={() => setShowPostpartumExitDialog(false)}
-          onConfirm={handleConfirmPostpartumExit}
         />
       </div>
     );
@@ -5030,11 +5008,6 @@ const displayCycles = [...cycles].sort((a, b) => {
         currentCycleStartDate={currentCycle.startDate}
         currentCycleRecords={currentCycle?.data ?? []}
         initialStartDate={newCyclePrefillDate}
-      />
-      <PostpartumExitDialog
-        isOpen={showPostpartumExitDialog}
-        onClose={() => setShowPostpartumExitDialog(false)}
-        onConfirm={handleConfirmPostpartumExit}
       />
     </>
   );
