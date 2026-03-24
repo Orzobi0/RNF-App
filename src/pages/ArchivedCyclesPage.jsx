@@ -149,7 +149,7 @@ const ArchivedCyclesPage = () => {
   };
 
   const navigateToCycle = (cycle) => {
-    navigate(cycle.isCurrent ? '/' : `/cycle/${cycle.id}`);
+    navigate(cycle.isCurrent ? '/records' : `/cycle/${cycle.id}`);
   };
 
   const startLongPressDetection = (cycle) => {
