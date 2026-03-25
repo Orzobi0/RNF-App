@@ -298,7 +298,7 @@ const ArchivedCyclesPage = () => {
                       Mis ciclos
                     </span>
                   </div>
-                  <div className="truncate text-[13px] text-base">Historial de ciclos</div>
+                  <div className="truncate text-[13px] text-base text-app-base">Historial de ciclos</div>
                 </div>
 
                 <div className="flex shrink-0 items-center gap-2">

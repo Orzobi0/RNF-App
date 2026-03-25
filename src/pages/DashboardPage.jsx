@@ -4214,12 +4214,13 @@ const displayCycles = [...cycles].sort((a, b) => {
                   </div>
                 </DialogDescription>
               </DialogHeader>
-              <div className="flex-1 space-y-3 overflow-y-auto px-4 pb-4">
-                <div className="rounded-2xl border border-rose-100 bg-rose-50/70 px-3 py-2">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="space-y-1">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-rose-600">Estado actual</p>
-                    </div>
+              <div className="flex-1 space-y-3 overflow-y-auto px-4 pb-3">
+                <div className="px-3">
+                  <div className="flex items-center justify-between gap-3 px-3 py-1">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-rose-600">
+                      Estado actual
+                    </p>
+
                     <span
                       className={`rounded-full px-3 py-1 text-[11px] font-semibold ${
                         cpmStatusMode === 'manual'
@@ -4567,12 +4568,13 @@ const displayCycles = [...cycles].sort((a, b) => {
                     </div>
                   </DialogDescription>
                 </DialogHeader>
-                <div className="flex-1 space-y-3 overflow-y-auto px-4 pb-4">
-                <div className="rounded-2xl border border-rose-100 bg-rose-50/70 px-3 py-2">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="space-y-1">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-rose-600">Estado actual</p>
-                    </div>
+                <div className="flex-1 space-y-2 overflow-y-auto px-4 pb-3">
+                <div className="px-3">
+                  <div className="flex items-center justify-between gap-3 px-3 py-1">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-rose-600">
+                      Estado actual
+                    </p>
+
                     <span
                       className={`rounded-full px-3 py-1 text-[11px] font-semibold ${
                         t8StatusMode === 'manual'

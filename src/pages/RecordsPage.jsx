@@ -1573,7 +1573,7 @@ const enterStart = -exitTarget;
           >
             <div className="rounded-3xl border border-fertiliapp-suave bg-white/20 p-3 shadow-sm backdrop-blur-md">
               <div className="flex min-w-0 flex-1 flex-col gap-1">
-                <div className="flex items-center justify-between gap-2 text-[10px] uppercase tracking-[0.18em] text-base">
+                <div className="flex items-center justify-between gap-2 text-[10px] uppercase tracking-[0.18em] text-base text-app-base">
                   <div className="flex min-w-0 items-center gap-2">
                     {resolvedTopAccessory && (
                       <div className="flex items-center">{resolvedTopAccessory}</div>
@@ -1594,7 +1594,7 @@ const enterStart = -exitTarget;
                   </span>
                 </div>
                 {resolvedHeaderMeta && (
-                  <div className="flex flex-wrap items-center gap-2 text-[13px] text-base">
+                  <div className="flex flex-wrap items-center gap-2 text-[13px] text-base text-app-base">
                     <span className="whitespace-nowrap">{resolvedHeaderMeta}</span>
                     {cycle?.postpartumMode && (
                       <Badge

@@ -1016,7 +1016,7 @@ useEffect(() => {
   aria-label="Disminuir temperatura corregida 0,10 grados"
   title="Bajar 0,10 °C"
 >
-  <span className="leading-none text-base font-semibold">−</span>
+  <span className="leading-none text-base text-app-base font-semibold">−</span>
 </Button>
 
 <Button
@@ -1029,7 +1029,7 @@ useEffect(() => {
   aria-label="Aumentar temperatura corregida 0,10 grados"
   title="Subir 0,10 °C"
 >
-  <span className="leading-none text-base font-semibold">+</span>
+  <span className="leading-none text-base text-app-base font-semibold">+</span>
 </Button>
   </div>
 

@@ -387,7 +387,7 @@
 
   .text-titulo { color: var(--color-texto-titulo); }
   .text-subtitulo { color: var(--color-texto-subtitulo); }
-  .text-base { color: var(--color-texto-base); }
+  .text-app-base { color: var(--color-texto-base); }
   .text-suave { color: var(--color-texto-suave); }
     /* Texto secundarios */
   .text-secundario { color: var(--color-secundario); }
