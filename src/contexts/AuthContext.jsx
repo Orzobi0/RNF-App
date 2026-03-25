@@ -191,6 +191,7 @@ export const AuthProvider = ({ children }) => {
           const defaultPreferences = {
             theme: 'light',
             units: 'metric',
+            preferredTemperatureTime: '',
             manualCpm: null,
             manualT8: null,
             manualCpmBase: null,
@@ -389,6 +390,7 @@ export const AuthProvider = ({ children }) => {
         const current = previous ?? {
           theme: 'light',
           units: 'metric',
+          preferredTemperatureTime: '',
           manualCpm: null,
           manualT8: null,
           manualCpmBase: null,

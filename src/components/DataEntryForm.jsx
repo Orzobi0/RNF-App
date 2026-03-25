@@ -50,18 +50,50 @@ const DataEntryForm = ({
 }, []);
 
   useEffect(() => {
-    const form = formRef.current;
-    if (!form) return;
-    const handleFocus = (e) => {
-      if (e.target && 'scrollIntoView' in e.target) {
-        setTimeout(() => {
-          e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }, 50);
-      }
-    };
-    form.addEventListener('focusin', handleFocus);
-    return () => form.removeEventListener('focusin', handleFocus);
-  }, []);
+  const form = formRef.current;
+  if (!form) return;
+
+  const isScrollableField = (target) => {
+    if (!(target instanceof HTMLElement)) return false;
+
+    if (target instanceof HTMLTextAreaElement) return true;
+    if (target instanceof HTMLSelectElement) return true;
+
+    if (target instanceof HTMLInputElement) {
+      const type = (target.type || '').toLowerCase();
+
+      return ![
+        'button',
+        'submit',
+        'reset',
+        'radio',
+        'checkbox',
+        'range',
+        'color',
+        'file',
+        'image',
+      ].includes(type);
+    }
+
+    return false;
+  };
+
+  const handleFocus = (e) => {
+    const target = e.target;
+    if (!isScrollableField(target)) return;
+
+    setTimeout(() => {
+      target.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+        inline: 'nearest',
+      });
+    }, 50);
+  };
+
+  form.addEventListener('focusin', handleFocus);
+  return () => form.removeEventListener('focusin', handleFocus);
+}, []);
 
   useEffect(() => {
   if (!focusedField) {
@@ -82,7 +114,7 @@ const DataEntryForm = ({
 
     if (focusTarget) {
       if (typeof focusTarget.scrollIntoView === 'function') {
-        focusTarget.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        focusTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
       }
 
       if (typeof focusTarget.focus === 'function') {
