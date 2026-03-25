@@ -1506,7 +1506,6 @@ const rotatedDrawerStyle = applyRotation
 )}
         <ChartControls
           isFullScreen={isFullScreen}
-          visualOrientation={visualOrientation}
           isLandscapeFullscreen={isLandscapeFullscreen}
           showBackToCycleRecords={showBackToCycleRecords}
           targetCycleId={targetCycle.id}
