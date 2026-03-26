@@ -911,16 +911,16 @@ useEffect(() => {
     />
 
     <Input
-      data-field={idx === 0 ? 'time' : undefined}
-      type="time"
-      value={m.time}
-      onChange={(e) => updateMeasurement(idx, 'time', e.target.value)}
-      className={cn(
-        "h-9 bg-white/70 border-amber-200 px-1.5 text-gray-600 font-semibold placeholder-gray-400 focus:border-orange-500 focus:ring-orange-500",
-        RADIUS.field
-      )}
-      disabled={isProcessing}
-    />
+  data-field={idx === 0 ? 'time' : undefined}
+  type="time"
+  value={m.time}
+  onChange={(e) => updateMeasurement(idx, 'time', e.target.value)}
+  className={cn(
+    "h-9 min-h-0 appearance-none bg-white/70 border-amber-200 px-2 py-0 text-[16px] leading-none text-gray-600 font-semibold focus:border-orange-500 focus:ring-orange-500",
+    RADIUS.field
+  )}
+  disabled={isProcessing}
+/>
 
     <Button
       type="button"
