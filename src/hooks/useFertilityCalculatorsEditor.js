@@ -222,15 +222,82 @@ export const useFertilityCalculatorsEditor = ({
   }, [manualT8BaseValue, savePreferences, user?.uid]);
 
   useEffect(() => {
+    if (!manualCpmStorageKey) {
+      setManualCpmValue(null);
+      setIsManualCpm(false);
+      return;
+    }
+
     const value = preferences?.manualCpm;
-    if (typeof value === 'number' && Number.isFinite(value)) { setManualCpmValue(value); setIsManualCpm(true); return; }
-    if (value === null) { setManualCpmValue(null); setIsManualCpm(false); }
-  }, [preferences?.manualCpm]);
+    if (value !== undefined) {
+      const numeric = typeof value === 'number' && Number.isFinite(value) ? value : null;
+      setManualCpmValue(numeric);
+      setIsManualCpm(numeric !== null);
+      manualCpmRestoreAttemptedRef.current = true;
+      try {
+        if (typeof window !== 'undefined') {
+          if (numeric === null) {
+            localStorage.removeItem(manualCpmStorageKey);
+          } else {
+            localStorage.setItem(manualCpmStorageKey, JSON.stringify({ value: numeric }));
+          }
+        }
+      } catch {}
+      return;
+    }
+
+    if (manualCpmRestoreAttemptedRef.current) return;
+    manualCpmRestoreAttemptedRef.current = true;
+    try {
+      const stored = typeof window !== 'undefined' ? localStorage.getItem(manualCpmStorageKey) : null;
+      const parsed = stored ? JSON.parse(stored) : null;
+      const numeric = typeof parsed?.value === 'number' && Number.isFinite(parsed.value) ? parsed.value : null;
+      setManualCpmValue(numeric);
+      setIsManualCpm(numeric !== null);
+    } catch {
+      setManualCpmValue(null);
+      setIsManualCpm(false);
+    }
+  }, [manualCpmStorageKey, preferences?.manualCpm]);
+
   useEffect(() => {
-    const value = preferences?.manualT8;
-    if (typeof value === 'number' && Number.isFinite(value)) { setManualT8Value(value); setIsManualT8(true); return; }
-    if (value === null) { setManualT8Value(null); setIsManualT8(false); }
-  }, [preferences?.manualT8]);
+    if (!manualT8StorageKey) {
+      setManualT8Value(null);
+      setIsManualT8(false);
+      return;
+    }
+
+  const value = preferences?.manualT8;
+    if (value !== undefined) {
+      const numeric = typeof value === 'number' && Number.isFinite(value) ? value : null;
+      setManualT8Value(numeric);
+      setIsManualT8(numeric !== null);
+      manualT8RestoreAttemptedRef.current = true;
+      try {
+        if (typeof window !== 'undefined') {
+          if (numeric === null) {
+            localStorage.removeItem(manualT8StorageKey);
+          } else {
+            localStorage.setItem(manualT8StorageKey, JSON.stringify({ value: numeric }));
+          }
+        }
+      } catch {}
+      return;
+    }
+
+    if (manualT8RestoreAttemptedRef.current) return;
+    manualT8RestoreAttemptedRef.current = true;
+    try {
+      const stored = typeof window !== 'undefined' ? localStorage.getItem(manualT8StorageKey) : null;
+      const parsed = stored ? JSON.parse(stored) : null;
+      const numeric = typeof parsed?.value === 'number' && Number.isFinite(parsed.value) ? parsed.value : null;
+      setManualT8Value(numeric);
+      setIsManualT8(numeric !== null);
+    } catch {
+      setManualT8Value(null);
+      setIsManualT8(false);
+    }
+  }, [manualT8StorageKey, preferences?.manualT8]);
 
   useEffect(() => {
     if (cpmSelectionInitializedRef.current || !preferences) return;

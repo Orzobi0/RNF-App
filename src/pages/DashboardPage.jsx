@@ -31,7 +31,6 @@ import { addDays, differenceInDays, format, isAfter, isValid, parseISO, startOfD
 import { es } from 'date-fns/locale';
 import ChartTooltip from '@/components/chartElements/ChartTooltip';
 import computePeakStatuses from '@/lib/computePeakStatuses';
-import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { computeOvulationMetrics, useFertilityChart } from '@/hooks/useFertilityChart';
 import { useFertilityCalculatorsEditor } from '@/hooks/useFertilityCalculatorsEditor';
@@ -1593,7 +1592,6 @@ const ModernFertilityDashboard = () => {
   const [overlapImpactPreview, setOverlapImpactPreview] = useState(null);
   const [showOverlapDialog, setShowOverlapDialog] = useState(false);
   const [isUpdatingStartDate, setIsUpdatingStartDate] = useState(false);
-  const { user, preferences, savePreferences } = useAuth();
   const calculatorEditor = useFertilityCalculatorsEditor({
     currentCycle,
     archivedCycles,
