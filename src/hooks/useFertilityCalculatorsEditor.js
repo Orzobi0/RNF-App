@@ -209,8 +209,25 @@ export const useFertilityCalculatorsEditor = ({
     const normalizedBase = baseValue === undefined ? undefined : baseValue == null ? null : Number(baseValue);
     const payload = { manualCpm: normalizedFinal }; if (normalizedBase !== undefined) payload.manualCpmBase = normalizedBase;
     await savePreferences(payload);
+
+    if (manualCpmStorageKey && typeof window !== 'undefined') {
+      if (payload.manualCpm === null) {
+        localStorage.removeItem(manualCpmStorageKey);
+      } else {
+        localStorage.setItem(manualCpmStorageKey, JSON.stringify({ value: payload.manualCpm }));
+      }
+    }
+
+    if (normalizedBase !== undefined && manualCpmBaseStorageKey && typeof window !== 'undefined') {
+      if (normalizedBase === null) {
+        localStorage.removeItem(manualCpmBaseStorageKey);
+      } else {
+        localStorage.setItem(manualCpmBaseStorageKey, JSON.stringify({ value: normalizedBase }));
+      }
+    }
+
     await saveUserMetricsSnapshot(user.uid, { manual: { cpm: { value: normalizedFinal, base: normalizedBase === undefined ? manualCpmBaseValue : normalizedBase } }, manualUpdatedAt: new Date().toISOString() });
-  }, [manualCpmBaseValue, savePreferences, user?.uid]);
+  }, [manualCpmBaseStorageKey, manualCpmBaseValue, manualCpmStorageKey, savePreferences, user?.uid]);
 
   const persistManualT8 = useCallback(async ({ finalValue, baseValue }) => {
     if (!user?.uid || !savePreferences) return;
@@ -218,8 +235,25 @@ export const useFertilityCalculatorsEditor = ({
     const normalizedBase = baseValue === undefined ? undefined : baseValue == null ? null : Number(baseValue);
     const payload = { manualT8: normalizedFinal }; if (normalizedBase !== undefined) payload.manualT8Base = normalizedBase;
     await savePreferences(payload);
+
+    if (manualT8StorageKey && typeof window !== 'undefined') {
+      if (payload.manualT8 === null) {
+        localStorage.removeItem(manualT8StorageKey);
+      } else {
+        localStorage.setItem(manualT8StorageKey, JSON.stringify({ value: payload.manualT8 }));
+      }
+    }
+
+    if (normalizedBase !== undefined && manualT8BaseStorageKey && typeof window !== 'undefined') {
+      if (normalizedBase === null) {
+        localStorage.removeItem(manualT8BaseStorageKey);
+      } else {
+        localStorage.setItem(manualT8BaseStorageKey, JSON.stringify({ value: normalizedBase }));
+      }
+    }
+
     await saveUserMetricsSnapshot(user.uid, { manual: { t8: { value: normalizedFinal, riseDay: normalizedBase === undefined ? manualT8BaseValue : normalizedBase } }, manualUpdatedAt: new Date().toISOString() });
-  }, [manualT8BaseValue, savePreferences, user?.uid]);
+  }, [manualT8BaseStorageKey, manualT8BaseValue, manualT8StorageKey, savePreferences, user?.uid]);
 
   useEffect(() => {
     if (!manualCpmStorageKey) {
@@ -327,25 +361,153 @@ export const useFertilityCalculatorsEditor = ({
   const t8Metric = useMemo(() => buildT8Metric({ computedT8Data, t8Selection, isManualT8, manualT8BaseValue, manualT8Value, formatNumber }), [computedT8Data, formatNumber, isManualT8, manualT8BaseValue, manualT8Value, t8Selection]);
 
   const cpmInfo = useMemo(() => {
-    const cycles = [...(computedCpmData.cyclesConsidered ?? [])].sort((a, b) => parseISO(b.startDate || '1970-01-01') - parseISO(a.startDate || '1970-01-01'));
     const cycleCount = computedCpmData.cycleCount ?? 0;
-    return {
-      highlightLabel: `${cycleCount} ciclo${cycleCount === 1 ? '' : 's'}`,
-      cycleCount,
-      canCompute: Boolean(computedCpmData.canCompute),
-      detailsAvailable: cycles.length > 0,
-      cycles,
-      shortestCycle: computedCpmData.shortestCycle ?? null,
-      value: typeof computedCpmData.value === 'number' ? computedCpmData.value : null,
-      summary: '',
-    };
-  }, [computedCpmData]);
+    const cyclesLabel = `${cycleCount} ciclo${cycleCount === 1 ? '' : 's'}`;
+    const requiredCycles = 6;
+    const resolvedMode = ['auto', 'manual', 'none'].includes(cpmSelection) ? cpmSelection : 'auto';
+    const sourceLabel =
+      resolvedMode === 'manual' && isManualCpm
+        ? 'Manual'
+        : resolvedMode === 'auto' && computedCpmData.canCompute
+          ? 'Automático'
+          : resolvedMode === 'none'
+            ? 'Sin usar'
+            : 'Automático';
 
-  const t8Info = useMemo(() => ({
-    highlightLabel: `${computedT8Data.cycleCount} ciclo${computedT8Data.cycleCount === 1 ? '' : 's'}`,
-    cycleCount: computedT8Data.cycleCount,
-    summary: '',
-  }), [computedT8Data.cycleCount]);
+    const cycles = computedCpmData.cyclesConsidered ?? [];
+    const displayCycles = [...cycles].sort((a, b) => {
+      const parseSafe = (value) => {
+        if (!value) return null;
+        try {
+          const parsed = parseISO(value);
+          return Number.isNaN(parsed.getTime()) ? null : parsed;
+        } catch {
+          return null;
+        }
+      };
+
+      const startA = parseSafe(a.startDate);
+      const startB = parseSafe(b.startDate);
+
+      if (!startA && !startB) return 0;
+      if (!startA) return 1;
+      if (!startB) return -1;
+      return startB - startA;
+    });
+
+    const canCompute = Boolean(computedCpmData.canCompute);
+    const ignoredCount = computedCpmData.ignoredCount ?? 0;
+    const deduction =
+      typeof computedCpmData.deduction === 'number' && Number.isFinite(computedCpmData.deduction)
+        ? computedCpmData.deduction
+        : null;
+    const shortestCycle = computedCpmData.shortestCycle ?? null;
+    const automaticValue =
+      typeof computedCpmData.value === 'number' && Number.isFinite(computedCpmData.value)
+        ? computedCpmData.value
+        : null;
+
+    let summary;
+    if (cycleCount === 0) {
+      summary = ignoredCount > 0
+        ? 'Todos los ciclos disponibles están ignorados para el cálculo automático.'
+        : 'Aún no hay ciclos finalizados con fecha de finalización.';
+    } else if (!canCompute) {
+      summary = `Hay ${cyclesLabel} finalizado${cycleCount === 1 ? '' : 's'}. Se necesitan ${requiredCycles} para calcular el CPM automáticamente.`;
+      if (ignoredCount > 0) {
+        summary += ` (${ignoredCount} ciclo${ignoredCount === 1 ? '' : 's'} ignorado${ignoredCount === 1 ? '' : 's'}).`;
+      }
+    } else {
+      const cycleName =
+        shortestCycle?.dateRangeLabel || shortestCycle?.displayName || shortestCycle?.name || 'Ciclo sin nombre';
+      const durationText =
+        typeof shortestCycle?.duration === 'number' && Number.isFinite(shortestCycle.duration)
+          ? `${shortestCycle.duration} días`
+          : 'duración desconocida';
+
+      const parts = [
+        `Calculado con ${cyclesLabel}.`,
+        `Ciclo más corto: ${cycleName} (${durationText}).`,
+      ];
+
+      if (deduction !== null) {
+        parts.push(`Deducción aplicada: ${deduction} días.`);
+      }
+      if (automaticValue !== null) {
+        parts.push(`Resultado: ${automaticValue} días.`);
+      }
+      if (ignoredCount > 0) {
+        parts.push(`${ignoredCount} ciclo${ignoredCount === 1 ? '' : 's'} ignorado${ignoredCount === 1 ? '' : 's'}.`);
+      }
+      summary = parts.join(' ');
+    }
+
+    return {
+      sourceLabel,
+      summary,
+      highlightLabel: cyclesLabel,
+      cycleCount,
+      requiredCycles,
+      canCompute,
+      detailsAvailable: displayCycles.length > 0,
+      cycles: displayCycles,
+      deduction,
+      shortestCycle,
+      value: automaticValue,
+      ignoredCount,
+    };
+  }, [computedCpmData, cpmSelection, isManualCpm]);
+
+  const t8Info = useMemo(() => {
+    const cycleCount = computedT8Data.cycleCount;
+    const cyclesLabel = `${cycleCount} ciclo${cycleCount === 1 ? '' : 's'}`;
+    const requiredCycles = 6;
+    const resolvedMode = ['auto', 'manual', 'none'].includes(t8Selection) ? t8Selection : 'auto';
+    const sourceLabel =
+      resolvedMode === 'manual' && isManualT8
+        ? 'Manual'
+        : resolvedMode === 'auto' && computedT8Data.canCompute
+          ? 'Automático'
+          : resolvedMode === 'none'
+            ? 'Sin usar'
+            : 'Automático';
+    const ignoredCount = computedT8Data.ignoredCount ?? 0;
+
+    let summary;
+    if (cycleCount === 0) {
+      summary = ignoredCount > 0
+        ? 'Los ciclos disponibles están ignorados para el cálculo automático.'
+        : 'Aún no hay ciclos con ovulación confirmada por temperatura.';
+    } else if (!computedT8Data.canCompute) {
+      summary = `Hay ${cyclesLabel} con ovulación confirmada por temperatura (se necesitan ${requiredCycles}).`;
+      if (ignoredCount > 0) {
+        summary += ` (${ignoredCount} ciclo${ignoredCount === 1 ? '' : 's'} ignorado${ignoredCount === 1 ? '' : 's'}).`;
+      }
+    } else {
+      const cycleName =
+        computedT8Data.earliestCycle?.displayName || computedT8Data.earliestCycle?.name || 'Ciclo sin nombre';
+      const riseDay = computedT8Data.earliestCycle?.riseDay;
+      const dayText = typeof riseDay === 'number' && Number.isFinite(riseDay) ? `Día ${riseDay}` : 'día desconocido';
+      const t8Day = computedT8Data.earliestCycle?.t8Day;
+      const t8Text = typeof t8Day === 'number' && Number.isFinite(t8Day) ? `T-8 Día ${t8Day}` : null;
+
+      summary = `Calculado con ${cyclesLabel}. Subida más temprana: ${cycleName} (${dayText})${t8Text ? `. ${t8Text}.` : '.'}`;
+      if (ignoredCount > 0) {
+        summary += ` ${ignoredCount} ciclo${ignoredCount === 1 ? '' : 's'} ignorado${ignoredCount === 1 ? '' : 's'}.`;
+      }
+    }
+
+    return {
+      sourceLabel,
+      summary,
+      highlightLabel: cyclesLabel,
+      cycleCount,
+      requiredCycles,
+      canCompute: Boolean(computedT8Data.canCompute),
+      value: typeof computedT8Data.value === 'number' && Number.isFinite(computedT8Data.value) ? computedT8Data.value : null,
+      ignoredCount,
+    };
+  }, [computedT8Data, isManualT8, t8Selection]);
 
   const handleToggleCycleIgnore = useCallback(async (cycleId, shouldIgnore) => {
     if (!cycleId) return;
@@ -385,25 +547,78 @@ export const useFertilityCalculatorsEditor = ({
   const handleSaveManualCpm = useCallback(async () => {
     if (manualCpmBaseError || manualCpmFinalError) return false;
     const trimmedBase = manualCpmBaseInput.trim(); const trimmedFinal = manualCpmFinalInput.trim(); const side = manualCpmEditedSide ?? (trimmedFinal ? 'final' : trimmedBase ? 'base' : null);
-    if (!side) return false;
+    if (!side) {
+      setManualCpmFinalError('Introduce un valor.');
+      return false;
+    }
     let baseValueToPersist = manualCpmBaseValue; let finalValueToPersist;
     if (side === 'base') { const parsedBase = Number.parseInt(trimmedBase, 10); if (!Number.isFinite(parsedBase) || parsedBase < 1) return false; baseValueToPersist = parsedBase; finalValueToPersist = Math.max(1, parsedBase - MANUAL_CPM_DEDUCTION); }
     else { const parsedFinal = Number.parseFloat(trimmedFinal.replace(',', '.')); if (!Number.isFinite(parsedFinal) || parsedFinal < 1) return false; finalValueToPersist = parsedFinal; baseValueToPersist = trimmedBase ? Number.parseInt(trimmedBase, 10) : null; }
-    setManualCpmValue(finalValueToPersist); setIsManualCpm(true); setManualCpmBaseValue(Number.isFinite(baseValueToPersist) ? baseValueToPersist : null);
-    await persistManualCpm({ finalValue: finalValueToPersist, baseValue: baseValueToPersist });
-    setIsCpmDialogOpen(false);
-    return true;
-  }, [manualCpmBaseError, manualCpmBaseInput, manualCpmBaseValue, manualCpmEditedSide, manualCpmFinalError, manualCpmFinalInput, persistManualCpm]);
+    const previousValue = manualCpmValue;
+    const previousIsManual = isManualCpm;
+    const previousBaseValue = manualCpmBaseValue;
+
+    setManualCpmValue(finalValueToPersist);
+    setIsManualCpm(true);
+    setManualCpmBaseValue(Number.isFinite(baseValueToPersist) ? baseValueToPersist : null);
+
+    try {
+      await persistManualCpm({ finalValue: finalValueToPersist, baseValue: baseValueToPersist });
+      setIsCpmDialogOpen(false);
+      toast?.({ title: 'CPM actualizado', description: 'El CPM manual se guardó en tu perfil.' });
+      return true;
+    } catch (error) {
+      console.error('Failed to save manual CPM value', error);
+      setManualCpmValue(previousValue);
+      setManualCpmBaseValue(previousBaseValue);
+      setIsManualCpm(previousIsManual);
+      setManualCpmFinalError('No se pudo guardar el CPM. Inténtalo de nuevo.');
+      return false;
+    }
+  }, [isManualCpm, manualCpmBaseError, manualCpmBaseInput, manualCpmBaseValue, manualCpmEditedSide, manualCpmFinalError, manualCpmFinalInput, manualCpmValue, persistManualCpm, toast]);
 
   const handleSaveCpm = useCallback(async () => {
     if (cpmSelectionDraft === 'manual') { if (!(await handleSaveManualCpm())) return; setCpmSelection('manual'); setCpmSelectionDraft('manual'); await persistCpmMode('manual'); return; }
-    const nextMode = ['auto', 'none'].includes(cpmSelectionDraft) ? cpmSelectionDraft : 'auto'; setCpmSelection(nextMode); setCpmSelectionDraft(nextMode); await persistCpmMode(nextMode); handleCloseCpmDialog();
-  }, [cpmSelectionDraft, handleCloseCpmDialog, handleSaveManualCpm, persistCpmMode]);
+    const nextMode = ['auto', 'none'].includes(cpmSelectionDraft) ? cpmSelectionDraft : 'auto';
+    setCpmSelection(nextMode);
+    setCpmSelectionDraft(nextMode);
+    await persistCpmMode(nextMode);
+    handleCloseCpmDialog();
+
+    toast?.({
+      title: 'CPM actualizado',
+      description: nextMode === 'auto' ? 'Ahora se usa el cálculo automático del CPM.' : 'El CPM ya no se tendrá en cuenta.',
+    });
+  }, [cpmSelectionDraft, handleCloseCpmDialog, handleSaveManualCpm, persistCpmMode, toast]);
 
   const handleDeleteManualCpm = useCallback(async () => {
-    setManualCpmValue(null); setManualCpmBaseValue(null); setIsManualCpm(false); setManualCpmBaseInput(''); setManualCpmFinalInput(''); setManualCpmBaseError(''); setManualCpmFinalError(''); setManualCpmEditedSide(null);
-    await persistManualCpm({ finalValue: null, baseValue: null });
-  }, [persistManualCpm]);
+    const previousValue = manualCpmValue;
+    const previousIsManual = isManualCpm;
+    const previousBaseValue = manualCpmBaseValue;
+
+    setManualCpmValue(null);
+    setManualCpmBaseValue(null);
+    setIsManualCpm(false);
+    setManualCpmBaseInput('');
+    setManualCpmFinalInput('');
+    setManualCpmBaseError('');
+    setManualCpmFinalError('');
+    setManualCpmEditedSide(null);
+
+    try {
+      await persistManualCpm({ finalValue: null, baseValue: null });
+      toast?.({
+        title: 'CPM borrado',
+        description: 'El valor manual se eliminó. Puedes guardar un nuevo valor o continuar con el cálculo automático.',
+      });
+    } catch (error) {
+      console.error('Failed to delete manual CPM value', error);
+      setManualCpmValue(previousValue);
+      setManualCpmBaseValue(previousBaseValue);
+      setIsManualCpm(previousIsManual);
+      setManualCpmFinalError('No se pudo borrar el CPM. Inténtalo de nuevo.');
+    }
+  }, [isManualCpm, manualCpmBaseValue, manualCpmValue, persistManualCpm, toast]);
 
   const handleConfirmCpmDelete = useCallback(async () => {
     setIsDeletingManualCpm(true);
@@ -429,23 +644,78 @@ export const useFertilityCalculatorsEditor = ({
   const handleSaveManualT8 = useCallback(async () => {
     if (manualT8BaseError || manualT8FinalError) return false;
     const trimmedBase = manualT8BaseInput.trim(); const trimmedFinal = manualT8FinalInput.trim(); const side = manualT8EditedSide ?? (trimmedFinal ? 'final' : trimmedBase ? 'base' : null);
-    if (!side) return false;
+    if (!side) {
+      setManualT8FinalError('Introduce un valor.');
+      return false;
+    }
     let baseValueToPersist = manualT8BaseValue; let finalValueToPersist;
     if (side === 'base') { const parsedBase = Number.parseInt(trimmedBase, 10); if (!Number.isFinite(parsedBase) || parsedBase < 1) return false; baseValueToPersist = parsedBase; finalValueToPersist = Math.max(1, parsedBase - 8); }
     else { const parsedFinal = Number.parseInt(trimmedFinal, 10); if (!Number.isFinite(parsedFinal) || parsedFinal < 1) return false; finalValueToPersist = parsedFinal; baseValueToPersist = trimmedBase ? Number.parseInt(trimmedBase, 10) : null; }
-    setManualT8Value(finalValueToPersist); setIsManualT8(true); setManualT8BaseValue(Number.isFinite(baseValueToPersist) ? baseValueToPersist : null);
-    await persistManualT8({ finalValue: finalValueToPersist, baseValue: baseValueToPersist }); setIsT8DialogOpen(false); return true;
-  }, [manualT8BaseError, manualT8BaseInput, manualT8BaseValue, manualT8EditedSide, manualT8FinalError, manualT8FinalInput, persistManualT8]);
+    const previousValue = manualT8Value;
+    const previousIsManual = isManualT8;
+    const previousBaseValue = manualT8BaseValue;
+
+    setManualT8Value(finalValueToPersist);
+    setIsManualT8(true);
+    setManualT8BaseValue(Number.isFinite(baseValueToPersist) ? baseValueToPersist : null);
+
+    try {
+      await persistManualT8({ finalValue: finalValueToPersist, baseValue: baseValueToPersist });
+      setIsT8DialogOpen(false);
+      toast?.({ title: 'T-8 actualizado', description: 'El T-8 manual se guardó en tu perfil.' });
+      return true;
+    } catch (error) {
+      console.error('Failed to save manual T-8 value', error);
+      setManualT8Value(previousValue);
+      setManualT8BaseValue(previousBaseValue);
+      setIsManualT8(previousIsManual);
+      setManualT8FinalError('No se pudo guardar el T-8. Inténtalo de nuevo.');
+      return false;
+    }
+  }, [isManualT8, manualT8BaseError, manualT8BaseInput, manualT8BaseValue, manualT8EditedSide, manualT8FinalError, manualT8FinalInput, manualT8Value, persistManualT8, toast]);
 
   const handleSaveT8 = useCallback(async () => {
     if (t8SelectionDraft === 'manual') { if (!(await handleSaveManualT8())) return; setT8Selection('manual'); setT8SelectionDraft('manual'); await persistT8Mode('manual'); return; }
-    const nextMode = ['auto', 'none'].includes(t8SelectionDraft) ? t8SelectionDraft : 'auto'; setT8Selection(nextMode); setT8SelectionDraft(nextMode); await persistT8Mode(nextMode); handleCloseT8Dialog();
-  }, [handleCloseT8Dialog, handleSaveManualT8, persistT8Mode, t8SelectionDraft]);
+    const nextMode = ['auto', 'none'].includes(t8SelectionDraft) ? t8SelectionDraft : 'auto';
+    setT8Selection(nextMode);
+    setT8SelectionDraft(nextMode);
+    await persistT8Mode(nextMode);
+    handleCloseT8Dialog();
+
+    toast?.({
+      title: 'T-8 actualizado',
+      description: nextMode === 'auto' ? 'Ahora se usa el cálculo automático del T-8.' : 'El T-8 ya no se tendrá en cuenta.',
+    });
+  }, [handleCloseT8Dialog, handleSaveManualT8, persistT8Mode, t8SelectionDraft, toast]);
 
   const handleDeleteManualT8 = useCallback(async () => {
-    setManualT8Value(null); setManualT8BaseValue(null); setIsManualT8(false); setManualT8BaseInput(''); setManualT8FinalInput(''); setManualT8BaseError(''); setManualT8FinalError(''); setManualT8EditedSide(null);
-    await persistManualT8({ finalValue: null, baseValue: null });
-  }, [persistManualT8]);
+    const previousValue = manualT8Value;
+    const previousIsManual = isManualT8;
+    const previousBaseValue = manualT8BaseValue;
+
+    setManualT8Value(null);
+    setManualT8BaseValue(null);
+    setIsManualT8(false);
+    setManualT8BaseInput('');
+    setManualT8FinalInput('');
+    setManualT8BaseError('');
+    setManualT8FinalError('');
+    setManualT8EditedSide(null);
+
+    try {
+      await persistManualT8({ finalValue: null, baseValue: null });
+      toast?.({
+        title: 'T-8 borrado',
+        description: 'El valor manual se eliminó. Puedes guardar un nuevo valor o continuar con el cálculo automático.',
+      });
+    } catch (error) {
+      console.error('Failed to delete manual T-8 value', error);
+      setManualT8Value(previousValue);
+      setManualT8BaseValue(previousBaseValue);
+      setIsManualT8(previousIsManual);
+      setManualT8BaseError('No se pudo borrar el T-8. Inténtalo de nuevo.');
+    }
+  }, [isManualT8, manualT8BaseValue, manualT8Value, persistManualT8, toast]);
 
   const handleConfirmT8Delete = useCallback(async () => {
     setIsDeletingManualT8(true);
@@ -505,6 +775,12 @@ export const useFertilityCalculatorsEditor = ({
       isT8SaveDisabled,
       canDeleteManualCpm: Boolean(isManualCpm || manualCpmBaseInput.trim() || manualCpmFinalInput.trim()),
       canDeleteManualT8: Boolean(isManualT8 || manualT8BaseInput.trim() || manualT8FinalInput.trim()),
+      cpmStatusMode: cpmSelection === 'manual' && isManualCpm ? 'manual' : cpmSelection === 'none' ? 'none' : 'auto',
+      cpmStatusChipLabel: cpmSelection === 'manual' && isManualCpm ? 'Manual' : cpmSelection === 'none' ? 'Sin usar' : 'Automático',
+      t8StatusMode: t8Selection === 'manual' && isManualT8 ? 'manual' : t8Selection === 'none' ? 'none' : 'auto',
+      t8StatusChipLabel: t8Selection === 'manual' && isManualT8 ? 'Manual' : t8Selection === 'none' ? 'Sin usar' : 'Automático',
+      cpmAutomaticValueLabel: typeof cpmInfo.value === 'number' && Number.isFinite(cpmInfo.value) ? cpmInfo.value.toLocaleString('es-ES', { maximumFractionDigits: 2 }) : '—',
+      t8AutomaticValueLabel: typeof t8Info.value === 'number' && Number.isFinite(t8Info.value) ? t8Info.value : '—',
       handleCloseCpmDialog,
       handleCloseT8Dialog,
       handleManualCpmBaseInputChange,
