@@ -41,6 +41,7 @@ import {
   SECTION_METADATA,
 } from '@/components/dataEntryForm/sectionLogic';
 import { useAuth } from '@/contexts/AuthContext';
+import { normalizePreferenceValue, validatePreferenceField } from '@/lib/preferences';
 const VIEW_ALL_STORAGE_KEY = 'dataEntryForm:viewAll:global';
 const DEFAULT_SECTION_STORAGE_KEY = '__default__';
 const RADIUS = { field: 'rounded-3xl', dropdown: 'rounded-3xl' };
@@ -102,9 +103,10 @@ const DataEntryFormFields = ({
   const [isSavingPreferredTime, setIsSavingPreferredTime] = useState(false);
   const initializedSectionsRef = useRef(false);
   const preferredTemperatureTime =
-    typeof preferences?.preferredTemperatureTime === 'string'
-      ? preferences.preferredTemperatureTime
-      : '';
+    normalizePreferenceValue(
+      'preferredTemperatureTime',
+      preferences?.preferredTemperatureTime
+    );
 
   const sectionOrder = useMemo(
     () => [
@@ -253,7 +255,11 @@ const [activeSection, setActiveSection] = useState(() => {
 
   const handleSavePreferredTime = useCallback(
     async (measurementIndex) => {
-      if (!preferredTimeDraft || !/^\d{2}:\d{2}$/.test(preferredTimeDraft)) {
+      const preferredTimeError = validatePreferenceField(
+        'preferredTemperatureTime',
+        preferredTimeDraft
+      );
+      if (preferredTimeError) {
         return;
       }
 

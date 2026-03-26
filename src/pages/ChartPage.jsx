@@ -27,8 +27,11 @@ import Overlay from '@/components/ui/Overlay';
 import { useAuth } from '@/contexts/AuthContext';
 import { computeOvulationMetrics } from '@/hooks/useFertilityChart';
 import ChartControls from '@/components/ChartControls';
-
-const CHART_SETTINGS_STORAGE_KEY = 'fertility-chart-settings';
+import {
+  PREFERENCE_DEFAULTS,
+  mergeFertilityStartConfig,
+  normalizeStoredPreferences,
+} from '@/lib/preferences';
 
 const normalizeCalculatorSource = (source) => {
   if (!source) return '';
@@ -46,48 +49,12 @@ const formatCalculatorSourceLabel = (source) => {
   return source ?? '';
 };
 
-const normalizeCombineMode = (value) => {
-  if (value === 'conservador') return 'estandar';
-  return value === 'estandar' ? value : null;
-};
-
-const createDefaultFertilityStartConfig = () => ({
-  calculators: { cpm: true, t8: true },
-  combineMode: 'estandar',
-});
-
-const DEFAULT_CHART_SETTINGS = {
-  showRelationsRow: true,
-  fertilityStartConfig: createDefaultFertilityStartConfig(),
-};
+const DEFAULT_CHART_SETTINGS = normalizeStoredPreferences(PREFERENCE_DEFAULTS);
 
 const FERTILITY_CALCULATOR_OPTIONS = [
   { key: 'cpm', label: 'CPM' },
   { key: 't8', label: 'T-8' },
 ];
-
-const mergeFertilityStartConfig = (incoming) => {
-  const base = createDefaultFertilityStartConfig();
-  const merged = {
-    calculators: { ...base.calculators },
-    combineMode: base.combineMode,
-  };
-
-  if (incoming && typeof incoming === 'object') {
-    Object.keys(merged.calculators).forEach((key) => {
-      if (typeof incoming?.calculators?.[key] === 'boolean') {
-        merged.calculators[key] = incoming.calculators[key];
-      }
-    });
-
-    const normalizedMode = normalizeCombineMode(incoming.combineMode);
-    if (normalizedMode) {
-      merged.combineMode = normalizedMode;
-    }
-  }
-
-  return merged;
-};
 
 const ChartPage = () => {
   const { cycleId } = useParams();
@@ -316,84 +283,35 @@ useEffect(() => {
   return () => window.clearTimeout(t);
 }, [settingsOpen, drawerMounted]);
   const [phaseOverlay, setPhaseOverlay] = useState(null);
-  const hasStoredRelationsRowPreferenceRef = useRef(false);
   const [chartSettings, setChartSettings] = useState(() => {
-    const defaults = {
-      showRelationsRow: DEFAULT_CHART_SETTINGS.showRelationsRow,
-      fertilityStartConfig: mergeFertilityStartConfig(DEFAULT_CHART_SETTINGS.fertilityStartConfig),
+    const defaults = normalizeStoredPreferences(PREFERENCE_DEFAULTS);
+    return {
+      showRelationsRow: defaults.showRelationsRow,
+      fertilityStartConfig: mergeFertilityStartConfig({
+        current: defaults.fertilityStartConfig,
+      }),
     };
-
-    if (typeof window === 'undefined') {
-      return defaults;
-    }
-    try {
-      const stored = window.localStorage.getItem(CHART_SETTINGS_STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (parsed && Object.prototype.hasOwnProperty.call(parsed, 'showRelationsRow')) {
-          hasStoredRelationsRowPreferenceRef.current = true;
-        }
-        const merged = {
-          ...defaults,
-          ...parsed,
-        };
-        if (typeof parsed?.showRelationsRow === 'boolean') {
-          merged.showRelationsRow = parsed.showRelationsRow;
-        } else if (parsed?.showRelationsRow != null) {
-          merged.showRelationsRow = Boolean(parsed.showRelationsRow);
-        }
-        merged.fertilityStartConfig = mergeFertilityStartConfig(parsed?.fertilityStartConfig);
-        return merged;
-      }
-    } catch (error) {
-      console.warn('No se pudieron cargar los ajustes del gráfico.', error);
-    }
-    
-    return defaults;
   });
   
-  useEffect(() => {
-  if (!preferences) return;
-
+useEffect(() => {
+  const normalizedPreferences = normalizeStoredPreferences(preferences ?? PREFERENCE_DEFAULTS);
+  const preferenceConfig = mergeFertilityStartConfig({
+    current: normalizedPreferences.fertilityStartConfig,
+  });
   setChartSettings((prev) => {
-    const currentConfig = mergeFertilityStartConfig(prev.fertilityStartConfig);
-    const preferenceConfig = mergeFertilityStartConfig(preferences.fertilityStartConfig);
-    let changed = false;
-
-    const shouldSyncRelationsFromPreferences =
-      !hasStoredRelationsRowPreferenceRef.current &&
-      typeof preferences.showRelationsRow === 'boolean' &&
-      prev.showRelationsRow !== preferences.showRelationsRow;
-
-    if (shouldSyncRelationsFromPreferences) {
-      changed = true;
-    }
-
-    if (currentConfig.combineMode !== preferenceConfig.combineMode) changed = true;
-
-    if (
-      Object.keys(currentConfig.calculators ?? {}).some(
-        (key) => currentConfig.calculators?.[key] !== preferenceConfig.calculators?.[key]
-      )
-    ) {
-      changed = true;
-    }
-
-    if (!changed) return prev;
-
+    const sameRelations = prev.showRelationsRow === normalizedPreferences.showRelationsRow;
+    const sameConfig = JSON.stringify(prev.fertilityStartConfig) === JSON.stringify(preferenceConfig);
+    if (sameRelations && sameConfig) return prev;
     return {
       ...prev,
-      showRelationsRow:
-        shouldSyncRelationsFromPreferences
-          ? preferences.showRelationsRow
-          : prev.showRelationsRow,
+      showRelationsRow: normalizedPreferences.showRelationsRow,
       fertilityStartConfig: preferenceConfig,
     };
   });
 }, [preferences]);
 
   const fertilityConfig = useMemo(
-    () => mergeFertilityStartConfig(chartSettings.fertilityStartConfig),
+    () => mergeFertilityStartConfig({ incoming: chartSettings.fertilityStartConfig }),
     [chartSettings.fertilityStartConfig]
   );
   const cyclePostpartumMode = Boolean(targetCycle?.postpartumMode);
@@ -410,21 +328,6 @@ useEffect(() => {
     }),
     [fertilityConfig, cpmSelection, t8Selection, cyclePostpartumMode]
   );
-
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-    try {
-      const payload = { ...chartSettings, fertilityStartConfig: fertilityConfig };
-      window.localStorage.setItem(
-        CHART_SETTINGS_STORAGE_KEY,
-        JSON.stringify(payload)
-      );
-    } catch (error) {
-      console.warn('No se pudieron guardar los ajustes del gráfico.', error);
-    }
-  }, [chartSettings, fertilityConfig]);
 
   const ignoreNextClickRef = useRef(false);
   const keepFormOpenUntilRef = useRef(0);
@@ -747,7 +650,7 @@ const rotatedDrawerStyle = applyRotation
   const handleFertilityCalculatorChange = (calculatorKey, checked) => {
     let nextConfig = null;
     setChartSettings((prev) => {
-      const currentConfig = mergeFertilityStartConfig(prev.fertilityStartConfig);
+      const currentConfig = mergeFertilityStartConfig({ incoming: prev.fertilityStartConfig });
       const nextValue = checked === true;
       if (currentConfig.calculators?.[calculatorKey] === nextValue) {
         return prev;

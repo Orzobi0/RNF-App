@@ -14,6 +14,7 @@ const DashboardPage = lazy(() => import('@/pages/DashboardPage'));
 const ArchivedCyclesPage = lazy(() => import('@/pages/ArchivedCyclesPage'));
 const CycleDetailPage = lazy(() => import('@/pages/CycleDetailPage'));
 const SettingsPage = lazy(() => import('@/pages/SettingsPage'));
+const PreferencesPage = lazy(() => import('@/pages/PreferencesPage'));
 const ChartPage = lazy(() => import('@/pages/ChartPage'));
 const RecordsPage = lazy(() => import('@/pages/RecordsPage'));
 import MainLayout from '@/components/layout/MainLayout';
@@ -132,6 +133,16 @@ function AppContent() {
                   <ProtectedRoute>
                     <MainLayout>
                       <SettingsPage />
+                    </MainLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/settings/preferences"
+                element={
+                  <ProtectedRoute>
+                    <MainLayout>
+                      <PreferencesPage />
                     </MainLayout>
                   </ProtectedRoute>
                 }

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { User } from 'lucide-react';
+import { SlidersHorizontal, User } from 'lucide-react';
 import { App } from '@capacitor/app';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
@@ -15,6 +15,7 @@ import InstallPrompt from '@/components/InstallPrompt';
 import { ensureHealthConnectPermissions } from '@/lib/healthConnectSync';
 import { useHealthConnect } from '@/contexts/HealthConnectContext.jsx';
 import { cn } from '@/lib/utils';
+import { useNavigate } from 'react-router-dom';
 
 import {
   Dialog,
@@ -27,6 +28,7 @@ import {
 
 const SettingsPage = () => {
   const { user, updateEmail, updatePassword, login, logout } = useAuth();
+  const navigate = useNavigate();
   const { currentCycle, archivedCycles } = useCycleData();
   const { isAvailable, hasPermissions, refreshPermissions, isChecking, isAndroidApp } =
     useHealthConnect();
@@ -349,6 +351,19 @@ const SettingsPage = () => {
             </div>
             <Button onClick={() => setShowExportDialog(true)} className="ml-4">
               Exportar ciclos
+            </Button>
+          </div>
+
+          <div className="bg-white/80 backdrop-blur p-4 rounded-3xl shadow flex items-center justify-between">
+            <div>
+              <p className="text-sm text-slate-500">Preferencias</p>
+              <p className="font-medium text-slate-700">
+                Centro maestro de preferencias globales
+              </p>
+            </div>
+            <Button onClick={() => navigate('/settings/preferences')} className="ml-4 gap-2">
+              <SlidersHorizontal className="h-4 w-4" />
+              Abrir
             </Button>
           </div>
           
