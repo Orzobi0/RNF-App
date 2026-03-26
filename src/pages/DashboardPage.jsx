@@ -5,10 +5,8 @@ import {
   FilePlus,
   CalendarPlus,
   Edit,
-  Pencil,
   ChevronLeft,
   ChevronRight,
-  HelpCircle,
   Baby,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -18,21 +16,16 @@ import DeletionDialog from '@/components/DeletionDialog';
 import OverlapWarningDialog from '@/components/OverlapWarningDialog';
 import { useToast } from '@/components/ui/use-toast';
 import NewCycleDialog from '@/components/NewCycleDialog';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { useCycleData } from '@/hooks/useCycleData';
 import { addDays, differenceInDays, format, isAfter, isValid, parseISO, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import ChartTooltip from '@/components/chartElements/ChartTooltip';
 import computePeakStatuses from '@/lib/computePeakStatuses';
 import { Button } from '@/components/ui/button';
-import { computeOvulationMetrics, useFertilityChart } from '@/hooks/useFertilityChart';
+import { Badge } from '@/components/ui/badge';
+import { useAuth } from '@/contexts/AuthContext';
+import { useFertilityChart } from '@/hooks/useFertilityChart';
 import { useFertilityCalculatorsEditor } from '@/hooks/useFertilityCalculatorsEditor';
 import FertilityCalculatorsEditorDialogs from '@/components/FertilityCalculatorsEditorDialogs';
 import { getSymbolColorPalette } from '@/config/fertilitySymbols';
@@ -1584,6 +1577,7 @@ const ModernFertilityDashboard = () => {
     previewUndoCurrentCycle,
   } = useCycleData();
   const { toast } = useToast();
+  const { preferences } = useAuth();
   const [showStartDateEditor, setShowStartDateEditor] = useState(false);
   const [draftStartDate, setDraftStartDate] = useState(() => currentCycle?.startDate || '');
   const [dateError, setDateError] = useState('');
@@ -1592,6 +1586,10 @@ const ModernFertilityDashboard = () => {
   const [overlapImpactPreview, setOverlapImpactPreview] = useState(null);
   const [showOverlapDialog, setShowOverlapDialog] = useState(false);
   const [isUpdatingStartDate, setIsUpdatingStartDate] = useState(false);
+  const [showUndoCycleDialog, setShowUndoCycleDialog] = useState(false);
+  const [showUndoImpactDialog, setShowUndoImpactDialog] = useState(false);
+  const [undoImpactPreview, setUndoImpactPreview] = useState(null);
+  const [isUndoingCycle, setIsUndoingCycle] = useState(false);
   const calculatorEditor = useFertilityCalculatorsEditor({
     currentCycle,
     archivedCycles,
@@ -1613,6 +1611,38 @@ const ModernFertilityDashboard = () => {
     handleOpenCpmDialog,
     handleOpenT8Dialog,
   } = calculatorEditor;
+
+  const undoCandidate = useMemo(() => {
+    if (!currentCycle?.id || currentCycle?.endDate) return null;
+    if (!currentCycle?.startDate) return null;
+
+    const parsedStart = parseISO(currentCycle.startDate);
+    if (!isValid(parsedStart)) return null;
+
+    const dayBefore = format(addDays(parsedStart, -1), 'yyyy-MM-dd');
+    const candidates = archivedCycles.filter((cycle) => cycle?.endDate === dayBefore);
+    if (!candidates.length) return null;
+
+    return candidates.sort((a, b) => (b.startDate || '').localeCompare(a.startDate || ''))[0];
+  }, [archivedCycles, currentCycle]);
+
+  const undoRangeText = useMemo(() => {
+    if (!undoCandidate?.startDate || !undoCandidate?.endDate) return '';
+
+    const start = parseISO(undoCandidate.startDate);
+    const end = parseISO(undoCandidate.endDate);
+    if (!isValid(start) || !isValid(end)) return '';
+
+    const formatRangeDate = (date) =>
+      format(date, 'dd MMM yy', { locale: es }).replace('.', '');
+
+    return `${formatRangeDate(start)} - ${formatRangeDate(end)}`;
+  }, [undoCandidate]);
+
+  const undoCycleDescription = useMemo(() => {
+    const rangeSuffix = undoRangeText ? ` (${undoRangeText})` : '';
+    return `¿Quieres unir el ciclo actual al ciclo anterior${rangeSuffix}? Esta acción no se puede deshacer.`;
+  }, [undoRangeText]);
 
   const resetStartDateFlow = useCallback(() => {
     setPendingStartDate(null);
@@ -2053,17 +2083,21 @@ const ModernFertilityDashboard = () => {
     t8Selection,
   ]);
 
-  const fertilityStartConfig = useMemo(
-    () => mergeFertilityStartConfig({
-      incoming: {
-        calculators: {
-        cpm: cpmSelection !== 'none',
-        t8: t8Selection !== 'none',
+  const fertilityStartConfig = useMemo(() => {
+    const merged = mergeFertilityStartConfig({
+      incoming: preferences?.fertilityStartConfig,
+    });
+
+    return {
+      ...merged,
+      calculators: {
+        ...merged.calculators,
+        cpm: Boolean(merged.calculators?.cpm) && cpmSelection !== 'none',
+        t8: Boolean(merged.calculators?.t8) && t8Selection !== 'none',
       },
-      },
-    }),
-    [cpmSelection, t8Selection]
-  );
+    };
+  }, [preferences?.fertilityStartConfig, cpmSelection, t8Selection]);
+
   const fertilityCalculatorCycles = useMemo(() => {
     const cycles = [];
     if (Array.isArray(archivedCycles) && archivedCycles.length > 0) {
