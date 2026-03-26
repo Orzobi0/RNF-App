@@ -8,6 +8,7 @@ const ChartRightStickyTempLegend = ({
   tempRange,
   getY,
   responsiveFontSize,
+  isLandscapeFullscreen = false,
   ...restProps
 }) => {
   const railRef = useRef(null);
@@ -70,15 +71,17 @@ const ChartRightStickyTempLegend = ({
 
   return (
     <div
-      className="absolute inset-0 pointer-events-none z-30 overflow-hidden"
-      aria-hidden="true"
-      {...restProps}
-    >
+  className={`absolute inset-0 pointer-events-none z-30 overflow-hidden ${
+    isLandscapeFullscreen ? 'bg-transparent' : ''
+  }`}
+  aria-hidden="true"
+  {...restProps}
+>
       <svg
-        ref={railRef}
-        width={padding.right}
-        height={legendHeight}
-        className="absolute right-0 top-0"
+  ref={railRef}
+  width={padding.right}
+  height={legendHeight}
+  className={`absolute right-0 top-0 ${isLandscapeFullscreen ? 'overflow-visible' : ''}`}
         style={{
           willChange: 'transform',
           transform: 'translate3d(0, 0, 0)',

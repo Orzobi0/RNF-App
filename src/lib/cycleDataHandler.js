@@ -134,6 +134,20 @@ const normalizeTemp = (val) => {
   return isNaN(num) ? null : num;
 };
 
+const normalizePostpartumMode = (value) => value === true;
+
+const mapCycleDocToFrontend = ({ id, data, entries = [], needsCompletion = false }) => ({
+  id,
+  startDate: data?.start_date ?? null,
+  endDate: data?.end_date ?? null,
+  needsCompletion,
+  ignoredForAutoCalculations: Boolean(data?.ignored_auto_calculations),
+  postpartumMode: normalizePostpartumMode(data?.postpartum_mode),
+  data: entries,
+});
+
+const mergePostpartumMode = (...values) => values.some((value) => normalizePostpartumMode(value));
+
 export const resolveIsoDateFromEntryData = (entryData) => {
   if (entryData?.iso_date && isValid(parseISO(entryData.iso_date))) {
     return format(parseISO(entryData.iso_date), 'yyyy-MM-dd');
@@ -317,13 +331,11 @@ export const fetchCurrentCycleDB = async (userId) => {
   const entriesSnap = await getDocs(entriesRef);
   const entriesData = entriesSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
-  return {
+  return mapCycleDocToFrontend({
     id: cycleDoc.id,
-    startDate: cycleDoc.start_date,
-    endDate: cycleDoc.end_date,
-    ignoredForAutoCalculations: Boolean(cycleDoc.ignored_auto_calculations),
-    data: entriesData,
-  };
+    data: cycleDoc,
+    entries: entriesData,
+  });
 };
 
 export const fetchArchivedCyclesDB = async (userId, currentStartDate) => {
@@ -342,14 +354,12 @@ export const fetchArchivedCyclesDB = async (userId, currentStartDate) => {
       const entriesRef = collection(db, `users/${userId}/cycles/${cycle.id}/entries`);
       const entriesSnap = await getDocs(entriesRef);
       const entriesData = entriesSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      return {
+      return mapCycleDocToFrontend({
         id: cycle.id,
-        startDate: cycle.start_date,
-        endDate: cycle.end_date,
+        data: cycle,
+        entries: entriesData,
         needsCompletion: !cycle.end_date,
-        ignoredForAutoCalculations: Boolean(cycle.ignored_auto_calculations),
-        data: entriesData,
-      };
+         });
     })
   );
   return cyclesWithEntries;
@@ -364,13 +374,11 @@ export const fetchCycleByIdDB = async (userId, cycleId) => {
   const entriesSnap = await getDocs(entriesRef);
   const entriesData = entriesSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
-  return {
+  return mapCycleDocToFrontend({
     id: cycleId,
-    startDate: cycleData.start_date,
-    endDate: cycleData.end_date,
-    ignoredForAutoCalculations: Boolean(cycleData.ignored_auto_calculations),
-    data: entriesData,
-  };
+    data: cycleData,
+    entries: entriesData,
+  });
 };
 
 export const createNewCycleDB = async (userId, startDate) => {
@@ -406,9 +414,24 @@ export const createNewCycleDB = async (userId, startDate) => {
     user_id: userId,
     start_date: startDate,
     ignored_auto_calculations: false,
+    postpartum_mode: false,
     end_date: null,
   });
-  return { id: docRef.id, start_date: startDate };
+  return { id: docRef.id, start_date: startDate, postpartum_mode: false };
+};
+
+export const updateCyclePostpartumModeDB = async (userId, cycleId, value) => {
+  if (!userId || !cycleId) {
+    throw createAppError(
+      'cycle-not-found',
+      'No se encontró el ciclo',
+      'No se pudo actualizar el modo posparto porque falta información del ciclo.',
+      { userId: userId ?? null, cycleId: cycleId ?? null },
+      { label: 'Reintentar' }
+    );
+  }
+  const cycleRef = doc(db, `users/${userId}/cycles/${cycleId}`);
+  await updateDoc(cycleRef, { postpartum_mode: value === true });
 };
 
 const resolveSplitEntryIsoDate = (entry) => {
@@ -515,6 +538,7 @@ const buildInsertCycleRangePlanFromCycles = (cycles, startIso, endIso) => {
         cycleId: cycle.id,
         startDate: cycle.startDate,
         endDate: cycle.endDate ?? null,
+        postpartumMode: normalizePostpartumMode(cycle?.data?.postpartum_mode),
         leftEndDate: dayBeforeIso(startIso),
         rightStartDate: dayAfterIso(endIso),
         rightEndDate: cycle.endDate ?? null,
@@ -1053,12 +1077,19 @@ export const insertCycleRangeDB = async ({ userId, startIso, endIso }) => {
     start_date: startIso,
     end_date: endIso,
     ignored_auto_calculations: false,
+    postpartum_mode: false,
   });
 
   let movedEntriesCount = 0;
+  let newCyclePostpartumMode = false;
   const changedCycles = [];
 
   const runMoveToNewCycle = async (fromCycleId) => {
+    const sourceCycle = cycles.find((cycle) => cycle.id === fromCycleId);
+    newCyclePostpartumMode = mergePostpartumMode(
+      newCyclePostpartumMode,
+      sourceCycle?.data?.postpartum_mode
+    );
     const result = await moveEntriesWithMeasurementsDB({
       userId,
       fromCycleId,
@@ -1082,6 +1113,7 @@ export const insertCycleRangeDB = async ({ userId, startIso, endIso }) => {
       start_date: action.rightStartDate,
       end_date: action.rightEndDate,
       ignored_auto_calculations: false,
+      postpartum_mode: action.postpartumMode,
     });
 
     const rightMove = await moveEntriesWithMeasurementsDB({
@@ -1153,6 +1185,9 @@ export const insertCycleRangeDB = async ({ userId, startIso, endIso }) => {
   }
 
   await recalcCycleDayForAllEntriesDB(userId, newCycleRef.id, startIso);
+  if (newCyclePostpartumMode) {
+    await updateDoc(newCycleRef, { postpartum_mode: true });
+  }
 
   return {
     newCycleId: newCycleRef.id,
@@ -1221,6 +1256,7 @@ export const startNewCycleDB = async (userId, previousCycleId, startDate) => {
     user_id: userId,
     start_date: startDate,
     ignored_auto_calculations: false,
+    postpartum_mode: false,
     end_date: null,
   });
 
@@ -1916,6 +1952,7 @@ export const forceShiftNextCycleStart = async (
   if (!current || !next) return { changedCycles: [], movedEntriesCount: 0, notes: [] };
 
   const summary = { changedCycles: [], movedEntriesCount: 0, notes: [] };
+  let currentPostpartumMode = normalizePostpartumMode(current.data?.postpartum_mode);
   const effectiveCurrentStart = currentCycleStartDate || current.data.start_date || null;
   const currentStartDate = effectiveCurrentStart ? startOfDay(parseISO(effectiveCurrentStart)) : null;
   if (currentStartDate && parsedNewEnd < currentStartDate) {
@@ -1989,6 +2026,13 @@ export const forceShiftNextCycleStart = async (
     const isFullyCovered = isClosedCycle && normalizedAffectedEnd <= parsedNewEnd;
 
     if (isFullyCovered) {
+      currentPostpartumMode = mergePostpartumMode(
+        currentPostpartumMode,
+        affectedCycle.data?.postpartum_mode
+      );
+      await updateDoc(doc(db, `users/${userId}/cycles/${currentCycleId}`), {
+        postpartum_mode: currentPostpartumMode,
+      });
       await deleteCycleDB(userId, affectedCycle.id);
       summary.changedCycles.push({
         id: affectedCycle.id,
@@ -2164,6 +2208,7 @@ export const forceUpdateCycleStart = async (userId, currentCycleId, newStartDate
   if (!current) return { changedCycles: [], movedEntriesCount: 0, notes: [] };
 
   const summary = { changedCycles: [], movedEntriesCount: 0, notes: [] };
+  let currentPostpartumMode = normalizePostpartumMode(current.data?.postpartum_mode);
   const currentStartIso = current.data.start_date;
   const currentStart = currentStartIso ? startOfDay(parseISO(currentStartIso)) : null;
   const currentEnd = current.data.end_date ? startOfDay(parseISO(current.data.end_date)) : null;
@@ -2249,6 +2294,13 @@ export const forceUpdateCycleStart = async (userId, currentCycleId, newStartDate
       summary.movedEntriesCount += moveResult?.movedEntries ?? 0;
       
       if (newStart <= previousStart) {
+        currentPostpartumMode = mergePostpartumMode(
+          currentPostpartumMode,
+          previousCycle.data?.postpartum_mode
+        );
+        await updateDoc(doc(db, `users/${userId}/cycles/${currentCycleId}`), {
+          postpartum_mode: currentPostpartumMode,
+        });
         await deleteCycleDB(userId, previousCycle.id);
         summary.changedCycles.push({
           id: previousCycle.id,
@@ -2578,7 +2630,14 @@ export const deleteArchivedCycleWithStrategyDB = async ({ userId, cycleId, strat
     const oldPreviousEnd = previous.endDate ?? null;
     const newPreviousEnd = current.endDate === null ? null : previous.endDate ? [previous.endDate, current.endDate].sort().at(-1) : current.endDate;
 
-    await updateDoc(previousCycleRef, { end_date: newPreviousEnd });
+    const mergedPostpartumMode = mergePostpartumMode(
+      previous?.data?.postpartum_mode,
+      current?.data?.postpartum_mode
+    );
+    await updateDoc(previousCycleRef, {
+      end_date: newPreviousEnd,
+      postpartum_mode: mergedPostpartumMode,
+    });
     try {
       await moveEntriesWithMeasurementsDB({
         userId,
@@ -2588,7 +2647,10 @@ export const deleteArchivedCycleWithStrategyDB = async ({ userId, cycleId, strat
         toCycleStartIso: previous.startDate,
       });
     } catch (error) {
-      await updateDoc(previousCycleRef, { end_date: oldPreviousEnd });
+      await updateDoc(previousCycleRef, {
+        end_date: oldPreviousEnd,
+        postpartum_mode: normalizePostpartumMode(previous?.data?.postpartum_mode),
+      });
       throw error;
     }
 
@@ -2610,7 +2672,14 @@ export const deleteArchivedCycleWithStrategyDB = async ({ userId, cycleId, strat
   const oldNextStart = next.startDate;
   const newNextStart = [next.startDate, current.startDate].sort()[0];
 
-  await updateDoc(nextCycleRef, { start_date: newNextStart });
+  const mergedPostpartumMode = mergePostpartumMode(
+    next?.data?.postpartum_mode,
+    current?.data?.postpartum_mode
+  );
+  await updateDoc(nextCycleRef, {
+    start_date: newNextStart,
+    postpartum_mode: mergedPostpartumMode,
+  });
   try {
     await moveEntriesWithMeasurementsDB({
       userId,
@@ -2621,7 +2690,10 @@ export const deleteArchivedCycleWithStrategyDB = async ({ userId, cycleId, strat
     });
     await recalcCycleDayForAllEntriesDB(userId, next.id, newNextStart);
   } catch (error) {
-    await updateDoc(nextCycleRef, { start_date: oldNextStart });
+    await updateDoc(nextCycleRef, {
+      start_date: oldNextStart,
+      postpartum_mode: normalizePostpartumMode(next?.data?.postpartum_mode),
+    });
     throw error;
   }
 
@@ -2829,7 +2901,13 @@ export const undoCurrentCycleDB = async (userId, currentCycleId) => {
   }
 
   const previousCycleRef = doc(db, `users/${userId}/cycles/${previousCycle.id}`);
-  await queueUpdate(previousCycleRef, { end_date: null });
+  await queueUpdate(previousCycleRef, {
+    end_date: null,
+    postpartum_mode: mergePostpartumMode(
+      previousCycle?.postpartum_mode,
+      currentData?.postpartum_mode
+    ),
+  });
   await queueDelete(currentCycleRef);
 
   if (opCount > 0) {

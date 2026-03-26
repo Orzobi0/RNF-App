@@ -10,7 +10,7 @@ import FertilityChart from '@/components/FertilityChart';
 import { useCycleData } from '@/hooks/useCycleData';
 import { differenceInDays, format, parseISO, startOfDay } from 'date-fns';
 import generatePlaceholders from '@/lib/generatePlaceholders';
-import { X } from 'lucide-react';
+import { Baby, X } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import DataEntryForm from '@/components/DataEntryForm';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
@@ -26,7 +26,6 @@ import { useParams, Link, useLocation } from 'react-router-dom';
 import Overlay from '@/components/ui/Overlay';
 import { useAuth } from '@/contexts/AuthContext';
 import { computeOvulationMetrics } from '@/hooks/useFertilityChart';
-import normalizeBoolean from '@/lib/normalizeBoolean';
 import ChartControls from '@/components/ChartControls';
 
 const CHART_SETTINGS_STORAGE_KEY = 'fertility-chart-settings';
@@ -54,7 +53,6 @@ const normalizeCombineMode = (value) => {
 
 const createDefaultFertilityStartConfig = () => ({
   calculators: { cpm: true, t8: true },
-  postpartum: false,
   combineMode: 'estandar',
 });
 
@@ -72,7 +70,6 @@ const mergeFertilityStartConfig = (incoming) => {
   const base = createDefaultFertilityStartConfig();
   const merged = {
     calculators: { ...base.calculators },
-    postpartum: base.postpartum,
     combineMode: base.combineMode,
   };
 
@@ -87,11 +84,6 @@ const mergeFertilityStartConfig = (incoming) => {
     if (normalizedMode) {
       merged.combineMode = normalizedMode;
     }
-
-    const normalizedPostpartum = normalizeBoolean(incoming.postpartum);
-    if (normalizedPostpartum !== null) {
-      merged.postpartum = normalizedPostpartum;
-    }   
   }
 
   return merged;
@@ -109,6 +101,7 @@ const ChartPage = () => {
     getCycleById,
     previewStartNewCycle,
     startNewCycle,
+    updateCyclePostpartumMode,
   } = useCycleData();
 
   const [fetchedCycle, setFetchedCycle] = useState(null);
@@ -230,6 +223,15 @@ const ChartPage = () => {
   );
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [forceLandscape, setForceLandscape] = useState(false);
+  const isIPhoneOrIPod = useMemo(() => {
+    if (typeof navigator === 'undefined') return false;
+    const ua = navigator.userAgent || '';
+    return /iPhone|iPod/i.test(ua);
+  }, []);
+  const autoFullscreenRef = useRef(false);
+  const suppressAutoFullscreenUntilPortraitRef = useRef(false);
+  const isFullScreenRef = useRef(isFullScreen);
+  const forceLandscapeRef = useRef(forceLandscape);
   const readViewport = () => {
   if (typeof window === 'undefined') return { w: 0, h: 0 };
   const vv = window.visualViewport;
@@ -255,7 +257,7 @@ useEffect(() => {
   window.addEventListener('orientationchange', onResize);
 
   vv?.addEventListener('resize', onResize);
-  vv?.addEventListener('scroll', onResize); // en iOS cambia al mostrar/ocultar barras/teclado
+  vv?.addEventListener('scroll', onResize);
 
   onResize();
 
@@ -341,17 +343,6 @@ useEffect(() => {
           merged.showRelationsRow = Boolean(parsed.showRelationsRow);
         }
         merged.fertilityStartConfig = mergeFertilityStartConfig(parsed?.fertilityStartConfig);
-        const normalizedPostpartum = normalizeBoolean(parsed?.fertilityStartConfig?.postpartum);
-        if (parsed?.fertilityStartConfig?.postpartum != null && normalizedPostpartum === null) {
-          try {
-            window.localStorage.setItem(
-              CHART_SETTINGS_STORAGE_KEY,
-              JSON.stringify({ ...parsed, fertilityStartConfig: merged.fertilityStartConfig })
-            );
-          } catch (error) {
-            console.warn('No se pudieron limpiar los ajustes del gráfico.', error);
-          }
-        }
         return merged;
       }
     } catch (error) {
@@ -379,7 +370,6 @@ useEffect(() => {
     }
 
     if (currentConfig.combineMode !== preferenceConfig.combineMode) changed = true;
-    if (currentConfig.postpartum !== preferenceConfig.postpartum) changed = true;
 
     if (
       Object.keys(currentConfig.calculators ?? {}).some(
@@ -406,17 +396,19 @@ useEffect(() => {
     () => mergeFertilityStartConfig(chartSettings.fertilityStartConfig),
     [chartSettings.fertilityStartConfig]
   );
+  const cyclePostpartumMode = Boolean(targetCycle?.postpartumMode);
 
   const fertilityStartConfig = useMemo(
     () => ({
       ...fertilityConfig,
+      postpartum: cyclePostpartumMode,
       calculators: {
         ...fertilityConfig.calculators,
-        cpm: fertilityConfig.calculators.cpm && cpmSelection !== 'none',
-        t8: fertilityConfig.calculators.t8 && t8Selection !== 'none',
+        cpm: !cyclePostpartumMode && fertilityConfig.calculators.cpm && cpmSelection !== 'none',
+        t8: !cyclePostpartumMode && fertilityConfig.calculators.t8 && t8Selection !== 'none',
       },
     }),
-    [fertilityConfig, cpmSelection, t8Selection]
+    [fertilityConfig, cpmSelection, t8Selection, cyclePostpartumMode]
   );
 
   useEffect(() => {
@@ -484,24 +476,69 @@ useEffect(() => {
   }, [orientation, isFullScreen]);
   
   useEffect(() => {
-    if (typeof window === 'undefined') return undefined;
+    isFullScreenRef.current = isFullScreen;
+  }, [isFullScreen]);
 
-    const handleOrientationChange = () => {
-      if (forceLandscape) return;
-      const nextOrientation = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
-      setOrientation((prev) => (prev === nextOrientation ? prev : nextOrientation));
-    };
-
-    window.addEventListener('resize', handleOrientationChange);
-    window.addEventListener('orientationchange', handleOrientationChange);
-
-    handleOrientationChange();
-
-    return () => {
-      window.removeEventListener('resize', handleOrientationChange);
-      window.removeEventListener('orientationchange', handleOrientationChange);
-    };
+  useEffect(() => {
+    forceLandscapeRef.current = forceLandscape;
   }, [forceLandscape]);
+  useEffect(() => {
+  if (typeof window === 'undefined') return undefined;
+
+  let raf = 0;
+
+  const handleOrientationChange = () => {
+    if (raf) cancelAnimationFrame(raf);
+
+    raf = requestAnimationFrame(() => {
+      const nextOrientation =
+        window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
+
+      setOrientation((prev) => (prev === nextOrientation ? prev : nextOrientation));
+
+      if (!isIPhoneOrIPod) return;
+
+      if (nextOrientation === 'landscape') {
+        if (suppressAutoFullscreenUntilPortraitRef.current) {
+          return;
+        }
+
+        const shouldEnableAutoFullscreen =
+          !isFullScreenRef.current && !forceLandscapeRef.current;
+
+        if (shouldEnableAutoFullscreen) {
+          autoFullscreenRef.current = true;
+          setIsFullScreen((prev) => (prev ? prev : true));
+          setForceLandscape((prev) => (prev ? prev : true));
+          isFullScreenRef.current = true;
+          forceLandscapeRef.current = true;
+        }
+        return;
+      }
+
+      suppressAutoFullscreenUntilPortraitRef.current = false;
+
+      if (autoFullscreenRef.current) {
+        autoFullscreenRef.current = false;
+        setForceLandscape((prev) => (prev ? false : prev));
+        setIsFullScreen((prev) => (prev ? false : prev));
+        forceLandscapeRef.current = false;
+        isFullScreenRef.current = false;
+      }
+    });
+  };
+
+  window.addEventListener('resize', handleOrientationChange);
+  window.addEventListener('orientationchange', handleOrientationChange);
+
+  handleOrientationChange();
+
+  return () => {
+    if (raf) cancelAnimationFrame(raf);
+    window.removeEventListener('resize', handleOrientationChange);
+    window.removeEventListener('orientationchange', handleOrientationChange);
+  };
+}, [isIPhoneOrIPod]);
   if (showLoading) {
     return (
       <MainLayout>
@@ -587,6 +624,7 @@ useEffect(() => {
   );
 
   const visualOrientation = forceLandscape ? 'landscape' : orientation;
+  const isLandscapeFullscreen = isFullScreen && visualOrientation === 'landscape';
   const visibleDays = isFullScreen
     ? (visualOrientation === 'portrait'
         ? VISIBLE_DAYS_FULLSCREEN_PORTRAIT
@@ -735,36 +773,10 @@ const rotatedDrawerStyle = applyRotation
   };
   
   const handlePostpartumChange = (checked) => {
-    let nextConfig = null;
-    setChartSettings((prev) => {
-      const currentConfig = mergeFertilityStartConfig(prev.fertilityStartConfig);
-      const nextValue = checked === true;
-      if (currentConfig.postpartum === nextValue) {
-        return prev;
-      }
-      const baseCalculators =
-      currentConfig.calculators ?? createDefaultFertilityStartConfig().calculators;
-      const nextCalculators = {
-        ...baseCalculators,
-        cpm: !nextValue,
-        t8: !nextValue,
-      };
-      nextConfig = {
-        ...currentConfig,
-        postpartum: nextValue,
-        calculators: nextCalculators,
-      };
-      return {
-        ...prev,
-        fertilityStartConfig: nextConfig,
-      };
+    if (!targetCycle?.id || typeof updateCyclePostpartumMode !== 'function') return;
+    updateCyclePostpartumMode(targetCycle.id, checked === true).catch((error) => {
+      console.error('Failed to persist postpartum mode for cycle', error);
     });
-    
-    if (nextConfig && typeof savePreferences === 'function') {
-      savePreferences({ fertilityStartConfig: nextConfig }).catch((error) => {
-        console.error('Failed to persist postpartum preference', error);
-      });
-    }
   };
   const settingsDrawerInner = (
         <div className="flex h-full min-h-0 flex-col gap-6 rounded-l-2xl border border-rose-100/60 bg-white p-6 pt-[calc(env(safe-area-inset-top)+24px)] shadow-xl">
@@ -804,17 +816,27 @@ const rotatedDrawerStyle = applyRotation
               </div>       
               
               <div className="rounded-2xl border border-red-100/70 bg-red-50/40 p-3">
-                <div className="flex items-start justify-between gap-3 pt-1">
-                  <div className="max-w-[65%]">
-                    <p className="text-sm font-semibold text-slate-700">Modo postparto</p>
-                  </div>
-                  <Checkbox
-                    checked={Boolean(fertilityConfig.postpartum)}
-                    onCheckedChange={handlePostpartumChange}
-                    className="mt-1"
-                  />
-                </div>
-              </div>     
+  <div className="flex items-start justify-between gap-3 pt-1">
+    <div className="max-w-[75%]">
+      <div className="flex items-center gap-2">
+        <span className="inline-flex items-center justify-center rounded-full border border-rose-200 bg-rose-50/90 p-1 text-rose-600">
+          <Baby className="h-3.5 w-3.5" aria-hidden="true" />
+        </span>
+        <p className="text-sm font-semibold text-slate-700">Modo postparto</p>
+      </div>
+
+      <p className="mt-1 text-xs leading-relaxed text-slate-500">
+        Esta configuración se guardará solo para este ciclo.
+      </p>
+    </div>
+
+    <Checkbox
+      checked={cyclePostpartumMode}
+      onCheckedChange={handlePostpartumChange}
+      className="mt-1"
+    />
+  </div>
+</div>  
 
               <div className="rounded-2xl border border-amber-100/70 bg-amber-50/40 p-4 space-y-3">
                 <div>
@@ -823,7 +845,7 @@ const rotatedDrawerStyle = applyRotation
                     CPM y T-8 se combinan con los perfiles activos, salvo que actives el modo posparto.
                   </p>
                 </div>
-                {fertilityConfig.postpartum && (
+                {cyclePostpartumMode && (
                   <p className="text-xs font-medium text-rose-500">
                     El modo posparto está activo: CPM y T-8 se omiten del cálculo final.
                   </p>
@@ -834,7 +856,7 @@ const rotatedDrawerStyle = applyRotation
                       <span className="text-sm text-slate-700">{option.label}</span>
                       <Checkbox
                         checked={Boolean(fertilityConfig.calculators?.[option.key])}
-                        disabled={Boolean(fertilityConfig.postpartum)}
+                        disabled={cyclePostpartumMode}
                         onCheckedChange={(checked) => handleFertilityCalculatorChange(option.key, checked)}
                       />
                     </div>
@@ -1188,7 +1210,7 @@ const rotatedDrawerStyle = applyRotation
           ? reasons.fertileStartFinalIndex
           : null;
 
-      const postpartumActive = Boolean(fertilityConfig?.postpartum);
+      const postpartumActive = cyclePostpartumMode;
       const hasActiveCalculators = !postpartumActive
         && Boolean(fertilityConfig?.calculators?.cpm || fertilityConfig?.calculators?.t8);
 
@@ -1342,31 +1364,73 @@ const rotatedDrawerStyle = applyRotation
         postpartumActive,
       });
     },
-    [fertilityConfig, formatDateFromIndex, mergedData.length, setPhaseOverlay]
+    [cyclePostpartumMode, fertilityConfig, formatDateFromIndex, mergedData.length, setPhaseOverlay]
   );
 
   const handleToggleFullScreen = () => {
-    if (!isFullScreen) {
-      setIsFullScreen(true);
-      setForceLandscape(true);
-      if (typeof window !== 'undefined') {
-    requestAnimationFrame(() => {
+  const isCurrentlyLandscape =
+    typeof window !== 'undefined' && window.innerWidth > window.innerHeight;
+
+  if (!isFullScreen) {
+    autoFullscreenRef.current = false;
+    suppressAutoFullscreenUntilPortraitRef.current = false;
+
+    isFullScreenRef.current = true;
+    forceLandscapeRef.current = true;
+
+    setIsFullScreen(true);
+    setForceLandscape(true);
+
+    if (typeof window !== 'undefined') {
       requestAnimationFrame(() => {
-        window.dispatchEvent(new Event('resize'));
+        requestAnimationFrame(() => {
+          window.dispatchEvent(new Event('resize'));
+        });
       });
-    });
-  }
-    return;
     }
-    
-    setForceLandscape(false);
-    const nextOrientation =
-      typeof window !== 'undefined' && window.innerWidth > window.innerHeight
-        ? 'landscape'
-        : 'portrait';
-    setOrientation(nextOrientation);
-    setIsFullScreen(false);
-  };
+    return;
+  }
+
+  // Si venimos de auto-fullscreen por giro de iPhone,
+  // el primer toque convierte el modo en manual fijo
+  // en vez de sacarnos del fullscreen.
+  if (autoFullscreenRef.current) {
+    autoFullscreenRef.current = false;
+    suppressAutoFullscreenUntilPortraitRef.current = true;
+
+    isFullScreenRef.current = true;
+    forceLandscapeRef.current = true;
+
+    setIsFullScreen(true);
+    setForceLandscape(true);
+
+    if (typeof window !== 'undefined') {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          window.dispatchEvent(new Event('resize'));
+        });
+      });
+    }
+    return;
+  }
+
+  // Salida real de fullscreen manual
+  autoFullscreenRef.current = false;
+  suppressAutoFullscreenUntilPortraitRef.current = isCurrentlyLandscape;
+
+  forceLandscapeRef.current = false;
+  isFullScreenRef.current = false;
+
+  setForceLandscape(false);
+
+  const nextOrientation =
+    typeof window !== 'undefined' && window.innerWidth > window.innerHeight
+      ? 'landscape'
+      : 'portrait';
+
+  setOrientation(nextOrientation);
+  setIsFullScreen(false);
+};
 
   return (
     <MainLayout hideBottomNav={isFullScreen}>
@@ -1395,9 +1459,21 @@ const rotatedDrawerStyle = applyRotation
             transformOrigin: 'right center',
           }}
         >
-          <span className="rounded-full bg-white/55 px-3 py-1 text-[11px] font-medium text-slate-500 backdrop-blur-sm">
-            {chartCycleLabel}
-          </span>
+          <div className="flex items-center justify-center gap-2 pt-3">
+  <div className="whitespace-nowrap text-center text-[11px] font-medium leading-tight text-slate-500">
+    {chartCycleLabel}
+  </div>
+
+  {cyclePostpartumMode && (
+    <span
+      className="inline-flex items-center justify-center rounded-full border border-rose-200 bg-rose-50/90 p-1.5 text-rose-600 backdrop-blur-sm"
+      aria-label="Modo postparto activado"
+      title="Modo postparto activado"
+    >
+      <Baby className="h-3.5 w-3.5" aria-hidden="true" />
+    </span>
+  )}
+</div>
         </div>
       </div>
     ) : (
@@ -1409,16 +1485,28 @@ const rotatedDrawerStyle = applyRotation
           transform: 'translateX(-50%)',
         }}
       >
-        <span className="rounded-full bg-white/55 px-3 py-1 text-[11px] font-medium text-slate-500 backdrop-blur-sm">
-          {chartCycleLabel}
-        </span>
+        <div className="flex items-center justify-center gap-1.5">
+  <div className="whitespace-nowrap text-center text-[11px] font-medium leading-tight text-slate-500">
+    {chartCycleLabel}
+  </div>
+
+  {cyclePostpartumMode && (
+    <span
+      className="inline-flex items-center justify-center rounded-full border border-rose-200 bg-rose-50/90 p-1.5 text-rose-600 backdrop-blur-sm"
+      aria-label="Modo postparto activado"
+      title="Modo postparto activado"
+    >
+      <Baby className="h-3.5 w-3.5" aria-hidden="true" />
+    </span>
+  )}
+</div>
       </div>
     )}
   </div>
 )}
         <ChartControls
           isFullScreen={isFullScreen}
-          visualOrientation={visualOrientation}
+          isLandscapeFullscreen={isLandscapeFullscreen}
           showBackToCycleRecords={showBackToCycleRecords}
           targetCycleId={targetCycle.id}
           showInterpretation={showInterpretation}
@@ -1442,7 +1530,7 @@ const rotatedDrawerStyle = applyRotation
           showInterpretation={showInterpretation}
           showManualBaseline={showManualBaseline}
           reduceMotion={true}
-          forceLandscape={forceLandscape || orientation === 'landscape'}
+          forceLandscape={forceLandscape}
           currentPeakIsoDate={currentPeakIsoDate}
           showRelationsRow={chartSettings.showRelationsRow}
           fertilityStartConfig={fertilityStartConfig}

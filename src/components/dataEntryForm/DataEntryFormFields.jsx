@@ -40,6 +40,7 @@ import {
   getToggleFeedback,
   SECTION_METADATA,
 } from '@/components/dataEntryForm/sectionLogic';
+import { useAuth } from '@/contexts/AuthContext';
 const VIEW_ALL_STORAGE_KEY = 'dataEntryForm:viewAll:global';
 const DEFAULT_SECTION_STORAGE_KEY = '__default__';
 const RADIUS = { field: 'rounded-3xl', dropdown: 'rounded-3xl' };
@@ -92,10 +93,18 @@ const DataEntryFormFields = ({
   canSyncTemperature = false,
   onOpenNewCycle = null,
 }) => {
+  const { preferences, savePreferences } = useAuth();
   const [open, setOpen] = useState(false);
   const [correctionIndex, setCorrectionIndex] = useState(null);
   const [statusMessages, setStatusMessages] = useState({ peak: null, relations: null });
+  const [preferredTimeEditorIndex, setPreferredTimeEditorIndex] = useState(null);
+  const [preferredTimeDraft, setPreferredTimeDraft] = useState('');
+  const [isSavingPreferredTime, setIsSavingPreferredTime] = useState(false);
   const initializedSectionsRef = useRef(false);
+  const preferredTemperatureTime =
+    typeof preferences?.preferredTemperatureTime === 'string'
+      ? preferences.preferredTemperatureTime
+      : '';
 
   const sectionOrder = useMemo(
     () => [
@@ -217,6 +226,71 @@ const [activeSection, setActiveSection] = useState(() => {
       window.navigator.vibrate(10);
     }
   }, []);
+
+  const openPreferredTimeEditor = useCallback(
+    (measurementIndex) => {
+      const fallbackTime = measurements[measurementIndex]?.time || format(new Date(), 'HH:mm');
+      setPreferredTimeDraft(preferredTemperatureTime || fallbackTime);
+      setPreferredTimeEditorIndex(measurementIndex);
+    },
+    [measurements, preferredTemperatureTime]
+  );
+
+  const closePreferredTimeEditor = useCallback(() => {
+    setPreferredTimeEditorIndex(null);
+    setPreferredTimeDraft('');
+  }, []);
+
+  const applyPreferredTimeToMeasurement = useCallback(
+    (measurementIndex) => {
+      if (!preferredTemperatureTime) {
+        return;
+      }
+      updateMeasurement(measurementIndex, 'time', preferredTemperatureTime);
+    },
+    [preferredTemperatureTime, updateMeasurement]
+  );
+
+  const handleSavePreferredTime = useCallback(
+    async (measurementIndex) => {
+      if (!preferredTimeDraft || !/^\d{2}:\d{2}$/.test(preferredTimeDraft)) {
+        return;
+      }
+
+      const hadPreferredTime = Boolean(preferredTemperatureTime);
+      setIsSavingPreferredTime(true);
+      try {
+        await savePreferences({ preferredTemperatureTime: preferredTimeDraft });
+        if (!hadPreferredTime) {
+          updateMeasurement(measurementIndex, 'time', preferredTimeDraft);
+        }
+        closePreferredTimeEditor();
+      } finally {
+        setIsSavingPreferredTime(false);
+      }
+    },
+    [
+      closePreferredTimeEditor,
+      preferredTemperatureTime,
+      preferredTimeDraft,
+      savePreferences,
+      updateMeasurement,
+    ]
+  );
+  const handleClearPreferredTime = useCallback(async () => {
+    if (!preferredTemperatureTime) {
+      closePreferredTimeEditor();
+      return;
+    }
+
+    setIsSavingPreferredTime(true);
+    try {
+      await savePreferences({ preferredTemperatureTime: '' });
+      closePreferredTimeEditor();
+    } finally {
+      setIsSavingPreferredTime(false);
+    }
+  }, [closePreferredTimeEditor, preferredTemperatureTime, savePreferences]);
 
   const preventPressFocus = useCallback((event) => {
   event.preventDefault();
@@ -779,6 +853,8 @@ useEffect(() => {
               const measurementSelectId = `measurement_select_${idx}`;
               const isCorrectionOpen = correctionIndex === idx;
               const isCorrected = Boolean(m.use_corrected);
+              const hasPreferredTime = Boolean(preferredTemperatureTime);
+              const isPreferredApplied = hasPreferredTime && m.time === preferredTemperatureTime;
               return (
                 <div
    key={idx}
@@ -815,35 +891,130 @@ useEffect(() => {
                       {m.selected && ignored && <EyeOff className="h-3 w-3" aria-hidden="true" />}
                     </label>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Input
-                      data-field={idx === 0 ? 'temperature' : undefined}
-                      type="number"
-                      step="0.01"
-                      min="34.0"
-                      max="40.0"
-                      value={m.temperature}
-                      onChange={(e) => updateMeasurement(idx, 'temperature', e.target.value)}
-                      onInput={(e) => updateMeasurement(idx, 'temperature', e.target.value)}
-                      placeholder="36.50"
-                      className={cn(
-  "h-9 bg-white/70 border-amber-200 text-amber-800 font-semibold placeholder-gray-400 focus:border-orange-500 focus:ring-orange-500",
-  RADIUS.field
+                <div className="space-y-0.5">
+  <div className="grid grid-cols-[minmax(0,1fr)_96px_62px] items-center gap-2">
+    <Input
+      data-field={idx === 0 ? 'temperature' : undefined}
+      type="number"
+      step="0.01"
+      min="34.0"
+      max="40.0"
+      value={m.temperature}
+      onChange={(e) => updateMeasurement(idx, 'temperature', e.target.value)}
+      onInput={(e) => updateMeasurement(idx, 'temperature', e.target.value)}
+      placeholder="36.50"
+      className={cn(
+        "h-9 bg-white/70 border-amber-200 text-amber-800 font-semibold placeholder-gray-400 focus:border-orange-500 focus:ring-orange-500",
+        RADIUS.field
+      )}
+      disabled={isProcessing}
+    />
+
+    <Input
+  data-field={idx === 0 ? 'time' : undefined}
+  type="time"
+  value={m.time}
+  onChange={(e) => updateMeasurement(idx, 'time', e.target.value)}
+  className={cn(
+    "h-9 min-h-0 appearance-none bg-white/70 border-amber-200 px-2 py-0 text-[16px] leading-none text-gray-600 font-semibold focus:border-orange-500 focus:ring-orange-500",
+    RADIUS.field
+  )}
+  disabled={isProcessing}
+/>
+
+    <Button
+      type="button"
+      size="xs"
+      variant="outline"
+      disabled={isProcessing}
+      onClick={() => {
+        if (hasPreferredTime) {
+          applyPreferredTimeToMeasurement(idx);
+        } else {
+          openPreferredTimeEditor(idx);
+        }
+      }}
+      className={cn(
+        'h-9 min-w-0 rounded-full px-1 text-[11px] font-semibold',
+        hasPreferredTime
+          ? isPreferredApplied
+            ? 'border-emerald-500 bg-emerald-500 text-white hover:bg-emerald-600'
+            : 'border-amber-200 bg-white/80 text-amber-800 hover:bg-amber-50'
+          : 'border-amber-200 border-dashed bg-white/70 text-slate-400 hover:bg-amber-50'
+      )}
+    >
+      <span className="truncate">{hasPreferredTime ? preferredTemperatureTime : '--:--'}</span>
+    </Button>
+  </div>
+
+  <div className="flex justify-end">
+    <div className="w-[62px] text-center leading-none">
+      <button
+        type="button"
+        onClick={() => openPreferredTimeEditor(idx)}
+        disabled={isProcessing}
+        className="text-[10px] font-medium text-amber-700 underline-offset-2 hover:underline disabled:opacity-50"
+      >
+        {hasPreferredTime ? 'Editar' : 'Definir'}
+      </button>
+    </div>
+  </div>
+</div>
+{preferredTimeEditorIndex === idx && (
+  <div className="mt-1 rounded-2xl border border-amber-200 bg-amber-50/60 p-2">
+    <Label className="mb-1 block text-[11px] font-semibold text-amber-800">
+      Hora preferida global
+    </Label>
+    <div className="flex items-center gap-2">
+  <Input
+    type="time"
+    value={preferredTimeDraft}
+    onChange={(event) => setPreferredTimeDraft(event.target.value)}
+    disabled={isProcessing || isSavingPreferredTime}
+    className={cn(
+      'h-8 bg-white/90 border-amber-200 text-gray-700 text-xs',
+      RADIUS.field
+    )}
+  />
+
+  <Button
+    type="button"
+    size="xs"
+    onClick={() => handleSavePreferredTime(idx)}
+    disabled={isProcessing || isSavingPreferredTime || !preferredTimeDraft}
+    className="h-8 rounded-full bg-amber-600 px-3 text-[11px] font-semibold text-white hover:bg-amber-700"
+  >
+    Guardar
+  </Button>
+
+  <Button
+    type="button"
+    size="xs"
+    variant="ghost"
+    onClick={closePreferredTimeEditor}
+    disabled={isProcessing || isSavingPreferredTime}
+    className="h-8 rounded-full px-2 text-[11px] text-amber-700 hover:bg-amber-100"
+  >
+    Cancelar
+  </Button>
+
+  {hasPreferredTime && (
+    <Button
+      type="button"
+      size="icon"
+      variant="ghost"
+      onClick={handleClearPreferredTime}
+      disabled={isProcessing || isSavingPreferredTime}
+      className="h-8 w-8 rounded-full text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+      aria-label="Eliminar hora preferida"
+      title="Eliminar hora preferida"
+    >
+      <Trash2 className="h-4 w-4" />
+    </Button>
+  )}
+</div>
+  </div>
 )}
-                      disabled={isProcessing}
-                    />
-                    <Input
-                      data-field={idx === 0 ? 'time' : undefined}
-                      type="time"
-                      value={m.time}
-                      onChange={(e) => updateMeasurement(idx, 'time', e.target.value)}
-                      className={cn(
-  "h-9 bg-white/70 border-amber-200 text-gray-600 font-semibold placeholder-gray-400 focus:border-orange-500 focus:ring-orange-500",
-  RADIUS.field
-)}
-                      disabled={isProcessing}
-                    />
-                  </div>
 
                   <div className="mt-2 flex flex-wrap items-center gap-1.5">
   <div className="flex flex-wrap items-center gap-2">
@@ -1016,7 +1187,7 @@ useEffect(() => {
   aria-label="Disminuir temperatura corregida 0,10 grados"
   title="Bajar 0,10 °C"
 >
-  <span className="leading-none text-base font-semibold">−</span>
+  <span className="leading-none text-base text-app-base font-semibold">−</span>
 </Button>
 
 <Button
@@ -1029,7 +1200,7 @@ useEffect(() => {
   aria-label="Aumentar temperatura corregida 0,10 grados"
   title="Subir 0,10 °C"
 >
-  <span className="leading-none text-base font-semibold">+</span>
+  <span className="leading-none text-base text-app-base font-semibold">+</span>
 </Button>
   </div>
 

@@ -59,6 +59,7 @@ const CycleDetailPage = () => {
   const { user } = useAuth();
   const {
     getCycleById,
+    getCycleFromState,
     isLoading: cycleDataHookIsLoading,
     addOrUpdateDataPoint,
     deleteRecord,
@@ -73,6 +74,8 @@ const CycleDetailPage = () => {
   const { toast } = useToast();
 
   const [cycleData, setCycleData] = useState(null);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [slowConnection, setSlowConnection] = useState(false);
   const [showCycleDeleteDialog, setShowCycleDeleteDialog] = useState(false);
   const [isDeletingCycle, setIsDeletingCycle] = useState(false);
   const [selectedDeleteStrategy, setSelectedDeleteStrategy] = useState(null);
@@ -136,34 +139,114 @@ const CycleDetailPage = () => {
   }, [cycleId, getCycleById, saveCycleDataToLocalStorage, user]);
 
   useEffect(() => {
+    let cancelled = false;
+    let slowConnectionTimeout;
+    let hasVisibleLocalData = false;
+
     const loadCycle = async () => {
-      if (!user) return;
+      if (!user || !cycleId) {
+        if (!cancelled) {
+          setCycleData(null);
+          setIsInitialLoading(false);
+          setSlowConnection(false);
+        }
+        return;
+      }
 
-      let fetchedCycle = await getCycleById(cycleId);
+      setIsInitialLoading(true);
+      setSlowConnection(false);
 
-      if (!fetchedCycle) {
+      let localCycle = null;
+
+      const stateCycle = getCycleFromState(cycleId);
+      if (stateCycle) {
+        localCycle = stateCycle;
+      } else {
         const localData = localStorage.getItem(`fertilityData_cycle_${user.uid}_${cycleId}`);
         if (localData) {
-          const parsed = JSON.parse(localData);
-          fetchedCycle = {
-            ...parsed,
-            data: processDataWithCycleDays(parsed.data || [], parsed.startDate)
-          };
+          try {
+            const parsed = JSON.parse(localData);
+            localCycle = {
+              ...parsed,
+              data: processDataWithCycleDays(parsed.data || [], parsed.startDate)
+            };
+          } catch (error) {
+            console.error('Error parsing cycle from localStorage:', error);
+          }
         }
       }
+      if (localCycle && !cancelled) {
+        hasVisibleLocalData = true;
+        setCycleData(localCycle);
+        saveCycleDataToLocalStorage(localCycle);
+      }
+
+      if (!localCycle) {
+        slowConnectionTimeout = setTimeout(() => {
+          if (!cancelled) {
+            setSlowConnection(true);
+          }
+        }, 9000);
+      }
+
+      const fetchedCycle = await getCycleById(cycleId);
+      if (cancelled) return;
+
+      if (slowConnectionTimeout) {
+        clearTimeout(slowConnectionTimeout);
+      }
+      setSlowConnection(false);
 
       if (fetchedCycle) {
         saveCycleDataToLocalStorage(fetchedCycle);
         setCycleData(fetchedCycle);
-      } else {
-        toast({ title: 'Error', description: 'No se pudo cargar el ciclo.', variant: 'destructive' });
-        navigate('/archived-cycles');
+        setIsInitialLoading(false);
+        return;
       }
+
+      if (localCycle) {
+        setIsInitialLoading(false);
+        return;
+      }
+
+      toast({ title: 'Error', description: 'No se pudo cargar el ciclo.', variant: 'destructive' });
+      navigate('/archived-cycles');
+      setIsInitialLoading(false);
     };
 
-    loadCycle();
-  }, [cycleId, user, getCycleById, toast, navigate, saveCycleDataToLocalStorage]);
+    loadCycle().catch((error) => {
+      console.error('Error loading cycle detail:', error);
+      if (cancelled) return;
 
+      if (slowConnectionTimeout) {
+        clearTimeout(slowConnectionTimeout);
+      }
+      setSlowConnection(false);
+      setIsInitialLoading(false);
+
+      if (hasVisibleLocalData) {
+        return;
+      }
+
+      toast({ title: 'Error', description: 'No se pudo cargar el ciclo.', variant: 'destructive' });
+      navigate('/archived-cycles');
+    });
+
+    return () => {
+      cancelled = true;
+      if (slowConnectionTimeout) {
+        clearTimeout(slowConnectionTimeout);
+      }
+    };
+   }, [
+    cycleId,
+    getCycleById,
+    getCycleFromState,
+    navigate,
+    saveCycleDataToLocalStorage,
+    toast,
+    user,
+  ]);
   const handleAddOrUpdateRecord = useCallback(
     async (newData, editingRecord) => {
       if (!cycleData?.id || !user) return;
@@ -317,14 +400,24 @@ const CycleDetailPage = () => {
     ),
     [cycleId]
   );
-
-  if ((cycleDataHookIsLoading && !cycleData) || !cycleData) {
+  if (isInitialLoading && !cycleData) {
+    return (
+      <div className="flex min-h-full flex-col items-center justify-center py-10">
+        <p>Cargando detalles del ciclo...</p>
+        {slowConnection ? (
+          <p className="mt-2 text-sm text-muted-foreground">La carga está tardando más de lo normal.</p>
+        ) : null}
+      </div>
+    );
+  }
+  if (!cycleData) {
     return (
       <div className="flex min-h-full flex-col items-center justify-center py-10">
         <p>Cargando detalles del ciclo...</p>
       </div>
     );
   }
+
 
   return (
     <div className="relative flex flex-col">

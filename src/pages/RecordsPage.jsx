@@ -9,14 +9,13 @@ import CycleDatesEditor from '@/components/CycleDatesEditor';
 import DataEntryForm from '@/components/DataEntryForm';
 import DayDetail from '@/components/DayDetail';
 import DeletionDialog from '@/components/DeletionDialog';
-import PostpartumExitDialog from '@/components/PostpartumExitDialog';
 import { useCycleData } from '@/hooks/useCycleData';
 import { useToast } from '@/components/ui/use-toast';
 import { ToastAction } from '@/components/ui/toast';
 import { HeaderIconButton, HeaderIconButtonPrimary } from '@/components/HeaderIconButton';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Edit, Plus, ClipboardList, Heart, Loader2 } from 'lucide-react';
+import { Baby, Edit, Plus, ClipboardList, Heart, Loader2 } from 'lucide-react';
 import NewCycleDialog from '@/components/NewCycleDialog';
 import {
   format,
@@ -38,7 +37,6 @@ import { FERTILITY_SYMBOL_OPTIONS } from '@/config/fertilitySymbols';
 import computePeakStatuses from '@/lib/computePeakStatuses';
 import { formatCycleMeta, formatCycleTitle } from '@/lib/formatCycleTitle';
 import { cn } from '@/lib/utils';
-import { useAuth } from '@/contexts/AuthContext';
 import DataIssuesBanner from '@/components/DataIssuesBanner';
 import DataRepairDialog from '@/components/DataRepairDialog';
 
@@ -106,7 +104,6 @@ export const RecordsExperience = ({
     deleteIssueEntry,
     getPublicError,
   } = useCycleData();
-  const { preferences, savePreferences } = useAuth();
   const cycle = cycleProp ?? contextCurrentCycle;
   const isLoading = isLoadingProp ?? contextIsLoading;
   const addOrUpdateDataPoint = addOrUpdateDataPointProp
@@ -156,7 +153,6 @@ export const RecordsExperience = ({
   const [initialSectionKey, setInitialSectionKey] = useState(null);
   const [showNewCycleDialog, setShowNewCycleDialog] = useState(false);
   const [newCyclePrefillDate, setNewCyclePrefillDate] = useState(null);
-  const [showPostpartumExitDialog, setShowPostpartumExitDialog] = useState(false);
   const recordCount = cycle?.data?.length ?? 0;
   const isCurrentCycle = !cycle?.endDate;
 
@@ -185,17 +181,6 @@ export const RecordsExperience = ({
     const rangeSuffix = undoRangeText ? ` (${undoRangeText})` : '';
     return `¿Quieres unir el ciclo actual al ciclo anterior${rangeSuffix}? Esta acción no se puede deshacer.`;
   }, [undoRangeText]);
-
-  const handleConfirmPostpartumExit = useCallback(async () => {
-    setShowPostpartumExitDialog(false);
-    if (typeof savePreferences !== 'function') return;
-    await savePreferences({
-      fertilityStartConfig: {
-        postpartum: false,
-        calculators: { cpm: true, t8: true },
-      },
-    });
-  }, [savePreferences]);
 
   const refreshCycleIssues = useCallback(async () => {
     if (!cycleProp?.id || !refreshData) return;
@@ -1555,17 +1540,9 @@ const enterStart = -exitTarget;
             setNewCyclePrefillDate(null);
             setInitialSectionKey(null);
             setShowForm(true);
-            if (preferences?.fertilityStartConfig?.postpartum === true) {
-              setShowPostpartumExitDialog(true);
-            }
           }}
           currentCycleRecords={cycle?.data ?? []}
           initialStartDate={newCyclePrefillDate}
-        />
-        <PostpartumExitDialog
-          isOpen={showPostpartumExitDialog}
-          onClose={() => setShowPostpartumExitDialog(false)}
-          onConfirm={handleConfirmPostpartumExit}
         />
       </div>
     );
@@ -1596,7 +1573,7 @@ const enterStart = -exitTarget;
           >
             <div className="rounded-3xl border border-fertiliapp-suave bg-white/20 p-3 shadow-sm backdrop-blur-md">
               <div className="flex min-w-0 flex-1 flex-col gap-1">
-                <div className="flex items-center justify-between gap-2 text-[10px] uppercase tracking-[0.18em] text-base">
+                <div className="flex items-center justify-between gap-2 text-[10px] uppercase tracking-[0.18em] text-base text-app-base">
                   <div className="flex min-w-0 items-center gap-2">
                     {resolvedTopAccessory && (
                       <div className="flex items-center">{resolvedTopAccessory}</div>
@@ -1617,7 +1594,18 @@ const enterStart = -exitTarget;
                   </span>
                 </div>
                 {resolvedHeaderMeta && (
-                  <div className="text-[13px] text-base whitespace-nowrap">{resolvedHeaderMeta}</div>
+                  <div className="flex flex-wrap items-center gap-2 text-[13px] text-base text-app-base">
+                    <span className="whitespace-nowrap">{resolvedHeaderMeta}</span>
+                    {cycle?.postpartumMode && (
+                      <Badge
+                        className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-rose-200 bg-rose-50 p-0 text-rose-600 hover:bg-rose-50"
+                        aria-label="Modo postparto activado"
+                        title="Modo postparto activado"
+                      >
+                        <Baby className="h-3.5 w-3.5" aria-hidden="true" />
+                      </Badge>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
@@ -1813,9 +1801,6 @@ const enterStart = -exitTarget;
           setNewCyclePrefillDate(null);
           setInitialSectionKey(null);
           setShowForm(true);
-          if (preferences?.fertilityStartConfig?.postpartum === true) {
-            setShowPostpartumExitDialog(true);
-          }
         }}
         currentCycleStartDate={cycle?.startDate}
         currentCycleRecords={cycle?.data ?? []}

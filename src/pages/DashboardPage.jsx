@@ -10,6 +10,7 @@ import {
   ChevronRight,
   HelpCircle,
   Ban,
+  Baby,
   CheckCircle2,
   Loader2,
 } from 'lucide-react';
@@ -20,7 +21,6 @@ import DeletionDialog from '@/components/DeletionDialog';
 import OverlapWarningDialog from '@/components/OverlapWarningDialog';
 import { useToast } from '@/components/ui/use-toast';
 import NewCycleDialog from '@/components/NewCycleDialog';
-import PostpartumExitDialog from '@/components/PostpartumExitDialog';
 import {
   Dialog,
   DialogContent,
@@ -60,6 +60,7 @@ const CycleOverviewCard = ({
   t8Metric = {},
 }) => {
   const records = cycleData.records || [];
+  const isPostpartumModeEnabled = Boolean(cycleData?.postpartumMode);
   const [activePoint, setActivePoint] = useState(null);
   const [tooltipPosition, setTooltipPosition] = useState({ clientX: 0, clientY: 0 });
   const [isSymbolsOpen, setIsSymbolsOpen] = useState(false);
@@ -899,12 +900,22 @@ const handleRingPointerCancel = useCallback(
         <button
           type="button"
           onClick={onEditStartDate}
-          className="inline-flex items-center gap-1.5 rounded-full bg-white/60 px-3 py-1.5 text-sm font-semibold text-subtitulo shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-rose-300 focus:ring-offset-2 focus:ring-offset-transparent hover:bg-white"
+          className="inline-flex items-center gap-2 rounded-full bg-white/60 px-3 py-1.5 text-sm font-semibold text-subtitulo shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-rose-300 focus:ring-offset-2 focus:ring-offset-transparent hover:bg-white"
           title="Editar fecha de inicio del ciclo"
         >
           <Edit className="w-4 h-4" />
           {`Ciclo actual`}
-        </button>
+          </button>
+          {cycleData?.postpartumMode && (
+            <Badge
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-rose-200 bg-rose-50 p-0 text-rose-600 hover:bg-rose-50"
+              aria-label="Modo postparto activado"
+              title="Modo postparto activado"
+            >
+              <Baby className="h-4 w-4" aria-hidden="true" />
+            </Badge>
+          )}
+        
 
       </motion.div>
 
@@ -3804,7 +3815,6 @@ const displayCycles = [...cycles].sort((a, b) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showNewCycleDialog, setShowNewCycleDialog] = useState(false);
   const [newCyclePrefillDate, setNewCyclePrefillDate] = useState(null);
-  const [showPostpartumExitDialog, setShowPostpartumExitDialog] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [initialSectionKey, setInitialSectionKey] = useState(null);
   const [formDraftToRestore, setFormDraftToRestore] = useState(null);
@@ -3848,17 +3858,6 @@ const displayCycles = [...cycles].sort((a, b) => {
   setIsNewCycleFlowFromForm(false);
     setFormDraftToRestore(null);
   }, [clearDataEntryDraft]);
-
-  const handleConfirmPostpartumExit = useCallback(async () => {
-    setShowPostpartumExitDialog(false);
-    if (typeof savePreferences !== 'function') return;
-    await savePreferences({
-      fertilityStartConfig: {
-        postpartum: false,
-        calculators: { cpm: true, t8: true },
-      },
-    });
-  }, [savePreferences]);
 
   const handleDateSelect = useCallback((record) => {
     setEditingRecord(record);
@@ -3999,9 +3998,6 @@ const displayCycles = [...cycles].sort((a, b) => {
     } else {
       setInitialSectionKey(null);
       setShowForm(true);
-    }
-    if (preferences?.fertilityStartConfig?.postpartum === true) {
-      setShowPostpartumExitDialog(true);
     }
   };
 
@@ -4166,11 +4162,6 @@ const displayCycles = [...cycles].sort((a, b) => {
           currentCycleRecords={currentCycle?.data ?? []}
           initialStartDate={newCyclePrefillDate}
         />
-        <PostpartumExitDialog
-          isOpen={showPostpartumExitDialog}
-          onClose={() => setShowPostpartumExitDialog(false)}
-          onConfirm={handleConfirmPostpartumExit}
-        />
       </div>
     );
   }
@@ -4223,12 +4214,13 @@ const displayCycles = [...cycles].sort((a, b) => {
                   </div>
                 </DialogDescription>
               </DialogHeader>
-              <div className="flex-1 space-y-3 overflow-y-auto px-4 pb-4">
-                <div className="rounded-2xl border border-rose-100 bg-rose-50/70 px-3 py-2">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="space-y-1">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-rose-600">Estado actual</p>
-                    </div>
+              <div className="flex-1 space-y-3 overflow-y-auto px-4 pb-3">
+                <div className="px-3">
+                  <div className="flex items-center justify-between gap-3 px-3 py-1">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-rose-600">
+                      Estado actual
+                    </p>
+
                     <span
                       className={`rounded-full px-3 py-1 text-[11px] font-semibold ${
                         cpmStatusMode === 'manual'
@@ -4576,12 +4568,13 @@ const displayCycles = [...cycles].sort((a, b) => {
                     </div>
                   </DialogDescription>
                 </DialogHeader>
-                <div className="flex-1 space-y-3 overflow-y-auto px-4 pb-4">
-                <div className="rounded-2xl border border-rose-100 bg-rose-50/70 px-3 py-2">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="space-y-1">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-rose-600">Estado actual</p>
-                    </div>
+                <div className="flex-1 space-y-2 overflow-y-auto px-4 pb-3">
+                <div className="px-3">
+                  <div className="flex items-center justify-between gap-3 px-3 py-1">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-rose-600">
+                      Estado actual
+                    </p>
+
                     <span
                       className={`rounded-full px-3 py-1 text-[11px] font-semibold ${
                         t8StatusMode === 'manual'
@@ -5029,11 +5022,6 @@ const displayCycles = [...cycles].sort((a, b) => {
         currentCycleStartDate={currentCycle.startDate}
         currentCycleRecords={currentCycle?.data ?? []}
         initialStartDate={newCyclePrefillDate}
-      />
-      <PostpartumExitDialog
-        isOpen={showPostpartumExitDialog}
-        onClose={() => setShowPostpartumExitDialog(false)}
-        onConfirm={handleConfirmPostpartumExit}
       />
     </>
   );

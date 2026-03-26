@@ -37,6 +37,7 @@ const ManualBaselineIcon = ({ className = '' }) => (
 
 const ChartControls = ({
   isFullScreen,
+  isLandscapeFullscreen = false,
   showBackToCycleRecords,
   targetCycleId,
   showInterpretation,
@@ -74,18 +75,28 @@ const quickPanelRef = useRef(null);
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [isQuickPanelOpen]);
-
-  const iconRotationClass = isFullScreen ? 'rotate-90' : '';
+const isFullscreenHud = isFullScreen;
+const iconRotationClass = isFullscreenHud ? 'rotate-90' : '';
 
   const topGroupPos = isFullScreen
-    ? 'fixed top-[calc(env(safe-area-inset-top)+8px)] right-[calc(env(safe-area-inset-right)+8px)]'
-    : 'absolute top-3 left-3';
+  ? 'fixed top-[calc(env(safe-area-inset-top)+8px)] right-[calc(env(safe-area-inset-right)+8px)]'
+  : 'absolute top-3 left-3';
 
-  const bottomGroupPos = isFullScreen
-    ? 'fixed right-[calc(env(safe-area-inset-right)+8px)] bottom-[calc(env(safe-area-inset-bottom)+8px)]'
-    : 'absolute top-3 right-3';
+const bottomGroupPos = isFullScreen
+  ? 'fixed right-[calc(env(safe-area-inset-right)+8px)] bottom-[calc(env(safe-area-inset-bottom)+8px)]'
+  : 'absolute top-3 right-3';
 
-  const isRightAlignedTopGroup = isFullScreen;
+const isRightAlignedTopGroup = isFullScreen;
+const topGroupDirection = isFullscreenHud
+  ? 'flex-row'
+  : 'flex-col';
+
+const bottomGroupDirection = isFullscreenHud
+  ? 'flex-row-reverse'
+  : 'flex-col';
+
+const topGroupLayout = isLandscapeFullscreen ? 'gap-1.5' : 'gap-2';
+const bottomGroupLayout = isLandscapeFullscreen ? 'gap-1.5' : 'gap-2';
 
   const quickAccessButtonClass = (() => {
     if (showInterpretation && showManualBaseline) {
@@ -139,7 +150,11 @@ const quickPanelRef = useRef(null);
         className={`chart-controls z-[200] ${topGroupPos}`}
         data-chart-interactive="true"
       >
-        <div className={`flex flex-col gap-2 ${isRightAlignedTopGroup ? 'items-end' : 'items-start'}`}>
+      <div
+  className={`flex ${topGroupDirection} ${topGroupLayout} ${
+    isRightAlignedTopGroup ? 'items-center justify-end' : 'items-start'
+  }`}
+>
           {showBackToCycleRecords && targetCycleId && (
             <Button
               asChild
@@ -176,14 +191,18 @@ const quickPanelRef = useRef(null);
 
             <AnimatePresence initial={false}>
               {isQuickPanelOpen && (
-                <motion.div
+            <motion.div
   initial={{ opacity: 0 }}
   animate={{ opacity: 1 }}
   exit={{ opacity: 0 }}
   transition={{ duration: 0.12, ease: 'linear' }}
-  className={`absolute top-[calc(100%+8px)] flex flex-col gap-2 ${
-    isRightAlignedTopGroup ? 'right-0 items-end' : 'left-0 items-start'
-  }`}
+  className={
+  isFullscreenHud
+    ? 'absolute right-[calc(100%+8px)] top-0 flex flex-row-reverse gap-2 items-center'
+    : `absolute top-[calc(100%+8px)] flex flex-col gap-2 ${
+        isRightAlignedTopGroup ? 'right-0 items-end' : 'left-0 items-start'
+      }`
+}
 >
                   <motion.button
   type="button"
@@ -238,29 +257,37 @@ const quickPanelRef = useRef(null);
         className={`chart-controls z-[200] ${bottomGroupPos}`}
         data-chart-interactive="true"
       >
-        <div className="flex flex-col gap-2 items-end">
-          <Button
-            type="button"
-            onClick={handleToggleFullScreen}
-            variant="ghost"
-            size="icon"
-            className={`${BTN_BASE} bg-white/20 text-slate-600 border-white/70`}
-            aria-label={isFullScreen ? 'Salir de pantalla completa' : 'Rotar gráfico'}
-          >
-            <RotateCcw className={`h-4 w-4 transition-transform ${iconRotationClass}`} />
-          </Button>
+        <div className={`flex ${bottomGroupDirection} ${bottomGroupLayout} items-center justify-end`}>
+  <Button
+    type="button"
+    onClick={handleToggleFullScreen}
+    variant="ghost"
+    size="icon"
+    className={`${BTN_BASE} ${
+      isLandscapeFullscreen
+        ? 'bg-white/70 text-slate-700 border-white/80'
+        : 'bg-white/20 text-slate-600 border-white/70'
+    }`}
+    aria-label={isFullScreen ? 'Salir de pantalla completa' : 'Rotar gráfico'}
+  >
+    <RotateCcw className={`h-4 w-4 transition-transform ${iconRotationClass}`} />
+  </Button>
 
-          <Button
-            type="button"
-            onClick={handleToggleSettings}
-            variant="ghost"
-            size="icon"
-            className={`${BTN_BASE} bg-white/20 text-secundario border border-secundario shadow-lg shadow-secundario/20`}
-            aria-label="Ajustes"
-          >
-            <SlidersHorizontal className={`h-4 w-4 transition-transform ${iconRotationClass}`} />
-          </Button>
-        </div>
+  <Button
+    type="button"
+    onClick={handleToggleSettings}
+    variant="ghost"
+    size="icon"
+    className={`${BTN_BASE} ${
+      isFullScreen
+        ? 'bg-white/70 text-secundario border border-secundario shadow-lg shadow-secundario/20'
+        : 'bg-white/20 text-secundario border border-secundario shadow-lg shadow-secundario/20'
+    }`}
+    aria-label="Ajustes"
+  >
+    <SlidersHorizontal className={`h-4 w-4 transition-transform ${iconRotationClass}`} />
+  </Button>
+</div>
       </div>
     </>
   );

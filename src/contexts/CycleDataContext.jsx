@@ -16,6 +16,7 @@ import {
   fetchEntryMeasurementsDB,
   updateCycleDatesDB,
   updateCycleIgnoreAutoCalculations,
+  updateCyclePostpartumModeDB,
   deleteCycleDB,
   deleteArchivedCycleWithStrategyDB,
   previewDeleteArchivedCycleWithStrategyDB,
@@ -37,7 +38,12 @@ import {
 import { getCachedCycleData, saveCycleDataToCache, clearCycleDataCache } from '@/lib/cycleCache';
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { readBbtFromHealthConnect } from "@/lib/healthConnectSync";
-import { trackEvent } from '@/lib/analytics';
+import {
+  trackDailyRecordSaved,
+  trackRecordDeleted,
+  trackRecordSaveError,
+  trackRecordDeleteError,
+} from '@/lib/analytics';
 
 
 const CycleDataContext = createContext(null);
@@ -48,6 +54,7 @@ const defaultCycleState = {
   endDate: null,
   data: [],
   ignoredForAutoCalculations: false,
+  postpartumMode: false,
   issues: {
     outOfRange: [],
     duplicates: [],
@@ -55,6 +62,11 @@ const defaultCycleState = {
     summary: { outOfRangeCount: 0, duplicateDaysCount: 0, duplicateEntriesCount: 0 },
   },
 };
+
+const normalizeCycleForState = (cycle) => ({
+  ...cycle,
+  postpartumMode: cycle?.postpartumMode === true,
+});
 
 const filterEntriesByEndDate = (entries, endDate) => {
   if (!endDate) return entries;
@@ -211,8 +223,14 @@ export const CycleDataProvider = ({ children }) => {
         try {
           const cached = await getCachedCycleData(user.uid);
           if (cached) {
-            setCurrentCycle(cached.currentCycle ?? defaultCycleState);
-            setArchivedCycles(cached.archivedCycles ?? []);
+            setCurrentCycle(
+              cached.currentCycle ? normalizeCycleForState(cached.currentCycle) : defaultCycleState
+            );
+            setArchivedCycles(
+              Array.isArray(cached.archivedCycles)
+                ? cached.archivedCycles.map((cycle) => normalizeCycleForState(cycle))
+                : []
+            );
             hasLoadedRef.current = true;
             cachedDataApplied = true;
             if (!silent) {
@@ -252,7 +270,7 @@ export const CycleDataProvider = ({ children }) => {
           const filtered = filterEntriesByEndDate(filteredStart, endDate);
 
           currentCycleData = {
-            ...cycleToLoad,
+            ...normalizeCycleForState(cycleToLoad),
             startDate,
             endDate,
             data: filtered,
@@ -274,7 +292,7 @@ export const CycleDataProvider = ({ children }) => {
           const filteredStart = filterEntriesByStartDate(processed, aStart);
           const filtered = filterEntriesByEndDate(filteredStart, aEnd);
           return {
-            ...cycle,
+            ...normalizeCycleForState(cycle),
             startDate: aStart ?? format(startOfDay(new Date()), 'yyyy-MM-dd'),
             endDate: aEnd,
             needsCompletion: cycle.needsCompletion,
@@ -305,8 +323,14 @@ export const CycleDataProvider = ({ children }) => {
           try {
             const cached = await getCachedCycleData(user.uid);
             if (cached) {
-              setCurrentCycle(cached.currentCycle ?? defaultCycleState);
-              setArchivedCycles(cached.archivedCycles ?? []);
+              setCurrentCycle(
+                cached.currentCycle ? normalizeCycleForState(cached.currentCycle) : defaultCycleState
+              );
+              setArchivedCycles(
+                Array.isArray(cached.archivedCycles)
+                  ? cached.archivedCycles.map((cycle) => normalizeCycleForState(cycle))
+                  : []
+              );
               hasLoadedRef.current = true;
             } else {
               setCurrentCycle(defaultCycleState);
@@ -534,7 +558,13 @@ export const CycleDataProvider = ({ children }) => {
           observationsValue === '' &&
           !hadRelationsValue &&
           !isPeakMarked;
-
+          const fueEliminadoPorVaciado = Boolean(
+              targetRecord &&
+              isPayloadEmpty &&
+              peakMarkerProvided &&
+              targetRecord?.peak_marker === 'peak' &&
+              !isPeakMarked
+            );
         const hadMultipleMeasurements =
           !!targetRecord?.measurementsLoaded &&
           Array.isArray(targetRecord?.measurements) &&
@@ -598,25 +628,30 @@ export const CycleDataProvider = ({ children }) => {
             updateEntryState(cycleIdToUse, savedEntryId, recordPayload, newData.isoDate);
           }
         }
-        void trackEvent('cycle_record_save', {
-  action: isEditing ? 'update' : 'create',
-  cycle_scope: cycleIdToUse === currentCycle.id ? 'current' : 'archived',
-  has_temperature: hasTemperatureData,
-  has_mucus:
-    mucusSensationValue !== '' || mucusAppearanceValue !== '',
-  has_relations: hadRelationsValue,
-  has_peak: isPeakMarked,
-  has_observations: observationsValue !== '',
-  measurement_count: validMeasurements.length,
-});
+        if (fueEliminadoPorVaciado) {
+  void trackRecordDeleted({
+    ambitoCiclo: cycleIdToUse === currentCycle.id ? 'actual' : 'archivado',
+  });
+} else {
+  void trackDailyRecordSaved({
+    accion: isEditing ? 'editar' : 'crear',
+    ambitoCiclo: cycleIdToUse === currentCycle.id ? 'actual' : 'archivado',
+    tieneTemperatura: hasTemperatureData,
+    tieneMoco: mucusSensationValue !== '' || mucusAppearanceValue !== '',
+    tieneRelaciones: hadRelationsValue,
+    tienePico: isPeakMarked,
+    tieneObservaciones: observationsValue !== '',
+    cantidadMediciones: validMeasurements.length,
+  });
+}
         loadCycleData({ silent: true }).catch((error) =>
           console.error('Background cycle data refresh failed after save:', error)
         );
       } catch (error) {
-        void trackEvent('cycle_record_save_error', {
-  action: isEditing ? 'update' : 'create',
-  cycle_scope: cycleIdToUse === currentCycle.id ? 'current' : 'archived',
-  error_code: String(error?.code || 'unknown').slice(0, 50),
+        void trackRecordSaveError({
+  accion: isEditing ? 'editar' : 'crear',
+  ambitoCiclo: cycleIdToUse === currentCycle.id ? 'actual' : 'archivado',
+  codigoError: String(error?.code || 'unknown').slice(0, 50),
 });
         console.error('Error adding/updating data point:', error);
         throw error;
@@ -645,14 +680,14 @@ export const CycleDataProvider = ({ children }) => {
       setIsLoading(true);
       try {
         await deleteCycleEntryDB(user.uid, cycleIdToUse, recordId);
-        void trackEvent('cycle_record_delete', {
-  cycle_scope: cycleIdToUse === currentCycle.id ? 'current' : 'archived',
+        void trackRecordDeleted({
+  ambitoCiclo: cycleIdToUse === currentCycle.id ? 'actual' : 'archivado',
 });
         await loadCycleData({ silent: true });
       } catch (error) {
-        void trackEvent('cycle_record_delete_error', {
-  cycle_scope: cycleIdToUse === currentCycle.id ? 'current' : 'archived',
-  error_code: String(error?.code || 'unknown').slice(0, 50),
+        void trackRecordDeleteError({
+  ambitoCiclo: cycleIdToUse === currentCycle.id ? 'actual' : 'archivado',
+  codigoError: String(error?.code || 'unknown').slice(0, 50),
 });
         console.error('Error deleting record:', error);
         throw error;
@@ -789,6 +824,7 @@ export const CycleDataProvider = ({ children }) => {
         }
 
         const newStartDate = format(startDateObj, 'yyyy-MM-dd');
+        const wasPostpartumModeEnabled = Boolean(currentCycle?.postpartumMode);
         const newCycle = await startNewCycleDB(user.uid, currentCycle.id, newStartDate);
         setCurrentCycle({
           id: newCycle.id,
@@ -796,7 +832,14 @@ export const CycleDataProvider = ({ children }) => {
           endDate: null,
           data: [],
           ignoredForAutoCalculations: false,
+          postpartumMode: false,
         });
+        if (wasPostpartumModeEnabled) {
+          toast({
+            title: 'Modo postparto desactivado',
+            description: 'Se ha desactivado el modo postparto por inicio de nuevo ciclo.',
+          });
+        }
         await loadCycleData({ silent: true });
       } catch (error) {
         console.error('Error starting new cycle:', error);
@@ -1232,7 +1275,7 @@ export const CycleDataProvider = ({ children }) => {
         const filtered = filterEntriesByEndDate(filteredStart, endDate);
 
         return {
-          ...cycleData,
+          ...normalizeCycleForState(cycleData),
           startDate: startDate ?? format(startOfDay(new Date()), 'yyyy-MM-dd'),
           endDate,
           data: filtered,
@@ -1250,6 +1293,63 @@ export const CycleDataProvider = ({ children }) => {
       }
     },
     [user]
+  );
+
+const getCycleFromState = useCallback(
+  (cycleIdToFind) => {
+    if (!cycleIdToFind) return null;
+
+    const targetId = String(cycleIdToFind);
+
+    if (currentCycle?.id && String(currentCycle.id) === targetId) {
+      return currentCycle;
+    }
+
+    return (
+      archivedCycles.find(
+        (cycle) => cycle?.id && String(cycle.id) === targetId
+      ) || null
+    );
+  },
+  [archivedCycles, currentCycle]
+);
+
+  const updateCyclePostpartumMode = useCallback(
+    async (cycleIdToUpdate, value) => {
+      if (!user?.uid || !cycleIdToUpdate) return;
+      const nextValue = value === true;
+      const previousCurrentCycle = currentCycle;
+      const previousArchivedCycles = archivedCycles;
+
+      const updateCycle = (cycle) => {
+        if (!cycle || cycle.id !== cycleIdToUpdate) return cycle;
+        return { ...cycle, postpartumMode: nextValue };
+      };
+
+      setCurrentCycle((prevCycle) => updateCycle(prevCycle));
+      setArchivedCycles((prevCycles) => prevCycles.map((cycle) => updateCycle(cycle)));
+
+      try {
+        await updateCyclePostpartumModeDB(user.uid, cycleIdToUpdate, nextValue);
+        loadCycleData({ silent: true }).catch((error) =>
+          console.error(
+            'Background cycle data refresh failed after updating postpartum mode:',
+            error
+          )
+        );
+      } catch (error) {
+        console.error('Error updating cycle postpartum mode:', error);
+        setCurrentCycle(previousCurrentCycle);
+        setArchivedCycles(previousArchivedCycles);
+        toast({
+          title: 'Error',
+          description: 'No se pudo actualizar el modo posparto del ciclo.',
+          variant: 'destructive',
+        });
+        throw error;
+      }
+    },
+    [user, currentCycle, archivedCycles, loadCycleData, toast]
   );
 
   const refreshData = useCallback(
@@ -1381,9 +1481,11 @@ export const CycleDataProvider = ({ children }) => {
     previewUpdateCycleDates,
     isLoading,
     getCycleById,
+    getCycleFromState,
     refreshData,
     toggleIgnoreRecord,
     setCycleIgnoreForAutoCalculations,
+    updateCyclePostpartumMode,
     addArchivedCycle,
     previewInsertCycleRange,
     insertCycleRange,

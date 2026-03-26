@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { differenceInCalendarDays, format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Archive, Plus, Calendar, ChartSpline, SlidersHorizontal } from 'lucide-react';
+import { Archive, Baby, Plus, Calendar, ChartSpline, SlidersHorizontal } from 'lucide-react';
 import { motion } from 'framer-motion';
 import EditCycleDatesDialog from '@/components/EditCycleDatesDialog';
 import DeletionDialog from '@/components/DeletionDialog';
@@ -149,7 +149,7 @@ const ArchivedCyclesPage = () => {
   };
 
   const navigateToCycle = (cycle) => {
-    navigate(cycle.isCurrent ? '/' : `/cycle/${cycle.id}`);
+    navigate(cycle.isCurrent ? '/records' : `/cycle/${cycle.id}`);
   };
 
   const startLongPressDetection = (cycle) => {
@@ -298,7 +298,7 @@ const ArchivedCyclesPage = () => {
                       Mis ciclos
                     </span>
                   </div>
-                  <div className="truncate text-[13px] text-base">Historial de ciclos</div>
+                  <div className="truncate text-[13px] text-base text-app-base">Historial de ciclos</div>
                 </div>
 
                 <div className="flex shrink-0 items-center gap-2">
@@ -407,6 +407,15 @@ const ArchivedCyclesPage = () => {
                         <h2 className="truncate text-[15px] font-semibold text-slate-700">
                           {startToShow ? formatArchivedDate(startToShow) : ''} - {endDate}
                         </h2>
+                        {cycle.postpartumMode && (
+                          <Badge
+                            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-rose-200 bg-rose-50 p-0 text-rose-600 hover:bg-rose-50"
+                            aria-label="Modo postparto activado"
+                            title="Modo postparto activado"
+                          >
+                            <Baby className="h-3.5 w-3.5" aria-hidden="true" />
+                          </Badge>
+                        )}
                       </div>
 
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-slate-600">

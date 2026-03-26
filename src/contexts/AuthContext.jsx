@@ -14,8 +14,13 @@ import {
 } from 'firebase/auth';
 import { deleteField, doc, getDoc, setDoc, getDocFromCache } from 'firebase/firestore';
 import { useToast } from '@/components/ui/use-toast';
-import normalizeBoolean from '@/lib/normalizeBoolean';
-import { trackEvent, trackLogin, trackSignUp, setAnalyticsUserId } from '@/lib/analytics';
+import {
+  trackEvent,
+  trackLogin,
+  trackSignUp,
+  setAnalyticsUserId,
+  trackSessionReady,
+} from '@/lib/analytics';
 
 const AuthContext = createContext(null);
 
@@ -100,7 +105,6 @@ const normalizeCombineMode = (value) => {
 
 const createDefaultFertilityStartConfig = () => ({
   calculators: { cpm: true, t8: true },
-  postpartum: false,
   combineMode: 'estandar',
 });
 
@@ -108,7 +112,6 @@ const mergeFertilityStartConfig = ({ current, incoming, legacyCombineMode }) => 
   const base = createDefaultFertilityStartConfig();
   const merged = {
     calculators: { ...base.calculators },
-    postpartum: base.postpartum,
     combineMode: base.combineMode,
   };
   let combineModeSet = false;
@@ -120,11 +123,6 @@ const mergeFertilityStartConfig = ({ current, incoming, legacyCombineMode }) => 
         merged.calculators[key] = source.calculators[key];
       }
     });
-
-    const normalizedPostpartum = normalizeBoolean(source.postpartum);
-    if (normalizedPostpartum !== null) {
-      merged.postpartum = normalizedPostpartum;
-    }
 
     const normalizedMode = normalizeCombineMode(source.combineMode);
     if (normalizedMode) {
@@ -172,6 +170,9 @@ export const AuthProvider = ({ children }) => {
       unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
         if (firebaseUser) {
           void setAnalyticsUserId(firebaseUser.uid);
+          void trackSessionReady({
+  proveedor: firebaseUser.providerData?.[0]?.providerId || 'unknown',
+});
           setUser({
             id: firebaseUser.uid,
             uid: firebaseUser.uid,
@@ -190,6 +191,7 @@ export const AuthProvider = ({ children }) => {
           const defaultPreferences = {
             theme: 'light',
             units: 'metric',
+            preferredTemperatureTime: '',
             manualCpm: null,
             manualT8: null,
             manualCpmBase: null,
@@ -388,6 +390,7 @@ export const AuthProvider = ({ children }) => {
         const current = previous ?? {
           theme: 'light',
           units: 'metric',
+          preferredTemperatureTime: '',
           manualCpm: null,
           manualT8: null,
           manualCpmBase: null,

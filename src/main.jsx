@@ -14,10 +14,11 @@ if (typeof window !== 'undefined') {
     window.location.replace(url.toString());
   }
 }
-
-void trackEvent('app_boot', {
-  app_section: 'web',
-  env: import.meta.env.MODE,
+// `app_boot` se usa solo para salud técnica del arranque.
+// No debe usarse como KPI de usuarios reales en el dashboard.
+void trackEvent('inicio_app', {
+  seccion_app: 'web',
+  entorno: import.meta.env.MODE,
 });
 
 initGlobalErrorTracking();
