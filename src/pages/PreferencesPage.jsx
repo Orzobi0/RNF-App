@@ -84,7 +84,6 @@ const PreferencesPage = () => {
 
         <section className="rounded-3xl bg-white/80 p-4 shadow">
           <h2 className="text-base font-semibold text-slate-700">Cálculo (CPM / T-8)</h2>
-          <p className="mt-2 text-xs text-slate-500">Este editor es el mismo que se usa en Dashboard.</p>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <button type="button" onClick={calculatorEditor.handleOpenCpmDialog} className="rounded-xl border border-slate-200 bg-white p-3 text-left">
               <p className="text-xs text-slate-500">CPM</p>
@@ -108,7 +107,6 @@ const PreferencesPage = () => {
             <div className="flex items-center justify-between rounded-xl border border-slate-200 p-3"><Label htmlFor="pref-calc-cpm">Usar CPM</Label><Checkbox id="pref-calc-cpm" checked={Boolean(draft.fertilityStartConfig?.calculators?.cpm)} onCheckedChange={(checked) => updateFertilityCalculator('cpm', checked)} /></div>
             <div className="flex items-center justify-between rounded-xl border border-slate-200 p-3"><Label htmlFor="pref-calc-t8">Usar T-8</Label><Checkbox id="pref-calc-t8" checked={Boolean(draft.fertilityStartConfig?.calculators?.t8)} onCheckedChange={(checked) => updateFertilityCalculator('t8', checked)} /></div>
             {errors.fertilityStartConfig && <p className="text-xs text-red-500">{errors.fertilityStartConfig}</p>}
-            <p className="text-xs text-slate-500">Nota: el modo postparto es por ciclo, no es una preferencia global.</p>
           </div>
         </section>
       </div>
