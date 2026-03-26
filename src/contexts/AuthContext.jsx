@@ -15,6 +15,11 @@ import {
 import { deleteField, doc, getDoc, setDoc, getDocFromCache } from 'firebase/firestore';
 import { useToast } from '@/components/ui/use-toast';
 import {
+  PREFERENCE_DEFAULTS,
+  normalizeStoredPreferences,
+  normalizePreferencePatch,
+} from '@/lib/preferences';
+import {
   trackEvent,
   trackLogin,
   trackSignUp,
@@ -96,54 +101,6 @@ const ensurePersistentStorage = async (phase) => {
     });
   }
 };
-const COMBINE_MODE_OPTIONS = new Set(['estandar']);
-
-const normalizeCombineMode = (value) => {
-  if (value === 'conservador') return 'estandar';
-  return COMBINE_MODE_OPTIONS.has(value) ? value : null;
-};
-
-const createDefaultFertilityStartConfig = () => ({
-  calculators: { cpm: true, t8: true },
-  combineMode: 'estandar',
-});
-
-const mergeFertilityStartConfig = ({ current, incoming, legacyCombineMode }) => {
-  const base = createDefaultFertilityStartConfig();
-  const merged = {
-    calculators: { ...base.calculators },
-    combineMode: base.combineMode,
-  };
-  let combineModeSet = false;
-
-  const applyConfig = (source) => {
-    if (!source || typeof source !== 'object') return;
-    Object.keys(merged.calculators).forEach((key) => {
-      if (typeof source?.calculators?.[key] === 'boolean') {
-        merged.calculators[key] = source.calculators[key];
-      }
-    });
-
-    const normalizedMode = normalizeCombineMode(source.combineMode);
-    if (normalizedMode) {
-      merged.combineMode = normalizedMode;
-      combineModeSet = true;
-    }
-  };
-
-  applyConfig(current);
-  applyConfig(incoming);
-
-  if (!combineModeSet) {
-    const legacyMode = normalizeCombineMode(legacyCombineMode);
-    if (legacyMode) {
-      merged.combineMode = legacyMode;
-    }
-  }
-
-  return merged;
-};
-
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
@@ -188,38 +145,12 @@ export const AuthProvider = ({ children }) => {
           }
 
           const prefRef = doc(db, `users/${firebaseUser.uid}/preferences`, 'display');
-          const defaultPreferences = {
-            theme: 'light',
-            units: 'metric',
-            preferredTemperatureTime: '',
-            manualCpm: null,
-            manualT8: null,
-            manualCpmBase: null,
-            manualT8Base: null,
-            cpmMode: 'auto',
-            t8Mode: 'auto',
-            showRelationsRow: true,
-            fertilityStartConfig: createDefaultFertilityStartConfig(),
-          };
+          const defaultPreferences = normalizeStoredPreferences(PREFERENCE_DEFAULTS);
           try {
             try {
               const cacheSnap = await getDocFromCache(prefRef);
               if (cacheSnap.exists()) {
-                const {
-                  combineMode: legacyCombineMode,
-                  fertilityStartConfig: storedFertilityStartConfig,
-                  ...restPreferences
-                } = cacheSnap.data();
-                const mergedFertilityStartConfig = mergeFertilityStartConfig({
-                  current: defaultPreferences.fertilityStartConfig,
-                  incoming: storedFertilityStartConfig,
-                  legacyCombineMode,
-                });
-                setPreferences({
-                  ...defaultPreferences,
-                  ...restPreferences,
-                  fertilityStartConfig: mergedFertilityStartConfig,
-                });
+                setPreferences(normalizeStoredPreferences(cacheSnap.data()));
               }
             } catch (cacheError) {
               // Ignore cache errors; we'll try the network next.
@@ -227,21 +158,7 @@ export const AuthProvider = ({ children }) => {
 
             const prefSnap = await getDoc(prefRef);
             if (prefSnap.exists()) {
-              const {
-                combineMode: legacyCombineMode,
-                fertilityStartConfig: storedFertilityStartConfig,
-                ...restPreferences
-              } = prefSnap.data();
-              const mergedFertilityStartConfig = mergeFertilityStartConfig({
-                current: defaultPreferences.fertilityStartConfig,
-                incoming: storedFertilityStartConfig,
-                legacyCombineMode,
-              });
-              setPreferences({
-                ...defaultPreferences,
-                ...restPreferences,
-                fertilityStartConfig: mergedFertilityStartConfig,
-              });
+              setPreferences(normalizeStoredPreferences(prefSnap.data()));
             } else {
               setPreferences(defaultPreferences);
             }
@@ -362,49 +279,22 @@ export const AuthProvider = ({ children }) => {
   const savePreferences = async (prefs = {}) => {
     if (!auth.currentUser) return;
     const prefRef = doc(db, `users/${auth.currentUser.uid}/preferences`, 'display');
-    const {
-      combineMode: legacyCombineMode,
-      fertilityStartConfig: incomingFertilityStartConfig,
-      ...restPrefs
-    } = prefs ?? {};
-    const hasFertilityUpdate =
-      (incomingFertilityStartConfig && typeof incomingFertilityStartConfig === 'object')
-      || legacyCombineMode !== undefined;
-    const nextFertilityStartConfig = hasFertilityUpdate
-      ? mergeFertilityStartConfig({
-          current: preferences?.fertilityStartConfig,
-          incoming: incomingFertilityStartConfig,
-          legacyCombineMode,
-        })
-      : preferences?.fertilityStartConfig;
+    const currentPreferences = normalizeStoredPreferences(preferences ?? PREFERENCE_DEFAULTS);
+    const { normalizedPatch, hasFertilityUpdate } = normalizePreferencePatch(
+      prefs,
+      currentPreferences
+    );
 
-    const payload = { ...restPrefs };
-    if (hasFertilityUpdate && nextFertilityStartConfig) {
-      payload.fertilityStartConfig = nextFertilityStartConfig;
+    const payload = { ...normalizedPatch };
+    if (hasFertilityUpdate && normalizedPatch.fertilityStartConfig) {
       payload.combineMode = deleteField();
     }
 
     try {
       await setDoc(prefRef, payload, { merge: true });
       setPreferences((previous) => {
-        const current = previous ?? {
-          theme: 'light',
-          units: 'metric',
-          preferredTemperatureTime: '',
-          manualCpm: null,
-          manualT8: null,
-          manualCpmBase: null,
-          manualT8Base: null,
-          cpmMode: 'auto',
-          t8Mode: 'auto',
-          showRelationsRow: true,
-          fertilityStartConfig: createDefaultFertilityStartConfig(),
-        };
-        const next = { ...current, ...restPrefs };
-        if (hasFertilityUpdate && nextFertilityStartConfig) {
-          next.fertilityStartConfig = nextFertilityStartConfig;
-        }
-        return next;
+        const current = normalizeStoredPreferences(previous ?? PREFERENCE_DEFAULTS);
+        return normalizeStoredPreferences({ ...current, ...normalizedPatch });
       });
     } catch (error) {
       console.error('Failed to save preferences', error);

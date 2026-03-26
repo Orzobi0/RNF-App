@@ -44,6 +44,7 @@ import { saveUserMetricsSnapshot } from '@/lib/userMetrics';
 import { MANUAL_CPM_DEDUCTION, buildCpmMetric } from '@/lib/metrics/cpm';
 import { buildT8Metric } from '@/lib/metrics/t8';
 import { getSymbolColorPalette } from '@/config/fertilitySymbols';
+import { mergeFertilityStartConfig, normalizePreferenceValue } from '@/lib/preferences';
 
 const DATA_ENTRY_FORM_DRAFT_KEY = 'dashboard:data-entry-form-draft';
 
@@ -2555,7 +2556,7 @@ const ModernFertilityDashboard = () => {
     if (cpmSelectionInitializedRef.current) return;
     if (!preferences) return;
 
-    let resolvedMode = preferences?.cpmMode;
+    let resolvedMode = normalizePreferenceValue('cpmMode', preferences?.cpmMode);
     if (!['auto', 'manual', 'none'].includes(resolvedMode)) {
       resolvedMode = isManualCpm
         ? 'manual'
@@ -2573,7 +2574,7 @@ const ModernFertilityDashboard = () => {
     if (t8SelectionInitializedRef.current) return;
     if (!preferences) return;
 
-    let resolvedMode = preferences?.t8Mode;
+    let resolvedMode = normalizePreferenceValue('t8Mode', preferences?.t8Mode);
     if (!['auto', 'manual', 'none'].includes(resolvedMode)) {
       resolvedMode = isManualT8
         ? 'manual'
@@ -4099,10 +4100,12 @@ const displayCycles = [...cycles].sort((a, b) => {
   ]);
 
   const fertilityStartConfig = useMemo(
-    () => ({
-      calculators: {
+    () => mergeFertilityStartConfig({
+      incoming: {
+        calculators: {
         cpm: cpmSelection !== 'none',
         t8: t8Selection !== 'none',
+      },
       },
     }),
     [cpmSelection, t8Selection]
