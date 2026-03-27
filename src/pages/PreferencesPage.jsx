@@ -47,15 +47,50 @@ const SettingsToggleRow = ({
       aria-checked={checked}
       disabled={disabled}
       onClick={handleToggle}
-      className={`flex w-full items-center justify-between gap-3 rounded-2xl border border-rose-100/70 bg-white/50 px-4 py-3 text-left shadow-sm backdrop-blur-sm transition hover:bg-white/70 disabled:cursor-not-allowed disabled:opacity-60 ${className}`}
+      className={`flex w-full items-center justify-between gap-3 rounded-xl border border-rose-100/70 bg-white/50 px-3 py-2.5 text-left shadow-sm backdrop-blur-sm transition hover:bg-white/70 disabled:cursor-not-allowed disabled:opacity-60 ${className}`}
     >
       <div className="min-w-0">
-        <p className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+        <p className="flex items-center gap-2 text-sm font-medium text-slate-700">
           {Icon ? <Icon className="h-4 w-4 text-rose-500" aria-hidden="true" /> : null}
           <span>{title}</span>
         </p>
         {description ? <p className="mt-1 text-xs text-slate-500">{description}</p> : null}
       </div>
+
+      <span
+        className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${checked ? 'bg-rose-400' : 'bg-slate-300'}`}
+        aria-hidden="true"
+      >
+        <span
+          className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition ${checked ? 'translate-x-5' : 'translate-x-0.5'}`}
+        />
+      </span>
+    </button>
+  );
+};
+const InlineSwitchRow = ({
+  title,
+  checked,
+  onChange,
+  disabled = false,
+  id,
+}) => {
+  const handleToggle = () => {
+    if (disabled) return;
+    onChange(!checked);
+  };
+
+  return (
+    <button
+      id={id}
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={handleToggle}
+      className="flex w-full items-center justify-between gap-3 rounded-none bg-transparent px-0 py-1 text-left transition disabled:cursor-not-allowed disabled:opacity-60"
+    >
+      <p className="text-sm font-medium text-slate-700">{title}</p>
 
       <span
         className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${checked ? 'bg-rose-400' : 'bg-slate-300'}`}
@@ -94,55 +129,54 @@ const CalculatorPreferenceBlock = ({
       : secondaryValue;
 
   return (
-    <div className="rounded-2xl border border-rose-100/70 bg-white/50 p-3 shadow-sm backdrop-blur-sm">
+    <div className="rounded-2xl border border-rose-100/70 bg-white/45 p-3 shadow-sm backdrop-blur-sm">
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-sm font-semibold text-slate-700">{title}</h3>
 
         <Button
-  type="button"
-  variant="ghost"
-  size="icon"
-  onClick={onEdit}
-  aria-label={editAriaLabel}
-  className="h-8 w-8 rounded-full text-rose-600 hover:bg-rose-100 hover:text-rose-700"
-  title="Editar"
->
-  <Pencil className="h-3.5 w-3.5" />
-</Button>
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={onEdit}
+          aria-label={editAriaLabel}
+          className="h-8 w-8 rounded-full text-rose-600 hover:bg-rose-100 hover:text-rose-700"
+          title="Editar"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </Button>
       </div>
 
-      <div className="mt-1 grid grid-cols-2 overflow-hidden rounded-2xl border border-rose-100/70 bg-white/75">
-        <div className="px-4 py-2">
+      <div className="mt-1 grid grid-cols-2 gap-2">
+        <div className="rounded-xl border border-rose-100/70 bg-white/75 px-3 py-2">
           <p className="text-[11px] font-medium text-slate-500">{primaryLabel}</p>
-          <p className="mt-1 text-xl font-semibold leading-none text-rose-700">
+          <p className="mt-1 text-lg font-semibold leading-none tabular-nums text-rose-700">
             {displayPrimaryValue}
           </p>
         </div>
 
-        <div className="border-l border-rose-100/80 px-4 py-2">
-          <p className="text-[11px] font-medium text-slate-500">{secondaryLabel}</p>
-          <div className="mt-0 flex items-end gap-2">
-            <p className="text-xl font-semibold leading-none text-rose-700">
-              {displaySecondaryValue}
-            </p>
-
+        <div className="rounded-xl border border-rose-100/70 bg-white/75 px-3 py-2">
+          <div className="flex items-center gap-2">
+            <p className="text-[11px] font-medium text-slate-500">{secondaryLabel}</p>
             {secondaryModeLabel ? (
               <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-semibold uppercase text-rose-600">
                 {secondaryModeLabel}
               </span>
             ) : null}
           </div>
+
+          <p className="mt-1 text-lg font-semibold leading-none tabular-nums text-rose-700">
+            {displaySecondaryValue}
+          </p>
         </div>
       </div>
 
-      <div className="mt-2">
-        <SettingsToggleRow
+      <div className="mt-2 border-t border-rose-100/70 pt-2">
+        <InlineSwitchRow
           id={toggleId}
           title={toggleTitle}
           checked={toggleChecked}
           onChange={onToggle}
           disabled={disabled}
-          className="bg-white/70"
         />
       </div>
     </div>
@@ -375,51 +409,45 @@ const handleClearPreferredTime = useCallback(async () => {
         <section>
   <SectionHeader icon={Clock3} title="Registro" />
 
-  <div className="rounded-2xl border border-rose-100/70 bg-white/45 p-3 shadow-sm backdrop-blur-sm">
-    <div className="rounded-2xl border border-rose-100/70 bg-white/65 px-4 py-2.5">
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0 flex-1 pr-2">
-          <p className="text-sm font-semibold leading-tight text-slate-700">
-            Hora de toma de temperatura
-          </p>
-        </div>
+  <div className="rounded-2xl border border-rose-100/70 bg-white/50 p-3 shadow-sm backdrop-blur-sm">
+    <div className="flex items-center justify-between gap-3">
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold text-slate-700">
+          Hora de toma de temperatura
+        </p>
+      </div>
 
-        <div className="flex w-[104px] shrink-0 flex-col items-end gap-1">
-          <span className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-full border border-rose-200/80 bg-white/90 px-3 text-sm font-semibold tabular-nums text-rose-700">
-            <Clock3 className="h-4 w-4 shrink-0 text-rose-500" aria-hidden="true" />
-            <span>{uiPreferences.preferredTemperatureTime || '--:--'}</span>
-          </span>
+      <div className="flex items-center gap-2">
+        <span className="inline-flex h-9 min-w-[96px] items-center justify-center gap-2 rounded-full border border-rose-100/70 bg-white/85 px-3 text-sm font-semibold tabular-nums text-rose-700">
+          <Clock3 className="h-4 w-4 shrink-0 text-rose-500" aria-hidden="true" />
+          <span>{uiPreferences.preferredTemperatureTime || '--:--'}</span>
+        </span>
 
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={openPreferredTimeEditor}
-            disabled={Boolean(savingKeys.preferredTemperatureTime)}
-            className="h-6 w-6 rounded-full text-rose-600 hover:bg-rose-100 hover:text-rose-700"
-            aria-label="Editar hora de toma de temperatura"
-            title="Editar hora"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-          </Button>
-        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={openPreferredTimeEditor}
+          disabled={Boolean(savingKeys.preferredTemperatureTime)}
+          className="h-8 w-8 rounded-full text-rose-600 hover:bg-rose-100 hover:text-rose-700"
+          aria-label="Editar hora de toma de temperatura"
+          title="Editar hora"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </Button>
       </div>
     </div>
 
     {isPreferredTimeEditorOpen && (
-      <div className="mt-2 rounded-2xl border border-rose-100/70 bg-white/55 p-3">
-        <p className="text-xs text-slate-500">
-          Añade una hora de toma de temperatura predeterminada
-        </p>
-
-        <div className="mt-3 flex flex-wrap items-center gap-2">
+      <div className="mt-3 border-t border-rose-100/70 pt-3">
+        <div className="grid grid-cols-[110px_auto_auto_auto] items-center gap-2">
           <Input
             id="preferred-time"
             type="time"
             value={preferredTimeDraft}
             onChange={(event) => setPreferredTimeDraft(event.target.value)}
             disabled={Boolean(savingKeys.preferredTemperatureTime)}
-            className="h-9 min-w-[150px] flex-1 rounded-2xl border-rose-200 bg-white/90 text-sm font-semibold text-slate-700"
+            className="h-8 min-w-0 rounded-xl border-rose-200 bg-white/90 px-3 text-sm font-semibold text-slate-700"
             aria-label="Hora de toma de temperatura"
           />
 
@@ -427,7 +455,7 @@ const handleClearPreferredTime = useCallback(async () => {
             type="button"
             onClick={handleSavePreferredTime}
             disabled={Boolean(savingKeys.preferredTemperatureTime) || !preferredTimeDraft}
-            className="h-9 rounded-full bg-rose-600 px-4 text-xs font-semibold text-white hover:bg-rose-700"
+            className="h-8 rounded-full bg-rose-600 px-3 text-[11px] font-semibold text-white hover:bg-rose-700"
           >
             Guardar
           </Button>
@@ -437,23 +465,25 @@ const handleClearPreferredTime = useCallback(async () => {
             variant="ghost"
             onClick={closePreferredTimeEditor}
             disabled={Boolean(savingKeys.preferredTemperatureTime)}
-            className="h-9 rounded-full px-3 text-xs font-semibold text-rose-700 hover:bg-rose-100"
+            className="h-8 rounded-full px-3 text-[11px] font-semibold text-rose-700 hover:bg-rose-100"
           >
             Cancelar
           </Button>
 
-          {Boolean(uiPreferences.preferredTemperatureTime) && (
+          {Boolean(uiPreferences.preferredTemperatureTime) ? (
             <Button
               type="button"
               variant="ghost"
               onClick={handleClearPreferredTime}
               disabled={Boolean(savingKeys.preferredTemperatureTime)}
-              className="h-9 w-9 rounded-full p-0 text-rose-600 hover:bg-rose-100 hover:text-rose-700"
+              className="h-8 w-8 rounded-full p-0 text-rose-600 hover:bg-rose-100 hover:text-rose-700"
               aria-label="Eliminar hora preferida"
               title="Eliminar hora preferida"
             >
               <Trash2 className="h-4 w-4" />
             </Button>
+          ) : (
+            <div className="h-8 w-8" />
           )}
         </div>
 
@@ -465,7 +495,7 @@ const handleClearPreferredTime = useCallback(async () => {
   </div>
 </section>
 
-        <section>
+    <section>
   <SectionHeader icon={Calculator} title="Cálculo" />
 
   <div className="space-y-3">
@@ -510,21 +540,21 @@ const handleClearPreferredTime = useCallback(async () => {
       <section>
           <SectionHeader icon={LineChart} title="Gráfica" />
           <SettingsToggleRow
-            title="Fila RS"
-            description="Mostrar relaciones en la gráfica"
-            icon={Heart}
-            checked={Boolean(uiPreferences.showRelationsRow)}
-            onChange={(checked) =>
-              handleSimpleFieldChange({
-                key: 'showRelationsRow',
-                value: checked,
-                successTitle: 'Preferencia guardada',
-                errorTitle: 'No se pudo actualizar la gráfica',
-              })
-            }
-            disabled={Boolean(savingKeys.showRelationsRow)}
-            id="toggle-show-rs-row"
-          />
+  title="Fila RS"
+  description="Mostrar relaciones en la gráfica"
+  icon={Heart}
+  checked={Boolean(uiPreferences.showRelationsRow)}
+  onChange={(checked) =>
+    handleSimpleFieldChange({
+      key: 'showRelationsRow',
+      value: checked,
+      successTitle: 'Preferencia guardada',
+      errorTitle: 'No se pudo actualizar la gráfica',
+    })
+  }
+  disabled={Boolean(savingKeys.showRelationsRow)}
+  id="toggle-show-rs-row"
+/>
         </section>
       </div>
 

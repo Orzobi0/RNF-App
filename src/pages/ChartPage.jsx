@@ -10,7 +10,7 @@ import FertilityChart from '@/components/FertilityChart';
 import { useCycleData } from '@/hooks/useCycleData';
 import { differenceInDays, format, parseISO, startOfDay } from 'date-fns';
 import generatePlaceholders from '@/lib/generatePlaceholders';
-import { Baby, X } from 'lucide-react';
+import { Baby, Heart, X } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import DataEntryForm from '@/components/DataEntryForm';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
@@ -707,7 +707,7 @@ const rotatedDrawerStyle = applyRotation
                     Mostrar fila RS
                   </Label>
                   <p className="text-xs text-slate-500 mt-1">
-                    Añade una fila dedicada a las relaciones sexuales debajo de la gráfica.
+                    Añade una fila para visualizar las relaciones sexuales.
                   </p>                 
                 </div>
                 <Checkbox
@@ -729,7 +729,7 @@ const rotatedDrawerStyle = applyRotation
       </div>
 
       <p className="mt-1 text-xs leading-relaxed text-slate-500">
-        Esta configuración se guardará solo para este ciclo.
+        Indica si este ciclo es postparto. Se aplicarán sus reglas correspondientes
       </p>
     </div>
 
@@ -743,9 +743,9 @@ const rotatedDrawerStyle = applyRotation
 
               <div className="rounded-2xl border border-amber-100/70 bg-amber-50/40 p-4 space-y-3">
                 <div>
-                  <h3 className="text-sm font-semibold text-slate-700">Calculadoras complementarias</h3>
+                  <h3 className="text-sm font-semibold text-slate-700">Cálculo</h3>
                   <p className="text-xs text-slate-500">
-                    CPM y T-8 se combinan con los perfiles activos, salvo que actives el modo posparto.
+                    CPM y T-8 se utilizan para el cálculo de inicio de fertilidad, salvo que actives el modo posparto.
                   </p>
                 </div>
                 {cyclePostpartumMode && (
