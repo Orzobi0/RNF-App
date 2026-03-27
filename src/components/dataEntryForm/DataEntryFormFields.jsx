@@ -930,7 +930,7 @@ useEffect(() => {
 
     <Button
       type="button"
-      size="xs"
+      size="icon"
       variant="outline"
       disabled={isProcessing}
       onClick={() => {
@@ -941,12 +941,12 @@ useEffect(() => {
         }
       }}
       className={cn(
-        'h-9 min-w-0 rounded-full px-1 text-[11px] font-semibold',
+        'h-9 w-9 rounded-full ml-3 text-[11px] font-semibold shadow-md',
         hasPreferredTime
           ? isPreferredApplied
             ? 'border-emerald-500 bg-emerald-500 text-white hover:bg-emerald-600'
             : 'border-amber-200 bg-white/80 text-amber-800 hover:bg-amber-50'
-          : 'border-amber-200 border-dashed bg-white/70 text-slate-400 hover:bg-amber-50'
+          : 'border-slate-200 border-dashed bg-slate-200/70 text-slate-400 hover:bg-amber-50'
       )}
     >
       <span className="truncate">{hasPreferredTime ? preferredTemperatureTime : '--:--'}</span>
