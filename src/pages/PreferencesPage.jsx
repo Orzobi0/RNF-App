@@ -1,10 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ChevronLeft, SlidersHorizontal } from 'lucide-react';
+import { Calculator, ChevronLeft, Clock3, Heart, LineChart, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCycleData } from '@/hooks/useCycleData';
@@ -12,106 +10,477 @@ import { useFertilityCalculatorsEditor } from '@/hooks/useFertilityCalculatorsEd
 import FertilityCalculatorsEditorDialogs from '@/components/FertilityCalculatorsEditorDialogs';
 import {
   PREFERENCE_DEFAULTS,
-  PREFERENCES_UI_FIELDS,
-  buildPreferencesDiff,
   mergeFertilityStartConfig,
   normalizeStoredPreferences,
   validatePreferenceField,
-  validatePreferences,
 } from '@/lib/preferences';
+
+const SECTION_TITLE_CLASS = 'mb-3 flex items-center gap-2 text-base font-semibold tracking-tight text-rose-700';
+
+const SectionHeader = ({ icon: Icon, title }) => (
+  <h2 className={SECTION_TITLE_CLASS}>
+    {Icon ? <Icon className="h-4 w-4 text-rose-500" aria-hidden="true" /> : null}
+    {title}
+  </h2>
+);
+
+const SettingsToggleRow = ({
+  title,
+  description,
+  checked,
+  onChange,
+  disabled = false,
+  className = '',
+  icon: Icon,
+  id,
+}) => {
+  const handleToggle = () => {
+    if (disabled) return;
+    onChange(!checked);
+  };
+
+  return (
+    <button
+      id={id}
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={handleToggle}
+      className={`flex w-full items-center justify-between gap-3 rounded-2xl border border-rose-100/70 bg-white/50 px-4 py-3 text-left shadow-sm backdrop-blur-sm transition hover:bg-white/70 disabled:cursor-not-allowed disabled:opacity-60 ${className}`}
+    >
+      <div className="min-w-0">
+        <p className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+          {Icon ? <Icon className="h-4 w-4 text-rose-500" aria-hidden="true" /> : null}
+          <span>{title}</span>
+        </p>
+        {description ? <p className="mt-1 text-xs text-slate-500">{description}</p> : null}
+      </div>
+
+      <span
+        className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${checked ? 'bg-rose-400' : 'bg-slate-300'}`}
+        aria-hidden="true"
+      >
+        <span
+          className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition ${checked ? 'translate-x-5' : 'translate-x-0.5'}`}
+        />
+      </span>
+    </button>
+  );
+};
 
 const PreferencesPage = () => {
   const navigate = useNavigate();
   const { preferences, savePreferences } = useAuth();
   const { currentCycle, archivedCycles, setCycleIgnoreForAutoCalculations } = useCycleData();
   const { toast } = useToast();
-  const normalizedPreferences = useMemo(() => normalizeStoredPreferences(preferences ?? PREFERENCE_DEFAULTS), [preferences]);
-  const [draft, setDraft] = useState(normalizedPreferences);
-  const [errors, setErrors] = useState({});
-  const [isSaving, setIsSaving] = useState(false);
+  
+  const normalizedPreferences = useMemo(
+    () => normalizeStoredPreferences(preferences ?? PREFERENCE_DEFAULTS),
+    [preferences],
+  );
 
-  const calculatorEditor = useFertilityCalculatorsEditor({ currentCycle, archivedCycles, setCycleIgnoreForAutoCalculations, toast });
+  const [uiPreferences, setUiPreferences] = useState(normalizedPreferences);
+  const [errors, setErrors] = useState({});
+  const [savingKeys, setSavingKeys] = useState({});
+  const [isPreferredTimeEditorOpen, setIsPreferredTimeEditorOpen] = useState(false);
+  const [preferredTimeDraft, setPreferredTimeDraft] = useState(normalizedPreferences.preferredTemperatureTime || '');
+  const lastToastAtRef = useRef({});
+
+  const calculatorEditor = useFertilityCalculatorsEditor({
+    currentCycle,
+    archivedCycles,
+    setCycleIgnoreForAutoCalculations,
+    toast,
+  });
 
   useEffect(() => {
-    setDraft(normalizedPreferences);
-    setErrors({});
-  }, [normalizedPreferences]);
+  setUiPreferences(normalizedPreferences);
+  setPreferredTimeDraft(normalizedPreferences.preferredTemperatureTime || '');
+  setIsPreferredTimeEditorOpen(false);
+  setErrors({});
+}, [normalizedPreferences]);
 
-  const diff = useMemo(() => buildPreferencesDiff(normalizedPreferences, draft, PREFERENCES_UI_FIELDS), [draft, normalizedPreferences]);
-  const hasChanges = Object.keys(diff).length > 0;
+  const maybeToastSaved = useCallback(
+    (toastKey, title) => {
+      const now = Date.now();
+      const last = lastToastAtRef.current[toastKey] ?? 0;
+      if (now - last < 900) return;
+      lastToastAtRef.current[toastKey] = now;
+      toast({ title });
+    },
+    [toast],
+  );
 
-  const updateField = (key, value) => {
-    setDraft((prev) => ({ ...prev, [key]: value }));
-    setErrors((prev) => {
-      const next = { ...prev };
-      const error = validatePreferenceField(key, value, { ...draft, [key]: value });
-      if (error) next[key] = error; else delete next[key];
-      return next;
-    });
-  };
+  const persistPatch = useCallback(
+    async ({ key, patch, optimisticState, successTitle = 'Preferencia guardada', errorTitle = 'No se pudo guardar la preferencia' }) => {
+      if (!savePreferences) return;
 
-  const updateFertilityCalculator = (calculatorKey, checked) => {
-    const currentConfig = mergeFertilityStartConfig({ incoming: draft.fertilityStartConfig });
-    updateField('fertilityStartConfig', {
-      ...currentConfig,
-      calculators: { ...currentConfig.calculators, [calculatorKey]: checked === true },
-    });
-  };
+  setSavingKeys((prev) => ({ ...prev, [key]: true }));
+      const previous = uiPreferences;
+      setUiPreferences((prev) => ({ ...prev, ...optimisticState }));
 
-  const handleCancel = () => { setDraft(normalizedPreferences); setErrors({}); };
-  const handleSave = async () => {
-    const validationErrors = validatePreferences(draft);
-    setErrors(validationErrors);
-    if (Object.keys(validationErrors).length > 0 || !hasChanges) return;
-    setIsSaving(true);
-    try { await savePreferences(diff); toast({ title: 'Preferencias guardadas' }); }
-    catch (error) { toast({ title: 'No se pudieron guardar las preferencias', description: error?.message || 'Inténtalo de nuevo.', variant: 'destructive' }); }
-    finally { setIsSaving(false); }
-  };
+      try {
+        await savePreferences(patch);
+        maybeToastSaved(key, successTitle);
+      } catch (error) {
+        setUiPreferences(previous);
+        toast({
+          title: errorTitle,
+          description: error?.message || 'Inténtalo de nuevo.',
+          variant: 'destructive',
+        });
+      } finally {
+        setSavingKeys((prev) => ({ ...prev, [key]: false }));
+      }
+    },
+    [maybeToastSaved, savePreferences, toast, uiPreferences],
+  );
+
+  const handleSimpleFieldChange = useCallback(
+    async ({ key, value, successTitle, errorTitle }) => {
+      const validationError = validatePreferenceField(key, value, { ...uiPreferences, [key]: value });
+      setErrors((prev) => {
+        const next = { ...prev };
+        if (validationError) next[key] = validationError;
+        else delete next[key];
+        return next;
+      });
+      if (validationError) return;
+      if (normalizedPreferences[key] === value) return;
+
+      await persistPatch({
+        key,
+        patch: { [key]: value },
+        optimisticState: { [key]: value },
+        successTitle,
+        errorTitle,
+      });
+    },
+    [normalizedPreferences, persistPatch, uiPreferences],
+  );
+
+  const openPreferredTimeEditor = useCallback(() => {
+  setPreferredTimeDraft(uiPreferences.preferredTemperatureTime || '');
+  setErrors((prev) => {
+    const next = { ...prev };
+    delete next.preferredTemperatureTime;
+    return next;
+  });
+  setIsPreferredTimeEditorOpen(true);
+}, [uiPreferences.preferredTemperatureTime]);
+
+const closePreferredTimeEditor = useCallback(() => {
+  setPreferredTimeDraft(uiPreferences.preferredTemperatureTime || '');
+  setErrors((prev) => {
+    const next = { ...prev };
+    delete next.preferredTemperatureTime;
+    return next;
+  });
+  setIsPreferredTimeEditorOpen(false);
+}, [uiPreferences.preferredTemperatureTime]);
+
+const handleSavePreferredTime = useCallback(async () => {
+  const nextValue = preferredTimeDraft || '';
+
+  const validationError = validatePreferenceField('preferredTemperatureTime', nextValue, {
+    ...uiPreferences,
+    preferredTemperatureTime: nextValue,
+  });
+
+  setErrors((prev) => {
+    const next = { ...prev };
+    if (validationError) next.preferredTemperatureTime = validationError;
+    else delete next.preferredTemperatureTime;
+    return next;
+  });
+
+  if (validationError) return;
+
+  if (normalizedPreferences.preferredTemperatureTime === nextValue) {
+    setIsPreferredTimeEditorOpen(false);
+    return;
+  }
+
+  await persistPatch({
+    key: 'preferredTemperatureTime',
+    patch: { preferredTemperatureTime: nextValue },
+    optimisticState: { preferredTemperatureTime: nextValue },
+    successTitle: nextValue ? 'Hora actualizada' : 'Hora eliminada',
+    errorTitle: nextValue ? 'No se pudo actualizar la hora' : 'No se pudo eliminar la hora',
+  });
+
+  setIsPreferredTimeEditorOpen(false);
+}, [normalizedPreferences.preferredTemperatureTime, persistPatch, preferredTimeDraft, uiPreferences]);
+
+const handleClearPreferredTime = useCallback(async () => {
+  if (!uiPreferences.preferredTemperatureTime) {
+    setPreferredTimeDraft('');
+    return;
+  }
+
+  setPreferredTimeDraft('');
+  setErrors((prev) => {
+    const next = { ...prev };
+    delete next.preferredTemperatureTime;
+    return next;
+  });
+
+  await persistPatch({
+    key: 'preferredTemperatureTime',
+    patch: { preferredTemperatureTime: '' },
+    optimisticState: { preferredTemperatureTime: '' },
+    successTitle: 'Hora eliminada',
+    errorTitle: 'No se pudo eliminar la hora',
+  });
+
+  setIsPreferredTimeEditorOpen(false);
+}, [persistPatch, uiPreferences.preferredTemperatureTime]);
+
+  const handleFertilityCalculatorToggle = useCallback(
+    async (calculatorKey, checked) => {
+      const nextConfig = mergeFertilityStartConfig({
+        incoming: {
+          ...uiPreferences.fertilityStartConfig,
+          calculators: {
+            ...uiPreferences.fertilityStartConfig?.calculators,
+            [calculatorKey]: checked,
+          },
+        },
+      });
+
+      const validationError = validatePreferenceField('fertilityStartConfig', nextConfig, {
+        ...uiPreferences,
+        fertilityStartConfig: nextConfig,
+      });
+
+      if (validationError) {
+        setErrors((prev) => ({ ...prev, fertilityStartConfig: validationError }));
+        return;
+      }
+
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next.fertilityStartConfig;
+        return next;
+      });
+
+      if (JSON.stringify(normalizedPreferences.fertilityStartConfig) === JSON.stringify(nextConfig)) return;
+
+      await persistPatch({
+        key: 'fertilityStartConfig',
+        patch: { fertilityStartConfig: nextConfig },
+        optimisticState: { fertilityStartConfig: nextConfig },
+        successTitle: 'Configuración actualizada',
+        errorTitle: 'No se pudo actualizar la configuración',
+      });
+    },
+    [normalizedPreferences.fertilityStartConfig, persistPatch, uiPreferences],
+  );
 
   return (
-    <div className="mx-auto w-full max-w-2xl px-4 py-6 pb-24">
-      <div className="mb-4 flex items-center gap-2">
-        <Button asChild variant="ghost" size="icon"><Link to="/settings" aria-label="Volver a ajustes"><ChevronLeft className="h-5 w-5" /></Link></Button>
-        <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-700"><SlidersHorizontal className="h-6 w-6 text-fertiliapp-fuerte" />Preferencias</h1>
+    <div className="mx-auto w-full max-w-2xl px-4 py-6">
+      <div className="mb-6 flex items-center gap-2">
+        <Button asChild variant="ghost" size="icon">
+          <Link to="/settings" aria-label="Volver a ajustes">
+            <ChevronLeft className="h-5 w-5" />
+          </Link>
+        </Button>
+        <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-700">
+          <SlidersHorizontal className="h-6 w-6 text-fertiliapp-fuerte" />
+          Preferencias
+        </h1>
       </div>
 
-      <div className="space-y-4">
-        <section className="rounded-3xl bg-white/80 p-4 shadow">
-          <h2 className="text-base font-semibold text-slate-700">Registro</h2>
-          <div className="mt-3 space-y-2"><Label htmlFor="preferred-time">Hora preferida de temperatura</Label><Input id="preferred-time" type="time" value={draft.preferredTemperatureTime || ''} onChange={(event) => updateField('preferredTemperatureTime', event.target.value)} />{errors.preferredTemperatureTime && <p className="text-xs text-red-500">{errors.preferredTemperatureTime}</p>}</div>
-        </section>
+      <div className="space-y-6">
+        <section>
+  <SectionHeader icon={Clock3} title="Registro" />
 
-        <section className="rounded-3xl bg-white/80 p-4 shadow">
-          <h2 className="text-base font-semibold text-slate-700">Cálculo (CPM / T-8)</h2>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <button type="button" onClick={calculatorEditor.handleOpenCpmDialog} className="rounded-xl border border-slate-200 bg-white p-3 text-left">
-              <p className="text-xs text-slate-500">CPM</p>
-              <p className="text-lg font-semibold text-slate-800">{calculatorEditor.cpmMetric?.finalFormatted ?? '—'}</p>
-            </button>
-            <button type="button" onClick={calculatorEditor.handleOpenT8Dialog} className="rounded-xl border border-slate-200 bg-white p-3 text-left">
-              <p className="text-xs text-slate-500">T-8</p>
-              <p className="text-lg font-semibold text-slate-800">{calculatorEditor.t8Metric?.finalFormatted ?? '—'}</p>
-            </button>
+  <div className="rounded-[28px] border border-rose-100/70 bg-white/40 p-4 shadow-sm backdrop-blur-sm">
+    <div className="rounded-2xl border border-white/80 bg-white/60 px-4 py-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-slate-700">Hora preferida de temperatura</p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center gap-2 rounded-full border border-rose-200/80 bg-white/85 px-3 py-1.5 text-sm font-semibold text-rose-700">
+            <Clock3 className="h-4 w-4 text-rose-500" aria-hidden="true" />
+            {uiPreferences.preferredTemperatureTime || 'Sin hora'}
+          </span>
+
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={openPreferredTimeEditor}
+            disabled={Boolean(savingKeys.preferredTemperatureTime)}
+            className="h-9 rounded-full px-3 text-xs font-semibold text-rose-700 hover:bg-rose-100"
+          >
+            {isPreferredTimeEditorOpen ? 'Editando' : uiPreferences.preferredTemperatureTime ? 'Cambiar' : 'Añadir'}
+          </Button>
+        </div>
+      </div>
+    </div>
+
+    {isPreferredTimeEditorOpen && (
+      <div className="mt-3 rounded-2xl border border-rose-200/70 bg-rose-50/70 p-3">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-rose-700">
+          Hora preferida global
+        </p>
+        <p className="mt-1 text-xs text-slate-500">
+          Aquí puedes ajustar esta preferencia y dejar espacio para más opciones relacionadas después.
+        </p>
+
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <Input
+            id="preferred-time"
+            type="time"
+            value={preferredTimeDraft}
+            onChange={(event) => setPreferredTimeDraft(event.target.value)}
+            disabled={Boolean(savingKeys.preferredTemperatureTime)}
+            className="h-9 min-w-[150px] flex-1 rounded-xl border-rose-200 bg-white/90 text-sm font-semibold text-slate-700"
+            aria-label="Hora preferida de temperatura"
+          />
+
+          <Button
+            type="button"
+            onClick={handleSavePreferredTime}
+            disabled={Boolean(savingKeys.preferredTemperatureTime) || !preferredTimeDraft}
+            className="h-9 rounded-full bg-rose-600 px-4 text-xs font-semibold text-white hover:bg-rose-700"
+          >
+            Guardar
+          </Button>
+
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={closePreferredTimeEditor}
+            disabled={Boolean(savingKeys.preferredTemperatureTime)}
+            className="h-9 rounded-full px-3 text-xs font-semibold text-rose-700 hover:bg-rose-100"
+          >
+            Cancelar
+          </Button>
+
+          {Boolean(uiPreferences.preferredTemperatureTime) && (
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={handleClearPreferredTime}
+              disabled={Boolean(savingKeys.preferredTemperatureTime)}
+              className="h-9 w-9 rounded-full p-0 text-rose-600 hover:bg-rose-100 hover:text-rose-700"
+              aria-label="Eliminar hora preferida"
+              title="Eliminar hora preferida"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+
+        {errors.preferredTemperatureTime ? (
+          <p className="mt-2 text-xs text-red-500">{errors.preferredTemperatureTime}</p>
+        ) : null}
+      </div>
+    )}
+  </div>
+</section>
+
+        <section>
+          <SectionHeader icon={Calculator} title="Cálculo" />
+          <div className="space-y-3 rounded-[28px] border border-rose-100/70 bg-white/40 p-4 shadow-sm backdrop-blur-sm">
+            <div className="grid grid-cols-2 gap-2 rounded-2xl border border-white/70 bg-white/45 p-2">
+              <button
+                type="button"
+                onClick={calculatorEditor.handleOpenCpmDialog}
+                aria-label="Editar CPM (Ciclo más corto)"
+                className="flex flex-col items-center gap-1 rounded-xl border border-rose-100/70 bg-white/60 px-2 py-2 transition hover:bg-white/75"
+              >
+                <span className="text-[11px] font-medium text-slate-600">Ciclo más corto</span>
+                <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-rose-200 bg-white/80 text-base font-bold text-rose-700">
+                  {calculatorEditor.cpmMetric?.baseFormatted ?? '—'}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={calculatorEditor.handleOpenCpmDialog}
+                aria-label="Editar CPM"
+                className="flex flex-col items-center gap-1 rounded-xl border border-rose-100/70 bg-white/60 px-2 py-2 transition hover:bg-white/75"
+              >
+                <span className="text-[11px] font-medium text-slate-600">CPM</span>
+                <span className="relative inline-flex h-10 w-10 items-center justify-center rounded-full border border-rose-200 bg-white/95 text-sm font-semibold text-rose-700">
+                  {calculatorEditor.cpmMetric?.finalFormatted ?? '—'}
+                </span>
+                <span className="text-[9px] font-semibold uppercase text-rose-500">{calculatorEditor.cpmMetric?.modeLabel ?? 'Auto'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={calculatorEditor.handleOpenT8Dialog}
+                aria-label="Editar T-8 (Día de subida)"
+                className="flex flex-col items-center gap-1 rounded-xl border border-rose-100/70 bg-white/60 px-2 py-2 transition hover:bg-white/75"
+              >
+                <span className="text-[11px] font-medium text-slate-600">Día de subida</span>
+                <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-rose-200 bg-white/80 text-base font-bold text-rose-700">
+                  {calculatorEditor.t8Metric?.baseFormatted ?? '—'}
+                </span>
+              </button>
+
+         <button
+                type="button"
+                onClick={calculatorEditor.handleOpenT8Dialog}
+                aria-label="Editar T-8"
+                className="flex flex-col items-center gap-1 rounded-xl border border-rose-100/70 bg-white/60 px-2 py-2 transition hover:bg-white/75"
+              >
+                <span className="text-[11px] font-medium text-slate-600">T-8</span>
+                <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-rose-200 bg-white/95 text-sm font-semibold text-rose-700">
+                  {calculatorEditor.t8Metric?.finalFormatted ?? '—'}
+                </span>
+                <span className="text-[9px] font-semibold uppercase text-rose-500">{calculatorEditor.t8Metric?.modeLabel ?? 'Auto'}</span>
+              </button>
+            </div>
+
+            <div className="space-y-2 pt-1">
+              <SettingsToggleRow
+                title="Usar CPM para inicio de fertilidad"
+                checked={Boolean(uiPreferences.fertilityStartConfig?.calculators?.cpm)}
+                onChange={(checked) => handleFertilityCalculatorToggle('cpm', checked)}
+                disabled={Boolean(savingKeys.fertilityStartConfig)}
+                id="toggle-use-cpm"
+              />
+              <SettingsToggleRow
+                title="Usar T-8 para inicio de fertilidad"
+                checked={Boolean(uiPreferences.fertilityStartConfig?.calculators?.t8)}
+                onChange={(checked) => handleFertilityCalculatorToggle('t8', checked)}
+                disabled={Boolean(savingKeys.fertilityStartConfig)}
+                id="toggle-use-t8"
+              />
+            </div>
+            {errors.fertilityStartConfig ? (
+              <p className="text-xs text-red-500">{errors.fertilityStartConfig}</p>
+            ) : null}
           </div>
         </section>
 
-        <section className="rounded-3xl bg-white/80 p-4 shadow">
-          <h2 className="text-base font-semibold text-slate-700">Visualización del gráfico</h2>
-          <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-slate-200 p-3"><div><p className="font-medium text-slate-700">Mostrar fila de relaciones</p></div><Checkbox checked={Boolean(draft.showRelationsRow)} onCheckedChange={(checked) => updateField('showRelationsRow', checked === true)} /></div>
-        </section>
-
-        <section className="rounded-3xl bg-white/80 p-4 shadow">
-          <h2 className="text-base font-semibold text-slate-700">Inicio de fertilidad</h2>
-          <div className="mt-3 space-y-3">
-            <div className="flex items-center justify-between rounded-xl border border-slate-200 p-3"><Label htmlFor="pref-calc-cpm">Usar CPM</Label><Checkbox id="pref-calc-cpm" checked={Boolean(draft.fertilityStartConfig?.calculators?.cpm)} onCheckedChange={(checked) => updateFertilityCalculator('cpm', checked)} /></div>
-            <div className="flex items-center justify-between rounded-xl border border-slate-200 p-3"><Label htmlFor="pref-calc-t8">Usar T-8</Label><Checkbox id="pref-calc-t8" checked={Boolean(draft.fertilityStartConfig?.calculators?.t8)} onCheckedChange={(checked) => updateFertilityCalculator('t8', checked)} /></div>
-            {errors.fertilityStartConfig && <p className="text-xs text-red-500">{errors.fertilityStartConfig}</p>}
-          </div>
+      <section>
+          <SectionHeader icon={LineChart} title="Gráfica" />
+          <SettingsToggleRow
+            title="Fila RS"
+            description="Mostrar relaciones en la gráfica"
+            icon={Heart}
+            checked={Boolean(uiPreferences.showRelationsRow)}
+            onChange={(checked) =>
+              handleSimpleFieldChange({
+                key: 'showRelationsRow',
+                value: checked,
+                successTitle: 'Preferencia guardada',
+                errorTitle: 'No se pudo actualizar la gráfica',
+              })
+            }
+            disabled={Boolean(savingKeys.showRelationsRow)}
+            id="toggle-show-rs-row"
+          />
         </section>
       </div>
-
-      <div className="sticky bottom-0 mt-6 flex gap-2 bg-gradient-to-t from-pink-50 to-transparent py-3"><Button variant="outline" className="flex-1" onClick={handleCancel}>Cancelar</Button><Button className="flex-1" disabled={!hasChanges || isSaving} onClick={handleSave}>Guardar cambios</Button></div>
 
       <FertilityCalculatorsEditorDialogs
         editor={calculatorEditor}
