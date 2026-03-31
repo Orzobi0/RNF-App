@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { SlidersHorizontal, User } from 'lucide-react';
+import { Bolt, ChevronRight, User } from 'lucide-react';
 import { App } from '@capacitor/app';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
@@ -15,7 +15,7 @@ import InstallPrompt from '@/components/InstallPrompt';
 import { ensureHealthConnectPermissions } from '@/lib/healthConnectSync';
 import { useHealthConnect } from '@/contexts/HealthConnectContext.jsx';
 import { cn } from '@/lib/utils';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 import {
   Dialog,
@@ -344,7 +344,6 @@ const SettingsPage = () => {
           
           <div className="bg-white/80 backdrop-blur p-4 rounded-3xl shadow flex items-center justify-between">
             <div>
-              <p className="text-sm text-slate-500">Exportar datos</p>
               <p className="font-medium text-slate-700">
                 Descarga tus ciclos
               </p>
@@ -354,17 +353,19 @@ const SettingsPage = () => {
             </Button>
           </div>
 
-          <div className="bg-white/80 backdrop-blur p-4 rounded-3xl shadow flex items-center justify-between">
-            <div>
-              <p className="font-medium text-slate-700">
-                Preferencias
-              </p>
-            </div>
-            <Button onClick={() => navigate('/settings/preferences')} className="ml-4 gap-2">
-              <SlidersHorizontal className="h-4 w-4" />
-              Abrir
-            </Button>
-          </div>
+          <Button
+            asChild
+            variant="ghost"
+            className="h-auto w-full justify-between rounded-3xl bg-white/80 p-4 shadow backdrop-blur hover:bg-white/90"
+          >
+            <Link to="/settings/preferences" aria-label="Abrir preferencias">
+              <span className="inline-flex items-center gap-2 font-medium text-base text-slate-700">
+                <Bolt className="h-5 w-5 shrink-0 text-fertiliapp-fuerte" />
+                <span>Preferencias</span>
+              </span>
+              <ChevronRight className="h-5 w-5 shrink-0 text-slate-400" />
+            </Link>
+          </Button>
           
           {isAndroidApp && (
             <div className="bg-white/50 backdrop-blur p-4 rounded-3xl shadow flex items-center justify-between gap-4">

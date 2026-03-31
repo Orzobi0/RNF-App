@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Calculator, ChevronLeft, Clock3, Heart, LineChart, Pencil, SlidersHorizontal, Trash2 } from 'lucide-react';
+import { Calculator, ChevronLeft, Clock3, Heart, LineChart, Pencil, Bolt, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
@@ -400,7 +400,7 @@ const handleClearPreferredTime = useCallback(async () => {
           </Link>
         </Button>
         <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-700">
-          <SlidersHorizontal className="h-6 w-6 text-fertiliapp-fuerte" />
+          <Bolt className="h-6 w-6 text-fertiliapp-fuerte" />
           Preferencias
         </h1>
       </div>
