@@ -10,14 +10,13 @@ import FertilityChart from '@/components/FertilityChart';
 import { useCycleData } from '@/hooks/useCycleData';
 import { differenceInDays, format, parseISO, startOfDay } from 'date-fns';
 import generatePlaceholders from '@/lib/generatePlaceholders';
-import { Baby, Heart, X } from 'lucide-react';
+import { Baby, Check, Heart, X } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import DataEntryForm from '@/components/DataEntryForm';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import NewCycleDialog from '@/components/NewCycleDialog';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from '@/components/ui/label';
+import { useToast } from '@/components/ui/use-toast';
 import {
   computeCpmCandidateFromCycles,
   computeT8CandidateFromCycles,
@@ -55,6 +54,74 @@ const FERTILITY_CALCULATOR_OPTIONS = [
   { key: 'cpm', label: 'CPM' },
   { key: 't8', label: 'T-8' },
 ];
+
+const Label = ({ htmlFor, className = '', children }) => (
+  <label htmlFor={htmlFor} className={className}>
+    {htmlFor === 'toggle-relations-row' ? (
+      <span className="flex items-center gap-2">
+        <Heart className="h-4 w-4 text-rose-400" aria-hidden="true" />
+        <span>{children}</span>
+      </span>
+    ) : (
+      children
+    )}
+  </label>
+);
+
+const Checkbox = ({
+  id,
+  checked,
+  onCheckedChange,
+  disabled = false,
+  className = '',
+  variant = 'check',
+}) => {
+  const handleToggle = () => {
+    if (disabled) return;
+    onCheckedChange?.(!checked);
+  };
+
+  if (variant === 'switch') {
+    return (
+      <button
+        id={id}
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        disabled={disabled}
+        onClick={handleToggle}
+        className={`relative inline-flex h-5 w-9 min-w-9 shrink-0 flex-none items-center rounded-full transition ${
+          checked ? 'bg-rose-400' : 'bg-slate-300'
+        } ${disabled ? 'cursor-not-allowed opacity-50' : ''} ${className}`}
+      >
+        <span
+          className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+            checked ? 'translate-x-4' : 'translate-x-0.5'
+          }`}
+        />
+      </button>
+    );
+  }
+
+  return (
+    <button
+      id={id}
+      type="button"
+      role="checkbox"
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={handleToggle}
+      className={`inline-flex h-5 w-5 min-w-5 shrink-0 items-center justify-center rounded-full border transition ${
+        checked
+          ? 'border-rose-400 bg-rose-400 text-white'
+          : 'border-rose-200 bg-white text-transparent'
+      } ${disabled ? 'cursor-not-allowed opacity-40' : ''} ${className}`}
+    >
+      <Check className="h-3.5 w-3.5" />
+    </button>
+  );
+};
+
 
 const ChartPage = () => {
   const { cycleId } = useParams();
@@ -132,6 +199,7 @@ const ChartPage = () => {
     : externalLoading || (isLoading && !archivedMatch && !fetchedCycle);
 
   const { preferences, savePreferences } = useAuth();
+  const { toast } = useToast();
   const manualCpmPreference = preferences?.manualCpm;
   const manualCpmBasePreference = preferences?.manualCpmBase;
   const manualT8Preference = preferences?.manualT8;
@@ -634,7 +702,7 @@ const rotatedDrawerStyle = applyRotation
       console.error('Error toggling ignore state:', error);
     }
   };
-  const handleRelationsSettingChange = (checked) => {
+  const handleRelationsSettingChange = async (checked) => {
     const nextValue = checked === true;
     setChartSettings((prev) => ({
       ...prev,
@@ -642,12 +710,22 @@ const rotatedDrawerStyle = applyRotation
     }));
     
     if (typeof savePreferences === 'function') {
-      savePreferences({ showRelationsRow: nextValue }).catch((error) => {
+      try {
+        await savePreferences({ showRelationsRow: nextValue });
+        toast({
+          title: nextValue ? 'Fila de relaciones activada' : 'Fila de relaciones oculta',
+        });
+      } catch (error) {
         console.error('Failed to persist relations row preference', error);
-      });
+        toast({
+          title: 'No se pudo actualizar la preferencia',
+          description: 'Inténtalo de nuevo.',
+          variant: 'destructive',
+        });
+      }
     }
   };
-  const handleFertilityCalculatorChange = (calculatorKey, checked) => {
+  const handleFertilityCalculatorChange = async (calculatorKey, checked) => {
     let nextConfig = null;
     setChartSettings((prev) => {
       const currentConfig = mergeFertilityStartConfig({ incoming: prev.fertilityStartConfig });
@@ -669,17 +747,40 @@ const rotatedDrawerStyle = applyRotation
     });
     
     if (nextConfig && typeof savePreferences === 'function') {
-      savePreferences({ fertilityStartConfig: nextConfig }).catch((error) => {
+      try {
+        await savePreferences({ fertilityStartConfig: nextConfig });
+        const calculatorLabel = calculatorKey === 'cpm' ? 'CPM' : 'T-8';
+        toast({
+          title: checked === true
+            ? `${calculatorLabel} activado para inicio de fertilidad`
+            : `${calculatorLabel} desactivado para inicio de fertilidad`,
+        });
+      } catch (error) {
         console.error('Failed to persist calculator preference', error);
-      });
+        toast({
+          title: 'No se pudo actualizar la preferencia',
+          description: 'Inténtalo de nuevo.',
+          variant: 'destructive',
+        });
+      }
     }
   };
   
-  const handlePostpartumChange = (checked) => {
+  const handlePostpartumChange = async (checked) => {
     if (!targetCycle?.id || typeof updateCyclePostpartumMode !== 'function') return;
-    updateCyclePostpartumMode(targetCycle.id, checked === true).catch((error) => {
+    try {
+      await updateCyclePostpartumMode(targetCycle.id, checked === true);
+      toast({
+        title: checked === true ? 'Modo postparto activado' : 'Modo postparto desactivado',
+      });
+    } catch (error) {
       console.error('Failed to persist postpartum mode for cycle', error);
-    });
+      toast({
+        title: 'No se pudo actualizar el modo postparto',
+        description: 'Inténtalo de nuevo.',
+        variant: 'destructive',
+      });
+    }
   };
   const settingsDrawerInner = (
         <div className="flex h-full min-h-0 flex-col gap-6 rounded-l-2xl border border-rose-100/60 bg-white p-6 pt-[calc(env(safe-area-inset-top)+24px)] shadow-xl">
@@ -701,51 +802,53 @@ const rotatedDrawerStyle = applyRotation
               </Button>
             </div>
             <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
-              <div className="rounded-2xl border border-pink-100/70 bg-pink-50/40 p-4 flex items-start justify-between gap-3">
-                <div className="max-w-xs">
-                  <Label htmlFor="toggle-relations-row" className="text-sm font-semibold text-slate-700">
-                    Mostrar relaciones
-                  </Label>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Añade una fila para visualizar las relaciones sexuales.
-                  </p>                 
-                </div>
-                <Checkbox
-                  id="toggle-relations-row"
-                  checked={chartSettings.showRelationsRow}
-                  onCheckedChange={handleRelationsSettingChange}
-                  className="mt-1"
-                />
-              </div>       
-              
-              <div className="rounded-2xl border border-red-100/70 bg-red-50/40 p-3">
-  <div className="flex items-start justify-between gap-3 pt-1">
-    <div className="max-w-[75%]">
-      <div className="flex items-center gap-2">
-        <span className="inline-flex items-center justify-center rounded-full border border-rose-200 bg-rose-50/90 p-1 text-rose-600">
-          <Baby className="h-3.5 w-3.5" aria-hidden="true" />
-        </span>
-        <p className="text-sm font-semibold text-slate-700">Modo postparto</p>
-      </div>
+              <div className="rounded-2xl border border-pink-100/70 bg-pink-50/40 p-4">
+  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2">
+    <Label htmlFor="toggle-relations-row" className="text-sm font-semibold text-slate-700">
+      Mostrar relaciones
+    </Label>
 
-      <p className="mt-1 text-xs leading-relaxed text-slate-500">
-        Si se activa, se aplicarán sus reglas correspondientes
-      </p>
+    <Checkbox
+      id="toggle-relations-row"
+      variant="switch"
+      checked={chartSettings.showRelationsRow}
+      onCheckedChange={handleRelationsSettingChange}
+      className="mt-0.5"
+    />
+
+    <p className="col-span-2 text-xs leading-relaxed text-slate-500">
+      Añade una fila para visualizar las relaciones sexuales.
+    </p>
+  </div>
+</div>
+              
+              <div className="rounded-2xl border border-red-100/70 bg-red-50/40 p-4">
+  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2">
+    <div className="flex items-center gap-2 min-w-0">
+      <span className="inline-flex items-center justify-center rounded-full  bg-rose-50/90 p-1 text-rose-600">
+        <Baby className="h-3.5 w-3.5" aria-hidden="true" />
+      </span>
+      <p className="text-sm font-semibold text-slate-700">Modo postparto</p>
     </div>
 
     <Checkbox
+      variant="switch"
       checked={cyclePostpartumMode}
       onCheckedChange={handlePostpartumChange}
-      className="mt-1"
+      className="mt-0.5"
     />
+
+    <p className="col-span-2 text-xs leading-relaxed text-slate-500">
+      Si está activo, se aplicarán sus reglas correspondientes.
+    </p>
   </div>
-</div>  
+</div> 
 
               <div className="rounded-2xl border border-amber-100/70 bg-amber-50/40 p-4 space-y-3">
                 <div>
                   <h3 className="text-sm font-semibold text-slate-700">Cálculo</h3>
                   <p className="text-xs text-slate-500">
-                    Indica el método que se utilitará para el cálculo de inicio de la ventana fértil.
+                    Indica el método que se utilizará para el cálculo de inicio de la ventana fértil.
                   </p>
                 </div>
                 {cyclePostpartumMode && (
@@ -758,10 +861,11 @@ const rotatedDrawerStyle = applyRotation
                     <div key={option.key} className="flex items-center justify-between gap-3">
                       <span className="text-sm text-slate-700">{option.label}</span>
                       <Checkbox
-                        checked={Boolean(fertilityConfig.calculators?.[option.key])}
-                        disabled={cyclePostpartumMode}
-                        onCheckedChange={(checked) => handleFertilityCalculatorChange(option.key, checked)}
-                      />
+  variant="check"
+  checked={Boolean(fertilityConfig.calculators?.[option.key])}
+  disabled={cyclePostpartumMode}
+  onCheckedChange={(checked) => handleFertilityCalculatorChange(option.key, checked)}
+/>
                     </div>
                   ))}
                 </div>
