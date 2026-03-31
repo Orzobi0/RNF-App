@@ -1,7 +1,8 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { auth, db, authPersistenceReady } from '@/lib/firebaseClient';
 import {
-  onAuthStateChanged,
+  onIdTokenChanged,
+  getIdToken,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   sendEmailVerification,
@@ -101,9 +102,11 @@ const ensurePersistentStorage = async (phase) => {
     });
   }
 };
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
+  const [restoringSession, setRestoringSession] = useState(true);
   const [preferences, setPreferences] = useState(null);
   const { toast } = useToast();
 
@@ -111,25 +114,59 @@ export const AuthProvider = ({ children }) => {
     let unsubscribe = null;
     let cancelled = false;
 
+    const revalidateSession = async (phase = 'resume') => {
+      const currentUser = auth.currentUser;
+
+      if (!currentUser) {
+        setRestoringSession(false);
+        return;
+      }
+
+      setRestoringSession(true);
+
+      try {
+        await getIdToken(currentUser, false);
+        await ensurePersistentStorage(phase);
+      } catch (error) {
+        console.warn('[auth:revalidate]', phase, error);
+        // No hagas logout aquí por un fallo transitorio
+      } finally {
+        setRestoringSession(false);
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void revalidateSession('foreground');
+      }
+    };
+
+    const handlePageShow = () => {
+      void revalidateSession('pageshow');
+    };
+
     const init = async () => {
       try {
         await authPersistenceReady;
       } catch (error) {
-        // Si falla, seguimos igual, pero al menos lo intentamos.
+        // Si falla, seguimos igual.
       }
+
       try {
         await ensurePersistentStorage('boot');
       } catch (storageError) {
         // No es crítico si falla.
       }
+
       if (cancelled) return;
 
-      unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
         if (firebaseUser) {
           void setAnalyticsUserId(firebaseUser.uid);
           void trackSessionReady({
-  proveedor: firebaseUser.providerData?.[0]?.providerId || 'unknown',
-});
+            proveedor: firebaseUser.providerData?.[0]?.providerId || 'unknown',
+          });
+
           setUser({
             id: firebaseUser.uid,
             uid: firebaseUser.uid,
@@ -146,6 +183,7 @@ export const AuthProvider = ({ children }) => {
 
           const prefRef = doc(db, `users/${firebaseUser.uid}/preferences`, 'display');
           const defaultPreferences = normalizeStoredPreferences(PREFERENCE_DEFAULTS);
+
           try {
             try {
               const cacheSnap = await getDocFromCache(prefRef);
@@ -172,84 +210,89 @@ export const AuthProvider = ({ children }) => {
           setPreferences(null);
         }
 
+        setRestoringSession(false);
         setLoadingAuth(false);
-    });
+      });
     };
 
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pageshow', handlePageShow);
+
     init();
+
     return () => {
       cancelled = true;
       if (unsubscribe) unsubscribe();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pageshow', handlePageShow);
     };
   }, []);
 
   const login = async (email, password) => {
-  try {
-    await signInWithEmailAndPassword(auth, email, password);
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      void trackLogin('email');
+    } catch (error) {
+      void trackEvent('auth_error', {
+        auth_action: 'login',
+        auth_method: 'email',
+        error_code: String(error?.code || 'unknown').slice(0, 50),
+      });
 
-    void trackLogin('email');
-  } catch (error) {
-    void trackEvent('auth_error', {
-      auth_action: 'login',
-      auth_method: 'email',
-      error_code: String(error?.code || 'unknown').slice(0, 50),
-    });
-
-    toast({ title: 'Error al iniciar sesión', description: error.message, variant: 'destructive' });
-    throw error;
-  }
-};
+      toast({ title: 'Error al iniciar sesión', description: error.message, variant: 'destructive' });
+      throw error;
+    }
+  };
 
   const register = async (email, password) => {
-  try {
-    const { user } = await createUserWithEmailAndPassword(auth, email, password);
-    const actionCodeSettings = {
-      url: `${window.location.origin}/auth`,
-    };
+    try {
+      const { user } = await createUserWithEmailAndPassword(auth, email, password);
+      const actionCodeSettings = {
+        url: `${window.location.origin}/auth`,
+      };
 
-    await sendEmailVerification(user, actionCodeSettings);
+      await sendEmailVerification(user, actionCodeSettings);
+      void trackSignUp('email');
+      await signOut(auth);
+    } catch (error) {
+      void trackEvent('auth_error', {
+        auth_action: 'register',
+        auth_method: 'email',
+        error_code: String(error?.code || 'unknown').slice(0, 50),
+      });
 
-    void trackSignUp('email');
-
-    await signOut(auth);
-  } catch (error) {
-    void trackEvent('auth_error', {
-      auth_action: 'register',
-      auth_method: 'email',
-      error_code: String(error?.code || 'unknown').slice(0, 50),
-    });
-
-    toast({ title: 'Error al registrarse', description: error.message, variant: 'destructive' });
-    throw error;
-  }
-};
+      toast({ title: 'Error al registrarse', description: error.message, variant: 'destructive' });
+      throw error;
+    }
+  };
 
   const resetPassword = async (email) => {
-  try {
-    await sendPasswordResetEmail(auth, email, {
-      url: `${window.location.origin}/auth`,
-    });
+    try {
+      await sendPasswordResetEmail(auth, email, {
+        url: `${window.location.origin}/auth`,
+      });
 
-    void trackEvent('password_reset_request', {
-      auth_method: 'email',
-    });
-  } catch (error) {
-    void trackEvent('auth_error', {
-      auth_action: 'reset_password',
-      auth_method: 'email',
-      error_code: String(error?.code || 'unknown').slice(0, 50),
-    });
+      void trackEvent('password_reset_request', {
+        auth_method: 'email',
+      });
+    } catch (error) {
+      void trackEvent('auth_error', {
+        auth_action: 'reset_password',
+        auth_method: 'email',
+        error_code: String(error?.code || 'unknown').slice(0, 50),
+      });
 
-    toast({ title: 'Error al restablecer contraseña', description: error.message, variant: 'destructive' });
-    throw error;
-  }
-};
+      toast({ title: 'Error al restablecer contraseña', description: error.message, variant: 'destructive' });
+      throw error;
+    }
+  };
 
   const logout = async () => {
     try {
       await signOut(auth);
       setUser(null);
       setPreferences(null);
+      setRestoringSession(false);
     } catch (error) {
       toast({ title: 'Error al cerrar sesión', description: error.message, variant: 'destructive' });
       throw error;
@@ -276,6 +319,7 @@ export const AuthProvider = ({ children }) => {
       throw error;
     }
   };
+
   const savePreferences = async (prefs = {}) => {
     if (!auth.currentUser) return;
     const prefRef = doc(db, `users/${auth.currentUser.uid}/preferences`, 'display');
@@ -320,6 +364,7 @@ export const AuthProvider = ({ children }) => {
       await deleteUser(auth.currentUser);
       setUser(null);
       setPreferences(null);
+      setRestoringSession(false);
     } catch (error) {
       toast({ title: 'Error al eliminar cuenta', description: error.message, variant: 'destructive' });
       throw error;
@@ -341,11 +386,12 @@ export const AuthProvider = ({ children }) => {
         updateProfile: updateProfileInfo,
         deleteAccount,
         loadingAuth,
-      }}>
+        restoringSession,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
 };
 
 export const useAuth = () => useContext(AuthContext);
-  

@@ -31,14 +31,6 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 
 if ('serviceWorker' in navigator) {
   const swUrl = `${import.meta.env.BASE_URL}sw.js`;
-
-  let refreshing = false;
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (refreshing) return;
-    refreshing = true;
-    window.location.reload();
-  });
-
   navigator.serviceWorker
     .register(swUrl, { updateViaCache: 'none' })
     .then((registration) => {
