@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Calculator, ChevronLeft, Clock3, Heart, LineChart, Bolt, Trash2 } from 'lucide-react';
+import { Calculator, Check, ChevronLeft, Clock3, Heart, LineChart, Bolt, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
@@ -103,6 +103,43 @@ const InlineSwitchRow = ({
     </button>
   );
 };
+const InlineCheckRow = ({
+  title,
+  checked,
+  onChange,
+  disabled = false,
+  id,
+}) => {
+  const handleToggle = () => {
+    if (disabled) return;
+    onChange(!checked);
+  };
+
+  return (
+    <button
+      id={id}
+      type="button"
+      role="checkbox"
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={handleToggle}
+      className="flex w-full items-center justify-between gap-3 rounded-none bg-transparent px-0 py-1 text-left transition disabled:cursor-not-allowed disabled:opacity-60"
+    >
+      <p className="text-sm font-medium text-slate-700">{title}</p>
+
+      <span
+        className={`inline-flex h-5 w-5 items-center justify-center rounded-md border transition ${
+          checked
+            ? 'border-rose-400 bg-rose-400 text-white'
+            : 'border-rose-200 bg-white text-transparent'
+        }`}
+        aria-hidden="true"
+      >
+        <Check className="h-3.5 w-3.5" />
+      </span>
+    </button>
+  );
+};
 const CalculatorPreferenceBlock = ({
   primaryLabel,
   primaryValue,
@@ -159,7 +196,7 @@ const CalculatorPreferenceBlock = ({
       </button>
 
       <div className="mt-2 border-t border-rose-100/70 pt-2">
-        <InlineSwitchRow
+        <InlineCheckRow
           id={toggleId}
           title={toggleTitle}
           checked={toggleChecked}
