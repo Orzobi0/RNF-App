@@ -317,7 +317,7 @@ const SettingsPage = () => {
           <div className="space-y-4">
             <div className="bg-white/80 backdrop-blur p-4 rounded-3xl shadow flex items-center justify-between">
               <div>
-                <p className="text-sm text-slate-900">Correo</p>
+                <p className="text-base text-slate-900">Correo</p>
                 <p className="font-medium text-slate-500 break-all">{user?.email}</p>
               </div>
               <Button
@@ -333,7 +333,7 @@ const SettingsPage = () => {
                  
             <div className="bg-white/80 backdrop-blur p-4 rounded-3xl shadow flex items-center justify-between">
               <div>
-                <p className="text-sm text-slate-900">Contraseña</p>
+                <p className="text-base text-slate-900">Contraseña</p>
                 <p className="font-medium text-slate-500">********</p>
               </div>
               <Button onClick={() => setShowPasswordDialog(true)} className="ml-4">
@@ -344,7 +344,7 @@ const SettingsPage = () => {
           
           <div className="bg-white/80 backdrop-blur p-4 rounded-3xl shadow flex items-center justify-between">
             <div>
-              <p className="font-medium text-slate-700">
+              <p className="font-medium text-base text-slate-700">
                 Descarga tus ciclos
               </p>
             </div>
@@ -406,7 +406,7 @@ const SettingsPage = () => {
   <div className="h-px w-full bg-pink-100/70 mb-6" />
   <div className="bg-white/80 backdrop-blur p-4 rounded-3xl shadow flex items-center justify-between">
     <div>
-      <p className="text-sm text-slate-900">Sesión</p>
+      <p className="text-base text-slate-900">Sesión</p>
       <p className="font-medium text-slate-500">Cerrar sesión de tu cuenta</p>
     </div>
     <Button

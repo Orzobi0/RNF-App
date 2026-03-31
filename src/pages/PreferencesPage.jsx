@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Calculator, ChevronLeft, Clock3, Heart, LineChart, Pencil, Bolt, Trash2 } from 'lucide-react';
+import { Calculator, ChevronLeft, Clock3, Heart, LineChart, Bolt, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
@@ -15,11 +15,11 @@ import {
   validatePreferenceField,
 } from '@/lib/preferences';
 
-const SECTION_TITLE_CLASS = 'mb-3 flex items-center gap-2 text-base font-semibold tracking-tight text-rose-700';
+const SECTION_TITLE_CLASS = 'mb-3 flex items-center gap-2 text-lg font-semibold tracking-tight text-rose-700';
 
 const SectionHeader = ({ icon: Icon, title }) => (
   <h2 className={SECTION_TITLE_CLASS}>
-    {Icon ? <Icon className="h-4 w-4 text-rose-500" aria-hidden="true" /> : null}
+    {Icon ? <Icon className="h-5 w-5 text-rose-500" aria-hidden="true" /> : null}
     {title}
   </h2>
 );
@@ -47,10 +47,10 @@ const SettingsToggleRow = ({
       aria-checked={checked}
       disabled={disabled}
       onClick={handleToggle}
-      className={`flex w-full items-center justify-between gap-3 rounded-xl border border-rose-100/70 bg-white/50 px-3 py-2.5 text-left shadow-sm backdrop-blur-sm transition hover:bg-white/70 disabled:cursor-not-allowed disabled:opacity-60 ${className}`}
+      className={`flex w-full items-center justify-between gap-3 rounded-2xl border border-rose-100/70 bg-white/50 px-3 py-2.5 text-left shadow-sm backdrop-blur-sm transition hover:bg-white/70 disabled:cursor-not-allowed disabled:opacity-60 ${className}`}
     >
       <div className="min-w-0">
-        <p className="flex items-center gap-2 text-sm font-medium text-slate-700">
+        <p className="flex items-center gap-2 text-base font-medium text-slate-700">
           {Icon ? <Icon className="h-4 w-4 text-rose-500" aria-hidden="true" /> : null}
           <span>{title}</span>
         </p>
@@ -58,11 +58,11 @@ const SettingsToggleRow = ({
       </div>
 
       <span
-        className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${checked ? 'bg-rose-400' : 'bg-slate-300'}`}
+        className={`relative inline-flex h-5 w-8 items-center rounded-full transition ${checked ? 'bg-rose-400' : 'bg-slate-300'}`}
         aria-hidden="true"
       >
         <span
-          className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition ${checked ? 'translate-x-5' : 'translate-x-0.5'}`}
+          className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition ${checked ? 'translate-x-3.5' : 'translate-x-0.5'}`}
         />
       </span>
     </button>
@@ -93,18 +93,17 @@ const InlineSwitchRow = ({
       <p className="text-sm font-medium text-slate-700">{title}</p>
 
       <span
-        className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${checked ? 'bg-rose-400' : 'bg-slate-300'}`}
+        className={`relative inline-flex h-5 w-8 items-center rounded-full transition ${checked ? 'bg-rose-400' : 'bg-slate-300'}`}
         aria-hidden="true"
       >
         <span
-          className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition ${checked ? 'translate-x-5' : 'translate-x-0.5'}`}
+          className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition ${checked ? 'translate-x-3.5' : 'translate-x-0.5'}`}
         />
       </span>
     </button>
   );
 };
 const CalculatorPreferenceBlock = ({
-  title,
   primaryLabel,
   primaryValue,
   secondaryLabel,
@@ -129,36 +128,25 @@ const CalculatorPreferenceBlock = ({
       : secondaryValue;
 
   return (
-    <div className="rounded-2xl border border-rose-100/70 bg-white/45 p-3 shadow-sm backdrop-blur-sm">
-      <div className="flex items-center justify-between gap-3">
-        <h3 className="text-sm font-semibold text-slate-700">{title}</h3>
-
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={onEdit}
-          aria-label={editAriaLabel}
-          className="h-8 w-8 rounded-full text-rose-600 hover:bg-rose-100 hover:text-rose-700"
-          title="Editar"
-        >
-          <Pencil className="h-3.5 w-3.5" />
-        </Button>
-      </div>
-
-      <div className="mt-1 grid grid-cols-2 gap-2">
-        <div className="rounded-xl border border-rose-100/70 bg-white/75 px-3 py-2">
-          <p className="text-[11px] font-medium text-slate-500">{primaryLabel}</p>
+    <div className="rounded-2xl border border-rose-100/70 bg-white/45 p-2 shadow-sm backdrop-blur-sm">
+      <button
+        type="button"
+        onClick={onEdit}
+        aria-label={editAriaLabel}
+        className="grid w-full grid-cols-2 gap-2 rounded-xl text-left transition hover:bg-white/20"
+      >
+        <div className="rounded-2xl border border-rose-100/70 bg-white/75 px-3 py-2">
+          <p className="text-xs font-medium text-slate-800">{primaryLabel}</p>
           <p className="mt-1 text-lg font-semibold leading-none tabular-nums text-rose-700">
             {displayPrimaryValue}
           </p>
         </div>
 
-        <div className="rounded-xl border border-rose-100/70 bg-white/75 px-3 py-2">
+        <div className="rounded-2xl border border-rose-100/70 bg-white/75 px-3 py-2">
           <div className="flex items-center gap-2">
-            <p className="text-[11px] font-medium text-slate-500">{secondaryLabel}</p>
+            <p className="text-xs font-medium text-slate-800">{secondaryLabel}</p>
             {secondaryModeLabel ? (
-              <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-semibold uppercase text-rose-600">
+              <span className="rounded-full bg-rose-50 px-2 py-0.5 text-xs font-semibold uppercase text-rose-600">
                 {secondaryModeLabel}
               </span>
             ) : null}
@@ -168,7 +156,7 @@ const CalculatorPreferenceBlock = ({
             {displaySecondaryValue}
           </p>
         </div>
-      </div>
+      </button>
 
       <div className="mt-2 border-t border-rose-100/70 pt-2">
         <InlineSwitchRow
@@ -412,29 +400,23 @@ const handleClearPreferredTime = useCallback(async () => {
   <div className="rounded-2xl border border-rose-100/70 bg-white/50 p-3 shadow-sm backdrop-blur-sm">
     <div className="flex items-center justify-between gap-3">
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold text-slate-700">
+        <p className="text-base font-semibold text-slate-700">
           Hora de toma de temperatura
         </p>
       </div>
 
       <div className="flex items-center gap-2">
-        <span className="inline-flex h-9 min-w-[96px] items-center justify-center gap-2 rounded-full border border-rose-100/70 bg-white/85 px-3 text-sm font-semibold tabular-nums text-rose-700">
-          <Clock3 className="h-4 w-4 shrink-0 text-rose-500" aria-hidden="true" />
-          <span>{uiPreferences.preferredTemperatureTime || '--:--'}</span>
-        </span>
-
-        <Button
+        <button
           type="button"
-          variant="ghost"
-          size="icon"
           onClick={openPreferredTimeEditor}
           disabled={Boolean(savingKeys.preferredTemperatureTime)}
-          className="h-8 w-8 rounded-full text-rose-600 hover:bg-rose-100 hover:text-rose-700"
+          className="inline-flex h-9 min-w-[96px] items-center justify-center gap-2 rounded-full border border-rose-100/70 bg-white/85 px-3 text-base font-semibold tabular-nums text-rose-700 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
           aria-label="Editar hora de toma de temperatura"
           title="Editar hora"
         >
-          <Pencil className="h-3.5 w-3.5" />
-        </Button>
+          <Clock3 className="h-4 w-4 shrink-0 text-rose-500" aria-hidden="true" />
+          <span>{uiPreferences.preferredTemperatureTime || '--:--'}</span>
+        </button>
       </div>
     </div>
 
@@ -447,7 +429,7 @@ const handleClearPreferredTime = useCallback(async () => {
             value={preferredTimeDraft}
             onChange={(event) => setPreferredTimeDraft(event.target.value)}
             disabled={Boolean(savingKeys.preferredTemperatureTime)}
-            className="h-8 min-w-0 rounded-xl border-rose-200 bg-white/90 px-3 text-sm font-semibold text-slate-700"
+            className="h-8 min-w-0 rounded-xl border-rose-200 bg-white/90 px-3 text-base font-semibold text-slate-700"
             aria-label="Hora de toma de temperatura"
           />
 
@@ -500,7 +482,6 @@ const handleClearPreferredTime = useCallback(async () => {
 
   <div className="space-y-3">
     <CalculatorPreferenceBlock
-      title="CPM"
       primaryLabel="Ciclo más corto"
       primaryValue={calculatorEditor.cpmMetric?.baseFormatted ?? '—'}
       secondaryLabel="CPM"
@@ -516,7 +497,6 @@ const handleClearPreferredTime = useCallback(async () => {
     />
 
     <CalculatorPreferenceBlock
-      title="T-8"
       primaryLabel="Día de subida"
       primaryValue={calculatorEditor.t8Metric?.baseFormatted ?? '—'}
       secondaryLabel="T-8"
@@ -540,7 +520,7 @@ const handleClearPreferredTime = useCallback(async () => {
       <section>
           <SectionHeader icon={LineChart} title="Gráfica" />
           <SettingsToggleRow
-  title="Fila RS"
+  title="Mostrar relaciones"
   description="Mostrar relaciones en la gráfica"
   icon={Heart}
   checked={Boolean(uiPreferences.showRelationsRow)}

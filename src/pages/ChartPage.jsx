@@ -704,7 +704,7 @@ const rotatedDrawerStyle = applyRotation
               <div className="rounded-2xl border border-pink-100/70 bg-pink-50/40 p-4 flex items-start justify-between gap-3">
                 <div className="max-w-xs">
                   <Label htmlFor="toggle-relations-row" className="text-sm font-semibold text-slate-700">
-                    Mostrar fila RS
+                    Mostrar relaciones
                   </Label>
                   <p className="text-xs text-slate-500 mt-1">
                     Añade una fila para visualizar las relaciones sexuales.
@@ -729,7 +729,7 @@ const rotatedDrawerStyle = applyRotation
       </div>
 
       <p className="mt-1 text-xs leading-relaxed text-slate-500">
-        Indica si este ciclo es postparto. Se aplicarán sus reglas correspondientes
+        Si se activa, se aplicarán sus reglas correspondientes
       </p>
     </div>
 
@@ -745,7 +745,7 @@ const rotatedDrawerStyle = applyRotation
                 <div>
                   <h3 className="text-sm font-semibold text-slate-700">Cálculo</h3>
                   <p className="text-xs text-slate-500">
-                    CPM y T-8 se utilizan para el cálculo de inicio de fertilidad, salvo que actives el modo posparto.
+                    Indica el método que se utilitará para el cálculo de inicio de la ventana fértil.
                   </p>
                 </div>
                 {cyclePostpartumMode && (
