@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { User } from 'lucide-react';
+import { Bolt, ChevronRight, User } from 'lucide-react';
 import { App } from '@capacitor/app';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
@@ -15,6 +15,7 @@ import InstallPrompt from '@/components/InstallPrompt';
 import { ensureHealthConnectPermissions } from '@/lib/healthConnectSync';
 import { useHealthConnect } from '@/contexts/HealthConnectContext.jsx';
 import { cn } from '@/lib/utils';
+import { Link, useNavigate } from 'react-router-dom';
 
 import {
   Dialog,
@@ -27,6 +28,7 @@ import {
 
 const SettingsPage = () => {
   const { user, updateEmail, updatePassword, login, logout } = useAuth();
+  const navigate = useNavigate();
   const { currentCycle, archivedCycles } = useCycleData();
   const { isAvailable, hasPermissions, refreshPermissions, isChecking, isAndroidApp } =
     useHealthConnect();
@@ -315,8 +317,8 @@ const SettingsPage = () => {
           <div className="space-y-4">
             <div className="bg-white/80 backdrop-blur p-4 rounded-3xl shadow flex items-center justify-between">
               <div>
-                <p className="text-sm text-slate-500">Correo</p>
-                <p className="font-medium text-slate-700 break-all">{user?.email}</p>
+                <p className="text-base text-slate-900">Correo</p>
+                <p className="font-medium text-slate-500 break-all">{user?.email}</p>
               </div>
               <Button
                 onClick={() => {
@@ -331,8 +333,8 @@ const SettingsPage = () => {
                  
             <div className="bg-white/80 backdrop-blur p-4 rounded-3xl shadow flex items-center justify-between">
               <div>
-                <p className="text-sm text-slate-500">Contraseña</p>
-                <p className="font-medium text-slate-700">********</p>
+                <p className="text-base text-slate-900">Contraseña</p>
+                <p className="font-medium text-slate-500">********</p>
               </div>
               <Button onClick={() => setShowPasswordDialog(true)} className="ml-4">
                 Actualizar contraseña
@@ -342,8 +344,7 @@ const SettingsPage = () => {
           
           <div className="bg-white/80 backdrop-blur p-4 rounded-3xl shadow flex items-center justify-between">
             <div>
-              <p className="text-sm text-slate-500">Exportar datos</p>
-              <p className="font-medium text-slate-700">
+              <p className="font-medium text-base text-slate-700">
                 Descarga tus ciclos
               </p>
             </div>
@@ -351,6 +352,20 @@ const SettingsPage = () => {
               Exportar ciclos
             </Button>
           </div>
+
+          <Button
+            asChild
+            variant="ghost"
+            className="h-auto w-full justify-between rounded-3xl bg-white/80 p-4 shadow backdrop-blur hover:bg-white/90"
+          >
+            <Link to="/settings/preferences" aria-label="Abrir preferencias">
+              <span className="inline-flex items-center gap-2 font-medium text-base text-slate-700">
+                <Bolt className="h-5 w-5 shrink-0 text-fertiliapp-fuerte" />
+                <span>Preferencias</span>
+              </span>
+              <ChevronRight className="h-5 w-5 shrink-0 text-slate-400" />
+            </Link>
+          </Button>
           
           {isAndroidApp && (
             <div className="bg-white/50 backdrop-blur p-4 rounded-3xl shadow flex items-center justify-between gap-4">
@@ -391,8 +406,8 @@ const SettingsPage = () => {
   <div className="h-px w-full bg-pink-100/70 mb-6" />
   <div className="bg-white/80 backdrop-blur p-4 rounded-3xl shadow flex items-center justify-between">
     <div>
-      <p className="text-sm text-slate-500">Sesión</p>
-      <p className="font-medium text-slate-700">Cerrar sesión de tu cuenta</p>
+      <p className="text-base text-slate-900">Sesión</p>
+      <p className="font-medium text-slate-500">Cerrar sesión de tu cuenta</p>
     </div>
     <Button
       variant="destructive"
