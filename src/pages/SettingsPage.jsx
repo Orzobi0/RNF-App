@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Bolt, ChevronRight, User } from 'lucide-react';
+import { Bolt, ChevronRight, FileDown, User } from 'lucide-react';
 import { App } from '@capacitor/app';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
@@ -342,16 +342,18 @@ const SettingsPage = () => {
             </div>
           </div>
           
-          <div className="bg-white/80 backdrop-blur p-4 rounded-3xl shadow flex items-center justify-between">
-            <div>
-              <p className="font-medium text-base text-slate-700">
-                Descarga tus ciclos
-              </p>
-            </div>
-            <Button onClick={() => setShowExportDialog(true)} className="ml-4">
-              Exportar ciclos
-            </Button>
-          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => setShowExportDialog(true)}
+            aria-label="Exportar ciclos"
+            className="h-auto w-full justify-start rounded-3xl bg-white/80 p-4 shadow backdrop-blur hover:bg-white/90"
+          >
+            <span className="inline-flex items-center gap-2 font-medium text-base text-slate-700">
+              <FileDown className="h-5 w-5 shrink-0 text-rose-400" />
+              <span>Descarga tus ciclos</span>
+            </span>
+          </Button>
 
           <Button
             asChild

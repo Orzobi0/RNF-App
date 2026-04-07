@@ -4,6 +4,7 @@ const { FieldValue } = require("firebase-admin/firestore");
 
 admin.initializeApp();
 const db = admin.firestore();
+const { sessionApi } = require("./authSession");
 
 const sanitizeDocId = (s) =>
   String(s)
@@ -28,13 +29,13 @@ const normalizeCelsius = (v) => {
 
 // Callable para Health Connect
 exports.syncBasalBodyTemperature = functions.https.onCall(async (data, context) => {
-  if (!context.auth?.uid) {
+  if (!context.auth || !context.auth.uid) {
     throw new functions.https.HttpsError("unauthenticated", "Debes estar autenticada.");
   }
 
   const uid = context.auth.uid;
-  const cycleId = typeof data?.cycleId === "string" ? data.cycleId.trim() : "";
-  const items = Array.isArray(data?.items) ? data.items : [];
+  const cycleId = data && typeof data.cycleId === "string" ? data.cycleId.trim() : "";
+  const items = data && Array.isArray(data.items) ? data.items : [];
 
   if (!cycleId) {
     throw new functions.https.HttpsError("invalid-argument", "cycleId es obligatorio.");
@@ -162,8 +163,8 @@ exports.syncBasalBodyTemperature = functions.https.onCall(async (data, context) 
         createdMeasurements++;
         results.push({ index: m.index, ok: true, status: "MEASUREMENT_CREATED", day: localDate, measurementId });
       } catch (err) {
-        const msg = String(err?.message || "");
-        const code = err?.code;
+        const msg = String((err && err.message) || "");
+        const code = err && err.code;
         if (code === 6 || msg.includes("ALREADY_EXISTS")) {
           skippedMeasurements++;
           results.push({ index: m.index, ok: true, status: "MEASUREMENT_EXISTS", day: localDate, measurementId });
@@ -207,7 +208,7 @@ exports.addTemperature = functions.https.onRequest(async (req, res) => {
     let decoded;
     try {
       decoded = await admin.auth().verifyIdToken(idToken);
-    } catch {
+    } catch (verifyError) {
       return res.status(401).send("Token inválido");
     }
     const userId = decoded.uid;
@@ -352,6 +353,7 @@ exports.addTemperature = functions.https.onRequest(async (req, res) => {
     return res.status(500).json({ error: "INTERNAL" });
   }
 });
+// Legacy: mantenida por compatibilidad con clientes anteriores.
 exports.exchangeCustomToken = functions.https.onRequest(async (req, res) => {
   try {
     if (req.method !== "POST") return res.status(405).send("Método no permitido");
@@ -370,3 +372,5 @@ exports.exchangeCustomToken = functions.https.onRequest(async (req, res) => {
   }
 });
 
+// API de sesión para restauración silenciosa en Hosting (/api/**).
+exports.sessionApi = sessionApi;
