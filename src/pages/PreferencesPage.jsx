@@ -7,6 +7,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCycleData } from '@/hooks/useCycleData';
 import { useFertilityCalculatorsEditor } from '@/hooks/useFertilityCalculatorsEditor';
+import { cn } from '@/lib/utils';
 import FertilityCalculatorsEditorDialogs from '@/components/FertilityCalculatorsEditorDialogs';
 import {
   PREFERENCE_DEFAULTS,
@@ -24,11 +25,53 @@ import {
 } from '@/components/ui/dialog';
 
 const SECTION_TITLE_CLASS =
-  'mb-2 mt-1 px-1 flex items-center gap-2 text-base font-semibold tracking-tight text-rose-700';
+  'mb-2 mt-1 px-1 flex items-center gap-2 text-base font-bold tracking-tight text-slate-700';
+const getSectionToneClasses = (tone = 'rose') => {
+  switch (tone) {
+    case 'warm':
+      return 'text-alerta-2';
+    case 'cool':
+      return 'text-secundario-fuerte';
+    case 'medium':
+      return 'text-fertiliapp-fuerte';
+    case 'rose':
+    default:
+      return 'text-fertiliapp-fuerte';
+  }
+};
 
-const SectionHeader = ({ icon: Icon, title }) => (
-  <h2 className={SECTION_TITLE_CLASS}>
-    {Icon ? <Icon className="h-4 w-4 text-rose-500" aria-hidden="true" /> : null}
+const getPreferenceIconToneClasses = (tone = 'rose') => {
+  switch (tone) {
+    case 'warm':
+      return 'bg-temp-suave text-alerta-2';
+    case 'cool':
+      return 'bg-secundario-suave text-secundario-fuerte';
+    case 'medium':
+      return 'text-fertiliapp-fuerte';
+    case 'rose':
+    default:
+      return 'bg-rose-50 text-rose-500';
+  }
+};
+
+const normalizeModeMeta = (rawLabel) => {
+  const value = String(rawLabel || '').trim().toLowerCase();
+
+  if (value.includes('manual')) {
+    return { label: 'Manual', tone: 'auto' };
+  }
+
+  if (value.includes('sin usar')) {
+    return { label: 'Sin usar', tone: 'muted' };
+  }
+
+  return { label: 'Automático', tone: 'auto' };
+};
+const SectionHeader = ({ icon: Icon, title, tone = 'rose' }) => (
+  <h2 className={cn(SECTION_TITLE_CLASS, getSectionToneClasses(tone))}>
+    {Icon ? (
+      <Icon className={cn('h-4 w-4', getSectionToneClasses(tone))} aria-hidden="true" />
+    ) : null}
     {title}
   </h2>
 );
@@ -36,9 +79,14 @@ const SectionHeader = ({ icon: Icon, title }) => (
 const PREFERENCE_ROW_CLASS =
   'flex w-full items-center justify-between gap-3 rounded-[26px] border border-rose-100/70 bg-white/80 px-4 py-2.5 text-left shadow-sm backdrop-blur-sm transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-60';
 
-const PreferenceIcon = ({ icon: Icon }) =>
+const PreferenceIcon = ({ icon: Icon, tone = 'rose' }) =>
   Icon ? (
-    <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-rose-50 text-rose-500">
+    <span
+      className={cn(
+        'mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl',
+        getPreferenceIconToneClasses(tone)
+      )}
+    >
       <Icon className="h-4 w-4" aria-hidden="true" />
     </span>
   ) : null;
@@ -59,6 +107,7 @@ const PreferenceActionRow = ({
   ariaLabel,
   disabled = false,
   children,
+  iconTone = 'rose',
 }) => (
   <button
     type="button"
@@ -68,7 +117,7 @@ const PreferenceActionRow = ({
     className={PREFERENCE_ROW_CLASS}
   >
     <div className="flex min-w-0 flex-1 items-start gap-3">
-      <PreferenceIcon icon={icon} />
+      <PreferenceIcon icon={icon} tone={iconTone} />
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-2">
           <p className="text-base font-semibold text-slate-700">{title}</p>
@@ -83,6 +132,7 @@ const PreferenceActionRow = ({
     {trailing ? <div className="shrink-0">{trailing}</div> : null}
   </button>
 );
+
 const PreferenceInlineSwitchRow = ({
   title,
   checked,
@@ -100,9 +150,9 @@ const PreferenceInlineSwitchRow = ({
       if (disabled) return;
       onChange(!checked);
     }}
-    className="flex w-full items-center justify-between gap-3 px-1 py-0.5 text-left transition disabled:cursor-not-allowed disabled:opacity-60"
+    className="flex w-full items-center justify-between gap-3 px-0 py-0 text-left transition disabled:cursor-not-allowed disabled:opacity-60"
   >
-    <p className="text-sm font-medium text-slate-700">{title}</p>
+    <p className="text-sm font-medium leading-tight text-slate-700">{title}</p>
 
     <span
       className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition ${
@@ -118,33 +168,85 @@ const PreferenceInlineSwitchRow = ({
     </span>
   </button>
 );
-const PreferenceModeChip = ({ label, tone = 'accent' }) => (
+const PreferenceModeChip = ({ label, tone = 'manual' }) => (
   <span
-    className={`inline-flex h-7 items-center rounded-full border px-2.5 text-xs font-semibold ${
-      tone === 'muted'
-        ? 'border-slate-200 bg-white/90 text-slate-700'
-        : 'border-rose-200 bg-rose-50 text-rose-700'
-    }`}
+    className={cn(
+      'inline-flex h-6 items-center rounded-full border px-2.5 text-[11px] font-semibold',
+      tone === 'manual' && 'border-rose-200 bg-rose-50 text-rose-700',
+      tone === 'auto' && 'border-secundario-suave bg-secundario-suave text-secundario-fuerte',
+      tone === 'muted' && 'border-slate-200 bg-white/90 text-slate-700'
+    )}
   >
     {label}
   </span>
 );
 
-const PreferenceMetricGrid = ({ items }) => (
+const PreferenceMetricGrid = ({ items, valueTone = 'rose' }) => (
   <div className="grid grid-cols-2 gap-2">
     {items.map((item) => (
       <div
         key={item.label}
-        className="rounded-2xl border border-rose-100/70 bg-white/90 px-3 py-2"
+        className="rounded-xl border border-rose-100/70 bg-white/90 px-3 py-1.5"
       >
-        <p className="text-[11px] font-medium leading-none text-slate-500">
+        <p className="text-[10px] font-medium leading-none text-slate-500">
           {item.label}
         </p>
-        <p className="mt-1.5 text-lg font-semibold leading-none tabular-nums text-rose-700">
+        <p
+          className={cn(
+            'mt-1 text-lg font-semibold leading-none tabular-nums',
+            valueTone === 'cool' ? 'text-secundario-fuerte' : 'text-rose-700'
+          )}
+        >
           {item.value}
         </p>
       </div>
     ))}
+  </div>
+);
+const CalculatorPreferenceCard = ({
+  title,
+  modeLabel,
+  modeTone = 'accent',
+  metrics,
+  onEdit,
+  editAriaLabel,
+  switchTitle,
+  checked,
+  onToggle,
+  toggleId,
+  disabled = false,
+}) => (
+  <div
+    className={`rounded-[24px] border border-rose-100/70 bg-white/80 px-4 py-2.5 shadow-sm backdrop-blur-sm ${
+      disabled ? 'opacity-60' : ''
+    }`}
+  >
+    <button
+      type="button"
+      onClick={onEdit}
+      disabled={disabled}
+      aria-label={editAriaLabel ?? `Editar ${title}`}
+      className="block w-full text-left disabled:cursor-not-allowed"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-base font-semibold text-slate-700">{title}</p>
+        <PreferenceModeChip label={modeLabel} tone={modeTone} />
+      </div>
+
+      <div className="mt-2">
+        <PreferenceMetricGrid items={metrics} valueTone="cool" />
+      </div>
+    </button>
+
+    <div className="mt-2 border-t border-rose-100/70 pt-2">
+      <PreferenceInlineSwitchRow
+        title={switchTitle}
+        checked={checked}
+        onChange={onToggle}
+        id={toggleId}
+        disabled={disabled}
+      />
+    </div>
   </div>
 );
 const PreferenceSwitchRow = ({
@@ -155,6 +257,7 @@ const PreferenceSwitchRow = ({
   onChange,
   disabled = false,
   id,
+  iconTone = 'rose',
 }) => (
   <button
     id={id}
@@ -169,7 +272,7 @@ const PreferenceSwitchRow = ({
     className={PREFERENCE_ROW_CLASS}
   >
     <div className="flex min-w-0 items-start gap-3">
-      <PreferenceIcon icon={icon} />
+      <PreferenceIcon icon={icon} tone={iconTone} />
       <div className="min-w-0">
         <p className="text-base font-semibold text-slate-700">{title}</p>
         {description ? <p className="mt-0.5 text-sm text-slate-500">{description}</p> : null}
@@ -239,12 +342,8 @@ const t8Metrics = [
   },
 ];
 
-const cpmModeLabel = calculatorEditor.cpmMetric?.modeLabel ?? 'Automático';
-
-const t8ModeLabel = calculatorEditor.t8Metric?.modeLabel ?? 'Automático';
-
-const t8ModeTone =
-  t8ModeLabel.toLowerCase().includes('sin usar') ? 'muted' : 'accent';
+const cpmMode = normalizeModeMeta(calculatorEditor.cpmMetric?.modeLabel);
+const t8Mode = normalizeModeMeta(calculatorEditor.t8Metric?.modeLabel);
 
 
   useEffect(() => {
@@ -441,7 +540,7 @@ const handleClearPreferredTime = useCallback(async () => {
       </Link>
     </Button>
     <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-700">
-      <Bolt className="h-6 w-6 text-fertiliapp-fuerte" />
+      <Bolt className="h-6 w-6 text-[#3a8a6e]" />
       Preferencias
     </h1>
   </div>
@@ -451,10 +550,11 @@ const handleClearPreferredTime = useCallback(async () => {
 
       <div className="space-y-4">
   <section className="space-y-2.5">
-    <SectionHeader icon={Clock3} title="Registro" />
+    <SectionHeader icon={Clock3} title="Registro" tone="warm" />
 
     <PreferenceActionRow
   icon={Clock3}
+  iconTone="warm"
   title="Hora de toma de temperatura"
   trailing={
     <PreferenceValuePill>
@@ -471,50 +571,36 @@ const handleClearPreferredTime = useCallback(async () => {
     ) : null}
   </section>
 
-  <section className="space-y-2.5">
-    <SectionHeader icon={Calculator} title="Cálculo" />
+  <section className="space-y-2">
+  <SectionHeader icon={Calculator} title="Cálculo" tone="cool" />
 
-    <div className="space-y-0.5">
-  <PreferenceActionRow
-    icon={Calculator}
-    title="CPM"
-    headerTrailing={<PreferenceModeChip label={cpmModeLabel} />}
-    onClick={calculatorEditor.handleOpenCpmDialog}
-    ariaLabel="Editar CPM"
-    disabled={Boolean(savingKeys.fertilityStartConfig)}
-  >
-    <PreferenceMetricGrid items={cpmMetrics} />
-  </PreferenceActionRow>
+  <CalculatorPreferenceCard
+  title="CPM"
+  modeLabel={cpmMode.label}
+modeTone={cpmMode.tone}
+metrics={cpmMetrics}
+  onEdit={calculatorEditor.handleOpenCpmDialog}
+  editAriaLabel="Editar CPM"
+  switchTitle="Usar CPM para inicio de fertilidad"
+  checked={Boolean(uiPreferences.fertilityStartConfig?.calculators?.cpm)}
+  onToggle={(checked) => handleFertilityCalculatorToggle('cpm', checked)}
+  toggleId="toggle-use-cpm"
+  disabled={Boolean(savingKeys.fertilityStartConfig)}
+/>
 
-  <PreferenceInlineSwitchRow
-    title="Usar CPM para inicio de fertilidad"
-    checked={Boolean(uiPreferences.fertilityStartConfig?.calculators?.cpm)}
-    onChange={(checked) => handleFertilityCalculatorToggle('cpm', checked)}
-    id="toggle-use-cpm"
-    disabled={Boolean(savingKeys.fertilityStartConfig)}
-  />
-</div>
-
-<div className="space-y-0.5">
-  <PreferenceActionRow
-    icon={Calculator}
-    title="T-8"
-    headerTrailing={<PreferenceModeChip label={t8ModeLabel} tone={t8ModeTone} />}
-    onClick={calculatorEditor.handleOpenT8Dialog}
-    ariaLabel="Editar T-8"
-    disabled={Boolean(savingKeys.fertilityStartConfig)}
-  >
-    <PreferenceMetricGrid items={t8Metrics} />
-  </PreferenceActionRow>
-
-  <PreferenceInlineSwitchRow
-    title="Usar T-8 para inicio de fertilidad"
-    checked={Boolean(uiPreferences.fertilityStartConfig?.calculators?.t8)}
-    onChange={(checked) => handleFertilityCalculatorToggle('t8', checked)}
-    id="toggle-use-t8"
-    disabled={Boolean(savingKeys.fertilityStartConfig)}
-  />
-</div>
+<CalculatorPreferenceCard
+  title="T-8"
+  modeLabel={t8Mode.label}
+modeTone={t8Mode.tone}
+metrics={t8Metrics}
+  onEdit={calculatorEditor.handleOpenT8Dialog}
+  editAriaLabel="Editar T-8"
+  switchTitle="Usar T-8 para inicio de fertilidad"
+  checked={Boolean(uiPreferences.fertilityStartConfig?.calculators?.t8)}
+  onToggle={(checked) => handleFertilityCalculatorToggle('t8', checked)}
+  toggleId="toggle-use-t8"
+  disabled={Boolean(savingKeys.fertilityStartConfig)}
+/>
 
     {errors.fertilityStartConfig ? (
       <p className="px-1 text-xs text-red-500">{errors.fertilityStartConfig}</p>
@@ -522,10 +608,11 @@ const handleClearPreferredTime = useCallback(async () => {
   </section>
 
   <section className="space-y-2.5">
-    <SectionHeader icon={LineChart} title="Gráfica" />
+    <SectionHeader icon={LineChart} title="Gráfica" tone="medium" />
 
     <PreferenceSwitchRow
       icon={Heart}
+      iconTone="medium"
       title="Mostrar relaciones"
       description="Mostrar relaciones en la gráfica"
       checked={Boolean(uiPreferences.showRelationsRow)}

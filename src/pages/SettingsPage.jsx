@@ -25,7 +25,23 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
+const getSettingsIconToneClasses = (tone = 'cool', destructive = false) => {
+  if (destructive) return 'bg-red-50 text-red-600';
 
+  switch (tone) {
+    case 'warm':
+      return 'text-[#F7B944]';
+    case 'purple':
+      return 'bg-observaciones-suave text-observaciones-fuerte';
+    case 'mint':
+      return 'text-[#3a8a6e]';
+    case 'rose':
+      return 'bg-rose-50 text-rose-500';
+    case 'cool':
+    default:
+      return 'text-secundario-fuerte';
+  }
+};
 const SETTINGS_ROW_CLASS =
   'flex w-full items-center justify-between gap-3 rounded-[28px] bg-white/80 px-4 py-3 text-left shadow backdrop-blur transition hover:bg-white/90';
 
@@ -37,6 +53,7 @@ const SettingsActionRow = ({
   destructive = false,
   trailing = null,
   ariaLabel,
+  iconTone = 'cool',
 }) => (
   <button
     type="button"
@@ -47,8 +64,8 @@ const SettingsActionRow = ({
     <div className="flex min-w-0 items-start gap-3">
       <span
         className={cn(
-          'mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-rose-50 text-rose-500',
-          destructive && 'bg-red-50 text-red-600'
+          'mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl',
+          getSettingsIconToneClasses(iconTone, destructive)
         )}
       >
         <Icon className="h-5 w-5" aria-hidden="true" />
@@ -68,14 +85,19 @@ const SettingsActionRow = ({
   </button>
 );
 
-const SettingsLinkRow = ({ icon: Icon, title, description, to, ariaLabel }) => (
+const SettingsLinkRow = ({ icon: Icon, title, description, to, ariaLabel, iconTone = 'cool' }) => (
   <Link
     to={to}
     aria-label={ariaLabel ?? title}
     className={SETTINGS_ROW_CLASS}
   >
     <div className="flex min-w-0 items-start gap-3">
-      <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-rose-50 text-rose-500">
+      <span
+  className={cn(
+    'mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl',
+    getSettingsIconToneClasses(iconTone)
+        )}
+      >
         <Icon className="h-5 w-5" aria-hidden="true" />
       </span>
 
@@ -97,6 +119,7 @@ const SettingsSwitchRow = ({
   onToggle,
   disabled = false,
   ariaLabel,
+  iconTone = 'cool',
 }) => (
   <button
     type="button"
@@ -111,9 +134,14 @@ const SettingsSwitchRow = ({
     className={cn(SETTINGS_ROW_CLASS, 'disabled:cursor-not-allowed disabled:opacity-60')}
   >
     <div className="flex min-w-0 items-start gap-3">
-      <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-rose-50 text-rose-500">
-        <Icon className="h-5 w-5" aria-hidden="true" />
-      </span>
+      <span
+  className={cn(
+    'mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl',
+    getSettingsIconToneClasses(iconTone)
+  )}
+>
+  <Icon className="h-5 w-5" aria-hidden="true" />
+</span>
 
       <div className="min-w-0">
         <p className="text-base font-semibold text-slate-700">{title}</p>
@@ -430,6 +458,7 @@ const SettingsPage = () => {
   <div className="space-y-3">
     <SettingsActionRow
       icon={Mail}
+      iconTone="cool"
       title="Correo electrónico"
       description={user?.email || 'Sin correo'}
       onClick={() => {
@@ -441,6 +470,7 @@ const SettingsPage = () => {
 
     <SettingsActionRow
       icon={Lock}
+      iconTone="cool"
       title="Contraseña"
       description="Cambiar contraseña"
       onClick={() => setShowPasswordDialog(true)}
@@ -449,6 +479,7 @@ const SettingsPage = () => {
 
     <SettingsActionRow
       icon={FileDown}
+      iconTone="warm"
       title="Exportar ciclos"
       description="Selecciona qué ciclos exportar"
       onClick={() => setShowExportDialog(true)}
@@ -457,6 +488,7 @@ const SettingsPage = () => {
 
     <SettingsLinkRow
       icon={Bolt}
+      iconTone="mint"
       title="Preferencias"
       description="Registro, cálculo y gráfica"
       to="/settings/preferences"
@@ -466,6 +498,7 @@ const SettingsPage = () => {
     {isAndroidApp && (
       <SettingsSwitchRow
         icon={Activity}
+        iconTone="purple"
         title="Health Connect"
         description={
           !isAvailable
@@ -493,6 +526,7 @@ const SettingsPage = () => {
 
     <SettingsActionRow
       icon={LogOut}
+      iconTone="cool"
       title="Cerrar sesión"
       description="Salir de tu cuenta"
       onClick={() => setShowLogoutDialog(true)}
