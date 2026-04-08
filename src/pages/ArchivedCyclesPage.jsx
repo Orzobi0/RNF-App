@@ -334,7 +334,6 @@ const CycleRow = ({ cycle, isFirst, isLast }) => {
                 className="rounded-full border-rose-200 bg-rose-50 px-2.5 py-0.5 text-[10px] font-medium text-rose-700"
               >
                 <Baby className="mr-1 h-3 w-3" />
-                Postparto
               </Badge>
             ) : null}
           </div>

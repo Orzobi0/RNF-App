@@ -25,12 +25,12 @@ import {
 } from '@/components/ui/dialog';
 
 const SECTION_TITLE_CLASS =
-  'mb-2.5 mt-1.5 flex items-center gap-2.5 px-0.5 text-[15px] font-semibold tracking-tight text-slate-700';
+  'mb-2.5 mt-1.5 flex items-center gap-1 px-0.5 text-[15px] font-semibold tracking-tight text-slate-700';
 const getSectionAccentClasses = (tone = 'rose') => {
   switch (tone) {
     case 'warm':
       return {
-        iconWrap: 'bg-temp-suave text-alerta-2',
+        iconWrap: 'text-alerta-2',
         lineStyle: {
           backgroundImage:
             'linear-gradient(to right, rgba(246, 180, 92, 0.34), rgba(246, 180, 92, 0.10), transparent)',
@@ -38,7 +38,7 @@ const getSectionAccentClasses = (tone = 'rose') => {
       };
     case 'cool':
       return {
-        iconWrap: 'bg-secundario-suave text-secundario-fuerte',
+        iconWrap: 'text-secundario-fuerte',
         lineStyle: {
           backgroundImage:
             'linear-gradient(to right, rgba(51, 124, 139, 0.30), rgba(51, 124, 139, 0.09), transparent)',
@@ -46,7 +46,7 @@ const getSectionAccentClasses = (tone = 'rose') => {
       };
     case 'medium':
       return {
-        iconWrap: 'bg-rose-50 text-fertiliapp-fuerte',
+        iconWrap: 'text-fertiliapp-fuerte',
         lineStyle: {
           backgroundImage:
             'linear-gradient(to right, rgba(216, 92, 112, 0.28), rgba(216, 92, 112, 0.08), transparent)',
@@ -55,7 +55,7 @@ const getSectionAccentClasses = (tone = 'rose') => {
     case 'rose':
     default:
       return {
-        iconWrap: 'bg-rose-50 text-rose-500',
+        iconWrap: 'text-rose-500',
         lineStyle: {
           backgroundImage:
             'linear-gradient(to right, rgba(227, 121, 136, 0.30), rgba(227, 121, 136, 0.08), transparent)',
@@ -110,7 +110,7 @@ const SectionHeader = ({ icon: Icon, title, tone = 'rose' }) => {
       <span className="shrink-0 text-slate-700">{title}</span>
 
       <div
-        className="ml-1 h-px flex-1 rounded-full"
+        className="ml-1.5 h-px flex-1 rounded-full"
         style={accent.lineStyle}
       />
     </div>
