@@ -25,18 +25,42 @@ import {
 } from '@/components/ui/dialog';
 
 const SECTION_TITLE_CLASS =
-  'mb-2 mt-1 px-1 flex items-center gap-2 text-base font-bold tracking-tight text-slate-700';
-const getSectionToneClasses = (tone = 'rose') => {
+  'mb-2.5 mt-1.5 flex items-center gap-2.5 px-0.5 text-[15px] font-semibold tracking-tight text-slate-700';
+const getSectionAccentClasses = (tone = 'rose') => {
   switch (tone) {
     case 'warm':
-      return 'text-alerta-2';
+      return {
+        iconWrap: 'bg-temp-suave text-alerta-2',
+        lineStyle: {
+          backgroundImage:
+            'linear-gradient(to right, rgba(246, 180, 92, 0.34), rgba(246, 180, 92, 0.10), transparent)',
+        },
+      };
     case 'cool':
-      return 'text-secundario-fuerte';
+      return {
+        iconWrap: 'bg-secundario-suave text-secundario-fuerte',
+        lineStyle: {
+          backgroundImage:
+            'linear-gradient(to right, rgba(51, 124, 139, 0.30), rgba(51, 124, 139, 0.09), transparent)',
+        },
+      };
     case 'medium':
-      return 'text-fertiliapp-fuerte';
+      return {
+        iconWrap: 'bg-rose-50 text-fertiliapp-fuerte',
+        lineStyle: {
+          backgroundImage:
+            'linear-gradient(to right, rgba(216, 92, 112, 0.28), rgba(216, 92, 112, 0.08), transparent)',
+        },
+      };
     case 'rose':
     default:
-      return 'text-fertiliapp-fuerte';
+      return {
+        iconWrap: 'bg-rose-50 text-rose-500',
+        lineStyle: {
+          backgroundImage:
+            'linear-gradient(to right, rgba(227, 121, 136, 0.30), rgba(227, 121, 136, 0.08), transparent)',
+        },
+      };
   }
 };
 
@@ -47,7 +71,7 @@ const getPreferenceIconToneClasses = (tone = 'rose') => {
     case 'cool':
       return 'bg-secundario-suave text-secundario-fuerte';
     case 'medium':
-      return 'text-fertiliapp-fuerte';
+      return 'bg-rose-50 text-fertiliapp-fuerte';
     case 'rose':
     default:
       return 'bg-rose-50 text-rose-500';
@@ -67,14 +91,31 @@ const normalizeModeMeta = (rawLabel) => {
 
   return { label: 'Automático', tone: 'auto' };
 };
-const SectionHeader = ({ icon: Icon, title, tone = 'rose' }) => (
-  <h2 className={cn(SECTION_TITLE_CLASS, getSectionToneClasses(tone))}>
-    {Icon ? (
-      <Icon className={cn('h-4 w-4', getSectionToneClasses(tone))} aria-hidden="true" />
-    ) : null}
-    {title}
-  </h2>
-);
+const SectionHeader = ({ icon: Icon, title, tone = 'rose' }) => {
+  const accent = getSectionAccentClasses(tone);
+
+  return (
+    <div className={SECTION_TITLE_CLASS}>
+      {Icon ? (
+        <span
+          className={cn(
+            'inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full',
+            accent.iconWrap
+          )}
+        >
+          <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+        </span>
+      ) : null}
+
+      <span className="shrink-0 text-slate-700">{title}</span>
+
+      <div
+        className="ml-1 h-px flex-1 rounded-full"
+        style={accent.lineStyle}
+      />
+    </div>
+  );
+};
 
 const PREFERENCE_ROW_CLASS =
   'flex w-full items-center justify-between gap-3 rounded-[26px] border border-rose-100/70 bg-white/80 px-4 py-2.5 text-left shadow-sm backdrop-blur-sm transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-60';
@@ -545,7 +586,7 @@ const handleClearPreferredTime = useCallback(async () => {
     </h1>
   </div>
 
-  <div className="mt-3 h-px w-full bg-rose-300/70" />
+  <div className="mt-3 h-px w-full bg-rose-800/70" />
 </div>
 
       <div className="space-y-4">
