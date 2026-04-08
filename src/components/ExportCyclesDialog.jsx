@@ -112,7 +112,7 @@ const ExportCyclesDialog = ({
     return (
       <div
         key={cycle.id}
-        className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white/60 p-3 shadow-sm"
+        className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white/60 p-2 shadow-sm"
       >
         <Checkbox
           id={checkboxId}
@@ -207,7 +207,7 @@ const ExportCyclesDialog = ({
               onValueChange={onPdfContentModeChange}
               disabled={isProcessing || format !== 'pdf'}
             >
-              <SelectTrigger id="export-pdf-content" className="w-full">
+              <SelectTrigger id="export-pdf-content" className="rounded-xl w-full">
                 <SelectValue placeholder="Selecciona contenido del PDF" />
               </SelectTrigger>
               <SelectContent>
@@ -217,14 +217,14 @@ const ExportCyclesDialog = ({
               </SelectContent>
             </Select>
           </div>
-          <div className="flex items-start gap-2 rounded-lg border border-slate-200 bg-white/60 px-3 py-2">
+          <div className="flex items-start gap-2 rounded-xl border border-slate-200 bg-white/60 px-3 py-2">
             <Checkbox
               id="export-rs"
               checked={includeRs}
               onCheckedChange={(value) => onIncludeRsChange(Boolean(value))}
               disabled={isProcessing}
             />
-            <div className="space-y-1">
+            <div className="space-y-1 ">
               <Label htmlFor="export-rs" className="text-sm font-medium text-slate-700">
                 Incluir fila RS
               </Label>

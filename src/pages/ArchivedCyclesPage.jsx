@@ -340,11 +340,11 @@ const CycleRow = ({ cycle, isFirst, isLast }) => {
         </div>
 
         <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[12px] leading-4 text-slate-500">
-          <span className="font-medium text-slate-600">
-            {recordCount} registro{recordCount !== 1 ? 's' : ''}
-          </span>
-          {durationDays ? <span className="text-slate-300">·</span> : null}
           {durationDays ? <span>{durationDays} días</span> : null}
+          {durationDays ? <span className="text-slate-300">·</span> : null}
+          <span className="font-medium text-slate-500">
+            {recordCount} registro{recordCount !== 1 ? 's' : ''}
+          </span>          
         </div>
       </div>
 
