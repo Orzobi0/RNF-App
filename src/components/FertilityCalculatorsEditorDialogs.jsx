@@ -39,22 +39,18 @@ const FertilityCalculatorsEditorDialogs = ({ editor, onNavigateToCycleDetails })
       >
         <DialogContent className="flex max-h-[90vh] w-[90vw] max-w-sm flex-col overflow-hidden rounded-3xl border border-rose-100 bg-white/95 p-0 text-gray-800 shadow-xl">
           <DialogHeader className="space-y-2 px-4 pt-4 text-left">
-            <DialogTitle>Editar CPM</DialogTitle>
+            <div className="flex items-center justify-between gap-2 pr-8">
+              <DialogTitle>Editar CPM</DialogTitle>
+              <span className={`rounded-full px-3 py-1 text-[11px] font-semibold ${dialogs.cpmStatusMode === 'none' ? 'bg-gray-100 text-gray-600' : 'bg-rose-100 text-rose-700'}`}>
+                {dialogs.cpmStatusChipLabel}
+              </span>
+            </div>
             <DialogDescription>
               <div className="text-xs">Puedes usar el valor calculado automáticamente o fijar un valor manual.</div>
             </DialogDescription>
           </DialogHeader>
 
           <div className="flex-1 space-y-3 overflow-y-auto px-4 pb-3">
-            <div className="px-3">
-              <div className="flex items-center justify-between gap-3 px-3 py-1">
-                <p className="text-xs font-semibold uppercase tracking-wide text-rose-600">Estado actual</p>
-                <span className={`rounded-full px-3 py-1 text-[11px] font-semibold ${dialogs.cpmStatusMode === 'none' ? 'bg-gray-100 text-gray-600' : 'bg-rose-100 text-rose-700'}`}>
-                  {dialogs.cpmStatusChipLabel}
-                </span>
-              </div>
-            </div>
-
             <div
               role="radio"
               tabIndex={0}
@@ -238,21 +234,18 @@ const FertilityCalculatorsEditorDialogs = ({ editor, onNavigateToCycleDetails })
       >
         <DialogContent className="flex max-h-[90vh] w-[90vw] max-w-sm flex-col overflow-hidden rounded-3xl border border-rose-100 bg-white/95 p-0 text-gray-800 shadow-xl">
           <DialogHeader className="space-y-2 px-4 pt-4 text-left">
-            <DialogTitle>Editar T-8</DialogTitle>
+            <div className="flex items-center justify-between gap-2 pr-8">
+              <DialogTitle>Editar T-8</DialogTitle>
+              <span className={`rounded-full px-3 py-1 text-[11px] font-semibold ${dialogs.t8StatusMode === 'none' ? 'bg-gray-100 text-gray-600' : 'bg-rose-100 text-rose-700'}`}>
+                {dialogs.t8StatusChipLabel}
+              </span>
+            </div>
             <DialogDescription>
               <div className="text-xs">Puedes usar el valor calculado automáticamente o fijar un valor manual.</div>
             </DialogDescription>
           </DialogHeader>
 
           <div className="flex-1 space-y-2 overflow-y-auto px-4 pb-3">
-            <div className="px-3">
-              <div className="flex items-center justify-between gap-3 px-3 py-1">
-                <p className="text-xs font-semibold uppercase tracking-wide text-rose-600">Estado actual</p>
-                <span className={`rounded-full px-3 py-1 text-[11px] font-semibold ${dialogs.t8StatusMode === 'none' ? 'bg-gray-100 text-gray-600' : 'bg-rose-100 text-rose-700'}`}>
-                  {dialogs.t8StatusChipLabel}
-                </span>
-              </div>
-            </div>
 
             <div role="radio" tabIndex={0} onClick={() => dialogs.setT8SelectionDraft('auto')} onKeyDown={(event) => handleCardKeyDown(event, () => dialogs.setT8SelectionDraft('auto'))} className={`cursor-pointer rounded-2xl border px-3 py-3 shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70 ${dialogs.t8SelectionDraft === 'auto' ? 'border-emerald-300 bg-emerald-50/60' : 'border-rose-100 bg-white/80 hover:border-rose-200'} ${!computedT8Data.canCompute ? 'opacity-70' : ''}`}>
               <div className="flex items-start justify-between gap-2">
