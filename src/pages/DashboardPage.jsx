@@ -1469,7 +1469,7 @@ if (dot.peakStatus === 'P') {
           transition={{ duration: 0.2, delay: 0.06 }}
         >
           <div className="flex items-center justify-between px-2 pb-1">
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-600">Cálculo fértil</span>
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-600">Cálculo</span>
           </div>
           <div className="flex gap-2">
             {renderCompactCalcItem({
