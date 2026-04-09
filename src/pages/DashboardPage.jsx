@@ -1507,7 +1507,7 @@ if (dot.peakStatus === 'P') {
           <button
             type="button"
             onClick={() => setActivePoint(null)}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-full  text-slate-500 shadow-sm transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full  text-slate-500 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70"
             aria-label="Cerrar detalle del día"
           >
             <X className="h-4 w-4" />
