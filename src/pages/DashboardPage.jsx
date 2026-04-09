@@ -5,6 +5,7 @@ import {
   FilePlus,
   CalendarPlus,
   Edit,
+  X,
   ChevronLeft,
   ChevronRight,
   Baby,
@@ -20,7 +21,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { useCycleData } from '@/hooks/useCycleData';
 import { addDays, differenceInDays, format, isAfter, isValid, parseISO, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
-import ChartTooltip from '@/components/chartElements/ChartTooltip';
+import DayDetail from '@/components/DayDetail';
 import computePeakStatuses from '@/lib/computePeakStatuses';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -28,16 +29,120 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useFertilityChart } from '@/hooks/useFertilityChart';
 import { useFertilityCalculatorsEditor } from '@/hooks/useFertilityCalculatorsEditor';
 import FertilityCalculatorsEditorDialogs from '@/components/FertilityCalculatorsEditorDialogs';
-import { getSymbolColorPalette } from '@/config/fertilitySymbols';
+import { FERTILITY_SYMBOL_OPTIONS, getSymbolColorPalette } from '@/config/fertilitySymbols';
 import { mergeFertilityStartConfig } from '@/lib/preferences';
 
 const DATA_ENTRY_FORM_DRAFT_KEY = 'dashboard:data-entry-form-draft';
+
+const normalizeTextValue = (value) => String(value ?? '').trim();
+
+const normalizeNumericValue = (value) => {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number(String(value).replace(',', '.'));
+  return Number.isFinite(parsed) ? parsed.toFixed(2) : null;
+};
+
+const getSelectedMeasurementForToast = (source) =>
+  source?.measurements?.find((measurement) => measurement?.selected) ||
+  source?.measurements?.[0] ||
+  null;
+
+const getComparableDashboardState = (source) => {
+  if (!source) return null;
+
+  const selectedMeasurement = getSelectedMeasurementForToast(source);
+  const useCorrected = Boolean(
+    selectedMeasurement?.use_corrected ?? source?.use_corrected
+  );
+
+  const temperature = normalizeNumericValue(
+    useCorrected
+      ? (
+          selectedMeasurement?.temperature_corrected ??
+          source?.temperature_corrected ??
+          selectedMeasurement?.temperature ??
+          source?.temperature_chart ??
+          source?.temperature_raw ??
+          source?.temperature
+        )
+      : (
+          selectedMeasurement?.temperature ??
+          source?.temperature_chart ??
+          source?.temperature_raw ??
+          source?.temperature ??
+          selectedMeasurement?.temperature_corrected ??
+          source?.temperature_corrected
+        )
+  );
+
+  const time = normalizeTextValue(
+    selectedMeasurement?.time ??
+      source?.time ??
+      source?.time_corrected ??
+      ''
+  );
+
+  return {
+    temperature,
+    time,
+    sensation: normalizeTextValue(source?.mucusSensation ?? source?.mucus_sensation),
+    appearance: normalizeTextValue(source?.mucusAppearance ?? source?.mucus_appearance),
+    observations: normalizeTextValue(source?.observations),
+    symbol: source?.fertility_symbol ?? source?.fertilitySymbol ?? 'none',
+    relations: Boolean(source?.had_relations ?? source?.hadRelations),
+  };
+};
+
+const joinLabelsEs = (labels) => {
+  if (labels.length === 0) return '';
+  if (labels.length === 1) return labels[0];
+  if (labels.length === 2) return `${labels[0]} y ${labels[1]}`;
+  return `${labels.slice(0, -1).join(', ')} y ${labels[labels.length - 1]}`;
+};
+
+const getDashboardUpdateToastMessage = (previousRecord, nextData) => {
+  const previous = getComparableDashboardState(previousRecord);
+  const next = getComparableDashboardState(nextData);
+
+  if (!next) return 'Registro actualizado';
+
+  const changed = [];
+
+  if (!previous) {
+    if (next.temperature !== null || next.time) changed.push('la temperatura');
+    if (next.sensation) changed.push('la sensación');
+    if (next.appearance) changed.push('la apariencia');
+    if (next.observations) changed.push('las observaciones');
+    if (next.symbol && next.symbol !== 'none') changed.push('el símbolo');
+    if (next.relations) changed.push('las relaciones sexuales');
+
+    if (changed.length === 1) return `Se ha registrado ${changed[0]}`;
+    if (changed.length === 2) return `Se han registrado ${joinLabelsEs(changed)}`;
+    if (changed.length > 2) return 'Se han actualizado varios campos';
+    return 'Registro guardado';
+  }
+
+  if (previous.temperature !== next.temperature || previous.time !== next.time) {
+    changed.push('la temperatura');
+  }
+  if (previous.sensation !== next.sensation) changed.push('la sensación');
+  if (previous.appearance !== next.appearance) changed.push('la apariencia');
+  if (previous.observations !== next.observations) changed.push('las observaciones');
+  if (previous.symbol !== next.symbol) changed.push('el símbolo');
+  if (previous.relations !== next.relations) changed.push('las relaciones sexuales');
+
+  if (changed.length === 0) return 'Registro actualizado';
+  if (changed.length === 1) return `Se ha actualizado ${changed[0]}`;
+  if (changed.length === 2) return `Se han actualizado ${joinLabelsEs(changed)}`;
+  return 'Se han actualizado varios campos';
+};
 
 
 const CycleOverviewCard = ({
   cycleData,
   onEdit,
-  onTogglePeak,
+  onDeleteRecord = () => {},
+  onToggleRelations = () => {},
   currentPeakIsoDate,
   onEditStartDate = () => {},
   handleOpenCpmDialog = () => {},
@@ -48,9 +153,6 @@ const CycleOverviewCard = ({
   const records = cycleData.records || [];
   const isPostpartumModeEnabled = Boolean(cycleData?.postpartumMode);
   const [activePoint, setActivePoint] = useState(null);
-  const [tooltipPosition, setTooltipPosition] = useState({ clientX: 0, clientY: 0 });
-  const [isSymbolsOpen, setIsSymbolsOpen] = useState(false);
-  const [isCalcOpen, setIsCalcOpen] = useState(false);
   const [recentlyChangedDays, setRecentlyChangedDays] = useState([]);
   const hasInitializedWheelRef = useRef(true);
 const circleRef = useRef(null);
@@ -70,6 +172,38 @@ const recentSignaturesRef = useRef(new Map());
   const cycleStartDate = cycleData.startDate ? parseISO(cycleData.startDate) : null;
   const today = startOfDay(new Date());
   const peakStatuses = useMemo(() => computePeakStatuses(records), [records]);
+  const resolvedActivePoint = useMemo(() => {
+  if (!activePoint?.isoDate) return null;
+
+  const latestRecord =
+    (activePoint?.id
+      ? records.find((record) => record?.id === activePoint.id)
+      : null) ||
+    records.find((record) => record?.isoDate === activePoint.isoDate);
+
+  if (!latestRecord) {
+    return activePoint;
+  }
+
+  const resolvedPeakStatus =
+    peakStatuses[latestRecord.isoDate] ?? activePoint?.peakStatus ?? null;
+
+  return {
+    ...latestRecord,
+    cycleDay: latestRecord.cycleDay ?? activePoint?.cycleDay ?? null,
+    peakStatus: resolvedPeakStatus,
+    peak_marker:
+      latestRecord.peak_marker ?? (resolvedPeakStatus === 'P' ? 'peak' : null),
+  };
+}, [activePoint, records, peakStatuses]);
+  useEffect(() => {
+  if (!activePoint?.id || String(activePoint.id).startsWith('placeholder-')) return;
+
+  const stillExists = records.some((record) => record?.id === activePoint.id);
+  if (!stillExists) {
+    setActivePoint(null);
+  }
+}, [activePoint, records]);
 
   useEffect(() => {
     const prevSignatures = recentSignaturesRef.current;
@@ -501,12 +635,6 @@ const resetWheelDrag = useCallback(() => {
     return;
   }
 
-  const point = getLocalSvgPoint(event);
-  if (!point) {
-    setActivePoint(null);
-    return;
-  }
-
   const placeholderRecord = dot.canShowPlaceholder && dot.isoDate
     ? {
         id: `placeholder-${dot.isoDate}`,
@@ -545,11 +673,6 @@ const resetWheelDrag = useCallback(() => {
     setActivePoint(null);
     return;
   }
-
-  setTooltipPosition({
-    clientX: point.clientX - point.rect.left,
-    clientY: point.clientY - point.rect.top,
-  });
 
   setActivePoint(targetRecord);
 }, [currentPeakIsoDate, getLocalSvgPoint]);
@@ -754,119 +877,158 @@ const handleRingPointerCancel = useCallback(
   },
   [resetWheelDrag]
 );
-  useEffect(() => {
-    if (!activePoint) return;
-    const handleOutside = (e) => {
-      if (circleRef.current && !circleRef.current.contains(e.target)) {
-        setActivePoint(null);
-      }
-    };
-    document.addEventListener('mousedown', handleOutside);
-    document.addEventListener('touchstart', handleOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleOutside);
-      document.removeEventListener('touchstart', handleOutside);
-    };
-  }, [activePoint]);
+  const renderCompactCalcItem = ({ label, value, onClick, ariaLabel, modeLabel = null }) => (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex-1 rounded-2xl border border-rose-100/80 bg-white/80 px-3 py-2 text-left shadow-sm transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70"
+      aria-label={ariaLabel}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-rose-500">{label}</span>
+        {modeLabel ? (
+          <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-500">
+            {modeLabel}
+          </span>
+        ) : null}
+      </div>
+      <p className="mt-1 text-lg font-semibold tabular-nums text-slate-800">{value ?? '—'}</p>
+    </button>
+  );
 
-  const renderMetricCard = (metric, onClick) => {
-    if (!metric) {
-      return null;
+  const getSymbolInfo = useCallback(
+    (symbolValue) =>
+      FERTILITY_SYMBOL_OPTIONS.find((symbol) => symbol.value === symbolValue) || FERTILITY_SYMBOL_OPTIONS[0],
+    []
+  );
+
+  const formatTemperatureDisplay = useCallback((value) => {
+    if (value === null || value === undefined || value === '') return null;
+    const n = typeof value === 'string' ? Number(value.replace(',', '.')) : Number(value);
+    if (!Number.isFinite(n)) return null;
+    return new Intl.NumberFormat('es-ES', {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 2,
+    }).format(n);
+  }, []);
+
+  const activePointDetails = useMemo(() => {
+  if (!resolvedActivePoint) return null;
+
+  const point = resolvedActivePoint;
+
+    const selectedMeasurement =
+      point.measurements?.find((measurement) => measurement?.selected) ||
+      ((point.temperature_chart ?? point.temperature_raw) != null
+        ? {
+            temperature: point.temperature_chart ?? point.temperature_raw,
+            temperature_corrected: point.temperature_corrected ?? null,
+            time: point.timestamp ? format(parseISO(point.timestamp), 'HH:mm') : null,
+            use_corrected: point.use_corrected ?? false,
+          }
+        : null);
+
+    const usesCorrected = selectedMeasurement?.use_corrected ?? point.use_corrected ?? false;
+    const correctedTemp = selectedMeasurement?.temperature_corrected ?? point.temperature_corrected ?? null;
+    const rawTemp =
+      selectedMeasurement?.temperature ??
+      point.temperature_chart ??
+      point.temperature_raw ??
+      point.displayTemperature ??
+      null;
+    const resolvedTemp =
+      usesCorrected && correctedTemp !== null && correctedTemp !== undefined && correctedTemp !== ''
+        ? correctedTemp
+        : rawTemp ?? correctedTemp;
+
+    const displayTemp = formatTemperatureDisplay(resolvedTemp);
+    const hasTemperature = displayTemp !== null;
+    const showCorrectedIndicator =
+      usesCorrected && correctedTemp !== null && correctedTemp !== undefined && correctedTemp !== '';
+
+    let timeValue = null;
+    if (selectedMeasurement?.time) {
+      timeValue = selectedMeasurement.time;
+    } else if (point.timestamp && isValid(parseISO(point.timestamp))) {
+      timeValue = format(parseISO(point.timestamp), 'HH:mm');
     }
 
-    const {
-      title = '',
-      baseText = '—',
-      finalText = '—',
-      microCopy = 'Sin datos disponibles',
-      microCopyMuted = false,
-      modeLabel = 'Auto',
-      microCopyId,
-    } = metric;
+    const mucusSensation = point.mucusSensation ?? point.mucus_sensation ?? '';
+    const mucusAppearance = point.mucusAppearance ?? point.mucus_appearance ?? '';
+    const hasMucusSensation = Boolean(mucusSensation);
+    const hasMucusAppearance = Boolean(mucusAppearance);
+    const observationsText = point.observations ?? '';
+    const hasObservations = Boolean(observationsText);
+    const hasRelations = Boolean(point.had_relations ?? point.hadRelations ?? false);
 
-    const resolvedTitle = title || 'Métrica';
+   return {
+  record: point,
+  symbolInfo: getSymbolInfo(point.fertility_symbol),
+  hasTemperature,
+  displayTemp,
+  showCorrectedIndicator,
+  timeValue,
+  hasMucus: hasMucusSensation || hasMucusAppearance,
+  hasMucusSensation,
+  hasMucusAppearance,
+  mucusSensation,
+  mucusAppearance,
+  hasObservations,
+  observationsText,
+  hasRelations,
+};
+}, [resolvedActivePoint, formatTemperatureDisplay, getSymbolInfo]);
 
-    return (
-      <button
-        type="button"
-        onClick={onClick}
-        className="group w-full rounded-2xl border border-rose-100/60 bg-white/80 p-4 text-left shadow-sm transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70"
-        aria-describedby={microCopyId}
-        aria-label={`Editar ${resolvedTitle}`}
-      >
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="space-y-1 min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-wide text-rose-600">
-              {resolvedTitle}
-            </p>
-            <p className="text-xl sm:text-2xl font-bold leading-tight text-gray-800 break-words">
-              {baseText}
-            </p>
-          </div>
-          <div className="flex sm:flex-col flex-row items-center gap-2 sm:items-end">
-            <Badge
-              className={`rounded-full border border-rose-100/70 px-2 py-0.5 text-[11px] font-semibold ${
-                modeLabel === 'Manual'
-                  ? 'bg-rose-100 text-rose-600'
-                  : 'bg-white/85 text-rose-500'
-              }`}
-            >
-              {modeLabel}
-            </Badge>
-            <div className="sm:text-right text-left">
-              <p className="text-base sm:text-lg font-semibold text-rose-600 whitespace-nowrap">
-                {finalText}
-              </p>
-            </div>
-          </div>
-        </div>
-        <p
-          id={microCopyId}
-          className={`mt-3 text-[11px] sm:text-xs ${microCopyMuted ? 'text-gray-400' : 'text-rose-500'} transition-colors`}
-        >
-          {microCopy}
-        </p>
-      </button>
-    );
-  };
+  const handleAddFromDetailPanel = useCallback(
+    (isoDate, sectionKey = null) => {
+      if (!isoDate) return;
+      const cycleStartDateValue = cycleData?.startDate ? parseISO(cycleData.startDate) : null;
+      const computedCycleDay =
+        cycleStartDateValue && isValid(cycleStartDateValue)
+          ? differenceInDays(parseISO(isoDate), cycleStartDateValue) + 1
+          : null;
 
-  const renderCompactCalcItem = ({
-  label,
-  value,
-  onClick,
-  ariaLabel,
-  modeLabel = null,
-  emphasize = false,
-}) => (
-  <button
-    type="button"
-    onClick={onClick}
-    className="flex flex-col items-center gap-1 px-1 py-0.5"
-    aria-label={ariaLabel}
-  >
-    <span className="flex min-h-[1.6rem] items-end justify-center text-center text-[10px] font-medium leading-tight text-gray-700">
-      {label}
-    </span>
+      onEdit(
+        {
+          id: `placeholder-${isoDate}`,
+          isoDate,
+          cycleDay: computedCycleDay,
+          fertility_symbol: null,
+          mucus_sensation: '',
+          mucusSensation: '',
+          mucus_appearance: '',
+          mucusAppearance: '',
+          observations: '',
+          temperature_chart: null,
+          displayTemperature: null,
+          ignored: false,
+        },
+        sectionKey
+      );
+    },
+    [cycleData?.startDate, onEdit]
+  );
+    const handleToggleRelations = useCallback(
+  (isoDate) => {
+    if (!isoDate) return;
 
-    <div className="relative flex h-9 items-center justify-center">
-      <div
-        className={`flex h-9 w-9 items-center justify-center rounded-full border border-rose-200/70 text-rose-700 shadow-sm ${
-          emphasize
-            ? 'bg-white/80 text-sm font-semibold'
-            : 'bg-white/70 text-base font-bold'
-        }`}
-      >
-        {value ?? '—'}
-      </div>
+    setActivePoint((prev) => {
+      if (!prev || prev.isoDate !== isoDate) return prev;
 
-      {modeLabel ? (
-        <span className="pointer-events-none absolute left-1/2 top-[72%] -translate-x-1/2 rounded-full px-1.5 py-[1px] text-[8px] font-semibold leading-none text-rose-600 shadow-sm">
-          {modeLabel}
-        </span>
-      ) : null}
-    </div>
-  </button>
+      const nextValue = !(prev.had_relations ?? prev.hadRelations ?? false);
+
+      return {
+        ...prev,
+        had_relations: nextValue,
+        hadRelations: nextValue,
+      };
+    });
+
+    onToggleRelations(isoDate);
+  },
+  [onToggleRelations]
 );
+
   return (
     <div className="relative flex flex-col space-y-4">
       {/* Fecha actual - Parte superior con padding reducido */}
@@ -1233,37 +1395,6 @@ if (dot.peakStatus === 'P') {
                 );
               })}
             </svg>
-    <AnimatePresence initial={false}>
-   {activePoint && (
-     <motion.div
-      key={activePoint.isoDate ?? activePoint.cycleDay ?? activePoint.id}
-       onClick={(e) => e.stopPropagation()}
-       initial={prefersReducedMotion ? false : { opacity: 0, scale: 0.99, y: 1 }}
-       animate={
-         prefersReducedMotion
-           ? { opacity: 1 }
-           : { opacity: 1, scale: 1, y: 0, transition: { duration: 0.10, ease: 'easeOut' } }
-       }
-       exit={
-         prefersReducedMotion
-           ? { opacity: 0 }
-           : { opacity: 0, scale: 0.995, y: 1, transition: { duration: 0.06, ease: 'easeOut' } }
-       }
-     >
-       <ChartTooltip
-         point={activePoint}
-         position={tooltipPosition}
-         chartWidth={circleRef.current?.clientWidth || 0}
-         chartHeight={circleRef.current?.clientHeight || 0}
-         onEdit={onEdit}
-         onClose={() => setActivePoint(null)}
-         onTogglePeak={onTogglePeak}
-         currentPeakIsoDate={currentPeakIsoDate}
-       />
-     </motion.div>
-   )}
- </AnimatePresence>
-
             
             {/* Contenido central */}
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
@@ -1331,141 +1462,80 @@ if (dot.peakStatus === 'P') {
   </div>
 </div>
 
-        {/* Leyenda e información del ciclo con diseño mejorado */}
-        <div className="grid grid-cols-2 gap-4 mx-2 mb-3 mt-0 flex-shrink-0 items-start">
-          
-          {/* Leyenda de colores */}
-          <motion.div
-            className={`relative overflow-hidden rounded-3xl bg-white/60 border border-secundario-suave shadow-[0_14px_35px_rgba(148,163,184,0.18)] backdrop-blur-md p-1 transition-[width] duration-300 ease-in-out mx-auto ${
-              isSymbolsOpen ? 'w-full' : 'w-[80%]'
-            }`}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.2, delay: 0.1 }}
+    <motion.div
+          className="mx-2 mb-2 rounded-2xl border border-fertiliapp-suave bg-white/70 p-2 shadow-[0_10px_30px_rgba(148,163,184,0.15)] backdrop-blur-md"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.2, delay: 0.06 }}
+        >
+          <div className="flex items-center justify-between px-2 pb-1">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-600">Cálculo fértil</span>
+          </div>
+          <div className="flex gap-2">
+            {renderCompactCalcItem({
+              label: 'CPM',
+              value: cpmMetric?.finalFormatted ?? '—',
+              onClick: handleOpenCpmDialog,
+              ariaLabel: 'Editar CPM',
+              modeLabel: cpmMetric?.modeLabel ?? 'Auto',
+            })}
+            {renderCompactCalcItem({
+              label: 'T-8',
+              value: t8Metric?.finalFormatted ?? '—',
+              onClick: handleOpenT8Dialog,
+              ariaLabel: 'Editar T-8',
+              modeLabel: t8Metric?.modeLabel ?? 'Auto',
+            })}
+          </div>
+        </motion.div>
+
+          <AnimatePresence initial={false}>
+  {resolvedActivePoint && activePointDetails && (
+    <motion.div
+      className="fixed inset-x-0 z-40 px-4 pointer-events-none"
+      style={{ bottom: 'calc(var(--bottom-nav-safe) + 10px)' }}
+      initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 24 }}
+      animate={prefersReducedMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
+      exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 18 }}
+      transition={{ duration: 0.18, ease: 'easeOut' }}
+    >
+      <div
+        className="mx-auto w-full max-w-md pointer-events-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-2 flex justify-end px-1">
+          <button
+            type="button"
+            onClick={() => setActivePoint(null)}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full  text-slate-500 shadow-sm transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70"
+            aria-label="Cerrar detalle del día"
           >
-
-            <button
-              type="button"
-              onClick={() => setIsSymbolsOpen((previous) => !previous)}
-              className="group flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-2 text-left transition"
-            >
-              <span className="text-sm font-semibold text-slate-700 tracking-tight uppercase">SÍMBOLOS</span>
-             <div className="absolute top-4.5 right-4 w-1.5 h-1.5 bg-secundario rounded-full" />
-            </button>
-
-            <AnimatePresence initial={false}>
-               {isSymbolsOpen && (
-                <motion.div
-                  key="symbols"
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.25, ease: 'easeInOut' }}
-                  className="grid grid-cols-2 gap-2.5 rounded-3xl bg-white/40 p-2 overflow-hidden"
-                >
-                  {[
-                    { label: 'Menstrual', color: '#fb7185' },
-                    { label: 'Moco (Fértil)', color: '#fdf5f8', stroke: '#fb7185' },
-                    { label: 'Seca/Sin moco', color: '#67C5A4' },
-                    { label: 'No seca/Moco', color: '#F7B944' },
-                    { label: 'Spotting', color: '#fb7185', stroke: '#fee2e2', pattern: true },
-                    { label: 'Hoy', isToday: true }
-                  ].map(item => (
-                    <div key={item.label} className="flex flex-col items-center gap-1.5">
-                      {item.isToday ? (
-                        <div className="relative flex items-center justify-center">
-                          <div className="w-5 h-5 rounded-full border border-rose-400/80 bg-transparent" />
-                          <div className="absolute inset-0 -m-1 rounded-full border-[3px] border-rose-500/80 animate-pulse" />
-
-                        </div>
-                      ) : (
-                        <div
-                          className={`w-5 h-5 rounded-full border ${item.pattern ? 'pattern-bg' : ''}`}
-                          style={{
-                            backgroundColor: item.color,
-                            borderColor: item.stroke || 'transparent'
-                          }}
-                        />
-                      )}
-                      <span
-                        className={`text-xs font-medium text-center leading-none ${
-                          item.isToday ? 'text-gray-700 font-semibold' : 'text-gray-700'
-                        }`}
-                      >
-                        {item.label}
-                      </span>
-                    </div>
-                  ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-          </motion.div>
-
-          {/* Información del ciclo con diseño tipo card premium */}
-          <motion.div
-            className={`relative overflow-hidden rounded-3xl bg-white/60 border border-secundario-suave shadow-[0_14px_35px_rgba(148,163,184,0.18)] backdrop-blur-md p-1 transition-[width] duration-300 ease-in-out mx-auto ${
-              isCalcOpen ? 'w-full' : 'w-[80%]'
-            }`}
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.2, delay: 0.1 }}
-          >
-            <button
-              type="button"
-              onClick={() => setIsCalcOpen((previous) => !previous)}
-              className="group flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-2 text-left transition"
-            >
-              <span className="text-sm font-semibold text-slate-800 tracking-tight uppercase">CÁLCULO</span>
-              <div className="absolute top-4.5 right-4 w-1.5 h-1.5 bg-secundario rounded-full" />
-            </button>
-
-            <AnimatePresence initial={false}>
-              {isCalcOpen && (
-                <motion.div
-  key="calc-card"
-  initial={{ height: 0, opacity: 0 }}
-  animate={{ height: 'auto', opacity: 1 }}
-  exit={{ height: 0, opacity: 0 }}
-  transition={{ duration: 0.25, ease: 'easeInOut' }}
-  className="grid grid-cols-2 gap-x-2 gap-y-2 rounded-3xl bg-white/40 p-1.5 overflow-hidden"
->
-  {renderCompactCalcItem({
-    label: 'Ciclo más corto',
-    value: cpmMetric?.baseFormatted ?? '—',
-    onClick: handleOpenCpmDialog,
-    ariaLabel: 'Editar CPM (Ciclo más corto)',
-  })}
-
-  {renderCompactCalcItem({
-    label: 'CPM',
-    value: cpmMetric?.finalFormatted ?? '—',
-    onClick: handleOpenCpmDialog,
-    ariaLabel: 'Editar CPM (resultado)',
-    modeLabel: cpmMetric?.modeLabel ?? 'Auto',
-    emphasize: true,
-  })}
-
-  {renderCompactCalcItem({
-    label: 'Día de subida',
-    value: t8Metric?.baseFormatted ?? '—',
-    onClick: handleOpenT8Dialog,
-    ariaLabel: 'Editar T-8 (Día de subida)',
-  })}
-
-  {renderCompactCalcItem({
-    label: 'T-8',
-    value: t8Metric?.finalFormatted ?? '—',
-    onClick: handleOpenT8Dialog,
-    ariaLabel: 'Editar T-8 (resultado)',
-    modeLabel: t8Metric?.modeLabel ?? 'Auto',
-    emphasize: true,
-  })}
-</motion.div>
-              )}
-            </AnimatePresence>
-          </motion.div>
+            <X className="h-4 w-4" />
+          </button>
         </div>
+
+        <div className="max-h-[42dvh] overflow-y-auto rounded-[30px] shadow-[0_-8px_30px_rgba(221,86,101,0.12)]">
+          <div>
+  <DayDetail
+    isoDate={resolvedActivePoint.isoDate}
+    cycleDay={resolvedActivePoint.cycleDay ?? null}
+    details={activePointDetails}
+    peakStatus={peakStatuses[resolvedActivePoint.isoDate] || resolvedActivePoint.peakStatus || null}
+    isPeakDay={Boolean(
+      resolvedActivePoint.peak_marker === 'peak' ||
+      peakStatuses[resolvedActivePoint.isoDate] === 'P'
+    )}
+    onEdit={onEdit}
+    onAdd={handleAddFromDetailPanel}
+    onDelete={onDeleteRecord}
+    onToggleRelations={handleToggleRelations}
+  />
+</div>
+        </div>
+      </div>
+    </motion.div>
+  )}
+</AnimatePresence>
       </motion.div>
     </div>
   );
@@ -1565,6 +1635,7 @@ const ModernFertilityDashboard = () => {
     currentCycle,
     archivedCycles,
     addOrUpdateDataPoint,
+    deleteRecord,
     startNewCycle,
     isLoading,
     updateCycleDates,
@@ -1590,6 +1661,8 @@ const ModernFertilityDashboard = () => {
   const [showUndoImpactDialog, setShowUndoImpactDialog] = useState(false);
   const [undoImpactPreview, setUndoImpactPreview] = useState(null);
   const [isUndoingCycle, setIsUndoingCycle] = useState(false);
+  const [recordToDelete, setRecordToDelete] = useState(null);
+  const [isDeletingRecord, setIsDeletingRecord] = useState(false);
   const calculatorEditor = useFertilityCalculatorsEditor({
     currentCycle,
     archivedCycles,
@@ -1854,115 +1927,174 @@ const ModernFertilityDashboard = () => {
     setShowForm(true);
   }, []);
 
-    const handleTogglePeak = useCallback(
-    async (record, shouldMarkAsPeak = true) => {
-      if (!currentCycle?.id || !record?.isoDate) {
-        return;
-      }
+  const buildDashboardRecordPayload = useCallback(
+  (isoDate, overrides = {}) => {
+    const existingRecord =
+      currentCycle?.data?.find((record) => record.isoDate === isoDate) || null;
 
-      const normalizeMeasurementValue = (value) => {
-        if (value === null || value === undefined || value === '') {
-          return null;
-        }
-        const parsed = parseFloat(String(value).replace(',', '.'));
-        return Number.isFinite(parsed) ? parsed : null;
-      };
+    const baseTime =
+      existingRecord?.timestamp && isValid(parseISO(existingRecord.timestamp))
+        ? format(parseISO(existingRecord.timestamp), 'HH:mm')
+        : format(new Date(), 'HH:mm');
 
-      const markAsPeak = shouldMarkAsPeak ?? !(
-        record.peak_marker === 'peak' || record.peakStatus === 'P'
-      );
+    const fallbackTemperatureRaw =
+      existingRecord?.temperature_raw ?? existingRecord?.temperature ?? '';
 
-      try {
-        const fallbackTime = record.timestamp
-          ? format(parseISO(record.timestamp), 'HH:mm')
-          : format(new Date(), 'HH:mm');
+    const fallbackTemperatureCorrected =
+      existingRecord?.temperature_corrected ?? '';
 
-        let measurementsSource = Array.isArray(record.measurements) && record.measurements.length > 0
-          ? record.measurements
-          : [
-              {
-                temperature: record.temperature_chart ?? record.temperature_raw ?? null,
-                temperature_corrected: record.temperature_corrected ?? null,
-                time: record.time ?? fallbackTime,
-                time_corrected: record.time_corrected ?? fallbackTime,
-                selected: true,
-                use_corrected: record.use_corrected ?? false,
-              },
-            ];
+    const fallbackUseCorrected = Boolean(existingRecord?.use_corrected);
 
-        if (measurementsSource.length === 0) {
-          measurementsSource = [
-            {
-              temperature: null,
-              temperature_corrected: null,
-              time: fallbackTime,
-              time_corrected: fallbackTime,
-              selected: true,
-              use_corrected: false,
-            },
-          ];
-        }
-
-        const normalizedMeasurements = measurementsSource.map((measurement, index) => {
-          const timeValue = measurement.time || fallbackTime;
-          const correctedTime = measurement.time_corrected || timeValue;
+    const measurements = existingRecord?.measurements?.length
+      ? existingRecord.measurements.map((measurement, idx) => {
+          const measurementTime =
+            measurement?.time ||
+            (measurement?.timestamp && isValid(parseISO(measurement.timestamp))
+              ? format(parseISO(measurement.timestamp), 'HH:mm')
+              : baseTime);
 
           return {
-            temperature: normalizeMeasurementValue(
-              measurement.temperature ?? measurement.temperature_raw
-            ),
-            time: timeValue,
-            selected: index === 0 ? true : !!measurement.selected,
-            temperature_corrected: normalizeMeasurementValue(
-              measurement.temperature_corrected
-            ),
-            time_corrected: correctedTime,
-            use_corrected: !!measurement.use_corrected,
+            temperature:
+              measurement?.temperature ??
+              measurement?.temperature_raw ??
+              fallbackTemperatureRaw,
+            temperature_corrected:
+              measurement?.temperature_corrected ?? fallbackTemperatureCorrected,
+            time: measurementTime,
+            time_corrected: measurement?.time_corrected || measurementTime,
+            use_corrected:
+              measurement?.use_corrected !== undefined
+                ? Boolean(measurement?.use_corrected)
+                : fallbackUseCorrected,
+            selected: Boolean(measurement?.selected ?? idx === 0),
           };
-        });
+        })
+      : [
+          {
+            temperature: fallbackTemperatureRaw,
+            temperature_corrected: fallbackTemperatureCorrected,
+            time: baseTime,
+            time_corrected: baseTime,
+            use_corrected: fallbackUseCorrected,
+            selected: true,
+          },
+        ];
 
-        if (!normalizedMeasurements.some((measurement) => measurement.selected)) {
-          normalizedMeasurements[0].selected = true;
-        }
+    return {
+      isoDate,
+      measurements,
+      mucusSensation:
+        existingRecord?.mucusSensation ?? existingRecord?.mucus_sensation ?? '',
+      mucusAppearance:
+        existingRecord?.mucusAppearance ?? existingRecord?.mucus_appearance ?? '',
+      fertility_symbol:
+        existingRecord?.fertility_symbol ?? existingRecord?.fertilitySymbol ?? 'none',
+      observations: existingRecord?.observations ?? '',
+      peak_marker: existingRecord?.peak_marker ?? null,
+      ignored: existingRecord?.ignored ?? false,
+      had_relations:
+        existingRecord?.had_relations ?? existingRecord?.hadRelations ?? false,
+      hadRelations:
+        existingRecord?.had_relations ?? existingRecord?.hadRelations ?? false,
+      ...overrides,
+    };
+  },
+  [currentCycle?.data]
+);
+const handleToggleRelationsFromDashboard = useCallback(
+  async (isoDate) => {
+    if (!isoDate) return;
 
-        const payload = {
-          isoDate: record.isoDate,
-          measurements: normalizedMeasurements,
-          mucusSensation: record.mucus_sensation ?? record.mucusSensation ?? '',
-          mucusAppearance: record.mucus_appearance ?? record.mucusAppearance ?? '',
-          fertility_symbol: record.fertility_symbol ?? 'none',
-          observations: record.observations ?? '',
-          ignored: record.ignored ?? false,
-          peak_marker: markAsPeak ? 'peak' : null,
-        };
+    const existingRecord =
+      currentCycle?.data?.find((record) => record.isoDate === isoDate) || null;
 
-        const existingRecord =
-          record?.id && !String(record.id).startsWith('placeholder-') ? record : null;
+    const hasRelations = Boolean(
+      existingRecord?.had_relations ?? existingRecord?.hadRelations ?? false
+    );
 
-        await addOrUpdateDataPoint(payload, existingRecord);
-      } catch (error) {
-        console.error('Error toggling peak marker from dashboard:', error);
-      }
-    },
-    [addOrUpdateDataPoint, currentCycle?.id]
-  );
+    const nextHasRelations = !hasRelations;
+
+    const payload = buildDashboardRecordPayload(isoDate, {
+      had_relations: nextHasRelations,
+      hadRelations: nextHasRelations,
+    });
+
+    try {
+      await addOrUpdateDataPoint(payload, existingRecord);
+
+      toast({
+        title: nextHasRelations
+          ? 'Se han marcado las relaciones sexuales'
+          : 'Se han desmarcado las relaciones sexuales',
+        duration: 1400,
+      });
+    } catch (error) {
+      console.error('Error updating relations from dashboard:', error);
+      toast({
+        title: 'Error',
+        description: 'No se pudo actualizar RS.',
+        variant: 'destructive',
+      });
+    }
+  },
+  [addOrUpdateDataPoint, buildDashboardRecordPayload, currentCycle?.data, toast]
+);
+
+  const handleRequestDeleteRecord = useCallback(
+  (recordId) => {
+    const targetRecord = currentCycle?.data?.find((record) => record?.id === recordId);
+    if (!targetRecord) return;
+    setRecordToDelete(targetRecord);
+  },
+  [currentCycle?.data]
+);
+const handleConfirmDeleteRecord = useCallback(async () => {
+  if (!recordToDelete?.id || !currentCycle?.id) return;
+
+  setIsDeletingRecord(true);
+
+  try {
+    await deleteRecord(recordToDelete.id, currentCycle.id);
+    setRecordToDelete(null);
+    await refreshData({ silent: true });
+  } catch (error) {
+    console.error('Error deleting record from dashboard:', error);
+    toast({
+      title: 'Error',
+      description: 'No se pudo eliminar el registro.',
+      variant: 'destructive',
+    });
+  } finally {
+    setIsDeletingRecord(false);
+  }
+}, [recordToDelete?.id, currentCycle?.id, deleteRecord, refreshData, toast]);
 
   const handleSave = async (data, { keepFormOpen = false } = {}) => {
-    setIsProcessing(true);
-    try {
-      await addOrUpdateDataPoint(data, editingRecord);
-      clearDataEntryDraft();
-      if (!keepFormOpen) {
-        setShowForm(false);
-        setEditingRecord(null);
-        setInitialSectionKey(null);
-        setIsNewCycleFlowFromForm(false);
-        setFormDraftToRestore(null);
-      }
-    } finally {
-      setIsProcessing(false);
+  setIsProcessing(true);
+
+  const toastMessage = getDashboardUpdateToastMessage(editingRecord, data);
+
+  try {
+    await addOrUpdateDataPoint(data, editingRecord);
+
+    toast({
+      title: toastMessage,
+      duration: 1400,
+    });
+
+    clearDataEntryDraft();
+
+    if (!keepFormOpen) {
+      setShowForm(false);
+      setEditingRecord(null);
+      setInitialSectionKey(null);
+      setIsNewCycleFlowFromForm(false);
+      setFormDraftToRestore(null);
     }
-  };
+  } finally {
+    setIsProcessing(false);
+  }
+};
 
   const handleCloseNewCycleDialog = useCallback(() => {
     setShowNewCycleDialog(false);
@@ -2178,16 +2310,17 @@ const ModernFertilityDashboard = () => {
           className="flex flex-1 flex-col gap-3"
         >
           <CycleOverviewCard
-            cycleData={{ ...currentCycle, currentDay, records: currentCycle.data }}
-            onEdit={handleEdit}
-            onTogglePeak={handleTogglePeak}
-            currentPeakIsoDate={currentPeakIsoDate}
-            onEditStartDate={handleOpenStartDateEditor}
-            handleOpenCpmDialog={handleOpenCpmDialog}
-            handleOpenT8Dialog={handleOpenT8Dialog}
-            cpmMetric={cpmMetric}
-            t8Metric={t8Metric}
-          />
+  cycleData={{ ...currentCycle, currentDay, records: currentCycle.data }}
+  onEdit={handleEdit}
+  onDeleteRecord={handleRequestDeleteRecord}
+  onToggleRelations={handleToggleRelationsFromDashboard}
+  currentPeakIsoDate={currentPeakIsoDate}
+  onEditStartDate={handleOpenStartDateEditor}
+  handleOpenCpmDialog={handleOpenCpmDialog}
+  handleOpenT8Dialog={handleOpenT8Dialog}
+  cpmMetric={cpmMetric}
+  t8Metric={t8Metric}
+/>
           <FertilityCalculatorsEditorDialogs
             editor={calculatorEditor}
             onNavigateToCycleDetails={(cycle) => {
@@ -2252,7 +2385,7 @@ const ModernFertilityDashboard = () => {
         isProcessing={isUndoingCycle}
       />
 
-<OverlapWarningDialog
+      <OverlapWarningDialog
         isOpen={showUndoImpactDialog}
         onCancel={() => {
           setShowUndoImpactDialog(false);
@@ -2265,6 +2398,20 @@ const ModernFertilityDashboard = () => {
         affectedCycles={undoImpactPreview?.affectedCycles || []}
         impactSummary={undoImpactPreview?.impactSummary}
         adjustedCyclesPreview={undoImpactPreview?.adjustedCyclesPreview || []}
+      />
+
+      <DeletionDialog
+        isOpen={Boolean(recordToDelete)}
+        onClose={() => {
+          if (isDeletingRecord) return;
+          setRecordToDelete(null);
+        }}
+        onConfirm={handleConfirmDeleteRecord}
+        title="Eliminar registro"
+        confirmLabel="Eliminar"
+        cancelLabel="Cancelar"
+        description="¿Quieres eliminar este registro? Esta acción no se puede deshacer."
+        isProcessing={isDeletingRecord}
       />
 
       <Dialog

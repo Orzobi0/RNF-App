@@ -426,8 +426,8 @@ let peakIndicatorVariant = null;
             onClick={handleRelationsToggle}
             disabled={isProcessing}
             className={cn(
-              'flex h-10 w-10 items-center justify-center rounded-full border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200',
-              hasRelations ? 'border-rose-50 bg-rose-50' : 'border-slate-200 bg-white',
+              'flex h-10 w-10 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200',
+              hasRelations &&'bg-white',
               isProcessing && 'opacity-70 cursor-not-allowed'
             )}
             title={hasRelations ? 'Hubo relaciones' : 'Sin relaciones'}
