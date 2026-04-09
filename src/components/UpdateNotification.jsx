@@ -15,6 +15,7 @@ export default function UpdateNotification() {
 
     let registrationRef = null;
     let currentInstallingWorker = null;
+    let currentStateChangeHandler = null;
 
     const handleControllerChange = () => {
       if (!shouldReloadRef.current) return;
@@ -28,58 +29,109 @@ export default function UpdateNotification() {
       setMinimized(false);
     };
 
-    const attachStateChange = (worker) => {
+    const detachStateChange = () => {
+      if (currentInstallingWorker && currentStateChangeHandler) {
+        currentInstallingWorker.removeEventListener(
+          'statechange',
+          currentStateChangeHandler
+        );
+      }
+
+      currentInstallingWorker = null;
+      currentStateChangeHandler = null;
+    };
+
+    const attachStateChange = (registration, worker) => {
       if (!worker) return;
+
+      detachStateChange();
 
       currentInstallingWorker = worker;
 
-      worker.addEventListener('statechange', () => {
+      const handleStateChange = () => {
         if (worker.state === 'installed' && navigator.serviceWorker.controller) {
-          showUpdateUI(worker);
+          showUpdateUI(registration.waiting ?? worker);
         }
-      });
+
+        if (worker.state === 'redundant') {
+          detachStateChange();
+        }
+      };
+
+      currentStateChangeHandler = handleStateChange;
+      worker.addEventListener('statechange', handleStateChange);
+
+      // Cubre la carrera: si ya estaba instalado cuando nos enganchamos
+      if (worker.state === 'installed' && navigator.serviceWorker.controller) {
+        showUpdateUI(registration.waiting ?? worker);
+      }
     };
 
-    const checkWaitingWorker = async () => {
-      const registration = await navigator.serviceWorker.ready;
-      registrationRef = registration;
+    const inspectRegistration = (registration) => {
+      if (!registration) return;
 
       if (registration.waiting) {
         showUpdateUI(registration.waiting);
+        return;
       }
 
-      registration.addEventListener('updatefound', () => {
-        attachStateChange(registration.installing);
-      });
+      if (registration.installing) {
+        attachStateChange(registration, registration.installing);
+      }
+    };
+
+    const handleUpdateFound = () => {
+      if (!registrationRef) return;
+      inspectRegistration(registrationRef);
+    };
+
+    const setupRegistration = async () => {
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        registrationRef = registration;
+
+        registration.addEventListener('updatefound', handleUpdateFound);
+
+        inspectRegistration(registration);
+      } catch {
+        // ignore
+      }
     };
 
     const handleVisibilityChange = async () => {
       if (document.visibilityState !== 'visible') return;
 
       try {
-        const registration = await navigator.serviceWorker.ready;
-        if (registration.waiting) {
-          showUpdateUI(registration.waiting);
-        }
+        const registration =
+          registrationRef ?? (await navigator.serviceWorker.ready);
+
+        registrationRef = registration;
+        inspectRegistration(registration);
       } catch {
         // ignore
       }
     };
 
-    navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
+    navigator.serviceWorker.addEventListener(
+      'controllerchange',
+      handleControllerChange
+    );
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
-    checkWaitingWorker();
+    void setupRegistration();
 
     return () => {
-      navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
+      navigator.serviceWorker.removeEventListener(
+        'controllerchange',
+        handleControllerChange
+      );
       document.removeEventListener('visibilitychange', handleVisibilityChange);
 
       if (registrationRef) {
-        registrationRef.onupdatefound = null;
+        registrationRef.removeEventListener('updatefound', handleUpdateFound);
       }
 
-      currentInstallingWorker = null;
+      detachStateChange();
     };
   }, []);
 
@@ -102,14 +154,14 @@ export default function UpdateNotification() {
     return (
       <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50">
         <Button
-  onClick={() => {
-    setShowUpdate(true);
-    setMinimized(false);
-  }}
-  className="bg-secundario text-white font-semibold hover:bg-secundario/90"
->
-  Actualización disponible
-</Button>
+          onClick={() => {
+            setShowUpdate(true);
+            setMinimized(false);
+          }}
+          className="bg-secundario text-white font-semibold hover:bg-secundario/90"
+        >
+          Actualización disponible
+        </Button>
       </div>
     );
   }
@@ -124,7 +176,10 @@ export default function UpdateNotification() {
           <Button onClick={handleLater} variant="secondary">
             Más tarde
           </Button>
-          <Button onClick={handleUpdate} className="bg-white text-secundario-fuerte hover:bg-white/90">
+          <Button
+            onClick={handleUpdate}
+            className="bg-white text-secundario-fuerte hover:bg-white/90"
+          >
             Actualizar
           </Button>
         </div>
