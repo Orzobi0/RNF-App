@@ -1,4 +1,4 @@
-import React, { Suspense, lazy } from 'react';
+import React, { Suspense, lazy, useEffect, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { ErrorBoundary } from '@/components/dev/ErrorBoundary';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
@@ -48,6 +48,47 @@ function ProtectedRoute({ children }) {
   }
 
   return children;
+}
+
+function ServiceWorkerRouteUpdater() {
+  const location = useLocation();
+  const lastCheckRef = useRef(0);
+
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+
+    const now = Date.now();
+
+    // Evita comprobar en exceso si la usuaria navega rápido
+    if (now - lastCheckRef.current < 20000) return;
+    lastCheckRef.current = now;
+
+    let cancelled = false;
+
+    const checkForUpdate = async () => {
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        if (cancelled) return;
+
+        await registration.update();
+
+        // Si ya hay una versión esperando, la activamos
+        if (registration.waiting) {
+          registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    void checkForUpdate();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [location.pathname, location.search]);
+
+  return null;
 }
 
 function AppContent() {
@@ -189,6 +230,7 @@ function App() {
   return (
     <BrowserRouter basename={import.meta.env.BASE_URL}>
       <ViewportHeightFix />
+      <ServiceWorkerRouteUpdater />
       <UpdateNotification />
       <AuthProvider>
         <CycleDataProvider>
