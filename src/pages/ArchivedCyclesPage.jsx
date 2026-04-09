@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import DeletionDialog from '@/components/DeletionDialog';
-import { differenceInCalendarDays, format, parseISO, addDays, isValid } from 'date-fns';
+import { differenceInCalendarDays, format, parseISO, addDays, isValid, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Archive, Baby, CalendarDays, EllipsisVertical, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import EditCycleDatesDialog from '@/components/EditCycleDatesDialog';
@@ -47,7 +47,33 @@ const normalizeCycleRowData = (cycle) => {
     durationDays,
   };
 };
+const getGapDaysBetweenCycles = (newerCycle, olderCycle) => {
+  if (!newerCycle?.startDate || !olderCycle?.endDate) return 0;
 
+  try {
+    const newerStart = startOfDay(parseISO(newerCycle.startDate));
+    const olderEnd = startOfDay(parseISO(olderCycle.endDate));
+
+    if (!isValid(newerStart) || !isValid(olderEnd)) return 0;
+
+    const gapDays = differenceInCalendarDays(newerStart, olderEnd) - 1;
+    return gapDays > 0 ? gapDays : 0;
+  } catch {
+    return 0;
+  }
+};
+
+const GapRow = ({ days }) => (
+  <div className="px-4 py-1">
+    <div className="flex items-center gap-2.5">
+      <div className="h-px flex-1 bg-gradient-to-r from-transparent via-rose-200/80 to-transparent" />
+      <span className="text-[10px] font-medium text-slate-400">
+        Hueco de {days} día{days !== 1 ? 's' : ''}
+      </span>
+      <div className="h-px flex-1 bg-gradient-to-r from-transparent via-rose-200/80 to-transparent" />
+    </div>
+  </div>
+);
 const ArchivedCyclesPage = () => {
     const {
     currentCycle,
@@ -151,6 +177,16 @@ const ArchivedCyclesPage = () => {
       return Number(b) - Number(a);
     });
   }, [archivedByYear]);
+  const firstArchivedCycle = useMemo(() => {
+  if (!archivedYears.length) return null;
+  const firstYear = archivedYears[0];
+  return archivedByYear[firstYear]?.[0] || null;
+}, [archivedByYear, archivedYears]);
+
+const gapAfterCurrentCycle = useMemo(() => {
+  if (!currentCycleWithFlag || !firstArchivedCycle) return 0;
+  return getGapDaysBetweenCycles(currentCycleWithFlag, firstArchivedCycle);
+}, [currentCycleWithFlag, firstArchivedCycle]);
 
   const formatConflictMessage = (conflictCycle) => {
     if (!conflictCycle) {
@@ -428,34 +464,60 @@ const CycleRow = ({ cycle, isFirst, isLast }) => {
 
         <div className="mx-auto w-full max-w-2xl space-y-3.5 px-4 pt-1.5 pb-1">
           {currentCycle?.id ? (
-  <section className="overflow-hidden rounded-[28px] border border-rose-200/80 bg-white shadow-[0_14px_28px_-22px_rgba(216,92,112,0.35)]">
-    <CycleRow cycle={{ ...currentCycle, isCurrent: true }} isFirst isLast />
-  </section>
-) : null}
+            <section className="overflow-hidden rounded-[28px] border border-rose-200/80 bg-white shadow-[0_14px_28px_-22px_rgba(216,92,112,0.35)]">
+              <CycleRow cycle={{ ...currentCycle, isCurrent: true }} isFirst isLast />
+            </section>
+          ) : null}
 
-                {archivedYears.map((year, yearIndex) => {
-          const cyclesForYear = archivedByYear[year] || [];
-          if (!cyclesForYear.length) return null;
+          {gapAfterCurrentCycle > 0 ? <GapRow days={gapAfterCurrentCycle} /> : null}
 
-          return (
-            <section
-              key={year}
-              className={yearIndex === 0 ? 'space-y-1 pt-0.5' : 'space-y-1 pt-0.5'}
-            >
-              {yearIndex > 0 ? <YearSeparator year={year} /> : null}
-              <div className="overflow-hidden rounded-[28px] border border-rose-200/75 bg-white shadow-[0_12px_24px_-20px_rgba(15,23,42,0.14)]">
-                {cyclesForYear.map((cycle, index) => (
-                  <div key={cycle.id}>
-                    <CycleRow
-                      cycle={cycle}
-                      isFirst={index === 0}
-                      isLast={index === cyclesForYear.length - 1}
-                    />
-                    {index < cyclesForYear.length - 1 ? (
-                    <div className="mx-4 h-px bg-gradient-to-r from-transparent via-rose-200/80 to-transparent" />
-                  ) : null}
-                  </div>
-                 ))}
+          {archivedYears.map((year, yearIndex) => {
+  const cyclesForYear = archivedByYear[year] || [];
+  if (!cyclesForYear.length) return null;
+
+  const previousYear = yearIndex > 0 ? archivedYears[yearIndex - 1] : null;
+  const previousYearCycles = previousYear ? archivedByYear[previousYear] || [] : [];
+  const previousYearLastCycle =
+    previousYearCycles.length > 0 ? previousYearCycles[previousYearCycles.length - 1] : null;
+  const firstCycleOfThisYear = cyclesForYear[0];
+  const gapBeforeYear =
+    yearIndex > 0 ? getGapDaysBetweenCycles(previousYearLastCycle, firstCycleOfThisYear) : 0;
+
+  return (
+    <section
+      key={year}
+      className="space-y-1 pt-0.5"
+    >
+      {yearIndex > 0 ? (
+        <>
+          <YearSeparator year={year} />
+          {gapBeforeYear > 0 ? <GapRow days={gapBeforeYear} /> : null}
+        </>
+      ) : null}
+
+      <div className="overflow-hidden rounded-[28px] border border-rose-200/75 bg-white shadow-[0_12px_24px_-20px_rgba(15,23,42,0.14)]">
+                {cyclesForYear.map((cycle, index) => {
+  const nextCycle = index < cyclesForYear.length - 1 ? cyclesForYear[index + 1] : null;
+  const gapDays = nextCycle ? getGapDaysBetweenCycles(cycle, nextCycle) : 0;
+
+  return (
+    <div key={cycle.id}>
+      <CycleRow
+        cycle={cycle}
+        isFirst={index === 0}
+        isLast={index === cyclesForYear.length - 1}
+      />
+
+      {nextCycle ? (
+        gapDays > 0 ? (
+          <GapRow days={gapDays} />
+        ) : (
+          <div className="mx-4 h-px bg-gradient-to-r from-transparent via-rose-200/80 to-transparent" />
+        )
+      ) : null}
+    </div>
+  );
+})}
               </div>
             </section>
           );
