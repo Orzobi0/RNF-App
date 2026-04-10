@@ -887,34 +887,36 @@ const handleRingPointerCancel = useCallback(
 }, [resolvedActivePoint, formatTemperatureDisplay, getSymbolInfo]);
 
   const handleAddFromDetailPanel = useCallback(
-    (isoDate, sectionKey = null) => {
-      if (!isoDate) return;
-      const cycleStartDateValue = cycleData?.startDate ? parseISO(cycleData.startDate) : null;
-      const computedCycleDay =
-        cycleStartDateValue && isValid(cycleStartDateValue)
-          ? differenceInDays(parseISO(isoDate), cycleStartDateValue) + 1
-          : null;
+  (isoDate, sectionKey = null, fieldName = null) => {
+    if (!isoDate) return;
 
-      onEdit(
-        {
-          id: `placeholder-${isoDate}`,
-          isoDate,
-          cycleDay: computedCycleDay,
-          fertility_symbol: null,
-          mucus_sensation: '',
-          mucusSensation: '',
-          mucus_appearance: '',
-          mucusAppearance: '',
-          observations: '',
-          temperature_chart: null,
-          displayTemperature: null,
-          ignored: false,
-        },
-        sectionKey
-      );
-    },
-    [cycleData?.startDate, onEdit]
-  );
+    const cycleStartDateValue = cycleData?.startDate ? parseISO(cycleData.startDate) : null;
+    const computedCycleDay =
+      cycleStartDateValue && isValid(cycleStartDateValue)
+        ? differenceInDays(parseISO(isoDate), cycleStartDateValue) + 1
+        : null;
+
+    onEdit(
+      {
+        id: `placeholder-${isoDate}`,
+        isoDate,
+        cycleDay: computedCycleDay,
+        fertility_symbol: null,
+        mucus_sensation: '',
+        mucusSensation: '',
+        mucus_appearance: '',
+        mucusAppearance: '',
+        observations: '',
+        temperature_chart: null,
+        displayTemperature: null,
+        ignored: false,
+      },
+      sectionKey,
+      fieldName
+    );
+  },
+  [cycleData?.startDate, onEdit]
+);
     const handleToggleRelations = useCallback(
   (isoDate) => {
     if (!isoDate) return;
@@ -1100,6 +1102,26 @@ const handleRingPointerCancel = useCallback(
 >
                 {dots.map((dot, index) => (
                   <g key={index}>
+                    {dot.isSelected && (
+  <>
+    <circle
+      cx={dot.x}
+      cy={dot.y}
+      r={dot.isToday ? 16.5 : 15.5}
+      fill="rgba(244,63,94,0.12)"
+      pointerEvents="none"
+    />
+    <circle
+      cx={dot.x}
+      cy={dot.y}
+      r={dot.isToday ? 14.5 : 13.5}
+      fill="none"
+      stroke="rgba(244,63,94,0.95)"
+      strokeWidth={2.2}
+      pointerEvents="none"
+    />
+  </>
+)}
 {/* Punto principal con sombra real */}
 <g filter={dot.isActive ? 'url(#activePointHighlight)' : dot.isToday ? "url(#bevel)" : undefined}>
   <circle
@@ -1128,7 +1150,7 @@ const handleRingPointerCancel = useCallback(
   }
   stroke={dot.colors.border && dot.colors.border !== 'none' ? dot.colors.border : "rgba(255,255,255,0.3)"}
   strokeWidth={dot.colors.border && dot.colors.border !== 'none' ? (dot.isToday ? 2.2 : 1.2) : 0}
-  filter={dot.fertilitysymbol === 'white' 
+  filter={dot.record?.fertility_symbol === 'white'  
     ? "url(#whiteSymbolShadow)" 
     : dot.isActive 
       ? "url(#dotShadow)" 
@@ -1221,26 +1243,6 @@ const handleRingPointerCancel = useCallback(
       }}
     />
   </motion.g>
-)}
-{dot.isSelected && (
-  <>
-    <circle
-      cx={dot.x}
-      cy={dot.y}
-      r={dot.isToday ? 16.5 : 15.5}
-      fill="rgba(244,63,94,0.12)"
-      pointerEvents="none"
-    />
-    <circle
-      cx={dot.x}
-      cy={dot.y}
-      r={dot.isToday ? 14.5 : 13.5}
-      fill="none"
-      stroke="rgba(244,63,94,0.95)"
-      strokeWidth={2.2}
-      pointerEvents="none"
-    />
-  </>
 )}
 
                   {/* Anillo pulsante para el día actual */}
@@ -1804,6 +1806,7 @@ const ModernFertilityDashboard = () => {
   const [showNewCycleDialog, setShowNewCycleDialog] = useState(false);
   const [newCyclePrefillDate, setNewCyclePrefillDate] = useState(null);
   const [editingRecord, setEditingRecord] = useState(null);
+  const [focusedField, setFocusedField] = useState(null);
   const [initialSectionKey, setInitialSectionKey] = useState(null);
   const [formDraftToRestore, setFormDraftToRestore] = useState(null);
   const isPlaceholderRecord = Boolean(
@@ -1839,23 +1842,25 @@ const ModernFertilityDashboard = () => {
     }
   }, []);
   const handleCloseForm = useCallback(() => {
-    clearDataEntryDraft();
-    setShowForm(false);
-    setEditingRecord(null);
-    setInitialSectionKey(null);
+  clearDataEntryDraft();
+  setShowForm(false);
+  setEditingRecord(null);
+  setFocusedField(null);
+  setInitialSectionKey(null);
   setIsNewCycleFlowFromForm(false);
-    setFormDraftToRestore(null);
-  }, [clearDataEntryDraft]);
+  setFormDraftToRestore(null);
+}, [clearDataEntryDraft]);
 
   const handleDateSelect = useCallback((record) => {
     setEditingRecord(record);
   }, []);
 
-  const handleEdit = useCallback((record, sectionKey = null) => {
-    setEditingRecord(record);
-    setInitialSectionKey(sectionKey ?? null);
-    setShowForm(true);
-  }, []);
+  const handleEdit = useCallback((record, sectionKey = null, fieldName = null) => {
+  setEditingRecord(record);
+  setFocusedField(fieldName ?? null);
+  setInitialSectionKey(sectionKey ?? null);
+  setShowForm(true);
+}, []);
 
   const buildDashboardRecordPayload = useCallback(
   (isoDate, overrides = {}) => {
@@ -2044,12 +2049,13 @@ const handleConfirmDeleteRecord = useCallback(async () => {
     clearDataEntryDraft();
 
     if (!keepFormOpen) {
-      setShowForm(false);
-      setEditingRecord(null);
-      setInitialSectionKey(null);
-      setIsNewCycleFlowFromForm(false);
-      setFormDraftToRestore(null);
-    }
+  setShowForm(false);
+  setEditingRecord(null);
+  setFocusedField(null);
+  setInitialSectionKey(null);
+  setIsNewCycleFlowFromForm(false);
+  setFormDraftToRestore(null);
+}
   } finally {
     setIsProcessing(false);
   }
@@ -2072,9 +2078,10 @@ const handleConfirmDeleteRecord = useCallback(async () => {
       setShowForm(true);
       setFormDraftToRestore(loadDataEntryDraft());
     } else {
-      setInitialSectionKey(null);
-      setShowForm(true);
-    }
+  setFocusedField(null);
+  setInitialSectionKey(null);
+  setShowForm(true);
+}
   };
 
   const handleOpenNewCycleDialog = useCallback((initialIsoDate = null, draftPayload = null) => {
@@ -2411,6 +2418,7 @@ const handleConfirmDeleteRecord = useCallback(async () => {
             isEditing={!!editingRecord && !isPlaceholderRecord}
             cycleData={currentCycle.data}
             onDateSelect={handleDateSelect}
+            focusedField={focusedField}
             initialSectionKey={initialSectionKey}
             onOpenNewCycle={handleOpenNewCycleDialog}
             formDraft={formDraftToRestore}
@@ -2419,13 +2427,14 @@ const handleConfirmDeleteRecord = useCallback(async () => {
       </Dialog>
 
       <FloatingActionButton
-        onAddRecord={() => {
-          setEditingRecord(null);
-          setInitialSectionKey(null);
-          setShowForm(true);
-        }}
-        onAddCycle={() => handleOpenNewCycleDialog()}
-      />
+  onAddRecord={() => {
+    setEditingRecord(null);
+    setFocusedField(null);
+    setInitialSectionKey(null);
+    setShowForm(true);
+  }}
+  onAddCycle={() => handleOpenNewCycleDialog()}
+/>
 
       <NewCycleDialog
         isOpen={showNewCycleDialog}

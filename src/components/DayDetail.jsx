@@ -30,7 +30,11 @@ const DayDetail = ({
   onTogglePeak,
   isProcessing,
 }) => {
-  const hasRecord = Boolean(details?.record);
+  const isPersistedRecord = (record) =>
+  Boolean(record?.id) && !String(record.id).startsWith('placeholder-');
+
+const persistedRecord = isPersistedRecord(details?.record) ? details.record : null;
+const hasPersistedRecord = Boolean(persistedRecord);
   const [isPeakProcessing, setIsPeakProcessing] = useState(false);
 
   const formattedDate = useMemo(() => {
@@ -81,14 +85,14 @@ const peakAriaLabel = useMemo(() => {
     details?.symbolInfo?.pattern === 'spotting-pattern' ? 'spotting-pattern-icon' : '';
 
   const handleEdit = () => {
-    if (!details?.record || !onEdit) return;
-    onEdit(details.record, null);
-  };
+  if (!persistedRecord || !onEdit) return;
+  onEdit(persistedRecord, null, null);
+};
 
   const handleDelete = () => {
-    if (!details?.record?.id || !onDelete) return;
-    onDelete(details.record.id);
-  };
+  if (!persistedRecord?.id || !onDelete) return;
+  onDelete(persistedRecord.id);
+};
 
   const handleAdd = () => {
     if (!isoDate || !onAdd) return;
@@ -178,15 +182,15 @@ const smartOpen = (key, sectionKey, fieldName) => {
 };
 
   const handleSectionOpen = (sectionKey, fieldName = null) => {
-    if (details?.record && onEdit) {
-      onEdit(details.record, sectionKey, fieldName);
-      return;
-    }
+  if (persistedRecord && onEdit) {
+    onEdit(persistedRecord, sectionKey, fieldName);
+    return;
+  }
 
-    if (isoDate && onAdd) {
-      onAdd(isoDate, sectionKey, fieldName);
-    }
-  };
+  if (isoDate && onAdd) {
+    onAdd(isoDate, sectionKey, fieldName);
+  }
+};
 
   const handleRelationsToggle = () => {
     if (!isoDate || !onToggleRelations) return;
@@ -204,7 +208,7 @@ const smartOpen = (key, sectionKey, fieldName) => {
   };
 
   const temperatureValue = details?.hasTemperature ? `${details.displayTemp} °C` : '—';
-  const isTemperatureIgnored = Boolean(details?.hasTemperature && details?.record?.ignored);
+  const isTemperatureIgnored = Boolean(details?.hasTemperature && persistedRecord?.ignored);
   const timeValue = details?.timeValue || '—';
   const hasTimeValue = Boolean(details?.timeValue);
   const hasRelations = Boolean(details?.hasRelations);
@@ -474,7 +478,7 @@ const footerIconButtonClass =
       />
     </button>
 
-    {hasRecord ? (
+    {hasPersistedRecord ? (
       <>
         <Button
           type="button"
