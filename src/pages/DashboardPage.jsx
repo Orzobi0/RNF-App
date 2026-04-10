@@ -519,6 +519,10 @@ const EMPTY_DAY_COLORS = {
         }
       }
       const peakStatus = isoDate ? peakStatuses[isoDate] || null : null;
+      const isSelected = Boolean(
+        resolvedActivePoint?.isoDate && isoDate === resolvedActivePoint.isoDate
+      );
+
       return {
         x,
         y,
@@ -526,6 +530,7 @@ const EMPTY_DAY_COLORS = {
         colors,
         isActive: day <= cycleData.currentDay,
         isToday,
+        isSelected,
         hasRecord: !!recordWithCycleDay,
         record: recordWithCycleDay,
         isoDate,
@@ -1033,7 +1038,7 @@ const handleRingPointerCancel = useCallback(
     <div className="relative flex flex-col space-y-4">
       {/* Fecha actual - Parte superior con padding reducido */}
       <motion.div
-        className="relative overflow-hidden px-4 pt-4 pb-3 text-center flex-shrink-0"
+        className="relative overflow-hidden px-4 pt-4 pb-1 text-center flex-shrink-0"
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
@@ -1069,7 +1074,7 @@ const handleRingPointerCancel = useCallback(
 
       {/* Contenedor principal con flex-grow para usar todo el espacio disponible */}
         <motion.div
-        className="px-4 flex-grow flex flex-col justify-start mt-2"
+        className="px-4 flex-grow flex flex-col justify-start mt-0"
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.2, delay: 0.1 }}
@@ -1244,6 +1249,7 @@ const handleRingPointerCancel = useCallback(
 </g>
 
 {!prefersReducedMotion && changedDaySet.has(dot.day) && (
+  
   <motion.g
     key={`dot-splash-${dot.day}`}
     pointerEvents="none"
@@ -1314,20 +1320,40 @@ const handleRingPointerCancel = useCallback(
     />
   </motion.g>
 )}
+{dot.isSelected && (
+  <>
+    <circle
+      cx={dot.x}
+      cy={dot.y}
+      r={dot.isToday ? 16.5 : 15.5}
+      fill="rgba(244,63,94,0.12)"
+      pointerEvents="none"
+    />
+    <circle
+      cx={dot.x}
+      cy={dot.y}
+      r={dot.isToday ? 14.5 : 13.5}
+      fill="none"
+      stroke="rgba(244,63,94,0.95)"
+      strokeWidth={2.2}
+      pointerEvents="none"
+    />
+  </>
+)}
 
                   {/* Anillo pulsante para el día actual */}
-                  {dot.isToday && (
-                    <circle
-                      cx={dot.x}
-                      cy={dot.y}
-                      r={8.5}
-                      fill="none"
-                      stroke="rgba(244,63,94,0.8)"
-                      strokeWidth={3}
-                      className="animate-pulse"
-                      style={{ pointerEvents: 'none' }}
-                    />
-                  )}
+                  {dot.isToday && !dot.isSelected && (
+  <circle
+    cx={dot.x}
+    cy={dot.y}
+    r={8.5}
+    fill="none"
+    stroke="rgba(244,63,94,0.8)"
+    strokeWidth={3}
+    className="animate-pulse"
+    style={{ pointerEvents: 'none' }}
+  />
+)}
 
                 </g>
                 ))}
