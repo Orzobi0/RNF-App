@@ -118,15 +118,20 @@ const DataEntryFormFields = ({
   );
 
   const dockItems = useMemo(
-    () => [
-      { ...SECTION_METADATA.temperature, sectionKey: 'temperature', icon: Thermometer },
-      { ...SECTION_METADATA.sensation, sectionKey: 'moco', icon: Droplets },
-      { ...SECTION_METADATA.appearance, sectionKey: 'moco', icon: Circle },
-      { ...SECTION_METADATA.symbol, sectionKey: 'moco', icon: Sprout },
-      { ...SECTION_METADATA.observations, sectionKey: 'observations', icon: Edit3 },
-    ],
-    []
-  );
+  () => [
+    { ...SECTION_METADATA.temperature, sectionKey: 'temperature', icon: Thermometer },
+    {
+      ...SECTION_METADATA.moco,
+      key: 'moco',
+      sectionKey: 'moco',
+      icon: Droplets,
+      ariaLabel: 'Abrir sección de moco: sensación, apariencia y símbolo',
+      srLabel: 'Moco',
+    },
+    { ...SECTION_METADATA.observations, sectionKey: 'observations', icon: Edit3 },
+  ],
+  []
+);
 
   const sectionKeys = useMemo(() => sectionOrder.map((section) => section.key), [sectionOrder]);
 
@@ -393,6 +398,41 @@ useEffect(() => {
    }
  }, []);
 
+ const scrollToExpandedSectionField = useCallback((sectionKey) => {
+  if (typeof window === 'undefined' || !sectionKey) return;
+
+  const container = sectionsContainerRef.current;
+  if (!container) return;
+
+  const fieldSelectorBySection = {
+    moco: '[data-field="mucusSensation"]',
+    observations: '[data-field="observations"]',
+  };
+
+  const selector = fieldSelectorBySection[sectionKey];
+  let node = selector ? container.querySelector(selector) : null;
+
+  if (!(node instanceof HTMLElement)) {
+    node = container.querySelector(`[data-section="${sectionKey}"]`);
+  }
+
+  if (!(node instanceof HTMLElement)) return;
+
+  const run = () => {
+    node.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start',
+      inline: 'nearest',
+    });
+  };
+
+  if ('requestAnimationFrame' in window) {
+    requestAnimationFrame(() => requestAnimationFrame(run));
+  } else {
+    setTimeout(run, 50);
+  }
+}, []);
+
   useEffect(() => {
     if (typeof window === 'undefined') {
       return;
@@ -419,11 +459,15 @@ useEffect(() => {
       triggerHapticFeedback();
 
  if (isViewAll) {
-        pendingScrollTargetRef.current = normalizedKey;
-        registerActiveSection(normalizedKey);
-        scrollToSectionStart(normalizedKey);
-   return;
- }
+  registerActiveSection(normalizedKey);
+  pendingScrollTargetRef.current = null;
+
+  if (normalizedKey !== 'temperature') {
+    scrollToExpandedSectionField(normalizedKey);
+  }
+
+  return;
+}
       
       setActiveSection((current) => {
         if (current === normalizedKey) {
@@ -440,13 +484,14 @@ useEffect(() => {
       });
     },
     [
-      isViewAll,
-      normalizeSectionKey,
-      registerActiveSection,
-      scrollToSectionStart,
-      selectedIsoDate,
-      triggerHapticFeedback,
-    ]
+  isViewAll,
+  normalizeSectionKey,
+  registerActiveSection,
+  scrollToExpandedSectionField,
+  scrollToSectionStart,
+  selectedIsoDate,
+  triggerHapticFeedback,
+]
   );
   // 🔹 Si el pointer es táctil, ejecutamos aquí y marcamos para ignorar el click sintetizado
   const handleSectionPointerDown = useCallback(
@@ -660,10 +705,11 @@ useEffect(() => {
 };
 
   const relationsButtonClasses = cn(
-    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-transparent disabled:cursor-not-allowed disabled:opacity-60',
-    hadRelations
-      ? 'text-rose-600' : 'text-slate-600'
-  );
+  'inline-flex h-9 min-w-[44px] items-center justify-center gap-1.5 rounded-full border px-2.5 text-[11px] font-semibold uppercase tracking-wide shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-transparent disabled:cursor-not-allowed disabled:opacity-60',
+  hadRelations
+    ? 'border-rose-200 bg-rose-50/90 text-rose-600'
+    : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+);
   const syncTemperatureClasses = cn(
     'inline-flex items-center gap-1 rounded-full border border-amber-200 bg-white/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-700 shadow-sm transition-colors',
     canSyncTemperature && !isSyncingTemperature
@@ -818,7 +864,7 @@ useEffect(() => {
         activeBg: 'bg-moco-suave',
         activeText: 'text-moco',
         filledText: 'text-moco',
-        idleText: 'text-moco-suave',
+        idleText: 'text-moco opacity-55',
         focusRing: 'ring-moco',
       },
       symbol: symbolDockStyles,
@@ -849,6 +895,27 @@ useEffect(() => {
     };
   }, [fertilitySymbol]);
 
+  const mocoIndicatorDots = [
+  {
+    key: 'sensation',
+    filled: filledByDockItem.sensation,
+    colorClass: filledByDockItem.sensation ? 'text-sensacion' : 'text-slate-300',
+  },
+  {
+    key: 'appearance',
+    filled: filledByDockItem.appearance,
+    colorClass: filledByDockItem.appearance ? 'text-apariencia' : 'text-slate-300',
+  },
+  {
+    key: 'symbol',
+    filled: filledByDockItem.symbol,
+    colorClass: filledByDockItem.symbol
+      ? sectionStyles.symbol?.filledText ??
+        sectionStyles.symbol?.activeText ??
+        'text-fertiliapp-fuerte'
+      : 'text-slate-300',
+  },
+];
 
   const renderSectionContent = (key) => {
     switch (key) {
@@ -1429,90 +1496,26 @@ useEffect(() => {
     </div>
                 
 
-    <div className="mt-1 space-y-0.5 px-2 sm:px-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <PeakModeButton
-          mode={peakMode}
-          size="md"
-          onClick={togglePeakTag}
-          aria-pressed={isPeakDay}
-          aria-label={peakAriaLabel}
-          disabled={isProcessing || !selectedIsoDate}
-        />
-        {canSyncTemperature && (
-          <button
-            type="button"
-            className={cn(
-              'inline-flex items-center gap-1 rounded-full border border-amber-200 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-700 shadow-sm transition-colors',
-              canSyncTemperature && !isSyncingTemperature
-                ? 'hover:bg-amber-50'
-                : 'cursor-not-allowed opacity-60'
-            )}
-            onClick={onSyncTemperature}
-            disabled={isProcessing || isSyncingTemperature || !canSyncTemperature}
-            aria-label="Sincronizar temperaturas"
-          >
-            <RefreshCcw className="h-3.5 w-3.5" aria-hidden="true" />
-            {isSyncingTemperature ? 'Sincronizando...' : '+ temperatura'}
-          </button>
-        )}
-        <button
-          type="button"
-          className={relationsButtonClasses}
-          onClick={handleRelationsToggle}
-          disabled={isProcessing || !selectedIsoDate}
-          aria-pressed={hadRelations}
-          aria-label={hadRelations ? 'Desmarcar relaciones sexuales' : 'Marcar relaciones sexuales'}
-        >
-          <Heart className={cn('h-4 w-4', hadRelations ? 'text-rose-500 fill-current' : 'text-slate-400')} aria-hidden="true" />
-          <span className="text-xs font-semibold uppercase tracking-wide">RS</span>
-        </button>
-      </div>
-
-      {(existingPeakIsoDate || statusMessages.peak || statusMessages.relations) && (
-        <div className="mt-1 grid grid-cols-[1fr_auto] items-start gap-2 text-[11px]">
-          <div className="min-w-0">
-            {existingPeakIsoDate && (
-              <div className="text-slate-500">
-                {`Día pico: ${format(parseISO(existingPeakIsoDate), 'dd/MM')}`}
-              </div>
-            )}
-            {statusMessages.peak && (
-              <div className="font-medium text-rose-600" role="status" aria-live="polite">
-                {statusMessages.peak}
-              </div>
-            )}
-          </div>
-
-          <div className="text-right">
-            {statusMessages.relations && (
-              <div className="font-medium text-rose-600" role="status" aria-live="polite">
-                {statusMessages.relations}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+    <div className="mt-1 px-2 sm:px-3">
+  <div className="flex items-center gap-2">
+    <div className="shrink-0">
+      <PeakModeButton
+        mode={peakMode}
+        size="md"
+        onClick={togglePeakTag}
+        aria-pressed={isPeakDay}
+        aria-label={peakAriaLabel}
+        disabled={isProcessing || !selectedIsoDate}
+      />
     </div>
 
-    <div className="mt-2">
+    <div className="min-w-0 flex-1 flex justify-center">
       <motion.div
-        ref={dockRef}
-        animate={{
-          width: isViewAll ? '70%' : '100%',
-        }}
-        transition={{ duration: 0.22, ease: 'easeOut' }}
-        className="mx-auto"
-      >
-        <div
-  className={cn(
-    'flex w-full items-center rounded-3xl border border-pink-200 bg-white shadow-sm transition-all duration-200',
-    isViewAll
-      ? 'min-h-[36px] gap-1 px-1 py-[2px] opacity-90'
-      : 'min-h-[50px] gap-1.5 px-2 py-1.5 opacity-100'
-  )}
+  ref={dockRef}
+  className="inline-flex max-w-full"
 >
-          <div className="flex flex-1 items-center gap-1 sm:gap-2">
+        <div className="inline-flex max-w-full items-center gap-1 rounded-full border border-pink-200 bg-white px-1.5 py-1 shadow-sm transition-colors duration-200">
+          <div className="flex items-center gap-0.5 sm:gap-1">
             {dockItems.map((item) => {
               const Icon = item.icon;
               const targetSectionKey = item.sectionKey;
@@ -1522,64 +1525,102 @@ useEffect(() => {
               const isFilled = filledByDockItem[item.key] ?? filledBySection[targetSectionKey];
               const idleTextClass = styles.idleText ?? 'text-slate-500';
               const filledTextClass = styles.filledText ?? idleTextClass;
+              const isMocoDock = item.key === 'moco';
 
-              return (
-                <button
-                  key={item.key}
-                  type="button"
-                  onPointerDown={(e) => handleSectionPointerDown(e, targetSectionKey)}
-                  onClick={() => handleSectionClick(targetSectionKey)}
-                  className={cn(
-  'flex items-center justify-center rounded-full border-2 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 touch-manipulation',
-  isViewAll
-    ? 'h-7 w-7 min-h-[20px] min-w-[36px]'
-    : 'h-11 w-11 min-h-[44px] min-w-[44px]',
-  styles.focusRing,
-  isActive
-    ? cn(
-        'shadow-inner scale-105',
-        styles.activeBorder,
-        styles.activeBg,
-        styles.activeText
-      )
-    : cn(
-        'border-transparent bg-transparent hover:bg-slate-100',
-        isFilled ? filledTextClass : idleTextClass
-      ),
-  !isActive && isViewAll && 'opacity-70'
-)}
-                  aria-label={item.ariaLabel}
-                  aria-expanded={isExpanded}
-                  aria-controls={`${targetSectionKey}-panel`}
-                  data-active={isActive}
-                >
-                  <Icon
-                    className={cn(
-                      'transition-all duration-200',
-                      isViewAll ? 'h-3 w-3' : 'h-5 w-5',
-                      isActive
-                        ? styles.activeText
-                        : isFilled
-                        ? filledTextClass
-                        : idleTextClass
-                    )}
-                    aria-hidden="true"
-                  />
-                  <span className="sr-only">{item.srLabel}</span>
-                </button>
-              );
-            })}
+              const dockButtonSizeClass = isMocoDock
+  ? 'h-10 w-12 min-h-[40px] min-w-[48px]'
+  : 'h-10 w-10 min-h-[40px] min-w-[40px]';
+
+const iconSizeClass = 'h-[18px] w-[18px]';
+const mocoIconSizeClass = 'h-[16px] w-[16px]';
+const dotSizeClass = 'h-1.5 w-1.5';
+
+return (
+  <button
+    key={item.key}
+    type="button"
+    onPointerDown={(e) => handleSectionPointerDown(e, targetSectionKey)}
+    onClick={() => handleSectionClick(targetSectionKey)}
+    className={cn(
+      'flex items-center justify-center rounded-full border-2 transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 touch-manipulation',
+      dockButtonSizeClass,
+      styles.focusRing,
+      isActive
+        ? cn(
+            'shadow-inner scale-105',
+            styles.activeBorder,
+            styles.activeBg,
+            styles.activeText
+          )
+        : cn(
+            'border-transparent bg-transparent hover:bg-slate-100',
+            isFilled ? filledTextClass : idleTextClass
+          ),
+      !isActive && isViewAll && 'opacity-75'
+    )}
+    aria-label={item.ariaLabel}
+    aria-expanded={isExpanded}
+    aria-controls={`${targetSectionKey}-panel`}
+    data-active={isActive}
+  >
+    {isMocoDock ? (
+      <span className="flex items-center justify-center gap-1.5 leading-none">
+        <Icon
+          className={cn(
+            'shrink-0 transition-colors duration-200',
+            mocoIconSizeClass,
+            isActive
+              ? styles.activeText
+              : isFilled
+              ? filledTextClass
+              : idleTextClass
+          )}
+          aria-hidden="true"
+        />
+
+        <span
+          className="flex flex-col items-center justify-center gap-[2px]"
+          aria-hidden="true"
+        >
+          {mocoIndicatorDots.map((dot) => (
+            <span
+              key={dot.key}
+              className={cn(
+                'block rounded-full bg-current transition-colors duration-200',
+                dotSizeClass,
+                dot.colorClass,
+                !dot.filled && 'opacity-70'
+              )}
+            />
+          ))}
+        </span>
+      </span>
+    ) : (
+      <Icon
+        className={cn(
+          'transition-colors duration-200',
+          iconSizeClass,
+          isActive
+            ? styles.activeText
+            : isFilled
+            ? filledTextClass
+            : idleTextClass
+        )}
+        aria-hidden="true"
+      />
+    )}
+
+    <span className="sr-only">{item.srLabel}</span>
+  </button>
+);
+              })}
           </div>
 
           <button
             type="button"
             onClick={handleViewAllToggle}
             className={cn(
-              'ml-auto inline-flex items-center justify-center rounded-full border text-xs font-semibold uppercase tracking-wide transition-all duration-200',
-              isViewAll
-                ? 'min-h-[28px] min-w-[28px] px-2'
-                : 'min-h-[32px] min-w-[32px] px-3',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-pink-200',
+              'inline-flex h-9 w-9 min-h-[36px] min-w-[36px] items-center justify-center rounded-full border text-xs font-semibold uppercase tracking-wide transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-pink-200',
               isViewAll
                 ? 'border-pink-200 bg-pink-50/80 text-pink-600 shadow-inner'
                 : 'border-slate-300 bg-transparent text-slate-500 hover:border-slate-400 hover:text-slate-700'
@@ -1588,10 +1629,7 @@ useEffect(() => {
             aria-label={isViewAll ? 'Compactar secciones' : 'Ver todas las secciones'}
           >
             <span
-              className={cn(
-                'leading-none transition-all duration-200',
-                isViewAll ? 'text-base' : 'text-lg'
-              )}
+              className="text-base leading-none transition-colors duration-200"
               aria-hidden="true"
             >
               {isViewAll ? '⇤' : '⇵'}
@@ -1601,7 +1639,65 @@ useEffect(() => {
         </div>
       </motion.div>
     </div>
+
+    <button
+      type="button"
+      className={relationsButtonClasses}
+      onClick={handleRelationsToggle}
+      disabled={isProcessing || !selectedIsoDate}
+      aria-pressed={hadRelations}
+      aria-label={hadRelations ? 'Desmarcar relaciones sexuales' : 'Marcar relaciones sexuales'}
+    >
+      <Heart
+        className={cn(
+          'h-4 w-4',
+          hadRelations ? 'text-rose-500 fill-current' : 'text-slate-400'
+        )}
+        aria-hidden="true"
+      />
+      <span>RS</span>
+    </button>
   </div>
+
+  {canSyncTemperature && (
+    <div className="mt-1.5 flex justify-center">
+      <button
+        type="button"
+        className={syncTemperatureClasses}
+        onClick={onSyncTemperature}
+        disabled={isProcessing || isSyncingTemperature || !canSyncTemperature}
+        aria-label="Sincronizar temperaturas"
+      >
+        <RefreshCcw className="h-3.5 w-3.5" aria-hidden="true" />
+        {isSyncingTemperature ? 'Sincronizando...' : '+ temperatura'}
+      </button>
+    </div>
+  )}
+
+  {(existingPeakIsoDate || statusMessages.peak || statusMessages.relations) && (
+    <div className="mt-1.5 grid grid-cols-[1fr_auto] items-start gap-2 text-[11px]">
+      <div className="min-w-0">
+        {existingPeakIsoDate && (
+          <div className="text-slate-500">
+            {`Día pico: ${format(parseISO(existingPeakIsoDate), 'dd/MM')}`}
+          </div>
+        )}
+        {statusMessages.peak && (
+          <div className="font-medium text-rose-600" role="status" aria-live="polite">
+            {statusMessages.peak}
+          </div>
+        )}
+      </div>
+
+      <div className="text-right">
+        {statusMessages.relations && (
+          <div className="font-medium text-rose-600" role="status" aria-live="polite">
+            {statusMessages.relations}
+          </div>
+        )}
+      </div>
+    </div>
+  )}
 </div>
 
 <div className="relative z-0 mt-1" ref={sectionsContainerRef}>
@@ -1627,6 +1723,8 @@ useEffect(() => {
             ))}
         </AnimatePresence>
       </div>
+    </div>
+  </div>
 
     </>
   );
