@@ -1425,10 +1425,11 @@ useEffect(() => {
 >
   <div className="absolute inset-0 z-0 rounded-3xl bg-form-surface" />
   <div className="absolute inset-x-0 bottom-0 z-0 h-6 bg-form-surface" />
+
   <div className="relative z-10 rounded-b-3xl bg-form-surface">
     <div className="space-y-2">
-      <div className="col-span-3 space-y-2 rounded-3xl border border-fertiliapp bg-tarjeta shadow-sm p-3">
-        <Label htmlFor="date" className="flex items-center text-titulo text-sm font-semibold">
+      <div className="col-span-3 space-y-2 rounded-3xl border border-fertiliapp bg-tarjeta p-3 shadow-sm">
+        <Label htmlFor="date" className="flex items-center text-sm font-semibold text-titulo">
           <CalendarDays className="mr-2 h-5 w-5 text-titulo" />
           Fecha del Registro
         </Label>
@@ -1439,7 +1440,7 @@ useEffect(() => {
               <Button
                 variant="outline"
                 className={cn(
-                  'h-11 min-w-0 flex-[3.5] justify-start text-left font-normal bg-white border-fertiliapp-suave text-gray-800 hover:bg-white hover:text-gray-800',
+                  'h-11 min-w-0 flex-[3.5] justify-start border-fertiliapp-suave bg-white text-left font-normal text-gray-800 hover:bg-white hover:text-gray-800',
                   !date && 'text-muted-foreground'
                 )}
                 disabled={isProcessing}
@@ -1449,7 +1450,11 @@ useEffect(() => {
                 </span>
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-auto p-0 bg-white border-pink-200 text-gray-800 rounded-3xl" align="start">
+
+            <PopoverContent
+              className="w-auto rounded-3xl border-pink-200 bg-white p-0 text-gray-800"
+              align="start"
+            >
               <Calendar
                 mode="single"
                 selected={date}
@@ -1469,7 +1474,7 @@ useEffect(() => {
                 modifiers={{ hasRecord: recordedDates }}
                 modifiersClassNames={{
                   hasRecord:
-                    'relative after:content-[""] after:absolute after:inset-x-0 after:bottom-1 after:mx-auto after:w-1.5 after:h-1.5 after:rounded-full after:bg-fertiliapp-fuerte',
+                    'relative after:content-[""] after:absolute after:inset-x-0 after:bottom-1 after:mx-auto after:h-1.5 after:w-1.5 after:rounded-full after:bg-fertiliapp-fuerte',
                 }}
                 className="[&_button]:text-gray-800 [&_button:hover]:bg-fertiliapp-suave [&_button[aria-selected=true]]:bg-fertiliapp-fuerte [&_button[aria-selected=true]]:text-white [&_button[aria-disabled=true]]:text-gray-400"
               />
@@ -1486,7 +1491,7 @@ useEffect(() => {
             aria-label="Iniciar nuevo ciclo"
           >
             <CalendarPlus className="mr-1 h-4 w-4 shrink-0" />
-            <span className="flex flex-col leading-[11px] text-left">
+            <span className="flex flex-col text-left leading-[11px]">
               <span>Nuevo</span>
               <span>ciclo</span>
             </span>
@@ -1494,238 +1499,237 @@ useEffect(() => {
         </div>
       </div>
     </div>
-                
 
     <div className="mt-1 px-2 sm:px-3">
-  <div className="flex items-center gap-2">
-    <div className="shrink-0">
-      <PeakModeButton
-        mode={peakMode}
-        size="md"
-        onClick={togglePeakTag}
-        aria-pressed={isPeakDay}
-        aria-label={peakAriaLabel}
-        disabled={isProcessing || !selectedIsoDate}
-      />
-    </div>
+      <div className="flex items-center gap-2">
+        <div className="shrink-0">
+          <PeakModeButton
+            mode={peakMode}
+            size="md"
+            onClick={togglePeakTag}
+            aria-pressed={isPeakDay}
+            aria-label={peakAriaLabel}
+            disabled={isProcessing || !selectedIsoDate}
+          />
+        </div>
 
-    <div className="min-w-0 flex-1 flex justify-center">
-      <motion.div
-  ref={dockRef}
-  className="inline-flex max-w-full"
->
-        <div className="inline-flex max-w-full items-center gap-1 rounded-full border border-pink-200 bg-white px-1.5 py-1 shadow-sm transition-colors duration-200">
-          <div className="flex items-center gap-0.5 sm:gap-1">
-            {dockItems.map((item) => {
-              const Icon = item.icon;
-              const targetSectionKey = item.sectionKey;
-              const isExpanded = openSectionKeys.includes(targetSectionKey);
-              const isActive = !isViewAll && isExpanded;
-              const styles = sectionStyles[item.key] || sectionStyles[targetSectionKey] || {};
-              const isFilled = filledByDockItem[item.key] ?? filledBySection[targetSectionKey];
-              const idleTextClass = styles.idleText ?? 'text-slate-500';
-              const filledTextClass = styles.filledText ?? idleTextClass;
-              const isMocoDock = item.key === 'moco';
+        <div className="flex min-w-0 flex-1 justify-center">
+          <motion.div ref={dockRef} className="inline-flex max-w-full">
+            <div className="inline-flex max-w-full items-center gap-1 rounded-full border border-pink-200 bg-white px-1.5 py-1 shadow-sm transition-colors duration-200">
+              <div className="flex items-center gap-0.5 sm:gap-1">
+                {dockItems.map((item) => {
+                  const Icon = item.icon;
+                  const targetSectionKey = item.sectionKey;
+                  const isExpanded = openSectionKeys.includes(targetSectionKey);
+                  const isActive = !isViewAll && isExpanded;
+                  const styles = sectionStyles[item.key] || sectionStyles[targetSectionKey] || {};
+                  const isFilled = filledByDockItem[item.key] ?? filledBySection[targetSectionKey];
+                  const idleTextClass = styles.idleText ?? 'text-slate-500';
+                  const filledTextClass = styles.filledText ?? idleTextClass;
+                  const isMocoDock = item.key === 'moco';
 
-              const dockButtonSizeClass = isMocoDock
-  ? 'h-10 w-12 min-h-[40px] min-w-[48px]'
-  : 'h-10 w-10 min-h-[40px] min-w-[40px]';
+                  const dockButtonSizeClass = isMocoDock
+                    ? 'h-10 w-12 min-h-[40px] min-w-[48px]'
+                    : 'h-10 w-10 min-h-[40px] min-w-[40px]';
 
-const iconSizeClass = 'h-[18px] w-[18px]';
-const mocoIconSizeClass = 'h-[16px] w-[16px]';
-const dotSizeClass = 'h-1.5 w-1.5';
+                  const iconSizeClass = 'h-[18px] w-[18px]';
+                  const mocoIconSizeClass = 'h-[16px] w-[16px]';
+                  const dotSizeClass = 'h-1.5 w-1.5';
 
-return (
-  <button
-    key={item.key}
-    type="button"
-    onPointerDown={(e) => handleSectionPointerDown(e, targetSectionKey)}
-    onClick={() => handleSectionClick(targetSectionKey)}
-    className={cn(
-      'flex items-center justify-center rounded-full border-2 transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 touch-manipulation',
-      dockButtonSizeClass,
-      styles.focusRing,
-      isActive
-        ? cn(
-            'shadow-inner scale-105',
-            styles.activeBorder,
-            styles.activeBg,
-            styles.activeText
-          )
-        : cn(
-            'border-transparent bg-transparent hover:bg-slate-100',
-            isFilled ? filledTextClass : idleTextClass
-          ),
-      !isActive && isViewAll && 'opacity-75'
-    )}
-    aria-label={item.ariaLabel}
-    aria-expanded={isExpanded}
-    aria-controls={`${targetSectionKey}-panel`}
-    data-active={isActive}
-  >
-    {isMocoDock ? (
-      <span className="flex items-center justify-center gap-1.5 leading-none">
-        <Icon
-          className={cn(
-            'shrink-0 transition-colors duration-200',
-            mocoIconSizeClass,
-            isActive
-              ? styles.activeText
-              : isFilled
-              ? filledTextClass
-              : idleTextClass
-          )}
-          aria-hidden="true"
-        />
+                  return (
+                    <button
+                      key={item.key}
+                      type="button"
+                      onPointerDown={(e) => handleSectionPointerDown(e, targetSectionKey)}
+                      onClick={() => handleSectionClick(targetSectionKey)}
+                      className={cn(
+                        'flex items-center justify-center rounded-full border-2 transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 touch-manipulation',
+                        dockButtonSizeClass,
+                        styles.focusRing,
+                        isActive
+                          ? cn(
+                              'scale-105 shadow-inner',
+                              styles.activeBorder,
+                              styles.activeBg,
+                              styles.activeText
+                            )
+                          : cn(
+                              'border-transparent bg-transparent hover:bg-slate-100',
+                              isFilled ? filledTextClass : idleTextClass
+                            ),
+                        !isActive && isViewAll && 'opacity-75'
+                      )}
+                      aria-label={item.ariaLabel}
+                      aria-expanded={isExpanded}
+                      aria-controls={`${targetSectionKey}-panel`}
+                      data-active={isActive}
+                    >
+                      {isMocoDock ? (
+                        <span className="flex items-center justify-center gap-1.5 leading-none">
+                          <Icon
+                            className={cn(
+                              'shrink-0 transition-colors duration-200',
+                              mocoIconSizeClass,
+                              isActive
+                                ? styles.activeText
+                                : isFilled
+                                ? filledTextClass
+                                : idleTextClass
+                            )}
+                            aria-hidden="true"
+                          />
 
-        <span
-          className="flex flex-col items-center justify-center gap-[2px]"
-          aria-hidden="true"
+                          <span
+                            className="flex flex-col items-center justify-center gap-[2px]"
+                            aria-hidden="true"
+                          >
+                            {mocoIndicatorDots.map((dot) => (
+                              <span
+                                key={dot.key}
+                                className={cn(
+                                  'block rounded-full bg-current transition-colors duration-200',
+                                  dotSizeClass,
+                                  dot.colorClass,
+                                  !dot.filled && 'opacity-70'
+                                )}
+                              />
+                            ))}
+                          </span>
+                        </span>
+                      ) : (
+                        <Icon
+                          className={cn(
+                            'transition-colors duration-200',
+                            iconSizeClass,
+                            isActive
+                              ? styles.activeText
+                              : isFilled
+                              ? filledTextClass
+                              : idleTextClass
+                          )}
+                          aria-hidden="true"
+                        />
+                      )}
+
+                      <span className="sr-only">{item.srLabel}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="ml-1 flex items-center border-l border-slate-200/70 pl-1.5">
+                <button
+                  type="button"
+                  onClick={handleViewAllToggle}
+                  className={cn(
+                    'inline-flex h-9 w-9 min-h-[36px] min-w-[36px] items-center justify-center rounded-full border text-xs font-semibold uppercase tracking-wide transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-pink-200',
+                    isViewAll
+                      ? 'border-pink-200 bg-pink-50/80 text-pink-600 shadow-inner'
+                      : 'border-slate-300 bg-transparent text-slate-500 hover:border-slate-400 hover:text-slate-700'
+                  )}
+                  aria-pressed={isViewAll}
+                  aria-label={isViewAll ? 'Compactar secciones' : 'Ver todas las secciones'}
+                >
+                  <span
+                    className="text-base leading-none transition-colors duration-200"
+                    aria-hidden="true"
+                  >
+                    {isViewAll ? '⇤' : '⇵'}
+                  </span>
+                  <span className="sr-only">{isViewAll ? 'Compactar' : 'Todo'}</span>
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+
+        <button
+          type="button"
+          className={relationsButtonClasses}
+          onClick={handleRelationsToggle}
+          disabled={isProcessing || !selectedIsoDate}
+          aria-pressed={hadRelations}
+          aria-label={
+            hadRelations ? 'Desmarcar relaciones sexuales' : 'Marcar relaciones sexuales'
+          }
         >
-          {mocoIndicatorDots.map((dot) => (
-            <span
-              key={dot.key}
-              className={cn(
-                'block rounded-full bg-current transition-colors duration-200',
-                dotSizeClass,
-                dot.colorClass,
-                !dot.filled && 'opacity-70'
-              )}
-            />
-          ))}
-        </span>
-      </span>
-    ) : (
-      <Icon
-        className={cn(
-          'transition-colors duration-200',
-          iconSizeClass,
-          isActive
-            ? styles.activeText
-            : isFilled
-            ? filledTextClass
-            : idleTextClass
-        )}
-        aria-hidden="true"
-      />
-    )}
+          <Heart
+            className={cn(
+              'h-4 w-4',
+              hadRelations ? 'fill-current text-rose-500' : 'text-slate-400'
+            )}
+            aria-hidden="true"
+          />
+          <span>RS</span>
+        </button>
+      </div>
 
-    <span className="sr-only">{item.srLabel}</span>
-  </button>
-);
-              })}
-          </div>
-
+      {canSyncTemperature && (
+        <div className="mt-1.5 flex justify-center">
           <button
             type="button"
-            onClick={handleViewAllToggle}
-            className={cn(
-              'inline-flex h-9 w-9 min-h-[36px] min-w-[36px] items-center justify-center rounded-full border text-xs font-semibold uppercase tracking-wide transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-pink-200',
-              isViewAll
-                ? 'border-pink-200 bg-pink-50/80 text-pink-600 shadow-inner'
-                : 'border-slate-300 bg-transparent text-slate-500 hover:border-slate-400 hover:text-slate-700'
-            )}
-            aria-pressed={isViewAll}
-            aria-label={isViewAll ? 'Compactar secciones' : 'Ver todas las secciones'}
+            className={syncTemperatureClasses}
+            onClick={onSyncTemperature}
+            disabled={isProcessing || isSyncingTemperature || !canSyncTemperature}
+            aria-label="Sincronizar temperaturas"
           >
-            <span
-              className="text-base leading-none transition-colors duration-200"
-              aria-hidden="true"
-            >
-              {isViewAll ? '⇤' : '⇵'}
-            </span>
-            <span className="sr-only">{isViewAll ? 'Compactar' : 'Todo'}</span>
+            <RefreshCcw className="h-3.5 w-3.5" aria-hidden="true" />
+            {isSyncingTemperature ? 'Sincronizando...' : '+ temperatura'}
           </button>
         </div>
-      </motion.div>
-    </div>
+      )}
 
-    <button
-      type="button"
-      className={relationsButtonClasses}
-      onClick={handleRelationsToggle}
-      disabled={isProcessing || !selectedIsoDate}
-      aria-pressed={hadRelations}
-      aria-label={hadRelations ? 'Desmarcar relaciones sexuales' : 'Marcar relaciones sexuales'}
-    >
-      <Heart
-        className={cn(
-          'h-4 w-4',
-          hadRelations ? 'text-rose-500 fill-current' : 'text-slate-400'
-        )}
-        aria-hidden="true"
-      />
-      <span>RS</span>
-    </button>
+      {(existingPeakIsoDate || statusMessages.peak || statusMessages.relations) && (
+        <div className="mt-1.5 grid grid-cols-[1fr_auto] items-start gap-2 text-[11px]">
+          <div className="min-w-0">
+            {existingPeakIsoDate && (
+              <div className="text-slate-500">
+                {`Día pico: ${format(parseISO(existingPeakIsoDate), 'dd/MM')}`}
+              </div>
+            )}
+            {statusMessages.peak && (
+              <div className="font-medium text-rose-600" role="status" aria-live="polite">
+                {statusMessages.peak}
+              </div>
+            )}
+          </div>
+
+          <div className="text-right">
+            {statusMessages.relations && (
+              <div className="font-medium text-rose-600" role="status" aria-live="polite">
+                {statusMessages.relations}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   </div>
-
-  {canSyncTemperature && (
-    <div className="mt-1.5 flex justify-center">
-      <button
-        type="button"
-        className={syncTemperatureClasses}
-        onClick={onSyncTemperature}
-        disabled={isProcessing || isSyncingTemperature || !canSyncTemperature}
-        aria-label="Sincronizar temperaturas"
-      >
-        <RefreshCcw className="h-3.5 w-3.5" aria-hidden="true" />
-        {isSyncingTemperature ? 'Sincronizando...' : '+ temperatura'}
-      </button>
-    </div>
-  )}
-
-  {(existingPeakIsoDate || statusMessages.peak || statusMessages.relations) && (
-    <div className="mt-1.5 grid grid-cols-[1fr_auto] items-start gap-2 text-[11px]">
-      <div className="min-w-0">
-        {existingPeakIsoDate && (
-          <div className="text-slate-500">
-            {`Día pico: ${format(parseISO(existingPeakIsoDate), 'dd/MM')}`}
-          </div>
-        )}
-        {statusMessages.peak && (
-          <div className="font-medium text-rose-600" role="status" aria-live="polite">
-            {statusMessages.peak}
-          </div>
-        )}
-      </div>
-
-      <div className="text-right">
-        {statusMessages.relations && (
-          <div className="font-medium text-rose-600" role="status" aria-live="polite">
-            {statusMessages.relations}
-          </div>
-        )}
-      </div>
-    </div>
-  )}
 </div>
 
 <div className="relative z-0 mt-1" ref={sectionsContainerRef}>
-        <AnimatePresence initial={false}>
-          {sectionOrder
-            .filter((section) => openSectionKeys.includes(section.key))
-            .map((section) => (
-              <motion.div
-                style={{ scrollMarginTop: dockOffset }}
-                key={section.key}
-                id={`${section.key}-panel`}
-                data-section={section.key}
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.18, ease: 'easeInOut' }}
-                className="overflow-hidden"
-              >
-                <div className="pt-1">
-                  {renderSectionContent(section.key)}
-                </div>
-              </motion.div>
-            ))}
-        </AnimatePresence>
-      </div>
-    </div>
-  </div>
-
+  <AnimatePresence initial={false}>
+    {sectionOrder
+      .filter((section) => openSectionKeys.includes(section.key))
+      .map((section) => (
+        <motion.div
+          style={{ scrollMarginTop: dockOffset }}
+          key={section.key}
+          id={`${section.key}-panel`}
+          data-section={section.key}
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: 'auto' }}
+          exit={{ opacity: 0, height: 0 }}
+          transition={{ duration: 0.18, ease: 'easeInOut' }}
+          className="overflow-hidden"
+        >
+          <div className="pt-1">
+            {renderSectionContent(section.key)}
+          </div>
+        </motion.div>
+      ))}
+  </AnimatePresence>
+</div>
     </>
   );
 };
