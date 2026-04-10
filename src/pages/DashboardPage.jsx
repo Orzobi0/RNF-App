@@ -939,7 +939,7 @@ const handleRingPointerCancel = useCallback(
 );
 
   return (
-    <div className="relative flex flex-col space-y-4">
+    <div className="relative flex flex-col space-y-2">
       {/* Fecha actual - Parte superior con padding reducido */}
       <motion.div
         className="relative overflow-hidden px-4 pt-4 pb-1 text-center flex-shrink-0"
@@ -947,7 +947,7 @@ const handleRingPointerCancel = useCallback(
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
       >
-        <h1 className="text-xl font-bold text-titulo mb-1">
+        <h1 className="text-2xl font-bold text-titulo mb-1">
           {new Date().toLocaleDateString('es-ES', {
             weekday: 'long',
             day: 'numeric',
@@ -1101,167 +1101,164 @@ const handleRingPointerCancel = useCallback(
   }}
 >
                 {dots.map((dot, index) => (
-                  <g key={index}>
-                    {dot.isSelected && (
-  <>
+  <g key={index}>
     <circle
       cx={dot.x}
       cy={dot.y}
-      r={dot.isToday ? 16.5 : 15.5}
-      fill="rgba(244,63,94,0.12)"
-      pointerEvents="none"
-    />
-    <circle
-      cx={dot.x}
-      cy={dot.y}
-      r={dot.isToday ? 14.5 : 13.5}
-      fill="none"
-      stroke="rgba(244,63,94,0.95)"
-      strokeWidth={2.2}
-      pointerEvents="none"
-    />
-  </>
-)}
-{/* Punto principal con sombra real */}
-<g filter={dot.isActive ? 'url(#activePointHighlight)' : dot.isToday ? "url(#bevel)" : undefined}>
-  <circle
-  cx={dot.x}
-  cy={dot.y}
-  r={dot.isToday ? 18 : 16}
-  fill="transparent"
-  pointerEvents="all"
-  onPointerDown={handleDotPointerDown}
-  onPointerMove={handleDotPointerMove}
-  onPointerUp={handleDotPointerUp}
-  onPointerCancel={handleDotPointerCancel}
-  onClick={(e) => handleDotTap(dot, e)}
-  style={{
-    cursor: hasOverflow ? 'grab' : 'pointer',
-    touchAction: hasOverflow ? 'none' : 'auto',
-  }}
-/>
-  <motion.circle
-  cx={dot.x}
-  cy={dot.y}
-  r={dot.isToday ? 12 : 11}
-  fill={
-    dot.colors.pattern
-      || (dot.isActive ? dot.colors.main : 'rgba(255,255,255,0.001)')
-  }
-  stroke={dot.colors.border && dot.colors.border !== 'none' ? dot.colors.border : "rgba(255,255,255,0.3)"}
-  strokeWidth={dot.colors.border && dot.colors.border !== 'none' ? (dot.isToday ? 2.2 : 1.2) : 0}
-  filter={dot.record?.fertility_symbol === 'white'  
-    ? "url(#whiteSymbolShadow)" 
-    : dot.isActive 
-      ? "url(#dotShadow)" 
-      : undefined}
-  strokeLinecap="round"
-  initial={false}
-  whileTap={
-    prefersReducedMotion || !hasInitializedWheelRef.current
-      ? undefined
-      : {
-          y: 2,
-          scale: 0.75,
-          opacity: 0.95,
-          transition: { duration: 0.08, ease: 'easeOut' },
-        }
-  }
-  style={{ pointerEvents: 'none' }}
-/>
-
-</g>
-
-{!prefersReducedMotion && changedDaySet.has(dot.day) && (
-  
-  <motion.g
-    key={`dot-splash-${dot.day}`}
-    pointerEvents="none"
-    initial={{ opacity: 0 }}
-    animate={{ opacity: 1 }}
-    exit={{ opacity: 0 }}
-    style={{ transformOrigin: `${dot.x}px ${dot.y}px` }}
-  >
-    {/* Gota que cae con squash/stretch al impactar */}
-    <motion.circle
-      cx={dot.x}
-      cy={dot.y - 12}
-      r={4}
-      fill={dot.colors.main}
-      initial={{ y: -18, scale: 0.5, opacity: 0 }}
-      animate={{
-        y: [-18, 0, 2],
-        scale: [0.5, 1.05, 0.8],
-        opacity: [0, 1, 0],
-      }}
-      transition={{
-        duration: 0.6,
-        ease: 'easeOut',
-        times: [0, 0.6, 1],
+      r={dot.isToday ? 18 : 16}
+      fill="transparent"
+      pointerEvents="all"
+      onPointerDown={handleDotPointerDown}
+      onPointerMove={handleDotPointerMove}
+      onPointerUp={handleDotPointerUp}
+      onPointerCancel={handleDotPointerCancel}
+      onClick={(e) => handleDotTap(dot, e)}
+      style={{
+        cursor: hasOverflow ? 'grab' : 'pointer',
+        touchAction: hasOverflow ? 'none' : 'auto',
       }}
     />
 
-    {/* Onda rápida */}
     <motion.circle
       cx={dot.x}
       cy={dot.y}
-      r={dot.isToday ? 12 : 10}
-      stroke={
-        dot.colors.border === 'none'
-          ? dot.colors.main
-          : dot.colors.border || dot.colors.main
+      r={dot.isToday ? 12 : 11}
+      fill={
+        dot.colors.pattern ||
+        (dot.isActive ? dot.colors.main : 'rgba(255,255,255,0.001)')
       }
-      strokeWidth={2}
-      fill="none"
-      initial={{ scale: 0.5, opacity: 0.9 }}
-      animate={{ scale: 1.4, opacity: 0 }}
-      transition={{
-        duration: 0.55,
-        ease: [0.16, 1, 0.3, 1], // un poco más elástica
-        delay: 0.05,
-      }}
-    />
-
-    {/* Onda más grande y suave (segunda onda) */}
-    <motion.circle
-      cx={dot.x}
-      cy={dot.y}
-      r={dot.isToday ? 14 : 12}
       stroke={
-        dot.colors.border === 'none'
-          ? dot.colors.main
-          : dot.colors.border || dot.colors.main
+        dot.colors.border && dot.colors.border !== 'none'
+          ? dot.colors.border
+          : 'rgba(255,255,255,0.3)'
       }
-      strokeWidth={1.5}
-      fill="none"
-      initial={{ scale: 0.6, opacity: 0.6 }}
-      animate={{ scale: 1.9, opacity: 0 }}
-      transition={{
-        duration: 0.9,
-        ease: 'easeOut',
-        delay: 0.1,
-      }}
+      strokeWidth={
+        dot.colors.border && dot.colors.border !== 'none'
+          ? (dot.isToday ? 2.2 : 1.2)
+          : 0
+      }
+      filter={
+        dot.record?.fertility_symbol === 'white'
+          ? 'url(#whiteSymbolShadow)'
+          : dot.isActive
+          ? 'url(#dotShadow)'
+          : undefined
+      }
+      strokeLinecap="round"
+      initial={false}
+      whileTap={
+        prefersReducedMotion || !hasInitializedWheelRef.current
+          ? undefined
+          : {
+              y: 2,
+              scale: 0.75,
+              opacity: 0.95,
+              transition: { duration: 0.08, ease: 'easeOut' },
+            }
+      }
+      style={{ pointerEvents: 'none' }}
     />
-  </motion.g>
-)}
 
-                  {/* Anillo pulsante para el día actual */}
-                  {dot.isToday && !dot.isSelected && (
-  <circle
-    cx={dot.x}
-    cy={dot.y}
-    r={8.5}
-    fill="none"
-    stroke="rgba(244,63,94,0.8)"
-    strokeWidth={3}
-    className="animate-pulse"
-    style={{ pointerEvents: 'none' }}
-  />
-)}
+    {dot.isSelected && (
+      <circle
+        cx={dot.x}
+        cy={dot.y}
+        r={dot.isToday ? 14.8 : 13.8}
+        fill="none"
+        stroke="rgba(244,63,94,0.95)"
+        strokeWidth={2.2}
+        style={{
+          pointerEvents: 'none',
+          filter: 'drop-shadow(0 0 4px rgba(244,63,94,0.28))',
+        }}
+      />
+    )}
 
-                </g>
-                ))}
-              </motion.g>
+    {dot.isToday && (
+      <circle
+        cx={dot.x}
+        cy={dot.y}
+        r={dot.isSelected ? 18 : 16.5}
+        fill="none"
+        stroke="rgba(244,63,94,0.55)"
+        strokeWidth={2.2}
+        className="animate-pulse"
+        style={{ pointerEvents: 'none' }}
+      />
+    )}
+
+    {!prefersReducedMotion && changedDaySet.has(dot.day) && (
+      <motion.g
+        key={`dot-splash-${dot.day}`}
+        pointerEvents="none"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        style={{ transformOrigin: `${dot.x}px ${dot.y}px` }}
+      >
+        <motion.circle
+          cx={dot.x}
+          cy={dot.y - 12}
+          r={4}
+          fill={dot.colors.main}
+          initial={{ y: -18, scale: 0.5, opacity: 0 }}
+          animate={{
+            y: [-18, 0, 2],
+            scale: [0.5, 1.05, 0.8],
+            opacity: [0, 1, 0],
+          }}
+          transition={{
+            duration: 0.6,
+            ease: 'easeOut',
+            times: [0, 0.6, 1],
+          }}
+        />
+
+        <motion.circle
+          cx={dot.x}
+          cy={dot.y}
+          r={dot.isToday ? 12 : 10}
+          stroke={
+            dot.colors.border === 'none'
+              ? dot.colors.main
+              : dot.colors.border || dot.colors.main
+          }
+          strokeWidth={2}
+          fill="none"
+          initial={{ scale: 0.5, opacity: 0.9 }}
+          animate={{ scale: 1.4, opacity: 0 }}
+          transition={{
+            duration: 0.55,
+            ease: [0.16, 1, 0.3, 1],
+            delay: 0.05,
+          }}
+        />
+
+        <motion.circle
+          cx={dot.x}
+          cy={dot.y}
+          r={dot.isToday ? 14 : 12}
+          stroke={
+            dot.colors.border === 'none'
+              ? dot.colors.main
+              : dot.colors.border || dot.colors.main
+          }
+          strokeWidth={1.5}
+          fill="none"
+          initial={{ scale: 0.6, opacity: 0.6 }}
+          animate={{ scale: 1.9, opacity: 0 }}
+          transition={{
+            duration: 0.9,
+            ease: 'easeOut',
+            delay: 0.1,
+          }}
+        />
+      </motion.g>
+    )}
+  </g>
+))}
+</motion.g>
+
 
               {dots.map((dot, index) => {
                 if (!dot.peakStatus) {

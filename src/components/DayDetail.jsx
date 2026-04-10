@@ -237,7 +237,7 @@ if (peakStatus) {
       case 'spot':
         return 'bg-rose-500 border-slate-300 shadow-md';
       case 'white':
-        return 'bg-white border-slate-300 shadow-md';
+        return 'bg-white border-rose-300 shadow-md';
       default:
         return 'bg-slate-200 border-slate-300 shadow-md';
     }
@@ -285,7 +285,7 @@ const footerIconButtonClass =
   </div>
 
   <div className="ml-auto flex shrink-0 items-center gap-2">
-    <div className="origin-right scale-[0.82]">
+    <div className="origin-right scale-[0.76]">
       <PeakModeButton
         mode={peakMode}
         size="md"
