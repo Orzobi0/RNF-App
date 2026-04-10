@@ -37,7 +37,6 @@ import {
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   computePeakState,
-  getToggleFeedback,
   SECTION_METADATA,
 } from '@/components/dataEntryForm/sectionLogic';
 import { useAuth } from '@/contexts/AuthContext';
@@ -97,7 +96,6 @@ const DataEntryFormFields = ({
   const { preferences, savePreferences } = useAuth();
   const [open, setOpen] = useState(false);
   const [correctionIndex, setCorrectionIndex] = useState(null);
-  const [statusMessages, setStatusMessages] = useState({ peak: null, relations: null });
   const [preferredTimeEditorIndex, setPreferredTimeEditorIndex] = useState(null);
   const [preferredTimeDraft, setPreferredTimeDraft] = useState('');
   const [isSavingPreferredTime, setIsSavingPreferredTime] = useState(false);
@@ -322,25 +320,6 @@ const [activeSection, setActiveSection] = useState(() => {
     },
     [normalizeSectionKey, selectedIsoDate]
   );
-
-  const lastStatusIsoRef = useRef(selectedIsoDate);
-
-useEffect(() => {
-  if (lastStatusIsoRef.current === selectedIsoDate) return;
-  lastStatusIsoRef.current = selectedIsoDate;
-  setStatusMessages({ peak: null, relations: null });
-}, [selectedIsoDate]);
-
-useEffect(() => {
-  if (typeof window === 'undefined') return;
-  if (!statusMessages.peak && !statusMessages.relations) return;
-
-  const id = window.setTimeout(() => {
-    setStatusMessages({ peak: null, relations: null });
-  }, 4500);
-
-  return () => window.clearTimeout(id);
-}, [statusMessages.peak, statusMessages.relations]);
 
   useEffect(() => {
     if (!sectionKeys.length) {
@@ -682,13 +661,6 @@ useEffect(() => {
         keepFormOpen: true,
         skipReset: true,
       });
-      const message = getToggleFeedback('peak', isPeakDay, newPeakTag === 'peak');
-      if (message) {
-        setStatusMessages((prev) => ({
-          ...prev,
-          peak: message,
-        }));
-      }
     } catch (error) {
       // Restore previous peak marker if the submission fails
       setPeakTag(isPeakDay ? 'peak' : null);
@@ -705,10 +677,10 @@ useEffect(() => {
 };
 
   const relationsButtonClasses = cn(
-  'inline-flex h-9 min-w-[44px] items-center justify-center gap-1.5 rounded-full border px-2.5 text-[11px] font-semibold uppercase tracking-wide shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-transparent disabled:cursor-not-allowed disabled:opacity-60',
+  'inline-flex h-9 w-9 items-center justify-center rounded-full shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-transparent disabled:cursor-not-allowed disabled:opacity-60',
   hadRelations
-    ? 'border-rose-200 bg-rose-50/90 text-rose-600'
-    : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+    ? 'border border-transparent bg-rose-50/90 text-rose-600 shadow-none hover:bg-rose-50/90'
+    : 'border border-transparent bg-transparent text-slate-500 shadow-none hover:bg-transparent'
 );
   const syncTemperatureClasses = cn(
     'inline-flex items-center gap-1 rounded-full border border-amber-200 bg-white/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-700 shadow-sm transition-colors',
@@ -734,13 +706,6 @@ useEffect(() => {
         skipReset: true,
       });
 
-      const message = getToggleFeedback('relations', previousValue, nextValue);
-      if (message) {
-        setStatusMessages((current) => ({
-          ...current,
-          relations: message,
-        }));
-      }
       } catch (error) {
       setHadRelations(previousValue);
     }
@@ -1515,8 +1480,8 @@ useEffect(() => {
 
         <div className="flex min-w-0 flex-1 justify-center">
           <motion.div ref={dockRef} className="inline-flex max-w-full">
-            <div className="inline-flex max-w-full items-center gap-1 rounded-full border border-pink-200 bg-white px-1.5 py-1 shadow-sm transition-colors duration-200">
-              <div className="flex items-center gap-0.5 sm:gap-1">
+            <div className="inline-flex max-w-full items-center gap-0.5 rounded-2xl border border-pink-200 bg-white/60 px-1 py-[3px] shadow-sm transition-colors duration-200">
+              <div className="flex items-center gap-0.5">
                 {dockItems.map((item) => {
                   const Icon = item.icon;
                   const targetSectionKey = item.sectionKey;
@@ -1529,12 +1494,12 @@ useEffect(() => {
                   const isMocoDock = item.key === 'moco';
 
                   const dockButtonSizeClass = isMocoDock
-                    ? 'h-10 w-12 min-h-[40px] min-w-[48px]'
-                    : 'h-10 w-10 min-h-[40px] min-w-[40px]';
+                    ? 'h-9 w-11 min-h-[36px] min-w-[44px]'
+                    : 'h-9 w-9 min-h-[36px] min-w-[36px]';
 
-                  const iconSizeClass = 'h-[18px] w-[18px]';
-                  const mocoIconSizeClass = 'h-[16px] w-[16px]';
-                  const dotSizeClass = 'h-1.5 w-1.5';
+                  const iconSizeClass = 'h-4 w-4';
+                  const mocoIconSizeClass = 'h-[15px] w-[15px]';
+                  const dotSizeClass = 'h-[5px] w-[5px]';
 
                   return (
                     <button
@@ -1587,8 +1552,13 @@ useEffect(() => {
                               <span
                                 key={dot.key}
                                 className={cn(
-                                  'block rounded-full bg-current transition-colors duration-200',
+                                  'block rounded-full transition-colors duration-200',
                                   dotSizeClass,
+                                  dot.key === 'symbol' &&
+                                    dot.filled &&
+                                    ['white', 'blanco'].includes(String(fertilitySymbol).toLowerCase())
+                                    ? 'bg-white ring-1 ring-slate-300'
+                                    : 'bg-current',
                                   dot.colorClass,
                                   !dot.filled && 'opacity-70'
                                 )}
@@ -1622,7 +1592,7 @@ useEffect(() => {
                   type="button"
                   onClick={handleViewAllToggle}
                   className={cn(
-                    'inline-flex h-9 w-9 min-h-[36px] min-w-[36px] items-center justify-center rounded-full border text-xs font-semibold uppercase tracking-wide transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-pink-200',
+                    'inline-flex h-8 w-8 min-h-[32px] min-w-[32px] items-center justify-center rounded-full border text-xs font-semibold uppercase tracking-wide transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-pink-200',
                     isViewAll
                       ? 'border-pink-200 bg-pink-50/80 text-pink-600 shadow-inner'
                       : 'border-slate-300 bg-transparent text-slate-500 hover:border-slate-400 hover:text-slate-700'
@@ -1655,12 +1625,11 @@ useEffect(() => {
         >
           <Heart
             className={cn(
-              'h-4 w-4',
-              hadRelations ? 'fill-current text-rose-500' : 'text-slate-400'
+              'h-5 w-5',
+              hadRelations ? 'fill-current text-rose-500' : 'text-slate-500'
             )}
             aria-hidden="true"
           />
-          <span>RS</span>
         </button>
       </div>
 
@@ -1676,31 +1645,6 @@ useEffect(() => {
             <RefreshCcw className="h-3.5 w-3.5" aria-hidden="true" />
             {isSyncingTemperature ? 'Sincronizando...' : '+ temperatura'}
           </button>
-        </div>
-      )}
-
-      {(existingPeakIsoDate || statusMessages.peak || statusMessages.relations) && (
-        <div className="mt-1.5 grid grid-cols-[1fr_auto] items-start gap-2 text-[11px]">
-          <div className="min-w-0">
-            {existingPeakIsoDate && (
-              <div className="text-slate-500">
-                {`Día pico: ${format(parseISO(existingPeakIsoDate), 'dd/MM')}`}
-              </div>
-            )}
-            {statusMessages.peak && (
-              <div className="font-medium text-rose-600" role="status" aria-live="polite">
-                {statusMessages.peak}
-              </div>
-            )}
-          </div>
-
-          <div className="text-right">
-            {statusMessages.relations && (
-              <div className="font-medium text-rose-600" role="status" aria-live="polite">
-                {statusMessages.relations}
-              </div>
-            )}
-          </div>
         </div>
       )}
     </div>
