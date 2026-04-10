@@ -31,118 +31,20 @@ import { useFertilityCalculatorsEditor } from '@/hooks/useFertilityCalculatorsEd
 import FertilityCalculatorsEditorDialogs from '@/components/FertilityCalculatorsEditorDialogs';
 import { FERTILITY_SYMBOL_OPTIONS, getSymbolColorPalette } from '@/config/fertilitySymbols';
 import { mergeFertilityStartConfig } from '@/lib/preferences';
+import {
+  getPeakDayToastMessage,
+  getRecordUpdateToastMessage,
+  getRelationsToastMessage,
+} from '@/lib/recordToastMessages';
 
 const DATA_ENTRY_FORM_DRAFT_KEY = 'dashboard:data-entry-form-draft';
-
-const normalizeTextValue = (value) => String(value ?? '').trim();
-
-const normalizeNumericValue = (value) => {
-  if (value === null || value === undefined || value === '') return null;
-  const parsed = Number(String(value).replace(',', '.'));
-  return Number.isFinite(parsed) ? parsed.toFixed(2) : null;
-};
-
-const getSelectedMeasurementForToast = (source) =>
-  source?.measurements?.find((measurement) => measurement?.selected) ||
-  source?.measurements?.[0] ||
-  null;
-
-const getComparableDashboardState = (source) => {
-  if (!source) return null;
-
-  const selectedMeasurement = getSelectedMeasurementForToast(source);
-  const useCorrected = Boolean(
-    selectedMeasurement?.use_corrected ?? source?.use_corrected
-  );
-
-  const temperature = normalizeNumericValue(
-    useCorrected
-      ? (
-          selectedMeasurement?.temperature_corrected ??
-          source?.temperature_corrected ??
-          selectedMeasurement?.temperature ??
-          source?.temperature_chart ??
-          source?.temperature_raw ??
-          source?.temperature
-        )
-      : (
-          selectedMeasurement?.temperature ??
-          source?.temperature_chart ??
-          source?.temperature_raw ??
-          source?.temperature ??
-          selectedMeasurement?.temperature_corrected ??
-          source?.temperature_corrected
-        )
-  );
-
-  const time = normalizeTextValue(
-    selectedMeasurement?.time ??
-      source?.time ??
-      source?.time_corrected ??
-      ''
-  );
-
-  return {
-    temperature,
-    time,
-    sensation: normalizeTextValue(source?.mucusSensation ?? source?.mucus_sensation),
-    appearance: normalizeTextValue(source?.mucusAppearance ?? source?.mucus_appearance),
-    observations: normalizeTextValue(source?.observations),
-    symbol: source?.fertility_symbol ?? source?.fertilitySymbol ?? 'none',
-    relations: Boolean(source?.had_relations ?? source?.hadRelations),
-  };
-};
-
-const joinLabelsEs = (labels) => {
-  if (labels.length === 0) return '';
-  if (labels.length === 1) return labels[0];
-  if (labels.length === 2) return `${labels[0]} y ${labels[1]}`;
-  return `${labels.slice(0, -1).join(', ')} y ${labels[labels.length - 1]}`;
-};
-
-const getDashboardUpdateToastMessage = (previousRecord, nextData) => {
-  const previous = getComparableDashboardState(previousRecord);
-  const next = getComparableDashboardState(nextData);
-
-  if (!next) return 'Registro actualizado';
-
-  const changed = [];
-
-  if (!previous) {
-    if (next.temperature !== null || next.time) changed.push('la temperatura');
-    if (next.sensation) changed.push('la sensación');
-    if (next.appearance) changed.push('la apariencia');
-    if (next.observations) changed.push('las observaciones');
-    if (next.symbol && next.symbol !== 'none') changed.push('el símbolo');
-    if (next.relations) changed.push('las relaciones sexuales');
-
-    if (changed.length === 1) return `Se ha registrado ${changed[0]}`;
-    if (changed.length === 2) return `Se han registrado ${joinLabelsEs(changed)}`;
-    if (changed.length > 2) return 'Se han actualizado varios campos';
-    return 'Registro guardado';
-  }
-
-  if (previous.temperature !== next.temperature || previous.time !== next.time) {
-    changed.push('la temperatura');
-  }
-  if (previous.sensation !== next.sensation) changed.push('la sensación');
-  if (previous.appearance !== next.appearance) changed.push('la apariencia');
-  if (previous.observations !== next.observations) changed.push('las observaciones');
-  if (previous.symbol !== next.symbol) changed.push('el símbolo');
-  if (previous.relations !== next.relations) changed.push('las relaciones sexuales');
-
-  if (changed.length === 0) return 'Registro actualizado';
-  if (changed.length === 1) return `Se ha actualizado ${changed[0]}`;
-  if (changed.length === 2) return `Se han actualizado ${joinLabelsEs(changed)}`;
-  return 'Se han actualizado varios campos';
-};
-
 
 const CycleOverviewCard = ({
   cycleData,
   onEdit,
   onDeleteRecord = () => {},
   onToggleRelations = () => {},
+  onTogglePeak = () => {},
   currentPeakIsoDate,
   onEditStartDate = () => {},
   handleOpenCpmDialog = () => {},
@@ -1547,6 +1449,7 @@ if (dot.peakStatus === 'P') {
     cycleDay={resolvedActivePoint.cycleDay ?? null}
     details={activePointDetails}
     peakStatus={peakStatuses[resolvedActivePoint.isoDate] || resolvedActivePoint.peakStatus || null}
+    existingPeakIsoDate={currentPeakIsoDate}
     isPeakDay={Boolean(
       resolvedActivePoint.peak_marker === 'peak' ||
       peakStatuses[resolvedActivePoint.isoDate] === 'P'
@@ -1555,6 +1458,7 @@ if (dot.peakStatus === 'P') {
     onAdd={handleAddFromDetailPanel}
     onDelete={onDeleteRecord}
     onToggleRelations={handleToggleRelations}
+    onTogglePeak={onTogglePeak}
   />
 </div>
         </div>
@@ -2049,9 +1953,7 @@ const handleToggleRelationsFromDashboard = useCallback(
       await addOrUpdateDataPoint(payload, existingRecord);
 
       toast({
-        title: nextHasRelations
-          ? 'Se han marcado las relaciones sexuales'
-          : 'Se han desmarcado las relaciones sexuales',
+        title: getRelationsToastMessage(nextHasRelations),
         duration: 1400,
       });
     } catch (error) {
@@ -2061,6 +1963,37 @@ const handleToggleRelationsFromDashboard = useCallback(
         description: 'No se pudo actualizar RS.',
         variant: 'destructive',
       });
+    }
+  },
+  [addOrUpdateDataPoint, buildDashboardRecordPayload, currentCycle?.data, toast]
+);
+
+const handleTogglePeakFromDashboard = useCallback(
+  async ({ isoDate, peakMode }) => {
+    if (!isoDate) return;
+
+    const existingRecord =
+      currentCycle?.data?.find((record) => record.isoDate === isoDate) || null;
+
+    const payload = buildDashboardRecordPayload(isoDate, {
+      peak_marker: peakMode === 'remove' ? null : 'peak',
+    });
+
+    try {
+      await addOrUpdateDataPoint(payload, existingRecord);
+
+      toast({
+        title: getPeakDayToastMessage(peakMode),
+        duration: 1400,
+      });
+    } catch (error) {
+      console.error('Error updating peak day from dashboard:', error);
+      toast({
+        title: 'Error',
+        description: 'No se pudo actualizar el día pico.',
+        variant: 'destructive',
+      });
+      throw error;
     }
   },
   [addOrUpdateDataPoint, buildDashboardRecordPayload, currentCycle?.data, toast]
@@ -2098,7 +2031,7 @@ const handleConfirmDeleteRecord = useCallback(async () => {
   const handleSave = async (data, { keepFormOpen = false } = {}) => {
   setIsProcessing(true);
 
-  const toastMessage = getDashboardUpdateToastMessage(editingRecord, data);
+  const toastMessage = getRecordUpdateToastMessage(editingRecord, data);
 
   try {
     await addOrUpdateDataPoint(data, editingRecord);
@@ -2340,6 +2273,7 @@ const handleConfirmDeleteRecord = useCallback(async () => {
   onEdit={handleEdit}
   onDeleteRecord={handleRequestDeleteRecord}
   onToggleRelations={handleToggleRelationsFromDashboard}
+  onTogglePeak={handleTogglePeakFromDashboard}
   currentPeakIsoDate={currentPeakIsoDate}
   onEditStartDate={handleOpenStartDateEditor}
   handleOpenCpmDialog={handleOpenCpmDialog}

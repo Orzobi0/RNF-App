@@ -39,6 +39,11 @@ import { formatCycleMeta, formatCycleTitle } from '@/lib/formatCycleTitle';
 import { cn } from '@/lib/utils';
 import DataIssuesBanner from '@/components/DataIssuesBanner';
 import DataRepairDialog from '@/components/DataRepairDialog';
+import {
+  getPeakDayToastMessage,
+  getRecordUpdateToastMessage,
+  getRelationsToastMessage,
+} from '@/lib/recordToastMessages';
 
 const getSymbolInfo = (symbolValue) =>
   FERTILITY_SYMBOL_OPTIONS.find((symbol) => symbol.value === symbolValue) || FERTILITY_SYMBOL_OPTIONS[0];
@@ -753,6 +758,10 @@ export const RecordsExperience = ({
   const selectedDayDetails = selectedDayData?.details ?? null;
   const selectedPeakStatus = selectedDayDetails?.peakStatus ?? (selectedDate ? peakStatuses[selectedDate] ?? null : null);
   const selectedIsPeakDay = selectedDayDetails?.isPeakDay ?? selectedPeakStatus === 'P';
+  const currentPeakIsoDate = useMemo(() => {
+    const peakRecord = cycle?.data?.find((record) => record?.peak_marker === 'peak');
+    return peakRecord?.isoDate || null;
+  }, [cycle?.data]);
 
   const defaultSelectedIso = useMemo(() => {
     if (!cycleRange) return null;
@@ -1381,10 +1390,11 @@ const enterStart = -exitTarget;
   );
   const handleSave = async (data, { keepFormOpen = false } = {}) => {
     setIsProcessing(true);
+    const toastMessage = getRecordUpdateToastMessage(editingRecord, data);
     try {
       await addOrUpdateDataPoint(data, editingRecord);
       toast({
-        title: 'Guardado',
+        title: toastMessage,
         duration: 2000,
       });
       if (!keepFormOpen) {
@@ -1432,8 +1442,44 @@ const enterStart = -exitTarget;
       setIsProcessing(true);
       try {
         await addOrUpdateDataPoint(payload, existingRecord);
+        toast({
+          title: getRelationsToastMessage(!hasRelations),
+          duration: 1400,
+        });
       } catch (error) {
         toast({ title: 'Error', description: 'No se pudo actualizar RS', variant: 'destructive' });
+      } finally {
+        setIsProcessing(false);
+      }
+    },
+    [addOrUpdateDataPoint, buildRecordPayloadForDate, cycle?.data, toast]
+  );
+
+  const handleTogglePeak = useCallback(
+    async ({ isoDate, peakMode }) => {
+      if (!isoDate) {
+        return;
+      }
+
+      const existingRecord = cycle?.data?.find((record) => record.isoDate === isoDate) || null;
+      const payload = buildRecordPayloadForDate(isoDate, {
+        peak_marker: peakMode === 'remove' ? null : 'peak',
+      });
+
+      setIsProcessing(true);
+      try {
+        await addOrUpdateDataPoint(payload, existingRecord);
+        toast({
+          title: getPeakDayToastMessage(peakMode),
+          duration: 1400,
+        });
+      } catch (error) {
+        toast({
+          title: 'Error',
+          description: 'No se pudo actualizar el día pico',
+          variant: 'destructive',
+        });
+        throw error;
       } finally {
         setIsProcessing(false);
       }
@@ -1735,10 +1781,12 @@ const enterStart = -exitTarget;
               details={selectedDayDetails}
               peakStatus={selectedPeakStatus}
               isPeakDay={selectedIsPeakDay}
+              existingPeakIsoDate={currentPeakIsoDate}
               onEdit={handleEdit}
               onDelete={handleDeleteRequest}
               onAdd={handleAddRecordForDay}
               onToggleRelations={handleToggleRelations}
+              onTogglePeak={handleTogglePeak}
               isProcessing={isProcessing}
             />
           )}

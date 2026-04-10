@@ -13,6 +13,8 @@ import {
   FileText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { PeakModeButton } from '@/components/ui/peak-mode-button';
+import { computePeakState } from '@/components/dataEntryForm/sectionLogic';
 import { cn } from '@/lib/utils';
 const DayDetail = ({
   isoDate,
@@ -20,13 +22,16 @@ const DayDetail = ({
   details,
   peakStatus, // P para día de pico, 1–3 para días posteriores
   isPeakDay,
+  existingPeakIsoDate,
   onEdit,
   onDelete,
   onAdd,
   onToggleRelations,
+  onTogglePeak,
   isProcessing,
 }) => {
   const hasRecord = Boolean(details?.record);
+  const [isPeakProcessing, setIsPeakProcessing] = useState(false);
 
   const formattedDate = useMemo(() => {
     if (!isoDate) return null;
@@ -36,6 +41,39 @@ const DayDetail = ({
       return null;
     }
   }, [isoDate]);
+  const { mode: peakMode } = useMemo(
+  () =>
+    computePeakState({
+      peakTag: isPeakDay ? 'peak' : null,
+      existingPeakIsoDate,
+      selectedIsoDate: isoDate,
+    }),
+  [existingPeakIsoDate, isPeakDay, isoDate]
+);
+
+const peakAriaLabel = useMemo(() => {
+  if (!isoDate) return 'Selecciona una fecha para marcar el día pico';
+
+  const selectedFull = formattedDate ?? isoDate;
+  const existingFull = existingPeakIsoDate
+    ? format(parseISO(existingPeakIsoDate), 'dd/MM/yyyy', { locale: es })
+    : null;
+
+  if (peakMode === 'assign') {
+    return `Marcar día pico en ${selectedFull}`;
+  }
+
+  if (peakMode === 'update') {
+    return existingFull
+      ? `Mover día pico a ${selectedFull} (desde ${existingFull})`
+      : `Mover día pico a ${selectedFull}`;
+  }
+
+  return existingFull
+    ? `Quitar día pico del ${existingFull}`
+    : 'Quitar día pico';
+}, [existingPeakIsoDate, formattedDate, isoDate, peakMode]);
+
 
   const symbolLabel = details?.symbolInfo?.label || 'Sin símbolo';
   const symbolValue = details?.symbolInfo?.value || 'none';
@@ -56,6 +94,23 @@ const DayDetail = ({
     if (!isoDate || !onAdd) return;
     onAdd(isoDate);
   };
+  const handlePeakToggle = async () => {
+  if (!isoDate || !onTogglePeak || isProcessing || isPeakProcessing) return;
+
+  setIsPeakProcessing(true);
+
+  try {
+    await onTogglePeak({
+      isoDate,
+      peakMode,
+      isPeakDay,
+    });
+  } catch (error) {
+    // El toast global se gestionará desde la página padre
+  } finally {
+    setIsPeakProcessing(false);
+  }
+};
   const [isTextExpanded, setIsTextExpanded] = useState(false);
 const [overflow, setOverflow] = useState({
   sensation: false,
@@ -154,24 +209,16 @@ const smartOpen = (key, sectionKey, fieldName) => {
   const hasTimeValue = Boolean(details?.timeValue);
   const hasRelations = Boolean(details?.hasRelations);
 
-const isSensationLong = sensationRaw.length > 18;
-const isAppearanceLong = appearanceRaw.length > 18;
-const isObservationsLong = observationsRaw.length > 60;
-
 // Normalizamos el indicador de pico para la UI
 let peakIndicatorLabel = null;
-let peakIndicatorVariant = null;
 
-
-  if (peakStatus) {
-    if (peakStatus === 'P' || isPeakDay) {
-      peakIndicatorLabel = 'Día pico';
-      peakIndicatorVariant = 'peak';
-    } else {
-      peakIndicatorLabel = `+${peakStatus}`;
-      peakIndicatorVariant = 'post-peak';
-    }
+if (peakStatus) {
+  if (peakStatus === 'P' || isPeakDay) {
+    peakIndicatorLabel = 'Día pico';
+  } else {
+    peakIndicatorLabel = `+${peakStatus}`;
   }
+}
 
   const getSymbolClasses = () => {
     switch (symbolValue) {
@@ -202,96 +249,62 @@ let peakIndicatorVariant = null;
   }
 
   // Base para todos los chips (tamaño algo mayor y altura fija)
-  const chipBaseClass =
-    'flex items-center gap-2 rounded-3xl border px-3 py-2 text-sm min-h-[3rem]';
+  const chipCompactClass =
+  'flex items-center gap-2 rounded-3xl border px-3 py-1.5 text-sm min-h-[2.75rem]';
+
+const chipMultilineClass =
+  'flex gap-2 rounded-3xl border px-3 py-2 text-sm min-h-[2.75rem]';
+
+const footerIconButtonClass =
+  'flex h-9 w-9 items-center justify-center rounded-full border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200';
 
   // Tarjeta compacta pero más alta, usando el espacio disponible
   return (
-    <div className="w-full rounded-3xl border border-rose-200/80 bg-white/90 p-4 sm:p-5 shadow-md backdrop-blur-md">
-      {/* Cabecera: fecha + día de ciclo + indicador de pico + símbolo + acciones */}
-      <div className="flex items-center gap-2">
-        {/* Fecha + Dn + pico/+1-3 */}
-        <div className="flex items-center gap-2">
-          <p className="font-semibold text-subtitulo sm:text-lg">
-            {formattedDate}
-            {cycleDay ? ` · Día ${cycleDay}` : ''}
-          </p>
+  <div className="w-full rounded-3xl border border-rose-200/80 bg-white/90 p-4 sm:p-5 shadow-md backdrop-blur-md">
+      {/* Cabecera: fecha + día ciclo + badge pico | botón pico + símbolo */}
+<div className="flex items-center gap-2.5">
+  <div className="min-w-0 flex-1">
+  <div className="flex items-center gap-1.5">
+    <p className="truncate text-[1.05rem] font-semibold leading-tight text-subtitulo sm:text-lg">
+        {formattedDate}
+        {cycleDay ? ` · Día ${cycleDay}` : ''}
+      </p>
 
-          {peakIndicatorLabel && (
-            <span
-              className={cn(
-                'inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold',
-                peakIndicatorVariant === 'peak'
-                  ? 'border-rose-300 bg-rose-50 text-rose-700'
-                  : 'border-rose-300 bg-rose-50 text-rose-700'
-              )}
-            >
-              {peakIndicatorLabel}
-            </span>
-          )}
-        </div>
+      {peakIndicatorLabel && (
+        <span
+  className="inline-flex h-6 shrink-0 items-center rounded-full border border-rose-300 bg-gradient-to-r from-rose-50 to-pink-50 px-2 text-[10px] font-semibold leading-none text-rose-700 shadow-sm shadow-rose-100"
+>
+  {peakIndicatorLabel}
+</span>
+      )}
+    </div>
+  </div>
 
-        {/* Símbolo + acciones */}
-        <div className="ml-auto flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => handleSectionOpen('symbol', 'fertilitySymbol')}
-            className={cn(
-              'flex h-7 w-7 items-center justify-center rounded-full border shadow-inner transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200',
-              getSymbolClasses(),
-              symbolPatternClass
-            )}
-            title={symbolLabel}
-            aria-label={symbolLabel}
-          />
-          {hasRecord ? (
-            <>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 rounded-full text-fertiliapp-fuerte hover:bg-rose-50"
-                onClick={handleEdit}
-                disabled={isProcessing}
-              >
-                {isProcessing ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Edit2 className="h-4 w-4" />
-                )}
-                <span className="sr-only">Editar registro</span>
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 rounded-full text-fertiliapp-fuerte hover:bg-rose-50"
-                onClick={handleDelete}
-                disabled={isProcessing}
-              >
-                {isProcessing ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Trash2 className="h-4 w-4" />
-                )}
-                <span className="sr-only">Eliminar registro</span>
-              </Button>
-            </>
-          ) : (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="rounded-full border-rose-200 px-3 text-xs font-semibold text-rose-500"
-              onClick={handleAdd}
-              disabled={isProcessing}
-            >
-              {isProcessing && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}
-              Añadir registro
-            </Button>
-          )}
-        </div>
-      </div>
+  <div className="ml-auto flex shrink-0 items-center gap-2">
+    <div className="origin-right scale-[0.82]">
+      <PeakModeButton
+        mode={peakMode}
+        size="md"
+        onClick={handlePeakToggle}
+        aria-pressed={isPeakDay}
+        aria-label={peakAriaLabel}
+        disabled={isProcessing || isPeakProcessing || !isoDate || !onTogglePeak}
+      />
+    </div>
+
+    <button
+      type="button"
+      onClick={() => handleSectionOpen('symbol', 'fertilitySymbol')}
+      className={cn(
+        'flex h-7 w-7 items-center justify-center rounded-full border shadow-inner transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200',
+        getSymbolClasses(),
+        symbolPatternClass
+      )}
+      title={symbolLabel}
+      aria-label={symbolLabel}
+    />
+  </div>
+</div>
 
       {/* Cuerpo: 3 filas, más grandes y estructuradas */}
       <div className="mt-4 space-y-3">
@@ -301,7 +314,7 @@ let peakIndicatorVariant = null;
             type="button"
             onClick={() => handleSectionOpen('temperature', 'temperature')}
             className={cn(
-              chipBaseClass,
+              chipCompactClass,
               'text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200',
               details?.hasTemperature
                 ? 'border-orange-100 bg-orange-50 text-orange-800'
@@ -325,7 +338,7 @@ let peakIndicatorVariant = null;
             type="button"
             onClick={() => handleSectionOpen('temperature', 'time')}
             className={cn(
-              chipBaseClass,
+              chipCompactClass,
               'text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200',
               hasTimeValue
                 ? 'border-slate-200 bg-slate-50 text-slate-800'
@@ -345,102 +358,171 @@ let peakIndicatorVariant = null;
   type="button"
   onClick={() => smartOpen('sensation', 'sensation', 'mucusSensation')}
   className={cn(
-    chipBaseClass,
-    'items-start text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200',
+    chipCompactClass,
+    isTextExpanded ? 'items-start' : 'items-center',
+    'text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200',
     details?.hasMucusSensation
       ? 'border-sky-100 bg-sky-50 text-sky-800'
       : 'border-sky-50 bg-sky-50 text-slate-400'
   )}
 >
-  <Droplets className="h-5 w-5 shrink-0 opacity-80 mt-0.5" />
-  <div className="flex-1 min-w-0">
+  <Droplets
+    className={cn(
+      'h-[18px] w-[18px] shrink-0 opacity-80',
+      isTextExpanded && 'mt-0.5'
+    )}
+  />
+  <div className="min-w-0 flex-1">
     <div
       ref={sensationTextRef}
       className={cn(
-        'font-semibold',
+        'font-semibold leading-tight',
         isTextExpanded ? 'whitespace-pre-wrap break-words' : 'truncate'
       )}
     >
       {renderChipValue(mucusSensationValue)}
     </div>
   </div>
-
 </button>
-          <button
+
+       <button
   type="button"
   onClick={() => smartOpen('appearance', 'appearance', 'mucusAppearance')}
   className={cn(
-    chipBaseClass,
-    'items-start text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200',
+    chipCompactClass,
+    isTextExpanded ? 'items-start' : 'items-center',
+    'text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200',
     details?.hasMucusAppearance
       ? 'border-emerald-100 bg-emerald-50 text-emerald-800'
       : 'border-emerald-50 bg-emerald-50 text-slate-400'
   )}
 >
-  <Circle className="h-5 w-5 shrink-0 opacity-80 mt-0.5" />
-  <div className="flex-1 min-w-0">
+  <Circle
+    className={cn(
+      'h-[18px] w-[18px] shrink-0 opacity-80',
+      isTextExpanded && 'mt-0.5'
+    )}
+  />
+  <div className="min-w-0 flex-1">
     <div
       ref={appearanceTextRef}
       className={cn(
-        'font-semibold',
+        'font-semibold leading-tight',
         isTextExpanded ? 'whitespace-pre-wrap break-words' : 'truncate'
       )}
     >
       {renderChipValue(mucusAppearanceValue)}
     </div>
   </div>
-
 </button>
         </div>
 
-        {/* Fila 3: observaciones + RS */}
-        <div className="flex items-center gap-3">
-          <button
-  type="button"
-  onClick={() => smartOpen('observations', 'observations', 'observations')}
-  className={cn(
-    chipBaseClass,
-    'flex-1 min-w-0 items-start text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200',
-    observationsRaw
-      ? 'border-violet-100 bg-violet-50 text-violet-800'
-      : 'border-violet-100 bg-violet-50 text-slate-400'
-  )}
->
-  <FileText className="h-5 w-5 shrink-0 opacity-80 mt-0.5" />
-  <div className="flex-1 min-w-0">
-    <div
-      ref={observationsTextRef}
+        {/* Fila 3: observaciones + acciones */}
+<div className="flex items-center gap-3">
+  <button
+    type="button"
+    onClick={() => smartOpen('observations', 'observations', 'observations')}
+    className={cn(
+      chipMultilineClass,
+      isTextExpanded ? 'items-start' : 'items-center',
+      'flex-1 min-w-0 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200',
+      observationsRaw
+        ? 'border-violet-100 bg-violet-50 text-violet-800'
+        : 'border-violet-100 bg-violet-50 text-slate-400'
+    )}
+  >
+    <FileText
       className={cn(
-        'font-semibold whitespace-pre-wrap break-words',
-        !isTextExpanded &&
-          '[display:-webkit-box] [-webkit-line-clamp:2] [-webkit-box-orient:vertical] overflow-hidden'
+        'h-[18px] w-[18px] shrink-0 opacity-80',
+        isTextExpanded && 'mt-0.5'
       )}
-    >
-      {renderChipValue(observationsValue, { placeholder: '-' })}
+    />
+    <div className="min-w-0 flex-1">
+      <div
+        ref={observationsTextRef}
+        className={cn(
+          'font-semibold leading-tight whitespace-pre-wrap break-words',
+          !isTextExpanded &&
+            '[display:-webkit-box] [-webkit-line-clamp:2] [-webkit-box-orient:vertical] overflow-hidden'
+        )}
+      >
+        {renderChipValue(observationsValue, { placeholder: '-' })}
+      </div>
     </div>
-  </div>
+  </button>
 
-</button>
-          <button
-            type="button"
-            onClick={handleRelationsToggle}
-            disabled={isProcessing}
-            className={cn(
-              'flex h-10 w-10 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200',
-              hasRelations &&'bg-white',
-              isProcessing && 'opacity-70 cursor-not-allowed'
-            )}
-            title={hasRelations ? 'Hubo relaciones' : 'Sin relaciones'}
-            aria-label={hasRelations ? 'Hubo relaciones' : 'Sin relaciones'}
-          >
-            <Heart
-              className={cn(
-                'h-4 shrink-0 w-4',
-                hasRelations ? 'text-rose-500 fill-current' : 'text-slate-300'
-              )}
-            />
-          </button>
-        </div>
+  <div className="flex shrink-0 items-center gap-1">
+    <button
+      type="button"
+      onClick={handleRelationsToggle}
+      disabled={isProcessing}
+      className={cn(
+        footerIconButtonClass,
+        hasRelations
+          ? 'border-rose-200 bg-rose-50 text-rose-500'
+          : 'border-slate-200 bg-white text-slate-300',
+        isProcessing && 'cursor-not-allowed opacity-70'
+      )}
+      title={hasRelations ? 'Hubo relaciones' : 'Sin relaciones'}
+      aria-label={hasRelations ? 'Hubo relaciones' : 'Sin relaciones'}
+    >
+      <Heart
+        className={cn(
+          'h-4 w-4 shrink-0',
+          hasRelations ? 'fill-current' : ''
+        )}
+      />
+    </button>
+
+    {hasRecord ? (
+      <>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-9 w-9 rounded-full border border-slate-200 bg-white text-fertiliapp-fuerte hover:bg-rose-50"
+          onClick={handleEdit}
+          disabled={isProcessing}
+        >
+          {isProcessing ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Edit2 className="h-4 w-4" />
+          )}
+          <span className="sr-only">Editar registro</span>
+        </Button>
+
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-9 w-9 rounded-full border border-slate-200 bg-white text-fertiliapp-fuerte hover:bg-rose-50"
+          onClick={handleDelete}
+          disabled={isProcessing}
+        >
+          {isProcessing ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Trash2 className="h-4 w-4" />
+          )}
+          <span className="sr-only">Eliminar registro</span>
+        </Button>
+      </>
+    ) : (
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-9 rounded-full border-rose-200 px-3 text-xs font-semibold text-rose-500"
+        onClick={handleAdd}
+        disabled={isProcessing}
+      >
+        {isProcessing && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}
+        Añadir
+      </Button>
+    )}
+  </div>
+</div>
       </div>
     </div>
   );
