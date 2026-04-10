@@ -11,6 +11,7 @@ import {
   Droplets,
   Circle,
   FileText,
+  Plus,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PeakModeButton } from '@/components/ui/peak-mode-button';
@@ -79,10 +80,22 @@ const peakAriaLabel = useMemo(() => {
 }, [existingPeakIsoDate, formattedDate, isoDate, peakMode]);
 
 
-  const symbolLabel = details?.symbolInfo?.label || 'Sin símbolo';
   const symbolValue = details?.symbolInfo?.value || 'none';
+  const hasRealSymbol = symbolValue !== 'none' && symbolValue !== null;
+  const symbolUiState = !hasPersistedRecord
+    ? 'no-record'
+    : hasRealSymbol
+      ? 'real-symbol'
+      : 'no-symbol-with-record';
+  const symbolLabel = useMemo(() => {
+    if (symbolUiState === 'no-record') return 'Sin registro';
+    if (symbolUiState === 'no-symbol-with-record') return 'Sin símbolo';
+    return details?.symbolInfo?.label || 'Símbolo';
+  }, [details?.symbolInfo?.label, symbolUiState]);
   const symbolPatternClass =
-    details?.symbolInfo?.pattern === 'spotting-pattern' ? 'spotting-pattern-icon' : '';
+    symbolUiState === 'real-symbol' && details?.symbolInfo?.pattern === 'spotting-pattern'
+      ? 'spotting-pattern-icon'
+      : '';
 
   const handleEdit = () => {
   if (!persistedRecord || !onEdit) return;
@@ -225,6 +238,10 @@ if (peakStatus) {
 }
 
   const getSymbolClasses = () => {
+    if (symbolUiState === 'no-record') {
+      return 'bg-transparent border-slate-300/70 border-dashed shadow-none text-slate-400';
+    }
+
     switch (symbolValue) {
       case 'red':
         return 'bg-rose-500 border-slate-300 shadow-md';
@@ -306,7 +323,11 @@ const footerIconButtonClass =
       )}
       title={symbolLabel}
       aria-label={symbolLabel}
-    />
+    >
+      {symbolUiState === 'no-record' && (
+        <Plus className="h-3 w-3 text-slate-400/80" strokeWidth={2.1} aria-hidden="true" />
+      )}
+    </button>
   </div>
 </div>
 
