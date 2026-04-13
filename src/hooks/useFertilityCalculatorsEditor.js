@@ -430,11 +430,8 @@ export const useFertilityCalculatorsEditor = ({
         `Ciclo más corto: ${cycleName} (${durationText}).`,
       ];
 
-      if (deduction !== null) {
-        parts.push(`Deducción aplicada: ${deduction} días.`);
-      }
       if (automaticValue !== null) {
-        parts.push(`Resultado: ${automaticValue} días.`);
+        parts.push(`CPM: ${automaticValue} días.`);
       }
       if (ignoredCount > 0) {
         parts.push(`${ignoredCount} ciclo${ignoredCount === 1 ? '' : 's'} ignorado${ignoredCount === 1 ? '' : 's'}.`);

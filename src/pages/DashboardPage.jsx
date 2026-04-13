@@ -1345,52 +1345,53 @@ if (dot.peakStatus === 'P') {
           </motion.div>
           
 
-          {hasOverflow && (
-            <div className="flex items-center justify-center gap-3">
-              <button
-                type="button"
-                className="p-2 rounded-full text-fertiliapp-fuerte shadow-xs transition hover:border hover:bg-fertiliapp-fuerte/20"
-                onClick={() => changeOffset(-1)}
-                disabled={wheelOffset === 0}
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <div className="flex flex-col items-center gap-1">
-                
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium text-fertiliapp-fuerte">
-                    Día {wheelOffset + 1}
-                  </span>
-                  <span className="text-xs text-fertiliapp-fuerte">•</span>
-                  <span className="text-xs font-medium text-fertiliapp-fuerte">
-                    Día {Math.min(wheelOffset + totalDots, totalCycleDays)}
-                  </span>
+          <div className="flex h-[64px] items-center justify-center">
+            {hasOverflow && (
+              <div className="flex items-center justify-center gap-3">
+                <button
+                  type="button"
+                  className="p-2 rounded-full text-fertiliapp-fuerte shadow-xs transition hover:border hover:bg-fertiliapp-fuerte/20"
+                  onClick={() => changeOffset(-1)}
+                  disabled={wheelOffset === 0}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <div className="flex flex-col items-center gap-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium text-fertiliapp-fuerte">
+                      Día {wheelOffset + 1}
+                    </span>
+                    <span className="text-xs text-fertiliapp-fuerte">•</span>
+                    <span className="text-xs font-medium text-fertiliapp-fuerte">
+                      Día {Math.min(wheelOffset + totalDots, totalCycleDays)}
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={maxOffset}
+                    value={wheelOffset}
+                    onChange={(event) => setWheelOffset(clampOffset(Number(event.target.value)))}
+                    className="w-40 range-fertiliapp"
+                  />
                 </div>
-                <input
-                  type="range"
-                  min={0}
-                  max={maxOffset}
-                  value={wheelOffset}
-                  onChange={(event) => setWheelOffset(clampOffset(Number(event.target.value)))}
-                  className="w-40 range-fertiliapp"
-                />
+                <button
+                  type="button"
+                  className="p-2 rounded-full text-fertiliapp-fuerte shadow-xs transition hover:border hover:bg-fertiliapp-fuerte/20"
+                  onClick={() => changeOffsetRaf(1)}
+                  disabled={wheelOffset === maxOffset}
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
               </div>
-              <button
-                type="button"
-                className="p-2 rounded-full text-fertiliapp-fuerte shadow-xs transition hover:border hover:bg-fertiliapp-fuerte/20"
-                onClick={() => changeOffsetRaf(1)}
-                disabled={wheelOffset === maxOffset}
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-        </div>
-      )}
+            )}
+          </div>
     </div>
   </div>
 </div>
 
     <motion.div
-          className="mx-2 mb-2 rounded-2xl border border-fertiliapp-suave bg-white/70 p-2 shadow-[0_10px_30px_rgba(148,163,184,0.15)] backdrop-blur-md"
+          className="mx-2 mt-3 mb-2 rounded-2xl border border-fertiliapp-suave bg-white/70 p-2 shadow-[0_10px_30px_rgba(148,163,184,0.15)] backdrop-blur-md"
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.2, delay: 0.06 }}
