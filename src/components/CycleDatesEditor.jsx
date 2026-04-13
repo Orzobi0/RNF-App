@@ -261,32 +261,32 @@ const CycleDatesEditor = ({
               </Button>
             </div>
             {onUndoCycle && (
-              <div className="mt-4 rounded-3xl bg-slate-300/50 border-slate-200 p-4 text-left">
-                <h3 className="font-semibold text-slate-800 mb-2">Deshacer ciclo</h3>
-                <p className="text-sm text-slate-700 mb-3">
+              <div className="mt-4 rounded-3xl border border-amber-200/80 bg-gradient-to-r from-amber-50 to-orange-50 p-4 text-left">
+                <h3 className="mb-2 font-semibold text-amber-900">Deshacer ciclo</h3>
+                <p className="mb-3 text-sm text-amber-800">
                   Une el ciclo actual con el anterior y mueve todos los registros.
                 </p>
                 <Button
                   type="button"
                   onClick={onUndoCycle}
                   disabled={isProcessing || isUndoingCycle}
-                  className="w-full sm:w-auto bg-slate-400  font-semibold hover:brightness-95 text-white shadow-md"
+                  className="w-full sm:w-auto border border-amber-200/80 bg-white font-semibold text-amber-800 shadow-sm transition hover:bg-amber-100"
                 >
                   {isUndoingCycle ? 'Deshaciendo…' : 'Deshacer ciclo'}
                 </Button>
               </div>
             )}
             {onDeleteCycle && (
-              <div className="mt-6 rounded-3xl bg-slate-300/50 p-4 text-left">
-                <h3 className="font-semibold text-slate-800 mb-2">{deleteTitle}</h3>
+              <div className="mt-6 rounded-3xl border border-red-200/80 bg-gradient-to-r from-red-50 to-rose-50 p-4 text-left">
+                <h3 className="mb-2 font-semibold text-red-800">{deleteTitle}</h3>
                 {deleteDescription && (
-                  <p className="text-sm text-slate-700 mb-3">{deleteDescription}</p>
+                  <p className="mb-3 text-sm text-red-700">{deleteDescription}</p>
                 )}
                 <Button
                   type="button"
                   onClick={onDeleteCycle}
                   disabled={isProcessing || isDeletingCycle || isUndoingCycle}
-                  className="w-full sm:w-auto bg-slate-500 hover:brightness-95 text-white shadow-md"
+                  className="w-full sm:w-auto border border-red-200/80 bg-white text-red-700 shadow-sm transition hover:bg-red-100"
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
                   {deleteLabel}

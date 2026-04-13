@@ -116,16 +116,30 @@ window.fetch = function(...args) {
 				contentType.includes('application/xhtml+xml');
 
 			if (!response.ok && !isDocumentResponse) {
-					const responseClone = response.clone();
-					const errorFromRes = await responseClone.text();
-					const requestUrl = response.url;
+				const responseClone = response.clone();
+				const errorFromRes = await responseClone.text();
+				const requestUrl = response.url;
+
+				const isExpectedSession401 =
+					response.status === 401 &&
+					(
+						requestUrl.includes('/api/sessionRestore') ||
+						requestUrl.includes('/api/sessionMe')
+					) &&
+					(
+						errorFromRes.includes('"code":"missing_session"') ||
+						errorFromRes.includes('"code":"invalid_session"')
+					);
+
+				if (!isExpectedSession401) {
 					console.error(\`Fetch error from \${requestUrl}: \${errorFromRes}\`);
+				}
 			}
 
 			return response;
 		})
 		.catch(error => {
-			if (!url.match(/\.html?$/i)) {
+			if (!url.match(/\\.html?$/i)) {
 				console.error(error);
 			}
 

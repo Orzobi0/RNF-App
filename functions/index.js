@@ -1,16 +1,18 @@
+/* eslint-disable max-len, no-useless-escape */
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
-const { FieldValue } = require("firebase-admin/firestore");
+const {FieldValue} = require("firebase-admin/firestore");
 
 admin.initializeApp();
 const db = admin.firestore();
+const {sessionApi} = require("./authSession");
 
 const sanitizeDocId = (s) =>
   String(s)
-    .trim()
-    // Firestore doc ids: evitamos chars problemáticos
-    .replace(/[\/\?#\[\]]/g, "_")
-    .slice(0, 900);
+      .trim()
+  // Firestore doc ids: evitamos chars problemáticos
+      .replace(/[\/\?#\[\]]/g, "_")
+      .slice(0, 900);
 
 const normalizeCelsius = (v) => {
   if (v == null) return null;
@@ -28,13 +30,13 @@ const normalizeCelsius = (v) => {
 
 // Callable para Health Connect
 exports.syncBasalBodyTemperature = functions.https.onCall(async (data, context) => {
-  if (!context.auth?.uid) {
+  if (!context.auth || !context.auth.uid) {
     throw new functions.https.HttpsError("unauthenticated", "Debes estar autenticada.");
   }
 
   const uid = context.auth.uid;
-  const cycleId = typeof data?.cycleId === "string" ? data.cycleId.trim() : "";
-  const items = Array.isArray(data?.items) ? data.items : [];
+  const cycleId = data && typeof data.cycleId === "string" ? data.cycleId.trim() : "";
+  const items = data && Array.isArray(data.items) ? data.items : [];
 
   if (!cycleId) {
     throw new functions.https.HttpsError("invalid-argument", "cycleId es obligatorio.");
@@ -73,13 +75,13 @@ exports.syncBasalBodyTemperature = functions.https.onCall(async (data, context) 
     const dataOrigin = typeof it.dataOrigin === "string" ? it.dataOrigin : null;
 
     if (!timestampMs || temperatureC == null || !localDate) {
-      rejectedItems.push({ index: i, error: "INVALID_ITEM" });
+      rejectedItems.push({index: i, error: "INVALID_ITEM"});
       continue;
     }
 
     // Filtrar fuera del ciclo actual (por fecha local)
     if (startDate && localDate < startDate) {
-      rejectedItems.push({ index: i, error: "OUTSIDE_CURRENT_CYCLE" });
+      rejectedItems.push({index: i, error: "OUTSIDE_CURRENT_CYCLE"});
       continue;
     }
 
@@ -119,8 +121,8 @@ exports.syncBasalBodyTemperature = functions.https.onCall(async (data, context) 
     if (!entryExists) {
       const first = dayItems[0];
       const entryData = {
-        timestamp: first.timestamp,   // ISO con offset si lo mandas desde el móvil
-        iso_date: localDate,          // coherente con tu código (iso_date)
+        timestamp: first.timestamp, // ISO con offset si lo mandas desde el móvil
+        iso_date: localDate, // coherente con tu código (iso_date)
         temperature_raw: first.temperatureC,
         temperature_corrected: first.temperatureC,
         temperature_chart: first.temperatureC,
@@ -146,7 +148,7 @@ exports.syncBasalBodyTemperature = functions.https.onCall(async (data, context) 
         temperature_corrected: null,
         use_corrected: false,
         selected: !entryExists && j === 0, // solo si el entry era nuevo, marcamos una por defecto
-        time: m.timeLocal || null,         // importante: viene del móvil
+        time: m.timeLocal || null, // importante: viene del móvil
         timestamp: m.timestamp,
         timestamp_ms: m.timestampMs,
         source: "health_connect",
@@ -160,24 +162,24 @@ exports.syncBasalBodyTemperature = functions.https.onCall(async (data, context) 
       try {
         await mRef.create(mData);
         createdMeasurements++;
-        results.push({ index: m.index, ok: true, status: "MEASUREMENT_CREATED", day: localDate, measurementId });
+        results.push({index: m.index, ok: true, status: "MEASUREMENT_CREATED", day: localDate, measurementId});
       } catch (err) {
-        const msg = String(err?.message || "");
-        const code = err?.code;
+        const msg = String((err && err.message) || "");
+        const code = err && err.code;
         if (code === 6 || msg.includes("ALREADY_EXISTS")) {
           skippedMeasurements++;
-          results.push({ index: m.index, ok: true, status: "MEASUREMENT_EXISTS", day: localDate, measurementId });
+          results.push({index: m.index, ok: true, status: "MEASUREMENT_EXISTS", day: localDate, measurementId});
           continue;
         }
         console.error("MEASUREMENT_WRITE_FAILED", err);
-        results.push({ index: m.index, ok: false, error: "MEASUREMENT_WRITE_FAILED", day: localDate });
+        results.push({index: m.index, ok: false, error: "MEASUREMENT_WRITE_FAILED", day: localDate});
       }
     }
   }
 
   await cycleRef.set(
-    { last_health_connect_sync: FieldValue.serverTimestamp() },
-    { merge: true }
+      {last_health_connect_sync: FieldValue.serverTimestamp()},
+      {merge: true},
   );
 
   return {
@@ -207,7 +209,7 @@ exports.addTemperature = functions.https.onRequest(async (req, res) => {
     let decoded;
     try {
       decoded = await admin.auth().verifyIdToken(idToken);
-    } catch {
+    } catch (verifyError) {
       return res.status(401).send("Token inválido");
     }
     const userId = decoded.uid;
@@ -215,7 +217,7 @@ exports.addTemperature = functions.https.onRequest(async (req, res) => {
     // --- Body: aceptar objeto o array ---
     const rawBody = req.body;
     if (rawBody == null || rawBody === "") {
-      return res.status(400).json({ error: "EMPTY_BODY" });
+      return res.status(400).json({error: "EMPTY_BODY"});
     }
     const items = Array.isArray(rawBody) ? rawBody : [rawBody];
 
@@ -230,17 +232,17 @@ exports.addTemperature = functions.https.onRequest(async (req, res) => {
     const parseTimestamp = (ts) => {
       if (typeof ts === "number") {
         const d = new Date(ts);
-        if (Number.isNaN(d.getTime())) return { err: "INVALID_TIMESTAMP" };
-        return { date: d, iso: d.toISOString() };
+        if (Number.isNaN(d.getTime())) return {err: "INVALID_TIMESTAMP"};
+        return {date: d, iso: d.toISOString()};
       }
       if (typeof ts === "string") {
         // quitar saltos/espacios y si viniera "uno\notro", nos quedamos con el primero
         const first = ts.trim().split(/\s+/)[0];
         const d = new Date(first);
-        if (Number.isNaN(d.getTime())) return { err: "INVALID_TIMESTAMP" };
-        return { date: d, iso: d.toISOString() };
+        if (Number.isNaN(d.getTime())) return {err: "INVALID_TIMESTAMP"};
+        return {date: d, iso: d.toISOString()};
       }
-      return { err: "INVALID_TIMESTAMP" };
+      return {err: "INVALID_TIMESTAMP"};
     };
 
     const normalizeTemperature = (t) => {
@@ -252,8 +254,8 @@ exports.addTemperature = functions.https.onRequest(async (req, res) => {
       if (Number.isNaN(num)) return null;
 
       // Casos típicos:
-      if (num >= 3500 && num <= 4000) num = num / 100;        // 3669 -> 36.69
-      if (num > 80 && num < 120) num = (num - 32) / 1.8;      // °F -> °C
+      if (num >= 3500 && num <= 4000) num = num / 100; // 3669 -> 36.69
+      if (num > 80 && num < 120) num = (num - 32) / 1.8; // °F -> °C
 
       // Rango razonable BBT
       if (num < 30 || num > 45) return null;
@@ -289,25 +291,25 @@ exports.addTemperature = functions.https.onRequest(async (req, res) => {
     for (let i = 0; i < items.length; i++) {
       const it = items[i] || {};
       if (it.timestamp == null || it.temperature == null) {
-        results.push({ index: i, ok: false, error: "MISSING_FIELDS" });
+        results.push({index: i, ok: false, error: "MISSING_FIELDS"});
         continue;
       }
 
       const ts = parseTimestamp(it.timestamp);
       if (ts.err) {
-        results.push({ index: i, ok: false, error: "INVALID_TIMESTAMP", value: it.timestamp });
+        results.push({index: i, ok: false, error: "INVALID_TIMESTAMP", value: it.timestamp});
         continue;
       }
 
       const temp = normalizeTemperature(it.temperature);
       if (temp == null) {
-        results.push({ index: i, ok: false, error: "INVALID_TEMPERATURE", value: it.temperature });
+        results.push({index: i, ok: false, error: "INVALID_TEMPERATURE", value: it.temperature});
         continue;
       }
 
       const cycle = await findCycle(userId, ts.date);
       if (!cycle) {
-        results.push({ index: i, ok: false, error: "NO_ACTIVE_CYCLE", timestamp: ts.iso });
+        results.push({index: i, ok: false, error: "NO_ACTIVE_CYCLE", timestamp: ts.iso});
         continue;
       }
 
@@ -325,11 +327,11 @@ exports.addTemperature = functions.https.onRequest(async (req, res) => {
       };
 
       await db
-        .collection(`users/${userId}/cycles/${cycle.id}/entries`)
-        .doc(entryId)
-        .set(entryData, { merge: true });
+          .collection(`users/${userId}/cycles/${cycle.id}/entries`)
+          .doc(entryId)
+          .set(entryData, {merge: true});
 
-      results.push({ index: i, ok: true, cycleId: cycle.id, entryId });
+      results.push({index: i, ok: true, cycleId: cycle.id, entryId});
     }
 
     // Respuesta: objeto si recibimos 1, array si recibimos N
@@ -346,12 +348,13 @@ exports.addTemperature = functions.https.onRequest(async (req, res) => {
       }
       return res.json(only);
     }
-    return res.json({ ok: true, count: results.length, results });
+    return res.json({ok: true, count: results.length, results});
   } catch (e) {
     console.error(e);
-    return res.status(500).json({ error: "INTERNAL" });
+    return res.status(500).json({error: "INTERNAL"});
   }
 });
+// Legacy: mantenida por compatibilidad con clientes anteriores.
 exports.exchangeCustomToken = functions.https.onRequest(async (req, res) => {
   try {
     if (req.method !== "POST") return res.status(405).send("Método no permitido");
@@ -363,10 +366,12 @@ exports.exchangeCustomToken = functions.https.onRequest(async (req, res) => {
     const decoded = await admin.auth().verifyIdToken(idToken);
     const customToken = await admin.auth().createCustomToken(decoded.uid);
 
-    return res.json({ customToken });
+    return res.json({customToken});
   } catch (e) {
     console.error(e);
-    return res.status(500).json({ error: "INTERNAL" });
+    return res.status(500).json({error: "INTERNAL"});
   }
 });
 
+// API de sesión para restauración silenciosa en Hosting (/api/**).
+exports.sessionApi = sessionApi;

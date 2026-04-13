@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Bolt, ChevronRight, User } from 'lucide-react';
+import { Activity, Bolt, ChevronRight, FileDown, Lock, LogOut, Mail, User } from 'lucide-react';
 import { App } from '@capacitor/app';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
@@ -15,7 +15,7 @@ import InstallPrompt from '@/components/InstallPrompt';
 import { ensureHealthConnectPermissions } from '@/lib/healthConnectSync';
 import { useHealthConnect } from '@/contexts/HealthConnectContext.jsx';
 import { cn } from '@/lib/utils';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 
 import {
   Dialog,
@@ -25,10 +25,149 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
+const getSettingsIconToneClasses = (tone = 'cool', destructive = false) => {
+  if (destructive) return 'bg-red-50 text-red-600';
+
+  switch (tone) {
+    case 'warm':
+      return 'text-[#F7B944]';
+    case 'purple':
+      return 'bg-observaciones-suave text-observaciones-fuerte';
+    case 'mint':
+      return 'text-[#3a8a6e]';
+    case 'rose':
+      return 'bg-rose-50 text-rose-500';
+    case 'cool':
+    default:
+      return 'text-secundario-fuerte';
+  }
+};
+const SETTINGS_ROW_CLASS =
+  'flex w-full items-center justify-between gap-3 rounded-[28px] bg-white/80 px-4 py-3 text-left shadow backdrop-blur transition hover:bg-white/90';
+
+const SettingsActionRow = ({
+  icon: Icon,
+  title,
+  description,
+  onClick,
+  destructive = false,
+  trailing = null,
+  ariaLabel,
+  iconTone = 'cool',
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    aria-label={ariaLabel ?? title}
+    className={cn(SETTINGS_ROW_CLASS, destructive && 'hover:bg-red-50/60')}
+  >
+    <div className="flex min-w-0 items-start gap-3">
+      <span
+        className={cn(
+          'mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl',
+          getSettingsIconToneClasses(iconTone, destructive)
+        )}
+      >
+        <Icon className="h-5 w-5" aria-hidden="true" />
+      </span>
+
+      <div className="min-w-0">
+        <p className={cn('text-base font-semibold text-slate-700', destructive && 'text-red-700')}>
+          {title}
+        </p>
+        {description ? (
+          <p className="mt-1 break-all text-sm text-slate-500">{description}</p>
+        ) : null}
+      </div>
+    </div>
+
+    {trailing ? <div className="shrink-0">{trailing}</div> : null}
+  </button>
+);
+
+const SettingsLinkRow = ({ icon: Icon, title, description, to, ariaLabel, iconTone = 'cool' }) => (
+  <Link
+    to={to}
+    aria-label={ariaLabel ?? title}
+    className={SETTINGS_ROW_CLASS}
+  >
+    <div className="flex min-w-0 items-start gap-3">
+      <span
+  className={cn(
+    'mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl',
+    getSettingsIconToneClasses(iconTone)
+        )}
+      >
+        <Icon className="h-5 w-5" aria-hidden="true" />
+      </span>
+
+      <div className="min-w-0">
+        <p className="text-base font-semibold text-slate-700">{title}</p>
+        {description ? <p className="mt-0.5 text-sm text-slate-500">{description}</p> : null}
+      </div>
+    </div>
+
+    <ChevronRight className="h-5 w-5 shrink-0 text-slate-400" aria-hidden="true" />
+  </Link>
+);
+
+const SettingsSwitchRow = ({
+  icon: Icon,
+  title,
+  description,
+  checked,
+  onToggle,
+  disabled = false,
+  ariaLabel,
+  iconTone = 'cool',
+}) => (
+  <button
+    type="button"
+    role="switch"
+    aria-checked={checked}
+    aria-label={ariaLabel ?? title}
+    onClick={() => {
+      if (disabled) return;
+      onToggle(!checked);
+    }}
+    disabled={disabled}
+    className={cn(SETTINGS_ROW_CLASS, 'disabled:cursor-not-allowed disabled:opacity-60')}
+  >
+    <div className="flex min-w-0 items-start gap-3">
+      <span
+  className={cn(
+    'mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl',
+    getSettingsIconToneClasses(iconTone)
+  )}
+>
+  <Icon className="h-5 w-5" aria-hidden="true" />
+</span>
+
+      <div className="min-w-0">
+        <p className="text-base font-semibold text-slate-700">{title}</p>
+        {description ? <p className="mt-0.5 text-sm text-slate-500">{description}</p> : null}
+      </div>
+    </div>
+
+    <span
+      className={cn(
+        'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-slate-200 transition-colors',
+        checked ? 'bg-rose-400' : 'bg-slate-200'
+      )}
+      aria-hidden="true"
+    >
+      <span
+        className={cn(
+          'inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform',
+          checked ? 'translate-x-5' : 'translate-x-0'
+        )}
+      />
+    </span>
+  </button>
+);
 
 const SettingsPage = () => {
   const { user, updateEmail, updatePassword, login, logout } = useAuth();
-  const navigate = useNavigate();
   const { currentCycle, archivedCycles } = useCycleData();
   const { isAvailable, hasPermissions, refreshPermissions, isChecking, isAndroidApp } =
     useHealthConnect();
@@ -302,131 +441,107 @@ const SettingsPage = () => {
       <div
         className="relative z-10 mx-auto flex w-full max-w-2xl flex-1 flex-col box-border px-4 py-6"
       >
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-        >
-          <h1 className="text-3xl font-bold text-slate-700 flex items-center">
-            <User className="mr-2 h-8 w-8 text-fertiliapp-fuerte" />
-            Mi cuenta
-          </h1>
-        </motion.div>
+        <div className="mb-5 border-b border-rose-100/70 pb-3">
+  <motion.div
+    initial={{ opacity: 0, y: -20 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.5 }}
+  >
+    <h1 className="flex items-center text-3xl font-bold text-slate-700">
+      <User className="mr-2 h-8 w-8 text-fertiliapp-fuerte" />
+      Ajustes
+    </h1>
+  </motion.div>
+</div>
 
-        <div className="mt-6 flex flex-1 flex-col gap-6">
-          <div className="space-y-4">
-            <div className="bg-white/80 backdrop-blur p-4 rounded-3xl shadow flex items-center justify-between">
-              <div>
-                <p className="text-base text-slate-900">Correo</p>
-                <p className="font-medium text-slate-500 break-all">{user?.email}</p>
-              </div>
-              <Button
-                onClick={() => {
-                  setNewEmail(user?.email || '');
-                  setShowEmailDialog(true);
-                }}
-                className="ml-4"
-              >
-                Actualizar email
-              </Button>
-            </div>
-                 
-            <div className="bg-white/80 backdrop-blur p-4 rounded-3xl shadow flex items-center justify-between">
-              <div>
-                <p className="text-base text-slate-900">Contraseña</p>
-                <p className="font-medium text-slate-500">********</p>
-              </div>
-              <Button onClick={() => setShowPasswordDialog(true)} className="ml-4">
-                Actualizar contraseña
-              </Button>
-            </div>
-          </div>
-          
-          <div className="bg-white/80 backdrop-blur p-4 rounded-3xl shadow flex items-center justify-between">
-            <div>
-              <p className="font-medium text-base text-slate-700">
-                Descarga tus ciclos
-              </p>
-            </div>
-            <Button onClick={() => setShowExportDialog(true)} className="ml-4">
-              Exportar ciclos
-            </Button>
-          </div>
+        <div className="flex flex-1 flex-col">
+  <div className="space-y-3">
+    <SettingsActionRow
+      icon={Mail}
+      iconTone="cool"
+      title="Correo electrónico"
+      description={user?.email || 'Sin correo'}
+      onClick={() => {
+        setNewEmail(user?.email || '');
+        setShowEmailDialog(true);
+      }}
+      ariaLabel="Actualizar correo electrónico"
+    />
 
-          <Button
-            asChild
-            variant="ghost"
-            className="h-auto w-full justify-between rounded-3xl bg-white/80 p-4 shadow backdrop-blur hover:bg-white/90"
-          >
-            <Link to="/settings/preferences" aria-label="Abrir preferencias">
-              <span className="inline-flex items-center gap-2 font-medium text-base text-slate-700">
-                <Bolt className="h-5 w-5 shrink-0 text-fertiliapp-fuerte" />
-                <span>Preferencias</span>
-              </span>
-              <ChevronRight className="h-5 w-5 shrink-0 text-slate-400" />
-            </Link>
-          </Button>
-          
-          {isAndroidApp && (
-            <div className="bg-white/50 backdrop-blur p-4 rounded-3xl shadow flex items-center justify-between gap-4">
-              <div>
-                <p className="text-sm text-slate-500">Health Connect</p>
-                <p className="font-medium text-slate-700">Conectar con Salud</p>
-                <p className="text-xs text-slate-500 mt-1">
-                  {!isAvailable
-                    ? 'Instala Health Connect para habilitar la sincronización.'
-                    : hasPermissions
-                      ? 'Conectado. Puedes sincronizar desde el formulario.'
-                      : 'Activa permisos para importar tus temperaturas.'}
-              </p>
-              </div>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={hasPermissions}
-                onClick={() => handleHealthConnectToggle(!hasPermissions)}
-                disabled={!isAvailable || isChecking}
-                className="relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full border border-slate-200 bg-slate-200 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-fertiliapp-fuerte disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <span
-                  className={cn(
-                    'inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform',
-                    hasPermissions ? 'translate-x-5' : 'translate-x-0'
-                  )}
-                />
-              </button>
-            </div>
-            )}
-          <InstallPrompt
-            align="end"
-            buttonClassName="bg-fertiliapp-fuerte hover:brightness-95"
-            forceVisible={forceInstallPrompt}
-          />
-          <div className="mt-auto pt-6">
-  <div className="h-px w-full bg-pink-100/70 mb-6" />
-  <div className="bg-white/80 backdrop-blur p-4 rounded-3xl shadow flex items-center justify-between">
-    <div>
-      <p className="text-base text-slate-900">Sesión</p>
-      <p className="font-medium text-slate-500">Cerrar sesión de tu cuenta</p>
-    </div>
-    <Button
-      variant="destructive"
+    <SettingsActionRow
+      icon={Lock}
+      iconTone="cool"
+      title="Contraseña"
+      description="Cambiar contraseña"
+      onClick={() => setShowPasswordDialog(true)}
+      ariaLabel="Actualizar contraseña"
+    />
+
+    <SettingsActionRow
+      icon={FileDown}
+      iconTone="warm"
+      title="Exportar ciclos"
+      description="Selecciona qué ciclos exportar"
+      onClick={() => setShowExportDialog(true)}
+      ariaLabel="Exportar ciclos"
+    />
+
+    <SettingsLinkRow
+      icon={Bolt}
+      iconTone="mint"
+      title="Preferencias"
+      description="Registro, cálculo y gráfica"
+      to="/settings/preferences"
+      ariaLabel="Abrir preferencias"
+    />
+
+    {isAndroidApp && (
+      <SettingsSwitchRow
+        icon={Activity}
+        iconTone="purple"
+        title="Health Connect"
+        description={
+          !isAvailable
+            ? 'Instala Health Connect para habilitar la sincronización.'
+            : hasPermissions
+              ? 'Conectado. Puedes sincronizar desde el formulario.'
+              : 'Activa permisos para importar tus temperaturas.'
+        }
+        checked={hasPermissions}
+        onToggle={handleHealthConnectToggle}
+        disabled={!isAvailable || isChecking}
+        ariaLabel="Configurar Health Connect"
+      />
+    )}
+
+    <InstallPrompt
+      align="end"
+      buttonClassName="bg-fertiliapp-fuerte hover:brightness-95"
+      forceVisible={forceInstallPrompt}
+    />
+  </div>
+
+  <div className="mt-auto pt-6">
+    <div className="mb-4 h-px w-full bg-pink-100/70" />
+
+    <SettingsActionRow
+      icon={LogOut}
+      iconTone="cool"
+      title="Cerrar sesión"
+      description="Salir de tu cuenta"
       onClick={() => setShowLogoutDialog(true)}
-      className="ml-4"
-      disabled={loadingLogout}
-    >
-      Cerrar sesión
-    </Button>
+      destructive
+      ariaLabel="Cerrar sesión"
+      trailing={
+        loadingLogout ? (
+          <span className="text-sm font-medium text-red-600">Cerrando...</span>
+        ) : null
+      }
+    />
   </div>
 </div>
-        </div>
 
       </div>
-
-      <div className="mt-auto pt-6">
-  <div className="h-px w-full bg-pink-100/70 mb-6" />
-</div>
-
 
       <Dialog open={showEmailDialog} onOpenChange={setShowEmailDialog}>
         <DialogContent className="sm:max-w-md">

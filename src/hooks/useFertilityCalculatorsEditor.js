@@ -430,11 +430,8 @@ export const useFertilityCalculatorsEditor = ({
         `Ciclo más corto: ${cycleName} (${durationText}).`,
       ];
 
-      if (deduction !== null) {
-        parts.push(`Deducción aplicada: ${deduction} días.`);
-      }
       if (automaticValue !== null) {
-        parts.push(`Resultado: ${automaticValue} días.`);
+        parts.push(`CPM: ${automaticValue} días.`);
       }
       if (ignoredCount > 0) {
         parts.push(`${ignoredCount} ciclo${ignoredCount === 1 ? '' : 's'} ignorado${ignoredCount === 1 ? '' : 's'}.`);
@@ -521,14 +518,12 @@ export const useFertilityCalculatorsEditor = ({
   }, [setCycleIgnoreForAutoCalculations, toast]);
 
   const handleOpenCpmDialog = useCallback(() => {
-    const automaticBase = typeof computedCpmData.shortestCycle?.duration === 'number' ? computedCpmData.shortestCycle.duration : null;
-    const automaticFinal = typeof computedCpmData.value === 'number' ? computedCpmData.value : null;
-    const initialBase = isManualCpm && typeof manualCpmBaseValue === 'number' ? manualCpmBaseValue : automaticBase;
-    const initialFinal = isManualCpm && typeof manualCpmValue === 'number' ? manualCpmValue : automaticFinal;
+    const initialBase = isManualCpm && typeof manualCpmBaseValue === 'number' ? manualCpmBaseValue : null;
+    const initialFinal = isManualCpm && typeof manualCpmValue === 'number' ? manualCpmValue : null;
     setManualCpmBaseInput(initialBase != null ? String(initialBase) : '');
     setManualCpmFinalInput(initialFinal != null ? String(initialFinal) : '');
     setManualCpmBaseError(''); setManualCpmFinalError(''); setManualCpmEditedSide(null); setCpmSelectionDraft(cpmSelection); setShowCpmDetails(false); setIsCpmDialogOpen(true);
-  }, [computedCpmData, cpmSelection, isManualCpm, manualCpmBaseValue, manualCpmValue]);
+  }, [cpmSelection, isManualCpm, manualCpmBaseValue, manualCpmValue]);
 
   const handleCloseCpmDialog = useCallback(() => { setShowCpmDetails(false); setShowCpmDeleteDialog(false); setIsDeletingManualCpm(false); setIsCpmDialogOpen(false); }, []);
   const handleManualCpmBaseInputChange = useCallback((event) => {

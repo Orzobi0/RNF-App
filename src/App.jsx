@@ -1,4 +1,4 @@
-import React, { Suspense, lazy } from 'react';
+import React, { Suspense, lazy, useEffect, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { ErrorBoundary } from '@/components/dev/ErrorBoundary';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
@@ -24,18 +24,78 @@ import UpdateNotification from '@/components/UpdateNotification';
 import ViewportHeightFix from "@/components/ViewportHeightFix";
 
 function ProtectedRoute({ children }) {
-  const { user } = useAuth();
+  const { user, loadingAuth, restoringSession } = useAuth();
+
+  if (loadingAuth || restoringSession) {
+    return (
+      <AppBackground>
+        <div className="flex min-h-app flex-col items-center justify-center space-y-4 px-4">
+          <motion.div
+            className="h-8 w-8 rounded-full bg-fertiliapp"
+            animate={{ opacity: [0.4, 1, 0.4] }}
+            transition={{ duration: 1.2, repeat: Infinity }}
+          />
+          <motion.p className="font-medium text-fertiliapp-fuerte">
+            Recuperando sesión...
+          </motion.p>
+        </div>
+      </AppBackground>
+    );
+  }
+
   if (!user) {
     return <Navigate to="/auth" replace />;
   }
+
   return children;
 }
 
+function ServiceWorkerRouteUpdater() {
+  const location = useLocation();
+  const lastCheckRef = useRef(0);
+
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+
+    const now = Date.now();
+
+    // Evita comprobar en exceso si la usuaria navega rápido
+    if (now - lastCheckRef.current < 20000) return;
+    lastCheckRef.current = now;
+
+    let cancelled = false;
+
+    const checkForUpdate = async () => {
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        if (cancelled) return;
+
+        await registration.update();
+
+        // Si ya hay una versión esperando, la activamos
+        if (registration.waiting) {
+          registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    void checkForUpdate();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [location.pathname, location.search]);
+
+  return null;
+}
+
 function AppContent() {
-  const { user, loadingAuth } = useAuth();
+  const { user, loadingAuth, restoringSession } = useAuth();
   const location = useLocation();
 
-  if (loadingAuth) {
+  if (loadingAuth || restoringSession) {
     return (
       <AppBackground>
         <div className="flex min-h-app flex-col items-center justify-center space-y-4 px-4">
@@ -50,7 +110,7 @@ function AppContent() {
             animate={{ opacity: 1 }}
             transition={{ delay: 0.2 }}
           >
-            Cargando aplicación...
+            Recuperando sesión...
           </motion.p>
         </div>
       </AppBackground>
@@ -170,6 +230,7 @@ function App() {
   return (
     <BrowserRouter basename={import.meta.env.BASE_URL}>
       <ViewportHeightFix />
+      <ServiceWorkerRouteUpdater />
       <UpdateNotification />
       <AuthProvider>
         <CycleDataProvider>
