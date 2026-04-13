@@ -68,10 +68,6 @@ self.addEventListener('install', event => {
     caches
       .open(CACHE_NAME)
       .then(cache => cache.addAll([...ASSETS, ...BUILD_ASSETS]))
-      .then(() => {
-        console.log('SW: Cache populated, skipping waiting');
-        return self.skipWaiting();
-      })
   );
 });
 
