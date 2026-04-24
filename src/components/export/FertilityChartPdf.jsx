@@ -2,27 +2,27 @@ import React, { useMemo } from 'react';
 import { getSymbolAppearance, getSymbolColorPalette } from '@/config/fertilitySymbols';
 
 const PALETTE = {
-  pageBg: '#fff8fb',
+  pageBg: '#fffdfd',
   panelBg: '#ffffff',
-  panelBorder: '#f6dce6',
-  chartBg: '#fffafd',
-  chartBorder: '#f2cad7',
-  gridMajor: '#f6ccd9',
-  gridMinor: '#fde9f0',
-  verticalMajor: '#f8dbe5',
-  verticalMinor: '#fcedf3',
+  panelBorder: '#f3d7e2',
+  chartBg: '#ffffff',
+  chartBorder: '#e8bfd0',
+  gridMajor: '#efc1d1',
+  gridMinor: '#f8e3eb',
+  verticalMajor: '#efd0dc',
+  verticalMinor: '#f7e7ee',
   textStrong: '#8f1a55',
-  text: '#546174',
-  textMuted: '#7c889b',
+  text: '#475569',
+  textMuted: '#64748b',
   tempLine: '#e25576',
   tempLineHalo: '#fff2f7',
   tempPoint: '#e25576',
   tempPointIgnoredFill: '#d4dbe6',
   tempPointIgnoredStroke: '#8a95a8',
-  correctionLine: '#9aa5b8',
-  rowHeaderBg: '#fdeaf2',
-  rowBorder: '#f0d5df',
-  rowAlt: '#fffafd',
+  correctionLine: '#94a3b8',
+  rowHeaderBg: '#fce7f0',
+  rowBorder: '#e8cbd7',
+  rowAlt: '#fff8fb',
 };
 
 const DEFAULT_TEMP_MIN = 36.0;
@@ -221,15 +221,15 @@ const FertilityChartPdf = ({
 }) => {
   const layout = useMemo(() => {
     const margin = embedded
-  ? { top: 8, right: 24, bottom: 18, left: 24 }
+  ? { top: 6, right: 18, bottom: 12, left: 18 }
   : { top: 20, right: 24, bottom: 18, left: 24 };
 
-const panelPadding = embedded ? 10 : 14;
+const panelPadding = embedded ? 8 : 14;
 const titleH = showTitle ? 30 : 0;
 const chartRowsGap = 6;
 
 const panelInnerH = height - margin.top - margin.bottom - panelPadding * 2 - titleH;
-const graphAreaH = Math.round(panelInnerH * 0.27);
+const graphAreaH = Math.round(panelInnerH * 0.31);
 const rowsAreaH = panelInnerH - graphAreaH;
 
     const rows = [
@@ -269,7 +269,7 @@ const safeMax = calculationTemperatures.length
     }
 
     const dayCount = Math.max(1, entries.length);
-const chartLeft = margin.left + panelPadding + 88;
+const chartLeft = margin.left + panelPadding + 78;
 
 const maxChartRight = width - margin.right - panelPadding;
 const maxChartW = maxChartRight - chartLeft;
@@ -448,9 +448,9 @@ const chartRight = chartLeft + chartW;
             <text
               x={layout.chartLeft - 10}
               y={y + 4}
-              fontSize="11"
+              fontSize="11.2"
               textAnchor="end"
-              fill={major ? PALETTE.text : PALETTE.textMuted}
+              fill={PALETTE.text}
             >
               {tick.toFixed(1)}
             </text>
@@ -484,7 +484,7 @@ const chartRight = chartLeft + chartW;
         strokeWidth="1.2"
       />
 
-      <text x={layout.margin.left + 18} y={layout.chartTop + 14} fontSize="12" fontWeight="600" fill={PALETTE.textStrong}>
+      <text x={layout.margin.left + 18} y={layout.chartTop + 14} fontSize="11.5" fontWeight="600" fill={PALETTE.textStrong}>
         Temperatura (°C)
       </text>
 
@@ -598,7 +598,7 @@ const chartRight = chartLeft + chartW;
               fill={PALETTE.rowHeaderBg}
               stroke={PALETTE.rowBorder}
             />
-            <text x={layout.margin.left + layout.panelPadding + 10} y={y + rowH / 2 + 4} fontSize="13" fontWeight="700" fill={PALETTE.text}>
+            <text x={layout.margin.left + layout.panelPadding + 10} y={y + rowH / 2 + 4} fontSize="11.2"  fill={PALETTE.text}>
               {row.label}
             </text>
 
@@ -636,7 +636,7 @@ const chartRight = chartLeft + chartW;
                         key={`${row.key}-${colIndex}-${lineIndex}`}
                         x={cx}
                         y={textStartY + lineIndex * lineGap}
-                        fontSize="10.8"
+                        fontSize="11.2"
                         textAnchor="middle"
                         fill={PALETTE.text}
                       >

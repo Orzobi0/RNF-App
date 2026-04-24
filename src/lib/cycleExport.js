@@ -53,14 +53,14 @@ const parseDateOnly = (value) => {
   return null;
 };
 const PDF_THEME = {
-  pageBg: [255, 248, 251],
+  pageBg: [255, 252, 253],
   panelBg: [255, 255, 255],
-  panelBorder: [246, 220, 230],
-  headerBg: [253, 234, 242],
+  panelBorder: [248, 225, 234],
+  headerBg: [253, 239, 245],
   accent: [143, 26, 85],
   accentSoft: [216, 92, 112],
-  text: [84, 97, 116],
-  muted: [124, 136, 155],
+  text: [71, 85, 105],
+  muted: [100, 116, 139],
   white: [255, 255, 255],
 };
 const formatDate = (value) => {
@@ -446,28 +446,19 @@ const drawPdfPageChrome = (doc, { title, subtitle = '', badge = '' }) => {
   doc.setLineWidth(0.35);
   drawRoundedPanel(doc, 6, 6, pageWidth - 12, pageHeight - 12, 5, 'S');
 
-  // Cabecera
-  doc.setFillColor(...PDF_THEME.headerBg);
-  drawRoundedPanel(doc, 8, 8, pageWidth - 16, 18, 5, 'F');
+// Cabecera
+doc.setFillColor(...PDF_THEME.headerBg);
+drawRoundedPanel(doc, 8, 8, pageWidth - 16, 16, 5, 'F');
 
-  // Título
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(15);
-  doc.setTextColor(...PDF_THEME.accent);
-  doc.text(title, 14, 18);
-
-  // Subtítulo
-  if (subtitle) {
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9.5);
-    doc.setTextColor(...PDF_THEME.muted);
-    doc.text(subtitle, 14, 23);
-  }
+doc.setFont('helvetica', 'bold');
+doc.setFontSize(14);
+doc.setTextColor(...PDF_THEME.accent);
+doc.text(title, 14, 18);
 
   // Badge derecha
   if (badge) {
-    const badgeW = 18;
-    const badgeH = 8;
+    const badgeW = 17;
+    const badgeH = 7;
     const badgeX = pageWidth - 14 - badgeW;
     const badgeY = 12;
 
@@ -475,17 +466,17 @@ const drawPdfPageChrome = (doc, { title, subtitle = '', badge = '' }) => {
     drawRoundedPanel(doc, badgeX, badgeY, badgeW, badgeH, 3, 'F');
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8);
+    doc.setFontSize(7.5);
     doc.setTextColor(...PDF_THEME.white);
-    doc.text(badge, badgeX + badgeW / 2, badgeY + 5.4, { align: 'center' });
+    doc.text(badge, badgeX + badgeW / 2, badgeY + 4.9, { align: 'center' });
   }
 };
 
 const drawSectionCard = (doc, x, y, w, h) => {
   doc.setFillColor(...PDF_THEME.panelBg);
   doc.setDrawColor(...PDF_THEME.panelBorder);
-  doc.setLineWidth(0.3);
-  drawRoundedPanel(doc, x, y, w, h, 4, 'FD');
+  doc.setLineWidth(0.22);
+drawRoundedPanel(doc, x, y, w, h, 4, 'FD');
 };
 
 const drawSectionTitle = (doc, { x, y, title = '', subtitle = '' }) => {
@@ -501,8 +492,8 @@ const drawSectionTitle = (doc, { x, y, title = '', subtitle = '' }) => {
 
   if (subtitle) {
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.setTextColor(...PDF_THEME.muted);
+    doc.setFontSize(9.5);
+    doc.setTextColor(...PDF_THEME.text);
     doc.text(subtitle, x, currentY);
   }
 };
@@ -568,7 +559,6 @@ const exportChartOnlyPdf = async ({ doc, cycle, formattedCycle, includeRs, horiz
 
     drawPdfPageChrome(doc, {
       title: pageTitle,
-      subtitle: 'Exportación PDF',
       badge: 'FertiliApp',
     });
 
@@ -617,9 +607,9 @@ const exportChartOnlyPdf = async ({ doc, cycle, formattedCycle, includeRs, horiz
     });
 
     const imageHeightMm = contentW * (image.heightPx / image.widthPx);
-    const cardTopPad = 6;
-    const textToImageGap = 2.5;
-    const cardBottomPad = 4;
+    const cardTopPad = 5;
+    const textToImageGap = 2;
+    const cardBottomPad = 3;
 
     const cardH = cardTopPad + textToImageGap + headerGap + imageHeightMm + cardBottomPad;
     const blockHeight = cardH + chartGap;
@@ -639,16 +629,18 @@ const exportChartOnlyPdf = async ({ doc, cycle, formattedCycle, includeRs, horiz
     const contentY = subtitleY + textToImageGap + headerGap;
 
     drawSectionCard(doc, cardX, cardY, cardW, cardH);
+const isFirstSegment = segmentIndex === 0;
+const hasMoreSegments = segmentIndex < segments.length - 1;
 
-    drawSectionTitle(doc, {
-      x: cardX + cardInnerPad,
-      y: subtitleY,
-      title: '',
-      subtitle:
-        segmentIndex === 0
-          ? `Días ${segment.dayFrom}–${segment.dayTo}${datePart}`
-          : `Continuación · días ${segment.dayFrom}–${segment.dayTo}${datePart}`,
-    });
+const segmentSubtitle = isFirstSegment
+  ? `Días ${segment.dayFrom}–${segment.dayTo}${datePart}${hasMoreSegments ? ' · continúa...' : ''}`
+  : `Continuación · días ${segment.dayFrom}–${segment.dayTo}${datePart}`;
+  drawSectionTitle(doc, {
+  x: cardX + cardInnerPad,
+  y: subtitleY,
+  title: '',
+  subtitle: segmentSubtitle,
+});
 
     doc.addImage(
       image.dataUrl,
@@ -755,7 +747,6 @@ export const buildCyclesPdfBlob = async (
         willDrawPage: () => {
           drawPdfPageChrome(doc, {
             title: `Datos del ciclo ${getCycleDateRangeLabel(cycle)}`,
-            subtitle: 'Exportación PDF',
             badge: 'DATOS',
           });
         },
