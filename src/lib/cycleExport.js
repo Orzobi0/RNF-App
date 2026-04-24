@@ -244,16 +244,19 @@ const escapeCsvField = (value) => {
   return sanitized;
 };
 
-const triggerDownload = (blob, filename) => {
+export const downloadBlobAsFile = (blob, filename, { url: providedUrl } = {}) => {
   if (typeof window === 'undefined') return;
-  const url = URL.createObjectURL(blob);
+  const hasProvidedUrl = Boolean(providedUrl);
+  const url = providedUrl ?? URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
   link.download = filename;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  if (!hasProvidedUrl) {
+    URL.revokeObjectURL(url);
+  }
 };
 
 export const formatCyclesForExport = (cycles = [], { includeRs = true } = {}) => {
@@ -298,7 +301,7 @@ export const downloadCyclesAsCsv = (cycles, filename = 'ciclos.csv', { includeRs
 
   const csvContent = csvSections.join('\n\n');
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  triggerDownload(blob, filename);
+  downloadBlobAsFile(blob, filename);
 };
 
 const buildChartData = (entries = []) => {
@@ -680,9 +683,8 @@ const exportChartOnlyPdf = async ({ doc, cycle, formattedCycle, includeRs, horiz
   }
 };
   
-export const downloadCyclesAsPdf = async (
+export const buildCyclesPdfBlob = async (
   cycles,
-  filename = 'ciclos.pdf',
   { includeChart = true, includeRs = true, chartOnly = false } = {},
 ) => {
   const formatted = formatCyclesForExport(cycles, { includeRs });
@@ -779,8 +781,17 @@ export const downloadCyclesAsPdf = async (
     }
   }
 
-  const blob = doc.output('blob');
-  triggerDownload(blob, filename);
+  return doc.output('blob');
+};
+
+export const downloadCyclesAsPdf = async (
+  cycles,
+  filename = 'ciclos.pdf',
+  options = {},
+) => {
+  const blob = await buildCyclesPdfBlob(cycles, options);
+  if (!blob) return;
+  downloadBlobAsFile(blob, filename);
 };
 
 export default formatCyclesForExport;

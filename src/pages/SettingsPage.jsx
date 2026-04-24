@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ToastAction } from '@/components/ui/toast';
-import { downloadCyclesAsPdf } from '@/lib/cycleExport';
+import { buildCyclesPdfBlob, downloadBlobAsFile } from '@/lib/cycleExport';
 import ExportCyclesDialog from '@/components/ExportCyclesDialog';
 import { useCycleData } from '@/hooks/useCycleData';
 import InstallPrompt from '@/components/InstallPrompt';
@@ -180,6 +180,7 @@ const SettingsPage = () => {
   const [pdfContentMode, setPdfContentMode] = useState('chart');
   const [includeRs, setIncludeRs] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
+  const [exportedPdf, setExportedPdf] = useState(null);
 
   const [newEmail, setNewEmail] = useState(user?.email || '');
   const [loadingEmail, setLoadingEmail] = useState(false);
@@ -272,7 +273,6 @@ const SettingsPage = () => {
           description: 'Selecciona al menos un ciclo para exportar.',
           variant: 'destructive',
         });
-        setIsExporting(false);
         return;
       }
 
@@ -280,18 +280,28 @@ const SettingsPage = () => {
       const filename = `ciclos-${timestamp}.pdf`;
       const includeChart = pdfContentMode !== 'table';
       const chartOnly = pdfContentMode === 'chart';
+      const blob = await buildCyclesPdfBlob(cyclesToExport, {
 
-      await downloadCyclesAsPdf(cyclesToExport, filename, {
         includeChart,
         includeRs,
         chartOnly,
       });
 
+      if (!blob) return;
+
+      if (exportedPdf?.url) {
+        URL.revokeObjectURL(exportedPdf.url);
+      }
+      const url = URL.createObjectURL(blob);
+      downloadBlobAsFile(blob, filename, { url });
+      setExportedPdf({ blob, url, filename });
+
       toast({
         title: 'Exportación completada',
         description: 'Los ciclos seleccionados se han exportado correctamente.',
       });
-      handleCloseExportDialog();
+      setShowExportDialog(false);
+      resetExportState();
     } catch (error) {
       console.error('Error al exportar ciclos', error);
       toast({
@@ -302,6 +312,75 @@ const SettingsPage = () => {
       });
     } finally {
       setIsExporting(false);
+    }
+  };
+
+  const clearExportedPdf = () => {
+    setExportedPdf((previous) => {
+      if (previous?.url) {
+        URL.revokeObjectURL(previous.url);
+      }
+      return null;
+    });
+  };
+
+  const handleOpenExportedPdf = () => {
+    if (!exportedPdf?.url) return;
+    const opened = window.open(exportedPdf.url, '_blank', 'noopener,noreferrer');
+    if (!opened) {
+      toast({
+        title: 'No se pudo abrir automáticamente',
+        description: 'Puedes buscar el archivo en Descargas o compartirlo desde aquí.',
+      });
+    }
+  };
+
+  const handleShareExportedPdf = async () => {
+    if (!exportedPdf?.blob || !exportedPdf?.filename) return;
+
+    const file = new File([exportedPdf.blob], exportedPdf.filename, { type: 'application/pdf' });
+    const sharePayload = {
+      title: 'PDF exportado',
+      text: 'Archivo PDF exportado desde FertiliApp.',
+      files: [file],
+    };
+
+    if (typeof navigator === 'undefined' || typeof navigator.share !== 'function') {
+      toast({
+        title: 'Compartir no disponible',
+        description:
+          'Este dispositivo no permite compartir el PDF. Puedes abrirlo o buscarlo en Descargas.',
+      });
+      return;
+    }
+
+    if (typeof navigator.canShare === 'function' && !navigator.canShare({ files: [file] })) {
+      toast({
+        title: 'Compartir no disponible',
+        description:
+          'Este dispositivo no permite compartir el PDF desde la PWA. Puedes abrirlo o buscarlo en Descargas.',
+      });
+      return;
+    }
+
+    try {
+      await navigator.share(sharePayload);
+    } catch (error) {
+      const errorName = String(error?.name || '').toLowerCase();
+      const errorMessage = String(error?.message || '').toLowerCase();
+      const isCancelled =
+        errorName.includes('abort') ||
+        errorName.includes('cancel') ||
+        errorMessage.includes('abort') ||
+        errorMessage.includes('cancel');
+
+      if (!isCancelled) {
+        toast({
+          title: 'Compartir no disponible',
+          description:
+            'Este dispositivo no permite compartir el PDF desde la PWA. Puedes abrirlo o buscarlo en Descargas.',
+        });
+      }
     }
   };
 
@@ -435,6 +514,14 @@ const SettingsPage = () => {
       listener?.remove();
     };
   }, [refreshPermissions]);
+
+  useEffect(() => {
+    return () => {
+      if (exportedPdf?.url) {
+        URL.revokeObjectURL(exportedPdf.url);
+      }
+    };
+  }, [exportedPdf]);
 
   return (
      <div className="relative flex min-h-full flex-col">
@@ -674,6 +761,36 @@ const SettingsPage = () => {
         onIncludeRsChange={setIncludeRs}
         isProcessing={isExporting}
       />
+      
+      <Dialog
+        open={Boolean(exportedPdf)}
+        onOpenChange={(open) => {
+          if (!open) {
+            clearExportedPdf();
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>PDF exportado</DialogTitle>
+            <DialogDescription>
+              El archivo se ha descargado en tu dispositivo. También puedes abrirlo ahora o
+              compartirlo desde aquí.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col gap-2 sm:flex-row">
+            <Button type="button" className="w-full" onClick={handleOpenExportedPdf}>
+              Abrir PDF
+            </Button>
+            <Button type="button" variant="outline" className="w-full" onClick={handleShareExportedPdf}>
+              Compartir
+            </Button>
+            <Button type="button" variant="ghost" className="w-full sm:w-auto" onClick={clearExportedPdf}>
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
