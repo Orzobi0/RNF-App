@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 /**
  * Allows closing an overlay with the browser/OS back button.
@@ -7,6 +7,12 @@ import { useEffect } from 'react';
  * away from the app.
  */
 export default function useBackClose(active, onClose) {
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
   useEffect(() => {
     if (!active) return;
 
@@ -18,21 +24,21 @@ export default function useBackClose(active, onClose) {
         : Math.random().toString(36).slice(2);
 
     let dismissedByPop = false;
+
     const handlePopState = (event) => {
-      // ✅ Si al hacer "back" el state nuevo ES nuestro overlay,
-      // significa que se ha cerrado un overlay hijo (o se ha vuelto a nuestro dummy state).
-      // NO cierres este overlay.
+      // Si el nuevo state sigue siendo este overlay, no cerramos.
+      // Esto evita cierres incorrectos con overlays anidados.
       if (event?.state?.overlay === id) {
         return;
       }
 
       dismissedByPop = true;
-      onClose();
+      onCloseRef.current?.();
     };
 
-    // push dummy state so that back button closes the overlay
-    window.history.pushState({ overlay: id }, "");
-    window.addEventListener("popstate", handlePopState);
+    window.history.pushState({ overlay: id }, '');
+    window.addEventListener('popstate', handlePopState);
+
     let ignore = true;
     const timeout = setTimeout(() => {
       ignore = false;
@@ -40,12 +46,15 @@ export default function useBackClose(active, onClose) {
 
     return () => {
       clearTimeout(timeout);
-      window.removeEventListener("popstate", handlePopState);
-      // remove the dummy state if overlay was closed via UI
+      window.removeEventListener('popstate', handlePopState);
+
+      // Si se cerró por gesto atrás, no hay que limpiar otra vez.
       if (ignore || dismissedByPop) return;
+
+      // Si el overlay se cerró desde la UI, quitamos la entrada dummy.
       if (window.history.state && window.history.state.overlay === id) {
         window.history.back();
       }
     };
-  }, [active, onClose]);
+  }, [active]);
 }

@@ -1,6 +1,7 @@
 import React, { useCallback } from 'react';
 import { Ban, CheckCircle2, ChevronRight, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import useBackClose from '@/hooks/useBackClose';
 import {
   Dialog,
   DialogContent,
@@ -21,6 +22,19 @@ const FertilityCalculatorsEditorDialogs = ({ editor, onNavigateToCycleDetails })
     handleToggleCycleIgnore,
     dialogs,
   } = editor;
+
+  const handleCloseCpmDeleteDialog = useCallback(() => {
+    dialogs.setShowCpmDeleteDialog(false);
+  }, [dialogs.setShowCpmDeleteDialog]);
+
+  const handleCloseT8DeleteDialog = useCallback(() => {
+    dialogs.setShowT8DeleteDialog(false);
+  }, [dialogs.setShowT8DeleteDialog]);
+
+  useBackClose(dialogs.isCpmDialogOpen, dialogs.handleCloseCpmDialog);
+  useBackClose(dialogs.showCpmDeleteDialog, handleCloseCpmDeleteDialog);
+  useBackClose(dialogs.isT8DialogOpen, dialogs.handleCloseT8Dialog);
+  useBackClose(dialogs.showT8DeleteDialog, handleCloseT8DeleteDialog);
 
   const handleCardKeyDown = useCallback((event, action) => {
     if (event.key === 'Enter' || event.key === ' ') {

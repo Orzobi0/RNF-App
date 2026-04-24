@@ -1,4 +1,5 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
+import useBackClose from '@/hooks/useBackClose';
 import {
   Dialog,
   DialogContent,
@@ -99,9 +100,16 @@ const ExportCyclesDialog = ({
     };
   }, [cycles, selectedIds]);
 
-  const handleDialogChange = (open) => {
+  const handleClose = useCallback(() => {
+  if (isProcessing) return;
+  onClose?.();
+}, [isProcessing, onClose]);
+
+useBackClose(isOpen, handleClose);
+
+const handleDialogChange = (open) => {
     if (!open) {
-      onClose();
+      handleClose();
     }
   };
 
@@ -236,7 +244,7 @@ const ExportCyclesDialog = ({
         </div>
 
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={onClose} disabled={isProcessing}>
+          <Button type="button" variant="outline" onClick={handleClose} disabled={isProcessing}>
             Cancelar
           </Button>
           <Button type="button" onClick={onConfirm} disabled={isConfirmDisabled || !hasCycles}>

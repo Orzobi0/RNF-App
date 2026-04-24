@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import useBackClose from '@/hooks/useBackClose';
 import { format, isValid, parseISO } from 'date-fns';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -46,6 +47,12 @@ const DataRepairDialog = ({
   const [resolvedDuplicateDates, setResolvedDuplicateDates] = useState({});
   const [resolvedOutOfRangeEntries, setResolvedOutOfRangeEntries] = useState({});
   const [confirmationState, setConfirmationState] = useState(null);
+
+  const handleClose = useCallback(() => {
+  onOpenChange?.(false);
+}, [onOpenChange]);
+
+useBackClose(open, handleClose);
 
   const issues = cycle?.issues;
 
@@ -105,7 +112,16 @@ const DataRepairDialog = ({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+  open={open}
+  onOpenChange={(nextOpen) => {
+    if (!nextOpen) {
+      handleClose();
+      return;
+    }
+    onOpenChange?.(nextOpen);
+  }}
+>
       <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Reparación manual de datos</DialogTitle>

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Calculator, ChevronLeft, Clock3, Heart, LineChart, Bolt, Trash2 } from 'lucide-react';
+import useBackClose from '@/hooks/useBackClose';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
@@ -472,6 +473,8 @@ const closePreferredTimeEditor = useCallback(() => {
   });
   setIsPreferredTimeEditorOpen(false);
 }, [uiPreferences.preferredTemperatureTime]);
+
+useBackClose(isPreferredTimeEditorOpen, closePreferredTimeEditor);
 
 const handleSavePreferredTime = useCallback(async () => {
   const nextValue = preferredTimeDraft || '';
