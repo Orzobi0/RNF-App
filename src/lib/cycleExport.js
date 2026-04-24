@@ -153,7 +153,9 @@ const toIsoLocal = (date) => {
 const buildFullTimelineEntries = (cycle, baseEntries = []) => {
   const base = Array.isArray(baseEntries) ? baseEntries : [];
   const start = parseDateOnly(cycle?.startDate ?? base[0]?.isoDate);
-  const end = parseDateOnly(cycle?.endDate ?? base[base.length - 1]?.isoDate);
+  const fallbackEnd =
+    cycle?.endDate ?? (cycle?.startDate ? new Date() : base[base.length - 1]?.isoDate);
+  const end = parseDateOnly(fallbackEnd);
   if (!start || !end) return base;
 
   const byIso = new Map(

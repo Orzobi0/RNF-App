@@ -44,6 +44,51 @@ const getSettingsIconToneClasses = (tone = 'cool', destructive = false) => {
 };
 const SETTINGS_ROW_CLASS =
   'flex w-full items-center justify-between gap-3 rounded-[28px] bg-white/80 px-4 py-3 text-left shadow backdrop-blur transition hover:bg-white/90';
+const formatFilenameDate = (value) => {
+  if (!value) return null;
+  if (value instanceof Date) {
+    const day = String(value.getDate()).padStart(2, '0');
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const year = value.getFullYear();
+    return `${day}-${month}-${year}`;
+  }
+
+  const str = String(value).trim();
+  const iso = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const parsed = iso
+    ? new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]))
+    : new Date(str);
+  if (Number.isNaN(parsed.getTime())) return null;
+  const day = String(parsed.getDate()).padStart(2, '0');
+  const month = String(parsed.getMonth() + 1).padStart(2, '0');
+  const year = parsed.getFullYear();
+  return `${day}-${month}-${year}`;
+};
+
+const buildCyclesExportFilename = (cycles = []) => {
+  const selectedCycles = Array.isArray(cycles) ? cycles.filter(Boolean) : [];
+  const todayLocal = formatFilenameDate(new Date()) ?? 'sin-fecha';
+
+  if (selectedCycles.length !== 1) {
+    return `ciclos-exportados-${todayLocal}.pdf`;
+  }
+
+  const cycle = selectedCycles[0];
+  const start = formatFilenameDate(cycle?.startDate);
+  const end = formatFilenameDate(cycle?.endDate);
+  const isCurrentCycle = cycle?.type === 'current';
+
+  if (start && end) {
+    return `ciclo-${start}-a-${end}.pdf`;
+  }
+  if (start && !end && isCurrentCycle) {
+    return `ciclo-${start}-actualidad.pdf`;
+  }
+  if (start) {
+    return `ciclo-${start}.pdf`;
+  }
+  return `ciclos-exportados-${todayLocal}.pdf`;
+};
 
 const SettingsActionRow = ({
   icon: Icon,
@@ -262,10 +307,8 @@ const SettingsPage = () => {
 
     setIsExporting(true);
     try {
-      const cyclesToExport = allCycles
-        .filter((cycle) => selectedCycleIds.includes(cycle.id))
-        .map((cycle) => cycle.raw)
-        .filter(Boolean);
+      const selectedCycles = allCycles.filter((cycle) => selectedCycleIds.includes(cycle.id));
+      const cyclesToExport = selectedCycles.map((cycle) => cycle.raw).filter(Boolean);
 
       if (!cyclesToExport.length) {
         toast({
@@ -276,8 +319,7 @@ const SettingsPage = () => {
         return;
       }
 
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const filename = `ciclos-${timestamp}.pdf`;
+      const filename = buildCyclesExportFilename(selectedCycles);
       const includeChart = pdfContentMode !== 'table';
       const chartOnly = pdfContentMode === 'chart';
       const blob = await buildCyclesPdfBlob(cyclesToExport, {
