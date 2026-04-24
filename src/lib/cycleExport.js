@@ -506,17 +506,15 @@ const drawSectionTitle = (doc, { x, y, title = '', subtitle = '' }) => {
     doc.text(subtitle, x, currentY);
   }
 };
-const buildFixedChartSegments = (entries = [], maxDaysPerPage = 31, tinyTailThreshold = 10) => {
+const buildFixedChartSegments = (entries = [], maxDaysPerPage = 31, minTailDays = 4) => {
   const totalDays = entries?.length ?? 0;
   if (!totalDays) return [];
 
-  const segments = [];
-  for (let startIndex = 0; startIndex < totalDays; startIndex += maxDaysPerPage) {
-    const endExclusive = Math.min(totalDays, startIndex + maxDaysPerPage);
+  const createSegment = (startIndex, endExclusive) => {
     const fromEntry = entries[startIndex];
     const toEntry = entries[endExclusive - 1];
 
-    segments.push({
+    return {
       startIndex,
       endExclusive,
       visibleDays: endExclusive - startIndex,
@@ -524,46 +522,27 @@ const buildFixedChartSegments = (entries = [], maxDaysPerPage = 31, tinyTailThre
       dayTo: toEntry?.cycleDay ?? endExclusive,
       isoFrom: fromEntry?.isoDate ?? null,
       isoTo: toEntry?.isoDate ?? null,
-    });
-    }
+    };
+  };
+
+  const segments = [];
+  for (let startIndex = 0; startIndex < totalDays; startIndex += maxDaysPerPage) {
+    const endExclusive = Math.min(totalDays, startIndex + maxDaysPerPage);
+    segments.push(createSegment(startIndex, endExclusive));
+  }
 
   if (segments.length > 1) {
     const last = segments[segments.length - 1];
     const prev = segments[segments.length - 2];
-    const lastSize = last.endExclusive - last.startIndex;
-    const combined = last.endExclusive - prev.startIndex;
+     const lastSize = last.visibleDays;
 
-    if (lastSize > 0 && lastSize < tinyTailThreshold && combined <= maxDaysPerPage * 2) {
-      const firstSize = Math.min(maxDaysPerPage, Math.ceil(combined / 2));
-      const secondSize = combined - firstSize;
-      if (secondSize > 0) {
-        const firstEndExclusive = prev.startIndex + firstSize;
-        const secondStartIndex = firstEndExclusive;
-        const firstFromEntry = entries[prev.startIndex];
-        const firstToEntry = entries[firstEndExclusive - 1];
-        const secondFromEntry = entries[secondStartIndex];
-        const secondToEntry = entries[last.endExclusive - 1];
+    if (lastSize > 0 && lastSize < minTailDays) {
+      const daysToMove = minTailDays - lastSize;
+      const adjustedPrevEndExclusive = prev.endExclusive - daysToMove;
+      const adjustedLastStartIndex = adjustedPrevEndExclusive;
 
-        segments[segments.length - 2] = {
-          startIndex: prev.startIndex,
-          endExclusive: firstEndExclusive,
-          visibleDays: firstEndExclusive - prev.startIndex,
-          dayFrom: firstFromEntry?.cycleDay ?? prev.startIndex + 1,
-          dayTo: firstToEntry?.cycleDay ?? firstEndExclusive,
-          isoFrom: firstFromEntry?.isoDate ?? null,
-          isoTo: firstToEntry?.isoDate ?? null,
-        };
-
-        segments[segments.length - 1] = {
-          startIndex: secondStartIndex,
-          endExclusive: last.endExclusive,
-          visibleDays: last.endExclusive - secondStartIndex,
-          dayFrom: secondFromEntry?.cycleDay ?? secondStartIndex + 1,
-          dayTo: secondToEntry?.cycleDay ?? last.endExclusive,
-          isoFrom: secondFromEntry?.isoDate ?? null,
-          isoTo: secondToEntry?.isoDate ?? null,
-        };
-      }
+      segments[segments.length - 2] = createSegment(prev.startIndex, adjustedPrevEndExclusive);
+      segments[segments.length - 1] = createSegment(adjustedLastStartIndex, last.endExclusive);
     }
   }
 
@@ -665,7 +644,10 @@ const exportChartOnlyPdf = async ({ doc, cycle, formattedCycle, includeRs, horiz
       x: cardX + cardInnerPad,
       y: subtitleY,
       title: '',
-      subtitle: `Días ${segment.dayFrom}–${segment.dayTo}${datePart}`,
+      subtitle:
+        segmentIndex === 0
+          ? `Días ${segment.dayFrom}–${segment.dayTo}${datePart}`
+          : `Continuación · días ${segment.dayFrom}–${segment.dayTo}${datePart}`,
     });
 
     doc.addImage(
