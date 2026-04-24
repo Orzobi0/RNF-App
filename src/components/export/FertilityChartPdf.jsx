@@ -137,6 +137,26 @@ const formatDateShort = (entry) => {
   return `${day}/${month}`;
 };
 
+const normalizePeakStatus = (value) => {
+  if (value == null) return '';
+
+  const status = String(value).trim().toUpperCase();
+
+  if (status === 'P' || status === 'PEAK') return 'P';
+  if (status === '1' || status === 'P1' || status === 'P+1') return '1';
+  if (status === '2' || status === 'P2' || status === 'P+2') return '2';
+  if (status === '3' || status === 'P3' || status === 'P+3') return '3';
+
+  return '';
+};
+
+const getEntryPeakStatus = (entry) =>
+  normalizePeakStatus(
+    entry?.normalizedPeakStatus ??
+      entry?.peakStatus ??
+      entry?.peak_marker
+  );
+
 const wrapTextWithLimit = (text, maxCharsPerLine, maxLines) => {
   const value = String(text ?? '').trim();
   if (!value) return [];
@@ -185,9 +205,14 @@ const getCellLines = (entry, rowKey, colW) => {
   return wrapTextWithLimit(base, maxCharsPerLine, rules.maxLines);
 };
 
-const drawSymbol = ({ entry, x, y, size }) => {
+const drawSymbol = ({ entry, x, y, width, height }) => {
   const symbolInfo = getSymbolAppearance(entry?.fertility_symbol);
   if (!symbolInfo || symbolInfo.value === 'none') return null;
+
+  const symbolW = Math.max(0, width ?? 0);
+  const symbolH = Math.max(0, height ?? 0);
+
+  if (!symbolW || !symbolH) return null;
 
   const palette = getSymbolColorPalette(symbolInfo.value);
   const symbolFill = symbolInfo.pattern === 'spotting-pattern' ? 'url(#spotting-pattern-pdf)' : palette.main;
@@ -196,11 +221,11 @@ const drawSymbol = ({ entry, x, y, size }) => {
   return (
     <g>
       <rect
-        x={x - size / 2}
-        y={y - size / 2}
-        width={size}
-        height={size}
-        rx={Math.max(2, size * 0.2)}
+        x={x - symbolW / 2}
+        y={y - symbolH / 2}
+        width={symbolW}
+        height={symbolH}
+        rx={Math.max(2, Math.min(symbolW, symbolH) * 0.22)}
         fill={symbolFill}
         stroke={stroke}
         strokeWidth={stroke === 'none' ? 0 : symbolInfo.value === 'white' ? 1.4 : 1}
@@ -612,25 +637,56 @@ const chartRight = chartLeft + chartW;
             />
 
             {entries.map((entry, colIndex) => {
-              const x = layout.chartLeft + colIndex * layout.colW;
-              const cx = x + layout.colW / 2;
-              const lines = getCellLines(entry, row.key, layout.colW);
-              const lineGap = row.lineHeight;
-              const textStartY = y + Math.max(12, rowH / 2 - ((lines.length - 1) * lineGap) / 2);
+  const x = layout.chartLeft + colIndex * layout.colW;
+  const cx = x + layout.colW / 2;
+  const lines = getCellLines(entry, row.key, layout.colW);
+  const lineGap = row.lineHeight;
+  const textStartY = y + Math.max(12, rowH / 2 - ((lines.length - 1) * lineGap) / 2);
 
-              return (
+  const peakStatus = row.key === 'fertility_symbol' ? getEntryPeakStatus(entry) : '';
+  const peakLabel = peakStatus === 'P' ? 'X' : peakStatus ? `+${peakStatus}` : '';
+
+  const symbolW = Math.min(layout.colW * 0.9, rowH * 2.2);
+const symbolH = Math.min(rowH * 0.84, layout.colW * 0.5);
+
+const peakFontSize =
+  peakStatus === 'P'
+    ? Math.min(24, rowH * 0.95, layout.colW * 0.75)
+    : Math.min(15.5, rowH * 0.66, layout.colW * 0.52);
+
+const peakTextY = y + rowH * 0.52;
+
+  return (
                 <g key={`${row.key}-${entry?.id ?? colIndex}`}>
                   <line x1={x} y1={y} x2={x} y2={y + rowH} stroke={PALETTE.rowBorder} strokeWidth="0.8" />
                   {row.key === 'fertility_symbol' ? (
-                    <>
-                      {drawSymbol({
-                        entry,
-                        x: cx,
-                        y: y + rowH * 0.5,
-                        size: Math.min(rowH * 0.68, layout.colW * 0.58),
-                      })}
-                    </>
-                  ) : (
+  <>
+    {drawSymbol({
+      entry,
+      x: cx,
+      y: y + rowH * 0.5,
+      width: symbolW,
+      height: symbolH,
+    })}
+
+    {peakLabel ? (
+  <text
+    x={cx}
+    y={peakTextY}
+    fontSize={peakFontSize}
+    fontWeight={peakStatus === 'P' ? '900' : '800'}
+    textAnchor="middle"
+    dominantBaseline="central"
+    fill={PALETTE.textStrong}
+    stroke="#ffffff"
+    strokeWidth={peakStatus === 'P' ? 3.4 : 2.6}
+    paintOrder="stroke"
+  >
+    {peakLabel}
+  </text>
+) : null}
+  </>
+) : (
                     lines.map((line, lineIndex) => (
                       <text
                         key={`${row.key}-${colIndex}-${lineIndex}`}

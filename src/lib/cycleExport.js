@@ -124,14 +124,47 @@ const resolveSelectedTemperature = (entry) => {
 
 };
 
+const normalizePeakStatusValue = (value) => {
+  if (value == null) return '';
+
+  const status = String(value).trim().toUpperCase();
+
+  if (status === 'P' || status === 'PEAK') return 'P';
+  if (status === '1' || status === 'P1' || status === 'P+1') return '1';
+  if (status === '2' || status === 'P2' || status === 'P+2') return '2';
+  if (status === '3' || status === 'P3' || status === 'P+3') return '3';
+
+  return '';
+};
+
+const resolvePeakStatusForEntry = (entry, peakStatuses = {}) => {
+  const isoDate = entry?.isoDate ?? entry?.iso_date ?? '';
+
+  const computedStatus = normalizePeakStatusValue(peakStatuses?.[isoDate]);
+  if (computedStatus) return computedStatus;
+
+  const directStatus = normalizePeakStatusValue(
+    entry?.normalizedPeakStatus ??
+      entry?.peakStatus ??
+      entry?.peak_marker
+  );
+
+  if (directStatus) return directStatus;
+
+  return '';
+};
+
 const formatPeakStatus = (entry, peakStatuses) => {
-  const status = peakStatuses?.[entry?.isoDate ?? ''] ?? null;
-  if (status === 'P' || entry?.peak_marker === 'peak') {
+  const status = resolvePeakStatusForEntry(entry, peakStatuses);
+
+  if (status === 'P') {
     return 'Día pico';
   }
+
   if (status === '1' || status === '2' || status === '3') {
     return `+${status}`;
   }
+
   return '';
 };
 
@@ -565,10 +598,22 @@ const exportChartOnlyPdf = async ({ doc, cycle, formattedCycle, includeRs, horiz
     cursorY = pageMarginTop;
   };
 
-  const baseEntries = ensureProcessedEntries(cycle) ?? [];
-  const fullEntries = buildFullTimelineEntries(cycle, baseEntries);
-  const segments = buildFixedChartSegments(fullEntries, 31);
-  const cycleRangeLabel = getCycleDateRangeLabel(cycle);
+const baseEntries = ensureProcessedEntries(cycle) ?? [];
+const peakStatuses = computePeakStatuses(baseEntries);
+
+const fullEntries = buildFullTimelineEntries(cycle, baseEntries).map((entry) => {
+  const peakStatus = resolvePeakStatusForEntry(entry, peakStatuses);
+
+  return {
+    ...entry,
+    peakStatus: peakStatus || null,
+    normalizedPeakStatus: peakStatus || null,
+    peak_marker: peakStatus === 'P' ? 'peak' : entry?.peak_marker ?? null,
+  };
+});
+
+const segments = buildFixedChartSegments(fullEntries, 31);
+const cycleRangeLabel = getCycleDateRangeLabel(cycle);
 
   if (isFirstPage) {
     startNewPage(`Gráfica del ciclo ${cycleRangeLabel}`);
