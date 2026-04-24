@@ -576,7 +576,7 @@ const buildFixedChartSegments = (entries = [], maxDaysPerPage = 31, minTailDays 
 const exportChartOnlyPdf = async ({ doc, cycle, formattedCycle, includeRs, horizontalMargin }) => {
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
-  const pageMarginX = 8;
+  const pageMarginX = 12;
   const pageMarginTop = 30;
   const pageMarginBottom = 10;
   const headerGap = 1.5;
