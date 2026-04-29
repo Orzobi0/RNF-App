@@ -1,6 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { getCanvasTheme } from '@/components/chartElements/chartTheme';
-import { drawChartCanvas } from '@/chart/renderers/canvas/drawChartCanvas';
+import CanvasTile from '@/chart/renderers/canvas/CanvasTile';
+import { buildCanvasTiles } from '@/chart/renderers/canvas/buildCanvasTiles';
+
+const INTERACTIVE_TILE_DAY_COUNT = 21;
+const INTERACTIVE_OVERSCAN_TILES = 1;
 
 const FertilityChartCanvasOverlay = ({
   chartWidth,
@@ -41,11 +45,7 @@ const FertilityChartCanvasOverlay = ({
   exportMode = false,
   renderModel = null,
 }) => {
-  const canvasRef = useRef(null);
-  const rafRef = useRef(0);
-  const bandPaintCacheRef = useRef(new Map());
   const textLayoutCacheRef = useRef(new Map());
-  const [devicePixelRatio, setDevicePixelRatio] = useState(1);
 
   const points = useMemo(() => allDataPoints || [], [allDataPoints]);
   const theme = useMemo(() => getCanvasTheme(), []);
@@ -59,94 +59,72 @@ const FertilityChartCanvasOverlay = ({
       ? scrollableContentHeight
       : chartHeight;
 
-  const measureTextWidth = useCallback((text, font) => {
-    const canvas = canvasRef.current;
-    const context = canvas?.getContext('2d');
-    if (!context) return String(text).length * 7;
-    context.save();
-    context.font = font;
-    const width = context.measureText(String(text)).width;
-    context.restore();
-    return width;
-  }, []);
-
-  const syncCanvasSize = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const width = Math.max(1, chartWidth || 1);
-    const height = Math.max(1, contentHeight || 1);
-    const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 3));
-
-    if (
-      canvas.width !== Math.floor(width * dpr) ||
-      canvas.height !== Math.floor(height * dpr)
-    ) {
-      canvas.width = Math.floor(width * dpr);
-      canvas.height = Math.floor(height * dpr);
-      canvas.style.width = `${width}px`;
-      canvas.style.height = `${height}px`;
+  const tiles = useMemo(() => {
+    if (exportMode) {
+      return [
+        {
+          key: 'tile-export-full',
+          startIndex: 0,
+          endIndex: Math.max(points.length - 1, -1),
+          left: 0,
+          right: Math.max(1, chartWidth || 1),
+          width: Math.max(1, chartWidth || 1),
+          height: Math.max(1, contentHeight || 1),
+        },
+      ];
     }
 
-    setDevicePixelRatio((prev) => (prev === dpr ? prev : dpr));
-  }, [chartWidth, contentHeight]);
-
-  const draw = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !chartWidth) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const dpr = Math.max(1, Math.min(devicePixelRatio || 1, 3));
-    drawChartCanvas({
-      ctx,
-      canvas,
+    return buildCanvasTiles({
       renderModel,
-      theme,
-      dpr,
       chartWidth,
-      chartHeight,
       contentHeight,
-      padding,
-      graphBottomY,
-      points,
-      xs,
-      ysTemp,
-      tempMin,
-      tempMax,
-      tempRange,
-      getY,
-      responsiveFontSize,
-      bottomRowsResponsiveFontSize,
       visibleRange,
-      showInterpretation,
-      interpretationSegments,
-      shouldRenderBaseline,
-      baselineY,
-      baselineStartX,
-      baselineEndX,
-      baselineStroke,
-      baselineDash,
-      baselineOpacity,
-      baselineWidth,
-      temperatureRiseHighlightPath,
-      textRowHeight,
-      rowsZoneHeight,
-      isFullScreen,
-      showRelationsRow,
-      autoLabelStep,
-      ovulationDetails,
-      firstHighIndex,
-      manualModeEnabled,
-      manualBaselineTemp,
-      isPointEligibleForManualMode,
-      exportMode,
-      measureTextWidth,
-      bandPaintCache: bandPaintCacheRef.current,
-      textLayoutCache: textLayoutCacheRef.current,
+      tileDayCount: INTERACTIVE_TILE_DAY_COUNT,
+      overscanTiles: INTERACTIVE_OVERSCAN_TILES,
     });
-  }, [
+  }, [chartWidth, contentHeight, exportMode, points.length, renderModel, visibleRange]);
+
+  const drawProps = useMemo(() => ({
+    renderModel,
+    theme,
+    chartWidth,
+    chartHeight,
+    contentHeight,
+    padding,
+    graphBottomY,
+    points,
+    xs,
+    ysTemp,
+    tempMin,
+    tempMax,
+    tempRange,
+    getY,
+    responsiveFontSize,
+    bottomRowsResponsiveFontSize,
+    visibleRange: null,
+    showInterpretation,
+    interpretationSegments,
+    shouldRenderBaseline,
+    baselineY,
+    baselineStartX,
+    baselineEndX,
+    baselineStroke,
+    baselineDash,
+    baselineOpacity,
+    baselineWidth,
+    temperatureRiseHighlightPath,
+    textRowHeight,
+    rowsZoneHeight,
+    isFullScreen,
+    showRelationsRow,
+    autoLabelStep,
+    ovulationDetails,
+    firstHighIndex,
+    manualModeEnabled,
+    manualBaselineTemp,
+    isPointEligibleForManualMode,
+    exportMode,
+  }), [
     autoLabelStep,
     baselineDash,
     baselineEndX,
@@ -159,7 +137,6 @@ const FertilityChartCanvasOverlay = ({
     chartHeight,
     chartWidth,
     contentHeight,
-    devicePixelRatio,
     exportMode,
     firstHighIndex,
     getY,
@@ -169,7 +146,6 @@ const FertilityChartCanvasOverlay = ({
     isPointEligibleForManualMode,
     manualBaselineTemp,
     manualModeEnabled,
-    measureTextWidth,
     ovulationDetails,
     padding,
     points,
@@ -185,35 +161,9 @@ const FertilityChartCanvasOverlay = ({
     textRowHeight,
     theme,
     temperatureRiseHighlightPath,
-    visibleRange,
     xs,
     ysTemp,
   ]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return undefined;
-
-    syncCanvasSize();
-    return undefined;
-  }, [syncCanvasSize]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return undefined;
-
-    const onResize = () => {
-      syncCanvasSize();
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(draw);
-    };
-    window.addEventListener('resize', onResize);
-    window.addEventListener('orientationchange', onResize);
-
-    return () => {
-      window.removeEventListener('resize', onResize);
-      window.removeEventListener('orientationchange', onResize);
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    };
-  }, [draw, syncCanvasSize]);
 
   useEffect(() => {
     textLayoutCacheRef.current.clear();
@@ -227,18 +177,8 @@ const FertilityChartCanvasOverlay = ({
     bottomRowsResponsiveFontSize,
   ]);
 
-  useEffect(() => {
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    rafRef.current = requestAnimationFrame(draw);
-
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    };
-  }, [draw]);
-
   return (
-    <canvas
-      ref={canvasRef}
+    <div
       style={{
         position: 'absolute',
         inset: 0,
@@ -246,11 +186,20 @@ const FertilityChartCanvasOverlay = ({
         zIndex: 0,
         pointerEvents: 'none',
       }}
-      width={Math.max(1, Math.floor(chartWidth * devicePixelRatio))}
-      height={Math.max(1, Math.floor(contentHeight * devicePixelRatio))}
-      data-chart-canvas-overlay="true"
+      data-chart-canvas-tiles="true"
+      data-chart-canvas-export-fallback={exportMode ? 'true' : undefined}
       aria-hidden="true"
-    />
+    >
+      {tiles.map((tile) => (
+        <CanvasTile
+          key={tile.key}
+          tile={tile}
+          drawProps={drawProps}
+          textLayoutCache={textLayoutCacheRef.current}
+          dataChartCanvasOverlay
+        />
+      ))}
+    </div>
   );
 };
 

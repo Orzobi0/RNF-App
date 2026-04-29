@@ -54,9 +54,13 @@ export function drawChartCanvas({
   measureTextWidth,
   bandPaintCache,
   textLayoutCache,
+  tileViewport = null,
 }) {
-  const contentW = chartWidth;
   const snap = createSnap(dpr);
+  const tileX = Number.isFinite(tileViewport?.x) ? tileViewport.x : 0;
+  const tileY = Number.isFinite(tileViewport?.y) ? tileViewport.y : 0;
+  const tileHeight = Number.isFinite(tileViewport?.height) ? tileViewport.height : contentHeight;
+  const contentW = chartWidth;
   const effectivePadding = renderModel?.padding ?? padding;
   const effectiveGraph = renderModel?.graph ?? {};
   const effectiveGraphBottomY = effectiveGraph.graphBottomY ?? graphBottomY;
@@ -101,12 +105,15 @@ export function drawChartCanvas({
     return;
   }
 
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.clearRect(0, 0, contentW, contentHeight);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.setTransform(dpr, 0, 0, dpr, -tileX * dpr, -tileY * dpr);
 
-  const rangeStart = Number.isInteger(visibleRange?.startIndex) ? visibleRange.startIndex : 0;
-  const rangeEnd = Number.isInteger(visibleRange?.endIndex)
-    ? visibleRange.endIndex
+  const indexRange = tileViewport ?? visibleRange;
+  const rangePadding = tileViewport ? 1 : 0;
+  const rangeStart = Number.isInteger(indexRange?.startIndex) ? indexRange.startIndex - rangePadding : 0;
+  const rangeEnd = Number.isInteger(indexRange?.endIndex)
+    ? indexRange.endIndex + rangePadding
     : Math.max(effectivePoints.length - 1, 0);
   const visibleStartIndex = effectivePoints.length ? Math.max(0, Math.min(effectivePoints.length - 1, rangeStart)) : 0;
   const visibleEndIndex = effectivePoints.length ? Math.max(visibleStartIndex, Math.min(effectivePoints.length - 1, rangeEnd)) : -1;
@@ -219,7 +226,7 @@ export function drawChartCanvas({
   drawDebugOverlay({
     ctx,
     contentW,
-    contentHeight,
+    contentHeight: tileViewport ? tileHeight : contentHeight,
     chartHeight,
     graphBottomY: effectiveGraphBottomY,
   });
