@@ -190,6 +190,10 @@ export const buildChartRenderModel = ({
       };
     })
     .filter((point) => point.value !== null || point.rawValue !== null || point.correctedValue !== null);
+  const temperaturesByIndex = [];
+  temperatures.forEach((temperature) => {
+    temperaturesByIndex[temperature.index] = temperature;
+  });
 
   const baselineY = baselineTemp != null ? getY(baselineTemp) : null;
   const highSequenceOrderByIndex = buildHighSequenceOrderByIndex({
@@ -218,6 +222,7 @@ export const buildChartRenderModel = ({
     },
     days,
     temperatures,
+    temperaturesByIndex,
     rows: layout?.rows ?? {},
     fertility: {
       baselineTemp,

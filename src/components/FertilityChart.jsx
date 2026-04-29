@@ -6,6 +6,7 @@ import ChartTooltip from '@/components/chartElements/ChartTooltip';
 import ChartLeftLegend from '@/components/chartElements/ChartLeftLegend';
 import ChartRightStickyTempLegend from '@/components/chartElements/ChartRightStickyTempLegend';
 import FertilityChartCanvasOverlay from '@/components/chartElements/FertilityChartCanvasOverlay';
+import ChartDynamicOverlay from '@/chart/renderers/ChartDynamicOverlay';
 import { getChartTheme } from '@/components/chartElements/chartTheme';
 import { useFertilityChart } from '@/hooks/useFertilityChart';
 import { isAfter, parseISO, startOfDay } from 'date-fns';
@@ -1786,7 +1787,6 @@ const rotationWrapperStyle = rotationStageStyle
   getX={getX}
   getY={getY}
   responsiveFontSize={responsiveFontSize}
-  activeIndex={activeIndex}
   showInterpretation={showInterpretation}
   interpretationSegments={interpretationSegments}
   shouldRenderBaseline={shouldRenderBaseline}
@@ -1814,6 +1814,15 @@ const rotationWrapperStyle = rotationStageStyle
   renderModel={renderModel}
 />
               )}
+              <ChartDynamicOverlay
+                renderModel={renderModel}
+                activeIndex={activeIndex}
+                chartWidth={chartWidth}
+                contentHeight={scrollableContentHeight}
+                padding={padding}
+                graphBottomY={graphBottomY}
+                responsiveFontSize={responsiveFontSize}
+              />
 
               <motion.svg
                 width={chartWidth}

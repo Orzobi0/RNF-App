@@ -1,5 +1,4 @@
 import { createSnap } from './canvasUtils';
-import { drawActiveHighlight } from './drawActiveHighlight';
 import { drawBottomRows } from './drawBottomRows';
 import { drawChartBackground } from './drawChartBackground';
 import { drawDebugOverlay } from './drawDebugOverlay';
@@ -29,7 +28,6 @@ export function drawChartCanvas({
   getY,
   responsiveFontSize,
   bottomRowsResponsiveFontSize,
-  activeIndex,
   visibleRange,
   showInterpretation,
   interpretationSegments,
@@ -72,13 +70,9 @@ export function drawChartCanvas({
   const effectiveXs = Array.isArray(renderModel?.days) && renderModel.days.length
     ? renderModel.days.map((day) => day.x)
     : xs;
-  const temperaturesByIndex = new Map(
-    Array.isArray(renderModel?.temperatures)
-      ? renderModel.temperatures.map((temperature) => [temperature.index, temperature])
-      : []
-  );
+  const temperaturesByIndex = renderModel?.temperaturesByIndex ?? null;
   const effectiveYsTemp = Array.isArray(renderModel?.days) && renderModel.days.length
-    ? renderModel.days.map((day) => temperaturesByIndex.get(day.index)?.y ?? null)
+    ? renderModel.days.map((day) => temperaturesByIndex?.[day.index]?.y ?? null)
     : ysTemp;
   const effectiveGetY = (temp) => {
     if (typeof getY === 'function' && !renderModel?.graph) return getY(temp);
@@ -221,19 +215,6 @@ export function drawChartCanvas({
     measureTextWidth,
     textLayoutCache,
     isWithinTemperaturePlotArea,
-  });
-  drawActiveHighlight({
-    ctx,
-    theme,
-    snap,
-    activeIndex,
-    xs: effectiveXs,
-    points: effectivePoints,
-    chartWidth,
-    contentHeight,
-    padding: effectivePadding,
-    graphBottomY: effectiveGraphBottomY,
-    responsiveFontSize,
   });
   drawDebugOverlay({
     ctx,

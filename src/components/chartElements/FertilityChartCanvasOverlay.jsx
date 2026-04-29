@@ -15,7 +15,6 @@ const FertilityChartCanvasOverlay = ({
   getX,
   getY,
   responsiveFontSize,
-  activeIndex,
   showInterpretation,
   interpretationSegments,
   shouldRenderBaseline,
@@ -93,8 +92,6 @@ const FertilityChartCanvasOverlay = ({
   }, [chartWidth, contentHeight]);
 
   const draw = useCallback(() => {
-    syncCanvasSize();
-
     const canvas = canvasRef.current;
     if (!canvas || !chartWidth) return;
 
@@ -122,7 +119,6 @@ const FertilityChartCanvasOverlay = ({
       getY,
       responsiveFontSize,
       bottomRowsResponsiveFontSize,
-      activeIndex,
       visibleRange,
       showInterpretation,
       interpretationSegments,
@@ -151,7 +147,6 @@ const FertilityChartCanvasOverlay = ({
       textLayoutCache: textLayoutCacheRef.current,
     });
   }, [
-    activeIndex,
     autoLabelStep,
     baselineDash,
     baselineEndX,
@@ -184,7 +179,6 @@ const FertilityChartCanvasOverlay = ({
     shouldRenderBaseline,
     showInterpretation,
     showRelationsRow,
-    syncCanvasSize,
     tempMax,
     tempMin,
     tempRange,
@@ -200,8 +194,17 @@ const FertilityChartCanvasOverlay = ({
     if (typeof window === 'undefined') return undefined;
 
     syncCanvasSize();
+    return undefined;
+  }, [syncCanvasSize]);
 
-    const onResize = () => syncCanvasSize();
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const onResize = () => {
+      syncCanvasSize();
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(draw);
+    };
     window.addEventListener('resize', onResize);
     window.addEventListener('orientationchange', onResize);
 
@@ -210,7 +213,7 @@ const FertilityChartCanvasOverlay = ({
       window.removeEventListener('orientationchange', onResize);
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [syncCanvasSize]);
+  }, [draw, syncCanvasSize]);
 
   useEffect(() => {
     textLayoutCacheRef.current.clear();
