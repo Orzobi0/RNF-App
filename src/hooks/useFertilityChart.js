@@ -1,6 +1,13 @@
 import { useEffect, useLayoutEffect, useRef, useState, useMemo, useCallback } from 'react';
-import { parseISO, differenceInCalendarDays } from 'date-fns';
 import computePeakStatuses from '@/lib/computePeakStatuses';
+import { normalizePeakStatus } from '@/chart/core/peakStatusUtils';
+import { buildChartRenderModel } from '@/chart/core/buildChartRenderModel';
+import { computeChartLayout } from '@/chart/core/computeChartLayout';
+import {
+  calculateTodayIndex,
+  getCorrectedPriorityWarnings,
+  prepareChartData,
+} from '@/chart/core/prepareChartData';
 import { evaluateHighSequencePostpartum } from '../lib/evaluateHighSequencePostpartum';
 import {
   computeCpmCandidateFromCycles,
@@ -405,127 +412,18 @@ export const useFertilityChart = (
         setActiveIndex(null);
       }, []);
 
-      // Normaliza los códigos de pico que vienen de computePeakStatuses
-      const normalizePeakStatus = (value) => {
-        if (value == null) return '';
-        const s = String(value).trim().toUpperCase();
-        if (s === 'P' || s === 'PEAK') return 'P';
-        if (s === '1' || s === 'P1' || s === 'P+1') return '1';
-        if (s === '2' || s === 'P2' || s === 'P+2') return '2';
-        if (s === '3' || s === 'P3' || s === 'P+3') return '3';
-        return '';
-      };
-
       const peakStatusByIsoDate = useMemo(() => computePeakStatuses(data), [data]);
       const processedData = useMemo(() => {
-        const normalizeTemp = (value) => {
-          if (value === null || value === undefined || value === '') {
-            return null;
-          }
-          const parsed = parseFloat(String(value).replace(',', '.'));
-          return Number.isFinite(parsed) ? parsed : null;
-        };
-        const resolveMeasurementTemp = (measurement) => {
-          if (!measurement) return null;
-          const raw = normalizeTemp(measurement.temperature);
-          const corrected = normalizeTemp(measurement.temperature_corrected);
-          if (measurement.use_corrected && corrected !== null) {
-            return corrected;
-          }
-          if (raw !== null) {
-            return raw;
-          }
-          if (corrected !== null) {
-            return corrected;
-          }
-          return null;
-        };
+        if (import.meta?.env?.DEV) {
+          getCorrectedPriorityWarnings(data).forEach((warning) => {
+            console.warn('[fertility] use_corrected debe priorizar temperature_corrected', warning);
+          });
+        }
 
-        const resolveEffectiveTemperature = (entry) => {
-          if (!entry) return null;
-          const chart = normalizeTemp(entry.temperature_chart);
-          const raw = normalizeTemp(entry.temperature_raw);
-          const corrected = normalizeTemp(entry.temperature_corrected);
-          if (entry.use_corrected && corrected !== null) {
-            return corrected;
-          }
-          if (chart !== null) {
-            return chart;
-          }
-          if (raw !== null) {
-            return raw;
-          }
-          if (corrected !== null) {
-            return corrected;
-          }
-
-          if (Array.isArray(entry.measurements)) {
-            const selectedMeasurement = entry.measurements.find(
-              (m) => m && m.selected && resolveMeasurementTemp(m) !== null
-            );
-            const fallbackMeasurement =
-              selectedMeasurement || entry.measurements.find((m) => resolveMeasurementTemp(m) !== null);
-            if (fallbackMeasurement) {
-              return resolveMeasurementTemp(fallbackMeasurement);
-            }
-          }
-          
-          return null;
-        };
-
-        return data.map((d) => {
-          const resolvedValue = resolveEffectiveTemperature(d);
-          const measurementIgnored = Array.isArray(d?.measurements)
-            ? d.measurements.some((m) => m?.ignored)
-            : false;
-          const isoDate = d?.isoDate;
-          const peakMarker = d?.peak_marker ?? d?.peakStatus ?? null;
-          const resolvedPeakStatus = isoDate
-            ? peakStatusByIsoDate[isoDate] ?? peakMarker
-            : peakMarker;
-          const normalizedPeakStatus = normalizePeakStatus(resolvedPeakStatus); 
-          if (import.meta?.env?.DEV && d?.use_corrected && normalizeTemp(d?.temperature_corrected) !== null) {
-            if (resolvedValue !== normalizeTemp(d?.temperature_corrected)) {
-              console.warn('[fertility] use_corrected debe priorizar temperature_corrected', {
-                isoDate,
-                resolvedValue,
-                corrected: normalizeTemp(d?.temperature_corrected),
-              });
-            }
-          }
-          const displayTemperature = normalizeTemp(resolvedValue);
-          const ignoredForCalc = Boolean(d?.ignored || measurementIgnored);
-          return {
-        ...d,
-            displayTemperature,
-            calcTemperature: ignoredForCalc ? null : displayTemperature,
-            ignoredForCalc,
-            peakStatus: resolvedPeakStatus ?? null,
-            normalizedPeakStatus,
-          };
-        });
+        return prepareChartData(data, peakStatusByIsoDate);
       }, [data, peakStatusByIsoDate]);
 
-  const todayIndex = useMemo(() => {
-    if (!Array.isArray(processedData) || processedData.length === 0) {
-      return null;
-    }
-    const today = new Date();
-    let lastIndex = null;
-    processedData.forEach((entry, idx) => {
-      if (!entry?.isoDate) return;
-      try {
-        const parsed = parseISO(entry.isoDate);
-        if (Number.isNaN(parsed?.getTime?.())) return;
-        if (differenceInCalendarDays(parsed, today) <= 0) {
-          lastIndex = idx;
-        }
-      } catch (error) {
-        // ignore parsing issues
-      }
-    });
-    return lastIndex;
-  }, [processedData]);
+  const todayIndex = useMemo(() => calculateTodayIndex(processedData), [processedData]);
 
       useLayoutEffect(() => {
         const updateDimensions = () => {
@@ -910,180 +808,97 @@ if (isFullScreen) {
       
       const tempRange = tempMax - tempMin;
       
-      const chartWidth = dimensions.width;
-      // Altura visible medida por ResizeObserver (la "ventana" que tenía antes de RS).
-      const viewportHeight = dimensions.viewportHeight || dimensions.height;
-      const viewportWidth = dimensions.viewportWidth || chartWidth;
+      const chartLayout = useMemo(
+        () =>
+          computeChartLayout({
+            dimensions,
+            isFullScreen,
+            orientation,
+            forceLandscape,
+            visibleDays,
+            exportMode,
+            showRelationsRow,
+            rotatedSafeStartInsetPx,
+            rotatedSafeEndInsetPx,
+            dataPointCount: allDataPoints.length,
+            tempMin,
+            tempMax,
+          }),
+        [
+          dimensions,
+          isFullScreen,
+          orientation,
+          forceLandscape,
+          visibleDays,
+          exportMode,
+          showRelationsRow,
+          rotatedSafeStartInsetPx,
+          rotatedSafeEndInsetPx,
+          allDataPoints.length,
+          tempMin,
+          tempMax,
+        ]
+      );
+
+      const viewportHeight = chartLayout.viewportHeight;
       
-      const clamp = (min, value, max) => Math.min(max, Math.max(min, value));
-
-      const baseFontSize = 9;
-
       const responsiveFontSize = (multiplier = 1) => {
         // General (app-like): mantener comportamiento de la app también en export.
-        if (!isFullScreen) return baseFontSize * multiplier;
-        const smallerDim = Math.min(chartWidth, viewportHeight);
-        return Math.max(
-          8,
-          Math.min(
-            baseFontSize * multiplier,
-            smallerDim / (allDataPoints.length > 0 ? (40 / multiplier) : 40)
-          )
-        );
+        return chartLayout.responsiveFontSize(multiplier);
       };
       const bottomRowsResponsiveFontSize = (multiplier = 1) => {
-        if (exportMode) {
-          const vw = dimensions.viewportWidth || viewportWidth || chartWidth || 1;
-          const perDayPx = vw / Math.max(Number(visibleDays) || 1, 1);
-          const base = clamp(11, perDayPx * 0.33, 15);
-          const scaled = base * multiplier;
-          return clamp(10, scaled, 18);
-        }
-
-        return responsiveFontSize(multiplier);
+        return chartLayout.bottomRowsResponsiveFontSize(multiplier);
       };
-      // In pantalla completa damos un poco más de altura a cada
-      // fila de texto para permitir mostrar palabras más largas
-      // en orientación vertical.
-      const textRowHeight = Math.round(
-        bottomRowsResponsiveFontSize(isFullScreen ? (exportMode ? 1.45 : 1.6) : 2)
-      );
-      const isLandscapeVisual = forceLandscape || orientation === 'landscape';
-      const isDenseExport = exportMode && isFullScreen && isLandscapeVisual && visibleDays >= 28;
-      // Cálculo exacto para que la fila inferior "bese" el borde inferior del SVG.
-      // Observaciones está en rowIndex = 9 (fullscreen) o 7.5 (no fullscreen).
-      // rowBlockHeight/2 equivale a 1 (fullscreen) o 0.75 (no fullscreen).
-      const obsRowIndex = isFullScreen ? 9 : 7.5;
-      const relationsRowIndex = obsRowIndex + (showRelationsRow ? (isFullScreen ? 2 : 1.5) : 0);
-      const halfBlock = isFullScreen ? 1 : 0.75;
-      const baseBottomRowsExact = Math.round(textRowHeight * (obsRowIndex + halfBlock));
-      const relationsBottomRowsExact = Math.round(textRowHeight * (relationsRowIndex + halfBlock));
-      const exportExtraTextRows = exportMode ? 6 : 0;
-      const exportExtraBottomPx = exportExtraTextRows * textRowHeight;
-      const bottomRowsExact = baseBottomRowsExact + exportExtraBottomPx;
+      const textRowHeight = chartLayout.textRowHeight;
+      const extraScrollableHeight = chartLayout.extraScrollableHeight;
+      const chartContentHeight = chartLayout.chartContentHeight;
+      const scrollableContentHeight = chartLayout.scrollableContentHeight;
 
-      // Cuando hay fila de RS añadimos altura extra equivalente al espacio adicional de filas
-      // inferior para que la zona de temperaturas no se comprima y el extra sea scrollable.
-      const extraScrollableHeight = showRelationsRow
-        ? Math.max(0, relationsBottomRowsExact - baseBottomRowsExact)
-        : 0;
-      const minGraphArea = Math.max(
-        viewportHeight - bottomRowsExact,
-        textRowHeight * (isFullScreen ? 10 : 8)
-      );
-      const chartContentHeight = bottomRowsExact + Math.max(minGraphArea, 0);
-      const scrollableContentHeight = chartContentHeight + extraScrollableHeight;
-
-const effectiveRotatedStartInset = Math.max(0, Number(rotatedSafeStartInsetPx) || 0);
-const effectiveRotatedEndInset = Math.max(0, Number(rotatedSafeEndInsetPx) || 0);
-
-const computedRight = isFullScreen
-  ? Math.max(
-      isLandscapeVisual ? 16 : 30,
-      Math.min(chartWidth, viewportWidth) * (isLandscapeVisual ? 0.01 : 0.05)
-    )
-  : 50;
-
-const computedLeft = isFullScreen
-  ? Math.max(
-      isLandscapeVisual ? 45 : 20,
-      Math.min(chartWidth, viewportWidth) * (isLandscapeVisual ? 0.02 : 0.05)
-    )
-  : 50;
-
-  const cappedRotatedEndInset = isLandscapeVisual
-   ? Math.min(effectiveRotatedEndInset, 12)
-   : effectiveRotatedEndInset;
-const fullScreenRightPadding = computedRight + cappedRotatedEndInset + (isLandscapeVisual ? 8 : 0);
-const minRightLegendSpace = isFullScreen && isLandscapeVisual ? 36 : 0;
-const basePadding = {
-  top: isFullScreen
-    ? Math.max(
-        isLandscapeVisual ? 6 : 12,
-        viewportHeight * (isLandscapeVisual ? 0.015 : 0.03)
-      )
-    : 12,
-  right: isFullScreen
-    ? Math.max(fullScreenRightPadding, minRightLegendSpace)
-    : 50,
-  bottom: Math.max(0, bottomRowsExact - 1),
-  left: isFullScreen
-    ? computedLeft + effectiveRotatedStartInset
-    : 50,
-};
-      const padding = basePadding;
+      const padding = chartLayout.padding;
       
-      // --- Levanta el suelo del área del gráfico (sin mover filas) ---
-      // Ajusta cuántas "filas" quieres ganar de aire bajo el gráfico:
-      const GRAPH_BOTTOM_LIFT_ROWS = 1.5; // p.ej. 0.8 filas; prueba 0.6–1.2
-      const graphBottomInset = Math.max(0, Math.round(textRowHeight * GRAPH_BOTTOM_LIFT_ROWS));
-      const graphBottomY = chartContentHeight - padding.bottom - graphBottomInset;
+      const graphBottomInset = chartLayout.graphBottomInset;
+      const graphBottomY = chartLayout.graphBottomY;
       const getY = useCallback((temp) => {
-      const effectiveHeight = Math.max(
-          chartContentHeight - padding.top - padding.bottom - graphBottomInset,
-          textRowHeight * 6
-        );
-        if (temp === null || temp === undefined || tempRange === 0 || effectiveHeight <= 0) {
-          return graphBottomY;
-        }
-        return graphBottomY - ((temp - tempMin) / tempRange) * effectiveHeight;
-      }, [
-        chartContentHeight,
-        padding.top,
-        padding.bottom,
-        graphBottomInset,
-        textRowHeight,
-        tempRange,
-        graphBottomY,
-        tempMin,
-      ]);
+        return chartLayout.getY(temp);
+      }, [chartLayout]);
 
       const getX = useCallback((index) => {
-        const extraMargin = isDenseExport ? 2 : ((isFullScreen && !(forceLandscape || orientation === 'landscape')) ? 5 : 10);
-        const daySpacing = (isFullScreen && !(forceLandscape || orientation === 'landscape')) ? 25 : 0;
-        const EXTRA_RIGHT_GAP = isDenseExport ? 4 : 15;
-        const edgePadding = isDenseExport
-  ? 0
-  : isFullScreen
-          ? Math.max(
-              isLandscapeVisual ? 8 : 18,
-              Math.min(chartWidth, viewportWidth) * (isLandscapeVisual ? 0.01 : 0.05)
-            )
-          : 20;
-        const paddingRightForX = padding.right + EXTRA_RIGHT_GAP;
-        const availableWidth =
-          chartWidth -
-          padding.left -
-          paddingRightForX -
-          extraMargin -
-          edgePadding * 2 -
-          daySpacing * (allDataPoints.length - 1);
-        if (availableWidth <= 0) {
-          return padding.left + extraMargin + edgePadding + daySpacing * index;
-        }
-        const pointsToDisplay = allDataPoints.length > 1 ? allDataPoints.length - 1 : 1;
-        if (pointsToDisplay === 0 || allDataPoints.length === 0) {
-          return padding.left + extraMargin + edgePadding + daySpacing * index;
-        }
-        return (
-          padding.left +
-          extraMargin +
-          edgePadding +
-          index * (availableWidth / (allDataPoints.length === 1 ? 1 : pointsToDisplay)) +
-          daySpacing * index
-        );
-      }, [
-        isFullScreen,
-        forceLandscape,
-        orientation,
-        padding.left,
-        padding.right,
-        chartWidth,
-        viewportWidth,
-        allDataPoints.length,
-        isLandscapeVisual,
-      ]);
-      
+        return chartLayout.getX(index);
+      }, [chartLayout]);
+
+      const renderModel = useMemo(
+        () =>
+          buildChartRenderModel({
+            layout: chartLayout,
+            dataPoints: allDataPoints,
+            tempMin,
+            tempMax,
+            tempRange,
+            todayIndex,
+            baselineTemp,
+            baselineStartIndex,
+            firstHighIndex,
+            baselineIndices,
+            ovulationDetails,
+            fertilityStart,
+            interpretationSegments: [],
+          }),
+        [
+          chartLayout,
+          allDataPoints,
+          tempMin,
+          tempMax,
+          tempRange,
+          todayIndex,
+          baselineTemp,
+          baselineStartIndex,
+          firstHighIndex,
+          baselineIndices,
+          ovulationDetails,
+          fertilityStart,
+        ]
+      );
+       
      const handlePointInteraction = (point, index, event) => {
   if (!point) {
     clearActivePoint();
@@ -1244,5 +1059,6 @@ const dy = adjustedClientY - cy;
         hasAnyObservation,
         graphBottomInset,
         todayIndex,
+        renderModel,
       };
     };
