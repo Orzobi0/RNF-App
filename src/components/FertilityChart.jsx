@@ -180,6 +180,7 @@ useEffect(() => {
     hasAnyObservation,
     graphBottomInset,
     todayIndex,
+    renderModel,
   } = useFertilityChart(
     data,
     isFullScreen,
@@ -1810,6 +1811,7 @@ const rotationWrapperStyle = rotationStageStyle
   manualBaselineTemp={manualBaselineTemp}
   isPointEligibleForManualMode={isPointEligibleForManualMode}
   exportMode={exportMode}
+  renderModel={renderModel}
 />
               )}
 
