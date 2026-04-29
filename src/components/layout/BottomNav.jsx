@@ -1,20 +1,28 @@
 import React from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useMatch } from 'react-router-dom';
 import { Heart, ChartSpline, Calendar, Archive, User } from 'lucide-react';
 
 const BottomNav = () => {
-  const location = useLocation();
+  const cycleMatch = useMatch('/cycle/:cycleId');
+  const chartCycleMatch = useMatch('/chart/:cycleId');
+  const contextCycleId = cycleMatch?.params?.cycleId || chartCycleMatch?.params?.cycleId;
+  const hasArchivedCycleContext = Boolean(contextCycleId);
 
   const links = [
-    { to: '/records', label: 'Mis registros', icon: Calendar },
-    { to: '/chart', label: 'Gráfica', icon: ChartSpline },
-    { to: '/', label: 'Ciclo actual', icon: Heart },
     {
-      to: '/archived-cycles',
-      label: 'Mis ciclos',
-      icon: Archive,
-      isActive: (pathname) => pathname.startsWith('/archived-cycles') || pathname.startsWith('/cycle/')
+      to: contextCycleId ? `/cycle/${contextCycleId}` : '/records',
+      label: hasArchivedCycleContext ? 'Registros del ciclo archivado' : 'Mis registros',
+      icon: Calendar,
+      showArchivedBadge: hasArchivedCycleContext,
     },
+    {
+      to: contextCycleId ? `/chart/${contextCycleId}` : '/chart',
+      label: hasArchivedCycleContext ? 'Gráfica del ciclo archivado' : 'Gráfica',
+      icon: ChartSpline,
+      showArchivedBadge: hasArchivedCycleContext,
+    },
+    { to: '/', label: 'Ciclo actual', icon: Heart },
+    { to: '/archived-cycles', label: 'Mis ciclos', icon: Archive },
     { to: '/settings', label: 'Cuenta', icon: User },
   ];
 
@@ -31,7 +39,7 @@ return (
       {/* Barra visible */}
       <div className="h-[var(--bottom-nav-height)] pt-3.5">
         <ul className="grid h-full w-full grid-cols-5 items-start gap-2 px-2">
-          {links.map(({ to, label, icon: Icon, isActive: computeActive }) => (
+          {links.map(({ to, label, icon: Icon, showArchivedBadge }) => (
             <li key={to} className="flex">
               <NavLink
                 to={to}
@@ -39,15 +47,12 @@ return (
                 className="group relative flex w-full flex-col items-center rounded-lg px-2 py-1 text-center transition-[color,transform] duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-pink-300/60"
               >
                 {({ isActive }) => {
-                  const customActive = computeActive ? computeActive(location.pathname) : false;
-                  const active = customActive || isActive;
-
                   return (
                     <>
                       <span
                         aria-hidden
                         className={`absolute inset-0 rounded-3xl transition-all duration-200 ${
-                          active
+                          isActive
                             ? 'bg-fertiliapp-suave/80 ring-1 ring-fertiliapp-suave shadow-sm'
                             : 'bg-transparent'
                         }`}
@@ -55,11 +60,27 @@ return (
                       <span className="relative z-10 flex h-7 w-7 items-center justify-center">
                         <Icon
                           className={`h-6 w-6 transition-transform duration-200 ${
-                            active
+                            isActive
                               ? 'text-fertiliapp-fuerte scale-110'
                               : 'text-gray-400 group-hover:text-gray-600'
                           }`}
                         />
+                        {showArchivedBadge && (
+                          <span
+                            aria-hidden
+                            className={`pointer-events-none absolute -bottom-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full border bg-white shadow-[0_1px_3px_rgba(244,114,182,0.18)] ${
+                              isActive
+                                ? 'border-fertiliapp-suave'
+                                : 'border-gray-200'
+                            }`}
+                          >
+                            <Archive
+                              className={`h-2.5 w-2.5 ${
+                                isActive ? 'text-fertiliapp-fuerte' : 'text-gray-400'
+                              }`}
+                            />
+                          </span>
+                        )}
                       </span>
                       <span className="sr-only">{label}</span>
                     </>
