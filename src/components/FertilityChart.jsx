@@ -1,12 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MoveVertical } from 'lucide-react';
 import { motion } from 'framer-motion';
-import ChartPoints from '@/components/chartElements/ChartPoints';
 import ChartTooltip from '@/components/chartElements/ChartTooltip';
 import ChartLeftLegend from '@/components/chartElements/ChartLeftLegend';
 import ChartRightStickyTempLegend from '@/components/chartElements/ChartRightStickyTempLegend';
 import FertilityChartCanvasOverlay from '@/components/chartElements/FertilityChartCanvasOverlay';
 import ChartDynamicOverlay from '@/chart/renderers/ChartDynamicOverlay';
+import ChartHitLayer from '@/chart/renderers/ChartHitLayer';
 import { getChartTheme } from '@/components/chartElements/chartTheme';
 import { useFertilityChart } from '@/hooks/useFertilityChart';
 import { isAfter, parseISO, startOfDay } from 'date-fns';
@@ -1705,7 +1705,6 @@ const rotationWrapperStyle = rotationStageStyle
     : `${baseFullClass} overflow-x-auto ${allowVerticalScroll ? 'overflow-y-auto' : 'overflow-y-hidden'} border border-pink-100/50`;
   const showLegend = true;
   const handlePointInteractionSafe = exportMode ? () => {} : handlePointInteraction;
-  const clearActivePointSafe = exportMode ? () => {} : clearActivePoint;
   const showCanvasOverlay =
   chartWidth > 0 && chartHeight > 0 && scrollableContentHeight > 0;
   return (
@@ -2058,45 +2057,20 @@ const rotationWrapperStyle = rotationStageStyle
             </g>
           )}
 
-          {/* Puntos del gráfico */}
-          <ChartPoints
-            data={allDataPoints}
-            getX={getX}
-            getY={getY}
-            isFullScreen={isFullScreen}
-            orientation={visualOrientation}
-            responsiveFontSize={responsiveFontSize}
-            bottomRowsResponsiveFontSize={bottomRowsResponsiveFontSize}
-            onPointInteraction={handlePointInteractionSafe}
-            clearActivePoint={clearActivePointSafe}
-            activePoint={activePoint}
-            visibleRange={visibleRange}
-            padding={padding}
-            chartHeight={chartHeight}
-            chartWidth={chartWidth}
-            temperatureField="displayTemperature"
-            textRowHeight={textRowHeight}
-            graphBottomY={graphBottomY}
-            rowsZoneHeight={rowsZoneHeight}
-            compact={false}
-            reduceMotion={effectiveReduceMotion}
-            isScrolling={isScrolling}
-            showInterpretation={showInterpretation}
-            ovulationDetails={ovulationDetails}
-            baselineStartIndex={baselineStartIndex}
-            firstHighIndex={firstHighIndex}
-            baselineIndices={baselineIndices}
-            graphBottomLift={graphBottomInset}
-            showRelationsRow={showRelationsRow}
-            autoLabelStep={exportMode}
-            isArchivedCycle={isArchivedCycle}
-            renderTemperatureLayer={false}
-            renderVisualLayer={false}
-            manualModeEnabled={manualModeEnabled}
-            manualBaselineTemp={manualBaselineTemp}
-            isPointEligibleForManualMode={isPointEligibleForManualMode}
-            exportMode={exportMode}
-          />
+          {/* Capa mínima de interacción; el render visual vive en canvas. */}
+          {!exportMode && (
+            <ChartHitLayer
+              renderModel={renderModel}
+              visibleRange={visibleRange}
+              padding={padding}
+              graphBottomY={graphBottomY}
+              contentHeight={scrollableContentHeight}
+              chartWidth={chartWidth}
+              onPointInteraction={handlePointInteractionSafe}
+              exportMode={exportMode}
+              isScrolling={isScrolling}
+            />
+          )}
 
         </motion.svg>
             </div>
