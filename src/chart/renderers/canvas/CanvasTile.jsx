@@ -18,6 +18,7 @@ const CanvasTile = ({
   tile,
   drawProps,
   textLayoutCache,
+  resizeVersion = 0,
   dataChartCanvasOverlay = true,
 }) => {
   const canvasRef = useRef(null);
@@ -77,6 +78,8 @@ const CanvasTile = ({
         height,
         startIndex: tile.startIndex,
         endIndex: tile.endIndex,
+        paintStartIndex: tile.paintStartIndex,
+        paintEndIndex: tile.paintEndIndex,
       },
       measureTextWidth,
       bandPaintCache: bandPaintCacheRef.current,
@@ -86,26 +89,7 @@ const CanvasTile = ({
 
   useEffect(() => {
     syncCanvasSize();
-  }, [syncCanvasSize]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return undefined;
-
-    const onResize = () => {
-      syncCanvasSize();
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(draw);
-    };
-
-    window.addEventListener('resize', onResize);
-    window.addEventListener('orientationchange', onResize);
-
-    return () => {
-      window.removeEventListener('resize', onResize);
-      window.removeEventListener('orientationchange', onResize);
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    };
-  }, [draw, syncCanvasSize]);
+  }, [resizeVersion, syncCanvasSize]);
 
   useEffect(() => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
@@ -114,7 +98,7 @@ const CanvasTile = ({
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [draw]);
+  }, [draw, resizeVersion]);
 
   return (
     <canvas
@@ -135,6 +119,8 @@ const CanvasTile = ({
       data-chart-canvas-tile="true"
       data-tile-start-index={tile.startIndex}
       data-tile-end-index={tile.endIndex}
+      data-tile-paint-start-index={tile.paintStartIndex}
+      data-tile-paint-end-index={tile.paintEndIndex}
       aria-hidden="true"
     />
   );

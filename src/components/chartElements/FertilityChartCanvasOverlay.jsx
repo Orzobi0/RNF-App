@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { getCanvasTheme } from '@/components/chartElements/chartTheme';
 import CanvasTile from '@/chart/renderers/canvas/CanvasTile';
 import { buildCanvasTiles } from '@/chart/renderers/canvas/buildCanvasTiles';
@@ -46,13 +46,23 @@ const FertilityChartCanvasOverlay = ({
   renderModel = null,
 }) => {
   const textLayoutCacheRef = useRef(new Map());
+  const [canvasResizeVersion, setCanvasResizeVersion] = useState(0);
 
-  const points = useMemo(() => allDataPoints || [], [allDataPoints]);
+  const hasRenderModelDays = Array.isArray(renderModel?.days) && renderModel.days.length > 0;
+  const points = useMemo(
+    () => (hasRenderModelDays ? renderModel.days : allDataPoints || []),
+    [allDataPoints, hasRenderModelDays, renderModel?.days]
+  );
   const theme = useMemo(() => getCanvasTheme(), []);
-  const xs = useMemo(() => points.map((_, index) => getX(index)), [points, getX]);
+  const xs = useMemo(
+    () => (hasRenderModelDays ? null : points.map((_, index) => getX(index))),
+    [hasRenderModelDays, points, getX]
+  );
   const ysTemp = useMemo(
-    () => points.map((point) => (Number.isFinite(point?.displayTemperature) ? getY(point.displayTemperature) : null)),
-    [points, getY]
+    () => (hasRenderModelDays
+      ? null
+      : points.map((point) => (Number.isFinite(point?.displayTemperature) ? getY(point.displayTemperature) : null))),
+    [hasRenderModelDays, points, getY]
   );
   const contentHeight =
     Number.isFinite(scrollableContentHeight) && scrollableContentHeight > 0
@@ -61,11 +71,14 @@ const FertilityChartCanvasOverlay = ({
 
   const tiles = useMemo(() => {
     if (exportMode) {
+      // Export keeps one full tile because the PNG/PDF compositor expects one complete canvas.
       return [
         {
           key: 'tile-export-full',
           startIndex: 0,
           endIndex: Math.max(points.length - 1, -1),
+          paintStartIndex: 0,
+          paintEndIndex: Math.max(points.length - 1, -1),
           left: 0,
           right: Math.max(1, chartWidth || 1),
           width: Math.max(1, chartWidth || 1),
@@ -83,6 +96,22 @@ const FertilityChartCanvasOverlay = ({
       overscanTiles: INTERACTIVE_OVERSCAN_TILES,
     });
   }, [chartWidth, contentHeight, exportMode, points.length, renderModel, visibleRange]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const onResize = () => {
+      setCanvasResizeVersion((version) => version + 1);
+    };
+
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onResize);
+
+    return () => {
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('orientationchange', onResize);
+    };
+  }, []);
 
   const drawProps = useMemo(() => ({
     renderModel,
@@ -196,6 +225,7 @@ const FertilityChartCanvasOverlay = ({
           tile={tile}
           drawProps={drawProps}
           textLayoutCache={textLayoutCacheRef.current}
+          resizeVersion={canvasResizeVersion}
           dataChartCanvasOverlay
         />
       ))}

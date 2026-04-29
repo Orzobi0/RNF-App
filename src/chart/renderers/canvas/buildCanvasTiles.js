@@ -1,5 +1,6 @@
 const DEFAULT_TILE_DAY_COUNT = 21;
 const DEFAULT_OVERSCAN_TILES = 1;
+const DEFAULT_PAINT_OVERSCAN_DAYS = 1;
 
 const clampIndex = (value, min, max) => Math.min(max, Math.max(min, value));
 
@@ -42,6 +43,8 @@ export function buildCanvasTiles({
         key: 'tile-empty',
         startIndex: 0,
         endIndex: -1,
+        paintStartIndex: 0,
+        paintEndIndex: -1,
         left: 0,
         right: safeChartWidth,
         width: safeChartWidth,
@@ -91,6 +94,8 @@ export function buildCanvasTiles({
       key: `tile-${startIndex}-${endIndex}-${Math.round(left)}-${Math.round(right)}`,
       startIndex,
       endIndex,
+      paintStartIndex: clampIndex(startIndex - DEFAULT_PAINT_OVERSCAN_DAYS, 0, lastIndex),
+      paintEndIndex: clampIndex(endIndex + DEFAULT_PAINT_OVERSCAN_DAYS, 0, lastIndex),
       left,
       right,
       width,
