@@ -118,7 +118,6 @@ useEffect(() => {
 }, [measuredViewport?.w, measuredViewport?.h]);
 
   const applyRotation = !exportMode && isFullScreen && forceLandscape && isViewportPortrait;
-  const visualOrientation = forceLandscape ? 'landscape' : orientation;
   const isIOSFakeLandscape = isIOS && applyRotation;
   const [rotatedSafeStartInsetPx, setRotatedSafeStartInsetPx] = useState(0);
   const [rotatedSafeEndInsetPx, setRotatedSafeEndInsetPx] = useState(0);
@@ -172,7 +171,6 @@ useEffect(() => {
     bottomRowsResponsiveFontSize,
     clearActivePoint,
     baselineTemp,
-    baselineStartIndex,
     baselineIndices,
     firstHighIndex,
     ovulationDetails,
@@ -632,7 +630,7 @@ useEffect(() => {
     if (exportMode) return;
 
   const clickedInteractiveElement =
-      event.target?.closest?.('[data-chart-interactive="true"], [data-manual-baseline-interactive="true"]');
+      event.target?.closest?.('[data-chart-interactive="true"], [data-chart-phase-interactive="true"], [data-manual-baseline-interactive="true"]');
     if (clickedInteractiveElement) return;
 
     const scroller = chartRef.current;
@@ -1906,6 +1904,20 @@ const rotationWrapperStyle = rotationStageStyle
             </filter>
           </defs>
 
+          {!exportMode && (
+            <ChartHitLayer
+              renderModel={renderModel}
+              visibleRange={visibleRange}
+              padding={padding}
+              graphBottomY={graphBottomY}
+              contentHeight={scrollableContentHeight}
+              chartWidth={chartWidth}
+              onPointInteraction={handlePointInteractionSafe}
+              exportMode={exportMode}
+              isScrolling={isScrolling}
+            />
+          )}
+
           {showInterpretation &&
             interpretationSegments.length > 0 &&
             interpretationBandTop != null &&
@@ -1933,6 +1945,9 @@ const rotationWrapperStyle = rotationStageStyle
                   );
                   const railColors = getSegmentRailColors(segment);
                   const handleActivate = (event) => {
+                    if (typeof event?.preventDefault === 'function') {
+                      event.preventDefault();
+                    }
                     if (typeof event?.stopPropagation === 'function') {
                       event.stopPropagation();
                     }
@@ -1980,8 +1995,10 @@ const rotationWrapperStyle = rotationStageStyle
                         aria-label={tooltipText}
                         tabIndex={0}
                         data-chart-interactive="true"
+                        data-chart-phase-interactive="true"
                         onClick={handleActivate}
                         onKeyDown={handleKeyDown}
+                        pointerEvents="all"
                         style={{ cursor: 'pointer' }}
                       >
                         <title>{tooltipText}</title>
@@ -1999,10 +2016,11 @@ const rotationWrapperStyle = rotationStageStyle
                           aria-label={tooltipText}
                           tabIndex={0}
                           data-chart-interactive="true"
+                          data-chart-phase-interactive="true"
                           onClick={handleActivate}
                           onKeyDown={handleKeyDown}
                           style={{ cursor: 'pointer', userSelect: 'none', lineHeight: 1.2, textShadow: phaseTextShadow }}
-                          pointerEvents="auto"
+                          pointerEvents="all"
                         >
                           <title>{tooltipText}</title>
                           {displayText}
@@ -2055,21 +2073,6 @@ const rotationWrapperStyle = rotationStageStyle
                 </text>
               ))}
             </g>
-          )}
-
-          {/* Capa mínima de interacción; el render visual vive en canvas. */}
-          {!exportMode && (
-            <ChartHitLayer
-              renderModel={renderModel}
-              visibleRange={visibleRange}
-              padding={padding}
-              graphBottomY={graphBottomY}
-              contentHeight={scrollableContentHeight}
-              chartWidth={chartWidth}
-              onPointInteraction={handlePointInteractionSafe}
-              exportMode={exportMode}
-              isScrolling={isScrolling}
-            />
           )}
 
         </motion.svg>
