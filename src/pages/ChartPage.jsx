@@ -1546,6 +1546,7 @@ const rotatedDrawerStyle = applyRotation
           onShowPhaseInfo={handleShowPhaseInfo}
           isArchivedCycle={!isViewingCurrentCycle}
           cycleEndDate={targetCycle?.endDate ?? null}
+          measuredViewport={viewport}
         />
         
         {drawerMounted && (

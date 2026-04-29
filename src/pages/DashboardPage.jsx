@@ -1012,7 +1012,7 @@ const handleRingPointerCancel = useCallback(
             >
               <defs>
                 <pattern id="spotting-pattern-dashboard" patternUnits="userSpaceOnUse" width="6" height="6">
-                  <rect width="6" height="6" fill="#ef4444" />
+                  <rect width="6" height="6" fill="#fb7185" />
                   <circle cx="3" cy="3" r="1.5" fill="rgba(255,255,255,0.85)" />
                 </pattern>
                 <radialGradient id="ringGlow" cx="50%" cy="50%" r="78%" fx="30%" fy="20%">

@@ -269,6 +269,24 @@ y = Math.max(yMin, Math.min(y, yMax));
   };
 
   const symbolColors = getSymbolColors(point.fertility_symbol);
+  const getTooltipSymbolClasses = () => {
+    switch (symbolInfo?.value) {
+      case 'red':
+        return 'bg-rose-500 border-slate-300 shadow-md';
+      case 'pink':
+        return 'bg-pink-500 border-slate-300 shadow-md';
+      case 'green':
+        return 'bg-emerald-500 border-slate-300 shadow-md';
+      case 'yellow':
+        return 'bg-yellow-400 border-slate-300 shadow-md';
+      case 'spot':
+        return 'bg-rose-500 border-slate-300 shadow-md spotting-pattern-icon';
+      case 'white':
+        return 'bg-white border-rose-300 shadow-md';
+      default:
+        return 'bg-slate-200 border-slate-300 shadow-md';
+    }
+  };
 
   return (
     <motion.div
@@ -464,9 +482,10 @@ y = Math.max(yMin, Math.min(y, yMax));
                       disabled={!onEdit}
                     >
                       <div className="flex items-center gap-3">
-                        <div className={`w-6 h-6 ${symbolColors.bg} rounded-lg flex items-center justify-center shadow-lg ${symbolColors.glow} shadow-lg`}>
-                          <div className="w-2 h-2 bg-white/90 rounded-full shadow-sm"></div>
-                        </div>
+                        <div
+                          className={`h-6 w-6 rounded-lg border ${getTooltipSymbolClasses()}`}
+                          aria-hidden="true"
+                        />
                         <div className="flex-1 text-left">
                           <span className={`text-md font-semibold ${symbolColors.text}`}>
                             {symbolInfo.label}

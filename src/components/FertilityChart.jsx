@@ -33,6 +33,7 @@ const FertilityChart = ({
   isArchivedCycle = false,
   cycleEndDate = null,
   exportMode = false,
+  measuredViewport = null,
 }) => {
 
 const isIOS =
@@ -51,6 +52,12 @@ const isIOS =
   // Detectar orientación real del viewport para rotación visual
   const readViewport = () => {
   if (typeof window === 'undefined') return { w: 0, h: 0 };
+
+  const externalW = Number(measuredViewport?.w);
+  const externalH = Number(measuredViewport?.h);
+  if (Number.isFinite(externalW) && externalW > 0 && Number.isFinite(externalH) && externalH > 0) {
+    return { w: Math.round(externalW), h: Math.round(externalH) };
+  }
 
   const host = stageHostRef.current;
   if (host) {
@@ -95,7 +102,19 @@ useEffect(() => {
     vv?.removeEventListener('resize', onResize);
     vv?.removeEventListener('scroll', onResize);
   };
-}, []);
+}, [measuredViewport?.w, measuredViewport?.h]);
+
+useEffect(() => {
+  const externalW = Number(measuredViewport?.w);
+  const externalH = Number(measuredViewport?.h);
+  if (!Number.isFinite(externalW) || externalW <= 0 || !Number.isFinite(externalH) || externalH <= 0) {
+    return;
+  }
+  setViewport((prev) => {
+    const next = { w: Math.round(externalW), h: Math.round(externalH) };
+    return prev.w === next.w && prev.h === next.h ? prev : next;
+  });
+}, [measuredViewport?.w, measuredViewport?.h]);
 
   const applyRotation = !exportMode && isFullScreen && forceLandscape && isViewportPortrait;
   const visualOrientation = forceLandscape ? 'landscape' : orientation;
@@ -1616,6 +1635,28 @@ useEffect(() => {
   };
 }, [applyRotation, isRotationStage]);
 
+useEffect(() => {
+  if (typeof window === 'undefined' || !isRotationStage) return undefined;
+
+  let raf1 = 0;
+  let raf2 = 0;
+  let raf3 = 0;
+
+  raf1 = requestAnimationFrame(() => {
+    window.dispatchEvent(new Event('resize'));
+    raf2 = requestAnimationFrame(() => {
+      window.dispatchEvent(new Event('resize'));
+      raf3 = requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+    });
+  });
+
+  return () => {
+    if (raf1) cancelAnimationFrame(raf1);
+    if (raf2) cancelAnimationFrame(raf2);
+    if (raf3) cancelAnimationFrame(raf3);
+  };
+}, [isRotationStage, applyRotation, viewport.w, viewport.h]);
+
 const rotationStageStyle = shouldRotateStage
   ? {
       position: 'absolute',
@@ -1731,7 +1772,7 @@ const rotationWrapperStyle = rotationStageStyle
               )}
               {showCanvasOverlay && (
                 <FertilityChartCanvasOverlay
-  key={`canvas-${chartWidth}-${scrollableContentHeight}-${isFullScreen ? 'fs' : 'normal'}-${applyRotation ? 'rot' : 'flat'}-${viewport.w}-${viewport.h}`}
+  key={`canvas-layout-${isFullScreen ? 'fs' : 'normal'}-${forceLandscape ? 'forced' : 'free'}-${applyRotation ? 'rotated' : 'flat'}-${orientation}`}
   chartWidth={chartWidth}
   chartHeight={chartHeight}
   scrollableContentHeight={scrollableContentHeight}
@@ -1756,6 +1797,19 @@ const rotationWrapperStyle = rotationStageStyle
   baselineOpacity={baselineOpacity}
   baselineWidth={baselineWidth}
   temperatureRiseHighlightPath={temperatureRiseHighlightPath}
+  visibleRange={visibleRange}
+  textRowHeight={textRowHeight}
+  bottomRowsResponsiveFontSize={bottomRowsResponsiveFontSize}
+  rowsZoneHeight={rowsZoneHeight}
+  isFullScreen={isFullScreen}
+  showRelationsRow={showRelationsRow}
+  autoLabelStep={exportMode}
+  ovulationDetails={ovulationDetails}
+  firstHighIndex={firstHighIndex}
+  manualModeEnabled={manualModeEnabled}
+  manualBaselineTemp={manualBaselineTemp}
+  isPointEligibleForManualMode={isPointEligibleForManualMode}
+  exportMode={exportMode}
 />
               )}
 
@@ -2026,6 +2080,7 @@ const rotationWrapperStyle = rotationStageStyle
             autoLabelStep={exportMode}
             isArchivedCycle={isArchivedCycle}
             renderTemperatureLayer={false}
+            renderVisualLayer={false}
             manualModeEnabled={manualModeEnabled}
             manualBaselineTemp={manualBaselineTemp}
             isPointEligibleForManualMode={isPointEligibleForManualMode}
