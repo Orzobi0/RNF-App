@@ -60,7 +60,46 @@ export function drawChartCanvas({
   const contentW = chartWidth;
   const snap = createSnap(dpr);
   const effectivePadding = renderModel?.padding ?? padding;
-  const effectiveGraphBottomY = renderModel?.graph?.graphBottomY ?? graphBottomY;
+  const effectiveGraph = renderModel?.graph ?? {};
+  const effectiveGraphBottomY = effectiveGraph.graphBottomY ?? graphBottomY;
+  const effectiveRowsZoneHeight = effectiveGraph.rowsZoneHeight ?? rowsZoneHeight;
+  const effectiveTempMin = effectiveGraph.tempMin ?? tempMin;
+  const effectiveTempMax = effectiveGraph.tempMax ?? tempMax;
+  const effectiveTempRange = effectiveGraph.tempRange ?? tempRange;
+  const effectivePoints = Array.isArray(renderModel?.days) && renderModel.days.length
+    ? renderModel.days
+    : points;
+  const effectiveXs = Array.isArray(renderModel?.days) && renderModel.days.length
+    ? renderModel.days.map((day) => day.x)
+    : xs;
+  const temperaturesByIndex = new Map(
+    Array.isArray(renderModel?.temperatures)
+      ? renderModel.temperatures.map((temperature) => [temperature.index, temperature])
+      : []
+  );
+  const effectiveYsTemp = Array.isArray(renderModel?.days) && renderModel.days.length
+    ? renderModel.days.map((day) => temperaturesByIndex.get(day.index)?.y ?? null)
+    : ysTemp;
+  const effectiveGetY = (temp) => {
+    if (typeof getY === 'function' && !renderModel?.graph) return getY(temp);
+    const effectiveHeight = effectiveGraph.effectiveChartAreaHeight ?? effectiveGraph.chartAreaHeight ?? 0;
+    if (
+      temp === null ||
+      temp === undefined ||
+      effectiveTempRange === 0 ||
+      effectiveHeight <= 0
+    ) {
+      return effectiveGraphBottomY;
+    }
+    return effectiveGraphBottomY - ((temp - effectiveTempMin) / effectiveTempRange) * effectiveHeight;
+  };
+  const effectiveInterpretationSegments =
+    Array.isArray(renderModel?.interpretationSegments) && renderModel.interpretationSegments.length > 0
+      ? renderModel.interpretationSegments
+      : interpretationSegments;
+  const effectiveBaselineY = renderModel?.fertility?.baselineY ?? baselineY;
+  const effectiveBaselineStartX = renderModel?.fertility?.baselineStartX ?? baselineStartX;
+  const effectiveBaselineEndX = renderModel?.fertility?.baselineEndX ?? baselineEndX;
   const areaW = chartWidth - effectivePadding.left - effectivePadding.right;
   const areaH = Math.max(effectiveGraphBottomY - effectivePadding.top, 0);
 
@@ -74,9 +113,9 @@ export function drawChartCanvas({
   const rangeStart = Number.isInteger(visibleRange?.startIndex) ? visibleRange.startIndex : 0;
   const rangeEnd = Number.isInteger(visibleRange?.endIndex)
     ? visibleRange.endIndex
-    : Math.max(points.length - 1, 0);
-  const visibleStartIndex = points.length ? Math.max(0, Math.min(points.length - 1, rangeStart)) : 0;
-  const visibleEndIndex = points.length ? Math.max(visibleStartIndex, Math.min(points.length - 1, rangeEnd)) : -1;
+    : Math.max(effectivePoints.length - 1, 0);
+  const visibleStartIndex = effectivePoints.length ? Math.max(0, Math.min(effectivePoints.length - 1, rangeStart)) : 0;
+  const visibleEndIndex = effectivePoints.length ? Math.max(visibleStartIndex, Math.min(effectivePoints.length - 1, rangeEnd)) : -1;
   const isWithinTemperaturePlotArea = (y) =>
     Number.isFinite(y) && y >= effectivePadding.top && y <= effectiveGraphBottomY;
 
@@ -95,12 +134,12 @@ export function drawChartCanvas({
     chartWidth,
     padding: effectivePadding,
     graphBottomY: effectiveGraphBottomY,
-    tempMin,
-    tempMax,
-    tempRange,
-    getY,
-    points,
-    xs,
+    tempMin: effectiveTempMin,
+    tempMax: effectiveTempMax,
+    tempRange: effectiveTempRange,
+    getY: effectiveGetY,
+    points: effectivePoints,
+    xs: effectiveXs,
     visibleStartIndex,
     visibleEndIndex,
   });
@@ -112,7 +151,7 @@ export function drawChartCanvas({
     graphBottomY: effectiveGraphBottomY,
     areaH,
     showInterpretation,
-    interpretationSegments,
+    interpretationSegments: effectiveInterpretationSegments,
     bandPaintCache,
   });
   drawFertilityMarkers({
@@ -120,9 +159,9 @@ export function drawChartCanvas({
     theme,
     showInterpretation,
     shouldRenderBaseline,
-    baselineY,
-    baselineStartX,
-    baselineEndX,
+    baselineY: effectiveBaselineY,
+    baselineStartX: effectiveBaselineStartX,
+    baselineEndX: effectiveBaselineEndX,
     baselineStroke,
     baselineDash,
     baselineOpacity,
@@ -134,9 +173,9 @@ export function drawChartCanvas({
     snap,
     chartWidth,
     padding: effectivePadding,
-    points,
-    xs,
-    ysTemp,
+    points: effectivePoints,
+    xs: effectiveXs,
+    ysTemp: effectiveYsTemp,
     visibleStartIndex,
     visibleEndIndex,
     isWithinTemperaturePlotArea,
@@ -147,36 +186,35 @@ export function drawChartCanvas({
     theme,
     padding: effectivePadding,
     graphBottomY: effectiveGraphBottomY,
-    points,
-    xs,
-    ysTemp,
-    getY,
+    points: effectivePoints,
+    xs: effectiveXs,
+    ysTemp: effectiveYsTemp,
+    getY: effectiveGetY,
     visibleStartIndex,
     visibleEndIndex,
     isWithinTemperaturePlotArea,
   });
   drawBottomRows({
     ctx,
+    renderModel,
     chartWidth,
     padding: effectivePadding,
     graphBottomY: effectiveGraphBottomY,
-    rowsZoneHeight,
+    rowsZoneHeight: effectiveRowsZoneHeight,
     textRowHeight,
     bottomRowsResponsiveFontSize,
     responsiveFontSize,
-    points,
-    xs,
-    ysTemp,
+    points: effectivePoints,
+    xs: effectiveXs,
+    ysTemp: effectiveYsTemp,
     visibleStartIndex,
     visibleEndIndex,
-    totalPoints: points.length,
+    totalPoints: effectivePoints.length,
     autoLabelStep,
     isFullScreen,
     exportMode,
     showRelationsRow,
     showInterpretation,
-    ovulationDetails,
-    firstHighIndex,
     manualModeEnabled,
     manualBaselineTemp,
     isPointEligibleForManualMode,
@@ -189,8 +227,8 @@ export function drawChartCanvas({
     theme,
     snap,
     activeIndex,
-    xs,
-    points,
+    xs: effectiveXs,
+    points: effectivePoints,
     chartWidth,
     contentHeight,
     padding: effectivePadding,

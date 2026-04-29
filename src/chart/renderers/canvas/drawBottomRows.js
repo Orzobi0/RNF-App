@@ -1,4 +1,3 @@
-import { isAfter, isSameDay, parseISO, startOfDay } from 'date-fns';
 import { getSymbolAppearance, getSymbolColorPalette } from '@/config/fertilitySymbols';
 import {
   APPEARANCE_COLOR,
@@ -22,53 +21,9 @@ import {
   splitTextLinesByWidth,
 } from './canvasUtils';
 
-const buildHighSequenceOrderMap = ({ showInterpretation, ovulationDetails, firstHighIndex, points }) => {
-  if (!showInterpretation || !ovulationDetails?.confirmed) return new Map();
-  const preferredIndices = Array.isArray(ovulationDetails?.sequenceDisplayIndices)
-    ? ovulationDetails.sequenceDisplayIndices
-    : null;
-  const fallbackIndices = Array.isArray(ovulationDetails?.highSequenceIndices)
-    ? ovulationDetails.highSequenceIndices
-    : [];
-  const firstHighIdx = Number(firstHighIndex);
-  const hasFirstHigh = Number.isInteger(firstHighIdx);
-  const map = new Map();
-  (preferredIndices ?? fallbackIndices)
-    .map((value) => Number(value))
-    .filter((idx) => Number.isInteger(idx) && (!hasFirstHigh || idx >= firstHighIdx))
-    .forEach((idx, position) => {
-      const point = points[idx];
-      const calcTemperature =
-        point?.calcTemperature != null ? point.calcTemperature : point?.displayTemperature;
-      const ignoredForCalc = point?.ignoredForCalc != null ? point.ignoredForCalc : point?.ignored;
-      if (point && Number.isFinite(calcTemperature) && !ignoredForCalc && !map.has(idx)) {
-        map.set(idx, position + 1);
-      }
-    });
-  return map;
-};
-
-const buildBaselineOrderMap = ({ showInterpretation, ovulationDetails, firstHighIndex, points }) => {
-  if (!showInterpretation || !ovulationDetails?.confirmed) return new Map();
-  const firstHighIdx = Number(firstHighIndex);
-  if (!Number.isInteger(firstHighIdx)) return new Map();
-  const map = new Map();
-  let order = 1;
-  for (let idx = firstHighIdx - 1; idx >= 0 && order <= 6; idx -= 1) {
-    const point = points[idx];
-    const calcTemperature =
-      point?.calcTemperature != null ? point.calcTemperature : point?.displayTemperature;
-    const ignoredForCalc = point?.ignoredForCalc != null ? point.ignoredForCalc : point?.ignored;
-    if (point && Number.isFinite(calcTemperature) && !ignoredForCalc) {
-      map.set(idx, order);
-      order += 1;
-    }
-  }
-  return map;
-};
-
 export const drawBottomRows = ({
   ctx,
+  renderModel,
   chartWidth,
   padding,
   graphBottomY,
@@ -87,8 +42,6 @@ export const drawBottomRows = ({
   exportMode,
   showRelationsRow,
   showInterpretation,
-  ovulationDetails,
-  firstHighIndex,
   manualModeEnabled,
   manualBaselineTemp,
   isPointEligibleForManualMode,
@@ -96,35 +49,32 @@ export const drawBottomRows = ({
   textLayoutCache,
   isWithinTemperaturePlotArea,
 }) => {
-  const rowLineHeight = bottomRowsResponsiveFontSize(0.95);
-  const obsRowIndex = isFullScreen ? 9 : 7.5;
-  const halfBlock = isFullScreen ? 1 : 0.75;
-  const exportExtraRows = exportMode ? 6 : 0;
-  const baseRowCount = obsRowIndex + halfBlock + exportExtraRows;
-  const autoRowH = Math.max(1, Math.floor((rowsZoneHeight || 0) / baseRowCount));
-  const rowH = Math.max(textRowHeight || 1, autoRowH);
-  const rowsTopY = graphBottomY;
-  const dateRowY = rowsTopY + rowH * 1;
-  const cycleDayRowY = rowsTopY + rowH * 2;
-  const symbolRowYBase = rowsTopY + rowH * 3;
-  const exportTextBlockHeight = rowLineHeight * 3;
-  const exportSensationBlockTop = rowsTopY + rowH * (isFullScreen ? 4 : 3.5);
-  const exportAppearanceBlockTop = exportSensationBlockTop + exportTextBlockHeight;
-  const exportObservationBlockTop = exportAppearanceBlockTop + exportTextBlockHeight;
-  const mucusSensationRowY = exportMode
-    ? exportSensationBlockTop + exportTextBlockHeight / 2
-    : rowsTopY + rowH * (isFullScreen ? 5 : 4.5);
-  const mucusAppearanceRowY = exportMode
-    ? exportAppearanceBlockTop + exportTextBlockHeight / 2
-    : rowsTopY + rowH * (isFullScreen ? 7 : 6);
-  const observationsRowY = exportMode
-    ? exportObservationBlockTop + exportTextBlockHeight / 2
-    : rowsTopY + rowH * (isFullScreen ? 9 : 7.5);
-  const relationsRowY = showRelationsRow
-    ? (exportMode
-      ? exportObservationBlockTop + exportTextBlockHeight + rowH
-      : observationsRowY + rowH * (isFullScreen ? 2 : 1.5))
-    : null;
+  const rows = renderModel?.rows ?? {};
+  const rowLineHeight = rows.rowLineHeight ?? bottomRowsResponsiveFontSize(0.95);
+  const rowH = rows.rowH ?? Math.max(textRowHeight || 1, Math.floor((rowsZoneHeight || 0) / (isFullScreen ? 10 : 8)));
+  const dateRowY = rows.dateRowY ?? graphBottomY + rowH * 1;
+  const cycleDayRowY = rows.cycleDayRowY ?? graphBottomY + rowH * 2;
+  const symbolRowYBase = rows.symbolRowYBase ?? graphBottomY + rowH * 3;
+  const exportTextBlockHeight = rows.exportTextBlockHeight ?? rowLineHeight * 3;
+  const exportSensationBlockTop = rows.exportSensationBlockTop ?? graphBottomY + rowH * (isFullScreen ? 4 : 3.5);
+  const exportAppearanceBlockTop = rows.exportAppearanceBlockTop ?? exportSensationBlockTop + exportTextBlockHeight;
+  const exportObservationBlockTop = rows.exportObservationBlockTop ?? exportAppearanceBlockTop + exportTextBlockHeight;
+  const mucusSensationRowY = rows.mucusSensationRowY ?? (
+    exportMode ? exportSensationBlockTop + exportTextBlockHeight / 2 : graphBottomY + rowH * (isFullScreen ? 5 : 4.5)
+  );
+  const mucusAppearanceRowY = rows.mucusAppearanceRowY ?? (
+    exportMode ? exportAppearanceBlockTop + exportTextBlockHeight / 2 : graphBottomY + rowH * (isFullScreen ? 7 : 6)
+  );
+  const observationsRowY = rows.observationsRowY ?? (
+    exportMode ? exportObservationBlockTop + exportTextBlockHeight / 2 : graphBottomY + rowH * (isFullScreen ? 9 : 7.5)
+  );
+  const relationsRowY = rows.relationsRowY ?? (
+    showRelationsRow
+      ? (exportMode
+        ? exportObservationBlockTop + exportTextBlockHeight + rowH
+        : observationsRowY + rowH * (isFullScreen ? 2 : 1.5))
+      : null
+  );
   const rowWidth = chartWidth - padding.left - padding.right;
   const cellWidth = totalPoints > 0 ? rowWidth / totalPoints : rowWidth;
   const cellTextPadding = Math.min(12, Math.max(4, cellWidth * 0.12));
@@ -183,19 +133,8 @@ export const drawBottomRows = ({
   const sensationColor = resolveCssColor(SENSATION_COLOR, '#0ea5e9');
   const appearanceColor = resolveCssColor(APPEARANCE_COLOR, '#10b981');
   const observationColor = resolveCssColor(OBSERVATION_COLOR, '#8b5cf6');
-  const today = startOfDay(new Date());
-  const highSequenceOrderMap = buildHighSequenceOrderMap({
-    showInterpretation,
-    ovulationDetails,
-    firstHighIndex,
-    points,
-  });
-  const baselineOrderMap = buildBaselineOrderMap({
-    showInterpretation,
-    ovulationDetails,
-    firstHighIndex,
-    points,
-  });
+  const highSequenceOrderByIndex = renderModel?.fertility?.highSequenceOrderByIndex ?? {};
+  const baselineOrderByIndex = renderModel?.fertility?.baselineOrderByIndex ?? {};
 
   for (let index = visibleStartIndex; index <= visibleEndIndex; index += 1) {
     const point = points[index];
@@ -230,15 +169,17 @@ export const drawBottomRows = ({
       ctx.stroke();
     }
 
-    const hasHighOrder = highSequenceOrderMap.has(index);
-    const hasBaselineOrder = baselineOrderMap.has(index);
+    const highOrder = highSequenceOrderByIndex[index];
+    const baselineOrder = baselineOrderByIndex[index];
+    const hasHighOrder = highOrder != null;
+    const hasBaselineOrder = baselineOrder != null;
     if (showInterpretation && hasTemp && !isIgnoredForDisplay && Number.isFinite(y)) {
       const numberFontSize = responsiveFontSize(isFullScreen ? 0.75 : 1.2);
       const numberStrokeWidth = Math.max(0.5, numberFontSize * 0.18);
       if (hasHighOrder) {
         drawText({
           ctx,
-          text: highSequenceOrderMap.get(index),
+          text: highOrder,
           x,
           y: y - numberFontSize * (isFullScreen ? 2.6 : 1.8),
           fontSize: numberFontSize,
@@ -251,7 +192,7 @@ export const drawBottomRows = ({
       if (hasBaselineOrder) {
         drawText({
           ctx,
-          text: baselineOrderMap.get(index),
+          text: baselineOrder,
           x,
           y: y + numberFontSize * (isFullScreen ? 1.9 : 1.6),
           fontSize: numberFontSize,
@@ -263,10 +204,8 @@ export const drawBottomRows = ({
       }
     }
 
-    const isFuture = point.isoDate
-      ? isAfter(startOfDay(parseISO(point.isoDate)), today)
-      : false;
-    const isTodayPoint = point.isoDate ? isSameDay(parseISO(point.isoDate), today) : false;
+    const isFuture = Boolean(point.isFuture);
+    const isTodayPoint = Boolean(point.isToday);
     const textFill = isTodayPoint ? TODAY_HIGHLIGHT_COLOR : '#60666f';
     const shouldRenderXLabel = !autoLabelStep || index % labelStep === 0 || index === totalPoints - 1;
     if (shouldRenderXLabel) {
@@ -292,9 +231,11 @@ export const drawBottomRows = ({
       });
     }
 
-    const symbolInfo = getSymbolAppearance(point.fertility_symbol);
+    const symbolInfo = getSymbolAppearance(point.fertilitySymbol ?? point.fertility_symbol);
     const symbolPalette = getSymbolColorPalette(symbolInfo.value);
-    const isPlaceholder = String(point.id || '').startsWith('placeholder-');
+    const isPlaceholder = Boolean(
+      point.isPlaceholder ?? String(point.id || '').startsWith('placeholder-')
+    );
     const shouldRenderSymbol = !isPlaceholder && symbolInfo.value !== 'none';
     const peakStatus = point.peakStatus ? String(point.peakStatus).toUpperCase() : null;
     const isPeakMarker = peakStatus === 'P' || peakStatus === 'X';
@@ -389,13 +330,13 @@ export const drawBottomRows = ({
     const sensText = exportMode
       ? (point.mucus_sensation ?? '')
       : isFullScreen
-        ? limitWords(point.mucus_sensation, 2, isFuture ? '' : '-')
-        : point.mucus_sensation;
+        ? limitWords(point.mucusSensation ?? point.mucus_sensation, 2, isFuture ? '' : '-')
+        : (point.mucusSensation ?? point.mucus_sensation);
     const aparText = exportMode
       ? (point.mucus_appearance ?? '')
       : isFullScreen
-        ? limitWords(point.mucus_appearance, 2, isFuture ? '' : '-')
-        : point.mucus_appearance;
+        ? limitWords(point.mucusAppearance ?? point.mucus_appearance, 2, isFuture ? '' : '-')
+        : (point.mucusAppearance ?? point.mucus_appearance);
     const obsText = exportMode
       ? (point.observations ?? '')
       : isFullScreen
@@ -450,7 +391,7 @@ export const drawBottomRows = ({
     drawMultiline(aparRes.lines, x, aparY, aparRes.fontSize, appearanceColor);
     drawMultiline(obsRes.lines, x, obsY, obsRes.fontSize, observationColor);
 
-    const hasRelations = Boolean(point.had_relations ?? point.hadRelations);
+    const hasRelations = Boolean(point.hasRelations ?? point.had_relations ?? point.hadRelations);
     if (showRelationsRow && relationsRowY != null && hasRelations) {
       const rowBlockHeight = rowH * (isFullScreen ? 2 : 1.5);
       const relationsHeartSize = Math.min(Math.max(rowBlockHeight * 0.46, 14), 18);
