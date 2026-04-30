@@ -66,7 +66,7 @@ const MainLayout = ({ children, hideBottomNav = false }) => {
       {!hideBottomNav && (
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 top-0 z-20 h-[calc(env(safe-area-inset-top)+1px)]"
+          className="pointer-events-none absolute inset-x-0 top-0 z-20 h-[calc(env(safe-area-inset-top)+4px)]"
           style={{ backgroundColor: statusBarColor }}
         />
       )}
