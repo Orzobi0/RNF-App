@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Calculator, ChevronLeft, Clock3, Heart, LineChart, Bolt, Trash2 } from 'lucide-react';
+import { Calculator, ChevronLeft, Clock3, Heart, LineChart, Trash2 } from 'lucide-react';
 import useBackClose from '@/hooks/useBackClose';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -575,23 +575,39 @@ const handleClearPreferredTime = useCallback(async () => {
   );
 
   return (
-    <div className="mx-auto w-full max-w-2xl px-4 py-6">
-      <div className="mb-5">
-  <div className="flex items-center gap-1">
-    <Button asChild variant="ghost" size="icon" className="-ml-2 text-slate-600 hover:bg-white/50">
-      <Link to="/settings" aria-label="Volver a ajustes">
-        <ChevronLeft className="h-5 w-5" />
-      </Link>
-    </Button>
-    <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-700">
-      <Bolt className="h-6 w-6 text-[#3a8a6e]" />
+  <div className="relative flex min-h-full flex-col">
+    <div className="sticky top-0 z-30 pb-4">
+      <div className="w-full rounded-b-3xl bg-fertiliapp-fuerte px-4 pb-3 pt-2.5 text-white shadow-[0_10px_24px_rgba(244,114,182,0.18)]">
+        <div className="relative mx-auto w-full max-w-2xl">
+  <Button
+    asChild
+    variant="ghost"
+    size="icon"
+    className="absolute -left-1 -top-1 h-7 w-7 rounded-full text-white/75 hover:bg-white/10 hover:text-white active:bg-white/15"
+  >
+    <Link to="/settings" aria-label="Volver a ajustes">
+      <ChevronLeft className="h-4 w-4" />
+    </Link>
+  </Button>
+
+  <div className="min-w-0">
+    <div className="truncate pl-7 text-[10px] font-semibold uppercase tracking-[0.22em] text-white/75">
+      AJUSTES
+    </div>
+
+    <h1 className="truncate text-[22px] font-semibold leading-tight text-white">
       Preferencias
     </h1>
+
+    <p className="truncate text-[13px] font-medium text-white/78">
+      Registro, cálculo y gráfica
+    </p>
   </div>
-
-  <div className="mt-3 h-px w-full bg-rose-800/70" />
 </div>
+      </div>
+    </div>
 
+    <div className="mx-auto w-full max-w-2xl flex-1 px-4 pb-6">
       <div className="space-y-4">
   <section className="space-y-2.5">
     <SectionHeader icon={Clock3} title="Registro" tone="warm" />
@@ -672,6 +688,7 @@ metrics={t8Metrics}
       id="toggle-show-rs-row"
     />
   </section>
+</div>
 </div>
 
 <Dialog
