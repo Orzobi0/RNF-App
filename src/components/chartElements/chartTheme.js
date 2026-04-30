@@ -1,7 +1,13 @@
 export const chartTheme = {
   background: {
     chartArea: '#fff7fb',
-    rowsArea: '#fff7fb',
+    rowsArea: '#fffafd',
+    leftLegendRail: '#D85C70',
+    leftLegendRailExport: '#D85C70',
+    leftLegendRailEdge: 'rgba(255,255,255,0.48)',
+    chartBorder: 'rgba(244,114,182,0.32)',
+    rowsSeparator: 'rgba(244,114,182,0.28)',
+    boardRadius: 10,
   },
   grid: {
     horizontalMajor: 'rgba(249,168,212,0.7)',

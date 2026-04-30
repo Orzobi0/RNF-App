@@ -1697,7 +1697,7 @@ const rotationWrapperStyle = rotationStageStyle
   : safeAreaStyle ?? undefined;
 
   // Clase del contenedor de scroll ajustada para rotación artificial
-  const baseFullClass = 'w-full h-full bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100';
+  const baseFullClass = 'w-full h-full bg-[#D85C70]';
   const containerClass = isFullScreen
     ? `${baseFullClass} h-full overflow-x-auto ${allowVerticalScroll ? 'overflow-y-auto' : 'overflow-y-hidden'}`
     : `${baseFullClass} overflow-x-auto ${allowVerticalScroll ? 'overflow-y-auto' : 'overflow-y-hidden'} border border-pink-100/50`;
@@ -1708,7 +1708,7 @@ const rotationWrapperStyle = rotationStageStyle
   return (
       <motion.div
   ref={stageHostRef}
-  className="relative w-full h-full bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100"
+  className="relative w-full h-full bg-[#D85C70]"
   initial={false}
 >
   <div
@@ -1719,7 +1719,7 @@ const rotationWrapperStyle = rotationStageStyle
       {/* Contenedor principal del gráfico */}
       <motion.div
         ref={chartRef}
-        className={`relative z-10 p-0 ${isFullScreen ? '' : 'rounded-2xl'} ${containerClass}`}
+        className={`relative z-10 p-0 ring-1 ring-rose-200/60 ${containerClass}`}
         style={{
         background: showCanvasOverlay ? 'transparent' : undefined,
   // Sin scroll vertical real, bloquea el pan-y para que iOS no “arrastre” la página.

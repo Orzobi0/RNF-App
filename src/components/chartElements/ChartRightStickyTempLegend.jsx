@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 const ChartRightStickyTempLegend = ({
   chartRef,
@@ -12,6 +12,7 @@ const ChartRightStickyTempLegend = ({
   ...restProps
 }) => {
   const railRef = useRef(null);
+  const [isOverGraphArea, setIsOverGraphArea] = useState(true);
 
   const ticks = useMemo(() => {
     const values = [];
@@ -43,7 +44,15 @@ const ChartRightStickyTempLegend = ({
       rafId = window.requestAnimationFrame(() => {
         rafId = 0;
         if (!railRef.current) return;
-        railRef.current.style.transform = `translate3d(0, ${-(scroller.scrollTop || 0)}px, 0)`;
+        const scrollTop = scroller.scrollTop || 0;
+        const scrollLeft = scroller.scrollLeft || 0;
+        const clientWidth = scroller.clientWidth || 0;
+        const scrollWidth = scroller.scrollWidth || 0;
+        const labelContentX = scrollLeft + clientWidth - responsiveFontSize(1.2);
+        const graphRightEdge = scrollWidth - padding.right;
+
+        railRef.current.style.transform = `translate3d(0, ${-scrollTop}px, 0)`;
+        setIsOverGraphArea(labelContentX <= graphRightEdge);
       });
     };
 
@@ -67,7 +76,7 @@ const ChartRightStickyTempLegend = ({
       resizeObserver?.disconnect();
       if (rafId) window.cancelAnimationFrame(rafId);
     };
-  }, [chartRef]);
+  }, [chartRef, padding.right, responsiveFontSize]);
 
   return (
     <div
@@ -99,6 +108,9 @@ const ChartRightStickyTempLegend = ({
 
           const isMajor = temp.toFixed(1).endsWith('.0') || temp.toFixed(1).endsWith('.5');
           const labelText = isMajor ? temp.toFixed(1) : `.${temp.toFixed(1).split('.')[1]}`;
+          const fillColor = isOverGraphArea
+            ? isMajor ? '#be185d' : '#db2777'
+            : 'rgba(255,255,255,0.9)';
 
           return (
             <text
@@ -108,8 +120,8 @@ const ChartRightStickyTempLegend = ({
               textAnchor="end"
               fontSize={responsiveFontSize(isMajor ? 1.15 : 1)}
               fontWeight={isMajor ? '800' : '700'}
-              fill={isMajor ? '#be185d' : '#db2777'}
-              opacity={isMajor ? 1 : 0.85}
+              fill={fillColor}
+              opacity={isMajor ? 1 : 0.86}
               style={{
                 filter: 'url(#textShadowLegendRight)',
                 fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',

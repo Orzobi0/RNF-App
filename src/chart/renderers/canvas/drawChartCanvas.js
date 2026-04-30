@@ -200,6 +200,33 @@ export function drawChartCanvas({
   const visibleEndIndex = effectivePoints.length ? Math.max(visibleStartIndex, Math.min(effectivePoints.length - 1, rangeEnd)) : -1;
   const isWithinTemperaturePlotArea = (y) =>
     Number.isFinite(y) && y >= effectivePadding.top && y <= effectiveGraphBottomY;
+  const rowsContentHeight = Math.max(contentHeight - effectiveGraphBottomY, 0);
+  const boardRadius = Math.max(
+    0,
+    Math.min(theme.background.boardRadius ?? 0, areaW / 2, areaH / 2, rowsContentHeight / 2)
+  );
+  const addTopRoundedRectPath = (x, y, width, height, radius) => {
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.lineTo(x + width - radius, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+    ctx.lineTo(x + width, y + height);
+    ctx.lineTo(x, y + height);
+    ctx.lineTo(x, y + radius);
+    ctx.quadraticCurveTo(x, y, x + radius, y);
+    ctx.closePath();
+  };
+  const addBottomRoundedRectPath = (x, y, width, height, radius) => {
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + width, y);
+    ctx.lineTo(x + width, y + height - radius);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+    ctx.lineTo(x + radius, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+    ctx.lineTo(x, y);
+    ctx.closePath();
+  };
 
   drawChartBackground({
     ctx,
@@ -209,6 +236,9 @@ export function drawChartCanvas({
     padding: effectivePadding,
     graphBottomY: effectiveGraphBottomY,
   });
+  ctx.save();
+  addTopRoundedRectPath(effectivePadding.left, effectivePadding.top, areaW, areaH, boardRadius);
+  ctx.clip();
   drawTemperatureGrid({
     ctx,
     theme,
@@ -276,6 +306,10 @@ export function drawChartCanvas({
     visibleEndIndex,
     isWithinTemperaturePlotArea,
   });
+  ctx.restore();
+  ctx.save();
+  addBottomRoundedRectPath(effectivePadding.left, effectiveGraphBottomY, areaW, rowsContentHeight, boardRadius);
+  ctx.clip();
   drawBottomRows({
     ctx,
     renderModel,
@@ -304,6 +338,7 @@ export function drawChartCanvas({
     textLayoutCache,
     isWithinTemperaturePlotArea,
   });
+  ctx.restore();
   drawDebugOverlay({
     ctx,
     contentW,
