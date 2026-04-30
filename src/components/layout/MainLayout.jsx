@@ -49,6 +49,15 @@ const MainLayout = ({ children, hideBottomNav = false }) => {
     ? 'relative z-10 flex-1 w-full overflow-hidden'
     : 'relative z-10 flex-1 w-full overflow-y-auto pt-[env(safe-area-inset-top)] pb-[var(--bottom-nav-safe)]';
 
+  const topBlendStyle = !hideBottomNav
+  ? {
+      backgroundImage: `linear-gradient(${statusBarColor}, ${statusBarColor})`,
+      backgroundRepeat: 'no-repeat',
+      backgroundPosition: 'top left',
+      backgroundSize: '100% calc(env(safe-area-inset-top) + 10px)',
+    }
+  : undefined;
+
   useEffect(() => {
     updateThemeColor(statusBarColor);
     updateNativeStatusBar(statusBarColor, !shouldUseStrongStatusBar);
@@ -66,12 +75,12 @@ const MainLayout = ({ children, hideBottomNav = false }) => {
       {!hideBottomNav && (
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 top-0 z-20 h-[calc(env(safe-area-inset-top)+4px)]"
+          className="pointer-events-none fixed inset-x-0 top-[-1px] z-30 h-[calc(env(safe-area-inset-top)+10px)]"
           style={{ backgroundColor: statusBarColor }}
         />
       )}
 
-      <main className={mainClass}>{children}</main>
+      <main className={mainClass} style={topBlendStyle}>{children}</main>
       {!hideBottomNav && <BottomNav />}
     </div>
   );

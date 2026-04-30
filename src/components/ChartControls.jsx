@@ -126,9 +126,18 @@ const bottomGroupLayout = isLandscapeFullscreen ? 'gap-1.5' : 'gap-2';
   };
 
   const handleToggleFullScreen = (event) => {
-  event.currentTarget?.blur?.();
+  const button = event.currentTarget;
+
   setIsQuickPanelOpen(false);
   onToggleFullScreen();
+
+  requestAnimationFrame(() => {
+    button?.blur?.();
+
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+  });
 };
 
   const handleQuickInterpretation = () => {
@@ -249,12 +258,14 @@ const bottomGroupLayout = isLandscapeFullscreen ? 'gap-1.5' : 'gap-2';
     size="icon"
     className={`${BTN_BASE} focus-visible:ring-0 focus-visible:ring-offset-0 ${
   isLandscapeFullscreen
-    ? 'bg-amber-300 text-white border-amber-300 shadow-lg shadow-slate-500/20 hover:bg-amber-300 active:bg-amber-300'
-    : 'bg-white/95 text-amber-600 border-amber-300/80 hover:bg-white active:bg-white/95'
+    ? 'bg-amber-50 text-amber-600 border-amber-300 shadow-lg shadow-slate-500/20 hover:bg-amber-50 hover:text-amber-600 active:bg-amber-50 active:text-amber-600 focus:bg-amber-50 focus:text-white'
+    : 'bg-white/95 text-amber-600 border-amber-300/80 hover:bg-white hover:text-amber-600 active:bg-white/95 active:text-amber-600 focus:bg-white/95 focus:text-amber-600 focus-visible:text-amber-600'
 }`}
     aria-label={isFullScreen ? 'Salir de pantalla completa' : 'Rotar gráfico'}
   >
-    <RotateCcw className={`h-4 w-4 transition-transform ${iconRotationClass}`} />
+    <RotateCcw
+  className={`h-4 w-4 text-current transition-transform ${iconRotationClass}`}
+/>
   </Button>
 
   <Button
