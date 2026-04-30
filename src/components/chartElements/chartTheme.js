@@ -27,17 +27,17 @@ export const chartTheme = {
     defaultStroke: '#F59E0B',
   },
   temperature: {
-    line: '#E91E63',
-    lineWidth: 2.8,
-    halo: 'rgba(233,30,99,0.12)',
-    haloWidth: 4,
-    gapStroke: 'rgba(213,135,177,0.9)',
-    gapDash: [6, 5],
-    gapWidth: 2,
-  },
+  line: '#D85C70',
+  lineWidth: 2.8,
+  halo: 'rgba(216,92,112,0.12)',
+  haloWidth: 4,
+  gapStroke: 'rgba(216,92,112,0.58)',
+  gapDash: [6, 5],
+  gapWidth: 2,
+},
   points: {
-    fill: '#F472B6',
-    stroke: '#E91E63',
+    fill: '#D85C70',
+  stroke: '#D85C70',
     // Ignorados: más claritos (menos protagonistas)
  ignoredFill: '#F1F5F9',     // slate-100
  ignoredStroke: '#CBD5E1',   // slate-300
@@ -49,14 +49,14 @@ export const chartTheme = {
     correctionPointFill: 'rgba(226,232,240,0.6)',
   },
   highlight: {
-    activeColumn: 'rgba(235,171,204,0.15)',
-    risePath: '#cc0e93',
-  },
-  svg: {
-    temperatureGradient: ['#F472B6', '#EC4899', '#E91E63'],
-    areaGradientTop: 'rgba(244, 114, 182, 0.18)',
-    areaGradientBottom: 'rgba(244, 114, 182, 0.02)',
-  },
+  activeColumn: 'rgba(216,92,112,0.14)',
+  risePath: '#B8324B',
+},
+svg: {
+  temperatureGradient: ['#E37988', '#D85C70', '#B8324B'],
+  areaGradientTop: 'rgba(216,92,112,0.16)',
+  areaGradientBottom: 'rgba(216,92,112,0.02)',
+},
 };
 
 export const getCanvasTheme = () => chartTheme;
