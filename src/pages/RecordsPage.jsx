@@ -5,6 +5,7 @@ import React, {
   useMemo,
   useRef,
 } from 'react';
+import { useNavigate } from 'react-router-dom';
 import CycleDatesEditor from '@/components/CycleDatesEditor';
 import DataEntryForm from '@/components/DataEntryForm';
 import DayDetail from '@/components/DayDetail';
@@ -12,10 +13,10 @@ import DeletionDialog from '@/components/DeletionDialog';
 import { useCycleData } from '@/hooks/useCycleData';
 import { useToast } from '@/components/ui/use-toast';
 import { ToastAction } from '@/components/ui/toast';
-import { HeaderIconButton, HeaderIconButtonPrimary } from '@/components/HeaderIconButton';
+import { HeaderIconButtonPrimary } from '@/components/HeaderIconButton';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Baby, Edit, Plus, ClipboardList, Heart, Loader2 } from 'lucide-react';
+import { Baby, ChevronLeft, ChevronRight, Edit, Plus, ClipboardList, Heart, Loader2 } from 'lucide-react';
 import NewCycleDialog from '@/components/NewCycleDialog';
 import {
   format,
@@ -53,6 +54,108 @@ const CALENDAR_EXIT_OFFSET = 120;
 const CALENDAR_DRAG_LIMIT = 85;
 const CALENDAR_DRAG_ACTIVATION_THRESHOLD = 5;
 const CALENDAR_SNAP_DURATION = 180;
+
+const RecordsHeader = ({
+  title,
+  meta,
+  isCurrentCycle,
+  topAccessory,
+  onEditDates,
+  onAddRecord,
+  isProcessing,
+  isUpdatingDates,
+  isDateEditorOpen,
+  previousCycle,
+  nextCycle,
+  onNavigateCycle,
+  postpartumMode,
+}) => {
+  const cycleLabel = isCurrentCycle ? 'CICLO ACTUAL' : 'CICLO ARCHIVADO';
+  const editDatesLabel = isCurrentCycle ? 'Editar fechas del ciclo actual' : 'Editar fechas del ciclo archivado';
+
+  const renderCycleNavButton = (direction, targetCycle) => {
+    const Icon = direction === 'previous' ? ChevronLeft : ChevronRight;
+    const label = direction === 'previous' ? 'Ver ciclo anterior' : 'Ver ciclo siguiente';
+
+    return (
+      <button
+        type="button"
+        onClick={() => targetCycle && onNavigateCycle(targetCycle)}
+        disabled={!targetCycle}
+        aria-label={label}
+        className={cn(
+          'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white/90 transition [-webkit-tap-highlight-color:transparent]',
+          targetCycle
+            ? 'hover:bg-white/10 active:bg-white/15 active:brightness-95'
+            : 'cursor-default opacity-35'
+        )}
+      >
+        <Icon className="h-5 w-5" aria-hidden="true" />
+      </button>
+    );
+  };
+
+  return (
+    <div className="overflow-hidden rounded-b-[1.75rem] bg-fertiliapp-fuerte px-4 pb-4 pt-3 text-white shadow-[0_10px_24px_rgba(244,114,182,0.18)]">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-start">
+          {topAccessory || <span className="h-9 w-9" aria-hidden="true" />}
+        </div>
+
+        <div className="min-w-0 flex-1 text-center">
+          <div className="truncate text-[10px] font-semibold uppercase tracking-[0.22em] text-white/75">
+            {cycleLabel}
+          </div>
+        </div>
+
+        <HeaderIconButtonPrimary
+          type="button"
+          onClick={onAddRecord}
+          disabled={isProcessing}
+          aria-label={isCurrentCycle ? 'Añadir registro' : 'Añadir registro al ciclo archivado'}
+          className="border-white/70 bg-white text-fertiliapp-fuerte hover:bg-white"
+        >
+          <Plus className="h-4 w-4" />
+          <span className="sr-only">Añadir registro</span>
+        </HeaderIconButtonPrimary>
+      </div>
+
+      <div className="mt-1 flex items-center gap-1">
+        {renderCycleNavButton('previous', previousCycle)}
+
+        <button
+          type="button"
+          onClick={onEditDates}
+          data-date-editor-toggle="true"
+          disabled={isProcessing || isUpdatingDates}
+          aria-label={editDatesLabel}
+          aria-pressed={isDateEditorOpen}
+          aria-expanded={isDateEditorOpen}
+          className="date-editor-toggle flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full px-2 py-1.5 text-center text-[19px] font-semibold leading-tight text-white transition hover:bg-white/10 active:bg-white/15 disabled:opacity-60"
+        >
+          <span className="min-w-0 truncate">{title}</span>
+        </button>
+
+        {renderCycleNavButton('next', nextCycle)}
+      </div>
+
+      {meta && (
+        <div className="mt-1 flex min-h-6 items-center justify-center gap-2 text-center text-[13px] font-medium text-white/78">
+          <span className="min-w-0 truncate">{meta}</span>
+          {postpartumMode && (
+            <Badge
+              className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-white/25 bg-white/15 p-0 text-white hover:bg-white/15"
+              aria-label="Modo postparto activado"
+              title="Modo postparto activado"
+            >
+              <Baby className="h-3.5 w-3.5" aria-hidden="true" />
+            </Badge>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
 // Formatea la temperatura para la UI. Devuelve null si el valor no es numérico.
 const formatTemperatureDisplay = (value) => {
   if (value === null || value === undefined || value === '') return null;
@@ -69,8 +172,6 @@ const formatTemperatureDisplay = (value) => {
 export const RecordsExperience = ({
   cycle: cycleProp,
   headerTitle,
-  headerIcon: HeaderIcon = ClipboardList,
-  headerActions,
   topAccessory,
   includeEndDate = false,
   addOrUpdateDataPoint: addOrUpdateDataPointProp,
@@ -134,6 +235,7 @@ export const RecordsExperience = ({
   const refreshData = refreshDataProp ?? contextRefreshData;
   const getMeasurementsForEntry = contextGetMeasurementsForEntry;
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [showForm, setShowForm] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [recordToDelete, setRecordToDelete] = useState(null);
@@ -159,7 +261,9 @@ export const RecordsExperience = ({
   const [showNewCycleDialog, setShowNewCycleDialog] = useState(false);
   const [newCyclePrefillDate, setNewCyclePrefillDate] = useState(null);
   const recordCount = cycle?.data?.length ?? 0;
-  const isCurrentCycle = !cycle?.endDate;
+  const isCurrentCycle = Boolean(
+    (contextCurrentCycle?.id && cycle?.id === contextCurrentCycle.id) || (!cycleProp && !cycle?.endDate)
+  );
 
   const undoCandidate = useMemo(() => {
     if (!contextCurrentCycle?.id || contextCurrentCycle?.endDate) return null;
@@ -224,6 +328,36 @@ export const RecordsExperience = ({
   const resolvedHeaderMeta = useMemo(
     () => formatCycleMeta({ startDate: cycle?.startDate, endDate: cycle?.endDate, recordCount }),
     [cycle?.endDate, cycle?.startDate, recordCount]
+  );
+  const orderedCycles = useMemo(() => {
+    const cyclesById = new Map();
+
+    [...(archivedCycles ?? []), contextCurrentCycle, cycle].filter(Boolean).forEach((availableCycle) => {
+      if (!availableCycle?.id || !availableCycle?.startDate) return;
+      cyclesById.set(availableCycle.id, availableCycle);
+    });
+
+    return [...cyclesById.values()].sort((a, b) => (a.startDate || '').localeCompare(b.startDate || ''));
+  }, [archivedCycles, contextCurrentCycle, cycle]);
+
+  const currentCycleIndex = useMemo(
+    () => orderedCycles.findIndex((availableCycle) => availableCycle.id === cycle?.id),
+    [cycle?.id, orderedCycles]
+  );
+
+  const previousCycle = currentCycleIndex > 0 ? orderedCycles[currentCycleIndex - 1] : null;
+  const nextCycle =
+    currentCycleIndex >= 0 && currentCycleIndex < orderedCycles.length - 1
+      ? orderedCycles[currentCycleIndex + 1]
+      : null;
+
+  const navigateToCycle = useCallback(
+    (targetCycle) => {
+      if (!targetCycle?.id) return;
+      const isTargetCurrentCycle = contextCurrentCycle?.id && targetCycle.id === contextCurrentCycle.id;
+      navigate(isTargetCurrentCycle ? '/records' : `/cycle/${targetCycle.id}`);
+    },
+    [contextCurrentCycle?.id, navigate]
   );
   const isCalendarOpen = true;
   const activeRecordLoadRef = useRef(null);
@@ -1514,37 +1648,6 @@ const enterStart = -exitTarget;
     isDateEditorOpen: showStartDateEditor,
   };
 
-  const resolvedHeaderActions =
-    typeof headerActions === 'function'
-      ? headerActions(headerActionProps)
-      : (
-          <>
-   <HeaderIconButton
-   type="button"
-   onClick={toggleStartDateEditor}
-   data-date-editor-toggle="true"
-   disabled={isProcessing || isUpdatingStartDate}
-   aria-label={includeEndDate ? 'Editar fechas del ciclo' : 'Editar fecha de inicio'}
-   aria-pressed={showStartDateEditor}
-   aria-expanded={showStartDateEditor}
-   className="date-editor-toggle"
- >
-  <Edit className="h-4 w-4" />
-  <span className="sr-only">
-    {includeEndDate ? 'Editar fechas del ciclo' : 'Editar fecha de inicio'}
-  </span>
-</HeaderIconButton>
-            <HeaderIconButtonPrimary
-              type="button"
-              onClick={handleOpenAddRecord}
-              disabled={isProcessing}
-              aria-label="Añadir registro"
-            >
-              <Plus className="h-4 w-4" />
-              <span className="sr-only">Añadir registro</span>
-            </HeaderIconButtonPrimary>
-          </>
-        );
 
   const resolvedTopAccessory =
     typeof topAccessory === 'function'
@@ -1610,51 +1713,28 @@ const enterStart = -exitTarget;
   </div>
 )}  
       <div className="relative z-10 mx-auto grid w-full max-w-6xl grid-cols-1 gap-3 px-4 pb-24">
-        <div className="sticky top-0 z-50 w-full pt-1 bg-transparent">
+        <div className="relative z-30 w-full">
           <motion.div
-            className="mx-auto flex w-full max-w-lg flex-col gap-2 px-2 sm:px-2.5"
-            initial={{ opacity: 0, y: -20 }}
+            className="mx-auto w-full max-w-lg"
+            initial={{ opacity: 0, y: -14 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
+            transition={{ duration: 0.35 }}
           >
-            <div className="rounded-3xl border border-fertiliapp-suave bg-white/20 p-3 shadow-sm backdrop-blur-md">
-              <div className="flex min-w-0 flex-1 flex-col gap-1">
-                <div className="flex items-center justify-between gap-2 text-[10px] uppercase tracking-[0.18em] text-base text-app-base">
-                  <div className="flex min-w-0 items-center gap-2">
-                    {resolvedTopAccessory && (
-                      <div className="flex items-center">{resolvedTopAccessory}</div>
-                    )}
-                    <span>{isCurrentCycle ? 'CICLO ACTUAL' : 'CICLO ARCHIVADO'}</span>
-                  </div>
-              <div className="flex shrink-0 items-center gap-2">{resolvedHeaderActions}</div>
-                </div>
-                <div className="flex min-w-0 items-center gap-2">
-                  <HeaderIcon className="h-5 w-5 text-subtitulo" />
-                  <span
-                    className={cn(
-                      'font-semibold text-titulo leading-tight',
-                      isCurrentCycle ? 'text-[21px] sm:text-[22px]' : 'text-[21px] sm:text-[22px]'
-                    )}
-                  >
-                    {resolvedHeaderTitle}
-                  </span>
-                </div>
-                {resolvedHeaderMeta && (
-                  <div className="flex flex-wrap items-center gap-2 text-[13px] text-base text-app-base">
-                    <span className="whitespace-nowrap">{resolvedHeaderMeta}</span>
-                    {cycle?.postpartumMode && (
-                      <Badge
-                        className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-rose-200 bg-rose-50 p-0 text-rose-600 hover:bg-rose-50"
-                        aria-label="Modo postparto activado"
-                        title="Modo postparto activado"
-                      >
-                        <Baby className="h-3.5 w-3.5" aria-hidden="true" />
-                      </Badge>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
+            <RecordsHeader
+              title={resolvedHeaderTitle}
+              meta={resolvedHeaderMeta}
+              isCurrentCycle={isCurrentCycle}
+              topAccessory={resolvedTopAccessory}
+              onEditDates={toggleStartDateEditor}
+              onAddRecord={handleOpenAddRecord}
+              isProcessing={isProcessing}
+              isUpdatingDates={isUpdatingStartDate}
+              isDateEditorOpen={showStartDateEditor}
+              previousCycle={previousCycle}
+              nextCycle={nextCycle}
+              onNavigateCycle={navigateToCycle}
+              postpartumMode={cycle?.postpartumMode}
+            />
           </motion.div>
         </div>
 

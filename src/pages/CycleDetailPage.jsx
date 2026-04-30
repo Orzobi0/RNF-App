@@ -2,8 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useCycleData } from '@/hooks/useCycleData';
 import { useToast } from '@/components/ui/use-toast';
-import { HeaderIconButton, HeaderIconButtonPrimary } from '@/components/HeaderIconButton';
-import { ArrowLeft, ChartSpline, Pencil, Plus } from 'lucide-react';
+import { HeaderIconButton } from '@/components/HeaderIconButton';
+import { ArrowLeft } from 'lucide-react';
 import { differenceInDays, startOfDay, parseISO, format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 import { RecordsExperience } from '@/pages/RecordsPage.jsx';
@@ -252,37 +252,6 @@ const CycleDetailPage = () => {
     </HeaderIconButton>
   ), []);
 
-  const headerActions = useCallback(
-   ({ openDateEditor, openAddRecord, isProcessing, isDateEditorOpen }) => (
-      <div className="flex items-center gap-2">
-        <HeaderIconButton
-          type="button"
-          onClick={openDateEditor}
-          data-date-editor-toggle="true"
-          aria-pressed={isDateEditorOpen}
-          aria-expanded={isDateEditorOpen}
-          className="date-editor-toggle"
-          aria-label="Editar fechas del ciclo"
-        >
-          <Pencil className="h-4 w-4" />
-        </HeaderIconButton>
-        <HeaderIconButton asChild>
-          <Link to={`/chart/${cycleId}`} aria-label="Ver gráfica del ciclo">
-            <ChartSpline className="h-4 w-4" />
-          </Link>
-        </HeaderIconButton>
-        <HeaderIconButtonPrimary
-          type="button"
-          onClick={openAddRecord}
-          disabled={isProcessing}
-          aria-label="Añadir registro al ciclo"
-        >
-          <Plus className="h-4 w-4" />
-        </HeaderIconButtonPrimary>
-      </div>
-    ),
-    [cycleId]
-  );
   if (isInitialLoading && !cycleData) {
     return (
       <div className="flex min-h-full flex-col items-center justify-center py-10">
@@ -313,7 +282,6 @@ const CycleDetailPage = () => {
         checkCycleOverlap={checkCycleOverlap}
         refreshData={handleRefreshData}
         includeEndDate
-        headerActions={headerActions}
         topAccessory={topAccessory}
         onRequestDeleteCycle={handleDeleteCycleRequest}
         isDeletingCycle={false}
