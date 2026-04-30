@@ -1882,7 +1882,7 @@ const enterStart = -exitTarget;
         <DialogContent
   unstyled
   hideClose
-  className="bg-transparent border-none p-0 text-gray-800 w-[96vw] max-w-2xl h-[92dvh] max-h-[92dvh] overflow-hidden shadow-none"
+  className="w-[96vw] max-w-2xl border-0 bg-transparent p-0 text-gray-800 shadow-none overflow-visible"
 >
       <DataEntryForm
         onSubmit={handleSave}
