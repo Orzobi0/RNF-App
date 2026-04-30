@@ -1003,45 +1003,56 @@ const [activeSection, setActiveSection] = useState(() => {
   disabled={isProcessing}
 />
 
-    <Button
-      type="button"
-      size="icon"
-      variant="outline"
-      disabled={isProcessing}
-      onClick={() => {
-        if (hasPreferredTime) {
-          applyPreferredTimeToMeasurement(idx);
-        } else {
-          openPreferredTimeEditor(idx);
-        }
-      }}
-      className={cn(
-        'ml-0 h-8 w-full rounded-2xl text-[11px] font-semibold shadow-sm',
-        hasPreferredTime
-          ? isPreferredApplied
-            ? 'border-secundario bg-secundario text-white hover:bg-secundario'
-            : 'border-slate-200/70 bg-white/80 text-temp hover:border-temp hover:bg-white'
-          : 'border-slate-200 border-dashed bg-white/70 text-slate-400 hover:border-temp hover:bg-white'
-      )}
-    >
-      <span className="flex min-w-0 items-center justify-center gap-1">
-        <Clock className="h-3 w-3 shrink-0" aria-hidden="true" />
-        <span className="truncate">{hasPreferredTime ? preferredTemperatureTime : '--:--'}</span>
-      </span>
-    </Button>
-  </div>
+    <div className="relative min-w-0">
+  <Button
+    type="button"
+    size="icon"
+    variant="outline"
+    disabled={isProcessing}
+    aria-label={
+      hasPreferredTime
+        ? `Aplicar hora preferida ${preferredTemperatureTime}`
+        : 'Definir hora preferida'
+    }
+    title={hasPreferredTime ? 'Aplicar hora preferida' : 'Definir hora preferida'}
+    onClick={() => {
+      if (hasPreferredTime) {
+        applyPreferredTimeToMeasurement(idx);
+      } else {
+        openPreferredTimeEditor(idx);
+      }
+    }}
+    className={cn(
+      'ml-0 h-8 w-full rounded-2xl text-[11px] font-semibold shadow-sm',
+      hasPreferredTime
+        ? isPreferredApplied
+          ? 'border-secundario bg-secundario text-white hover:bg-secundario'
+          : 'border-slate-200/70 bg-white/80 text-temp hover:border-temp hover:bg-white'
+        : 'border-slate-200 border-dashed bg-white/70 text-slate-400 hover:border-temp hover:bg-white'
+    )}
+  >
+    <span className="flex min-w-0 items-center justify-center gap-1">
+      <Clock className="h-3 w-3 shrink-0" aria-hidden="true" />
+      <span className="truncate">{hasPreferredTime ? preferredTemperatureTime : '--:--'}</span>
+    </span>
+  </Button>
 
-  <div className="flex justify-end">
-    <div className="w-[68px] text-center leading-none">
-      <button
-        type="button"
-        onClick={() => openPreferredTimeEditor(idx)}
-        disabled={isProcessing}
-        className="text-[9px] font-medium text-temp underline-offset-2 hover:underline disabled:opacity-50"
-      >
-        {hasPreferredTime ? 'Editar' : 'Definir'}
-      </button>
-    </div>
+  {hasPreferredTime && (
+    <button
+      type="button"
+      onClick={(event) => {
+        event.stopPropagation();
+        openPreferredTimeEditor(idx);
+      }}
+      disabled={isProcessing}
+      className="absolute -right-1 -top-1 inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-200 bg-white text-temp shadow-sm transition-colors hover:border-temp hover:bg-white disabled:opacity-50"
+      aria-label="Editar hora preferida"
+      title="Editar hora preferida"
+    >
+      <Edit3 className="h-2.5 w-2.5" aria-hidden="true" />
+    </button>
+  )}
+</div>
   </div>
 </div>
 {preferredTimeEditorIndex === idx && (
@@ -1102,7 +1113,7 @@ const [activeSection, setActiveSection] = useState(() => {
   </div>
 )}
 
-                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+ <div className="mt-1 flex flex-wrap items-center gap-1.5">
   <div className="flex flex-wrap items-center gap-1.5">
     <Button
       type="button"
@@ -1111,12 +1122,12 @@ const [activeSection, setActiveSection] = useState(() => {
       disabled={isProcessing}
       aria-pressed={correctionIndex === idx}
         className={cn(
-          'h-8 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition-colors',
+          'h-8 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-temp focus-visible:ring-offset-1',
           isCorrectionOpen
-          ? 'border-temp bg-temp text-white shadow-inner hover:bg-temp'
+          ? 'border-temp bg-temp text-white shadow-inner hover:bg-temp hover:text-white active:bg-temp active:text-white'
           : isCorrected
-          ? 'border-temp bg-white text-temp hover:bg-white'
-          : 'border-slate-200/70 bg-white/70 text-temp hover:border-temp hover:bg-white'
+          ? 'border-temp bg-white text-temp hover:bg-white hover:text-temp active:bg-white active:text-temp'
+          : 'border-slate-200/70 bg-white/70 text-temp hover:border-temp hover:bg-white hover:text-temp active:bg-white active:text-temp'
       )}
       onClick={() => {
         if (correctionIndex === idx) {
@@ -1454,7 +1465,7 @@ const [activeSection, setActiveSection] = useState(() => {
     <>
       <div
   ref={stickyHeaderRef}
-  className="sticky top-0 z-30 -mx-1 rounded-b-3xl bg-[#FFF7FA] px-1 pb-2 pt-1"
+  className="sticky top-0 z-30 -mx-1 rounded-b-3xl bg-[#FFF7FA] px-1 pb-1 pt-0"
 >
   <div className="rounded-b-3xl bg-[#FFF7FA]">
     <div className="space-y-2">

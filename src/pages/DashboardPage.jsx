@@ -1345,7 +1345,7 @@ if (dot.peakStatus === 'P') {
           </motion.div>
           
 
-          <div className="flex h-[64px] items-center justify-center">
+          <div className="flex h-[40px] items-center justify-center">
             {hasOverflow && (
               <div className="flex items-center justify-center gap-3">
                 <button
