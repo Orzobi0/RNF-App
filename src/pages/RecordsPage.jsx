@@ -1715,12 +1715,7 @@ const enterStart = -exitTarget;
 )}  
       <div className="relative z-10 mx-auto grid w-full max-w-6xl grid-cols-1 gap-3 px-4 pb-24">
         <div className="relative z-30 -mx-4">
-  <motion.div
-    className="w-full"
-    initial={{ opacity: 0, y: -14 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ duration: 0.35 }}
-  >
+  <div className="w-full">
     <RecordsHeader
       title={resolvedHeaderTitle}
       meta={resolvedHeaderMeta}
@@ -1736,7 +1731,7 @@ const enterStart = -exitTarget;
       onNavigateCycle={navigateToCycle}
       postpartumMode={cycle?.postpartumMode}
     />
-  </motion.div>
+  </div>
 </div>
 
         <div className="relative mx-auto w-full max-w-lg overflow-visible rounded-2xl p-1.5 sm:p-2">

@@ -140,12 +140,16 @@ function AppContent() {
       </motion.p>
     </div>
   );
-
+const routeErrorBoundaryKey = location.pathname.startsWith('/cycle/')
+  ? '/cycle'
+  : location.pathname.startsWith('/chart/')
+  ? '/chart'
+  : location.pathname;
   return (
     <AppBackground>
       <Suspense fallback={suspenseFallback}>
         <GlobalChunkErrorHandler>
-          <RouteErrorBoundary key={location.pathname} FallbackComponent={RouteErrorFallback}>
+          <RouteErrorBoundary key={routeErrorBoundaryKey} FallbackComponent={RouteErrorFallback}>
             <Routes>
               <Route path="/auth" element={user ? <Navigate to="/" replace /> : <AuthPage />} />
               <Route path="/auth/action" element={<AuthActionPage />} />
