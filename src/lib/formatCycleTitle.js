@@ -7,6 +7,9 @@ const formatMonth = (date) => normalizeMonth(format(date, 'MMM', { locale: es })
 
 const formatDayMonthYear = (date) => normalizeMonth(format(date, 'd MMM yyyy', { locale: es }));
 
+const formatDayMonthShortYear = (date) =>
+  normalizeMonth(format(date, 'd MMM yy', { locale: es }));
+
 export const formatCycleTitle = ({ startDate, endDate }) => {
   if (!endDate) {
     if (!startDate) {
@@ -37,15 +40,14 @@ export const formatCycleTitle = ({ startDate, endDate }) => {
   const sameMonth = sameYear && start.getMonth() === end.getMonth();
 
   if (sameMonth) {
-    return `${start.getDate()}–${end.getDate()} ${formatMonth(start)} ${start.getFullYear()}`;
+    return `${start.getDate()}–${end.getDate()} ${formatMonth(start)} ${String(start.getFullYear()).slice(-2)}`;
   }
 
   if (sameYear) {
-    return `${start.getDate()} ${formatMonth(start)} – ${end.getDate()} ${formatMonth(end)} ${start.getFullYear()}`;
+    return `${start.getDate()} ${formatMonth(start)} – ${end.getDate()} ${formatMonth(end)} ${String(start.getFullYear()).slice(-2)}`;
   }
 
-  const yearRange = `${start.getFullYear()}–${String(end.getFullYear()).slice(-2)}`;
-  return `${start.getDate()} ${formatMonth(start)} – ${end.getDate()} ${formatMonth(end)} · ${yearRange}`;
+  return `${formatDayMonthShortYear(start)} – ${formatDayMonthShortYear(end)}`;
 };
 
 export const formatCycleMeta = ({ startDate, endDate, recordCount = 0, referenceDate = new Date() }) => {

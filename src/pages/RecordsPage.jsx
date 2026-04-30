@@ -73,30 +73,31 @@ const RecordsHeader = ({
   const cycleLabel = isCurrentCycle ? 'CICLO ACTUAL' : 'CICLO ARCHIVADO';
   const editDatesLabel = isCurrentCycle ? 'Editar fechas del ciclo actual' : 'Editar fechas del ciclo archivado';
 
-  const renderCycleNavButton = (direction, targetCycle) => {
-    const Icon = direction === 'previous' ? ChevronLeft : ChevronRight;
-    const label = direction === 'previous' ? 'Ver ciclo anterior' : 'Ver ciclo siguiente';
+const renderCycleNavButton = (direction, targetCycle) => {
+  const Icon = direction === 'previous' ? ChevronLeft : ChevronRight;
+  const label = direction === 'previous' ? 'Ver ciclo anterior' : 'Ver ciclo siguiente';
 
-    return (
-      <button
-        type="button"
-        onClick={() => targetCycle && onNavigateCycle(targetCycle)}
-        disabled={!targetCycle}
-        aria-label={label}
-        className={cn(
-          'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white/90 transition [-webkit-tap-highlight-color:transparent]',
-          targetCycle
-            ? 'hover:bg-white/10 active:bg-white/15 active:brightness-95'
-            : 'cursor-default opacity-35'
-        )}
-      >
-        <Icon className="h-5 w-5" aria-hidden="true" />
-      </button>
-    );
-  };
+  if (!targetCycle) {
+    return null;
+  }
 
   return (
-    <div className="overflow-hidden rounded-b-[1.75rem] bg-fertiliapp-fuerte px-4 pb-4 pt-3 text-white shadow-[0_10px_24px_rgba(244,114,182,0.18)]">
+    <button
+      type="button"
+      onClick={() => onNavigateCycle(targetCycle)}
+      aria-label={label}
+      className={cn(
+        'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white/90 transition [-webkit-tap-highlight-color:transparent]',
+        'hover:bg-white/10 active:bg-white/15 active:brightness-95'
+      )}
+    >
+      <Icon className="h-5 w-5" aria-hidden="true" />
+    </button>
+  );
+};
+
+  return (
+    <div className="overflow-hidden rounded-b-3xl bg-fertiliapp-fuerte px-4 pb-4 pt-3 text-white shadow-[0_10px_24px_rgba(244,114,182,0.18)]">
       <div className="flex items-center justify-between gap-3">
         <div className="flex h-9 w-9 shrink-0 items-center justify-start">
           {topAccessory || <span className="h-9 w-9" aria-hidden="true" />}
@@ -1713,30 +1714,30 @@ const enterStart = -exitTarget;
   </div>
 )}  
       <div className="relative z-10 mx-auto grid w-full max-w-6xl grid-cols-1 gap-3 px-4 pb-24">
-        <div className="relative z-30 w-full">
-          <motion.div
-            className="mx-auto w-full max-w-lg"
-            initial={{ opacity: 0, y: -14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35 }}
-          >
-            <RecordsHeader
-              title={resolvedHeaderTitle}
-              meta={resolvedHeaderMeta}
-              isCurrentCycle={isCurrentCycle}
-              topAccessory={resolvedTopAccessory}
-              onEditDates={toggleStartDateEditor}
-              onAddRecord={handleOpenAddRecord}
-              isProcessing={isProcessing}
-              isUpdatingDates={isUpdatingStartDate}
-              isDateEditorOpen={showStartDateEditor}
-              previousCycle={previousCycle}
-              nextCycle={nextCycle}
-              onNavigateCycle={navigateToCycle}
-              postpartumMode={cycle?.postpartumMode}
-            />
-          </motion.div>
-        </div>
+        <div className="relative z-30 -mx-4">
+  <motion.div
+    className="w-full"
+    initial={{ opacity: 0, y: -14 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.35 }}
+  >
+    <RecordsHeader
+      title={resolvedHeaderTitle}
+      meta={resolvedHeaderMeta}
+      isCurrentCycle={isCurrentCycle}
+      topAccessory={resolvedTopAccessory}
+      onEditDates={toggleStartDateEditor}
+      onAddRecord={handleOpenAddRecord}
+      isProcessing={isProcessing}
+      isUpdatingDates={isUpdatingStartDate}
+      isDateEditorOpen={showStartDateEditor}
+      previousCycle={previousCycle}
+      nextCycle={nextCycle}
+      onNavigateCycle={navigateToCycle}
+      postpartumMode={cycle?.postpartumMode}
+    />
+  </motion.div>
+</div>
 
         <div className="relative mx-auto w-full max-w-lg overflow-visible rounded-2xl p-1.5 sm:p-2">
           <div className="space-y-1.5 relative z-10">
