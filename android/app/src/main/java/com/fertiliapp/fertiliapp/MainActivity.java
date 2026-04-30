@@ -1,6 +1,7 @@
 package com.fertiliapp.fertiliapp;
 
 import android.graphics.Color;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
 import android.view.Window;
@@ -30,6 +31,9 @@ public class MainActivity extends BridgeActivity {
             try {
                 Window window = getWindow();
                 window.setStatusBarColor(Color.parseColor(color));
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    window.setStatusBarContrastEnforced(false);
+                }
 
                 View decorView = window.getDecorView();
                 int flags = decorView.getSystemUiVisibility();

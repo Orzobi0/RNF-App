@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import BottomNav from './BottomNav';
-import { cn } from '@/lib/utils';
 
 const STATUS_BAR_COLORS = {
   default: '#FFE4E6',
@@ -67,10 +66,8 @@ const MainLayout = ({ children, hideBottomNav = false }) => {
       {!hideBottomNav && (
         <div
           aria-hidden="true"
-          className={cn(
-            'pointer-events-none absolute inset-x-0 top-0 z-20 h-[env(safe-area-inset-top)]',
-            shouldUseStrongStatusBar ? 'bg-fertiliapp-fuerte' : 'bg-transparent'
-          )}
+          className="pointer-events-none absolute inset-x-0 top-0 z-20 h-[calc(env(safe-area-inset-top)+1px)]"
+          style={{ backgroundColor: statusBarColor }}
         />
       )}
 
