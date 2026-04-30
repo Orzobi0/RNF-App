@@ -17,7 +17,6 @@ import {
   Clock,
   Check,
   Trash2,
-  Minus,
   Circle,
   Plus,
   Heart,
@@ -883,16 +882,16 @@ const [activeSection, setActiveSection] = useState(() => {
 ];
 
   const formSectionSurfaceClass =
-  'relative overflow-hidden rounded-3xl border border-slate-200/60 bg-white/70 p-3 shadow-sm';
+  'relative overflow-hidden rounded-3xl border border-slate-200/60 bg-white p-3 shadow-sm';
 
-  const formFieldSurfaceClass =
-  'relative overflow-hidden space-y-2 rounded-3xl border border-slate-200/60 bg-white/75 p-3 shadow-sm';
+  const formCompactFieldSurfaceClass =
+  'relative overflow-hidden space-y-1.5 rounded-3xl border border-slate-200/60 bg-white p-2.5 shadow-sm';
 
   const formAccentClass =
   'pointer-events-none absolute bottom-3 left-0 top-3 w-1 rounded-r-full';
 
   const formInputClass =
-  'bg-white/80 border-slate-200/70 text-slate-700 placeholder:text-slate-400 font-semibold shadow-sm';
+  'bg-white border-slate-200/70 text-slate-700 placeholder:text-slate-400 font-semibold shadow-sm';
 
   const temperatureInputClass =
   'focus:border-temp focus:ring-2 focus:ring-temp focus-visible:ring-temp';
@@ -922,7 +921,7 @@ const [activeSection, setActiveSection] = useState(() => {
                 <div
    key={idx}
    className={cn(
-     'relative overflow-hidden space-y-2 rounded-3xl border bg-white/75 p-2.5 shadow-sm transition-colors',
+     'relative overflow-hidden space-y-1.5 rounded-3xl border bg-white/75 p-2.5 shadow-sm transition-colors',
      m.selected && ignored
        ? 'border-alerta-2-suave bg-white/60 ring-1 ring-alerta-2-suave'
        : m.selected
@@ -941,7 +940,7 @@ const [activeSection, setActiveSection] = useState(() => {
                         : 'bg-temp opacity-25'
                     )}
                   />
-                  <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center justify-between gap-2">
                     <Label className="flex items-center text-subtitulo text-[13px] font-semibold">
                     <Thermometer className="mr-1 h-4 w-4 text-temp" />
                       Medición {idx + 1}
@@ -949,11 +948,11 @@ const [activeSection, setActiveSection] = useState(() => {
                     <label
                       htmlFor={measurementSelectId}
                       className={cn(
-    'flex items-center gap-2 rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-wide shadow-sm',
+    'flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide shadow-none',
     m.selected && ignored
       ? 'border-alerta-2-suave bg-white/80 text-alerta-2'
       : m.selected
-      ? 'border-temp bg-white text-temp'
+      ? 'border-temp bg-white/90 text-temp'
       : 'border-slate-200/70 bg-white/75 text-slate-500'
   )}
                     >
@@ -970,7 +969,7 @@ const [activeSection, setActiveSection] = useState(() => {
                     </label>
                   </div>
                 <div className="space-y-0.5">
-  <div className="grid grid-cols-[minmax(0,1fr)_96px_62px] items-center gap-2">
+  <div className="grid grid-cols-[minmax(0,1fr)_96px_68px] items-center gap-1.5">
     <Input
       data-field={idx === 0 ? 'temperature' : undefined}
       type="number"
@@ -982,7 +981,7 @@ const [activeSection, setActiveSection] = useState(() => {
       onInput={(e) => updateMeasurement(idx, 'temperature', e.target.value)}
       placeholder="36.50"
       className={cn(
-        'h-9',
+        'h-8 text-[14px] leading-none',
         formInputClass,
         temperatureInputClass,
         RADIUS.field
@@ -996,7 +995,7 @@ const [activeSection, setActiveSection] = useState(() => {
   value={m.time}
   onChange={(e) => updateMeasurement(idx, 'time', e.target.value)}
   className={cn(
-    'h-9 min-h-0 appearance-none px-2 py-0 text-[16px] leading-none',
+    'h-8 min-h-0 appearance-none px-2 py-0 text-[14px] leading-none',
     formInputClass,
     temperatureInputClass,
     RADIUS.field
@@ -1017,7 +1016,7 @@ const [activeSection, setActiveSection] = useState(() => {
         }
       }}
       className={cn(
-        'h-9 w-9 rounded-full ml-3 text-[11px] font-semibold shadow-md',
+        'ml-0 h-8 w-full rounded-2xl text-[11px] font-semibold shadow-sm',
         hasPreferredTime
           ? isPreferredApplied
             ? 'border-secundario bg-secundario text-white hover:bg-secundario'
@@ -1025,17 +1024,20 @@ const [activeSection, setActiveSection] = useState(() => {
           : 'border-slate-200 border-dashed bg-white/70 text-slate-400 hover:border-temp hover:bg-white'
       )}
     >
-      <span className="truncate">{hasPreferredTime ? preferredTemperatureTime : '--:--'}</span>
+      <span className="flex min-w-0 items-center justify-center gap-1">
+        <Clock className="h-3 w-3 shrink-0" aria-hidden="true" />
+        <span className="truncate">{hasPreferredTime ? preferredTemperatureTime : '--:--'}</span>
+      </span>
     </Button>
   </div>
 
   <div className="flex justify-end">
-    <div className="w-[62px] text-center leading-none">
+    <div className="w-[68px] text-center leading-none">
       <button
         type="button"
         onClick={() => openPreferredTimeEditor(idx)}
         disabled={isProcessing}
-        className="text-[10px] font-medium text-temp underline-offset-2 hover:underline disabled:opacity-50"
+        className="text-[9px] font-medium text-temp underline-offset-2 hover:underline disabled:opacity-50"
       >
         {hasPreferredTime ? 'Editar' : 'Definir'}
       </button>
@@ -1054,7 +1056,7 @@ const [activeSection, setActiveSection] = useState(() => {
     onChange={(event) => setPreferredTimeDraft(event.target.value)}
     disabled={isProcessing || isSavingPreferredTime}
     className={cn(
-      'h-8 text-xs',
+      'h-8 text-[14px] leading-none',
       formInputClass,
       temperatureInputClass,
       RADIUS.field
@@ -1100,8 +1102,8 @@ const [activeSection, setActiveSection] = useState(() => {
   </div>
 )}
 
-                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
-  <div className="flex flex-wrap items-center gap-2">
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+  <div className="flex flex-wrap items-center gap-1.5">
     <Button
       type="button"
       size="xs"
@@ -1109,7 +1111,7 @@ const [activeSection, setActiveSection] = useState(() => {
       disabled={isProcessing}
       aria-pressed={correctionIndex === idx}
         className={cn(
-          'rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition-colors',
+          'h-8 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition-colors',
           isCorrectionOpen
           ? 'border-temp bg-temp text-white shadow-inner hover:bg-temp'
           : isCorrected
@@ -1146,7 +1148,7 @@ const [activeSection, setActiveSection] = useState(() => {
         disabled={isProcessing || !m.selected}
         onClick={() => handleIgnoredChange(!ignored)}
         className={cn(
-          'h-9 w-9 rounded-full border transition-colors',
+          'h-8 w-8 rounded-full border transition-colors',
           !m.selected && 'opacity-40 cursor-not-allowed',
           m.selected && ignored
             ? 'border-alerta-2 bg-alerta-2 text-white shadow-sm ring-2 ring-alerta-2-suave'
@@ -1167,7 +1169,7 @@ const [activeSection, setActiveSection] = useState(() => {
           size="icon"
           onClick={() => confirmMeasurement(idx)}
           disabled={isProcessing}
-          className="h-7 w-7 bg-white text-green-600"
+          className="h-8 w-8 rounded-full bg-white text-green-600 shadow-sm"
           aria-label="Confirmar medición"
         >
           <Check className="h-4 w-4" />
@@ -1177,7 +1179,7 @@ const [activeSection, setActiveSection] = useState(() => {
           size="icon"
           onClick={() => removeMeasurement(idx)}
           disabled={isProcessing}
-          className="h-7 w-7 rounded-full bg-white text-rose-600 shadow-sm"
+          className="h-8 w-8 rounded-full bg-white text-rose-600 shadow-sm"
           aria-label="Eliminar medición"
         >
           <Trash2 className="h-4 w-4" />
@@ -1198,7 +1200,7 @@ const [activeSection, setActiveSection] = useState(() => {
             size="icon"
             onClick={() => removeMeasurement(idx)}
             disabled={isProcessing}
-            className="h-7 w-7 rounded-full bg-white text-rose-600 hover:bg-rose-700 shadow-sm"
+            className="h-8 w-8 rounded-full bg-white text-rose-600 hover:bg-rose-50 hover:text-rose-700 shadow-sm"
             aria-label="Eliminar medición"
           >
             <Trash2 className="h-4 w-4" />
@@ -1215,7 +1217,7 @@ const [activeSection, setActiveSection] = useState(() => {
       disabled={isProcessing}
       size="xs"
       variant="outline"
-      className="ml-auto flex items-center gap-1 rounded-full border-slate-200/70 bg-white/80 px-2.5 py-1 text-[11px] text-temp shadow-sm transition-colors hover:border-temp hover:bg-white"
+      className="ml-auto flex h-8 items-center gap-1 rounded-full border-slate-200/70 bg-white/80 px-2.5 py-1 text-[11px] text-temp shadow-sm transition-colors hover:border-temp hover:bg-white"
       aria-label="Añadir una nueva medición"
     >
       <Plus className="h-3 w-3" />
@@ -1226,8 +1228,8 @@ const [activeSection, setActiveSection] = useState(() => {
 
                   
 {correctionIndex === idx && (
-  <div className="mt-1.5 space-y-2 rounded-3xl border border-slate-200/60 bg-white/80 p-2.5 shadow-sm">
-    <div className="grid grid-cols-2 gap-2">
+  <div className="mt-1.5 space-y-1.5 rounded-3xl border border-slate-200/60 bg-white/80 p-2 shadow-sm">
+    <div className="grid grid-cols-2 gap-1.5">
       <Input
         type="number"
         step="0.01"
@@ -1242,7 +1244,7 @@ const [activeSection, setActiveSection] = useState(() => {
           }
         }}
         className={cn(
-          'h-9',
+          'h-8 text-[14px] leading-none',
           formInputClass,
           temperatureInputClass,
           'text-temp',
@@ -1256,7 +1258,7 @@ const [activeSection, setActiveSection] = useState(() => {
         value={m.time_corrected}
         onChange={(e) => updateMeasurement(idx, 'time_corrected', e.target.value)}
         className={cn(
-          'h-9',
+          'h-8 min-h-0 appearance-none px-2 py-0 text-[14px] leading-none',
           formInputClass,
           temperatureInputClass,
           RADIUS.field
@@ -1264,7 +1266,7 @@ const [activeSection, setActiveSection] = useState(() => {
         disabled={isProcessing}
       />
     </div>
-<div className="flex items-center gap-2">
+<div className="flex items-center gap-1.5">
   <div className="inline-flex items-center rounded-full border border-slate-200/70 bg-white/75 p-[2px] shadow-sm">
     <Button
   type="button"
@@ -1272,7 +1274,7 @@ const [activeSection, setActiveSection] = useState(() => {
   disabled={isProcessing}
   onMouseDown={preventPressFocus}
   onClick={() => handleTempAdjust(idx, -0.1)}
-  className="relative h-7 w-10 rounded-full px-0 text-temp hover:bg-white/90 hover:text-temp"
+  className="relative h-8 w-9 rounded-full px-0 text-temp hover:bg-white/90 hover:text-temp"
   aria-label="Disminuir temperatura corregida 0,10 grados"
   title="Bajar 0,10 °C"
 >
@@ -1285,7 +1287,7 @@ const [activeSection, setActiveSection] = useState(() => {
   disabled={isProcessing}
   onMouseDown={preventPressFocus}
   onClick={() => handleTempAdjust(idx, 0.1)}
-  className="relative h-7 w-10 rounded-full px-0 text-temp hover:bg-white/90 hover:text-temp"
+  className="relative h-8 w-9 rounded-full px-0 text-temp hover:bg-white/90 hover:text-temp"
   aria-label="Aumentar temperatura corregida 0,10 grados"
   title="Subir 0,10 °C"
 >
@@ -1294,7 +1296,7 @@ const [activeSection, setActiveSection] = useState(() => {
   </div>
 
 
-      <div className="ml-auto flex items-center gap-2">
+      <div className="ml-auto flex items-center gap-1.5">
         <Checkbox
           id={`use_corrected_${idx}`}
           checked={m.use_corrected}
@@ -1319,9 +1321,9 @@ const [activeSection, setActiveSection] = useState(() => {
       case 'moco': {
         const symbolTheme = getFertilitySymbolTheme(fertilitySymbol);
         return (
-          <div className={cn(formSectionSurfaceClass, 'space-y-3')}>
+          <div className={cn(formSectionSurfaceClass, 'space-y-1.5 px-2.5 pb-2.5 pt-2')}>
             <span aria-hidden="true" className={cn(formAccentClass, 'bg-moco opacity-45')} />
-            <div className={formFieldSurfaceClass}>
+            <div className={formCompactFieldSurfaceClass}>
               <span aria-hidden="true" className={cn(formAccentClass, 'bg-sensacion opacity-75')} />
               <Label htmlFor="mucusSensation" className="flex items-center text-subtitulo text-sm font-semibold">
                 <Droplets className="mr-2 h-5 w-5 text-sensacion" />
@@ -1343,7 +1345,7 @@ const [activeSection, setActiveSection] = useState(() => {
               />
             </div>
 
-            <div className={formFieldSurfaceClass}>
+            <div className={formCompactFieldSurfaceClass}>
               <span aria-hidden="true" className={cn(formAccentClass, 'bg-apariencia opacity-75')} />
               <Label htmlFor="mucusAppearance" className="flex items-center text-subtitulo text-sm font-semibold">
                 <Circle className="mr-2 h-5 w-5 text-apariencia" />
@@ -1368,12 +1370,12 @@ const [activeSection, setActiveSection] = useState(() => {
 
             <div
               className={cn(
-                formFieldSurfaceClass,
-                'space-y-3 transition-colors duration-300'
+                formCompactFieldSurfaceClass,
+                'transition-colors duration-300'
               )}
             >
               <span aria-hidden="true" className={cn(formAccentClass, 'bg-fertiliapp opacity-70')} />
-              <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-2">
                 <Label htmlFor="fertilitySymbol" className="flex items-center text-subtitulo text-sm font-semibold">
                   <Sprout
                     className={cn('mr-2 h-5 w-5 transition-colors duration-300', symbolTheme.icon)}
@@ -1452,14 +1454,11 @@ const [activeSection, setActiveSection] = useState(() => {
     <>
       <div
   ref={stickyHeaderRef}
-  className="sticky top-0 z-30 isolate -mx-1 overflow-hidden rounded-b-3xl bg-form-surface px-1 pb-2 pt-1"
+  className="sticky top-0 z-30 -mx-1 rounded-b-3xl bg-[#FFF7FA] px-1 pb-2 pt-1"
 >
-  <div className="absolute inset-0 z-0 rounded-3xl bg-form-surface" />
-  <div className="absolute inset-x-0 bottom-0 z-0 h-6 bg-form-surface" />
-
-  <div className="relative z-10 rounded-b-3xl bg-form-surface">
+  <div className="rounded-b-3xl bg-[#FFF7FA]">
     <div className="space-y-2">
-      <div className="col-span-3 space-y-2 rounded-3xl border border-fertiliapp bg-tarjeta p-3 shadow-sm">
+      <div className="relative overflow-hidden col-span-3 space-y-2 rounded-3xl border border-slate-200/60 bg-white/80 p-3 shadow-sm">
         <Label htmlFor="date" className="flex items-center text-sm font-semibold text-titulo">
           <CalendarDays className="mr-2 h-5 w-5 text-titulo" />
           Fecha del Registro
@@ -1471,7 +1470,7 @@ const [activeSection, setActiveSection] = useState(() => {
               <Button
                 variant="outline"
                 className={cn(
-                  'h-11 min-w-0 flex-[3.5] justify-start border-fertiliapp-suave bg-white text-left font-normal text-gray-800 hover:bg-white hover:text-gray-800',
+                  'h-11 min-w-0 flex-[3.5] justify-start rounded-3xl border-slate-200/70 bg-white text-left font-normal text-slate-700 shadow-sm hover:bg-white hover:text-slate-700 focus-visible:ring-2 focus-visible:ring-fertiliapp-suave',
                   !date && 'text-muted-foreground'
                 )}
                 disabled={isProcessing}
@@ -1518,7 +1517,7 @@ const [activeSection, setActiveSection] = useState(() => {
             size="sm"
             onClick={() => onOpenNewCycle?.(selectedIsoDate)}
             disabled={isProcessing || !selectedIsoDate || typeof onOpenNewCycle !== 'function'}
-            className="h-11 flex-[1.15] rounded-2xl border-fertiliapp-suave bg-white px-2 text-[10px] font-semibold text-fertiliapp-fuerte hover:bg-fertiliapp-suave/60"
+            className="h-11 flex-[1.15] rounded-2xl border-slate-200/70 bg-white px-2 text-[10px] font-semibold text-fertiliapp-fuerte shadow-sm hover:border-fertiliapp-suave hover:bg-white"
             aria-label="Iniciar nuevo ciclo"
           >
             <CalendarPlus className="mr-1 h-4 w-4 shrink-0" />
@@ -1531,7 +1530,7 @@ const [activeSection, setActiveSection] = useState(() => {
       </div>
     </div>
 
-    <div className="mt-1 px-2 sm:px-3">
+    <div className="mt-1.5 px-2 sm:px-3">
       <div className="flex items-center gap-2">
         <div className="shrink-0">
           <PeakModeButton
