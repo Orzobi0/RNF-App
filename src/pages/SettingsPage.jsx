@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
-import { Activity, Bolt, ChevronRight, FileDown, Lock, LogOut, Mail, User } from 'lucide-react';
+import { Activity, Bolt, ChevronRight, FileDown, Lock, LogOut, Mail } from 'lucide-react';
 import { App } from '@capacitor/app';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
@@ -121,7 +120,7 @@ const SettingsActionRow = ({
           {title}
         </p>
         {description ? (
-          <p className="mt-1 break-all text-sm text-slate-500">{description}</p>
+          <p className="mt-1 break-words text-sm text-slate-500">{description}</p>
         ) : null}
       </div>
     </div>
@@ -566,24 +565,29 @@ const SettingsPage = () => {
   }, [exportedPdf]);
 
   return (
-     <div className="relative flex min-h-full flex-col">
-      <div
-        className="relative z-10 mx-auto flex w-full max-w-2xl flex-1 flex-col box-border px-4 py-6"
-      >
-        <div className="mb-5 border-b border-rose-100/70 pb-3">
-  <motion.div
-    initial={{ opacity: 0, y: -20 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ duration: 0.5 }}
-  >
-    <h1 className="flex items-center text-3xl font-bold text-slate-700">
-      <User className="mr-2 h-8 w-8 text-fertiliapp-fuerte" />
+  <div className="relative flex min-h-full flex-col">
+    <div className="sticky top-0 z-30 pb-4">
+      <div className="w-full rounded-b-3xl bg-fertiliapp-fuerte px-4 pb-3 pt-3 text-white shadow-[0_10px_24px_rgba(244,114,182,0.18)]">
+        <div className="mx-auto flex w-full max-w-2xl items-center">
+  <div className="min-w-0 flex-1">
+    <div className="truncate text-[10px] font-semibold uppercase tracking-[0.22em] text-white/75">
+      CUENTA
+    </div>
+
+    <h1 className="truncate text-[22px] font-semibold leading-tight text-white">
       Ajustes
     </h1>
-  </motion.div>
-</div>
 
-        <div className="flex flex-1 flex-col">
+    <p className="truncate text-[13px] font-medium text-white/78">
+      Gestiona tu cuenta y preferencias
+    </p>
+  </div>
+</div>
+      </div>
+    </div>
+
+    <div className="relative z-10 mx-auto flex w-full max-w-2xl flex-1 flex-col box-border px-4 pb-6">
+      <div className="flex flex-1 flex-col">
   <div className="space-y-3">
     <SettingsActionRow
       icon={Mail}

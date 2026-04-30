@@ -87,75 +87,73 @@ const renderCycleNavButton = (direction, targetCycle) => {
       onClick={() => onNavigateCycle(targetCycle)}
       aria-label={label}
       className={cn(
-        'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white/90 transition [-webkit-tap-highlight-color:transparent]',
+        'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/85 transition [-webkit-tap-highlight-color:transparent]',
         'hover:bg-white/10 active:bg-white/15 active:brightness-95'
       )}
     >
-      <Icon className="h-5 w-5" aria-hidden="true" />
+      <Icon className="h-4 w-4" aria-hidden="true" />
     </button>
   );
 };
 
   return (
-    <div className="overflow-hidden rounded-b-3xl bg-fertiliapp-fuerte px-4 pb-4 pt-3 text-white shadow-[0_10px_24px_rgba(244,114,182,0.18)]">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-start">
-          {topAccessory || <span className="h-9 w-9" aria-hidden="true" />}
-        </div>
+  <div className="relative overflow-hidden rounded-b-3xl bg-fertiliapp-fuerte px-4 pb-3 pt-2.5 text-white shadow-[0_10px_24px_rgba(244,114,182,0.18)]">
+    <HeaderIconButtonPrimary
+      type="button"
+      onClick={onAddRecord}
+      disabled={isProcessing}
+      aria-label={isCurrentCycle ? 'Añadir registro' : 'Añadir registro al ciclo archivado'}
+      className="absolute right-4 top-2.5 z-20 border-white/70 bg-white text-fertiliapp-fuerte hover:bg-white"
+    >
+      <Plus className="h-4 w-4" />
+      <span className="sr-only">Añadir registro</span>
+    </HeaderIconButtonPrimary>
 
-        <div className="min-w-0 flex-1 text-center">
-          <div className="truncate text-[10px] font-semibold uppercase tracking-[0.22em] text-white/75">
-            {cycleLabel}
-          </div>
-        </div>
-
-        <HeaderIconButtonPrimary
-          type="button"
-          onClick={onAddRecord}
-          disabled={isProcessing}
-          aria-label={isCurrentCycle ? 'Añadir registro' : 'Añadir registro al ciclo archivado'}
-          className="border-white/70 bg-white text-fertiliapp-fuerte hover:bg-white"
-        >
-          <Plus className="h-4 w-4" />
-          <span className="sr-only">Añadir registro</span>
-        </HeaderIconButtonPrimary>
+    <div className="mx-auto max-w-[calc(100%-3.5rem)] text-center">
+      <div className="truncate text-[9px] font-semibold uppercase leading-4 tracking-[0.2em] text-white/72">
+        {cycleLabel}
       </div>
 
-      <div className="mt-1 flex items-center gap-1">
+      <button
+        type="button"
+        onClick={onEditDates}
+        data-date-editor-toggle="true"
+        disabled={isProcessing || isUpdatingDates}
+        aria-label={editDatesLabel}
+        aria-pressed={isDateEditorOpen}
+        aria-expanded={isDateEditorOpen}
+        className="date-editor-toggle mt-0.5 inline-flex max-w-full items-center justify-center rounded-full px-1.5 py-0.5 text-center text-[18px] font-semibold leading-tight text-white transition hover:bg-white/10 active:bg-white/15 disabled:opacity-60"
+      >
+        <span className="truncate">{title}</span>
+      </button>
+    </div>
+
+    <div className="pointer-events-none absolute left-4 right-4 top-[3.05rem] z-10 flex items-center justify-between">
+      <div className="pointer-events-auto">
         {renderCycleNavButton('previous', previousCycle)}
+      </div>
 
-        <button
-          type="button"
-          onClick={onEditDates}
-          data-date-editor-toggle="true"
-          disabled={isProcessing || isUpdatingDates}
-          aria-label={editDatesLabel}
-          aria-pressed={isDateEditorOpen}
-          aria-expanded={isDateEditorOpen}
-          className="date-editor-toggle flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full px-2 py-1.5 text-center text-[19px] font-semibold leading-tight text-white transition hover:bg-white/10 active:bg-white/15 disabled:opacity-60"
-        >
-          <span className="min-w-0 truncate">{title}</span>
-        </button>
-
+      <div className="pointer-events-auto">
         {renderCycleNavButton('next', nextCycle)}
       </div>
-
-      {meta && (
-        <div className="mt-1 flex min-h-6 items-center justify-center gap-2 text-center text-[13px] font-medium text-white/78">
-          <span className="min-w-0 truncate">{meta}</span>
-          {postpartumMode && (
-            <Badge
-              className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-white/25 bg-white/15 p-0 text-white hover:bg-white/15"
-              aria-label="Modo postparto activado"
-              title="Modo postparto activado"
-            >
-              <Baby className="h-3.5 w-3.5" aria-hidden="true" />
-            </Badge>
-          )}
-        </div>
-      )}
     </div>
-  );
+
+    {meta && (
+      <div className="mt-1.5 flex min-h-5 items-center justify-center gap-2 text-center text-[12px] font-medium leading-5 text-white/78">
+        <span className="min-w-0 truncate">{meta}</span>
+        {postpartumMode && (
+          <Badge
+            className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-white/25 bg-white/15 p-0 text-white hover:bg-white/15"
+            aria-label="Modo postparto activado"
+            title="Modo postparto activado"
+          >
+            <Baby className="h-3 w-3" aria-hidden="true" />
+          </Badge>
+        )}
+      </div>
+    )}
+  </div>
+);
 };
 // Formatea la temperatura para la UI. Devuelve null si el valor no es numérico.
 const formatTemperatureDisplay = (value) => {
