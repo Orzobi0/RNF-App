@@ -546,8 +546,8 @@ useEffect(() => {
   }
 
   const CYCLE_DURATION_DAYS = 28;
-  const VISIBLE_DAYS_FULLSCREEN_PORTRAIT = 10;
-  const VISIBLE_DAYS_FULLSCREEN_LANDSCAPE = 25;
+  const VISIBLE_DAYS_FULLSCREEN_PORTRAIT = 8;
+  const VISIBLE_DAYS_FULLSCREEN_LANDSCAPE = 20;
 
   const cycleStartDate = parseISO(targetCycle.startDate);
   const cycleEntries = targetCycle.data || [];

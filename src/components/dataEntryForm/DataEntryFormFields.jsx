@@ -165,6 +165,8 @@ const [activeSection, setActiveSection] = useState(() => {
   const disabledDateRanges = cycleEnd ? [{ before: cycleStart }, { after: cycleEnd }] : [{ before: cycleStart }];
   const selectedIsoDate = date ? format(date, 'yyyy-MM-dd') : null;
   const [dockOffset, setDockOffset] = useState(0);
+  const [focusedMucusField, setFocusedMucusField] = useState(null);
+  const sensationInputRef = useRef(null);
   const appearanceInputRef = useRef(null);
   const symbolTriggerRef = useRef(null);
 
@@ -182,7 +184,7 @@ const [activeSection, setActiveSection] = useState(() => {
     }
 
     event.preventDefault();
-    appearanceInputRef.current?.focus();
+    setFocusedMucusField('appearance');
   }, []);
 
   const handleAppearanceKeyDown = useCallback((event) => {
@@ -191,8 +193,46 @@ const [activeSection, setActiveSection] = useState(() => {
     }
 
     event.preventDefault();
+    setFocusedMucusField(null);
     symbolTriggerRef.current?.focus();
   }, []);
+
+  const handleMucusInputBlur = useCallback(() => {
+    requestAnimationFrame(() => {
+      const activeElement = document.activeElement;
+
+      if (activeElement?.id === 'mucusSensation') {
+        setFocusedMucusField('sensation');
+        return;
+      }
+
+      if (activeElement?.id === 'mucusAppearance') {
+        setFocusedMucusField('appearance');
+        return;
+      }
+
+      setFocusedMucusField(null);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!focusedMucusField) {
+      return undefined;
+    }
+
+    const frameId = requestAnimationFrame(() => {
+      if (focusedMucusField === 'sensation') {
+        sensationInputRef.current?.focus();
+        return;
+      }
+
+      if (focusedMucusField === 'appearance') {
+        appearanceInputRef.current?.focus();
+      }
+    });
+
+    return () => cancelAnimationFrame(frameId);
+  }, [focusedMucusField]);
 
   const recomputeDockOffset = useCallback(() => {
   const stickyHeader = stickyHeaderRef.current;
@@ -1331,53 +1371,90 @@ const [activeSection, setActiveSection] = useState(() => {
         );
       case 'moco': {
         const symbolTheme = getFertilitySymbolTheme(fertilitySymbol);
+        const hasSensationText = Boolean(mucusSensation && mucusSensation.trim());
+        const hasAppearanceText = Boolean(mucusAppearance && mucusAppearance.trim());
         return (
           <div className={cn(formSectionSurfaceClass, 'space-y-1.5 px-2.5 pb-2.5 pt-2')}>
             <span aria-hidden="true" className={cn(formAccentClass, 'bg-moco opacity-45')} />
-            <div className="grid grid-cols-2 gap-1.5">
-              <div className={cn(formCompactFieldSurfaceClass, 'min-w-0')}>
+            <div className="grid grid-cols-2 items-stretch gap-1.5">
+              <div className={cn(formCompactFieldSurfaceClass, 'flex min-w-0 flex-col')}>
                 <span aria-hidden="true" className={cn(formAccentClass, 'bg-sensacion opacity-75')} />
                 <Label htmlFor="mucusSensation" className="flex items-center text-subtitulo text-[13px] font-semibold">
                   <Droplets className="mr-1.5 h-4 w-4 text-sensacion" />
                   Sensación
                 </Label>
-                <Input
-                  data-field="mucusSensation"
-                  id="mucusSensation"
-                  value={mucusSensation}
-                  onChange={(e) => setMucusSensation(e.target.value)}
-                  onKeyDown={handleSensationKeyDown}
-                  className={cn(
-                    formInputClass,
-                    sensationInputClass,
-                    'min-w-0 text-[14px] text-slate-700',
-                    RADIUS.field
-                  )}
-                  disabled={isProcessing}
-                />
+                {focusedMucusField === 'sensation' || !hasSensationText ? (
+                  <Input
+                    data-field="mucusSensation"
+                    id="mucusSensation"
+                    ref={sensationInputRef}
+                    value={mucusSensation}
+                    onChange={(e) => setMucusSensation(e.target.value)}
+                    onKeyDown={handleSensationKeyDown}
+                    onFocus={() => setFocusedMucusField('sensation')}
+                    onBlur={handleMucusInputBlur}
+                    className={cn(
+                      formInputClass,
+                      sensationInputClass,
+                      'min-w-0 text-[14px] text-slate-700',
+                      RADIUS.field
+                    )}
+                    disabled={isProcessing}
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setFocusedMucusField('sensation')}
+                    className={cn(
+                      'min-h-9 w-full rounded-3xl border border-slate-200/70 bg-white px-3 py-2 text-left text-[14px] font-semibold leading-snug text-slate-700 shadow-sm',
+                      'whitespace-normal break-words focus-visible:outline-none focus-visible:ring-2',
+                      sensationInputClass
+                    )}
+                    disabled={isProcessing}
+                  >
+                    {mucusSensation}
+                  </button>
+                )}
               </div>
 
-              <div className={cn(formCompactFieldSurfaceClass, 'min-w-0')}>
+              <div className={cn(formCompactFieldSurfaceClass, 'flex min-w-0 flex-col')}>
                 <span aria-hidden="true" className={cn(formAccentClass, 'bg-apariencia opacity-75')} />
                 <Label htmlFor="mucusAppearance" className="flex items-center text-subtitulo text-[13px] font-semibold">
                   <Circle className="mr-1.5 h-4 w-4 text-apariencia" />
                   Apariencia
                 </Label>
-                <Input
-                  data-field="mucusAppearance"
-                  id="mucusAppearance"
-                  value={mucusAppearance}
-                  onChange={(e) => setMucusAppearance(e.target.value)}
-                  onKeyDown={handleAppearanceKeyDown}
-                  ref={appearanceInputRef}
-                  className={cn(
-                    formInputClass,
-                    appearanceInputClass,
-                    'min-w-0 text-[14px] text-slate-700',
-                    RADIUS.field
-                  )}
-                  disabled={isProcessing}
-                />
+                {focusedMucusField === 'appearance' || !hasAppearanceText ? (
+                  <Input
+                    data-field="mucusAppearance"
+                    id="mucusAppearance"
+                    value={mucusAppearance}
+                    onChange={(e) => setMucusAppearance(e.target.value)}
+                    onKeyDown={handleAppearanceKeyDown}
+                    ref={appearanceInputRef}
+                    onFocus={() => setFocusedMucusField('appearance')}
+                    onBlur={handleMucusInputBlur}
+                    className={cn(
+                      formInputClass,
+                      appearanceInputClass,
+                      'min-w-0 text-[14px] text-slate-700',
+                      RADIUS.field
+                    )}
+                    disabled={isProcessing}
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setFocusedMucusField('appearance')}
+                    className={cn(
+                      'min-h-9 w-full rounded-3xl border border-slate-200/70 bg-white px-3 py-2 text-left text-[14px] font-semibold leading-snug text-slate-700 shadow-sm',
+                      'whitespace-normal break-words focus-visible:outline-none focus-visible:ring-2',
+                      appearanceInputClass
+                    )}
+                    disabled={isProcessing}
+                  >
+                    {mucusAppearance}
+                  </button>
+                )}
               </div>
             </div>
 

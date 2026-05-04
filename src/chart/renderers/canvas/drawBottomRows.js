@@ -76,9 +76,9 @@ export const drawBottomRows = ({
   const cellWidth = totalPoints > 0 ? rowWidth / totalPoints : rowWidth;
   const cellTextPadding = Math.min(12, Math.max(4, cellWidth * 0.12));
   const availableTextWidth = Math.max(0, cellWidth - cellTextPadding * 2);
-  const baseSensationFontSize = bottomRowsResponsiveFontSize(0.9);
-  const baseAppearanceFontSize = bottomRowsResponsiveFontSize(0.9);
-  const baseObservationFontSize = bottomRowsResponsiveFontSize(0.9);
+  const baseSensationFontSize = bottomRowsResponsiveFontSize(1);
+  const baseAppearanceFontSize = bottomRowsResponsiveFontSize(1);
+  const baseObservationFontSize = bottomRowsResponsiveFontSize(1);
   const smallSensationFontSize = bottomRowsResponsiveFontSize(0.8);
   const smallAppearanceFontSize = bottomRowsResponsiveFontSize(0.8);
   const smallObservationFontSize = bottomRowsResponsiveFontSize(0.8);
@@ -168,7 +168,7 @@ export const drawBottomRows = ({
         text: compactDate(point.date),
         x,
         y: dateRowY,
-        fontSize: responsiveFontSize(1.05),
+        fontSize: responsiveFontSize(1.08),
         weight: 900,
         color: textFill,
         baseline: 'alphabetic',
@@ -178,7 +178,7 @@ export const drawBottomRows = ({
         text: point.cycleDay,
         x,
         y: cycleDayRowY,
-        fontSize: responsiveFontSize(1),
+        fontSize: responsiveFontSize(1.05),
         weight: 900,
         color: textFill,
         baseline: 'alphabetic',
