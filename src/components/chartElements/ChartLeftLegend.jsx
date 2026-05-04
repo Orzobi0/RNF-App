@@ -26,10 +26,10 @@ const ChartLeftLegend = ({
     ? theme.background.leftLegendRailExport
     : theme.background.leftLegendRail;
   const railEdge = theme.background.leftLegendRailEdge;
-  const majorTextColor = '#ffffff';
-  const minorTextColor = 'rgba(255,255,255,0.82)';
-  const rowTextColor = 'rgba(255,255,255,0.92)';
-  const rowIconColor = 'rgba(255,255,255,0.99)';
+  const majorTextColor = theme.grid.labelMajor;
+  const minorTextColor = theme.grid.labelMinor;
+  const rowTextColor = theme.palette.darkRoseText;
+  const rowIconColor = theme.palette.axisMinor;
 
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -107,7 +107,7 @@ const ChartLeftLegend = ({
     >
       <defs>
         <filter id="textShadowLegend" x="-50%" y="-50%" width="200%" height="200%">
-          <feDropShadow dx="0" dy="1" stdDeviation="0.8" floodColor="rgba(121,28,46,0.36)" />
+          <feDropShadow dx="0" dy="1" stdDeviation="0.5" floodColor="rgba(255,255,255,0.70)" />
         </filter>
       </defs>
 

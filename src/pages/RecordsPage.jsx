@@ -97,7 +97,8 @@ const renderCycleNavButton = (direction, targetCycle) => {
 };
 
   return (
-  <div className="relative overflow-hidden rounded-b-3xl bg-fertiliapp-fuerte px-4 pb-3 pt-2.5 text-white shadow-[0_10px_24px_rgba(244,114,182,0.18)]">
+  <div className="px-4 pt-2">
+    <div className="relative overflow-hidden rounded-[24px] bg-fertiliapp-fuerte px-4 pb-3 pt-2.5 text-white shadow-[0_6px_16px_rgba(216,92,112,0.16)]">
     <HeaderIconButtonPrimary
       type="button"
       onClick={onAddRecord}
@@ -152,6 +153,7 @@ const renderCycleNavButton = (direction, targetCycle) => {
         )}
       </div>
     )}
+    </div>
   </div>
 );
 };

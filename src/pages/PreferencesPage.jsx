@@ -577,13 +577,13 @@ const handleClearPreferredTime = useCallback(async () => {
   return (
   <div className="relative flex min-h-full flex-col">
     <div className="sticky top-0 z-30 pb-4">
-      <div className="w-full rounded-b-3xl bg-fertiliapp-fuerte px-4 pb-3 pt-2.5 text-white shadow-[0_10px_24px_rgba(244,114,182,0.18)]">
+      <div className="w-full rounded-b-[24px] border-b border-rose-100/70 bg-white/90 px-4 pb-3 pt-2.5 shadow-[0_6px_18px_rgba(216,92,112,0.10)] backdrop-blur-xl">
         <div className="relative mx-auto w-full max-w-2xl">
   <Button
     asChild
     variant="ghost"
     size="icon"
-    className="absolute -left-1 -top-1 h-7 w-7 rounded-full text-white/75 hover:bg-white/10 hover:text-white active:bg-white/15"
+    className="absolute -left-1 -top-1 h-7 w-7 rounded-full text-fertiliapp-fuerte hover:bg-rose-50 hover:text-fertiliapp-fuerte active:bg-rose-100"
   >
     <Link to="/settings" aria-label="Volver a ajustes">
       <ChevronLeft className="h-4 w-4" />
@@ -591,15 +591,15 @@ const handleClearPreferredTime = useCallback(async () => {
   </Button>
 
   <div className="min-w-0">
-    <div className="truncate pl-7 text-[10px] font-semibold uppercase tracking-[0.22em] text-white/75">
+    <div className="truncate pl-7 text-[10px] font-semibold uppercase tracking-[0.22em] text-fertiliapp-fuerte">
       AJUSTES
     </div>
 
-    <h1 className="truncate text-[22px] font-semibold leading-tight text-white">
+    <h1 className="truncate text-[22px] font-semibold leading-tight text-titulo">
       Preferencias
     </h1>
 
-    <p className="truncate text-[13px] font-medium text-white/78">
+    <p className="truncate text-[13px] font-medium text-subtitulo">
       Registro, cálculo y gráfica
     </p>
   </div>

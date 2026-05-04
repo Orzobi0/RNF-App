@@ -1,20 +1,9 @@
-import React, { useEffect, useMemo } from 'react';
-import { useLocation } from 'react-router-dom';
+import React, { useEffect } from 'react';
 import BottomNav from './BottomNav';
 
 const STATUS_BAR_COLORS = {
   default: '#FFE4E6',
-  strong: '#D85C70',
 };
-
-const usesStrongStatusBar = (pathname) =>
-  pathname === '/records' ||
-  pathname.startsWith('/cycle/') ||
-  pathname === '/archived-cycles' ||
-  pathname === '/settings' ||
-  pathname.startsWith('/settings/') ||
-  pathname === '/chart' ||
-  pathname.startsWith('/chart/');
 
 const updateThemeColor = (color) => {
   if (typeof document === 'undefined') return;
@@ -36,14 +25,7 @@ const updateNativeStatusBar = (color, darkIcons) => {
 };
 
 const MainLayout = ({ children, hideBottomNav = false }) => {
-  const location = useLocation();
-  const shouldUseStrongStatusBar = useMemo(
-    () => usesStrongStatusBar(location.pathname),
-    [location.pathname]
-  );
-  const statusBarColor = shouldUseStrongStatusBar
-    ? STATUS_BAR_COLORS.strong
-    : STATUS_BAR_COLORS.default;
+  const statusBarColor = STATUS_BAR_COLORS.default;
 
   const mainClass = hideBottomNav
     ? 'relative z-10 flex-1 w-full overflow-hidden'
@@ -51,8 +33,8 @@ const MainLayout = ({ children, hideBottomNav = false }) => {
 
   useEffect(() => {
     updateThemeColor(statusBarColor);
-    updateNativeStatusBar(statusBarColor, !shouldUseStrongStatusBar);
-  }, [shouldUseStrongStatusBar, statusBarColor]);
+    updateNativeStatusBar(statusBarColor, true);
+  }, [statusBarColor]);
 
   useEffect(() => {
     return () => {
@@ -66,7 +48,7 @@ const MainLayout = ({ children, hideBottomNav = false }) => {
       {!hideBottomNav && (
   <div
     aria-hidden="true"
-    className="pointer-events-none absolute inset-x-0 top-0 z-20 h-[calc(env(safe-area-inset-top)+4px)]"
+    className="pointer-events-none absolute inset-x-0 top-0 z-20 h-[env(safe-area-inset-top)]"
     style={{ backgroundColor: statusBarColor }}
   />
 )}

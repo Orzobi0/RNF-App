@@ -567,18 +567,18 @@ const SettingsPage = () => {
   return (
   <div className="relative flex min-h-full flex-col">
     <div className="sticky top-0 z-30 pb-4">
-      <div className="w-full rounded-b-3xl bg-fertiliapp-fuerte px-4 pb-3 pt-3 text-white shadow-[0_10px_24px_rgba(244,114,182,0.18)]">
+      <div className="w-full rounded-b-[24px] border-b border-rose-100/70 bg-white/72 px-4 pb-3 pt-3 shadow-[0_6px_18px_rgba(216,92,112,0.10)] backdrop-blur-xl">
         <div className="mx-auto flex w-full max-w-2xl items-center">
   <div className="min-w-0 flex-1">
-    <div className="truncate text-[10px] font-semibold uppercase tracking-[0.22em] text-white/75">
+    <div className="truncate text-[10px] font-semibold uppercase tracking-[0.22em] text-fertiliapp-fuerte/80">
       CUENTA
     </div>
 
-    <h1 className="truncate text-[22px] font-semibold leading-tight text-white">
+    <h1 className="truncate text-[22px] font-semibold leading-tight text-titulo">
       Ajustes
     </h1>
 
-    <p className="truncate text-[13px] font-medium text-white/78">
+    <p className="truncate text-[13px] font-medium text-subtitulo">
       Gestiona tu cuenta y preferencias
     </p>
   </div>

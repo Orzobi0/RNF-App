@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { getChartTheme } from '@/components/chartElements/chartTheme';
 
 const ChartRightStickyTempLegend = ({
   chartRef,
@@ -13,6 +14,7 @@ const ChartRightStickyTempLegend = ({
 }) => {
   const railRef = useRef(null);
   const [isOverGraphArea, setIsOverGraphArea] = useState(true);
+  const theme = useMemo(() => getChartTheme(), []);
 
   const ticks = useMemo(() => {
     const values = [];
@@ -109,8 +111,8 @@ const ChartRightStickyTempLegend = ({
           const isMajor = temp.toFixed(1).endsWith('.0') || temp.toFixed(1).endsWith('.5');
           const labelText = isMajor ? temp.toFixed(1) : `.${temp.toFixed(1).split('.')[1]}`;
           const fillColor = isOverGraphArea
-            ? isMajor ? '#be185d' : '#db2777'
-            : 'rgba(255,255,255,0.9)';
+            ? isMajor ? theme.grid.labelMajor : theme.grid.labelMinor
+            : theme.palette.darkRoseText;
 
           return (
             <text

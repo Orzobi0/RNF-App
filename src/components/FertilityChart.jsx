@@ -737,7 +737,7 @@ if (isRotated) {
   if (!allDataPoints || allDataPoints.length === 0) {
     return (
       <div className="text-center p-8">
-        <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-pink-100 to-rose-100 rounded-full mb-4">
+        <div className="inline-flex items-center justify-center w-16 h-16 bg-[#F4D6DC] rounded-full mb-4">
           <svg className="w-8 h-8 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
           </svg>
@@ -1697,7 +1697,7 @@ const rotationWrapperStyle = rotationStageStyle
   : safeAreaStyle ?? undefined;
 
   // Clase del contenedor de scroll ajustada para rotación artificial
-  const baseFullClass = 'w-full h-full bg-[#D85C70]';
+  const baseFullClass = 'w-full h-full bg-[#FFF8FA]';
   const containerClass = isFullScreen
     ? `${baseFullClass} h-full overflow-x-auto ${allowVerticalScroll ? 'overflow-y-auto' : 'overflow-y-hidden'}`
     : `${baseFullClass} overflow-x-auto ${allowVerticalScroll ? 'overflow-y-auto' : 'overflow-y-hidden'} border border-pink-100/50`;
@@ -1708,7 +1708,7 @@ const rotationWrapperStyle = rotationStageStyle
   return (
       <motion.div
   ref={stageHostRef}
-  className="relative w-full h-full bg-[#D85C70]"
+  className="relative w-full h-full bg-[#FFF8FA]"
   initial={false}
 >
   <div

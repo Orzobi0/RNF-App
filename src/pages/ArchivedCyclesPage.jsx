@@ -454,7 +454,8 @@ const totalRecordCount = allCycles.reduce(
   return (
   <div className="relative flex flex-col pb-6">
       <div className="sticky top-0 z-30 pb-3">
-  <div className="w-full rounded-b-3xl bg-fertiliapp-fuerte px-4 pb-3 pt-3 text-white shadow-[0_10px_24px_rgba(244,114,182,0.18)]">
+  <div className="px-4 pt-2">
+    <div className="relative overflow-hidden rounded-[24px] bg-fertiliapp-fuerte px-4 pb-3 pt-2.5 text-white shadow-[0_6px_16px_rgba(216,92,112,0.16)]">
     <div className="flex items-center justify-between gap-3">
       <div className="min-w-0 flex-1">
         <div className="truncate text-[10px] font-semibold uppercase tracking-[0.22em] text-white/75">
@@ -479,6 +480,7 @@ const totalRecordCount = allCycles.reduce(
         <Plus className="h-4 w-4" />
         <span className="sr-only">Añadir ciclo</span>
       </HeaderIconButtonPrimary>
+    </div>
     </div>
   </div>
 </div>
