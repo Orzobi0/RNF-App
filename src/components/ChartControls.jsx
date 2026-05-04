@@ -96,7 +96,7 @@ const bottomGroupLayout = isLandscapeFullscreen ? 'gap-1.5' : 'gap-2';
 
   const quickAccessButtonClass = (() => {
     if (showInterpretation && showManualBaseline) {
-      return 'bg-white/85 text-fuchsia-600 border-fuchsia-300 shadow-lg shadow-fuchsia-200/50';
+      return 'bg-white/85 text-fertiliapp-fuerte border-fertiliapp-fuerte shadow-lg shadow-fertiliapp-fuerte/20';
     }
 
     if (showInterpretation) {

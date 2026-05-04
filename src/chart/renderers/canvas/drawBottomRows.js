@@ -1,8 +1,6 @@
 import { getSymbolAppearance, getSymbolColorPalette } from '@/config/fertilitySymbols';
 import {
   APPEARANCE_COLOR,
-  BASELINE_NUMBER_COLOR,
-  HIGH_SEQUENCE_NUMBER_COLOR,
   OBSERVATION_COLOR,
   PEAK_MARKER_COLOR,
   POST_PEAK_MARKER_COLOR,
@@ -41,7 +39,6 @@ export const drawBottomRows = ({
   isFullScreen,
   exportMode,
   showRelationsRow,
-  showInterpretation,
   manualModeEnabled,
   manualBaselineTemp,
   isPointEligibleForManualMode,
@@ -133,8 +130,6 @@ export const drawBottomRows = ({
   const sensationColor = resolveCssColor(SENSATION_COLOR, '#0ea5e9');
   const appearanceColor = resolveCssColor(APPEARANCE_COLOR, '#10b981');
   const observationColor = resolveCssColor(OBSERVATION_COLOR, '#8b5cf6');
-  const highSequenceOrderByIndex = renderModel?.fertility?.highSequenceOrderByIndex ?? {};
-  const baselineOrderByIndex = renderModel?.fertility?.baselineOrderByIndex ?? {};
 
   for (let index = visibleStartIndex; index <= visibleEndIndex; index += 1) {
     const point = points[index];
@@ -143,12 +138,6 @@ export const drawBottomRows = ({
     if (!Number.isFinite(x)) continue;
 
     const y = ysTemp[index];
-    const hasTemp = point.displayTemperature != null;
-    const correctedTemp = point.temperature_corrected;
-    const isCorrectedDisplayed =
-      point.use_corrected && correctedTemp != null && point.displayTemperature === correctedTemp;
-    const isIgnoredForDisplay =
-      point.ignored || (point.use_corrected && !isCorrectedDisplayed);
     const shouldConsiderForManualMode = typeof isPointEligibleForManualMode === 'function'
       ? isPointEligibleForManualMode(point, index)
       : true;
@@ -167,41 +156,6 @@ export const drawBottomRows = ({
       ctx.strokeStyle = 'rgba(124, 58, 237, 0.38)';
       ctx.lineWidth = 1.2;
       ctx.stroke();
-    }
-
-    const highOrder = highSequenceOrderByIndex[index];
-    const baselineOrder = baselineOrderByIndex[index];
-    const hasHighOrder = highOrder != null;
-    const hasBaselineOrder = baselineOrder != null;
-    if (showInterpretation && hasTemp && !isIgnoredForDisplay && Number.isFinite(y)) {
-      const numberFontSize = responsiveFontSize(isFullScreen ? 0.75 : 1.2);
-      const numberStrokeWidth = Math.max(0.5, numberFontSize * 0.18);
-      if (hasHighOrder) {
-        drawText({
-          ctx,
-          text: highOrder,
-          x,
-          y: y - numberFontSize * (isFullScreen ? 2.6 : 1.8),
-          fontSize: numberFontSize,
-          weight: 900,
-          color: HIGH_SEQUENCE_NUMBER_COLOR,
-          stroke: '#fff',
-          strokeWidth: numberStrokeWidth,
-        });
-      }
-      if (hasBaselineOrder) {
-        drawText({
-          ctx,
-          text: baselineOrder,
-          x,
-          y: y + numberFontSize * (isFullScreen ? 1.9 : 1.6),
-          fontSize: numberFontSize,
-          weight: 800,
-          color: BASELINE_NUMBER_COLOR,
-          stroke: '#fff',
-          strokeWidth: numberStrokeWidth,
-        });
-      }
     }
 
     const isFuture = Boolean(point.isFuture);

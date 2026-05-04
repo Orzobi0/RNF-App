@@ -1,13 +1,13 @@
 export const SENSATION_COLOR = 'var(--color-sensacion-fuerte)';
 export const APPEARANCE_COLOR = 'var(--color-apariencia-fuerte)';
 export const OBSERVATION_COLOR = 'var(--color-observaciones-fuerte)';
-export const HEART_COLOR = '#ec003c';
-export const POST_PEAK_MARKER_COLOR = '#7f1d1d';
-export const PEAK_MARKER_COLOR = '#db2777';
-export const HIGH_SEQUENCE_NUMBER_COLOR = '#be185d';
-export const BASELINE_NUMBER_COLOR = '#2563eb';
-export const TODAY_HIGHLIGHT_COLOR = '#be185d';
-export const SYMBOL_BORDER_FALLBACK = 'rgba(244, 114, 182, 0.35)';
+export const HEART_COLOR = '#D85C70';
+export const POST_PEAK_MARKER_COLOR = '#7A3A48';
+export const PEAK_MARKER_COLOR = '#D85C70';
+export const HIGH_SEQUENCE_NUMBER_COLOR = '#B94A5E';
+export const BASELINE_NUMBER_COLOR = '#337C8B';
+export const TODAY_HIGHLIGHT_COLOR = '#B94A5E';
+export const SYMBOL_BORDER_FALLBACK = 'rgba(216,92,112,0.24)';
 export const DEFAULT_TEXT_FONT_FAMILY =
   '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
 

@@ -5,6 +5,7 @@ import { drawDebugOverlay } from './drawDebugOverlay';
 import { drawFertilityMarkers } from './drawFertilityMarkers';
 import { drawInterpretationBands } from './drawInterpretationBands';
 import { drawTemperatureGrid } from './drawTemperatureGrid';
+import { drawTemperatureInterpretationNumbers } from './drawTemperatureInterpretationNumbers';
 import { drawTemperatureLine } from './drawTemperatureLine';
 import { drawTemperaturePoints } from './drawTemperaturePoints';
 
@@ -306,6 +307,19 @@ export function drawChartCanvas({
     visibleEndIndex,
     isWithinTemperaturePlotArea,
   });
+  drawTemperatureInterpretationNumbers({
+    ctx,
+    renderModel,
+    points: effectivePoints,
+    xs: effectiveXs,
+    ysTemp: effectiveYsTemp,
+    visibleStartIndex,
+    visibleEndIndex,
+    showInterpretation,
+    responsiveFontSize,
+    isFullScreen,
+    isWithinTemperaturePlotArea,
+  });
   ctx.restore();
   ctx.save();
   addBottomRoundedRectPath(effectivePadding.left, effectiveGraphBottomY, areaW, rowsContentHeight, boardRadius);
@@ -330,7 +344,6 @@ export function drawChartCanvas({
     isFullScreen,
     exportMode,
     showRelationsRow,
-    showInterpretation,
     manualModeEnabled,
     manualBaselineTemp,
     isPointEligibleForManualMode,
