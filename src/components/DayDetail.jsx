@@ -244,13 +244,13 @@ if (peakStatus) {
 
     switch (symbolValue) {
       case 'red':
-        return 'bg-rose-500 border-slate-300 shadow-md';
+        return 'bg-[#fb7185] border-slate-300 shadow-md';
       case 'pink':
         return 'bg-pink-500 border-slate-300 shadow-md';
       case 'green':
-        return 'bg-emerald-500 border-slate-300 shadow-md';
+        return 'bg-[#67C5A4] border-slate-300 shadow-md';
       case 'yellow':
-        return 'bg-yellow-400 border-slate-300 shadow-md';
+        return 'bg-[#F7B944] border-slate-300 shadow-md';
       case 'spot':
         return 'bg-rose-500 border-slate-300 shadow-md';
       case 'white':

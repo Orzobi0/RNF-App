@@ -1719,7 +1719,7 @@ const rotationWrapperStyle = rotationStageStyle
       {/* Contenedor principal del gráfico */}
       <motion.div
         ref={chartRef}
-        className={`relative z-10 p-0 ring-1 ring-rose-200/60 ${containerClass}`}
+        className={`relative p-0 ring-1 ring-rose-200/60 ${containerClass}`}
         style={{
         background: showCanvasOverlay ? 'transparent' : undefined,
   // Sin scroll vertical real, bloquea el pan-y para que iOS no “arrastre” la página.
@@ -2099,6 +2099,7 @@ const rotationWrapperStyle = rotationStageStyle
               onClose={clearActivePoint}
               onTogglePeak={onTogglePeak}
               currentPeakIsoDate={currentPeakIsoDate}
+              showRelationsRow={showRelationsRow}
             />
           </motion.div>
         )}

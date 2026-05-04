@@ -581,15 +581,15 @@
   }
 
   .tooltip-surface--gradient {
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.88) 0%, var(--color-fondo-tarjeta) 100%);
-    border: 1px solid var(--color-borde-suave);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.92) 0%, rgba(255, 232, 238, 0.52) 100%);
+    border: 1px solid rgba(247, 207, 215, 0.75);
   }
 
   .tooltip-glow {
     background: linear-gradient(
       135deg,
-      rgba(227, 121, 136, 0.18),
-      rgba(216, 92, 112, 0.12)
+      rgba(227, 121, 136, 0.08),
+      rgba(216, 92, 112, 0.05)
     );
   }
 }
