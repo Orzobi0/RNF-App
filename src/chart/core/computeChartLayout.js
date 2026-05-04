@@ -200,6 +200,12 @@ export const computeChartLayout = ({
   const viewportHeight = dimensions.viewportHeight || dimensions.height;
   const viewportWidth = dimensions.viewportWidth || chartWidth;
   const isLandscapeVisual = forceLandscape || orientation === 'landscape';
+  const bottomRowsVisualWeight =
+    exportMode || isLandscapeVisual
+      ? 1
+      : isFullScreen
+        ? 1.06
+        : 1.12;
   const isDenseExport = exportMode && isFullScreen && isLandscapeVisual && visibleDays >= 28;
 
   const fontContext = {
@@ -218,7 +224,8 @@ export const computeChartLayout = ({
     computeBottomRowsResponsiveFontSize(fontContext, multiplier);
 
   const textRowHeight = Math.round(
-    bottomRowsResponsiveFontSize(isFullScreen ? (exportMode ? 1.45 : 1.6) : 2)
+    bottomRowsResponsiveFontSize(isFullScreen ? (exportMode ? 1.45 : 1.6) : 2) *
+      bottomRowsVisualWeight
   );
   const obsRowIndex = isFullScreen ? 9 : 7.5;
   const relationsRowIndex = obsRowIndex + (showRelationsRow ? (isFullScreen ? 2 : 1.5) : 0);

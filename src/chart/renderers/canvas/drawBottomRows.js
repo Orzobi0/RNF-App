@@ -47,8 +47,14 @@ export const drawBottomRows = ({
   isWithinTemperaturePlotArea,
 }) => {
   const rows = renderModel?.rows ?? {};
-  const rowLineHeight = rows.rowLineHeight ?? bottomRowsResponsiveFontSize(0.95);
+  const baseRowLineHeight = rows.rowLineHeight ?? bottomRowsResponsiveFontSize(0.95);
   const rowH = rows.rowH ?? Math.max(textRowHeight || 1, Math.floor((rowsZoneHeight || 0) / (isFullScreen ? 10 : 8)));
+  const rowLineHeight = exportMode
+    ? baseRowLineHeight
+    : Math.max(
+      baseRowLineHeight,
+      bottomRowsResponsiveFontSize(isFullScreen ? 1.02 : 1.08)
+    );
   const dateRowY = rows.dateRowY ?? graphBottomY + rowH * 1;
   const cycleDayRowY = rows.cycleDayRowY ?? graphBottomY + rowH * 2;
   const symbolRowYBase = rows.symbolRowYBase ?? graphBottomY + rowH * 3;
@@ -79,9 +85,9 @@ export const drawBottomRows = ({
   const baseSensationFontSize = bottomRowsResponsiveFontSize(1);
   const baseAppearanceFontSize = bottomRowsResponsiveFontSize(1);
   const baseObservationFontSize = bottomRowsResponsiveFontSize(1);
-  const smallSensationFontSize = bottomRowsResponsiveFontSize(0.8);
-  const smallAppearanceFontSize = bottomRowsResponsiveFontSize(0.8);
-  const smallObservationFontSize = bottomRowsResponsiveFontSize(0.8);
+  const smallSensationFontSize = bottomRowsResponsiveFontSize(0.9);
+  const smallAppearanceFontSize = bottomRowsResponsiveFontSize(0.9);
+  const smallObservationFontSize = bottomRowsResponsiveFontSize(0.9);
   const labelStep = (() => {
     if (!autoLabelStep || totalPoints < 2) return 1;
     const dayWidth = Math.abs((xs[1] ?? 0) - (xs[0] ?? 0));
@@ -107,7 +113,9 @@ export const drawBottomRows = ({
       fallback,
       measureTextWidth,
     });
-    const lines = base[2]
+    const shouldUseSmallFont =
+      Boolean(base[2]) && String(base[2]).trim().endsWith('...');
+    const lines = shouldUseSmallFont
       ? splitTextLinesByWidth(text, {
         maxWidth: availableTextWidth,
         maxLines: 3,
@@ -116,7 +124,10 @@ export const drawBottomRows = ({
         measureTextWidth,
       })
       : base;
-    const resolved = { lines, fontSize: base[2] ? smallFontSize : baseFontSize };
+    const resolved = {
+      lines,
+      fontSize: shouldUseSmallFont ? smallFontSize : baseFontSize,
+    };
     textLayoutCache?.set(cacheKey, resolved);
     return resolved;
   };
@@ -196,10 +207,11 @@ export const drawBottomRows = ({
     const isPostPeakMarker = peakStatus && !isPeakMarker;
     const isPeakSeriesDay = isPeakMarker || ['1', '2', '3'].includes(peakStatus);
     const peakDisplay = peakStatus || '-';
-    const symbolRectSize = responsiveFontSize(isFullScreen ? 1.8 : 2);
-    const symbolX = x - symbolRectSize / 2 - 4;
+    const symbolRectSize = responsiveFontSize(isFullScreen ? 1.8 : 2.1);
+    const symbolWidthMultiplier = 1.70;
     const symbolY = symbolRowYBase - symbolRectSize * 0.75;
-    const symbolW = symbolRectSize * 1.4;
+    const symbolW = symbolRectSize * symbolWidthMultiplier;
+    const symbolX = x - symbolW / 2;
     const symbolH = symbolRectSize;
     const symbolTextY = symbolY + symbolH / 2 + 2;
     const peakCenterY = symbolRowYBase - symbolRectSize * 0.25;
@@ -207,7 +219,7 @@ export const drawBottomRows = ({
     if (shouldRenderSymbol) {
       ctx.save();
       ctx.fillStyle = 'rgba(0,0,0,0.08)';
-      drawRoundedRect(ctx, x - symbolRectSize / 2 + 1, symbolY + 1, symbolRectSize, symbolH, symbolRectSize * 0.25);
+      drawRoundedRect(ctx, symbolX + 1, symbolY + 1, symbolW, symbolH, symbolRectSize * 0.25);
       ctx.fill();
       drawRoundedRect(ctx, symbolX, symbolY, symbolW, symbolH, symbolRectSize * 0.2);
       if (symbolInfo.pattern === 'spotting-pattern') {
