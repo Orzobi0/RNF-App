@@ -1334,49 +1334,51 @@ const [activeSection, setActiveSection] = useState(() => {
         return (
           <div className={cn(formSectionSurfaceClass, 'space-y-1.5 px-2.5 pb-2.5 pt-2')}>
             <span aria-hidden="true" className={cn(formAccentClass, 'bg-moco opacity-45')} />
-            <div className={formCompactFieldSurfaceClass}>
-              <span aria-hidden="true" className={cn(formAccentClass, 'bg-sensacion opacity-75')} />
-              <Label htmlFor="mucusSensation" className="flex items-center text-subtitulo text-sm font-semibold">
-                <Droplets className="mr-2 h-5 w-5 text-sensacion" />
-                Sensación del moco
-              </Label>
-              <Input
-                data-field="mucusSensation"
-                id="mucusSensation"
-                value={mucusSensation}
-                onChange={(e) => setMucusSensation(e.target.value)}
-                onKeyDown={handleSensationKeyDown}
-                className={cn(
-                  formInputClass,
-                  sensationInputClass,
-                  'text-slate-700',
-                  RADIUS.field
-                )}
-                disabled={isProcessing}
-              />
-            </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              <div className={cn(formCompactFieldSurfaceClass, 'min-w-0')}>
+                <span aria-hidden="true" className={cn(formAccentClass, 'bg-sensacion opacity-75')} />
+                <Label htmlFor="mucusSensation" className="flex items-center text-subtitulo text-[13px] font-semibold">
+                  <Droplets className="mr-1.5 h-4 w-4 text-sensacion" />
+                  Sensación
+                </Label>
+                <Input
+                  data-field="mucusSensation"
+                  id="mucusSensation"
+                  value={mucusSensation}
+                  onChange={(e) => setMucusSensation(e.target.value)}
+                  onKeyDown={handleSensationKeyDown}
+                  className={cn(
+                    formInputClass,
+                    sensationInputClass,
+                    'min-w-0 text-[14px] text-slate-700',
+                    RADIUS.field
+                  )}
+                  disabled={isProcessing}
+                />
+              </div>
 
-            <div className={formCompactFieldSurfaceClass}>
-              <span aria-hidden="true" className={cn(formAccentClass, 'bg-apariencia opacity-75')} />
-              <Label htmlFor="mucusAppearance" className="flex items-center text-subtitulo text-sm font-semibold">
-                <Circle className="mr-2 h-5 w-5 text-apariencia" />
-                Apariencia del moco
-              </Label>
-              <Input
-                data-field="mucusAppearance"
-                id="mucusAppearance"
-                value={mucusAppearance}
-                onChange={(e) => setMucusAppearance(e.target.value)}
-                onKeyDown={handleAppearanceKeyDown}
-                ref={appearanceInputRef}
-                className={cn(
-                  formInputClass,
-                  appearanceInputClass,
-                  'text-slate-700',
-                  RADIUS.field
-                )}
-                disabled={isProcessing}
-              />
+              <div className={cn(formCompactFieldSurfaceClass, 'min-w-0')}>
+                <span aria-hidden="true" className={cn(formAccentClass, 'bg-apariencia opacity-75')} />
+                <Label htmlFor="mucusAppearance" className="flex items-center text-subtitulo text-[13px] font-semibold">
+                  <Circle className="mr-1.5 h-4 w-4 text-apariencia" />
+                  Apariencia
+                </Label>
+                <Input
+                  data-field="mucusAppearance"
+                  id="mucusAppearance"
+                  value={mucusAppearance}
+                  onChange={(e) => setMucusAppearance(e.target.value)}
+                  onKeyDown={handleAppearanceKeyDown}
+                  ref={appearanceInputRef}
+                  className={cn(
+                    formInputClass,
+                    appearanceInputClass,
+                    'min-w-0 text-[14px] text-slate-700',
+                    RADIUS.field
+                  )}
+                  disabled={isProcessing}
+                />
+              </div>
             </div>
 
             <div
@@ -1391,7 +1393,7 @@ const [activeSection, setActiveSection] = useState(() => {
                   <Sprout
                     className={cn('mr-2 h-5 w-5 transition-colors duration-300', symbolTheme.icon)}
                   />
-                  Símbolo de Fertilidad
+                  Símbolo
                 </Label>
                 <Select value={fertilitySymbol} onValueChange={setFertilitySymbol} disabled={isProcessing}>
                   <SelectTrigger
