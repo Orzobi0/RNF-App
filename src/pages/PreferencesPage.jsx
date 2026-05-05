@@ -674,7 +674,7 @@ metrics={t8Metrics}
       icon={Heart}
       iconTone="medium"
       title="Mostrar relaciones"
-      description="Mostrar relaciones en la gráfica"
+      description="Mostrar el icono de relaciones sexuales"
       checked={Boolean(uiPreferences.showRelationsRow)}
       onChange={(checked) =>
         handleSimpleFieldChange({
