@@ -64,24 +64,26 @@ const ChartLeftLegend = ({
   const autoRowH = Math.max(1, Math.floor(rowsZoneHeight / baseRowCount));
   const rowH = Math.max(textRowHeight, autoRowH);
   const rowLineHeight = bottomRowsResponsiveFontSize(0.95);
+  const symbolRectSize = responsiveFontSize(isFullScreen ? 1.8 : 2.1);
+  const symbolLegendY = rowsTopY + rowH * 3 - symbolRectSize * 0.25;
   const exportTextBlockHeight = rowLineHeight * 3;
   const exportSensationCenterY = rowsTopY + rowH * (isFullScreen ? 4 : 3.5) + exportTextBlockHeight / 2;
   const exportAppearanceCenterY = exportSensationCenterY + exportTextBlockHeight;
   const exportObservationCenterY = exportAppearanceCenterY + exportTextBlockHeight;
   const legendRows = useMemo(() => {
     const baseRows = [
-      { label: 'Fecha', y: rowsTopY + rowH * 1, color: rowTextColor, icon: null },
-      { label: 'Día', y: rowsTopY + rowH * 2, color: rowTextColor, icon: null },
-      { label: 'Símbolo', y: rowsTopY + rowH * 3, color: rowTextColor, icon: null },
-      { label: 'Sens.', y: exportMode ? exportSensationCenterY : rowsTopY + rowH * (isFullScreen ? 5 : 4.5), color: rowTextColor, icon: { type: 'text', value: '◊' } },
-      { label: 'Apar.', y: exportMode ? exportAppearanceCenterY : rowsTopY + rowH * (isFullScreen ? 7 : 6), color: rowTextColor, icon: { type: 'text', value: '○' } },
-      { label: 'Obs.', y: exportMode ? exportObservationCenterY : rowsTopY + rowH * (isFullScreen ? 9 : 7.5), color: rowTextColor, icon: { type: 'text', value: '✦' } },
+      { label: 'Fecha', y: rowsTopY + rowH * 1, color: rowTextColor, icon: null, baseline: 'alphabetic' },
+      { label: 'Día', y: rowsTopY + rowH * 2, color: rowTextColor, icon: null, baseline: 'alphabetic' },
+      { label: 'Símbolo', y: symbolLegendY, color: rowTextColor, icon: null, baseline: 'middle' },
+      { label: 'Sens.', y: exportMode ? exportSensationCenterY : rowsTopY + rowH * (isFullScreen ? 5 : 4.5), color: rowTextColor, icon: { type: 'text', value: '◊' }, baseline: 'middle' },
+      { label: 'Apar.', y: exportMode ? exportAppearanceCenterY : rowsTopY + rowH * (isFullScreen ? 7 : 6), color: rowTextColor, icon: { type: 'text', value: '○' }, baseline: 'middle' },
+      { label: 'Obs.', y: exportMode ? exportObservationCenterY : rowsTopY + rowH * (isFullScreen ? 9 : 7.5), color: rowTextColor, icon: { type: 'text', value: '✦' }, baseline: 'middle' },
     ];
     if (showRelationsRow && relationsRowIndex != null) {
       const relationsY = exportMode
         ? exportObservationCenterY + exportTextBlockHeight / 2 + rowH
         : rowsTopY + rowH * relationsRowIndex;
-      baseRows.push({ label: 'RS', y: relationsY, color: rowTextColor, icon: { type: 'heart' } });
+      baseRows.push({ label: 'RS', y: relationsY, color: rowTextColor, icon: { type: 'heart' }, baseline: 'middle' });
     }
     return baseRows;
   }, [
@@ -96,6 +98,7 @@ const ChartLeftLegend = ({
     rowTextColor,
     rowsTopY,
     showRelationsRow,
+    symbolLegendY,
   ]);
   const MotionGroup = reduceMotion ? 'g' : motion.g;
   const motionGroupProps = reduceMotion ? {} : { variants: itemVariants };
@@ -154,7 +157,7 @@ const ChartLeftLegend = ({
 
       {/* Etiquetas de filas con diseño mejorado */}
       <MotionGroup {...motionGroupProps}>
-        {legendRows.map(({ label, y, color, icon }) => {
+        {legendRows.map(({ label, y, color, icon, baseline }) => {
           const isBottomRowLabel = label === 'Sens.' || label === 'Apar.' || label === 'Obs.';
           const labelFont = isBottomRowLabel ? bottomRowsResponsiveFontSize : responsiveFontSize;
           const iconX = padding.left - labelFont(2.8);
@@ -168,6 +171,7 @@ const ChartLeftLegend = ({
                 x={iconX}
                 y={iconY}
                 textAnchor="middle"
+                dominantBaseline="middle"
                 fontSize={labelFont(0.8)}
                 fontWeight="600"
                 fill={rowIconColor}
@@ -181,7 +185,7 @@ const ChartLeftLegend = ({
               </text>
             )}
             {icon?.type === 'heart' && (
-              <g transform={`translate(${iconX - iconSize}, ${iconY - iconSize})`} opacity={1}>
+              <g transform={`translate(${iconX - iconSize / 2}, ${iconY - iconSize / 2})`} opacity={1}>
                 <Heart
                   width={iconSize}
                   height={iconSize}
@@ -195,6 +199,7 @@ const ChartLeftLegend = ({
               x={padding.left - labelFont(0.8)}
               y={y}
               textAnchor="end"
+              dominantBaseline={baseline === 'middle' ? 'middle' : undefined}
               fontSize={labelFont(1.05)}
               fontWeight="800"
               fill={color}

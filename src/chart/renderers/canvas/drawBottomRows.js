@@ -360,7 +360,7 @@ export const drawBottomRows = ({
     const hasRelations = Boolean(point.hasRelations ?? point.had_relations ?? point.hadRelations);
     if (showRelationsRow && relationsRowY != null && hasRelations) {
       const rowBlockHeight = rowH * (isFullScreen ? 2 : 1.5);
-      const relationsHeartSize = Math.min(Math.max(rowBlockHeight * 0.46, 14), 18);
+      const relationsHeartSize = Math.min(Math.max(rowBlockHeight * 0.38, 12), 16);
       drawHeart(ctx, x - relationsHeartSize / 2, relationsRowY - relationsHeartSize / 2, relationsHeartSize);
     }
   }

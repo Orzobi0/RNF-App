@@ -511,7 +511,7 @@ const footerIconButtonClass =
       className={cn(
         footerIconButtonClass,
         hasRelations
-          ? 'border-rose-200 bg-rose-50 text-rose-500'
+          ? 'border-rose-200 bg-white text-rose-500'
           : 'border-slate-200 bg-white text-slate-300',
         isProcessing && 'cursor-not-allowed opacity-70'
       )}
@@ -532,7 +532,7 @@ const footerIconButtonClass =
           type="button"
           variant="ghost"
           size="icon"
-          className="h-9 w-9 rounded-full border border-slate-200 bg-white text-fertiliapp-fuerte hover:bg-rose-50"
+          className="h-9 w-9 rounded-full border border-slate-200 bg-white text-subtitulo hover:bg-rose-50"
           onClick={handleEdit}
           disabled={isProcessing}
         >
@@ -548,7 +548,7 @@ const footerIconButtonClass =
           type="button"
           variant="ghost"
           size="icon"
-          className="h-9 w-9 rounded-full border border-slate-200 bg-white text-fertiliapp-fuerte hover:bg-rose-50"
+          className="h-9 w-9 rounded-full border border-slate-200 bg-white text-subtitulo hover:bg-rose-50"
           onClick={handleDelete}
           disabled={isProcessing}
         >
@@ -565,7 +565,7 @@ const footerIconButtonClass =
         type="button"
         variant="outline"
         size="sm"
-        className="h-9 rounded-full border-rose-200 px-3 text-xs font-semibold text-rose-500"
+        className="h-9 rounded-full border-slate-200 px-3 text-xs font-semibold text-subtitulo bg-white"
         onClick={handleAdd}
         disabled={isProcessing}
       >
