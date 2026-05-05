@@ -5,7 +5,6 @@ import {
   FilePlus,
   CalendarPlus,
   Edit,
-  X,
   ChevronLeft,
   ChevronRight,
   Baby,
@@ -51,6 +50,7 @@ const CycleOverviewCard = ({
   handleOpenT8Dialog = () => {},
   cpmMetric = {},
   t8Metric = {},
+  isDetailInteractionModalOpen = false,
 }) => {
   const records = cycleData.records || [];
   const isPostpartumModeEnabled = Boolean(cycleData?.postpartumMode);
@@ -58,6 +58,7 @@ const CycleOverviewCard = ({
   const [recentlyChangedDays, setRecentlyChangedDays] = useState([]);
   const hasInitializedWheelRef = useRef(true);
 const circleRef = useRef(null);
+const activeDetailPanelRef = useRef(null);
 const wheelDragRef = useRef({
   pointerId: null,
   startOffset: 0,
@@ -106,6 +107,26 @@ const recentSignaturesRef = useRef(new Map());
     setActivePoint(null);
   }
 }, [activePoint, records]);
+
+  useEffect(() => {
+    if (!activePoint || isDetailInteractionModalOpen) return undefined;
+
+    const handlePointerDownOutsideDetail = (event) => {
+      const detailPanel = activeDetailPanelRef.current;
+
+      if (detailPanel && detailPanel.contains(event.target)) {
+        return;
+      }
+
+      setActivePoint(null);
+    };
+
+    document.addEventListener('pointerdown', handlePointerDownOutsideDetail, true);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDownOutsideDetail, true);
+    };
+  }, [activePoint, isDetailInteractionModalOpen]);
 
   useEffect(() => {
     const prevSignatures = recentSignaturesRef.current;
@@ -581,8 +602,13 @@ const resetWheelDrag = useCallback(() => {
     return;
   }
 
+  if (resolvedActivePoint?.isoDate && targetRecord.isoDate === resolvedActivePoint.isoDate) {
+    setActivePoint(null);
+    return;
+  }
+
   setActivePoint(targetRecord);
-}, [currentPeakIsoDate, getLocalSvgPoint]);
+}, [currentPeakIsoDate, resolvedActivePoint?.isoDate]);
 
 const handleDotPointerDown = useCallback(
   (event) => {
@@ -1428,21 +1454,11 @@ if (dot.peakStatus === 'P') {
       transition={{ duration: 0.18, ease: 'easeOut' }}
     >
       <div
+        ref={activeDetailPanelRef}
         className="mx-auto w-full max-w-md pointer-events-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mb-2 flex justify-end px-1">
-          <button
-            type="button"
-            onClick={() => setActivePoint(null)}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-full  text-slate-500 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70"
-            aria-label="Cerrar detalle del día"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="max-h-[42dvh] overflow-y-auto rounded-[30px] shadow-[0_-8px_30px_rgba(221,86,101,0.12)]">
+        <div className="max-h-[38dvh] overflow-y-auto rounded-[30px] shadow-[0_-8px_30px_rgba(221,86,101,0.12)]">
           <div>
   <DayDetail
     isoDate={resolvedActivePoint.isoDate}
@@ -2285,6 +2301,7 @@ const handleConfirmDeleteRecord = useCallback(async () => {
   handleOpenT8Dialog={handleOpenT8Dialog}
   cpmMetric={cpmMetric}
   t8Metric={t8Metric}
+  isDetailInteractionModalOpen={showForm}
 />
           <FertilityCalculatorsEditorDialogs
             editor={calculatorEditor}

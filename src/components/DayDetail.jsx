@@ -16,6 +16,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { PeakModeButton } from '@/components/ui/peak-mode-button';
 import { computePeakState } from '@/components/dataEntryForm/sectionLogic';
+import { useAuth } from '@/contexts/AuthContext';
+import { normalizeStoredPreferences, PREFERENCE_DEFAULTS } from '@/lib/preferences';
 import { cn } from '@/lib/utils';
 const DayDetail = ({
   isoDate,
@@ -31,6 +33,7 @@ const DayDetail = ({
   onTogglePeak,
   isProcessing,
 }) => {
+  const { preferences } = useAuth();
   const isPersistedRecord = (record) =>
   Boolean(record?.id) && !String(record.id).startsWith('placeholder-');
 
@@ -225,6 +228,10 @@ const smartOpen = (key, sectionKey, fieldName) => {
   const timeValue = details?.timeValue || '—';
   const hasTimeValue = Boolean(details?.timeValue);
   const hasRelations = Boolean(details?.hasRelations);
+  const showRelationsAction = useMemo(
+    () => normalizeStoredPreferences(preferences ?? PREFERENCE_DEFAULTS).showRelationsRow,
+    [preferences]
+  );
 
 // Normalizamos el indicador de pico para la UI
 let peakIndicatorLabel = null;
@@ -504,27 +511,29 @@ const footerIconButtonClass =
   </button>
 
   <div className="flex shrink-0 items-center gap-1">
-    <button
-      type="button"
-      onClick={handleRelationsToggle}
-      disabled={isProcessing}
-      className={cn(
-        footerIconButtonClass,
-        hasRelations
-          ? 'border-rose-200 bg-white text-rose-500'
-          : 'border-slate-200 bg-white text-slate-300',
-        isProcessing && 'cursor-not-allowed opacity-70'
-      )}
-      title={hasRelations ? 'Hubo relaciones' : 'Sin relaciones'}
-      aria-label={hasRelations ? 'Hubo relaciones' : 'Sin relaciones'}
-    >
-      <Heart
+    {showRelationsAction && (
+      <button
+        type="button"
+        onClick={handleRelationsToggle}
+        disabled={isProcessing}
         className={cn(
-          'h-4 w-4 shrink-0',
-          hasRelations ? 'fill-current' : ''
+          footerIconButtonClass,
+          hasRelations
+            ? 'border-rose-200 bg-white text-rose-500'
+            : 'border-slate-200 bg-white text-slate-300',
+          isProcessing && 'cursor-not-allowed opacity-70'
         )}
-      />
-    </button>
+        title={hasRelations ? 'Hubo relaciones' : 'Sin relaciones'}
+        aria-label={hasRelations ? 'Hubo relaciones' : 'Sin relaciones'}
+      >
+        <Heart
+          className={cn(
+            'h-4 w-4 shrink-0',
+            hasRelations ? 'fill-current' : ''
+          )}
+        />
+      </button>
+    )}
 
     {hasPersistedRecord ? (
       <>

@@ -40,6 +40,8 @@ import { formatCycleMeta, formatCycleTitle } from '@/lib/formatCycleTitle';
 import { cn } from '@/lib/utils';
 import DataIssuesBanner from '@/components/DataIssuesBanner';
 import DataRepairDialog from '@/components/DataRepairDialog';
+import { useAuth } from '@/contexts/AuthContext';
+import { normalizeStoredPreferences, PREFERENCE_DEFAULTS } from '@/lib/preferences';
 import {
   getPeakDayToastMessage,
   getRecordUpdateToastMessage,
@@ -211,6 +213,11 @@ export const RecordsExperience = ({
     deleteIssueEntry,
     getPublicError,
   } = useCycleData();
+  const { preferences } = useAuth();
+  const showRelationsRow = useMemo(
+    () => normalizeStoredPreferences(preferences ?? PREFERENCE_DEFAULTS).showRelationsRow,
+    [preferences]
+  );
   const cycle = cycleProp ?? contextCurrentCycle;
   const isLoading = isLoadingProp ?? contextIsLoading;
   const addOrUpdateDataPoint = addOrUpdateDataPointProp
@@ -648,7 +655,7 @@ export const RecordsExperience = ({
           infoParts.push('moco');
         }
 
-        if (details?.hasRelations) {
+        if (showRelationsRow && details?.hasRelations) {
           infoParts.push('RS');
         }
 
@@ -664,7 +671,7 @@ export const RecordsExperience = ({
         return `${baseLabel}: ${infoParts.join('; ')}`;
       },
     }),
-    [peakStatuses, recordDetailsByIso]
+    [peakStatuses, recordDetailsByIso, showRelationsRow]
   );
 
   const cycleDays = useMemo(() => {
@@ -847,7 +854,7 @@ export const RecordsExperience = ({
   )}
       {symbolBackgroundClass && <span className={symbolBackgroundClass} aria-hidden="true" />}
       <span className={numberClass}>{format(date, 'd')}</span>
-      {hasRelations && (
+      {showRelationsRow && hasRelations && (
         <Heart
           aria-hidden="true"
           className="pointer-events-none absolute -bottom-[0.2px] -right-[0.2px] h-2 w-2 text-rose-500 fill-current"
@@ -878,7 +885,7 @@ export const RecordsExperience = ({
 );
 
     },
-    [archivedCycleIntervals, cycleDayIsoSet, peakStatuses, recordDetailsByIso]
+    [archivedCycleIntervals, cycleDayIsoSet, peakStatuses, recordDetailsByIso, showRelationsRow]
   );
 
   const cycleDayMap = useMemo(() => {
