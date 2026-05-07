@@ -34,7 +34,15 @@ const ChartDynamicOverlay = ({
   );
   const dayWidth = Math.max(((nextX - previousX) || fallbackDayWidth), fallbackDayWidth, 0);
   const thinStrokeWidth = Math.max(3, Math.min(14, dayWidth * 0.4));
-  const thickStrokeWidth = Math.max(thinStrokeWidth * 2, responsiveFontSize(0.85));
+  const selectedRowsColumnWidth = Number.isFinite(activeDay.width)
+  ? activeDay.width
+  : fallbackDayWidth;
+
+const thickStrokeWidth = Math.max(
+  thinStrokeWidth * 2,
+  selectedRowsColumnWidth * 0.9,
+  responsiveFontSize(0.85)
+);
   const theme = getCanvasTheme();
   const stroke = theme.highlight.activeColumn;
 

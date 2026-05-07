@@ -59,7 +59,7 @@ background: {
     correctionPointFill: 'rgba(226,232,240,0.6)',
   },
   highlight: {
-  activeColumn: 'rgba(216,92,112,0.14)',
+  activeColumn: 'rgba(216,92,112,0.09)',
   risePath: '#B8324B',
 },
 svg: {
