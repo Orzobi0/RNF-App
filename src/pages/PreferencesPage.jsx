@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Calculator, ChevronLeft, Clock3, Heart, LineChart, Bolt, Trash2 } from 'lucide-react';
+import { Calculator, ChevronLeft, Clock3, Heart, Eye, Trash2 } from 'lucide-react';
+import useBackClose from '@/hooks/useBackClose';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
@@ -33,7 +34,7 @@ const getSectionAccentClasses = (tone = 'rose') => {
         iconWrap: 'text-alerta-2',
         lineStyle: {
           backgroundImage:
-            'linear-gradient(to right, rgba(246, 180, 92, 0.34), rgba(246, 180, 92, 0.10), transparent)',
+            'linear-gradient(to right, rgba(246, 180, 92, 0.24), rgba(246, 180, 92, 0.07), transparent)',
         },
       };
     case 'cool':
@@ -41,7 +42,7 @@ const getSectionAccentClasses = (tone = 'rose') => {
         iconWrap: 'text-secundario-fuerte',
         lineStyle: {
           backgroundImage:
-            'linear-gradient(to right, rgba(51, 124, 139, 0.30), rgba(51, 124, 139, 0.09), transparent)',
+            'linear-gradient(to right, rgba(51, 124, 139, 0.22), rgba(51, 124, 139, 0.06), transparent)',
         },
       };
     case 'medium':
@@ -49,7 +50,7 @@ const getSectionAccentClasses = (tone = 'rose') => {
         iconWrap: 'text-fertiliapp-fuerte',
         lineStyle: {
           backgroundImage:
-            'linear-gradient(to right, rgba(216, 92, 112, 0.28), rgba(216, 92, 112, 0.08), transparent)',
+            'linear-gradient(to right, rgba(216, 92, 112, 0.20), rgba(216, 92, 112, 0.06), transparent)',
         },
       };
     case 'rose':
@@ -58,7 +59,7 @@ const getSectionAccentClasses = (tone = 'rose') => {
         iconWrap: 'text-rose-500',
         lineStyle: {
           backgroundImage:
-            'linear-gradient(to right, rgba(227, 121, 136, 0.30), rgba(227, 121, 136, 0.08), transparent)',
+            'linear-gradient(to right, rgba(227, 121, 136, 0.22), rgba(227, 121, 136, 0.06), transparent)',
         },
       };
   }
@@ -118,7 +119,7 @@ const SectionHeader = ({ icon: Icon, title, tone = 'rose' }) => {
 };
 
 const PREFERENCE_ROW_CLASS =
-  'flex w-full items-center justify-between gap-3 rounded-[26px] border border-rose-100/70 bg-white/80 px-4 py-2.5 text-left shadow-sm backdrop-blur-sm transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-60';
+  'flex w-full items-center justify-between gap-3 rounded-[24px] border border-white/50 bg-white/20 px-4 py-2.5 text-left shadow-none backdrop-blur-sm transition hover:border-rose-100/50 hover:bg-white/60 active:bg-white/65 disabled:cursor-not-allowed disabled:opacity-60';
 
 const PreferenceIcon = ({ icon: Icon, tone = 'rose' }) =>
   Icon ? (
@@ -133,7 +134,7 @@ const PreferenceIcon = ({ icon: Icon, tone = 'rose' }) =>
   ) : null;
 
 const PreferenceValuePill = ({ children }) => (
-  <span className="inline-flex h-8 min-w-[74px] shrink-0 items-center justify-center rounded-full border border-rose-100/70 bg-white/90 px-3 text-sm font-semibold tabular-nums text-rose-700">
+  <span className="inline-flex h-8 min-w-[74px] shrink-0 items-center justify-center rounded-full border border-rose-100/35 bg-white/90 px-3 text-sm font-semibold tabular-nums text-rose-700">
     {children}
   </span>
 );
@@ -213,9 +214,9 @@ const PreferenceModeChip = ({ label, tone = 'manual' }) => (
   <span
     className={cn(
       'inline-flex h-6 items-center rounded-full border px-2.5 text-[11px] font-semibold',
-      tone === 'manual' && 'border-rose-200 bg-rose-50 text-rose-700',
-      tone === 'auto' && 'border-secundario-suave bg-secundario-suave text-secundario-fuerte',
-      tone === 'muted' && 'border-slate-200 bg-white/90 text-slate-700'
+      tone === 'manual' && 'border-rose-200/70 bg-rose-50/75 text-rose-700',
+      tone === 'auto' && 'border-secundario-suave/80 bg-secundario-suave/75 text-secundario-fuerte',
+      tone === 'muted' && 'border-white/55 bg-white/45 text-slate-700'
     )}
   >
     {label}
@@ -227,7 +228,7 @@ const PreferenceMetricGrid = ({ items, valueTone = 'rose' }) => (
     {items.map((item) => (
       <div
         key={item.label}
-        className="rounded-xl border border-rose-100/70 bg-white/90 px-3 py-1.5"
+        className="rounded-xl border border-white/35 bg-white/55 px-3 py-1.5"
       >
         <p className="text-[10px] font-medium leading-none text-slate-500">
           {item.label}
@@ -258,7 +259,7 @@ const CalculatorPreferenceCard = ({
   disabled = false,
 }) => (
   <div
-    className={`rounded-[24px] border border-rose-100/70 bg-white/80 px-4 py-2.5 shadow-sm backdrop-blur-sm ${
+    className={`rounded-[24px] border border-white/50 bg-white/20 px-4 py-2.5 shadow-none backdrop-blur-sm transition ${
       disabled ? 'opacity-60' : ''
     }`}
   >
@@ -267,7 +268,7 @@ const CalculatorPreferenceCard = ({
       onClick={onEdit}
       disabled={disabled}
       aria-label={editAriaLabel ?? `Editar ${title}`}
-      className="block w-full text-left disabled:cursor-not-allowed"
+      className="block w-full rounded-[18px] text-left transition hover:bg-white/25 active:bg-white/35 disabled:cursor-not-allowed"
     >
       <div className="flex items-start justify-between gap-3">
         <p className="text-base font-semibold text-slate-700">{title}</p>
@@ -279,7 +280,7 @@ const CalculatorPreferenceCard = ({
       </div>
     </button>
 
-    <div className="mt-2 border-t border-rose-100/70 pt-2">
+    <div className="mt-2 border-t border-white/45 pt-2">
       <PreferenceInlineSwitchRow
         title={switchTitle}
         checked={checked}
@@ -473,6 +474,8 @@ const closePreferredTimeEditor = useCallback(() => {
   setIsPreferredTimeEditorOpen(false);
 }, [uiPreferences.preferredTemperatureTime]);
 
+useBackClose(isPreferredTimeEditorOpen, closePreferredTimeEditor);
+
 const handleSavePreferredTime = useCallback(async () => {
   const nextValue = preferredTimeDraft || '';
 
@@ -572,23 +575,39 @@ const handleClearPreferredTime = useCallback(async () => {
   );
 
   return (
-    <div className="mx-auto w-full max-w-2xl px-4 py-6">
-      <div className="mb-5">
-  <div className="flex items-center gap-1">
-    <Button asChild variant="ghost" size="icon" className="-ml-2 text-slate-600 hover:bg-white/50">
-      <Link to="/settings" aria-label="Volver a ajustes">
-        <ChevronLeft className="h-5 w-5" />
-      </Link>
-    </Button>
-    <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-700">
-      <Bolt className="h-6 w-6 text-[#3a8a6e]" />
+  <div className="relative flex min-h-full flex-col">
+    <div className="sticky top-0 z-30 pb-4">
+      <div className="w-full rounded-b-[24px] border-b border-white/55 bg-white/70 px-4 pb-3 pt-2.5 shadow-[0_4px_14px_rgba(216,92,112,0.06)] backdrop-blur-xl">
+        <div className="relative mx-auto w-full max-w-2xl">
+  <Button
+    asChild
+    variant="ghost"
+    size="icon"
+    className="absolute -left-1 -top-1 h-7 w-7 rounded-full text-fertiliapp-fuerte hover:bg-rose-50 hover:text-fertiliapp-fuerte active:bg-rose-100"
+  >
+    <Link to="/settings" aria-label="Volver a ajustes">
+      <ChevronLeft className="h-4 w-4" />
+    </Link>
+  </Button>
+
+  <div className="min-w-0">
+    <div className="truncate pl-7 text-[10px] font-semibold uppercase tracking-[0.22em] text-fertiliapp-fuerte">
+      AJUSTES
+    </div>
+
+    <h1 className="truncate text-[22px] font-semibold leading-tight text-titulo">
       Preferencias
     </h1>
+
+    <p className="truncate text-[13px] font-medium text-subtitulo">
+      Registro, cálculo y visualización de datos
+    </p>
   </div>
-
-  <div className="mt-3 h-px w-full bg-rose-800/70" />
 </div>
+      </div>
+    </div>
 
+    <div className="mx-auto w-full max-w-2xl flex-1 px-4 pb-6">
       <div className="space-y-4">
   <section className="space-y-2.5">
     <SectionHeader icon={Clock3} title="Registro" tone="warm" />
@@ -649,26 +668,27 @@ metrics={t8Metrics}
   </section>
 
   <section className="space-y-2.5">
-    <SectionHeader icon={LineChart} title="Gráfica" tone="medium" />
+    <SectionHeader icon={Eye} title="Visualización" tone="medium" />
 
     <PreferenceSwitchRow
       icon={Heart}
       iconTone="medium"
       title="Mostrar relaciones"
-      description="Mostrar relaciones en la gráfica"
+      description="Muestra las relaciones en la gráfica y en los detalles de registro."
       checked={Boolean(uiPreferences.showRelationsRow)}
       onChange={(checked) =>
         handleSimpleFieldChange({
           key: 'showRelationsRow',
           value: checked,
           successTitle: 'Preferencia guardada',
-          errorTitle: 'No se pudo actualizar la gráfica',
+          errorTitle: 'No se pudo actualizar la visualización',
         })
       }
       disabled={Boolean(savingKeys.showRelationsRow)}
       id="toggle-show-rs-row"
     />
   </section>
+</div>
 </div>
 
 <Dialog

@@ -204,6 +204,7 @@ const ChartPoints = ({
   autoLabelStep = false,
   isArchivedCycle = false,
   renderTemperatureLayer = true,
+  renderVisualLayer = true,
   manualModeEnabled = false,
   manualBaselineTemp = null,
   isPointEligibleForManualMode = null,
@@ -516,6 +517,37 @@ const fallbackIndices = Array.isArray(ovulationDetails?.highSequenceIndices)
         const point = data[index];
         if (!point) return null;
         const x = getX(index);
+        const isFuture = point.isoDate
+          ? isAfter(startOfDay(parseISO(point.isoDate)), startOfDay(new Date()))
+          : false;
+        const shouldEnableInteractions = Boolean(point.isoDate) && !isFuture;
+        const interactionProps = shouldEnableInteractions
+          ? {
+              pointerEvents: 'all',
+              style: { cursor: 'pointer' },
+              onClick: (e) => onPointInteraction(point, index, e),
+              'data-chart-interactive': 'true'
+            }
+          : {};
+
+        if (!renderVisualLayer) {
+          const hitboxWidth = Math.max(18, Math.min(cellWidth || 18, 56));
+          return (
+            <g key={`hit-${index}-${point.isoDate || point.timestamp}`} {...interactionProps}>
+              {shouldEnableInteractions && (
+                <rect
+                  x={x - hitboxWidth / 2}
+                  y={padding.top}
+                  width={hitboxWidth}
+                  height={Math.max(1, rowsZoneHeight + graphBottomY - padding.top)}
+                  fill="transparent"
+                  data-chart-interactive="true"
+                />
+              )}
+            </g>
+          );
+        }
+
         const y = point[temperatureField] != null
           ? getY(point[temperatureField])
           : rowsTopY;
@@ -575,10 +607,6 @@ const fallbackIndices = Array.isArray(ovulationDetails?.highSequenceIndices)
           : (symbolInfo.value === 'white' ? 1.6 : 1);
 
 
-        const isFuture = point.isoDate
-          ? isAfter(startOfDay(parseISO(point.isoDate)), startOfDay(new Date()))
-          : false;
-
           const symbolRectSize = responsiveFontSize(isFullScreen ? 1.8 : 2);
           const symbolTextY = symbolRowYBase - symbolRectSize * 0.75 + symbolRectSize / 2 + 2;
           const peakMarkerCenterY = symbolRowYBase - symbolRectSize * 0.25;
@@ -593,16 +621,6 @@ const fallbackIndices = Array.isArray(ovulationDetails?.highSequenceIndices)
         const isPeakSeriesDay =
           isPeakMarker || ['1', '2', '3'].includes(peakStatus);
         const shouldRenderSymbol = !isPlaceholder && symbolInfo.value !== 'none';
-        const shouldEnableInteractions = Boolean(point.isoDate) && !isFuture;
-        const interactionProps = shouldEnableInteractions
-          ? {
-              pointerEvents: 'all',
-              style: { cursor: 'pointer' },
-              onClick: (e) => onPointInteraction(point, index, e),
-              'data-chart-interactive': 'true'
-            }
-          : {};
-
         const isTodayPoint = point.isoDate
           ? isSameDay(parseISO(point.isoDate), today)
           : false;
@@ -1131,6 +1149,7 @@ const areEqual = (prev, next) => {
   if (prev.autoLabelStep !== next.autoLabelStep) return false;
   if (prev.isArchivedCycle !== next.isArchivedCycle) return false;
   if (prev.renderTemperatureLayer !== next.renderTemperatureLayer) return false;
+  if (prev.renderVisualLayer !== next.renderVisualLayer) return false;
   if (prev.manualModeEnabled !== next.manualModeEnabled) return false;
   if (prev.manualBaselineTemp !== next.manualBaselineTemp) return false;
   if (prev.isPointEligibleForManualMode !== next.isPointEligibleForManualMode) return false;

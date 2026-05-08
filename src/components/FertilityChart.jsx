@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MoveVertical } from 'lucide-react';
 import { motion } from 'framer-motion';
-import ChartPoints from '@/components/chartElements/ChartPoints';
 import ChartTooltip from '@/components/chartElements/ChartTooltip';
 import ChartLeftLegend from '@/components/chartElements/ChartLeftLegend';
 import ChartRightStickyTempLegend from '@/components/chartElements/ChartRightStickyTempLegend';
 import FertilityChartCanvasOverlay from '@/components/chartElements/FertilityChartCanvasOverlay';
+import ChartDynamicOverlay from '@/chart/renderers/ChartDynamicOverlay';
+import ChartHitLayer from '@/chart/renderers/ChartHitLayer';
 import { getChartTheme } from '@/components/chartElements/chartTheme';
 import { useFertilityChart } from '@/hooks/useFertilityChart';
 import { isAfter, parseISO, startOfDay } from 'date-fns';
@@ -33,6 +34,7 @@ const FertilityChart = ({
   isArchivedCycle = false,
   cycleEndDate = null,
   exportMode = false,
+  measuredViewport = null,
 }) => {
 
 const isIOS =
@@ -51,6 +53,12 @@ const isIOS =
   // Detectar orientación real del viewport para rotación visual
   const readViewport = () => {
   if (typeof window === 'undefined') return { w: 0, h: 0 };
+
+  const externalW = Number(measuredViewport?.w);
+  const externalH = Number(measuredViewport?.h);
+  if (Number.isFinite(externalW) && externalW > 0 && Number.isFinite(externalH) && externalH > 0) {
+    return { w: Math.round(externalW), h: Math.round(externalH) };
+  }
 
   const host = stageHostRef.current;
   if (host) {
@@ -95,10 +103,21 @@ useEffect(() => {
     vv?.removeEventListener('resize', onResize);
     vv?.removeEventListener('scroll', onResize);
   };
-}, []);
+}, [measuredViewport?.w, measuredViewport?.h]);
+
+useEffect(() => {
+  const externalW = Number(measuredViewport?.w);
+  const externalH = Number(measuredViewport?.h);
+  if (!Number.isFinite(externalW) || externalW <= 0 || !Number.isFinite(externalH) || externalH <= 0) {
+    return;
+  }
+  setViewport((prev) => {
+    const next = { w: Math.round(externalW), h: Math.round(externalH) };
+    return prev.w === next.w && prev.h === next.h ? prev : next;
+  });
+}, [measuredViewport?.w, measuredViewport?.h]);
 
   const applyRotation = !exportMode && isFullScreen && forceLandscape && isViewportPortrait;
-  const visualOrientation = forceLandscape ? 'landscape' : orientation;
   const isIOSFakeLandscape = isIOS && applyRotation;
   const [rotatedSafeStartInsetPx, setRotatedSafeStartInsetPx] = useState(0);
   const [rotatedSafeEndInsetPx, setRotatedSafeEndInsetPx] = useState(0);
@@ -152,7 +171,6 @@ useEffect(() => {
     bottomRowsResponsiveFontSize,
     clearActivePoint,
     baselineTemp,
-    baselineStartIndex,
     baselineIndices,
     firstHighIndex,
     ovulationDetails,
@@ -161,6 +179,7 @@ useEffect(() => {
     hasAnyObservation,
     graphBottomInset,
     todayIndex,
+    renderModel,
   } = useFertilityChart(
     data,
     isFullScreen,
@@ -611,7 +630,7 @@ useEffect(() => {
     if (exportMode) return;
 
   const clickedInteractiveElement =
-      event.target?.closest?.('[data-chart-interactive="true"], [data-manual-baseline-interactive="true"]');
+      event.target?.closest?.('[data-chart-interactive="true"], [data-chart-phase-interactive="true"], [data-manual-baseline-interactive="true"]');
     if (clickedInteractiveElement) return;
 
     const scroller = chartRef.current;
@@ -718,7 +737,7 @@ if (isRotated) {
   if (!allDataPoints || allDataPoints.length === 0) {
     return (
       <div className="text-center p-8">
-        <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-pink-100 to-rose-100 rounded-full mb-4">
+        <div className="inline-flex items-center justify-center w-16 h-16 bg-[#F4D6DC] rounded-full mb-4">
           <svg className="w-8 h-8 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
           </svg>
@@ -1616,6 +1635,28 @@ useEffect(() => {
   };
 }, [applyRotation, isRotationStage]);
 
+useEffect(() => {
+  if (typeof window === 'undefined' || !isRotationStage) return undefined;
+
+  let raf1 = 0;
+  let raf2 = 0;
+  let raf3 = 0;
+
+  raf1 = requestAnimationFrame(() => {
+    window.dispatchEvent(new Event('resize'));
+    raf2 = requestAnimationFrame(() => {
+      window.dispatchEvent(new Event('resize'));
+      raf3 = requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+    });
+  });
+
+  return () => {
+    if (raf1) cancelAnimationFrame(raf1);
+    if (raf2) cancelAnimationFrame(raf2);
+    if (raf3) cancelAnimationFrame(raf3);
+  };
+}, [isRotationStage, applyRotation, viewport.w, viewport.h]);
+
 const rotationStageStyle = shouldRotateStage
   ? {
       position: 'absolute',
@@ -1656,19 +1697,18 @@ const rotationWrapperStyle = rotationStageStyle
   : safeAreaStyle ?? undefined;
 
   // Clase del contenedor de scroll ajustada para rotación artificial
-  const baseFullClass = 'w-full h-full bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100';
+  const baseFullClass = 'w-full h-full bg-[#FFF8FA]';
   const containerClass = isFullScreen
     ? `${baseFullClass} h-full overflow-x-auto ${allowVerticalScroll ? 'overflow-y-auto' : 'overflow-y-hidden'}`
     : `${baseFullClass} overflow-x-auto ${allowVerticalScroll ? 'overflow-y-auto' : 'overflow-y-hidden'} border border-pink-100/50`;
   const showLegend = true;
   const handlePointInteractionSafe = exportMode ? () => {} : handlePointInteraction;
-  const clearActivePointSafe = exportMode ? () => {} : clearActivePoint;
   const showCanvasOverlay =
   chartWidth > 0 && chartHeight > 0 && scrollableContentHeight > 0;
   return (
       <motion.div
   ref={stageHostRef}
-  className="relative w-full h-full bg-gradient-to-br from-rose-100 via-pink-100 to-rose-100"
+  className="relative w-full h-full bg-[#FFF8FA]"
   initial={false}
 >
   <div
@@ -1679,7 +1719,7 @@ const rotationWrapperStyle = rotationStageStyle
       {/* Contenedor principal del gráfico */}
       <motion.div
         ref={chartRef}
-        className={`relative z-10 p-0 ${isFullScreen ? '' : 'rounded-2xl'} ${containerClass}`}
+        className={`relative p-0 ring-1 ring-rose-200/60 ${containerClass}`}
         style={{
         background: showCanvasOverlay ? 'transparent' : undefined,
   // Sin scroll vertical real, bloquea el pan-y para que iOS no “arrastre” la página.
@@ -1731,7 +1771,7 @@ const rotationWrapperStyle = rotationStageStyle
               )}
               {showCanvasOverlay && (
                 <FertilityChartCanvasOverlay
-  key={`canvas-${chartWidth}-${scrollableContentHeight}-${isFullScreen ? 'fs' : 'normal'}-${applyRotation ? 'rot' : 'flat'}-${viewport.w}-${viewport.h}`}
+  key={`canvas-layout-${isFullScreen ? 'fs' : 'normal'}-${forceLandscape ? 'forced' : 'free'}-${applyRotation ? 'rotated' : 'flat'}-${orientation}`}
   chartWidth={chartWidth}
   chartHeight={chartHeight}
   scrollableContentHeight={scrollableContentHeight}
@@ -1744,7 +1784,6 @@ const rotationWrapperStyle = rotationStageStyle
   getX={getX}
   getY={getY}
   responsiveFontSize={responsiveFontSize}
-  activeIndex={activeIndex}
   showInterpretation={showInterpretation}
   interpretationSegments={interpretationSegments}
   shouldRenderBaseline={shouldRenderBaseline}
@@ -1756,8 +1795,31 @@ const rotationWrapperStyle = rotationStageStyle
   baselineOpacity={baselineOpacity}
   baselineWidth={baselineWidth}
   temperatureRiseHighlightPath={temperatureRiseHighlightPath}
+  visibleRange={visibleRange}
+  textRowHeight={textRowHeight}
+  bottomRowsResponsiveFontSize={bottomRowsResponsiveFontSize}
+  rowsZoneHeight={rowsZoneHeight}
+  isFullScreen={isFullScreen}
+  showRelationsRow={showRelationsRow}
+  autoLabelStep={exportMode}
+  ovulationDetails={ovulationDetails}
+  firstHighIndex={firstHighIndex}
+  manualModeEnabled={manualModeEnabled}
+  manualBaselineTemp={manualBaselineTemp}
+  isPointEligibleForManualMode={isPointEligibleForManualMode}
+  exportMode={exportMode}
+  renderModel={renderModel}
 />
               )}
+              <ChartDynamicOverlay
+                renderModel={renderModel}
+                activeIndex={activeIndex}
+                chartWidth={chartWidth}
+                contentHeight={scrollableContentHeight}
+                padding={padding}
+                graphBottomY={graphBottomY}
+                responsiveFontSize={responsiveFontSize}
+              />
 
               <motion.svg
                 width={chartWidth}
@@ -1842,6 +1904,20 @@ const rotationWrapperStyle = rotationStageStyle
             </filter>
           </defs>
 
+          {!exportMode && (
+            <ChartHitLayer
+              renderModel={renderModel}
+              visibleRange={visibleRange}
+              padding={padding}
+              graphBottomY={graphBottomY}
+              contentHeight={scrollableContentHeight}
+              chartWidth={chartWidth}
+              onPointInteraction={handlePointInteractionSafe}
+              exportMode={exportMode}
+              isScrolling={isScrolling}
+            />
+          )}
+
           {showInterpretation &&
             interpretationSegments.length > 0 &&
             interpretationBandTop != null &&
@@ -1869,6 +1945,9 @@ const rotationWrapperStyle = rotationStageStyle
                   );
                   const railColors = getSegmentRailColors(segment);
                   const handleActivate = (event) => {
+                    if (typeof event?.preventDefault === 'function') {
+                      event.preventDefault();
+                    }
                     if (typeof event?.stopPropagation === 'function') {
                       event.stopPropagation();
                     }
@@ -1916,8 +1995,10 @@ const rotationWrapperStyle = rotationStageStyle
                         aria-label={tooltipText}
                         tabIndex={0}
                         data-chart-interactive="true"
+                        data-chart-phase-interactive="true"
                         onClick={handleActivate}
                         onKeyDown={handleKeyDown}
+                        pointerEvents="all"
                         style={{ cursor: 'pointer' }}
                       >
                         <title>{tooltipText}</title>
@@ -1935,10 +2016,11 @@ const rotationWrapperStyle = rotationStageStyle
                           aria-label={tooltipText}
                           tabIndex={0}
                           data-chart-interactive="true"
+                          data-chart-phase-interactive="true"
                           onClick={handleActivate}
                           onKeyDown={handleKeyDown}
                           style={{ cursor: 'pointer', userSelect: 'none', lineHeight: 1.2, textShadow: phaseTextShadow }}
-                          pointerEvents="auto"
+                          pointerEvents="all"
                         >
                           <title>{tooltipText}</title>
                           {displayText}
@@ -1993,45 +2075,6 @@ const rotationWrapperStyle = rotationStageStyle
             </g>
           )}
 
-          {/* Puntos del gráfico */}
-          <ChartPoints
-            data={allDataPoints}
-            getX={getX}
-            getY={getY}
-            isFullScreen={isFullScreen}
-            orientation={visualOrientation}
-            responsiveFontSize={responsiveFontSize}
-            bottomRowsResponsiveFontSize={bottomRowsResponsiveFontSize}
-            onPointInteraction={handlePointInteractionSafe}
-            clearActivePoint={clearActivePointSafe}
-            activePoint={activePoint}
-            visibleRange={visibleRange}
-            padding={padding}
-            chartHeight={chartHeight}
-            chartWidth={chartWidth}
-            temperatureField="displayTemperature"
-            textRowHeight={textRowHeight}
-            graphBottomY={graphBottomY}
-            rowsZoneHeight={rowsZoneHeight}
-            compact={false}
-            reduceMotion={effectiveReduceMotion}
-            isScrolling={isScrolling}
-            showInterpretation={showInterpretation}
-            ovulationDetails={ovulationDetails}
-            baselineStartIndex={baselineStartIndex}
-            firstHighIndex={firstHighIndex}
-            baselineIndices={baselineIndices}
-            graphBottomLift={graphBottomInset}
-            showRelationsRow={showRelationsRow}
-            autoLabelStep={exportMode}
-            isArchivedCycle={isArchivedCycle}
-            renderTemperatureLayer={false}
-            manualModeEnabled={manualModeEnabled}
-            manualBaselineTemp={manualBaselineTemp}
-            isPointEligibleForManualMode={isPointEligibleForManualMode}
-            exportMode={exportMode}
-          />
-
         </motion.svg>
             </div>
           </div>
@@ -2056,6 +2099,7 @@ const rotationWrapperStyle = rotationStageStyle
               onClose={clearActivePoint}
               onTogglePeak={onTogglePeak}
               currentPeakIsoDate={currentPeakIsoDate}
+              showRelationsRow={showRelationsRow}
             />
           </motion.div>
         )}

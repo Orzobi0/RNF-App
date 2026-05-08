@@ -1,6 +1,7 @@
 import React from 'react';
 import { format, parseISO } from 'date-fns';
 import { Button } from '@/components/ui/button';
+import useBackClose from '@/hooks/useBackClose';
 import {
   Dialog,
   DialogContent,
@@ -23,6 +24,9 @@ const OverlapWarningDialog = ({
   impactSummary,
   adjustedCyclesPreview = [],
 }) => {
+  useBackClose(isOpen, () => {
+    onCancel?.();
+  });
   const formatDate = (date) => {
     if (!date) return null;
     try {

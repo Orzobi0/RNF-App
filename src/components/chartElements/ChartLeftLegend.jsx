@@ -2,11 +2,7 @@ import React from 'react';
 import { useMemo } from 'react';
 import { Heart } from 'lucide-react';
 import { motion } from 'framer-motion';
-
-// Colores consistentes con la dashboard
-const SENSATION_COLOR = 'var(--color-sensacion-fuerte)';
-const APPEARANCE_COLOR = 'var(--color-apariencia-fuerte)';
-const OBSERVATION_COLOR = 'var(--color-observaciones-fuerte)';
+import { getChartTheme } from '@/components/chartElements/chartTheme';
 
 const ChartLeftLegend = ({
   padding,
@@ -25,6 +21,16 @@ const ChartLeftLegend = ({
   showRelationsRow = false,
   exportMode = false,
 }) => {
+  const theme = useMemo(() => getChartTheme(), []);
+  const railFill = exportMode
+    ? theme.background.leftLegendRailExport
+    : theme.background.leftLegendRail;
+  const railEdge = theme.background.leftLegendRailEdge;
+  const majorTextColor = theme.grid.labelMajor;
+  const minorTextColor = theme.grid.labelMinor;
+  const rowTextColor = theme.palette.darkRoseText;
+  const rowIconColor = theme.palette.axisMinor;
+
   const itemVariants = {
     hidden: { opacity: 0, y: 20 },
     visible: { 
@@ -58,24 +64,26 @@ const ChartLeftLegend = ({
   const autoRowH = Math.max(1, Math.floor(rowsZoneHeight / baseRowCount));
   const rowH = Math.max(textRowHeight, autoRowH);
   const rowLineHeight = bottomRowsResponsiveFontSize(0.95);
+  const symbolRectSize = responsiveFontSize(isFullScreen ? 1.8 : 2.1);
+  const symbolLegendY = rowsTopY + rowH * 3 - symbolRectSize * 0.25;
   const exportTextBlockHeight = rowLineHeight * 3;
   const exportSensationCenterY = rowsTopY + rowH * (isFullScreen ? 4 : 3.5) + exportTextBlockHeight / 2;
   const exportAppearanceCenterY = exportSensationCenterY + exportTextBlockHeight;
   const exportObservationCenterY = exportAppearanceCenterY + exportTextBlockHeight;
   const legendRows = useMemo(() => {
     const baseRows = [
-      { label: 'Fecha', y: rowsTopY + rowH * 1, color: isFullScreen ? '#374151' : '#374151', icon: null },
-      { label: 'Día', y: rowsTopY + rowH * 2, color: isFullScreen ? '#374151' : '#374151', icon: null },
-      { label: 'Símbolo', y: rowsTopY + rowH * 3, color: isFullScreen ? '#374151' : '#374151', icon: null },
-      { label: 'Sens.', y: exportMode ? exportSensationCenterY : rowsTopY + rowH * (isFullScreen ? 5 : 4.5), color: SENSATION_COLOR, icon: { type: 'text', value: '◊' } },
-      { label: 'Apar.', y: exportMode ? exportAppearanceCenterY : rowsTopY + rowH * (isFullScreen ? 7 : 6), color: APPEARANCE_COLOR, icon: { type: 'text', value: '○' } },
-      { label: 'Obs.', y: exportMode ? exportObservationCenterY : rowsTopY + rowH * (isFullScreen ? 9 : 7.5), color: OBSERVATION_COLOR, icon: { type: 'text', value: '✦' } },
+      { label: 'Fecha', y: rowsTopY + rowH * 1, color: rowTextColor, icon: null, baseline: 'alphabetic' },
+      { label: 'Día', y: rowsTopY + rowH * 2, color: rowTextColor, icon: null, baseline: 'alphabetic' },
+      { label: 'Símbolo', y: symbolLegendY, color: rowTextColor, icon: null, baseline: 'middle' },
+      { label: 'Sens.', y: exportMode ? exportSensationCenterY : rowsTopY + rowH * (isFullScreen ? 5 : 4.5), color: rowTextColor, icon: { type: 'text', value: '◊' }, baseline: 'middle' },
+      { label: 'Apar.', y: exportMode ? exportAppearanceCenterY : rowsTopY + rowH * (isFullScreen ? 7 : 6), color: rowTextColor, icon: { type: 'text', value: '○' }, baseline: 'middle' },
+      { label: 'Obs.', y: exportMode ? exportObservationCenterY : rowsTopY + rowH * (isFullScreen ? 9 : 7.5), color: rowTextColor, icon: { type: 'text', value: '✦' }, baseline: 'middle' },
     ];
     if (showRelationsRow && relationsRowIndex != null) {
       const relationsY = exportMode
         ? exportObservationCenterY + exportTextBlockHeight / 2 + rowH
         : rowsTopY + rowH * relationsRowIndex;
-      baseRows.push({ label: 'RS', y: relationsY, color: '#ec003c', icon: { type: 'heart' } });
+      baseRows.push({ label: 'RS', y: relationsY, color: rowTextColor, icon: { type: 'heart' }, baseline: 'middle' });
     }
     return baseRows;
   }, [
@@ -87,8 +95,10 @@ const ChartLeftLegend = ({
     isFullScreen,
     relationsRowIndex,
     rowH,
+    rowTextColor,
     rowsTopY,
     showRelationsRow,
+    symbolLegendY,
   ]);
   const MotionGroup = reduceMotion ? 'g' : motion.g;
   const motionGroupProps = reduceMotion ? {} : { variants: itemVariants };
@@ -100,16 +110,20 @@ const ChartLeftLegend = ({
     >
       <defs>
         <filter id="textShadowLegend" x="-50%" y="-50%" width="200%" height="200%">
-          <feDropShadow dx="0" dy="1" stdDeviation="1" floodColor="rgba(255, 255, 255, 0.9)" />
+          <feDropShadow dx="0" dy="1" stdDeviation="0.5" floodColor="rgba(255,255,255,0.70)" />
         </filter>
       </defs>
 
-      {/* Fondo premium para las etiquetas de filas */}
-
-
-
-
       {/* Etiquetas de temperatura con diseño premium */}
+      <rect
+        x={0}
+        y={0}
+        width={padding.left}
+        height={chartHeight}
+        fill={railFill}
+      />
+
+
       {tempTicks.map((temp, i) => {
         const y = getY(temp);
         const isMajor = temp.toFixed(1).endsWith('.0') || temp.toFixed(1).endsWith('.5');
@@ -126,7 +140,7 @@ const ChartLeftLegend = ({
               textAnchor="end"
               fontSize={responsiveFontSize(isMajor ? 1.15 : 1)}
               fontWeight={isMajor ? "800" : "700"}
-              fill={isMajor ? "#be185d" : "#db2777"}
+              fill={isMajor ? majorTextColor : minorTextColor}
               opacity={isMajor ? 1 : 0.85}
               style={{ 
                 filter: 'url(#textShadowLegend)',
@@ -143,7 +157,7 @@ const ChartLeftLegend = ({
 
       {/* Etiquetas de filas con diseño mejorado */}
       <MotionGroup {...motionGroupProps}>
-        {legendRows.map(({ label, y, color, icon }) => {
+        {legendRows.map(({ label, y, color, icon, baseline }) => {
           const isBottomRowLabel = label === 'Sens.' || label === 'Apar.' || label === 'Obs.';
           const labelFont = isBottomRowLabel ? bottomRowsResponsiveFontSize : responsiveFontSize;
           const iconX = padding.left - labelFont(2.8);
@@ -157,9 +171,10 @@ const ChartLeftLegend = ({
                 x={iconX}
                 y={iconY}
                 textAnchor="middle"
+                dominantBaseline="middle"
                 fontSize={labelFont(0.8)}
                 fontWeight="600"
-                fill={color}
+                fill={rowIconColor}
                 opacity={0.7}
                 style={{ 
                   filter: 'url(#textShadowLegend)',
@@ -170,12 +185,12 @@ const ChartLeftLegend = ({
               </text>
             )}
             {icon?.type === 'heart' && (
-              <g transform={`translate(${iconX - iconSize}, ${iconY - iconSize})`} opacity={0.7}>
+              <g transform={`translate(${iconX - iconSize / 2}, ${iconY - iconSize / 2})`} opacity={1}>
                 <Heart
                   width={iconSize}
                   height={iconSize}
-                  color={color}
-                  fill={color}
+                  color={rowIconColor}
+                  fill={rowIconColor}
                   aria-hidden="true"
                 />
               </g>
@@ -184,6 +199,7 @@ const ChartLeftLegend = ({
               x={padding.left - labelFont(0.8)}
               y={y}
               textAnchor="end"
+              dominantBaseline={baseline === 'middle' ? 'middle' : undefined}
               fontSize={labelFont(1.05)}
               fontWeight="800"
               fill={color}

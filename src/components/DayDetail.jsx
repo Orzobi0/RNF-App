@@ -16,6 +16,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { PeakModeButton } from '@/components/ui/peak-mode-button';
 import { computePeakState } from '@/components/dataEntryForm/sectionLogic';
+import { useAuth } from '@/contexts/AuthContext';
+import { normalizeStoredPreferences, PREFERENCE_DEFAULTS } from '@/lib/preferences';
 import { cn } from '@/lib/utils';
 const DayDetail = ({
   isoDate,
@@ -31,6 +33,7 @@ const DayDetail = ({
   onTogglePeak,
   isProcessing,
 }) => {
+  const { preferences } = useAuth();
   const isPersistedRecord = (record) =>
   Boolean(record?.id) && !String(record.id).startsWith('placeholder-');
 
@@ -225,6 +228,10 @@ const smartOpen = (key, sectionKey, fieldName) => {
   const timeValue = details?.timeValue || '—';
   const hasTimeValue = Boolean(details?.timeValue);
   const hasRelations = Boolean(details?.hasRelations);
+  const showRelationsAction = useMemo(
+    () => normalizeStoredPreferences(preferences ?? PREFERENCE_DEFAULTS).showRelationsRow,
+    [preferences]
+  );
 
 // Normalizamos el indicador de pico para la UI
 let peakIndicatorLabel = null;
@@ -244,13 +251,13 @@ if (peakStatus) {
 
     switch (symbolValue) {
       case 'red':
-        return 'bg-rose-500 border-slate-300 shadow-md';
+        return 'bg-[#fb7185] border-slate-300 shadow-md';
       case 'pink':
         return 'bg-pink-500 border-slate-300 shadow-md';
       case 'green':
-        return 'bg-emerald-500 border-slate-300 shadow-md';
+        return 'bg-[#67C5A4] border-slate-300 shadow-md';
       case 'yellow':
-        return 'bg-yellow-400 border-slate-300 shadow-md';
+        return 'bg-[#F7B944] border-slate-300 shadow-md';
       case 'spot':
         return 'bg-rose-500 border-slate-300 shadow-md';
       case 'white':
@@ -269,12 +276,43 @@ if (peakStatus) {
     );
   }
 
-  // Base para todos los chips (tamaño algo mayor y altura fija)
-  const chipCompactClass =
-  'flex items-center gap-2 rounded-3xl border px-3 py-1.5 text-sm min-h-[2.75rem]';
+  // Base para celdas tactiles neutras con acento discreto.
+  const detailCellCompactClass =
+  'relative flex items-center gap-2.5 overflow-hidden rounded-2xl border border-slate-200/60 bg-white/70 px-3 py-2 text-sm min-h-[2.75rem] shadow-sm transition active:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fertiliapp-suave';
 
-const chipMultilineClass =
-  'flex gap-2 rounded-3xl border px-3 py-2 text-sm min-h-[2.75rem]';
+const detailCellMultilineClass =
+  'relative flex gap-2.5 overflow-hidden rounded-2xl border border-slate-200/60 bg-white/70 px-3 py-2 text-sm min-h-[2.75rem] shadow-sm transition active:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fertiliapp-suave';
+
+const detailAccentClass =
+  'pointer-events-none absolute bottom-2 left-0 top-2 w-1 rounded-r-full';
+
+const detailCellStyles = {
+  temperature: {
+    accent: details?.hasTemperature ? 'bg-temp opacity-90' : 'bg-temp opacity-25',
+    icon: details?.hasTemperature ? 'text-temp opacity-100' : 'text-temp opacity-35',
+    value: details?.hasTemperature ? 'text-titulo' : 'text-suave',
+  },
+  time: {
+    accent: hasTimeValue ? 'bg-secundario opacity-70' : 'bg-slate-300 opacity-35',
+    icon: hasTimeValue ? 'text-secundario-fuerte opacity-80' : 'text-slate-400 opacity-45',
+    value: hasTimeValue ? 'text-subtitulo' : 'text-suave',
+  },
+  sensation: {
+    accent: details?.hasMucusSensation ? 'bg-sensacion opacity-85' : 'bg-sensacion opacity-25',
+    icon: details?.hasMucusSensation ? 'text-sensacion opacity-100' : 'text-sensacion opacity-35',
+    value: details?.hasMucusSensation ? 'text-titulo' : 'text-suave',
+  },
+  appearance: {
+    accent: details?.hasMucusAppearance ? 'bg-apariencia opacity-85' : 'bg-apariencia opacity-25',
+    icon: details?.hasMucusAppearance ? 'text-apariencia opacity-100' : 'text-apariencia opacity-35',
+    value: details?.hasMucusAppearance ? 'text-titulo' : 'text-suave',
+  },
+  observations: {
+    accent: observationsRaw ? 'bg-observaciones opacity-85' : 'bg-observaciones opacity-25',
+    icon: observationsRaw ? 'text-observaciones opacity-100' : 'text-observaciones opacity-35',
+    value: observationsRaw ? 'text-titulo' : 'text-suave',
+  },
+};
 
 const footerIconButtonClass =
   'flex h-9 w-9 items-center justify-center rounded-full border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200';
@@ -339,16 +377,14 @@ const footerIconButtonClass =
             type="button"
             onClick={() => handleSectionOpen('temperature', 'temperature')}
             className={cn(
-              chipCompactClass,
-              'text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200',
-              details?.hasTemperature
-                ? 'border-orange-100 bg-orange-50 text-orange-800'
-                : 'border-orange-50 bg-orange-50 text-slate-400'
+              detailCellCompactClass,
+              'text-left'
             )}
           >
-            <Thermometer className="h-5 w-5 shrink-0 opacity-80" />
+            <span aria-hidden="true" className={cn(detailAccentClass, detailCellStyles.temperature.accent)} />
+            <Thermometer className={cn('h-5 w-5 shrink-0', detailCellStyles.temperature.icon)} />
             <div className="flex items-center gap-1 flex-wrap">
-              <span className={cn('font-semibold', isTemperatureIgnored && 'text-slate-400 line-through decoration-1')}>
+              <span className={cn('font-semibold', detailCellStyles.temperature.value, isTemperatureIgnored && 'text-slate-400 line-through decoration-1')}>
                 {renderChipValue(temperatureValue)}
               </span>
               {details?.showCorrectedIndicator && (
@@ -363,15 +399,13 @@ const footerIconButtonClass =
             type="button"
             onClick={() => handleSectionOpen('temperature', 'time')}
             className={cn(
-              chipCompactClass,
-              'text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200',
-              hasTimeValue
-                ? 'border-slate-200 bg-slate-50 text-slate-800'
-                : 'border-slate-200 bg-slate-50 text-slate-400'
+              detailCellCompactClass,
+              'text-left'
             )}
           >
-            <Clock className="h-5 w-5 shrink-0 opacity-80" />
-            <span className="font-semibold">
+            <span aria-hidden="true" className={cn(detailAccentClass, detailCellStyles.time.accent)} />
+            <Clock className={cn('h-5 w-5 shrink-0', detailCellStyles.time.icon)} />
+            <span className={cn('font-semibold', detailCellStyles.time.value)}>
               {renderChipValue(timeValue)}
             </span>
           </button>
@@ -383,17 +417,16 @@ const footerIconButtonClass =
   type="button"
   onClick={() => smartOpen('sensation', 'sensation', 'mucusSensation')}
   className={cn(
-    chipCompactClass,
+    detailCellCompactClass,
     isTextExpanded ? 'items-start' : 'items-center',
-    'text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200',
-    details?.hasMucusSensation
-      ? 'border-sky-100 bg-sky-50 text-sky-800'
-      : 'border-sky-50 bg-sky-50 text-slate-400'
+    'text-left'
   )}
 >
+  <span aria-hidden="true" className={cn(detailAccentClass, detailCellStyles.sensation.accent)} />
   <Droplets
     className={cn(
-      'h-[18px] w-[18px] shrink-0 opacity-80',
+      'h-[18px] w-[18px] shrink-0',
+      detailCellStyles.sensation.icon,
       isTextExpanded && 'mt-0.5'
     )}
   />
@@ -402,6 +435,7 @@ const footerIconButtonClass =
       ref={sensationTextRef}
       className={cn(
         'font-semibold leading-tight',
+        detailCellStyles.sensation.value,
         isTextExpanded ? 'whitespace-pre-wrap break-words' : 'truncate'
       )}
     >
@@ -414,17 +448,16 @@ const footerIconButtonClass =
   type="button"
   onClick={() => smartOpen('appearance', 'appearance', 'mucusAppearance')}
   className={cn(
-    chipCompactClass,
+    detailCellCompactClass,
     isTextExpanded ? 'items-start' : 'items-center',
-    'text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200',
-    details?.hasMucusAppearance
-      ? 'border-emerald-100 bg-emerald-50 text-emerald-800'
-      : 'border-emerald-50 bg-emerald-50 text-slate-400'
+    'text-left'
   )}
 >
+  <span aria-hidden="true" className={cn(detailAccentClass, detailCellStyles.appearance.accent)} />
   <Circle
     className={cn(
-      'h-[18px] w-[18px] shrink-0 opacity-80',
+      'h-[18px] w-[18px] shrink-0',
+      detailCellStyles.appearance.icon,
       isTextExpanded && 'mt-0.5'
     )}
   />
@@ -433,6 +466,7 @@ const footerIconButtonClass =
       ref={appearanceTextRef}
       className={cn(
         'font-semibold leading-tight',
+        detailCellStyles.appearance.value,
         isTextExpanded ? 'whitespace-pre-wrap break-words' : 'truncate'
       )}
     >
@@ -448,17 +482,16 @@ const footerIconButtonClass =
     type="button"
     onClick={() => smartOpen('observations', 'observations', 'observations')}
     className={cn(
-      chipMultilineClass,
+      detailCellMultilineClass,
       isTextExpanded ? 'items-start' : 'items-center',
-      'flex-1 min-w-0 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200',
-      observationsRaw
-        ? 'border-violet-100 bg-violet-50 text-violet-800'
-        : 'border-violet-100 bg-violet-50 text-slate-400'
+      'flex-1 min-w-0 text-left'
     )}
   >
+    <span aria-hidden="true" className={cn(detailAccentClass, detailCellStyles.observations.accent)} />
     <FileText
       className={cn(
-        'h-[18px] w-[18px] shrink-0 opacity-80',
+        'h-[18px] w-[18px] shrink-0',
+        detailCellStyles.observations.icon,
         isTextExpanded && 'mt-0.5'
       )}
     />
@@ -467,6 +500,7 @@ const footerIconButtonClass =
         ref={observationsTextRef}
         className={cn(
           'font-semibold leading-tight whitespace-pre-wrap break-words',
+          detailCellStyles.observations.value,
           !isTextExpanded &&
             '[display:-webkit-box] [-webkit-line-clamp:2] [-webkit-box-orient:vertical] overflow-hidden'
         )}
@@ -477,27 +511,29 @@ const footerIconButtonClass =
   </button>
 
   <div className="flex shrink-0 items-center gap-1">
-    <button
-      type="button"
-      onClick={handleRelationsToggle}
-      disabled={isProcessing}
-      className={cn(
-        footerIconButtonClass,
-        hasRelations
-          ? 'border-rose-200 bg-rose-50 text-rose-500'
-          : 'border-slate-200 bg-white text-slate-300',
-        isProcessing && 'cursor-not-allowed opacity-70'
-      )}
-      title={hasRelations ? 'Hubo relaciones' : 'Sin relaciones'}
-      aria-label={hasRelations ? 'Hubo relaciones' : 'Sin relaciones'}
-    >
-      <Heart
+    {showRelationsAction && (
+      <button
+        type="button"
+        onClick={handleRelationsToggle}
+        disabled={isProcessing}
         className={cn(
-          'h-4 w-4 shrink-0',
-          hasRelations ? 'fill-current' : ''
+          footerIconButtonClass,
+          hasRelations
+            ? 'border-rose-200 bg-white text-rose-500'
+            : 'border-slate-200 bg-white text-slate-300',
+          isProcessing && 'cursor-not-allowed opacity-70'
         )}
-      />
-    </button>
+        title={hasRelations ? 'Hubo relaciones' : 'Sin relaciones'}
+        aria-label={hasRelations ? 'Hubo relaciones' : 'Sin relaciones'}
+      >
+        <Heart
+          className={cn(
+            'h-4 w-4 shrink-0',
+            hasRelations ? 'fill-current' : ''
+          )}
+        />
+      </button>
+    )}
 
     {hasPersistedRecord ? (
       <>
@@ -505,7 +541,7 @@ const footerIconButtonClass =
           type="button"
           variant="ghost"
           size="icon"
-          className="h-9 w-9 rounded-full border border-slate-200 bg-white text-fertiliapp-fuerte hover:bg-rose-50"
+          className="h-9 w-9 rounded-full border border-slate-200 bg-white text-subtitulo hover:bg-rose-50"
           onClick={handleEdit}
           disabled={isProcessing}
         >
@@ -521,7 +557,7 @@ const footerIconButtonClass =
           type="button"
           variant="ghost"
           size="icon"
-          className="h-9 w-9 rounded-full border border-slate-200 bg-white text-fertiliapp-fuerte hover:bg-rose-50"
+          className="h-9 w-9 rounded-full border border-slate-200 bg-white text-subtitulo hover:bg-rose-50"
           onClick={handleDelete}
           disabled={isProcessing}
         >
@@ -538,7 +574,7 @@ const footerIconButtonClass =
         type="button"
         variant="outline"
         size="sm"
-        className="h-9 rounded-full border-rose-200 px-3 text-xs font-semibold text-rose-500"
+        className="h-9 rounded-full border-slate-200 px-3 text-xs font-semibold text-subtitulo bg-white"
         onClick={handleAdd}
         disabled={isProcessing}
       >

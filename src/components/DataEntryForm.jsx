@@ -260,7 +260,7 @@ const DataEntryForm = ({
     <motion.form
   ref={formRef}
   onSubmit={handleSubmit}
-  className="flex h-[92dvh] max-h-[92dvh] min-h-0 w-full flex-col rounded-3xl border-2 border-white bg-fertiliapp-secundario p-3 shadow-[0_24px_70px_rgba(15,23,42,0.22),0_10px_30px_rgba(244,114,182,0.22)] backdrop-blur-xl sm:p-4 overflow-hidden"
+  className="flex h-[92dvh] max-h-[92dvh] min-h-0 w-full flex-col overflow-hidden rounded-3xl border border-pink-200/80 bg-[#FFF7FA] p-3 shadow-[0_24px_70px_rgba(15,23,42,0.22),0_10px_30px_rgba(244,114,182,0.18)] ring-1 ring-white/80 sm:p-4"
   initial={{ opacity: 0, y: -20 }}
   animate={{ opacity: 1, y: 0 }}
   transition={{ duration: 0.18, ease: 'easeOut' }}
@@ -287,7 +287,7 @@ const DataEntryForm = ({
     )}
   </div>
 
-  <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+  <div className="min-h-0 flex-1 overflow-y-auto bg-[#FFF7FA] pr-1">
     <DataEntryFormFields
       date={date}
       setDate={setDate}

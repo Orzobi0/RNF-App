@@ -444,23 +444,46 @@ const CycleRow = ({ cycle, isFirst, isLast }) => {
     );
   }
 
+  const totalCycleCount = allCycles.length;
+
+const totalRecordCount = allCycles.reduce(
+  (total, cycle) => total + (cycle?.data?.length ?? 0),
+  0
+);
   
   return (
   <div className="relative flex flex-col pb-6">
-      <div className="sticky top-0 z-30 px-4 pb-3 pt-1">
-  <div className="mx-auto w-full max-w-2xl rounded-[30px] border border-rose-200/60 bg-white/95 via-white/90 to-rose-50/80 p-3 shadow-[0_10px_30px_-18px_rgba(216,92,112,0.45)] backdrop-blur-md">
-          <div className="flex items-center justify-between gap-2">
-            <div className="min-w-0 flex-1">
-              <span className="truncate text-[21px] font-semibold leading-tight text-titulo">Mis ciclos</span>
-              <p className="truncate text-[13px] text-app-base">Historial de ciclos</p>
-            </div>
-          <HeaderIconButtonPrimary type="button" onClick={openAddDialog} aria-label="Añadir ciclo">
-              <Plus className="h-4 w-4" />
-              <span className="sr-only">Añadir ciclo</span>
-            </HeaderIconButtonPrimary>
-          </div>
+      <div className="sticky top-0 z-30 pb-3">
+  <div className="px-4 pt-2">
+    <div className="relative overflow-hidden rounded-[24px] bg-fertiliapp-fuerte px-4 pb-3 pt-2.5 text-white shadow-[0_6px_16px_rgba(216,92,112,0.16)]">
+    <div className="flex items-center justify-between gap-3">
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[10px] font-semibold uppercase tracking-[0.22em] text-white/75">
+          ARCHIVO
         </div>
+
+        <h1 className="truncate text-[22px] font-semibold leading-tight text-white">
+          Mis ciclos
+        </h1>
+
+        <p className="truncate text-[13px] font-medium text-white/78">
+          {totalCycleCount} ciclo{totalCycleCount !== 1 ? 's' : ''}
+        </p>
       </div>
+
+      <HeaderIconButtonPrimary
+        type="button"
+        onClick={openAddDialog}
+        aria-label="Añadir ciclo"
+        className="border-white/70 bg-white text-fertiliapp-fuerte hover:bg-white"
+      >
+        <Plus className="h-4 w-4" />
+        <span className="sr-only">Añadir ciclo</span>
+      </HeaderIconButtonPrimary>
+    </div>
+    </div>
+  </div>
+</div>
 
         <div className="mx-auto w-full max-w-2xl space-y-3.5 px-4 pt-1.5 pb-1">
           {currentCycle?.id ? (

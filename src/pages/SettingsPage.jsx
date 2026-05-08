@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
-import { Activity, Bolt, ChevronRight, FileDown, Lock, LogOut, Mail, User } from 'lucide-react';
+import { Activity, Bolt, ChevronRight, FileDown, Lock, LogOut, Mail } from 'lucide-react';
 import { App } from '@capacitor/app';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
@@ -8,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ToastAction } from '@/components/ui/toast';
-import { downloadCyclesAsPdf } from '@/lib/cycleExport';
+import { buildCyclesPdfBlob, downloadBlobAsFile } from '@/lib/cycleExport';
 import ExportCyclesDialog from '@/components/ExportCyclesDialog';
 import { useCycleData } from '@/hooks/useCycleData';
 import InstallPrompt from '@/components/InstallPrompt';
@@ -44,6 +43,51 @@ const getSettingsIconToneClasses = (tone = 'cool', destructive = false) => {
 };
 const SETTINGS_ROW_CLASS =
   'flex w-full items-center justify-between gap-3 rounded-[28px] bg-white/80 px-4 py-3 text-left shadow backdrop-blur transition hover:bg-white/90';
+const formatFilenameDate = (value) => {
+  if (!value) return null;
+  if (value instanceof Date) {
+    const day = String(value.getDate()).padStart(2, '0');
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const year = value.getFullYear();
+    return `${day}-${month}-${year}`;
+  }
+
+  const str = String(value).trim();
+  const iso = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const parsed = iso
+    ? new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]))
+    : new Date(str);
+  if (Number.isNaN(parsed.getTime())) return null;
+  const day = String(parsed.getDate()).padStart(2, '0');
+  const month = String(parsed.getMonth() + 1).padStart(2, '0');
+  const year = parsed.getFullYear();
+  return `${day}-${month}-${year}`;
+};
+
+const buildCyclesExportFilename = (cycles = []) => {
+  const selectedCycles = Array.isArray(cycles) ? cycles.filter(Boolean) : [];
+  const todayLocal = formatFilenameDate(new Date()) ?? 'sin-fecha';
+
+  if (selectedCycles.length !== 1) {
+    return `ciclos-exportados-${todayLocal}.pdf`;
+  }
+
+  const cycle = selectedCycles[0];
+  const start = formatFilenameDate(cycle?.startDate);
+  const end = formatFilenameDate(cycle?.endDate);
+  const isCurrentCycle = cycle?.type === 'current';
+
+  if (start && end) {
+    return `ciclo-${start}-a-${end}.pdf`;
+  }
+  if (start && !end && isCurrentCycle) {
+    return `ciclo-${start}-actualidad.pdf`;
+  }
+  if (start) {
+    return `ciclo-${start}.pdf`;
+  }
+  return `ciclos-exportados-${todayLocal}.pdf`;
+};
 
 const SettingsActionRow = ({
   icon: Icon,
@@ -76,7 +120,7 @@ const SettingsActionRow = ({
           {title}
         </p>
         {description ? (
-          <p className="mt-1 break-all text-sm text-slate-500">{description}</p>
+          <p className="mt-1 break-words text-sm text-slate-500">{description}</p>
         ) : null}
       </div>
     </div>
@@ -180,6 +224,7 @@ const SettingsPage = () => {
   const [pdfContentMode, setPdfContentMode] = useState('chart');
   const [includeRs, setIncludeRs] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
+  const [exportedPdf, setExportedPdf] = useState(null);
 
   const [newEmail, setNewEmail] = useState(user?.email || '');
   const [loadingEmail, setLoadingEmail] = useState(false);
@@ -261,10 +306,8 @@ const SettingsPage = () => {
 
     setIsExporting(true);
     try {
-      const cyclesToExport = allCycles
-        .filter((cycle) => selectedCycleIds.includes(cycle.id))
-        .map((cycle) => cycle.raw)
-        .filter(Boolean);
+      const selectedCycles = allCycles.filter((cycle) => selectedCycleIds.includes(cycle.id));
+      const cyclesToExport = selectedCycles.map((cycle) => cycle.raw).filter(Boolean);
 
       if (!cyclesToExport.length) {
         toast({
@@ -272,26 +315,34 @@ const SettingsPage = () => {
           description: 'Selecciona al menos un ciclo para exportar.',
           variant: 'destructive',
         });
-        setIsExporting(false);
         return;
       }
 
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const filename = `ciclos-${timestamp}.pdf`;
+      const filename = buildCyclesExportFilename(selectedCycles);
       const includeChart = pdfContentMode !== 'table';
       const chartOnly = pdfContentMode === 'chart';
+      const blob = await buildCyclesPdfBlob(cyclesToExport, {
 
-      await downloadCyclesAsPdf(cyclesToExport, filename, {
         includeChart,
         includeRs,
         chartOnly,
       });
 
+      if (!blob) return;
+
+      if (exportedPdf?.url) {
+        URL.revokeObjectURL(exportedPdf.url);
+      }
+      const url = URL.createObjectURL(blob);
+      downloadBlobAsFile(blob, filename, { url });
+      setExportedPdf({ blob, url, filename });
+
       toast({
         title: 'Exportación completada',
         description: 'Los ciclos seleccionados se han exportado correctamente.',
       });
-      handleCloseExportDialog();
+      setShowExportDialog(false);
+      resetExportState();
     } catch (error) {
       console.error('Error al exportar ciclos', error);
       toast({
@@ -302,6 +353,75 @@ const SettingsPage = () => {
       });
     } finally {
       setIsExporting(false);
+    }
+  };
+
+  const clearExportedPdf = () => {
+    setExportedPdf((previous) => {
+      if (previous?.url) {
+        URL.revokeObjectURL(previous.url);
+      }
+      return null;
+    });
+  };
+
+  const handleOpenExportedPdf = () => {
+    if (!exportedPdf?.url) return;
+    const opened = window.open(exportedPdf.url, '_blank', 'noopener,noreferrer');
+    if (!opened) {
+      toast({
+        title: 'No se pudo abrir automáticamente',
+        description: 'Puedes buscar el archivo en Descargas o compartirlo desde aquí.',
+      });
+    }
+  };
+
+  const handleShareExportedPdf = async () => {
+    if (!exportedPdf?.blob || !exportedPdf?.filename) return;
+
+    const file = new File([exportedPdf.blob], exportedPdf.filename, { type: 'application/pdf' });
+    const sharePayload = {
+      title: 'PDF exportado',
+      text: 'Archivo PDF exportado desde FertiliApp.',
+      files: [file],
+    };
+
+    if (typeof navigator === 'undefined' || typeof navigator.share !== 'function') {
+      toast({
+        title: 'Compartir no disponible',
+        description:
+          'Este dispositivo no permite compartir el PDF. Puedes abrirlo o buscarlo en Descargas.',
+      });
+      return;
+    }
+
+    if (typeof navigator.canShare === 'function' && !navigator.canShare({ files: [file] })) {
+      toast({
+        title: 'Compartir no disponible',
+        description:
+          'Este dispositivo no permite compartir el PDF desde la PWA. Puedes abrirlo o buscarlo en Descargas.',
+      });
+      return;
+    }
+
+    try {
+      await navigator.share(sharePayload);
+    } catch (error) {
+      const errorName = String(error?.name || '').toLowerCase();
+      const errorMessage = String(error?.message || '').toLowerCase();
+      const isCancelled =
+        errorName.includes('abort') ||
+        errorName.includes('cancel') ||
+        errorMessage.includes('abort') ||
+        errorMessage.includes('cancel');
+
+      if (!isCancelled) {
+        toast({
+          title: 'Compartir no disponible',
+          description:
+            'Este dispositivo no permite compartir el PDF desde la PWA. Puedes abrirlo o buscarlo en Descargas.',
+        });
+      }
     }
   };
 
@@ -436,25 +556,38 @@ const SettingsPage = () => {
     };
   }, [refreshPermissions]);
 
+  useEffect(() => {
+    return () => {
+      if (exportedPdf?.url) {
+        URL.revokeObjectURL(exportedPdf.url);
+      }
+    };
+  }, [exportedPdf]);
+
   return (
-     <div className="relative flex min-h-full flex-col">
-      <div
-        className="relative z-10 mx-auto flex w-full max-w-2xl flex-1 flex-col box-border px-4 py-6"
-      >
-        <div className="mb-5 border-b border-rose-100/70 pb-3">
-  <motion.div
-    initial={{ opacity: 0, y: -20 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ duration: 0.5 }}
-  >
-    <h1 className="flex items-center text-3xl font-bold text-slate-700">
-      <User className="mr-2 h-8 w-8 text-fertiliapp-fuerte" />
+  <div className="relative flex min-h-full flex-col">
+    <div className="sticky top-0 z-30 pb-4">
+      <div className="w-full rounded-b-[24px] border-b border-rose-100/70 bg-white/72 px-4 pb-3 pt-3 shadow-[0_6px_18px_rgba(216,92,112,0.10)] backdrop-blur-xl">
+        <div className="mx-auto flex w-full max-w-2xl items-center">
+  <div className="min-w-0 flex-1">
+    <div className="truncate text-[10px] font-semibold uppercase tracking-[0.22em] text-fertiliapp-fuerte/80">
+      CUENTA
+    </div>
+
+    <h1 className="truncate text-[22px] font-semibold leading-tight text-titulo">
       Ajustes
     </h1>
-  </motion.div>
-</div>
 
-        <div className="flex flex-1 flex-col">
+    <p className="truncate text-[13px] font-medium text-subtitulo">
+      Gestiona tu cuenta y preferencias
+    </p>
+  </div>
+</div>
+      </div>
+    </div>
+
+    <div className="relative z-10 mx-auto flex w-full max-w-2xl flex-1 flex-col box-border px-4 pb-6">
+      <div className="flex flex-1 flex-col">
   <div className="space-y-3">
     <SettingsActionRow
       icon={Mail}
@@ -674,6 +807,36 @@ const SettingsPage = () => {
         onIncludeRsChange={setIncludeRs}
         isProcessing={isExporting}
       />
+      
+      <Dialog
+        open={Boolean(exportedPdf)}
+        onOpenChange={(open) => {
+          if (!open) {
+            clearExportedPdf();
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>PDF exportado</DialogTitle>
+            <DialogDescription>
+              El archivo se ha descargado en tu dispositivo. También puedes abrirlo ahora o
+              compartirlo desde aquí.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col gap-2 sm:flex-row">
+            <Button type="button" className="w-full" onClick={handleOpenExportedPdf}>
+              Abrir PDF
+            </Button>
+            <Button type="button" variant="outline" className="w-full" onClick={handleShareExportedPdf}>
+              Compartir
+            </Button>
+            <Button type="button" variant="ghost" className="w-full sm:w-auto" onClick={clearExportedPdf}>
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

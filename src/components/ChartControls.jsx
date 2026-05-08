@@ -1,8 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ArrowLeft,
   Eye,
   Layers,
   RotateCcw,
@@ -38,8 +36,6 @@ const ManualBaselineIcon = ({ className = '' }) => (
 const ChartControls = ({
   isFullScreen,
   isLandscapeFullscreen = false,
-  showBackToCycleRecords,
-  targetCycleId,
   showInterpretation,
   showManualBaseline,
   onToggleInterpretation,
@@ -100,7 +96,7 @@ const bottomGroupLayout = isLandscapeFullscreen ? 'gap-1.5' : 'gap-2';
 
   const quickAccessButtonClass = (() => {
     if (showInterpretation && showManualBaseline) {
-      return 'bg-white/85 text-fuchsia-600 border-fuchsia-300 shadow-lg shadow-fuchsia-200/50';
+      return 'bg-white/85 text-fertiliapp-fuerte border-fertiliapp-fuerte shadow-lg shadow-fertiliapp-fuerte/20';
     }
 
     if (showInterpretation) {
@@ -111,7 +107,7 @@ const bottomGroupLayout = isLandscapeFullscreen ? 'gap-1.5' : 'gap-2';
       return 'bg-white/85 text-violet-600 border-violet-400 shadow-lg shadow-violet-300/20';
     }
 
-    return 'bg-white/20 text-slate-600 border-white/70';
+    return 'bg-white/95 text-slate-600 border-rose-200/80 shadow-[0_8px_20px_-12px_rgba(15,23,42,0.45)]';
   })();
 
   const handleToggleQuickPanel = () => {
@@ -129,20 +125,30 @@ const bottomGroupLayout = isLandscapeFullscreen ? 'gap-1.5' : 'gap-2';
     onToggleSettings();
   };
 
-  const handleToggleFullScreen = () => {
-    setIsQuickPanelOpen(false);
-    onToggleFullScreen();
-  };
+  const handleToggleFullScreen = (event) => {
+  const button = event.currentTarget;
+
+  setIsQuickPanelOpen(false);
+  onToggleFullScreen();
+
+  requestAnimationFrame(() => {
+    button?.blur?.();
+
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+  });
+};
 
   const handleQuickInterpretation = () => {
-    onToggleInterpretation();
-    setIsQuickPanelOpen(false);
-  };
+  onToggleInterpretation();
+  setIsQuickPanelOpen(true);
+};
 
   const handleQuickBaseline = () => {
-    onToggleManualBaseline();
-    setIsQuickPanelOpen(false);
-  };
+  onToggleManualBaseline();
+  setIsQuickPanelOpen(true);
+};
 
   return (
     <>
@@ -155,19 +161,6 @@ const bottomGroupLayout = isLandscapeFullscreen ? 'gap-1.5' : 'gap-2';
     isRightAlignedTopGroup ? 'items-center justify-end' : 'items-start'
   }`}
 >
-          {showBackToCycleRecords && targetCycleId && (
-            <Button
-              asChild
-              variant="ghost"
-              size="icon"
-              className={`${BTN_BASE} bg-white/20 text-fertiliapp border border-fertiliapp shadow-lg shadow-fertiliapp/20`}
-              aria-label="Volver al ciclo"
-            >
-              <Link to={`/cycle/${targetCycleId}`}>
-                <ArrowLeft className={`h-4 w-4 transition-transform ${iconRotationClass}`} />
-              </Link>
-            </Button>
-          )}
 
           <div ref={quickPanelRef} className="relative">
             <motion.button
@@ -213,7 +206,7 @@ const bottomGroupLayout = isLandscapeFullscreen ? 'gap-1.5' : 'gap-2';
   className={`${MINI_BTN_BASE} ${
     showInterpretation
       ? 'bg-fertiliapp-fuerte text-white border-fertiliapp-fuerte shadow-fertiliapp-fuerte/30'
-      : 'bg-white/80 text-fertiliapp-fuerte border-fertiliapp-fuerte/60'
+      : 'bg-white/95 text-fertiliapp-fuerte border-rose-200/90'
   }`}
   whileTap={{ scale: 0.92 }}
   whileHover={{ scale: 1.04 }}
@@ -234,7 +227,7 @@ const bottomGroupLayout = isLandscapeFullscreen ? 'gap-1.5' : 'gap-2';
   className={`${MINI_BTN_BASE} ${
     showManualBaseline
       ? 'bg-violet-500 text-white border-violet-500 shadow-violet-400/30'
-      : 'bg-white/80 text-violet-600 border-violet-300'
+      : 'bg-white/95 text-violet-600 border-violet-200/90'
   }`}
   whileTap={{ scale: 0.92 }}
   whileHover={{ scale: 1.04 }}
@@ -263,14 +256,16 @@ const bottomGroupLayout = isLandscapeFullscreen ? 'gap-1.5' : 'gap-2';
     onClick={handleToggleFullScreen}
     variant="ghost"
     size="icon"
-    className={`${BTN_BASE} ${
-      isLandscapeFullscreen
-        ? 'bg-white/70 text-slate-700 border-white/80'
-        : 'bg-white/20 text-slate-600 border-white/70'
-    }`}
+    className={`${BTN_BASE} focus-visible:ring-0 focus-visible:ring-offset-0 ${
+  isLandscapeFullscreen
+    ? 'bg-amber-50 text-amber-600 border-amber-300 shadow-lg shadow-slate-500/20 hover:bg-amber-50 hover:text-amber-600 active:bg-amber-50 active:text-amber-600 focus:bg-amber-50 focus:text-white'
+    : 'bg-white/95 text-amber-600 border-amber-300/80 hover:bg-white hover:text-amber-600 active:bg-white/95 active:text-amber-600 focus:bg-white/95 focus:text-amber-600 focus-visible:text-amber-600'
+}`}
     aria-label={isFullScreen ? 'Salir de pantalla completa' : 'Rotar gráfico'}
   >
-    <RotateCcw className={`h-4 w-4 transition-transform ${iconRotationClass}`} />
+    <RotateCcw
+  className={`h-4 w-4 text-current transition-transform ${iconRotationClass}`}
+/>
   </Button>
 
   <Button
@@ -279,9 +274,7 @@ const bottomGroupLayout = isLandscapeFullscreen ? 'gap-1.5' : 'gap-2';
     variant="ghost"
     size="icon"
     className={`${BTN_BASE} ${
-      isFullScreen
-        ? 'bg-white/70 text-secundario border border-secundario shadow-lg shadow-secundario/20'
-        : 'bg-white/20 text-secundario border border-secundario shadow-lg shadow-secundario/20'
+      'bg-white/95 text-secundario-fuerte border border-secundario-fuerte/45 shadow-lg shadow-secundario/20'
     }`}
     aria-label="Ajustes"
   >

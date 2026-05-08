@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import DeletionDialog from '@/components/DeletionDialog';
+import useBackClose from '@/hooks/useBackClose';
 import {
   Dialog,
   DialogContent,
@@ -72,6 +73,20 @@ const ArchivedCycleDeleteDialog = ({
     setIsLoadingPreview(false);
     setIsDeleting(false);
   }, []);
+
+  const handleBackClose = useCallback(() => {
+  if (isDeleting || isLoadingPreview) return;
+
+  if (selectedStrategy || deletePreview) {
+    setSelectedStrategy(null);
+    setDeletePreview(null);
+    return;
+  }
+
+  onClose?.();
+}, [deletePreview, isDeleting, isLoadingPreview, onClose, selectedStrategy]);
+
+useBackClose(isOpen, handleBackClose);
 
   useEffect(() => {
     if (!isOpen) {
@@ -160,7 +175,7 @@ const ArchivedCycleDeleteDialog = ({
 
   return (
     <>
-      <Dialog open={isOpen && !selectedStrategy} onOpenChange={(open) => !open && onClose?.()}>
+      <Dialog open={isOpen && !selectedStrategy} onOpenChange={(open) => !open && handleBackClose()}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Eliminar ciclo archivado</DialogTitle>
@@ -194,7 +209,7 @@ const ArchivedCycleDeleteDialog = ({
             ))}
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose} disabled={isLoadingPreview || isDeleting}>
+            <Button type="button" variant="outline" onClick={handleBackClose} disabled={isLoadingPreview || isDeleting}>
               Cancelar
             </Button>
           </DialogFooter>
@@ -203,7 +218,7 @@ const ArchivedCycleDeleteDialog = ({
 
       <Dialog
         open={isOpen && Boolean(selectedStrategy) && Boolean(deletePreview)}
-        onOpenChange={(open) => !open && onClose?.()}
+        onOpenChange={(open) => !open && handleBackClose()}
       >
         <DialogContent>
           <DialogHeader>

@@ -17,7 +17,6 @@ import {
   Clock,
   Check,
   Trash2,
-  Minus,
   Circle,
   Plus,
   Heart,
@@ -166,6 +165,8 @@ const [activeSection, setActiveSection] = useState(() => {
   const disabledDateRanges = cycleEnd ? [{ before: cycleStart }, { after: cycleEnd }] : [{ before: cycleStart }];
   const selectedIsoDate = date ? format(date, 'yyyy-MM-dd') : null;
   const [dockOffset, setDockOffset] = useState(0);
+  const [focusedMucusField, setFocusedMucusField] = useState(null);
+  const sensationInputRef = useRef(null);
   const appearanceInputRef = useRef(null);
   const symbolTriggerRef = useRef(null);
 
@@ -183,7 +184,7 @@ const [activeSection, setActiveSection] = useState(() => {
     }
 
     event.preventDefault();
-    appearanceInputRef.current?.focus();
+    setFocusedMucusField('appearance');
   }, []);
 
   const handleAppearanceKeyDown = useCallback((event) => {
@@ -192,8 +193,46 @@ const [activeSection, setActiveSection] = useState(() => {
     }
 
     event.preventDefault();
+    setFocusedMucusField(null);
     symbolTriggerRef.current?.focus();
   }, []);
+
+  const handleMucusInputBlur = useCallback(() => {
+    requestAnimationFrame(() => {
+      const activeElement = document.activeElement;
+
+      if (activeElement?.id === 'mucusSensation') {
+        setFocusedMucusField('sensation');
+        return;
+      }
+
+      if (activeElement?.id === 'mucusAppearance') {
+        setFocusedMucusField('appearance');
+        return;
+      }
+
+      setFocusedMucusField(null);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!focusedMucusField) {
+      return undefined;
+    }
+
+    const frameId = requestAnimationFrame(() => {
+      if (focusedMucusField === 'sensation') {
+        sensationInputRef.current?.focus();
+        return;
+      }
+
+      if (focusedMucusField === 'appearance') {
+        appearanceInputRef.current?.focus();
+      }
+    });
+
+    return () => cancelAnimationFrame(frameId);
+  }, [focusedMucusField]);
 
   const recomputeDockOffset = useCallback(() => {
   const stickyHeader = stickyHeaderRef.current;
@@ -683,9 +722,9 @@ const [activeSection, setActiveSection] = useState(() => {
     : 'border border-transparent bg-transparent text-slate-500 shadow-none hover:bg-transparent'
 );
   const syncTemperatureClasses = cn(
-    'inline-flex items-center gap-1 rounded-full border border-amber-200 bg-white/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-700 shadow-sm transition-colors',
+    'inline-flex items-center gap-1 rounded-full border border-slate-200/70 bg-white/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-temp shadow-sm transition-colors',
     canSyncTemperature && !isSyncingTemperature
-      ? 'hover:bg-amber-50'
+      ? 'hover:border-temp hover:bg-white'
       : 'cursor-not-allowed opacity-60'
   );
 
@@ -882,11 +921,36 @@ const [activeSection, setActiveSection] = useState(() => {
   },
 ];
 
+  const formSectionSurfaceClass =
+  'relative overflow-hidden rounded-3xl border border-slate-200/60 bg-white p-3 shadow-sm';
+
+  const formCompactFieldSurfaceClass =
+  'relative overflow-hidden space-y-1.5 rounded-3xl border border-slate-200/60 bg-white p-2.5 shadow-sm';
+
+  const formAccentClass =
+  'pointer-events-none absolute bottom-3 left-0 top-3 w-1 rounded-r-full';
+
+  const formInputClass =
+  'bg-white border-slate-200/70 text-slate-700 placeholder:text-slate-400 font-semibold shadow-sm';
+
+  const temperatureInputClass =
+  'focus:border-temp focus:ring-2 focus:ring-temp focus-visible:ring-temp';
+
+  const sensationInputClass =
+  'focus:border-sensacion focus:ring-2 focus:ring-sensacion focus-visible:ring-sensacion';
+
+  const appearanceInputClass =
+  'focus:border-apariencia focus:ring-2 focus:ring-apariencia focus-visible:ring-apariencia';
+
+  const observationsInputClass =
+  'focus:border-observaciones focus:ring-2 focus:ring-observaciones focus-visible:ring-observaciones';
+
   const renderSectionContent = (key) => {
     switch (key) {
       case 'temperature':
         return (
-          <div className="space-y-2 rounded-3xl border border-temp bg-temp-suave p-2.5 shadow-sm">
+          <div className={cn(formSectionSurfaceClass, 'space-y-2 p-2.5')}>
+            <span aria-hidden="true" className={cn(formAccentClass, 'bg-temp opacity-75')} />
             {measurements.map((m, idx) => {
               const measurementSelectId = `measurement_select_${idx}`;
               const isCorrectionOpen = correctionIndex === idx;
@@ -897,24 +961,39 @@ const [activeSection, setActiveSection] = useState(() => {
                 <div
    key={idx}
    className={cn(
-     'space-y-2 rounded-3xl border bg-white/70 p-2.5 transition-colors',
+     'relative overflow-hidden space-y-1.5 rounded-3xl border bg-white/75 p-2.5 shadow-sm transition-colors',
      m.selected && ignored
-       ? 'border-[#3A2430]/30 bg-[#e6d4dd]/40'
-       : 'border-amber-200/60'
+       ? 'border-alerta-2-suave bg-white/60 ring-1 ring-alerta-2-suave'
+       : m.selected
+       ? 'border-temp bg-white/85 ring-1 ring-temp'
+       : 'border-slate-200/60'
    )}
  >
-                  <div className="flex items-start justify-between gap-2">
-                    <Label className="flex items-center text-amber-800 text-[13px] font-semibold">
-                    <Thermometer className="mr-1 h-4 w-4 text-orange-500" />
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      formAccentClass,
+                      m.selected && ignored
+                        ? 'bg-alerta-2 opacity-75'
+                        : m.selected
+                        ? 'bg-temp opacity-85'
+                        : 'bg-temp opacity-25'
+                    )}
+                  />
+                  <div className="flex items-center justify-between gap-2">
+                    <Label className="flex items-center text-subtitulo text-[13px] font-semibold">
+                    <Thermometer className="mr-1 h-4 w-4 text-temp" />
                       Medición {idx + 1}
                     </Label>
                     <label
                       htmlFor={measurementSelectId}
                       className={cn(
-    'flex items-center gap-2 rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-wide shadow-sm',
+    'flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide shadow-none',
     m.selected && ignored
-      ? 'border-[#3A2430]/30 bg-[#e6d4dd]/70 text-[#3A2430]'
-      : 'border-amber-200 bg-amber-50/70 text-amber-700'
+      ? 'border-alerta-2-suave bg-white/80 text-alerta-2'
+      : m.selected
+      ? 'border-temp bg-white/90 text-temp'
+      : 'border-slate-200/70 bg-white/75 text-slate-500'
   )}
                     >
                       <input
@@ -923,14 +1002,14 @@ const [activeSection, setActiveSection] = useState(() => {
                         checked={m.selected}
                         onChange={() => selectMeasurement(idx)}
                         disabled={isProcessing}
-                        className="h-3 w-3 text-orange-500 focus:ring-orange-400"
+                        className="h-3 w-3 text-temp focus:ring-temp"
                       />
                       <span>gráfica</span>
                       {m.selected && ignored && <EyeOff className="h-3 w-3" aria-hidden="true" />}
                     </label>
                   </div>
                 <div className="space-y-0.5">
-  <div className="grid grid-cols-[minmax(0,1fr)_96px_62px] items-center gap-2">
+  <div className="grid grid-cols-[minmax(0,1fr)_96px_68px] items-center gap-1.5">
     <Input
       data-field={idx === 0 ? 'temperature' : undefined}
       type="number"
@@ -942,7 +1021,9 @@ const [activeSection, setActiveSection] = useState(() => {
       onInput={(e) => updateMeasurement(idx, 'temperature', e.target.value)}
       placeholder="36.50"
       className={cn(
-        "h-9 bg-white/70 border-amber-200 text-amber-800 font-semibold placeholder-gray-400 focus:border-orange-500 focus:ring-orange-500",
+        'h-8 text-[14px] leading-none',
+        formInputClass,
+        temperatureInputClass,
         RADIUS.field
       )}
       disabled={isProcessing}
@@ -954,53 +1035,69 @@ const [activeSection, setActiveSection] = useState(() => {
   value={m.time}
   onChange={(e) => updateMeasurement(idx, 'time', e.target.value)}
   className={cn(
-    "h-9 min-h-0 appearance-none bg-white/70 border-amber-200 px-2 py-0 text-[16px] leading-none text-gray-600 font-semibold focus:border-orange-500 focus:ring-orange-500",
+    'h-8 min-h-0 appearance-none px-2 py-0 text-[14px] leading-none',
+    formInputClass,
+    temperatureInputClass,
     RADIUS.field
   )}
   disabled={isProcessing}
 />
 
-    <Button
-      type="button"
-      size="icon"
-      variant="outline"
-      disabled={isProcessing}
-      onClick={() => {
-        if (hasPreferredTime) {
-          applyPreferredTimeToMeasurement(idx);
-        } else {
-          openPreferredTimeEditor(idx);
-        }
-      }}
-      className={cn(
-        'h-9 w-9 rounded-full ml-3 text-[11px] font-semibold shadow-md',
-        hasPreferredTime
-          ? isPreferredApplied
-            ? 'border-emerald-500 bg-emerald-500 text-white hover:bg-emerald-600'
-            : 'border-amber-200 bg-white/80 text-amber-800 hover:bg-amber-50'
-          : 'border-slate-200 border-dashed bg-slate-200/70 text-slate-400 hover:bg-amber-50'
-      )}
-    >
+    <div className="relative min-w-0">
+  <Button
+    type="button"
+    size="icon"
+    variant="outline"
+    disabled={isProcessing}
+    aria-label={
+      hasPreferredTime
+        ? `Aplicar hora preferida ${preferredTemperatureTime}`
+        : 'Definir hora preferida'
+    }
+    title={hasPreferredTime ? 'Aplicar hora preferida' : 'Definir hora preferida'}
+    onClick={() => {
+      if (hasPreferredTime) {
+        applyPreferredTimeToMeasurement(idx);
+      } else {
+        openPreferredTimeEditor(idx);
+      }
+    }}
+    className={cn(
+      'ml-0 h-8 w-full rounded-2xl text-[11px] font-semibold shadow-sm',
+      hasPreferredTime
+        ? isPreferredApplied
+          ? 'border-secundario bg-secundario text-white hover:bg-secundario'
+          : 'border-slate-200/70 bg-white/80 text-temp hover:border-temp hover:bg-white'
+        : 'border-slate-200 border-dashed bg-white/70 text-slate-400 hover:border-temp hover:bg-white'
+    )}
+  >
+    <span className="flex min-w-0 items-center justify-center gap-1">
+      <Clock className="h-3 w-3 shrink-0" aria-hidden="true" />
       <span className="truncate">{hasPreferredTime ? preferredTemperatureTime : '--:--'}</span>
-    </Button>
-  </div>
+    </span>
+  </Button>
 
-  <div className="flex justify-end">
-    <div className="w-[62px] text-center leading-none">
-      <button
-        type="button"
-        onClick={() => openPreferredTimeEditor(idx)}
-        disabled={isProcessing}
-        className="text-[10px] font-medium text-amber-700 underline-offset-2 hover:underline disabled:opacity-50"
-      >
-        {hasPreferredTime ? 'Editar' : 'Definir'}
-      </button>
-    </div>
+  {hasPreferredTime && (
+    <button
+      type="button"
+      onClick={(event) => {
+        event.stopPropagation();
+        openPreferredTimeEditor(idx);
+      }}
+      disabled={isProcessing}
+      className="absolute -right-1 -top-1 inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-200 bg-white text-temp shadow-sm transition-colors hover:border-temp hover:bg-white disabled:opacity-50"
+      aria-label="Editar hora preferida"
+      title="Editar hora preferida"
+    >
+      <Edit3 className="h-2.5 w-2.5" aria-hidden="true" />
+    </button>
+  )}
+</div>
   </div>
 </div>
 {preferredTimeEditorIndex === idx && (
-  <div className="mt-1 rounded-2xl border border-amber-200 bg-amber-50/60 p-2">
-    <Label className="mb-1 block text-[11px] font-semibold text-amber-800">
+  <div className="mt-1 rounded-2xl border border-slate-200/60 bg-white/75 p-2 shadow-sm">
+    <Label className="mb-1 block text-[11px] font-semibold text-subtitulo">
       Hora preferida global
     </Label>
     <div className="flex items-center gap-2">
@@ -1010,7 +1107,9 @@ const [activeSection, setActiveSection] = useState(() => {
     onChange={(event) => setPreferredTimeDraft(event.target.value)}
     disabled={isProcessing || isSavingPreferredTime}
     className={cn(
-      'h-8 bg-white/90 border-amber-200 text-gray-700 text-xs',
+      'h-8 text-[14px] leading-none',
+      formInputClass,
+      temperatureInputClass,
       RADIUS.field
     )}
   />
@@ -1020,7 +1119,7 @@ const [activeSection, setActiveSection] = useState(() => {
     size="xs"
     onClick={() => handleSavePreferredTime(idx)}
     disabled={isProcessing || isSavingPreferredTime || !preferredTimeDraft}
-    className="h-8 rounded-full bg-amber-600 px-3 text-[11px] font-semibold text-white hover:bg-amber-700"
+    className="h-8 rounded-full bg-temp px-3 text-[11px] font-semibold text-white hover:bg-temp"
   >
     Guardar
   </Button>
@@ -1031,7 +1130,7 @@ const [activeSection, setActiveSection] = useState(() => {
     variant="ghost"
     onClick={closePreferredTimeEditor}
     disabled={isProcessing || isSavingPreferredTime}
-    className="h-8 rounded-full px-2 text-[11px] text-amber-700 hover:bg-amber-100"
+    className="h-8 rounded-full px-2 text-[11px] text-temp hover:bg-white/90"
   >
     Cancelar
   </Button>
@@ -1054,21 +1153,21 @@ const [activeSection, setActiveSection] = useState(() => {
   </div>
 )}
 
-                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
-  <div className="flex flex-wrap items-center gap-2">
+ <div className="mt-1 flex flex-wrap items-center gap-1.5">
+  <div className="flex flex-wrap items-center gap-1.5">
     <Button
       type="button"
       size="xs"
       variant="outline"
       disabled={isProcessing}
       aria-pressed={correctionIndex === idx}
-      className={cn(
-        'rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition-colors',
-        isCorrectionOpen
-          ? 'border-amber-500 bg-amber-600 text-white shadow-inner hover:bg-amber-600'
+        className={cn(
+          'h-8 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-temp focus-visible:ring-offset-1',
+          isCorrectionOpen
+          ? 'border-temp bg-temp text-white shadow-inner hover:bg-temp hover:text-white active:bg-temp active:text-white'
           : isCorrected
-          ? 'border-amber-400 bg-amber-200/80 text-amber-900 hover:bg-amber-200'
-          : 'border-amber-200 bg-white/70 text-amber-700 hover:bg-amber-50'
+          ? 'border-temp bg-white text-temp hover:bg-white hover:text-temp active:bg-white active:text-temp'
+          : 'border-slate-200/70 bg-white/70 text-temp hover:border-temp hover:bg-white hover:text-temp active:bg-white active:text-temp'
       )}
       onClick={() => {
         if (correctionIndex === idx) {
@@ -1100,11 +1199,11 @@ const [activeSection, setActiveSection] = useState(() => {
         disabled={isProcessing || !m.selected}
         onClick={() => handleIgnoredChange(!ignored)}
         className={cn(
-          'h-9 w-9 rounded-full border transition-colors',
+          'h-8 w-8 rounded-full border transition-colors',
           !m.selected && 'opacity-40 cursor-not-allowed',
           m.selected && ignored
-            ? 'border-[#3A2430] bg-[#3A2430] text-white shadow-sm ring-2 ring-[#e6d4dd]'
-            : 'border-amber-200 bg-white/80 text-amber-700 hover:bg-amber-50'
+            ? 'border-alerta-2 bg-alerta-2 text-white shadow-sm ring-2 ring-alerta-2-suave'
+            : 'border-slate-200/70 bg-white/80 text-temp hover:border-temp hover:bg-white'
         )}
         aria-pressed={m.selected ? ignored : false}
         title={m.selected ? (ignored ? 'Restaurar' : 'Despreciar') : 'Selecciona esta medición para la gráfica'}
@@ -1121,7 +1220,7 @@ const [activeSection, setActiveSection] = useState(() => {
           size="icon"
           onClick={() => confirmMeasurement(idx)}
           disabled={isProcessing}
-          className="h-7 w-7 bg-white text-green-600"
+          className="h-8 w-8 rounded-full bg-white text-green-600 shadow-sm"
           aria-label="Confirmar medición"
         >
           <Check className="h-4 w-4" />
@@ -1131,7 +1230,7 @@ const [activeSection, setActiveSection] = useState(() => {
           size="icon"
           onClick={() => removeMeasurement(idx)}
           disabled={isProcessing}
-          className="h-7 w-7 rounded-full bg-white text-rose-600 shadow-sm"
+          className="h-8 w-8 rounded-full bg-white text-rose-600 shadow-sm"
           aria-label="Eliminar medición"
         >
           <Trash2 className="h-4 w-4" />
@@ -1152,7 +1251,7 @@ const [activeSection, setActiveSection] = useState(() => {
             size="icon"
             onClick={() => removeMeasurement(idx)}
             disabled={isProcessing}
-            className="h-7 w-7 rounded-full bg-white text-rose-600 hover:bg-rose-700 shadow-sm"
+            className="h-8 w-8 rounded-full bg-white text-rose-600 hover:bg-rose-50 hover:text-rose-700 shadow-sm"
             aria-label="Eliminar medición"
           >
             <Trash2 className="h-4 w-4" />
@@ -1169,7 +1268,7 @@ const [activeSection, setActiveSection] = useState(() => {
       disabled={isProcessing}
       size="xs"
       variant="outline"
-      className="ml-auto flex items-center gap-1 rounded-full border-amber-300/50 bg-amber-50/80 px-2.5 py-1 text-[11px] text-amber-600 shadow-sm transition-colors hover:bg-amber-100"
+      className="ml-auto flex h-8 items-center gap-1 rounded-full border-slate-200/70 bg-white/80 px-2.5 py-1 text-[11px] text-temp shadow-sm transition-colors hover:border-temp hover:bg-white"
       aria-label="Añadir una nueva medición"
     >
       <Plus className="h-3 w-3" />
@@ -1179,9 +1278,9 @@ const [activeSection, setActiveSection] = useState(() => {
 </div>
 
                   
-                {correctionIndex === idx && (
-  <div className="mt-1.5 space-y-2 rounded-3xl border border-temp bg-white/80 p-2.5">
-    <div className="grid grid-cols-2 gap-2">
+{correctionIndex === idx && (
+  <div className="mt-1.5 space-y-1.5 rounded-3xl border border-slate-200/60 bg-white/80 p-2 shadow-sm">
+    <div className="grid grid-cols-2 gap-1.5">
       <Input
         type="number"
         step="0.01"
@@ -1196,7 +1295,10 @@ const [activeSection, setActiveSection] = useState(() => {
           }
         }}
         className={cn(
-          "h-9 bg-white/70 border-amber-200 placeholder-gray-400 focus:border-orange-500 focus:ring-orange-500 text-orange-700 font-semibold",
+          'h-8 text-[14px] leading-none',
+          formInputClass,
+          temperatureInputClass,
+          'text-temp',
           RADIUS.field
         )}
         disabled={isProcessing}
@@ -1207,21 +1309,23 @@ const [activeSection, setActiveSection] = useState(() => {
         value={m.time_corrected}
         onChange={(e) => updateMeasurement(idx, 'time_corrected', e.target.value)}
         className={cn(
-          "h-9 bg-white/70 border-amber-200 text-gray-800 focus:border-orange-500 focus:ring-orange-500",
+          'h-8 min-h-0 appearance-none px-2 py-0 text-[14px] leading-none',
+          formInputClass,
+          temperatureInputClass,
           RADIUS.field
         )}
         disabled={isProcessing}
       />
     </div>
-<div className="flex items-center gap-2">
-  <div className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50/70 p-[2px] shadow-sm">
+<div className="flex items-center gap-1.5">
+  <div className="inline-flex items-center rounded-full border border-slate-200/70 bg-white/75 p-[2px] shadow-sm">
     <Button
   type="button"
   variant="ghost"
   disabled={isProcessing}
   onMouseDown={preventPressFocus}
   onClick={() => handleTempAdjust(idx, -0.1)}
-  className="relative h-7 w-10 rounded-full px-0 text-orange-700 hover:bg-white/90 hover:text-orange-800"
+  className="relative h-8 w-9 rounded-full px-0 text-temp hover:bg-white/90 hover:text-temp"
   aria-label="Disminuir temperatura corregida 0,10 grados"
   title="Bajar 0,10 °C"
 >
@@ -1234,7 +1338,7 @@ const [activeSection, setActiveSection] = useState(() => {
   disabled={isProcessing}
   onMouseDown={preventPressFocus}
   onClick={() => handleTempAdjust(idx, 0.1)}
-  className="relative h-7 w-10 rounded-full px-0 text-orange-800 hover:bg-white/90 hover:text-orange-900"
+  className="relative h-8 w-9 rounded-full px-0 text-temp hover:bg-white/90 hover:text-temp"
   aria-label="Aumentar temperatura corregida 0,10 grados"
   title="Subir 0,10 °C"
 >
@@ -1243,7 +1347,7 @@ const [activeSection, setActiveSection] = useState(() => {
   </div>
 
 
-      <div className="ml-auto flex items-center gap-2">
+      <div className="ml-auto flex items-center gap-1.5">
         <Checkbox
           id={`use_corrected_${idx}`}
           checked={m.use_corrected}
@@ -1267,66 +1371,113 @@ const [activeSection, setActiveSection] = useState(() => {
         );
       case 'moco': {
         const symbolTheme = getFertilitySymbolTheme(fertilitySymbol);
+        const hasSensationText = Boolean(mucusSensation && mucusSensation.trim());
+        const hasAppearanceText = Boolean(mucusAppearance && mucusAppearance.trim());
         return (
-          <div className="space-y-3 rounded-3xl bg-moco-suave p-3 shadow-xs">
-            <div className="space-y-2 rounded-3xl bg-white/80 border border-sensacion p-3 shadow-sm">
-              <Label htmlFor="mucusSensation" className="flex items-center text-slate-800 text-sm font-semibold">
-                <Droplets className="mr-2 h-5 w-5 text-sensacion" />
-                Sensación del moco
-              </Label>
-              <Input
-                data-field="mucusSensation"
-                id="mucusSensation"
-                value={mucusSensation}
-                onChange={(e) => setMucusSensation(e.target.value)}
-                onKeyDown={handleSensationKeyDown}
-                className={cn(
-                  'bg-white/70 border-sensacion text-gray-800 placeholder-gray-400 focus:border-sensacion ring-sensacion focus:ring-2 font-semibold text-sensacion-fuerte',
-                  RADIUS.field
+          <div className={cn(formSectionSurfaceClass, 'space-y-1.5 px-2.5 pb-2.5 pt-2')}>
+            <span aria-hidden="true" className={cn(formAccentClass, 'bg-moco opacity-45')} />
+            <div className="grid grid-cols-2 items-stretch gap-1.5">
+              <div className={cn(formCompactFieldSurfaceClass, 'flex min-w-0 flex-col')}>
+                <span aria-hidden="true" className={cn(formAccentClass, 'bg-sensacion opacity-75')} />
+                <Label htmlFor="mucusSensation" className="flex items-center text-subtitulo text-[13px] font-semibold">
+                  <Droplets className="mr-1.5 h-4 w-4 text-sensacion" />
+                  Sensación
+                </Label>
+                {focusedMucusField === 'sensation' || !hasSensationText ? (
+                  <Input
+                    data-field="mucusSensation"
+                    id="mucusSensation"
+                    ref={sensationInputRef}
+                    value={mucusSensation}
+                    onChange={(e) => setMucusSensation(e.target.value)}
+                    onKeyDown={handleSensationKeyDown}
+                    onFocus={() => setFocusedMucusField('sensation')}
+                    onBlur={handleMucusInputBlur}
+                    className={cn(
+                      formInputClass,
+                      sensationInputClass,
+                      'min-w-0 text-[14px] text-slate-700',
+                      RADIUS.field
+                    )}
+                    disabled={isProcessing}
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setFocusedMucusField('sensation')}
+                    className={cn(
+                      'min-h-9 w-full rounded-3xl border border-slate-200/70 bg-white px-3 py-2 text-left text-[14px] font-semibold leading-snug text-slate-700 shadow-sm',
+                      'whitespace-normal break-words focus-visible:outline-none focus-visible:ring-2',
+                      sensationInputClass
+                    )}
+                    disabled={isProcessing}
+                  >
+                    {mucusSensation}
+                  </button>
                 )}
-                disabled={isProcessing}
-              />
-            </div>
+              </div>
 
-            <div className="space-y-2 rounded-3xl bg-white/80 p-3 border border-apariencia shadow-sm">
-              <Label htmlFor="mucusAppearance" className="flex items-center text-slate-800 text-sm font-semibold">
-                <Circle className="mr-2 h-5 w-5 text-apariencia" />
-                Apariencia del moco
-              </Label>
-              <Input
-                data-field="mucusAppearance"
-                id="mucusAppearance"
-                value={mucusAppearance}
-                onChange={(e) => setMucusAppearance(e.target.value)}
-                onKeyDown={handleAppearanceKeyDown}
-                ref={appearanceInputRef}
-                className={cn(
-                  'bg-white/70 border-apariencia text-gray-800 placeholder-gray-400 focus:border-apariencia focus:ring-apariencia font-semibold text-apariencia-fuerte',
-                  RADIUS.field
+              <div className={cn(formCompactFieldSurfaceClass, 'flex min-w-0 flex-col')}>
+                <span aria-hidden="true" className={cn(formAccentClass, 'bg-apariencia opacity-75')} />
+                <Label htmlFor="mucusAppearance" className="flex items-center text-subtitulo text-[13px] font-semibold">
+                  <Circle className="mr-1.5 h-4 w-4 text-apariencia" />
+                  Apariencia
+                </Label>
+                {focusedMucusField === 'appearance' || !hasAppearanceText ? (
+                  <Input
+                    data-field="mucusAppearance"
+                    id="mucusAppearance"
+                    value={mucusAppearance}
+                    onChange={(e) => setMucusAppearance(e.target.value)}
+                    onKeyDown={handleAppearanceKeyDown}
+                    ref={appearanceInputRef}
+                    onFocus={() => setFocusedMucusField('appearance')}
+                    onBlur={handleMucusInputBlur}
+                    className={cn(
+                      formInputClass,
+                      appearanceInputClass,
+                      'min-w-0 text-[14px] text-slate-700',
+                      RADIUS.field
+                    )}
+                    disabled={isProcessing}
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setFocusedMucusField('appearance')}
+                    className={cn(
+                      'min-h-9 w-full rounded-3xl border border-slate-200/70 bg-white px-3 py-2 text-left text-[14px] font-semibold leading-snug text-slate-700 shadow-sm',
+                      'whitespace-normal break-words focus-visible:outline-none focus-visible:ring-2',
+                      appearanceInputClass
+                    )}
+                    disabled={isProcessing}
+                  >
+                    {mucusAppearance}
+                  </button>
                 )}
-                disabled={isProcessing}
-              />
+              </div>
             </div>
 
             <div
               className={cn(
-                'space-y-3 rounded-3xl border bg-gradient-to-r p-3 shadow-sm transition-colors duration-300',
-                symbolTheme.panelBorder,
-                symbolTheme.panelBackground
+                formCompactFieldSurfaceClass,
+                'transition-colors duration-300'
               )}
             >
-              <div className="flex flex-col gap-3">
-                <Label htmlFor="fertilitySymbol" className="flex items-center text-slate-800 text-sm font-semibold">
+              <span aria-hidden="true" className={cn(formAccentClass, 'bg-fertiliapp opacity-70')} />
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="fertilitySymbol" className="flex items-center text-subtitulo text-sm font-semibold">
                   <Sprout
                     className={cn('mr-2 h-5 w-5 transition-colors duration-300', symbolTheme.icon)}
                   />
-                  Símbolo de Fertilidad
+                  Símbolo
                 </Label>
                 <Select value={fertilitySymbol} onValueChange={setFertilitySymbol} disabled={isProcessing}>
                   <SelectTrigger
                     ref={symbolTriggerRef}
                     className={cn(
-                      'w-full border bg-white text-gray-800 transition-colors duration-200',
+                      'w-full bg-white/80 text-slate-700 font-semibold shadow-sm transition-colors duration-200',
+                      'border-slate-200/70 hover:border-fertiliapp-suave focus:border-fertiliapp focus:ring-2 focus:ring-fertiliapp-suave',
                       symbolTheme.triggerBorder,
                       symbolTheme.triggerHover,
                       symbolTheme.triggerActive,
@@ -1362,8 +1513,9 @@ const [activeSection, setActiveSection] = useState(() => {
         }
       case 'observations':
         return (
-          <div className="space-y-2 rounded-3xl border border-observaciones bg-observaciones-suave p-3 shadow-sm">
-            <Label htmlFor="observations" className="flex items-center text-slate-800 text-sm font-semibold">
+          <div className={cn(formSectionSurfaceClass, 'space-y-2')}>
+            <span aria-hidden="true" className={cn(formAccentClass, 'bg-observaciones opacity-75')} />
+            <Label htmlFor="observations" className="flex items-center text-subtitulo text-sm font-semibold">
               <Edit3 className="mr-2 h-5 w-5 text-observaciones" />
               Observaciones
             </Label>
@@ -1372,7 +1524,13 @@ const [activeSection, setActiveSection] = useState(() => {
               id="observations"
               value={observations}
               onChange={(e) => setObservations(e.target.value)}
-              className={cn("min-h-[40px] resize-none bg-white/70 border-observaciones text-gray-800 placeholder-gray-400 focus:border-observaciones focus:ring-observaciones font-semibold text-observaciones-fuerte", RADIUS.field)}
+              className={cn(
+                'min-h-[40px] resize-none',
+                formInputClass,
+                observationsInputClass,
+                'text-slate-700',
+                RADIUS.field
+              )}
               disabled={isProcessing}
             />
           </div>
@@ -1386,14 +1544,11 @@ const [activeSection, setActiveSection] = useState(() => {
     <>
       <div
   ref={stickyHeaderRef}
-  className="sticky top-0 z-30 isolate -mx-1 overflow-hidden rounded-b-3xl bg-form-surface px-1 pb-2 pt-1"
+  className="sticky top-0 z-30 -mx-1 rounded-b-3xl bg-[#FFF7FA] px-1 pb-1 pt-0"
 >
-  <div className="absolute inset-0 z-0 rounded-3xl bg-form-surface" />
-  <div className="absolute inset-x-0 bottom-0 z-0 h-6 bg-form-surface" />
-
-  <div className="relative z-10 rounded-b-3xl bg-form-surface">
+  <div className="rounded-b-3xl bg-[#FFF7FA]">
     <div className="space-y-2">
-      <div className="col-span-3 space-y-2 rounded-3xl border border-fertiliapp bg-tarjeta p-3 shadow-sm">
+      <div className="relative overflow-hidden col-span-3 space-y-2 rounded-3xl border border-slate-200/60 bg-white/80 p-3 shadow-sm">
         <Label htmlFor="date" className="flex items-center text-sm font-semibold text-titulo">
           <CalendarDays className="mr-2 h-5 w-5 text-titulo" />
           Fecha del Registro
@@ -1405,7 +1560,7 @@ const [activeSection, setActiveSection] = useState(() => {
               <Button
                 variant="outline"
                 className={cn(
-                  'h-11 min-w-0 flex-[3.5] justify-start border-fertiliapp-suave bg-white text-left font-normal text-gray-800 hover:bg-white hover:text-gray-800',
+                  'h-11 min-w-0 flex-[3.5] justify-start rounded-3xl border-slate-200/70 bg-white text-left font-normal text-slate-700 shadow-sm hover:bg-white hover:text-slate-700 focus-visible:ring-2 focus-visible:ring-fertiliapp-suave',
                   !date && 'text-muted-foreground'
                 )}
                 disabled={isProcessing}
@@ -1452,7 +1607,7 @@ const [activeSection, setActiveSection] = useState(() => {
             size="sm"
             onClick={() => onOpenNewCycle?.(selectedIsoDate)}
             disabled={isProcessing || !selectedIsoDate || typeof onOpenNewCycle !== 'function'}
-            className="h-11 flex-[1.15] rounded-2xl border-fertiliapp-suave bg-white px-2 text-[10px] font-semibold text-fertiliapp-fuerte hover:bg-fertiliapp-suave/60"
+            className="h-11 flex-[1.15] rounded-2xl border-slate-200/70 bg-white px-2 text-[10px] font-semibold text-fertiliapp-fuerte shadow-sm hover:border-fertiliapp-suave hover:bg-white"
             aria-label="Iniciar nuevo ciclo"
           >
             <CalendarPlus className="mr-1 h-4 w-4 shrink-0" />
@@ -1465,7 +1620,7 @@ const [activeSection, setActiveSection] = useState(() => {
       </div>
     </div>
 
-    <div className="mt-1 px-2 sm:px-3">
+    <div className="mt-1.5 px-2 sm:px-3">
       <div className="flex items-center gap-2">
         <div className="shrink-0">
           <PeakModeButton
