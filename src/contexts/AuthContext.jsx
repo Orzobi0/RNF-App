@@ -26,7 +26,7 @@ import {
   trackLogin,
   trackSignUp,
   setAnalyticsUserId,
-  trackSessionReady,
+  trackUserActiveDay,
 } from '@/lib/analytics';
 
 const AuthContext = createContext(null);
@@ -364,10 +364,17 @@ export const AuthProvider = ({ children }) => {
           restoreAttemptedRef.current = false;
           lastAuthedUidRef.current = firebaseUser.uid;
 
-          void setAnalyticsUserId(firebaseUser.uid);
-          void trackSessionReady({
-            proveedor: firebaseUser.providerData?.[0]?.providerId || 'unknown',
-          });
+          void (async () => {
+            try {
+              await setAnalyticsUserId(firebaseUser.uid);
+              await trackUserActiveDay({
+                userId: firebaseUser.uid,
+                proveedor: firebaseUser.providerData?.[0]?.providerId || 'unknown',
+              });
+            } catch (error) {
+              console.warn('[analytics:user_active_day]', error);
+            }
+          })();
 
           setUser({
             id: firebaseUser.uid,

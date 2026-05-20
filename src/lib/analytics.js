@@ -2,6 +2,11 @@
 import { logEvent, setUserId } from 'firebase/analytics';
 import { getFirebaseAnalytics } from '@/lib/firebaseClient';
 
+const DAILY_BUSINESS_EVENTS = new Set([
+  'usuario_activo_dia',
+  'usuario_registra_dia',
+]);
+
 const toSafeText = (value, max = 100) => {
   if (value == null) return '';
 
@@ -12,14 +17,49 @@ const toSafeText = (value, max = 100) => {
   }
 };
 
+const getMadridDateKey = () => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Madrid',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+
+  const values = parts.reduce((acc, part) => {
+    if (part.type !== 'literal') acc[part.type] = part.value;
+    return acc;
+  }, {});
+
+  return `${values.year}-${values.month}-${values.day}`;
+};
+
 export const trackEvent = async (name, params = {}) => {
   const analytics = await getFirebaseAnalytics();
   if (!analytics) return;
-// Nota:
-// - "Usuarios reales diarios" se puede leer mejor usando `sesion_lista` con user_id.
-// - `app_boot` es telemetría técnica, no una métrica principal de uso real.
-// - `registro_guardado` es el evento principal para analizar uso funcional.
+
   logEvent(analytics, name, params);
+};
+
+const trackDailyBusinessEventOnce = async (eventName, userId, params = {}) => {
+  if (!DAILY_BUSINESS_EVENTS.has(eventName) || !userId) return;
+
+  const analytics = await getFirebaseAnalytics();
+  if (!analytics) return;
+
+  const storageKey = `rnf_analytics_daily_${eventName}_${userId}_${getMadridDateKey()}`;
+
+  try {
+    if (localStorage.getItem(storageKey) === '1') return;
+    localStorage.setItem(storageKey, '1');
+  } catch (error) {
+    console.warn('[analytics:daily_event]', error);
+    return;
+  }
+
+  logEvent(analytics, eventName, {
+    ...params,
+    alcance_metrica: 'usuario_unico_diario_dispositivo',
+  });
 };
 
 export const setAnalyticsUserId = async (userId) => {
@@ -72,6 +112,7 @@ export const trackLogin = (method = 'unknown') => {
 export const trackSignUp = (method = 'unknown') => {
   return trackEvent('sign_up', { method });
 };
+
 export const trackSessionReady = ({
   proveedor = 'unknown',
 } = {}) => {
@@ -79,6 +120,24 @@ export const trackSessionReady = ({
     proveedor_autenticacion: proveedor,
     estado_sesion: 'autenticada',
     alcance_metrica: 'usuarios_identificados_diarios',
+  });
+};
+
+export const trackUserActiveDay = ({
+  userId,
+  proveedor = 'unknown',
+} = {}) => {
+  return trackDailyBusinessEventOnce('usuario_activo_dia', userId, {
+    proveedor_autenticacion: proveedor,
+  });
+};
+
+export const trackUserSavedRecordDay = ({
+  userId,
+  ambitoCiclo = 'actual',
+} = {}) => {
+  return trackDailyBusinessEventOnce('usuario_registra_dia', userId, {
+    ambito_ciclo: ambitoCiclo,
   });
 };
 
