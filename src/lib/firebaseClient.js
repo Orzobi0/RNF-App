@@ -32,6 +32,16 @@ let analyticsPromise = null;
 export const getFirebaseAnalytics = async () => {
   if (analyticsPromise) return analyticsPromise;
 
+  const analyticsEnabled =
+    typeof window !== 'undefined' &&
+    Boolean(firebaseConfig.measurementId) &&
+    import.meta.env.VITE_ENABLE_ANALYTICS === 'true';
+
+  if (!analyticsEnabled) {
+    analyticsPromise = Promise.resolve(null);
+    return analyticsPromise;
+  }
+
   analyticsPromise = isSupported()
     .then((supported) => {
       if (!supported) return null;
