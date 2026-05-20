@@ -197,7 +197,7 @@ useEffect(() => {
     rotatedSafeEndInsetPx
   );
   
-  const MANUAL_DRAG_THRESHOLD_PX = 14;
+  const MANUAL_DRAG_THRESHOLD_PX = 22;
   const normalizeTemp2 = useCallback((value) => {
     const numeric = Number(value);
     if (!Number.isFinite(numeric)) return null;
@@ -427,7 +427,7 @@ manualDragRef.current = {
   }
 
   state.activeSnapIndex = nextIndex;
-  state.accumDelta -= direction * MANUAL_DRAG_THRESHOLD_PX;
+  state.accumDelta = 0;
   setManualBaselineTemp(manualSnapTemps[nextIndex]);
 }, [
   manualSnapTemps,
@@ -464,7 +464,14 @@ manualDragRef.current = {
   const [manualHandleStyle, setManualHandleStyle] = useState({
   top: 0,
   left: 0,
-  transform: 'none',
+  transform: 'translate(-50%, -50%)',
+  transformOrigin: 'center center',
+});
+
+const [manualPlusLabelStyle, setManualPlusLabelStyle] = useState({
+  top: 0,
+  left: 0,
+  transform: 'translate(-50%, -50%)',
   transformOrigin: 'center center',
 });
 
@@ -497,67 +504,98 @@ useEffect(() => {
       ((vv?.width ?? window.innerWidth ?? 0) < (vv?.height ?? window.innerHeight ?? 0));
 
     const buttonSize = 40;
-    const bubbleHeight = 24;
-    const gapBetweenBubbleAndButton = 4;
-    const blockHeight = bubbleHeight + gapBetweenBubbleAndButton + buttonSize;
+const manualTempLabelHeight = 22;
+const plusLabelHeight = 22;
 
-    const rightGap = isFullScreen ? 36 : 40;
-    const topGap = isFullScreen ? 10 : 4;
-    const bottomGap = isFullScreen ? 10 : 4;
-    const lateralGap = isFullScreen ? 12 : 8;
+const rightGap = isFullScreen ? 36 : 20;
+const plusLabelRightGap = isFullScreen ? 64 : 58;
 
-    const localY = manualBaselineY - scroller.scrollTop;
+const topGap = isFullScreen ? 10 : 4;
+const bottomGap = isFullScreen ? 10 : 4;
+const lateralGap = isFullScreen ? 12 : 8;
+
+const localY = manualBaselineY - scroller.scrollTop;
+const localPlusY = Number.isFinite(manualBaselinePlusY)
+  ? manualBaselinePlusY - scroller.scrollTop
+  : null;
 
     if (!isRotatedManualViewport) {
-      const clampedCenterY = Math.min(
-        scroller.clientHeight - bottomGap - buttonSize / 2,
-        Math.max(topGap + buttonSize / 2, localY)
-      );
+  const clampedCenterY = Math.min(
+    scroller.clientHeight - bottomGap - buttonSize / 2,
+    Math.max(topGap + buttonSize / 2, localY)
+  );
 
-      const top =
-        scrollerRect.top -
-        hostRect.top +
-        clampedCenterY -
-        blockHeight / 2;
+  const handleCenterTop =
+    scrollerRect.top -
+    hostRect.top +
+    clampedCenterY;
 
-      const left =
-        scrollerRect.right -
-        hostRect.left -
-        buttonSize -
-        rightGap;
+  const handleCenterLeft =
+    scrollerRect.right -
+    hostRect.left -
+    rightGap -
+    buttonSize / 2;
 
-      setManualHandleStyle({
-        top,
-        left,
-        transform: 'none',
-        transformOrigin: 'center center',
-      });
-      return;
-    }
+  setManualHandleStyle({
+    top: handleCenterTop,
+    left: handleCenterLeft,
+    transform: 'translate(-50%, -50%)',
+    transformOrigin: 'center center',
+  });
 
-    const clampedHorizontalCenter = Math.min(
-      scroller.clientHeight - lateralGap - buttonSize / 2,
-      Math.max(lateralGap + buttonSize / 2, localY)
+  if (Number.isFinite(localPlusY)) {
+    const clampedPlusCenterY = Math.min(
+      scroller.clientHeight - bottomGap - plusLabelHeight / 2,
+      Math.max(topGap + plusLabelHeight / 2, localPlusY)
     );
 
-    const left =
-      scrollerRect.right -
-      hostRect.left -
-      clampedHorizontalCenter -
-      buttonSize / 2;
-
-    const top =
-      scrollerRect.bottom -
-      hostRect.top -
-      blockHeight -
-      bottomGap;
-
-    setManualHandleStyle({
-      top,
-      left,
-      transform: 'rotate(90deg)',
+    setManualPlusLabelStyle({
+      top: scrollerRect.top - hostRect.top + clampedPlusCenterY,
+      left: scrollerRect.right - hostRect.left - plusLabelRightGap,
+      transform: 'translate(-50%, -50%)',
       transformOrigin: 'center center',
     });
+  }
+
+  return;
+}
+
+const clampedHorizontalCenter = Math.min(
+  scroller.clientHeight - lateralGap - buttonSize / 2,
+  Math.max(lateralGap + buttonSize / 2, localY)
+);
+
+const handleCenterLeft =
+  scrollerRect.right -
+  hostRect.left -
+  clampedHorizontalCenter;
+
+const handleCenterTop =
+  scrollerRect.bottom -
+  hostRect.top -
+  bottomGap -
+  buttonSize / 2;
+
+setManualHandleStyle({
+  top: handleCenterTop,
+  left: handleCenterLeft,
+  transform: 'translate(-50%, -50%) rotate(90deg)',
+  transformOrigin: 'center center',
+});
+
+if (Number.isFinite(localPlusY)) {
+  const clampedPlusHorizontalCenter = Math.min(
+    scroller.clientHeight - lateralGap - manualTempLabelHeight / 2,
+    Math.max(lateralGap + manualTempLabelHeight / 2, localPlusY)
+  );
+
+  setManualPlusLabelStyle({
+    top: scrollerRect.bottom - hostRect.top - plusLabelRightGap,
+    left: scrollerRect.right - hostRect.left - clampedPlusHorizontalCenter,
+    transform: 'translate(-50%, -50%) rotate(90deg)',
+    transformOrigin: 'center center',
+  });
+}
   };
 
   updateHandlePosition();
@@ -589,6 +627,7 @@ useEffect(() => {
 }, [
   manualModeEnabled,
   manualBaselineY,
+  manualBaselinePlusY,
   chartRef,
   isFullScreen,
   forceLandscape,
@@ -776,22 +815,43 @@ if (isRotated) {
   const isLoading = chartWidth === 0;
 
   const manualLabelPoints = useMemo(() => {
-    if (!manualModeEnabled) return [];
-    const total = allDataPoints.length;
-    if (!total) return [];
-    const overscan = 2;
-    const start = Math.max(0, (visibleRange?.startIndex ?? 0) - overscan);
-    const end = Math.min(total - 1, (visibleRange?.endIndex ?? (total - 1)) + overscan);
-    const list = [];
-    for (let index = start; index <= end; index += 1) {
-      const point = allDataPoints[index];
-      if (!isPointEligibleForManualMode(point, index)) continue;
-      const normalizedTemp = normalizeTemp2(point?.displayTemperature);
-      if (normalizedTemp == null) continue;
-      list.push({ index, value: normalizedTemp, x: getX(index), y: getY(normalizedTemp) });
-    }
-    return list;
-  }, [manualModeEnabled, allDataPoints, visibleRange, isPointEligibleForManualMode, getX, getY, normalizeTemp2]);
+  if (!manualModeEnabled) return [];
+
+  const total = allDataPoints.length;
+  if (!total) return [];
+
+  const overscan = 2;
+  const start = Math.max(0, (visibleRange?.startIndex ?? 0) - overscan);
+  const end = Math.min(total - 1, (visibleRange?.endIndex ?? total - 1) + overscan);
+
+  const list = [];
+
+  for (let index = start; index <= end; index += 1) {
+    const point = allDataPoints[index];
+
+    if (!isPointEligibleForManualMode(point, index)) continue;
+
+    const normalizedTemp = normalizeTemp2(point?.displayTemperature);
+    if (normalizedTemp == null) continue;
+
+    list.push({
+      index,
+      value: normalizedTemp,
+      x: getX(index),
+      y: getY(normalizedTemp),
+    });
+  }
+
+  return list;
+}, [
+  manualModeEnabled,
+  allDataPoints,
+  visibleRange,
+  isPointEligibleForManualMode,
+  normalizeTemp2,
+  getX,
+  getY,
+]);
 
   const validDataMap = useMemo(() => {
     const map = new Map();
@@ -2033,47 +2093,50 @@ const rotationWrapperStyle = rotationStageStyle
             )}
   
           {manualModeEnabled && Number.isFinite(manualBaselineY) && (
-            <g pointerEvents="none">
-              {Number.isFinite(manualBaselinePlusY) && (
-                <line
-                  x1={baselineStartX}
-                  x2={baselineEndX}
-                  y1={manualBaselinePlusY}
-                  y2={manualBaselinePlusY}
-                  stroke="#a78bfa"
-                  strokeWidth={1}
-                  strokeDasharray="3 6"
-                  opacity={0.38}
-                />
-              )}
-              <line
-                x1={baselineStartX}
-                x2={baselineEndX}
-                y1={manualBaselineY}
-                y2={manualBaselineY}
-                stroke="#7c3aed"
-                strokeWidth={2.2}
-                strokeDasharray="7 5"
-                opacity={0.92}
-              />
-              {manualLabelPoints.map((labelPoint) => (
-                <text
-                  key={`manual-label-${labelPoint.index}`}
-                  x={labelPoint.x}
-                  y={labelPoint.y - 10}
-                  textAnchor="middle"
-                  fontSize={responsiveFontSize(0.78)}
-                  fontWeight={700}
-                  fill="#4c1d95"
-                  stroke="#fff"
-                  strokeWidth={1}
-                  paintOrder="stroke"
-                >
-                  {labelPoint.value.toFixed(2)}
-                </text>
-              ))}
-            </g>
-          )}
+  <g pointerEvents="none">
+    {Number.isFinite(manualBaselinePlusY) && (
+      <line
+        x1={baselineStartX}
+        x2={baselineEndX}
+        y1={manualBaselinePlusY}
+        y2={manualBaselinePlusY}
+        stroke="#a78bfa"
+        strokeWidth={1}
+        strokeDasharray="3 6"
+        opacity={0.38}
+      />
+    )}
+
+    <line
+      x1={baselineStartX}
+      x2={baselineEndX}
+      y1={manualBaselineY}
+      y2={manualBaselineY}
+      stroke="#7c3aed"
+      strokeWidth={2.2}
+      strokeDasharray="7 5"
+      opacity={0.92}
+    />
+
+    {manualLabelPoints.map((labelPoint) => (
+      <text
+        key={`manual-temp-label-${labelPoint.index}`}
+        x={labelPoint.x}
+        y={labelPoint.y - 9}
+        textAnchor="middle"
+        fontSize={Math.max(responsiveFontSize(0.68), isFullScreen ? 9 : 8)}
+        fontWeight={600}
+        fill="#2f2242"
+        opacity={0.78}
+        stroke="#fff"
+        strokeWidth={1.9}
+        paintOrder="stroke"
+      >
+        {labelPoint.value.toFixed(2)}
+      </text>
+    ))}
+  </g>
+)}
 
         </motion.svg>
             </div>
@@ -2120,17 +2183,27 @@ const rotationWrapperStyle = rotationStageStyle
       </div>
     {manualModeEnabled && Number.isFinite(manualBaselineY) && (
   <div className="pointer-events-none absolute inset-0 z-30">
+    {Number.isFinite(manualBaselinePlusTemp) && Number.isFinite(manualBaselinePlusY) && (
+      <div
+        className="absolute whitespace-nowrap rounded-full bg-white/80 px-1.5 py-0.5 text-[9px] font-semibold text-violet-500"
+        style={manualPlusLabelStyle}
+      >
+        <span className="text-violet-400 font-semibold">+0.2 · </span>
+        <span>({manualBaselinePlusTemp.toFixed(2)}°)</span>
+      </div>
+    )}
+
     <div
-      className="absolute flex flex-col items-center gap-1"
+      className="absolute h-10 w-10"
       style={manualHandleStyle}
     >
-      <div className="rounded-full bg-violet-600/95 px-2 py-1 text-[11px] font-bold text-white shadow-md">
-        {manualBaselineTemp.toFixed(2)}°
+      <div className="absolute right-[46px] top-1/2 -translate-y-1/2 whitespace-nowrap rounded-full bg-violet-600/80 px-1.5 py-0.5 text-[11px] font-bold text-white shadow-md">
+        {manualBaselineTemp.toFixed(2)}° 
       </div>
 
       <button
   type="button"
-  className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full border border-violet-500 bg-white text-violet-700 shadow-lg select-none"
+  className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full border border-violet-500 bg-white/80 text-violet-700 shadow-lg select-none"
   style={{ touchAction: 'none' }}
   onPointerDown={handleManualBaselinePointerDown}
   onPointerMove={handleManualBaselinePointerMove}
