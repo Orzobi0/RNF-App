@@ -44,6 +44,49 @@ const statusLabel = (status) => {
   }
 };
 
+const compactStatusLabel = (evaluation) => {
+  const status = evaluation?.status;
+  const rule = evaluation?.rule ?? evaluation?.ovulationDetails?.rule ?? null;
+
+  if (status === 'confirmed') {
+    switch (rule) {
+      case '3-high':
+        return 'Confirmada D+3';
+      case 'german-3+1':
+      case 'german-2nd-exception':
+        return 'Excepcion D+4';
+      case 'pp-after-3-high':
+      case 'pp-after-german-3+1':
+      case 'pp-after-german-2nd-exception':
+        return 'Confirmada postparto';
+      default:
+        return 'Confirmada';
+    }
+  }
+
+  if (status === 'invalid') return 'No confirma';
+  if (status === 'insufficient') return 'Faltan datos';
+  if (status === 'pending') {
+    const count =
+      evaluation?.sequenceDisplayIndices?.length ??
+      evaluation?.ovulationDetails?.sequenceDisplayIndices?.length ??
+      0;
+    return count >= 3 ? 'Necesita D+4' : 'Pendiente';
+  }
+  return 'Pendiente';
+};
+
+const compactDraftText = (draft, evaluation) => {
+  const baseline = formatTemp(draft?.baselineTemp).replace(' C', '');
+  const firstHigh = formatDate(draft?.firstHighIsoDate);
+
+  if (!draft?.firstHighIsoDate) {
+    return `Linea ${baseline} · Toca el 1º alto`;
+  }
+
+  return `Linea ${baseline} · Alto ${firstHigh} · ${compactStatusLabel(evaluation)}`;
+};
+
 const SummaryRow = ({ label, value }) => (
   <div className="flex items-center justify-between gap-3 text-sm">
     <span className="text-slate-500">{label}</span>
@@ -69,6 +112,7 @@ const InterpretationSettingsDialog = ({
   automaticSummary = null,
   manualSummary = null,
   draft = null,
+  draftEvaluation = null,
   canSave = false,
   onClose,
   onStartEdit,
@@ -195,10 +239,10 @@ const InterpretationSettingsDialog = ({
   if (editing) {
     const rotatedWidth = Math.max(
       280,
-      Math.min(Number(viewport?.h) > 0 ? Number(viewport.h) - 32 : 640, 672)
+      Math.min(Number(viewport?.h) > 0 ? Number(viewport.h) - 32 : 520, 520)
     );
     const position = floatingPosition ?? getDefaultFloatingPosition();
-    const barWidth = isRotated ? `${rotatedWidth}px` : 'min(calc(100vw - 16px), 672px)';
+    const barWidth = isRotated ? `${rotatedWidth}px` : 'min(calc(100vw - 16px), 520px)';
 
     return (
       <div
@@ -212,7 +256,7 @@ const InterpretationSettingsDialog = ({
         }}
       >
         <div
-          className={`pointer-events-auto mx-auto flex h-12 w-full max-w-2xl touch-none select-none items-center gap-2 rounded-xl border border-orange-200 bg-white/95 px-2.5 shadow-xl shadow-slate-900/15 backdrop-blur ${
+          className={`pointer-events-auto mx-auto flex h-10 w-full max-w-lg touch-none select-none items-center gap-1.5 rounded-lg border border-orange-200 bg-white/95 px-2 shadow-xl shadow-slate-900/15 backdrop-blur ${
             isDraggingFloatingBar ? 'cursor-grabbing' : 'cursor-grab'
           }`}
           onPointerDown={handleFloatingPointerDown}
@@ -220,15 +264,15 @@ const InterpretationSettingsDialog = ({
           onPointerUp={handleFloatingPointerUp}
           onPointerCancel={handleFloatingPointerUp}
         >
-          <GripHorizontal className="h-4 w-4 shrink-0 text-red-400" aria-hidden="true" />
-          <p className="min-w-0 flex-1 truncate text-[12px] font-semibold text-red-700 sm:text-sm">
-            Ajustando subida termica - Linea base {formatTemp(draft?.baselineTemp)} - Primer dia alto {formatDate(draft?.firstHighIsoDate)}
+          <GripHorizontal className="h-3.5 w-3.5 shrink-0 text-red-400" aria-hidden="true" />
+          <p className="min-w-0 flex-1 truncate text-[11px] font-semibold text-red-700 sm:text-xs">
+            {compactDraftText(draft, draftEvaluation)}
           </p>
           <Button
             type="button"
             variant="ghost"
             data-floating-action="true"
-            className="h-8 shrink-0 px-2 text-xs text-slate-600 sm:px-3 sm:text-sm"
+            className="h-7 shrink-0 px-2 text-[11px] text-slate-600 sm:px-2.5 sm:text-xs"
             onPointerDown={(event) => event.stopPropagation()}
             onClick={onCancelEdit}
           >
@@ -237,12 +281,12 @@ const InterpretationSettingsDialog = ({
           <Button
             type="button"
             data-floating-action="true"
-            className="h-8 shrink-0 bg-red-600 px-2 text-xs text-white hover:bg-red-700 sm:px-3 sm:text-sm"
+            className="h-7 shrink-0 bg-rose-600 px-2 text-[11px] text-white hover:bg-rose-700 disabled:bg-slate-200 disabled:text-slate-500 disabled:opacity-100 sm:px-2.5 sm:text-xs"
             disabled={!canSave}
             onPointerDown={(event) => event.stopPropagation()}
             onClick={onSaveEdit}
           >
-            Aceptar
+            Guardar
           </Button>
         </div>
       </div>
@@ -303,20 +347,20 @@ const InterpretationSettingsDialog = ({
 
             {manualActive ? (
               <div className="flex flex-wrap gap-2">
-                <Button type="button" className="bg-red-600 text-white hover:bg-red-700" onClick={onStartEdit}>
+                <Button type="button" className="bg-rose-600 text-white hover:bg-rose-700" onClick={onStartEdit}>
                   Modificar
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
-                  className="border-orange-200 text-red-700 hover:bg-orange-50"
+                  className="border-orange-200 bg-white text-red-700 hover:bg-orange-50"
                   onClick={onResetAuto}
                 >
                   Volver a automatico
                 </Button>
               </div>
             ) : (
-              <Button type="button" className="bg-red-600 text-white hover:bg-red-700" onClick={onStartEdit}>
+              <Button type="button" className="bg-rose-600 text-white hover:bg-rose-700" onClick={onStartEdit}>
                 Modificar manualmente
               </Button>
             )}

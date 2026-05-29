@@ -39,6 +39,7 @@ const FertilityChart = ({
   temperatureRiseEditMode = false,
   temperatureRiseDraftBaselineTemp = null,
   temperatureRiseDraftFirstHighIsoDate = null,
+  temperatureRiseDraftEvaluation = null,
   onTemperatureRiseDraftBaselineChange = null,
   onTemperatureRiseFirstHighSelect = null,
 }) => {
@@ -522,28 +523,36 @@ const temperatureRiseDraftFirstHighIndex = useMemo(() => {
   return index >= 0 ? index : null;
 }, [allDataPoints, temperatureRiseDraftFirstHighIsoDate, temperatureRiseEditMode]);
 
-const temperatureRiseDraftSequenceIndices = useMemo(() => {
-  if (!temperatureRiseEditMode || !Number.isInteger(temperatureRiseDraftFirstHighIndex)) {
+const temperatureRiseDraftPreviewIndices = useMemo(() => {
+  if (!temperatureRiseEditMode || !temperatureRiseDraftEvaluation?.active) {
     return [];
   }
 
-  const indices = [];
-  for (
-    let index = temperatureRiseDraftFirstHighIndex;
-    index < allDataPoints.length && indices.length < 4;
-    index += 1
-  ) {
-    const point = allDataPoints[index];
-    if (!isPointEligibleForManualMode(point, index)) continue;
-    indices.push(index);
-  }
-  return indices;
+  const sourceIndices = Array.isArray(temperatureRiseDraftEvaluation.sequenceDisplayIndices)
+    ? temperatureRiseDraftEvaluation.sequenceDisplayIndices
+    : Array.isArray(temperatureRiseDraftEvaluation.ovulationDetails?.sequenceDisplayIndices)
+      ? temperatureRiseDraftEvaluation.ovulationDetails.sequenceDisplayIndices
+      : [];
+
+  return sourceIndices.filter(
+    (index) => Number.isInteger(index) && index >= 0 && index < allDataPoints.length
+  );
 }, [
-  allDataPoints,
-  isPointEligibleForManualMode,
-  temperatureRiseDraftFirstHighIndex,
+  allDataPoints.length,
+  temperatureRiseDraftEvaluation,
   temperatureRiseEditMode,
 ]);
+
+const temperatureRiseDraftUsedIndices = useMemo(
+  () =>
+    new Set(
+      (temperatureRiseDraftEvaluation?.usedIndices ??
+        temperatureRiseDraftEvaluation?.ovulationDetails?.usedIndices ??
+        [])
+        .filter((index) => Number.isInteger(index))
+    ),
+  [temperatureRiseDraftEvaluation]
+);
 
 useEffect(() => {
   if (!manualModeEnabled || !Number.isFinite(manualBaselineY)) return undefined;
@@ -2217,23 +2226,63 @@ const rotationWrapperStyle = rotationStageStyle
               </g>
             )}
 
-          {temperatureRiseEditMode && temperatureRiseDraftSequenceIndices.length > 0 && (
+          {temperatureRiseEditMode && temperatureRiseDraftPreviewIndices.length > 0 && (
             <g pointerEvents="none">
-              {temperatureRiseDraftSequenceIndices.map((index, position) => {
+              {temperatureRiseDraftPreviewIndices.map((index, position) => {
                 const point = allDataPoints[index];
                 const temp = point?.displayTemperature;
                 if (!Number.isFinite(temp)) return null;
                 const isFirstHigh = index === temperatureRiseDraftFirstHighIndex;
+                const isConfirmation =
+                  index === temperatureRiseDraftEvaluation?.confirmationIndex ||
+                  index === temperatureRiseDraftEvaluation?.ovulationDetails?.confirmationIndex;
+                const isInvalid = temperatureRiseDraftEvaluation?.status === 'invalid';
+                const isConfirmed = temperatureRiseDraftEvaluation?.status === 'confirmed';
+                const isPending =
+                  temperatureRiseDraftEvaluation?.status === 'pending' ||
+                  temperatureRiseDraftEvaluation?.status === 'insufficient';
+                const isUsed = temperatureRiseDraftUsedIndices.has(index);
+                const label =
+                  isConfirmation && isConfirmed
+                    ? `D+${position + 1}`
+                    : `${position + 1}`;
+                const stroke = isInvalid
+                  ? '#f59e0b'
+                  : isPending
+                    ? thermalRiseEditPalette.secondary
+                    : thermalRiseEditPalette.primary;
+                const fill = isInvalid
+                  ? 'rgba(245, 158, 11, 0.12)'
+                  : isPending
+                    ? thermalRiseEditPalette.faint
+                    : thermalRiseEditPalette.soft;
                 return (
                   <g key={`temperature-rise-draft-${index}`}>
                     <circle
                       cx={getX(index)}
                       cy={getY(temp)}
                       r={isFirstHigh ? 9 : 6}
-                      fill={isFirstHigh ? thermalRiseEditPalette.soft : thermalRiseEditPalette.faint}
-                      stroke={isFirstHigh ? thermalRiseEditPalette.primary : thermalRiseEditPalette.secondary}
-                      strokeWidth={isFirstHigh ? 2.2 : 1.4}
+                      fill={fill}
+                      stroke={stroke}
+                      strokeWidth={isConfirmation ? 3 : isFirstHigh ? 2.2 : 1.4}
+                      strokeDasharray={isInvalid || isPending ? '3 3' : undefined}
+                      opacity={isUsed || isFirstHigh ? 1 : 0.62}
                     />
+                    {isConfirmation && isConfirmed && (
+                      <text
+                        x={getX(index)}
+                        y={getY(temp) + 3}
+                        textAnchor="middle"
+                        fontSize={Math.max(responsiveFontSize(0.72), isFullScreen ? 10 : 9)}
+                        fontWeight={800}
+                        fill={thermalRiseEditPalette.primary}
+                        stroke="#fff"
+                        strokeWidth={2}
+                        paintOrder="stroke"
+                      >
+                        OK
+                      </text>
+                    )}
                     <text
                       x={getX(index)}
                       y={getY(temp) - (isFirstHigh ? 13 : 10)}
@@ -2245,11 +2294,31 @@ const rotationWrapperStyle = rotationStageStyle
                       strokeWidth={1.8}
                       paintOrder="stroke"
                     >
-                      {position + 1}
+                      {label}
                     </text>
                   </g>
                 );
               })}
+              {temperatureRiseDraftEvaluation?.status === 'invalid' &&
+                Number.isInteger(temperatureRiseDraftFirstHighIndex) &&
+                Number.isFinite(allDataPoints[temperatureRiseDraftFirstHighIndex]?.displayTemperature) && (
+                  <text
+                    x={getX(temperatureRiseDraftFirstHighIndex)}
+                    y={Math.max(
+                      18,
+                      getY(allDataPoints[temperatureRiseDraftFirstHighIndex].displayTemperature) - 28
+                    )}
+                    textAnchor="middle"
+                    fontSize={Math.max(responsiveFontSize(0.72), isFullScreen ? 10 : 9)}
+                    fontWeight={800}
+                    fill="#b45309"
+                    stroke="#fff"
+                    strokeWidth={2}
+                    paintOrder="stroke"
+                  >
+                    No confirma
+                  </text>
+                )}
             </g>
           )}
   

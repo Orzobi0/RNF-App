@@ -207,11 +207,12 @@ export const evaluateTemperatureRiseOverride = (
     : null;
   const confirmed = Boolean(evaluation?.confirmed && Number.isInteger(confirmationIndex));
   const hasTemperaturesAfterStart = sequenceDisplayIndices.length > 0;
+  const hasEnoughStandardDays = sequenceDisplayIndices.length >= 3;
   const status = confirmed
     ? 'confirmed'
     : evaluation?.requireRebaseline
       ? 'invalid'
-      : hasTemperaturesAfterStart
+      : hasTemperaturesAfterStart && hasEnoughStandardDays
         ? 'pending'
         : 'insufficient';
 
@@ -226,6 +227,10 @@ export const evaluateTemperatureRiseOverride = (
     firstHighIndex,
     firstHighIsoDate: normalized.firstHighIsoDate,
     confirmationIndex,
+    rule: evaluation?.rule ?? null,
+    sequenceDisplayIndices,
+    highOnlyIndices,
+    usedIndices,
     ovulationDetails: {
       confirmed,
       confirmationIndex,
@@ -243,4 +248,3 @@ export const evaluateTemperatureRiseOverride = (
     },
   };
 };
-

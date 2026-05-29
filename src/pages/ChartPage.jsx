@@ -788,6 +788,19 @@ useEffect(() => {
       temperatureRiseOverride.firstHighIsoDate,
     ]
   );
+  const draftTemperatureRiseEvaluation = useMemo(() => {
+    if (!temperatureRiseEditing) return null;
+    return evaluateTemperatureRiseOverride(
+      interpretationProcessedData,
+      createManualTemperatureRiseOverride(temperatureRiseDraft),
+      { postpartum: cyclePostpartumMode }
+    );
+  }, [
+    cyclePostpartumMode,
+    interpretationProcessedData,
+    temperatureRiseDraft,
+    temperatureRiseEditing,
+  ]);
 
   const visualOrientation = forceLandscape ? 'landscape' : orientation;
   const isLandscapeFullscreen = isFullScreen && visualOrientation === 'landscape';
@@ -1946,6 +1959,7 @@ const rotatedDrawerStyle = applyRotation
           temperatureRiseEditMode={temperatureRiseEditing}
           temperatureRiseDraftBaselineTemp={temperatureRiseDraft.baselineTemp}
           temperatureRiseDraftFirstHighIsoDate={temperatureRiseDraft.firstHighIsoDate}
+          temperatureRiseDraftEvaluation={draftTemperatureRiseEvaluation}
           onTemperatureRiseDraftBaselineChange={handleTemperatureRiseDraftBaselineChange}
           onTemperatureRiseFirstHighSelect={handleTemperatureRiseFirstHighSelect}
         />
@@ -1999,6 +2013,7 @@ const rotatedDrawerStyle = applyRotation
           automaticSummary={automaticTemperatureRiseSummary}
           manualSummary={manualTemperatureRiseSummary}
           draft={temperatureRiseDraft}
+          draftEvaluation={draftTemperatureRiseEvaluation}
           canSave={
             Number.isFinite(Number(temperatureRiseDraft.baselineTemp)) &&
             Boolean(temperatureRiseDraft.firstHighIsoDate)
