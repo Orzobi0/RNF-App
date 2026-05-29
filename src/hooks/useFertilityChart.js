@@ -14,6 +14,7 @@ import {
   computeFertilityStartOutput,
   computeT8CandidateFromCycles,
 } from '@/lib/fertilityStart';
+import { evaluateTemperatureRiseOverride } from '@/lib/temperatureRiseOverride';
 
 const DEFAULT_FERTILITY_START_CONFIG = {
   calculators: { cpm: true, t8: true },
@@ -394,6 +395,7 @@ export const useFertilityChart = (
   exportMode = false,
   rotatedSafeStartInsetPx = 0,
   rotatedSafeEndInsetPx = 0,
+  temperatureRiseOverride = null,
 ) => {
       const chartRef = useRef(null);
       const tooltipRef = useRef(null);
@@ -480,12 +482,19 @@ if (isFullScreen) {
 }
           
         
-          setDimensions({
-            width: newWidth,
-            height: newHeight,
-            viewportWidth,
-            viewportHeight,
-          });
+          setDimensions((prev) => (
+            prev.width === newWidth &&
+            prev.height === newHeight &&
+            prev.viewportWidth === viewportWidth &&
+            prev.viewportHeight === viewportHeight
+              ? prev
+              : {
+                  width: newWidth,
+                  height: newHeight,
+                  viewportWidth,
+                  viewportHeight,
+                }
+          ));
         };
 
         updateDimensions();
@@ -680,8 +689,27 @@ if (isFullScreen) {
     baselineIndices,
     ovulationDetails: rawOvulationDetails,
   } = useMemo(
-    () => computeOvulationMetrics(processedData, { postpartum: normalizedFertilityConfig.postpartum }),
-    [processedData, normalizedFertilityConfig.postpartum]
+    () => {
+      const automaticMetrics = computeOvulationMetrics(processedData, {
+        postpartum: normalizedFertilityConfig.postpartum,
+      });
+      const manualMetrics = evaluateTemperatureRiseOverride(processedData, temperatureRiseOverride, {
+        postpartum: normalizedFertilityConfig.postpartum,
+      });
+
+      if (!manualMetrics?.active) {
+        return automaticMetrics;
+      }
+
+      return {
+        baselineTemp: manualMetrics.baselineTemp,
+        baselineStartIndex: manualMetrics.baselineStartIndex,
+        firstHighIndex: manualMetrics.firstHighIndex,
+        baselineIndices: manualMetrics.baselineIndices,
+        ovulationDetails: manualMetrics.ovulationDetails,
+      };
+    },
+    [processedData, normalizedFertilityConfig.postpartum, temperatureRiseOverride]
   );
   const ovulationDetails = useMemo(() => {
     const baseDetails =

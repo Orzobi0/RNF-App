@@ -35,6 +35,12 @@ const FertilityChart = ({
   cycleEndDate = null,
   exportMode = false,
   measuredViewport = null,
+  temperatureRiseOverride = null,
+  temperatureRiseEditMode = false,
+  temperatureRiseDraftBaselineTemp = null,
+  temperatureRiseDraftFirstHighIsoDate = null,
+  onTemperatureRiseDraftBaselineChange = null,
+  onTemperatureRiseFirstHighSelect = null,
 }) => {
 
 const isIOS =
@@ -77,6 +83,12 @@ const isIOS =
 const [viewport, setViewport] = useState(readViewport);
 const isViewportPortrait = viewport.w < viewport.h;
 
+const setViewportIfChanged = useCallback((nextViewport) => {
+  setViewport((prev) =>
+    prev.w === nextViewport.w && prev.h === nextViewport.h ? prev : nextViewport
+  );
+}, []);
+
 useEffect(() => {
   if (typeof window === 'undefined') return undefined;
 
@@ -85,7 +97,7 @@ useEffect(() => {
 
   const onResize = () => {
     if (raf) cancelAnimationFrame(raf);
-    raf = requestAnimationFrame(() => setViewport(readViewport()));
+    raf = requestAnimationFrame(() => setViewportIfChanged(readViewport()));
   };
 
   window.addEventListener('resize', onResize);
@@ -103,7 +115,7 @@ useEffect(() => {
     vv?.removeEventListener('resize', onResize);
     vv?.removeEventListener('scroll', onResize);
   };
-}, [measuredViewport?.w, measuredViewport?.h]);
+}, [measuredViewport?.w, measuredViewport?.h, setViewportIfChanged]);
 
 useEffect(() => {
   const externalW = Number(measuredViewport?.w);
@@ -111,11 +123,8 @@ useEffect(() => {
   if (!Number.isFinite(externalW) || externalW <= 0 || !Number.isFinite(externalH) || externalH <= 0) {
     return;
   }
-  setViewport((prev) => {
-    const next = { w: Math.round(externalW), h: Math.round(externalH) };
-    return prev.w === next.w && prev.h === next.h ? prev : next;
-  });
-}, [measuredViewport?.w, measuredViewport?.h]);
+  setViewportIfChanged({ w: Math.round(externalW), h: Math.round(externalH) });
+}, [measuredViewport?.w, measuredViewport?.h, setViewportIfChanged]);
 
   const applyRotation = !exportMode && isFullScreen && forceLandscape && isViewportPortrait;
   const isIOSFakeLandscape = isIOS && applyRotation;
@@ -194,7 +203,8 @@ useEffect(() => {
     showRelationsRow,
     exportMode,
     rotatedSafeStartInsetPx,
-    rotatedSafeEndInsetPx
+    rotatedSafeEndInsetPx,
+    temperatureRiseOverride
   );
   
   const MANUAL_DRAG_THRESHOLD_PX = 22;
@@ -273,7 +283,7 @@ useEffect(() => {
     startScrollLeft: 0,
     moved: false,
   });
-  const manualModeEnabled = showManualBaseline;
+  const manualModeEnabled = showManualBaseline || temperatureRiseEditMode;
   const manualEligiblePoints = useMemo(
     () => allDataPoints.filter((point, index) => isPointEligibleForManualMode(point, index)),
     [allDataPoints, isPointEligibleForManualMode]
@@ -311,6 +321,15 @@ useEffect(() => {
   }
 
   setManualBaselineTemp((prev) => {
+    const externalTemp = temperatureRiseEditMode
+      ? normalizeTemp2(temperatureRiseDraftBaselineTemp)
+      : null;
+
+    if (externalTemp != null) {
+      const exactExternal = manualSnapTemps.find((value) => areTempsEqual2(value, externalTemp));
+      return exactExternal ?? findNearestSnapTemp(externalTemp, manualSnapTemps);
+    }
+
     const normalizedPrev = normalizeTemp2(prev);
 
     // Si ya había una baseline manual previa, la respetamos
@@ -338,10 +357,25 @@ useEffect(() => {
   manualSnapTemps,
   tempMin,
   tempMax,
+  temperatureRiseDraftBaselineTemp,
+  temperatureRiseEditMode,
   normalizeTemp2,
   areTempsEqual2,
   findNearestSnapTemp,
 ]);
+  useEffect(() => {
+    if (!temperatureRiseEditMode) return;
+    if (!Number.isFinite(manualBaselineTemp)) return;
+    if (typeof onTemperatureRiseDraftBaselineChange !== 'function') return;
+    if (areTempsEqual2(manualBaselineTemp, temperatureRiseDraftBaselineTemp)) return;
+    onTemperatureRiseDraftBaselineChange(manualBaselineTemp);
+  }, [
+    areTempsEqual2,
+    manualBaselineTemp,
+    onTemperatureRiseDraftBaselineChange,
+    temperatureRiseDraftBaselineTemp,
+    temperatureRiseEditMode,
+  ]);
   const manualBaselineY = Number.isFinite(manualBaselineTemp) ? getY(manualBaselineTemp) : null;
   const manualBaselinePlusTemp = Number.isFinite(manualBaselineTemp)
     ? Number((manualBaselineTemp + 0.2).toFixed(2))
@@ -461,19 +495,62 @@ manualDragRef.current = {
   activeSnapIndex: null,
 };
   }, []);
-  const [manualHandleStyle, setManualHandleStyle] = useState({
-  top: 0,
-  left: 0,
-  transform: 'translate(-50%, -50%)',
-  transformOrigin: 'center center',
-});
+const manualHandleRef = useRef(null);
+const manualPlusLabelRef = useRef(null);
+const roundMeasuredPx = (value) => (
+  Number.isFinite(value) ? Math.round(value * 2) / 2 : value
+);
 
-const [manualPlusLabelStyle, setManualPlusLabelStyle] = useState({
-  top: 0,
-  left: 0,
-  transform: 'translate(-50%, -50%)',
-  transformOrigin: 'center center',
-});
+const applyMeasuredStyle = (ref, nextStyle) => {
+  const node = ref.current;
+  if (!node) return;
+
+  const nextTop = roundMeasuredPx(nextStyle.top);
+  const nextLeft = roundMeasuredPx(nextStyle.left);
+  const style = node.style;
+
+  const topPx = `${nextTop}px`;
+  const leftPx = `${nextLeft}px`;
+
+  if (style.top !== topPx) style.top = topPx;
+  if (style.left !== leftPx) style.left = leftPx;
+  if (style.transform !== nextStyle.transform) style.transform = nextStyle.transform;
+  if (style.transformOrigin !== nextStyle.transformOrigin) {
+    style.transformOrigin = nextStyle.transformOrigin;
+  }
+  if (style.opacity !== '1') style.opacity = '1';
+};
+
+const temperatureRiseDraftFirstHighIndex = useMemo(() => {
+  if (!temperatureRiseEditMode || !temperatureRiseDraftFirstHighIsoDate) return null;
+  const index = allDataPoints.findIndex(
+    (point) => point?.isoDate === temperatureRiseDraftFirstHighIsoDate
+  );
+  return index >= 0 ? index : null;
+}, [allDataPoints, temperatureRiseDraftFirstHighIsoDate, temperatureRiseEditMode]);
+
+const temperatureRiseDraftSequenceIndices = useMemo(() => {
+  if (!temperatureRiseEditMode || !Number.isInteger(temperatureRiseDraftFirstHighIndex)) {
+    return [];
+  }
+
+  const indices = [];
+  for (
+    let index = temperatureRiseDraftFirstHighIndex;
+    index < allDataPoints.length && indices.length < 4;
+    index += 1
+  ) {
+    const point = allDataPoints[index];
+    if (!isPointEligibleForManualMode(point, index)) continue;
+    indices.push(index);
+  }
+  return indices;
+}, [
+  allDataPoints,
+  isPointEligibleForManualMode,
+  temperatureRiseDraftFirstHighIndex,
+  temperatureRiseEditMode,
+]);
 
 useEffect(() => {
   if (!manualModeEnabled || !Number.isFinite(manualBaselineY)) return undefined;
@@ -536,7 +613,7 @@ const localPlusY = Number.isFinite(manualBaselinePlusY)
     rightGap -
     buttonSize / 2;
 
-  setManualHandleStyle({
+  applyMeasuredStyle(manualHandleRef, {
     top: handleCenterTop,
     left: handleCenterLeft,
     transform: 'translate(-50%, -50%)',
@@ -549,7 +626,7 @@ const localPlusY = Number.isFinite(manualBaselinePlusY)
       Math.max(topGap + plusLabelHeight / 2, localPlusY)
     );
 
-    setManualPlusLabelStyle({
+    applyMeasuredStyle(manualPlusLabelRef, {
       top: scrollerRect.top - hostRect.top + clampedPlusCenterY,
       left: scrollerRect.right - hostRect.left - plusLabelRightGap,
       transform: 'translate(-50%, -50%)',
@@ -576,7 +653,7 @@ const handleCenterTop =
   bottomGap -
   buttonSize / 2;
 
-setManualHandleStyle({
+applyMeasuredStyle(manualHandleRef, {
   top: handleCenterTop,
   left: handleCenterLeft,
   transform: 'translate(-50%, -50%) rotate(90deg)',
@@ -589,7 +666,7 @@ if (Number.isFinite(localPlusY)) {
     Math.max(lateralGap + manualTempLabelHeight / 2, localPlusY)
   );
 
-  setManualPlusLabelStyle({
+  applyMeasuredStyle(manualPlusLabelRef, {
     top: scrollerRect.bottom - hostRect.top - plusLabelRightGap,
     left: scrollerRect.right - hostRect.left - clampedPlusHorizontalCenter,
     transform: 'translate(-50%, -50%) rotate(90deg)',
@@ -665,6 +742,22 @@ if (Number.isFinite(localPlusY)) {
       ? leftIndex
       : rightIndex;
   }, [allDataPoints, getX]);
+
+  const selectTemperatureRiseFirstHigh = useCallback((point, index, event) => {
+    if (!temperatureRiseEditMode) return false;
+    if (!point?.isoDate || !isPointEligibleForManualMode(point, index)) return true;
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    clearActivePoint();
+    onTemperatureRiseFirstHighSelect?.(point.isoDate);
+    return true;
+  }, [
+    clearActivePoint,
+    isPointEligibleForManualMode,
+    onTemperatureRiseFirstHighSelect,
+    temperatureRiseEditMode,
+  ]);
+
   const activateTooltipFromPointer = useCallback((event) => {
     if (exportMode) return;
 
@@ -710,6 +803,8 @@ if (isRotated) {
       : false;
     if (isFuture) return;
 
+  if (selectTemperatureRiseFirstHigh(point, index, event)) return;
+
   handlePointInteraction(point, index, event);
   }, [
     exportMode,
@@ -718,6 +813,7 @@ if (isRotated) {
     forceLandscape,
     getNearestDataIndexByX,
     allDataPoints,
+    selectTemperatureRiseFirstHigh,
     handlePointInteraction,
   ]);
 
@@ -800,7 +896,8 @@ if (isRotated) {
   const baselineY = baselineTemp != null ? getY(baselineTemp) : null;
   const hasPotentialRise = baselineTemp != null && Number.isFinite(firstHighIndex);
   const confirmedRise = Boolean(ovulationDetails?.confirmed);
-  const shouldRenderBaseline = baselineTemp != null && confirmedRise;
+  const isManualTemperatureRise = ovulationDetails?.source === 'manual';
+  const shouldRenderBaseline = baselineTemp != null && (confirmedRise || isManualTemperatureRise);
 
   const baselineStartX = getX(0);
   const baselineEndX =
@@ -808,9 +905,13 @@ if (isRotated) {
       ? getX(allDataPoints.length - 1)
       : chartWidth - padding.right;
   const theme = getChartTheme();
-  const baselineStroke = confirmedRise ? theme.baseline.defaultStroke : theme.points.ignoredStroke;
-  const baselineDash = confirmedRise ? '6 4' : '4 4';
-  const baselineOpacity = confirmedRise ? 1 : 0.7;
+  const baselineStroke = isManualTemperatureRise
+    ? '#7c3aed'
+    : confirmedRise
+      ? theme.baseline.defaultStroke
+      : theme.points.ignoredStroke;
+  const baselineDash = isManualTemperatureRise ? '7 5' : confirmedRise ? '6 4' : '4 4';
+  const baselineOpacity = confirmedRise || isManualTemperatureRise ? 1 : 0.7;
   const baselineWidth = 3;
   const isLoading = chartWidth === 0;
 
@@ -1762,7 +1863,12 @@ const rotationWrapperStyle = rotationStageStyle
     ? `${baseFullClass} h-full overflow-x-auto ${allowVerticalScroll ? 'overflow-y-auto' : 'overflow-y-hidden'}`
     : `${baseFullClass} overflow-x-auto ${allowVerticalScroll ? 'overflow-y-auto' : 'overflow-y-hidden'} border border-pink-100/50`;
   const showLegend = true;
-  const handlePointInteractionSafe = exportMode ? () => {} : handlePointInteraction;
+  const handlePointInteractionSafe = exportMode
+    ? () => {}
+    : (point, index, event) => {
+        if (selectTemperatureRiseFirstHigh(point, index, event)) return;
+        handlePointInteraction(point, index, event);
+      };
   const showCanvasOverlay =
   chartWidth > 0 && chartHeight > 0 && scrollableContentHeight > 0;
   return (
@@ -2091,6 +2197,42 @@ const rotationWrapperStyle = rotationStageStyle
                 })}
               </g>
             )}
+
+          {temperatureRiseEditMode && temperatureRiseDraftSequenceIndices.length > 0 && (
+            <g pointerEvents="none">
+              {temperatureRiseDraftSequenceIndices.map((index, position) => {
+                const point = allDataPoints[index];
+                const temp = point?.displayTemperature;
+                if (!Number.isFinite(temp)) return null;
+                const isFirstHigh = index === temperatureRiseDraftFirstHighIndex;
+                return (
+                  <g key={`temperature-rise-draft-${index}`}>
+                    <circle
+                      cx={getX(index)}
+                      cy={getY(temp)}
+                      r={isFirstHigh ? 9 : 6}
+                      fill={isFirstHigh ? 'rgba(124, 58, 237, 0.14)' : 'rgba(124, 58, 237, 0.08)'}
+                      stroke={isFirstHigh ? '#7c3aed' : '#a78bfa'}
+                      strokeWidth={isFirstHigh ? 2.2 : 1.4}
+                    />
+                    <text
+                      x={getX(index)}
+                      y={getY(temp) - (isFirstHigh ? 13 : 10)}
+                      textAnchor="middle"
+                      fontSize={Math.max(responsiveFontSize(0.68), isFullScreen ? 9 : 8)}
+                      fontWeight={700}
+                      fill="#6d28d9"
+                      stroke="#fff"
+                      strokeWidth={1.8}
+                      paintOrder="stroke"
+                    >
+                      {position + 1}
+                    </text>
+                  </g>
+                );
+              })}
+            </g>
+          )}
   
           {manualModeEnabled && Number.isFinite(manualBaselineY) && (
   <g pointerEvents="none">
@@ -2185,8 +2327,8 @@ const rotationWrapperStyle = rotationStageStyle
   <div className="pointer-events-none absolute inset-0 z-30">
     {Number.isFinite(manualBaselinePlusTemp) && Number.isFinite(manualBaselinePlusY) && (
       <div
-        className="absolute whitespace-nowrap rounded-full bg-white/80 px-1.5 py-0.5 text-[9px] font-semibold text-violet-500"
-        style={manualPlusLabelStyle}
+        ref={manualPlusLabelRef}
+        className="absolute whitespace-nowrap rounded-full bg-white/80 px-1.5 py-0.5 text-[9px] font-semibold text-violet-500 opacity-0"
       >
         <span className="text-violet-400 font-semibold">+0.2 · </span>
         <span>({manualBaselinePlusTemp.toFixed(2)}°)</span>
@@ -2194,8 +2336,8 @@ const rotationWrapperStyle = rotationStageStyle
     )}
 
     <div
-      className="absolute h-10 w-10"
-      style={manualHandleStyle}
+      ref={manualHandleRef}
+      className="absolute h-10 w-10 opacity-0"
     >
       <div className="absolute right-[46px] top-1/2 -translate-y-1/2 whitespace-nowrap rounded-full bg-violet-600/80 px-1.5 py-0.5 text-[11px] font-bold text-white shadow-md">
         {manualBaselineTemp.toFixed(2)}° 

@@ -7,6 +7,7 @@ import React, {
   useCallback,
 } from 'react';
 import FertilityChart from '@/components/FertilityChart';
+import InterpretationSettingsDialog from '@/components/InterpretationSettingsDialog';
 import { useCycleData } from '@/hooks/useCycleData';
 import { differenceInDays, format, parseISO, startOfDay } from 'date-fns';
 import generatePlaceholders from '@/lib/generatePlaceholders';
@@ -25,6 +26,14 @@ import { useParams, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { computeOvulationMetrics } from '@/hooks/useFertilityChart';
 import ChartControls from '@/components/ChartControls';
+import computePeakStatuses from '@/lib/computePeakStatuses';
+import { prepareChartData } from '@/chart/core/prepareChartData';
+import {
+  createAutoTemperatureRiseOverride,
+  createManualTemperatureRiseOverride,
+  evaluateTemperatureRiseOverride,
+  normalizeTemperatureRiseOverride,
+} from '@/lib/temperatureRiseOverride';
 import {
   PREFERENCE_DEFAULTS,
   mergeFertilityStartConfig,
@@ -233,6 +242,7 @@ const ChartPage = () => {
     previewStartNewCycle,
     startNewCycle,
     updateCyclePostpartumMode,
+    updateCycleInterpretationOverrides,
   } = useCycleData();
 
   const [fetchedCycle, setFetchedCycle] = useState(null);
@@ -374,6 +384,12 @@ const ChartPage = () => {
 
 const [viewport, setViewport] = useState(readViewport);
 
+const setViewportIfChanged = useCallback((nextViewport) => {
+  setViewport((prev) =>
+    prev.w === nextViewport.w && prev.h === nextViewport.h ? prev : nextViewport
+  );
+}, []);
+
 useEffect(() => {
   if (typeof window === 'undefined') return undefined;
 
@@ -382,7 +398,7 @@ useEffect(() => {
 
   const onResize = () => {
     if (raf) cancelAnimationFrame(raf);
-    raf = requestAnimationFrame(() => setViewport(readViewport()));
+    raf = requestAnimationFrame(() => setViewportIfChanged(readViewport()));
   };
 
   window.addEventListener('resize', onResize);
@@ -400,7 +416,7 @@ useEffect(() => {
     vv?.removeEventListener('resize', onResize);
     vv?.removeEventListener('scroll', onResize);
   };
-}, []);
+}, [setViewportIfChanged]);
 
 const applyRotation = isFullScreen && forceLandscape && viewport.w < viewport.h;
   const [showForm, setShowForm] = useState(false);
@@ -412,6 +428,12 @@ const applyRotation = isFullScreen && forceLandscape && viewport.w < viewport.h;
   const [showInterpretation, setShowInterpretation] = useState(false);
   const [showManualBaseline, setShowManualBaseline] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [interpretationSettingsOpen, setInterpretationSettingsOpen] = useState(false);
+  const [temperatureRiseEditing, setTemperatureRiseEditing] = useState(false);
+  const [temperatureRiseDraft, setTemperatureRiseDraft] = useState({
+    baselineTemp: null,
+    firstHighIsoDate: null,
+  });
   const DRAWER_ANIM_MS = 320; // >= 300ms (tu transition del drawer normal)
 const [drawerMounted, setDrawerMounted] = useState(false);
 
@@ -691,6 +713,81 @@ useEffect(() => {
     }),
     [cycleEntriesByIsoDate, fullCyclePlaceholders]
   );
+  const temperatureRiseOverride = useMemo(
+    () => normalizeTemperatureRiseOverride(targetCycle?.interpretationOverrides?.temperatureRise),
+    [targetCycle?.interpretationOverrides?.temperatureRise]
+  );
+  const hasManualTemperatureRiseOverride = temperatureRiseOverride.mode === 'manual';
+  const interpretationProcessedData = useMemo(() => {
+    const peakStatuses = computePeakStatuses(mergedData);
+    return prepareChartData(mergedData, peakStatuses);
+  }, [mergedData]);
+  const automaticTemperatureRiseMetrics = useMemo(
+    () => computeOvulationMetrics(interpretationProcessedData, { postpartum: cyclePostpartumMode }),
+    [interpretationProcessedData, cyclePostpartumMode]
+  );
+  const manualTemperatureRiseEvaluation = useMemo(
+    () =>
+      evaluateTemperatureRiseOverride(interpretationProcessedData, temperatureRiseOverride, {
+        postpartum: cyclePostpartumMode,
+      }),
+    [interpretationProcessedData, temperatureRiseOverride, cyclePostpartumMode]
+  );
+  const buildTemperatureRiseSummary = useCallback(
+    ({ baselineTemp, firstHighIndex, ovulationDetails, status }) => {
+      const confirmationIndex = Number.isInteger(ovulationDetails?.confirmationIndex)
+        ? ovulationDetails.confirmationIndex
+        : null;
+      return {
+        baselineTemp: Number.isFinite(Number(baselineTemp)) ? Number(baselineTemp) : null,
+        firstHighIsoDate: Number.isInteger(firstHighIndex)
+          ? interpretationProcessedData[firstHighIndex]?.isoDate ?? null
+          : null,
+        confirmationIsoDate: Number.isInteger(confirmationIndex)
+          ? interpretationProcessedData[confirmationIndex]?.isoDate ?? null
+          : null,
+        rule: ovulationDetails?.rule ?? null,
+        status:
+          status ??
+          (ovulationDetails?.confirmed
+            ? 'confirmed'
+            : ovulationDetails?.requireRebaseline
+              ? 'invalid'
+              : 'pending'),
+      };
+    },
+    [interpretationProcessedData]
+  );
+  const automaticTemperatureRiseSummary = useMemo(
+    () =>
+      buildTemperatureRiseSummary({
+        baselineTemp: automaticTemperatureRiseMetrics?.baselineTemp,
+        firstHighIndex: automaticTemperatureRiseMetrics?.firstHighIndex,
+        ovulationDetails: automaticTemperatureRiseMetrics?.ovulationDetails,
+        status: automaticTemperatureRiseMetrics?.ovulationDetails?.confirmed ? 'confirmed' : 'pending',
+      }),
+    [automaticTemperatureRiseMetrics, buildTemperatureRiseSummary]
+  );
+  const manualTemperatureRiseSummary = useMemo(
+    () => {
+      const summary = buildTemperatureRiseSummary({
+        baselineTemp: manualTemperatureRiseEvaluation?.baselineTemp ?? temperatureRiseOverride.baselineTemp,
+        firstHighIndex: manualTemperatureRiseEvaluation?.firstHighIndex,
+        ovulationDetails: manualTemperatureRiseEvaluation?.ovulationDetails,
+        status: manualTemperatureRiseEvaluation?.status,
+      });
+      return {
+        ...summary,
+        firstHighIsoDate: summary.firstHighIsoDate ?? temperatureRiseOverride.firstHighIsoDate,
+      };
+    },
+    [
+      buildTemperatureRiseSummary,
+      manualTemperatureRiseEvaluation,
+      temperatureRiseOverride.baselineTemp,
+      temperatureRiseOverride.firstHighIsoDate,
+    ]
+  );
 
   const visualOrientation = forceLandscape ? 'landscape' : orientation;
   const isLandscapeFullscreen = isFullScreen && visualOrientation === 'landscape';
@@ -874,6 +971,111 @@ const rotatedDrawerStyle = applyRotation
       });
     }
   };
+
+  const refreshFallbackCycle = useCallback(async () => {
+    if (!isUsingFallbackCycle || !targetCycle?.id) return;
+    const refreshed = await getCycleById(targetCycle.id);
+    if (refreshed) {
+      setFetchedCycle(refreshed);
+    }
+  }, [getCycleById, isUsingFallbackCycle, targetCycle?.id]);
+
+  const openInterpretationSettings = useCallback(() => {
+    setInterpretationSettingsOpen(true);
+    setSettingsOpen(false);
+  }, []);
+
+  const handleStartTemperatureRiseEdit = useCallback(() => {
+    const existingManual = hasManualTemperatureRiseOverride ? temperatureRiseOverride : null;
+    setTemperatureRiseDraft({
+      baselineTemp:
+        existingManual?.baselineTemp ??
+        automaticTemperatureRiseSummary?.baselineTemp ??
+        null,
+      firstHighIsoDate:
+        existingManual?.firstHighIsoDate ??
+        automaticTemperatureRiseSummary?.firstHighIsoDate ??
+        null,
+    });
+    setShowInterpretation(true);
+    setShowManualBaseline(false);
+    setTemperatureRiseEditing(true);
+  }, [
+    automaticTemperatureRiseSummary?.baselineTemp,
+    automaticTemperatureRiseSummary?.firstHighIsoDate,
+    hasManualTemperatureRiseOverride,
+    temperatureRiseOverride,
+  ]);
+
+  const handleCancelTemperatureRiseEdit = useCallback(() => {
+    setTemperatureRiseEditing(false);
+    setTemperatureRiseDraft({ baselineTemp: null, firstHighIsoDate: null });
+  }, []);
+
+  const handleSaveTemperatureRiseEdit = useCallback(async () => {
+    if (!targetCycle?.id || typeof updateCycleInterpretationOverrides !== 'function') return;
+    const nextOverride = createManualTemperatureRiseOverride(temperatureRiseDraft);
+    if (nextOverride.baselineTemp == null || !nextOverride.firstHighIsoDate) return;
+
+    try {
+      await updateCycleInterpretationOverrides(targetCycle.id, {
+        temperatureRise: nextOverride,
+      });
+      await refreshFallbackCycle();
+      setTemperatureRiseEditing(false);
+      setInterpretationSettingsOpen(true);
+      toast({ title: 'Subida termica manual guardada' });
+    } catch (error) {
+      console.error('Failed to persist temperature rise override', error);
+      toast({
+        title: 'No se pudo guardar la subida termica',
+        description: 'Intentalo de nuevo.',
+        variant: 'destructive',
+      });
+    }
+  }, [
+    refreshFallbackCycle,
+    targetCycle?.id,
+    temperatureRiseDraft,
+    toast,
+    updateCycleInterpretationOverrides,
+  ]);
+
+  const handleResetTemperatureRiseAuto = useCallback(async () => {
+    if (!targetCycle?.id || typeof updateCycleInterpretationOverrides !== 'function') return;
+    try {
+      await updateCycleInterpretationOverrides(targetCycle.id, {
+        temperatureRise: createAutoTemperatureRiseOverride(),
+      });
+      await refreshFallbackCycle();
+      setTemperatureRiseEditing(false);
+      toast({ title: 'Subida termica automatica activada' });
+    } catch (error) {
+      console.error('Failed to reset temperature rise override', error);
+      toast({
+        title: 'No se pudo volver a automatico',
+        description: 'Intentalo de nuevo.',
+        variant: 'destructive',
+      });
+    }
+  }, [refreshFallbackCycle, targetCycle?.id, toast, updateCycleInterpretationOverrides]);
+
+  const handleTemperatureRiseDraftBaselineChange = useCallback((baselineTemp) => {
+    setTemperatureRiseDraft((prev) => (
+      Number(prev.baselineTemp) === Number(baselineTemp)
+        ? prev
+        : { ...prev, baselineTemp }
+    ));
+  }, []);
+
+  const handleTemperatureRiseFirstHighSelect = useCallback((firstHighIsoDate) => {
+    setTemperatureRiseDraft((prev) => (
+      prev.firstHighIsoDate === firstHighIsoDate
+        ? prev
+        : { ...prev, firstHighIsoDate }
+    ));
+  }, []);
+
   const settingsDrawerInner = (
         <div className="flex h-full min-h-0 flex-col gap-6 rounded-l-2xl border border-rose-100/60 bg-white p-6 pt-[calc(env(safe-area-inset-top)+24px)] shadow-xl">
             <div className="flex items-start justify-between gap-4">
@@ -935,6 +1137,30 @@ const rotatedDrawerStyle = applyRotation
     </p>
   </div>
 </div> 
+
+              <div className="rounded-2xl border border-violet-100/70 bg-violet-50/40 p-4">
+                <div className="space-y-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-700">
+                      Ajustes de interpretacion
+                    </h3>
+                    <p className="text-xs leading-relaxed text-slate-500">
+                      Configura como se interpreta este ciclo.
+                    </p>
+                  </div>
+                  <p className="rounded-lg bg-white/70 px-3 py-2 text-xs font-semibold text-violet-700">
+                    Subida termica: {hasManualTemperatureRiseOverride ? 'Manual' : 'Automatica'}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full justify-center border-violet-200 bg-white text-violet-700 hover:bg-violet-50"
+                    onClick={openInterpretationSettings}
+                  >
+                    Abrir ajustes de interpretacion
+                  </Button>
+                </div>
+              </div>
 
               <div className="rounded-2xl border border-amber-100/70 bg-amber-50/40 p-4 space-y-3">
                 <div>
@@ -1716,6 +1942,12 @@ const rotatedDrawerStyle = applyRotation
           isArchivedCycle={!isViewingCurrentCycle}
           cycleEndDate={targetCycle?.endDate ?? null}
           measuredViewport={viewport}
+          temperatureRiseOverride={temperatureRiseOverride}
+          temperatureRiseEditMode={temperatureRiseEditing}
+          temperatureRiseDraftBaselineTemp={temperatureRiseDraft.baselineTemp}
+          temperatureRiseDraftFirstHighIsoDate={temperatureRiseDraft.firstHighIsoDate}
+          onTemperatureRiseDraftBaselineChange={handleTemperatureRiseDraftBaselineChange}
+          onTemperatureRiseFirstHighSelect={handleTemperatureRiseFirstHighSelect}
         />
         
         {drawerMounted && (
@@ -1756,6 +1988,26 @@ const rotatedDrawerStyle = applyRotation
           phaseOverlay={phaseOverlay}
           onClose={closePhaseOverlay}
           cardRef={phaseOverlayCardRef}
+          isRotated={applyRotation}
+          viewport={viewport}
+        />
+
+        <InterpretationSettingsDialog
+          open={interpretationSettingsOpen || temperatureRiseEditing}
+          editing={temperatureRiseEditing}
+          manualActive={hasManualTemperatureRiseOverride}
+          automaticSummary={automaticTemperatureRiseSummary}
+          manualSummary={manualTemperatureRiseSummary}
+          draft={temperatureRiseDraft}
+          canSave={
+            Number.isFinite(Number(temperatureRiseDraft.baselineTemp)) &&
+            Boolean(temperatureRiseDraft.firstHighIsoDate)
+          }
+          onClose={() => setInterpretationSettingsOpen(false)}
+          onStartEdit={handleStartTemperatureRiseEdit}
+          onCancelEdit={handleCancelTemperatureRiseEdit}
+          onSaveEdit={handleSaveTemperatureRiseEdit}
+          onResetAuto={handleResetTemperatureRiseAuto}
           isRotated={applyRotation}
           viewport={viewport}
         />

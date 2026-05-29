@@ -17,6 +17,7 @@ import {
   updateCycleDatesDB,
   updateCycleIgnoreAutoCalculations,
   updateCyclePostpartumModeDB,
+  updateCycleInterpretationOverridesDB,
   deleteCycleDB,
   deleteArchivedCycleWithStrategyDB,
   previewDeleteArchivedCycleWithStrategyDB,
@@ -56,6 +57,14 @@ const defaultCycleState = {
   data: [],
   ignoredForAutoCalculations: false,
   postpartumMode: false,
+  interpretationOverrides: {
+    temperatureRise: {
+      mode: 'auto',
+      baselineTemp: null,
+      firstHighIsoDate: null,
+      updatedAt: null,
+    },
+  },
   issues: {
     outOfRange: [],
     duplicates: [],
@@ -67,6 +76,27 @@ const defaultCycleState = {
 const normalizeCycleForState = (cycle) => ({
   ...cycle,
   postpartumMode: cycle?.postpartumMode === true,
+  interpretationOverrides: {
+    temperatureRise: {
+      mode:
+        cycle?.interpretationOverrides?.temperatureRise?.mode === 'manual'
+          ? 'manual'
+          : 'auto',
+      baselineTemp: Number.isFinite(
+        Number(cycle?.interpretationOverrides?.temperatureRise?.baselineTemp)
+      )
+        ? Number(Number(cycle.interpretationOverrides.temperatureRise.baselineTemp).toFixed(2))
+        : null,
+      firstHighIsoDate:
+        typeof cycle?.interpretationOverrides?.temperatureRise?.firstHighIsoDate === 'string'
+          ? cycle.interpretationOverrides.temperatureRise.firstHighIsoDate
+          : null,
+      updatedAt:
+        typeof cycle?.interpretationOverrides?.temperatureRise?.updatedAt === 'string'
+          ? cycle.interpretationOverrides.temperatureRise.updatedAt
+          : null,
+    },
+  },
 });
 
 const filterEntriesByEndDate = (entries, endDate) => {
@@ -1360,6 +1390,45 @@ const getCycleFromState = useCallback(
     [user, currentCycle, archivedCycles, loadCycleData, toast]
   );
 
+  const updateCycleInterpretationOverrides = useCallback(
+    async (cycleIdToUpdate, overrides) => {
+      if (!user?.uid || !cycleIdToUpdate) return;
+      const nextOverrides = normalizeCycleForState({ interpretationOverrides: overrides })
+        .interpretationOverrides;
+      const previousCurrentCycle = currentCycle;
+      const previousArchivedCycles = archivedCycles;
+
+      const updateCycle = (cycle) => {
+        if (!cycle || cycle.id !== cycleIdToUpdate) return cycle;
+        return { ...cycle, interpretationOverrides: nextOverrides };
+      };
+
+      setCurrentCycle((prevCycle) => updateCycle(prevCycle));
+      setArchivedCycles((prevCycles) => prevCycles.map((cycle) => updateCycle(cycle)));
+
+      try {
+        await updateCycleInterpretationOverridesDB(user.uid, cycleIdToUpdate, nextOverrides);
+        loadCycleData({ silent: true }).catch((error) =>
+          console.error(
+            'Background cycle data refresh failed after updating interpretation overrides:',
+            error
+          )
+        );
+      } catch (error) {
+        console.error('Error updating cycle interpretation overrides:', error);
+        setCurrentCycle(previousCurrentCycle);
+        setArchivedCycles(previousArchivedCycles);
+        toast({
+          title: 'Error',
+          description: 'No se pudieron actualizar los ajustes de interpretacion del ciclo.',
+          variant: 'destructive',
+        });
+        throw error;
+      }
+    },
+    [user, currentCycle, archivedCycles, loadCycleData, toast]
+  );
+
   const refreshData = useCallback(
     ({ silent = true } = {}) => loadCycleData({ silent }),
     [loadCycleData]
@@ -1494,6 +1563,7 @@ const getCycleFromState = useCallback(
     toggleIgnoreRecord,
     setCycleIgnoreForAutoCalculations,
     updateCyclePostpartumMode,
+    updateCycleInterpretationOverrides,
     addArchivedCycle,
     previewInsertCycleRange,
     insertCycleRange,

@@ -136,6 +136,30 @@ const normalizeTemp = (val) => {
 
 const normalizePostpartumMode = (value) => value === true;
 
+const normalizeInterpretationOverrides = (value) => {
+  const source = value && typeof value === 'object' ? value : {};
+  const temperatureRise =
+    source.temperatureRise && typeof source.temperatureRise === 'object'
+      ? source.temperatureRise
+      : {};
+  const mode = temperatureRise.mode === 'manual' ? 'manual' : 'auto';
+  const baselineTemp = Number(temperatureRise.baselineTemp);
+
+  return {
+    temperatureRise: {
+      mode,
+      baselineTemp: Number.isFinite(baselineTemp) ? Number(baselineTemp.toFixed(2)) : null,
+      firstHighIsoDate:
+        typeof temperatureRise.firstHighIsoDate === 'string' &&
+        temperatureRise.firstHighIsoDate.trim()
+          ? temperatureRise.firstHighIsoDate
+          : null,
+      updatedAt:
+        typeof temperatureRise.updatedAt === 'string' ? temperatureRise.updatedAt : null,
+    },
+  };
+};
+
 const mapCycleDocToFrontend = ({ id, data, entries = [], needsCompletion = false }) => ({
   id,
   startDate: data?.start_date ?? null,
@@ -143,6 +167,7 @@ const mapCycleDocToFrontend = ({ id, data, entries = [], needsCompletion = false
   needsCompletion,
   ignoredForAutoCalculations: Boolean(data?.ignored_auto_calculations),
   postpartumMode: normalizePostpartumMode(data?.postpartum_mode),
+  interpretationOverrides: normalizeInterpretationOverrides(data?.interpretation_overrides),
   data: entries,
 });
 
@@ -432,6 +457,21 @@ export const updateCyclePostpartumModeDB = async (userId, cycleId, value) => {
   }
   const cycleRef = doc(db, `users/${userId}/cycles/${cycleId}`);
   await updateDoc(cycleRef, { postpartum_mode: value === true });
+};
+
+export const updateCycleInterpretationOverridesDB = async (userId, cycleId, overrides) => {
+  if (!userId || !cycleId) {
+    throw createAppError(
+      'cycle-not-found',
+      'No se encontrÃ³ el ciclo',
+      'No se pudieron actualizar los ajustes de interpretaciÃ³n porque falta informaciÃ³n del ciclo.',
+      { userId: userId ?? null, cycleId: cycleId ?? null },
+      { label: 'Reintentar' }
+    );
+  }
+  const normalized = normalizeInterpretationOverrides(overrides);
+  const cycleRef = doc(db, `users/${userId}/cycles/${cycleId}`);
+  await updateDoc(cycleRef, { interpretation_overrides: normalized });
 };
 
 const resolveSplitEntryIsoDate = (entry) => {
