@@ -14,7 +14,7 @@ const formatDate = (isoDate) => {
 const ruleLabel = (rule) => {
   switch (rule) {
     case '3-high':
-      return '3 dias altos';
+      return '3/6';
     case 'german-3+1':
       return '+4 por excepcion';
     case 'german-2nd-exception':
@@ -76,15 +76,53 @@ const compactStatusLabel = (evaluation) => {
   return 'Pendiente';
 };
 
-const compactDraftText = (draft, evaluation) => {
-  const baseline = formatTemp(draft?.baselineTemp).replace(' C', '');
-  const firstHigh = formatDate(draft?.firstHighIsoDate);
+const compactRuleLabel = (rule) => {
+  switch (rule) {
+    case '3-high':
+      return 'regla 3/6';
+    case 'german-3+1':
+      return '1a excepcion';
+    case 'german-2nd-exception':
+      return '2a excepcion';
+    case 'pp-after-3-high':
+      return 'postparto';
+    case 'pp-after-german-3+1':
+      return 'postparto - 1a excepcion';
+    case 'pp-after-german-2nd-exception':
+      return 'postparto - 2a excepcion';
+    default:
+      return 'confirmada';
+  }
+};
 
+const compactDraftText = (draft, evaluation, summary) => {
   if (!draft?.firstHighIsoDate) {
-    return `Linea ${baseline} · Toca el 1º alto`;
+    return 'Selecciona primer dia de subida';
   }
 
-  return `Linea ${baseline} · Alto ${firstHigh} · ${compactStatusLabel(evaluation)}`;
+  if (evaluation?.status === 'invalid') {
+    return 'Sin confirmacion termica por reglas';
+  }
+
+  if (evaluation?.status === 'insufficient') {
+    return 'Faltan datos para confirmar temperatura';
+  }
+
+  if (evaluation?.status === 'pending') {
+    return 'Subida termica pendiente';
+  }
+
+  if (evaluation?.status === 'confirmed') {
+    const date = formatDate(summary?.confirmationIsoDate);
+    const day = Number.isInteger(summary?.confirmationCycleDay)
+      ? `D${summary.confirmationCycleDay}`
+      : null;
+    const dayPart = day ? `${date} ${day}` : date;
+    const rule = compactRuleLabel(summary?.rule ?? evaluation?.rule ?? evaluation?.ovulationDetails?.rule);
+    return `Confirmacion termica el ${dayPart} (${rule})`;
+  }
+
+  return compactStatusLabel(evaluation);
 };
 
 const SummaryRow = ({ label, value }) => (
@@ -113,6 +151,7 @@ const InterpretationSettingsDialog = ({
   manualSummary = null,
   draft = null,
   draftEvaluation = null,
+  draftSummary = null,
   canSave = false,
   onClose,
   onStartEdit,
@@ -266,7 +305,7 @@ const InterpretationSettingsDialog = ({
         >
           <GripHorizontal className="h-3.5 w-3.5 shrink-0 text-red-400" aria-hidden="true" />
           <p className="min-w-0 flex-1 truncate text-[11px] font-semibold text-red-700 sm:text-xs">
-            {compactDraftText(draft, draftEvaluation)}
+            {compactDraftText(draft, draftEvaluation, draftSummary)}
           </p>
           <Button
             type="button"
@@ -307,9 +346,6 @@ const InterpretationSettingsDialog = ({
         <header className="flex shrink-0 items-start justify-between gap-3 border-b border-orange-100 px-4 py-3">
           <div>
             <h2 className="text-base font-semibold text-titulo">Ajustes de interpretacion</h2>
-            <p className="text-xs text-slate-500">
-              Subida termica: {manualActive ? 'Manual' : 'Automatica'}
-            </p>
           </div>
           <button
             type="button"

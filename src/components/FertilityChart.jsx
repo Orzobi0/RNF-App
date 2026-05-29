@@ -40,6 +40,7 @@ const FertilityChart = ({
   temperatureRiseDraftBaselineTemp = null,
   temperatureRiseDraftFirstHighIsoDate = null,
   temperatureRiseDraftEvaluation = null,
+  temperatureRiseDraftSummary = null,
   onTemperatureRiseDraftBaselineChange = null,
   onTemperatureRiseFirstHighSelect = null,
 }) => {
@@ -285,6 +286,7 @@ useEffect(() => {
     moved: false,
   });
   const manualModeEnabled = showManualBaseline || temperatureRiseEditMode;
+  const effectiveShowInterpretation = showInterpretation && !temperatureRiseEditMode;
   const manualEligiblePoints = useMemo(
     () => allDataPoints.filter((point, index) => isPointEligibleForManualMode(point, index)),
     [allDataPoints, isPointEligibleForManualMode]
@@ -542,6 +544,16 @@ const temperatureRiseDraftPreviewIndices = useMemo(() => {
   temperatureRiseDraftEvaluation,
   temperatureRiseEditMode,
 ]);
+
+const temperatureRiseDraftContextIndices = useMemo(
+  () =>
+    temperatureRiseEditMode && Array.isArray(temperatureRiseDraftSummary?.previousSixIndices)
+      ? temperatureRiseDraftSummary.previousSixIndices.filter(
+          (index) => Number.isInteger(index) && index >= 0 && index < allDataPoints.length
+        )
+      : [],
+  [allDataPoints.length, temperatureRiseDraftSummary, temperatureRiseEditMode]
+);
 
 const temperatureRiseDraftUsedIndices = useMemo(
   () =>
@@ -1124,7 +1136,7 @@ if (isRotated) {
       : 0;
 
   const postOvulatoryPhaseInfo = useMemo(() => {
-    if (!showInterpretation || !hasAnyObservation) return null;
+    if (!effectiveShowInterpretation || !hasAnyObservation) return null;
 
     const debug = fertilityStart?.debug;
     const mucusStartIndex = Number.isInteger(debug?.mucusInfertileStartIndex)
@@ -1333,7 +1345,7 @@ source: status === 'absolute' ? 'absolute' : estimatedSource,
       tooltip,
     };
   }, [
-    showInterpretation,
+    effectiveShowInterpretation,
     hasAnyObservation,
     ovulationDetails,
     fertilityStart,
@@ -1341,7 +1353,7 @@ source: status === 'absolute' ? 'absolute' : estimatedSource,
 
   const interpretationSegments = useMemo(() => {
     if (
-      !showInterpretation ||
+      !effectiveShowInterpretation ||
       chartAreaHeight <= 0 ||
       interpretationBandTop == null ||
       interpretationBandHeight <= 0 ||
@@ -1582,7 +1594,7 @@ source: status === 'absolute' ? 'absolute' : estimatedSource,
 
     return segments;
   }, [
-    showInterpretation,
+    effectiveShowInterpretation,
     chartAreaHeight,
     interpretationBandTop,
     interpretationBandHeight,
@@ -1674,7 +1686,7 @@ source: status === 'absolute' ? 'absolute' : estimatedSource,
   const phaseTextShadow = '0 1px 1px var(--phase-text-shadow, rgba(15, 23, 42, 0.2))';
 
   const temperatureRiseHighlightPath = useMemo(() => {
-    if (!showInterpretation || !ovulationDetails?.confirmed) return null;
+    if (!effectiveShowInterpretation || !ovulationDetails?.confirmed) return null;
     const indices = Array.isArray(ovulationDetails?.highSequenceIndices)
       ? ovulationDetails.highSequenceIndices
       : [];
@@ -1697,7 +1709,7 @@ source: status === 'absolute' ? 'absolute' : estimatedSource,
       .map(({ x, y }, index) => `${index === 0 ? 'M' : 'L'} ${x} ${y}`)
       .join(' ');
   }, [
-    showInterpretation,
+    effectiveShowInterpretation,
     ovulationDetails,
     allDataPoints,
     validDataMap,
@@ -1978,7 +1990,7 @@ const rotationWrapperStyle = rotationStageStyle
   getX={getX}
   getY={getY}
   responsiveFontSize={responsiveFontSize}
-  showInterpretation={showInterpretation}
+  showInterpretation={effectiveShowInterpretation}
   interpretationSegments={interpretationSegments}
   shouldRenderBaseline={shouldRenderBaseline}
   baselineY={baselineY}
@@ -2112,7 +2124,7 @@ const rotationWrapperStyle = rotationStageStyle
             />
           )}
 
-          {showInterpretation &&
+          {effectiveShowInterpretation &&
             interpretationSegments.length > 0 &&
             interpretationBandTop != null &&
             interpretationBandHeight > 0 && (
@@ -2228,6 +2240,36 @@ const rotationWrapperStyle = rotationStageStyle
 
           {temperatureRiseEditMode && temperatureRiseDraftPreviewIndices.length > 0 && (
             <g pointerEvents="none">
+              {temperatureRiseDraftContextIndices.map((index, position) => {
+                const point = allDataPoints[index];
+                const temp = point?.displayTemperature;
+                if (!Number.isFinite(temp)) return null;
+                return (
+                  <g key={`temperature-rise-context-${index}`}>
+                    <circle
+                      cx={getX(index)}
+                      cy={getY(temp)}
+                      r={4.8}
+                      fill="rgba(148, 163, 184, 0.1)"
+                      stroke="rgba(100, 116, 139, 0.55)"
+                      strokeWidth={1}
+                    />
+                    <text
+                      x={getX(index)}
+                      y={getY(temp) - 8}
+                      textAnchor="middle"
+                      fontSize={Math.max(responsiveFontSize(0.62), isFullScreen ? 8 : 7)}
+                      fontWeight={700}
+                      fill="#64748b"
+                      stroke="#fff"
+                      strokeWidth={1.6}
+                      paintOrder="stroke"
+                    >
+                      {position - temperatureRiseDraftContextIndices.length}
+                    </text>
+                  </g>
+                );
+              })}
               {temperatureRiseDraftPreviewIndices.map((index, position) => {
                 const point = allDataPoints[index];
                 const temp = point?.displayTemperature;
@@ -2242,10 +2284,7 @@ const rotationWrapperStyle = rotationStageStyle
                   temperatureRiseDraftEvaluation?.status === 'pending' ||
                   temperatureRiseDraftEvaluation?.status === 'insufficient';
                 const isUsed = temperatureRiseDraftUsedIndices.has(index);
-                const label =
-                  isConfirmation && isConfirmed
-                    ? `D+${position + 1}`
-                    : `${position + 1}`;
+                const label = `${position + 1}`;
                 const stroke = isInvalid
                   ? '#f59e0b'
                   : isPending
@@ -2268,28 +2307,13 @@ const rotationWrapperStyle = rotationStageStyle
                       strokeDasharray={isInvalid || isPending ? '3 3' : undefined}
                       opacity={isUsed || isFirstHigh ? 1 : 0.62}
                     />
-                    {isConfirmation && isConfirmed && (
-                      <text
-                        x={getX(index)}
-                        y={getY(temp) + 3}
-                        textAnchor="middle"
-                        fontSize={Math.max(responsiveFontSize(0.72), isFullScreen ? 10 : 9)}
-                        fontWeight={800}
-                        fill={thermalRiseEditPalette.primary}
-                        stroke="#fff"
-                        strokeWidth={2}
-                        paintOrder="stroke"
-                      >
-                        OK
-                      </text>
-                    )}
                     <text
                       x={getX(index)}
-                      y={getY(temp) - (isFirstHigh ? 13 : 10)}
+                      y={getY(temp) + 3}
                       textAnchor="middle"
                       fontSize={Math.max(responsiveFontSize(0.68), isFullScreen ? 9 : 8)}
-                      fontWeight={700}
-                      fill={thermalRiseEditPalette.text}
+                      fontWeight={800}
+                      fill={isInvalid ? '#b45309' : thermalRiseEditPalette.text}
                       stroke="#fff"
                       strokeWidth={1.8}
                       paintOrder="stroke"

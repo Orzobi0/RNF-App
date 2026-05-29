@@ -32,6 +32,7 @@ import {
   createAutoTemperatureRiseOverride,
   createManualTemperatureRiseOverride,
   evaluateTemperatureRiseOverride,
+  getPreviousValidTemperatureIndices,
   normalizeTemperatureRiseOverride,
 } from '@/lib/temperatureRiseOverride';
 import {
@@ -801,6 +802,32 @@ useEffect(() => {
     temperatureRiseDraft,
     temperatureRiseEditing,
   ]);
+  const draftTemperatureRiseSummary = useMemo(() => {
+    if (!temperatureRiseEditing || !draftTemperatureRiseEvaluation) return null;
+    const firstHighIndex = Number.isInteger(draftTemperatureRiseEvaluation.firstHighIndex)
+      ? draftTemperatureRiseEvaluation.firstHighIndex
+      : null;
+    const confirmationIndex = Number.isInteger(draftTemperatureRiseEvaluation.confirmationIndex)
+      ? draftTemperatureRiseEvaluation.confirmationIndex
+      : null;
+    return {
+      status: draftTemperatureRiseEvaluation.status,
+      rule: draftTemperatureRiseEvaluation.rule ?? draftTemperatureRiseEvaluation.ovulationDetails?.rule ?? null,
+      firstHighIndex,
+      confirmationIndex,
+      confirmationIsoDate: confirmationIndex != null
+        ? interpretationProcessedData[confirmationIndex]?.isoDate ?? null
+        : null,
+      confirmationCycleDay: confirmationIndex != null ? confirmationIndex + 1 : null,
+      previousSixIndices: firstHighIndex != null
+        ? getPreviousValidTemperatureIndices(interpretationProcessedData, firstHighIndex, 6)
+        : [],
+    };
+  }, [
+    draftTemperatureRiseEvaluation,
+    interpretationProcessedData,
+    temperatureRiseEditing,
+  ]);
 
   const visualOrientation = forceLandscape ? 'landscape' : orientation;
   const isLandscapeFullscreen = isFullScreen && visualOrientation === 'landscape';
@@ -1010,7 +1037,6 @@ const rotatedDrawerStyle = applyRotation
         automaticTemperatureRiseSummary?.firstHighIsoDate ??
         null,
     });
-    setShowInterpretation(true);
     setShowManualBaseline(false);
     setTemperatureRiseEditing(true);
   }, [
@@ -1154,24 +1180,18 @@ const rotatedDrawerStyle = applyRotation
               <div className="rounded-2xl border border-orange-100/70 bg-orange-50/40 p-4">
                 <div className="space-y-3">
                   <div>
-                    <h3 className="text-sm font-semibold text-slate-700">
-                      Ajustes de interpretacion
-                    </h3>
-                    <p className="text-xs leading-relaxed text-slate-500">
-                      Configura como se interpreta este ciclo.
-                    </p>
-                  </div>
-                  <p className="rounded-lg bg-white/70 px-3 py-2 text-xs font-semibold text-red-700">
-                    Subida termica: {hasManualTemperatureRiseOverride ? 'Manual' : 'Automatica'}
-                  </p>
                   <Button
                     type="button"
                     variant="outline"
                     className="w-full justify-center border-orange-200 bg-white text-red-700 hover:bg-orange-50"
                     onClick={openInterpretationSettings}
                   >
-                    Abrir ajustes de interpretacion
+                    Ajustes de interpretacion
                   </Button>
+                    <p className="text-xs leading-relaxed text-slate-500">
+                      Configura como se interpreta este ciclo.
+                    </p>
+                  </div>
                 </div>
               </div>
 
@@ -1960,6 +1980,7 @@ const rotatedDrawerStyle = applyRotation
           temperatureRiseDraftBaselineTemp={temperatureRiseDraft.baselineTemp}
           temperatureRiseDraftFirstHighIsoDate={temperatureRiseDraft.firstHighIsoDate}
           temperatureRiseDraftEvaluation={draftTemperatureRiseEvaluation}
+          temperatureRiseDraftSummary={draftTemperatureRiseSummary}
           onTemperatureRiseDraftBaselineChange={handleTemperatureRiseDraftBaselineChange}
           onTemperatureRiseFirstHighSelect={handleTemperatureRiseFirstHighSelect}
         />
@@ -2014,6 +2035,7 @@ const rotatedDrawerStyle = applyRotation
           manualSummary={manualTemperatureRiseSummary}
           draft={temperatureRiseDraft}
           draftEvaluation={draftTemperatureRiseEvaluation}
+          draftSummary={draftTemperatureRiseSummary}
           canSave={
             Number.isFinite(Number(temperatureRiseDraft.baselineTemp)) &&
             Boolean(temperatureRiseDraft.firstHighIsoDate)

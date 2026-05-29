@@ -34,6 +34,19 @@ const filterValidIndices = (processedData, indices) => {
     });
 };
 
+export const getPreviousValidTemperatureIndices = (processedData = [], firstHighIndex = null, count = 6) => {
+  if (!Array.isArray(processedData) || !Number.isInteger(firstHighIndex)) return [];
+
+  const indices = [];
+  for (let index = firstHighIndex - 1; index >= 0 && indices.length < count; index -= 1) {
+    if (isValidTemperaturePoint(processedData[index])) {
+      indices.push(index);
+    }
+  }
+
+  return indices.reverse();
+};
+
 const evaluateHighSequenceStandard = ({
   baselineTemp: currentBaselineTemp,
   firstHighIndex: sequenceStartIndex,
