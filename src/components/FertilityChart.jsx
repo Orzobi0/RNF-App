@@ -363,19 +363,6 @@ useEffect(() => {
   areTempsEqual2,
   findNearestSnapTemp,
 ]);
-  useEffect(() => {
-    if (!temperatureRiseEditMode) return;
-    if (!Number.isFinite(manualBaselineTemp)) return;
-    if (typeof onTemperatureRiseDraftBaselineChange !== 'function') return;
-    if (areTempsEqual2(manualBaselineTemp, temperatureRiseDraftBaselineTemp)) return;
-    onTemperatureRiseDraftBaselineChange(manualBaselineTemp);
-  }, [
-    areTempsEqual2,
-    manualBaselineTemp,
-    onTemperatureRiseDraftBaselineChange,
-    temperatureRiseDraftBaselineTemp,
-    temperatureRiseEditMode,
-  ]);
   const manualBaselineY = Number.isFinite(manualBaselineTemp) ? getY(manualBaselineTemp) : null;
   const manualBaselinePlusTemp = Number.isFinite(manualBaselineTemp)
     ? Number((manualBaselineTemp + 0.2).toFixed(2))
@@ -462,13 +449,19 @@ manualDragRef.current = {
 
   state.activeSnapIndex = nextIndex;
   state.accumDelta = 0;
-  setManualBaselineTemp(manualSnapTemps[nextIndex]);
+  const nextTemp = manualSnapTemps[nextIndex];
+  setManualBaselineTemp(nextTemp);
+  if (temperatureRiseEditMode && typeof onTemperatureRiseDraftBaselineChange === 'function') {
+    onTemperatureRiseDraftBaselineChange(nextTemp);
+  }
 }, [
   manualSnapTemps,
   getNearestManualSnapIndex,
   manualBaselineTemp,
   isFullScreen,
   forceLandscape,
+  onTemperatureRiseDraftBaselineChange,
+  temperatureRiseEditMode,
 ]);
   const handleManualBaselinePointerUp = useCallback((event) => {
     const state = manualDragRef.current;
@@ -897,7 +890,33 @@ if (isRotated) {
   const hasPotentialRise = baselineTemp != null && Number.isFinite(firstHighIndex);
   const confirmedRise = Boolean(ovulationDetails?.confirmed);
   const isManualTemperatureRise = ovulationDetails?.source === 'manual';
-  const shouldRenderBaseline = baselineTemp != null && (confirmedRise || isManualTemperatureRise);
+  const thermalRiseEditPalette = {
+    primary: '#dc3a24',
+    secondary: '#fb6a3c',
+    soft: 'rgba(220, 58, 36, 0.12)',
+    faint: 'rgba(251, 106, 60, 0.08)',
+    plus: '#fb6a3c',
+    text: '#b42318',
+    labelBg: 'rgba(220, 58, 36, 0.86)',
+    buttonBg: 'rgba(255, 247, 244, 0.9)',
+  };
+  const legacyManualPalette = {
+    primary: '#7c3aed',
+    secondary: '#a78bfa',
+    soft: 'rgba(124, 58, 237, 0.14)',
+    faint: 'rgba(124, 58, 237, 0.08)',
+    plus: '#a78bfa',
+    text: '#6d28d9',
+    labelBg: 'rgba(124, 58, 237, 0.8)',
+    buttonBg: 'rgba(255, 255, 255, 0.8)',
+  };
+  const manualVisualPalette = temperatureRiseEditMode
+    ? thermalRiseEditPalette
+    : legacyManualPalette;
+  const shouldRenderBaseline =
+    !temperatureRiseEditMode &&
+    baselineTemp != null &&
+    (confirmedRise || isManualTemperatureRise);
 
   const baselineStartX = getX(0);
   const baselineEndX =
@@ -906,7 +925,7 @@ if (isRotated) {
       : chartWidth - padding.right;
   const theme = getChartTheme();
   const baselineStroke = isManualTemperatureRise
-    ? '#7c3aed'
+    ? thermalRiseEditPalette.primary
     : confirmedRise
       ? theme.baseline.defaultStroke
       : theme.points.ignoredStroke;
@@ -2211,8 +2230,8 @@ const rotationWrapperStyle = rotationStageStyle
                       cx={getX(index)}
                       cy={getY(temp)}
                       r={isFirstHigh ? 9 : 6}
-                      fill={isFirstHigh ? 'rgba(124, 58, 237, 0.14)' : 'rgba(124, 58, 237, 0.08)'}
-                      stroke={isFirstHigh ? '#7c3aed' : '#a78bfa'}
+                      fill={isFirstHigh ? thermalRiseEditPalette.soft : thermalRiseEditPalette.faint}
+                      stroke={isFirstHigh ? thermalRiseEditPalette.primary : thermalRiseEditPalette.secondary}
                       strokeWidth={isFirstHigh ? 2.2 : 1.4}
                     />
                     <text
@@ -2221,7 +2240,7 @@ const rotationWrapperStyle = rotationStageStyle
                       textAnchor="middle"
                       fontSize={Math.max(responsiveFontSize(0.68), isFullScreen ? 9 : 8)}
                       fontWeight={700}
-                      fill="#6d28d9"
+                      fill={thermalRiseEditPalette.text}
                       stroke="#fff"
                       strokeWidth={1.8}
                       paintOrder="stroke"
@@ -2242,7 +2261,7 @@ const rotationWrapperStyle = rotationStageStyle
         x2={baselineEndX}
         y1={manualBaselinePlusY}
         y2={manualBaselinePlusY}
-        stroke="#a78bfa"
+        stroke={manualVisualPalette.secondary}
         strokeWidth={1}
         strokeDasharray="3 6"
         opacity={0.38}
@@ -2254,7 +2273,7 @@ const rotationWrapperStyle = rotationStageStyle
       x2={baselineEndX}
       y1={manualBaselineY}
       y2={manualBaselineY}
-      stroke="#7c3aed"
+      stroke={manualVisualPalette.primary}
       strokeWidth={2.2}
       strokeDasharray="7 5"
       opacity={0.92}
@@ -2328,9 +2347,10 @@ const rotationWrapperStyle = rotationStageStyle
     {Number.isFinite(manualBaselinePlusTemp) && Number.isFinite(manualBaselinePlusY) && (
       <div
         ref={manualPlusLabelRef}
-        className="absolute whitespace-nowrap rounded-full bg-white/80 px-1.5 py-0.5 text-[9px] font-semibold text-violet-500 opacity-0"
+        className="absolute whitespace-nowrap rounded-full bg-white/80 px-1.5 py-0.5 text-[9px] font-semibold opacity-0"
+        style={{ color: manualVisualPalette.plus }}
       >
-        <span className="text-violet-400 font-semibold">+0.2 · </span>
+        <span className="font-semibold">+0.2 · </span>
         <span>({manualBaselinePlusTemp.toFixed(2)}°)</span>
       </div>
     )}
@@ -2339,14 +2359,22 @@ const rotationWrapperStyle = rotationStageStyle
       ref={manualHandleRef}
       className="absolute h-10 w-10 opacity-0"
     >
-      <div className="absolute right-[46px] top-1/2 -translate-y-1/2 whitespace-nowrap rounded-full bg-violet-600/80 px-1.5 py-0.5 text-[11px] font-bold text-white shadow-md">
+      <div
+        className="absolute right-[46px] top-1/2 -translate-y-1/2 whitespace-nowrap rounded-full px-1.5 py-0.5 text-[11px] font-bold text-white shadow-md"
+        style={{ backgroundColor: manualVisualPalette.labelBg }}
+      >
         {manualBaselineTemp.toFixed(2)}° 
       </div>
 
       <button
   type="button"
-  className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full border border-violet-500 bg-white/80 text-violet-700 shadow-lg select-none"
-  style={{ touchAction: 'none' }}
+  className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full border shadow-lg select-none"
+  style={{
+    touchAction: 'none',
+    borderColor: manualVisualPalette.primary,
+    backgroundColor: manualVisualPalette.buttonBg,
+    color: manualVisualPalette.primary,
+  }}
   onPointerDown={handleManualBaselinePointerDown}
   onPointerMove={handleManualBaselinePointerMove}
   onPointerUp={handleManualBaselinePointerUp}

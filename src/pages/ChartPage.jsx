@@ -1138,7 +1138,7 @@ const rotatedDrawerStyle = applyRotation
   </div>
 </div> 
 
-              <div className="rounded-2xl border border-violet-100/70 bg-violet-50/40 p-4">
+              <div className="rounded-2xl border border-orange-100/70 bg-orange-50/40 p-4">
                 <div className="space-y-3">
                   <div>
                     <h3 className="text-sm font-semibold text-slate-700">
@@ -1148,13 +1148,13 @@ const rotatedDrawerStyle = applyRotation
                       Configura como se interpreta este ciclo.
                     </p>
                   </div>
-                  <p className="rounded-lg bg-white/70 px-3 py-2 text-xs font-semibold text-violet-700">
+                  <p className="rounded-lg bg-white/70 px-3 py-2 text-xs font-semibold text-red-700">
                     Subida termica: {hasManualTemperatureRiseOverride ? 'Manual' : 'Automatica'}
                   </p>
                   <Button
                     type="button"
                     variant="outline"
-                    className="w-full justify-center border-violet-200 bg-white text-violet-700 hover:bg-violet-50"
+                    className="w-full justify-center border-orange-200 bg-white text-red-700 hover:bg-orange-50"
                     onClick={openInterpretationSettings}
                   >
                     Abrir ajustes de interpretacion
@@ -2010,6 +2010,7 @@ const rotatedDrawerStyle = applyRotation
           onResetAuto={handleResetTemperatureRiseAuto}
           isRotated={applyRotation}
           viewport={viewport}
+          isFullScreen={isFullScreen}
         />
 
         <Dialog open={showForm} onOpenChange={handleFormOpenChange}>

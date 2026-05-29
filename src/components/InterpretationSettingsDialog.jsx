@@ -1,11 +1,11 @@
-import React from 'react';
-import { X } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { GripHorizontal, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-const formatTemp = (value) => (Number.isFinite(Number(value)) ? `${Number(value).toFixed(2)} C` : '—');
+const formatTemp = (value) => (Number.isFinite(Number(value)) ? `${Number(value).toFixed(2)} C` : '-');
 
 const formatDate = (isoDate) => {
-  if (!isoDate) return '—';
+  if (!isoDate) return '-';
   const parts = String(isoDate).split('-');
   if (parts.length !== 3) return isoDate;
   return `${parts[2]}/${parts[1]}`;
@@ -26,7 +26,7 @@ const ruleLabel = (rule) => {
     case 'pp-after-german-2nd-exception':
       return 'postparto segunda excepcion';
     default:
-      return rule || '—';
+      return rule || '-';
   }
 };
 
@@ -37,7 +37,6 @@ const statusLabel = (status) => {
     case 'invalid':
       return 'Pendiente: la secuencia no confirma';
     case 'insufficient':
-      return 'Pendiente: faltan temperaturas posteriores';
     case 'pending':
       return 'Pendiente: faltan temperaturas posteriores';
     default:
@@ -78,7 +77,119 @@ const InterpretationSettingsDialog = ({
   onResetAuto,
   isRotated = false,
   viewport = null,
+  isFullScreen = false,
 }) => {
+  const [floatingPosition, setFloatingPosition] = useState(null);
+  const [floatingMovedByUser, setFloatingMovedByUser] = useState(false);
+  const [isDraggingFloatingBar, setIsDraggingFloatingBar] = useState(false);
+  const dragStateRef = useRef(null);
+
+  const viewportWidth = Math.max(
+    1,
+    Number(viewport?.w) ||
+      (typeof window !== 'undefined'
+        ? Math.round(window.visualViewport?.width ?? window.innerWidth ?? 1)
+        : 1)
+  );
+  const viewportHeight = Math.max(
+    1,
+    Number(viewport?.h) ||
+      (typeof window !== 'undefined'
+        ? Math.round(window.visualViewport?.height ?? window.innerHeight ?? 1)
+        : 1)
+  );
+
+  const getDefaultFloatingPosition = useCallback(() => {
+    if (isRotated) {
+      return {
+        x: 28,
+        y: viewportHeight / 2,
+      };
+    }
+
+    return {
+      x: viewportWidth / 2,
+      y: viewportHeight - (isFullScreen ? 42 : 92),
+    };
+  }, [isFullScreen, isRotated, viewportHeight, viewportWidth]);
+
+  useEffect(() => {
+    if (!open || !editing) {
+      setFloatingPosition(null);
+      setFloatingMovedByUser(false);
+      return;
+    }
+
+    if (!floatingMovedByUser) {
+      setFloatingPosition(getDefaultFloatingPosition());
+    }
+  }, [editing, floatingMovedByUser, getDefaultFloatingPosition, open]);
+
+  useEffect(() => {
+    setFloatingMovedByUser(false);
+  }, [isFullScreen, isRotated]);
+
+  const clampFloatingPosition = useCallback((position) => {
+    const margin = 20;
+    return {
+      x: Math.min(Math.max(position.x, margin), viewportWidth - margin),
+      y: Math.min(Math.max(position.y, margin), viewportHeight - margin),
+    };
+  }, [viewportHeight, viewportWidth]);
+
+  const clearDragState = useCallback(() => {
+    const state = dragStateRef.current;
+    if (state?.holdTimer && typeof window !== 'undefined') {
+      window.clearTimeout(state.holdTimer);
+    }
+    dragStateRef.current = null;
+    setIsDraggingFloatingBar(false);
+  }, []);
+
+  const handleFloatingPointerDown = useCallback((event) => {
+    if (event.target?.closest?.('[data-floating-action="true"]')) return;
+    if (typeof window === 'undefined') return;
+
+    const startPosition = floatingPosition ?? getDefaultFloatingPosition();
+    const state = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      startPosition,
+      dragging: false,
+      holdTimer: 0,
+    };
+
+    state.holdTimer = window.setTimeout(() => {
+      state.dragging = true;
+      setIsDraggingFloatingBar(true);
+      setFloatingMovedByUser(true);
+    }, 180);
+
+    dragStateRef.current = state;
+    event.currentTarget?.setPointerCapture?.(event.pointerId);
+  }, [floatingPosition, getDefaultFloatingPosition]);
+
+  const handleFloatingPointerMove = useCallback((event) => {
+    const state = dragStateRef.current;
+    if (!state || state.pointerId !== event.pointerId || !state.dragging) return;
+
+    event.preventDefault();
+    const dx = event.clientX - state.startX;
+    const dy = event.clientY - state.startY;
+    setFloatingPosition(clampFloatingPosition({
+      x: state.startPosition.x + dx,
+      y: state.startPosition.y + dy,
+    }));
+  }, [clampFloatingPosition]);
+
+  const handleFloatingPointerUp = useCallback((event) => {
+    if (dragStateRef.current?.pointerId === event.pointerId) {
+      event.currentTarget?.releasePointerCapture?.(event.pointerId);
+    }
+    clearDragState();
+  }, [clearDragState]);
+
   if (!open) return null;
 
   if (editing) {
@@ -86,37 +197,49 @@ const InterpretationSettingsDialog = ({
       280,
       Math.min(Number(viewport?.h) > 0 ? Number(viewport.h) - 32 : 640, 672)
     );
-    const editingShellClass = isRotated
-      ? 'pointer-events-none fixed z-[450] p-0'
-      : 'fixed inset-x-0 bottom-0 z-[450] px-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)]';
-    const editingShellStyle = isRotated
-      ? {
-          left: 'calc(env(safe-area-inset-left) + 24px)',
-          top: '50%',
-          width: `${rotatedWidth}px`,
-          transform: 'translate(-50%, -50%) rotate(90deg)',
-          transformOrigin: 'center center',
-        }
-      : undefined;
+    const position = floatingPosition ?? getDefaultFloatingPosition();
+    const barWidth = isRotated ? `${rotatedWidth}px` : 'min(calc(100vw - 16px), 672px)';
 
     return (
-      <div className={editingShellClass} style={editingShellStyle}>
-        <div className="pointer-events-auto mx-auto flex h-12 w-full max-w-2xl items-center gap-2 rounded-xl border border-violet-200 bg-white/95 px-2.5 shadow-xl shadow-slate-900/15 backdrop-blur">
-          <p className="min-w-0 flex-1 truncate text-[12px] font-semibold text-violet-700 sm:text-sm">
-            Ajustando subida termica · Linea base {formatTemp(draft?.baselineTemp)} · Primer dia alto {formatDate(draft?.firstHighIsoDate)}
+      <div
+        className="pointer-events-none fixed z-[450] p-0"
+        style={{
+          left: `${position.x}px`,
+          top: `${position.y}px`,
+          width: barWidth,
+          transform: `translate(-50%, -50%) rotate(${isRotated ? 90 : 0}deg)`,
+          transformOrigin: 'center center',
+        }}
+      >
+        <div
+          className={`pointer-events-auto mx-auto flex h-12 w-full max-w-2xl touch-none select-none items-center gap-2 rounded-xl border border-orange-200 bg-white/95 px-2.5 shadow-xl shadow-slate-900/15 backdrop-blur ${
+            isDraggingFloatingBar ? 'cursor-grabbing' : 'cursor-grab'
+          }`}
+          onPointerDown={handleFloatingPointerDown}
+          onPointerMove={handleFloatingPointerMove}
+          onPointerUp={handleFloatingPointerUp}
+          onPointerCancel={handleFloatingPointerUp}
+        >
+          <GripHorizontal className="h-4 w-4 shrink-0 text-red-400" aria-hidden="true" />
+          <p className="min-w-0 flex-1 truncate text-[12px] font-semibold text-red-700 sm:text-sm">
+            Ajustando subida termica - Linea base {formatTemp(draft?.baselineTemp)} - Primer dia alto {formatDate(draft?.firstHighIsoDate)}
           </p>
           <Button
             type="button"
             variant="ghost"
+            data-floating-action="true"
             className="h-8 shrink-0 px-2 text-xs text-slate-600 sm:px-3 sm:text-sm"
+            onPointerDown={(event) => event.stopPropagation()}
             onClick={onCancelEdit}
           >
             Cancelar
           </Button>
           <Button
             type="button"
-            className="h-8 shrink-0 bg-violet-600 px-2 text-xs text-white hover:bg-violet-700 sm:px-3 sm:text-sm"
+            data-floating-action="true"
+            className="h-8 shrink-0 bg-red-600 px-2 text-xs text-white hover:bg-red-700 sm:px-3 sm:text-sm"
             disabled={!canSave}
+            onPointerDown={(event) => event.stopPropagation()}
             onClick={onSaveEdit}
           >
             Aceptar
@@ -134,10 +257,10 @@ const InterpretationSettingsDialog = ({
         role="dialog"
         aria-modal="true"
         aria-label="Ajustes de interpretacion"
-        className="flex max-h-[92dvh] w-full max-w-lg flex-col rounded-t-2xl border border-rose-100 bg-white shadow-2xl sm:rounded-2xl"
+        className="flex max-h-[92dvh] w-full max-w-lg flex-col rounded-t-2xl border border-orange-100 bg-white shadow-2xl sm:rounded-2xl"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
-        <header className="flex shrink-0 items-start justify-between gap-3 border-b border-rose-100 px-4 py-3">
+        <header className="flex shrink-0 items-start justify-between gap-3 border-b border-orange-100 px-4 py-3">
           <div>
             <h2 className="text-base font-semibold text-titulo">Ajustes de interpretacion</h2>
             <p className="text-xs text-slate-500">
@@ -155,8 +278,8 @@ const InterpretationSettingsDialog = ({
         </header>
 
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
-          <div className="rounded-xl border border-violet-100 bg-violet-50/50 p-3">
-            <p className="text-sm font-semibold text-violet-800">
+          <div className="rounded-xl border border-orange-100 bg-orange-50/50 p-3">
+            <p className="text-sm font-semibold text-red-800">
               {manualActive ? 'Subida termica manual' : 'Subida termica automatica'}
             </p>
             <div className="mt-3 space-y-2">
@@ -180,15 +303,20 @@ const InterpretationSettingsDialog = ({
 
             {manualActive ? (
               <div className="flex flex-wrap gap-2">
-                <Button type="button" className="bg-violet-600 text-white hover:bg-violet-700" onClick={onStartEdit}>
+                <Button type="button" className="bg-red-600 text-white hover:bg-red-700" onClick={onStartEdit}>
                   Modificar
                 </Button>
-                <Button type="button" variant="outline" onClick={onResetAuto}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-orange-200 text-red-700 hover:bg-orange-50"
+                  onClick={onResetAuto}
+                >
                   Volver a automatico
                 </Button>
               </div>
             ) : (
-              <Button type="button" className="bg-violet-600 text-white hover:bg-violet-700" onClick={onStartEdit}>
+              <Button type="button" className="bg-red-600 text-white hover:bg-red-700" onClick={onStartEdit}>
                 Modificar manualmente
               </Button>
             )}
