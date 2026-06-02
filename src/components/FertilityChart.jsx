@@ -1226,6 +1226,9 @@ if (isRotated) {
     const temperatureDetails = {
   confirmed: Boolean(ovulationDetails?.confirmed),
   rule: ovulationDetails?.rule ?? null,
+  source: ovulationDetails?.source ?? null,
+  status: ovulationDetails?.status ?? null,
+  firstHighIsoDate: ovulationDetails?.firstHighIsoDate ?? null,
   baselineTemp: ovulationDetails?.baselineTemp ?? null,
   baselineIndices: Array.isArray(ovulationDetails?.baselineIndices)
     ? ovulationDetails.baselineIndices
@@ -1431,10 +1434,11 @@ source: status === 'absolute' ? 'absolute' : estimatedSource,
       const absoluteInfo = postOvulatoryPhaseInfo.absolute ?? postOvulatoryPhaseInfo;
 
       const absoluteSegmentStart = absStart != null ? absStart : postStart;
-      const renderEnd =
-        postOvulatoryPhaseInfo.status === 'absolute'
-          ? lastIndex
-          : Math.min(lastIndex, renderLimit);
+      const renderEnd = Math.min(lastIndex, renderLimit);
+
+      if (renderEnd < postStart) {
+        return;
+      }
 
       if (absStart != null && absStart > postStart) {
         const pendingEnd = Math.min(absStart - 1, renderLimit);
@@ -1486,6 +1490,17 @@ source: status === 'absolute' ? 'absolute' : estimatedSource,
     ? fertilityStart.debug.fertileStartOverride.index
     : null;
 const hasManualFertileStart = Number.isInteger(manualFertileStartIndex);
+const manualFertileStartInfo = hasManualFertileStart
+  ? {
+      mode: 'manual',
+      index: manualFertileStartIndex,
+      isoDate:
+        fertilityStart?.fertileStartOverride?.isoDate ??
+        fertilityStart?.debug?.fertileStartOverride?.isoDate ??
+        allDataPoints[manualFertileStartIndex]?.isoDate ??
+        null,
+    }
+  : null;
 
     // Mientras NO haya ni inicio fértil (CPM / T-8 / perfiles / marcador)
     // ni fase postovulatoria, todo lo registrado se considera
@@ -1566,22 +1581,27 @@ const hasManualFertileStart = Number.isInteger(manualFertileStartIndex);
         const bounds = getSegmentBounds(0, endIndex);
         if (bounds) {
           segments.push({
-            key: 'relative',
-            phase: 'relativeInfertile',
-            status: 'default',
-            bounds,
-            startIndex: 0,
-            endIndex,
-            displayLabel: 'Relativamente infértil',
-            tooltip: 'Relativamente infértil (fase relativamente infértil preovulatoria)',
-            message: 'Relativamente infértil',
-            reasons: {
-              type: 'relative',
-              fertileStartFinalIndex,
-              aggregate: fertilityStart?.aggregate ?? null,
-              bipScore: fertilityStart?.debug?.bipScore ?? null,
-            },
-          });
+  key: 'relative',
+  phase: 'relativeInfertile',
+  status: hasManualFertileStart ? 'manual-boundary' : 'default',
+  source: hasManualFertileStart ? 'manual' : null,
+  bounds,
+  startIndex: 0,
+  endIndex,
+  displayLabel: 'Relativamente infértil',
+  tooltip: hasManualFertileStart
+    ? 'Relativamente infértil hasta el inicio fértil ajustado manualmente'
+    : 'Relativamente infértil (fase relativamente infértil preovulatoria)',
+  message: 'Relativamente infértil',
+  reasons: {
+    type: 'relative',
+    source: hasManualFertileStart ? 'manual' : null,
+    fertileStartFinalIndex,
+    fertileStartOverride: manualFertileStartInfo,
+    aggregate: fertilityStart?.aggregate ?? null,
+    bipScore: fertilityStart?.debug?.bipScore ?? null,
+  },
+});
         }
       }
     }
@@ -1672,11 +1692,47 @@ if (
   if (manualEnd >= manualStart) {
     const manualBounds = getSegmentBounds(manualStart, manualEnd);
     if (manualBounds) {
+      const mucusClosureIndex = Number.isInteger(fertilityStart?.debug?.mucusInfertileStartIndex)
+        ? fertilityStart.debug.mucusInfertileStartIndex
+        : Number.isInteger(fertilityStart?.fertileWindow?.mucusInfertileStartIndex)
+          ? fertilityStart.fertileWindow.mucusInfertileStartIndex
+          : Number.isInteger(postOvulatoryPhaseInfo?.reasons?.mucus?.startIndex)
+            ? postOvulatoryPhaseInfo.reasons.mucus.startIndex
+            : null;
+      const temperatureClosureIndex = Number.isInteger(
+        fertilityStart?.fertileWindow?.temperatureInfertileStartIndex
+      )
+        ? fertilityStart.fertileWindow.temperatureInfertileStartIndex
+        : Number.isInteger(fertilityStart?.debug?.temperatureInfertileStartIndex)
+          ? fertilityStart.debug.temperatureInfertileStartIndex
+          : Number.isInteger(fertilityStart?.debug?.temperatureInfertileIndex)
+            ? fertilityStart.debug.temperatureInfertileIndex
+            : Number.isInteger(postOvulatoryPhaseInfo?.reasons?.temperature?.startIndex)
+              ? postOvulatoryPhaseInfo.reasons.temperature.startIndex
+              : null;
+      const absoluteClosureIndex = Number.isInteger(postOvulatoryPhaseInfo?.absoluteStartIndex)
+        ? postOvulatoryPhaseInfo.absoluteStartIndex
+        : Number.isInteger(fertilityStart?.debug?.absoluteStartIndex)
+          ? fertilityStart.debug.absoluteStartIndex
+          : null;
+      const manualFertileWarnings = [];
+
+      if (Number.isInteger(absoluteClosureIndex) && manualStart >= absoluteClosureIndex) {
+        manualFertileWarnings.push('manual-after-absolute-closure');
+      } else if (Number.isInteger(mucusClosureIndex) && manualStart >= mucusClosureIndex) {
+        manualFertileWarnings.push('manual-after-mucus-closure');
+      }
+
+      if (Number.isInteger(temperatureClosureIndex) && manualStart >= temperatureClosureIndex) {
+        manualFertileWarnings.push('manual-after-temperature-closure');
+      }
+
       segments.push({
         key: 'fertile-manual',
         phase: 'fertile',
         status: 'manual',
         source: 'manual',
+        warnings: manualFertileWarnings,
         bounds: manualBounds,
         startIndex: manualStart,
         endIndex: manualEnd,
@@ -1691,6 +1747,7 @@ if (
           details: fertilityStart?.debug ?? null,
           window: fertilityStart?.fertileWindow ?? null,
           aggregate: fertilityStart?.aggregate ?? null,
+          warnings: manualFertileWarnings,
         },
       });
     }
@@ -2273,6 +2330,8 @@ const rotationWrapperStyle = rotationStageStyle
   startIndex: segment.startIndex,
   endIndex: segment.endIndex,
   limitIndex: phaseInfoLimitIndex,
+  displayLabel: segment.displayLabel ?? null,
+  warnings: segment.warnings ?? segment.reasons?.warnings ?? [],
   label: segment.displayLabel ?? segment.message ?? null,
 });
                     }

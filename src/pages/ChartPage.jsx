@@ -11,7 +11,7 @@ import InterpretationSettingsDialog from '@/components/InterpretationSettingsDia
 import { useCycleData } from '@/hooks/useCycleData';
 import { differenceInDays, format, parseISO, startOfDay } from 'date-fns';
 import generatePlaceholders from '@/lib/generatePlaceholders';
-import { Baby, CalendarDays, Check, CheckCircle2, Heart, X } from 'lucide-react';
+import { AlertTriangle, Baby, CalendarDays, Check, CheckCircle2, Heart, X } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import DataEntryForm from '@/components/DataEntryForm';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
@@ -210,11 +210,17 @@ const PhaseInfoFloatingCard = ({
       >
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
-            <h2 className="text-sm font-semibold leading-snug text-fertiliapp-fuerte">
+            <h2 className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm font-semibold leading-snug text-fertiliapp-fuerte">
               <span>{phaseOverlay.title}</span>
+              {phaseOverlay.warning && (
+                <AlertTriangle
+                  className="h-4 w-4 shrink-0 text-amber-500"
+                  aria-label="Aviso"
+                />
+              )}
               {phaseOverlay.postpartumActive && (
                 <span
-                  className="ml-1.5 inline-flex h-5 w-5 translate-y-0.5 items-center justify-center rounded-full border border-rose-200 bg-rose-50 text-rose-600"
+                  className="inline-flex h-5 w-5 translate-y-0.5 items-center justify-center rounded-full border border-rose-200 bg-rose-50 text-rose-600"
                   aria-label="Modo postparto"
                   title="Modo postparto"
                 >
@@ -251,6 +257,16 @@ const PhaseInfoFloatingCard = ({
                 aria-hidden="true"
               />
               <span>{phaseOverlay.description}</span>
+            </p>
+          )}
+
+          {phaseOverlay.warning && (
+            <p className="flex gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-[12px] leading-relaxed text-amber-800">
+              <AlertTriangle
+                className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500"
+                aria-hidden="true"
+              />
+              <span>{phaseOverlay.warning}</span>
             </p>
           )}
         </div>
@@ -1930,6 +1946,24 @@ const rotatedDrawerStyle = applyRotation
       const aggregate = reasons?.aggregate ?? null;
       const usedCandidates = Array.isArray(aggregate?.usedCandidates) ? aggregate.usedCandidates : [];
       const fertileWindow = reasons?.window ?? reasons?.fertileWindow ?? null;
+      const source = info?.source ?? reasons?.source ?? null;
+
+const isManualFertileStart =
+  source === 'manual' ||
+  reasons?.source === 'manual' ||
+  reasons?.fertileStartOverride?.mode === 'manual' ||
+  reasons?.details?.fertileStartOverride?.mode === 'manual' ||
+  info?.status === 'manual' ||
+  info?.status === 'manual-boundary';
+
+const isManualFertile =
+  phase === 'fertile' && isManualFertileStart;
+      const temperatureSource = reasons?.temperature?.source ?? reasons?.temperature?.mode ?? null;
+      const isManualTemperature = temperatureSource === 'manual';
+      const warningCodes = [
+        ...(Array.isArray(info?.warnings) ? info.warnings : []),
+        ...(Array.isArray(reasons?.warnings) ? reasons.warnings : []),
+      ].filter(Boolean);
       const fertileStartIndex = Number.isInteger(reasons?.startIndex)
         ? reasons.startIndex
         : Number.isInteger(reasons?.fertileStartFinalIndex)
@@ -1963,8 +1997,30 @@ const rotatedDrawerStyle = applyRotation
       const formatInfertileStartConsequence = (date) =>
         date ? `Inicio fase postovulatoria confirmada desde el ${date}.` : 'Inicio fase postovulatoria calculada.';
 
+      const getManualWarningText = () => {
+        const warnings = new Set(warningCodes);
+        if (warnings.has('manual-after-absolute-closure')) {
+          return 'El inicio fértil manual queda dentro de una fase postovulatoria ya confirmada. Revisa este ajuste porque contradice el cierre por moco y temperatura.';
+        }
+        if (
+          warnings.has('manual-after-mucus-closure') &&
+          warnings.has('manual-after-temperature-closure')
+        ) {
+          return 'El inicio fértil manual queda después de cierres por moco y temperatura. Revisa si la fecha manual es coherente con los criterios ya registrados.';
+        }
+        if (warnings.has('manual-after-mucus-closure')) {
+          return 'El inicio fértil manual queda después del cierre por moco. Revisa si la fecha manual es coherente con ese criterio.';
+        }
+        if (warnings.has('manual-after-temperature-closure')) {
+          return 'El inicio fértil manual queda después de la confirmación térmica. Revisa si la fecha manual es coherente con ese criterio.';
+        }
+        return null;
+      };
+
       const getStartCauseKind = () => {
-        const { candidate } = findCandidateForStart();
+  if (isManualFertileStart) return 'manual';
+
+  const { candidate } = findCandidateForStart();
         const source = normalizeSource(candidate);
         if (source === 'CPM') return 'cpm';
         if (source === 'T8' || source === 'T-8') return 't8';
@@ -2008,10 +2064,33 @@ const rotatedDrawerStyle = applyRotation
             return 'Termina por cálculo T-8.';
           case 'sign':
             return 'Termina porque se ha registrado un signo fértil.';
+            case 'manual':
+  return 'Termina porque se ha fijado manualmente el inicio de la ventana fértil.';
           default:
             return 'Termina porque se ha registrado un signo fértil.';
         }
       };
+
+      const getFertileOpeningExplanation = () => {
+  switch (getStartCauseKind()) {
+    case 'manual':
+      return 'Inicio fértil fijado manualmente.';
+    case 'mucus':
+      return 'Comienza porque se ha registrado moco.';
+    case 'highMucus':
+      return 'Comienza porque se ha registrado moco de mayor fertilidad.';
+    case 'peak':
+      return 'Comienza porque se ha marcado el día pico.';
+    case 'cpm':
+      return 'Comienza por cálculo CPM.';
+    case 't8':
+      return 'Comienza por cálculo T-8.';
+    case 'sign':
+      return 'Comienza porque se ha registrado un signo fértil.';
+    default:
+      return 'La ventana fértil está abierta.';
+  }
+};
 
       const incomingTitle =
         typeof info?.label === 'string' && info.label.trim()
@@ -2039,41 +2118,115 @@ const rotatedDrawerStyle = applyRotation
         const startDate = getValidPhaseDate(fertileStartIndex);
 
         if (!fertileStarted) {
-          message = 'Todavía no hay inicio fértil calculado.';
-          description = 'Faltan datos para abrir la ventana fértil.';
-        } else {
-          message = getFertileStartExplanation();
-          description = formatFertileStartConsequence(startDate);
-        }
+  message = 'Todavía no hay inicio fértil calculado.';
+  description = 'Faltan datos para abrir la ventana fértil.';
+} else if (isManualFertileStart) {
+  message = 'Termina porque se ha fijado manualmente el inicio de la ventana fértil.';
+  description = startDate
+    ? `Ventana fértil manual desde el ${startDate}.`
+    : 'Ventana fértil manual abierta.';
+} else {
+  message = getFertileStartExplanation();
+  description = formatFertileStartConsequence(startDate);
+}
 
-        } else if (phase === 'fertile') {
+              } else if (phase === 'fertile') {
         title = incomingTitle || 'Fértil';
-        const hasMucusClosure = Number.isInteger(fertileWindow?.mucusInfertileStartIndex);
-        const hasTemperatureClosure = Number.isInteger(fertileWindow?.temperatureInfertileStartIndex);
-        const infertileStartDate = getValidPhaseDate(
-          Number.isInteger(reasons?.details?.absoluteStartIndex)
-            ? reasons.details.absoluteStartIndex
-            : Number.isInteger(fertileWindow?.postOvulatoryStartIndex)
-              ? fertileWindow.postOvulatoryStartIndex
-              : info?.endIndex + 1
+
+        const mucusClosureIndex = Number.isInteger(fertileWindow?.mucusInfertileStartIndex)
+          ? fertileWindow.mucusInfertileStartIndex
+          : Number.isInteger(reasons?.details?.mucusInfertileStartIndex)
+            ? reasons.details.mucusInfertileStartIndex
+            : null;
+
+        const temperatureClosureIndex = Number.isInteger(
+          fertileWindow?.temperatureInfertileStartIndex
+        )
+          ? fertileWindow.temperatureInfertileStartIndex
+          : Number.isInteger(reasons?.details?.temperatureInfertileIndex)
+            ? reasons.details.temperatureInfertileIndex
+            : Number.isInteger(reasons?.details?.temperatureInfertileStartIndex)
+              ? reasons.details.temperatureInfertileStartIndex
+              : null;
+
+        const hasMucusClosure = Number.isInteger(mucusClosureIndex);
+        const hasTemperatureClosure = Number.isInteger(temperatureClosureIndex);
+
+        const fertileStartDate = getValidPhaseDate(
+          Number.isInteger(info?.startIndex)
+            ? info.startIndex
+            : fertileStartIndex
         );
 
-        if (!hasMucusClosure && !hasTemperatureClosure) {
-          message = 'La ventana fértil está abierta.';
-          description = 'Aún no hay cierre por moco ni por temperatura.';
-        } else if (hasMucusClosure && hasTemperatureClosure) {
-          message = postpartumActive
-            ? 'Cierre por moco posparto registrado y temperatura confirmada.'
-            : 'Termina al cumplirse el cierre por moco y temperatura.';
-          description = formatInfertileStartConsequence(infertileStartDate);
-        } else if (hasMucusClosure) {
-          message = 'Hay cierre por moco registrado.';
-          description = 'Falta confirmación por temperatura.';
-        } else if (hasTemperatureClosure) {
-          message = 'La subida de temperatura está confirmada.';
-          description = 'Falta cierre por moco.';
-        }
+        const nextPhaseStartIndex = Number.isInteger(info?.endIndex)
+          ? info.endIndex + 1
+          : Number.isInteger(fertileWindow?.postOvulatoryStartIndex)
+            ? fertileWindow.postOvulatoryStartIndex
+            : null;
 
+        const nextPhaseStartDate = getValidPhaseDate(nextPhaseStartIndex);
+
+        const getFertileEndExplanation = () => {
+          if (!hasMucusClosure && !hasTemperatureClosure) {
+            return 'Aún no hay criterio de cierre por moco ni por temperatura.';
+          }
+
+          if (!Number.isInteger(nextPhaseStartIndex) || !nextPhaseStartDate) {
+            return 'La fase fértil sigue abierta hasta el siguiente criterio de cierre disponible.';
+          }
+
+          const endsByMucus = Number.isInteger(mucusClosureIndex)
+            && nextPhaseStartIndex === mucusClosureIndex;
+          const endsByTemperature = Number.isInteger(temperatureClosureIndex)
+            && nextPhaseStartIndex === temperatureClosureIndex;
+
+          if (endsByMucus && endsByTemperature) {
+            return `Finaliza porque comienzan los criterios de cierre por moco y temperatura desde el ${nextPhaseStartDate}.`;
+          }
+
+          if (endsByMucus) {
+            return `Finaliza por día pico desde el ${nextPhaseStartDate}.`;
+          }
+
+          if (endsByTemperature) {
+            return `Finaliza por confirmación térmica desde el ${nextPhaseStartDate}.`;
+          }
+
+          const closureCandidates = [
+            Number.isInteger(mucusClosureIndex)
+              ? { type: 'mucus', index: mucusClosureIndex }
+              : null,
+            Number.isInteger(temperatureClosureIndex)
+              ? { type: 'temperature', index: temperatureClosureIndex }
+              : null,
+          ].filter(Boolean);
+
+          const firstClosure = closureCandidates
+            .filter((candidate) => candidate.index >= 0)
+            .sort((a, b) => a.index - b.index)[0];
+
+          if (firstClosure?.type === 'mucus') {
+            return `Finaliza por día pico desde el ${nextPhaseStartDate}.`;
+          }
+
+          if (firstClosure?.type === 'temperature') {
+            return `Finaliza por confirmación térmica desde el ${nextPhaseStartDate}.`;
+          }
+
+          return `Finaliza antes de la siguiente fase desde el ${nextPhaseStartDate}.`;
+        };
+
+        if (isManualFertile) {
+          message = fertileStartDate
+            ? `Inicio fértil manual desde el ${fertileStartDate}.`
+            : 'Inicio fértil fijado manualmente.';
+          description = getFertileEndExplanation();
+        } else {
+          message = fertileStartDate
+            ? `${getFertileOpeningExplanation()} Desde el ${fertileStartDate}.`
+            : getFertileOpeningExplanation();
+          description = getFertileEndExplanation();
+        }
       } else if (phase === 'postOvulatory') {
   const displayLabel = (info?.displayLabel ?? info?.label ?? '').toLowerCase();
   const status = info?.status ?? reasons?.status ?? null;
@@ -2081,9 +2234,13 @@ const rotatedDrawerStyle = applyRotation
 
   if (status === 'absolute' || info?.displayLabel === 'Infertilidad postovulatoria confirmada') {
   title = incomingTitle || 'Infertilidad postovulatoria confirmada';
-  message = postpartumActive
-    ? 'Cierre por moco posparto registrado y temperatura confirmada.'
-    : 'Cierre por moco registrado y subida de temperatura confirmada.';
+  message = isManualTemperature
+    ? postpartumActive
+      ? 'Cierre por moco posparto registrado y subida térmica manual confirmada.'
+      : 'Cierre por moco registrado y subida térmica manual confirmada.'
+    : postpartumActive
+      ? 'Cierre por moco posparto registrado y temperatura confirmada.'
+      : 'Cierre por moco registrado y subida de temperatura confirmada.';
   description = formatInfertileStartConsequence(segmentStartDate);
 } else if (displayLabel.includes('moco')) {
     title = incomingTitle || 'Infertilidad estimada por moco';
@@ -2091,7 +2248,9 @@ const rotatedDrawerStyle = applyRotation
     description = 'Falta confirmación por temperatura.';
   } else if (displayLabel.includes('temperatura')) {
     title = incomingTitle || 'Infertilidad estimada por temperatura';
-    message = 'La subida de temperatura está confirmada.';
+    message = isManualTemperature
+      ? 'La subida de temperatura se ha fijado manualmente y está confirmada.'
+      : 'La subida de temperatura está confirmada.';
     description = 'Falta cierre por moco.';
   } else {
     title = incomingTitle || 'Fase postovulatoria';
@@ -2130,6 +2289,7 @@ const rotatedDrawerStyle = applyRotation
         title,
         message,
         description,
+        warning: getManualWarningText(),
         postpartumActive,
       });
     },

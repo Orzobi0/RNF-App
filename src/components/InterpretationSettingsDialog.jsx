@@ -757,7 +757,6 @@ const InterpretationSettingsDialog = ({
               </div>
             )}
           </section>
-          <FutureSection title="Fase postovulatoria" />
         </div>
       </section>
     </div>
