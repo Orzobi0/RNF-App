@@ -233,16 +233,12 @@ const getThermalChip = ({ manualActive, summary, summaryOutOfRule }) => {
 };
 
 const getFertileStartChip = ({ manualActive, summary, warning }) => {
-  if (warning) {
-    return {
-      label: 'Aviso',
-      className: 'border-amber-200 bg-amber-50 text-amber-700',
-    };
-  }
   if (manualActive) {
     return {
       label: 'Manual',
-      className: 'border-teal-200 bg-teal-50 text-teal-700',
+      className: warning
+        ? 'border-amber-200 bg-amber-50 text-amber-700'
+        : 'border-teal-200 bg-teal-50 text-teal-700',
     };
   }
   if (summary?.status === 'insufficient' || !summary?.isoDate) {
@@ -331,7 +327,7 @@ const InterpretationSettingsDialog = ({
   const [floatingPosition, setFloatingPosition] = useState(null);
   const [floatingMovedByUser, setFloatingMovedByUser] = useState(false);
   const [isDraggingFloatingBar, setIsDraggingFloatingBar] = useState(false);
-  const [expandedKey, setExpandedKey] = useState('thermal');
+  const [expandedKey, setExpandedKey] = useState(null);
   const dragStateRef = useRef(null);
   const wasOpenRef = useRef(false);
 
@@ -382,7 +378,7 @@ const InterpretationSettingsDialog = ({
 
   useEffect(() => {
     if (open && !wasOpenRef.current) {
-      setExpandedKey('thermal');
+      setExpandedKey(null);
     }
     wasOpenRef.current = open;
   }, [open]);
@@ -661,10 +657,6 @@ const InterpretationSettingsDialog = ({
                     }
                   />
                   <SummaryRow label="Motivo" value={fertileStartSummary?.reasonLabel ?? '-'} />
-                  <SummaryRow
-                    label="Estado"
-                    value={fertileStartManualActive ? 'Manual' : 'Automático'}
-                  />
                   {fertileStartWarning && (
                     <SummaryRow label="Aviso" value={fertileStartWarning} />
                   )}

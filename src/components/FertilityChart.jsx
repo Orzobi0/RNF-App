@@ -1480,6 +1480,12 @@ source: status === 'absolute' ? 'absolute' : estimatedSource,
     };
     const hasFertileStart = Number.isInteger(fertileStartFinalIndex);
     const hasPostPhase = Number.isFinite(postOvulatoryPhaseInfo?.startIndex);
+    const manualFertileStartIndex = Number.isInteger(fertilityStart?.fertileStartOverride?.index)
+  ? fertilityStart.fertileStartOverride.index
+  : Number.isInteger(fertilityStart?.debug?.fertileStartOverride?.index)
+    ? fertilityStart.debug.fertileStartOverride.index
+    : null;
+const hasManualFertileStart = Number.isInteger(manualFertileStartIndex);
 
     // Mientras NO haya ni inicio fértil (CPM / T-8 / perfiles / marcador)
     // ni fase postovulatoria, todo lo registrado se considera
@@ -1592,7 +1598,7 @@ source: status === 'absolute' ? 'absolute' : estimatedSource,
 
     const fertileSegmentEnd = Math.min(fertileEndIndex, phaseRenderLimit);
 
-    if (fertileSegmentEnd >= fertileStartIndex) {
+    if (!hasManualFertileStart && fertileSegmentEnd >= fertileStartIndex) {
       const bounds = getSegmentBounds(fertileStartIndex, fertileSegmentEnd);
       if (bounds) {
         const explicitDay = Number.isInteger(fertilityStart?.debug?.explicitStartDay)
@@ -1640,9 +1646,56 @@ source: status === 'absolute' ? 'absolute' : estimatedSource,
       Number.isFinite(postOvulatoryPhaseInfo.startIndex) &&
       postOvulatoryPhaseInfo.startIndex <= lastIndex
     ) {
-      appendPostSegments(segments, phaseRenderLimit);
-    }
+      const postRenderLimit =
+    hasManualFertileStart &&
+    Number.isInteger(manualFertileStartIndex) &&
+    manualFertileStartIndex >= postOvulatoryPhaseInfo.startIndex
+      ? Math.min(phaseRenderLimit, manualFertileStartIndex - 1)
+      : phaseRenderLimit;
 
+  if (postRenderLimit >= postOvulatoryPhaseInfo.startIndex) {
+    appendPostSegments(segments, postRenderLimit);
+  }
+    }
+if (
+  hasManualFertileStart &&
+  Number.isInteger(manualFertileStartIndex) &&
+  manualFertileStartIndex <= phaseRenderLimit
+) {
+  const manualStart = Math.max(manualFertileStartIndex, 0);
+  const manualEnd =
+    Number.isFinite(postPhaseStart) &&
+    manualStart < postPhaseStart
+      ? Math.min(postPhaseStart - 1, phaseRenderLimit)
+      : phaseRenderLimit;
+
+  if (manualEnd >= manualStart) {
+    const manualBounds = getSegmentBounds(manualStart, manualEnd);
+    if (manualBounds) {
+      segments.push({
+        key: 'fertile-manual',
+        phase: 'fertile',
+        status: 'manual',
+        source: 'manual',
+        bounds: manualBounds,
+        startIndex: manualStart,
+        endIndex: manualEnd,
+        displayLabel: 'Fértil manual',
+        tooltip: 'Fase fértil ajustada manualmente.',
+        message: 'Fértil manual',
+        reasons: {
+          type: 'fertile',
+          source: 'manual',
+          startIndex: manualStart,
+          endIndex: manualEnd,
+          details: fertilityStart?.debug ?? null,
+          window: fertilityStart?.fertileWindow ?? null,
+          aggregate: fertilityStart?.aggregate ?? null,
+        },
+      });
+    }
+  }
+}
     return segments;
   }, [
     effectiveShowInterpretation,
