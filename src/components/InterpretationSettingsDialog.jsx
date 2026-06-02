@@ -11,7 +11,44 @@ const formatDate = (isoDate) => {
   return `${parts[2]}/${parts[1]}`;
 };
 
-const ruleLabel = (rule) => {
+const getWarningCode = (warning) =>
+  typeof warning === 'string' ? warning : warning?.code ?? null;
+
+const getWarningCodes = (source) =>
+  (Array.isArray(source?.warnings) ? source.warnings : [])
+    .map(getWarningCode)
+    .filter(Boolean);
+
+const hasNoComplyWarning = (source) => {
+  const codes = getWarningCodes(source);
+  return (
+    source?.rule === 'no-cumple' ||
+    source?.status === 'invalid' ||
+    codes.includes('missing-previous-six') ||
+    codes.includes('baseline-below-previous-six') ||
+    codes.includes('first-high-not-above-baseline')
+  );
+};
+
+const warningLabel = (source) => {
+  const codes = getWarningCodes(source);
+  if (codes.includes('baseline-below-previous-six')) {
+    return 'Hay temperaturas previas por encima de la linea base';
+  }
+  if (codes.includes('first-high-not-above-baseline')) {
+    return 'El dia seleccionado no supera la linea base';
+  }
+  if (codes.includes('missing-previous-six')) {
+    return 'Faltan 6 temperaturas previas';
+  }
+  if (codes.includes('baseline-above-previous-six')) {
+    return 'Linea base manual conservadora';
+  }
+  return null;
+};
+
+const ruleLabel = (rule, source = null) => {
+  if (rule === 'no-cumple' || hasNoComplyWarning(source)) return 'No cumple';
   switch (rule) {
     case '3-high':
       return '3/6';
@@ -35,7 +72,7 @@ const statusLabel = (status) => {
     case 'confirmed':
       return 'Confirmada manualmente';
     case 'invalid':
-      return 'Pendiente: la secuencia no confirma';
+      return 'Manual fuera de regla';
     case 'insufficient':
     case 'pending':
       return 'Pendiente: faltan temperaturas posteriores';
@@ -100,6 +137,11 @@ const compactDraftText = (draft, evaluation, summary) => {
     return 'Selecciona primer dia de subida';
   }
 
+  const warning = warningLabel(summary) ?? warningLabel(evaluation);
+  if (warning && warning !== 'Linea base manual conservadora') {
+    return warning;
+  }
+
   if (evaluation?.status === 'invalid') {
     return 'Sin confirmacion termica por reglas';
   }
@@ -119,7 +161,7 @@ const compactDraftText = (draft, evaluation, summary) => {
       : null;
     const dayPart = day ? `${date} ${day}` : date;
     const rule = compactRuleLabel(summary?.rule ?? evaluation?.rule ?? evaluation?.ovulationDetails?.rule);
-    return `Confirmacion termica el ${dayPart} (${rule})`;
+    return `Confirmacion termica el ${dayPart} - ${rule}`;
   }
 
   return compactStatusLabel(evaluation);
@@ -333,6 +375,8 @@ const InterpretationSettingsDialog = ({
   }
 
   const summary = manualActive ? manualSummary : automaticSummary;
+  const summaryWarning = manualActive ? warningLabel(summary) : null;
+  const summaryOutOfRule = manualActive && hasNoComplyWarning(summary);
 
   return (
     <div className="fixed inset-0 z-[350] flex items-end justify-center bg-slate-950/35 p-0 sm:items-center sm:p-4">
@@ -365,10 +409,19 @@ const InterpretationSettingsDialog = ({
             <div className="mt-3 space-y-2">
               <SummaryRow label="Linea base" value={formatTemp(summary?.baselineTemp)} />
               <SummaryRow label="Primer dia alto" value={formatDate(summary?.firstHighIsoDate)} />
-              <SummaryRow label="Confirmacion" value={formatDate(summary?.confirmationIsoDate)} />
-              <SummaryRow label="Regla" value={ruleLabel(summary?.rule)} />
+              <SummaryRow
+                label="Confirmacion"
+                value={summaryOutOfRule ? '-' : formatDate(summary?.confirmationIsoDate)}
+              />
+              <SummaryRow label="Regla" value={ruleLabel(summary?.rule, summary)} />
               {manualActive && (
-                <SummaryRow label="Estado" value={statusLabel(summary?.status)} />
+                <SummaryRow
+                  label="Estado"
+                  value={summaryOutOfRule ? 'Manual fuera de regla' : statusLabel(summary?.status)}
+                />
+              )}
+              {summaryWarning && (
+                <SummaryRow label="Aviso" value={summaryWarning} />
               )}
             </div>
           </div>

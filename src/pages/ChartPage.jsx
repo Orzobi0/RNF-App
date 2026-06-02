@@ -735,26 +735,31 @@ useEffect(() => {
     [interpretationProcessedData, temperatureRiseOverride, cyclePostpartumMode]
   );
   const buildTemperatureRiseSummary = useCallback(
-    ({ baselineTemp, firstHighIndex, ovulationDetails, status }) => {
+    ({ baselineTemp, firstHighIndex, ovulationDetails, status, rule, warnings }) => {
       const confirmationIndex = Number.isInteger(ovulationDetails?.confirmationIndex)
         ? ovulationDetails.confirmationIndex
         : null;
+      const resolvedStatus =
+        status ??
+        (ovulationDetails?.confirmed
+          ? 'confirmed'
+          : ovulationDetails?.requireRebaseline
+            ? 'invalid'
+            : 'pending');
+      const resolvedRule = rule ?? ovulationDetails?.rule ?? null;
+      const shouldShowConfirmation =
+        resolvedStatus === 'confirmed' && resolvedRule !== 'no-cumple';
       return {
         baselineTemp: Number.isFinite(Number(baselineTemp)) ? Number(baselineTemp) : null,
         firstHighIsoDate: Number.isInteger(firstHighIndex)
           ? interpretationProcessedData[firstHighIndex]?.isoDate ?? null
           : null,
-        confirmationIsoDate: Number.isInteger(confirmationIndex)
+        confirmationIsoDate: shouldShowConfirmation && Number.isInteger(confirmationIndex)
           ? interpretationProcessedData[confirmationIndex]?.isoDate ?? null
           : null,
-        rule: ovulationDetails?.rule ?? null,
-        status:
-          status ??
-          (ovulationDetails?.confirmed
-            ? 'confirmed'
-            : ovulationDetails?.requireRebaseline
-              ? 'invalid'
-              : 'pending'),
+        rule: resolvedRule,
+        status: resolvedStatus,
+        warnings: Array.isArray(warnings) ? warnings : ovulationDetails?.warnings ?? [],
       };
     },
     [interpretationProcessedData]
@@ -765,6 +770,7 @@ useEffect(() => {
         baselineTemp: automaticTemperatureRiseMetrics?.baselineTemp,
         firstHighIndex: automaticTemperatureRiseMetrics?.firstHighIndex,
         ovulationDetails: automaticTemperatureRiseMetrics?.ovulationDetails,
+        rule: automaticTemperatureRiseMetrics?.ovulationDetails?.rule,
         status: automaticTemperatureRiseMetrics?.ovulationDetails?.confirmed ? 'confirmed' : 'pending',
       }),
     [automaticTemperatureRiseMetrics, buildTemperatureRiseSummary]
@@ -775,11 +781,14 @@ useEffect(() => {
         baselineTemp: manualTemperatureRiseEvaluation?.baselineTemp ?? temperatureRiseOverride.baselineTemp,
         firstHighIndex: manualTemperatureRiseEvaluation?.firstHighIndex,
         ovulationDetails: manualTemperatureRiseEvaluation?.ovulationDetails,
+        rule: manualTemperatureRiseEvaluation?.rule,
         status: manualTemperatureRiseEvaluation?.status,
+        warnings: manualTemperatureRiseEvaluation?.warnings,
       });
       return {
         ...summary,
         firstHighIsoDate: summary.firstHighIsoDate ?? temperatureRiseOverride.firstHighIsoDate,
+        previousSixIndices: manualTemperatureRiseEvaluation?.previousSixIndices ?? [],
       };
     },
     [
@@ -813,15 +822,21 @@ useEffect(() => {
     return {
       status: draftTemperatureRiseEvaluation.status,
       rule: draftTemperatureRiseEvaluation.rule ?? draftTemperatureRiseEvaluation.ovulationDetails?.rule ?? null,
+      warnings: draftTemperatureRiseEvaluation.warnings ?? [],
       firstHighIndex,
       confirmationIndex,
-      confirmationIsoDate: confirmationIndex != null
+      confirmationIsoDate: draftTemperatureRiseEvaluation.status === 'confirmed' && confirmationIndex != null
         ? interpretationProcessedData[confirmationIndex]?.isoDate ?? null
         : null,
-      confirmationCycleDay: confirmationIndex != null ? confirmationIndex + 1 : null,
-      previousSixIndices: firstHighIndex != null
-        ? getPreviousValidTemperatureIndices(interpretationProcessedData, firstHighIndex, 6)
-        : [],
+      confirmationCycleDay:
+        draftTemperatureRiseEvaluation.status === 'confirmed' && confirmationIndex != null
+          ? confirmationIndex + 1
+          : null,
+      previousSixIndices: Array.isArray(draftTemperatureRiseEvaluation.previousSixIndices)
+        ? draftTemperatureRiseEvaluation.previousSixIndices
+        : firstHighIndex != null
+          ? getPreviousValidTemperatureIndices(interpretationProcessedData, firstHighIndex, 6)
+          : [],
     };
   }, [
     draftTemperatureRiseEvaluation,

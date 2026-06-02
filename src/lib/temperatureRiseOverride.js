@@ -34,6 +34,12 @@ const filterValidIndices = (processedData, indices) => {
     });
 };
 
+const createWarning = (code, { severity = 'warning', indices = [] } = {}) => ({
+  code,
+  severity,
+  indices,
+});
+
 export const getPreviousValidTemperatureIndices = (processedData = [], firstHighIndex = null, count = 6) => {
   if (!Array.isArray(processedData) || !Number.isInteger(firstHighIndex)) return [];
 
@@ -46,6 +52,53 @@ export const getPreviousValidTemperatureIndices = (processedData = [], firstHigh
 
   return indices.reverse();
 };
+
+const getManualCoherenceWarnings = ({ processedData, baselineTemp, firstHighIndex }) => {
+  const warnings = [];
+  const previousSixIndices = getPreviousValidTemperatureIndices(processedData, firstHighIndex, 6);
+
+  if (previousSixIndices.length < 6) {
+    warnings.push(createWarning('missing-previous-six', { indices: previousSixIndices }));
+  }
+
+  const previousAboveBaselineIndices = previousSixIndices.filter((index) => {
+    const temp = getCalcTemperature(processedData[index]);
+    return Number.isFinite(temp) && temp > baselineTemp;
+  });
+
+  if (previousAboveBaselineIndices.length > 0) {
+    warnings.push(createWarning('baseline-below-previous-six', {
+      severity: 'error',
+      indices: previousAboveBaselineIndices,
+    }));
+  } else if (previousSixIndices.length === 6) {
+    const previousTemps = previousSixIndices
+      .map((index) => getCalcTemperature(processedData[index]))
+      .filter(Number.isFinite);
+    const previousMax = previousTemps.length ? Math.max(...previousTemps) : null;
+    if (Number.isFinite(previousMax) && baselineTemp > previousMax) {
+      warnings.push(createWarning('baseline-above-previous-six', { severity: 'info' }));
+    }
+  }
+
+  const firstHighTemp = getCalcTemperature(processedData[firstHighIndex]);
+  if (!Number.isFinite(firstHighTemp) || firstHighTemp <= baselineTemp) {
+    warnings.push(createWarning('first-high-not-above-baseline', {
+      severity: 'error',
+      indices: Number.isInteger(firstHighIndex) ? [firstHighIndex] : [],
+    }));
+  }
+
+  return {
+    previousSixIndices,
+    warnings,
+  };
+};
+
+const hasBlockingManualWarning = (warnings) =>
+  warnings.some((warning) =>
+    ['missing-previous-six', 'baseline-below-previous-six', 'first-high-not-above-baseline'].includes(warning?.code)
+  );
 
 const evaluateHighSequenceStandard = ({
   baselineTemp: currentBaselineTemp,
@@ -194,16 +247,26 @@ export const evaluateTemperatureRiseOverride = (
     firstHighIndex >= 0;
 
   if (!hasUsableManualOverride) {
+    const isPendingManualDraft = normalized.mode === 'manual' && baselineTemp != null;
     return {
       active: false,
       mode: normalized.mode,
-      status: 'auto',
-      baselineTemp: null,
+      status: isPendingManualDraft ? 'pending' : 'auto',
+      baselineTemp,
       firstHighIndex: null,
       firstHighIsoDate: normalized.firstHighIsoDate,
+      previousSixIndices: [],
+      warnings: isPendingManualDraft ? [createWarning('missing-first-high')] : [],
+      rule: null,
       ovulationDetails: null,
     };
   }
+
+  const coherence = getManualCoherenceWarnings({
+    processedData,
+    baselineTemp,
+    firstHighIndex,
+  });
 
   const evaluation = postpartum
     ? evaluateHighSequencePostpartum({ baselineTemp, firstHighIndex, processedData })
@@ -221,13 +284,21 @@ export const evaluateTemperatureRiseOverride = (
   const confirmed = Boolean(evaluation?.confirmed && Number.isInteger(confirmationIndex));
   const hasTemperaturesAfterStart = sequenceDisplayIndices.length > 0;
   const hasEnoughStandardDays = sequenceDisplayIndices.length >= 3;
-  const status = confirmed
+  const strongManualWarning = hasBlockingManualWarning(coherence.warnings);
+  const status = strongManualWarning
+    ? 'invalid'
+    : confirmed
     ? 'confirmed'
     : evaluation?.requireRebaseline
       ? 'invalid'
       : hasTemperaturesAfterStart && hasEnoughStandardDays
         ? 'pending'
         : 'insufficient';
+  const rule = strongManualWarning || status === 'invalid'
+    ? 'no-cumple'
+    : evaluation?.rule ?? null;
+  const requireRebaseline = Boolean(evaluation?.requireRebaseline || strongManualWarning);
+  const resolvedConfirmationIndex = strongManualWarning ? null : confirmationIndex;
 
   return {
     active: true,
@@ -239,21 +310,25 @@ export const evaluateTemperatureRiseOverride = (
     baselineIndices: [],
     firstHighIndex,
     firstHighIsoDate: normalized.firstHighIsoDate,
-    confirmationIndex,
-    rule: evaluation?.rule ?? null,
+    confirmationIndex: resolvedConfirmationIndex,
+    rule,
     sequenceDisplayIndices,
     highOnlyIndices,
     usedIndices,
+    previousSixIndices: coherence.previousSixIndices,
+    warnings: coherence.warnings,
     ovulationDetails: {
-      confirmed,
-      confirmationIndex,
-      infertileStartIndex: confirmed ? confirmationIndex : null,
-      rule: evaluation?.rule ?? null,
-      requireRebaseline: Boolean(evaluation?.requireRebaseline),
+      confirmed: confirmed && !strongManualWarning,
+      confirmationIndex: resolvedConfirmationIndex,
+      infertileStartIndex: confirmed && !strongManualWarning ? resolvedConfirmationIndex : null,
+      rule,
+      requireRebaseline,
       sequenceDisplayIndices,
       highOnlyIndices,
       highSequenceIndices: sequenceDisplayIndices,
       usedIndices,
+      previousSixIndices: coherence.previousSixIndices,
+      warnings: coherence.warnings,
       ovulationIndex: firstHighIndex,
       source: 'manual',
       status,

@@ -286,7 +286,8 @@ useEffect(() => {
     moved: false,
   });
   const manualModeEnabled = showManualBaseline || temperatureRiseEditMode;
-  const effectiveShowInterpretation = showInterpretation && !temperatureRiseEditMode;
+  const effectiveShowInterpretation = showInterpretation;
+  const interpretationLayerOpacity = temperatureRiseEditMode ? 0.38 : 1;
   const manualEligiblePoints = useMemo(
     () => allDataPoints.filter((point, index) => isPointEligibleForManualMode(point, index)),
     [allDataPoints, isPointEligibleForManualMode]
@@ -565,6 +566,31 @@ const temperatureRiseDraftUsedIndices = useMemo(
     ),
   [temperatureRiseDraftEvaluation]
 );
+
+const temperatureRiseDraftWarningCodes = useMemo(
+  () =>
+    (temperatureRiseDraftEvaluation?.warnings ?? [])
+      .map((warning) => (typeof warning === 'string' ? warning : warning?.code))
+      .filter(Boolean),
+  [temperatureRiseDraftEvaluation]
+);
+
+const temperatureRiseDraftPreviousAboveBaselineIndices = useMemo(
+  () =>
+    new Set(
+      (temperatureRiseDraftEvaluation?.warnings ?? [])
+        .filter((warning) => warning?.code === 'baseline-below-previous-six')
+        .flatMap((warning) => (Array.isArray(warning?.indices) ? warning.indices : []))
+        .filter((index) => Number.isInteger(index))
+    ),
+  [temperatureRiseDraftEvaluation]
+);
+
+const temperatureRiseDraftIsOutOfRule =
+  temperatureRiseDraftEvaluation?.rule === 'no-cumple' ||
+  temperatureRiseDraftEvaluation?.status === 'invalid' ||
+  temperatureRiseDraftWarningCodes.includes('baseline-below-previous-six') ||
+  temperatureRiseDraftWarningCodes.includes('first-high-not-above-baseline');
 
 useEffect(() => {
   if (!manualModeEnabled || !Number.isFinite(manualBaselineY)) return undefined;
@@ -935,9 +961,9 @@ if (isRotated) {
     ? thermalRiseEditPalette
     : legacyManualPalette;
   const shouldRenderBaseline =
-    !temperatureRiseEditMode &&
     baselineTemp != null &&
-    (confirmedRise || isManualTemperatureRise);
+    (confirmedRise || isManualTemperatureRise) &&
+    (!temperatureRiseEditMode || showInterpretation);
 
   const baselineStartX = getX(0);
   const baselineEndX =
@@ -951,7 +977,7 @@ if (isRotated) {
       ? theme.baseline.defaultStroke
       : theme.points.ignoredStroke;
   const baselineDash = isManualTemperatureRise ? '7 5' : confirmedRise ? '6 4' : '4 4';
-  const baselineOpacity = confirmedRise || isManualTemperatureRise ? 1 : 0.7;
+  const baselineOpacity = (confirmedRise || isManualTemperatureRise ? 1 : 0.7) * interpretationLayerOpacity;
   const baselineWidth = 3;
   const isLoading = chartWidth === 0;
 
@@ -1991,6 +2017,7 @@ const rotationWrapperStyle = rotationStageStyle
   getY={getY}
   responsiveFontSize={responsiveFontSize}
   showInterpretation={effectiveShowInterpretation}
+  interpretationOpacity={interpretationLayerOpacity}
   interpretationSegments={interpretationSegments}
   shouldRenderBaseline={shouldRenderBaseline}
   baselineY={baselineY}
@@ -2128,7 +2155,7 @@ const rotationWrapperStyle = rotationStageStyle
             interpretationSegments.length > 0 &&
             interpretationBandTop != null &&
             interpretationBandHeight > 0 && (
-              <g>
+              <g opacity={interpretationLayerOpacity}>
                 {interpretationSegments.map((segment) => {
                   const rectY = interpretationBandTop;
                   const rectHeight = interpretationBandHeight;
@@ -2244,28 +2271,38 @@ const rotationWrapperStyle = rotationStageStyle
                 const point = allDataPoints[index];
                 const temp = point?.displayTemperature;
                 if (!Number.isFinite(temp)) return null;
+                const isAboveManualBaseline =
+                  temperatureRiseDraftPreviousAboveBaselineIndices.has(index) ||
+                  (Number.isFinite(manualBaselineTemp) && temp > manualBaselineTemp);
+                const contextStroke = isAboveManualBaseline
+                  ? 'rgba(245, 158, 11, 0.72)'
+                  : 'rgba(100, 116, 139, 0.55)';
+                const contextFill = isAboveManualBaseline
+                  ? 'rgba(245, 158, 11, 0.12)'
+                  : 'rgba(148, 163, 184, 0.1)';
+                const contextText = isAboveManualBaseline ? '#b45309' : '#64748b';
                 return (
                   <g key={`temperature-rise-context-${index}`}>
                     <circle
                       cx={getX(index)}
                       cy={getY(temp)}
                       r={4.8}
-                      fill="rgba(148, 163, 184, 0.1)"
-                      stroke="rgba(100, 116, 139, 0.55)"
+                      fill={contextFill}
+                      stroke={contextStroke}
                       strokeWidth={1}
                     />
                     <text
                       x={getX(index)}
-                      y={getY(temp) - 8}
+                      y={getY(temp) + 16}
                       textAnchor="middle"
                       fontSize={Math.max(responsiveFontSize(0.62), isFullScreen ? 8 : 7)}
                       fontWeight={700}
-                      fill="#64748b"
+                      fill={contextText}
                       stroke="#fff"
                       strokeWidth={1.6}
                       paintOrder="stroke"
                     >
-                      {position - temperatureRiseDraftContextIndices.length}
+                      {position + 1}
                     </text>
                   </g>
                 );
@@ -2278,8 +2315,7 @@ const rotationWrapperStyle = rotationStageStyle
                 const isConfirmation =
                   index === temperatureRiseDraftEvaluation?.confirmationIndex ||
                   index === temperatureRiseDraftEvaluation?.ovulationDetails?.confirmationIndex;
-                const isInvalid = temperatureRiseDraftEvaluation?.status === 'invalid';
-                const isConfirmed = temperatureRiseDraftEvaluation?.status === 'confirmed';
+                const isInvalid = temperatureRiseDraftIsOutOfRule;
                 const isPending =
                   temperatureRiseDraftEvaluation?.status === 'pending' ||
                   temperatureRiseDraftEvaluation?.status === 'insufficient';
@@ -2309,9 +2345,9 @@ const rotationWrapperStyle = rotationStageStyle
                     />
                     <text
                       x={getX(index)}
-                      y={getY(temp) + 3}
+                      y={Math.max(12, getY(temp) - (isFirstHigh ? 16 : 13))}
                       textAnchor="middle"
-                      fontSize={Math.max(responsiveFontSize(0.68), isFullScreen ? 9 : 8)}
+                      fontSize={Math.max(responsiveFontSize(0.72), isFullScreen ? 10 : 8.5)}
                       fontWeight={800}
                       fill={isInvalid ? '#b45309' : thermalRiseEditPalette.text}
                       stroke="#fff"
