@@ -142,6 +142,10 @@ const normalizeInterpretationOverrides = (value) => {
     source.temperatureRise && typeof source.temperatureRise === 'object'
       ? source.temperatureRise
       : {};
+  const fertileStart =
+    source.fertileStart && typeof source.fertileStart === 'object'
+      ? source.fertileStart
+      : {};
   const mode = temperatureRise.mode === 'manual' ? 'manual' : 'auto';
   const baselineTemp = Number(temperatureRise.baselineTemp);
 
@@ -156,6 +160,15 @@ const normalizeInterpretationOverrides = (value) => {
           : null,
       updatedAt:
         typeof temperatureRise.updatedAt === 'string' ? temperatureRise.updatedAt : null,
+    },
+    fertileStart: {
+      mode: fertileStart.mode === 'manual' ? 'manual' : 'auto',
+      isoDate:
+        typeof fertileStart.isoDate === 'string' && fertileStart.isoDate.trim()
+          ? fertileStart.isoDate
+          : null,
+      updatedAt:
+        typeof fertileStart.updatedAt === 'string' ? fertileStart.updatedAt : null,
     },
   };
 };

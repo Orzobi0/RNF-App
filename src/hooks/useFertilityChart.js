@@ -396,6 +396,7 @@ export const useFertilityChart = (
   rotatedSafeStartInsetPx = 0,
   rotatedSafeEndInsetPx = 0,
   temperatureRiseOverride = null,
+  fertileStartOverride = null,
 ) => {
       const chartRef = useRef(null);
       const tooltipRef = useRef(null);
@@ -745,8 +746,13 @@ if (isFullScreen) {
   ]);
 
   const fertilityStart = useMemo(
-    () =>
-      computeFertilityStartOutput({
+    () => {
+      const manualFertileStartIndex =
+        fertileStartOverride?.mode === 'manual' && fertileStartOverride?.isoDate
+          ? processedData.findIndex((point) => point?.isoDate === fertileStartOverride.isoDate)
+          : -1;
+
+      return computeFertilityStartOutput({
         processedData,
         config: normalizedFertilityConfig,
         calculatorCandidates: fertilityCalculatorCandidates,
@@ -759,11 +765,21 @@ if (isFullScreen) {
           temperatureRule: ovulationDetails?.rule ?? null,
           todayIndex,
         },
-      }),
+        fertileStartOverride:
+          manualFertileStartIndex >= 0
+            ? {
+                mode: 'manual',
+                isoDate: fertileStartOverride.isoDate,
+                index: manualFertileStartIndex,
+              }
+            : null,
+      });
+    },
     [
       processedData,
       normalizedFertilityConfig,
       fertilityCalculatorCandidates,
+      fertileStartOverride,
       ovulationDetails?.thirdDayIndex,
       ovulationDetails?.infertileStartIndex,
       ovulationDetails?.confirmationIndex,

@@ -47,6 +47,23 @@ const warningLabel = (source) => {
   return null;
 };
 
+const fertileStartWarningLabel = (source) => {
+  const warnings = Array.isArray(source?.warnings) ? source.warnings : [];
+  if (warnings.includes('manual-date-out-of-cycle')) {
+    return 'Fecha manual fuera del ciclo';
+  }
+  if (warnings.includes('manual-after-temperature-closure')) {
+    return 'Inicio fértil posterior al cierre térmico';
+  }
+  if (warnings.includes('manual-after-mucus-closure')) {
+    return 'Inicio fértil posterior al cierre estimado por moco';
+  }
+  if (warnings.includes('manual-after-calculated-closure')) {
+    return 'Inicio fértil posterior al cierre calculado';
+  }
+  return null;
+};
+
 const ruleLabel = (rule, source = null) => {
   if (rule === 'no-cumple' || hasNoComplyWarning(source)) return 'No cumple';
   switch (rule) {
@@ -167,6 +184,13 @@ const compactDraftText = (draft, evaluation, summary) => {
   return compactStatusLabel(evaluation);
 };
 
+const compactFertileStartDraftText = (draft, summary) => {
+  if (!draft?.isoDate) return 'Selecciona inicio fértil';
+  const date = formatDate(draft.isoDate);
+  const day = Number.isInteger(summary?.cycleDay) ? `D${summary.cycleDay}` : null;
+  return day ? `Inicio fértil manual ${date} ${day}` : `Inicio fértil manual ${date}`;
+};
+
 const SummaryRow = ({ label, value }) => (
   <div className="flex items-center justify-between gap-3 text-sm">
     <span className="text-slate-500">{label}</span>
@@ -205,6 +229,31 @@ const getThermalChip = ({ manualActive, summary, summaryOutOfRule }) => {
   return {
     label: 'Auto',
     className: 'border-slate-200 bg-slate-50 text-slate-600',
+  };
+};
+
+const getFertileStartChip = ({ manualActive, summary, warning }) => {
+  if (warning) {
+    return {
+      label: 'Aviso',
+      className: 'border-amber-200 bg-amber-50 text-amber-700',
+    };
+  }
+  if (manualActive) {
+    return {
+      label: 'Manual',
+      className: 'border-teal-200 bg-teal-50 text-teal-700',
+    };
+  }
+  if (summary?.status === 'insufficient' || !summary?.isoDate) {
+    return {
+      label: 'Sin datos',
+      className: 'border-slate-200 bg-slate-50 text-slate-500',
+    };
+  }
+  return {
+    label: 'Auto',
+    className: 'border-emerald-200 bg-emerald-50 text-emerald-700',
   };
 };
 
@@ -253,18 +302,28 @@ const FutureSection = ({ title }) => (
 const InterpretationSettingsDialog = ({
   open,
   editing = false,
+  editingMode = 'temperatureRise',
   manualActive = false,
   automaticSummary = null,
   manualSummary = null,
   draft = null,
   draftEvaluation = null,
   draftSummary = null,
+  fertileStartManualActive = false,
+  automaticFertileStartSummary = null,
+  manualFertileStartSummary = null,
+  fertileStartDraft = null,
+  fertileStartDraftSummary = null,
   canSave = false,
   onClose,
   onStartEdit,
   onCancelEdit,
   onSaveEdit,
   onResetAuto,
+  onStartFertileStartEdit,
+  onCancelFertileStartEdit,
+  onSaveFertileStartEdit,
+  onResetFertileStartAuto,
   isRotated = false,
   viewport = null,
   isFullScreen = false,
@@ -399,6 +458,26 @@ const InterpretationSettingsDialog = ({
     const position = floatingPosition ?? getDefaultFloatingPosition();
     const barWidth = isRotated ? `${rotatedWidth}px` : 'min(calc(100vw - 16px), 520px)';
 
+    const isFertileStartEditing = editingMode === 'fertileStart';
+    const floatingText = isFertileStartEditing
+      ? compactFertileStartDraftText(fertileStartDraft, fertileStartDraftSummary)
+      : compactDraftText(draft, draftEvaluation, draftSummary);
+    const handleCancel = isFertileStartEditing ? onCancelFertileStartEdit : onCancelEdit;
+    const handleSave = isFertileStartEditing ? onSaveFertileStartEdit : onSaveEdit;
+    const floatingTone = isFertileStartEditing
+      ? {
+          container: 'border-teal-200',
+          grip: 'text-teal-500',
+          text: 'text-teal-700',
+          save: 'bg-teal-600 hover:bg-teal-700',
+        }
+      : {
+          container: 'border-orange-200',
+          grip: 'text-red-400',
+          text: 'text-red-700',
+          save: 'bg-rose-600 hover:bg-rose-700',
+        };
+
     return (
       <div
         className="pointer-events-none fixed z-[450] p-0"
@@ -411,7 +490,7 @@ const InterpretationSettingsDialog = ({
         }}
       >
         <div
-          className={`pointer-events-auto mx-auto flex h-10 w-full max-w-lg touch-none select-none items-center gap-1.5 rounded-lg border border-orange-200 bg-white/95 px-2 shadow-xl shadow-slate-900/15 backdrop-blur ${
+          className={`pointer-events-auto mx-auto flex h-10 w-full max-w-lg touch-none select-none items-center gap-1.5 rounded-lg border bg-white/95 px-2 shadow-xl shadow-slate-900/15 backdrop-blur ${floatingTone.container} ${
             isDraggingFloatingBar ? 'cursor-grabbing' : 'cursor-grab'
           }`}
           onPointerDown={handleFloatingPointerDown}
@@ -419,9 +498,9 @@ const InterpretationSettingsDialog = ({
           onPointerUp={handleFloatingPointerUp}
           onPointerCancel={handleFloatingPointerUp}
         >
-          <GripHorizontal className="h-3.5 w-3.5 shrink-0 text-red-400" aria-hidden="true" />
-          <p className="min-w-0 flex-1 truncate text-[11px] font-semibold text-red-700 sm:text-xs">
-            {compactDraftText(draft, draftEvaluation, draftSummary)}
+          <GripHorizontal className={`h-3.5 w-3.5 shrink-0 ${floatingTone.grip}`} aria-hidden="true" />
+          <p className={`min-w-0 flex-1 truncate text-[11px] font-semibold sm:text-xs ${floatingTone.text}`}>
+            {floatingText}
           </p>
           <Button
             type="button"
@@ -429,17 +508,17 @@ const InterpretationSettingsDialog = ({
             data-floating-action="true"
             className="h-7 shrink-0 px-2 text-[11px] text-slate-600 sm:px-2.5 sm:text-xs"
             onPointerDown={(event) => event.stopPropagation()}
-            onClick={onCancelEdit}
+            onClick={handleCancel}
           >
             Cancelar
           </Button>
           <Button
             type="button"
             data-floating-action="true"
-            className="h-7 shrink-0 bg-rose-600 px-2 text-[11px] text-white hover:bg-rose-700 disabled:bg-slate-200 disabled:text-slate-500 disabled:opacity-100 sm:px-2.5 sm:text-xs"
+            className={`h-7 shrink-0 px-2 text-[11px] text-white disabled:bg-slate-200 disabled:text-slate-500 disabled:opacity-100 sm:px-2.5 sm:text-xs ${floatingTone.save}`}
             disabled={!canSave}
             onPointerDown={(event) => event.stopPropagation()}
-            onClick={onSaveEdit}
+            onClick={handleSave}
           >
             Guardar
           </Button>
@@ -451,10 +530,25 @@ const InterpretationSettingsDialog = ({
   const summary = manualActive ? manualSummary : automaticSummary;
   const summaryWarning = manualActive ? warningLabel(summary) : null;
   const summaryOutOfRule = manualActive && hasNoComplyWarning(summary);
+  const fertileStartSummary = fertileStartManualActive
+    ? manualFertileStartSummary
+    : automaticFertileStartSummary;
+  const fertileStartWarning = fertileStartManualActive
+    ? fertileStartWarningLabel(fertileStartSummary)
+    : null;
   const thermalExpanded = expandedKey === 'thermal';
+  const fertileStartExpanded = expandedKey === 'fertileStart';
   const thermalChip = getThermalChip({ manualActive, summary, summaryOutOfRule });
+  const fertileStartChip = getFertileStartChip({
+    manualActive: fertileStartManualActive,
+    summary: fertileStartSummary,
+    warning: fertileStartWarning,
+  });
   const toggleThermal = () => {
     setExpandedKey((current) => (current === 'thermal' ? null : 'thermal'));
+  };
+  const toggleFertileStart = () => {
+    setExpandedKey((current) => (current === 'fertileStart' ? null : 'fertileStart'));
   };
 
   return (
@@ -483,7 +577,7 @@ const InterpretationSettingsDialog = ({
           </button>
         </header>
 
-        <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto px-3 py-3 sm:px-4">
+        <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto px-3 pb-[calc(env(safe-area-inset-bottom)+5.5rem)] pt-3 sm:px-4 sm:pb-4">
           <section className="overflow-hidden rounded-xl border border-orange-100 bg-orange-50/35">
             <SectionHeader
               title="Subida térmica"
@@ -546,7 +640,67 @@ const InterpretationSettingsDialog = ({
             )}
           </section>
 
-          <FutureSection title="Inicio fértil" />
+          <section className="overflow-hidden rounded-xl border border-teal-100 bg-teal-50/30">
+            <SectionHeader
+              title="Inicio fértil"
+              chip={fertileStartChip}
+              expanded={fertileStartExpanded}
+              onToggle={toggleFertileStart}
+            />
+
+            {fertileStartExpanded && (
+              <div className="space-y-3 border-t border-teal-100 bg-white/80 px-3 py-3">
+                <div className="space-y-2">
+                  <SummaryRow label="Fecha" value={formatDate(fertileStartSummary?.isoDate)} />
+                  <SummaryRow
+                    label="Día"
+                    value={
+                      Number.isInteger(fertileStartSummary?.cycleDay)
+                        ? `D${fertileStartSummary.cycleDay}`
+                        : '-'
+                    }
+                  />
+                  <SummaryRow label="Motivo" value={fertileStartSummary?.reasonLabel ?? '-'} />
+                  <SummaryRow
+                    label="Estado"
+                    value={fertileStartManualActive ? 'Manual' : 'Automático'}
+                  />
+                  {fertileStartWarning && (
+                    <SummaryRow label="Aviso" value={fertileStartWarning} />
+                  )}
+                </div>
+
+                {fertileStartManualActive ? (
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      className="bg-teal-600 text-white hover:bg-teal-700"
+                      onClick={onStartFertileStartEdit}
+                    >
+                      Modificar
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="border-teal-200 bg-white text-teal-700 hover:bg-teal-50"
+                      onClick={onResetFertileStartAuto}
+                    >
+                      Volver a automático
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    type="button"
+                    className="bg-teal-600 text-white hover:bg-teal-700"
+                    onClick={onStartFertileStartEdit}
+                  >
+                    Modificar manualmente
+                  </Button>
+                )}
+              </div>
+            )}
+          </section>
+
           <FutureSection title="Fase postovulatoria" />
         </div>
       </section>

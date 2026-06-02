@@ -64,6 +64,11 @@ const defaultCycleState = {
       firstHighIsoDate: null,
       updatedAt: null,
     },
+    fertileStart: {
+      mode: 'auto',
+      isoDate: null,
+      updatedAt: null,
+    },
   },
   issues: {
     outOfRange: [],
@@ -94,6 +99,20 @@ const normalizeCycleForState = (cycle) => ({
       updatedAt:
         typeof cycle?.interpretationOverrides?.temperatureRise?.updatedAt === 'string'
           ? cycle.interpretationOverrides.temperatureRise.updatedAt
+          : null,
+    },
+    fertileStart: {
+      mode:
+        cycle?.interpretationOverrides?.fertileStart?.mode === 'manual'
+          ? 'manual'
+          : 'auto',
+      isoDate:
+        typeof cycle?.interpretationOverrides?.fertileStart?.isoDate === 'string'
+          ? cycle.interpretationOverrides.fertileStart.isoDate
+          : null,
+      updatedAt:
+        typeof cycle?.interpretationOverrides?.fertileStart?.updatedAt === 'string'
+          ? cycle.interpretationOverrides.fertileStart.updatedAt
           : null,
     },
   },

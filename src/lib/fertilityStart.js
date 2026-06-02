@@ -579,6 +579,7 @@ export const computeFertilityStartOutput = ({
   config = {},
   calculatorCandidates = [],
   context = {},
+  fertileStartOverride = null,
 }) => {
   const {
     calculators = { cpm: true, t8: true },
@@ -699,6 +700,18 @@ const effectivePeakIndex = contextPeakIndex ?? explicitPeakIndexValid;
   let fertileStartFinalIndex = null;
   if (selectedDay != null && selectedDay >= 1) {
     fertileStartFinalIndex = selectedDay - 1;
+  }
+
+  const manualFertileStartIndex =
+    fertileStartOverride?.mode === 'manual' &&
+    Number.isInteger(fertileStartOverride?.index) &&
+    fertileStartOverride.index >= 0 &&
+    fertileStartOverride.index < totalDays
+      ? fertileStartOverride.index
+      : null;
+
+  if (manualFertileStartIndex != null) {
+    fertileStartFinalIndex = manualFertileStartIndex;
   }
 
   const lastIndex = days.length > 0 ? days.length - 1 : null;
@@ -880,7 +893,9 @@ const hasMucusObservations = days.some(
 );
 
 let fertileHeaderText = `Fase fértil abierta (${PROFILE_LABELS[profileMode] ?? profileMode}).`;
-if (profileMode === 'marcador') {
+if (manualFertileStartIndex != null) {
+  fertileHeaderText = 'Fase fértil abierta (inicio manual).';
+} else if (profileMode === 'marcador') {
   fertileHeaderText = 'Fase fértil abierta (ajustada por tus marcadores).';
 } else if (hasProfileSource && hasMucusObservations) {
   fertileHeaderText = 'Fase fértil abierta (basada en tus observaciones de moco).';
@@ -1199,6 +1214,13 @@ const infertileBodyTemperature = temperatureDateLabel
   postOvulatoryStartIndex,
   firstEstimateIndex,
   absoluteStartIndex,
+  fertileStartOverride: manualFertileStartIndex != null
+    ? {
+        mode: 'manual',
+        index: manualFertileStartIndex,
+        isoDate: fertileStartOverride?.isoDate ?? null,
+      }
+    : null,
 };
 
   return {
@@ -1222,6 +1244,13 @@ const infertileBodyTemperature = temperatureDateLabel
     candidates: candidatesBeforeAggregate,
     aggregate,
     debug,
+    fertileStartOverride: manualFertileStartIndex != null
+      ? {
+          mode: 'manual',
+          index: manualFertileStartIndex,
+          isoDate: fertileStartOverride?.isoDate ?? null,
+        }
+      : null,
   };
 };
 

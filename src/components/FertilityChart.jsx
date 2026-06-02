@@ -36,6 +36,7 @@ const FertilityChart = ({
   exportMode = false,
   measuredViewport = null,
   temperatureRiseOverride = null,
+  fertileStartOverride = null,
   temperatureRiseEditMode = false,
   temperatureRiseDraftBaselineTemp = null,
   temperatureRiseDraftFirstHighIsoDate = null,
@@ -43,6 +44,9 @@ const FertilityChart = ({
   temperatureRiseDraftSummary = null,
   onTemperatureRiseDraftBaselineChange = null,
   onTemperatureRiseFirstHighSelect = null,
+  fertileStartEditMode = false,
+  fertileStartDraftIsoDate = null,
+  onFertileStartDraftSelect = null,
 }) => {
 
 const isIOS =
@@ -206,7 +210,8 @@ useEffect(() => {
     exportMode,
     rotatedSafeStartInsetPx,
     rotatedSafeEndInsetPx,
-    temperatureRiseOverride
+    temperatureRiseOverride,
+    fertileStartOverride
   );
   
   const MANUAL_DRAG_THRESHOLD_PX = 22;
@@ -287,7 +292,7 @@ useEffect(() => {
   });
   const manualModeEnabled = showManualBaseline || temperatureRiseEditMode;
   const effectiveShowInterpretation = showInterpretation;
-  const interpretationLayerOpacity = temperatureRiseEditMode ? 0.38 : 1;
+  const interpretationLayerOpacity = temperatureRiseEditMode || fertileStartEditMode ? 0.38 : 1;
   const manualEligiblePoints = useMemo(
     () => allDataPoints.filter((point, index) => isPointEligibleForManualMode(point, index)),
     [allDataPoints, isPointEligibleForManualMode]
@@ -525,6 +530,12 @@ const temperatureRiseDraftFirstHighIndex = useMemo(() => {
   );
   return index >= 0 ? index : null;
 }, [allDataPoints, temperatureRiseDraftFirstHighIsoDate, temperatureRiseEditMode]);
+
+const fertileStartDraftIndex = useMemo(() => {
+  if (!fertileStartEditMode || !fertileStartDraftIsoDate) return null;
+  const index = allDataPoints.findIndex((point) => point?.isoDate === fertileStartDraftIsoDate);
+  return index >= 0 ? index : null;
+}, [allDataPoints, fertileStartDraftIsoDate, fertileStartEditMode]);
 
 const temperatureRiseDraftPreviewIndices = useMemo(() => {
   if (!temperatureRiseEditMode || !temperatureRiseDraftEvaluation?.active) {
@@ -796,6 +807,20 @@ if (Number.isFinite(localPlusY)) {
     isPointEligibleForManualMode,
     onTemperatureRiseFirstHighSelect,
     temperatureRiseEditMode,
+  ]);
+
+  const selectFertileStartDraft = useCallback((point, index, event) => {
+    if (!fertileStartEditMode) return false;
+    if (!point?.isoDate) return true;
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    clearActivePoint();
+    onFertileStartDraftSelect?.(point.isoDate);
+    return true;
+  }, [
+    clearActivePoint,
+    fertileStartEditMode,
+    onFertileStartDraftSelect,
   ]);
 
   const activateTooltipFromPointer = useCallback((event) => {
@@ -1933,6 +1958,7 @@ const rotationWrapperStyle = rotationStageStyle
     ? () => {}
     : (point, index, event) => {
         if (selectTemperatureRiseFirstHigh(point, index, event)) return;
+        if (selectFertileStartDraft(point, index, event)) return;
         handlePointInteraction(point, index, event);
       };
   const showCanvasOverlay =
@@ -2264,6 +2290,44 @@ const rotationWrapperStyle = rotationStageStyle
                 })}
               </g>
             )}
+
+          {fertileStartEditMode && Number.isInteger(fertileStartDraftIndex) && (
+            <g pointerEvents="none">
+              <rect
+                x={getX(fertileStartDraftIndex) - 13}
+                y={padding.top}
+                width={26}
+                height={Math.max(0, graphBottomY - padding.top)}
+                rx={6}
+                fill="rgba(20, 184, 166, 0.12)"
+                stroke="rgba(13, 148, 136, 0.42)"
+                strokeWidth={1}
+              />
+              <line
+                x1={getX(fertileStartDraftIndex)}
+                x2={getX(fertileStartDraftIndex)}
+                y1={padding.top}
+                y2={graphBottomY}
+                stroke="#0f766e"
+                strokeWidth={1.8}
+                strokeDasharray="5 5"
+                opacity={0.9}
+              />
+              <text
+                x={getX(fertileStartDraftIndex)}
+                y={Math.max(16, padding.top + 12)}
+                textAnchor="middle"
+                fontSize={Math.max(responsiveFontSize(0.72), isFullScreen ? 10 : 9)}
+                fontWeight={800}
+                fill="#0f766e"
+                stroke="#fff"
+                strokeWidth={2}
+                paintOrder="stroke"
+              >
+                Inicio fértil
+              </text>
+            </g>
+          )}
 
           {temperatureRiseEditMode && temperatureRiseDraftPreviewIndices.length > 0 && (
             <g pointerEvents="none">

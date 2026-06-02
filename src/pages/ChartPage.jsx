@@ -20,6 +20,7 @@ import NewCycleDialog from '@/components/NewCycleDialog';
 import { useToast } from '@/components/ui/use-toast';
 import {
   computeCpmCandidateFromCycles,
+  computeFertilityStartOutput,
   computeT8CandidateFromCycles,
 } from '@/lib/fertilityStart';
 import { useParams, Link, useLocation } from 'react-router-dom';
@@ -35,6 +36,11 @@ import {
   getPreviousValidTemperatureIndices,
   normalizeTemperatureRiseOverride,
 } from '@/lib/temperatureRiseOverride';
+import {
+  createAutoFertileStartOverride,
+  createManualFertileStartOverride,
+  normalizeFertileStartOverride,
+} from '@/lib/fertileStartOverride';
 import {
   PREFERENCE_DEFAULTS,
   mergeFertilityStartConfig,
@@ -55,6 +61,29 @@ const formatCalculatorSourceLabel = (source) => {
     return 'CPM';
   }
   return source ?? '';
+};
+
+const fertileStartReasonLabel = (fertilityStart) => {
+  const override = fertilityStart?.fertileStartOverride;
+  if (override?.mode === 'manual') return 'Manual';
+
+  const usedCandidates = fertilityStart?.aggregate?.usedCandidates ?? [];
+  const selected = usedCandidates[0] ?? fertilityStart?.candidates?.[0] ?? null;
+  const source = normalizeCalculatorSource(selected?.source ?? selected?.originalSource);
+  if (source === 'CPM') return 'CPM';
+  if (source === 'T8') return 'T-8';
+
+  if (selected?.kind === 'profile') {
+    const descriptor = String(selected?.descriptor ?? selected?.reason ?? '').toLowerCase();
+    if (descriptor.includes('pico') || descriptor.includes('peak')) return 'Día pico';
+    if (descriptor.includes('mayor') || descriptor.includes('m+') || descriptor.includes('fertilidad alta')) {
+      return 'Moco de mayor fertilidad';
+    }
+    if (descriptor.includes('moco')) return 'Moco';
+    return 'Signo fértil';
+  }
+
+  return 'Sin inicio calculado';
 };
 
 const DEFAULT_CHART_SETTINGS = normalizeStoredPreferences(PREFERENCE_DEFAULTS);
@@ -435,6 +464,10 @@ const applyRotation = isFullScreen && forceLandscape && viewport.w < viewport.h;
     baselineTemp: null,
     firstHighIsoDate: null,
   });
+  const [fertileStartEditing, setFertileStartEditing] = useState(false);
+  const [fertileStartDraft, setFertileStartDraft] = useState({
+    isoDate: null,
+  });
   const DRAWER_ANIM_MS = 320; // >= 300ms (tu transition del drawer normal)
 const [drawerMounted, setDrawerMounted] = useState(false);
 
@@ -718,7 +751,12 @@ useEffect(() => {
     () => normalizeTemperatureRiseOverride(targetCycle?.interpretationOverrides?.temperatureRise),
     [targetCycle?.interpretationOverrides?.temperatureRise]
   );
+  const fertileStartOverride = useMemo(
+    () => normalizeFertileStartOverride(targetCycle?.interpretationOverrides?.fertileStart),
+    [targetCycle?.interpretationOverrides?.fertileStart]
+  );
   const hasManualTemperatureRiseOverride = temperatureRiseOverride.mode === 'manual';
+  const hasManualFertileStartOverride = fertileStartOverride.mode === 'manual';
   const interpretationProcessedData = useMemo(() => {
     const peakStatuses = computePeakStatuses(mergedData);
     return prepareChartData(mergedData, peakStatuses);
@@ -1042,6 +1080,8 @@ const rotatedDrawerStyle = applyRotation
 
   const handleStartTemperatureRiseEdit = useCallback(() => {
     const existingManual = hasManualTemperatureRiseOverride ? temperatureRiseOverride : null;
+    setFertileStartEditing(false);
+    setFertileStartDraft({ isoDate: null });
     setTemperatureRiseDraft({
       baselineTemp:
         existingManual?.baselineTemp ??
@@ -1066,6 +1106,25 @@ const rotatedDrawerStyle = applyRotation
     setTemperatureRiseDraft({ baselineTemp: null, firstHighIsoDate: null });
   }, []);
 
+  const handleStartFertileStartEdit = useCallback(() => {
+    const existingManual = hasManualFertileStartOverride ? fertileStartOverride : null;
+    setTemperatureRiseEditing(false);
+    setTemperatureRiseDraft({ baselineTemp: null, firstHighIsoDate: null });
+    setFertileStartDraft({
+      isoDate: existingManual?.isoDate ?? null,
+    });
+    setShowManualBaseline(false);
+    setFertileStartEditing(true);
+  }, [
+    fertileStartOverride,
+    hasManualFertileStartOverride,
+  ]);
+
+  const handleCancelFertileStartEdit = useCallback(() => {
+    setFertileStartEditing(false);
+    setFertileStartDraft({ isoDate: null });
+  }, []);
+
   const handleSaveTemperatureRiseEdit = useCallback(async () => {
     if (!targetCycle?.id || typeof updateCycleInterpretationOverrides !== 'function') return;
     const nextOverride = createManualTemperatureRiseOverride(temperatureRiseDraft);
@@ -1074,6 +1133,7 @@ const rotatedDrawerStyle = applyRotation
     try {
       await updateCycleInterpretationOverrides(targetCycle.id, {
         temperatureRise: nextOverride,
+        fertileStart: fertileStartOverride,
       });
       await refreshFallbackCycle();
       setTemperatureRiseEditing(false);
@@ -1091,6 +1151,38 @@ const rotatedDrawerStyle = applyRotation
     refreshFallbackCycle,
     targetCycle?.id,
     temperatureRiseDraft,
+    fertileStartOverride,
+    toast,
+    updateCycleInterpretationOverrides,
+  ]);
+
+  const handleSaveFertileStartEdit = useCallback(async () => {
+    if (!targetCycle?.id || typeof updateCycleInterpretationOverrides !== 'function') return;
+    const nextOverride = createManualFertileStartOverride(fertileStartDraft);
+    if (!nextOverride.isoDate) return;
+
+    try {
+      await updateCycleInterpretationOverrides(targetCycle.id, {
+        temperatureRise: temperatureRiseOverride,
+        fertileStart: nextOverride,
+      });
+      await refreshFallbackCycle();
+      setFertileStartEditing(false);
+      setInterpretationSettingsOpen(true);
+      toast({ title: 'Inicio fértil manual guardado' });
+    } catch (error) {
+      console.error('Failed to persist fertile start override', error);
+      toast({
+        title: 'No se pudo guardar el inicio fértil',
+        description: 'Inténtalo de nuevo.',
+        variant: 'destructive',
+      });
+    }
+  }, [
+    fertileStartDraft,
+    refreshFallbackCycle,
+    targetCycle?.id,
+    temperatureRiseOverride,
     toast,
     updateCycleInterpretationOverrides,
   ]);
@@ -1100,6 +1192,7 @@ const rotatedDrawerStyle = applyRotation
     try {
       await updateCycleInterpretationOverrides(targetCycle.id, {
         temperatureRise: createAutoTemperatureRiseOverride(),
+        fertileStart: fertileStartOverride,
       });
       await refreshFallbackCycle();
       setTemperatureRiseEditing(false);
@@ -1112,7 +1205,39 @@ const rotatedDrawerStyle = applyRotation
         variant: 'destructive',
       });
     }
-  }, [refreshFallbackCycle, targetCycle?.id, toast, updateCycleInterpretationOverrides]);
+  }, [
+    fertileStartOverride,
+    refreshFallbackCycle,
+    targetCycle?.id,
+    toast,
+    updateCycleInterpretationOverrides,
+  ]);
+
+  const handleResetFertileStartAuto = useCallback(async () => {
+    if (!targetCycle?.id || typeof updateCycleInterpretationOverrides !== 'function') return;
+    try {
+      await updateCycleInterpretationOverrides(targetCycle.id, {
+        temperatureRise: temperatureRiseOverride,
+        fertileStart: createAutoFertileStartOverride(),
+      });
+      await refreshFallbackCycle();
+      setFertileStartEditing(false);
+      toast({ title: 'Inicio fértil automático restaurado' });
+    } catch (error) {
+      console.error('Failed to reset fertile start override', error);
+      toast({
+        title: 'No se pudo volver a automático',
+        description: 'Inténtalo de nuevo.',
+        variant: 'destructive',
+      });
+    }
+  }, [
+    refreshFallbackCycle,
+    targetCycle?.id,
+    temperatureRiseOverride,
+    toast,
+    updateCycleInterpretationOverrides,
+  ]);
 
   const handleTemperatureRiseDraftBaselineChange = useCallback((baselineTemp) => {
     setTemperatureRiseDraft((prev) => (
@@ -1127,6 +1252,12 @@ const rotatedDrawerStyle = applyRotation
       prev.firstHighIsoDate === firstHighIsoDate
         ? prev
         : { ...prev, firstHighIsoDate }
+    ));
+  }, []);
+
+  const handleFertileStartDraftSelect = useCallback((isoDate) => {
+    setFertileStartDraft((prev) => (
+      prev.isoDate === isoDate ? prev : { ...prev, isoDate }
     ));
   }, []);
 
@@ -1385,6 +1516,148 @@ const rotatedDrawerStyle = applyRotation
     storedFertilityCalculatorCandidates,
     t8Selection,
   ]);
+
+  const effectiveTemperatureDetailsForFertileStart = useMemo(
+    () =>
+      hasManualTemperatureRiseOverride
+        ? manualTemperatureRiseEvaluation?.ovulationDetails ?? null
+        : automaticTemperatureRiseMetrics?.ovulationDetails ?? null,
+    [
+      automaticTemperatureRiseMetrics?.ovulationDetails,
+      hasManualTemperatureRiseOverride,
+      manualTemperatureRiseEvaluation?.ovulationDetails,
+    ]
+  );
+
+  const buildFertilityStartOutput = useCallback(
+    (manualIsoDate = null) => {
+      const manualIndex = manualIsoDate
+        ? interpretationProcessedData.findIndex((point) => point?.isoDate === manualIsoDate)
+        : -1;
+
+      return computeFertilityStartOutput({
+        processedData: interpretationProcessedData,
+        config: fertilityStartConfig,
+        calculatorCandidates: combinedFertilityCalculatorCandidates,
+        context: {
+          peakDayIndex: Number.isInteger(effectiveTemperatureDetailsForFertileStart?.peakDayIndex)
+            ? effectiveTemperatureDetailsForFertileStart.peakDayIndex
+            : null,
+          postPeakStartIndex: Number.isInteger(
+            effectiveTemperatureDetailsForFertileStart?.peakInfertilityStartIndex
+          )
+            ? effectiveTemperatureDetailsForFertileStart.peakInfertilityStartIndex
+            : null,
+          peakThirdDayIndex: Number.isInteger(effectiveTemperatureDetailsForFertileStart?.thirdDayIndex)
+            ? effectiveTemperatureDetailsForFertileStart.thirdDayIndex
+            : null,
+          temperatureInfertileStartIndex: Number.isInteger(
+            effectiveTemperatureDetailsForFertileStart?.infertileStartIndex
+          )
+            ? effectiveTemperatureDetailsForFertileStart.infertileStartIndex
+            : null,
+          temperatureConfirmationIndex: Number.isInteger(
+            effectiveTemperatureDetailsForFertileStart?.confirmationIndex
+          )
+            ? effectiveTemperatureDetailsForFertileStart.confirmationIndex
+            : null,
+          temperatureRule: effectiveTemperatureDetailsForFertileStart?.rule ?? null,
+          todayIndex: null,
+        },
+        fertileStartOverride:
+          manualIndex >= 0
+            ? {
+                mode: 'manual',
+                isoDate: manualIsoDate,
+                index: manualIndex,
+              }
+            : null,
+      });
+    },
+    [
+      combinedFertilityCalculatorCandidates,
+      effectiveTemperatureDetailsForFertileStart,
+      fertilityStartConfig,
+      interpretationProcessedData,
+    ]
+  );
+
+  const buildFertileStartSummary = useCallback(
+    ({ output, isoDate = null, manual = false }) => {
+      const index = manual
+        ? interpretationProcessedData.findIndex((point) => point?.isoDate === isoDate)
+        : Number.isInteger(output?.fertileStartFinalIndex)
+          ? output.fertileStartFinalIndex
+          : -1;
+      const inCycle = index >= 0 && index < interpretationProcessedData.length;
+      const point = inCycle ? interpretationProcessedData[index] : null;
+      const warnings = [];
+      const firstEstimateIndex = output?.debug?.firstEstimateIndex;
+      const mucusStart = output?.debug?.mucusInfertileStartIndex;
+      const tempStart = output?.debug?.temperatureInfertileIndex;
+
+      if (manual && !inCycle && isoDate) {
+        warnings.push('manual-date-out-of-cycle');
+      }
+      if (manual && inCycle && Number.isInteger(firstEstimateIndex) && index > firstEstimateIndex) {
+        warnings.push('manual-after-calculated-closure');
+      }
+      if (manual && inCycle && Number.isInteger(mucusStart) && index > mucusStart) {
+        warnings.push('manual-after-mucus-closure');
+      }
+      if (manual && inCycle && Number.isInteger(tempStart) && index > tempStart) {
+        warnings.push('manual-after-temperature-closure');
+      }
+
+      return {
+        isoDate: point?.isoDate ?? (manual ? isoDate : null),
+        cycleDay: inCycle ? index + 1 : null,
+        reasonLabel: manual ? 'Manual' : fertileStartReasonLabel(output),
+        source: manual ? 'manual' : 'auto',
+        status: manual
+          ? warnings.length ? 'warning' : 'manual'
+          : point?.isoDate ? 'auto' : 'insufficient',
+        warnings,
+      };
+    },
+    [interpretationProcessedData]
+  );
+
+  const automaticFertileStartOutput = useMemo(
+    () => buildFertilityStartOutput(null),
+    [buildFertilityStartOutput]
+  );
+  const automaticFertileStartSummary = useMemo(
+    () => buildFertileStartSummary({ output: automaticFertileStartOutput }),
+    [automaticFertileStartOutput, buildFertileStartSummary]
+  );
+  const manualFertileStartOutput = useMemo(
+    () => buildFertilityStartOutput(fertileStartOverride.isoDate),
+    [buildFertilityStartOutput, fertileStartOverride.isoDate]
+  );
+  const manualFertileStartSummary = useMemo(
+    () =>
+      buildFertileStartSummary({
+        output: manualFertileStartOutput,
+        isoDate: fertileStartOverride.isoDate,
+        manual: hasManualFertileStartOverride,
+      }),
+    [
+      buildFertileStartSummary,
+      fertileStartOverride.isoDate,
+      hasManualFertileStartOverride,
+      manualFertileStartOutput,
+    ]
+  );
+  const draftFertileStartSummary = useMemo(
+    () =>
+      buildFertileStartSummary({
+        output: buildFertilityStartOutput(fertileStartDraft.isoDate),
+        isoDate: fertileStartDraft.isoDate,
+        manual: true,
+      }),
+    [buildFertileStartSummary, buildFertilityStartOutput, fertileStartDraft.isoDate]
+  );
   const handleTogglePeak = async (record, shouldMarkAsPeak = true) => {
     if (!targetCycle?.id || !record?.isoDate) {
       return;
@@ -1991,6 +2264,7 @@ const rotatedDrawerStyle = applyRotation
           cycleEndDate={targetCycle?.endDate ?? null}
           measuredViewport={viewport}
           temperatureRiseOverride={temperatureRiseOverride}
+          fertileStartOverride={fertileStartOverride}
           temperatureRiseEditMode={temperatureRiseEditing}
           temperatureRiseDraftBaselineTemp={temperatureRiseDraft.baselineTemp}
           temperatureRiseDraftFirstHighIsoDate={temperatureRiseDraft.firstHighIsoDate}
@@ -1998,6 +2272,9 @@ const rotatedDrawerStyle = applyRotation
           temperatureRiseDraftSummary={draftTemperatureRiseSummary}
           onTemperatureRiseDraftBaselineChange={handleTemperatureRiseDraftBaselineChange}
           onTemperatureRiseFirstHighSelect={handleTemperatureRiseFirstHighSelect}
+          fertileStartEditMode={fertileStartEditing}
+          fertileStartDraftIsoDate={fertileStartDraft.isoDate}
+          onFertileStartDraftSelect={handleFertileStartDraftSelect}
         />
         
         {drawerMounted && (
@@ -2043,23 +2320,35 @@ const rotatedDrawerStyle = applyRotation
         />
 
         <InterpretationSettingsDialog
-          open={interpretationSettingsOpen || temperatureRiseEditing}
-          editing={temperatureRiseEditing}
+          open={interpretationSettingsOpen || temperatureRiseEditing || fertileStartEditing}
+          editing={temperatureRiseEditing || fertileStartEditing}
+          editingMode={fertileStartEditing ? 'fertileStart' : 'temperatureRise'}
           manualActive={hasManualTemperatureRiseOverride}
           automaticSummary={automaticTemperatureRiseSummary}
           manualSummary={manualTemperatureRiseSummary}
           draft={temperatureRiseDraft}
           draftEvaluation={draftTemperatureRiseEvaluation}
           draftSummary={draftTemperatureRiseSummary}
+          fertileStartManualActive={hasManualFertileStartOverride}
+          automaticFertileStartSummary={automaticFertileStartSummary}
+          manualFertileStartSummary={manualFertileStartSummary}
+          fertileStartDraft={fertileStartDraft}
+          fertileStartDraftSummary={draftFertileStartSummary}
           canSave={
-            Number.isFinite(Number(temperatureRiseDraft.baselineTemp)) &&
-            Boolean(temperatureRiseDraft.firstHighIsoDate)
+            fertileStartEditing
+              ? Boolean(fertileStartDraft.isoDate)
+              : Number.isFinite(Number(temperatureRiseDraft.baselineTemp)) &&
+                Boolean(temperatureRiseDraft.firstHighIsoDate)
           }
           onClose={() => setInterpretationSettingsOpen(false)}
           onStartEdit={handleStartTemperatureRiseEdit}
           onCancelEdit={handleCancelTemperatureRiseEdit}
           onSaveEdit={handleSaveTemperatureRiseEdit}
           onResetAuto={handleResetTemperatureRiseAuto}
+          onStartFertileStartEdit={handleStartFertileStartEdit}
+          onCancelFertileStartEdit={handleCancelFertileStartEdit}
+          onSaveFertileStartEdit={handleSaveFertileStartEdit}
+          onResetFertileStartAuto={handleResetFertileStartAuto}
           isRotated={applyRotation}
           viewport={viewport}
           isFullScreen={isFullScreen}
