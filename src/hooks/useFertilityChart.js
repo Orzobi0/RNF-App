@@ -691,6 +691,27 @@ if (isFullScreen) {
     ovulationDetails: rawOvulationDetails,
   } = useMemo(
     () => {
+      if (temperatureRiseOverride?.mode === 'ignored') {
+        return {
+          baselineTemp: null,
+          baselineStartIndex: null,
+          firstHighIndex: null,
+          baselineIndices: [],
+          ovulationDetails: {
+            confirmed: false,
+            confirmationIndex: null,
+            infertileStartIndex: null,
+            rule: null,
+            highSequenceIndices: [],
+            sequenceDisplayIndices: [],
+            highOnlyIndices: [],
+            usedIndices: [],
+            ovulationIndex: null,
+            source: 'ignored',
+          },
+        };
+      }
+
       const automaticMetrics = computeOvulationMetrics(processedData, {
         postpartum: normalizedFertilityConfig.postpartum,
       });

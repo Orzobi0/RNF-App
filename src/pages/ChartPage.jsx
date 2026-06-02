@@ -31,6 +31,7 @@ import computePeakStatuses from '@/lib/computePeakStatuses';
 import { prepareChartData } from '@/chart/core/prepareChartData';
 import {
   createAutoTemperatureRiseOverride,
+  createIgnoredTemperatureRiseOverride,
   createManualTemperatureRiseOverride,
   evaluateTemperatureRiseOverride,
   getPreviousValidTemperatureIndices,
@@ -756,6 +757,7 @@ useEffect(() => {
     [targetCycle?.interpretationOverrides?.fertileStart]
   );
   const hasManualTemperatureRiseOverride = temperatureRiseOverride.mode === 'manual';
+  const hasIgnoredTemperatureRiseOverride = temperatureRiseOverride.mode === 'ignored';
   const hasManualFertileStartOverride = fertileStartOverride.mode === 'manual';
   const interpretationProcessedData = useMemo(() => {
     const peakStatuses = computePeakStatuses(mergedData);
@@ -1196,12 +1198,42 @@ const rotatedDrawerStyle = applyRotation
       });
       await refreshFallbackCycle();
       setTemperatureRiseEditing(false);
-      toast({ title: 'Subida termica automatica activada' });
+      toast({ title: 'Subida térmica automática restaurada' });
     } catch (error) {
       console.error('Failed to reset temperature rise override', error);
       toast({
         title: 'No se pudo volver a automatico',
         description: 'Intentalo de nuevo.',
+        variant: 'destructive',
+      });
+    }
+  }, [
+    fertileStartOverride,
+    refreshFallbackCycle,
+    targetCycle?.id,
+    toast,
+    updateCycleInterpretationOverrides,
+  ]);
+
+  const handleIgnoreTemperatureRise = useCallback(async () => {
+    if (!targetCycle?.id || typeof updateCycleInterpretationOverrides !== 'function') return;
+    try {
+      await updateCycleInterpretationOverrides(targetCycle.id, {
+        temperatureRise: createIgnoredTemperatureRiseOverride(),
+        fertileStart: fertileStartOverride,
+      });
+      await refreshFallbackCycle();
+      setTemperatureRiseEditing(false);
+      setFertileStartEditing(false);
+      setTemperatureRiseDraft({ baselineTemp: null, firstHighIsoDate: null });
+      setFertileStartDraft({ isoDate: null });
+      setInterpretationSettingsOpen(true);
+      toast({ title: 'Subida térmica ignorada' });
+    } catch (error) {
+      console.error('Failed to ignore temperature rise override', error);
+      toast({
+        title: 'No se pudo ignorar la subida térmica',
+        description: 'Inténtalo de nuevo.',
         variant: 'destructive',
       });
     }
@@ -1519,14 +1551,28 @@ const rotatedDrawerStyle = applyRotation
 
   const effectiveTemperatureDetailsForFertileStart = useMemo(
     () =>
-      hasManualTemperatureRiseOverride
+      hasIgnoredTemperatureRiseOverride
+        ? null
+        : hasManualTemperatureRiseOverride
         ? manualTemperatureRiseEvaluation?.ovulationDetails ?? null
         : automaticTemperatureRiseMetrics?.ovulationDetails ?? null,
     [
       automaticTemperatureRiseMetrics?.ovulationDetails,
+      hasIgnoredTemperatureRiseOverride,
       hasManualTemperatureRiseOverride,
       manualTemperatureRiseEvaluation?.ovulationDetails,
     ]
+  );
+  const ignoredTemperatureRiseSummary = useMemo(
+    () => ({
+      baselineTemp: null,
+      firstHighIsoDate: null,
+      confirmationIsoDate: null,
+      rule: 'ignored',
+      status: 'ignored',
+      warnings: [],
+    }),
+    []
   );
 
   const buildFertilityStartOutput = useCallback(
@@ -2324,8 +2370,10 @@ const rotatedDrawerStyle = applyRotation
           editing={temperatureRiseEditing || fertileStartEditing}
           editingMode={fertileStartEditing ? 'fertileStart' : 'temperatureRise'}
           manualActive={hasManualTemperatureRiseOverride}
+          ignoredActive={hasIgnoredTemperatureRiseOverride}
           automaticSummary={automaticTemperatureRiseSummary}
           manualSummary={manualTemperatureRiseSummary}
+          ignoredSummary={ignoredTemperatureRiseSummary}
           draft={temperatureRiseDraft}
           draftEvaluation={draftTemperatureRiseEvaluation}
           draftSummary={draftTemperatureRiseSummary}
@@ -2345,6 +2393,14 @@ const rotatedDrawerStyle = applyRotation
           onCancelEdit={handleCancelTemperatureRiseEdit}
           onSaveEdit={handleSaveTemperatureRiseEdit}
           onResetAuto={handleResetTemperatureRiseAuto}
+          onIgnoreTemperatureRise={handleIgnoreTemperatureRise}
+          canIgnoreTemperatureRise={
+            hasManualTemperatureRiseOverride ||
+            Boolean(
+              automaticTemperatureRiseMetrics?.ovulationDetails?.confirmed ||
+              Number.isInteger(automaticTemperatureRiseMetrics?.ovulationDetails?.infertileStartIndex)
+            )
+          }
           onStartFertileStartEdit={handleStartFertileStartEdit}
           onCancelFertileStartEdit={handleCancelFertileStartEdit}
           onSaveFertileStartEdit={handleSaveFertileStartEdit}

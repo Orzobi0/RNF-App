@@ -84,8 +84,8 @@ const normalizeCycleForState = (cycle) => ({
   interpretationOverrides: {
     temperatureRise: {
       mode:
-        cycle?.interpretationOverrides?.temperatureRise?.mode === 'manual'
-          ? 'manual'
+        ['manual', 'ignored'].includes(cycle?.interpretationOverrides?.temperatureRise?.mode)
+          ? cycle.interpretationOverrides.temperatureRise.mode
           : 'auto',
       baselineTemp: Number.isFinite(
         Number(cycle?.interpretationOverrides?.temperatureRise?.baselineTemp)

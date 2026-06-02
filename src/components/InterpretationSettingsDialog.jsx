@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronDown, GripHorizontal, X } from 'lucide-react';
+import { AlertTriangle, ChevronDown, GripHorizontal, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const formatTemp = (value) => (Number.isFinite(Number(value)) ? `${Number(value).toFixed(2)} ºC` : '-');
@@ -65,6 +65,7 @@ const fertileStartWarningLabel = (source) => {
 };
 
 const ruleLabel = (rule, source = null) => {
+  if (rule === 'ignored') return 'No se usa';
   if (rule === 'no-cumple' || hasNoComplyWarning(source)) return 'No cumple';
   switch (rule) {
     case '3-high':
@@ -86,6 +87,8 @@ const ruleLabel = (rule, source = null) => {
 
 const statusLabel = (status, { manual = false } = {}) => {
   switch (status) {
+    case 'ignored':
+      return 'Subida térmica ignorada manualmente';
     case 'confirmed':
       return manual ? 'Confirmada manualmente' : 'Confirmada';
     case 'invalid':
@@ -198,7 +201,14 @@ const SummaryRow = ({ label, value }) => (
   </div>
 );
 
-const getThermalChip = ({ manualActive, summary, summaryOutOfRule }) => {
+const getThermalChip = ({ manualActive, ignoredActive, summary, summaryOutOfRule }) => {
+  if (ignoredActive) {
+    return {
+      label: 'Ignorada',
+      className: 'border-slate-200 bg-slate-100 text-slate-700',
+    };
+  }
+
   if (summaryOutOfRule) {
     return {
       label: 'No cumple',
@@ -221,7 +231,7 @@ const getThermalChip = ({ manualActive, summary, summaryOutOfRule }) => {
 
   if (summary?.status === 'confirmed') {
     return {
-      label: 'Confirmada',
+      label: 'Auto',
       className: 'border-emerald-200 bg-emerald-50 text-emerald-700',
     };
   }
@@ -236,9 +246,8 @@ const getFertileStartChip = ({ manualActive, summary, warning }) => {
   if (manualActive) {
     return {
       label: 'Manual',
-      className: warning
-        ? 'border-amber-200 bg-amber-50 text-amber-700'
-        : 'border-teal-200 bg-teal-50 text-teal-700',
+      className: 'border-pink-200 bg-pink-50 text-pink-700',
+      warning: Boolean(warning),
     };
   }
   if (summary?.status === 'insufficient' || !summary?.isoDate) {
@@ -271,6 +280,14 @@ const SectionHeader = ({ title, chip, expanded, onToggle, disabled = false }) =>
     >
       {chip?.label}
     </span>
+    {chip?.warning && (
+      <AlertTriangle
+        className="h-3.5 w-3.5 shrink-0 text-amber-500"
+        aria-label="Hay avisos"
+      >
+        <title>Hay avisos</title>
+      </AlertTriangle>
+    )}
     {!disabled && (
       <ChevronDown
         className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${
@@ -300,8 +317,10 @@ const InterpretationSettingsDialog = ({
   editing = false,
   editingMode = 'temperatureRise',
   manualActive = false,
+  ignoredActive = false,
   automaticSummary = null,
   manualSummary = null,
+  ignoredSummary = null,
   draft = null,
   draftEvaluation = null,
   draftSummary = null,
@@ -316,6 +335,8 @@ const InterpretationSettingsDialog = ({
   onCancelEdit,
   onSaveEdit,
   onResetAuto,
+  onIgnoreTemperatureRise,
+  canIgnoreTemperatureRise = false,
   onStartFertileStartEdit,
   onCancelFertileStartEdit,
   onSaveFertileStartEdit,
@@ -462,10 +483,10 @@ const InterpretationSettingsDialog = ({
     const handleSave = isFertileStartEditing ? onSaveFertileStartEdit : onSaveEdit;
     const floatingTone = isFertileStartEditing
       ? {
-          container: 'border-teal-200',
-          grip: 'text-teal-500',
-          text: 'text-teal-700',
-          save: 'bg-teal-600 hover:bg-teal-700',
+          container: 'border-pink-200',
+          grip: 'text-pink-500',
+          text: 'text-pink-700',
+          save: 'bg-pink-600 hover:bg-pink-700',
         }
       : {
           container: 'border-orange-200',
@@ -523,7 +544,7 @@ const InterpretationSettingsDialog = ({
     );
   }
 
-  const summary = manualActive ? manualSummary : automaticSummary;
+  const summary = ignoredActive ? ignoredSummary : manualActive ? manualSummary : automaticSummary;
   const summaryWarning = manualActive ? warningLabel(summary) : null;
   const summaryOutOfRule = manualActive && hasNoComplyWarning(summary);
   const fertileStartSummary = fertileStartManualActive
@@ -534,7 +555,7 @@ const InterpretationSettingsDialog = ({
     : null;
   const thermalExpanded = expandedKey === 'thermal';
   const fertileStartExpanded = expandedKey === 'fertileStart';
-  const thermalChip = getThermalChip({ manualActive, summary, summaryOutOfRule });
+  const thermalChip = getThermalChip({ manualActive, ignoredActive, summary, summaryOutOfRule });
   const fertileStartChip = getFertileStartChip({
     manualActive: fertileStartManualActive,
     summary: fertileStartSummary,
@@ -574,6 +595,63 @@ const InterpretationSettingsDialog = ({
         </header>
 
         <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto px-3 pb-[calc(env(safe-area-inset-bottom)+5.5rem)] pt-3 sm:px-4 sm:pb-4">
+                    <section className="overflow-hidden rounded-xl border border-pink-100 bg-pink-50/30">
+            <SectionHeader
+              title="Inicio fértil"
+              chip={fertileStartChip}
+              expanded={fertileStartExpanded}
+              onToggle={toggleFertileStart}
+            />
+
+            {fertileStartExpanded && (
+              <div className="space-y-3 border-t border-pink-100 bg-white/80 px-3 py-3">
+                <div className="space-y-2">
+                  <SummaryRow label="Fecha" value={formatDate(fertileStartSummary?.isoDate)} />
+                  <SummaryRow
+                    label="Día"
+                    value={
+                      Number.isInteger(fertileStartSummary?.cycleDay)
+                        ? `D${fertileStartSummary.cycleDay}`
+                        : '-'
+                    }
+                  />
+                  <SummaryRow label="Motivo" value={fertileStartSummary?.reasonLabel ?? '-'} />
+                  {fertileStartWarning && (
+                    <SummaryRow label="Aviso" value={fertileStartWarning} />
+                  )}
+                </div>
+
+                {fertileStartManualActive ? (
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      className="bg-pink-600 text-white hover:bg-pink-700"
+                      onClick={onStartFertileStartEdit}
+                    >
+                      Modificar
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="border-pink-200 bg-white text-pink-700 hover:bg-pink-50"
+                      onClick={onResetFertileStartAuto}
+                    >
+                      Volver a automático
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    type="button"
+                    className="bg-pink-600 text-white hover:bg-pink-700"
+                    onClick={onStartFertileStartEdit}
+                  >
+                    Modificar manualmente
+                  </Button>
+                )}
+              </div>
+            )}
+          </section>
+          
           <section className="overflow-hidden rounded-xl border border-orange-100 bg-orange-50/35">
             <SectionHeader
               title="Subida térmica"
@@ -605,7 +683,31 @@ const InterpretationSettingsDialog = ({
                   )}
                 </div>
 
-                {manualActive ? (
+                {ignoredActive && (
+                  <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                    La temperatura no cerrará la fase fértil mientras esté ignorada.
+                  </p>
+                )}
+
+                {ignoredActive ? (
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      className="bg-rose-600 text-white hover:bg-rose-700"
+                      onClick={onStartEdit}
+                    >
+                      Modificar manualmente
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                      onClick={onResetAuto}
+                    >
+                      Volver a automático
+                    </Button>
+                  </div>
+                ) : manualActive ? (
                   <div className="flex flex-wrap gap-2">
                     <Button
                       type="button"
@@ -622,77 +724,39 @@ const InterpretationSettingsDialog = ({
                     >
                       Volver a automático
                     </Button>
-                  </div>
-                ) : (
-                  <Button
-                    type="button"
-                    className="bg-rose-600 text-white hover:bg-rose-700"
-                    onClick={onStartEdit}
-                  >
-                    Modificar manualmente
-                  </Button>
-                )}
-              </div>
-            )}
-          </section>
-
-          <section className="overflow-hidden rounded-xl border border-teal-100 bg-teal-50/30">
-            <SectionHeader
-              title="Inicio fértil"
-              chip={fertileStartChip}
-              expanded={fertileStartExpanded}
-              onToggle={toggleFertileStart}
-            />
-
-            {fertileStartExpanded && (
-              <div className="space-y-3 border-t border-teal-100 bg-white/80 px-3 py-3">
-                <div className="space-y-2">
-                  <SummaryRow label="Fecha" value={formatDate(fertileStartSummary?.isoDate)} />
-                  <SummaryRow
-                    label="Día"
-                    value={
-                      Number.isInteger(fertileStartSummary?.cycleDay)
-                        ? `D${fertileStartSummary.cycleDay}`
-                        : '-'
-                    }
-                  />
-                  <SummaryRow label="Motivo" value={fertileStartSummary?.reasonLabel ?? '-'} />
-                  {fertileStartWarning && (
-                    <SummaryRow label="Aviso" value={fertileStartWarning} />
-                  )}
-                </div>
-
-                {fertileStartManualActive ? (
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      className="bg-teal-600 text-white hover:bg-teal-700"
-                      onClick={onStartFertileStartEdit}
-                    >
-                      Modificar
-                    </Button>
                     <Button
                       type="button"
                       variant="outline"
-                      className="border-teal-200 bg-white text-teal-700 hover:bg-teal-50"
-                      onClick={onResetFertileStartAuto}
+                      className="border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                      onClick={onIgnoreTemperatureRise}
                     >
-                      Volver a automático
+                      No usar subida detectada
                     </Button>
                   </div>
                 ) : (
-                  <Button
-                    type="button"
-                    className="bg-teal-600 text-white hover:bg-teal-700"
-                    onClick={onStartFertileStartEdit}
-                  >
-                    Modificar manualmente
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      className="bg-rose-600 text-white hover:bg-rose-700"
+                      onClick={onStartEdit}
+                    >
+                      Modificar manualmente
+                    </Button>
+                    {canIgnoreTemperatureRise && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                        onClick={onIgnoreTemperatureRise}
+                      >
+                        No usar subida detectada
+                      </Button>
+                    )}
+                  </div>
                 )}
               </div>
             )}
           </section>
-
           <FutureSection title="Fase postovulatoria" />
         </div>
       </section>

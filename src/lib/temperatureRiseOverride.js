@@ -206,7 +206,7 @@ const evaluateHighSequenceStandard = ({
 
 export const normalizeTemperatureRiseOverride = (override) => {
   const source = override?.temperatureRise ?? override ?? null;
-  const mode = source?.mode === 'manual' ? 'manual' : 'auto';
+  const mode = ['manual', 'ignored'].includes(source?.mode) ? source.mode : 'auto';
   return {
     mode,
     baselineTemp: normalizeTemp(source?.baselineTemp),
@@ -220,6 +220,13 @@ export const normalizeTemperatureRiseOverride = (override) => {
 
 export const createAutoTemperatureRiseOverride = () => ({
   mode: 'auto',
+  baselineTemp: null,
+  firstHighIsoDate: null,
+  updatedAt: new Date().toISOString(),
+});
+
+export const createIgnoredTemperatureRiseOverride = () => ({
+  mode: 'ignored',
   baselineTemp: null,
   firstHighIsoDate: null,
   updatedAt: new Date().toISOString(),
@@ -251,7 +258,7 @@ export const evaluateTemperatureRiseOverride = (
     return {
       active: false,
       mode: normalized.mode,
-      status: isPendingManualDraft ? 'pending' : 'auto',
+      status: normalized.mode === 'ignored' ? 'ignored' : isPendingManualDraft ? 'pending' : 'auto',
       baselineTemp,
       firstHighIndex: null,
       firstHighIsoDate: normalized.firstHighIsoDate,

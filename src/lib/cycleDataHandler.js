@@ -146,7 +146,9 @@ const normalizeInterpretationOverrides = (value) => {
     source.fertileStart && typeof source.fertileStart === 'object'
       ? source.fertileStart
       : {};
-  const mode = temperatureRise.mode === 'manual' ? 'manual' : 'auto';
+  const mode = ['manual', 'ignored'].includes(temperatureRise.mode)
+    ? temperatureRise.mode
+    : 'auto';
   const baselineTemp = Number(temperatureRise.baselineTemp);
 
   return {
