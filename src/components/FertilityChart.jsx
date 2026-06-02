@@ -2281,6 +2281,7 @@ const rotationWrapperStyle = rotationStageStyle
                   ? 'rgba(245, 158, 11, 0.12)'
                   : 'rgba(148, 163, 184, 0.1)';
                 const contextText = isAboveManualBaseline ? '#b45309' : '#64748b';
+                const contextLabel = temperatureRiseDraftContextIndices.length - position;
                 return (
                   <g key={`temperature-rise-context-${index}`}>
                     <circle
@@ -2293,7 +2294,7 @@ const rotationWrapperStyle = rotationStageStyle
                     />
                     <text
                       x={getX(index)}
-                      y={getY(temp) + 16}
+                      y={getY(temp) + 20}
                       textAnchor="middle"
                       fontSize={Math.max(responsiveFontSize(0.62), isFullScreen ? 8 : 7)}
                       fontWeight={700}
@@ -2302,7 +2303,7 @@ const rotationWrapperStyle = rotationStageStyle
                       strokeWidth={1.6}
                       paintOrder="stroke"
                     >
-                      {position + 1}
+                      {contextLabel}
                     </text>
                   </g>
                 );
@@ -2345,7 +2346,7 @@ const rotationWrapperStyle = rotationStageStyle
                     />
                     <text
                       x={getX(index)}
-                      y={Math.max(12, getY(temp) - (isFirstHigh ? 16 : 13))}
+                      y={Math.max(12, getY(temp) - (isFirstHigh ? 24 : 20))}
                       textAnchor="middle"
                       fontSize={Math.max(responsiveFontSize(0.72), isFullScreen ? 10 : 8.5)}
                       fontWeight={800}
@@ -2366,7 +2367,7 @@ const rotationWrapperStyle = rotationStageStyle
                     x={getX(temperatureRiseDraftFirstHighIndex)}
                     y={Math.max(
                       18,
-                      getY(allDataPoints[temperatureRiseDraftFirstHighIndex].displayTemperature) - 28
+                      getY(allDataPoints[temperatureRiseDraftFirstHighIndex].displayTemperature) - 38
                     )}
                     textAnchor="middle"
                     fontSize={Math.max(responsiveFontSize(0.72), isFullScreen ? 10 : 9)}
