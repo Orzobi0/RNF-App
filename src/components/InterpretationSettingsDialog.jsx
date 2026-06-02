@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { GripHorizontal, X } from 'lucide-react';
+import { ChevronDown, GripHorizontal, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-const formatTemp = (value) => (Number.isFinite(Number(value)) ? `${Number(value).toFixed(2)} C` : '-');
+const formatTemp = (value) => (Number.isFinite(Number(value)) ? `${Number(value).toFixed(2)} ºC` : '-');
 
 const formatDate = (isoDate) => {
   if (!isoDate) return '-';
@@ -33,16 +33,16 @@ const hasNoComplyWarning = (source) => {
 const warningLabel = (source) => {
   const codes = getWarningCodes(source);
   if (codes.includes('baseline-below-previous-six')) {
-    return 'Hay temperaturas previas por encima de la linea base';
+    return 'Hay temperaturas previas por encima de la línea base';
   }
   if (codes.includes('first-high-not-above-baseline')) {
-    return 'El dia seleccionado no supera la linea base';
+    return 'El día seleccionado no supera la línea base';
   }
   if (codes.includes('missing-previous-six')) {
     return 'Faltan 6 temperaturas previas';
   }
   if (codes.includes('baseline-above-previous-six')) {
-    return 'Linea base manual conservadora';
+    return 'Línea base manual conservadora';
   }
   return null;
 };
@@ -53,24 +53,24 @@ const ruleLabel = (rule, source = null) => {
     case '3-high':
       return '3/6';
     case 'german-3+1':
-      return '+4 por excepcion';
+      return '+4 por excepción';
     case 'german-2nd-exception':
-      return 'segunda excepcion';
+      return 'segunda excepción';
     case 'pp-after-3-high':
       return 'postparto con dia extra';
     case 'pp-after-german-3+1':
       return 'postparto +4 con dia extra';
     case 'pp-after-german-2nd-exception':
-      return 'postparto segunda excepcion';
+      return 'postparto segunda excepción';
     default:
       return rule || '-';
   }
 };
 
-const statusLabel = (status) => {
+const statusLabel = (status, { manual = false } = {}) => {
   switch (status) {
     case 'confirmed':
-      return 'Confirmada manualmente';
+      return manual ? 'Confirmada manualmente' : 'Confirmada';
     case 'invalid':
       return 'Manual fuera de regla';
     case 'insufficient':
@@ -91,7 +91,7 @@ const compactStatusLabel = (evaluation) => {
         return 'Confirmada D+3';
       case 'german-3+1':
       case 'german-2nd-exception':
-        return 'Excepcion D+4';
+        return 'Excepción D+4';
       case 'pp-after-3-high':
       case 'pp-after-german-3+1':
       case 'pp-after-german-2nd-exception':
@@ -118,15 +118,15 @@ const compactRuleLabel = (rule) => {
     case '3-high':
       return 'regla 3/6';
     case 'german-3+1':
-      return '1a excepcion';
+      return '1ª excepción';
     case 'german-2nd-exception':
-      return '2a excepcion';
+      return '2ª excepción';
     case 'pp-after-3-high':
       return 'postparto';
     case 'pp-after-german-3+1':
-      return 'postparto - 1a excepcion';
+      return 'postparto - 1ª excepción';
     case 'pp-after-german-2nd-exception':
-      return 'postparto - 2a excepcion';
+      return 'postparto - 2ª excepción';
     default:
       return 'confirmada';
   }
@@ -134,16 +134,16 @@ const compactRuleLabel = (rule) => {
 
 const compactDraftText = (draft, evaluation, summary) => {
   if (!draft?.firstHighIsoDate) {
-    return 'Selecciona primer dia de subida';
+    return 'Selecciona primer día de subida';
   }
 
   const warning = warningLabel(summary) ?? warningLabel(evaluation);
-  if (warning && warning !== 'Linea base manual conservadora') {
+  if (warning && warning !== 'Línea base manual conservadora') {
     return warning;
   }
 
   if (evaluation?.status === 'invalid') {
-    return 'Sin confirmacion termica por reglas';
+    return 'Sin confirmación térmica por reglas';
   }
 
   if (evaluation?.status === 'insufficient') {
@@ -151,7 +151,7 @@ const compactDraftText = (draft, evaluation, summary) => {
   }
 
   if (evaluation?.status === 'pending') {
-    return 'Subida termica pendiente';
+    return 'Subida térmica pendiente';
   }
 
   if (evaluation?.status === 'confirmed') {
@@ -161,7 +161,7 @@ const compactDraftText = (draft, evaluation, summary) => {
       : null;
     const dayPart = day ? `${date} ${day}` : date;
     const rule = compactRuleLabel(summary?.rule ?? evaluation?.rule ?? evaluation?.ovulationDetails?.rule);
-    return `Confirmacion termica el ${dayPart} - ${rule}`;
+    return `Confirmación térmica el ${dayPart} - ${rule}`;
   }
 
   return compactStatusLabel(evaluation);
@@ -174,14 +174,79 @@ const SummaryRow = ({ label, value }) => (
   </div>
 );
 
+const getThermalChip = ({ manualActive, summary, summaryOutOfRule }) => {
+  if (summaryOutOfRule) {
+    return {
+      label: 'No cumple',
+      className: 'border-amber-200 bg-amber-50 text-amber-700',
+    };
+  }
+
+  if (manualActive) {
+    if (summary?.status === 'pending' || summary?.status === 'insufficient') {
+      return {
+        label: 'Pendiente',
+        className: 'border-orange-200 bg-orange-50 text-orange-700',
+      };
+    }
+    return {
+      label: 'Manual',
+      className: 'border-rose-200 bg-rose-50 text-rose-700',
+    };
+  }
+
+  if (summary?.status === 'confirmed') {
+    return {
+      label: 'Confirmada',
+      className: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    };
+  }
+
+  return {
+    label: 'Auto',
+    className: 'border-slate-200 bg-slate-50 text-slate-600',
+  };
+};
+
+const SectionHeader = ({ title, chip, expanded, onToggle, disabled = false }) => (
+  <button
+    type="button"
+    className={`flex min-h-12 w-full items-center gap-3 px-3 py-2.5 text-left ${
+      disabled ? 'cursor-default' : 'hover:bg-orange-50/60'
+    }`}
+    onClick={disabled ? undefined : onToggle}
+    disabled={disabled}
+    aria-expanded={disabled ? undefined : expanded}
+  >
+    <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800">{title}</span>
+    <span
+      className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
+        chip?.className ?? 'border-slate-200 bg-slate-50 text-slate-500'
+      }`}
+    >
+      {chip?.label}
+    </span>
+    {!disabled && (
+      <ChevronDown
+        className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${
+          expanded ? 'rotate-180' : ''
+        }`}
+        aria-hidden="true"
+      />
+    )}
+  </button>
+);
+
 const FutureSection = ({ title }) => (
-  <div className="rounded-lg border border-slate-100 bg-slate-50/70 p-3 opacity-75">
-    <div className="flex items-center justify-between gap-3">
-      <p className="text-sm font-semibold text-slate-600">{title}</p>
-      <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-400">
-        Proximamente
-      </span>
-    </div>
+  <div className="overflow-hidden rounded-xl border border-slate-100 bg-slate-50/70">
+    <SectionHeader
+      title={title}
+      chip={{
+        label: 'Próximamente',
+        className: 'border-slate-200 bg-white text-slate-400',
+      }}
+      disabled
+    />
   </div>
 );
 
@@ -207,7 +272,9 @@ const InterpretationSettingsDialog = ({
   const [floatingPosition, setFloatingPosition] = useState(null);
   const [floatingMovedByUser, setFloatingMovedByUser] = useState(false);
   const [isDraggingFloatingBar, setIsDraggingFloatingBar] = useState(false);
+  const [expandedKey, setExpandedKey] = useState('thermal');
   const dragStateRef = useRef(null);
+  const wasOpenRef = useRef(false);
 
   const viewportWidth = Math.max(
     1,
@@ -253,6 +320,13 @@ const InterpretationSettingsDialog = ({
   useEffect(() => {
     setFloatingMovedByUser(false);
   }, [isFullScreen, isRotated]);
+
+  useEffect(() => {
+    if (open && !wasOpenRef.current) {
+      setExpandedKey('thermal');
+    }
+    wasOpenRef.current = open;
+  }, [open]);
 
   const clampFloatingPosition = useCallback((position) => {
     const margin = 20;
@@ -377,86 +451,103 @@ const InterpretationSettingsDialog = ({
   const summary = manualActive ? manualSummary : automaticSummary;
   const summaryWarning = manualActive ? warningLabel(summary) : null;
   const summaryOutOfRule = manualActive && hasNoComplyWarning(summary);
+  const thermalExpanded = expandedKey === 'thermal';
+  const thermalChip = getThermalChip({ manualActive, summary, summaryOutOfRule });
+  const toggleThermal = () => {
+    setExpandedKey((current) => (current === 'thermal' ? null : 'thermal'));
+  };
 
   return (
     <div className="fixed inset-0 z-[350] flex items-end justify-center bg-slate-950/35 p-0 sm:items-center sm:p-4">
       <section
         role="dialog"
         aria-modal="true"
-        aria-label="Ajustes de interpretacion"
+        aria-label="Ajustes de interpretación"
         className="flex max-h-[92dvh] w-full max-w-lg flex-col rounded-t-2xl border border-orange-100 bg-white shadow-2xl sm:rounded-2xl"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
         <header className="flex shrink-0 items-start justify-between gap-3 border-b border-orange-100 px-4 py-3">
           <div>
-            <h2 className="text-base font-semibold text-titulo">Ajustes de interpretacion</h2>
+            <h2 className="text-base font-semibold text-titulo">Ajustes de interpretación</h2>
+            <p className="mt-0.5 text-xs text-slate-500">
+              Configura cómo se interpreta este ciclo
+            </p>
           </div>
           <button
             type="button"
             className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
             onClick={onClose}
-            aria-label="Cerrar ajustes de interpretacion"
+            aria-label="Cerrar ajustes de interpretación"
           >
             <X className="h-4 w-4" />
           </button>
         </header>
 
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
-          <div className="rounded-xl border border-orange-100 bg-orange-50/50 p-3">
-            <p className="text-sm font-semibold text-red-800">
-              {manualActive ? 'Subida termica manual' : 'Subida termica automatica'}
-            </p>
-            <div className="mt-3 space-y-2">
-              <SummaryRow label="Linea base" value={formatTemp(summary?.baselineTemp)} />
-              <SummaryRow label="Primer dia alto" value={formatDate(summary?.firstHighIsoDate)} />
-              <SummaryRow
-                label="Confirmacion"
-                value={summaryOutOfRule ? '-' : formatDate(summary?.confirmationIsoDate)}
-              />
-              <SummaryRow label="Regla" value={ruleLabel(summary?.rule, summary)} />
-              {manualActive && (
-                <SummaryRow
-                  label="Estado"
-                  value={summaryOutOfRule ? 'Manual fuera de regla' : statusLabel(summary?.status)}
-                />
-              )}
-              {summaryWarning && (
-                <SummaryRow label="Aviso" value={summaryWarning} />
-              )}
-            </div>
-          </div>
+        <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto px-3 py-3 sm:px-4">
+          <section className="overflow-hidden rounded-xl border border-orange-100 bg-orange-50/35">
+            <SectionHeader
+              title="Subida térmica"
+              chip={thermalChip}
+              expanded={thermalExpanded}
+              onToggle={toggleThermal}
+            />
 
-          <section className="space-y-3">
-            <div>
-              <h3 className="text-sm font-semibold text-slate-700">Subida termica</h3>
-              <p className="text-xs leading-relaxed text-slate-500">
-                La fase postovulatoria confirmada requiere tambien cierre por moco/pico.
-              </p>
-            </div>
+            {thermalExpanded && (
+              <div className="space-y-3 border-t border-orange-100 bg-white/80 px-3 py-3">
+                <div className="space-y-2">
+                  <SummaryRow label="Línea base" value={formatTemp(summary?.baselineTemp)} />
+                  <SummaryRow label="Primer día alto" value={formatDate(summary?.firstHighIsoDate)} />
+                  <SummaryRow
+                    label="Confirmación"
+                    value={summaryOutOfRule ? '-' : formatDate(summary?.confirmationIsoDate)}
+                  />
+                  <SummaryRow label="Regla" value={ruleLabel(summary?.rule, summary)} />
+                  <SummaryRow
+                    label="Estado"
+                    value={
+                      summaryOutOfRule
+                        ? 'Manual fuera de regla'
+                        : statusLabel(summary?.status, { manual: manualActive })
+                    }
+                  />
+                  {summaryWarning && (
+                    <SummaryRow label="Aviso" value={summaryWarning} />
+                  )}
+                </div>
 
-            {manualActive ? (
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" className="bg-rose-600 text-white hover:bg-rose-700" onClick={onStartEdit}>
-                  Modificar
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="border-orange-200 bg-white text-red-700 hover:bg-orange-50"
-                  onClick={onResetAuto}
-                >
-                  Volver a automatico
-                </Button>
+                {manualActive ? (
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      className="bg-rose-600 text-white hover:bg-rose-700"
+                      onClick={onStartEdit}
+                    >
+                      Modificar
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="border-orange-200 bg-white text-red-700 hover:bg-orange-50"
+                      onClick={onResetAuto}
+                    >
+                      Volver a automático
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    type="button"
+                    className="bg-rose-600 text-white hover:bg-rose-700"
+                    onClick={onStartEdit}
+                  >
+                    Modificar manualmente
+                  </Button>
+                )}
               </div>
-            ) : (
-              <Button type="button" className="bg-rose-600 text-white hover:bg-rose-700" onClick={onStartEdit}>
-                Modificar manualmente
-              </Button>
             )}
           </section>
 
-          <FutureSection title="Inicio fertil manual" />
-          <FutureSection title="Otras fases" />
+          <FutureSection title="Inicio fértil" />
+          <FutureSection title="Fase postovulatoria" />
         </div>
       </section>
     </div>
