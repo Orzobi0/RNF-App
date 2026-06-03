@@ -7,6 +7,7 @@ import React, {
   useCallback,
 } from 'react';
 import FertilityChart from '@/components/FertilityChart';
+import PhaseEducationSheet from '@/components/chartElements/PhaseEducationSheet';
 import InterpretationSettingsDialog from '@/components/InterpretationSettingsDialog';
 import { useCycleData } from '@/hooks/useCycleData';
 import { differenceInDays, format, parseISO, startOfDay } from 'date-fns';
@@ -47,6 +48,7 @@ import {
   mergeFertilityStartConfig,
   normalizeStoredPreferences,
 } from '@/lib/preferences';
+import { getPhaseEducationContent } from '@/lib/phaseEducationContent';
 
 const normalizeCalculatorSource = (source) => {
   if (!source) return '';
@@ -521,6 +523,7 @@ useEffect(() => {
   return () => window.clearTimeout(t);
 }, [settingsOpen, drawerMounted]);
   const [phaseOverlay, setPhaseOverlay] = useState(null);
+  const [phaseEducationOverlay, setPhaseEducationOverlay] = useState(null);
   const [chartSettings, setChartSettings] = useState(() => {
     const defaults = normalizeStoredPreferences(PREFERENCE_DEFAULTS);
     return {
@@ -1854,20 +1857,25 @@ const rotatedDrawerStyle = applyRotation
   const closePhaseOverlay = useCallback(() => {
     setPhaseOverlay(null);
   }, []);
+  const closePhaseEducationOverlay = useCallback(() => {
+    setPhaseEducationOverlay(null);
+  }, []);
   const toggleInterpretation = () => {
     setShowInterpretation((current) => {
       const next = !current;
       if (!next) {
         setPhaseOverlay(null);
+        setPhaseEducationOverlay(null);
       }
       return next;
     });
   };
   useEffect(() => {
-    if (!showInterpretation && phaseOverlay) {
+    if (!showInterpretation && (phaseOverlay || phaseEducationOverlay)) {
       setPhaseOverlay(null);
+      setPhaseEducationOverlay(null);
     }
-  }, [phaseOverlay, showInterpretation]);
+  }, [phaseEducationOverlay, phaseOverlay, showInterpretation]);
   useEffect(() => {
     if (!phaseOverlay) return undefined;
 
@@ -2296,6 +2304,39 @@ const isManualFertile =
     [cyclePostpartumMode, formatDateFromIndex]
   );
 
+  const handleShowPhaseEducation = useCallback(
+    (info = {}) => {
+      if (!info) return;
+      const education = getPhaseEducationContent({
+        phase: info.phase,
+        status: info.status,
+        source: info.source,
+        reasons: info.reasons,
+        message: info.message,
+        label: info.label ?? info.displayLabel ?? null,
+        startIndex: info.startIndex,
+        endIndex: info.endIndex,
+        limitIndex: info.limitIndex,
+        postpartumActive: cyclePostpartumMode,
+        fertilityStartConfig,
+        cpmSelection,
+        t8Selection,
+        formatDateFromIndex,
+      });
+
+      if (!education) return;
+      setPhaseOverlay(null);
+      setPhaseEducationOverlay(education);
+    },
+    [
+      cpmSelection,
+      cyclePostpartumMode,
+      fertilityStartConfig,
+      formatDateFromIndex,
+      t8Selection,
+    ]
+  );
+
   const handleToggleFullScreen = () => {
   const isCurrentlyLandscape =
     typeof window !== 'undefined' && window.innerWidth > window.innerHeight;
@@ -2466,6 +2507,7 @@ const isManualFertile =
           fertilityCalculatorCycles={fertilityCalculatorCycles}
           fertilityCalculatorCandidates={combinedFertilityCalculatorCandidates}
           onShowPhaseInfo={handleShowPhaseInfo}
+          onShowPhaseEducation={handleShowPhaseEducation}
           isArchivedCycle={!isViewingCurrentCycle}
           cycleEndDate={targetCycle?.endDate ?? null}
           measuredViewport={viewport}
@@ -2521,6 +2563,14 @@ const isManualFertile =
           phaseOverlay={phaseOverlay}
           onClose={closePhaseOverlay}
           cardRef={phaseOverlayCardRef}
+          isRotated={applyRotation}
+          viewport={viewport}
+        />
+
+        <PhaseEducationSheet
+          open={Boolean(phaseEducationOverlay)}
+          education={phaseEducationOverlay}
+          onClose={closePhaseEducationOverlay}
           isRotated={applyRotation}
           viewport={viewport}
         />
