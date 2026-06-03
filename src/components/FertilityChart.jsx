@@ -31,7 +31,6 @@ const FertilityChart = ({
   fertilityCalculatorCycles = [],
   fertilityCalculatorCandidates = null,
   onShowPhaseInfo = null,
-  onShowPhaseEducation = null,
   isArchivedCycle = false,
   cycleEndDate = null,
   exportMode = false,
@@ -2314,19 +2313,6 @@ const rotationWrapperStyle = rotationStageStyle
                     Math.min(PHASE_RAIL_HITBOX_HEIGHT, rectY + rectHeight - railHitboxY)
                   );
                   const railColors = getSegmentRailColors(segment);
-                  const showEducationIcon =
-                    !exportMode &&
-                    typeof onShowPhaseEducation === 'function' &&
-                    segment.bounds.width >= 44;
-                  const educationIconHitSize = 32;
-                  const educationIconVisualSize = 15;
-                  const educationIconCx = Math.min(
-                    segment.bounds.x + segment.bounds.width - 14,
-                    segment.bounds.x + segment.bounds.width / 2
-                  );
-                  const educationIconCy = rectY + rectHeight - 16;
-                  const educationIconHitX = educationIconCx - educationIconHitSize / 2;
-                  const educationIconHitY = educationIconCy - educationIconHitSize / 2;
                   const handleActivate = (event) => {
                     if (typeof event?.preventDefault === 'function') {
                       event.preventDefault();
@@ -2350,39 +2336,10 @@ const rotationWrapperStyle = rotationStageStyle
 });
                     }
                   };
-                  const handleEducationActivate = (event) => {
-                    if (typeof event?.preventDefault === 'function') {
-                      event.preventDefault();
-                    }
-                    if (typeof event?.stopPropagation === 'function') {
-                      event.stopPropagation();
-                    }
-                    if (typeof onShowPhaseEducation === 'function') {
-                      onShowPhaseEducation({
-                        phase: segment.phase,
-                        status: segment.status,
-                        source: segment.source ?? null,
-                        reasons: segment.reasons,
-                        message: segment.message,
-                        startIndex: segment.startIndex,
-                        endIndex: segment.endIndex,
-                        limitIndex: phaseInfoLimitIndex,
-                        displayLabel: segment.displayLabel ?? null,
-                        warnings: segment.warnings ?? segment.reasons?.warnings ?? [],
-                        label: segment.displayLabel ?? segment.message ?? null,
-                      });
-                    }
-                  };
                   const handleKeyDown = (event) => {
                     if (event.key === 'Enter' || event.key === ' ') {
                       event.preventDefault();
                       handleActivate(event);
-                    }
-                  };
-                  const handleEducationKeyDown = (event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault();
-                      handleEducationActivate(event);
                     }
                   };
 
@@ -2439,50 +2396,6 @@ const rotationWrapperStyle = rotationStageStyle
                           <title>{tooltipText}</title>
                           {displayText}
                         </text>
-                      ) : null}
-                      {showEducationIcon ? (
-                        <g
-                          role="button"
-                          aria-label="Ver explicacion detallada de esta fase"
-                          tabIndex={0}
-                          data-chart-interactive="true"
-                          data-chart-phase-education="true"
-                          onClick={handleEducationActivate}
-                          onKeyDown={handleEducationKeyDown}
-                          pointerEvents="all"
-                          style={{ cursor: 'pointer' }}
-                        >
-                          <title>Ver explicacion detallada de esta fase</title>
-                          <rect
-                            x={educationIconHitX}
-                            y={educationIconHitY}
-                            width={educationIconHitSize}
-                            height={educationIconHitSize}
-                            rx={educationIconHitSize / 2}
-                            fill="transparent"
-                          />
-                          <circle
-                            cx={educationIconCx}
-                            cy={educationIconCy}
-                            r={educationIconVisualSize / 2}
-                            fill="rgba(255, 255, 255, 0.78)"
-                            stroke="rgba(157, 23, 77, 0.45)"
-                            strokeWidth={1}
-                          />
-                          <text
-                            x={educationIconCx}
-                            y={educationIconCy + 0.5}
-                            fill="rgba(157, 23, 77, 0.76)"
-                            fontSize={12}
-                            fontWeight={700}
-                            dominantBaseline="middle"
-                            textAnchor="middle"
-                            pointerEvents="none"
-                            aria-hidden="true"
-                          >
-                            +
-                          </text>
-                        </g>
                       ) : null}
                     </g>
                   );

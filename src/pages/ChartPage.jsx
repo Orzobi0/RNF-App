@@ -12,7 +12,7 @@ import InterpretationSettingsDialog from '@/components/InterpretationSettingsDia
 import { useCycleData } from '@/hooks/useCycleData';
 import { differenceInDays, format, parseISO, startOfDay } from 'date-fns';
 import generatePlaceholders from '@/lib/generatePlaceholders';
-import { AlertTriangle, Baby, CalendarDays, Check, CheckCircle2, Heart, X } from 'lucide-react';
+import { AlertTriangle, Baby, CalendarDays, Check, CheckCircle2, CirclePlus, Heart, X } from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import DataEntryForm from '@/components/DataEntryForm';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
@@ -166,6 +166,7 @@ const Checkbox = ({
 const PhaseInfoFloatingCard = ({
   phaseOverlay,
   onClose,
+  onOpenEducation,
   cardRef,
   isRotated = false,
   viewport = null,
@@ -195,7 +196,7 @@ const PhaseInfoFloatingCard = ({
         role="dialog"
         aria-modal="false"
         aria-label="Detalle de interpretación del ciclo"
-        className={`pointer-events-auto overflow-y-auto rounded-2xl border border-rose-200/90 bg-white/95 p-2.5 text-left shadow-lg shadow-rose-200/45 ${
+        className={`pointer-events-auto relative overflow-y-auto rounded-2xl border border-rose-200/90 bg-white/95 p-2.5 pb-9 text-left shadow-lg shadow-rose-200/45 ${
           isRotated
             ? 'w-[min(calc(100vw-3rem),24rem)] max-w-[24rem]'
             : 'w-[calc(100vw-7rem)] min-w-[12.5rem] max-w-[18rem]'
@@ -272,6 +273,20 @@ const PhaseInfoFloatingCard = ({
             </p>
           )}
         </div>
+        {phaseOverlay.educationPayload && (
+          <button
+            type="button"
+            aria-label="Ver explicación detallada de esta fase"
+            className="absolute bottom-1.5 right-1.5 inline-flex h-8 w-8 items-center justify-center rounded-full text-rose-500/80 transition hover:bg-rose-50 hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-200"
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              onOpenEducation?.(phaseOverlay.educationPayload);
+            }}
+          >
+            <CirclePlus className="h-4 w-4" aria-hidden="true" />
+          </button>
+        )}
       </section>
     </div>
   );
@@ -2292,6 +2307,20 @@ const isManualFertile =
         return;
       }
 
+      const educationPayload = {
+        ...info,
+        phase,
+        status: info.status ?? reasons?.status ?? null,
+        source: info.source ?? reasons?.source ?? null,
+        reasons,
+        message,
+        label: title,
+        displayLabel: info.displayLabel ?? title,
+        startIndex: info.startIndex,
+        endIndex: info.endIndex,
+        limitIndex: info.limitIndex,
+        warnings: warningCodes,
+      };
 
       setPhaseOverlay({
         title,
@@ -2299,24 +2328,17 @@ const isManualFertile =
         description,
         warning: getManualWarningText(),
         postpartumActive,
+        educationPayload,
       });
     },
     [cyclePostpartumMode, formatDateFromIndex]
   );
 
-  const handleShowPhaseEducation = useCallback(
-    (info = {}) => {
-      if (!info) return;
+  const handleOpenPhaseEducationFromTooltip = useCallback(
+    (payload = null) => {
+      if (!payload) return;
       const education = getPhaseEducationContent({
-        phase: info.phase,
-        status: info.status,
-        source: info.source,
-        reasons: info.reasons,
-        message: info.message,
-        label: info.label ?? info.displayLabel ?? null,
-        startIndex: info.startIndex,
-        endIndex: info.endIndex,
-        limitIndex: info.limitIndex,
+        ...payload,
         postpartumActive: cyclePostpartumMode,
         fertilityStartConfig,
         cpmSelection,
@@ -2507,7 +2529,6 @@ const isManualFertile =
           fertilityCalculatorCycles={fertilityCalculatorCycles}
           fertilityCalculatorCandidates={combinedFertilityCalculatorCandidates}
           onShowPhaseInfo={handleShowPhaseInfo}
-          onShowPhaseEducation={handleShowPhaseEducation}
           isArchivedCycle={!isViewingCurrentCycle}
           cycleEndDate={targetCycle?.endDate ?? null}
           measuredViewport={viewport}
@@ -2562,6 +2583,7 @@ const isManualFertile =
         <PhaseInfoFloatingCard
           phaseOverlay={phaseOverlay}
           onClose={closePhaseOverlay}
+          onOpenEducation={handleOpenPhaseEducationFromTooltip}
           cardRef={phaseOverlayCardRef}
           isRotated={applyRotation}
           viewport={viewport}

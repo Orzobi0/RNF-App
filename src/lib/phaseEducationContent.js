@@ -16,15 +16,6 @@ const callFormatDate = (formatDateFromIndex, index) => {
   return typeof label === 'string' && label.trim() && label !== '\u2014' ? label : null;
 };
 
-const cycleDayLabel = (index) => (isInteger(index) ? `Dia ${index + 1}` : null);
-
-const formatIndexLabel = (index, formatDateFromIndex) => {
-  const day = cycleDayLabel(index);
-  const date = callFormatDate(formatDateFromIndex, index);
-  if (day && date) return `${day} (${date})`;
-  return day ?? date ?? null;
-};
-
 const getWindow = (reasons = {}) =>
   reasons?.window ?? reasons?.fertileWindow ?? reasons?.details?.fertileWindow ?? null;
 
@@ -140,12 +131,7 @@ const getClosureInfo = (reasons = {}) => {
       ? details.postOvulatoryStartIndex
       : null;
 
-  const temperatureRule =
-    fertileWindow?.temperatureRule ??
-    details?.temperatureRule ??
-    temperature?.rule ??
-    temperature?.temperatureRule ??
-    null;
+  const temperatureRule = getTemperatureRule(reasons);
 
   const temperatureConfirmationIndex = isInteger(fertileWindow?.temperatureConfirmationIndex)
     ? fertileWindow.temperatureConfirmationIndex
@@ -166,15 +152,47 @@ const getClosureInfo = (reasons = {}) => {
   };
 };
 
-const getRuleLabel = (rule) => {
-  const normalized = String(rule ?? '').toLowerCase();
-  if (!normalized) return null;
-  if (normalized.includes('first') || normalized.includes('primera')) return 'primera excepcion';
-  if (normalized.includes('second') || normalized.includes('segunda')) return 'segunda excepcion';
-  if (normalized.includes('3') || normalized.includes('normal')) return 'regla normal 3/6';
-  if (normalized.includes('manual')) return 'ajuste manual';
-  if (normalized.includes('ignored') || normalized.includes('alter')) return 'valores alterados';
-  return rule;
+const getTemperatureRule = (reasons = {}) => {
+  const fertileWindow = getWindow(reasons);
+  const details = getDetails(reasons);
+  const temperature = reasons?.temperature ?? {};
+  return (
+    fertileWindow?.temperatureRule ??
+    reasons?.fertileWindow?.temperatureRule ??
+    details?.temperatureRule ??
+    temperature?.rule ??
+    temperature?.temperatureRule ??
+    null
+  );
+};
+
+const getPeakIndex = (reasons = {}) => {
+  const mucus = reasons?.mucus ?? {};
+  const details = getDetails(reasons);
+  const candidates = [
+    mucus?.peakDayIndex,
+    mucus?.peakIndex,
+    details?.effectivePeakIndex,
+    details?.contextPeakIndex,
+    details?.peakDayIndex,
+    details?.peakIndex,
+    details?.ovulationDetails?.peakDayIndex,
+  ];
+  return candidates.find((value) => isInteger(value)) ?? null;
+};
+
+const getPeakText = (reasons, formatDateFromIndex) => {
+  const peakIndex = getPeakIndex(reasons);
+  const peakDate = callFormatDate(formatDateFromIndex, peakIndex);
+  return peakDate ? `el ${peakDate}` : 'el dia pico registrado';
+};
+
+const getPeakDetectionText = (reasons, formatDateFromIndex) => {
+  const peakIndex = getPeakIndex(reasons);
+  const peakDate = callFormatDate(formatDateFromIndex, peakIndex);
+  return peakDate
+    ? `Se ha identificado un dia pico marcado por la usuaria: el ${peakDate}.`
+    : 'Se ha identificado un dia pico marcado por la usuaria.';
 };
 
 const getCalculatorMode = (candidate, selection) => {
@@ -208,6 +226,20 @@ const getT8RuleText = (mode) => {
   return 'El T-8 usa ciclos anteriores con subida termica confirmada: toma el primer dia alto mas precoz y resta 8 dias.';
 };
 
+const MUCUS_LEGEND_SECTION = {
+  title: 'Como clasifica la app el moco',
+  body: [
+    'S: sequedad o ausencia de moco visible.',
+    '\u00d8: no se percibe humedad ni sequedad y no hay moco visible.',
+    'h: humedad sin moco visible.',
+    'M: moco presente, pero no de maxima fertilidad.',
+    'M+: sensacion mojada, resbaladiza, lubricante o moco cristalino, filante o similar a clara de huevo.',
+  ],
+};
+
+const isMucusCriterion = (criterion) =>
+  ['mucus', 'highMucus', 'peak', 'whiteSymbol', 'mucusSign'].includes(criterion);
+
 const hasActiveCalculation = ({ fertilityStartConfig, cpmSelection, t8Selection }) =>
   Boolean(fertilityStartConfig?.calculators?.cpm && cpmSelection !== 'none') ||
   Boolean(fertilityStartConfig?.calculators?.t8 && t8Selection !== 'none');
@@ -238,32 +270,11 @@ export const getMethodLabel = ({
   return 'criterios activos de interpretacion';
 };
 
-const buildFacts = ({ startIndex, endIndex, limitIndex, reasons, formatDateFromIndex }) =>
-  compact([
-    isInteger(startIndex) && {
-      label: 'Inicio del segmento',
-      value: formatIndexLabel(startIndex, formatDateFromIndex),
-    },
-    isInteger(endIndex) && {
-      label: 'Fin visible del segmento',
-      value: formatIndexLabel(endIndex, formatDateFromIndex),
-    },
-    isInteger(limitIndex) && {
-      label: 'Limite evaluado',
-      value: formatIndexLabel(limitIndex, formatDateFromIndex),
-    },
-    getUsedCandidates(reasons).length > 1 && {
-      label: 'Criterios comparados',
-      value: `${getUsedCandidates(reasons).length} candidatos; se usa el mas precoz.`,
-    },
-  ]);
-
-const makeContent = ({ title, eyebrow, summary, sections, facts, caution, methodLabel }) => ({
+const makeContent = ({ title, eyebrow, summary, sections, caution, methodLabel }) => ({
   title,
   eyebrow,
   summary,
   sections: sections.filter(Boolean),
-  facts: facts?.filter((fact) => fact?.label && fact?.value) ?? [],
   caution,
   methodLabel,
 });
@@ -377,11 +388,10 @@ const buildOpeningSections = ({ criterion, reasons, cpmSelection, t8Selection })
 };
 
 const buildRelativeContent = (info) => {
-  const { status, reasons = {}, startIndex, endIndex, limitIndex, formatDateFromIndex } = info;
+  const { status, reasons = {} } = info;
   const closure = getClosureInfo(reasons);
   const criterion = getOpeningCriterion(info);
   const methodLabel = getMethodLabel({ ...info, criterion, ...closure });
-  const facts = buildFacts({ startIndex, endIndex, limitIndex, reasons, formatDateFromIndex });
 
   if (status === 'default' || !criterion) {
     return makeContent({
@@ -398,7 +408,6 @@ const buildRelativeContent = (info) => {
           body: 'Mientras no haya apertura fertil, la app mantiene la fase preovulatoria relativamente infertil desde el inicio del ciclo.',
         },
       ],
-      facts,
       caution: 'Esta interpretacion depende de la calidad de los registros y de los criterios que esten activos.',
       methodLabel,
     });
@@ -419,19 +428,18 @@ const buildRelativeContent = (info) => {
         title: 'Por que se aplica aqui',
         body: 'Cuando hay varios criterios activos para abrir fertilidad, la app usa el mas precoz entre los candidatos disponibles.',
       },
+      isMucusCriterion(criterion) && MUCUS_LEGEND_SECTION,
     ],
-    facts,
     caution: 'Esta interpretacion depende de que los registros y ajustes de ciclo sean coherentes.',
     methodLabel,
   });
 };
 
 const buildFertileContent = (info) => {
-  const { reasons = {}, startIndex, endIndex, formatDateFromIndex } = info;
+  const { reasons = {} } = info;
   const closure = getClosureInfo(reasons);
   const criterion = getOpeningCriterion(info);
   const methodLabel = getMethodLabel({ ...info, criterion, ...closure });
-  const nextIndex = isInteger(endIndex) ? endIndex + 1 : closure.postIndex;
   const openingSections = buildOpeningSections({
     criterion,
     reasons,
@@ -468,14 +476,11 @@ const buildFertileContent = (info) => {
     title: getOpeningTitle(criterion, 'fertile'),
     eyebrow: methodLabel,
     summary: getOpeningSummary(criterion),
-    sections: [...openingSections, ...closureSections],
-    facts: compact([
-      isInteger(startIndex) && { label: 'Inicio fertil', value: formatIndexLabel(startIndex, formatDateFromIndex) },
-      isInteger(nextIndex) && { label: 'Siguiente limite', value: formatIndexLabel(nextIndex, formatDateFromIndex) },
-      closure.hasMucusClosure && { label: 'Cierre por moco', value: formatIndexLabel(closure.mucusIndex, formatDateFromIndex) },
-      closure.hasTemperatureClosure && { label: 'Cierre por temperatura', value: formatIndexLabel(closure.temperatureIndex, formatDateFromIndex) },
-      closure.temperatureRule && { label: 'Regla termica', value: getRuleLabel(closure.temperatureRule) },
-    ]),
+    sections: [
+      ...openingSections,
+      isMucusCriterion(criterion) && MUCUS_LEGEND_SECTION,
+      ...closureSections,
+    ],
     caution: 'Esta fase no afirma certeza biologica; resume lo que la app interpreta con los criterios activos.',
     methodLabel,
   });
@@ -483,98 +488,150 @@ const buildFertileContent = (info) => {
 
 const buildTemperatureSection = (closure, postpartumActive) => {
   if (!closure.hasTemperatureClosure) return null;
-  const ruleLabel = getRuleLabel(closure.temperatureRule);
+  const rule = String(closure.temperatureRule ?? '').toLowerCase();
+  const normalizedRule = rule.startsWith('pp-after-') ? rule.replace('pp-after-', '') : rule;
+  const isPostpartumRule = postpartumActive || rule.startsWith('pp-after-');
+  let title = 'Criterio termico';
   let body =
-    'La regla normal 3/6 busca tres temperaturas altas consecutivas sobre las seis anteriores; la tercera debe estar al menos 0,2 C sobre la linea basica.';
-  if (ruleLabel === 'primera excepcion') {
-    body = 'Se aplica la primera excepcion: si el tercer valor alto no llega a +0,2 C, se espera un cuarto valor por encima de la linea basica.';
-  } else if (ruleLabel === 'segunda excepcion') {
-    body = 'Se aplica la segunda excepcion: si hay un unico valor justo en linea o por debajo entre los altos, se espera un cuarto dia alto al menos +0,2 C.';
+    'La app ha detectado una subida termica compatible con los criterios activos, pero no dispone de suficiente detalle para mostrar la regla exacta aplicada.';
+
+  if (normalizedRule === '3-high') {
+    title = 'Regla termica 3/6';
+    body =
+      'La app ha identificado tres temperaturas altas consecutivas por encima de las seis anteriores. Para confirmar la subida termica, el tercer valor alto debe estar al menos 0,2 \u00baC por encima de la linea basica.';
+  } else if (normalizedRule === 'german-3+1') {
+    title = 'Primera excepcion termica';
+    body =
+      'La app ha aplicado la primera excepcion: habia tres temperaturas altas, pero el tercer valor no alcanzaba los 0,2 \u00baC sobre la linea basica. Por eso se espera un cuarto valor por encima de la linea basica, aunque ya no se exige que este 0,2 \u00baC por encima.';
+  } else if (normalizedRule === 'german-2nd-exception') {
+    title = 'Segunda excepcion termica';
+    body =
+      'La app ha aplicado la segunda excepcion: entre los valores altos habia un unico valor en la linea basica o por debajo. Ese valor no se usa para cerrar la subida y se espera un cuarto dia alto, que si debe estar al menos 0,2 \u00baC por encima de la linea basica.';
   }
-  if (postpartumActive) {
-    body += ' En la primera ovulacion postparto se toma un dia mas, por eso se valora el cuarto dia alto cuando corresponde.';
+
+  if (isPostpartumRule) {
+    body += ' En modo postparto la app aplica una regla mas estricta y anade un dia alto adicional antes de cerrar por temperatura.';
   }
   return {
-    title: 'Criterio termico',
+    title,
     body,
   };
 };
 
 const buildPostContent = (info) => {
-  const { reasons = {}, status, formatDateFromIndex, startIndex } = info;
+  const { reasons = {}, status, formatDateFromIndex } = info;
   const closure = getClosureInfo(reasons);
+  const source = normalizeSource(info?.source ?? reasons?.source);
   const displayText = `${info?.displayLabel ?? ''} ${info?.label ?? ''} ${info?.message ?? ''}`.toLowerCase();
-  const criterion =
-    status === 'absolute' || (closure.hasMucusClosure && closure.hasTemperatureClosure)
-      ? 'both'
-      : displayText.includes('temperatura') || (!closure.hasMucusClosure && closure.hasTemperatureClosure)
-        ? 'temperature'
-        : displayText.includes('moco') || closure.hasMucusClosure
-          ? 'mucus'
-          : null;
+  const isConfirmed = status === 'absolute' || (closure.hasMucusClosure && closure.hasTemperatureClosure);
+  const criterion = isConfirmed
+    ? 'both'
+    : source === 'TEMPERATURE' || displayText.includes('temperatura')
+      ? 'temperature'
+      : source === 'MUCUS' || displayText.includes('moco') || closure.hasMucusClosure
+        ? 'mucus'
+        : null;
+
   const methodLabel = getMethodLabel({
     ...info,
     criterion: criterion === 'temperature' ? 'temperature' : criterion === 'mucus' ? 'mucus' : null,
     ...closure,
   });
 
-  const isConfirmed = criterion === 'both' || status === 'absolute';
-  const title = info.postpartumActive
-    ? isConfirmed
-      ? 'Postparto: cierre confirmado'
-      : criterion === 'temperature'
-        ? 'Postparto: cierre estimado por temperatura'
-        : 'Postparto: cierre estimado por moco'
-    : isConfirmed
-      ? 'Inicio postovulatorio confirmado'
-      : criterion === 'temperature'
-        ? 'Inicio postovulatorio por temperatura'
-        : 'Inicio postovulatorio por moco';
+  const peakText = getPeakText(reasons, formatDateFromIndex);
+  const peakDetectionText = getPeakDetectionText(reasons, formatDateFromIndex);
+  const postPeakDayText = info.postpartumActive ? '4.\u00ba dia postpico' : '3.er dia postpico';
+  const orderText =
+    closure.hasMucusClosure && closure.hasTemperatureClosure
+      ? closure.mucusIndex > closure.temperatureIndex
+        ? 'En este ciclo, el cierre termico llega antes que el cierre por moco, por eso se toma el cierre por moco.'
+        : closure.temperatureIndex > closure.mucusIndex
+          ? 'En este ciclo, el cierre por moco llega antes que el cierre termico, por eso se toma el cierre termico.'
+          : 'En este ciclo, ambos criterios llegan al mismo limite.'
+      : null;
 
-  const summary = info.postpartumActive
-    ? 'Segun los datos registrados, la app interpreta el cierre postparto usando los criterios especificos de primera ovulacion postparto.'
-    : isConfirmed
-      ? 'La app interpreta el inicio postovulatorio como confirmado porque se han cumplido los criterios de moco y temperatura.'
-      : criterion === 'temperature'
-        ? 'La app muestra un cierre estimado por temperatura; falta el criterio mucoso para doble confirmacion.'
-        : 'La app muestra un cierre estimado por moco; falta temperatura para doble confirmacion.';
+  if (isConfirmed) {
+    return makeContent({
+      title: 'Inicio postovulatorio confirmado',
+      eyebrow: methodLabel,
+      summary:
+        'La app interpreta el inicio postovulatorio como confirmado porque se han cumplido los criterios de moco y temperatura.',
+      sections: [
+        {
+          title: 'Que ha detectado la app',
+          body: compact([
+            'Hay cierre por moco y subida termica confirmada. Cuando ambos criterios no coinciden el mismo dia, la app usa el criterio mas tardio para iniciar la fase postovulatoria confirmada.',
+            orderText,
+          ]),
+        },
+        {
+          title: 'Criterio utilizado',
+          body: info.postpartumActive
+            ? 'En modo postparto, la app aplica una regla mas prudente: cuarto dia postpico y cuarto dia alto, tomando el mas tardio de ambos.'
+            : 'La app aplica el doble criterio de moco y temperatura: 3.er dia postpico y subida termica confirmada, tomando el mas tardio de ambos.',
+        },
+        MUCUS_LEGEND_SECTION,
+        buildTemperatureSection(closure, info.postpartumActive),
+      ],
+      caution: 'Esta interpretacion depende de la calidad de los registros de moco y temperatura.',
+      methodLabel,
+    });
+  }
 
-  const sections = [
-    {
-      title: 'Que ha detectado la app',
-      body: isConfirmed
-        ? 'Hay datos de cierre por moco y subida termica. Cuando no coinciden, la app usa el criterio mas tardio.'
-        : criterion === 'temperature'
-          ? 'Hay subida termica confirmada disponible en la interpretacion actual.'
-          : 'Hay cierre postpico por moco disponible en la interpretacion actual.',
-    },
-    criterion !== 'temperature' && {
-      title: info.postpartumActive ? 'Criterio de moco postparto' : 'Criterio mucoso',
-      body: info.postpartumActive
-        ? 'En postparto se anade un dia mas: se valora el cuarto dia postpico y se toma el limite mas tardio junto con temperatura.'
-        : 'El cierre por moco se basa en la evaluacion postpico. Si la logica actual detecta reinicio por vuelta de moco de la misma categoria del climax, esta explicacion depende de ese reinicio ya calculado.',
-    },
-    buildTemperatureSection(closure, info.postpartumActive),
-  ];
+  if (criterion === 'temperature') {
+    return makeContent({
+      title: 'Infertilidad estimada por temperatura',
+      eyebrow: methodLabel,
+      summary:
+        'La app estima una fase infertil por temperatura porque la subida termica ya cumple el criterio termico aplicado.',
+      sections: [
+        buildTemperatureSection(closure, info.postpartumActive) ?? {
+          title: 'Que ha detectado la app',
+          body: 'La app ha detectado una subida termica compatible con los criterios activos, pero no dispone de suficiente detalle para mostrar la regla exacta aplicada.',
+        },
+        {
+          title: 'Criterio utilizado',
+          body: 'Esta explicacion se basa en el criterio termico. Como todavia falta el cierre por moco, la app debe presentarlo como infertilidad estimada, no como infertilidad postovulatoria confirmada.',
+        },
+      ],
+      caution: 'Esta interpretacion depende de que las temperaturas alteradas o ignoradas no se usen como justificacion.',
+      methodLabel,
+    });
+  }
+
+  if (criterion === 'mucus') {
+    return makeContent({
+      title: 'Infertilidad estimada por moco',
+      eyebrow: methodLabel,
+      summary: `La app establece una infertilidad estimada por moco al alcanzar el ${postPeakDayText} tras ${peakText}.`,
+      sections: [
+        {
+          title: 'Que ha detectado la app',
+          body: `${peakDetectionText} El dia pico corresponde al ultimo dia con la sensacion o apariencia mas fertil registrada. Tras alcanzar el ${postPeakDayText}, el criterio mucoso permite estimar el inicio de una fase infertil por moco.`,
+        },
+        {
+          title: 'Criterio utilizado',
+          body: 'Esta explicacion se basa en el criterio mucoso. Como todavia falta la confirmacion termica, la app debe presentarlo como infertilidad estimada, no como infertilidad postovulatoria confirmada.',
+        },
+        MUCUS_LEGEND_SECTION,
+      ],
+      caution:
+        'Si despues del pico vuelve a aparecer moco de la misma categoria de maxima fertilidad, la evaluacion del moco puede cambiar.',
+      methodLabel,
+    });
+  }
 
   return makeContent({
-    title,
+    title: 'Fase postovulatoria',
     eyebrow: methodLabel,
-    summary,
-    sections,
-    facts: compact([
-      isInteger(startIndex) && { label: 'Inicio del segmento', value: formatIndexLabel(startIndex, formatDateFromIndex) },
-      closure.hasMucusClosure && { label: 'Cierre por moco', value: formatIndexLabel(closure.mucusIndex, formatDateFromIndex) },
-      closure.hasTemperatureClosure && { label: 'Cierre por temperatura', value: formatIndexLabel(closure.temperatureIndex, formatDateFromIndex) },
-      closure.temperatureConfirmationIndex != null && {
-        label: 'Confirmacion termica',
-        value: formatIndexLabel(closure.temperatureConfirmationIndex, formatDateFromIndex),
+    summary: 'La app no dispone de suficiente detalle para explicar este tramo postovulatorio con un criterio concreto.',
+    sections: [
+      {
+        title: 'Limitacion',
+        body: 'La explicacion depende de que el segmento incluya cierre por moco, cierre por temperatura o ambos criterios.',
       },
-      closure.temperatureRule && { label: 'Regla termica', value: getRuleLabel(closure.temperatureRule) },
-    ]),
-    caution: info.postpartumActive
-      ? 'No se mezclan criterios de ciclo estandar con postparto; esta lectura depende de registros suficientes en postparto.'
-      : 'Esta interpretacion depende de la calidad de los registros de moco y temperatura.',
+    ],
+    caution: 'Revisa los registros del ciclo antes de sacar conclusiones practicas.',
     methodLabel,
   });
 };

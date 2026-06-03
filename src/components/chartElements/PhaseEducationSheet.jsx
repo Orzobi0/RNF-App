@@ -95,17 +95,6 @@ const PhaseEducationSheet = ({
                 {education.summary}
               </DialogPrimitive.Description>
 
-              {Array.isArray(education.facts) && education.facts.length > 0 && (
-                <dl className="mt-3 grid grid-cols-1 gap-2 rounded-lg border border-rose-50 bg-rose-50/45 p-2.5 text-[12px] sm:grid-cols-2">
-                  {education.facts.map((fact) => (
-                    <div key={`${fact.label}-${fact.value}`} className="min-w-0">
-                      <dt className="font-semibold text-rose-500">{fact.label}</dt>
-                      <dd className="mt-0.5 break-words text-slate-700">{fact.value}</dd>
-                    </div>
-                  ))}
-                </dl>
-              )}
-
               {Array.isArray(education.sections) && education.sections.length > 0 && (
                 <div className="mt-3 space-y-3">
                   {education.sections.map((section) => (
