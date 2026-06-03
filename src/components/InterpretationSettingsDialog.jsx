@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertTriangle, ChevronDown, GripHorizontal, X } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 
 const formatTemp = (value) => (Number.isFinite(Number(value)) ? `${Number(value).toFixed(2)} ºC` : '-');
@@ -312,6 +313,50 @@ const FutureSection = ({ title }) => (
   </div>
 );
 
+const CalculatorSwitch = ({ checked, disabled, onChange, label }) => (
+  <button
+    type="button"
+    role="switch"
+    aria-checked={checked}
+    aria-label={label}
+    disabled={disabled}
+    onClick={() => {
+      if (!disabled) onChange?.(!checked);
+    }}
+    className={`relative inline-flex h-6 w-11 min-w-11 shrink-0 items-center rounded-full transition ${
+      checked ? 'bg-rose-400' : 'bg-slate-300'
+    } ${disabled ? 'cursor-not-allowed opacity-50' : 'hover:brightness-105'}`}
+  >
+    <span
+      className={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
+        checked ? 'translate-x-5' : 'translate-x-0.5'
+      }`}
+    />
+  </button>
+);
+
+const CalculatorRow = ({ item, postpartum, onChange }) => (
+  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-slate-100 bg-white px-3 py-2.5">
+    <div className="min-w-0">
+      <div className="flex min-w-0 items-center gap-2">
+        <span className="shrink-0 text-sm font-semibold text-slate-700">{item.label}</span>
+        <span className="min-w-0 truncate text-xs text-slate-500">
+          {item.value} · {postpartum ? 'Omitido por postparto' : item.status}
+        </span>
+      </div>
+      {postpartum && (
+        <p className="mt-0.5 text-[11px] leading-snug text-slate-500">Omitido por postparto</p>
+      )}
+    </div>
+    <CalculatorSwitch
+      checked={Boolean(item.enabled)}
+      disabled={postpartum}
+      onChange={(checked) => onChange?.(item.key, checked)}
+      label={`${item.label} en la interpretacion`}
+    />
+  </div>
+);
+
 const InterpretationSettingsDialog = ({
   open,
   editing = false,
@@ -341,6 +386,10 @@ const InterpretationSettingsDialog = ({
   onCancelFertileStartEdit,
   onSaveFertileStartEdit,
   onResetFertileStartAuto,
+  cyclePostpartumMode = false,
+  calculatorSummary = 'CPM y T-8 activos',
+  calculatorItems = [],
+  onCalculatorEnabledChange,
   isRotated = false,
   viewport = null,
   isFullScreen = false,
@@ -555,6 +604,7 @@ const InterpretationSettingsDialog = ({
     : null;
   const thermalExpanded = expandedKey === 'thermal';
   const fertileStartExpanded = expandedKey === 'fertileStart';
+  const calculationExpanded = expandedKey === 'calculation';
   const thermalChip = getThermalChip({ manualActive, ignoredActive, summary, summaryOutOfRule });
   const fertileStartChip = getFertileStartChip({
     manualActive: fertileStartManualActive,
@@ -566,6 +616,9 @@ const InterpretationSettingsDialog = ({
   };
   const toggleFertileStart = () => {
     setExpandedKey((current) => (current === 'fertileStart' ? null : 'fertileStart'));
+  };
+  const toggleCalculation = () => {
+    setExpandedKey((current) => (current === 'calculation' ? null : 'calculation'));
   };
 
   return (
@@ -648,6 +701,48 @@ const InterpretationSettingsDialog = ({
                     Modificar manualmente
                   </Button>
                 )}
+              </div>
+            )}
+          </section>
+
+          <section className="overflow-hidden rounded-xl border border-amber-100 bg-amber-50/35">
+            <SectionHeader
+              title="Cálculo"
+              chip={{
+                label: cyclePostpartumMode ? 'Omitido por postparto' : calculatorSummary,
+                className: cyclePostpartumMode
+                  ? 'border-rose-200 bg-rose-50 text-rose-600'
+                  : 'border-amber-200 bg-amber-50 text-amber-700',
+              }}
+              expanded={calculationExpanded}
+              onToggle={toggleCalculation}
+            />
+
+            {calculationExpanded && (
+              <div className="space-y-3 border-t border-amber-100 bg-white/80 px-3 py-3">
+                {cyclePostpartumMode && (
+                  <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs leading-relaxed text-rose-600">
+                    El modo postparto está activo: CPM y T-8 se omiten del cálculo final.
+                  </p>
+                )}
+
+                <div className="space-y-2">
+                  {calculatorItems.map((item) => (
+                    <CalculatorRow
+                      key={item.key}
+                      item={item}
+                      postpartum={cyclePostpartumMode}
+                      onChange={onCalculatorEnabledChange}
+                    />
+                  ))}
+                </div>
+
+                <Link
+                  to="/settings/preferences"
+                  className="inline-flex min-h-10 items-center rounded-lg px-1 text-xs font-semibold text-rose-600 hover:text-rose-700"
+                >
+                  Editar valores en Preferencias
+                </Link>
               </div>
             )}
           </section>

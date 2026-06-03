@@ -174,14 +174,8 @@ export const validatePreferenceField = (key, value, fullPreferences = {}) => {
       return T8_MODE_OPTIONS.has(value) ? null : 'Modo T-8 inválido.';
     case 'showRelationsRow':
       return typeof value === 'boolean' ? null : 'Valor inválido.';
-    case 'fertilityStartConfig': {
-      const merged = mergeFertilityStartConfig({ incoming: value });
-      const active = Object.values(merged.calculators || {}).some(Boolean);
-      if (!active) {
-        return 'Debes mantener al menos un cálculo activo (CPM o T-8).';
-      }
-      return null;
-    }
+    case 'fertilityStartConfig':
+    return null;
     default:
       return null;
   }

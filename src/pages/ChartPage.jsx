@@ -12,7 +12,18 @@ import InterpretationSettingsDialog from '@/components/InterpretationSettingsDia
 import { useCycleData } from '@/hooks/useCycleData';
 import { differenceInDays, format, parseISO, startOfDay } from 'date-fns';
 import generatePlaceholders from '@/lib/generatePlaceholders';
-import { AlertTriangle, Baby, CalendarDays, Check, CheckCircle2, CirclePlus, Heart, X } from 'lucide-react';
+import {
+  AlertTriangle,
+  Baby,
+  CalendarDays,
+  Check,
+  CheckCircle2,
+  ChevronRight,
+  CirclePlus,
+  Heart,
+  SlidersHorizontal,
+  X,
+} from 'lucide-react';
 import MainLayout from '@/components/layout/MainLayout';
 import DataEntryForm from '@/components/DataEntryForm';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
@@ -90,11 +101,6 @@ const fertileStartReasonLabel = (fertilityStart) => {
 };
 
 const DEFAULT_CHART_SETTINGS = normalizeStoredPreferences(PREFERENCE_DEFAULTS);
-
-const FERTILITY_CALCULATOR_OPTIONS = [
-  { key: 'cpm', label: 'CPM' },
-  { key: 't8', label: 'T-8' },
-];
 
 const Label = ({ htmlFor, className = '', children }) => (
   <label htmlFor={htmlFor} className={className}>
@@ -585,6 +591,31 @@ useEffect(() => {
     [fertilityConfig, cpmSelection, t8Selection, cyclePostpartumMode]
   );
 
+  const calculatorPanelSummary = useMemo(() => {
+    if (cyclePostpartumMode) return 'Cálculo omitido';
+    const active = [];
+    if (fertilityConfig.calculators?.cpm && cpmSelection !== 'none') active.push('CPM');
+    if (fertilityConfig.calculators?.t8 && t8Selection !== 'none') active.push('T-8');
+    return active.length > 0 ? active.join(' · ') : 'Sin cálculos activos';
+  }, [cyclePostpartumMode, fertilityConfig.calculators, cpmSelection, t8Selection]);
+
+  const interpretationCardChips = useMemo(() => {
+    const fertileStartChip = targetCycle?.interpretationOverrides?.fertileStart?.mode === 'manual'
+      ? 'Inicio fértil: Manual'
+      : 'Inicio fértil: Auto';
+    const temperatureMode = targetCycle?.interpretationOverrides?.temperatureRise?.mode;
+    const thermalChip = temperatureMode === 'ignored'
+      ? 'Subida térmica: Ignorada'
+      : temperatureMode === 'manual'
+        ? 'Subida térmica: Manual'
+        : 'Subida térmica: Auto';
+    return [fertileStartChip, thermalChip, calculatorPanelSummary];
+  }, [
+    calculatorPanelSummary,
+    targetCycle?.interpretationOverrides?.fertileStart?.mode,
+    targetCycle?.interpretationOverrides?.temperatureRise?.mode,
+  ]);
+
   const ignoreNextClickRef = useRef(false);
   const keepFormOpenUntilRef = useRef(0);
   const phaseOverlayCardRef = useRef(null);
@@ -1044,27 +1075,25 @@ const rotatedDrawerStyle = applyRotation
     }
   };
   const handleFertilityCalculatorChange = async (calculatorKey, checked) => {
-    let nextConfig = null;
-    setChartSettings((prev) => {
-      const currentConfig = mergeFertilityStartConfig({ incoming: prev.fertilityStartConfig });
-      const nextValue = checked === true;
-      if (currentConfig.calculators?.[calculatorKey] === nextValue) {
-        return prev;
-      }
-      nextConfig = {
-        ...currentConfig,
-        calculators: {
-          ...currentConfig.calculators,
-          [calculatorKey]: nextValue,
-        },
-      };
-      return {
-        ...prev,
-        fertilityStartConfig: nextConfig,
-      };
-    });
+    const currentConfig = mergeFertilityStartConfig({ incoming: chartSettings.fertilityStartConfig });
+    const nextValue = checked === true;
+    if (currentConfig.calculators?.[calculatorKey] === nextValue) {
+      return;
+    }
+
+    const nextConfig = {
+      ...currentConfig,
+      calculators: {
+        ...currentConfig.calculators,
+        [calculatorKey]: nextValue,
+      },
+    };
+    setChartSettings((prev) => ({
+      ...prev,
+      fertilityStartConfig: nextConfig,
+    }));
     
-    if (nextConfig && typeof savePreferences === 'function') {
+    if (typeof savePreferences === 'function') {
       try {
         await savePreferences({ fertilityStartConfig: nextConfig });
         const calculatorLabel = calculatorKey === 'cpm' ? 'CPM' : 'T-8';
@@ -1347,6 +1376,38 @@ const rotatedDrawerStyle = applyRotation
               </Button>
             </div>
             <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
+                            <button
+                type="button"
+                className="w-full rounded-2xl border border-orange-100/70 bg-orange-50/40 p-4 text-left transition hover:border-orange-200 hover:bg-orange-50/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-200"
+                onClick={openInterpretationSettings}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+  <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full  text-orange-600">
+    <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
+  </span>
+  <h3 className="text-sm font-semibold text-slate-700">
+    Ajustes de interpretación
+  </h3>
+</div>
+                    <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                      Configura cómo se interpreta este ciclo.
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {interpretationCardChips.map((chip) => (
+                        <span
+                          key={chip}
+                          className="rounded-full border border-orange-100 bg-white/80 px-2 py-0.5 text-[11px] font-medium text-slate-500"
+                        >
+                          {chip}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+                </div>
+              </button>
               <div className="rounded-2xl border border-pink-100/70 bg-pink-50/40 p-4">
   <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2">
     <Label htmlFor="toggle-relations-row" className="text-sm font-semibold text-slate-700">
@@ -1389,50 +1450,8 @@ const rotatedDrawerStyle = applyRotation
   </div>
 </div> 
 
-              <div className="rounded-2xl border border-orange-100/70 bg-orange-50/40 p-4">
-                <div className="space-y-3">
-                  <div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full justify-center border-orange-200 bg-white text-red-700 hover:bg-orange-50"
-                    onClick={openInterpretationSettings}
-                  >
-                    Ajustes de interpretacion
-                  </Button>
-                    <p className="text-xs leading-relaxed text-slate-500">
-                      Configura como se interpreta este ciclo.
-                    </p>
-                  </div>
-                </div>
-              </div>
 
-              <div className="rounded-2xl border border-amber-100/70 bg-amber-50/40 p-4 space-y-3">
-                <div>
-                  <h3 className="text-sm font-semibold text-slate-700">Cálculo</h3>
-                  <p className="text-xs text-slate-500">
-                    Indica el método que se utilizará para el cálculo de inicio de la ventana fértil.
-                  </p>
-                </div>
-                {cyclePostpartumMode && (
-                  <p className="text-xs font-medium text-rose-500">
-                    El modo posparto está activo: CPM y T-8 se omiten del cálculo final.
-                  </p>
-                )}
-                <div className="space-y-2">
-                  {FERTILITY_CALCULATOR_OPTIONS.map((option) => (
-                    <div key={option.key} className="flex items-center justify-between gap-3">
-                      <span className="text-sm text-slate-700">{option.label}</span>
-                      <Checkbox
-  variant="check"
-  checked={Boolean(fertilityConfig.calculators?.[option.key])}
-  disabled={cyclePostpartumMode}
-  onCheckedChange={(checked) => handleFertilityCalculatorChange(option.key, checked)}
-/>
-                    </div>
-                  ))}
-                </div>
-              </div>              
+
             </div> 
           </div>
       );
@@ -1582,6 +1601,95 @@ const rotatedDrawerStyle = applyRotation
     storedFertilityCalculatorCandidates,
     t8Selection,
   ]);
+
+  const calculatorInterpretationItems = useMemo(() => {
+    const getCandidateDay = (source) => {
+      const candidate = combinedFertilityCalculatorCandidates.find(
+        (item) => normalizeCalculatorSource(item?.source) === source
+      );
+      const numericDay = Number(candidate?.day);
+      return Number.isFinite(numericDay) && numericDay > 0 ? numericDay : null;
+    };
+
+    const formatDay = (day) => {
+      if (!Number.isFinite(Number(day))) return '—';
+      const numericDay = Number(day);
+      const displayDay = Number.isInteger(numericDay)
+        ? String(numericDay)
+        : String(Number(numericDay.toFixed(1)));
+      return `Día ${displayDay}`;
+    };
+
+    const buildItem = ({ key, label, source, mode, manualValue }) => {
+      const manualDay = Number(manualValue);
+      const validManualDay = Number.isFinite(manualDay) && manualDay > 0 ? manualDay : null;
+      const autoDay = getCandidateDay(source);
+
+      if (mode === 'none') {
+        return {
+          key,
+          label,
+          value: '—',
+          status: 'Sin usar',
+          enabled: Boolean(fertilityConfig.calculators?.[key]),
+        };
+      }
+
+      if (mode === 'manual') {
+        return {
+          key,
+          label,
+          value: formatDay(validManualDay),
+          status: 'Manual',
+          enabled: Boolean(fertilityConfig.calculators?.[key]),
+        };
+      }
+
+      return {
+        key,
+        label,
+        value: formatDay(autoDay),
+        status: autoDay ? 'Auto' : 'No disponible',
+        enabled: Boolean(fertilityConfig.calculators?.[key]),
+      };
+    };
+
+    return [
+      buildItem({
+        key: 'cpm',
+        label: 'CPM',
+        source: 'CPM',
+        mode: cpmSelection,
+        manualValue: manualCpmPreference,
+      }),
+      buildItem({
+        key: 't8',
+        label: 'T-8',
+        source: 'T8',
+        mode: t8Selection,
+        manualValue: manualT8Preference,
+      }),
+    ];
+  }, [
+    combinedFertilityCalculatorCandidates,
+    cpmSelection,
+    fertilityConfig.calculators,
+    manualCpmPreference,
+    manualT8Preference,
+    t8Selection,
+  ]);
+
+  const calculatorInterpretationSummary = useMemo(() => {
+    if (cyclePostpartumMode) return 'Omitido por postparto';
+    const active = calculatorInterpretationItems
+      .filter((item) => item.enabled && item.status !== 'Sin usar')
+      .map((item) => item.label);
+
+    if (active.length === 2) return 'CPM y T-8 activos';
+    if (active[0] === 'CPM') return 'Solo CPM activo';
+    if (active[0] === 'T-8') return 'Solo T-8 activo';
+    return 'Sin cálculos activos';
+  }, [calculatorInterpretationItems, cyclePostpartumMode]);
 
   const effectiveTemperatureDetailsForFertileStart = useMemo(
     () =>
@@ -2637,6 +2745,10 @@ const isManualFertile =
           onCancelFertileStartEdit={handleCancelFertileStartEdit}
           onSaveFertileStartEdit={handleSaveFertileStartEdit}
           onResetFertileStartAuto={handleResetFertileStartAuto}
+          cyclePostpartumMode={cyclePostpartumMode}
+          calculatorSummary={calculatorInterpretationSummary}
+          calculatorItems={calculatorInterpretationItems}
+          onCalculatorEnabledChange={handleFertilityCalculatorChange}
           isRotated={applyRotation}
           viewport={viewport}
           isFullScreen={isFullScreen}
