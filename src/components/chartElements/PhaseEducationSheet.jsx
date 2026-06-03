@@ -48,23 +48,29 @@ const PhaseEducationSheet = ({
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="fixed inset-0 z-[320] bg-slate-900/25 backdrop-blur-[1px] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
         <DialogPrimitive.Content
-          className={`pointer-events-none fixed z-[321] flex justify-center px-3 outline-none ${
-            isRotated ? 'items-end' : 'inset-x-0 bottom-0 items-end sm:inset-0 sm:items-center'
-          }`}
-          style={stageStyle}
-          aria-label={education.title}
-        >
-          <section
-            className={`pointer-events-auto flex w-full max-w-lg flex-col overflow-hidden rounded-t-2xl border border-rose-100 bg-white text-left text-slate-700 shadow-2xl shadow-rose-200/50 sm:rounded-2xl ${
-              isRotated ? 'max-h-[min(75dvh,28rem)]' : 'max-h-[75dvh]'
-            }`}
-            style={{
-              marginBottom: isRotated
-                ? 'calc(env(safe-area-inset-left, 0px) + 0.75rem)'
-                : 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)',
-            }}
-            onClick={(event) => event.stopPropagation()}
-          >
+  className={`pointer-events-none fixed z-[321] flex items-center justify-center px-3 outline-none ${
+    isRotated ? '' : 'inset-0'
+  }`}
+  style={{
+    ...stageStyle,
+    paddingTop: isRotated
+      ? 'calc(env(safe-area-inset-left, 0px) + 1rem)'
+      : 'calc(env(safe-area-inset-top, 0px) + 1rem)',
+    paddingBottom: isRotated
+      ? 'calc(env(safe-area-inset-right, 0px) + 1rem)'
+      : 'calc(env(safe-area-inset-bottom, 0px) + 1rem)',
+  }}
+  aria-label={education.title}
+>
+  <section
+    className="pointer-events-auto flex w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-rose-100 bg-white text-left text-slate-700 shadow-2xl shadow-rose-200/50"
+    style={{
+      maxHeight: isRotated
+        ? 'min(calc(100dvh - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 2rem), 28rem)'
+        : 'min(82dvh, calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 2rem))',
+    }}
+    onClick={(event) => event.stopPropagation()}
+  >
             <div className="flex items-start gap-2 border-b border-rose-50 px-4 pb-3 pt-4">
               <span
                 className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-rose-50 text-rose-500"

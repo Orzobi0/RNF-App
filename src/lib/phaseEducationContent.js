@@ -191,8 +191,8 @@ const getPeakDetectionText = (reasons, formatDateFromIndex) => {
   const peakIndex = getPeakIndex(reasons);
   const peakDate = callFormatDate(formatDateFromIndex, peakIndex);
   return peakDate
-    ? `Se ha identificado un dia pico marcado por la usuaria: el ${peakDate}.`
-    : 'Se ha identificado un dia pico marcado por la usuaria.';
+    ? `Se ha identificado un dia pico determinado por la usuaria: el ${peakDate}.`
+    : 'Se ha identificado un dia pico determinado por la usuaria.';
 };
 
 const getCalculatorMode = (candidate, selection) => {
@@ -227,13 +227,13 @@ const getT8RuleText = (mode) => {
 };
 
 const MUCUS_LEGEND_SECTION = {
-  title: 'Como clasifica la app el moco',
+  title: 'Referencia para clasificar el moco (Esquema grupo Bonn)',
   body: [
-    'S: sequedad o ausencia de moco visible.',
-    '\u00d8: no se percibe humedad ni sequedad y no hay moco visible.',
-    'h: humedad sin moco visible.',
-    'M: moco presente, pero no de maxima fertilidad.',
-    'M+: sensacion mojada, resbaladiza, lubricante o moco cristalino, filante o similar a clara de huevo.',
+    'S · Sequedad: sensación seca, áspera o incluso picor desagradable. No se observa moco visible.',
+    'Ø · Sin sensación definida: no se percibe humedad ni sequedad. Tampoco se observa moco visible.',
+    'h · Humedad: se percibe humedad, pero no se observa moco visible. Aunque no haya moco visible, la sensación ya indica un cambio respecto a la sequedad.',
+    'M · Moco presente: puede ser espeso, turbio, cremoso, blanquecino, grumoso, amarillento, pegajoso, poco elástico o no filante. Indica presencia de moco. Puede tener sensación de humedad o no sentir nada.',
+    'M+ · Sensación mojada, escurridiza, resbaladiza, deslizante, lubricante o suave; o moco cristalino, transparente, filante, líquido, parecido a clara de huevo crudo, a veces con hilos rojizos o blanquecinos.',
   ],
 };
 
@@ -259,14 +259,14 @@ export const getMethodLabel = ({
     if (hasTemperatureClosure) return 'interpretacion mucotermica';
     return 'criterio mucoso';
   }
-  if (criterion === 'temperature') return 'criterio termico';
+  if (criterion === 'temperature') return 'criterio térmico (método grupo Bonn)';
   if (hasMucusClosure && hasTemperatureClosure) {
     return hasActiveCalculation({ fertilityStartConfig, cpmSelection, t8Selection })
-      ? 'interpretacion sintotermica'
-      : 'doble criterio de moco y temperatura';
+      ? 'Método sintotérmico: doble criterio moco y temperatura'
+      : 'Doble criterio moco y temperatura';
   }
   if (hasMucusClosure) return 'criterio mucoso';
-  if (hasTemperatureClosure) return 'criterio termico';
+  if (hasTemperatureClosure) return 'criterio térmico (método grupo Bonn)';
   return 'criterios activos de interpretacion';
 };
 
@@ -301,18 +301,24 @@ const getOpeningSummary = (criterion) => {
     return 'La app abre la fase fertil porque se ha marcado dia pico, un dato que indica fertilidad alta en la observacion del moco.';
   }
   if (criterion === 'whiteSymbol') {
-    return 'La app abre la fase fertil porque se ha registrado o derivado un marcador fertil.';
-  }
-  if (criterion === 'highMucus') {
-    return 'La app abre la fase fertil porque se ha registrado moco o sensacion de mayor fertilidad.';
-  }
-  if (criterion === 'mucus' || criterion === 'mucusSign') {
-    return 'La app abre la fase fertil porque se ha registrado humedad, moco o una sensacion fertil.';
-  }
+  return 'La fase relativamente infértil termina porque se ha registrado un símbolo blanco o un signo equivalente de fertilidad.';
+}
+if (criterion === 'highMucus') {
+  return 'La fase relativamente infértil termina porque se ha registrado moco o sensación de mayor fertilidad.';
+}
+if (criterion === 'mucus' || criterion === 'mucusSign') {
+  return 'La fase relativamente infértil termina porque se ha registrado sensación o moco de mayor fertilidad.';
+}
   return 'Segun los datos registrados, la app interpreta que la fase fertil esta abierta.';
 };
 
-const buildOpeningSections = ({ criterion, reasons, cpmSelection, t8Selection }) => {
+const buildOpeningSections = ({
+  criterion,
+  reasons,
+  cpmSelection,
+  t8Selection,
+  calculationActive = false,
+}) => {
   const candidate = findSelectedCandidate({ reasons });
   if (criterion === 'manual') {
     return [
@@ -349,42 +355,62 @@ const buildOpeningSections = ({ criterion, reasons, cpmSelection, t8Selection })
     ];
   }
   if (criterion === 'peak') {
-    return [
-      {
-        title: 'Que ha detectado la app',
-        body: 'Se ha registrado dia pico. En la observacion del moco, el pico puede requerir confirmacion retrospectiva porque se reconoce como el ultimo dia de maxima fertilidad.',
-      },
-      {
-        title: 'Que criterio se ha aplicado',
-        body: 'Un dia pico registrado abre la fase fertil si llega antes que otros limites activos.',
-      },
-    ];
-  }
-  if (criterion === 'whiteSymbol') {
-    return [
-      {
-        title: 'Que ha detectado la app',
-        body: 'Hay un simbolo blanco o marcador fertil registrado o derivado de la sensacion/apariencia observada.',
-      },
-      {
-        title: 'Que criterio se ha aplicado',
-        body: 'Ese marcador se trata como signo fertil para abrir la ventana fertil cuando es el criterio mas precoz.',
-      },
-    ];
-  }
   return [
     {
-      title: 'Que ha detectado la app',
+      title: 'Qué ha detectado la app',
       body:
-        criterion === 'highMucus'
-          ? 'Se ha registrado M+ o una sensacion de mayor fertilidad.'
-          : 'Se ha registrado humedad, moco o una sensacion fertil. La sequedad o ausencia de moco visible no abre fertilidad por este criterio.',
+        'Se ha registrado día pico. En la observación del moco, el día pico corresponde al último día con sensación o apariencia de mayor fertilidad (M+): por ejemplo sensación mojada, resbaladiza o lubricante, o moco transparente, filante o similar a clara de huevo.',
     },
     {
-      title: 'Que criterio se ha aplicado',
-      body: 'En una interpretacion basada en moco, la aparicion de humedad o mucosidad cambia el patron previo seco/no fertil y abre la ventana fertil.',
+      title: 'Qué criterio se ha aplicado',
+      body:
+        'Un día pico registrado indica que ya ha existido un patrón de fertilidad alta. Por eso puede abrir o reforzar la interpretación de fase fértil si es el criterio que aparece antes que otros límites activos.',
     },
   ];
+}
+if (criterion === 'whiteSymbol') {
+  return [
+    {
+      title: 'Qué ha detectado la app',
+      body:
+        'Hay un símbolo blanco o marcador fértil registrado o derivado de la sensación/apariencia observada. Ese símbolo indica que ha aumentado la fertilidad respecto al patrón previo.',
+    },
+    {
+      title: 'Qué criterio se ha aplicado',
+      body: calculationActive
+        ? 'Aunque hay cálculos preovulatorios activos, en el método sintotérmico, la fase fértil inicia con el más precoz entre los disponibles.'
+        : 'Como los cálculos preovulatorios no están activos en este ciclo, la apertura de la fase fértil comienza con el registro de símbolo blanco o marcador fértil.',
+    },
+  ];
+}
+  if (criterion === 'highMucus') {
+  return [
+    {
+      title: 'Qué ha detectado la app',
+      body:
+        'Se ha registrado un dato compatible con moco de mayor fertilidad: sensación mojada, resbaladiza o lubricante, o una apariencia más fértil como moco transparente, cristalino, filante o similar a clara de huevo.',
+    },
+    {
+      title: 'Qué criterio se ha aplicado',
+      body:
+        'El criterio mucoso abre la fase fértil cuando aparece un signo de fertilidad. En este caso, el registro corresponde a una categoría de mayor fertilidad, por eso la fase relativamente infértil termina aquí.',
+    },
+  ];
+}
+
+
+return [
+  {
+    title: 'Qué ha detectado la app',
+    body:
+      'Se ha registrado humedad, moco visible o una sensación compatible con fertilidad. La sequedad o ausencia de moco visible no abre fertilidad por este criterio, pero la aparición de humedad o moco sí cambia la interpretación.',
+  },
+  {
+    title: 'Qué criterio se ha aplicado',
+    body:
+      'En una interpretación basada en moco, la aparición de humedad o mucosidad cambia el patrón previo seco/no fértil y abre la fase fértil.',
+  },
+];
 };
 
 const buildRelativeContent = (info) => {
@@ -393,21 +419,28 @@ const buildRelativeContent = (info) => {
   const criterion = getOpeningCriterion(info);
   const methodLabel = getMethodLabel({ ...info, criterion, ...closure });
 
-  if (status === 'default' || !criterion) {
+  if (!criterion) {
     return makeContent({
       title: 'Fase relativamente infertil',
       eyebrow: methodLabel,
-      summary: 'La fase relativamente infertil comienza con la menstruacion. Con los datos actuales, la app aun no ha encontrado un criterio activo que abra la fase fertil.',
-      sections: [
-        {
-          title: 'Que ha detectado la app',
-          body: 'No aparece todavia un signo fertil ni un limite CPM/T-8 aplicable antes del segmento mostrado.',
-        },
-        {
-          title: 'Que criterio se ha aplicado',
-          body: 'Mientras no haya apertura fertil, la app mantiene la fase preovulatoria relativamente infertil desde el inicio del ciclo.',
-        },
-      ],
+      summary:
+  'La fase relativamente infértil comienza con la menstruación. Con los datos actuales, la app todavía no ha detectado un criterio activo que abra la fase fértil.',
+sections: [
+  {
+    title: 'Qué ha detectado la app',
+    body:
+      hasActiveCalculation(info)
+        ? 'No aparece todavía un signo fértil ni un límite CPM/T-8 aplicable antes del segmento mostrado.'
+        : 'No aparece todavía un signo fértil aplicable con los criterios activos de este ciclo.',
+  },
+  {
+    title: 'Qué criterio se ha aplicado',
+    body:
+      hasActiveCalculation(info)
+        ? 'Mientras no haya apertura fértil por cálculo o por signo observado, la app mantiene la fase preovulatoria relativamente infértil desde el inicio del ciclo.'
+        : 'Como los cálculos preovulatorios no están activos, la app mantiene la fase relativamente infértil hasta que aparezca un signo fértil registrado.',
+  },
+],
       caution: 'Esta interpretacion depende de la calidad de los registros y de los criterios que esten activos.',
       methodLabel,
     });
@@ -419,11 +452,12 @@ const buildRelativeContent = (info) => {
     summary: getOpeningSummary(criterion),
     sections: [
       ...buildOpeningSections({
-        criterion,
-        reasons,
-        cpmSelection: info.cpmSelection,
-        t8Selection: info.t8Selection,
-      }),
+  criterion,
+  reasons,
+  cpmSelection: info.cpmSelection,
+  t8Selection: info.t8Selection,
+  calculationActive: hasActiveCalculation(info),
+}),
       getUsedCandidates(reasons).length > 1 && {
         title: 'Por que se aplica aqui',
         body: 'Cuando hay varios criterios activos para abrir fertilidad, la app usa el mas precoz entre los candidatos disponibles.',
@@ -441,11 +475,12 @@ const buildFertileContent = (info) => {
   const criterion = getOpeningCriterion(info);
   const methodLabel = getMethodLabel({ ...info, criterion, ...closure });
   const openingSections = buildOpeningSections({
-    criterion,
-    reasons,
-    cpmSelection: info.cpmSelection,
-    t8Selection: info.t8Selection,
-  });
+  criterion,
+  reasons,
+  cpmSelection: info.cpmSelection,
+  t8Selection: info.t8Selection,
+  calculationActive: hasActiveCalculation(info),
+});
   const closureSections = [];
 
   if (closure.hasMucusClosure && closure.hasTemperatureClosure) {
@@ -457,8 +492,8 @@ const buildFertileContent = (info) => {
     closureSections.push({
       title: 'Como se cierra',
       body: info.postpartumActive
-        ? 'Hay cierre postpico por moco en postparto, pero falta el criterio termico para una confirmacion doble.'
-        : 'Hay cierre por moco, pero falta temperatura. La interpretacion postovulatoria queda estimada por moco si la logica actual ya la muestra asi.',
+  ? 'Hay cierre por moco al alcanzar el 3er día postpico. En postparto, la temperatura requiere un día alto adicional, por eso aún falta el criterio térmico para la confirmación por doble chequeo.'
+  : 'Hay cierre por moco al alcanzar el 3er día postpico, pero falta confirmación por temperatura.',
     });
   } else if (closure.hasTemperatureClosure) {
     closureSections.push({
@@ -481,7 +516,7 @@ const buildFertileContent = (info) => {
       isMucusCriterion(criterion) && MUCUS_LEGEND_SECTION,
       ...closureSections,
     ],
-    caution: 'Esta fase no afirma certeza biologica; resume lo que la app interpreta con los criterios activos.',
+    caution: 'Esta explicación se basa en los registros disponibles y puede cambiar si se añaden o corrigen datos del ciclo.',
     methodLabel,
   });
 };
@@ -491,27 +526,30 @@ const buildTemperatureSection = (closure, postpartumActive) => {
   const rule = String(closure.temperatureRule ?? '').toLowerCase();
   const normalizedRule = rule.startsWith('pp-after-') ? rule.replace('pp-after-', '') : rule;
   const isPostpartumRule = postpartumActive || rule.startsWith('pp-after-');
-  let title = 'Criterio termico';
+
+  let title = 'Criterio térmico';
   let body =
-    'La app ha detectado una subida termica compatible con los criterios activos, pero no dispone de suficiente detalle para mostrar la regla exacta aplicada.';
+    'Se ha detectado una subida térmica compatible con los criterios activos, pero no dispone de suficiente detalle para mostrar la regla exacta aplicada.';
 
   if (normalizedRule === '3-high') {
-    title = 'Regla termica 3/6';
+    title = 'Regla térmica 3/6';
     body =
-      'La app ha identificado tres temperaturas altas consecutivas por encima de las seis anteriores. Para confirmar la subida termica, el tercer valor alto debe estar al menos 0,2 \u00baC por encima de la linea basica.';
+      'Se ha identificado una subida térmica siguiendo la regla 3/6: tres temperaturas altas consecutivas por encima de las seis anteriores. Para confirmar la subida, el tercer valor alto debe estar al menos 0,2 ºC por encima de la línea básica.';
   } else if (normalizedRule === 'german-3+1') {
-    title = 'Primera excepcion termica';
+    title = 'Primera excepción térmica';
     body =
-      'La app ha aplicado la primera excepcion: habia tres temperaturas altas, pero el tercer valor no alcanzaba los 0,2 \u00baC sobre la linea basica. Por eso se espera un cuarto valor por encima de la linea basica, aunque ya no se exige que este 0,2 \u00baC por encima.';
+      'Se ha aplicado la primera excepción térmica. Hay tres temperaturas altas, pero el tercer valor no alcanza los 0,2 ºC sobre la línea básica. Por eso se espera un cuarto valor alto por encima de la línea básica, aunque ya no se exige que esté 0,2 ºC por encima.';
   } else if (normalizedRule === 'german-2nd-exception') {
-    title = 'Segunda excepcion termica';
+    title = 'Segunda excepción térmica';
     body =
-      'La app ha aplicado la segunda excepcion: entre los valores altos habia un unico valor en la linea basica o por debajo. Ese valor no se usa para cerrar la subida y se espera un cuarto dia alto, que si debe estar al menos 0,2 \u00baC por encima de la linea basica.';
+      'Se ha aplicado la segunda excepción térmica. Entre los valores altos hay un único valor en la línea básica o por debajo, por lo que ese valor no sirve para cerrar la subida. Se espera un cuarto día alto, que sí debe estar al menos 0,2 ºC por encima de la línea básica.';
   }
 
   if (isPostpartumRule) {
-    body += ' En modo postparto la app aplica una regla mas estricta y anade un dia alto adicional antes de cerrar por temperatura.';
+    body +=
+      ' En modo postparto, el método SENSIPLAN requiere añadir un día alto adicional antes de confirmar la subida térmica.';
   }
+
   return {
     title,
     body,
@@ -523,14 +561,36 @@ const buildPostContent = (info) => {
   const closure = getClosureInfo(reasons);
   const source = normalizeSource(info?.source ?? reasons?.source);
   const displayText = `${info?.displayLabel ?? ''} ${info?.label ?? ''} ${info?.message ?? ''}`.toLowerCase();
-  const isConfirmed = status === 'absolute' || (closure.hasMucusClosure && closure.hasTemperatureClosure);
-  const criterion = isConfirmed
-    ? 'both'
-    : source === 'TEMPERATURE' || displayText.includes('temperatura')
-      ? 'temperature'
-      : source === 'MUCUS' || displayText.includes('moco') || closure.hasMucusClosure
-        ? 'mucus'
-        : null;
+  const normalizedStatus = String(status ?? info?.status ?? '').toLowerCase();
+
+const isEstimatedTemperatureSegment =
+  source === 'TEMPERATURE' ||
+  (displayText.includes('estimada') && displayText.includes('temperatura'));
+
+const isEstimatedMucusSegment =
+  source === 'MUCUS' ||
+  (displayText.includes('estimada') && displayText.includes('moco'));
+
+const isConfirmed =
+  !isEstimatedTemperatureSegment &&
+  !isEstimatedMucusSegment &&
+  (
+    normalizedStatus === 'absolute' ||
+    source === 'ABSOLUTE' ||
+    displayText.includes('confirmada')
+  );
+
+const criterion = isEstimatedTemperatureSegment
+  ? 'temperature'
+  : isEstimatedMucusSegment
+    ? 'mucus'
+    : isConfirmed
+      ? 'both'
+      : displayText.includes('temperatura')
+        ? 'temperature'
+        : displayText.includes('moco')
+          ? 'mucus'
+          : null;
 
   const methodLabel = getMethodLabel({
     ...info,
@@ -540,7 +600,7 @@ const buildPostContent = (info) => {
 
   const peakText = getPeakText(reasons, formatDateFromIndex);
   const peakDetectionText = getPeakDetectionText(reasons, formatDateFromIndex);
-  const postPeakDayText = info.postpartumActive ? '4.\u00ba dia postpico' : '3.er dia postpico';
+  const postPeakDayText = '3er día postpico';
   const orderText =
     closure.hasMucusClosure && closure.hasTemperatureClosure
       ? closure.mucusIndex > closure.temperatureIndex
@@ -565,11 +625,11 @@ const buildPostContent = (info) => {
           ]),
         },
         {
-          title: 'Criterio utilizado',
-          body: info.postpartumActive
-            ? 'En modo postparto, la app aplica una regla mas prudente: cuarto dia postpico y cuarto dia alto, tomando el mas tardio de ambos.'
-            : 'La app aplica el doble criterio de moco y temperatura: 3.er dia postpico y subida termica confirmada, tomando el mas tardio de ambos.',
-        },
+  title: 'Criterio utilizado',
+  body: info.postpartumActive
+    ? 'En modo postparto, según el método SENSIPLAN, se exige un día más de temperatura alta. La infertilidad por temperatura ha de confirmarse necesariamente con el tercer día post-pico. En caso de que temperatura y mucosidad no coincidan se hará caso al más tardío de ambos.'
+    : 'El método SENSIPLAN aplica el doble criterio de moco y temperatura: 3er día postpico y subida térmica confirmada, tomando el más tardío de ambos.',
+},
         MUCUS_LEGEND_SECTION,
         buildTemperatureSection(closure, info.postpartumActive),
       ],
@@ -579,47 +639,51 @@ const buildPostContent = (info) => {
   }
 
   if (criterion === 'temperature') {
-    return makeContent({
-      title: 'Infertilidad estimada por temperatura',
-      eyebrow: methodLabel,
-      summary:
-        'La app estima una fase infertil por temperatura porque la subida termica ya cumple el criterio termico aplicado.',
-      sections: [
-        buildTemperatureSection(closure, info.postpartumActive) ?? {
-          title: 'Que ha detectado la app',
-          body: 'La app ha detectado una subida termica compatible con los criterios activos, pero no dispone de suficiente detalle para mostrar la regla exacta aplicada.',
-        },
-        {
-          title: 'Criterio utilizado',
-          body: 'Esta explicacion se basa en el criterio termico. Como todavia falta el cierre por moco, la app debe presentarlo como infertilidad estimada, no como infertilidad postovulatoria confirmada.',
-        },
-      ],
-      caution: 'Esta interpretacion depende de que las temperaturas alteradas o ignoradas no se usen como justificacion.',
-      methodLabel,
-    });
-  }
+  return makeContent({
+    title: 'Infertilidad estimada por temperatura',
+    eyebrow: methodLabel,
+    summary:
+      'La app muestra una infertilidad estimada por temperatura porque la subida térmica ya cumple el criterio térmico aplicado.',
+    sections: [
+      buildTemperatureSection(closure, info.postpartumActive) ?? {
+        title: 'Qué ha detectado la app',
+        body:
+          'La app ha detectado una subida térmica compatible con los criterios activos, pero no dispone de suficiente detalle para mostrar la regla exacta aplicada.',
+      },
+      {
+        title: 'Criterio utilizado',
+        body:
+          'Esta estimación se basa en el criterio térmico. La app analiza la línea básica y los valores altos posteriores para comprobar si la subida de temperatura puede considerarse válida.',
+      },
+    ],
+    caution:
+      'Si alguna temperatura está alterada por enfermedad, cambio de rutina u otra incidencia, conviene marcarla para que no justifique una subida térmica falsa.',
+    methodLabel,
+  });
+}
 
   if (criterion === 'mucus') {
-    return makeContent({
-      title: 'Infertilidad estimada por moco',
-      eyebrow: methodLabel,
-      summary: `La app establece una infertilidad estimada por moco al alcanzar el ${postPeakDayText} tras ${peakText}.`,
-      sections: [
-        {
-          title: 'Que ha detectado la app',
-          body: `${peakDetectionText} El dia pico corresponde al ultimo dia con la sensacion o apariencia mas fertil registrada. Tras alcanzar el ${postPeakDayText}, el criterio mucoso permite estimar el inicio de una fase infertil por moco.`,
-        },
-        {
-          title: 'Criterio utilizado',
-          body: 'Esta explicacion se basa en el criterio mucoso. Como todavia falta la confirmacion termica, la app debe presentarlo como infertilidad estimada, no como infertilidad postovulatoria confirmada.',
-        },
-        MUCUS_LEGEND_SECTION,
-      ],
-      caution:
-        'Si despues del pico vuelve a aparecer moco de la misma categoria de maxima fertilidad, la evaluacion del moco puede cambiar.',
-      methodLabel,
-    });
-  }
+  return makeContent({
+    title: 'Infertilidad estimada por moco',
+    eyebrow: methodLabel,
+    summary: `La app muestra una infertilidad estimada por moco al alcanzar el ${postPeakDayText} tras ${peakText}.`,
+    sections: [
+      {
+        title: 'Qué ha detectado la app',
+        body: `${peakDetectionText} En la observación del moco, el día pico corresponde al último día con sensación o apariencia de mayor fertilidad (M+). Al alcanzar el ${postPeakDayText}, la app puede estimar el inicio de una fase infértil por moco.`,
+      },
+      {
+        title: 'Criterio utilizado',
+        body:
+          'Esta estimación se basa en el criterio mucoso: después del día pico se cuentan los 3 días postpico necesarios. Si el patrón de moco cambia y vuelve a aparecer moco de máxima fertilidad, la evaluación puede modificarse.',
+      },
+      MUCUS_LEGEND_SECTION,
+    ],
+    caution:
+      'El día pico depende de que la usuaria haya identificado correctamente el último día con sensación o apariencia más fértil (M+).',
+    methodLabel,
+  });
+}
 
   return makeContent({
     title: 'Fase postovulatoria',
