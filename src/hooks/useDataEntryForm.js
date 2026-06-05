@@ -434,13 +434,19 @@ export const useDataEntryForm = (
   };
 
   const submitCurrentState = (options = {}) => {
-    const { keepFormOpen = false, skipReset = false, ...payloadOptions } = options;
-    const payload = buildSubmissionPayload(payloadOptions);
-    if (!payload) {
-      return null;
-    }
+  const {
+    keepFormOpen = false,
+    skipReset = false,
+    submitAction = null,
+    ...payloadOptions
+  } = options;
 
-    const result = onSubmit(payload, { keepFormOpen, skipReset });
+  const payload = buildSubmissionPayload(payloadOptions);
+  if (!payload) {
+    return null;
+  }
+
+  const result = onSubmit(payload, { keepFormOpen, skipReset, submitAction });
 
     if (!isEditing && !skipReset) {
       resetFormState();

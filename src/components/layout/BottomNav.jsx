@@ -28,9 +28,9 @@ const BottomNav = () => {
 
 return (
   <nav
-    className="fixed bottom-0 left-0 right-0 z-50 h-[var(--bottom-nav-safe)] overflow-hidden rounded-t-3xl border-fertiliapp-suave shadow-[0_-8px_24px_rgba(244,114,182,0.12)]"
-    aria-label="Navegación inferior"
-  >
+  className="fixed -bottom-px left-0 right-0 z-50 h-[calc(var(--bottom-nav-safe)+1px)] overflow-hidden rounded-t-3xl border-fertiliapp-suave bg-white shadow-[0_-8px_24px_rgba(244,114,182,0.12)]"
+  aria-label="Navegación inferior"
+>
     {/* Fondo sólido para cubrir también la safe area del iPhone */}
     <div className="absolute inset-0 bg-white" aria-hidden="true" />
 

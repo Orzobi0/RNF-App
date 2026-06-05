@@ -1492,9 +1492,17 @@ export const RecordsExperience = ({
     },
     [cycle?.data]
   );
-  const handleSave = async (data, { keepFormOpen = false } = {}) => {
-    setIsProcessing(true);
-    const toastMessage = getRecordUpdateToastMessage(editingRecord, data);
+  const handleSave = async (data, { keepFormOpen = false, submitAction = null } = {}) => {
+  setIsProcessing(true);
+
+  const toastMessage =
+    submitAction === 'relations'
+      ? getRelationsToastMessage(Boolean(data?.had_relations ?? data?.hadRelations))
+      : getRecordUpdateToastMessage(editingRecord, data);
+    toast({
+  title: toastMessage,
+  duration: submitAction === 'relations' ? 1400 : 2000,
+});
     try {
       await addOrUpdateDataPoint(data, editingRecord);
       toast({

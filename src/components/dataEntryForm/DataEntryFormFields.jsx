@@ -740,10 +740,11 @@ const [activeSection, setActiveSection] = useState(() => {
 
     try {
       await submitCurrentState({
-        overrideHadRelations: nextValue,
-        keepFormOpen: true,
-        skipReset: true,
-      });
+  overrideHadRelations: nextValue,
+  keepFormOpen: true,
+  skipReset: true,
+  submitAction: 'relations',
+});
 
       } catch (error) {
       setHadRelations(previousValue);

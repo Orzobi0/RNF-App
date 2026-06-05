@@ -2047,10 +2047,13 @@ const handleConfirmDeleteRecord = useCallback(async () => {
   }
 }, [recordToDelete?.id, currentCycle?.id, deleteRecord, refreshData, toast]);
 
-  const handleSave = async (data, { keepFormOpen = false } = {}) => {
+  const handleSave = async (data, { keepFormOpen = false, submitAction = null } = {}) => {
   setIsProcessing(true);
 
-  const toastMessage = getRecordUpdateToastMessage(editingRecord, data);
+  const toastMessage =
+    submitAction === 'relations'
+      ? getRelationsToastMessage(Boolean(data?.had_relations ?? data?.hadRelations))
+      : getRecordUpdateToastMessage(editingRecord, data);
 
   try {
     await addOrUpdateDataPoint(data, editingRecord);
