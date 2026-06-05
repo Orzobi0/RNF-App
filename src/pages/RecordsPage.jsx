@@ -2,6 +2,7 @@ import React, {
   useState,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
 } from 'react';
@@ -166,6 +167,34 @@ const formatTemperatureDisplay = (value) => {
     maximumFractionDigits: 2,
   }).format(n);
 };
+const resolveInitialSelectedIsoDate = ({ cycle, routeSelectedIso }) => {
+  if (routeSelectedIso) {
+    return routeSelectedIso;
+  }
+
+  if (!cycle?.startDate) {
+    return null;
+  }
+
+  const start = parseISO(cycle.startDate);
+
+  if (!isValid(start)) {
+    return null;
+  }
+
+  if (cycle.endDate) {
+    const end = parseISO(cycle.endDate);
+    return isValid(end) ? format(startOfDay(end), 'yyyy-MM-dd') : cycle.endDate;
+  }
+
+  const today = startOfDay(new Date());
+
+  if (!isBefore(today, startOfDay(start))) {
+    return format(today, 'yyyy-MM-dd');
+  }
+
+  return format(startOfDay(start), 'yyyy-MM-dd');
+};
 
 export const RecordsExperience = ({
   cycle: cycleProp,
@@ -240,6 +269,16 @@ export const RecordsExperience = ({
   const { toast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
+    const routeSelectedIso = useMemo(() => {
+    const value = location.state?.selectedDate;
+    if (typeof value !== 'string') return null;
+
+    const parsed = parseISO(value);
+    if (!isValid(parsed)) return null;
+
+    return format(parsed, 'yyyy-MM-dd');
+  }, [location.state]);
+
   const [showForm, setShowForm] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [recordToDelete, setRecordToDelete] = useState(null);
@@ -258,7 +297,9 @@ export const RecordsExperience = ({
   const [overlapImpactPreview, setOverlapImpactPreview] = useState(null);
   const [showOverlapDialog, setShowOverlapDialog] = useState(false);
   const [isUpdatingStartDate, setIsUpdatingStartDate] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(null);
+  const [selectedDate, setSelectedDate] = useState(() =>
+  resolveInitialSelectedIsoDate({ cycle, routeSelectedIso })
+);
   const [visibleCalendarMonthIndex, setVisibleCalendarMonthIndex] = useState(0);
   const [cycleNavigationTransition, setCycleNavigationTransition] = useState(null);
   const [defaultFormIsoDate, setDefaultFormIsoDate] = useState(null);
@@ -410,6 +451,20 @@ export const RecordsExperience = ({
     setDraftStartDate(cycle?.startDate || '');
     setDraftEndDate(cycle?.endDate || '');
   }, [cycle?.startDate, cycle?.endDate]);
+
+  useLayoutEffect(() => {
+  const nextSelectedIso = resolveInitialSelectedIsoDate({ cycle, routeSelectedIso });
+
+  setSelectedDate((prev) => {
+    if (prev === nextSelectedIso) {
+      return prev;
+    }
+
+    return nextSelectedIso;
+  });
+
+  positionedCalendarMonthKeyRef.current = null;
+}, [cycle?.id, cycle?.startDate, cycle?.endDate, routeSelectedIso]);
 
   useEffect(() => {
     setCycleNavigationTransition(null);
@@ -907,15 +962,7 @@ export const RecordsExperience = ({
     return peakRecord?.isoDate || null;
   }, [cycle?.data]);
 
-  const routeSelectedIso = useMemo(() => {
-    const value = location.state?.selectedDate;
-    if (typeof value !== 'string') return null;
 
-    const parsed = parseISO(value);
-    if (!isValid(parsed)) return null;
-
-    return format(parsed, 'yyyy-MM-dd');
-  }, [location.state]);
 
   const defaultSelectedIso = useMemo(() => {
     if (!cycleRange) return null;
@@ -986,50 +1033,46 @@ export const RecordsExperience = ({
     [currentCycleIndex, cycleRange, findCycleForDate, navigateToCycleWithTransition, orderedCycles]
   );
 
-  useEffect(() => {
-    if (!isCalendarOpen) {
-      positionedCalendarMonthKeyRef.current = null;
-      return;
-    }
+  useLayoutEffect(() => {
+  if (!isCalendarOpen) {
+    positionedCalendarMonthKeyRef.current = null;
+    return;
+  }
 
-    if (!selectedDate) {
-      return;
-    }
+  if (!selectedDate) {
+    return;
+  }
 
-    const parsed = parseISO(selectedDate);
-    if (!isValid(parsed)) {
-      return;
-    }
+  const parsed = parseISO(selectedDate);
+  if (!isValid(parsed)) {
+    return;
+  }
 
-    const monthKey = format(startOfMonth(parsed), 'yyyy-MM');
-    const positionedKey = `${cycle?.id ?? 'cycle'}:${monthKey}`;
-    if (positionedCalendarMonthKeyRef.current === positionedKey) {
-      return;
-    }
+  const monthKey = format(startOfMonth(parsed), 'yyyy-MM');
+  const positionedKey = `${cycle?.id ?? 'cycle'}:${monthKey}`;
 
-    const targetIndex = calendarMonths.findIndex(
-      (calendarMonth) => format(calendarMonth, 'yyyy-MM') === monthKey
-    );
-    if (targetIndex < 0) {
-      return;
-    }
+  if (positionedCalendarMonthKeyRef.current === positionedKey) {
+    return;
+  }
 
-    const frame = requestAnimationFrame(() => {
-      const container = calendarScrollContainerRef.current;
-      if (!container) {
-        return;
-      }
+  const targetIndex = calendarMonths.findIndex(
+    (calendarMonth) => format(calendarMonth, 'yyyy-MM') === monthKey
+  );
 
-      container.scrollTo({
-        left: targetIndex * container.clientWidth,
-        behavior: 'auto',
-      });
-      setVisibleCalendarMonthIndex(targetIndex);
-      positionedCalendarMonthKeyRef.current = positionedKey;
-    });
+  if (targetIndex < 0) {
+    return;
+  }
 
-    return () => cancelAnimationFrame(frame);
-  }, [calendarMonths, cycle?.id, isCalendarOpen, selectedDate]);
+  const container = calendarScrollContainerRef.current;
+
+  if (!container) {
+    return;
+  }
+
+  container.scrollLeft = targetIndex * container.clientWidth;
+  setVisibleCalendarMonthIndex(targetIndex);
+  positionedCalendarMonthKeyRef.current = positionedKey;
+}, [calendarMonths, cycle?.id, isCalendarOpen, selectedDate]);
 
   const scrollToCalendarMonthIndex = useCallback(
     (nextIndex) => {
@@ -1750,7 +1793,7 @@ export const RecordsExperience = ({
                     <div
                       ref={calendarScrollContainerRef}
                       onScroll={handleCalendarMonthScroll}
-                      className="flex w-full snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain scroll-smooth rounded-3xl bg-white/80 backdrop-blur-sm [scrollbar-width:none] [touch-action:pan-x] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden"
+                      className="flex w-full snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain rounded-3xl bg-white/80 backdrop-blur-sm [scrollbar-width:none] [touch-action:pan-x] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden"
                     >
                       {calendarMonths.map((calendarMonth) => (
                         <div
