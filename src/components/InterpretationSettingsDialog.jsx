@@ -373,10 +373,10 @@ const CalculatorRow = ({ item, postpartum, onChange }) => (
       )}
     </div>
     <CalculatorSwitch
-      checked={Boolean(item.enabled)}
+      checked={postpartum ? false : Boolean(item.enabled)}
       disabled={postpartum}
       onChange={(checked) => onChange?.(item.key, checked)}
-      label={`${item.label} en la interpretacion`}
+      label={`${item.label} en la interpretación`}
     />
   </div>
 );
@@ -646,23 +646,24 @@ const InterpretationSettingsDialog = ({
   };
 
   return renderInBody(
-    <div className="pointer-events-none fixed inset-0 z-[500] flex items-end justify-center bg-slate-950/[0.08] p-0 sm:items-center sm:p-4">
-      <section
+    <div className="pointer-events-none fixed inset-0 z-[500] flex items-start justify-center bg-transparent p-0 sm:items-start sm:p-4">
+      <motion.section
         role="dialog"
         aria-modal="false"
         aria-label="Ajustes de interpretación"
-        className="pointer-events-auto flex max-h-[72dvh] w-full max-w-lg flex-col rounded-t-2xl border border-orange-100 bg-white shadow-2xl sm:max-h-[86dvh] sm:rounded-2xl"
+        initial={{ y: -18, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: -18, opacity: 0 }}
+        transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+        className="pointer-events-auto flex max-h-[62dvh] w-full max-w-lg flex-col rounded-b-2xl border border-orange-100 bg-white shadow-2xl sm:mt-4 sm:max-h-[78dvh] sm:rounded-2xl"
       >
-        <header className="flex shrink-0 items-start justify-between gap-3 border-b border-orange-100 px-4 py-3">
+        <header className="flex shrink-0 items-start justify-between gap-3 border-b border-orange-100 px-4 py-2">
           <div>
             <h2 className="text-base font-semibold text-titulo">Ajustes de interpretación</h2>
-            <p className="mt-0.5 text-xs text-slate-500">
-              Configura cómo se interpreta este ciclo
-            </p>
           </div>
           <button
             type="button"
-            className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
             onClick={onClose}
             aria-label="Cerrar ajustes de interpretación"
           >
@@ -670,8 +671,8 @@ const InterpretationSettingsDialog = ({
           </button>
         </header>
 
-        <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 sm:px-4 sm:pb-4">
-          <section className="overflow-hidden rounded-xl border border-emerald-200/70 bg-gradient-to-br from-emerald-50/70 to-teal-50/40">
+        <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-3 pb-2 pt-3 sm:px-4 sm:pb-4">
+          <section className="overflow-hidden rounded-2xl border border-emerald-200/70 bg-gradient-to-br from-emerald-50/70 to-teal-50/40">
             <SectionHeader
               title="Cálculo"
               chip={{
@@ -686,7 +687,7 @@ const InterpretationSettingsDialog = ({
 
             <ExpandableContent
               open={calculationExpanded}
-              className="space-y-3 border-t border-emerald-100 bg-white/75 px-3 py-3"
+              className="space-y-2 border-t border-emerald-100 bg-white/75 px-3 py-3"
             >
                 {cyclePostpartumMode && (
                   <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs leading-relaxed text-rose-600">
@@ -704,17 +705,16 @@ const InterpretationSettingsDialog = ({
                     />
                   ))}
                 </div>
-
                 <Link
                   to="/settings/preferences"
-                  className="inline-flex min-h-10 items-center rounded-lg px-1 text-xs font-semibold text-rose-600 hover:text-rose-700"
+                  className="inline-flex min-h-5 items-center px-1 text-xs font-semibold text-rose-600 hover:text-rose-700"
                 >
                   Editar valores en Preferencias
                 </Link>
             </ExpandableContent>
           </section>
 
-          <section className="overflow-hidden rounded-xl border border-pink-100 bg-gradient-to-br from-pink-50/65 to-rose-50/35">
+          <section className="overflow-hidden rounded-2xl border border-pink-100 bg-gradient-to-br from-pink-50/65 to-rose-50/35">
             <SectionHeader
               title="Inicio fértil"
               chip={fertileStartChip}
@@ -775,7 +775,7 @@ const InterpretationSettingsDialog = ({
             </ExpandableContent>
           </section>
           
-          <section className="overflow-hidden rounded-xl border border-red-100 bg-gradient-to-br from-red-50/60 to-rose-50/35">
+          <section className="overflow-hidden rounded-2xl border border-red-100 bg-gradient-to-br from-red-50/60 to-rose-50/35">
             <SectionHeader
               title="Subida térmica"
               chip={thermalChip}
@@ -889,7 +889,7 @@ const InterpretationSettingsDialog = ({
             </ExpandableContent>
           </section>
         </div>
-      </section>
+      </motion.section>
     </div>
   );
 };

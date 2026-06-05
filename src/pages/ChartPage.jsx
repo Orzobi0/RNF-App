@@ -1384,11 +1384,11 @@ const rotatedDrawerStyle = applyRotation
                 <div className="flex items-start gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-orange-100 text-orange-600">
+                      <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-orange-600">
                         <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
                       </span>
                       <h3 className="text-sm font-semibold text-slate-700">
-                        Interpretación del ciclo
+                        Ajustes de interpretación
                       </h3>
                     </div>
                     <p className="mt-1 text-xs leading-relaxed text-slate-500">
@@ -1408,27 +1408,8 @@ const rotatedDrawerStyle = applyRotation
                   <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
                 </div>
               </button>
-              <div className="rounded-2xl border border-pink-100/70 bg-pink-50/40 p-4">
-  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2">
-    <Label htmlFor="toggle-relations-row" className="text-sm font-semibold text-slate-700">
-      Mostrar relaciones
-    </Label>
-
-    <Checkbox
-      id="toggle-relations-row"
-      variant="switch"
-      checked={chartSettings.showRelationsRow}
-      onCheckedChange={handleRelationsSettingChange}
-      className="mt-0.5"
-    />
-
-    <p className="col-span-2 text-xs leading-relaxed text-slate-500">
-      Añade una fila para visualizar las relaciones sexuales.
-    </p>
-  </div>
-</div>
               
-              <div className="rounded-2xl border border-red-100/70 bg-red-50/40 p-4">
+<div className="rounded-2xl border border-red-100/70 bg-red-50/40 p-4">
   <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2">
     <div className="flex items-center gap-2 min-w-0">
       <span className="inline-flex items-center justify-center rounded-full  bg-rose-50/90 p-1 text-rose-600">
@@ -1449,8 +1430,26 @@ const rotatedDrawerStyle = applyRotation
     </p>
   </div>
 </div> 
+              
+<div className="rounded-2xl border border-pink-100/70 bg-pink-50/40 p-4">
+  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2">
+    <Label htmlFor="toggle-relations-row" className="text-sm font-semibold text-slate-700">
+      Mostrar relaciones
+    </Label>
 
+    <Checkbox
+      id="toggle-relations-row"
+      variant="switch"
+      checked={chartSettings.showRelationsRow}
+      onCheckedChange={handleRelationsSettingChange}
+      className="mt-0.5"
+    />
 
+    <p className="col-span-2 text-xs leading-relaxed text-slate-500">
+      Añade una fila para visualizar las relaciones sexuales.
+    </p>
+  </div>
+</div>
 
             </div> 
           </div>
