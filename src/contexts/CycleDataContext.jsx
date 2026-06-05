@@ -174,6 +174,14 @@ const formatUiDate = (isoDate) => {
   return isValid(parsed) ? format(parsed, 'dd/MM/yyyy') : isoDate;
 };
 
+const resolvePayloadFertilitySymbol = (payload) => {
+  if (!payload || typeof payload !== 'object') return null;
+  if (Object.prototype.hasOwnProperty.call(payload, 'fertility_symbol')) {
+    return payload.fertility_symbol ?? null;
+  }
+  return payload.fertilitySymbol ?? null;
+};
+
 const buildEntryForState = ({
   payload,
   entryId,
@@ -191,7 +199,8 @@ const buildEntryForState = ({
     temperature_chart: payload.temperature_chart ?? null,
     mucus_sensation: payload.mucus_sensation ?? null,
     mucus_appearance: payload.mucus_appearance ?? null,
-    fertility_symbol: payload.fertility_symbol ?? null,
+    fertility_symbol: resolvePayloadFertilitySymbol(payload),
+    fertilitySymbol: resolvePayloadFertilitySymbol(payload),
     observations: payload.observations ?? null,
     had_relations: payload.had_relations ?? false,
     ignored: payload.ignored ?? false,
@@ -209,6 +218,7 @@ const buildEntryForState = ({
     return {
       ...existingEntry,
       ...entryForProcessing,
+      fertilitySymbol: entryForProcessing.fertility_symbol ?? null,
       isoDate,
       measurements: entryForProcessing.measurements,
       measurementsLoaded: Array.isArray(payload.measurements)
@@ -220,6 +230,7 @@ const buildEntryForState = ({
   return {
     ...existingEntry,
     ...processed[0],
+    fertilitySymbol: processed[0]?.fertility_symbol ?? null,
     measurements: entryForProcessing.measurements,
     measurementsLoaded: Array.isArray(payload.measurements)
       ? true
@@ -588,8 +599,7 @@ export const CycleDataProvider = ({ children }) => {
           newData.mucusAppearance ?? newData.mucus_appearance ?? ''
         );
         const observationsValue = trimValue(newData.observations ?? '');
-        const fertilitySymbolValue =
-          newData.fertility_symbol ?? newData.fertilitySymbol ?? null;
+        const fertilitySymbolValue = resolvePayloadFertilitySymbol(newData);
         const hasFertilitySymbol =
           fertilitySymbolValue !== null &&
           fertilitySymbolValue !== undefined &&
@@ -637,7 +647,7 @@ export const CycleDataProvider = ({ children }) => {
           measurements: measurementsPayload,
           mucus_sensation: newData.mucusSensation || null,
           mucus_appearance: newData.mucusAppearance || null,
-          fertility_symbol: newData.fertility_symbol === 'none' ? null : newData.fertility_symbol,
+          fertility_symbol: fertilitySymbolValue === 'none' ? null : fertilitySymbolValue,
           observations: newData.observations || null,
           had_relations: hadRelationsValue,
           ignored: targetRecord ? (newData.ignored ?? targetRecord.ignored) : newData.ignored || false,

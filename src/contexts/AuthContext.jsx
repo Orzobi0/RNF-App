@@ -552,7 +552,12 @@ export const AuthProvider = ({ children }) => {
     restoreAttemptedRef.current = true;
 
     try {
-  await callSessionApi('/api/sessionLogout', { method: 'POST' });
+  try {
+    await callSessionApi('/api/sessionLogout', { method: 'POST' });
+  } catch (sessionError) {
+    console.warn('No se pudo limpiar la sesión del backend', sessionError);
+  }
+
   await signOut(auth);
 
   clearSessionCookieRefreshMark();

@@ -250,7 +250,7 @@ const buildPostSummary = ({ postInfo, todayIndex, allDataPoints }) => {
 
   if (deltaFromPeak === 1 || deltaFromPeak === 2 || deltaFromPeak === 3) {
     return {
-      headline: `${deltaFromPeak}.º día postpico`,
+      headline: `Día ${deltaFromPeak}º pospico`,
       body: peakBody,
       status: `postpeak-${deltaFromPeak}`,
     };
@@ -337,7 +337,7 @@ export function buildFertilityInterpretationSummary({
     const peakDate = getDateFromIndex(allDataPoints, peakIndex);
     return {
       title: SUMMARY_TITLE,
-      headline: `${deltaFromPeak}º día postpico`,
+      headline: `Día ${deltaFromPeak}º pospico`,
       body: peakDate
         ? `Tras determinar el ${peakDate} como día pico.`
         : 'Tras determinar el día pico.',

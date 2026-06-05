@@ -1,7 +1,7 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import react from '@vitejs/plugin-react';
-import { createLogger, defineConfig } from 'vite';
+import { createLogger, defineConfig, loadEnv } from 'vite';
 
 const configHorizonsViteErrorHandler = `
 const observer = new MutationObserver((mutations) => {
@@ -221,7 +221,12 @@ logger.error = (msg, options) => {
 	loggerError(msg, options);
 }
 
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+	const env = loadEnv(mode, process.cwd(), '');
+	const firebaseProjectId = env.VITE_FIREBASE_PROJECT_ID || 'rnf-app';
+	const functionsOrigin = env.VITE_FUNCTIONS_EMULATOR_ORIGIN || 'http://127.0.0.1:5001';
+
+	return {
         base: '/',
         customLogger: logger,
         build: { manifest: true },
@@ -232,7 +237,15 @@ export default defineConfig({
                 headers: {
                         'Cross-Origin-Embedder-Policy': 'credentialless',
         },
-                allowedHosts: true
+                allowedHosts: true,
+                proxy: {
+                        '/api': {
+                                target: functionsOrigin,
+                                changeOrigin: true,
+                                secure: false,
+                                rewrite: apiPath => `/${firebaseProjectId}/us-central1/sessionApi${apiPath}`,
+                        },
+                },
 	},
 	resolve: {
 		extensions: ['.jsx', '.js', '.tsx', '.ts', '.json', ],
@@ -240,4 +253,5 @@ export default defineConfig({
 			'@': path.resolve(__dirname, './src'),
 		},
 	},
+};
 });

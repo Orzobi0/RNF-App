@@ -30,6 +30,7 @@ import { useFertilityCalculatorsEditor } from '@/hooks/useFertilityCalculatorsEd
 import FertilityCalculatorsEditorDialogs from '@/components/FertilityCalculatorsEditorDialogs';
 import { FERTILITY_SYMBOL_OPTIONS, getSymbolColorPalette } from '@/config/fertilitySymbols';
 import { buildFertilityInterpretationSummary } from '@/lib/fertilityInterpretationSummary';
+import generatePlaceholders from '@/lib/generatePlaceholders';
 import { mergeFertilityStartConfig } from '@/lib/preferences';
 import {
   getPeakDayToastMessage,
@@ -1968,6 +1969,11 @@ const ModernFertilityDashboard = () => {
           },
         ];
 
+    const existingFertilitySymbol =
+      existingRecord && Object.prototype.hasOwnProperty.call(existingRecord, 'fertility_symbol')
+        ? existingRecord.fertility_symbol ?? 'none'
+        : existingRecord?.fertilitySymbol ?? 'none';
+
     return {
       isoDate,
       measurements,
@@ -1975,8 +1981,7 @@ const ModernFertilityDashboard = () => {
         existingRecord?.mucusSensation ?? existingRecord?.mucus_sensation ?? '',
       mucusAppearance:
         existingRecord?.mucusAppearance ?? existingRecord?.mucus_appearance ?? '',
-      fertility_symbol:
-        existingRecord?.fertility_symbol ?? existingRecord?.fertilitySymbol ?? 'none',
+      fertility_symbol: existingFertilitySymbol,
       observations: existingRecord?.observations ?? '',
       peak_marker: existingRecord?.peak_marker ?? null,
       ignored: existingRecord?.ignored ?? false,
@@ -2269,6 +2274,40 @@ const handleConfirmDeleteRecord = useCallback(async () => {
     return cycles;
   }, [archivedCycles, currentCycle]);
 
+  const dashboardInterpretationData = useMemo(() => {
+    const cycleEntries = currentCycle?.data ?? [];
+    if (!currentCycle?.startDate) {
+      return cycleEntries;
+    }
+
+    const cycleStartDateValue = parseISO(currentCycle.startDate);
+    if (!isValid(cycleStartDateValue)) {
+      return cycleEntries;
+    }
+
+    const lastRecordDate = cycleEntries.reduce((maxDate, record) => {
+      if (!record?.isoDate) return maxDate;
+      const recordDate = parseISO(record.isoDate);
+      return isValid(recordDate) && recordDate > maxDate ? recordDate : maxDate;
+    }, cycleStartDateValue);
+
+    const today = startOfDay(new Date());
+    const lastRelevantDate = lastRecordDate > today ? lastRecordDate : today;
+    const daysSinceStart = differenceInDays(startOfDay(lastRelevantDate), cycleStartDateValue);
+    const daysInCycle = Math.max(28, daysSinceStart + 1);
+    const placeholders = generatePlaceholders(cycleStartDateValue, daysInCycle);
+    const entriesByIsoDate = new Map(
+      cycleEntries
+        .filter((entry) => entry?.isoDate)
+        .map((entry) => [entry.isoDate, entry])
+    );
+
+    return placeholders.map((placeholder) => {
+      const existingRecord = entriesByIsoDate.get(placeholder.isoDate);
+      return existingRecord ? { ...existingRecord, date: placeholder.date } : placeholder;
+    });
+  }, [currentCycle?.data, currentCycle?.startDate]);
+
   const {
     allDataPoints: fertilityChartData,
     fertilityStart,
@@ -2276,7 +2315,7 @@ const handleConfirmDeleteRecord = useCallback(async () => {
     ovulationDetails: fertilityOvulationDetails,
     hasAnyObservation: fertilityHasAnyObservation,
   } = useFertilityChart(
-    currentCycle?.data ?? [],
+    dashboardInterpretationData,
     false,
     'portrait',
     undefined,

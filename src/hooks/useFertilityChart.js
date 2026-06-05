@@ -556,7 +556,10 @@ if (isFullScreen) {
       if (hasMucusInfo) return true;
 
       const hasSymbol = (() => {
-        const symbol = day?.fertility_symbol ?? day?.fertilitySymbol;
+        const symbol =
+          day && Object.prototype.hasOwnProperty.call(day, 'fertility_symbol')
+            ? day.fertility_symbol
+            : day?.fertilitySymbol;
         if (symbol == null) return false;
         return String(symbol).trim() !== '';
       })();

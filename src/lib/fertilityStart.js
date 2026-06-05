@@ -334,6 +334,14 @@ const detectAppearanceLevel = (rawValue) => {
 const escapeRegex = (value) =>
   String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+const resolveFertilitySymbol = (entry) => {
+  if (!entry || typeof entry !== 'object') return null;
+  if (Object.prototype.hasOwnProperty.call(entry, 'fertility_symbol')) {
+    return entry.fertility_symbol ?? null;
+  }
+  return entry.fertilitySymbol ?? null;
+};
+
 const detectSymbol = ({ appearance, observations, fertilitySymbol }) => {
   const sources = [appearance, observations, fertilitySymbol].map((value) =>
     String(value || '').toUpperCase()
@@ -386,7 +394,7 @@ const ensureLevelBounds = (value) => {
 const buildNormalizedDay = (day, bipBaseline, index) => {
   const rawSensation = day?.mucusSensation ?? day?.mucus_sensation;
   const rawAppearance = day?.mucusAppearance ?? day?.mucus_appearance;
-  const inputSymbol = day?.fertility_symbol ?? day?.fertilitySymbol;
+  const inputSymbol = resolveFertilitySymbol(day);
   const rawObservations = day?.observations ?? day?.notes;
   const peakMarkerRaw = day?.peak_marker ?? day?.peakMarker ?? null;
   const isPeakMarked = typeof peakMarkerRaw === 'string'
@@ -499,7 +507,7 @@ export const normalizeCycleDays = (processedData = []) => {
   for (let i = 0; i < Math.min(6, processedData.length); i += 1) {
     const entry = processedData[i];
     if (!entry) continue;
-    const fertilitySymbol = String(entry?.fertility_symbol || '').toLowerCase();
+    const fertilitySymbol = String(resolveFertilitySymbol(entry) || '').toLowerCase();
     if (fertilitySymbol === 'red') {
       continue;
     }
