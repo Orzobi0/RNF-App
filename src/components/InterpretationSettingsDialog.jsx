@@ -644,18 +644,36 @@ const InterpretationSettingsDialog = ({
   const toggleCalculation = () => {
     setExpandedKey((current) => (current === 'calculation' ? null : 'calculation'));
   };
+  const rotatedDialogShellStyle =
+    isRotated && viewport?.w && viewport?.h
+      ? {
+          position: 'fixed',
+          left: '50%',
+          top: '50%',
+          width: `${viewport.h}px`,
+          height: `${viewport.w}px`,
+          transform: 'translate(-50%, -50%) rotate(90deg)',
+          transformOrigin: 'center center',
+        }
+      : undefined;
+  const dialogShellClassName = isRotated
+    ? 'pointer-events-none fixed z-[500] flex items-end justify-center bg-transparent p-0'
+    : 'pointer-events-none fixed inset-0 z-[500] flex items-end justify-center bg-transparent p-0 sm:items-center sm:p-4';
+  const dialogPanelClassName =
+    'pointer-events-auto flex max-h-[72dvh] w-full max-w-lg flex-col rounded-t-2xl border border-orange-100 bg-white shadow-2xl sm:max-h-[86dvh] sm:rounded-2xl';
 
   return renderInBody(
-    <div className="pointer-events-none fixed inset-0 z-[500] flex items-start justify-center bg-transparent p-0 sm:items-start sm:p-4">
+    <div className={dialogShellClassName} style={rotatedDialogShellStyle}>
       <motion.section
         role="dialog"
         aria-modal="false"
         aria-label="Ajustes de interpretación"
-        initial={{ y: -18, opacity: 0 }}
+        initial={{ y: 18, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        exit={{ y: -18, opacity: 0 }}
+        exit={{ y: 18, opacity: 0 }}
         transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-        className="pointer-events-auto flex max-h-[62dvh] w-full max-w-lg flex-col rounded-b-2xl border border-orange-100 bg-white shadow-2xl sm:mt-4 sm:max-h-[78dvh] sm:rounded-2xl"
+        className={dialogPanelClassName}
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
         <header className="flex shrink-0 items-start justify-between gap-3 border-b border-orange-100 px-4 py-2">
           <div>
