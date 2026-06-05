@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { AnimatePresence, motion } from 'framer-motion';
 import { AlertTriangle, ChevronDown, GripHorizontal, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -267,7 +269,7 @@ const SectionHeader = ({ title, chip, expanded, onToggle, disabled = false }) =>
   <button
     type="button"
     className={`flex min-h-12 w-full items-center gap-3 px-3 py-2.5 text-left ${
-      disabled ? 'cursor-default' : 'hover:bg-orange-50/60'
+      disabled ? 'cursor-default' : 'hover:bg-white/35'
     }`}
     onClick={disabled ? undefined : onToggle}
     disabled={disabled}
@@ -299,6 +301,28 @@ const SectionHeader = ({ title, chip, expanded, onToggle, disabled = false }) =>
     )}
   </button>
 );
+
+const ExpandableContent = ({ open, className = '', children }) => (
+  <AnimatePresence initial={false}>
+    {open && (
+      <motion.div
+        initial={{ height: 0, opacity: 0 }}
+        animate={{ height: 'auto', opacity: 1 }}
+        exit={{ height: 0, opacity: 0 }}
+        transition={{
+          duration: 0.18,
+          ease: [0.22, 1, 0.36, 1],
+        }}
+        className="overflow-hidden"
+      >
+        <div className={className}>{children}</div>
+      </motion.div>
+    )}
+  </AnimatePresence>
+);
+
+const renderInBody = (node) =>
+  typeof document === 'undefined' ? node : createPortal(node, document.body);
 
 const FutureSection = ({ title }) => (
   <div className="overflow-hidden rounded-xl border border-slate-100 bg-slate-50/70">
@@ -544,7 +568,7 @@ const InterpretationSettingsDialog = ({
           save: 'bg-rose-600 hover:bg-rose-700',
         };
 
-    return (
+    return renderInBody(
       <div
         className="pointer-events-none fixed z-[450] p-0"
         style={{
@@ -621,14 +645,13 @@ const InterpretationSettingsDialog = ({
     setExpandedKey((current) => (current === 'calculation' ? null : 'calculation'));
   };
 
-  return (
-    <div className="fixed inset-0 z-[350] flex items-end justify-center bg-slate-950/35 p-0 sm:items-center sm:p-4">
+  return renderInBody(
+    <div className="pointer-events-none fixed inset-0 z-[500] flex items-end justify-center bg-slate-950/[0.08] p-0 sm:items-center sm:p-4">
       <section
         role="dialog"
-        aria-modal="true"
+        aria-modal="false"
         aria-label="Ajustes de interpretación"
-        className="flex max-h-[92dvh] w-full max-w-lg flex-col rounded-t-2xl border border-orange-100 bg-white shadow-2xl sm:rounded-2xl"
-        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+        className="pointer-events-auto flex max-h-[72dvh] w-full max-w-lg flex-col rounded-t-2xl border border-orange-100 bg-white shadow-2xl sm:max-h-[86dvh] sm:rounded-2xl"
       >
         <header className="flex shrink-0 items-start justify-between gap-3 border-b border-orange-100 px-4 py-3">
           <div>
@@ -647,79 +670,24 @@ const InterpretationSettingsDialog = ({
           </button>
         </header>
 
-        <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto px-3 pb-[calc(env(safe-area-inset-bottom)+5.5rem)] pt-3 sm:px-4 sm:pb-4">
-                    <section className="overflow-hidden rounded-xl border border-pink-100 bg-pink-50/30">
-            <SectionHeader
-              title="Inicio fértil"
-              chip={fertileStartChip}
-              expanded={fertileStartExpanded}
-              onToggle={toggleFertileStart}
-            />
-
-            {fertileStartExpanded && (
-              <div className="space-y-3 border-t border-pink-100 bg-white/80 px-3 py-3">
-                <div className="space-y-2">
-                  <SummaryRow label="Fecha" value={formatDate(fertileStartSummary?.isoDate)} />
-                  <SummaryRow
-                    label="Día"
-                    value={
-                      Number.isInteger(fertileStartSummary?.cycleDay)
-                        ? `D${fertileStartSummary.cycleDay}`
-                        : '-'
-                    }
-                  />
-                  <SummaryRow label="Motivo" value={fertileStartSummary?.reasonLabel ?? '-'} />
-                  {fertileStartWarning && (
-                    <SummaryRow label="Aviso" value={fertileStartWarning} />
-                  )}
-                </div>
-
-                {fertileStartManualActive ? (
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      className="bg-pink-600 text-white hover:bg-pink-700"
-                      onClick={onStartFertileStartEdit}
-                    >
-                      Modificar
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="border-pink-200 bg-white text-pink-700 hover:bg-pink-50"
-                      onClick={onResetFertileStartAuto}
-                    >
-                      Volver a automático
-                    </Button>
-                  </div>
-                ) : (
-                  <Button
-                    type="button"
-                    className="bg-pink-600 text-white hover:bg-pink-700"
-                    onClick={onStartFertileStartEdit}
-                  >
-                    Modificar manualmente
-                  </Button>
-                )}
-              </div>
-            )}
-          </section>
-
-          <section className="overflow-hidden rounded-xl border border-amber-100 bg-amber-50/35">
+        <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 sm:px-4 sm:pb-4">
+          <section className="overflow-hidden rounded-xl border border-emerald-200/70 bg-gradient-to-br from-emerald-50/70 to-teal-50/40">
             <SectionHeader
               title="Cálculo"
               chip={{
                 label: cyclePostpartumMode ? 'Omitido por postparto' : calculatorSummary,
                 className: cyclePostpartumMode
                   ? 'border-rose-200 bg-rose-50 text-rose-600'
-                  : 'border-amber-200 bg-amber-50 text-amber-700',
+                  : 'border-emerald-200 bg-emerald-50 text-emerald-700',
               }}
               expanded={calculationExpanded}
               onToggle={toggleCalculation}
             />
 
-            {calculationExpanded && (
-              <div className="space-y-3 border-t border-amber-100 bg-white/80 px-3 py-3">
+            <ExpandableContent
+              open={calculationExpanded}
+              className="space-y-3 border-t border-emerald-100 bg-white/75 px-3 py-3"
+            >
                 {cyclePostpartumMode && (
                   <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs leading-relaxed text-rose-600">
                     El modo postparto está activo: CPM y T-8 se omiten del cálculo final.
@@ -743,11 +711,71 @@ const InterpretationSettingsDialog = ({
                 >
                   Editar valores en Preferencias
                 </Link>
-              </div>
-            )}
+            </ExpandableContent>
+          </section>
+
+          <section className="overflow-hidden rounded-xl border border-pink-100 bg-gradient-to-br from-pink-50/65 to-rose-50/35">
+            <SectionHeader
+              title="Inicio fértil"
+              chip={fertileStartChip}
+              expanded={fertileStartExpanded}
+              onToggle={toggleFertileStart}
+            />
+
+            <ExpandableContent
+              open={fertileStartExpanded}
+              className="space-y-3 border-t border-pink-100 bg-white/75 px-3 py-3"
+            >
+                <div className="space-y-2">
+                  <SummaryRow label="Fecha" value={formatDate(fertileStartSummary?.isoDate)} />
+                  <SummaryRow
+                    label="Día"
+                    value={
+                      Number.isInteger(fertileStartSummary?.cycleDay)
+                        ? `D${fertileStartSummary.cycleDay}`
+                        : '-'
+                    }
+                  />
+                  <SummaryRow label="Motivo" value={fertileStartSummary?.reasonLabel ?? '-'} />
+                  {fertileStartWarning && (
+                    <SummaryRow label="Aviso" value={fertileStartWarning} />
+                  )}
+                </div>
+
+                {fertileStartManualActive ? (
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="xs"
+                      className="bg-pink-600 text-white hover:bg-pink-700"
+                      onClick={onStartFertileStartEdit}
+                    >
+                      Modificar
+                    </Button>
+                    <Button
+                      type="button"
+                      size="xs"
+                      variant="outline"
+                      className="border-pink-200 bg-white text-pink-700 hover:bg-pink-50"
+                      onClick={onResetFertileStartAuto}
+                    >
+                      Volver a automático
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    type="button"
+                    size="xs"
+                    className="bg-pink-600 text-white hover:bg-pink-700"
+                    onClick={onStartFertileStartEdit}
+                  >
+                    Modificar manualmente
+                  </Button>
+                )}
+            </ExpandableContent>
           </section>
           
-          <section className="overflow-hidden rounded-xl border border-orange-100 bg-orange-50/35">
+          <section className="overflow-hidden rounded-xl border border-red-100 bg-gradient-to-br from-red-50/60 to-rose-50/35">
             <SectionHeader
               title="Subida térmica"
               chip={thermalChip}
@@ -755,8 +783,10 @@ const InterpretationSettingsDialog = ({
               onToggle={toggleThermal}
             />
 
-            {thermalExpanded && (
-              <div className="space-y-3 border-t border-orange-100 bg-white/80 px-3 py-3">
+            <ExpandableContent
+              open={thermalExpanded}
+              className="space-y-3 border-t border-red-100 bg-white/75 px-3 py-3"
+            >
                 <div className="space-y-2">
                   <SummaryRow label="Línea base" value={formatTemp(summary?.baselineTemp)} />
                   <SummaryRow label="Primer día alto" value={formatDate(summary?.firstHighIsoDate)} />
@@ -788,6 +818,7 @@ const InterpretationSettingsDialog = ({
                   <div className="flex flex-wrap gap-2">
                     <Button
                       type="button"
+                      size="xs"
                       className="bg-rose-600 text-white hover:bg-rose-700"
                       onClick={onStartEdit}
                     >
@@ -795,6 +826,7 @@ const InterpretationSettingsDialog = ({
                     </Button>
                     <Button
                       type="button"
+                      size="xs"
                       variant="outline"
                       className="border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                       onClick={onResetAuto}
@@ -806,6 +838,7 @@ const InterpretationSettingsDialog = ({
                   <div className="flex flex-wrap gap-2">
                     <Button
                       type="button"
+                      size="xs"
                       className="bg-rose-600 text-white hover:bg-rose-700"
                       onClick={onStartEdit}
                     >
@@ -813,14 +846,16 @@ const InterpretationSettingsDialog = ({
                     </Button>
                     <Button
                       type="button"
+                      size="xs"
                       variant="outline"
-                      className="border-orange-200 bg-white text-red-700 hover:bg-orange-50"
+                      className="border-red-200 bg-white text-red-700 hover:bg-red-50"
                       onClick={onResetAuto}
                     >
                       Volver a automático
                     </Button>
                     <Button
                       type="button"
+                      size="xs"
                       variant="outline"
                       className="border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                       onClick={onIgnoreTemperatureRise}
@@ -832,6 +867,7 @@ const InterpretationSettingsDialog = ({
                   <div className="flex flex-wrap gap-2">
                     <Button
                       type="button"
+                      size="xs"
                       className="bg-rose-600 text-white hover:bg-rose-700"
                       onClick={onStartEdit}
                     >
@@ -840,6 +876,7 @@ const InterpretationSettingsDialog = ({
                     {canIgnoreTemperatureRise && (
                       <Button
                         type="button"
+                        size="xs"
                         variant="outline"
                         className="border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                         onClick={onIgnoreTemperatureRise}
@@ -849,8 +886,7 @@ const InterpretationSettingsDialog = ({
                     )}
                   </div>
                 )}
-              </div>
-            )}
+            </ExpandableContent>
           </section>
         </div>
       </section>

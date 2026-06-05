@@ -1384,13 +1384,13 @@ const rotatedDrawerStyle = applyRotation
                 <div className="flex items-start gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-  <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full  text-orange-600">
-    <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
-  </span>
-  <h3 className="text-sm font-semibold text-slate-700">
-    Ajustes de interpretación
-  </h3>
-</div>
+                      <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-orange-100 text-orange-600">
+                        <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
+                      </span>
+                      <h3 className="text-sm font-semibold text-slate-700">
+                        Interpretación del ciclo
+                      </h3>
+                    </div>
                     <p className="mt-1 text-xs leading-relaxed text-slate-500">
                       Configura cómo se interpreta este ciclo.
                     </p>

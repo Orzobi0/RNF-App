@@ -175,7 +175,7 @@ export const validatePreferenceField = (key, value, fullPreferences = {}) => {
     case 'showRelationsRow':
       return typeof value === 'boolean' ? null : 'Valor inválido.';
     case 'fertilityStartConfig':
-    return null;
+      return null;
     default:
       return null;
   }
