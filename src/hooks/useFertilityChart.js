@@ -615,6 +615,7 @@ if (isFullScreen) {
             return null;
           }
           return {
+            ...candidate,
             source: normalizedSource,
             originalSource: source ?? normalizedSource,
             day: numericDay,

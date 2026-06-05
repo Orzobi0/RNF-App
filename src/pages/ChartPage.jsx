@@ -508,6 +508,14 @@ const applyRotation = isFullScreen && forceLandscape && viewport.w < viewport.h;
   const [fertileStartDraft, setFertileStartDraft] = useState({
     isoDate: null,
   });
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('interpretation') === '1') {
+      setShowInterpretation(true);
+    }
+  }, [location.search]);
+
   const DRAWER_ANIM_MS = 320; // >= 300ms (tu transition del drawer normal)
 const [drawerMounted, setDrawerMounted] = useState(false);
 

@@ -800,11 +800,7 @@ const effectivePeakIndex = contextPeakIndex ?? explicitPeakIndexValid;
         if (pPlus4Index == null && diff >= 4) {
         pPlus4Index = clampIndexWithin(idx);
       }
-        if (postpartum) {
         if (pPlus4Index != null) break;
-      } else {
-        if (pPlus3Index != null) break;
-      }
       }
     }
   }
@@ -823,12 +819,12 @@ const derivedPostPeakStartIndex =
   contextPostPeakStartIndex ??
   (contextPeakThirdIndex != null ? clampIndexWithin(contextPeakThirdIndex + 1) : null);
 
-const fallbackMucusStartIndex = (postpartum ? pPlus4Index : pPlus3Index) ?? null;
+const fallbackMucusStartIndex = pPlus4Index ?? null;
 const mucusInfertileStartIndex = derivedPostPeakStartIndex ?? fallbackMucusStartIndex;
 
 const mucusClosureReferenceIndex =
   contextPeakThirdIndex ??
-  (postpartum ? pPlus4Index : pPlus3Index) ??
+  pPlus3Index ??
   (mucusInfertileStartIndex != null ? clampIndexWithin(mucusInfertileStartIndex - 1) : null);
 
   const waitingStartIndex = null;

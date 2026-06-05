@@ -29,6 +29,7 @@ import { useFertilityChart } from '@/hooks/useFertilityChart';
 import { useFertilityCalculatorsEditor } from '@/hooks/useFertilityCalculatorsEditor';
 import FertilityCalculatorsEditorDialogs from '@/components/FertilityCalculatorsEditorDialogs';
 import { FERTILITY_SYMBOL_OPTIONS, getSymbolColorPalette } from '@/config/fertilitySymbols';
+import { buildFertilityInterpretationSummary } from '@/lib/fertilityInterpretationSummary';
 import { mergeFertilityStartConfig } from '@/lib/preferences';
 import {
   getPeakDayToastMessage,
@@ -50,6 +51,8 @@ const CycleOverviewCard = ({
   handleOpenT8Dialog = () => {},
   cpmMetric = {},
   t8Metric = {},
+  cycleStatusSummary = null,
+  onOpenCycleStatus = () => {},
   isDetailInteractionModalOpen = false,
 }) => {
   const records = cycleData.records || [];
@@ -1416,8 +1419,44 @@ if (dot.peakStatus === 'P') {
   </div>
 </div>
 
+    {cycleStatusSummary && (
+      <motion.button
+          type="button"
+          onClick={onOpenCycleStatus}
+          aria-label="Abrir gráfica con interpretación"
+          className="mx-2 mt-8 mb-2 block rounded-2xl border border-fertiliapp-suave bg-white/70 p-3 text-left shadow-[0_10px_30px_rgba(148,163,184,0.15)] backdrop-blur-md transition hover:border-fertiliapp-fuerte/40 hover:bg-white/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.2, delay: 0.04 }}
+        >
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-600">
+              {cycleStatusSummary.title}
+            </span>
+            <div className="flex shrink-0 items-center gap-1">
+              {(cycleStatusSummary.badges ?? []).map((badge) => (
+                <Badge
+                  key={badge}
+                  className="h-5 rounded-full border border-rose-100 bg-white/80 px-2 text-[10px] font-semibold text-fertiliapp-fuerte shadow-none hover:bg-white/80"
+                >
+                  {badge}
+                </Badge>
+              ))}
+            </div>
+          </div>
+          <div className="mt-3 space-y-1">
+            <p className="text-[15px] font-semibold leading-tight text-slate-800">
+              {cycleStatusSummary.headline}
+            </p>
+            <p className="text-[13px] leading-snug text-slate-600">
+              {cycleStatusSummary.body}
+            </p>
+          </div>
+        </motion.button>
+    )}
+
     <motion.div
-          className="mx-2 mt-8 mb-2 rounded-2xl border border-fertiliapp-suave bg-white/70 p-2 shadow-[0_10px_30px_rgba(148,163,184,0.15)] backdrop-blur-md"
+          className="mx-2 mt-2 mb-2 rounded-2xl border border-fertiliapp-suave bg-white/70 p-2 shadow-[0_10px_30px_rgba(148,163,184,0.15)] backdrop-blur-md"
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.2, delay: 0.06 }}
@@ -2047,6 +2086,10 @@ const handleConfirmDeleteRecord = useCallback(async () => {
   }
 }, [recordToDelete?.id, currentCycle?.id, deleteRecord, refreshData, toast]);
 
+  const handleOpenCycleStatusChart = useCallback(() => {
+    navigate('/chart?interpretation=1');
+  }, [navigate]);
+
   const handleSave = async (data, { keepFormOpen = false, submitAction = null } = {}) => {
   setIsProcessing(true);
 
@@ -2202,16 +2245,18 @@ const handleConfirmDeleteRecord = useCallback(async () => {
     const merged = mergeFertilityStartConfig({
       incoming: preferences?.fertilityStartConfig,
     });
+    const isPostpartumMode = Boolean(currentCycle?.postpartumMode);
 
     return {
       ...merged,
+      postpartum: isPostpartumMode,
       calculators: {
         ...merged.calculators,
-        cpm: Boolean(merged.calculators?.cpm) && cpmSelection !== 'none',
-        t8: Boolean(merged.calculators?.t8) && t8Selection !== 'none',
+        cpm: !isPostpartumMode && Boolean(merged.calculators?.cpm) && cpmSelection !== 'none',
+        t8: !isPostpartumMode && Boolean(merged.calculators?.t8) && t8Selection !== 'none',
       },
     };
-  }, [preferences?.fertilityStartConfig, cpmSelection, t8Selection]);
+  }, [preferences?.fertilityStartConfig, currentCycle?.postpartumMode, cpmSelection, t8Selection]);
 
   const fertilityCalculatorCycles = useMemo(() => {
     const cycles = [];
@@ -2224,7 +2269,13 @@ const handleConfirmDeleteRecord = useCallback(async () => {
     return cycles;
   }, [archivedCycles, currentCycle]);
 
-  const { processedData: fertilityChartData, todayIndex: fertilityTodayIndex } = useFertilityChart(
+  const {
+    allDataPoints: fertilityChartData,
+    fertilityStart,
+    todayIndex: fertilityTodayIndex,
+    ovulationDetails: fertilityOvulationDetails,
+    hasAnyObservation: fertilityHasAnyObservation,
+  } = useFertilityChart(
     currentCycle?.data ?? [],
     false,
     'portrait',
@@ -2236,6 +2287,34 @@ const handleConfirmDeleteRecord = useCallback(async () => {
     fertilityCalculatorCycles,
     externalCalculatorCandidates,
     false
+  );
+
+  const cycleStatusSummary = useMemo(
+    () =>
+      buildFertilityInterpretationSummary({
+        fertilityStart,
+        todayIndex: fertilityTodayIndex,
+        currentDay,
+        postpartumMode: Boolean(currentCycle?.postpartumMode),
+        cpmSelection,
+        t8Selection,
+        fertilityStartConfig,
+        allDataPoints: fertilityChartData,
+        ovulationDetails: fertilityOvulationDetails,
+        hasAnyObservation: fertilityHasAnyObservation,
+      }),
+    [
+      fertilityStart,
+      fertilityTodayIndex,
+      currentDay,
+      currentCycle?.postpartumMode,
+      cpmSelection,
+      t8Selection,
+      fertilityStartConfig,
+      fertilityChartData,
+      fertilityOvulationDetails,
+      fertilityHasAnyObservation,
+    ]
   );
 
   if (isLoading && !currentCycle?.id) {
@@ -2304,6 +2383,8 @@ const handleConfirmDeleteRecord = useCallback(async () => {
   handleOpenT8Dialog={handleOpenT8Dialog}
   cpmMetric={cpmMetric}
   t8Metric={t8Metric}
+  cycleStatusSummary={cycleStatusSummary}
+  onOpenCycleStatus={handleOpenCycleStatusChart}
   isDetailInteractionModalOpen={showForm}
 />
           <FertilityCalculatorsEditorDialogs
