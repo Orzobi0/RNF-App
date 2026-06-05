@@ -21,7 +21,7 @@ const BottomNav = () => {
       icon: ChartSpline,
       showArchivedBadge: hasArchivedCycleContext,
     },
-    { to: '/', label: 'Ciclo actual', icon: Heart },
+    { to: '/', label: 'Ciclo actual', icon: Heart, activeFill: true },
     { to: '/archived-cycles', label: 'Mis ciclos', icon: Archive },
     { to: '/settings', label: 'Cuenta', icon: User },
   ];
@@ -39,7 +39,7 @@ return (
       {/* Barra visible */}
       <div className="h-[var(--bottom-nav-height)] pt-3.5">
         <ul className="grid h-full w-full grid-cols-5 items-start gap-2 px-2">
-          {links.map(({ to, label, icon: Icon, showArchivedBadge }) => (
+          {links.map(({ to, label, icon: Icon, showArchivedBadge, activeFill }) => (
             <li key={to} className="flex">
               <NavLink
                 to={to}
@@ -50,21 +50,18 @@ return (
                   return (
                     <>
                       <span
-                        aria-hidden
-                        className={`absolute inset-0 rounded-3xl transition-all duration-200 ${
-                          isActive
-                            ? 'bg-fertiliapp-suave/80 ring-1 ring-fertiliapp-suave shadow-sm'
-                            : 'bg-transparent'
-                        }`}
-                      />
-                      <span className="relative z-10 flex h-7 w-7 items-center justify-center">
-                        <Icon
-                          className={`h-6 w-6 transition-transform duration-200 ${
-                            isActive
-                              ? 'text-fertiliapp-fuerte scale-110'
-                              : 'text-gray-400 group-hover:text-gray-600'
-                          }`}
-                        />
+  className={`relative z-10 flex h-9 w-[3.35rem] items-center justify-center rounded-full transition-all duration-200 ${
+    isActive
+      ? 'bg-rose-50/95 text-fertiliapp-fuerte ring-1 ring-rose-200/80 shadow-[0_4px_12px_rgba(216,92,112,0.14)]'
+      : 'bg-transparent text-slate-400 group-hover:text-slate-500'
+  }`}
+>
+  <Icon
+    strokeWidth={isActive ? 2.35 : 2}
+    className={`h-6 w-6 transition-transform duration-200 ${
+      isActive ? 'scale-105' : 'group-hover:scale-105'
+    } ${activeFill && isActive ? 'fill-current' : 'fill-none'}`}
+  />
                         {showArchivedBadge && (
                           <span
                             aria-hidden
