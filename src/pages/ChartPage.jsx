@@ -1589,13 +1589,19 @@ const rotatedDrawerStyle = applyRotation
       return Number.isFinite(numericDay) && numericDay > 0 ? numericDay : null;
     };
 
-    const formatDay = (day) => {
-      if (!Number.isFinite(Number(day))) return '—';
-      const numericDay = Number(day);
-      const displayDay = Number.isInteger(numericDay)
-        ? String(numericDay)
-        : String(Number(numericDay.toFixed(1)));
-      return `Día ${displayDay}`;
+    const formatCalculatorItemValue = ({ mode, value }) => {
+      if (mode === 'none') return 'Sin usar';
+
+      if (value === null || value === undefined || value === '') {
+        return 'Sin datos todavía';
+      }
+
+      const numericValue = Number(value);
+      if (!Number.isFinite(numericValue) || numericValue <= 0) {
+        return 'Sin datos todavía';
+      }
+
+      return `Día ${Math.round(numericValue)}`;
     };
 
     const buildItem = ({ key, label, source, mode, manualValue }) => {
@@ -1607,7 +1613,7 @@ const rotatedDrawerStyle = applyRotation
         return {
           key,
           label,
-          value: '—',
+          value: formatCalculatorItemValue({ mode }),
           status: 'Sin usar',
           enabled: mode !== 'none',
         };
@@ -1617,7 +1623,7 @@ const rotatedDrawerStyle = applyRotation
         return {
           key,
           label,
-          value: formatDay(validManualDay),
+          value: formatCalculatorItemValue({ mode, value: validManualDay }),
           status: 'Manual',
           enabled: true,
         };
@@ -1626,7 +1632,7 @@ const rotatedDrawerStyle = applyRotation
       return {
         key,
         label,
-        value: formatDay(autoDay),
+        value: formatCalculatorItemValue({ mode, value: autoDay }),
         status: 'Automático',
         enabled: true,
       };
@@ -1667,6 +1673,17 @@ const rotatedDrawerStyle = applyRotation
     if (active[0] === 'T-8') return 'Solo T-8 activo';
     return 'Sin cálculos activos';
   }, [calculatorInterpretationItems, cyclePostpartumMode]);
+
+  const handleCalculatorEditFromInterpretation = useCallback((calculatorKey) => {
+    if (calculatorKey === 'cpm') {
+      calculatorEditor.handleOpenCpmDialog();
+      return;
+    }
+
+    if (calculatorKey === 't8') {
+      calculatorEditor.handleOpenT8Dialog();
+    }
+  }, [calculatorEditor]);
 
   const effectiveTemperatureDetailsForFertileStart = useMemo(
     () =>
@@ -2725,15 +2742,7 @@ const isManualFertile =
           cyclePostpartumMode={cyclePostpartumMode}
           calculatorSummary={calculatorInterpretationSummary}
           calculatorItems={calculatorInterpretationItems}
-          onCalculatorEdit={(calculatorKey) => {
-            if (calculatorKey === 'cpm') {
-              calculatorEditor.handleOpenCpmDialog();
-              return;
-            }
-            if (calculatorKey === 't8') {
-              calculatorEditor.handleOpenT8Dialog();
-            }
-          }}
+          onCalculatorEdit={handleCalculatorEditFromInterpretation}
           isRotated={applyRotation}
           viewport={viewport}
           isFullScreen={isFullScreen}

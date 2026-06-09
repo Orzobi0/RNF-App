@@ -361,12 +361,12 @@ const CalculatorRow = ({ item, postpartum, onEdit }) => (
       <div className="flex min-w-0 items-center gap-2">
         <span className="shrink-0 text-sm font-semibold text-slate-700">{item.label}</span>
         <span className="min-w-0 truncate text-xs text-slate-500">
-          {item.value} - {postpartum ? 'Omitido por postparto' : 'Configurar'}
+          {postpartum ? `${item.value} - Omitido por postparto` : item.value}
         </span>
       </div>
       {postpartum && (
         <p className="mt-0.5 text-[11px] leading-snug text-slate-500">
-          La configuracion se conserva, pero no aplica a este ciclo.
+          La configuración se conserva, pero no aplica a este ciclo.
         </p>
       )}
     </div>

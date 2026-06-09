@@ -51,7 +51,7 @@ const FertilityCalculatorsEditorDialogs = ({ editor, onNavigateToCycleDetails })
           if (!open) dialogs.handleCloseCpmDialog();
         }}
       >
-        <DialogContent className="flex max-h-[90vh] w-[90vw] max-w-sm flex-col overflow-hidden rounded-3xl border border-rose-100 bg-white/95 p-0 text-gray-800 shadow-xl">
+        <DialogContent overlayClassName="z-[600]" className="z-[610] flex max-h-[90vh] w-[90vw] max-w-sm flex-col overflow-hidden rounded-3xl border border-rose-100 bg-white/95 p-0 text-gray-800 shadow-xl">
           <DialogHeader className="space-y-2 px-4 pt-4 text-left">
             <div className="flex items-center justify-between gap-2 pr-8">
               <DialogTitle>Editar CPM</DialogTitle>
@@ -231,7 +231,7 @@ const FertilityCalculatorsEditorDialogs = ({ editor, onNavigateToCycleDetails })
       </Dialog>
 
       <Dialog open={dialogs.showCpmDeleteDialog} onOpenChange={dialogs.setShowCpmDeleteDialog}>
-        <DialogContent className="w-[90vw] max-w-xs rounded-2xl border border-rose-100">
+        <DialogContent overlayClassName="z-[600]" className="z-[610] w-[90vw] max-w-xs rounded-2xl border border-rose-100">
           <DialogHeader><DialogTitle>¿Estás segura de que quieres borrar el valor manual de CPM?</DialogTitle></DialogHeader>
           <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:justify-end sm:gap-3">
             <Button type="button" variant="secondary" onClick={() => dialogs.setShowCpmDeleteDialog(false)} className="w-full sm:w-auto">Cancelar</Button>
@@ -246,7 +246,7 @@ const FertilityCalculatorsEditorDialogs = ({ editor, onNavigateToCycleDetails })
           if (!open) dialogs.handleCloseT8Dialog();
         }}
       >
-        <DialogContent className="flex max-h-[90vh] w-[90vw] max-w-sm flex-col overflow-hidden rounded-3xl border border-rose-100 bg-white/95 p-0 text-gray-800 shadow-xl">
+        <DialogContent overlayClassName="z-[600]" className="z-[610] flex max-h-[90vh] w-[90vw] max-w-sm flex-col overflow-hidden rounded-3xl border border-rose-100 bg-white/95 p-0 text-gray-800 shadow-xl">
           <DialogHeader className="space-y-2 px-4 pt-4 text-left">
             <div className="flex items-center justify-between gap-2 pr-8">
               <DialogTitle>Editar T-8</DialogTitle>
@@ -374,7 +374,7 @@ const FertilityCalculatorsEditorDialogs = ({ editor, onNavigateToCycleDetails })
       </Dialog>
 
       <Dialog open={dialogs.showT8DeleteDialog} onOpenChange={dialogs.setShowT8DeleteDialog}>
-        <DialogContent className="w-[90vw] max-w-xs rounded-2xl border border-rose-100">
+        <DialogContent overlayClassName="z-[600]" className="z-[610] w-[90vw] max-w-xs rounded-2xl border border-rose-100">
           <DialogHeader><DialogTitle>¿Estás segura de que quieres borrar el valor manual de T-8?</DialogTitle></DialogHeader>
           <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:justify-end sm:gap-3">
             <Button type="button" variant="secondary" onClick={() => dialogs.setShowT8DeleteDialog(false)} className="w-full sm:w-auto">Cancelar</Button>
