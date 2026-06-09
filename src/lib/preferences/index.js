@@ -75,6 +75,28 @@ export const mergeFertilityStartConfig = ({ current, incoming, legacyCombineMode
   return merged;
 };
 
+export const syncFertilityCalculatorsWithModes = (preferences = {}) => {
+  const cpmMode = normalizePreferenceValue('cpmMode', preferences?.cpmMode);
+  const t8Mode = normalizePreferenceValue('t8Mode', preferences?.t8Mode);
+  const fertilityStartConfig = mergeFertilityStartConfig({
+    incoming: preferences?.fertilityStartConfig,
+  });
+
+  return {
+    ...preferences,
+    cpmMode,
+    t8Mode,
+    fertilityStartConfig: {
+      ...fertilityStartConfig,
+      calculators: {
+        ...fertilityStartConfig.calculators,
+        cpm: cpmMode !== 'none',
+        t8: t8Mode !== 'none',
+      },
+    },
+  };
+};
+
 const normalizeNumberOrNull = (value) => {
   if (value === null) return null;
   if (value === undefined) return undefined;
@@ -126,13 +148,25 @@ export const normalizeStoredPreferences = (rawPreferences = {}) => {
     normalized[fieldKey] = normalizePreferenceValue(fieldKey, normalized[fieldKey], defaults);
   });
 
-  normalized.fertilityStartConfig = mergeFertilityStartConfig({
+  const storedConfig = mergeFertilityStartConfig({
     current: defaults.fertilityStartConfig,
     incoming: storedFertilityStartConfig,
     legacyCombineMode,
   });
 
-  return normalized;
+  if (storedConfig.calculators?.cpm === false && normalized.cpmMode !== 'none') {
+    normalized.cpmMode = 'none';
+  }
+  if (storedConfig.calculators?.t8 === false && normalized.t8Mode !== 'none') {
+    normalized.t8Mode = 'none';
+  }
+
+  normalized.fertilityStartConfig = mergeFertilityStartConfig({
+    current: defaults.fertilityStartConfig,
+    incoming: storedConfig,
+  });
+
+  return syncFertilityCalculatorsWithModes(normalized);
 };
 
 export const normalizePreferencePatch = (patch = {}, currentPreferences = PREFERENCE_DEFAULTS) => {
@@ -152,6 +186,20 @@ export const normalizePreferencePatch = (patch = {}, currentPreferences = PREFER
       incoming: fertilityStartConfig,
       legacyCombineMode,
     });
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(normalizedPatch, 'cpmMode') ||
+    Object.prototype.hasOwnProperty.call(normalizedPatch, 't8Mode') ||
+    Object.prototype.hasOwnProperty.call(normalizedPatch, 'fertilityStartConfig')
+  ) {
+    const synced = syncFertilityCalculatorsWithModes({
+      ...currentPreferences,
+      ...normalizedPatch,
+    });
+    normalizedPatch.cpmMode = synced.cpmMode;
+    normalizedPatch.t8Mode = synced.t8Mode;
+    normalizedPatch.fertilityStartConfig = synced.fertilityStartConfig;
   }
 
   return { normalizedPatch, hasFertilityUpdate };

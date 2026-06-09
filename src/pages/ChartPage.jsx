@@ -10,6 +10,7 @@ import FertilityChart from '@/components/FertilityChart';
 import PhaseEducationSheet from '@/components/chartElements/PhaseEducationSheet';
 import InterpretationSettingsDialog from '@/components/InterpretationSettingsDialog';
 import { useCycleData } from '@/hooks/useCycleData';
+import { useFertilityCalculatorsEditor } from '@/hooks/useFertilityCalculatorsEditor';
 import { differenceInDays, format, parseISO, startOfDay } from 'date-fns';
 import generatePlaceholders from '@/lib/generatePlaceholders';
 import {
@@ -29,13 +30,14 @@ import DataEntryForm from '@/components/DataEntryForm';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import NewCycleDialog from '@/components/NewCycleDialog';
+import FertilityCalculatorsEditorDialogs from '@/components/FertilityCalculatorsEditorDialogs';
 import { useToast } from '@/components/ui/use-toast';
 import {
   computeCpmCandidateFromCycles,
   computeFertilityStartOutput,
   computeT8CandidateFromCycles,
 } from '@/lib/fertilityStart';
-import { useParams, Link, useLocation } from 'react-router-dom';
+import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { computeOvulationMetrics } from '@/hooks/useFertilityChart';
 import ChartControls from '@/components/ChartControls';
@@ -302,6 +304,7 @@ const PhaseInfoFloatingCard = ({
 const ChartPage = () => {
   const { cycleId } = useParams();
   const location = useLocation();
+  const navigate = useNavigate();
   const {
     currentCycle,
     archivedCycles,
@@ -311,6 +314,7 @@ const ChartPage = () => {
     getCycleById,
     previewStartNewCycle,
     startNewCycle,
+    setCycleIgnoreForAutoCalculations,
     updateCyclePostpartumMode,
     updateCycleInterpretationOverrides,
   } = useCycleData();
@@ -377,6 +381,12 @@ const ChartPage = () => {
 
   const { preferences, savePreferences } = useAuth();
   const { toast } = useToast();
+  const calculatorEditor = useFertilityCalculatorsEditor({
+    currentCycle,
+    archivedCycles,
+    setCycleIgnoreForAutoCalculations,
+    toast,
+  });
   const manualCpmPreference = preferences?.manualCpm;
   const manualCpmBasePreference = preferences?.manualCpmBase;
   const manualT8Preference = preferences?.manualT8;
@@ -592,8 +602,8 @@ useEffect(() => {
       postpartum: cyclePostpartumMode,
       calculators: {
         ...fertilityConfig.calculators,
-        cpm: !cyclePostpartumMode && fertilityConfig.calculators.cpm && cpmSelection !== 'none',
-        t8: !cyclePostpartumMode && fertilityConfig.calculators.t8 && t8Selection !== 'none',
+        cpm: !cyclePostpartumMode && cpmSelection !== 'none',
+        t8: !cyclePostpartumMode && t8Selection !== 'none',
       },
     }),
     [fertilityConfig, cpmSelection, t8Selection, cyclePostpartumMode]
@@ -602,10 +612,10 @@ useEffect(() => {
   const calculatorPanelSummary = useMemo(() => {
     if (cyclePostpartumMode) return 'Cálculo omitido';
     const active = [];
-    if (fertilityConfig.calculators?.cpm && cpmSelection !== 'none') active.push('CPM');
-    if (fertilityConfig.calculators?.t8 && t8Selection !== 'none') active.push('T-8');
+    if (cpmSelection !== 'none') active.push('CPM');
+    if (t8Selection !== 'none') active.push('T-8');
     return active.length > 0 ? active.join(' · ') : 'Sin cálculos activos';
-  }, [cyclePostpartumMode, fertilityConfig.calculators, cpmSelection, t8Selection]);
+  }, [cyclePostpartumMode, cpmSelection, t8Selection]);
 
   const interpretationCardChips = useMemo(() => {
     const fertileStartChip = targetCycle?.interpretationOverrides?.fertileStart?.mode === 'manual'
@@ -1082,45 +1092,6 @@ const rotatedDrawerStyle = applyRotation
       }
     }
   };
-  const handleFertilityCalculatorChange = async (calculatorKey, checked) => {
-    const currentConfig = mergeFertilityStartConfig({ incoming: chartSettings.fertilityStartConfig });
-    const nextValue = checked === true;
-    if (currentConfig.calculators?.[calculatorKey] === nextValue) {
-      return;
-    }
-
-    const nextConfig = {
-      ...currentConfig,
-      calculators: {
-        ...currentConfig.calculators,
-        [calculatorKey]: nextValue,
-      },
-    };
-    setChartSettings((prev) => ({
-      ...prev,
-      fertilityStartConfig: nextConfig,
-    }));
-    
-    if (typeof savePreferences === 'function') {
-      try {
-        await savePreferences({ fertilityStartConfig: nextConfig });
-        const calculatorLabel = calculatorKey === 'cpm' ? 'CPM' : 'T-8';
-        toast({
-          title: checked === true
-            ? `${calculatorLabel} activado para inicio de fertilidad`
-            : `${calculatorLabel} desactivado para inicio de fertilidad`,
-        });
-      } catch (error) {
-        console.error('Failed to persist calculator preference', error);
-        toast({
-          title: 'No se pudo actualizar la preferencia',
-          description: 'Inténtalo de nuevo.',
-          variant: 'destructive',
-        });
-      }
-    }
-  };
-  
   const handlePostpartumChange = async (checked) => {
     if (!targetCycle?.id || typeof updateCyclePostpartumMode !== 'function') return;
     try {
@@ -1638,7 +1609,7 @@ const rotatedDrawerStyle = applyRotation
           label,
           value: '—',
           status: 'Sin usar',
-          enabled: Boolean(fertilityConfig.calculators?.[key]),
+          enabled: mode !== 'none',
         };
       }
 
@@ -1648,7 +1619,7 @@ const rotatedDrawerStyle = applyRotation
           label,
           value: formatDay(validManualDay),
           status: 'Manual',
-          enabled: Boolean(fertilityConfig.calculators?.[key]),
+          enabled: true,
         };
       }
 
@@ -1656,8 +1627,8 @@ const rotatedDrawerStyle = applyRotation
         key,
         label,
         value: formatDay(autoDay),
-        status: autoDay ? 'Auto' : 'No disponible',
-        enabled: Boolean(fertilityConfig.calculators?.[key]),
+        status: 'Automático',
+        enabled: true,
       };
     };
 
@@ -1680,7 +1651,6 @@ const rotatedDrawerStyle = applyRotation
   }, [
     combinedFertilityCalculatorCandidates,
     cpmSelection,
-    fertilityConfig.calculators,
     manualCpmPreference,
     manualT8Preference,
     t8Selection,
@@ -2755,10 +2725,31 @@ const isManualFertile =
           cyclePostpartumMode={cyclePostpartumMode}
           calculatorSummary={calculatorInterpretationSummary}
           calculatorItems={calculatorInterpretationItems}
-          onCalculatorEnabledChange={handleFertilityCalculatorChange}
+          onCalculatorEdit={(calculatorKey) => {
+            if (calculatorKey === 'cpm') {
+              calculatorEditor.handleOpenCpmDialog();
+              return;
+            }
+            if (calculatorKey === 't8') {
+              calculatorEditor.handleOpenT8Dialog();
+            }
+          }}
           isRotated={applyRotation}
           viewport={viewport}
           isFullScreen={isFullScreen}
+        />
+
+        <FertilityCalculatorsEditorDialogs
+          editor={calculatorEditor}
+          onNavigateToCycleDetails={(cycle) => {
+            const targetCycleId = cycle?.cycleId || cycle?.id;
+            if (!targetCycleId) return;
+            if (currentCycle?.id && targetCycleId === currentCycle.id) {
+              navigate('/');
+              return;
+            }
+            navigate(`/cycle/${targetCycleId}`);
+          }}
         />
 
         <Dialog open={showForm} onOpenChange={handleFormOpenChange}>

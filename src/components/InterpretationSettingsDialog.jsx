@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AlertTriangle, ChevronDown, GripHorizontal, X } from 'lucide-react';
-import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 
 const formatTemp = (value) => (Number.isFinite(Number(value)) ? `${Number(value).toFixed(2)} ºC` : '-');
@@ -337,48 +336,42 @@ const FutureSection = ({ title }) => (
   </div>
 );
 
-const CalculatorSwitch = ({ checked, disabled, onChange, label }) => (
+const CalculatorStatusChip = ({ status }) => {
+  const normalized = String(status || '').toLowerCase();
+  const className = normalized.includes('sin usar')
+    ? 'border-slate-200 bg-slate-50 text-slate-600'
+    : normalized.includes('manual')
+      ? 'border-rose-200 bg-rose-50 text-rose-700'
+      : 'border-emerald-200 bg-emerald-50 text-emerald-700';
+
+  return (
+    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${className}`}>
+      {status}
+    </span>
+  );
+};
+
+const CalculatorRow = ({ item, postpartum, onEdit }) => (
   <button
     type="button"
-    role="switch"
-    aria-checked={checked}
-    aria-label={label}
-    disabled={disabled}
-    onClick={() => {
-      if (!disabled) onChange?.(!checked);
-    }}
-    className={`relative inline-flex h-6 w-11 min-w-11 shrink-0 items-center rounded-full transition ${
-      checked ? 'bg-rose-400' : 'bg-slate-300'
-    } ${disabled ? 'cursor-not-allowed opacity-50' : 'hover:brightness-105'}`}
+    onClick={() => onEdit?.(item.key)}
+    className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-slate-100 bg-white px-3 py-2.5 text-left transition hover:border-rose-100 hover:bg-rose-50/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
   >
-    <span
-      className={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
-        checked ? 'translate-x-5' : 'translate-x-0.5'
-      }`}
-    />
-  </button>
-);
-
-const CalculatorRow = ({ item, postpartum, onChange }) => (
-  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-slate-100 bg-white px-3 py-2.5">
     <div className="min-w-0">
       <div className="flex min-w-0 items-center gap-2">
         <span className="shrink-0 text-sm font-semibold text-slate-700">{item.label}</span>
         <span className="min-w-0 truncate text-xs text-slate-500">
-          {item.value} · {postpartum ? 'Omitido por postparto' : item.status}
+          {item.value} - {postpartum ? 'Omitido por postparto' : 'Configurar'}
         </span>
       </div>
       {postpartum && (
-        <p className="mt-0.5 text-[11px] leading-snug text-slate-500">Omitido por postparto</p>
+        <p className="mt-0.5 text-[11px] leading-snug text-slate-500">
+          La configuracion se conserva, pero no aplica a este ciclo.
+        </p>
       )}
     </div>
-    <CalculatorSwitch
-      checked={postpartum ? false : Boolean(item.enabled)}
-      disabled={postpartum}
-      onChange={(checked) => onChange?.(item.key, checked)}
-      label={`${item.label} en la interpretación`}
-    />
-  </div>
+    <CalculatorStatusChip status={item.status} />
+  </button>
 );
 
 const InterpretationSettingsDialog = ({
@@ -413,7 +406,7 @@ const InterpretationSettingsDialog = ({
   cyclePostpartumMode = false,
   calculatorSummary = 'CPM y T-8 activos',
   calculatorItems = [],
-  onCalculatorEnabledChange,
+  onCalculatorEdit,
   isRotated = false,
   viewport = null,
   isFullScreen = false,
@@ -719,16 +712,10 @@ const InterpretationSettingsDialog = ({
                       key={item.key}
                       item={item}
                       postpartum={cyclePostpartumMode}
-                      onChange={onCalculatorEnabledChange}
+                      onEdit={onCalculatorEdit}
                     />
                   ))}
                 </div>
-                <Link
-                  to="/settings/preferences"
-                  className="inline-flex min-h-5 items-center px-1 text-xs font-semibold text-rose-600 hover:text-rose-700"
-                >
-                  Editar valores en Preferencias
-                </Link>
             </ExpandableContent>
           </section>
 

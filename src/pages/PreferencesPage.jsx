@@ -12,7 +12,6 @@ import { cn } from '@/lib/utils';
 import FertilityCalculatorsEditorDialogs from '@/components/FertilityCalculatorsEditorDialogs';
 import {
   PREFERENCE_DEFAULTS,
-  mergeFertilityStartConfig,
   normalizeStoredPreferences,
   validatePreferenceField,
 } from '@/lib/preferences';
@@ -175,41 +174,6 @@ const PreferenceActionRow = ({
   </button>
 );
 
-const PreferenceInlineSwitchRow = ({
-  title,
-  checked,
-  onChange,
-  disabled = false,
-  id,
-}) => (
-  <button
-    id={id}
-    type="button"
-    role="switch"
-    aria-checked={checked}
-    disabled={disabled}
-    onClick={() => {
-      if (disabled) return;
-      onChange(!checked);
-    }}
-    className="flex w-full items-center justify-between gap-3 px-0 py-0 text-left transition disabled:cursor-not-allowed disabled:opacity-60"
-  >
-    <p className="text-sm font-medium leading-tight text-slate-700">{title}</p>
-
-    <span
-      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition ${
-        checked ? 'bg-rose-400' : 'bg-slate-300'
-      }`}
-      aria-hidden="true"
-    >
-      <span
-        className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition ${
-          checked ? 'translate-x-5' : 'translate-x-0'
-        }`}
-      />
-    </span>
-  </button>
-);
 const PreferenceModeChip = ({ label, tone = 'manual' }) => (
   <span
     className={cn(
@@ -252,10 +216,6 @@ const CalculatorPreferenceCard = ({
   metrics,
   onEdit,
   editAriaLabel,
-  switchTitle,
-  checked,
-  onToggle,
-  toggleId,
   disabled = false,
 }) => (
   <div
@@ -279,16 +239,6 @@ const CalculatorPreferenceCard = ({
         <PreferenceMetricGrid items={metrics} valueTone="cool" />
       </div>
     </button>
-
-    <div className="mt-2 border-t border-white/45 pt-2">
-      <PreferenceInlineSwitchRow
-        title={switchTitle}
-        checked={checked}
-        onChange={onToggle}
-        id={toggleId}
-        disabled={disabled}
-      />
-    </div>
   </div>
 );
 const PreferenceSwitchRow = ({
@@ -532,48 +482,6 @@ const handleClearPreferredTime = useCallback(async () => {
 
   setIsPreferredTimeEditorOpen(false);
 }, [persistPatch, uiPreferences.preferredTemperatureTime]);
-
-  const handleFertilityCalculatorToggle = useCallback(
-    async (calculatorKey, checked) => {
-      const nextConfig = mergeFertilityStartConfig({
-        incoming: {
-          ...uiPreferences.fertilityStartConfig,
-          calculators: {
-            ...uiPreferences.fertilityStartConfig?.calculators,
-            [calculatorKey]: checked,
-          },
-        },
-      });
-
-      const validationError = validatePreferenceField('fertilityStartConfig', nextConfig, {
-        ...uiPreferences,
-        fertilityStartConfig: nextConfig,
-      });
-
-      if (validationError) {
-        setErrors((prev) => ({ ...prev, fertilityStartConfig: validationError }));
-        return;
-      }
-
-      setErrors((prev) => {
-        const next = { ...prev };
-        delete next.fertilityStartConfig;
-        return next;
-      });
-
-      if (JSON.stringify(normalizedPreferences.fertilityStartConfig) === JSON.stringify(nextConfig)) return;
-
-      await persistPatch({
-        key: 'fertilityStartConfig',
-        patch: { fertilityStartConfig: nextConfig },
-        optimisticState: { fertilityStartConfig: nextConfig },
-        successTitle: 'Configuración actualizada',
-        errorTitle: 'No se pudo actualizar la configuración',
-      });
-    },
-    [normalizedPreferences.fertilityStartConfig, persistPatch, uiPreferences],
-  );
-
   return (
   <div className="relative flex min-h-full flex-col">
     <div className="sticky top-0 z-30 pb-4">
@@ -641,11 +549,6 @@ modeTone={cpmMode.tone}
 metrics={cpmMetrics}
   onEdit={calculatorEditor.handleOpenCpmDialog}
   editAriaLabel="Editar CPM"
-  switchTitle="Usar CPM para inicio de fertilidad"
-  checked={Boolean(uiPreferences.fertilityStartConfig?.calculators?.cpm)}
-  onToggle={(checked) => handleFertilityCalculatorToggle('cpm', checked)}
-  toggleId="toggle-use-cpm"
-  disabled={Boolean(savingKeys.fertilityStartConfig)}
 />
 
 <CalculatorPreferenceCard
@@ -655,16 +558,7 @@ modeTone={t8Mode.tone}
 metrics={t8Metrics}
   onEdit={calculatorEditor.handleOpenT8Dialog}
   editAriaLabel="Editar T-8"
-  switchTitle="Usar T-8 para inicio de fertilidad"
-  checked={Boolean(uiPreferences.fertilityStartConfig?.calculators?.t8)}
-  onToggle={(checked) => handleFertilityCalculatorToggle('t8', checked)}
-  toggleId="toggle-use-t8"
-  disabled={Boolean(savingKeys.fertilityStartConfig)}
 />
-
-    {errors.fertilityStartConfig ? (
-      <p className="px-1 text-xs text-red-500">{errors.fertilityStartConfig}</p>
-    ) : null}
   </section>
 
   <section className="space-y-2.5">
