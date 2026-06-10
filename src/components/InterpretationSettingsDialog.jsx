@@ -301,24 +301,36 @@ const SectionHeader = ({ title, chip, expanded, onToggle, disabled = false }) =>
   </button>
 );
 
-const ExpandableContent = ({ open, className = '', children }) => (
-  <AnimatePresence initial={false}>
-    {open && (
-      <motion.div
-        initial={{ height: 0, opacity: 0 }}
-        animate={{ height: 'auto', opacity: 1 }}
-        exit={{ height: 0, opacity: 0 }}
-        transition={{
-          duration: 0.18,
-          ease: [0.22, 1, 0.36, 1],
-        }}
-        className="overflow-hidden"
-      >
+const ExpandableContent = ({ open, className = '', instant = false, children }) => {
+  if (instant) {
+    if (!open) return null;
+
+    return (
+      <div className="overflow-hidden">
         <div className={className}>{children}</div>
-      </motion.div>
-    )}
-  </AnimatePresence>
-);
+      </div>
+    );
+  }
+
+  return (
+    <AnimatePresence initial={false}>
+      {open && (
+        <motion.div
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: 'auto', opacity: 1 }}
+          exit={{ height: 0, opacity: 0 }}
+          transition={{
+            duration: 0.18,
+            ease: [0.22, 1, 0.36, 1],
+          }}
+          className="overflow-hidden"
+        >
+          <div className={className}>{children}</div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+};
 
 const renderInBody = (node) =>
   typeof document === 'undefined' ? node : createPortal(node, document.body);
@@ -655,6 +667,15 @@ const InterpretationSettingsDialog = ({
   const dialogPanelClassName =
     'pointer-events-auto flex max-h-[72dvh] w-full max-w-lg flex-col rounded-t-2xl border border-orange-100 bg-white shadow-2xl sm:max-h-[86dvh] sm:rounded-2xl';
 
+    const dialogPanelStyle = isRotated
+  ? {
+      maxHeight: 'calc(100% - 16px)',
+      paddingBottom: 'env(safe-area-inset-left, 0px)',
+    }
+  : {
+      paddingBottom: 'env(safe-area-inset-bottom)',
+    };
+
   return renderInBody(
     <div className={dialogShellClassName} style={rotatedDialogShellStyle}>
       <motion.section
@@ -666,7 +687,7 @@ const InterpretationSettingsDialog = ({
         exit={{ y: 18, opacity: 0 }}
         transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
         className={dialogPanelClassName}
-        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+style={dialogPanelStyle}
       >
         <header className="flex shrink-0 items-start justify-between gap-3 border-b border-orange-100 px-4 py-2">
           <div>
@@ -697,9 +718,10 @@ const InterpretationSettingsDialog = ({
             />
 
             <ExpandableContent
-              open={calculationExpanded}
-              className="space-y-2 border-t border-emerald-100 bg-white/75 px-3 py-3"
-            >
+  open={calculationExpanded}
+  instant={isRotated}
+  className="space-y-2 border-t border-emerald-100 bg-white/75 px-3 py-3"
+>
                 {cyclePostpartumMode && (
                   <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs leading-relaxed text-rose-600">
                     El modo postparto está activo: CPM y T-8 se omiten del cálculo final.
@@ -728,9 +750,10 @@ const InterpretationSettingsDialog = ({
             />
 
             <ExpandableContent
-              open={fertileStartExpanded}
-              className="space-y-3 border-t border-pink-100 bg-white/75 px-3 py-3"
-            >
+  open={fertileStartExpanded}
+  instant={isRotated}
+  className="space-y-3 border-t border-pink-100 bg-white/75 px-3 py-3"
+>
                 <div className="space-y-2">
                   <SummaryRow label="Fecha" value={formatDate(fertileStartSummary?.isoDate)} />
                   <SummaryRow
@@ -789,9 +812,10 @@ const InterpretationSettingsDialog = ({
             />
 
             <ExpandableContent
-              open={thermalExpanded}
-              className="space-y-3 border-t border-red-100 bg-white/75 px-3 py-3"
-            >
+  open={thermalExpanded}
+  instant={isRotated}
+  className="space-y-3 border-t border-red-100 bg-white/75 px-3 py-3"
+>
                 <div className="space-y-2">
                   <SummaryRow label="Línea base" value={formatTemp(summary?.baselineTemp)} />
                   <SummaryRow label="Primer día alto" value={formatDate(summary?.firstHighIsoDate)} />
