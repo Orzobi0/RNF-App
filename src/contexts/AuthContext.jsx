@@ -8,7 +8,7 @@ import {
   sendEmailVerification,
   sendPasswordResetEmail,
   signOut,
-  updateEmail as firebaseUpdateEmail,
+  verifyBeforeUpdateEmail,
   updatePassword as firebaseUpdatePassword,
   updateProfile,
   deleteUser,
@@ -625,21 +625,29 @@ export const AuthProvider = ({ children }) => {
   };
 
   const updateUserEmail = async (newEmail) => {
-    if (!auth.currentUser) return;
-    try {
-      await firebaseUpdateEmail(auth.currentUser, newEmail);
-      setUser((prev) =>
-        prev
-          ? {
-              ...prev,
-              email: newEmail,
-              emailVerified: Boolean(auth.currentUser.emailVerified),
-            }
-          : prev
-      );
-    } catch (error) {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      const error = new Error('auth/no-current-user');
+      error.code = 'auth/no-current-user';
       throw error;
     }
+
+    const normalizedEmail = String(newEmail || '').trim();
+    if (!normalizedEmail) {
+      const error = new Error('auth/invalid-email');
+      error.code = 'auth/invalid-email';
+      throw error;
+    }
+
+    if (normalizedEmail === currentUser.email) {
+      return { ok: true, unchanged: true };
+    }
+
+    await verifyBeforeUpdateEmail(currentUser, normalizedEmail, {
+      url: `${window.location.origin}/settings`,
+    });
+
+    return { ok: true, verificationSent: true };
   };
 
   const updateUserPassword = async (newPassword) => {

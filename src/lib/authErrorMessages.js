@@ -3,9 +3,12 @@ const AUTH_ERROR_MESSAGES = {
   'auth/wrong-password': 'Correo o contraseña incorrectos.',
   'auth/user-not-found': 'Correo o contraseña incorrectos.',
   'auth/invalid-email': 'El correo no tiene un formato válido.',
-  'auth/email-already-in-use':
-    'Ya existe una cuenta con este correo. Inicia sesión o restablece la contraseña.',
+  'auth/email-already-in-use': 'Ya existe una cuenta con ese correo.',
   'auth/weak-password': 'La contraseña debe tener al menos 6 caracteres.',
+  'auth/operation-not-allowed':
+    'No se pudo completar la acción con esta configuración. Inténtalo de nuevo o solicita ayuda.',
+  'auth/email-change-needs-verification':
+    'Te hemos enviado un correo al nuevo email para confirmar el cambio.',
   'auth/too-many-requests': 'Demasiados intentos. Prueba de nuevo más tarde.',
   'auth/network-request-failed': 'No hay conexión o la red es inestable.',
   'auth/requires-recent-login':

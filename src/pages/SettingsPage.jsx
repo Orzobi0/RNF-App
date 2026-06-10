@@ -440,12 +440,23 @@ const SettingsPage = () => {
     e.preventDefault();
     setLoadingEmail(true);
     try {
-      await updateEmail(newEmail);
-      toast({ title: 'Correo actualizado' });
+      const result = await updateEmail(newEmail);
+      if (result?.unchanged) {
+        toast({
+          title: 'Correo sin cambios',
+          description: 'Ese correo ya está asociado a tu cuenta.',
+        });
+      } else if (result?.verificationSent) {
+        toast({
+          title: 'Verifica el nuevo correo',
+          description:
+            'Te hemos enviado un enlace al nuevo email. El cambio se aplicará cuando lo confirmes.',
+        });
+      }
       setShowEmailDialog(false);
     } catch (error) {
       toast({
-        title: 'No se pudo actualizar el correo',
+        title: 'No se pudo solicitar el cambio de correo',
         description: getAuthErrorMessage(error),
         variant: 'destructive',
       });

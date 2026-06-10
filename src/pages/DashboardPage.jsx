@@ -203,11 +203,15 @@ const recentSignaturesRef = useRef(new Map());
   }, [prefersReducedMotion, recentlyChangedDays]);
 
     // Ajustes del círculo de progreso
-  const totalDots = 28;
-  const radius = 140;
-  const padding = 15;
-  const center = radius + padding;
-  const viewBoxSize = center * 2;
+  // Ajustes del círculo de progreso
+const totalDots = 28;
+
+// El margen debe cubrir el punto actual/seleccionado + stroke + sombra.
+// Con 15px se cortaba visualmente cuando el punto caía en el extremo derecho.
+const radius = 136;
+const padding = 24;
+const center = radius + padding;
+const viewBoxSize = center * 2;
 
   const totalCycleDays = useMemo(() => {
     const maxRecordDay = records.reduce((maxValue, record) => {
@@ -1015,7 +1019,7 @@ const handleRingPointerCancel = useCallback(
       >
         {/* Tarjeta SOLO para el círculo + navegación */}
         
-        <div className="relative overflow-hidden rounded-[75px]   p-4  mb-2">
+        <div className="relative overflow-hidden rounded-[75px] px-4 pt-3 pb-1 mb-0">
         <div className="pointer-events-none absolute inset-0">
         {/* halo desde arriba como antes */}
         <div className="absolute inset-0 " />
@@ -1024,10 +1028,10 @@ const handleRingPointerCancel = useCallback(
         </div>
         <div className="relative text-center flex-shrink-0">
           {/* Círculo de progreso redimensionado */}
-          <div className="mb-3">
+          <div className="mb-0">
           <motion.div
   ref={circleRef}
-  className="relative mx-auto flex items-center justify-center mb-4 drop-shadow-[0_15px_35px_rgba(221,86,101,0.22)] aspect-square w-full"
+  className="relative mx-auto flex items-center justify-center mb-3 drop-shadow-[0_15px_35px_rgba(221,86,101,0.22)] aspect-square w-full"
   style={{ maxWidth: viewBoxSize, touchAction: 'pan-y' }}
   initial={{ opacity: 0 }}
   animate={{ opacity: 1 }}
@@ -1425,7 +1429,7 @@ if (dot.peakStatus === 'P') {
           type="button"
           onClick={onOpenCycleStatus}
           aria-label="Abrir gráfica con interpretación"
-          className="mx-2 mt-8 mb-2 block rounded-2xl border border-fertiliapp-suave bg-white/70 p-3 text-left shadow-[0_10px_30px_rgba(148,163,184,0.15)] backdrop-blur-md transition hover:border-fertiliapp-fuerte/40 hover:bg-white/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
+          className="mx-2 mt-2 mb-2 block rounded-2xl border border-fertiliapp-suave bg-white/70 p-3 text-left shadow-[0_10px_30px_rgba(148,163,184,0.15)] backdrop-blur-md transition hover:border-fertiliapp-fuerte/40 hover:bg-white/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.2, delay: 0.04 }}
@@ -1445,7 +1449,7 @@ if (dot.peakStatus === 'P') {
               ))}
             </div>
           </div>
-          <div className="mt-3 space-y-1">
+          <div className="mt-2 space-y-1">
             <p className="text-[15px] font-semibold leading-tight text-slate-800">
               {cycleStatusSummary.headline}
             </p>

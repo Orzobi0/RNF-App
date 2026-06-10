@@ -40,7 +40,9 @@ const AuthPage = () => {
       ? 'Correo verificado. Ya puedes iniciar sesión.'
       : searchParams.get('reset') === '1'
         ? 'Contraseña actualizada. Inicia sesión con tu nueva contraseña.'
-        : '';
+        : searchParams.get('emailUpdated') === '1'
+          ? 'Correo actualizado. Inicia sesión con tu nuevo correo si es necesario.'
+          : '';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
