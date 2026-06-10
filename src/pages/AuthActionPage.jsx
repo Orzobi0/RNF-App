@@ -40,6 +40,13 @@ const AuthActionPage = () => {
     }
   }, [continueUrl]);
 
+  const getSuccessRedirectPath = () => {
+    if (mode === 'verifyEmail') return '/auth?verified=1';
+    if (mode === 'resetPassword') return '/auth?reset=1';
+    if (mode === 'recoverEmail') return safeContinueUrl || '/auth';
+    return '/auth';
+  };
+
   useEffect(() => {
     let timeoutId;
 
@@ -59,7 +66,7 @@ const AuthActionPage = () => {
           setStatus('success');
           setMessage('Correo verificado correctamente. Redirigiendo a iniciar sesión...');
           timeoutId = window.setTimeout(() => {
-            navigate('/auth?verified=1', { replace: true });
+            navigate(getSuccessRedirectPath(), { replace: true });
           }, REDIRECT_DELAY_MS);
           return;
         }
@@ -79,7 +86,7 @@ const AuthActionPage = () => {
           setStatus('success');
           setMessage('Correo restaurado correctamente. Redirigiendo...');
           timeoutId = window.setTimeout(() => {
-            navigate(safeContinueUrl || '/auth', { replace: true });
+            navigate(getSuccessRedirectPath(), { replace: true });
           }, REDIRECT_DELAY_MS);
           return;
         }
@@ -127,7 +134,7 @@ const AuthActionPage = () => {
       setStatus('success');
       setMessage('Contraseña actualizada. Redirigiendo a iniciar sesión...');
       window.setTimeout(() => {
-        navigate('/auth?reset=1', { replace: true });
+        navigate(getSuccessRedirectPath(), { replace: true });
       }, REDIRECT_DELAY_MS);
     } catch (error) {
       setStatus('error');
@@ -228,7 +235,7 @@ const AuthActionPage = () => {
           {status === 'success' && (
             <Button
               type="button"
-              onClick={() => navigate(mode === 'verifyEmail' ? '/auth?verified=1' : safeContinueUrl || '/auth', { replace: true })}
+              onClick={() => navigate(getSuccessRedirectPath(), { replace: true })}
               className="w-full rounded-3xl bg-fertiliapp-fuerte text-white"
             >
               Ir a iniciar sesión

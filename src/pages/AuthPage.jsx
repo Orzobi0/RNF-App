@@ -5,6 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { getAuthErrorMessage } from '@/lib/authErrorMessages';
 import { motion } from 'framer-motion';
 import { LogIn, UserPlus, Mail, KeyRound, Eye, EyeOff } from 'lucide-react';
@@ -15,6 +23,8 @@ const AuthPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [resetEmail, setResetEmail] = useState('');
+  const [showResetDialog, setShowResetDialog] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const { login, register, resetPassword } = useAuth();
@@ -22,6 +32,7 @@ const AuthPage = () => {
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
   const forceInstallPrompt = import.meta.env.VITE_FORCE_INSTALL_PROMPT === 'true';
 
   const authNotice =
@@ -69,8 +80,16 @@ const AuthPage = () => {
     }
   };
 
-  const handleResetPassword = async () => {
-    if (!email) {
+  const handleOpenResetDialog = () => {
+    setResetEmail(email);
+    setShowResetDialog(true);
+  };
+
+  const handleResetPassword = async (event) => {
+    event.preventDefault();
+    const emailToReset = resetEmail.trim();
+
+    if (!emailToReset) {
       toast({
         title: 'Correo requerido',
         description: 'Introduce tu correo para restablecer la contraseña.',
@@ -78,8 +97,10 @@ const AuthPage = () => {
       });
       return;
     }
+    setResetLoading(true);
     try {
-      await resetPassword(email);
+      await resetPassword(emailToReset);
+      setShowResetDialog(false);
       toast({
         title: 'Revisa tu correo',
         description:
@@ -91,6 +112,8 @@ const AuthPage = () => {
         description: getAuthErrorMessage(error),
         variant: 'destructive',
       });
+    } finally {
+      setResetLoading(false);
     }
   };
 
@@ -175,7 +198,7 @@ const AuthPage = () => {
               <Button
                 variant="link"
                 type="button"
-                onClick={handleResetPassword}
+                onClick={handleOpenResetDialog}
                 className="text-sm text-fertiliapp-fuerte hover:text-fertiliapp"
               >
                 ¿Olvidaste tu contraseña?
@@ -253,6 +276,59 @@ const AuthPage = () => {
       <footer className="mt-12 w-full max-w-md text-center text-sm text-gray-500">
         <p>&copy; {new Date().getFullYear()} FertiliApp. Todos los derechos reservados.</p>
       </footer>
+
+      <Dialog open={showResetDialog} onOpenChange={setShowResetDialog}>
+        <DialogContent className="w-[calc(100%-2rem)] rounded-3xl border border-fertiliapp-suave bg-white/95 sm:max-w-md">
+          <form onSubmit={handleResetPassword} className="space-y-4" autoComplete="on">
+            <DialogHeader>
+              <DialogTitle className="text-titulo">Restablecer contraseña</DialogTitle>
+              <DialogDescription>
+                Introduce tu correo y te enviaremos un enlace si existe una cuenta asociada.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-2">
+              <Label htmlFor="reset-email" className="text-sm font-semibold text-titulo">
+                Correo electrónico
+              </Label>
+              <Input
+                id="reset-email"
+                name="reset-email"
+                type="email"
+                value={resetEmail}
+                onChange={(event) => setResetEmail(event.target.value)}
+                placeholder="tu@email.com"
+                autoComplete="email"
+                inputMode="email"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                required
+                className="rounded-3xl border-fertiliapp-suave bg-gray-50 px-4 py-3 text-gray-800 placeholder-gray-400 focus:border-fertiliapp-fuerte focus:ring-fertiliapp-fuerte"
+              />
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowResetDialog(false)}
+                disabled={resetLoading}
+                className="min-h-11 border-fertiliapp-suave text-fertiliapp-fuerte"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={resetLoading}
+                className="min-h-11 bg-fertiliapp-fuerte text-white hover:brightness-95"
+              >
+                {resetLoading ? 'Enviando...' : 'Enviar enlace'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
