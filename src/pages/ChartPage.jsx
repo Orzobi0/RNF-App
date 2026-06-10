@@ -2539,38 +2539,43 @@ const isManualFertile =
         {chartCycleLabel && (
   <div className="pointer-events-none absolute z-[120]" style={{ inset: 0 }}>
     {isRotatedFullScreen ? (
-      <div
-        style={{
-          position: 'absolute',
-          top: '50%',
-          right: 'calc(env(safe-area-inset-right) + 8px)',
-          transform: 'translateY(-50%)',
-        }}
-      >
-        <div
-          style={{
-            transform: 'rotate(90deg)',
-            transformOrigin: 'right center',
-          }}
-        >
-          <div className="flex items-center justify-center gap-2 pt-3">
-  <div className="whitespace-nowrap text-center text-[11px] font-medium leading-tight text-slate-500">
-    {chartCycleLabel}
-  </div>
-
-  {cyclePostpartumMode && (
-    <span
-      className="inline-flex items-center justify-center rounded-full border border-rose-200 bg-rose-50/90 p-1.5 text-rose-600 backdrop-blur-sm"
-      aria-label="Modo postparto activado"
-      title="Modo postparto activado"
+  <div
+    style={{
+      position: 'absolute',
+      left: '50%',
+      top: '50%',
+      width: `${viewport.h}px`,
+      height: `${viewport.w}px`,
+      transform: 'translate(-50%, -50%) rotate(90deg)',
+      transformOrigin: 'center center',
+    }}
+  >
+    <div
+      style={{
+        position: 'absolute',
+        left: '50%',
+        top: 'calc(env(safe-area-inset-left, 0px) + 12px)',
+        transform: 'translateX(-50%)',
+      }}
     >
-      <Baby className="h-3.5 w-3.5" aria-hidden="true" />
-    </span>
-  )}
-</div>
+      <div className="flex items-center justify-center gap-2">
+        <div className="inline-flex max-w-[min(72vw,20rem)] items-center justify-center whitespace-nowrap rounded-full border border-rose-200/80 bg-white/70 px-3 py-1 text-center text-[11px] font-semibold leading-none text-slate-600 shadow-sm shadow-rose-100/70 backdrop-blur-sm">
+          {chartCycleLabel}
         </div>
+
+        {cyclePostpartumMode && (
+          <span
+            className="inline-flex items-center justify-center rounded-full border border-rose-200 bg-rose-50/90 p-1.5 text-rose-600 backdrop-blur-sm"
+            aria-label="Modo postparto activado"
+            title="Modo postparto activado"
+          >
+            <Baby className="h-3.5 w-3.5" aria-hidden="true" />
+          </span>
+        )}
       </div>
-    ) : (
+    </div>
+  </div>
+) : (
       <div
         style={{
           position: 'absolute',
@@ -2580,7 +2585,7 @@ const isManualFertile =
         }}
       >
         <div className="flex items-center justify-center gap-1.5">
-  <div className="whitespace-nowrap text-center text-[11px] font-medium leading-tight text-slate-500">
+  <div className="inline-flex max-w-[min(72vw,20rem)] items-center justify-center whitespace-nowrap rounded-full border border-rose-200/80 bg-white/70 px-3 py-1 text-center text-[11px] font-semibold leading-none text-slate-600 shadow-sm shadow-rose-100/70 backdrop-blur-sm">
     {chartCycleLabel}
   </div>
 

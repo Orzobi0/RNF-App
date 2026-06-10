@@ -1,6 +1,5 @@
 import { getSymbolAppearance, getSymbolColorPalette } from '@/config/fertilitySymbols';
 import {
-  APPEARANCE_COLOR,
   OBSERVATION_COLOR,
   PEAK_MARKER_COLOR,
   POST_PEAK_MARKER_COLOR,
@@ -139,7 +138,7 @@ export const drawBottomRows = ({
     return blockTop + Math.max(0, (exportTextBlockHeight - usedHeight) / 2) + rowLineHeight * 0.5;
   };
   const sensationColor = resolveCssColor(SENSATION_COLOR, '#0ea5e9');
-  const appearanceColor = resolveCssColor(APPEARANCE_COLOR, '#10b981');
+  const appearanceColor = '#2e6f5b';
   const observationColor = resolveCssColor(OBSERVATION_COLOR, '#8b5cf6');
 
   for (let index = visibleStartIndex; index <= visibleEndIndex; index += 1) {
