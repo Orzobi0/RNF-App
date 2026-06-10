@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useLayoutEffect, useRef } from 'react';
 import { drawChartCanvas } from './drawChartCanvas';
 
 const resolveTileDpr = ({ width, height }) => {
@@ -22,55 +22,77 @@ const CanvasTile = ({
   dataChartCanvasOverlay = true,
 }) => {
   const canvasRef = useRef(null);
-  const rafRef = useRef(0);
   const bandPaintCacheRef = useRef(new Map());
-  const [devicePixelRatio, setDevicePixelRatio] = useState(1);
 
   const width = Math.max(1, Number(tile?.width) || 1);
   const height = Math.max(1, Number(tile?.height) || Number(drawProps?.contentHeight) || 1);
-
-  const syncCanvasSize = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const nextDpr = resolveTileDpr({ width, height });
-    const physicalWidth = Math.max(1, Math.floor(width * nextDpr));
-    const physicalHeight = Math.max(1, Math.floor(height * nextDpr));
-
-    if (canvas.width !== physicalWidth || canvas.height !== physicalHeight) {
-      canvas.width = physicalWidth;
-      canvas.height = physicalHeight;
-      canvas.style.width = `${width}px`;
-      canvas.style.height = `${height}px`;
-      bandPaintCacheRef.current.clear();
-    }
-
-    setDevicePixelRatio((prev) => (prev === nextDpr ? prev : nextDpr));
-  }, [height, width]);
 
   const measureTextWidth = useCallback((text, font) => {
     const canvas = canvasRef.current;
     const context = canvas?.getContext('2d');
     if (!context) return String(text).length * 7;
+
     context.save();
     context.font = font;
     const measuredWidth = context.measureText(String(text)).width;
     context.restore();
+
     return measuredWidth;
   }, []);
 
+  const syncCanvasSize = useCallback((canvas, dpr) => {
+    const physicalWidth = Math.max(1, Math.floor(width * dpr));
+    const physicalHeight = Math.max(1, Math.floor(height * dpr));
+
+    const sizeChanged =
+      canvas.width !== physicalWidth ||
+      canvas.height !== physicalHeight;
+
+    if (sizeChanged) {
+      canvas.width = physicalWidth;
+      canvas.height = physicalHeight;
+      bandPaintCacheRef.current.clear();
+    }
+
+    const cssWidth = `${width}px`;
+    const cssHeight = `${height}px`;
+
+    if (canvas.style.width !== cssWidth) {
+      canvas.style.width = cssWidth;
+    }
+
+    if (canvas.style.height !== cssHeight) {
+      canvas.style.height = cssHeight;
+    }
+
+    return sizeChanged;
+  }, [height, width]);
+
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !drawProps?.chartWidth || width <= 0 || height <= 0) return;
+
+    if (!canvas || !drawProps?.chartWidth || width <= 0 || height <= 0) {
+      return false;
+    }
+
+    const dpr = resolveTileDpr({ width, height });
+
+    canvas.style.visibility = 'hidden';
+
+    syncCanvasSize(canvas, dpr);
 
     const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    if (!ctx) {
+      return false;
+    }
+
+    ctx.clearRect(0, 0, canvas.width || 1, canvas.height || 1);
 
     drawChartCanvas({
       ...drawProps,
       ctx,
       canvas,
-      dpr: devicePixelRatio,
+      dpr,
       tileViewport: {
         x: tile.left,
         y: 0,
@@ -85,19 +107,34 @@ const CanvasTile = ({
       bandPaintCache: bandPaintCacheRef.current,
       textLayoutCache,
     });
-  }, [devicePixelRatio, drawProps, height, measureTextWidth, textLayoutCache, tile, width]);
 
-  useEffect(() => {
-    syncCanvasSize();
-  }, [resizeVersion, syncCanvasSize]);
+    canvas.style.visibility = 'visible';
 
-  useEffect(() => {
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    rafRef.current = requestAnimationFrame(draw);
+    return true;
+  }, [
+    drawProps,
+    height,
+    measureTextWidth,
+    syncCanvasSize,
+    textLayoutCache,
+    tile,
+    width,
+  ]);
 
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    };
+  useLayoutEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return undefined;
+
+    canvas.style.visibility = 'hidden';
+
+    const didDraw = draw();
+
+    if (!didDraw) {
+      const ctx = canvas.getContext('2d');
+      ctx?.clearRect(0, 0, canvas.width || 1, canvas.height || 1);
+    }
+
+    return undefined;
   }, [draw, resizeVersion]);
 
   return (
@@ -110,11 +147,10 @@ const CanvasTile = ({
         width: `${width}px`,
         height: `${height}px`,
         display: 'block',
+        visibility: 'hidden',
         zIndex: 0,
         pointerEvents: 'none',
       }}
-      width={Math.max(1, Math.floor(width * devicePixelRatio))}
-      height={Math.max(1, Math.floor(height * devicePixelRatio))}
       data-chart-canvas-overlay={dataChartCanvasOverlay ? 'true' : undefined}
       data-chart-canvas-tile="true"
       data-tile-start-index={tile.startIndex}
