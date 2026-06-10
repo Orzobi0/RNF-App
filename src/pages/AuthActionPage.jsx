@@ -6,6 +6,7 @@ import { auth } from '@/lib/firebaseClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { getAuthErrorMessage } from '@/lib/authErrorMessages';
 import { Eye, EyeOff } from 'lucide-react';
 
 const REDIRECT_DELAY_MS = 1500;
@@ -56,7 +57,7 @@ const AuthActionPage = () => {
         if (mode === 'verifyEmail') {
           await applyActionCode(auth, oobCode);
           setStatus('success');
-          setMessage('Email verificado correctamente. Redirigiendo a iniciar sesión...');
+          setMessage('Correo verificado correctamente. Redirigiendo a iniciar sesión...');
           timeoutId = window.setTimeout(() => {
             navigate('/auth?verified=1', { replace: true });
           }, REDIRECT_DELAY_MS);
@@ -85,9 +86,14 @@ const AuthActionPage = () => {
 
         setStatus('error');
         setMessage('Este tipo de enlace no es compatible en FertiliApp.');
-      } catch {
+      } catch (error) {
         setStatus('error');
-        setMessage('El enlace ha caducado o ya se usó. Solicita uno nuevo para continuar.');
+        setMessage(
+          getAuthErrorMessage(
+            error,
+            'El enlace ha caducado o ya se usó. Solicita uno nuevo para continuar.'
+          )
+        );
       }
     };
 
@@ -123,9 +129,11 @@ const AuthActionPage = () => {
       window.setTimeout(() => {
         navigate('/auth?reset=1', { replace: true });
       }, REDIRECT_DELAY_MS);
-    } catch {
+    } catch (error) {
       setStatus('error');
-      setMessage('No se pudo actualizar la contraseña. Solicita un nuevo enlace.');
+      setMessage(
+        getAuthErrorMessage(error, 'No se pudo actualizar la contraseña. Solicita un nuevo enlace.')
+      );
     } finally {
       setSubmittingReset(false);
     }
@@ -157,7 +165,7 @@ const AuthActionPage = () => {
           animate={{ opacity: 1 }}
           transition={{ delay: 0.25, duration: 0.4 }}
         >
-          <p className="rounded-2xl bg-pink-50 px-4 py-3 text-sm text-fertiliapp-fuerte">{message}</p>
+          <p className="rounded-2xl border border-fertiliapp-suave bg-tarjeta px-4 py-3 text-sm text-fertiliapp-fuerte">{message}</p>
 
           {status === 'ready-reset' && (
             <form onSubmit={handleResetSubmit} className="space-y-4" autoComplete="on">

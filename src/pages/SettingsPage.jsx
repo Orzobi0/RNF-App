@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ToastAction } from '@/components/ui/toast';
 import { buildCyclesPdfBlob, downloadBlobAsFile } from '@/lib/cycleExport';
+import { getAuthErrorMessage } from '@/lib/authErrorMessages';
 import ExportCyclesDialog from '@/components/ExportCyclesDialog';
 import { useCycleData } from '@/hooks/useCycleData';
 import InstallPrompt from '@/components/InstallPrompt';
@@ -211,7 +212,15 @@ const SettingsSwitchRow = ({
 );
 
 const SettingsPage = () => {
-  const { user, updateEmail, updatePassword, login, logout } = useAuth();
+  const {
+    user,
+    updateEmail,
+    updatePassword,
+    login,
+    logout,
+    refreshCurrentUser,
+    resendVerificationEmail,
+  } = useAuth();
   const { currentCycle, archivedCycles } = useCycleData();
   const { isAvailable, hasPermissions, refreshPermissions, isChecking, isAndroidApp } =
     useHealthConnect();
@@ -234,6 +243,8 @@ const SettingsPage = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loadingPassword, setLoadingPassword] = useState(false);
   const [loadingLogout, setLoadingLogout] = useState(false);
+  const [sendingVerificationEmail, setSendingVerificationEmail] = useState(false);
+  const [refreshingVerification, setRefreshingVerification] = useState(false);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const forceInstallPrompt = import.meta.env.VITE_FORCE_INSTALL_PROMPT === 'true';
 
@@ -432,6 +443,12 @@ const SettingsPage = () => {
       await updateEmail(newEmail);
       toast({ title: 'Correo actualizado' });
       setShowEmailDialog(false);
+    } catch (error) {
+      toast({
+        title: 'No se pudo actualizar el correo',
+        description: getAuthErrorMessage(error),
+        variant: 'destructive',
+      });
     } finally {
       setLoadingEmail(false);
     }
@@ -456,8 +473,56 @@ const SettingsPage = () => {
       setOldPassword('');
       setNewPassword('');
       setConfirmPassword('');
+    } catch (error) {
+      toast({
+        title: 'No se pudo actualizar la contraseña',
+        description: getAuthErrorMessage(error),
+        variant: 'destructive',
+      });
     } finally {
       setLoadingPassword(false);
+    }
+  };
+
+  const handleResendVerificationEmail = async () => {
+    setSendingVerificationEmail(true);
+    try {
+      const result = await resendVerificationEmail();
+      toast({
+        title: result?.alreadyVerified ? 'Correo ya verificado' : 'Correo enviado',
+        description: result?.alreadyVerified
+          ? 'Tu correo ya aparece como verificado.'
+          : 'Correo de verificación enviado. Revisa tu bandeja de entrada y spam.',
+      });
+    } catch (error) {
+      toast({
+        title: 'No se pudo reenviar el correo',
+        description: getAuthErrorMessage(error),
+        variant: 'destructive',
+      });
+    } finally {
+      setSendingVerificationEmail(false);
+    }
+  };
+
+  const handleRefreshVerification = async () => {
+    setRefreshingVerification(true);
+    try {
+      const refreshedUser = await refreshCurrentUser();
+      toast({
+        title: refreshedUser?.emailVerified ? 'Correo verificado' : 'Correo pendiente',
+        description: refreshedUser?.emailVerified
+          ? 'Tu correo ya aparece como verificado.'
+          : 'Aún no vemos tu correo como verificado. Revisa el enlace de verificación.',
+      });
+    } catch (error) {
+      toast({
+        title: 'No se pudo comprobar el correo',
+        description: getAuthErrorMessage(error),
+        variant: 'destructive',
+      });
+    } finally {
+      setRefreshingVerification(false);
     }
   };
 
@@ -601,6 +666,37 @@ const SettingsPage = () => {
       ariaLabel="Actualizar correo electrónico"
     />
 
+    {user?.email && user?.emailVerified === false ? (
+      <div className="rounded-[24px] border border-fertiliapp-suave bg-tarjeta px-4 py-4 shadow-sm">
+        <div className="space-y-1">
+          <p className="text-base font-semibold text-titulo">Correo sin verificar</p>
+          <p className="text-sm leading-relaxed text-subtitulo">
+            Verifica tu correo para recuperar el acceso a tu cuenta si algún día olvidas la
+            contraseña. Revisa también spam o correo no deseado.
+          </p>
+        </div>
+        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+          <Button
+            type="button"
+            onClick={handleResendVerificationEmail}
+            disabled={sendingVerificationEmail || refreshingVerification}
+            className="min-h-11 flex-1 bg-fertiliapp-fuerte text-white hover:brightness-95"
+          >
+            {sendingVerificationEmail ? 'Enviando...' : 'Reenviar correo'}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleRefreshVerification}
+            disabled={sendingVerificationEmail || refreshingVerification}
+            className="min-h-11 flex-1 border-fertiliapp-suave bg-white text-fertiliapp-fuerte hover:bg-white/85"
+          >
+            {refreshingVerification ? 'Comprobando...' : 'Ya lo verifiqué'}
+          </Button>
+        </div>
+      </div>
+    ) : null}
+
     <SettingsActionRow
       icon={Lock}
       iconTone="cool"
@@ -655,7 +751,7 @@ const SettingsPage = () => {
   </div>
 
   <div className="mt-auto pt-6">
-    <div className="mb-4 h-px w-full bg-pink-100/70" />
+    <div className="mb-4 h-px w-full bg-fertiliapp-suave" />
 
     <SettingsActionRow
       icon={LogOut}
