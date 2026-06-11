@@ -1,12 +1,22 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Activity, Bolt, ChevronRight, FileDown, Lock, LogOut, Mail } from 'lucide-react';
 import { App } from '@capacitor/app';
+import { httpsCallable } from 'firebase/functions';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { ToastAction } from '@/components/ui/toast';
+import { functions as firebaseFunctions } from '@/lib/firebaseClient';
 import { buildCyclesPdfBlob, downloadBlobAsFile } from '@/lib/cycleExport';
 import { getAuthErrorMessage } from '@/lib/authErrorMessages';
 import ExportCyclesDialog from '@/components/ExportCyclesDialog';
@@ -45,6 +55,11 @@ const getSettingsIconToneClasses = (tone = 'cool', destructive = false) => {
 const SETTINGS_ROW_CLASS =
   'flex w-full items-center justify-between gap-3 rounded-[28px] bg-white/80 px-4 py-3 text-left shadow backdrop-blur transition hover:bg-white/90';
 const CONTACT_EMAIL = 'info@fertiliapp.com';
+const SUPPORT_TYPES = {
+  problem: 'Problema',
+  question: 'Duda',
+  suggestion: 'Sugerencia',
+};
 const formatFilenameDate = (value) => {
   if (!value) return null;
   if (value instanceof Date) {
@@ -231,6 +246,10 @@ const SettingsPage = () => {
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [showContactDialog, setShowContactDialog] = useState(false);
+  const [supportType, setSupportType] = useState('problem');
+  const [supportSubject, setSupportSubject] = useState('');
+  const [supportMessage, setSupportMessage] = useState('');
+  const [sendingSupportMessage, setSendingSupportMessage] = useState(false);
   const [selectedCycleIds, setSelectedCycleIds] = useState([]);
   const [pdfContentMode, setPdfContentMode] = useState('chart');
   const [includeRs, setIncludeRs] = useState(true);
@@ -464,6 +483,101 @@ const SettingsPage = () => {
         description: `Escribe a ${CONTACT_EMAIL}`,
         variant: 'destructive',
       });
+    }
+  };
+
+  const handleSupportSubmit = async (e) => {
+    e.preventDefault();
+
+    const trimmedSubject = supportSubject.trim();
+    const trimmedMessage = supportMessage.trim();
+
+    if (!SUPPORT_TYPES[supportType]) {
+      toast({
+        title: 'Revisa el tipo de mensaje',
+        description: 'Selecciona problema, duda o sugerencia.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (!trimmedSubject) {
+      toast({
+        title: 'Asunto obligatorio',
+        description: 'Escribe un asunto para tu mensaje.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (trimmedSubject.length > 120) {
+      toast({
+        title: 'Asunto demasiado largo',
+        description: 'El asunto no puede superar 120 caracteres.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (!trimmedMessage) {
+      toast({
+        title: 'Mensaje obligatorio',
+        description: 'Escribe tu consulta antes de enviarla.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (trimmedMessage.length > 3000) {
+      toast({
+        title: 'Mensaje demasiado largo',
+        description: 'El mensaje no puede superar 3000 caracteres.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSendingSupportMessage(true);
+    try {
+      const sendSupportMessage = httpsCallable(firebaseFunctions, 'sendSupportMessage');
+      const result = await sendSupportMessage({
+        type: supportType,
+        subject: trimmedSubject,
+        message: trimmedMessage,
+      });
+
+      if (result?.data?.ok) {
+        toast({
+          title: 'Mensaje enviado',
+          description: 'Te responderemos en cuanto sea posible.',
+        });
+        setSupportSubject('');
+        setSupportMessage('');
+        setShowContactDialog(false);
+      }
+    } catch (error) {
+      const code = String(error?.code || '').replace(/^functions\//, '');
+      const messages = {
+        'resource-exhausted': {
+          title: 'Espera unos minutos',
+          description: 'Espera unos minutos antes de enviar otro mensaje.',
+        },
+        unauthenticated: {
+          title: 'Inicia sesión',
+          description: 'Inicia sesión para enviar un mensaje.',
+        },
+        'invalid-argument': {
+          title: 'Revisa los campos',
+          description: 'Completa tipo, asunto y mensaje antes de enviar.',
+        },
+      };
+      const fallback = {
+        title: 'No se pudo enviar',
+        description: 'No se pudo enviar el mensaje. Inténtalo más tarde.',
+      };
+      const cleanMessage = messages[code] || fallback;
+      toast({
+        ...cleanMessage,
+        variant: 'destructive',
+      });
+    } finally {
+      setSendingSupportMessage(false);
     }
   };
 
@@ -940,46 +1054,108 @@ const SettingsPage = () => {
       </Dialog>
 
       <Dialog open={showContactDialog} onOpenChange={setShowContactDialog}>
-        <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Contacto y soporte</DialogTitle>
-            <DialogDescription>
-              Escr&iacute;benos si tienes alg&uacute;n problema, duda o sugerencia sobre FertiliApp.
-            </DialogDescription>
-          </DialogHeader>
+        <DialogContent className="max-h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-md">
+          <form onSubmit={handleSupportSubmit} className="space-y-4">
+            <DialogHeader>
+              <DialogTitle>Contacto y soporte</DialogTitle>
+              <DialogDescription>
+                Escr&iacute;benos si tienes alg&uacute;n problema, duda o sugerencia sobre FertiliApp.
+              </DialogDescription>
+            </DialogHeader>
 
-          <div className="rounded-[20px] border border-fertiliapp-suave bg-tarjeta px-4 py-3">
-            <p className="text-sm font-semibold text-titulo">Correo de contacto</p>
-            <p className="mt-1 break-all text-base font-medium text-fertiliapp-fuerte">
-              {CONTACT_EMAIL}
-            </p>
-          </div>
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="support-type">Tipo</Label>
+                <Select
+                  value={supportType}
+                  onValueChange={setSupportType}
+                  disabled={sendingSupportMessage}
+                >
+                  <SelectTrigger
+                    id="support-type"
+                    className="min-h-11 border-fertiliapp-suave bg-tarjeta text-titulo"
+                  >
+                    <SelectValue placeholder="Selecciona un tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="problem">Problema</SelectItem>
+                    <SelectItem value="question">Duda</SelectItem>
+                    <SelectItem value="suggestion">Sugerencia</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-          <DialogFooter className="flex-col gap-2 sm:flex-row">
-            <Button
-              type="button"
-              onClick={handleOpenSupportEmail}
-              className="min-h-11 w-full bg-fertiliapp-fuerte text-white hover:brightness-95"
-            >
-              Abrir correo
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleCopySupportEmail}
-              className="min-h-11 w-full border-fertiliapp-suave text-fertiliapp-fuerte"
-            >
-              Copiar email
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setShowContactDialog(false)}
-              className="min-h-11 w-full text-subtitulo sm:w-auto"
-            >
-              Cerrar
-            </Button>
-          </DialogFooter>
+              <div className="space-y-2">
+                <Label htmlFor="support-subject">Asunto</Label>
+                <Input
+                  id="support-subject"
+                  value={supportSubject}
+                  onChange={(e) => setSupportSubject(e.target.value)}
+                  maxLength={120}
+                  disabled={sendingSupportMessage}
+                  className="min-h-11 border-fertiliapp-suave bg-tarjeta text-titulo"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="support-message">Mensaje</Label>
+                <Textarea
+                  id="support-message"
+                  value={supportMessage}
+                  onChange={(e) => setSupportMessage(e.target.value)}
+                  maxLength={3000}
+                  disabled={sendingSupportMessage}
+                  className="min-h-32 resize-none border-fertiliapp-suave bg-tarjeta text-titulo"
+                />
+              </div>
+            </div>
+
+            <div className="rounded-[20px] border border-fertiliapp-suave bg-tarjeta px-4 py-3">
+              <p className="text-sm font-semibold text-titulo">Correo de contacto</p>
+              <p className="mt-1 break-all text-base font-medium text-fertiliapp-fuerte">
+                {CONTACT_EMAIL}
+              </p>
+            </div>
+
+            <div className="grid gap-2">
+              <Button
+                type="submit"
+                disabled={sendingSupportMessage}
+                className="min-h-11 w-full bg-fertiliapp-fuerte text-white hover:brightness-95"
+              >
+                {sendingSupportMessage ? 'Enviando...' : 'Enviar mensaje'}
+              </Button>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleOpenSupportEmail}
+                  disabled={sendingSupportMessage}
+                  className="min-h-11 w-full border-fertiliapp-suave text-fertiliapp-fuerte"
+                >
+                  Abrir correo
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleCopySupportEmail}
+                  disabled={sendingSupportMessage}
+                  className="min-h-11 w-full border-fertiliapp-suave text-fertiliapp-fuerte"
+                >
+                  Copiar email
+                </Button>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setShowContactDialog(false)}
+                disabled={sendingSupportMessage}
+                className="min-h-11 w-full text-subtitulo"
+              >
+                Cerrar
+              </Button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
 
