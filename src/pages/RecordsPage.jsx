@@ -779,34 +779,48 @@ export const RecordsExperience = ({
   );
 
   const archivedCycleIntervals = useMemo(() => {
-    if (!Array.isArray(archivedCycles) || !cycle?.id) {
-      return [];
-    }
+  if (!cycle?.id) {
+    return [];
+  }
 
-    return archivedCycles
-      .filter(
-        (archived) =>
-          archived?.id &&
-          archived.id !== cycle.id &&
-          archived?.startDate &&
-          archived?.endDate
-      )
-      .map((archived) => {
-        const fromDate = startOfDay(parseISO(archived.startDate));
-        const toDate = startOfDay(parseISO(archived.endDate));
+  const otherCycles = [...(archivedCycles ?? []), contextCurrentCycle].filter(Boolean);
 
-        if (!isValid(fromDate) || !isValid(toDate)) return null;
+  return otherCycles
+    .filter(
+      (availableCycle) =>
+        availableCycle?.id &&
+        availableCycle.id !== cycle.id &&
+        availableCycle?.startDate
+    )
+    .map((availableCycle) => {
+      const fromDate = startOfDay(parseISO(availableCycle.startDate));
 
-        return {
-          cycleId: archived.id,
-          from: fromDate,
-          to: toDate,
-          startIso: archived.startDate,
-          endIso: archived.endDate,
-        };
-      })
-      .filter(Boolean);
-  }, [archivedCycles, cycle?.id]);
+      let toDate = null;
+
+      if (availableCycle.endDate) {
+        toDate = startOfDay(parseISO(availableCycle.endDate));
+      } else if (availableCycle.id === contextCurrentCycle?.id) {
+        const today = startOfDay(new Date());
+        toDate = isBefore(today, fromDate) ? fromDate : today;
+      }
+
+      if (!toDate || !isValid(fromDate) || !isValid(toDate)) {
+        return null;
+      }
+
+      const isOpenCycle = !availableCycle.endDate;
+
+return {
+  cycleId: availableCycle.id,
+  from: fromDate,
+  to: toDate,
+  startIso: availableCycle.startDate,
+  endIso: isOpenCycle ? null : availableCycle.endDate,
+  isOpenCycle,
+};
+    })
+    .filter(Boolean);
+}, [archivedCycles, contextCurrentCycle, cycle?.id]);
 
   const renderCalendarDay = useCallback(
     ({ date, activeModifiers }) => {
@@ -820,7 +834,10 @@ export const RecordsExperience = ({
         );
       const showArchivedCycleRange = Boolean(archivedInterval);
       const showLeftBorder = showArchivedCycleRange && iso === archivedInterval.startIso;
-      const showRightBorder = showArchivedCycleRange && iso === archivedInterval.endIso;
+      const showRightBorder =
+      showArchivedCycleRange &&
+      !archivedInterval.isOpenCycle &&
+      iso === archivedInterval.endIso;
 
       const hasTemperature = details?.hasTemperature ?? false;
       const hasMucus = details?.hasMucus ?? false;
