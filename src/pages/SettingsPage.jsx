@@ -1073,7 +1073,7 @@ const SettingsPage = () => {
                 >
                   <SelectTrigger
                     id="support-type"
-                    className="min-h-11 border-fertiliapp-suave bg-tarjeta text-titulo"
+                    className="min-h-11 rounded-2xl border-fertiliapp-suave bg-white text-titulo"
                   >
                     <SelectValue placeholder="Selecciona un tipo" />
                   </SelectTrigger>
@@ -1093,7 +1093,7 @@ const SettingsPage = () => {
                   onChange={(e) => setSupportSubject(e.target.value)}
                   maxLength={120}
                   disabled={sendingSupportMessage}
-                  className="min-h-11 border-fertiliapp-suave bg-tarjeta text-titulo"
+                  className="min-h-11 rounded-2xl border-fertiliapp-suave bg-white text-titulo"
                 />
               </div>
 
@@ -1105,10 +1105,17 @@ const SettingsPage = () => {
                   onChange={(e) => setSupportMessage(e.target.value)}
                   maxLength={3000}
                   disabled={sendingSupportMessage}
-                  className="min-h-32 resize-none border-fertiliapp-suave bg-tarjeta text-titulo"
+                  className="min-h-32 resize-none border-fertiliapp-suave bg-white text-titulo"
                 />
               </div>
             </div>
+               <Button
+                type="submit"
+                disabled={sendingSupportMessage}
+                className="min-h-11 w-full bg-fertiliapp-fuerte text-white hover:brightness-95"
+              >
+                {sendingSupportMessage ? 'Enviando...' : 'Enviar mensaje'}
+              </Button>
 
             <div className="rounded-[20px] border border-fertiliapp-suave bg-tarjeta px-4 py-3">
               <p className="text-sm font-semibold text-titulo">Correo de contacto</p>
@@ -1118,13 +1125,7 @@ const SettingsPage = () => {
             </div>
 
             <div className="grid gap-2">
-              <Button
-                type="submit"
-                disabled={sendingSupportMessage}
-                className="min-h-11 w-full bg-fertiliapp-fuerte text-white hover:brightness-95"
-              >
-                {sendingSupportMessage ? 'Enviando...' : 'Enviar mensaje'}
-              </Button>
+
               <div className="grid gap-2 sm:grid-cols-2">
                 <Button
                   type="button"
