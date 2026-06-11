@@ -1009,29 +1009,37 @@ export const RecordsExperience = ({
 }, [selectedDate, cycleDayIsoSet, defaultSelectedIso]);
 
   const handleCalendarSelect = useCallback(
-    (day) => {
-      if (!day) return;
-      const iso = format(day, 'yyyy-MM-dd');
+  (day) => {
+    if (!day) return;
 
-      if (cycleRange) {
-        if (isBefore(day, cycleRange.from) || isAfter(day, cycleRange.to)) {
-          const targetCycle = findCycleForDate(day);
-          if (targetCycle) {
-            const targetIndex = orderedCycles.findIndex((availableCycle) => availableCycle.id === targetCycle.id);
-            const direction =
-              currentCycleIndex >= 0 && targetIndex >= 0 && targetIndex < currentCycleIndex
-                ? 'previous'
-                : 'next';
-            navigateToCycleWithTransition(targetCycle, direction, iso);
-          }
-          return;
+    const selectedDay = startOfDay(day);
+    const today = startOfDay(new Date());
+
+    if (isAfter(selectedDay, today)) {
+      return;
+    }
+
+    const iso = format(selectedDay, 'yyyy-MM-dd');
+
+    if (cycleRange) {
+      if (isBefore(selectedDay, cycleRange.from) || isAfter(selectedDay, cycleRange.to)) {
+        const targetCycle = findCycleForDate(selectedDay);
+        if (targetCycle) {
+          const targetIndex = orderedCycles.findIndex((availableCycle) => availableCycle.id === targetCycle.id);
+          const direction =
+            currentCycleIndex >= 0 && targetIndex >= 0 && targetIndex < currentCycleIndex
+              ? 'previous'
+              : 'next';
+          navigateToCycleWithTransition(targetCycle, direction, iso);
         }
+        return;
       }
+    }
 
-      setSelectedDate(iso);
-    },
-    [currentCycleIndex, cycleRange, findCycleForDate, navigateToCycleWithTransition, orderedCycles]
-  );
+    setSelectedDate(iso);
+  },
+  [currentCycleIndex, cycleRange, findCycleForDate, navigateToCycleWithTransition, orderedCycles]
+);
 
   useLayoutEffect(() => {
   if (!isCalendarOpen) {
@@ -1814,6 +1822,7 @@ export const RecordsExperience = ({
                             locale={es}
                             month={calendarMonth}
                             disableNavigation
+                            disabled={(day) => isAfter(startOfDay(day), startOfDay(new Date()))}
                             selected={selectedDate && isValid(parseISO(selectedDate)) ? parseISO(selectedDate) : undefined}
                             onSelect={handleCalendarSelect}
                             onDayClick={handleCalendarSelect}

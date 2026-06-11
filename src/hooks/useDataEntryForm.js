@@ -31,14 +31,15 @@ export const useDataEntryForm = (
       return parseISO(initialData.isoDate);
     }
 
+    const today = startOfDay(new Date());
+
     if (defaultIsoDate) {
       const parsedDefault = startOfDay(parseISO(defaultIsoDate));
       if (!Number.isNaN(parsedDefault.getTime())) {
-        return parsedDefault;
+        return parsedDefault > today ? today : parsedDefault;
       }
     }
 
-    const today = startOfDay(new Date());
     const cycleStart = cycleStartDate ? startOfDay(parseISO(cycleStartDate)) : null;
     const cycleEnd = cycleEndDate ? startOfDay(parseISO(cycleEndDate)) : null;
 
@@ -288,19 +289,32 @@ export const useDataEntryForm = (
       });
       return null;
     }
-    const cycleStart = startOfDay(parseISO(cycleStartDate));
-    const cycleEnd = cycleEndDate
-      ? startOfDay(parseISO(cycleEndDate))
-      : null;
-    if (date < cycleStart || (cycleEnd && date > cycleEnd)) {
-      toast({
-        title: 'Error',
-        description: 'La fecha debe estar dentro del ciclo.',
-        variant: 'destructive',
-      });
-      return null;
-    }
-    const isoDate = format(date, 'yyyy-MM-dd');
+    const selectedDay = startOfDay(date);
+const today = startOfDay(new Date());
+const cycleStart = startOfDay(parseISO(cycleStartDate));
+const cycleEnd = cycleEndDate
+  ? startOfDay(parseISO(cycleEndDate))
+  : null;
+
+if (selectedDay > today) {
+  toast({
+    title: 'Fecha no permitida',
+    description: 'No se pueden guardar registros en días futuros.',
+    variant: 'destructive',
+  });
+  return null;
+}
+
+if (selectedDay < cycleStart || (cycleEnd && selectedDay > cycleEnd)) {
+  toast({
+    title: 'Error',
+    description: 'La fecha debe estar dentro del ciclo.',
+    variant: 'destructive',
+  });
+  return null;
+}
+
+const isoDate = format(selectedDay, 'yyyy-MM-dd');
     const normalizeMeasurementValue = (value) => {
       if (value === null || value === undefined || value === '') {
         return null;

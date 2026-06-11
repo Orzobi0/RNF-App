@@ -23,6 +23,7 @@ import {
   previewDeleteArchivedCycleWithStrategyDB,
   undoCurrentCycleDB,
   toPublicError,
+  createAppError,
   forceUpdateCycleStart as forceUpdateCycleStartDB,
   forceShiftNextCycleStart as forceShiftNextCycleStartDB,
   resolveDuplicateIsoDateDB,
@@ -517,7 +518,17 @@ export const CycleDataProvider = ({ children }) => {
         console.error('User or cycle id is missing');
         throw new Error('User or cycle id is missing');
       }
+    const todayIso = format(startOfDay(new Date()), 'yyyy-MM-dd');
 
+if (newData?.isoDate && newData.isoDate > todayIso) {
+  throw createAppError(
+    'future-date-not-allowed',
+    'Fecha no permitida',
+    'No se pueden guardar registros en días futuros.',
+    { isoDate: newData.isoDate, todayIso },
+    { label: 'Cambiar fecha' }
+  );
+}
       setIsLoading(true);
 
       try {
