@@ -15,6 +15,7 @@ const ArchivedCyclesPage = lazy(() => import('@/pages/ArchivedCyclesPage'));
 const CycleDetailPage = lazy(() => import('@/pages/CycleDetailPage'));
 const SettingsPage = lazy(() => import('@/pages/SettingsPage'));
 const PreferencesPage = lazy(() => import('@/pages/PreferencesPage'));
+const ContactSupportPage = lazy(() => import('@/pages/ContactSupportPage'));
 const ChartPage = lazy(() => import('@/pages/ChartPage'));
 const RecordsPage = lazy(() => import('@/pages/RecordsPage'));
 import MainLayout from '@/components/layout/MainLayout';
@@ -207,6 +208,16 @@ const routeErrorBoundaryKey = location.pathname.startsWith('/cycle/')
                   <ProtectedRoute>
                     <MainLayout>
                       <PreferencesPage />
+                    </MainLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/settings/support"
+                element={
+                  <ProtectedRoute>
+                    <MainLayout>
+                      <ContactSupportPage />
                     </MainLayout>
                   </ProtectedRoute>
                 }

@@ -485,7 +485,7 @@ const handleClearPreferredTime = useCallback(async () => {
   return (
   <div className="relative flex min-h-full flex-col">
     <div className="sticky top-0 z-30 pb-4">
-      <div className="w-full rounded-b-[24px] border-b border-white/55 bg-white/70 px-4 pb-3 pt-2.5 shadow-[0_4px_14px_rgba(216,92,112,0.06)] backdrop-blur-xl">
+      <div className="w-full rounded-b-[24px] border-b border-rose-100/70 bg-white/72 px-4 pb-3 pt-2.5 shadow-[0_4px_14px_rgba(216,92,112,0.06)] backdrop-blur-xl">
         <div className="relative mx-auto w-full max-w-2xl">
   <Button
     asChild
