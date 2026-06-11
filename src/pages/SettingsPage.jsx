@@ -44,6 +44,7 @@ const getSettingsIconToneClasses = (tone = 'cool', destructive = false) => {
 };
 const SETTINGS_ROW_CLASS =
   'flex w-full items-center justify-between gap-3 rounded-[28px] bg-white/80 px-4 py-3 text-left shadow backdrop-blur transition hover:bg-white/90';
+const CONTACT_EMAIL = 'info@fertiliapp.com';
 const formatFilenameDate = (value) => {
   if (!value) return null;
   if (value instanceof Date) {
@@ -229,6 +230,7 @@ const SettingsPage = () => {
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
   const [showExportDialog, setShowExportDialog] = useState(false);
+  const [showContactDialog, setShowContactDialog] = useState(false);
   const [selectedCycleIds, setSelectedCycleIds] = useState([]);
   const [pdfContentMode, setPdfContentMode] = useState('chart');
   const [includeRs, setIncludeRs] = useState(true);
@@ -433,6 +435,35 @@ const SettingsPage = () => {
             'Este dispositivo no permite compartir el PDF desde la PWA. Puedes abrirlo o buscarlo en Descargas.',
         });
       }
+    }
+  };
+
+  const handleOpenSupportEmail = () => {
+    window.location.href = `mailto:${CONTACT_EMAIL}`;
+  };
+
+  const handleCopySupportEmail = async () => {
+    if (typeof navigator === 'undefined' || !navigator.clipboard) {
+      toast({
+        title: 'No se pudo copiar',
+        description: `Escribe a ${CONTACT_EMAIL}`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(CONTACT_EMAIL);
+      toast({
+        title: 'Correo copiado',
+        description: 'Puedes pegarlo en tu app de correo.',
+      });
+    } catch (error) {
+      toast({
+        title: 'No se pudo copiar',
+        description: `Escribe a ${CONTACT_EMAIL}`,
+        variant: 'destructive',
+      });
     }
   };
 
@@ -735,6 +766,15 @@ const SettingsPage = () => {
       ariaLabel="Abrir preferencias"
     />
 
+    <SettingsActionRow
+      icon={Mail}
+      iconTone="cool"
+      title="Contacto y soporte"
+      description="Problemas, dudas o sugerencias"
+      onClick={() => setShowContactDialog(true)}
+      ariaLabel="Abrir contacto y soporte"
+    />
+
     {isAndroidApp && (
       <SettingsSwitchRow
         icon={Activity}
@@ -894,6 +934,50 @@ const SettingsPage = () => {
               disabled={loadingLogout}
             >
               {loadingLogout ? 'Cerrando...' : 'Cerrar sesión'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showContactDialog} onOpenChange={setShowContactDialog}>
+        <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Contacto y soporte</DialogTitle>
+            <DialogDescription>
+              Escr&iacute;benos si tienes alg&uacute;n problema, duda o sugerencia sobre FertiliApp.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="rounded-[20px] border border-fertiliapp-suave bg-tarjeta px-4 py-3">
+            <p className="text-sm font-semibold text-titulo">Correo de contacto</p>
+            <p className="mt-1 break-all text-base font-medium text-fertiliapp-fuerte">
+              {CONTACT_EMAIL}
+            </p>
+          </div>
+
+          <DialogFooter className="flex-col gap-2 sm:flex-row">
+            <Button
+              type="button"
+              onClick={handleOpenSupportEmail}
+              className="min-h-11 w-full bg-fertiliapp-fuerte text-white hover:brightness-95"
+            >
+              Abrir correo
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleCopySupportEmail}
+              className="min-h-11 w-full border-fertiliapp-suave text-fertiliapp-fuerte"
+            >
+              Copiar email
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setShowContactDialog(false)}
+              className="min-h-11 w-full text-subtitulo sm:w-auto"
+            >
+              Cerrar
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1457,7 +1457,7 @@ if (dot.peakStatus === 'P') {
           type="button"
           onClick={onOpenCycleStatus}
           aria-label="Abrir gráfica con interpretación"
-          className="mx-2 mt-2 mb-2 block rounded-2xl border border-fertiliapp-suave bg-white/70 p-3 text-left shadow-[0_10px_30px_rgba(148,163,184,0.15)] backdrop-blur-md transition hover:border-fertiliapp-fuerte/40 hover:bg-white/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
+          className="mx-2 mt-2 mb-2 block rounded-2xl border border-white/60 bg-white/50 p-3 text-left shadow-[0_8px_24px_rgba(148,163,184,0.10)] backdrop-blur-md transition hover:border-fertiliapp-fuerte/40 hover:bg-white/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
         >
           <div className="flex items-center justify-between gap-2">
             <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-600">
