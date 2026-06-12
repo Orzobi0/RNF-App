@@ -64,13 +64,13 @@ const getGapDaysBetweenCycles = (newerCycle, olderCycle) => {
 };
 
 const GapRow = ({ days }) => (
-  <div className="px-4 py-1">
+  <div className="px-4 py-1.5">
     <div className="flex items-center gap-2.5">
-      <div className="h-px flex-1 bg-gradient-to-r from-transparent via-rose-200/80 to-transparent" />
-      <span className="text-[10px] font-medium text-slate-400">
+      <div className="h-px flex-1 bg-rose-100/70" />
+<span className="text-[10px] font-medium text-rose-400">
         Hueco de {days} día{days !== 1 ? 's' : ''}
       </span>
-      <div className="h-px flex-1 bg-gradient-to-r from-transparent via-rose-200/80 to-transparent" />
+      <div className="h-px flex-1 bg-slate-100" />
     </div>
   </div>
 );
@@ -177,6 +177,7 @@ const ArchivedCyclesPage = () => {
       return Number(b) - Number(a);
     });
   }, [archivedByYear]);
+  const currentYearLabel = String(new Date().getFullYear());
   const firstArchivedCycle = useMemo(() => {
   if (!archivedYears.length) return null;
   const firstYear = archivedYears[0];
@@ -312,10 +313,9 @@ const gapAfterCurrentCycle = useMemo(() => {
   };
 
   const YearSeparator = ({ year }) => (
-  <div className="my-1 flex items-center gap-3 px-2">
-    <div className="h-px flex-1 bg-gradient-to-r from-transparent via-rose-200 to-transparent" />
-    <span className="text-[11px] font-semibold tracking-[0.14em] text-fertiliapp-fuerte">{year}</span>
-    <div className="h-px flex-1 bg-gradient-to-r from-transparent via-rose-200 to-transparent" />
+  <div className="flex items-center gap-3 px-1 pt-1">
+    <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-fertiliapp-fuerte">{year}</span>
+<div className="h-px flex-1 bg-rose-100/70" />
   </div>
 );
 
@@ -333,19 +333,17 @@ const CycleRow = ({ cycle, isFirst, isLast }) => {
           navigateToCycle(cycle);
         }
       }}
-      className={`group relative flex w-full items-start gap-3 px-4 py-3.5 text-left transition-colors hover:bg-rose-50/40 active:bg-rose-100/40 ${
-        isFirst ? 'rounded-t-[28px]' : ''
-      } ${isLast ? 'rounded-b-[28px]' : ''}`}
+      className="group relative flex w-full items-start gap-3 px-4 py-3.5 text-left transition-colors hover:bg-rose-50/35 active:bg-rose-50/60"
     >
       {cycle.isCurrent ? (
-        <span className="absolute left-0 top-3 bottom-3 w-1 rounded-r-full bg-fertiliapp-fuerte" />
+        <span className="absolute bottom-3 left-0 top-3 w-1 rounded-r-full bg-fertiliapp-fuerte" />
       ) : null}
 
       <span
         className={`mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border ${
           cycle.isCurrent
-            ? 'border-rose-200 bg-rose-100/90 text-fertiliapp-fuerte'
-            : 'border-rose-100 bg-rose-50/80 text-rose-400'
+            ? 'border-rose-100 bg-rose-50 text-fertiliapp-fuerte'
+            : 'border-rose-100/70 bg-rose-50/55 text-slate-400'
         }`}
       >
         <CalendarDays className="h-4 w-4" />
@@ -359,7 +357,7 @@ const CycleRow = ({ cycle, isFirst, isLast }) => {
 
           <div className="flex shrink-0 items-center gap-1.5">
             {cycle.isCurrent ? (
-              <Badge className="rounded-full bg-fertiliapp-fuerte px-2.5 py-0.5 text-[10px] font-semibold text-white">
+              <Badge className="rounded-full bg-fertiliapp-fuerte px-2.5 py-0.5 text-[10px] font-semibold text-white shadow-none">
                 Actual
               </Badge>
             ) : null}
@@ -367,7 +365,7 @@ const CycleRow = ({ cycle, isFirst, isLast }) => {
             {cycle.postpartumMode ? (
               <Badge
                 variant="outline"
-                className="rounded-full border-rose-200 bg-rose-50 px-2.5 py-0.5 text-[10px] font-medium text-rose-700"
+                className="rounded-full border-rose-100 bg-rose-50 px-2.5 py-0.5 text-[10px] font-medium text-fertiliapp-fuerte"
               >
                 <Baby className="mr-1 h-3 w-3" />
               </Badge>
@@ -387,7 +385,7 @@ const CycleRow = ({ cycle, isFirst, isLast }) => {
       <button
         type="button"
         aria-label="Abrir acciones del ciclo"
-        className="-mr-1 mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-transparent text-slate-400 transition hover:border-rose-100 hover:bg-rose-50/70 hover:text-slate-700"
+        className="-mr-1 mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-transparent text-slate-400 transition hover:border-rose-100 hover:bg-rose-50/70 hover:text-fertiliapp-fuerte"
         onClick={(event) => openActions(event, cycle)}
       >
         <EllipsisVertical className="h-4 w-4" />
@@ -398,7 +396,7 @@ const CycleRow = ({ cycle, isFirst, isLast }) => {
 
   if (isLoading && !hasCachedCycles) {
     return (
-      <div className="relative flex min-h-full flex-col items-center justify-center py-10">
+      <div className="relative flex min-h-full flex-col items-center justify-center bg-[#fff7f9] py-10">
         <div className="p-8 text-center text-slate-600">Cargando ciclos archivados...</div>
       </div>
     );
@@ -406,22 +404,21 @@ const CycleRow = ({ cycle, isFirst, isLast }) => {
 
   if (!allCycles || allCycles.length === 0) {
     return (
-      <div className="relative flex min-h-full flex-col items-center justify-center py-10">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(65%_55%_at_50%_32%,rgba(244,114,182,0.18)_0%,rgba(244,114,182,0.12)_35%,rgba(244,114,182,0.06)_60%,rgba(244,114,182,0)_100%)]" />
+      <div className="relative flex min-h-full flex-col items-center justify-center bg-[#fff7f9] py-10">
         <div className="flex flex-1 items-center justify-center px-4">
-          <div className="flex max-w-md flex-col items-center rounded-3xl border border-pink-200/50 bg-white/70 p-8 text-center text-slate-600 shadow-sm backdrop-blur-md">
-            <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-pink-100 to-rose-100">
-              <Archive className="h-10 w-10 text-subtitulo" />
+          <div className="flex max-w-md flex-col items-center rounded-2xl border border-slate-100 bg-white p-8 text-center text-slate-600">
+            <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-rose-50 text-fertiliapp-fuerte">
+              <Archive className="h-8 w-8" />
             </div>
-          <h2 className="mb-4 text-2xl font-semibold text-subtitulo">No hay ciclos archivados</h2>
-            <p className="mb-8 text-subtitulo">Cuando inicies un nuevo ciclo, el anterior aparecerá aquí.</p>
-            <div className="flex w-full flex-col gap-4 sm:flex-row sm:justify-center">
-              <Button asChild className="rounded-3xl bg-fertiliapp-fuerte text-white shadow-sm hover:brightness-95">
+          <h2 className="mb-3 text-xl font-semibold text-titulo">No hay ciclos archivados</h2>
+            <p className="mb-7 text-sm leading-relaxed text-subtitulo">Cuando inicies un nuevo ciclo, el anterior aparecerá aquí.</p>
+            <div className="flex w-full flex-col gap-3 sm:flex-row sm:justify-center">
+              <Button asChild className="min-h-11 bg-fertiliapp-fuerte text-white hover:brightness-95">
                 <Link to="/">Volver al Ciclo Actual</Link>
               </Button>
               <Button
                 onClick={openAddDialog}
-                className="rounded-3xl bg-fertiliapp-fuerte text-white shadow-sm hover:brightness-95"
+                className="min-h-11 bg-fertiliapp-fuerte text-white hover:brightness-95"
               >
                 <Plus className="mr-2 h-4 w-4" /> Crear Ciclo
               </Button>
@@ -452,43 +449,44 @@ const totalRecordCount = allCycles.reduce(
 );
   
   return (
-  <div className="relative flex flex-col pb-6">
-      <div className="sticky top-0 z-30 pb-3">
-  <div className="px-4 pt-2">
-    <div className="relative overflow-hidden rounded-[24px] bg-fertiliapp-fuerte px-4 pb-3 pt-2.5 text-white shadow-[0_6px_16px_rgba(216,92,112,0.16)]">
-    <div className="flex items-center justify-between gap-3">
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-[10px] font-semibold uppercase tracking-[0.22em] text-white/75">
-          ARCHIVO
+  <div className="relative flex min-h-full flex-col bg-[#fff7f9] pb-6">
+      <div className="sticky top-0 z-30 border-b border-rose-100/60 bg-[#fff7f9]/95 px-4 py-4 backdrop-blur-sm">
+        <div className="mx-auto flex w-full max-w-2xl items-center justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[11px] font-semibold uppercase tracking-[0.18em] text-fertiliapp-fuerte/60">
+              ARCHIVO
+            </div>
+
+            <h1 className="truncate text-[24px] font-semibold leading-tight text-titulo">
+              Mis ciclos
+            </h1>
+
+            <p className="mt-1 truncate text-sm font-medium text-subtitulo">
+              {totalCycleCount} ciclo{totalCycleCount !== 1 ? 's' : ''} · {totalRecordCount} registro{totalRecordCount !== 1 ? 's' : ''}
+            </p>
+          </div>
+
+          <HeaderIconButtonPrimary
+            type="button"
+            onClick={openAddDialog}
+            aria-label="Añadir ciclo"
+            className="border-rose-200 bg-white text-fertiliapp-fuerte shadow-[0_6px_16px_rgba(216,92,112,0.10)] hover:bg-rose-50"
+          >
+            <Plus className="h-4 w-4" />
+            <span className="sr-only">Añadir ciclo</span>
+          </HeaderIconButtonPrimary>
         </div>
-
-        <h1 className="truncate text-[22px] font-semibold leading-tight text-white">
-          Mis ciclos
-        </h1>
-
-        <p className="truncate text-[13px] font-medium text-white/78">
-          {totalCycleCount} ciclo{totalCycleCount !== 1 ? 's' : ''}
-        </p>
       </div>
 
-      <HeaderIconButtonPrimary
-        type="button"
-        onClick={openAddDialog}
-        aria-label="Añadir ciclo"
-        className="border-white/70 bg-white text-fertiliapp-fuerte hover:bg-white"
-      >
-        <Plus className="h-4 w-4" />
-        <span className="sr-only">Añadir ciclo</span>
-      </HeaderIconButtonPrimary>
-    </div>
-    </div>
-  </div>
-</div>
-
-        <div className="mx-auto w-full max-w-2xl space-y-3.5 px-4 pt-1.5 pb-1">
+        <div className="mx-auto w-full max-w-2xl space-y-5 px-4 pb-1 pt-4">
           {currentCycle?.id ? (
-            <section className="overflow-hidden rounded-[28px] border border-rose-200/80 bg-white shadow-[0_14px_28px_-22px_rgba(216,92,112,0.35)]">
-              <CycleRow cycle={{ ...currentCycle, isCurrent: true }} isFirst isLast />
+            <section className="space-y-2">
+              <h2 className="px-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-fertiliapp-fuerte">
+                Ciclo actual
+              </h2>
+              <div className="overflow-hidden rounded-2xl border border-rose-100/70 bg-white shadow-[0_10px_24px_-22px_rgba(216,92,112,0.45)]">
+                <CycleRow cycle={{ ...currentCycle, isCurrent: true }} isFirst isLast />
+              </div>
             </section>
           ) : null}
 
@@ -509,16 +507,12 @@ const totalRecordCount = allCycles.reduce(
   return (
     <section
       key={year}
-      className="space-y-1 pt-0.5"
+      className="space-y-2"
     >
-      {yearIndex > 0 ? (
-        <>
-          <YearSeparator year={year} />
-          {gapBeforeYear > 0 ? <GapRow days={gapBeforeYear} /> : null}
-        </>
-      ) : null}
+      {year !== currentYearLabel ? <YearSeparator year={year} /> : null}
+      {yearIndex > 0 && gapBeforeYear > 0 ? <GapRow days={gapBeforeYear} /> : null}
 
-      <div className="overflow-hidden rounded-[28px] border border-rose-200/75 bg-white shadow-[0_12px_24px_-20px_rgba(15,23,42,0.14)]">
+      <div className="overflow-hidden rounded-2xl border border-rose-100/70 bg-white shadow-[0_10px_24px_-22px_rgba(216,92,112,0.45)]">
                 {cyclesForYear.map((cycle, index) => {
   const nextCycle = index < cyclesForYear.length - 1 ? cyclesForYear[index + 1] : null;
   const gapDays = nextCycle ? getGapDaysBetweenCycles(cycle, nextCycle) : 0;
@@ -535,7 +529,7 @@ const totalRecordCount = allCycles.reduce(
         gapDays > 0 ? (
           <GapRow days={gapDays} />
         ) : (
-          <div className="mx-4 h-px bg-gradient-to-r from-transparent via-rose-200/80 to-transparent" />
+          <div className="mx-4 h-px bg-rose-100/60" />
         )
       ) : null}
     </div>
@@ -548,7 +542,7 @@ const totalRecordCount = allCycles.reduce(
       </div>
 
       <Dialog open={Boolean(cycleForActions)} onOpenChange={(open) => !open && setCycleForActions(null)}>
-        <DialogContent className="sm:max-w-sm rounded-[28px] border border-rose-100 bg-white">
+        <DialogContent className="rounded-2xl border border-slate-100 bg-white sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Acciones del ciclo</DialogTitle>
             <DialogDescription className="text-left text-sm text-slate-500">
@@ -559,7 +553,7 @@ const totalRecordCount = allCycles.reduce(
           <div className="space-y-2">
             <button
               type="button"
-              className="flex w-full items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-3 text-left text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
+              className="flex w-full items-center gap-2 rounded-xl border border-slate-100 bg-white px-3 py-3 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-50"
               onClick={() => {
                 setEditingCycle(cycleForActions);
                 setEditCycleError(null);
@@ -574,7 +568,7 @@ const totalRecordCount = allCycles.reduce(
               undoCandidate ? (
                 <button
                   type="button"
-                  className="flex w-full items-center gap-2 rounded-2xl border border-amber-200/80 bg-gradient-to-r from-amber-50 to-orange-50 px-3 py-3 text-left text-sm font-medium text-amber-800 transition hover:from-amber-100 hover:to-orange-100"
+                  className="flex w-full items-center gap-2 rounded-xl border border-amber-100 bg-amber-50 px-3 py-3 text-left text-sm font-medium text-amber-800 transition hover:bg-amber-100"
                   onClick={() => {
                     setShowUndoCycleDialog(true);
                     setCycleForActions(null);
@@ -587,7 +581,7 @@ const totalRecordCount = allCycles.reduce(
             ) : (
               <button
                 type="button"
-                className="flex w-full items-center gap-2 rounded-2xl border border-red-200/80 bg-gradient-to-r from-red-50 to-rose-50 px-3 py-3 text-left text-sm font-medium text-red-700 transition hover:from-red-100 hover:to-rose-100"
+                className="flex w-full items-center gap-2 rounded-xl border border-red-100 bg-red-50 px-3 py-3 text-left text-sm font-medium text-red-700 transition hover:bg-red-100"
                 onClick={() => {
                   setCycleToDelete(cycleForActions);
                   setCycleForActions(null);

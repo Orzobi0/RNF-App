@@ -270,18 +270,18 @@ if (peakStatus) {
   // Estado vacío: sin día seleccionado
   if (!isoDate) {
     return (
-      <div className="w-full rounded-3xl border border-rose-100/80 bg-white/70 p-4 text-center text-sm text-slate-500 shadow-sm">
+      <div className="w-full rounded-3xl border border-rose-100/70 bg-white p-4 text-center text-sm text-slate-500 shadow-sm">
         Selecciona un día en el calendario para ver o añadir un registro.
       </div>
     );
   }
 
   // Base para celdas tactiles neutras con acento discreto.
-  const detailCellCompactClass =
-  'relative flex items-center gap-2.5 overflow-hidden rounded-2xl border border-slate-200/60 bg-white/70 px-3 py-2 text-sm min-h-[2.75rem] shadow-sm transition active:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fertiliapp-suave';
+const detailCellCompactClass =
+  'relative flex items-center gap-2.5 overflow-hidden rounded-2xl border border-rose-100/70 bg-white px-3 py-2 text-sm min-h-[2.75rem] shadow-none transition hover:bg-rose-50/30 active:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fertiliapp-suave';
 
 const detailCellMultilineClass =
-  'relative flex gap-2.5 overflow-hidden rounded-2xl border border-slate-200/60 bg-white/70 px-3 py-2 text-sm min-h-[2.75rem] shadow-sm transition active:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fertiliapp-suave';
+  'relative flex gap-2.5 overflow-hidden rounded-2xl border border-rose-100/70 bg-white px-3 py-2 text-sm min-h-[2.75rem] shadow-none transition hover:bg-rose-50/30 active:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fertiliapp-suave';
 
 const detailAccentClass =
   'pointer-events-none absolute bottom-2 left-0 top-2 w-1 rounded-r-full';
@@ -319,7 +319,7 @@ const footerIconButtonClass =
 
   // Tarjeta compacta pero más alta, usando el espacio disponible
   return (
-  <div className="w-full rounded-3xl border border-rose-200/80 bg-white/90 p-4 sm:p-5 shadow-md backdrop-blur-md">
+  <div className="w-full rounded-3xl border border-rose-200/70 bg-white p-4 shadow-[0_8px_18px_rgba(216,92,112,0.08)] sm:p-5">
       {/* Cabecera: fecha + día ciclo + badge pico | botón pico + símbolo */}
 <div className="flex items-center gap-2.5">
   <div className="min-w-0 flex-1">
@@ -355,7 +355,7 @@ const footerIconButtonClass =
       type="button"
       onClick={() => handleSectionOpen('symbol', 'fertilitySymbol')}
       className={cn(
-        'flex h-7 w-7 items-center justify-center rounded-full border shadow-inner transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200',
+        'flex h-7 w-7 items-center justify-center rounded-full border shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200',
         getSymbolClasses(),
         symbolPatternClass
       )}
@@ -519,7 +519,7 @@ const footerIconButtonClass =
         className={cn(
           footerIconButtonClass,
           hasRelations
-            ? 'border-rose-200 bg-white text-rose-500'
+            ? 'border-rose-200 bg-rose-50 text-rose-500'
             : 'border-slate-200 bg-white text-slate-300',
           isProcessing && 'cursor-not-allowed opacity-70'
         )}

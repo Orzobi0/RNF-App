@@ -157,110 +157,119 @@ const ContactSupportPage = () => {
   };
 
   return (
-    <div className="relative flex min-h-full flex-col">
-      <div className="sticky top-0 z-30 pb-4">
-        <div className="w-full rounded-b-[24px] border-b border-rose-100/70 bg-white/72 px-4 pb-3 pt-3 shadow-[0_6px_18px_rgba(216,92,112,0.10)] backdrop-blur-xl">
-          <div className="mx-auto flex w-full max-w-2xl items-center gap-3">
-            <Link
-              to="/settings"
-              aria-label="Volver a ajustes"
-              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-fertiliapp-fuerte transition hover:bg-tarjeta"
-            >
-              <ArrowLeft className="h-5 w-5" aria-hidden="true" />
-            </Link>
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-[10px] font-semibold uppercase tracking-[0.22em] text-fertiliapp-fuerte">
-                Ajustes
-              </div>
-              <h1 className="truncate text-[22px] font-semibold leading-tight text-titulo">
-                Contacto y soporte
-              </h1>
-              <p className="truncate text-[13px] font-medium text-subtitulo">
-                Escribe a través del formulario o al email
-              </p>
-            </div>
+    <div className="relative flex min-h-full flex-col bg-slate-50">
+      <div className="sticky top-0 z-30 border-b border-slate-100 bg-slate-50/95 px-4 py-4">
+        <div className="relative mx-auto w-full max-w-2xl">
+          <Link
+            to="/settings"
+            aria-label="Volver a ajustes"
+            className="absolute -left-1 top-0 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-fertiliapp-fuerte transition hover:bg-rose-50 active:bg-rose-100"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          </Link>
+
+          <div className="min-w-0 pl-9">
+            <p className="truncate text-xs font-semibold text-fertiliapp-fuerte">
+              Volver a Ajustes
+            </p>
+            <h1 className="truncate text-[24px] font-semibold leading-tight text-titulo">
+              Contacto y soporte
+            </h1>
+            <p className="mt-1 truncate text-sm font-medium text-subtitulo">
+              Escribe a través del formulario o al email
+            </p>
           </div>
         </div>
       </div>
 
-      <main className="relative z-10 mx-auto flex w-full max-w-2xl flex-1 flex-col px-4 pb-6">
+      <main className="relative z-10 mx-auto flex w-full max-w-2xl flex-1 flex-col px-4 pb-8 pt-4">
         <form onSubmit={handleSupportSubmit} className="space-y-4">
           {sentSuccessfully ? (
-            <div className="rounded-[20px] border border-fertiliapp-suave bg-tarjeta px-4 py-3 text-sm font-medium text-fertiliapp-fuerte">
+            <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
               Mensaje enviado correctamente.
             </div>
           ) : null}
 
-          <div className="space-y-2">
-            <Label htmlFor="support-type">Tipo</Label>
-            <Select
-              value={supportType}
-              onValueChange={setSupportType}
-              disabled={sendingSupportMessage}
-            >
-              <SelectTrigger
-                id="support-type"
-                className="min-h-11 rounded-2xl border-fertiliapp-suave bg-white text-titulo"
+          <div className="rounded-2xl border border-slate-100 bg-white px-4 py-4">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="support-type" className="text-sm font-semibold text-slate-700">
+                  Tipo
+                </Label>
+                <Select
+                  value={supportType}
+                  onValueChange={setSupportType}
+                  disabled={sendingSupportMessage}
+                >
+                  <SelectTrigger
+                    id="support-type"
+                    className="min-h-11 rounded-xl border-slate-200 bg-white text-titulo"
+                  >
+                    <SelectValue placeholder="Selecciona un tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="problem">Problema</SelectItem>
+                    <SelectItem value="question">Duda</SelectItem>
+                    <SelectItem value="suggestion">Sugerencia</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="support-subject" className="text-sm font-semibold text-slate-700">
+                  Asunto
+                </Label>
+                <Input
+                  id="support-subject"
+                  value={supportSubject}
+                  onChange={(e) => {
+                    setSupportSubject(e.target.value);
+                    setSentSuccessfully(false);
+                  }}
+                  maxLength={120}
+                  disabled={sendingSupportMessage}
+                  className="min-h-11 rounded-xl border-slate-200 bg-white text-titulo"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="support-message" className="text-sm font-semibold text-slate-700">
+                  Mensaje
+                </Label>
+                <Textarea
+                  id="support-message"
+                  value={supportMessage}
+                  onChange={(e) => {
+                    setSupportMessage(e.target.value);
+                    setSentSuccessfully(false);
+                  }}
+                  maxLength={3000}
+                  disabled={sendingSupportMessage}
+                  className="min-h-36 resize-none rounded-xl border-slate-200 bg-white text-titulo"
+                />
+              </div>
+
+              <Button
+                type="submit"
+                disabled={sendingSupportMessage}
+                className="min-h-11 w-full bg-fertiliapp-fuerte text-white hover:brightness-95"
               >
-                <SelectValue placeholder="Selecciona un tipo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="problem">Problema</SelectItem>
-                <SelectItem value="question">Duda</SelectItem>
-                <SelectItem value="suggestion">Sugerencia</SelectItem>
-              </SelectContent>
-            </Select>
+                {sendingSupportMessage ? 'Enviando...' : 'Enviar mensaje'}
+              </Button>
+            </div>
           </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="support-subject">Asunto</Label>
-            <Input
-              id="support-subject"
-              value={supportSubject}
-              onChange={(e) => {
-                setSupportSubject(e.target.value);
-                setSentSuccessfully(false);
-              }}
-              maxLength={120}
-              disabled={sendingSupportMessage}
-              className="min-h-11 rounded-2xl border-fertiliapp-suave bg-white text-titulo"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="support-message">Mensaje</Label>
-            <Textarea
-              id="support-message"
-              value={supportMessage}
-              onChange={(e) => {
-                setSupportMessage(e.target.value);
-                setSentSuccessfully(false);
-              }}
-              maxLength={3000}
-              disabled={sendingSupportMessage}
-              className="min-h-36 resize-none rounded-2xl border-fertiliapp-suave bg-white text-titulo"
-            />
-          </div>
-
-          <Button
-            type="submit"
-            disabled={sendingSupportMessage}
-            className="min-h-11 w-full bg-fertiliapp-fuerte text-white hover:brightness-95"
-          >
-            {sendingSupportMessage ? 'Enviando...' : 'Enviar mensaje'}
-          </Button>
         </form>
 
-        <div className="mt-5 space-y-3">
+        <div className="mt-5 overflow-hidden rounded-2xl border border-slate-100 bg-white">
           <button
             type="button"
             onClick={handleCopySupportEmail}
             aria-label={`Copiar correo de contacto ${CONTACT_EMAIL}`}
-            className="flex min-h-16 w-full items-center justify-between gap-3 rounded-[20px] border border-fertiliapp-suave bg-tarjeta px-4 py-3 text-left transition hover:bg-white/80"
+            className="flex min-h-16 w-full items-center justify-between gap-3 bg-white px-4 py-3 text-left transition hover:bg-slate-50"
           >
             <span className="min-w-0">
-              <span className="block text-sm font-semibold text-titulo">Correo de contacto</span>
-              <span className="mt-1 block break-all text-base font-medium text-fertiliapp-fuerte">
+              <span className="block text-sm font-semibold text-slate-800">Correo de contacto</span>
+              <span className="mt-1 block break-all text-sm font-medium text-fertiliapp-fuerte">
                 {CONTACT_EMAIL}
               </span>
             </span>
@@ -271,7 +280,7 @@ const ContactSupportPage = () => {
             type="button"
             variant="outline"
             onClick={handleOpenSupportEmail}
-            className="min-h-11 w-full border-fertiliapp-suave text-fertiliapp-fuerte"
+            className="min-h-11 w-full rounded-none border-x-0 border-b-0 border-t border-slate-100 bg-white text-fertiliapp-fuerte hover:bg-slate-50"
           >
             <Mail className="mr-2 h-4 w-4" aria-hidden="true" />
             Abrir correo

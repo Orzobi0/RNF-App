@@ -96,13 +96,13 @@ const renderCycleNavButton = (direction, targetCycle) => {
 
   return (
   <div className="px-4 pt-2">
-    <div className="relative overflow-hidden rounded-[24px] bg-fertiliapp-fuerte px-4 pb-3 pt-2.5 text-white shadow-[0_6px_16px_rgba(216,92,112,0.16)]">
+    <div className="relative overflow-hidden rounded-3xl bg-fertiliapp-fuerte px-4 pb-3 pt-2.5 text-white shadow-[0_8px_18px_rgba(216,92,112,0.14)]">
     <HeaderIconButtonPrimary
       type="button"
       onClick={onAddRecord}
       disabled={isProcessing}
       aria-label={isCurrentCycle ? 'Añadir registro' : 'Añadir registro al ciclo archivado'}
-      className="absolute right-4 top-2.5 z-20 border-white/70 bg-white text-fertiliapp-fuerte hover:bg-white"
+      className="absolute right-4 top-2.5 z-20 border-white/70 bg-white text-fertiliapp-fuerte shadow-none hover:bg-white"
     >
       <Plus className="h-4 w-4" />
       <span className="sr-only">Añadir registro</span>
@@ -1661,7 +1661,7 @@ return {
 
   if (isLoading && !cycle?.id) {
     return (
-      <div className="relative flex h-full flex-col items-center justify-center overflow-hidden">
+      <div className="relative flex h-full flex-col items-center justify-center overflow-hidden bg-[#fff7f9]">
         <p className="text-center text-titulo text-lg">Cargando...</p>
       </div>
     );
@@ -1669,8 +1669,8 @@ return {
 
   if (!cycle?.id) {
     return (
-      <div className="mx-auto flex min-h-screen max-w-md items-center justify-center px-4 py-4">
-        <div className="w-full space-y-4 rounded-3xl border border-rose-100/70 bg-white/80 p-4 text-center shadow-sm">
+      <div className="mx-auto flex min-h-screen max-w-md items-center justify-center bg-[#fff7f9] px-4 py-4">
+        <div className="w-full space-y-4 rounded-3xl border border-rose-100/70 bg-white p-4 text-center shadow-sm">
           <p className="text-[15px] font-semibold text-slate-800">No hay ciclo activo.</p>
           <button
             onClick={() => handleOpenNewCycleDialog()}
@@ -1701,7 +1701,7 @@ return {
   }
 
   return (
-    <div className="relative flex flex-col">   
+    <div className="relative flex flex-col bg-[#fff7f9]">
     {isUpdatingStartDate && (
   <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/25 backdrop-blur-sm">
     <div className="rounded-3xl border border-fertiliapp-suave bg-white/90 px-5 py-4 shadow-lg">
@@ -1826,7 +1826,7 @@ return {
                     <div
                       ref={calendarScrollContainerRef}
                       onScroll={handleCalendarMonthScroll}
-                      className="flex w-full snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain rounded-3xl bg-white/80 backdrop-blur-sm [scrollbar-width:none] [touch-action:pan-x] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden"
+                      className="flex w-full snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain rounded-3xl border border-rose-200/70 bg-white/95 shadow-sm [scrollbar-width:none] [touch-action:pan-x] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden"
                     >
                       {calendarMonths.map((calendarMonth) => (
                         <div
@@ -1865,7 +1865,7 @@ return {
                           onClick={() => scrollToCalendarMonthIndex(visibleCalendarMonthIndex - 1)}
                           disabled={visibleCalendarMonthIndex <= 0}
                           aria-label="Mes anterior"
-                          className="absolute left-4 top-3 z-20 flex h-7 w-7 items-center justify-center rounded-full border border-rose-100 bg-white/85 text-fertiliapp-fuerte shadow-sm backdrop-blur transition hover:bg-white disabled:pointer-events-none disabled:opacity-30"
+                          className="absolute left-4 top-3 z-20 flex h-7 w-7 items-center justify-center rounded-full border border-rose-100 bg-white text-fertiliapp-fuerte shadow-sm transition hover:bg-rose-50 disabled:pointer-events-none disabled:opacity-30"
                         >
                           <ChevronLeft className="h-4 w-4" aria-hidden="true" />
                         </button>
@@ -1874,7 +1874,7 @@ return {
                           onClick={() => scrollToCalendarMonthIndex(visibleCalendarMonthIndex + 1)}
                           disabled={visibleCalendarMonthIndex >= calendarMonths.length - 1}
                           aria-label="Mes siguiente"
-                          className="absolute right-4 top-3 z-20 flex h-7 w-7 items-center justify-center rounded-full border border-rose-100 bg-white/85 text-fertiliapp-fuerte shadow-sm backdrop-blur transition hover:bg-white disabled:pointer-events-none disabled:opacity-30"
+                          className="absolute right-4 top-3 z-20 flex h-7 w-7 items-center justify-center rounded-full border border-rose-100 bg-white text-fertiliapp-fuerte shadow-sm transition hover:bg-rose-50 disabled:pointer-events-none disabled:opacity-30"
                         >
                           <ChevronRight className="h-4 w-4" aria-hidden="true" />
                         </button>
@@ -1903,8 +1903,8 @@ return {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
             >
-              <div className="mx-auto max-w-md rounded-3xl border border-rose-100 bg-white/80 p-8 shadow-lg backdrop-blur-sm">
-                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-rose-100 text-fertiliapp-fuerte shadow-inner">
+              <div className="mx-auto max-w-md rounded-3xl border border-rose-100/70 bg-white p-8 shadow-sm">
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-rose-50 text-fertiliapp-fuerte">
                   <ClipboardList className="h-9 w-9" />
                 </div>
                 <h3 className="text-lg font-semibold text-slate-700">Aún no hay días para mostrar</h3>
