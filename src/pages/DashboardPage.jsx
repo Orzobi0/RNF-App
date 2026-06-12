@@ -32,6 +32,7 @@ import { FERTILITY_SYMBOL_OPTIONS, getSymbolColorPalette } from '@/config/fertil
 import { buildFertilityInterpretationSummary } from '@/lib/fertilityInterpretationSummary';
 import generatePlaceholders from '@/lib/generatePlaceholders';
 import { mergeFertilityStartConfig } from '@/lib/preferences';
+import { cn } from '@/lib/utils';
 import {
   getPeakDayToastMessage,
   getRecordUpdateToastMessage,
@@ -829,11 +830,79 @@ const handleRingPointerCancel = useCallback(
   },
   [resetWheelDrag]
 );
+  const getCycleStatusTone = (status) => {
+  switch (status) {
+    case 'relative-infertile':
+      return {
+        button: 'border-emerald-100 bg-emerald-50/65 hover:bg-emerald-50/85',
+        accent: 'bg-emerald-400',
+        label: 'text-emerald-700',
+        title: 'text-emerald-950',
+        body: 'text-emerald-800/80',
+        chip: 'px-2 text-slate-600',
+      };
+
+    case 'fertile-open':
+      return {
+        button: 'border-rose-100 bg-rose-50/70 hover:bg-rose-50/90',
+        accent: 'bg-fertiliapp-fuerte',
+        label: 'text-fertiliapp-fuerte',
+        title: 'text-rose-950',
+        body: 'text-rose-800/80',
+        chip: 'px-2 text-slate-600',
+      };
+
+    case 'peak-day':
+    case 'postpeak-1':
+    case 'postpeak-2':
+    case 'postpeak-3':
+      return {
+        button: 'border-pink-100 bg-pink-50/75 hover:bg-pink-50/95',
+        accent: 'bg-pink-500',
+        label: 'text-pink-600',
+        title: 'text-pink-950',
+        body: 'text-pink-800/80',
+        chip: 'px-2 text-slate-600',
+      };
+
+    case 'temperature-estimated':
+    case 'mucus-estimated':
+      return {
+        button: 'border-sky-100 bg-sky-50/75 hover:bg-sky-50/95',
+        accent: 'bg-sky-400',
+        label: 'text-sky-700',
+        title: 'text-sky-950',
+        body: 'text-sky-800/80',
+        chip: 'px-2 text-slate-600',
+      };
+
+    case 'postovulatory-confirmed':
+      return {
+        button: 'border-blue-200 bg-blue-50/85 hover:bg-blue-50',
+        accent: 'bg-blue-500',
+        label: 'text-blue-700',
+        title: 'text-blue-950',
+        body: 'text-blue-800/85',
+        chip: 'px-2 text-slate-600',
+      };
+
+    default:
+      return {
+        button: 'border-slate-100 bg-white/75 hover:bg-white/90',
+        accent: 'bg-slate-300',
+        label: 'text-slate-500',
+        title: 'text-slate-800',
+        body: 'text-slate-600',
+        chip: 'px-2 text-slate-600',
+      };
+  }
+};
+
   const renderCompactCalcItem = ({ label, value, onClick, ariaLabel, modeLabel = null }) => (
     <button
       type="button"
       onClick={onClick}
-      className="flex-1 rounded-2xl border border-rose-100/80 bg-white/80 px-3 py-2 text-left shadow-sm transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70"
+      className="flex-1 rounded-2xl border border-rose-100/70 bg-white/90 px-3 py-2 text-left shadow-sm transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70"
       aria-label={ariaLabel}
     >
       <div className="flex items-center justify-between gap-2">
@@ -982,6 +1051,9 @@ const handleRingPointerCancel = useCallback(
   },
   [onToggleRelations]
 );
+  const statusTone = cycleStatusSummary
+    ? getCycleStatusTone(cycleStatusSummary.status)
+    : getCycleStatusTone(null);
 
   return (
     <div className="relative flex flex-col space-y-2">
@@ -1457,36 +1529,49 @@ if (dot.peakStatus === 'P') {
           type="button"
           onClick={onOpenCycleStatus}
           aria-label="Abrir gráfica con interpretación"
-          className="mx-2 mt-2 mb-2 block rounded-2xl border border-white/60 bg-white/50 p-3 text-left shadow-[0_8px_24px_rgba(148,163,184,0.10)] backdrop-blur-md transition hover:border-fertiliapp-fuerte/40 hover:bg-white/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
+          className={cn(
+            'mx-2 mb-2 mt-2 block w-auto rounded-3xl border p-3 text-left shadow-[0_10px_24px_rgba(216,92,112,0.08)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent',
+            statusTone.button
+          )}
         >
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-600">
-              {cycleStatusSummary.title}
-            </span>
-            <div className="flex shrink-0 items-center gap-1">
-              {(cycleStatusSummary.badges ?? []).map((badge) => (
-                <Badge
-                  key={badge}
-                  className="h-5 rounded-full border border-rose-100 bg-white/80 px-2 text-[10px] font-semibold text-fertiliapp-fuerte shadow-none hover:bg-white/80"
-                >
-                  {badge}
-                </Badge>
-              ))}
+          <div className="flex gap-3">
+            <span
+              aria-hidden="true"
+              className={cn('mt-1 w-0.5 shrink-0 rounded-full opacity-80', statusTone.accent)}
+            />
+
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-2">
+                <span className={cn('text-[11px] font-semibold uppercase tracking-wide', statusTone.title)}>
+                  Estado del día
+                </span>
+
+                <div className="flex shrink-0 items-center gap-1">
+                  {(cycleStatusSummary.badges ?? []).map((badge) => (
+                    <span
+                      key={badge}
+                      className={cn('text-[10px] font-semibold leading-none', statusTone.chip)}
+                    >
+                      {badge}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <p className={cn('mt-2 text-[15px] font-semibold leading-tight', statusTone.label)}>
+                {cycleStatusSummary.headline}
+              </p>
+
+              <p className={cn('mt-1 text-[13px] leading-snug', statusTone.body)}>
+                {cycleStatusSummary.body}
+              </p>
             </div>
-          </div>
-          <div className="mt-2 space-y-1">
-            <p className="text-[15px] font-semibold leading-tight text-slate-800">
-              {cycleStatusSummary.headline}
-            </p>
-            <p className="text-[13px] leading-snug text-slate-600">
-              {cycleStatusSummary.body}
-            </p>
           </div>
         </motion.button>
     )}
 
     <motion.div
-          className="mx-2 mt-2 mb-2 rounded-2xl border border-fertiliapp-suave bg-white/70 p-2 shadow-[0_10px_30px_rgba(148,163,184,0.15)] backdrop-blur-md"
+          className="mx-2 mb-2 mt-2 rounded-2xl border border-rose-100/70 bg-white/85 p-2 shadow-[0_10px_24px_rgba(216,92,112,0.08)]"
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.2, delay: 0.06 }}

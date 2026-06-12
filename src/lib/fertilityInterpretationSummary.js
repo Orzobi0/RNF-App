@@ -195,6 +195,13 @@ const buildFertileOpeningBody = ({ fertilityStart, fertileStartIndex, allDataPoi
   return `Por registro de observaciones${dateSuffix}`;
 };
 
+const joinSummarySentences = (...parts) =>
+  parts
+    .map((part) => String(part ?? '').trim().replace(/\.+$/, ''))
+    .filter(Boolean)
+    .map((part) => `${part}.`)
+    .join(' ');
+
 const buildPostSummary = ({ postInfo, todayIndex, allDataPoints }) => {
   const peakDate = getDateFromIndex(allDataPoints, postInfo?.peakIndex);
   const peakBody = peakDate
@@ -230,12 +237,29 @@ const buildPostSummary = ({ postInfo, todayIndex, allDataPoints }) => {
       allDataPoints,
       postInfo.temperatureConfirmationIndex ?? postInfo.temperatureStartIndex
     );
+    const temperatureBody = confirmationDate
+      ? `Subida de temperatura confirmada el ${confirmationDate}.`
+      : 'Subida de temperatura confirmada.';
+
+    if (deltaFromPeak === 0) {
+      return {
+        headline: 'Día pico · Infertilidad estimada por temperatura',
+        body: joinSummarySentences('Determinado por la usuaria.', temperatureBody),
+        status: 'temperature-estimated',
+      };
+    }
+
+    if (deltaFromPeak === 1 || deltaFromPeak === 2 || deltaFromPeak === 3) {
+      return {
+        headline: `${deltaFromPeak}º día postpico · Infertilidad estimada por temperatura`,
+        body: joinSummarySentences(peakBody, temperatureBody),
+        status: 'temperature-estimated',
+      };
+    }
 
     return {
       headline: 'Infertilidad estimada por temperatura',
-      body: confirmationDate
-        ? `Subida de temperatura confirmada el ${confirmationDate}.`
-        : 'Subida de temperatura confirmada.',
+      body: temperatureBody,
       status: 'temperature-estimated',
     };
   }
@@ -250,7 +274,7 @@ const buildPostSummary = ({ postInfo, todayIndex, allDataPoints }) => {
 
   if (deltaFromPeak === 1 || deltaFromPeak === 2 || deltaFromPeak === 3) {
     return {
-      headline: `Día ${deltaFromPeak}º pospico`,
+      headline: `${deltaFromPeak}º día postpico`,
       body: peakBody,
       status: `postpeak-${deltaFromPeak}`,
     };
@@ -337,7 +361,7 @@ export function buildFertilityInterpretationSummary({
     const peakDate = getDateFromIndex(allDataPoints, peakIndex);
     return {
       title: SUMMARY_TITLE,
-      headline: `Día ${deltaFromPeak}º pospico`,
+      headline: `${deltaFromPeak}º día postpico`,
       body: peakDate
         ? `Tras determinar el ${peakDate} como día pico.`
         : 'Tras determinar el día pico.',
