@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useMatch } from 'react-router-dom';
-import { Heart, ChartSpline, Calendar, Archive, User } from 'lucide-react';
+import { Heart, ChartSpline, Calendar, Archive, UserRoundCog } from 'lucide-react';
 
 const BottomNav = () => {
   const cycleMatch = useMatch('/cycle/:cycleId');
@@ -23,7 +23,7 @@ const BottomNav = () => {
     },
     { to: '/', label: 'Ciclo actual', icon: Heart, activeFill: true },
     { to: '/archived-cycles', label: 'Mis ciclos', icon: Archive },
-    { to: '/settings', label: 'Cuenta', icon: User },
+    { to: '/settings', label: 'Cuenta', icon: UserRoundCog },
   ];
 
 return (

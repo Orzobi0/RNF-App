@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   Activity,
   BadgeCheck,
-  Bolt,
+  Settings2,
   ChevronRight,
   CircleAlert,
   FileDown,
@@ -762,7 +762,7 @@ const SettingsPage = () => {
 
           <SettingsSection title="App">
             <SettingsLinkRow
-              icon={Bolt}
+              icon={Settings2}
               iconTone="mint"
               title="Preferencias"
               description="Registro, cálculo y gráfica"

@@ -1826,7 +1826,7 @@ return {
                     <div
                       ref={calendarScrollContainerRef}
                       onScroll={handleCalendarMonthScroll}
-                      className="flex w-full snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain rounded-3xl border border-rose-200/70 bg-white/95 shadow-sm [scrollbar-width:none] [touch-action:pan-x] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden"
+                      className="flex w-full snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain rounded-3xl border border-rose-300/60 bg-white/95 shadow-sm [scrollbar-width:none] [touch-action:pan-x] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden"
                     >
                       {calendarMonths.map((calendarMonth) => (
                         <div

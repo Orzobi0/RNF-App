@@ -319,7 +319,7 @@ const footerIconButtonClass =
 
   // Tarjeta compacta pero más alta, usando el espacio disponible
   return (
-  <div className="w-full rounded-3xl border border-rose-200/70 bg-white p-4 shadow-[0_8px_18px_rgba(216,92,112,0.08)] sm:p-5">
+  <div className="w-full rounded-3xl border border-rose-300/60 bg-white p-4 shadow-[0_8px_18px_rgba(216,92,112,0.08)] sm:p-5">
       {/* Cabecera: fecha + día ciclo + badge pico | botón pico + símbolo */}
 <div className="flex items-center gap-2.5">
   <div className="min-w-0 flex-1">

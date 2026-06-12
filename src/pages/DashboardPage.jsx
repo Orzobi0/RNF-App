@@ -32,6 +32,8 @@ import { FERTILITY_SYMBOL_OPTIONS, getSymbolColorPalette } from '@/config/fertil
 import { buildFertilityInterpretationSummary } from '@/lib/fertilityInterpretationSummary';
 import generatePlaceholders from '@/lib/generatePlaceholders';
 import { mergeFertilityStartConfig } from '@/lib/preferences';
+import { normalizeTemperatureRiseOverride } from '@/lib/temperatureRiseOverride';
+import { normalizeFertileStartOverride } from '@/lib/fertileStartOverride';
 import { cn } from '@/lib/utils';
 import {
   getPeakDayToastMessage,
@@ -899,23 +901,31 @@ const handleRingPointerCancel = useCallback(
 };
 
   const renderCompactCalcItem = ({ label, value, onClick, ariaLabel, modeLabel = null }) => (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex-1 rounded-2xl border border-rose-100/70 bg-white/90 px-3 py-2 text-left shadow-sm transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70"
-      aria-label={ariaLabel}
-    >
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-rose-500">{label}</span>
+  <button
+    type="button"
+    onClick={onClick}
+    className="flex min-h-[42px] min-w-0 flex-1 items-center justify-between gap-2 rounded-2xl border border-rose-100/60 bg-white/70 px-3 py-2 text-left transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70"
+    aria-label={ariaLabel}
+  >
+    <div className="min-w-0">
+      <div className="flex min-w-0 items-center gap-1.5">
+        <span className="text-[10px] font-bold uppercase tracking-wide text-rose-500">
+          {label}
+        </span>
+
         {modeLabel ? (
-          <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-500">
+          <span className="max-w-[58px] truncate rounded-full bg-rose-50/80 px-1.5 py-0.5 text-[9px] font-semibold text-rose-400">
             {modeLabel}
           </span>
         ) : null}
       </div>
-      <p className="mt-1 text-lg font-semibold tabular-nums text-slate-800">{value ?? '—'}</p>
-    </button>
-  );
+    </div>
+
+    <span className="shrink-0 text-base font-semibold tabular-nums text-slate-800">
+      {value ?? '—'}
+    </span>
+  </button>
+);
 
   const getSymbolInfo = useCallback(
     (symbolValue) =>
@@ -1530,7 +1540,7 @@ if (dot.peakStatus === 'P') {
           onClick={onOpenCycleStatus}
           aria-label="Abrir gráfica con interpretación"
           className={cn(
-            'mx-2 mb-2 mt-2 block w-auto rounded-3xl border p-3 text-left shadow-[0_10px_24px_rgba(216,92,112,0.08)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent',
+            'mx-2 mb-2 mt-5 block w-auto rounded-3xl border p-3 text-left shadow-[0_10px_24px_rgba(216,92,112,0.08)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent',
             statusTone.button
           )}
         >
@@ -1571,7 +1581,7 @@ if (dot.peakStatus === 'P') {
     )}
 
     <motion.div
-          className="mx-2 mb-2 mt-2 rounded-2xl border border-rose-100/70 bg-white/85 p-2 shadow-[0_10px_24px_rgba(216,92,112,0.08)]"
+          className="mx-2 mt-2 rounded-2xl border border-rose-100/50 bg-white/55 p-2 shadow-[0_8px_18px_rgba(216,92,112,0.06)]"
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.2, delay: 0.06 }}
@@ -2422,6 +2432,15 @@ const handleConfirmDeleteRecord = useCallback(async () => {
     });
   }, [currentCycle?.data, currentCycle?.startDate]);
 
+  const temperatureRiseOverride = useMemo(
+    () => normalizeTemperatureRiseOverride(currentCycle?.interpretationOverrides?.temperatureRise),
+    [currentCycle?.interpretationOverrides?.temperatureRise]
+  );
+  const fertileStartOverride = useMemo(
+    () => normalizeFertileStartOverride(currentCycle?.interpretationOverrides?.fertileStart),
+    [currentCycle?.interpretationOverrides?.fertileStart]
+  );
+
   const {
     allDataPoints: fertilityChartData,
     fertilityStart,
@@ -2439,7 +2458,12 @@ const handleConfirmDeleteRecord = useCallback(async () => {
     fertilityStartConfig,
     fertilityCalculatorCycles,
     externalCalculatorCandidates,
-    false
+    false,
+    false,
+    0,
+    0,
+    temperatureRiseOverride,
+    fertileStartOverride
   );
 
   const cycleStatusSummary = useMemo(

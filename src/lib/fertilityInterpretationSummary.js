@@ -43,8 +43,26 @@ const getSelectedCandidates = (aggregate) => {
   );
 };
 
-const getPrimaryBadge = ({ fertilityStart, aggregate, cpmSelection, t8Selection, noData }) => {
+const getPrimaryBadge = ({
+  fertilityStart,
+  aggregate,
+  cpmSelection,
+  t8Selection,
+  noData,
+  ovulationDetails,
+}) => {
   if (noData) return 'Sin datos';
+
+  const temperatureSource = ovulationDetails?.source ?? ovulationDetails?.mode ?? null;
+  const temperatureStatus = ovulationDetails?.status ?? null;
+
+  if (
+    temperatureSource === 'manual' ||
+    temperatureSource === 'ignored' ||
+    temperatureStatus === 'ignored'
+  ) {
+    return 'Manual';
+  }
 
   if (fertilityStart?.fertileStartOverride?.mode === 'manual') return 'Manual';
   if (cpmSelection === 'manual' || t8Selection === 'manual') return 'Manual';
@@ -227,7 +245,7 @@ const buildPostSummary = ({ postInfo, todayIndex, allDataPoints }) => {
   if (canUseMucusClosure) {
     return {
       headline: 'Infertilidad estimada por moco',
-      body: peakDate ? `Cierre por moco tras el día pico del ${peakDate}.` : 'Cierre por moco detectado.',
+      body: peakDate ? `Cierre por moco tras el día pico el ${peakDate}.` : 'Cierre por moco detectado.',
       status: 'mucus-estimated',
     };
   }
@@ -305,6 +323,7 @@ export function buildFertilityInterpretationSummary({
     cpmSelection,
     t8Selection,
     noData,
+    ovulationDetails,
   });
   const badges = buildBadges({ primaryBadge, postpartumMode });
 
