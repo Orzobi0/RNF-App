@@ -613,6 +613,8 @@ export const computeFertilityStartOutput = ({
   const totalDays = Array.isArray(days) ? days.length : 0;
   const isValidIndex = (idx) =>
     Number.isInteger(idx) && idx >= 0 && idx < totalDays;
+  const isValidBoundaryIndex = (idx) =>
+  Number.isInteger(idx) && idx >= 0;
 
   const isPeakMarkedEntry = (entry) => {
     const marker = entry?.peak_marker ?? entry?.peakMarker ?? null;
@@ -630,7 +632,9 @@ export const computeFertilityStartOutput = ({
 
   const contextPeakIndex = isValidIndex(peakDayIndex) ? peakDayIndex : null;
 const contextPeakThirdIndex = isValidIndex(peakThirdDayIndex) ? peakThirdDayIndex : null;
-const contextPostPeakStartIndex = isValidIndex(postPeakStartIndex) ? postPeakStartIndex : null;
+const contextPostPeakStartIndex = isValidBoundaryIndex(postPeakStartIndex)
+  ? postPeakStartIndex
+  : null;
 
 const explicitPeakIndex = findLastPeakMarkerIndex();
 const explicitPeakIndexValid = isValidIndex(explicitPeakIndex) ? explicitPeakIndex : null;
@@ -791,9 +795,9 @@ const effectivePeakIndex = contextPeakIndex ?? explicitPeakIndexValid;
       pPlus3Index = candidatePPlus3;
     }
     const candidatePPlus4 = effectivePeakIndex + 4;
-  if (isValidIndex(candidatePPlus4)) {
-    pPlus4Index = candidatePPlus4;
-  }  
+if (isValidBoundaryIndex(candidatePPlus4)) {
+  pPlus4Index = candidatePPlus4;
+}
       
   const peakIndexForDiff = clampIndexWithin(effectivePeakIndex);
     const peakDate = parseEntryDate(peakIndexForDiff);
@@ -825,7 +829,7 @@ const temperatureClosureReferenceIndex =
 
 const derivedPostPeakStartIndex =
   contextPostPeakStartIndex ??
-  (contextPeakThirdIndex != null ? clampIndexWithin(contextPeakThirdIndex + 1) : null);
+  (contextPeakThirdIndex != null ? contextPeakThirdIndex + 1 : null);
 
 const fallbackMucusStartIndex = pPlus4Index ?? null;
 const mucusInfertileStartIndex = derivedPostPeakStartIndex ?? fallbackMucusStartIndex;

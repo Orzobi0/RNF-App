@@ -672,7 +672,7 @@ if (isFullScreen) {
 
     if (detectedThirdIndex != null) {
       const lastIndex = rawAllDataPoints.length - 1;
-      const startIdx = Math.min(detectedThirdIndex + 1, lastIndex);
+      const startIdx = detectedThirdIndex + 1;
       return {
         peakDayIndex: detectedPeakIndex,
         thirdDayIndex: detectedThirdIndex,
