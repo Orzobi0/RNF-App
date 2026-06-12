@@ -1,5 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Activity, Bolt, ChevronRight, FileDown, Lock, LogOut, Mail } from 'lucide-react';
+import {
+  Activity,
+  BadgeCheck,
+  Bolt,
+  ChevronRight,
+  CircleAlert,
+  FileDown,
+  Lock,
+  LogOut,
+  Mail,
+} from 'lucide-react';
 import { App } from '@capacitor/app';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
@@ -218,20 +228,6 @@ const SettingsSection = ({ title, children, className }) => (
     </h2>
     <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white">
       <div className="divide-y divide-slate-100">{children}</div>
-    </div>
-  </section>
-);
-
-const AccountSummaryCard = ({ email, statusLabel, initial }) => (
-  <section className="rounded-2xl border border-slate-100 bg-white px-4 py-4">
-    <div className="flex min-w-0 items-center gap-3">
-      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-fertiliapp-suave text-base font-semibold text-fertiliapp-fuerte">
-        {initial}
-      </div>
-      <div className="min-w-0">
-        <p className="truncate text-sm font-semibold text-slate-800">{email}</p>
-        <p className="mt-0.5 text-xs font-medium text-slate-500">{statusLabel}</p>
-      </div>
     </div>
   </section>
 );
@@ -641,13 +637,23 @@ const SettingsPage = () => {
     }
   };
 
-  const accountEmail = user?.email || 'Sin correo';
-  const accountInitial = user?.email?.trim()?.charAt(0)?.toUpperCase() || 'U';
-  const accountStatusLabel = !user?.email
-    ? 'Sin correo'
-    : user.emailVerified
-      ? 'Correo verificado'
-      : 'Correo pendiente de verificar';
+  const emailStatusIcon = user?.email
+    ? user.emailVerified
+      ? (
+        <BadgeCheck
+          className="h-5 w-5 text-secundario-fuerte"
+          aria-label="Correo verificado"
+          title="Correo verificado"
+        />
+      )
+      : (
+        <CircleAlert
+          className="h-5 w-5 text-amber-500"
+          aria-label="Correo pendiente de verificar"
+          title="Correo pendiente de verificar"
+        />
+      )
+    : null;
 
   useEffect(() => {
     refreshPermissions();
@@ -688,11 +694,6 @@ const SettingsPage = () => {
 
       <div className="relative z-10 mx-auto flex w-full max-w-2xl flex-1 flex-col box-border px-4 pb-6 pt-4">
         <div className="flex flex-1 flex-col gap-5">
-          <AccountSummaryCard
-            email={accountEmail}
-            statusLabel={accountStatusLabel}
-            initial={accountInitial}
-          />
           <SettingsSection title="Cuenta">
             <SettingsActionRow
               icon={Mail}
@@ -704,6 +705,7 @@ const SettingsPage = () => {
                 setShowEmailDialog(true);
               }}
               ariaLabel="Actualizar correo electrónico"
+              trailing={emailStatusIcon}
             />
 
             <SettingsActionRow
