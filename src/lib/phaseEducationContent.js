@@ -96,6 +96,17 @@ const getOpeningCriterion = (info) => {
   }
   return null;
 };
+const isManualTemperatureRise = (reasons = {}) => {
+  const details = getDetails(reasons);
+  const temperature = reasons?.temperature ?? {};
+
+  return [
+    temperature?.source,
+    temperature?.mode,
+    details?.ovulationDetails?.source,
+    details?.ovulationDetails?.mode,
+  ].some((value) => normalizeSource(value) === 'MANUAL');
+};
 
 const getClosureInfo = (reasons = {}) => {
   const fertileWindow = getWindow(reasons);
@@ -149,6 +160,7 @@ const getClosureInfo = (reasons = {}) => {
     postIndex,
     temperatureRule,
     temperatureConfirmationIndex,
+    isManualTemperatureRise: isManualTemperatureRise(reasons),
   };
 };
 
@@ -298,7 +310,7 @@ const getOpeningSummary = (criterion) => {
     return `La fase relativamente infertil termina aqui porque el calculo ${criterion === 'cpm' ? 'CPM' : 'T-8'} es el criterio mas precoz entre los criterios activos.`;
   }
   if (criterion === 'peak') {
-    return 'La app abre la fase fertil porque se ha marcado dia pico, un dato que indica fertilidad alta en la observacion del moco.';
+    return 'Se abre la fase fertil porque se ha marcado dia pico, un dato que indica fertilidad alta en la observacion del moco.';
   }
   if (criterion === 'whiteSymbol') {
   return 'La fase relativamente infértil termina porque se ha registrado un símbolo blanco o un signo equivalente de fertilidad.';
@@ -309,7 +321,7 @@ if (criterion === 'highMucus') {
 if (criterion === 'mucus' || criterion === 'mucusSign') {
   return 'La fase relativamente infértil termina porque se ha registrado sensación o moco de mayor fertilidad.';
 }
-  return 'Segun los datos registrados, la app interpreta que la fase fertil esta abierta.';
+  return 'Segun los datos registrados, se interpreta que la fase fertil esta abierta.';
 };
 
 const buildOpeningSections = ({
@@ -323,8 +335,8 @@ const buildOpeningSections = ({
   if (criterion === 'manual') {
     return [
       {
-        title: 'Que ha detectado la app',
-        body: 'Hay un ajuste manual de inicio fertil. La app mantiene la fecha configurada y la muestra como limite de la fase anterior.',
+        title: 'Que indican los registros',
+        body: 'Hay un ajuste manual de inicio fertil. Se mantiene la fecha configurada y se muestra como limite de la fase anterior.',
       },
       {
         title: 'Que criterio se ha aplicado',
@@ -337,7 +349,7 @@ const buildOpeningSections = ({
     const mode = getCalculatorMode(cpmCandidate, cpmSelection);
     return [
       {
-        title: 'Que ha detectado la app',
+        title: 'Que indican los registros',
         body: 'Entre los criterios disponibles para abrir fertilidad, el limite CPM llega antes que los demas candidatos activos.',
       },
       { title: 'Que criterio se ha aplicado', body: getCpmRuleText(cpmCandidate, mode) },
@@ -348,7 +360,7 @@ const buildOpeningSections = ({
     const mode = getCalculatorMode(t8Candidate, t8Selection);
     return [
       {
-        title: 'Que ha detectado la app',
+        title: 'Que indican los registros',
         body: 'Entre los criterios disponibles para abrir fertilidad, el limite T-8 llega antes que los demas candidatos activos.',
       },
       { title: 'Que criterio se ha aplicado', body: getT8RuleText(mode) },
@@ -357,7 +369,7 @@ const buildOpeningSections = ({
   if (criterion === 'peak') {
   return [
     {
-      title: 'Qué ha detectado la app',
+      title: 'Qué indican los registros',
       body:
         'Se ha registrado día pico. En la observación del moco, el día pico corresponde al último día con sensación o apariencia de mayor fertilidad (M+): por ejemplo sensación mojada, resbaladiza o lubricante, o moco transparente, filante o similar a clara de huevo.',
     },
@@ -371,7 +383,7 @@ const buildOpeningSections = ({
 if (criterion === 'whiteSymbol') {
   return [
     {
-      title: 'Qué ha detectado la app',
+      title: 'Qué indican los registros',
       body:
         'Hay un símbolo blanco o marcador fértil registrado o derivado de la sensación/apariencia observada. Ese símbolo indica que ha aumentado la fertilidad respecto al patrón previo.',
     },
@@ -386,7 +398,7 @@ if (criterion === 'whiteSymbol') {
   if (criterion === 'highMucus') {
   return [
     {
-      title: 'Qué ha detectado la app',
+      title: 'Qué indican los registros',
       body:
         'Se ha registrado un dato compatible con moco de mayor fertilidad: sensación mojada, resbaladiza o lubricante, o una apariencia más fértil como moco transparente, cristalino, filante o similar a clara de huevo.',
     },
@@ -401,7 +413,7 @@ if (criterion === 'whiteSymbol') {
 
 return [
   {
-    title: 'Qué ha detectado la app',
+    title: 'Qué indican los registros',
     body:
       'Se ha registrado humedad, moco visible o una sensación compatible con fertilidad. La sequedad o ausencia de moco visible no abre fertilidad por este criterio, pero la aparición de humedad o moco sí cambia la interpretación.',
   },
@@ -424,10 +436,10 @@ const buildRelativeContent = (info) => {
       title: 'Fase relativamente infertil',
       eyebrow: methodLabel,
       summary:
-  'La fase relativamente infértil comienza con la menstruación. Con los datos actuales, la app todavía no ha detectado un criterio activo que abra la fase fértil.',
+  'La fase relativamente infértil comienza con la menstruación. Con los datos actuales, todavía no se ha detectado un criterio activo que abra la fase fértil.',
 sections: [
   {
-    title: 'Qué ha detectado la app',
+    title: 'Qué indican los registros',
     body:
       hasActiveCalculation(info)
         ? 'No aparece todavía un signo fértil ni un límite CPM/T-8 aplicable antes del segmento mostrado.'
@@ -437,8 +449,8 @@ sections: [
     title: 'Qué criterio se ha aplicado',
     body:
       hasActiveCalculation(info)
-        ? 'Mientras no haya apertura fértil por cálculo o por signo observado, la app mantiene la fase preovulatoria relativamente infértil desde el inicio del ciclo.'
-        : 'Como los cálculos preovulatorios no están activos, la app mantiene la fase relativamente infértil hasta que aparezca un signo fértil registrado.',
+        ? 'Mientras no haya apertura fértil por cálculo o por signo observado, se mantiene la fase preovulatoria relativamente infértil desde el inicio del ciclo.'
+        : 'Como los cálculos preovulatorios no están activos, se mantiene la fase relativamente infértil hasta que aparezca un signo fértil registrado.',
   },
 ],
       caution: 'Esta interpretacion depende de la calidad de los registros y de los criterios que esten activos.',
@@ -460,7 +472,7 @@ sections: [
 }),
       getUsedCandidates(reasons).length > 1 && {
         title: 'Por que se aplica aqui',
-        body: 'Cuando hay varios criterios activos para abrir fertilidad, la app usa el mas precoz entre los candidatos disponibles.',
+        body: 'Cuando hay varios criterios activos para abrir fertilidad, se usa el mas precoz entre los candidatos disponibles.',
       },
       isMucusCriterion(criterion) && MUCUS_LEGEND_SECTION,
     ],
@@ -486,7 +498,7 @@ const buildFertileContent = (info) => {
   if (closure.hasMucusClosure && closure.hasTemperatureClosure) {
     closureSections.push({
       title: 'Como se cierra',
-      body: 'Hay cierre por moco y por temperatura. Si ambos no coinciden, la app toma el criterio mas tardio para iniciar la fase postovulatoria confirmada.',
+      body: 'Hay cierre por moco y por temperatura. Si ambos no coinciden, se toma el criterio mas tardio para iniciar la fase postovulatoria confirmada.',
     });
   } else if (closure.hasMucusClosure) {
     closureSections.push({
@@ -529,12 +541,12 @@ const buildTemperatureSection = (closure, postpartumActive) => {
 
   let title = 'Criterio térmico';
   let body =
-    'Se ha detectado una subida térmica compatible con los criterios activos, pero no dispone de suficiente detalle para mostrar la regla exacta aplicada.';
+    'Los datos muestran una subida térmica compatible con los criterios activos, pero no hay suficiente detalle para mostrar la regla exacta aplicada.';
 
   if (normalizedRule === '3-high') {
     title = 'Regla térmica 3/6';
     body =
-      'Se ha identificado una subida térmica siguiendo la regla 3/6: tres temperaturas altas consecutivas por encima de las seis anteriores. Para confirmar la subida, el tercer valor alto debe estar al menos 0,2 ºC por encima de la línea básica.';
+      'Las temperaturas registradas cumplen la regla 3/6: tres temperaturas altas consecutivas por encima de las seis anteriores. Para confirmar la subida, el tercer valor alto debe estar al menos 0,2 ºC por encima de la línea básica.';
   } else if (normalizedRule === 'german-3+1') {
     title = 'Primera excepción térmica';
     body =
@@ -615,12 +627,12 @@ const criterion = isEstimatedTemperatureSegment
       title: 'Inicio postovulatorio confirmado',
       eyebrow: methodLabel,
       summary:
-        'La app interpreta el inicio postovulatorio como confirmado porque se han cumplido los criterios de moco y temperatura.',
+        'Se interpreta el inicio postovulatorio como confirmado porque se han cumplido los criterios de moco y temperatura.',
       sections: [
         {
-          title: 'Que ha detectado la app',
+          title: 'Que indican los registros',
           body: compact([
-            'Hay cierre por moco y subida termica confirmada. Cuando ambos criterios no coinciden el mismo dia, la app usa el criterio mas tardio para iniciar la fase postovulatoria confirmada.',
+            'Hay cierre por moco y subida termica confirmada. Cuando ambos criterios no coinciden el mismo día, se usa el criterio mas tardio para iniciar la fase postovulatoria confirmada.',
             orderText,
           ]),
         },
@@ -643,17 +655,18 @@ const criterion = isEstimatedTemperatureSegment
     title: 'Infertilidad estimada por temperatura',
     eyebrow: methodLabel,
     summary:
-      'La app muestra una infertilidad estimada por temperatura porque la subida térmica ya cumple el criterio térmico aplicado.',
+      'Se reconoce la infertilidad estimada por temperatura porque la subida térmica ya cumple el criterio térmico aplicado.',
     sections: [
       buildTemperatureSection(closure, info.postpartumActive) ?? {
-        title: 'Qué ha detectado la app',
+        title: 'Qué indican los registros',
         body:
-          'La app ha detectado una subida térmica compatible con los criterios activos, pero no dispone de suficiente detalle para mostrar la regla exacta aplicada.',
+          'Los datos muestran una subida térmica compatible con los criterios activos, pero no hay suficiente detalle para mostrar la regla exacta aplicada.'
       },
       {
         title: 'Criterio utilizado',
-        body:
-          'Esta estimación se basa en el criterio térmico. La app analiza la línea básica y los valores altos posteriores para comprobar si la subida de temperatura puede considerarse válida.',
+        body: closure.isManualTemperatureRise
+          ? 'Esta estimación se basa en el criterio térmico, partiendo de un ajuste manual: la línea básica y/o el primer día alto se han establecido manualmente. Con ese ajuste, se comprueba si las temperaturas posteriores cumplen la regla térmica.'
+          : 'Esta estimación se basa en el criterio térmico. El cálculo utiliza la línea básica y los valores altos posteriores para comprobar si la subida de temperatura puede considerarse válida.',
       },
     ],
     caution:
@@ -666,11 +679,11 @@ const criterion = isEstimatedTemperatureSegment
   return makeContent({
     title: 'Infertilidad estimada por moco',
     eyebrow: methodLabel,
-    summary: `La app muestra una infertilidad estimada por moco al alcanzar el ${postPeakDayText} tras ${peakText}.`,
+    summary: `Se muestra una infertilidad estimada por moco al alcanzar el ${postPeakDayText} tras ${peakText}.`,
     sections: [
       {
-        title: 'Qué ha detectado la app',
-        body: `${peakDetectionText} En la observación del moco, el día pico corresponde al último día con sensación o apariencia de mayor fertilidad (M+). Al alcanzar el ${postPeakDayText}, la app puede estimar el inicio de una fase infértil por moco.`,
+        title: 'Qué indican los registros',
+        body: `${peakDetectionText} En la observación del moco, el día pico corresponde al último día con sensación o apariencia de mayor fertilidad (M+). Al alcanzar el ${postPeakDayText}, se puede estimar el inicio de una fase infértil por moco.`,
       },
       {
         title: 'Criterio utilizado',
@@ -688,7 +701,7 @@ const criterion = isEstimatedTemperatureSegment
   return makeContent({
     title: 'Fase postovulatoria',
     eyebrow: methodLabel,
-    summary: 'La app no dispone de suficiente detalle para explicar este tramo postovulatorio con un criterio concreto.',
+    summary: 'No se dispone de suficiente detalle para explicar este tramo postovulatorio con un criterio concreto.',
     sections: [
       {
         title: 'Limitacion',
@@ -705,10 +718,10 @@ const buildNoDataContent = (info) => {
   return makeContent({
     title: info.status === 'no-fertile-window' ? 'Sin ventana fertil identificable' : 'Sin datos suficientes',
     eyebrow: methodLabel,
-    summary: 'Con los datos registrados, la app no tiene informacion suficiente para explicar una fase con mas detalle.',
+    summary: 'Con los datos registrados, no se tiene informacion suficiente para explicar una fase con mas detalle.',
     sections: [
       {
-        title: 'Que ha detectado la app',
+        title: 'Que indican los registros',
         body: 'No hay un inicio fertil, cierre por moco o cierre por temperatura que permita construir una explicacion especifica.',
       },
       {

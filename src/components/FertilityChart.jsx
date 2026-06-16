@@ -2320,21 +2320,23 @@ const rotationWrapperStyle = rotationStageStyle
                     if (typeof event?.stopPropagation === 'function') {
                       event.stopPropagation();
                     }
-                    if (typeof onShowPhaseInfo === 'function') {
-                      onShowPhaseInfo({
-  phase: segment.phase,
-  status: segment.status,
-  source: segment.source ?? null,
-  reasons: segment.reasons,
-  message: segment.message,
-  startIndex: segment.startIndex,
-  endIndex: segment.endIndex,
-  limitIndex: phaseInfoLimitIndex,
-  displayLabel: segment.displayLabel ?? null,
-  warnings: segment.warnings ?? segment.reasons?.warnings ?? [],
-  label: segment.displayLabel ?? segment.message ?? null,
-});
-                    }
+                    clearActivePoint();
+
+                  if (typeof onShowPhaseInfo === 'function') {
+                    onShowPhaseInfo({
+                      phase: segment.phase,
+                      status: segment.status,
+                      source: segment.source ?? null,
+                      reasons: segment.reasons,
+                      message: segment.message,
+                      startIndex: segment.startIndex,
+                      endIndex: segment.endIndex,
+                      limitIndex: phaseInfoLimitIndex,
+                      displayLabel: segment.displayLabel ?? null,
+                      warnings: segment.warnings ?? segment.reasons?.warnings ?? [],
+                      label: segment.displayLabel ?? segment.message ?? null,
+                    });
+                  }
                   };
                   const handleKeyDown = (event) => {
                     if (event.key === 'Enter' || event.key === ' ') {
