@@ -196,6 +196,21 @@ const resolveInitialSelectedIsoDate = ({ cycle, routeSelectedIso }) => {
   return format(startOfDay(start), 'yyyy-MM-dd');
 };
 
+const CALENDAR_BUTTON_SCROLL_DURATION_MS = 170;
+
+const easeOutCubic = (value) => 1 - Math.pow(1 - value, 3);
+const getCalendarMonthScrollLeft = (container, index) => {
+  const monthElement = container.querySelectorAll('[data-calendar-month]')[index];
+
+  if (!monthElement) {
+    return index * container.clientWidth;
+  }
+
+  const maxScrollLeft = Math.max(0, container.scrollWidth - container.clientWidth);
+
+  return Math.max(0, Math.min(maxScrollLeft, monthElement.offsetLeft));
+};
+
 export const RecordsExperience = ({
   cycle: cycleProp,
   headerTitle,
@@ -693,6 +708,9 @@ export const RecordsExperience = ({
   const calendarScrollContainerRef = useRef(null);
   const positionedCalendarMonthKeyRef = useRef(null);
   const calendarScrollFrameRef = useRef(null);
+  const visibleCalendarMonthIndexRef = useRef(0);
+  const calendarTargetMonthIndexRef = useRef(0);
+  const calendarButtonAnimationFrameRef = useRef(null);
 
   const calendarLabels = useMemo(
     () => ({
@@ -1094,25 +1112,107 @@ return {
     return;
   }
 
-  container.scrollLeft = targetIndex * container.clientWidth;
-  setVisibleCalendarMonthIndex(targetIndex);
-  positionedCalendarMonthKeyRef.current = positionedKey;
+  if (calendarButtonAnimationFrameRef.current) {
+  cancelAnimationFrame(calendarButtonAnimationFrameRef.current);
+  calendarButtonAnimationFrameRef.current = null;
+}
+
+container.style.scrollSnapType = '';
+container.scrollLeft = targetIndex * container.clientWidth;
+
+visibleCalendarMonthIndexRef.current = targetIndex;
+calendarTargetMonthIndexRef.current = targetIndex;
+setVisibleCalendarMonthIndex(targetIndex);
+positionedCalendarMonthKeyRef.current = positionedKey;
 }, [calendarMonths, cycle?.id, isCalendarOpen, selectedDate]);
 
   const scrollToCalendarMonthIndex = useCallback(
-    (nextIndex) => {
-      const container = calendarScrollContainerRef.current;
-      if (!container || !calendarMonths.length) return;
+  (nextIndex) => {
+    const container = calendarScrollContainerRef.current;
+    if (!container || !calendarMonths.length) return;
 
-      const clampedIndex = Math.max(0, Math.min(calendarMonths.length - 1, nextIndex));
-      container.scrollTo({
-        left: clampedIndex * container.clientWidth,
-        behavior: 'smooth',
-      });
-      setVisibleCalendarMonthIndex(clampedIndex);
-    },
-    [calendarMonths.length]
+    const clampedIndex = Math.max(0, Math.min(calendarMonths.length - 1, nextIndex));
+    const targetLeft = getCalendarMonthScrollLeft(container, clampedIndex);
+const startLeft = container.scrollLeft;
+const distance = targetLeft - startLeft;
+
+    calendarTargetMonthIndexRef.current = clampedIndex;
+    visibleCalendarMonthIndexRef.current = clampedIndex;
+    setVisibleCalendarMonthIndex(clampedIndex);
+
+    if (calendarButtonAnimationFrameRef.current) {
+      cancelAnimationFrame(calendarButtonAnimationFrameRef.current);
+      calendarButtonAnimationFrameRef.current = null;
+    }
+
+    // Importante: durante la animación de botones quitamos el snap.
+    // Si no, el navegador intenta encajar el mes a la vez que nosotros animamos.
+    container.style.scrollSnapType = 'none';
+
+    if (Math.abs(distance) < 1) {
+  container.scrollLeft = targetLeft;
+  return;
+}
+
+    const startTime = performance.now();
+
+    const animate = (currentTime) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(1, elapsed / CALENDAR_BUTTON_SCROLL_DURATION_MS);
+      const easedProgress = easeOutCubic(progress);
+
+      container.scrollLeft = startLeft + distance * easedProgress;
+
+      if (progress < 1) {
+        calendarButtonAnimationFrameRef.current = requestAnimationFrame(animate);
+        return;
+      }
+
+    container.scrollLeft = targetLeft;
+
+visibleCalendarMonthIndexRef.current = clampedIndex;
+calendarTargetMonthIndexRef.current = clampedIndex;
+setVisibleCalendarMonthIndex(clampedIndex);
+calendarButtonAnimationFrameRef.current = null;
+    };
+
+    calendarButtonAnimationFrameRef.current = requestAnimationFrame(animate);
+  },
+  [calendarMonths.length]
+);
+
+const handleCalendarManualInteractionStart = useCallback(() => {
+  const container = calendarScrollContainerRef.current;
+
+  if (calendarButtonAnimationFrameRef.current) {
+    cancelAnimationFrame(calendarButtonAnimationFrameRef.current);
+    calendarButtonAnimationFrameRef.current = null;
+  }
+
+  if (container) {
+    container.style.scrollSnapType = '';
+  }
+
+  if (!container || !calendarMonths.length) return;
+
+  const width = container.clientWidth || 1;
+  const nextIndex = Math.max(
+    0,
+    Math.min(calendarMonths.length - 1, Math.round(container.scrollLeft / width))
   );
+
+  visibleCalendarMonthIndexRef.current = nextIndex;
+  calendarTargetMonthIndexRef.current = nextIndex;
+  setVisibleCalendarMonthIndex(nextIndex);
+}, [calendarMonths.length]);
+
+const handlePreviousCalendarMonth = useCallback(() => {
+  scrollToCalendarMonthIndex(calendarTargetMonthIndexRef.current - 1);
+}, [scrollToCalendarMonthIndex]);
+
+const handleNextCalendarMonth = useCallback(() => {
+  scrollToCalendarMonthIndex(calendarTargetMonthIndexRef.current + 1);
+}, [scrollToCalendarMonthIndex]);
 
   const handleCalendarMonthScroll = useCallback(() => {
     const container = calendarScrollContainerRef.current;
@@ -1128,25 +1228,47 @@ return {
         0,
         Math.min(calendarMonths.length - 1, Math.round(container.scrollLeft / width))
       );
+      if (!calendarButtonAnimationFrameRef.current) {
+      visibleCalendarMonthIndexRef.current = nextIndex;
+      calendarTargetMonthIndexRef.current = nextIndex;
       setVisibleCalendarMonthIndex(nextIndex);
-      calendarScrollFrameRef.current = null;
+    }
+
+    calendarScrollFrameRef.current = null;
     });
   }, [calendarMonths.length]);
 
   useEffect(() => {
-    return () => {
-      if (calendarScrollFrameRef.current) {
-        cancelAnimationFrame(calendarScrollFrameRef.current);
-        calendarScrollFrameRef.current = null;
-      }
-    };
-  }, []);
+  return () => {
+    if (calendarScrollFrameRef.current) {
+      cancelAnimationFrame(calendarScrollFrameRef.current);
+      calendarScrollFrameRef.current = null;
+    }
+
+    if (calendarButtonAnimationFrameRef.current) {
+      cancelAnimationFrame(calendarButtonAnimationFrameRef.current);
+      calendarButtonAnimationFrameRef.current = null;
+    }
+
+    if (calendarScrollContainerRef.current) {
+      calendarScrollContainerRef.current.style.scrollSnapType = '';
+    }
+  };
+}, []);
 
   useEffect(() => {
     setVisibleCalendarMonthIndex((prev) =>
       Math.max(0, Math.min(calendarMonths.length - 1, prev))
     );
   }, [calendarMonths.length]);
+  
+  useEffect(() => {
+  visibleCalendarMonthIndexRef.current = visibleCalendarMonthIndex;
+
+  if (!calendarButtonAnimationFrameRef.current) {
+    calendarTargetMonthIndexRef.current = visibleCalendarMonthIndex;
+  }
+}, [visibleCalendarMonthIndex]);
 
   const resetStartDateFlow = useCallback(() => {
     setPendingStartDate(null);
@@ -1826,13 +1948,14 @@ return {
                     <div
                       ref={calendarScrollContainerRef}
                       onScroll={handleCalendarMonthScroll}
+                      onPointerDown={handleCalendarManualInteractionStart}
                       className="flex w-full snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain rounded-3xl border border-rose-300/60 bg-white/95 shadow-sm [scrollbar-width:none] [touch-action:pan-x] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden"
                     >
                       {calendarMonths.map((calendarMonth) => (
                         <div
                           key={format(calendarMonth, 'yyyy-MM')}
                           data-calendar-month={format(calendarMonth, 'yyyy-MM')}
-                          className="w-full flex-none snap-start"
+                          className="w-full flex-none snap-start snap-always"
                         >
                           <Calendar
                             mode="single"
@@ -1862,7 +1985,7 @@ return {
                       <>
                         <button
                           type="button"
-                          onClick={() => scrollToCalendarMonthIndex(visibleCalendarMonthIndex - 1)}
+                          onClick={handlePreviousCalendarMonth}
                           disabled={visibleCalendarMonthIndex <= 0}
                           aria-label="Mes anterior"
                           className="absolute left-4 top-3 z-20 flex h-7 w-7 items-center justify-center rounded-full border border-rose-100 bg-white text-fertiliapp-fuerte shadow-sm transition hover:bg-rose-50 disabled:pointer-events-none disabled:opacity-30"
@@ -1871,7 +1994,7 @@ return {
                         </button>
                         <button
                           type="button"
-                          onClick={() => scrollToCalendarMonthIndex(visibleCalendarMonthIndex + 1)}
+                          onClick={handleNextCalendarMonth}
                           disabled={visibleCalendarMonthIndex >= calendarMonths.length - 1}
                           aria-label="Mes siguiente"
                           className="absolute right-4 top-3 z-20 flex h-7 w-7 items-center justify-center rounded-full border border-rose-100 bg-white text-fertiliapp-fuerte shadow-sm transition hover:bg-rose-50 disabled:pointer-events-none disabled:opacity-30"
