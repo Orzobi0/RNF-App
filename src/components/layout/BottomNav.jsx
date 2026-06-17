@@ -1,8 +1,10 @@
 import React from 'react';
 import { NavLink, useMatch } from 'react-router-dom';
 import { Heart, ChartSpline, Calendar, Archive, UserRoundCog } from 'lucide-react';
+import { useWhatsNew } from '@/contexts/WhatsNewContext.jsx';
 
 const BottomNav = () => {
+  const { hasUnseenSupport } = useWhatsNew();
   const cycleMatch = useMatch('/cycle/:cycleId');
   const chartCycleMatch = useMatch('/chart/:cycleId');
   const contextCycleId = cycleMatch?.params?.cycleId || chartCycleMatch?.params?.cycleId;
@@ -23,7 +25,7 @@ const BottomNav = () => {
     },
     { to: '/', label: 'Ciclo actual', icon: Heart, activeFill: true },
     { to: '/archived-cycles', label: 'Mis ciclos', icon: Archive },
-    { to: '/settings', label: 'Cuenta', icon: UserRoundCog },
+    { to: '/settings', label: 'Cuenta', icon: UserRoundCog, showNewBadge: hasUnseenSupport },
   ];
 
 return (
@@ -39,7 +41,7 @@ return (
       {/* Barra visible */}
       <div className="h-[var(--bottom-nav-height)] pt-3.5">
         <ul className="grid h-full w-full grid-cols-5 items-start gap-2 px-2">
-          {links.map(({ to, label, icon: Icon, showArchivedBadge, activeFill }) => (
+          {links.map(({ to, label, icon: Icon, showArchivedBadge, showNewBadge, activeFill }) => (
             <li key={to} className="flex">
               <NavLink
                 to={to}
@@ -77,6 +79,12 @@ return (
                               }`}
                             />
                           </span>
+                        )}
+                        {showNewBadge && (
+                          <span
+                            aria-hidden="true"
+                            className="pointer-events-none absolute right-2 top-1 h-2.5 w-2.5 rounded-full border-2 border-white bg-rose-400 shadow-sm"
+                          />
                         )}
                       </span>
                       <span className="sr-only">{label}</span>

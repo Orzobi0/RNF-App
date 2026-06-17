@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Copy, Mail } from 'lucide-react';
 import { httpsCallable } from 'firebase/functions';
 import { Link } from 'react-router-dom';
@@ -15,6 +15,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/use-toast';
 import { functions as firebaseFunctions } from '@/lib/firebaseClient';
+import { useWhatsNew } from '@/contexts/WhatsNewContext.jsx';
 
 const CONTACT_EMAIL = 'info@fertiliapp.com';
 const SUPPORT_TYPES = {
@@ -25,11 +26,16 @@ const SUPPORT_TYPES = {
 
 const ContactSupportPage = () => {
   const { toast } = useToast();
+  const { markSupportSeen } = useWhatsNew();
   const [supportType, setSupportType] = useState('problem');
   const [supportSubject, setSupportSubject] = useState('');
   const [supportMessage, setSupportMessage] = useState('');
   const [sendingSupportMessage, setSendingSupportMessage] = useState(false);
   const [sentSuccessfully, setSentSuccessfully] = useState(false);
+
+  useEffect(() => {
+    markSupportSeen();
+  }, [markSupportSeen]);
 
   const handleOpenSupportEmail = () => {
     window.location.href = `mailto:${CONTACT_EMAIL}`;

@@ -39,6 +39,7 @@ import {
 } from '@/lib/fertilityStart';
 import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useWhatsNew } from '@/contexts/WhatsNewContext.jsx';
 import { computeOvulationMetrics } from '@/hooks/useFertilityChart';
 import ChartControls from '@/components/ChartControls';
 import computePeakStatuses from '@/lib/computePeakStatuses';
@@ -380,6 +381,7 @@ const ChartPage = () => {
     : externalLoading || (isLoading && !archivedMatch && !fetchedCycle);
 
   const { preferences, savePreferences } = useAuth();
+  const { hasUnseenChartInterpretation, markChartInterpretationSeen } = useWhatsNew();
   const { toast } = useToast();
   const calculatorEditor = useFertilityCalculatorsEditor({
     currentCycle,
@@ -550,6 +552,11 @@ const toggleSettings = useCallback(() => {
   if (settingsOpen) closeSettings();
   else openSettings();
 }, [settingsOpen, openSettings, closeSettings]);
+
+const handleToggleSettingsFromControls = useCallback(() => {
+  markChartInterpretationSeen();
+  toggleSettings();
+}, [markChartInterpretationSeen, toggleSettings]);
 
 useEffect(() => {
   if (settingsOpen) return;
@@ -2614,7 +2621,8 @@ const isManualFertile =
           onToggleManualBaseline={() => setShowManualBaseline((prev) => !prev)}
           onInterpretationPointerUp={handleInterpretationPointerUp}
           onToggleFullScreen={handleToggleFullScreen}
-          onToggleSettings={toggleSettings}
+          onToggleSettings={handleToggleSettingsFromControls}
+          showSettingsNewBadge={hasUnseenChartInterpretation}
         />
         <FertilityChart
           data={mergedData}

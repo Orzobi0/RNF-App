@@ -43,6 +43,7 @@ const ChartControls = ({
   onInterpretationPointerUp,
   onToggleFullScreen,
   onToggleSettings,
+  showSettingsNewBadge = false,
 }) => {
   const [isQuickPanelOpen, setIsQuickPanelOpen] = useState(false);
 const [quickIconPulse, setQuickIconPulse] = useState(false);
@@ -273,12 +274,18 @@ const bottomGroupLayout = isLandscapeFullscreen ? 'gap-1.5' : 'gap-2';
     onClick={handleToggleSettings}
     variant="ghost"
     size="icon"
-    className={`${BTN_BASE} ${
+    className={`relative ${BTN_BASE} ${
       'bg-white/95 text-secundario-fuerte border border-secundario-fuerte/45 shadow-lg shadow-secundario/20'
     }`}
     aria-label="Ajustes"
   >
     <SlidersHorizontal className={`h-4 w-4 transition-transform ${iconRotationClass}`} />
+    {showSettingsNewBadge ? (
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-rose-400 shadow-sm"
+      />
+    ) : null}
   </Button>
 </div>
       </div>

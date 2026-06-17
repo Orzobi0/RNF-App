@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { App } from '@capacitor/app';
 import { useAuth } from '@/contexts/AuthContext';
+import { useWhatsNew } from '@/contexts/WhatsNewContext.jsx';
 import { useToast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -140,7 +141,15 @@ const SettingsActionRow = ({
   </button>
 );
 
-const SettingsLinkRow = ({ icon: Icon, title, description, to, ariaLabel, iconTone = 'cool' }) => (
+const SettingsLinkRow = ({
+  icon: Icon,
+  title,
+  description,
+  to,
+  ariaLabel,
+  iconTone = 'cool',
+  showNewBadge = false,
+}) => (
   <Link
     to={to}
     aria-label={ariaLabel ?? title}
@@ -157,7 +166,15 @@ const SettingsLinkRow = ({ icon: Icon, title, description, to, ariaLabel, iconTo
       </span>
 
       <div className="min-w-0">
-        <p className="text-sm font-semibold text-slate-800">{title}</p>
+        <p className="flex min-w-0 items-center gap-2 text-sm font-semibold text-slate-800">
+          <span className="truncate">{title}</span>
+          {showNewBadge ? (
+            <span
+              aria-hidden="true"
+              className="h-2.5 w-2.5 shrink-0 rounded-full border-2 border-white bg-rose-400 shadow-sm"
+            />
+          ) : null}
+        </p>
         {description ? <p className="mt-0.5 text-sm text-slate-500">{description}</p> : null}
       </div>
     </div>
@@ -242,6 +259,7 @@ const SettingsPage = () => {
     refreshCurrentUser,
     resendVerificationEmail,
   } = useAuth();
+  const { hasUnseenSupport } = useWhatsNew();
   const { currentCycle, archivedCycles } = useCycleData();
   const { isAvailable, hasPermissions, refreshPermissions, isChecking, isAndroidApp } =
     useHealthConnect();
@@ -800,6 +818,7 @@ const SettingsPage = () => {
               description="Problemas, dudas o sugerencias"
               to="/settings/support"
               ariaLabel="Abrir contacto y soporte"
+              showNewBadge={hasUnseenSupport}
             />
             <div className="bg-white px-4 py-3">
               <InstallPrompt
