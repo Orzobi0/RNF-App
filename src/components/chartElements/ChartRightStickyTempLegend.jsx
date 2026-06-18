@@ -14,6 +14,7 @@ const ChartRightStickyTempLegend = ({
 }) => {
   const railRef = useRef(null);
   const [isOverGraphArea, setIsOverGraphArea] = useState(true);
+  const isOverGraphAreaRef = useRef(true);
   const theme = useMemo(() => getChartTheme(), []);
 
   const ticks = useMemo(() => {
@@ -54,7 +55,11 @@ const ChartRightStickyTempLegend = ({
         const graphRightEdge = scrollWidth - padding.right;
 
         railRef.current.style.transform = `translate3d(0, ${-scrollTop}px, 0)`;
-        setIsOverGraphArea(labelContentX <= graphRightEdge);
+        const nextIsOverGraphArea = labelContentX <= graphRightEdge;
+        if (isOverGraphAreaRef.current !== nextIsOverGraphArea) {
+          isOverGraphAreaRef.current = nextIsOverGraphArea;
+          setIsOverGraphArea(nextIsOverGraphArea);
+        }
       });
     };
 

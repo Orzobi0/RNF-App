@@ -30,10 +30,9 @@ export const drawTemperatureGrid = ({
     ctx.moveTo(snap(padding.left), snappedY);
     ctx.lineTo(snap(chartWidth - padding.right), snappedY);
     ctx.strokeStyle = isMajor ? theme.grid.horizontalMajor : theme.grid.horizontalMinor;
-    ctx.lineWidth = isMajor ? 1.2 : 1.3;
-    ctx.setLineDash(isMajor ? [] : [4, 4]);
-    ctx.stroke();
+    ctx.lineWidth = isMajor ? 1.15 : 0.85;
     ctx.setLineDash([]);
+    ctx.stroke();
   });
 
   for (let index = visibleStartIndex; index <= visibleEndIndex; index += 1) {

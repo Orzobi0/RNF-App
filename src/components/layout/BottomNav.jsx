@@ -1,8 +1,10 @@
 import React from 'react';
 import { NavLink, useMatch } from 'react-router-dom';
-import { Heart, ChartSpline, Calendar, Archive, User } from 'lucide-react';
+import { Heart, ChartSpline, Calendar, Archive, UserRoundCog } from 'lucide-react';
+import { useWhatsNew } from '@/contexts/WhatsNewContext.jsx';
 
 const BottomNav = () => {
+  const { hasUnseenSupport } = useWhatsNew();
   const cycleMatch = useMatch('/cycle/:cycleId');
   const chartCycleMatch = useMatch('/chart/:cycleId');
   const contextCycleId = cycleMatch?.params?.cycleId || chartCycleMatch?.params?.cycleId;
@@ -21,16 +23,16 @@ const BottomNav = () => {
       icon: ChartSpline,
       showArchivedBadge: hasArchivedCycleContext,
     },
-    { to: '/', label: 'Ciclo actual', icon: Heart },
+    { to: '/', label: 'Ciclo actual', icon: Heart, activeFill: true },
     { to: '/archived-cycles', label: 'Mis ciclos', icon: Archive },
-    { to: '/settings', label: 'Cuenta', icon: User },
+    { to: '/settings', label: 'Cuenta', icon: UserRoundCog, showNewBadge: hasUnseenSupport },
   ];
 
 return (
   <nav
-    className="fixed bottom-0 left-0 right-0 z-50 h-[var(--bottom-nav-safe)] overflow-hidden rounded-t-3xl border-fertiliapp-suave shadow-[0_-8px_24px_rgba(244,114,182,0.12)]"
-    aria-label="Navegación inferior"
-  >
+  className="fixed -bottom-px left-0 right-0 z-50 h-[calc(var(--bottom-nav-safe)+1px)] overflow-hidden rounded-t-3xl border-fertiliapp-suave bg-white shadow-[0_-8px_24px_rgba(244,114,182,0.12)]"
+  aria-label="Navegación inferior"
+>
     {/* Fondo sólido para cubrir también la safe area del iPhone */}
     <div className="absolute inset-0 bg-white" aria-hidden="true" />
 
@@ -39,7 +41,7 @@ return (
       {/* Barra visible */}
       <div className="h-[var(--bottom-nav-height)] pt-3.5">
         <ul className="grid h-full w-full grid-cols-5 items-start gap-2 px-2">
-          {links.map(({ to, label, icon: Icon, showArchivedBadge }) => (
+          {links.map(({ to, label, icon: Icon, showArchivedBadge, showNewBadge, activeFill }) => (
             <li key={to} className="flex">
               <NavLink
                 to={to}
@@ -50,21 +52,18 @@ return (
                   return (
                     <>
                       <span
-                        aria-hidden
-                        className={`absolute inset-0 rounded-3xl transition-all duration-200 ${
-                          isActive
-                            ? 'bg-fertiliapp-suave/80 ring-1 ring-fertiliapp-suave shadow-sm'
-                            : 'bg-transparent'
-                        }`}
-                      />
-                      <span className="relative z-10 flex h-7 w-7 items-center justify-center">
-                        <Icon
-                          className={`h-6 w-6 transition-transform duration-200 ${
-                            isActive
-                              ? 'text-fertiliapp-fuerte scale-110'
-                              : 'text-gray-400 group-hover:text-gray-600'
-                          }`}
-                        />
+  className={`relative z-10 flex h-9 w-[3.35rem] items-center justify-center rounded-full transition-all duration-200 ${
+    isActive
+      ? 'bg-rose-50/95 text-fertiliapp-fuerte ring-1 ring-rose-200/80 shadow-[0_4px_12px_rgba(216,92,112,0.14)]'
+      : 'bg-transparent text-slate-400 group-hover:text-slate-500'
+  }`}
+>
+  <Icon
+    strokeWidth={isActive ? 2.35 : 2}
+    className={`h-6 w-6 transition-transform duration-200 ${
+      isActive ? 'scale-105' : 'group-hover:scale-105'
+    } ${activeFill && isActive ? 'fill-current' : 'fill-none'}`}
+  />
                         {showArchivedBadge && (
                           <span
                             aria-hidden
@@ -80,6 +79,12 @@ return (
                               }`}
                             />
                           </span>
+                        )}
+                        {showNewBadge && (
+                          <span
+                            aria-hidden="true"
+                            className="pointer-events-none absolute right-2 top-1 h-2.5 w-2.5 rounded-full border-2 border-white bg-rose-400 shadow-sm"
+                          />
                         )}
                       </span>
                       <span className="sr-only">{label}</span>

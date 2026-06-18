@@ -678,8 +678,8 @@ const isFirstSegment = segmentIndex === 0;
 const hasMoreSegments = segmentIndex < segments.length - 1;
 
 const segmentSubtitle = isFirstSegment
-  ? `Días ${segment.dayFrom}–${segment.dayTo}${datePart}${hasMoreSegments ? ' · continúa...' : ''}`
-  : `Continuación · días ${segment.dayFrom}–${segment.dayTo}${datePart}`;
+  ? `Días ${segment.dayFrom}–${segment.dayTo}${datePart}${hasMoreSegments ? ' · ...' : ''}`
+  : `... · días ${segment.dayFrom}–${segment.dayTo}${datePart}`;
   drawSectionTitle(doc, {
   x: cardX + cardInnerPad,
   y: subtitleY,

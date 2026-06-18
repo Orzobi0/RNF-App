@@ -1,13 +1,25 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Activity, Bolt, ChevronRight, FileDown, Lock, LogOut, Mail } from 'lucide-react';
+import {
+  Activity,
+  BadgeCheck,
+  Settings2,
+  ChevronRight,
+  CircleAlert,
+  FileDown,
+  Lock,
+  LogOut,
+  Mail,
+} from 'lucide-react';
 import { App } from '@capacitor/app';
 import { useAuth } from '@/contexts/AuthContext';
+import { useWhatsNew } from '@/contexts/WhatsNewContext.jsx';
 import { useToast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ToastAction } from '@/components/ui/toast';
 import { buildCyclesPdfBlob, downloadBlobAsFile } from '@/lib/cycleExport';
+import { getAuthErrorMessage } from '@/lib/authErrorMessages';
 import ExportCyclesDialog from '@/components/ExportCyclesDialog';
 import { useCycleData } from '@/hooks/useCycleData';
 import InstallPrompt from '@/components/InstallPrompt';
@@ -29,20 +41,20 @@ const getSettingsIconToneClasses = (tone = 'cool', destructive = false) => {
 
   switch (tone) {
     case 'warm':
-      return 'text-[#F7B944]';
+      return 'bg-amber-50 text-amber-600';
     case 'purple':
-      return 'bg-observaciones-suave text-observaciones-fuerte';
+      return 'bg-violet-50 text-violet-600';
     case 'mint':
-      return 'text-[#3a8a6e]';
+      return 'bg-emerald-50 text-emerald-600';
     case 'rose':
       return 'bg-rose-50 text-rose-500';
     case 'cool':
     default:
-      return 'text-secundario-fuerte';
+      return 'bg-slate-50 text-slate-500';
   }
 };
 const SETTINGS_ROW_CLASS =
-  'flex w-full items-center justify-between gap-3 rounded-[28px] bg-white/80 px-4 py-3 text-left shadow backdrop-blur transition hover:bg-white/90';
+  'flex min-h-14 w-full items-center justify-between gap-3 bg-white px-4 py-3 text-left transition hover:bg-slate-50';
 const formatFilenameDate = (value) => {
   if (!value) return null;
   if (value instanceof Date) {
@@ -105,22 +117,22 @@ const SettingsActionRow = ({
     aria-label={ariaLabel ?? title}
     className={cn(SETTINGS_ROW_CLASS, destructive && 'hover:bg-red-50/60')}
   >
-    <div className="flex min-w-0 items-start gap-3">
+    <div className="flex min-w-0 items-center gap-3">
       <span
         className={cn(
-          'mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl',
+          'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl',
           getSettingsIconToneClasses(iconTone, destructive)
         )}
       >
-        <Icon className="h-5 w-5" aria-hidden="true" />
+        <Icon className="h-4 w-4" aria-hidden="true" />
       </span>
 
       <div className="min-w-0">
-        <p className={cn('text-base font-semibold text-slate-700', destructive && 'text-red-700')}>
+        <p className={cn('text-sm font-semibold text-slate-800', destructive && 'text-red-700')}>
           {title}
         </p>
         {description ? (
-          <p className="mt-1 break-words text-sm text-slate-500">{description}</p>
+          <p className="mt-0.5 break-words text-sm text-slate-500">{description}</p>
         ) : null}
       </div>
     </div>
@@ -129,24 +141,40 @@ const SettingsActionRow = ({
   </button>
 );
 
-const SettingsLinkRow = ({ icon: Icon, title, description, to, ariaLabel, iconTone = 'cool' }) => (
+const SettingsLinkRow = ({
+  icon: Icon,
+  title,
+  description,
+  to,
+  ariaLabel,
+  iconTone = 'cool',
+  showNewBadge = false,
+}) => (
   <Link
     to={to}
     aria-label={ariaLabel ?? title}
     className={SETTINGS_ROW_CLASS}
   >
-    <div className="flex min-w-0 items-start gap-3">
+    <div className="flex min-w-0 items-center gap-3">
       <span
   className={cn(
-    'mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl',
+    'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl',
     getSettingsIconToneClasses(iconTone)
         )}
       >
-        <Icon className="h-5 w-5" aria-hidden="true" />
+        <Icon className="h-4 w-4" aria-hidden="true" />
       </span>
 
       <div className="min-w-0">
-        <p className="text-base font-semibold text-slate-700">{title}</p>
+        <p className="flex min-w-0 items-center gap-2 text-sm font-semibold text-slate-800">
+          <span className="truncate">{title}</span>
+          {showNewBadge ? (
+            <span
+              aria-hidden="true"
+              className="h-2.5 w-2.5 shrink-0 rounded-full border-2 border-white bg-rose-400 shadow-sm"
+            />
+          ) : null}
+        </p>
         {description ? <p className="mt-0.5 text-sm text-slate-500">{description}</p> : null}
       </div>
     </div>
@@ -177,18 +205,18 @@ const SettingsSwitchRow = ({
     disabled={disabled}
     className={cn(SETTINGS_ROW_CLASS, 'disabled:cursor-not-allowed disabled:opacity-60')}
   >
-    <div className="flex min-w-0 items-start gap-3">
+    <div className="flex min-w-0 items-center gap-3">
       <span
   className={cn(
-    'mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl',
+    'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl',
     getSettingsIconToneClasses(iconTone)
   )}
 >
-  <Icon className="h-5 w-5" aria-hidden="true" />
+  <Icon className="h-4 w-4" aria-hidden="true" />
 </span>
 
       <div className="min-w-0">
-        <p className="text-base font-semibold text-slate-700">{title}</p>
+        <p className="text-sm font-semibold text-slate-800">{title}</p>
         {description ? <p className="mt-0.5 text-sm text-slate-500">{description}</p> : null}
       </div>
     </div>
@@ -210,8 +238,28 @@ const SettingsSwitchRow = ({
   </button>
 );
 
+const SettingsSection = ({ title, children, className }) => (
+  <section className={cn('space-y-2', className)}>
+    <h2 className="px-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+      {title}
+    </h2>
+    <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white">
+      <div className="divide-y divide-slate-100">{children}</div>
+    </div>
+  </section>
+);
+
 const SettingsPage = () => {
-  const { user, updateEmail, updatePassword, login, logout } = useAuth();
+  const {
+    user,
+    updateEmail,
+    updatePassword,
+    login,
+    logout,
+    refreshCurrentUser,
+    resendVerificationEmail,
+  } = useAuth();
+  const { hasUnseenSupport } = useWhatsNew();
   const { currentCycle, archivedCycles } = useCycleData();
   const { isAvailable, hasPermissions, refreshPermissions, isChecking, isAndroidApp } =
     useHealthConnect();
@@ -234,6 +282,8 @@ const SettingsPage = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loadingPassword, setLoadingPassword] = useState(false);
   const [loadingLogout, setLoadingLogout] = useState(false);
+  const [sendingVerificationEmail, setSendingVerificationEmail] = useState(false);
+  const [refreshingVerification, setRefreshingVerification] = useState(false);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const forceInstallPrompt = import.meta.env.VITE_FORCE_INSTALL_PROMPT === 'true';
 
@@ -429,9 +479,26 @@ const SettingsPage = () => {
     e.preventDefault();
     setLoadingEmail(true);
     try {
-      await updateEmail(newEmail);
-      toast({ title: 'Correo actualizado' });
+      const result = await updateEmail(newEmail);
+      if (result?.unchanged) {
+        toast({
+          title: 'Correo sin cambios',
+          description: 'Ese correo ya está asociado a tu cuenta.',
+        });
+      } else if (result?.verificationSent) {
+        toast({
+          title: 'Verifica el nuevo correo',
+          description:
+            'Te hemos enviado un enlace al nuevo email. El cambio se aplicará cuando lo confirmes.',
+        });
+      }
       setShowEmailDialog(false);
+    } catch (error) {
+      toast({
+        title: 'No se pudo solicitar el cambio de correo',
+        description: getAuthErrorMessage(error),
+        variant: 'destructive',
+      });
     } finally {
       setLoadingEmail(false);
     }
@@ -456,8 +523,56 @@ const SettingsPage = () => {
       setOldPassword('');
       setNewPassword('');
       setConfirmPassword('');
+    } catch (error) {
+      toast({
+        title: 'No se pudo actualizar la contraseña',
+        description: getAuthErrorMessage(error),
+        variant: 'destructive',
+      });
     } finally {
       setLoadingPassword(false);
+    }
+  };
+
+  const handleResendVerificationEmail = async () => {
+    setSendingVerificationEmail(true);
+    try {
+      const result = await resendVerificationEmail();
+      toast({
+        title: result?.alreadyVerified ? 'Correo ya verificado' : 'Correo enviado',
+        description: result?.alreadyVerified
+          ? 'Tu correo ya aparece como verificado.'
+          : 'Correo de verificación enviado. Revisa tu bandeja de entrada y spam.',
+      });
+    } catch (error) {
+      toast({
+        title: 'No se pudo reenviar el correo',
+        description: getAuthErrorMessage(error),
+        variant: 'destructive',
+      });
+    } finally {
+      setSendingVerificationEmail(false);
+    }
+  };
+
+  const handleRefreshVerification = async () => {
+    setRefreshingVerification(true);
+    try {
+      const refreshedUser = await refreshCurrentUser();
+      toast({
+        title: refreshedUser?.emailVerified ? 'Correo verificado' : 'Correo pendiente',
+        description: refreshedUser?.emailVerified
+          ? 'Tu correo ya aparece como verificado.'
+          : 'Aún no vemos tu correo como verificado. Revisa el enlace de verificación.',
+      });
+    } catch (error) {
+      toast({
+        title: 'No se pudo comprobar el correo',
+        description: getAuthErrorMessage(error),
+        variant: 'destructive',
+      });
+    } finally {
+      setRefreshingVerification(false);
     }
   };
 
@@ -540,6 +655,24 @@ const SettingsPage = () => {
     }
   };
 
+  const emailStatusIcon = user?.email
+    ? user.emailVerified
+      ? (
+        <BadgeCheck
+          className="h-5 w-5 text-secundario-fuerte"
+          aria-label="Correo verificado"
+          title="Correo verificado"
+        />
+      )
+      : (
+        <CircleAlert
+          className="h-5 w-5 text-amber-500"
+          aria-label="Correo pendiente de verificar"
+          title="Correo pendiente de verificar"
+        />
+      )
+    : null;
+
   useEffect(() => {
     refreshPermissions();
     let listener;
@@ -565,115 +698,154 @@ const SettingsPage = () => {
   }, [exportedPdf]);
 
   return (
-  <div className="relative flex min-h-full flex-col">
-    <div className="sticky top-0 z-30 pb-4">
-      <div className="w-full rounded-b-[24px] border-b border-rose-100/70 bg-white/72 px-4 pb-3 pt-3 shadow-[0_6px_18px_rgba(216,92,112,0.10)] backdrop-blur-xl">
-        <div className="mx-auto flex w-full max-w-2xl items-center">
-  <div className="min-w-0 flex-1">
-    <div className="truncate text-[10px] font-semibold uppercase tracking-[0.22em] text-fertiliapp-fuerte/80">
-      CUENTA
-    </div>
-
-    <h1 className="truncate text-[22px] font-semibold leading-tight text-titulo">
-      Ajustes
-    </h1>
-
-    <p className="truncate text-[13px] font-medium text-subtitulo">
-      Gestiona tu cuenta y preferencias
-    </p>
-  </div>
-</div>
+    <div className="relative flex min-h-full flex-col bg-slate-50">
+      <div className="sticky top-0 z-30 border-b border-slate-100 bg-slate-50/95 px-4 py-4">
+        <div className="mx-auto w-full max-w-2xl">
+          <h1 className="truncate text-[24px] font-semibold leading-tight text-titulo">
+            Ajustes
+          </h1>
+          <p className="mt-1 truncate text-sm font-medium text-subtitulo">
+            Gestiona tu cuenta y preferencias
+          </p>
+        </div>
       </div>
-    </div>
 
-    <div className="relative z-10 mx-auto flex w-full max-w-2xl flex-1 flex-col box-border px-4 pb-6">
-      <div className="flex flex-1 flex-col">
-  <div className="space-y-3">
-    <SettingsActionRow
-      icon={Mail}
-      iconTone="cool"
-      title="Correo electrónico"
-      description={user?.email || 'Sin correo'}
-      onClick={() => {
-        setNewEmail(user?.email || '');
-        setShowEmailDialog(true);
-      }}
-      ariaLabel="Actualizar correo electrónico"
-    />
+      <div className="relative z-10 mx-auto flex w-full max-w-2xl flex-1 flex-col box-border px-4 pb-6 pt-4">
+        <div className="flex flex-1 flex-col gap-5">
+          <SettingsSection title="Cuenta">
+            <SettingsActionRow
+              icon={Mail}
+              iconTone="cool"
+              title="Correo electrónico"
+              description={user?.email || 'Sin correo'}
+              onClick={() => {
+                setNewEmail(user?.email || '');
+                setShowEmailDialog(true);
+              }}
+              ariaLabel="Actualizar correo electrónico"
+              trailing={emailStatusIcon}
+            />
 
-    <SettingsActionRow
-      icon={Lock}
-      iconTone="cool"
-      title="Contraseña"
-      description="Cambiar contraseña"
-      onClick={() => setShowPasswordDialog(true)}
-      ariaLabel="Actualizar contraseña"
-    />
+            <SettingsActionRow
+              icon={Lock}
+              iconTone="cool"
+              title="Contraseña"
+              description="Cambiar contraseña"
+              onClick={() => setShowPasswordDialog(true)}
+              ariaLabel="Actualizar contraseña"
+            />
+          </SettingsSection>
 
-    <SettingsActionRow
-      icon={FileDown}
-      iconTone="warm"
-      title="Exportar ciclos"
-      description="Selecciona qué ciclos exportar"
-      onClick={() => setShowExportDialog(true)}
-      ariaLabel="Exportar ciclos"
-    />
+          {user?.email && user?.emailVerified === false ? (
+            <div className="rounded-2xl border border-amber-100 bg-amber-50/60 px-4 py-4">
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-slate-800">Correo sin verificar</p>
+                <p className="text-sm leading-relaxed text-slate-600">
+                  Verifica tu correo para recuperar el acceso a tu cuenta si algún día olvidas la
+                  contraseña. Revisa también spam o correo no deseado.
+                </p>
+              </div>
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                <Button
+                  type="button"
+                  onClick={handleResendVerificationEmail}
+                  disabled={sendingVerificationEmail || refreshingVerification}
+                  className="min-h-10 flex-1 bg-fertiliapp-fuerte text-white hover:brightness-95"
+                >
+                  {sendingVerificationEmail ? 'Enviando...' : 'Reenviar correo'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleRefreshVerification}
+                  disabled={sendingVerificationEmail || refreshingVerification}
+                  className="min-h-10 flex-1 border-amber-200 bg-white text-fertiliapp-fuerte hover:bg-amber-50"
+                >
+                  {refreshingVerification ? 'Comprobando...' : 'Ya lo verifiqué'}
+                </Button>
+              </div>
+            </div>
+          ) : null}
 
-    <SettingsLinkRow
-      icon={Bolt}
-      iconTone="mint"
-      title="Preferencias"
-      description="Registro, cálculo y gráfica"
-      to="/settings/preferences"
-      ariaLabel="Abrir preferencias"
-    />
+          <SettingsSection title="Datos">
+            <SettingsActionRow
+              icon={FileDown}
+              iconTone="warm"
+              title="Exportar ciclos"
+              description="Selecciona qué ciclos exportar"
+              onClick={() => setShowExportDialog(true)}
+              ariaLabel="Exportar ciclos"
+            />
+          </SettingsSection>
 
-    {isAndroidApp && (
-      <SettingsSwitchRow
-        icon={Activity}
-        iconTone="purple"
-        title="Health Connect"
-        description={
-          !isAvailable
-            ? 'Instala Health Connect para habilitar la sincronización.'
-            : hasPermissions
-              ? 'Conectado. Puedes sincronizar desde el formulario.'
-              : 'Activa permisos para importar tus temperaturas.'
-        }
-        checked={hasPermissions}
-        onToggle={handleHealthConnectToggle}
-        disabled={!isAvailable || isChecking}
-        ariaLabel="Configurar Health Connect"
-      />
-    )}
+          <SettingsSection title="App">
+            <SettingsLinkRow
+              icon={Settings2}
+              iconTone="mint"
+              title="Preferencias"
+              description="Registro, cálculo y gráfica"
+              to="/settings/preferences"
+              ariaLabel="Abrir preferencias"
+            />
+          </SettingsSection>
 
-    <InstallPrompt
-      align="end"
-      buttonClassName="bg-fertiliapp-fuerte hover:brightness-95"
-      forceVisible={forceInstallPrompt}
-    />
-  </div>
+          {isAndroidApp ? (
+            <SettingsSection title="Integraciones">
+              <SettingsSwitchRow
+                icon={Activity}
+                iconTone="purple"
+                title="Health Connect"
+                description={
+                  !isAvailable
+                    ? 'Instala Health Connect para habilitar la sincronización.'
+                    : hasPermissions
+                      ? 'Conectado. Puedes sincronizar desde el formulario.'
+                      : 'Activa permisos para importar tus temperaturas.'
+                }
+                checked={hasPermissions}
+                onToggle={handleHealthConnectToggle}
+                disabled={!isAvailable || isChecking}
+                ariaLabel="Configurar Health Connect"
+              />
+            </SettingsSection>
+          ) : null}
 
-  <div className="mt-auto pt-6">
-    <div className="mb-4 h-px w-full bg-pink-100/70" />
+          <SettingsSection title="Ayuda">
+            <SettingsLinkRow
+              icon={Mail}
+              iconTone="cool"
+              title="Contacto y soporte"
+              description="Problemas, dudas o sugerencias"
+              to="/settings/support"
+              ariaLabel="Abrir contacto y soporte"
+              showNewBadge={hasUnseenSupport}
+            />
+            <div className="bg-white px-4 py-3">
+              <InstallPrompt
+                align="end"
+                buttonClassName="bg-fertiliapp-fuerte hover:brightness-95"
+                forceVisible={forceInstallPrompt}
+              />
+            </div>
+          </SettingsSection>
 
-    <SettingsActionRow
-      icon={LogOut}
-      iconTone="cool"
-      title="Cerrar sesión"
-      description="Salir de tu cuenta"
-      onClick={() => setShowLogoutDialog(true)}
-      destructive
-      ariaLabel="Cerrar sesión"
-      trailing={
-        loadingLogout ? (
-          <span className="text-sm font-medium text-red-600">Cerrando...</span>
-        ) : null
-      }
-    />
-  </div>
-</div>
-
+          <SettingsSection title="Sesión" className="mt-auto pt-1">
+            <SettingsActionRow
+              icon={LogOut}
+              iconTone="cool"
+              title="Cerrar sesión"
+              description="Salir de tu cuenta"
+              onClick={() => setShowLogoutDialog(true)}
+              destructive
+              ariaLabel="Cerrar sesión"
+              trailing={
+                loadingLogout ? (
+                  <span className="text-sm font-medium text-red-600">Cerrando...</span>
+                ) : null
+              }
+            />
+          </SettingsSection>
+        </div>
       </div>
 
       <Dialog open={showEmailDialog} onOpenChange={setShowEmailDialog}>

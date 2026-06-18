@@ -14,6 +14,7 @@ import {
   computeFertilityStartOutput,
   computeT8CandidateFromCycles,
 } from '@/lib/fertilityStart';
+import { evaluateTemperatureRiseOverride } from '@/lib/temperatureRiseOverride';
 
 const DEFAULT_FERTILITY_START_CONFIG = {
   calculators: { cpm: true, t8: true },
@@ -394,6 +395,8 @@ export const useFertilityChart = (
   exportMode = false,
   rotatedSafeStartInsetPx = 0,
   rotatedSafeEndInsetPx = 0,
+  temperatureRiseOverride = null,
+  fertileStartOverride = null,
 ) => {
       const chartRef = useRef(null);
       const tooltipRef = useRef(null);
@@ -480,12 +483,19 @@ if (isFullScreen) {
 }
           
         
-          setDimensions({
-            width: newWidth,
-            height: newHeight,
-            viewportWidth,
-            viewportHeight,
-          });
+          setDimensions((prev) => (
+            prev.width === newWidth &&
+            prev.height === newHeight &&
+            prev.viewportWidth === viewportWidth &&
+            prev.viewportHeight === viewportHeight
+              ? prev
+              : {
+                  width: newWidth,
+                  height: newHeight,
+                  viewportWidth,
+                  viewportHeight,
+                }
+          ));
         };
 
         updateDimensions();
@@ -546,7 +556,10 @@ if (isFullScreen) {
       if (hasMucusInfo) return true;
 
       const hasSymbol = (() => {
-        const symbol = day?.fertility_symbol ?? day?.fertilitySymbol;
+        const symbol =
+          day && Object.prototype.hasOwnProperty.call(day, 'fertility_symbol')
+            ? day.fertility_symbol
+            : day?.fertilitySymbol;
         if (symbol == null) return false;
         return String(symbol).trim() !== '';
       })();
@@ -605,6 +618,7 @@ if (isFullScreen) {
             return null;
           }
           return {
+            ...candidate,
             source: normalizedSource,
             originalSource: source ?? normalizedSource,
             day: numericDay,
@@ -658,7 +672,7 @@ if (isFullScreen) {
 
     if (detectedThirdIndex != null) {
       const lastIndex = rawAllDataPoints.length - 1;
-      const startIdx = Math.min(detectedThirdIndex + 1, lastIndex);
+      const startIdx = detectedThirdIndex + 1;
       return {
         peakDayIndex: detectedPeakIndex,
         thirdDayIndex: detectedThirdIndex,
@@ -680,8 +694,48 @@ if (isFullScreen) {
     baselineIndices,
     ovulationDetails: rawOvulationDetails,
   } = useMemo(
-    () => computeOvulationMetrics(processedData, { postpartum: normalizedFertilityConfig.postpartum }),
-    [processedData, normalizedFertilityConfig.postpartum]
+    () => {
+      if (temperatureRiseOverride?.mode === 'ignored') {
+        return {
+          baselineTemp: null,
+          baselineStartIndex: null,
+          firstHighIndex: null,
+          baselineIndices: [],
+          ovulationDetails: {
+            confirmed: false,
+            confirmationIndex: null,
+            infertileStartIndex: null,
+            rule: null,
+            highSequenceIndices: [],
+            sequenceDisplayIndices: [],
+            highOnlyIndices: [],
+            usedIndices: [],
+            ovulationIndex: null,
+            source: 'ignored',
+          },
+        };
+      }
+
+      const automaticMetrics = computeOvulationMetrics(processedData, {
+        postpartum: normalizedFertilityConfig.postpartum,
+      });
+      const manualMetrics = evaluateTemperatureRiseOverride(processedData, temperatureRiseOverride, {
+        postpartum: normalizedFertilityConfig.postpartum,
+      });
+
+      if (!manualMetrics?.active) {
+        return automaticMetrics;
+      }
+
+      return {
+        baselineTemp: manualMetrics.baselineTemp,
+        baselineStartIndex: manualMetrics.baselineStartIndex,
+        firstHighIndex: manualMetrics.firstHighIndex,
+        baselineIndices: manualMetrics.baselineIndices,
+        ovulationDetails: manualMetrics.ovulationDetails,
+      };
+    },
+    [processedData, normalizedFertilityConfig.postpartum, temperatureRiseOverride]
   );
   const ovulationDetails = useMemo(() => {
     const baseDetails =
@@ -717,8 +771,13 @@ if (isFullScreen) {
   ]);
 
   const fertilityStart = useMemo(
-    () =>
-      computeFertilityStartOutput({
+    () => {
+      const manualFertileStartIndex =
+        fertileStartOverride?.mode === 'manual' && fertileStartOverride?.isoDate
+          ? processedData.findIndex((point) => point?.isoDate === fertileStartOverride.isoDate)
+          : -1;
+
+      return computeFertilityStartOutput({
         processedData,
         config: normalizedFertilityConfig,
         calculatorCandidates: fertilityCalculatorCandidates,
@@ -731,11 +790,21 @@ if (isFullScreen) {
           temperatureRule: ovulationDetails?.rule ?? null,
           todayIndex,
         },
-      }),
+        fertileStartOverride:
+          manualFertileStartIndex >= 0
+            ? {
+                mode: 'manual',
+                isoDate: fertileStartOverride.isoDate,
+                index: manualFertileStartIndex,
+              }
+            : null,
+      });
+    },
     [
       processedData,
       normalizedFertilityConfig,
       fertilityCalculatorCandidates,
+      fertileStartOverride,
       ovulationDetails?.thirdDayIndex,
       ovulationDetails?.infertileStartIndex,
       ovulationDetails?.confirmationIndex,

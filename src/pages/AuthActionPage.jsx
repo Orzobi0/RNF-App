@@ -1,18 +1,28 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { applyActionCode, checkActionCode, confirmPasswordReset, verifyPasswordResetCode } from 'firebase/auth';
+import {
+  applyActionCode,
+  checkActionCode,
+  confirmPasswordReset,
+  reload,
+  verifyPasswordResetCode,
+} from 'firebase/auth';
 import { auth } from '@/lib/firebaseClient';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { getAuthErrorMessage } from '@/lib/authErrorMessages';
 import { Eye, EyeOff } from 'lucide-react';
 
 const REDIRECT_DELAY_MS = 1500;
+const WEAK_PASSWORD_MESSAGE = 'La contraseña debe tener al menos 6 caracteres.';
 
 const AuthActionPage = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { refreshCurrentUser } = useAuth();
 
   const mode = searchParams.get('mode');
   const oobCode = searchParams.get('oobCode');
@@ -39,6 +49,20 @@ const AuthActionPage = () => {
     }
   }, [continueUrl]);
 
+  // Firebase uses verifyAndChangeEmail for verifyBeforeUpdateEmail links.
+  const isVerifyAndChangeEmailMode =
+    mode === 'verifyAndChangeEmail' || mode === 'verifyBeforeUpdateEmail';
+
+  const getSuccessRedirectPath = (hasSession = Boolean(auth.currentUser)) => {
+    if (mode === 'verifyEmail') return '/auth?verified=1';
+    if (mode === 'resetPassword') return '/auth?reset=1';
+    if (mode === 'recoverEmail') return safeContinueUrl || '/auth';
+    if (isVerifyAndChangeEmailMode) {
+      return safeContinueUrl || (hasSession ? '/settings' : '/auth?emailUpdated=1');
+    }
+    return '/auth';
+  };
+
   useEffect(() => {
     let timeoutId;
 
@@ -56,9 +80,9 @@ const AuthActionPage = () => {
         if (mode === 'verifyEmail') {
           await applyActionCode(auth, oobCode);
           setStatus('success');
-          setMessage('Email verificado correctamente. Redirigiendo a iniciar sesión...');
+          setMessage('Correo verificado correctamente. Redirigiendo a iniciar sesión...');
           timeoutId = window.setTimeout(() => {
-            navigate('/auth?verified=1', { replace: true });
+            navigate(getSuccessRedirectPath(), { replace: true });
           }, REDIRECT_DELAY_MS);
           return;
         }
@@ -78,16 +102,46 @@ const AuthActionPage = () => {
           setStatus('success');
           setMessage('Correo restaurado correctamente. Redirigiendo...');
           timeoutId = window.setTimeout(() => {
-            navigate(safeContinueUrl || '/auth', { replace: true });
+            navigate(getSuccessRedirectPath(), { replace: true });
+          }, REDIRECT_DELAY_MS);
+          return;
+        }
+
+        if (isVerifyAndChangeEmailMode) {
+          await applyActionCode(auth, oobCode);
+
+          let hasSession = Boolean(auth.currentUser);
+          if (auth.currentUser) {
+            try {
+              if (typeof refreshCurrentUser === 'function') {
+                await refreshCurrentUser();
+              } else {
+                await reload(auth.currentUser);
+              }
+              hasSession = true;
+            } catch (reloadError) {
+              console.warn('[auth:verifyAndChangeEmail:reload]', reloadError);
+            }
+          }
+
+          setStatus('success');
+          setMessage('Correo actualizado correctamente.');
+          timeoutId = window.setTimeout(() => {
+            navigate(getSuccessRedirectPath(hasSession), { replace: true });
           }, REDIRECT_DELAY_MS);
           return;
         }
 
         setStatus('error');
         setMessage('Este tipo de enlace no es compatible en FertiliApp.');
-      } catch {
+      } catch (error) {
         setStatus('error');
-        setMessage('El enlace ha caducado o ya se usó. Solicita uno nuevo para continuar.');
+        setMessage(
+          getAuthErrorMessage(
+            error,
+            'El enlace ha caducado o ya se usó. Solicita uno nuevo para continuar.'
+          )
+        );
       }
     };
 
@@ -109,6 +163,12 @@ const AuthActionPage = () => {
       return;
     }
 
+    if (newPassword.length < 6 || confirmPassword.length < 6) {
+      setStatus('ready-reset');
+      setMessage(WEAK_PASSWORD_MESSAGE);
+      return;
+    }
+
     if (newPassword !== confirmPassword) {
       setStatus('ready-reset');
       setMessage('Las contraseñas no coinciden.');
@@ -121,11 +181,29 @@ const AuthActionPage = () => {
       setStatus('success');
       setMessage('Contraseña actualizada. Redirigiendo a iniciar sesión...');
       window.setTimeout(() => {
-        navigate('/auth?reset=1', { replace: true });
+        navigate(getSuccessRedirectPath(), { replace: true });
       }, REDIRECT_DELAY_MS);
-    } catch {
-      setStatus('error');
-      setMessage('No se pudo actualizar la contraseña. Solicita un nuevo enlace.');
+    } catch (error) {
+      if (error?.code === 'auth/weak-password') {
+        setStatus('ready-reset');
+        setMessage(WEAK_PASSWORD_MESSAGE);
+      } else if (
+        error?.code === 'auth/expired-action-code' ||
+        error?.code === 'auth/invalid-action-code'
+      ) {
+        setStatus('error');
+        setMessage(
+          getAuthErrorMessage(error, 'El enlace ha caducado o ya se usó. Solicita uno nuevo.')
+        );
+      } else if (String(error?.code || '').includes('password')) {
+        setStatus('ready-reset');
+        setMessage(getAuthErrorMessage(error, 'Revisa la contraseña e inténtalo de nuevo.'));
+      } else {
+        setStatus('error');
+        setMessage(
+          getAuthErrorMessage(error, 'No se pudo actualizar la contraseña. Solicita un nuevo enlace.')
+        );
+      }
     } finally {
       setSubmittingReset(false);
     }
@@ -157,7 +235,7 @@ const AuthActionPage = () => {
           animate={{ opacity: 1 }}
           transition={{ delay: 0.25, duration: 0.4 }}
         >
-          <p className="rounded-2xl bg-pink-50 px-4 py-3 text-sm text-fertiliapp-fuerte">{message}</p>
+          <p className="rounded-2xl border border-fertiliapp-suave bg-tarjeta px-4 py-3 text-sm text-fertiliapp-fuerte">{message}</p>
 
           {status === 'ready-reset' && (
             <form onSubmit={handleResetSubmit} className="space-y-4" autoComplete="on">
@@ -173,6 +251,7 @@ const AuthActionPage = () => {
                     value={newPassword}
                     onChange={(event) => setNewPassword(event.target.value)}
                     autoComplete="new-password"
+                    minLength={6}
                     required
                     className="rounded-3xl pr-10"
                   />
@@ -197,6 +276,7 @@ const AuthActionPage = () => {
                     value={confirmPassword}
                     onChange={(event) => setConfirmPassword(event.target.value)}
                     autoComplete="new-password"
+                    minLength={6}
                     required
                     className="rounded-3xl pr-10"
                   />
@@ -220,7 +300,7 @@ const AuthActionPage = () => {
           {status === 'success' && (
             <Button
               type="button"
-              onClick={() => navigate(mode === 'verifyEmail' ? '/auth?verified=1' : safeContinueUrl || '/auth', { replace: true })}
+              onClick={() => navigate(getSuccessRedirectPath(), { replace: true })}
               className="w-full rounded-3xl bg-fertiliapp-fuerte text-white"
             >
               Ir a iniciar sesión

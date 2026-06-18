@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Calculator, ChevronLeft, Clock3, Heart, Eye, Trash2 } from 'lucide-react';
+import { ChevronLeft, Clock3, Heart, Trash2 } from 'lucide-react';
 import useBackClose from '@/hooks/useBackClose';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,7 +12,6 @@ import { cn } from '@/lib/utils';
 import FertilityCalculatorsEditorDialogs from '@/components/FertilityCalculatorsEditorDialogs';
 import {
   PREFERENCE_DEFAULTS,
-  mergeFertilityStartConfig,
   normalizeStoredPreferences,
   validatePreferenceField,
 } from '@/lib/preferences';
@@ -26,51 +25,13 @@ import {
 } from '@/components/ui/dialog';
 
 const SECTION_TITLE_CLASS =
-  'mb-2.5 mt-1.5 flex items-center gap-1 px-0.5 text-[15px] font-semibold tracking-tight text-slate-700';
-const getSectionAccentClasses = (tone = 'rose') => {
-  switch (tone) {
-    case 'warm':
-      return {
-        iconWrap: 'text-alerta-2',
-        lineStyle: {
-          backgroundImage:
-            'linear-gradient(to right, rgba(246, 180, 92, 0.24), rgba(246, 180, 92, 0.07), transparent)',
-        },
-      };
-    case 'cool':
-      return {
-        iconWrap: 'text-secundario-fuerte',
-        lineStyle: {
-          backgroundImage:
-            'linear-gradient(to right, rgba(51, 124, 139, 0.22), rgba(51, 124, 139, 0.06), transparent)',
-        },
-      };
-    case 'medium':
-      return {
-        iconWrap: 'text-fertiliapp-fuerte',
-        lineStyle: {
-          backgroundImage:
-            'linear-gradient(to right, rgba(216, 92, 112, 0.20), rgba(216, 92, 112, 0.06), transparent)',
-        },
-      };
-    case 'rose':
-    default:
-      return {
-        iconWrap: 'text-rose-500',
-        lineStyle: {
-          backgroundImage:
-            'linear-gradient(to right, rgba(227, 121, 136, 0.22), rgba(227, 121, 136, 0.06), transparent)',
-        },
-      };
-  }
-};
-
+  'px-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400';
 const getPreferenceIconToneClasses = (tone = 'rose') => {
   switch (tone) {
     case 'warm':
-      return 'bg-temp-suave text-alerta-2';
+      return 'bg-amber-50 text-amber-600';
     case 'cool':
-      return 'bg-secundario-suave text-secundario-fuerte';
+      return 'bg-slate-50 text-secundario-fuerte';
     case 'medium':
       return 'bg-rose-50 text-fertiliapp-fuerte';
     case 'rose':
@@ -92,40 +53,14 @@ const normalizeModeMeta = (rawLabel) => {
 
   return { label: 'Automático', tone: 'auto' };
 };
-const SectionHeader = ({ icon: Icon, title, tone = 'rose' }) => {
-  const accent = getSectionAccentClasses(tone);
-
-  return (
-    <div className={SECTION_TITLE_CLASS}>
-      {Icon ? (
-        <span
-          className={cn(
-            'inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full',
-            accent.iconWrap
-          )}
-        >
-          <Icon className="h-3.5 w-3.5" aria-hidden="true" />
-        </span>
-      ) : null}
-
-      <span className="shrink-0 text-slate-700">{title}</span>
-
-      <div
-        className="ml-1.5 h-px flex-1 rounded-full"
-        style={accent.lineStyle}
-      />
-    </div>
-  );
-};
-
 const PREFERENCE_ROW_CLASS =
-  'flex w-full items-center justify-between gap-3 rounded-[24px] border border-white/50 bg-white/20 px-4 py-2.5 text-left shadow-none backdrop-blur-sm transition hover:border-rose-100/50 hover:bg-white/60 active:bg-white/65 disabled:cursor-not-allowed disabled:opacity-60';
+  'flex min-h-14 w-full items-center justify-between gap-3 bg-white px-4 py-3 text-left transition hover:bg-slate-50 active:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60';
 
 const PreferenceIcon = ({ icon: Icon, tone = 'rose' }) =>
   Icon ? (
     <span
       className={cn(
-        'mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl',
+        'mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl',
         getPreferenceIconToneClasses(tone)
       )}
     >
@@ -134,7 +69,7 @@ const PreferenceIcon = ({ icon: Icon, tone = 'rose' }) =>
   ) : null;
 
 const PreferenceValuePill = ({ children }) => (
-  <span className="inline-flex h-8 min-w-[74px] shrink-0 items-center justify-center rounded-full border border-rose-100/35 bg-white/90 px-3 text-sm font-semibold tabular-nums text-rose-700">
+  <span className="inline-flex h-8 min-w-[74px] shrink-0 items-center justify-center rounded-full border border-rose-100 bg-rose-50 px-3 text-sm font-semibold tabular-nums text-fertiliapp-fuerte">
     {children}
   </span>
 );
@@ -162,7 +97,7 @@ const PreferenceActionRow = ({
       <PreferenceIcon icon={icon} tone={iconTone} />
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-2">
-          <p className="text-base font-semibold text-slate-700">{title}</p>
+          <p className="text-sm font-semibold text-slate-800">{title}</p>
           {headerTrailing ? <div className="shrink-0">{headerTrailing}</div> : null}
         </div>
 
@@ -175,48 +110,13 @@ const PreferenceActionRow = ({
   </button>
 );
 
-const PreferenceInlineSwitchRow = ({
-  title,
-  checked,
-  onChange,
-  disabled = false,
-  id,
-}) => (
-  <button
-    id={id}
-    type="button"
-    role="switch"
-    aria-checked={checked}
-    disabled={disabled}
-    onClick={() => {
-      if (disabled) return;
-      onChange(!checked);
-    }}
-    className="flex w-full items-center justify-between gap-3 px-0 py-0 text-left transition disabled:cursor-not-allowed disabled:opacity-60"
-  >
-    <p className="text-sm font-medium leading-tight text-slate-700">{title}</p>
-
-    <span
-      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition ${
-        checked ? 'bg-rose-400' : 'bg-slate-300'
-      }`}
-      aria-hidden="true"
-    >
-      <span
-        className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition ${
-          checked ? 'translate-x-5' : 'translate-x-0'
-        }`}
-      />
-    </span>
-  </button>
-);
 const PreferenceModeChip = ({ label, tone = 'manual' }) => (
   <span
     className={cn(
       'inline-flex h-6 items-center rounded-full border px-2.5 text-[11px] font-semibold',
-      tone === 'manual' && 'border-rose-200/70 bg-rose-50/75 text-rose-700',
-      tone === 'auto' && 'border-secundario-suave/80 bg-secundario-suave/75 text-secundario-fuerte',
-      tone === 'muted' && 'border-white/55 bg-white/45 text-slate-700'
+      tone === 'manual' && 'border-rose-100 bg-rose-50 text-fertiliapp-fuerte',
+      tone === 'auto' && 'border-slate-100 bg-slate-50 text-secundario-fuerte',
+      tone === 'muted' && 'border-slate-100 bg-slate-50 text-slate-600'
     )}
   >
     {label}
@@ -228,7 +128,7 @@ const PreferenceMetricGrid = ({ items, valueTone = 'rose' }) => (
     {items.map((item) => (
       <div
         key={item.label}
-        className="rounded-xl border border-white/35 bg-white/55 px-3 py-1.5"
+        className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2"
       >
         <p className="text-[10px] font-medium leading-none text-slate-500">
           {item.label}
@@ -252,14 +152,10 @@ const CalculatorPreferenceCard = ({
   metrics,
   onEdit,
   editAriaLabel,
-  switchTitle,
-  checked,
-  onToggle,
-  toggleId,
   disabled = false,
 }) => (
   <div
-    className={`rounded-[24px] border border-white/50 bg-white/20 px-4 py-2.5 shadow-none backdrop-blur-sm transition ${
+    className={`bg-white px-4 py-3 transition hover:bg-slate-50 active:bg-slate-100 ${
       disabled ? 'opacity-60' : ''
     }`}
   >
@@ -268,10 +164,10 @@ const CalculatorPreferenceCard = ({
       onClick={onEdit}
       disabled={disabled}
       aria-label={editAriaLabel ?? `Editar ${title}`}
-      className="block w-full rounded-[18px] text-left transition hover:bg-white/25 active:bg-white/35 disabled:cursor-not-allowed"
+      className="block w-full rounded-xl text-left transition disabled:cursor-not-allowed"
     >
       <div className="flex items-start justify-between gap-3">
-        <p className="text-base font-semibold text-slate-700">{title}</p>
+        <p className="text-sm font-semibold text-slate-800">{title}</p>
         <PreferenceModeChip label={modeLabel} tone={modeTone} />
       </div>
 
@@ -279,16 +175,6 @@ const CalculatorPreferenceCard = ({
         <PreferenceMetricGrid items={metrics} valueTone="cool" />
       </div>
     </button>
-
-    <div className="mt-2 border-t border-white/45 pt-2">
-      <PreferenceInlineSwitchRow
-        title={switchTitle}
-        checked={checked}
-        onChange={onToggle}
-        id={toggleId}
-        disabled={disabled}
-      />
-    </div>
   </div>
 );
 const PreferenceSwitchRow = ({
@@ -316,7 +202,7 @@ const PreferenceSwitchRow = ({
     <div className="flex min-w-0 items-start gap-3">
       <PreferenceIcon icon={icon} tone={iconTone} />
       <div className="min-w-0">
-        <p className="text-base font-semibold text-slate-700">{title}</p>
+        <p className="text-sm font-semibold text-slate-800">{title}</p>
         {description ? <p className="mt-0.5 text-sm text-slate-500">{description}</p> : null}
       </div>
     </div>
@@ -334,6 +220,15 @@ const PreferenceSwitchRow = ({
       />
     </span>
   </button>
+);
+
+const PreferenceSection = ({ title, children }) => (
+  <section className="space-y-2">
+    <h2 className={SECTION_TITLE_CLASS}>{title}</h2>
+    <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white">
+      <div className="divide-y divide-slate-100">{children}</div>
+    </div>
+  </section>
 );
 
 
@@ -532,164 +427,98 @@ const handleClearPreferredTime = useCallback(async () => {
 
   setIsPreferredTimeEditorOpen(false);
 }, [persistPatch, uiPreferences.preferredTemperatureTime]);
-
-  const handleFertilityCalculatorToggle = useCallback(
-    async (calculatorKey, checked) => {
-      const nextConfig = mergeFertilityStartConfig({
-        incoming: {
-          ...uiPreferences.fertilityStartConfig,
-          calculators: {
-            ...uiPreferences.fertilityStartConfig?.calculators,
-            [calculatorKey]: checked,
-          },
-        },
-      });
-
-      const validationError = validatePreferenceField('fertilityStartConfig', nextConfig, {
-        ...uiPreferences,
-        fertilityStartConfig: nextConfig,
-      });
-
-      if (validationError) {
-        setErrors((prev) => ({ ...prev, fertilityStartConfig: validationError }));
-        return;
-      }
-
-      setErrors((prev) => {
-        const next = { ...prev };
-        delete next.fertilityStartConfig;
-        return next;
-      });
-
-      if (JSON.stringify(normalizedPreferences.fertilityStartConfig) === JSON.stringify(nextConfig)) return;
-
-      await persistPatch({
-        key: 'fertilityStartConfig',
-        patch: { fertilityStartConfig: nextConfig },
-        optimisticState: { fertilityStartConfig: nextConfig },
-        successTitle: 'Configuración actualizada',
-        errorTitle: 'No se pudo actualizar la configuración',
-      });
-    },
-    [normalizedPreferences.fertilityStartConfig, persistPatch, uiPreferences],
-  );
-
   return (
-  <div className="relative flex min-h-full flex-col">
-    <div className="sticky top-0 z-30 pb-4">
-      <div className="w-full rounded-b-[24px] border-b border-white/55 bg-white/70 px-4 pb-3 pt-2.5 shadow-[0_4px_14px_rgba(216,92,112,0.06)] backdrop-blur-xl">
+    <div className="relative flex min-h-full flex-col bg-slate-50">
+      <div className="sticky top-0 z-30 border-b border-slate-100 bg-slate-50/95 px-4 py-4">
         <div className="relative mx-auto w-full max-w-2xl">
-  <Button
-    asChild
-    variant="ghost"
-    size="icon"
-    className="absolute -left-1 -top-1 h-7 w-7 rounded-full text-fertiliapp-fuerte hover:bg-rose-50 hover:text-fertiliapp-fuerte active:bg-rose-100"
-  >
-    <Link to="/settings" aria-label="Volver a ajustes">
-      <ChevronLeft className="h-4 w-4" />
-    </Link>
-  </Button>
+          <Button
+            asChild
+            variant="ghost"
+            size="icon"
+            className="absolute -left-1 top-0 h-8 w-8 rounded-full text-fertiliapp-fuerte hover:bg-rose-50 hover:text-fertiliapp-fuerte active:bg-rose-100"
+          >
+            <Link to="/settings" aria-label="Volver a ajustes">
+              <ChevronLeft className="h-4 w-4" />
+            </Link>
+          </Button>
 
-  <div className="min-w-0">
-    <div className="truncate pl-7 text-[10px] font-semibold uppercase tracking-[0.22em] text-fertiliapp-fuerte">
-      AJUSTES
-    </div>
-
-    <h1 className="truncate text-[22px] font-semibold leading-tight text-titulo">
-      Preferencias
-    </h1>
-
-    <p className="truncate text-[13px] font-medium text-subtitulo">
-      Registro, cálculo y visualización de datos
-    </p>
-  </div>
-</div>
+          <div className="min-w-0 pl-9">
+            <p className="truncate text-xs font-semibold text-fertiliapp-fuerte">
+              Volver a Ajustes
+            </p>
+            <h1 className="truncate text-[24px] font-semibold leading-tight text-titulo">
+              Preferencias
+            </h1>
+            <p className="mt-1 truncate text-sm font-medium text-subtitulo">
+              Registro, cálculo y visualización de datos
+            </p>
+          </div>
+        </div>
       </div>
-    </div>
 
-    <div className="mx-auto w-full max-w-2xl flex-1 px-4 pb-6">
-      <div className="space-y-4">
-  <section className="space-y-2.5">
-    <SectionHeader icon={Clock3} title="Registro" tone="warm" />
+      <div className="mx-auto w-full max-w-2xl flex-1 px-4 pb-6 pt-4">
+        <div className="space-y-5">
+          <PreferenceSection title="Registro">
+            <PreferenceActionRow
+              icon={Clock3}
+              iconTone="warm"
+              title="Hora de toma de temperatura"
+              trailing={
+                <PreferenceValuePill>
+                  {uiPreferences.preferredTemperatureTime || '--:--'}
+                </PreferenceValuePill>
+              }
+              onClick={openPreferredTimeEditor}
+              ariaLabel="Editar hora de toma de temperatura"
+              disabled={Boolean(savingKeys.preferredTemperatureTime)}
+            />
+          </PreferenceSection>
 
-    <PreferenceActionRow
-  icon={Clock3}
-  iconTone="warm"
-  title="Hora de toma de temperatura"
-  trailing={
-    <PreferenceValuePill>
-      {uiPreferences.preferredTemperatureTime || '--:--'}
-    </PreferenceValuePill>
-  }
-  onClick={openPreferredTimeEditor}
-  ariaLabel="Editar hora de toma de temperatura"
-  disabled={Boolean(savingKeys.preferredTemperatureTime)}
-/>
+          {errors.preferredTemperatureTime ? (
+            <p className="-mt-3 px-1 text-xs text-red-500">{errors.preferredTemperatureTime}</p>
+          ) : null}
 
-    {errors.preferredTemperatureTime ? (
-      <p className="px-1 text-xs text-red-500">{errors.preferredTemperatureTime}</p>
-    ) : null}
-  </section>
+          <PreferenceSection title="Cálculo">
+            <CalculatorPreferenceCard
+              title="CPM"
+              modeLabel={cpmMode.label}
+              modeTone={cpmMode.tone}
+              metrics={cpmMetrics}
+              onEdit={calculatorEditor.handleOpenCpmDialog}
+              editAriaLabel="Editar CPM"
+            />
 
-  <section className="space-y-2">
-  <SectionHeader icon={Calculator} title="Cálculo" tone="cool" />
+            <CalculatorPreferenceCard
+              title="T-8"
+              modeLabel={t8Mode.label}
+              modeTone={t8Mode.tone}
+              metrics={t8Metrics}
+              onEdit={calculatorEditor.handleOpenT8Dialog}
+              editAriaLabel="Editar T-8"
+            />
+          </PreferenceSection>
 
-  <CalculatorPreferenceCard
-  title="CPM"
-  modeLabel={cpmMode.label}
-modeTone={cpmMode.tone}
-metrics={cpmMetrics}
-  onEdit={calculatorEditor.handleOpenCpmDialog}
-  editAriaLabel="Editar CPM"
-  switchTitle="Usar CPM para inicio de fertilidad"
-  checked={Boolean(uiPreferences.fertilityStartConfig?.calculators?.cpm)}
-  onToggle={(checked) => handleFertilityCalculatorToggle('cpm', checked)}
-  toggleId="toggle-use-cpm"
-  disabled={Boolean(savingKeys.fertilityStartConfig)}
-/>
-
-<CalculatorPreferenceCard
-  title="T-8"
-  modeLabel={t8Mode.label}
-modeTone={t8Mode.tone}
-metrics={t8Metrics}
-  onEdit={calculatorEditor.handleOpenT8Dialog}
-  editAriaLabel="Editar T-8"
-  switchTitle="Usar T-8 para inicio de fertilidad"
-  checked={Boolean(uiPreferences.fertilityStartConfig?.calculators?.t8)}
-  onToggle={(checked) => handleFertilityCalculatorToggle('t8', checked)}
-  toggleId="toggle-use-t8"
-  disabled={Boolean(savingKeys.fertilityStartConfig)}
-/>
-
-    {errors.fertilityStartConfig ? (
-      <p className="px-1 text-xs text-red-500">{errors.fertilityStartConfig}</p>
-    ) : null}
-  </section>
-
-  <section className="space-y-2.5">
-    <SectionHeader icon={Eye} title="Visualización" tone="medium" />
-
-    <PreferenceSwitchRow
-      icon={Heart}
-      iconTone="medium"
-      title="Mostrar relaciones"
-      description="Muestra las relaciones en la gráfica y en los detalles de registro."
-      checked={Boolean(uiPreferences.showRelationsRow)}
-      onChange={(checked) =>
-        handleSimpleFieldChange({
-          key: 'showRelationsRow',
-          value: checked,
-          successTitle: 'Preferencia guardada',
-          errorTitle: 'No se pudo actualizar la visualización',
-        })
-      }
-      disabled={Boolean(savingKeys.showRelationsRow)}
-      id="toggle-show-rs-row"
-    />
-  </section>
-</div>
-</div>
+          <PreferenceSection title="Visualización">
+            <PreferenceSwitchRow
+              icon={Heart}
+              iconTone="medium"
+              title="Mostrar relaciones"
+              description="Muestra las relaciones en la gráfica y en los detalles de registro."
+              checked={Boolean(uiPreferences.showRelationsRow)}
+              onChange={(checked) =>
+                handleSimpleFieldChange({
+                  key: 'showRelationsRow',
+                  value: checked,
+                  successTitle: 'Preferencia guardada',
+                  errorTitle: 'No se pudo actualizar la visualización',
+                })
+              }
+              disabled={Boolean(savingKeys.showRelationsRow)}
+              id="toggle-show-rs-row"
+            />
+          </PreferenceSection>
+        </div>
+      </div>
 
 <Dialog
   open={isPreferredTimeEditorOpen}

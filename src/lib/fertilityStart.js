@@ -334,6 +334,14 @@ const detectAppearanceLevel = (rawValue) => {
 const escapeRegex = (value) =>
   String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+const resolveFertilitySymbol = (entry) => {
+  if (!entry || typeof entry !== 'object') return null;
+  if (Object.prototype.hasOwnProperty.call(entry, 'fertility_symbol')) {
+    return entry.fertility_symbol ?? null;
+  }
+  return entry.fertilitySymbol ?? null;
+};
+
 const detectSymbol = ({ appearance, observations, fertilitySymbol }) => {
   const sources = [appearance, observations, fertilitySymbol].map((value) =>
     String(value || '').toUpperCase()
@@ -386,7 +394,7 @@ const ensureLevelBounds = (value) => {
 const buildNormalizedDay = (day, bipBaseline, index) => {
   const rawSensation = day?.mucusSensation ?? day?.mucus_sensation;
   const rawAppearance = day?.mucusAppearance ?? day?.mucus_appearance;
-  const inputSymbol = day?.fertility_symbol ?? day?.fertilitySymbol;
+  const inputSymbol = resolveFertilitySymbol(day);
   const rawObservations = day?.observations ?? day?.notes;
   const peakMarkerRaw = day?.peak_marker ?? day?.peakMarker ?? null;
   const isPeakMarked = typeof peakMarkerRaw === 'string'
@@ -499,7 +507,7 @@ export const normalizeCycleDays = (processedData = []) => {
   for (let i = 0; i < Math.min(6, processedData.length); i += 1) {
     const entry = processedData[i];
     if (!entry) continue;
-    const fertilitySymbol = String(entry?.fertility_symbol || '').toLowerCase();
+    const fertilitySymbol = String(resolveFertilitySymbol(entry) || '').toLowerCase();
     if (fertilitySymbol === 'red') {
       continue;
     }
@@ -579,6 +587,7 @@ export const computeFertilityStartOutput = ({
   config = {},
   calculatorCandidates = [],
   context = {},
+  fertileStartOverride = null,
 }) => {
   const {
     calculators = { cpm: true, t8: true },
@@ -604,6 +613,8 @@ export const computeFertilityStartOutput = ({
   const totalDays = Array.isArray(days) ? days.length : 0;
   const isValidIndex = (idx) =>
     Number.isInteger(idx) && idx >= 0 && idx < totalDays;
+  const isValidBoundaryIndex = (idx) =>
+  Number.isInteger(idx) && idx >= 0;
 
   const isPeakMarkedEntry = (entry) => {
     const marker = entry?.peak_marker ?? entry?.peakMarker ?? null;
@@ -621,7 +632,9 @@ export const computeFertilityStartOutput = ({
 
   const contextPeakIndex = isValidIndex(peakDayIndex) ? peakDayIndex : null;
 const contextPeakThirdIndex = isValidIndex(peakThirdDayIndex) ? peakThirdDayIndex : null;
-const contextPostPeakStartIndex = isValidIndex(postPeakStartIndex) ? postPeakStartIndex : null;
+const contextPostPeakStartIndex = isValidBoundaryIndex(postPeakStartIndex)
+  ? postPeakStartIndex
+  : null;
 
 const explicitPeakIndex = findLastPeakMarkerIndex();
 const explicitPeakIndexValid = isValidIndex(explicitPeakIndex) ? explicitPeakIndex : null;
@@ -701,6 +714,18 @@ const effectivePeakIndex = contextPeakIndex ?? explicitPeakIndexValid;
     fertileStartFinalIndex = selectedDay - 1;
   }
 
+  const manualFertileStartIndex =
+    fertileStartOverride?.mode === 'manual' &&
+    Number.isInteger(fertileStartOverride?.index) &&
+    fertileStartOverride.index >= 0 &&
+    fertileStartOverride.index < totalDays
+      ? fertileStartOverride.index
+      : null;
+
+  if (manualFertileStartIndex != null) {
+    fertileStartFinalIndex = manualFertileStartIndex;
+  }
+
   const lastIndex = days.length > 0 ? days.length - 1 : null;
   const fertileStartIndex =
     Number.isInteger(fertileStartFinalIndex) && fertileStartFinalIndex >= 0
@@ -770,9 +795,9 @@ const effectivePeakIndex = contextPeakIndex ?? explicitPeakIndexValid;
       pPlus3Index = candidatePPlus3;
     }
     const candidatePPlus4 = effectivePeakIndex + 4;
-  if (isValidIndex(candidatePPlus4)) {
-    pPlus4Index = candidatePPlus4;
-  }  
+if (isValidBoundaryIndex(candidatePPlus4)) {
+  pPlus4Index = candidatePPlus4;
+}
       
   const peakIndexForDiff = clampIndexWithin(effectivePeakIndex);
     const peakDate = parseEntryDate(peakIndexForDiff);
@@ -787,11 +812,7 @@ const effectivePeakIndex = contextPeakIndex ?? explicitPeakIndexValid;
         if (pPlus4Index == null && diff >= 4) {
         pPlus4Index = clampIndexWithin(idx);
       }
-        if (postpartum) {
         if (pPlus4Index != null) break;
-      } else {
-        if (pPlus3Index != null) break;
-      }
       }
     }
   }
@@ -808,14 +829,14 @@ const temperatureClosureReferenceIndex =
 
 const derivedPostPeakStartIndex =
   contextPostPeakStartIndex ??
-  (contextPeakThirdIndex != null ? clampIndexWithin(contextPeakThirdIndex + 1) : null);
+  (contextPeakThirdIndex != null ? contextPeakThirdIndex + 1 : null);
 
-const fallbackMucusStartIndex = (postpartum ? pPlus4Index : pPlus3Index) ?? null;
+const fallbackMucusStartIndex = pPlus4Index ?? null;
 const mucusInfertileStartIndex = derivedPostPeakStartIndex ?? fallbackMucusStartIndex;
 
 const mucusClosureReferenceIndex =
   contextPeakThirdIndex ??
-  (postpartum ? pPlus4Index : pPlus3Index) ??
+  pPlus3Index ??
   (mucusInfertileStartIndex != null ? clampIndexWithin(mucusInfertileStartIndex - 1) : null);
 
   const waitingStartIndex = null;
@@ -880,7 +901,9 @@ const hasMucusObservations = days.some(
 );
 
 let fertileHeaderText = `Fase fértil abierta (${PROFILE_LABELS[profileMode] ?? profileMode}).`;
-if (profileMode === 'marcador') {
+if (manualFertileStartIndex != null) {
+  fertileHeaderText = 'Fase fértil abierta (inicio manual).';
+} else if (profileMode === 'marcador') {
   fertileHeaderText = 'Fase fértil abierta (ajustada por tus marcadores).';
 } else if (hasProfileSource && hasMucusObservations) {
   fertileHeaderText = 'Fase fértil abierta (basada en tus observaciones de moco).';
@@ -1199,6 +1222,13 @@ const infertileBodyTemperature = temperatureDateLabel
   postOvulatoryStartIndex,
   firstEstimateIndex,
   absoluteStartIndex,
+  fertileStartOverride: manualFertileStartIndex != null
+    ? {
+        mode: 'manual',
+        index: manualFertileStartIndex,
+        isoDate: fertileStartOverride?.isoDate ?? null,
+      }
+    : null,
 };
 
   return {
@@ -1222,6 +1252,13 @@ const infertileBodyTemperature = temperatureDateLabel
     candidates: candidatesBeforeAggregate,
     aggregate,
     debug,
+    fertileStartOverride: manualFertileStartIndex != null
+      ? {
+          mode: 'manual',
+          index: manualFertileStartIndex,
+          isoDate: fertileStartOverride?.isoDate ?? null,
+        }
+      : null,
   };
 };
 

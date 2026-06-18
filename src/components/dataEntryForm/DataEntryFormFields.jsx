@@ -162,7 +162,16 @@ const [activeSection, setActiveSection] = useState(() => {
 
   const cycleStart = startOfDay(parseISO(cycleStartDate));
   const cycleEnd = cycleEndDate ? startOfDay(parseISO(cycleEndDate)) : null;
-  const disabledDateRanges = cycleEnd ? [{ before: cycleStart }, { after: cycleEnd }] : [{ before: cycleStart }];
+  const today = startOfDay(new Date());
+
+  const latestSelectableDate =
+    cycleEnd && cycleEnd < today ? cycleEnd : today;
+
+  const disabledDateRanges = [
+    { before: cycleStart },
+    { after: latestSelectableDate },
+  ];
+
   const selectedIsoDate = date ? format(date, 'yyyy-MM-dd') : null;
   const [dockOffset, setDockOffset] = useState(0);
   const [focusedMucusField, setFocusedMucusField] = useState(null);
@@ -740,10 +749,11 @@ const [activeSection, setActiveSection] = useState(() => {
 
     try {
       await submitCurrentState({
-        overrideHadRelations: nextValue,
-        keepFormOpen: true,
-        skipReset: true,
-      });
+  overrideHadRelations: nextValue,
+  keepFormOpen: true,
+  skipReset: true,
+  submitAction: 'relations',
+});
 
       } catch (error) {
       setHadRelations(previousValue);
@@ -1546,26 +1556,25 @@ const [activeSection, setActiveSection] = useState(() => {
   ref={stickyHeaderRef}
   className="sticky top-0 z-30 -mx-1 rounded-b-3xl bg-[#FFF7FA] px-1 pb-1 pt-0"
 >
-  <div className="rounded-b-3xl bg-[#FFF7FA]">
-    <div className="space-y-2">
-      <div className="relative overflow-hidden col-span-3 space-y-2 rounded-3xl border border-slate-200/60 bg-white/80 p-3 shadow-sm">
-        <Label htmlFor="date" className="flex items-center text-sm font-semibold text-titulo">
-          <CalendarDays className="mr-2 h-5 w-5 text-titulo" />
-          Fecha del Registro
-        </Label>
-
-        <div className="flex items-stretch gap-2">
+    <div className="flex items-center gap-2 px-2 sm:px-3">
           <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
+                aria-label={
+                  date
+                    ? `Fecha del registro: ${format(date, 'PPP', { locale: es })}`
+                    : 'Selecciona la fecha del registro'
+                }
                 className={cn(
-                  'h-11 min-w-0 flex-[3.5] justify-start rounded-3xl border-slate-200/70 bg-white text-left font-normal text-slate-700 shadow-sm hover:bg-white hover:text-slate-700 focus-visible:ring-2 focus-visible:ring-fertiliapp-suave',
+                  'h-11 min-w-0 flex-1 justify-start gap-2 rounded-2xl border-slate-200/70 bg-white px-3 text-left text-[13px] font-semibold text-slate-700 shadow-sm hover:bg-white hover:text-slate-700 focus-visible:ring-2 focus-visible:ring-fertiliapp-suave',
                   !date && 'text-muted-foreground'
                 )}
                 disabled={isProcessing}
               >
-                <span className="truncate">
+                <CalendarDays className="h-4 w-4 shrink-0 text-titulo" aria-hidden="true" />
+
+                <span className="min-w-0 flex-1 truncate">
                   {date ? format(date, 'PPP', { locale: es }) : 'Selecciona una fecha'}
                 </span>
               </Button>
@@ -1607,7 +1616,7 @@ const [activeSection, setActiveSection] = useState(() => {
             size="sm"
             onClick={() => onOpenNewCycle?.(selectedIsoDate)}
             disabled={isProcessing || !selectedIsoDate || typeof onOpenNewCycle !== 'function'}
-            className="h-11 flex-[1.15] rounded-2xl border-slate-200/70 bg-white px-2 text-[10px] font-semibold text-fertiliapp-fuerte shadow-sm hover:border-fertiliapp-suave hover:bg-white"
+            className="h-11 w-[76px] shrink-0 rounded-2xl border-slate-200/70 bg-white px-2 text-[10px] font-semibold text-fertiliapp-fuerte shadow-sm hover:border-fertiliapp-suave hover:bg-white"
             aria-label="Iniciar nuevo ciclo"
           >
             <CalendarPlus className="mr-1 h-4 w-4 shrink-0" />
@@ -1617,8 +1626,6 @@ const [activeSection, setActiveSection] = useState(() => {
             </span>
           </Button>
         </div>
-      </div>
-    </div>
 
     <div className="mt-1.5 px-2 sm:px-3">
       <div className="flex items-center gap-2">
@@ -1803,7 +1810,7 @@ const [activeSection, setActiveSection] = useState(() => {
         </div>
       )}
     </div>
-  </div>
+
 </div>
 
 <div className="relative z-0 mt-1" ref={sectionsContainerRef}>

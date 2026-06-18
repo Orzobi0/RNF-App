@@ -112,6 +112,7 @@ export function drawChartCanvas({
   bottomRowsResponsiveFontSize,
   visibleRange,
   showInterpretation,
+  interpretationOpacity = 1,
   interpretationSegments,
   shouldRenderBaseline,
   baselineY,
@@ -264,6 +265,7 @@ export function drawChartCanvas({
     graphBottomY: effectiveGraphBottomY,
     areaH,
     showInterpretation,
+    opacity: interpretationOpacity,
     interpretationSegments: effectiveInterpretationSegments,
     bandPaintCache,
   });
@@ -293,6 +295,7 @@ export function drawChartCanvas({
     visibleEndIndex,
     isWithinTemperaturePlotArea,
     temperatureRiseHighlightPath,
+    temperatureRiseHighlightOpacity: interpretationOpacity,
   });
   drawTemperaturePoints({
     ctx,
@@ -316,6 +319,7 @@ export function drawChartCanvas({
     visibleStartIndex,
     visibleEndIndex,
     showInterpretation,
+    opacity: interpretationOpacity,
     responsiveFontSize,
     isFullScreen,
     isWithinTemperaturePlotArea,

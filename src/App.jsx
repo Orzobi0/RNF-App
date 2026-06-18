@@ -4,6 +4,7 @@ import { ErrorBoundary } from '@/components/dev/ErrorBoundary';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { CycleDataProvider } from '@/contexts/CycleDataContext.jsx';
 import { HealthConnectProvider } from '@/contexts/HealthConnectContext.jsx';
+import { WhatsNewProvider } from '@/contexts/WhatsNewContext.jsx';
 import AppBackground from '@/components/layout/AppBackground';
 import RouteErrorBoundary from '@/components/errors/RouteErrorBoundary';
 import RouteErrorFallback from '@/components/errors/RouteErrorFallback';
@@ -15,12 +16,14 @@ const ArchivedCyclesPage = lazy(() => import('@/pages/ArchivedCyclesPage'));
 const CycleDetailPage = lazy(() => import('@/pages/CycleDetailPage'));
 const SettingsPage = lazy(() => import('@/pages/SettingsPage'));
 const PreferencesPage = lazy(() => import('@/pages/PreferencesPage'));
+const ContactSupportPage = lazy(() => import('@/pages/ContactSupportPage'));
 const ChartPage = lazy(() => import('@/pages/ChartPage'));
 const RecordsPage = lazy(() => import('@/pages/RecordsPage'));
 import MainLayout from '@/components/layout/MainLayout';
 import { Toaster } from '@/components/ui/toaster';
 import { motion } from 'framer-motion';
 import UpdateNotification from '@/components/UpdateNotification';
+import WhatsNewModal from '@/components/WhatsNewModal';
 import ViewportHeightFix from "@/components/ViewportHeightFix";
 
 function ProtectedRoute({ children }) {
@@ -147,6 +150,7 @@ const routeErrorBoundaryKey = location.pathname.startsWith('/cycle/')
   : location.pathname;
   return (
     <AppBackground>
+      <WhatsNewModal />
       <Suspense fallback={suspenseFallback}>
         <GlobalChunkErrorHandler>
           <RouteErrorBoundary key={routeErrorBoundaryKey} FallbackComponent={RouteErrorFallback}>
@@ -212,6 +216,16 @@ const routeErrorBoundaryKey = location.pathname.startsWith('/cycle/')
                 }
               />
               <Route
+                path="/settings/support"
+                element={
+                  <ProtectedRoute>
+                    <MainLayout>
+                      <ContactSupportPage />
+                    </MainLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
                 path="/cycle/:cycleId"
                 element={
                   <ProtectedRoute>
@@ -237,13 +251,15 @@ function App() {
       <ServiceWorkerRouteUpdater />
       <UpdateNotification />
       <AuthProvider>
-        <CycleDataProvider>
-          <HealthConnectProvider>
-            <ErrorBoundary>
-              <AppContent />
-            </ErrorBoundary>
-          </HealthConnectProvider>
-        </CycleDataProvider>
+        <WhatsNewProvider>
+          <CycleDataProvider>
+            <HealthConnectProvider>
+              <ErrorBoundary>
+                <AppContent />
+              </ErrorBoundary>
+            </HealthConnectProvider>
+          </CycleDataProvider>
+        </WhatsNewProvider>
         <Toaster />
       </AuthProvider>
     </BrowserRouter>

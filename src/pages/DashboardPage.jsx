@@ -29,7 +29,12 @@ import { useFertilityChart } from '@/hooks/useFertilityChart';
 import { useFertilityCalculatorsEditor } from '@/hooks/useFertilityCalculatorsEditor';
 import FertilityCalculatorsEditorDialogs from '@/components/FertilityCalculatorsEditorDialogs';
 import { FERTILITY_SYMBOL_OPTIONS, getSymbolColorPalette } from '@/config/fertilitySymbols';
+import { buildFertilityInterpretationSummary } from '@/lib/fertilityInterpretationSummary';
+import generatePlaceholders from '@/lib/generatePlaceholders';
 import { mergeFertilityStartConfig } from '@/lib/preferences';
+import { normalizeTemperatureRiseOverride } from '@/lib/temperatureRiseOverride';
+import { normalizeFertileStartOverride } from '@/lib/fertileStartOverride';
+import { cn } from '@/lib/utils';
 import {
   getPeakDayToastMessage,
   getRecordUpdateToastMessage,
@@ -50,6 +55,8 @@ const CycleOverviewCard = ({
   handleOpenT8Dialog = () => {},
   cpmMetric = {},
   t8Metric = {},
+  cycleStatusSummary = null,
+  onOpenCycleStatus = () => {},
   isDetailInteractionModalOpen = false,
 }) => {
   const records = cycleData.records || [];
@@ -199,11 +206,15 @@ const recentSignaturesRef = useRef(new Map());
   }, [prefersReducedMotion, recentlyChangedDays]);
 
     // Ajustes del círculo de progreso
-  const totalDots = 28;
-  const radius = 140;
-  const padding = 15;
-  const center = radius + padding;
-  const viewBoxSize = center * 2;
+  // Ajustes del círculo de progreso
+const totalDots = 28;
+
+// El margen debe cubrir el punto actual/seleccionado + stroke + sombra.
+// Con 15px se cortaba visualmente cuando el punto caía en el extremo derecho.
+const radius = 136;
+const padding = 24;
+const center = radius + padding;
+const viewBoxSize = center * 2;
 
   const totalCycleDays = useMemo(() => {
     const maxRecordDay = records.reduce((maxValue, record) => {
@@ -539,12 +550,23 @@ const resetWheelDrag = useCallback(() => {
   };
 }, []);
   const seamAngle = -Math.PI / 2 - stepAngleRadians / 2;
-  const seamInnerRadius = radius - 18;
-  const seamOuterRadius = radius + 10;
-  const seamStartX = center + seamInnerRadius * Math.cos(seamAngle);
-  const seamStartY = center + seamInnerRadius * Math.sin(seamAngle);
-  const seamEndX = center + seamOuterRadius * Math.cos(seamAngle);
-  const seamEndY = center + seamOuterRadius * Math.sin(seamAngle);
+
+// Línea real del separador
+const seamInnerRadius = radius - 20;
+const seamOuterRadius = radius + 16;
+const seamStartX = center + seamInnerRadius * Math.cos(seamAngle);
+const seamStartY = center + seamInnerRadius * Math.sin(seamAngle);
+const seamEndX = center + seamOuterRadius * Math.cos(seamAngle);
+const seamEndY = center + seamOuterRadius * Math.sin(seamAngle);
+
+// Zona más ancha que actúa como "puerta" visual.
+// Se dibuja por encima de los puntos para que parezca que pasan por debajo.
+const seamGateInnerRadius = radius - 28;
+const seamGateOuterRadius = radius + 24;
+const seamGateStartX = center + seamGateInnerRadius * Math.cos(seamAngle);
+const seamGateStartY = center + seamGateInnerRadius * Math.sin(seamAngle);
+const seamGateEndX = center + seamGateOuterRadius * Math.cos(seamAngle);
+const seamGateEndY = center + seamGateOuterRadius * Math.sin(seamAngle);
   
 
   useEffect(() => {
@@ -810,24 +832,100 @@ const handleRingPointerCancel = useCallback(
   },
   [resetWheelDrag]
 );
+  const getCycleStatusTone = (status) => {
+  switch (status) {
+    case 'relative-infertile':
+      return {
+        button: 'border-emerald-100 bg-emerald-50/65 hover:bg-emerald-50/85',
+        accent: 'bg-emerald-400',
+        label: 'text-emerald-700',
+        title: 'text-emerald-950',
+        body: 'text-emerald-800/80',
+        chip: 'px-2 text-slate-600',
+      };
+
+    case 'fertile-open':
+      return {
+        button: 'border-rose-100 bg-rose-50/70 hover:bg-rose-50/90',
+        accent: 'bg-fertiliapp-fuerte',
+        label: 'text-fertiliapp-fuerte',
+        title: 'text-rose-950',
+        body: 'text-rose-800/80',
+        chip: 'px-2 text-slate-600',
+      };
+
+    case 'peak-day':
+    case 'postpeak-1':
+    case 'postpeak-2':
+    case 'postpeak-3':
+      return {
+        button: 'border-pink-100 bg-pink-50/75 hover:bg-pink-50/95',
+        accent: 'bg-pink-500',
+        label: 'text-pink-600',
+        title: 'text-pink-950',
+        body: 'text-pink-800/80',
+        chip: 'px-2 text-slate-600',
+      };
+
+    case 'temperature-estimated':
+    case 'mucus-estimated':
+      return {
+        button: 'border-sky-100 bg-sky-50/75 hover:bg-sky-50/95',
+        accent: 'bg-sky-400',
+        label: 'text-sky-700',
+        title: 'text-sky-950',
+        body: 'text-sky-800/80',
+        chip: 'px-2 text-slate-600',
+      };
+
+    case 'postovulatory-confirmed':
+      return {
+        button: 'border-blue-200 bg-blue-50/85 hover:bg-blue-50',
+        accent: 'bg-blue-500',
+        label: 'text-blue-700',
+        title: 'text-blue-950',
+        body: 'text-blue-800/85',
+        chip: 'px-2 text-slate-600',
+      };
+
+    default:
+      return {
+        button: 'border-slate-100 bg-white/75 hover:bg-white/90',
+        accent: 'bg-slate-300',
+        label: 'text-slate-500',
+        title: 'text-slate-800',
+        body: 'text-slate-600',
+        chip: 'px-2 text-slate-600',
+      };
+  }
+};
+
   const renderCompactCalcItem = ({ label, value, onClick, ariaLabel, modeLabel = null }) => (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex-1 rounded-2xl border border-rose-100/80 bg-white/80 px-3 py-2 text-left shadow-sm transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70"
-      aria-label={ariaLabel}
-    >
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-rose-500">{label}</span>
+  <button
+    type="button"
+    onClick={onClick}
+    className="flex min-h-[42px] min-w-0 flex-1 items-center justify-between gap-2 rounded-2xl border border-rose-100/60 bg-white/70 px-3 py-2 text-left transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70"
+    aria-label={ariaLabel}
+  >
+    <div className="min-w-0">
+      <div className="flex min-w-0 items-center gap-1.5">
+        <span className="text-[10px] font-bold uppercase tracking-wide text-rose-500">
+          {label}
+        </span>
+
         {modeLabel ? (
-          <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-500">
+          <span className="max-w-[58px] truncate rounded-full bg-rose-50/80 px-1.5 py-0.5 text-[9px] font-semibold text-rose-400">
             {modeLabel}
           </span>
         ) : null}
       </div>
-      <p className="mt-1 text-lg font-semibold tabular-nums text-slate-800">{value ?? '—'}</p>
-    </button>
-  );
+    </div>
+
+    <span className="shrink-0 text-base font-semibold tabular-nums text-slate-800">
+      {value ?? '—'}
+    </span>
+  </button>
+);
 
   const getSymbolInfo = useCallback(
     (symbolValue) =>
@@ -963,6 +1061,9 @@ const handleRingPointerCancel = useCallback(
   },
   [onToggleRelations]
 );
+  const statusTone = cycleStatusSummary
+    ? getCycleStatusTone(cycleStatusSummary.status)
+    : getCycleStatusTone(null);
 
   return (
     <div className="relative flex flex-col space-y-2">
@@ -1011,7 +1112,7 @@ const handleRingPointerCancel = useCallback(
       >
         {/* Tarjeta SOLO para el círculo + navegación */}
         
-        <div className="relative overflow-hidden rounded-[75px]   p-4  mb-2">
+        <div className="relative overflow-hidden rounded-[75px] px-4 pt-3 pb-1 mb-0">
         <div className="pointer-events-none absolute inset-0">
         {/* halo desde arriba como antes */}
         <div className="absolute inset-0 " />
@@ -1020,10 +1121,10 @@ const handleRingPointerCancel = useCallback(
         </div>
         <div className="relative text-center flex-shrink-0">
           {/* Círculo de progreso redimensionado */}
-          <div className="mb-3">
+          <div className="mb-0">
           <motion.div
   ref={circleRef}
-  className="relative mx-auto flex items-center justify-center mb-4 drop-shadow-[0_15px_35px_rgba(221,86,101,0.22)] aspect-square w-full"
+  className="relative mx-auto flex items-center justify-center mb-3 drop-shadow-[0_15px_35px_rgba(221,86,101,0.22)] aspect-square w-full"
   style={{ maxWidth: viewBoxSize, touchAction: 'pan-y' }}
   initial={{ opacity: 0 }}
   animate={{ opacity: 1 }}
@@ -1101,21 +1202,8 @@ const handleRingPointerCancel = useCallback(
     cursor: hasOverflow ? 'grab' : 'default',
   }}
 />
-              {hasOverflow && (
-  <line
-    x1={seamStartX}
-    y1={seamStartY}
-    x2={seamEndX}
-    y2={seamEndY}
-    stroke="rgba(244,63,94,0.55)"
-    strokeWidth={5}
-    strokeLinecap="round"
-    opacity={0.8}
-    pointerEvents="none"
-  />
-)}
 
-              {/* Puntos de progreso */}
+  {/* Puntos de progreso */}
   <motion.g
   transition={{ type: 'tween', duration: 0.18, ease: [0.2, 0.8, 0.2, 1] }}
   initial={false}
@@ -1347,6 +1435,36 @@ if (dot.peakStatus === 'P') {
                 </text>
                 );
               })}
+                            {hasOverflow && (
+                <g pointerEvents="none">
+
+
+                  {/* Línea principal del límite visible */}
+                  <line
+                    x1={seamStartX}
+                    y1={seamStartY}
+                    x2={seamEndX}
+                    y2={seamEndY}
+                    stroke="rgba(244,63,94,0.72)"
+                    strokeWidth={3.2}
+                    strokeLinecap="round"
+                  />
+
+                  <circle
+                    cx={seamStartX}
+                    cy={seamStartY}
+                    r={2.4}
+                    fill="rgba(244,63,94,0.7)"
+                  />
+                  <circle
+                    cx={seamEndX}
+                    cy={seamEndY}
+                    r={2.4}
+                    fill="rgba(244,63,94,0.7)"
+                  />
+                </g>
+              )}
+            
             </svg>
             
             {/* Contenido central */}
@@ -1416,8 +1534,54 @@ if (dot.peakStatus === 'P') {
   </div>
 </div>
 
+    {cycleStatusSummary && (
+      <motion.button
+          type="button"
+          onClick={onOpenCycleStatus}
+          aria-label="Abrir gráfica con interpretación"
+          className={cn(
+            'mx-2 mb-2 mt-5 block w-auto rounded-3xl border p-3 text-left shadow-[0_10px_24px_rgba(216,92,112,0.08)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent',
+            statusTone.button
+          )}
+        >
+          <div className="flex gap-3">
+            <span
+              aria-hidden="true"
+              className={cn('mt-1 w-0.5 shrink-0 rounded-full opacity-80', statusTone.accent)}
+            />
+
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-2">
+                <span className={cn('text-[11px] font-semibold uppercase tracking-wide', statusTone.title)}>
+                  Estado del día
+                </span>
+
+                <div className="flex shrink-0 items-center gap-1">
+                  {(cycleStatusSummary.badges ?? []).map((badge) => (
+                    <span
+                      key={badge}
+                      className={cn('text-[10px] font-semibold leading-none', statusTone.chip)}
+                    >
+                      {badge}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <p className={cn('mt-2 text-[15px] font-semibold leading-tight', statusTone.label)}>
+                {cycleStatusSummary.headline}
+              </p>
+
+              <p className={cn('mt-1 text-[13px] leading-snug', statusTone.body)}>
+                {cycleStatusSummary.body}
+              </p>
+            </div>
+          </div>
+        </motion.button>
+    )}
+
     <motion.div
-          className="mx-2 mt-8 mb-2 rounded-2xl border border-fertiliapp-suave bg-white/70 p-2 shadow-[0_10px_30px_rgba(148,163,184,0.15)] backdrop-blur-md"
+          className="mx-2 mt-2 rounded-2xl border border-rose-100/50 bg-white/55 p-2 shadow-[0_8px_18px_rgba(216,92,112,0.06)]"
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.2, delay: 0.06 }}
@@ -1929,6 +2093,11 @@ const ModernFertilityDashboard = () => {
           },
         ];
 
+    const existingFertilitySymbol =
+      existingRecord && Object.prototype.hasOwnProperty.call(existingRecord, 'fertility_symbol')
+        ? existingRecord.fertility_symbol ?? 'none'
+        : existingRecord?.fertilitySymbol ?? 'none';
+
     return {
       isoDate,
       measurements,
@@ -1936,8 +2105,7 @@ const ModernFertilityDashboard = () => {
         existingRecord?.mucusSensation ?? existingRecord?.mucus_sensation ?? '',
       mucusAppearance:
         existingRecord?.mucusAppearance ?? existingRecord?.mucus_appearance ?? '',
-      fertility_symbol:
-        existingRecord?.fertility_symbol ?? existingRecord?.fertilitySymbol ?? 'none',
+      fertility_symbol: existingFertilitySymbol,
       observations: existingRecord?.observations ?? '',
       peak_marker: existingRecord?.peak_marker ?? null,
       ignored: existingRecord?.ignored ?? false,
@@ -2047,10 +2215,17 @@ const handleConfirmDeleteRecord = useCallback(async () => {
   }
 }, [recordToDelete?.id, currentCycle?.id, deleteRecord, refreshData, toast]);
 
-  const handleSave = async (data, { keepFormOpen = false } = {}) => {
+  const handleOpenCycleStatusChart = useCallback(() => {
+    navigate('/chart?interpretation=1');
+  }, [navigate]);
+
+  const handleSave = async (data, { keepFormOpen = false, submitAction = null } = {}) => {
   setIsProcessing(true);
 
-  const toastMessage = getRecordUpdateToastMessage(editingRecord, data);
+  const toastMessage =
+    submitAction === 'relations'
+      ? getRelationsToastMessage(Boolean(data?.had_relations ?? data?.hadRelations))
+      : getRecordUpdateToastMessage(editingRecord, data);
 
   try {
     await addOrUpdateDataPoint(data, editingRecord);
@@ -2199,16 +2374,18 @@ const handleConfirmDeleteRecord = useCallback(async () => {
     const merged = mergeFertilityStartConfig({
       incoming: preferences?.fertilityStartConfig,
     });
+    const isPostpartumMode = Boolean(currentCycle?.postpartumMode);
 
     return {
       ...merged,
+      postpartum: isPostpartumMode,
       calculators: {
         ...merged.calculators,
-        cpm: Boolean(merged.calculators?.cpm) && cpmSelection !== 'none',
-        t8: Boolean(merged.calculators?.t8) && t8Selection !== 'none',
+        cpm: !isPostpartumMode && Boolean(merged.calculators?.cpm) && cpmSelection !== 'none',
+        t8: !isPostpartumMode && Boolean(merged.calculators?.t8) && t8Selection !== 'none',
       },
     };
-  }, [preferences?.fertilityStartConfig, cpmSelection, t8Selection]);
+  }, [preferences?.fertilityStartConfig, currentCycle?.postpartumMode, cpmSelection, t8Selection]);
 
   const fertilityCalculatorCycles = useMemo(() => {
     const cycles = [];
@@ -2221,8 +2398,57 @@ const handleConfirmDeleteRecord = useCallback(async () => {
     return cycles;
   }, [archivedCycles, currentCycle]);
 
-  const { processedData: fertilityChartData, todayIndex: fertilityTodayIndex } = useFertilityChart(
-    currentCycle?.data ?? [],
+  const dashboardInterpretationData = useMemo(() => {
+    const cycleEntries = currentCycle?.data ?? [];
+    if (!currentCycle?.startDate) {
+      return cycleEntries;
+    }
+
+    const cycleStartDateValue = parseISO(currentCycle.startDate);
+    if (!isValid(cycleStartDateValue)) {
+      return cycleEntries;
+    }
+
+    const lastRecordDate = cycleEntries.reduce((maxDate, record) => {
+      if (!record?.isoDate) return maxDate;
+      const recordDate = parseISO(record.isoDate);
+      return isValid(recordDate) && recordDate > maxDate ? recordDate : maxDate;
+    }, cycleStartDateValue);
+
+    const today = startOfDay(new Date());
+    const lastRelevantDate = lastRecordDate > today ? lastRecordDate : today;
+    const daysSinceStart = differenceInDays(startOfDay(lastRelevantDate), cycleStartDateValue);
+    const daysInCycle = Math.max(28, daysSinceStart + 1);
+    const placeholders = generatePlaceholders(cycleStartDateValue, daysInCycle);
+    const entriesByIsoDate = new Map(
+      cycleEntries
+        .filter((entry) => entry?.isoDate)
+        .map((entry) => [entry.isoDate, entry])
+    );
+
+    return placeholders.map((placeholder) => {
+      const existingRecord = entriesByIsoDate.get(placeholder.isoDate);
+      return existingRecord ? { ...existingRecord, date: placeholder.date } : placeholder;
+    });
+  }, [currentCycle?.data, currentCycle?.startDate]);
+
+  const temperatureRiseOverride = useMemo(
+    () => normalizeTemperatureRiseOverride(currentCycle?.interpretationOverrides?.temperatureRise),
+    [currentCycle?.interpretationOverrides?.temperatureRise]
+  );
+  const fertileStartOverride = useMemo(
+    () => normalizeFertileStartOverride(currentCycle?.interpretationOverrides?.fertileStart),
+    [currentCycle?.interpretationOverrides?.fertileStart]
+  );
+
+  const {
+    allDataPoints: fertilityChartData,
+    fertilityStart,
+    todayIndex: fertilityTodayIndex,
+    ovulationDetails: fertilityOvulationDetails,
+    hasAnyObservation: fertilityHasAnyObservation,
+  } = useFertilityChart(
+    dashboardInterpretationData,
     false,
     'portrait',
     undefined,
@@ -2232,7 +2458,40 @@ const handleConfirmDeleteRecord = useCallback(async () => {
     fertilityStartConfig,
     fertilityCalculatorCycles,
     externalCalculatorCandidates,
-    false
+    false,
+    false,
+    0,
+    0,
+    temperatureRiseOverride,
+    fertileStartOverride
+  );
+
+  const cycleStatusSummary = useMemo(
+    () =>
+      buildFertilityInterpretationSummary({
+        fertilityStart,
+        todayIndex: fertilityTodayIndex,
+        currentDay,
+        postpartumMode: Boolean(currentCycle?.postpartumMode),
+        cpmSelection,
+        t8Selection,
+        fertilityStartConfig,
+        allDataPoints: fertilityChartData,
+        ovulationDetails: fertilityOvulationDetails,
+        hasAnyObservation: fertilityHasAnyObservation,
+      }),
+    [
+      fertilityStart,
+      fertilityTodayIndex,
+      currentDay,
+      currentCycle?.postpartumMode,
+      cpmSelection,
+      t8Selection,
+      fertilityStartConfig,
+      fertilityChartData,
+      fertilityOvulationDetails,
+      fertilityHasAnyObservation,
+    ]
   );
 
   if (isLoading && !currentCycle?.id) {
@@ -2301,6 +2560,8 @@ const handleConfirmDeleteRecord = useCallback(async () => {
   handleOpenT8Dialog={handleOpenT8Dialog}
   cpmMetric={cpmMetric}
   t8Metric={t8Metric}
+  cycleStatusSummary={cycleStatusSummary}
+  onOpenCycleStatus={handleOpenCycleStatusChart}
   isDetailInteractionModalOpen={showForm}
 />
           <FertilityCalculatorsEditorDialogs

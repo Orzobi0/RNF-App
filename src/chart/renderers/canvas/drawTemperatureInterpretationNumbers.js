@@ -13,6 +13,7 @@ export const drawTemperatureInterpretationNumbers = ({
   visibleStartIndex,
   visibleEndIndex,
   showInterpretation,
+  opacity = 1,
   responsiveFontSize,
   isFullScreen,
   isWithinTemperaturePlotArea,
@@ -60,6 +61,8 @@ export const drawTemperatureInterpretationNumbers = ({
     const numberStrokeWidth = Math.max(0.5, numberFontSize * 0.18);
 
     if (hasHighOrder) {
+      ctx.save();
+      ctx.globalAlpha *= opacity;
       drawText({
         ctx,
         text: highOrder,
@@ -71,9 +74,12 @@ export const drawTemperatureInterpretationNumbers = ({
         stroke: '#fff',
         strokeWidth: numberStrokeWidth,
       });
+      ctx.restore();
     }
 
     if (hasBaselineOrder) {
+      ctx.save();
+      ctx.globalAlpha *= opacity;
       drawText({
   ctx,
   text: baselineOrder,
@@ -85,6 +91,7 @@ export const drawTemperatureInterpretationNumbers = ({
   stroke: 'rgba(255,255,255,0.72)',
   strokeWidth: Math.max(0.35, numberFontSize * 0.12),
 });
+      ctx.restore();
     }
   }
 };

@@ -8,6 +8,7 @@ export const drawInterpretationBands = ({
   graphBottomY,
   areaH,
   showInterpretation,
+  opacity = 1,
   interpretationSegments,
   bandPaintCache,
 }) => {
@@ -66,9 +67,12 @@ export const drawInterpretationBands = ({
     const sw = snap(w);
     const sh = snap(bandH);
 
+    ctx.save();
+    ctx.globalAlpha *= opacity;
     ctx.fillStyle = paint.fill;
     ctx.fillRect(sx, sy, sw, sh);
     ctx.fillStyle = paint.gloss;
     ctx.fillRect(sx, sy, sw, sh);
+    ctx.restore();
   });
 };

@@ -35,6 +35,18 @@ const FertilityChart = ({
   cycleEndDate = null,
   exportMode = false,
   measuredViewport = null,
+  temperatureRiseOverride = null,
+  fertileStartOverride = null,
+  temperatureRiseEditMode = false,
+  temperatureRiseDraftBaselineTemp = null,
+  temperatureRiseDraftFirstHighIsoDate = null,
+  temperatureRiseDraftEvaluation = null,
+  temperatureRiseDraftSummary = null,
+  onTemperatureRiseDraftBaselineChange = null,
+  onTemperatureRiseFirstHighSelect = null,
+  fertileStartEditMode = false,
+  fertileStartDraftIsoDate = null,
+  onFertileStartDraftSelect = null,
 }) => {
 
 const isIOS =
@@ -77,6 +89,12 @@ const isIOS =
 const [viewport, setViewport] = useState(readViewport);
 const isViewportPortrait = viewport.w < viewport.h;
 
+const setViewportIfChanged = useCallback((nextViewport) => {
+  setViewport((prev) =>
+    prev.w === nextViewport.w && prev.h === nextViewport.h ? prev : nextViewport
+  );
+}, []);
+
 useEffect(() => {
   if (typeof window === 'undefined') return undefined;
 
@@ -85,7 +103,7 @@ useEffect(() => {
 
   const onResize = () => {
     if (raf) cancelAnimationFrame(raf);
-    raf = requestAnimationFrame(() => setViewport(readViewport()));
+    raf = requestAnimationFrame(() => setViewportIfChanged(readViewport()));
   };
 
   window.addEventListener('resize', onResize);
@@ -103,7 +121,7 @@ useEffect(() => {
     vv?.removeEventListener('resize', onResize);
     vv?.removeEventListener('scroll', onResize);
   };
-}, [measuredViewport?.w, measuredViewport?.h]);
+}, [measuredViewport?.w, measuredViewport?.h, setViewportIfChanged]);
 
 useEffect(() => {
   const externalW = Number(measuredViewport?.w);
@@ -111,11 +129,8 @@ useEffect(() => {
   if (!Number.isFinite(externalW) || externalW <= 0 || !Number.isFinite(externalH) || externalH <= 0) {
     return;
   }
-  setViewport((prev) => {
-    const next = { w: Math.round(externalW), h: Math.round(externalH) };
-    return prev.w === next.w && prev.h === next.h ? prev : next;
-  });
-}, [measuredViewport?.w, measuredViewport?.h]);
+  setViewportIfChanged({ w: Math.round(externalW), h: Math.round(externalH) });
+}, [measuredViewport?.w, measuredViewport?.h, setViewportIfChanged]);
 
   const applyRotation = !exportMode && isFullScreen && forceLandscape && isViewportPortrait;
   const isIOSFakeLandscape = isIOS && applyRotation;
@@ -194,7 +209,9 @@ useEffect(() => {
     showRelationsRow,
     exportMode,
     rotatedSafeStartInsetPx,
-    rotatedSafeEndInsetPx
+    rotatedSafeEndInsetPx,
+    temperatureRiseOverride,
+    fertileStartOverride
   );
   
   const MANUAL_DRAG_THRESHOLD_PX = 22;
@@ -273,7 +290,9 @@ useEffect(() => {
     startScrollLeft: 0,
     moved: false,
   });
-  const manualModeEnabled = showManualBaseline;
+  const manualModeEnabled = showManualBaseline || temperatureRiseEditMode;
+  const effectiveShowInterpretation = showInterpretation;
+  const interpretationLayerOpacity = temperatureRiseEditMode || fertileStartEditMode ? 0.38 : 1;
   const manualEligiblePoints = useMemo(
     () => allDataPoints.filter((point, index) => isPointEligibleForManualMode(point, index)),
     [allDataPoints, isPointEligibleForManualMode]
@@ -311,6 +330,15 @@ useEffect(() => {
   }
 
   setManualBaselineTemp((prev) => {
+    const externalTemp = temperatureRiseEditMode
+      ? normalizeTemp2(temperatureRiseDraftBaselineTemp)
+      : null;
+
+    if (externalTemp != null) {
+      const exactExternal = manualSnapTemps.find((value) => areTempsEqual2(value, externalTemp));
+      return exactExternal ?? findNearestSnapTemp(externalTemp, manualSnapTemps);
+    }
+
     const normalizedPrev = normalizeTemp2(prev);
 
     // Si ya había una baseline manual previa, la respetamos
@@ -338,6 +366,8 @@ useEffect(() => {
   manualSnapTemps,
   tempMin,
   tempMax,
+  temperatureRiseDraftBaselineTemp,
+  temperatureRiseEditMode,
   normalizeTemp2,
   areTempsEqual2,
   findNearestSnapTemp,
@@ -428,13 +458,19 @@ manualDragRef.current = {
 
   state.activeSnapIndex = nextIndex;
   state.accumDelta = 0;
-  setManualBaselineTemp(manualSnapTemps[nextIndex]);
+  const nextTemp = manualSnapTemps[nextIndex];
+  setManualBaselineTemp(nextTemp);
+  if (temperatureRiseEditMode && typeof onTemperatureRiseDraftBaselineChange === 'function') {
+    onTemperatureRiseDraftBaselineChange(nextTemp);
+  }
 }, [
   manualSnapTemps,
   getNearestManualSnapIndex,
   manualBaselineTemp,
   isFullScreen,
   forceLandscape,
+  onTemperatureRiseDraftBaselineChange,
+  temperatureRiseEditMode,
 ]);
   const handleManualBaselinePointerUp = useCallback((event) => {
     const state = manualDragRef.current;
@@ -461,19 +497,111 @@ manualDragRef.current = {
   activeSnapIndex: null,
 };
   }, []);
-  const [manualHandleStyle, setManualHandleStyle] = useState({
-  top: 0,
-  left: 0,
-  transform: 'translate(-50%, -50%)',
-  transformOrigin: 'center center',
-});
+const manualHandleRef = useRef(null);
+const manualPlusLabelRef = useRef(null);
+const roundMeasuredPx = (value) => (
+  Number.isFinite(value) ? Math.round(value * 2) / 2 : value
+);
 
-const [manualPlusLabelStyle, setManualPlusLabelStyle] = useState({
-  top: 0,
-  left: 0,
-  transform: 'translate(-50%, -50%)',
-  transformOrigin: 'center center',
-});
+const applyMeasuredStyle = (ref, nextStyle) => {
+  const node = ref.current;
+  if (!node) return;
+
+  const nextTop = roundMeasuredPx(nextStyle.top);
+  const nextLeft = roundMeasuredPx(nextStyle.left);
+  const style = node.style;
+
+  const topPx = `${nextTop}px`;
+  const leftPx = `${nextLeft}px`;
+
+  if (style.top !== topPx) style.top = topPx;
+  if (style.left !== leftPx) style.left = leftPx;
+  if (style.transform !== nextStyle.transform) style.transform = nextStyle.transform;
+  if (style.transformOrigin !== nextStyle.transformOrigin) {
+    style.transformOrigin = nextStyle.transformOrigin;
+  }
+  if (style.opacity !== '1') style.opacity = '1';
+};
+
+const temperatureRiseDraftFirstHighIndex = useMemo(() => {
+  if (!temperatureRiseEditMode || !temperatureRiseDraftFirstHighIsoDate) return null;
+  const index = allDataPoints.findIndex(
+    (point) => point?.isoDate === temperatureRiseDraftFirstHighIsoDate
+  );
+  return index >= 0 ? index : null;
+}, [allDataPoints, temperatureRiseDraftFirstHighIsoDate, temperatureRiseEditMode]);
+
+const fertileStartDraftIndex = useMemo(() => {
+  if (!fertileStartEditMode || !fertileStartDraftIsoDate) return null;
+  const index = allDataPoints.findIndex((point) => point?.isoDate === fertileStartDraftIsoDate);
+  return index >= 0 ? index : null;
+}, [allDataPoints, fertileStartDraftIsoDate, fertileStartEditMode]);
+
+const temperatureRiseDraftPreviewIndices = useMemo(() => {
+  if (!temperatureRiseEditMode || !temperatureRiseDraftEvaluation?.active) {
+    return [];
+  }
+
+  const sourceIndices = Array.isArray(temperatureRiseDraftEvaluation.sequenceDisplayIndices)
+    ? temperatureRiseDraftEvaluation.sequenceDisplayIndices
+    : Array.isArray(temperatureRiseDraftEvaluation.ovulationDetails?.sequenceDisplayIndices)
+      ? temperatureRiseDraftEvaluation.ovulationDetails.sequenceDisplayIndices
+      : [];
+
+  return sourceIndices.filter(
+    (index) => Number.isInteger(index) && index >= 0 && index < allDataPoints.length
+  );
+}, [
+  allDataPoints.length,
+  temperatureRiseDraftEvaluation,
+  temperatureRiseEditMode,
+]);
+
+const temperatureRiseDraftContextIndices = useMemo(
+  () =>
+    temperatureRiseEditMode && Array.isArray(temperatureRiseDraftSummary?.previousSixIndices)
+      ? temperatureRiseDraftSummary.previousSixIndices.filter(
+          (index) => Number.isInteger(index) && index >= 0 && index < allDataPoints.length
+        )
+      : [],
+  [allDataPoints.length, temperatureRiseDraftSummary, temperatureRiseEditMode]
+);
+
+const temperatureRiseDraftUsedIndices = useMemo(
+  () =>
+    new Set(
+      (temperatureRiseDraftEvaluation?.usedIndices ??
+        temperatureRiseDraftEvaluation?.ovulationDetails?.usedIndices ??
+        [])
+        .filter((index) => Number.isInteger(index))
+    ),
+  [temperatureRiseDraftEvaluation]
+);
+
+const temperatureRiseDraftWarningCodes = useMemo(
+  () =>
+    (temperatureRiseDraftEvaluation?.warnings ?? [])
+      .map((warning) => (typeof warning === 'string' ? warning : warning?.code))
+      .filter(Boolean),
+  [temperatureRiseDraftEvaluation]
+);
+
+const temperatureRiseDraftPreviousAboveBaselineIndices = useMemo(
+  () =>
+    new Set(
+      (temperatureRiseDraftEvaluation?.warnings ?? [])
+        .filter((warning) => warning?.code === 'baseline-below-previous-six')
+        .flatMap((warning) => (Array.isArray(warning?.indices) ? warning.indices : []))
+        .filter((index) => Number.isInteger(index))
+    ),
+  [temperatureRiseDraftEvaluation]
+);
+
+const temperatureRiseDraftIsOutOfRule =
+  temperatureRiseDraftEvaluation?.rule === 'no-cumple' ||
+  temperatureRiseDraftEvaluation?.status === 'invalid' ||
+  temperatureRiseDraftWarningCodes.includes('baseline-below-previous-six') ||
+  temperatureRiseDraftWarningCodes.includes('first-high-not-above-baseline');
 
 useEffect(() => {
   if (!manualModeEnabled || !Number.isFinite(manualBaselineY)) return undefined;
@@ -536,7 +664,7 @@ const localPlusY = Number.isFinite(manualBaselinePlusY)
     rightGap -
     buttonSize / 2;
 
-  setManualHandleStyle({
+  applyMeasuredStyle(manualHandleRef, {
     top: handleCenterTop,
     left: handleCenterLeft,
     transform: 'translate(-50%, -50%)',
@@ -549,7 +677,7 @@ const localPlusY = Number.isFinite(manualBaselinePlusY)
       Math.max(topGap + plusLabelHeight / 2, localPlusY)
     );
 
-    setManualPlusLabelStyle({
+    applyMeasuredStyle(manualPlusLabelRef, {
       top: scrollerRect.top - hostRect.top + clampedPlusCenterY,
       left: scrollerRect.right - hostRect.left - plusLabelRightGap,
       transform: 'translate(-50%, -50%)',
@@ -576,7 +704,7 @@ const handleCenterTop =
   bottomGap -
   buttonSize / 2;
 
-setManualHandleStyle({
+applyMeasuredStyle(manualHandleRef, {
   top: handleCenterTop,
   left: handleCenterLeft,
   transform: 'translate(-50%, -50%) rotate(90deg)',
@@ -589,7 +717,7 @@ if (Number.isFinite(localPlusY)) {
     Math.max(lateralGap + manualTempLabelHeight / 2, localPlusY)
   );
 
-  setManualPlusLabelStyle({
+  applyMeasuredStyle(manualPlusLabelRef, {
     top: scrollerRect.bottom - hostRect.top - plusLabelRightGap,
     left: scrollerRect.right - hostRect.left - clampedPlusHorizontalCenter,
     transform: 'translate(-50%, -50%) rotate(90deg)',
@@ -665,6 +793,36 @@ if (Number.isFinite(localPlusY)) {
       ? leftIndex
       : rightIndex;
   }, [allDataPoints, getX]);
+
+  const selectTemperatureRiseFirstHigh = useCallback((point, index, event) => {
+    if (!temperatureRiseEditMode) return false;
+    if (!point?.isoDate || !isPointEligibleForManualMode(point, index)) return true;
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    clearActivePoint();
+    onTemperatureRiseFirstHighSelect?.(point.isoDate);
+    return true;
+  }, [
+    clearActivePoint,
+    isPointEligibleForManualMode,
+    onTemperatureRiseFirstHighSelect,
+    temperatureRiseEditMode,
+  ]);
+
+  const selectFertileStartDraft = useCallback((point, index, event) => {
+    if (!fertileStartEditMode) return false;
+    if (!point?.isoDate) return true;
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    clearActivePoint();
+    onFertileStartDraftSelect?.(point.isoDate);
+    return true;
+  }, [
+    clearActivePoint,
+    fertileStartEditMode,
+    onFertileStartDraftSelect,
+  ]);
+
   const activateTooltipFromPointer = useCallback((event) => {
     if (exportMode) return;
 
@@ -710,6 +868,8 @@ if (isRotated) {
       : false;
     if (isFuture) return;
 
+  if (selectTemperatureRiseFirstHigh(point, index, event)) return;
+
   handlePointInteraction(point, index, event);
   }, [
     exportMode,
@@ -718,6 +878,7 @@ if (isRotated) {
     forceLandscape,
     getNearestDataIndexByX,
     allDataPoints,
+    selectTemperatureRiseFirstHigh,
     handlePointInteraction,
   ]);
 
@@ -800,7 +961,34 @@ if (isRotated) {
   const baselineY = baselineTemp != null ? getY(baselineTemp) : null;
   const hasPotentialRise = baselineTemp != null && Number.isFinite(firstHighIndex);
   const confirmedRise = Boolean(ovulationDetails?.confirmed);
-  const shouldRenderBaseline = baselineTemp != null && confirmedRise;
+  const isManualTemperatureRise = ovulationDetails?.source === 'manual';
+  const thermalRiseEditPalette = {
+    primary: '#dc3a24',
+    secondary: '#fb6a3c',
+    soft: 'rgba(220, 58, 36, 0.12)',
+    faint: 'rgba(251, 106, 60, 0.08)',
+    plus: '#fb6a3c',
+    text: '#b42318',
+    labelBg: 'rgba(220, 58, 36, 0.86)',
+    buttonBg: 'rgba(255, 247, 244, 0.9)',
+  };
+  const legacyManualPalette = {
+    primary: '#7c3aed',
+    secondary: '#a78bfa',
+    soft: 'rgba(124, 58, 237, 0.14)',
+    faint: 'rgba(124, 58, 237, 0.08)',
+    plus: '#a78bfa',
+    text: '#6d28d9',
+    labelBg: 'rgba(124, 58, 237, 0.8)',
+    buttonBg: 'rgba(255, 255, 255, 0.8)',
+  };
+  const manualVisualPalette = temperatureRiseEditMode
+    ? thermalRiseEditPalette
+    : legacyManualPalette;
+  const shouldRenderBaseline =
+    baselineTemp != null &&
+    (confirmedRise || isManualTemperatureRise) &&
+    (!temperatureRiseEditMode || showInterpretation);
 
   const baselineStartX = getX(0);
   const baselineEndX =
@@ -808,9 +996,13 @@ if (isRotated) {
       ? getX(allDataPoints.length - 1)
       : chartWidth - padding.right;
   const theme = getChartTheme();
-  const baselineStroke = confirmedRise ? theme.baseline.defaultStroke : theme.points.ignoredStroke;
-  const baselineDash = confirmedRise ? '6 4' : '4 4';
-  const baselineOpacity = confirmedRise ? 1 : 0.7;
+  const baselineStroke = isManualTemperatureRise
+    ? thermalRiseEditPalette.primary
+    : confirmedRise
+      ? theme.baseline.defaultStroke
+      : theme.points.ignoredStroke;
+  const baselineDash = isManualTemperatureRise ? '7 5' : confirmedRise ? '6 4' : '4 4';
+  const baselineOpacity = (confirmedRise || isManualTemperatureRise ? 1 : 0.7) * interpretationLayerOpacity;
   const baselineWidth = 3;
   const isLoading = chartWidth === 0;
 
@@ -995,7 +1187,7 @@ if (isRotated) {
       : 0;
 
   const postOvulatoryPhaseInfo = useMemo(() => {
-    if (!showInterpretation || !hasAnyObservation) return null;
+    if (!effectiveShowInterpretation || !hasAnyObservation) return null;
 
     const debug = fertilityStart?.debug;
     const mucusStartIndex = Number.isInteger(debug?.mucusInfertileStartIndex)
@@ -1034,6 +1226,9 @@ if (isRotated) {
     const temperatureDetails = {
   confirmed: Boolean(ovulationDetails?.confirmed),
   rule: ovulationDetails?.rule ?? null,
+  source: ovulationDetails?.source ?? null,
+  status: ovulationDetails?.status ?? null,
+  firstHighIsoDate: ovulationDetails?.firstHighIsoDate ?? null,
   baselineTemp: ovulationDetails?.baselineTemp ?? null,
   baselineIndices: Array.isArray(ovulationDetails?.baselineIndices)
     ? ovulationDetails.baselineIndices
@@ -1204,7 +1399,7 @@ source: status === 'absolute' ? 'absolute' : estimatedSource,
       tooltip,
     };
   }, [
-    showInterpretation,
+    effectiveShowInterpretation,
     hasAnyObservation,
     ovulationDetails,
     fertilityStart,
@@ -1212,7 +1407,7 @@ source: status === 'absolute' ? 'absolute' : estimatedSource,
 
   const interpretationSegments = useMemo(() => {
     if (
-      !showInterpretation ||
+      !effectiveShowInterpretation ||
       chartAreaHeight <= 0 ||
       interpretationBandTop == null ||
       interpretationBandHeight <= 0 ||
@@ -1239,10 +1434,11 @@ source: status === 'absolute' ? 'absolute' : estimatedSource,
       const absoluteInfo = postOvulatoryPhaseInfo.absolute ?? postOvulatoryPhaseInfo;
 
       const absoluteSegmentStart = absStart != null ? absStart : postStart;
-      const renderEnd =
-        postOvulatoryPhaseInfo.status === 'absolute'
-          ? lastIndex
-          : Math.min(lastIndex, renderLimit);
+      const renderEnd = Math.min(lastIndex, renderLimit);
+
+      if (renderEnd < postStart) {
+        return;
+      }
 
       if (absStart != null && absStart > postStart) {
         const pendingEnd = Math.min(absStart - 1, renderLimit);
@@ -1288,6 +1484,23 @@ source: status === 'absolute' ? 'absolute' : estimatedSource,
     };
     const hasFertileStart = Number.isInteger(fertileStartFinalIndex);
     const hasPostPhase = Number.isFinite(postOvulatoryPhaseInfo?.startIndex);
+    const manualFertileStartIndex = Number.isInteger(fertilityStart?.fertileStartOverride?.index)
+  ? fertilityStart.fertileStartOverride.index
+  : Number.isInteger(fertilityStart?.debug?.fertileStartOverride?.index)
+    ? fertilityStart.debug.fertileStartOverride.index
+    : null;
+const hasManualFertileStart = Number.isInteger(manualFertileStartIndex);
+const manualFertileStartInfo = hasManualFertileStart
+  ? {
+      mode: 'manual',
+      index: manualFertileStartIndex,
+      isoDate:
+        fertilityStart?.fertileStartOverride?.isoDate ??
+        fertilityStart?.debug?.fertileStartOverride?.isoDate ??
+        allDataPoints[manualFertileStartIndex]?.isoDate ??
+        null,
+    }
+  : null;
 
     // Mientras NO haya ni inicio fértil (CPM / T-8 / perfiles / marcador)
     // ni fase postovulatoria, todo lo registrado se considera
@@ -1368,22 +1581,27 @@ source: status === 'absolute' ? 'absolute' : estimatedSource,
         const bounds = getSegmentBounds(0, endIndex);
         if (bounds) {
           segments.push({
-            key: 'relative',
-            phase: 'relativeInfertile',
-            status: 'default',
-            bounds,
-            startIndex: 0,
-            endIndex,
-            displayLabel: 'Relativamente infértil',
-            tooltip: 'Relativamente infértil (fase relativamente infértil preovulatoria)',
-            message: 'Relativamente infértil',
-            reasons: {
-              type: 'relative',
-              fertileStartFinalIndex,
-              aggregate: fertilityStart?.aggregate ?? null,
-              bipScore: fertilityStart?.debug?.bipScore ?? null,
-            },
-          });
+  key: 'relative',
+  phase: 'relativeInfertile',
+  status: hasManualFertileStart ? 'manual-boundary' : 'default',
+  source: hasManualFertileStart ? 'manual' : null,
+  bounds,
+  startIndex: 0,
+  endIndex,
+  displayLabel: 'Relativamente infértil',
+  tooltip: hasManualFertileStart
+    ? 'Relativamente infértil hasta el inicio fértil ajustado manualmente'
+    : 'Relativamente infértil (fase relativamente infértil preovulatoria)',
+  message: 'Relativamente infértil',
+  reasons: {
+    type: 'relative',
+    source: hasManualFertileStart ? 'manual' : null,
+    fertileStartFinalIndex,
+    fertileStartOverride: manualFertileStartInfo,
+    aggregate: fertilityStart?.aggregate ?? null,
+    bipScore: fertilityStart?.debug?.bipScore ?? null,
+  },
+});
         }
       }
     }
@@ -1400,7 +1618,7 @@ source: status === 'absolute' ? 'absolute' : estimatedSource,
 
     const fertileSegmentEnd = Math.min(fertileEndIndex, phaseRenderLimit);
 
-    if (fertileSegmentEnd >= fertileStartIndex) {
+    if (!hasManualFertileStart && fertileSegmentEnd >= fertileStartIndex) {
       const bounds = getSegmentBounds(fertileStartIndex, fertileSegmentEnd);
       if (bounds) {
         const explicitDay = Number.isInteger(fertilityStart?.debug?.explicitStartDay)
@@ -1448,12 +1666,96 @@ source: status === 'absolute' ? 'absolute' : estimatedSource,
       Number.isFinite(postOvulatoryPhaseInfo.startIndex) &&
       postOvulatoryPhaseInfo.startIndex <= lastIndex
     ) {
-      appendPostSegments(segments, phaseRenderLimit);
-    }
+      const postRenderLimit =
+    hasManualFertileStart &&
+    Number.isInteger(manualFertileStartIndex) &&
+    manualFertileStartIndex >= postOvulatoryPhaseInfo.startIndex
+      ? Math.min(phaseRenderLimit, manualFertileStartIndex - 1)
+      : phaseRenderLimit;
 
+  if (postRenderLimit >= postOvulatoryPhaseInfo.startIndex) {
+    appendPostSegments(segments, postRenderLimit);
+  }
+    }
+if (
+  hasManualFertileStart &&
+  Number.isInteger(manualFertileStartIndex) &&
+  manualFertileStartIndex <= phaseRenderLimit
+) {
+  const manualStart = Math.max(manualFertileStartIndex, 0);
+  const manualEnd =
+    Number.isFinite(postPhaseStart) &&
+    manualStart < postPhaseStart
+      ? Math.min(postPhaseStart - 1, phaseRenderLimit)
+      : phaseRenderLimit;
+
+  if (manualEnd >= manualStart) {
+    const manualBounds = getSegmentBounds(manualStart, manualEnd);
+    if (manualBounds) {
+      const mucusClosureIndex = Number.isInteger(fertilityStart?.debug?.mucusInfertileStartIndex)
+        ? fertilityStart.debug.mucusInfertileStartIndex
+        : Number.isInteger(fertilityStart?.fertileWindow?.mucusInfertileStartIndex)
+          ? fertilityStart.fertileWindow.mucusInfertileStartIndex
+          : Number.isInteger(postOvulatoryPhaseInfo?.reasons?.mucus?.startIndex)
+            ? postOvulatoryPhaseInfo.reasons.mucus.startIndex
+            : null;
+      const temperatureClosureIndex = Number.isInteger(
+        fertilityStart?.fertileWindow?.temperatureInfertileStartIndex
+      )
+        ? fertilityStart.fertileWindow.temperatureInfertileStartIndex
+        : Number.isInteger(fertilityStart?.debug?.temperatureInfertileStartIndex)
+          ? fertilityStart.debug.temperatureInfertileStartIndex
+          : Number.isInteger(fertilityStart?.debug?.temperatureInfertileIndex)
+            ? fertilityStart.debug.temperatureInfertileIndex
+            : Number.isInteger(postOvulatoryPhaseInfo?.reasons?.temperature?.startIndex)
+              ? postOvulatoryPhaseInfo.reasons.temperature.startIndex
+              : null;
+      const absoluteClosureIndex = Number.isInteger(postOvulatoryPhaseInfo?.absoluteStartIndex)
+        ? postOvulatoryPhaseInfo.absoluteStartIndex
+        : Number.isInteger(fertilityStart?.debug?.absoluteStartIndex)
+          ? fertilityStart.debug.absoluteStartIndex
+          : null;
+      const manualFertileWarnings = [];
+
+      if (Number.isInteger(absoluteClosureIndex) && manualStart >= absoluteClosureIndex) {
+        manualFertileWarnings.push('manual-after-absolute-closure');
+      } else if (Number.isInteger(mucusClosureIndex) && manualStart >= mucusClosureIndex) {
+        manualFertileWarnings.push('manual-after-mucus-closure');
+      }
+
+      if (Number.isInteger(temperatureClosureIndex) && manualStart >= temperatureClosureIndex) {
+        manualFertileWarnings.push('manual-after-temperature-closure');
+      }
+
+      segments.push({
+        key: 'fertile-manual',
+        phase: 'fertile',
+        status: 'manual',
+        source: 'manual',
+        warnings: manualFertileWarnings,
+        bounds: manualBounds,
+        startIndex: manualStart,
+        endIndex: manualEnd,
+        displayLabel: 'Fértil manual',
+        tooltip: 'Fase fértil ajustada manualmente.',
+        message: 'Fértil manual',
+        reasons: {
+          type: 'fertile',
+          source: 'manual',
+          startIndex: manualStart,
+          endIndex: manualEnd,
+          details: fertilityStart?.debug ?? null,
+          window: fertilityStart?.fertileWindow ?? null,
+          aggregate: fertilityStart?.aggregate ?? null,
+          warnings: manualFertileWarnings,
+        },
+      });
+    }
+  }
+}
     return segments;
   }, [
-    showInterpretation,
+    effectiveShowInterpretation,
     chartAreaHeight,
     interpretationBandTop,
     interpretationBandHeight,
@@ -1545,7 +1847,7 @@ source: status === 'absolute' ? 'absolute' : estimatedSource,
   const phaseTextShadow = '0 1px 1px var(--phase-text-shadow, rgba(15, 23, 42, 0.2))';
 
   const temperatureRiseHighlightPath = useMemo(() => {
-    if (!showInterpretation || !ovulationDetails?.confirmed) return null;
+    if (!effectiveShowInterpretation || !ovulationDetails?.confirmed) return null;
     const indices = Array.isArray(ovulationDetails?.highSequenceIndices)
       ? ovulationDetails.highSequenceIndices
       : [];
@@ -1568,7 +1870,7 @@ source: status === 'absolute' ? 'absolute' : estimatedSource,
       .map(({ x, y }, index) => `${index === 0 ? 'M' : 'L'} ${x} ${y}`)
       .join(' ');
   }, [
-    showInterpretation,
+    effectiveShowInterpretation,
     ovulationDetails,
     allDataPoints,
     validDataMap,
@@ -1762,7 +2064,13 @@ const rotationWrapperStyle = rotationStageStyle
     ? `${baseFullClass} h-full overflow-x-auto ${allowVerticalScroll ? 'overflow-y-auto' : 'overflow-y-hidden'}`
     : `${baseFullClass} overflow-x-auto ${allowVerticalScroll ? 'overflow-y-auto' : 'overflow-y-hidden'} border border-pink-100/50`;
   const showLegend = true;
-  const handlePointInteractionSafe = exportMode ? () => {} : handlePointInteraction;
+  const handlePointInteractionSafe = exportMode
+    ? () => {}
+    : (point, index, event) => {
+        if (selectTemperatureRiseFirstHigh(point, index, event)) return;
+        if (selectFertileStartDraft(point, index, event)) return;
+        handlePointInteraction(point, index, event);
+      };
   const showCanvasOverlay =
   chartWidth > 0 && chartHeight > 0 && scrollableContentHeight > 0;
   return (
@@ -1844,7 +2152,8 @@ const rotationWrapperStyle = rotationStageStyle
   getX={getX}
   getY={getY}
   responsiveFontSize={responsiveFontSize}
-  showInterpretation={showInterpretation}
+  showInterpretation={effectiveShowInterpretation}
+  interpretationOpacity={interpretationLayerOpacity}
   interpretationSegments={interpretationSegments}
   shouldRenderBaseline={shouldRenderBaseline}
   baselineY={baselineY}
@@ -1978,11 +2287,11 @@ const rotationWrapperStyle = rotationStageStyle
             />
           )}
 
-          {showInterpretation &&
+          {effectiveShowInterpretation &&
             interpretationSegments.length > 0 &&
             interpretationBandTop != null &&
             interpretationBandHeight > 0 && (
-              <g>
+              <g opacity={interpretationLayerOpacity}>
                 {interpretationSegments.map((segment) => {
                   const rectY = interpretationBandTop;
                   const rectHeight = interpretationBandHeight;
@@ -2011,19 +2320,23 @@ const rotationWrapperStyle = rotationStageStyle
                     if (typeof event?.stopPropagation === 'function') {
                       event.stopPropagation();
                     }
-                    if (typeof onShowPhaseInfo === 'function') {
-                      onShowPhaseInfo({
-  phase: segment.phase,
-  status: segment.status,
-  source: segment.source ?? null,
-  reasons: segment.reasons,
-  message: segment.message,
-  startIndex: segment.startIndex,
-  endIndex: segment.endIndex,
-  limitIndex: phaseInfoLimitIndex,
-  label: segment.displayLabel ?? segment.message ?? null,
-});
-                    }
+                    clearActivePoint();
+
+                  if (typeof onShowPhaseInfo === 'function') {
+                    onShowPhaseInfo({
+                      phase: segment.phase,
+                      status: segment.status,
+                      source: segment.source ?? null,
+                      reasons: segment.reasons,
+                      message: segment.message,
+                      startIndex: segment.startIndex,
+                      endIndex: segment.endIndex,
+                      limitIndex: phaseInfoLimitIndex,
+                      displayLabel: segment.displayLabel ?? null,
+                      warnings: segment.warnings ?? segment.reasons?.warnings ?? [],
+                      label: segment.displayLabel ?? segment.message ?? null,
+                    });
+                  }
                   };
                   const handleKeyDown = (event) => {
                     if (event.key === 'Enter' || event.key === ' ') {
@@ -2091,6 +2404,162 @@ const rotationWrapperStyle = rotationStageStyle
                 })}
               </g>
             )}
+
+          {fertileStartEditMode && Number.isInteger(fertileStartDraftIndex) && (
+            <g pointerEvents="none">
+              <rect
+                x={getX(fertileStartDraftIndex) - 13}
+                y={padding.top}
+                width={26}
+                height={Math.max(0, graphBottomY - padding.top)}
+                rx={6}
+                fill="rgba(157, 23, 77, 0.12)"
+                stroke="rgba(157, 23, 77, 0.42)"
+                strokeWidth={1}
+              />
+              <line
+                x1={getX(fertileStartDraftIndex)}
+                x2={getX(fertileStartDraftIndex)}
+                y1={padding.top}
+                y2={graphBottomY}
+                stroke="#9D174D"
+                strokeWidth={1.8}
+                strokeDasharray="5 5"
+                opacity={0.9}
+              />
+              <text
+                x={getX(fertileStartDraftIndex)}
+                y={Math.max(16, padding.top + 12)}
+                textAnchor="middle"
+                fontSize={Math.max(responsiveFontSize(0.72), isFullScreen ? 10 : 9)}
+                fontWeight={800}
+                fill="#9D174D"
+                stroke="#fff"
+                strokeWidth={2}
+                paintOrder="stroke"
+              >
+                Inicio fértil
+              </text>
+            </g>
+          )}
+
+          {temperatureRiseEditMode && temperatureRiseDraftPreviewIndices.length > 0 && (
+            <g pointerEvents="none">
+              {temperatureRiseDraftContextIndices.map((index, position) => {
+                const point = allDataPoints[index];
+                const temp = point?.displayTemperature;
+                if (!Number.isFinite(temp)) return null;
+                const isAboveManualBaseline =
+                  temperatureRiseDraftPreviousAboveBaselineIndices.has(index) ||
+                  (Number.isFinite(manualBaselineTemp) && temp > manualBaselineTemp);
+                const contextStroke = isAboveManualBaseline
+                  ? 'rgba(245, 158, 11, 0.72)'
+                  : 'rgba(100, 116, 139, 0.55)';
+                const contextFill = isAboveManualBaseline
+                  ? 'rgba(245, 158, 11, 0.12)'
+                  : 'rgba(148, 163, 184, 0.1)';
+                const contextText = isAboveManualBaseline ? '#b45309' : '#64748b';
+                const contextLabel = temperatureRiseDraftContextIndices.length - position;
+                return (
+                  <g key={`temperature-rise-context-${index}`}>
+                    <circle
+                      cx={getX(index)}
+                      cy={getY(temp)}
+                      r={4.8}
+                      fill={contextFill}
+                      stroke={contextStroke}
+                      strokeWidth={1}
+                    />
+                    <text
+                      x={getX(index)}
+                      y={getY(temp) + 20}
+                      textAnchor="middle"
+                      fontSize={Math.max(responsiveFontSize(0.62), isFullScreen ? 8 : 7)}
+                      fontWeight={700}
+                      fill={contextText}
+                      stroke="#fff"
+                      strokeWidth={1.6}
+                      paintOrder="stroke"
+                    >
+                      {contextLabel}
+                    </text>
+                  </g>
+                );
+              })}
+              {temperatureRiseDraftPreviewIndices.map((index, position) => {
+                const point = allDataPoints[index];
+                const temp = point?.displayTemperature;
+                if (!Number.isFinite(temp)) return null;
+                const isFirstHigh = index === temperatureRiseDraftFirstHighIndex;
+                const isConfirmation =
+                  index === temperatureRiseDraftEvaluation?.confirmationIndex ||
+                  index === temperatureRiseDraftEvaluation?.ovulationDetails?.confirmationIndex;
+                const isInvalid = temperatureRiseDraftIsOutOfRule;
+                const isPending =
+                  temperatureRiseDraftEvaluation?.status === 'pending' ||
+                  temperatureRiseDraftEvaluation?.status === 'insufficient';
+                const isUsed = temperatureRiseDraftUsedIndices.has(index);
+                const label = `${position + 1}`;
+                const stroke = isInvalid
+                  ? '#f59e0b'
+                  : isPending
+                    ? thermalRiseEditPalette.secondary
+                    : thermalRiseEditPalette.primary;
+                const fill = isInvalid
+                  ? 'rgba(245, 158, 11, 0.12)'
+                  : isPending
+                    ? thermalRiseEditPalette.faint
+                    : thermalRiseEditPalette.soft;
+                return (
+                  <g key={`temperature-rise-draft-${index}`}>
+                    <circle
+                      cx={getX(index)}
+                      cy={getY(temp)}
+                      r={isFirstHigh ? 9 : 6}
+                      fill={fill}
+                      stroke={stroke}
+                      strokeWidth={isConfirmation ? 3 : isFirstHigh ? 2.2 : 1.4}
+                      strokeDasharray={isInvalid || isPending ? '3 3' : undefined}
+                      opacity={isUsed || isFirstHigh ? 1 : 0.62}
+                    />
+                    <text
+                      x={getX(index)}
+                      y={Math.max(12, getY(temp) - (isFirstHigh ? 24 : 20))}
+                      textAnchor="middle"
+                      fontSize={Math.max(responsiveFontSize(0.72), isFullScreen ? 10 : 8.5)}
+                      fontWeight={800}
+                      fill={isInvalid ? '#b45309' : thermalRiseEditPalette.text}
+                      stroke="#fff"
+                      strokeWidth={1.8}
+                      paintOrder="stroke"
+                    >
+                      {label}
+                    </text>
+                  </g>
+                );
+              })}
+              {temperatureRiseDraftEvaluation?.status === 'invalid' &&
+                Number.isInteger(temperatureRiseDraftFirstHighIndex) &&
+                Number.isFinite(allDataPoints[temperatureRiseDraftFirstHighIndex]?.displayTemperature) && (
+                  <text
+                    x={getX(temperatureRiseDraftFirstHighIndex)}
+                    y={Math.max(
+                      18,
+                      getY(allDataPoints[temperatureRiseDraftFirstHighIndex].displayTemperature) - 38
+                    )}
+                    textAnchor="middle"
+                    fontSize={Math.max(responsiveFontSize(0.72), isFullScreen ? 10 : 9)}
+                    fontWeight={800}
+                    fill="#b45309"
+                    stroke="#fff"
+                    strokeWidth={2}
+                    paintOrder="stroke"
+                  >
+                    No confirma
+                  </text>
+                )}
+            </g>
+          )}
   
           {manualModeEnabled && Number.isFinite(manualBaselineY) && (
   <g pointerEvents="none">
@@ -2100,7 +2569,7 @@ const rotationWrapperStyle = rotationStageStyle
         x2={baselineEndX}
         y1={manualBaselinePlusY}
         y2={manualBaselinePlusY}
-        stroke="#a78bfa"
+        stroke={manualVisualPalette.secondary}
         strokeWidth={1}
         strokeDasharray="3 6"
         opacity={0.38}
@@ -2112,7 +2581,7 @@ const rotationWrapperStyle = rotationStageStyle
       x2={baselineEndX}
       y1={manualBaselineY}
       y2={manualBaselineY}
-      stroke="#7c3aed"
+      stroke={manualVisualPalette.primary}
       strokeWidth={2.2}
       strokeDasharray="7 5"
       opacity={0.92}
@@ -2185,26 +2654,35 @@ const rotationWrapperStyle = rotationStageStyle
   <div className="pointer-events-none absolute inset-0 z-30">
     {Number.isFinite(manualBaselinePlusTemp) && Number.isFinite(manualBaselinePlusY) && (
       <div
-        className="absolute whitespace-nowrap rounded-full bg-white/80 px-1.5 py-0.5 text-[9px] font-semibold text-violet-500"
-        style={manualPlusLabelStyle}
+        ref={manualPlusLabelRef}
+        className="absolute whitespace-nowrap rounded-full bg-white/80 px-1.5 py-0.5 text-[9px] font-semibold opacity-0"
+        style={{ color: manualVisualPalette.plus }}
       >
-        <span className="text-violet-400 font-semibold">+0.2 · </span>
+        <span className="font-semibold">+0.2 · </span>
         <span>({manualBaselinePlusTemp.toFixed(2)}°)</span>
       </div>
     )}
 
     <div
-      className="absolute h-10 w-10"
-      style={manualHandleStyle}
+      ref={manualHandleRef}
+      className="absolute h-10 w-10 opacity-0"
     >
-      <div className="absolute right-[46px] top-1/2 -translate-y-1/2 whitespace-nowrap rounded-full bg-violet-600/80 px-1.5 py-0.5 text-[11px] font-bold text-white shadow-md">
+      <div
+        className="absolute right-[46px] top-1/2 -translate-y-1/2 whitespace-nowrap rounded-full px-1.5 py-0.5 text-[11px] font-bold text-white shadow-md"
+        style={{ backgroundColor: manualVisualPalette.labelBg }}
+      >
         {manualBaselineTemp.toFixed(2)}° 
       </div>
 
       <button
   type="button"
-  className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full border border-violet-500 bg-white/80 text-violet-700 shadow-lg select-none"
-  style={{ touchAction: 'none' }}
+  className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full border shadow-lg select-none"
+  style={{
+    touchAction: 'none',
+    borderColor: manualVisualPalette.primary,
+    backgroundColor: manualVisualPalette.buttonBg,
+    color: manualVisualPalette.primary,
+  }}
   onPointerDown={handleManualBaselinePointerDown}
   onPointerMove={handleManualBaselinePointerMove}
   onPointerUp={handleManualBaselinePointerUp}

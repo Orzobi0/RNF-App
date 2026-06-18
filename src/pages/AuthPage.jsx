@@ -1,25 +1,48 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { getAuthErrorMessage } from '@/lib/authErrorMessages';
 import { motion } from 'framer-motion';
 import { LogIn, UserPlus, Mail, KeyRound, Eye, EyeOff } from 'lucide-react';
 import InstallPrompt from '@/components/InstallPrompt';
+
 const AuthPage = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [resetEmail, setResetEmail] = useState('');
+  const [showResetDialog, setShowResetDialog] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const { login, register, resetPassword } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
   const forceInstallPrompt = import.meta.env.VITE_FORCE_INSTALL_PROMPT === 'true';
+
+  const authNotice =
+    searchParams.get('verified') === '1'
+      ? 'Correo verificado. Ya puedes iniciar sesión.'
+      : searchParams.get('reset') === '1'
+        ? 'Contraseña actualizada. Inicia sesión con tu nueva contraseña.'
+        : searchParams.get('emailUpdated') === '1'
+          ? 'Correo actualizado. Inicia sesión con tu nuevo correo si es necesario.'
+          : '';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -27,18 +50,22 @@ const AuthPage = () => {
     try {
       if (isLogin) {
         await login(email, password);
-        toast({ title: 'Inicio de sesión exitoso', description: 'Bienvenida de nuevo.' });
         navigate('/');
       } else {
         if (password !== confirmPassword) {
-          toast({ title: 'Error de registro', description: 'Las contraseñas no coinciden.', variant: 'destructive' });
+          toast({
+            title: 'Revisa las contraseñas',
+            description: 'Las contraseñas no coinciden.',
+            variant: 'destructive',
+          });
           setLoading(false);
           return;
         }
         await register(email, password);
         toast({
           title: 'Verificación requerida',
-          description: 'Hemos enviado un correo de verificación. Revisa tu bandeja de entrada para activar tu cuenta.',
+          description:
+            'Te hemos enviado un correo de verificación. Revisa también la carpeta de spam o correo no deseado.',
         });
         setIsLogin(true);
         setPassword('');
@@ -47,54 +74,82 @@ const AuthPage = () => {
       setLoading(false);
     } catch (error) {
       toast({
-        title: isLogin ? 'Error al iniciar sesión' : 'Error al registrarse',
-        description: error.message,
-        variant: 'destructive'
+        title: isLogin ? 'No se pudo iniciar sesión' : 'No se pudo crear la cuenta',
+        description: getAuthErrorMessage(error),
+        variant: 'destructive',
       });
       setLoading(false);
     }
   };
 
-  const handleResetPassword = async () => {
-    if (!email) {
+  const handleOpenResetDialog = () => {
+    setResetEmail(email);
+    setShowResetDialog(true);
+  };
+
+  const handleResetPassword = async (event) => {
+    event.preventDefault();
+    const emailToReset = resetEmail.trim();
+
+    if (!emailToReset) {
       toast({
         title: 'Correo requerido',
         description: 'Introduce tu correo para restablecer la contraseña.',
-        variant: 'destructive'
+        variant: 'destructive',
       });
       return;
     }
+    setResetLoading(true);
     try {
-      await resetPassword(email);
-      toast({ title: 'Correo enviado', description: 'Revisa tu bandeja para restablecer la contraseña.' });
+      await resetPassword(emailToReset);
+      setShowResetDialog(false);
+      toast({
+        title: 'Revisa tu correo',
+        description:
+          'Si existe una cuenta con ese correo, te enviaremos un enlace para restablecer la contraseña. Revisa también spam o correo no deseado.',
+      });
     } catch (error) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      toast({
+        title: 'No se pudo solicitar el enlace',
+        description: getAuthErrorMessage(error),
+        variant: 'destructive',
+      });
+    } finally {
+      setResetLoading(false);
     }
   };
 
   return (
     <div className="relative flex h-app flex-col items-center justify-center p-4">
       <motion.div
-        className="w-full max-w-md bg-white/80 backdrop-blur-md shadow-xl rounded-3xl p-8 sm:p-10"
+        className="w-full max-w-md rounded-3xl bg-white/80 p-8 shadow-xl backdrop-blur-md sm:p-10"
         initial={{ opacity: 0, y: -30 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, ease: 'easeOut' }}
       >
-        <div className="text-center mb-8">
+        <div className="mb-8 text-center">
           <motion.h1
-            className="text-3xl sm:text-4xl font-bold bg-clip-text text-transparent bg-fertiliapp py-2 mb-2"
+            className="mb-2 bg-fertiliapp bg-clip-text py-2 text-3xl font-bold text-transparent sm:text-4xl"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.2, duration: 0.5 }}
           >
             FertiliApp
           </motion.h1>
-          <p className="text-gray-600 text-lg">{isLogin ? 'Inicia sesión para continuar' : 'Crea tu cuenta'}</p>
+          <p className="text-lg text-gray-600">
+            {isLogin ? 'Inicia sesión para continuar' : 'Crea tu cuenta'}
+          </p>
         </div>
+
+        {authNotice ? (
+          <div className="mb-6 rounded-2xl border border-fertiliapp-suave bg-tarjeta px-4 py-3 text-sm font-medium text-fertiliapp-fuerte">
+            {authNotice}
+          </div>
+        ) : null}
 
         <form onSubmit={handleSubmit} className="space-y-6" autoComplete="on">
           <div className="space-y-2">
-            <Label htmlFor="email" className="flex items-center text-gray-700 text-lg">
+            <Label htmlFor="email" className="flex items-center text-lg text-gray-700">
               <Mail className="mr-2 h-5 w-5 text-fertiliapp-fuerte" /> Correo Electrónico
             </Label>
             <Input
@@ -110,85 +165,89 @@ const AuthPage = () => {
               autoCorrect="off"
               spellCheck={false}
               required
-              className="bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400 rounded-3xl focus:ring-fertiliapp-fuerte focus:border-fertiliapp-fuerte py-3 px-4"
+              className="rounded-3xl border-gray-200 bg-gray-50 px-4 py-3 text-gray-800 placeholder-gray-400 focus:border-fertiliapp-fuerte focus:ring-fertiliapp-fuerte"
             />
           </div>
-            <div className="space-y-2">
-              <Label htmlFor="password" className="flex items-center text-gray-700 text-lg">
-                <KeyRound className="mr-2 h-5 w-5 text-fertiliapp-fuerte" /> Contraseña
-              </Label>
-              <div className="relative">
-                <Input
-                  id="password"
-                  name="password"
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  autoComplete={isLogin ? "current-password" : "new-password"}
-                  required
-                  className="bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400 rounded-3xl focus:ring-fertiliapp-fuerte focus:border-fertiliapp-fuerte py-3 px-4 pr-10"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-3 flex items-center text-gray-500"
-                  aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-                >
-                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                </button>
-              </div>
+          <div className="space-y-2">
+            <Label htmlFor="password" className="flex items-center text-lg text-gray-700">
+              <KeyRound className="mr-2 h-5 w-5 text-fertiliapp-fuerte" /> Contraseña
+            </Label>
+            <div className="relative">
+              <Input
+                id="password"
+                name="password"
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                autoComplete={isLogin ? 'current-password' : 'new-password'}
+                required
+                className="rounded-3xl border-gray-200 bg-gray-50 px-4 py-3 pr-10 text-gray-800 placeholder-gray-400 focus:border-fertiliapp-fuerte focus:ring-fertiliapp-fuerte"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute inset-y-0 right-3 flex items-center text-gray-500"
+                aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+              >
+                {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+              </button>
             </div>
+          </div>
 
           {isLogin && (
             <div className="text-right">
               <Button
                 variant="link"
-                                type="button"
-                onClick={handleResetPassword}
-                className="text-pink-600 hover:text-pink-500 text-sm"
+                type="button"
+                onClick={handleOpenResetDialog}
+                className="text-sm text-fertiliapp-fuerte hover:text-fertiliapp"
               >
                 ¿Olvidaste tu contraseña?
               </Button>
             </div>
           )}
 
-            {!isLogin && (
-              <div className="space-y-2">
-                <Label htmlFor="confirmPassword" className="flex items-center text-gray-700 text-lg">
-                  <KeyRound className="mr-2 h-5 w-5 text-fertiliapp-fuerte" /> Confirmar Contraseña
-                </Label>
-                <div className="relative">
-                  <Input
-                    id="confirmPassword"
-                    name="confirmPassword"
-                    type={showConfirmPassword ? 'text' : 'password'}
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="••••••••"
-                    autoComplete="new-password"
-                    required
-                    className="bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400 focus:ring-fertiliapp-fuerte focus:border-fertiliapp-fuerte py-3 px-4 pr-10"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute inset-y-0 right-3 flex items-center text-gray-500"
-                    aria-label={showConfirmPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-                  >
-                    {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                  </button>
-                </div>
+          {!isLogin && (
+            <div className="space-y-2">
+              <Label htmlFor="confirmPassword" className="flex items-center text-lg text-gray-700">
+                <KeyRound className="mr-2 h-5 w-5 text-fertiliapp-fuerte" /> Confirmar Contraseña
+              </Label>
+              <div className="relative">
+                <Input
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="••••••••"
+                  autoComplete="new-password"
+                  required
+                  className="rounded-3xl border-gray-200 bg-gray-50 px-4 py-3 pr-10 text-gray-800 placeholder-gray-400 focus:border-fertiliapp-fuerte focus:ring-fertiliapp-fuerte"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute inset-y-0 right-3 flex items-center text-gray-500"
+                  aria-label={showConfirmPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                >
+                  {showConfirmPassword ? (
+                    <EyeOff className="h-5 w-5" />
+                  ) : (
+                    <Eye className="h-5 w-5" />
+                  )}
+                </button>
               </div>
-            )}
+            </div>
+          )}
 
           <Button
             type="submit"
             disabled={loading}
-            className="w-full bg-fertiliapp-fuerte hover:brightness-95 text-white font-semibold py-3 text-lg shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105 flex items-center justify-center"
+            className="flex w-full transform items-center justify-center bg-fertiliapp-fuerte py-3 text-lg font-semibold text-white shadow-md transition-all duration-300 hover:scale-105 hover:brightness-95 hover:shadow-lg"
           >
             {loading ? (
-              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+              <div className="h-5 w-5 animate-spin rounded-full border-b-2 border-white"></div>
             ) : isLogin ? (
               <>
                 <LogIn className="mr-2 h-5 w-5" /> Iniciar Sesión
@@ -210,15 +269,68 @@ const AuthPage = () => {
           <Button
             variant="link"
             onClick={() => setIsLogin(!isLogin)}
-            className="text-pink-600 hover:text-pink-500 text-base"
+            className="text-base text-fertiliapp-fuerte hover:text-fertiliapp"
           >
             {isLogin ? '¿No tienes cuenta? Regístrate' : '¿Ya tienes cuenta? Inicia sesión'}
           </Button>
         </div>
       </motion.div>
-      <footer className="w-full max-w-md mt-12 text-center text-gray-500 text-sm">
+      <footer className="mt-12 w-full max-w-md text-center text-sm text-gray-500">
         <p>&copy; {new Date().getFullYear()} FertiliApp. Todos los derechos reservados.</p>
       </footer>
+
+      <Dialog open={showResetDialog} onOpenChange={setShowResetDialog}>
+        <DialogContent className="w-[calc(100%-2rem)] rounded-3xl border border-fertiliapp-suave bg-white/95 sm:max-w-md">
+          <form onSubmit={handleResetPassword} className="space-y-4" autoComplete="on">
+            <DialogHeader>
+              <DialogTitle className="text-titulo">Restablecer contraseña</DialogTitle>
+              <DialogDescription>
+                Introduce tu correo y te enviaremos un enlace si existe una cuenta asociada.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-2">
+              <Label htmlFor="reset-email" className="text-sm font-semibold text-titulo">
+                Correo electrónico
+              </Label>
+              <Input
+                id="reset-email"
+                name="reset-email"
+                type="email"
+                value={resetEmail}
+                onChange={(event) => setResetEmail(event.target.value)}
+                placeholder="tu@email.com"
+                autoComplete="email"
+                inputMode="email"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                required
+                className="rounded-3xl border-fertiliapp-suave bg-gray-50 px-4 py-3 text-gray-800 placeholder-gray-400 focus:border-fertiliapp-fuerte focus:ring-fertiliapp-fuerte"
+              />
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowResetDialog(false)}
+                disabled={resetLoading}
+                className="min-h-11 border-fertiliapp-suave text-fertiliapp-fuerte"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={resetLoading}
+                className="min-h-11 bg-fertiliapp-fuerte text-white hover:brightness-95"
+              >
+                {resetLoading ? 'Enviando...' : 'Enviar enlace'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

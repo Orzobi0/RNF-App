@@ -2,10 +2,11 @@ import React, {
   useState,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
 } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import CycleDatesEditor from '@/components/CycleDatesEditor';
 import DataEntryForm from '@/components/DataEntryForm';
 import DayDetail from '@/components/DayDetail';
@@ -26,6 +27,7 @@ import {
   isBefore,
   isAfter,
   startOfDay,
+  startOfMonth,
   differenceInCalendarDays,
   addDays,
   addMonths,
@@ -50,12 +52,6 @@ import {
 
 const getSymbolInfo = (symbolValue) =>
   FERTILITY_SYMBOL_OPTIONS.find((symbol) => symbol.value === symbolValue) || FERTILITY_SYMBOL_OPTIONS[0];
-const CALENDAR_SWIPE_OFFSET = 60;
-const CALENDAR_SWIPE_VELOCITY = 750;
-const CALENDAR_EXIT_OFFSET = 120;
-const CALENDAR_DRAG_LIMIT = 85;
-const CALENDAR_DRAG_ACTIVATION_THRESHOLD = 5;
-const CALENDAR_SNAP_DURATION = 180;
 
 const RecordsHeader = ({
   title,
@@ -100,13 +96,13 @@ const renderCycleNavButton = (direction, targetCycle) => {
 
   return (
   <div className="px-4 pt-2">
-    <div className="relative overflow-hidden rounded-[24px] bg-fertiliapp-fuerte px-4 pb-3 pt-2.5 text-white shadow-[0_6px_16px_rgba(216,92,112,0.16)]">
+    <div className="relative overflow-hidden rounded-3xl bg-fertiliapp-fuerte px-4 pb-3 pt-2.5 text-white shadow-[0_8px_18px_rgba(216,92,112,0.14)]">
     <HeaderIconButtonPrimary
       type="button"
       onClick={onAddRecord}
       disabled={isProcessing}
       aria-label={isCurrentCycle ? 'Añadir registro' : 'Añadir registro al ciclo archivado'}
-      className="absolute right-4 top-2.5 z-20 border-white/70 bg-white text-fertiliapp-fuerte hover:bg-white"
+      className="absolute right-4 top-2.5 z-20 border-white/70 bg-white text-fertiliapp-fuerte shadow-none hover:bg-white"
     >
       <Plus className="h-4 w-4" />
       <span className="sr-only">Añadir registro</span>
@@ -170,6 +166,49 @@ const formatTemperatureDisplay = (value) => {
     minimumFractionDigits: 1,
     maximumFractionDigits: 2,
   }).format(n);
+};
+const resolveInitialSelectedIsoDate = ({ cycle, routeSelectedIso }) => {
+  if (routeSelectedIso) {
+    return routeSelectedIso;
+  }
+
+  if (!cycle?.startDate) {
+    return null;
+  }
+
+  const start = parseISO(cycle.startDate);
+
+  if (!isValid(start)) {
+    return null;
+  }
+
+  if (cycle.endDate) {
+    const end = parseISO(cycle.endDate);
+    return isValid(end) ? format(startOfDay(end), 'yyyy-MM-dd') : cycle.endDate;
+  }
+
+  const today = startOfDay(new Date());
+
+  if (!isBefore(today, startOfDay(start))) {
+    return format(today, 'yyyy-MM-dd');
+  }
+
+  return format(startOfDay(start), 'yyyy-MM-dd');
+};
+
+const CALENDAR_BUTTON_SCROLL_DURATION_MS = 170;
+
+const easeOutCubic = (value) => 1 - Math.pow(1 - value, 3);
+const getCalendarMonthScrollLeft = (container, index) => {
+  const monthElement = container.querySelectorAll('[data-calendar-month]')[index];
+
+  if (!monthElement) {
+    return index * container.clientWidth;
+  }
+
+  const maxScrollLeft = Math.max(0, container.scrollWidth - container.clientWidth);
+
+  return Math.max(0, Math.min(maxScrollLeft, monthElement.offsetLeft));
 };
 
 export const RecordsExperience = ({
@@ -244,6 +283,17 @@ export const RecordsExperience = ({
   const getMeasurementsForEntry = contextGetMeasurementsForEntry;
   const { toast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
+    const routeSelectedIso = useMemo(() => {
+    const value = location.state?.selectedDate;
+    if (typeof value !== 'string') return null;
+
+    const parsed = parseISO(value);
+    if (!isValid(parsed)) return null;
+
+    return format(parsed, 'yyyy-MM-dd');
+  }, [location.state]);
+
   const [showForm, setShowForm] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [recordToDelete, setRecordToDelete] = useState(null);
@@ -262,7 +312,11 @@ export const RecordsExperience = ({
   const [overlapImpactPreview, setOverlapImpactPreview] = useState(null);
   const [showOverlapDialog, setShowOverlapDialog] = useState(false);
   const [isUpdatingStartDate, setIsUpdatingStartDate] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(null);
+  const [selectedDate, setSelectedDate] = useState(() =>
+  resolveInitialSelectedIsoDate({ cycle, routeSelectedIso })
+);
+  const [visibleCalendarMonthIndex, setVisibleCalendarMonthIndex] = useState(0);
+  const [cycleNavigationTransition, setCycleNavigationTransition] = useState(null);
   const [defaultFormIsoDate, setDefaultFormIsoDate] = useState(null);
   const [focusedField, setFocusedField] = useState(null);
   const [initialSectionKey, setInitialSectionKey] = useState(null);
@@ -360,21 +414,98 @@ export const RecordsExperience = ({
       : null;
 
   const navigateToCycle = useCallback(
-    (targetCycle) => {
+    (targetCycle, options = {}) => {
       if (!targetCycle?.id) return;
       const isTargetCurrentCycle = contextCurrentCycle?.id && targetCycle.id === contextCurrentCycle.id;
-      navigate(isTargetCurrentCycle ? '/records' : `/cycle/${targetCycle.id}`);
+      const path = isTargetCurrentCycle ? '/records' : `/cycle/${targetCycle.id}`;
+      navigate(
+        path,
+        options.selectedDate ? { state: { selectedDate: options.selectedDate } } : undefined
+      );
     },
     [contextCurrentCycle?.id, navigate]
+  );
+
+  const findCycleForDate = useCallback(
+    (date) => {
+      if (!date || !orderedCycles.length) return null;
+      const day = startOfDay(date);
+
+      return orderedCycles.find((availableCycle) => {
+        if (!availableCycle?.id || availableCycle.id === cycle?.id || !availableCycle?.startDate) {
+          return false;
+        }
+
+        const from = startOfDay(parseISO(availableCycle.startDate));
+        if (!isValid(from)) return false;
+
+        let to = null;
+        if (availableCycle.endDate) {
+          to = startOfDay(parseISO(availableCycle.endDate));
+        } else if (availableCycle.id === contextCurrentCycle?.id) {
+          const today = startOfDay(new Date());
+          const recordDates = (availableCycle.data ?? [])
+            .map((record) => (record?.isoDate ? parseISO(record.isoDate) : null))
+            .filter((recordDate) => recordDate && isValid(recordDate));
+          to = max([from, today, ...recordDates]);
+        }
+
+        if (!to || !isValid(to)) return false;
+
+        return !isBefore(day, from) && !isAfter(day, to);
+      }) ?? null;
+    },
+    [contextCurrentCycle?.id, cycle?.id, orderedCycles]
   );
   const isCalendarOpen = true;
   const activeRecordLoadRef = useRef(null);
   const cycleDatesEditorRef = useRef(null);
+  const cycleNavigationTimeoutRef = useRef(null);
 
   useEffect(() => {
     setDraftStartDate(cycle?.startDate || '');
     setDraftEndDate(cycle?.endDate || '');
   }, [cycle?.startDate, cycle?.endDate]);
+
+  useLayoutEffect(() => {
+  const nextSelectedIso = resolveInitialSelectedIsoDate({ cycle, routeSelectedIso });
+
+  setSelectedDate((prev) => {
+    if (prev === nextSelectedIso) {
+      return prev;
+    }
+
+    return nextSelectedIso;
+  });
+
+  positionedCalendarMonthKeyRef.current = null;
+}, [cycle?.id, cycle?.startDate, cycle?.endDate, routeSelectedIso]);
+
+  useEffect(() => {
+    setCycleNavigationTransition(null);
+    return () => {
+      if (cycleNavigationTimeoutRef.current) {
+        clearTimeout(cycleNavigationTimeoutRef.current);
+        cycleNavigationTimeoutRef.current = null;
+      }
+    };
+  }, [cycle?.id]);
+
+  const navigateToCycleWithTransition = useCallback(
+    (targetCycle, direction = 'next', selectedIso = null) => {
+      if (!targetCycle?.id) return;
+
+      if (cycleNavigationTimeoutRef.current) {
+        clearTimeout(cycleNavigationTimeoutRef.current);
+      }
+
+      setCycleNavigationTransition(direction);
+      cycleNavigationTimeoutRef.current = setTimeout(() => {
+        navigateToCycle(targetCycle, { selectedDate: selectedIso });
+      }, 140);
+    },
+    [navigateToCycle]
+  );
 
   const sortedRecordDates = useMemo(() => {
     if (!cycle?.data?.length) return [];
@@ -513,6 +644,25 @@ export const RecordsExperience = ({
     return { from: start, to: end };
   }, [cycle?.startDate, cycle?.endDate, recordDateObjects]);
 
+  const calendarMonths = useMemo(() => {
+    if (!cycleRange?.from || !cycleRange?.to) {
+      return [startOfMonth(new Date())];
+    }
+
+    const fromMonth = startOfMonth(cycleRange.from);
+    const toMonth = startOfMonth(cycleRange.to);
+    const months = [];
+
+    let cursor = fromMonth;
+
+    while (!isAfter(cursor, toMonth)) {
+      months.push(cursor);
+      cursor = addMonths(cursor, 1);
+    }
+
+    return months;
+  }, [cycleRange]);
+
   const calendarModifiers = useMemo(() => {
     const modifiers = {};
     if (cycleRange) {
@@ -550,93 +700,18 @@ export const RecordsExperience = ({
       day_selected: '',
       day_today: '',
       day_outside: 'opacity-100',
+      nav: 'hidden',
     }),
     []
   );
 
-  const [currentCalendarMonth, setCurrentCalendarMonth] = useState(() => {
-    if (selectedDate && isValid(parseISO(selectedDate))) {
-      return parseISO(selectedDate);
-    }
-    if (cycleRange?.to) {
-      return cycleRange.to;
-    }
-    return startOfDay(new Date());
-  });
+  const calendarScrollContainerRef = useRef(null);
+  const positionedCalendarMonthKeyRef = useRef(null);
+  const calendarScrollFrameRef = useRef(null);
+  const visibleCalendarMonthIndexRef = useRef(0);
+  const calendarTargetMonthIndexRef = useRef(0);
+  const calendarButtonAnimationFrameRef = useRef(null);
 
-  const calendarAnimationRef = useRef(false);
-
-   const calendarDragAnimationFrameRef = useRef(null);
-  const calendarSwipeStateRef = useRef({
-    active: false,
-    startX: 0,
-    pointerId: null,
-    startTime: 0,
-    dragging: false,
-    gridWidth: 0,
-    swipeThreshold: 0,
-  });
-  const calendarSwipeCleanupRef = useRef(null);
-  const calendarSwipeContainerRef = useRef(null);
-  const calendarDayGridRef = useRef(null);
-  const calendarDragXRef = useRef(0);
-  const [calendarDragX, setCalendarDragX] = useState(0);
-  const [isCalendarDragging, setIsCalendarDragging] = useState(false);
-
-  const updateCalendarDragX = useCallback((value) => {
-    calendarDragXRef.current = value;
-    setCalendarDragX(value);
-  }, []);
-
-  const waitForNextFrame = useCallback(
-    () =>
-      new Promise((resolve) => {
-        requestAnimationFrame(() => {
-          requestAnimationFrame(resolve);
-        });
-      }),
-    []
-  );
-
-  const animateDragTo = useCallback(
-    (target, { duration = CALENDAR_SNAP_DURATION } = {}) => {
-      if (calendarDragAnimationFrameRef.current) {
-        cancelAnimationFrame(calendarDragAnimationFrameRef.current);
-        calendarDragAnimationFrameRef.current = null;
-      }
-
-      const start = calendarDragXRef.current;
-      const diff = target - start;
-
-      if (Math.abs(diff) < 0.5 || duration <= 0) {
-        updateCalendarDragX(target);
-        return Promise.resolve();
-      }
-
-      return new Promise((resolve) => {
-        const easeOut = (t) => 1 - Math.pow(1 - t, 3);
-        const startTime = performance.now();
-
-        const step = (now) => {
-          const elapsed = now - startTime;
-          const progress = Math.min(1, elapsed / duration);
-          const nextValue = start + diff * easeOut(progress);
-          updateCalendarDragX(nextValue);
-
-          if (progress < 1) {
-            calendarDragAnimationFrameRef.current = requestAnimationFrame(step);
-            return;
-          }
-
-          calendarDragAnimationFrameRef.current = null;
-          resolve();
-        };
-
-        calendarDragAnimationFrameRef.current = requestAnimationFrame(step);
-      });
-    },
-    [updateCalendarDragX]
-  );
   const calendarLabels = useMemo(
     () => ({
       labelDay: (day) => {
@@ -722,34 +797,48 @@ export const RecordsExperience = ({
   );
 
   const archivedCycleIntervals = useMemo(() => {
-    if (!Array.isArray(archivedCycles) || !cycle?.id) {
-      return [];
-    }
+  if (!cycle?.id) {
+    return [];
+  }
 
-    return archivedCycles
-      .filter(
-        (archived) =>
-          archived?.id &&
-          archived.id !== cycle.id &&
-          archived?.startDate &&
-          archived?.endDate
-      )
-      .map((archived) => {
-        const fromDate = startOfDay(parseISO(archived.startDate));
-        const toDate = startOfDay(parseISO(archived.endDate));
+  const otherCycles = [...(archivedCycles ?? []), contextCurrentCycle].filter(Boolean);
 
-        if (!isValid(fromDate) || !isValid(toDate)) return null;
+  return otherCycles
+    .filter(
+      (availableCycle) =>
+        availableCycle?.id &&
+        availableCycle.id !== cycle.id &&
+        availableCycle?.startDate
+    )
+    .map((availableCycle) => {
+      const fromDate = startOfDay(parseISO(availableCycle.startDate));
 
-        return {
-          cycleId: archived.id,
-          from: fromDate,
-          to: toDate,
-          startIso: archived.startDate,
-          endIso: archived.endDate,
-        };
-      })
-      .filter(Boolean);
-  }, [archivedCycles, cycle?.id]);
+      let toDate = null;
+
+      if (availableCycle.endDate) {
+        toDate = startOfDay(parseISO(availableCycle.endDate));
+      } else if (availableCycle.id === contextCurrentCycle?.id) {
+        const today = startOfDay(new Date());
+        toDate = isBefore(today, fromDate) ? fromDate : today;
+      }
+
+      if (!toDate || !isValid(fromDate) || !isValid(toDate)) {
+        return null;
+      }
+
+      const isOpenCycle = !availableCycle.endDate;
+
+return {
+  cycleId: availableCycle.id,
+  from: fromDate,
+  to: toDate,
+  startIso: availableCycle.startDate,
+  endIso: isOpenCycle ? null : availableCycle.endDate,
+  isOpenCycle,
+};
+    })
+    .filter(Boolean);
+}, [archivedCycles, contextCurrentCycle, cycle?.id]);
 
   const renderCalendarDay = useCallback(
     ({ date, activeModifiers }) => {
@@ -763,7 +852,10 @@ export const RecordsExperience = ({
         );
       const showArchivedCycleRange = Boolean(archivedInterval);
       const showLeftBorder = showArchivedCycleRange && iso === archivedInterval.startIso;
-      const showRightBorder = showArchivedCycleRange && iso === archivedInterval.endIso;
+      const showRightBorder =
+      showArchivedCycleRange &&
+      !archivedInterval.isOpenCycle &&
+      iso === archivedInterval.endIso;
 
       const hasTemperature = details?.hasTemperature ?? false;
       const hasMucus = details?.hasMucus ?? false;
@@ -905,6 +997,8 @@ export const RecordsExperience = ({
     return peakRecord?.isoDate || null;
   }, [cycle?.data]);
 
+
+
   const defaultSelectedIso = useMemo(() => {
     if (!cycleRange) return null;
 
@@ -914,6 +1008,10 @@ export const RecordsExperience = ({
     const cycleStartIso = cycleRange?.from
       ? format(startOfDay(cycleRange.from), 'yyyy-MM-dd')
       : null;
+
+    if (routeSelectedIso && cycleDayIsoSet.has(routeSelectedIso)) {
+      return routeSelectedIso;
+    }
 
     // Ciclo actual (sin endDate): por defecto, hoy (si cae dentro del ciclo mostrado)
     if (!cycle?.endDate) {
@@ -925,7 +1023,7 @@ export const RecordsExperience = ({
    if (cycleEndIso && cycleDayIsoSet.has(cycleEndIso)) return cycleEndIso;
     if (cycleStartIso && cycleDayIsoSet.has(cycleStartIso)) return cycleStartIso;
     return sortedRecordDates[0] ?? null;
-  }, [cycle?.endDate, cycleRange, cycleDayIsoSet, sortedRecordDates]);
+  }, [cycle?.endDate, cycleRange, cycleDayIsoSet, routeSelectedIso, sortedRecordDates]);
 
   useEffect(() => {
     if (selectedDate && cycleDayIsoSet.has(selectedDate)) {
@@ -946,107 +1044,231 @@ export const RecordsExperience = ({
 }, [selectedDate, cycleDayIsoSet, defaultSelectedIso]);
 
   const handleCalendarSelect = useCallback(
-    (day) => {
-      if (!day) return;
-      const iso = format(day, 'yyyy-MM-dd');
+  (day) => {
+    if (!day) return;
 
-      if (cycleRange) {
-        if (isBefore(day, cycleRange.from) || isAfter(day, cycleRange.to)) {
-          return;
+    const selectedDay = startOfDay(day);
+    const today = startOfDay(new Date());
+
+    if (isAfter(selectedDay, today)) {
+      return;
+    }
+
+    const iso = format(selectedDay, 'yyyy-MM-dd');
+
+    if (cycleRange) {
+      if (isBefore(selectedDay, cycleRange.from) || isAfter(selectedDay, cycleRange.to)) {
+        const targetCycle = findCycleForDate(selectedDay);
+        if (targetCycle) {
+          const targetIndex = orderedCycles.findIndex((availableCycle) => availableCycle.id === targetCycle.id);
+          const direction =
+            currentCycleIndex >= 0 && targetIndex >= 0 && targetIndex < currentCycleIndex
+              ? 'previous'
+              : 'next';
+          navigateToCycleWithTransition(targetCycle, direction, iso);
         }
+        return;
       }
+    }
 
-      setSelectedDate(iso);
-    },
-    [cycleRange]
+    setSelectedDate(iso);
+  },
+  [currentCycleIndex, cycleRange, findCycleForDate, navigateToCycleWithTransition, orderedCycles]
+);
+
+  useLayoutEffect(() => {
+  if (!isCalendarOpen) {
+    positionedCalendarMonthKeyRef.current = null;
+    return;
+  }
+
+  if (!selectedDate) {
+    return;
+  }
+
+  const parsed = parseISO(selectedDate);
+  if (!isValid(parsed)) {
+    return;
+  }
+
+  const monthKey = format(startOfMonth(parsed), 'yyyy-MM');
+  const positionedKey = `${cycle?.id ?? 'cycle'}:${monthKey}`;
+
+  if (positionedCalendarMonthKeyRef.current === positionedKey) {
+    return;
+  }
+
+  const targetIndex = calendarMonths.findIndex(
+    (calendarMonth) => format(calendarMonth, 'yyyy-MM') === monthKey
   );
 
-  useEffect(() => {
-    if (!selectedDate) {
-      return;
+  if (targetIndex < 0) {
+    return;
+  }
+
+  const container = calendarScrollContainerRef.current;
+
+  if (!container) {
+    return;
+  }
+
+  if (calendarButtonAnimationFrameRef.current) {
+  cancelAnimationFrame(calendarButtonAnimationFrameRef.current);
+  calendarButtonAnimationFrameRef.current = null;
+}
+
+container.style.scrollSnapType = '';
+container.scrollLeft = targetIndex * container.clientWidth;
+
+visibleCalendarMonthIndexRef.current = targetIndex;
+calendarTargetMonthIndexRef.current = targetIndex;
+setVisibleCalendarMonthIndex(targetIndex);
+positionedCalendarMonthKeyRef.current = positionedKey;
+}, [calendarMonths, cycle?.id, isCalendarOpen, selectedDate]);
+
+  const scrollToCalendarMonthIndex = useCallback(
+  (nextIndex) => {
+    const container = calendarScrollContainerRef.current;
+    if (!container || !calendarMonths.length) return;
+
+    const clampedIndex = Math.max(0, Math.min(calendarMonths.length - 1, nextIndex));
+    const targetLeft = getCalendarMonthScrollLeft(container, clampedIndex);
+const startLeft = container.scrollLeft;
+const distance = targetLeft - startLeft;
+
+    calendarTargetMonthIndexRef.current = clampedIndex;
+    visibleCalendarMonthIndexRef.current = clampedIndex;
+    setVisibleCalendarMonthIndex(clampedIndex);
+
+    if (calendarButtonAnimationFrameRef.current) {
+      cancelAnimationFrame(calendarButtonAnimationFrameRef.current);
+      calendarButtonAnimationFrameRef.current = null;
     }
 
-    const parsed = parseISO(selectedDate);
-    if (!isValid(parsed)) {
-      return;
-    }
+    // Importante: durante la animación de botones quitamos el snap.
+    // Si no, el navegador intenta encajar el mes a la vez que nosotros animamos.
+    container.style.scrollSnapType = 'none';
 
-    setCurrentCalendarMonth((prev) => {
-      if (
-        prev &&
-        prev.getFullYear() === parsed.getFullYear() &&
-        prev.getMonth() === parsed.getMonth()
-      ) {
-        return prev;
-      }
-      return parsed;
-    });
-  }, [selectedDate]);
+    if (Math.abs(distance) < 1) {
+  container.scrollLeft = targetLeft;
+  return;
+}
 
-  const changeCalendarMonth = useCallback(
-    (direction) => {
-      setCurrentCalendarMonth((prev) => {
-        const base = prev ?? (cycleRange?.to ?? startOfDay(new Date()));
-        const offset = direction === 'next' ? 1 : -1;
-        return addMonths(base, offset);
-      });
-    },
-    [cycleRange]
-  );
+    const startTime = performance.now();
 
-  useEffect(() => {
-    if (!isCalendarOpen) {
-      calendarDayGridRef.current = null;
-      updateCalendarDragX(0);
-      setIsCalendarDragging(false);
-      return;
-    }
+    const animate = (currentTime) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(1, elapsed / CALENDAR_BUTTON_SCROLL_DURATION_MS);
+      const easedProgress = easeOutCubic(progress);
 
-    const container = calendarSwipeContainerRef.current;
-    if (!container) {
-      return;
-    }
+      container.scrollLeft = startLeft + distance * easedProgress;
 
-    const gridElement = container.querySelector('.records-calendar-day-grid');
-    if (gridElement) {
-      calendarDayGridRef.current = gridElement;
-    }
-  }, [currentCalendarMonth, isCalendarOpen, updateCalendarDragX]);
-
-    const animateCalendarMonthChange = useCallback(
-    async (direction) => {
-      if (calendarAnimationRef.current) {
+      if (progress < 1) {
+        calendarButtonAnimationFrameRef.current = requestAnimationFrame(animate);
         return;
       }
 
-      calendarAnimationRef.current = true;
+    container.scrollLeft = targetLeft;
 
-const gridElement = calendarDayGridRef.current;
-const measuredWidth = gridElement?.getBoundingClientRect()?.width ?? 0;
-const fallback = direction === 'next' ? -CALENDAR_EXIT_OFFSET : CALENDAR_EXIT_OFFSET;
-const exitTarget = measuredWidth
-  ? direction === 'next'
-    ? -measuredWidth
-    : measuredWidth
-  : fallback;
-const enterStart = -exitTarget;
+visibleCalendarMonthIndexRef.current = clampedIndex;
+calendarTargetMonthIndexRef.current = clampedIndex;
+setVisibleCalendarMonthIndex(clampedIndex);
+calendarButtonAnimationFrameRef.current = null;
+    };
 
+    calendarButtonAnimationFrameRef.current = requestAnimationFrame(animate);
+  },
+  [calendarMonths.length]
+);
 
+const handleCalendarManualInteractionStart = useCallback(() => {
+  const container = calendarScrollContainerRef.current;
 
-      try {
-        await animateDragTo(exitTarget, { duration: CALENDAR_SNAP_DURATION });
-        changeCalendarMonth(direction);
+  if (calendarButtonAnimationFrameRef.current) {
+    cancelAnimationFrame(calendarButtonAnimationFrameRef.current);
+    calendarButtonAnimationFrameRef.current = null;
+  }
 
-        updateCalendarDragX(enterStart);
-        await waitForNextFrame();
-        await animateDragTo(0, { duration: CALENDAR_SNAP_DURATION });
-      } finally {
-        calendarAnimationRef.current = false;
-      }
-    },
-    [animateDragTo, changeCalendarMonth, updateCalendarDragX, waitForNextFrame]
+  if (container) {
+    container.style.scrollSnapType = '';
+  }
+
+  if (!container || !calendarMonths.length) return;
+
+  const width = container.clientWidth || 1;
+  const nextIndex = Math.max(
+    0,
+    Math.min(calendarMonths.length - 1, Math.round(container.scrollLeft / width))
   );
 
+  visibleCalendarMonthIndexRef.current = nextIndex;
+  calendarTargetMonthIndexRef.current = nextIndex;
+  setVisibleCalendarMonthIndex(nextIndex);
+}, [calendarMonths.length]);
+
+const handlePreviousCalendarMonth = useCallback(() => {
+  scrollToCalendarMonthIndex(calendarTargetMonthIndexRef.current - 1);
+}, [scrollToCalendarMonthIndex]);
+
+const handleNextCalendarMonth = useCallback(() => {
+  scrollToCalendarMonthIndex(calendarTargetMonthIndexRef.current + 1);
+}, [scrollToCalendarMonthIndex]);
+
+  const handleCalendarMonthScroll = useCallback(() => {
+    const container = calendarScrollContainerRef.current;
+    if (!container) return;
+
+    if (calendarScrollFrameRef.current) {
+      cancelAnimationFrame(calendarScrollFrameRef.current);
+    }
+
+    calendarScrollFrameRef.current = requestAnimationFrame(() => {
+      const width = container.clientWidth || 1;
+      const nextIndex = Math.max(
+        0,
+        Math.min(calendarMonths.length - 1, Math.round(container.scrollLeft / width))
+      );
+      if (!calendarButtonAnimationFrameRef.current) {
+      visibleCalendarMonthIndexRef.current = nextIndex;
+      calendarTargetMonthIndexRef.current = nextIndex;
+      setVisibleCalendarMonthIndex(nextIndex);
+    }
+
+    calendarScrollFrameRef.current = null;
+    });
+  }, [calendarMonths.length]);
+
+  useEffect(() => {
+  return () => {
+    if (calendarScrollFrameRef.current) {
+      cancelAnimationFrame(calendarScrollFrameRef.current);
+      calendarScrollFrameRef.current = null;
+    }
+
+    if (calendarButtonAnimationFrameRef.current) {
+      cancelAnimationFrame(calendarButtonAnimationFrameRef.current);
+      calendarButtonAnimationFrameRef.current = null;
+    }
+
+    if (calendarScrollContainerRef.current) {
+      calendarScrollContainerRef.current.style.scrollSnapType = '';
+    }
+  };
+}, []);
+
+  useEffect(() => {
+    setVisibleCalendarMonthIndex((prev) =>
+      Math.max(0, Math.min(calendarMonths.length - 1, prev))
+    );
+  }, [calendarMonths.length]);
+  
+  useEffect(() => {
+  visibleCalendarMonthIndexRef.current = visibleCalendarMonthIndex;
+
+  if (!calendarButtonAnimationFrameRef.current) {
+    calendarTargetMonthIndexRef.current = visibleCalendarMonthIndex;
+  }
+}, [visibleCalendarMonthIndex]);
 
   const resetStartDateFlow = useCallback(() => {
     setPendingStartDate(null);
@@ -1055,19 +1277,6 @@ const enterStart = -exitTarget;
     setOverlapCycle(null);
     setOverlapImpactPreview(null);
     setShowOverlapDialog(false);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (calendarDragAnimationFrameRef.current) {
-        cancelAnimationFrame(calendarDragAnimationFrameRef.current);
-        calendarDragAnimationFrameRef.current = null;
-      }
-      if (calendarSwipeCleanupRef.current) {
-        calendarSwipeCleanupRef.current();
-        calendarSwipeCleanupRef.current = null;
-      }
-    };
   }, []);
 
   const openStartDateEditor = useCallback(() => {
@@ -1115,106 +1324,6 @@ const enterStart = -exitTarget;
       onRequestDeleteCycle();
     }
   }, [closeStartDateEditor, onRequestDeleteCycle]);
-
-  const handleCalendarPointerDown = useCallback(
-    (event) => {
-      if (!isCalendarOpen || calendarAnimationRef.current) {
-        return;
-      }
-
-      if (event.pointerType === 'mouse' && event.button !== 0) {
-        return;
-      }
-
-      const gridTarget = event.target.closest('.records-calendar-day-grid');
-      if (!gridTarget) {
-        return;
-      }
-
-      const state = calendarSwipeStateRef.current;
-      state.active = true;
-      state.pointerId = event.pointerId;
-      state.startX = event.clientX;
-      state.startTime = performance.now();
-      state.dragging = false;
-
-      const width = gridTarget.getBoundingClientRect().width || 0;
- state.gridWidth = width;
- // umbral “natural”: 20% del ancho, pero nunca menos de 60px
- state.swipeThreshold = width ? Math.max(CALENDAR_SWIPE_OFFSET, width * 0.25) : CALENDAR_SWIPE_OFFSET;
-      const handlePointerMove = (moveEvent) => {
-        if (!state.active || moveEvent.pointerId !== state.pointerId) {
-          return;
-        }
-
-        const delta = moveEvent.clientX - state.startX;
-        if (!state.dragging && Math.abs(delta) > CALENDAR_DRAG_ACTIVATION_THRESHOLD) {
-          state.dragging = true;
-          setIsCalendarDragging(true);
-        }
-
-        if (!state.dragging) {
-          return;
-        }
-
-       const limit = state.gridWidth ? state.gridWidth * 0.7 : CALENDAR_DRAG_LIMIT;
-       const limited = Math.max(-limit, Math.min(limit, delta));
-        moveEvent.preventDefault();
-        updateCalendarDragX(limited);
-      };
-
-      const handlePointerUp = async (upEvent) => {
-        if (!state.active || upEvent.pointerId !== state.pointerId) {
-          return;
-        }
-
-        calendarSwipeCleanupRef.current?.();
-        calendarSwipeCleanupRef.current = null;
-        state.active = false;
-
-        const totalDelta = upEvent.clientX - state.startX;
-        const elapsed = performance.now() - state.startTime;
-        const velocity = elapsed > 0 ? (totalDelta / elapsed) * 1000 : 0;
-        const threshold = state.swipeThreshold || CALENDAR_SWIPE_OFFSET;
-        const movedEnoughNext = totalDelta <= -threshold || velocity <= -CALENDAR_SWIPE_VELOCITY;
-        const movedEnoughPrev = totalDelta >= threshold || velocity >= CALENDAR_SWIPE_VELOCITY;
-        const wasDragging = state.dragging;
-        state.dragging = false;
-        setIsCalendarDragging(false);
-
-        if (calendarAnimationRef.current) {
-          await animateDragTo(0, { duration: CALENDAR_SNAP_DURATION });
-          return;
-        }
-
-        if (wasDragging && movedEnoughNext) {
-          await animateCalendarMonthChange('next');
-          return;
-        }
-
-        if (wasDragging && movedEnoughPrev) {
-          await animateCalendarMonthChange('prev');
-          return;
-        }
-
-        await animateDragTo(0, { duration: CALENDAR_SNAP_DURATION });
-      };
-
-      const cleanup = () => {
-        window.removeEventListener('pointermove', handlePointerMove, { capture: true });
-        window.removeEventListener('pointerup', handlePointerUp, { capture: true });
-        window.removeEventListener('pointercancel', handlePointerUp, { capture: true });
-      };
-
-      calendarSwipeCleanupRef.current?.();
-      calendarSwipeCleanupRef.current = cleanup;
-
-      window.addEventListener('pointermove', handlePointerMove, { capture: true, passive: false });
-      window.addEventListener('pointerup', handlePointerUp, { capture: true });
-      window.addEventListener('pointercancel', handlePointerUp, { capture: true });
-    },
-    [animateCalendarMonthChange, animateDragTo, isCalendarOpen, updateCalendarDragX]
-  );
 
   const handleCancelOverlapStart = useCallback(() => {
     resetStartDateFlow();
@@ -1530,9 +1639,17 @@ const enterStart = -exitTarget;
     },
     [cycle?.data]
   );
-  const handleSave = async (data, { keepFormOpen = false } = {}) => {
-    setIsProcessing(true);
-    const toastMessage = getRecordUpdateToastMessage(editingRecord, data);
+  const handleSave = async (data, { keepFormOpen = false, submitAction = null } = {}) => {
+  setIsProcessing(true);
+
+  const toastMessage =
+    submitAction === 'relations'
+      ? getRelationsToastMessage(Boolean(data?.had_relations ?? data?.hadRelations))
+      : getRecordUpdateToastMessage(editingRecord, data);
+    toast({
+  title: toastMessage,
+  duration: submitAction === 'relations' ? 1400 : 2000,
+});
     try {
       await addOrUpdateDataPoint(data, editingRecord);
       toast({
@@ -1666,7 +1783,7 @@ const enterStart = -exitTarget;
 
   if (isLoading && !cycle?.id) {
     return (
-      <div className="relative flex h-full flex-col items-center justify-center overflow-hidden">
+      <div className="relative flex h-full flex-col items-center justify-center overflow-hidden bg-[#fff7f9]">
         <p className="text-center text-titulo text-lg">Cargando...</p>
       </div>
     );
@@ -1674,8 +1791,8 @@ const enterStart = -exitTarget;
 
   if (!cycle?.id) {
     return (
-      <div className="mx-auto flex min-h-screen max-w-md items-center justify-center px-4 py-4">
-        <div className="w-full space-y-4 rounded-3xl border border-rose-100/70 bg-white/80 p-4 text-center shadow-sm">
+      <div className="mx-auto flex min-h-screen max-w-md items-center justify-center bg-[#fff7f9] px-4 py-4">
+        <div className="w-full space-y-4 rounded-3xl border border-rose-100/70 bg-white p-4 text-center shadow-sm">
           <p className="text-[15px] font-semibold text-slate-800">No hay ciclo activo.</p>
           <button
             onClick={() => handleOpenNewCycleDialog()}
@@ -1706,7 +1823,7 @@ const enterStart = -exitTarget;
   }
 
   return (
-    <div className="relative flex flex-col">   
+    <div className="relative flex flex-col bg-[#fff7f9]">
     {isUpdatingStartDate && (
   <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/25 backdrop-blur-sm">
     <div className="rounded-3xl border border-fertiliapp-suave bg-white/90 px-5 py-4 shadow-lg">
@@ -1720,6 +1837,40 @@ const enterStart = -exitTarget;
     </div>
   </div>
 )}  
+    <AnimatePresence>
+      {cycleNavigationTransition && (
+        <motion.div
+          key="cycle-navigation-transition"
+          className="pointer-events-none fixed inset-0 z-[998] flex items-center justify-center bg-fertiliapp-fuerte/10 backdrop-blur-[1px]"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.12 }}
+        >
+          <motion.div
+            className="flex h-12 w-12 items-center justify-center rounded-full bg-white/90 text-fertiliapp-fuerte shadow-lg"
+            initial={{
+              opacity: 0,
+              x: cycleNavigationTransition === 'previous' ? 18 : -18,
+              scale: 0.94,
+            }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            exit={{
+              opacity: 0,
+              x: cycleNavigationTransition === 'previous' ? -18 : 18,
+              scale: 0.98,
+            }}
+            transition={{ duration: 0.16 }}
+          >
+            {cycleNavigationTransition === 'previous' ? (
+              <ChevronLeft className="h-6 w-6" aria-hidden="true" />
+            ) : (
+              <ChevronRight className="h-6 w-6" aria-hidden="true" />
+            )}
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
       <div className="relative z-10 mx-auto grid w-full max-w-6xl grid-cols-1 gap-3 px-4 pb-24">
         <div className="relative z-30 -mx-4">
   <div className="w-full">
@@ -1793,37 +1944,65 @@ const enterStart = -exitTarget;
                   transition={{ duration: 0.3 }}
                   className="flex justify-center"
                 >
-                  <div
-                    ref={calendarSwipeContainerRef}
-                    onPointerDown={handleCalendarPointerDown}
-                    data-calendar-dragging={isCalendarDragging ? 'true' : 'false'}
-                    className={cn(
-                      'w-full max-w-sm rounded-3xl bg-white/80 mx-auto backdrop-blur-sm overflow-hidden [&_.records-calendar-day-grid]:will-change-transform [&_.records-calendar-day-grid]:[transform:translate3d(var(--calendar-drag-x,0px),0,0)]',
-                      isCalendarDragging ? 'cursor-grabbing select-none' : 'cursor-grab'
+                  <div className="relative mx-auto w-full max-w-sm">
+                    <div
+                      ref={calendarScrollContainerRef}
+                      onScroll={handleCalendarMonthScroll}
+                      onPointerDown={handleCalendarManualInteractionStart}
+                      className="flex w-full snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain rounded-3xl border border-rose-300/60 bg-white/95 shadow-sm [scrollbar-width:none] [touch-action:pan-x] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden"
+                    >
+                      {calendarMonths.map((calendarMonth) => (
+                        <div
+                          key={format(calendarMonth, 'yyyy-MM')}
+                          data-calendar-month={format(calendarMonth, 'yyyy-MM')}
+                          className="w-full flex-none snap-start snap-always"
+                        >
+                          <Calendar
+                            mode="single"
+                            locale={es}
+                            month={calendarMonth}
+                            disableNavigation
+                            disabled={(day) => isAfter(startOfDay(day), startOfDay(new Date()))}
+                            selected={selectedDate && isValid(parseISO(selectedDate)) ? parseISO(selectedDate) : undefined}
+                            onSelect={handleCalendarSelect}
+                            onDayClick={handleCalendarSelect}
+                            modifiers={calendarModifiers}
+                            labels={calendarLabels}
+                            components={{ DayContent: renderCalendarDay }}
+                            className="w-full !p-2.5 [&_button]:text-slate-900 [&_button:hover]:bg-tarjeta [&_button[aria-selected=true]]:bg-transparent"
+                            classNames={calendarClassNames}
+                            modifiersClassNames={{
+                              hasRecord: 'text-slate-900 hover:text-slate-900 hover:bg-rose-50',
+                              outsideCycle: 'text-slate-300 hover:text-slate-300 hover:bg-transparent',
+                              insideCycleNoRecord:
+                                'text-slate-900 hover:text-slate-900 hover:bg-rose-50',
+                            }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    {calendarMonths.length > 1 && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={handlePreviousCalendarMonth}
+                          disabled={visibleCalendarMonthIndex <= 0}
+                          aria-label="Mes anterior"
+                          className="absolute left-4 top-3 z-20 flex h-7 w-7 items-center justify-center rounded-full border border-rose-100 bg-white text-fertiliapp-fuerte shadow-sm transition hover:bg-rose-50 disabled:pointer-events-none disabled:opacity-30"
+                        >
+                          <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleNextCalendarMonth}
+                          disabled={visibleCalendarMonthIndex >= calendarMonths.length - 1}
+                          aria-label="Mes siguiente"
+                          className="absolute right-4 top-3 z-20 flex h-7 w-7 items-center justify-center rounded-full border border-rose-100 bg-white text-fertiliapp-fuerte shadow-sm transition hover:bg-rose-50 disabled:pointer-events-none disabled:opacity-30"
+                        >
+                          <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                        </button>
+                      </>
                     )}
-                    style={{ touchAction: 'pan-y', '--calendar-drag-x': `${calendarDragX}px` }}
-                  >
-                    <Calendar
-                      mode="single"
-                      locale={es}
-                      month={currentCalendarMonth ?? undefined}
-                      onMonthChange={setCurrentCalendarMonth}
-                      selected={selectedDate && isValid(parseISO(selectedDate)) ? parseISO(selectedDate) : undefined}
-                      onSelect={handleCalendarSelect}
-                      onDayClick={handleCalendarSelect}
-                      modifiers={calendarModifiers}
-                      labels={calendarLabels}
-                      components={{ DayContent: renderCalendarDay }}
-                      className="w-full !p-2.5 [&_button]:text-slate-900 [&_button:hover]:bg-tarjeta [&_button[aria-selected=true]]:bg-transparent"
-
-                      classNames={calendarClassNames}
-                      modifiersClassNames={{
-                        hasRecord: 'text-slate-900 hover:text-slate-900 hover:bg-rose-50',
-                        outsideCycle: 'text-slate-300 hover:text-slate-300 hover:bg-transparent',
-                        insideCycleNoRecord:
-                          'text-slate-900 hover:text-slate-900 hover:bg-rose-50',
-                      }}
-                    />
                   </div>
                 </motion.div>
               )}
@@ -1847,8 +2026,8 @@ const enterStart = -exitTarget;
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
             >
-              <div className="mx-auto max-w-md rounded-3xl border border-rose-100 bg-white/80 p-8 shadow-lg backdrop-blur-sm">
-                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-rose-100 text-fertiliapp-fuerte shadow-inner">
+              <div className="mx-auto max-w-md rounded-3xl border border-rose-100/70 bg-white p-8 shadow-sm">
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-rose-50 text-fertiliapp-fuerte">
                   <ClipboardList className="h-9 w-9" />
                 </div>
                 <h3 className="text-lg font-semibold text-slate-700">Aún no hay días para mostrar</h3>

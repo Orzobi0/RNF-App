@@ -2,10 +2,14 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const {FieldValue} = require("firebase-admin/firestore");
+const {onCall, HttpsError} = require("firebase-functions/v2/https");
+const {defineSecret} = require("firebase-functions/params");
+const nodemailer = require("nodemailer");
 
 admin.initializeApp();
 const db = admin.firestore();
 const {sessionApi} = require("./authSession");
+const supportGmailAppPassword = defineSecret("SUPPORT_GMAIL_APP_PASSWORD");
 
 const sanitizeDocId = (s) =>
   String(s)
@@ -375,3 +379,102 @@ exports.exchangeCustomToken = functions.https.onRequest(async (req, res) => {
 
 // API de sesión para restauración silenciosa en Hosting (/api/**).
 exports.sessionApi = sessionApi;
+
+exports.sendSupportMessage = onCall(
+    {
+      region: "us-central1",
+      secrets: [supportGmailAppPassword],
+    },
+    async (request) => {
+      if (!request.auth || !request.auth.uid) {
+        throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
+      }
+
+      const uid = request.auth.uid;
+      const data = request.data || {};
+      const type = typeof data.type === "string" ? data.type.trim() : "";
+      const subject = typeof data.subject === "string" ? data.subject.trim() : "";
+      const message = typeof data.message === "string" ? data.message.trim() : "";
+      const allowedTypes = {
+        problem: "Problema",
+        question: "Duda",
+        suggestion: "Sugerencia",
+      };
+
+      if (!type || !allowedTypes[type]) {
+        throw new HttpsError("invalid-argument", "Selecciona un tipo de mensaje válido.");
+      }
+      if (!subject) {
+        throw new HttpsError("invalid-argument", "El asunto es obligatorio.");
+      }
+      if (subject.length > 120) {
+        throw new HttpsError("invalid-argument", "El asunto no puede superar 120 caracteres.");
+      }
+      if (!message) {
+        throw new HttpsError("invalid-argument", "El mensaje es obligatorio.");
+      }
+      if (message.length > 3000) {
+        throw new HttpsError("invalid-argument", "El mensaje no puede superar 3000 caracteres.");
+      }
+
+      const metaRef = db.doc(`users/${uid}/supportMeta/contact`);
+      const metaSnap = await metaRef.get();
+      const lastSentAt = metaSnap.exists ? metaSnap.get("last_sent_at") : null;
+      const lastSentDate =
+        lastSentAt && typeof lastSentAt.toDate === "function" ? lastSentAt.toDate() : null;
+      const tenMinutesMs = 10 * 60 * 1000;
+
+      if (lastSentDate && Date.now() - lastSentDate.getTime() < tenMinutesMs) {
+        throw new HttpsError(
+            "resource-exhausted",
+            "Espera unos minutos antes de enviar otro mensaje.",
+        );
+      }
+
+      const userEmail = request.auth.token && request.auth.token.email ?
+        request.auth.token.email :
+        null;
+      const gmailPassword = supportGmailAppPassword.value().replace(/\s/g, "");
+      const transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+          user: "info.fertiliapp@gmail.com",
+          pass: gmailPassword,
+        },
+      });
+      const safeSubject = subject.replace(/[\r\n]+/g, " ");
+      const sentAt = new Date().toISOString();
+
+      try {
+        await transporter.sendMail({
+          to: "info.fertiliapp@gmail.com",
+          from: "\"FertiliApp Soporte\" <info.fertiliapp@gmail.com>",
+          replyTo: userEmail || undefined,
+          subject: `[FertiliApp] ${allowedTypes[type]}: ${safeSubject}`,
+          text: [
+            `Tipo: ${allowedTypes[type]}`,
+            `Asunto: ${subject}`,
+            `Usuaria: ${userEmail || "No disponible"}`,
+            `UID: ${uid}`,
+            `Fecha: ${sentAt}`,
+            "",
+            "Mensaje:",
+            message,
+          ].join("\n"),
+        });
+
+        await metaRef.set(
+            {last_sent_at: FieldValue.serverTimestamp()},
+            {merge: true},
+        );
+
+        return {ok: true};
+      } catch (error) {
+        console.error("SUPPORT_EMAIL_SEND_FAILED", error);
+        throw new HttpsError(
+            "internal",
+            "No se pudo enviar el mensaje. Inténtalo más tarde.",
+        );
+      }
+    },
+);

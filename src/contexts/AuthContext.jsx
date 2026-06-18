@@ -8,14 +8,16 @@ import {
   sendEmailVerification,
   sendPasswordResetEmail,
   signOut,
-  updateEmail as firebaseUpdateEmail,
+  verifyBeforeUpdateEmail,
   updatePassword as firebaseUpdatePassword,
   updateProfile,
   deleteUser,
   signInWithCustomToken,
+  reload,
 } from 'firebase/auth';
 import { deleteField, doc, getDoc, setDoc, getDocFromCache } from 'firebase/firestore';
 import { useToast } from '@/components/ui/use-toast';
+import { getAuthErrorMessage } from '@/lib/authErrorMessages';
 import {
   PREFERENCE_DEFAULTS,
   normalizeStoredPreferences,
@@ -30,6 +32,15 @@ import {
 } from '@/lib/analytics';
 
 const AuthContext = createContext(null);
+
+const mapFirebaseUser = (firebaseUser) => ({
+  id: firebaseUser.uid,
+  uid: firebaseUser.uid,
+  email: firebaseUser.email,
+  emailVerified: Boolean(firebaseUser.emailVerified),
+  displayName: firebaseUser.displayName,
+  photoURL: firebaseUser.photoURL,
+});
 
 const PERSIST_REQUESTED_KEY = 'rnf_storage_persist_requested_v1';
 const getStandaloneMode = () =>
@@ -376,13 +387,7 @@ export const AuthProvider = ({ children }) => {
             }
           })();
 
-          setUser({
-            id: firebaseUser.uid,
-            uid: firebaseUser.uid,
-            email: firebaseUser.email,
-            displayName: firebaseUser.displayName,
-            photoURL: firebaseUser.photoURL,
-          });
+          setUser(mapFirebaseUser(firebaseUser));
 
           try {
             await ensurePersistentStorage('postlogin');
@@ -499,7 +504,6 @@ export const AuthProvider = ({ children }) => {
         error_code: String(error?.code || 'unknown').slice(0, 50),
       });
 
-      toast({ title: 'Error al iniciar sesión', description: error.message, variant: 'destructive' });
       throw error;
     }
   };
@@ -521,7 +525,6 @@ export const AuthProvider = ({ children }) => {
         error_code: String(error?.code || 'unknown').slice(0, 50),
       });
 
-      toast({ title: 'Error al registrarse', description: error.message, variant: 'destructive' });
       throw error;
     }
   };
@@ -542,7 +545,51 @@ export const AuthProvider = ({ children }) => {
         error_code: String(error?.code || 'unknown').slice(0, 50),
       });
 
-      toast({ title: 'Error al restablecer contraseña', description: error.message, variant: 'destructive' });
+      throw error;
+    }
+  };
+
+  const refreshCurrentUser = async () => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      setUser(null);
+      return null;
+    }
+
+    await reload(currentUser);
+    const nextUser = mapFirebaseUser(currentUser);
+    setUser(nextUser);
+    return nextUser;
+  };
+
+  const resendVerificationEmail = async () => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      const error = new Error('auth/no-current-user');
+      error.code = 'auth/no-current-user';
+      throw error;
+    }
+
+    try {
+      await reload(currentUser);
+      const nextUser = mapFirebaseUser(currentUser);
+      setUser(nextUser);
+
+      if (currentUser.emailVerified) {
+        return { ok: true, alreadyVerified: true };
+      }
+
+      await sendEmailVerification(currentUser, {
+        url: `${window.location.origin}/auth`,
+      });
+
+      return { ok: true };
+    } catch (error) {
+      void trackEvent('auth_error', {
+        auth_action: 'resend_verification_email',
+        auth_method: 'email',
+        error_code: String(error?.code || 'unknown').slice(0, 50),
+      });
       throw error;
     }
   };
@@ -552,7 +599,12 @@ export const AuthProvider = ({ children }) => {
     restoreAttemptedRef.current = true;
 
     try {
-  await callSessionApi('/api/sessionLogout', { method: 'POST' });
+  try {
+    await callSessionApi('/api/sessionLogout', { method: 'POST' });
+  } catch (sessionError) {
+    console.warn('No se pudo limpiar la sesión del backend', sessionError);
+  }
+
   await signOut(auth);
 
   clearSessionCookieRefreshMark();
@@ -563,20 +615,39 @@ export const AuthProvider = ({ children }) => {
 } catch (error) {
   manualLogoutRef.current = false;
   restoreAttemptedRef.current = false;
-  toast({ title: 'Error al cerrar sesión', description: error.message, variant: 'destructive' });
+  toast({
+    title: 'Error al cerrar sesión',
+    description: getAuthErrorMessage(error, 'No se pudo cerrar sesión. Inténtalo de nuevo.'),
+    variant: 'destructive',
+  });
   throw error;
 }
   };
 
   const updateUserEmail = async (newEmail) => {
-    if (!auth.currentUser) return;
-    try {
-      await firebaseUpdateEmail(auth.currentUser, newEmail);
-      setUser((prev) => (prev ? { ...prev, email: newEmail } : prev));
-    } catch (error) {
-      toast({ title: 'Error al actualizar correo', description: error.message, variant: 'destructive' });
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      const error = new Error('auth/no-current-user');
+      error.code = 'auth/no-current-user';
       throw error;
     }
+
+    const normalizedEmail = String(newEmail || '').trim();
+    if (!normalizedEmail) {
+      const error = new Error('auth/invalid-email');
+      error.code = 'auth/invalid-email';
+      throw error;
+    }
+
+    if (normalizedEmail === currentUser.email) {
+      return { ok: true, unchanged: true };
+    }
+
+    await verifyBeforeUpdateEmail(currentUser, normalizedEmail, {
+      url: `${window.location.origin}/settings`,
+    });
+
+    return { ok: true, verificationSent: true };
   };
 
   const updateUserPassword = async (newPassword) => {
@@ -584,7 +655,6 @@ export const AuthProvider = ({ children }) => {
     try {
       await firebaseUpdatePassword(auth.currentUser, newPassword);
     } catch (error) {
-      toast({ title: 'Error al actualizar contraseña', description: error.message, variant: 'destructive' });
       throw error;
     }
   };
@@ -611,7 +681,11 @@ export const AuthProvider = ({ children }) => {
       });
     } catch (error) {
       console.error('Failed to save preferences', error);
-      toast({ title: 'Error al guardar preferencias', description: error.message, variant: 'destructive' });
+      toast({
+        title: 'Error al guardar preferencias',
+        description: 'No se pudieron guardar las preferencias. Inténtalo de nuevo.',
+        variant: 'destructive',
+      });
       throw error;
     }
   };
@@ -622,7 +696,11 @@ export const AuthProvider = ({ children }) => {
       await updateProfile(auth.currentUser, profile);
       setUser((prev) => (prev ? { ...prev, ...profile } : prev));
     } catch (error) {
-      toast({ title: 'Error al actualizar perfil', description: error.message, variant: 'destructive' });
+      toast({
+        title: 'Error al actualizar perfil',
+        description: getAuthErrorMessage(error, 'No se pudo actualizar el perfil. Inténtalo de nuevo.'),
+        variant: 'destructive',
+      });
       throw error;
     }
   };
@@ -635,7 +713,11 @@ export const AuthProvider = ({ children }) => {
       setPreferences(null);
       setRestoringSession(false);
     } catch (error) {
-      toast({ title: 'Error al eliminar cuenta', description: error.message, variant: 'destructive' });
+      toast({
+        title: 'Error al eliminar cuenta',
+        description: getAuthErrorMessage(error, 'No se pudo eliminar la cuenta. Inténtalo de nuevo.'),
+        variant: 'destructive',
+      });
       throw error;
     }
   };
@@ -648,6 +730,8 @@ export const AuthProvider = ({ children }) => {
         register,
         logout,
         resetPassword,
+        refreshCurrentUser,
+        resendVerificationEmail,
         updateEmail: updateUserEmail,
         updatePassword: updateUserPassword,
         preferences,

@@ -17,11 +17,13 @@ import {
   updateCycleDatesDB,
   updateCycleIgnoreAutoCalculations,
   updateCyclePostpartumModeDB,
+  updateCycleInterpretationOverridesDB,
   deleteCycleDB,
   deleteArchivedCycleWithStrategyDB,
   previewDeleteArchivedCycleWithStrategyDB,
   undoCurrentCycleDB,
   toPublicError,
+  createAppError,
   forceUpdateCycleStart as forceUpdateCycleStartDB,
   forceShiftNextCycleStart as forceShiftNextCycleStartDB,
   resolveDuplicateIsoDateDB,
@@ -56,6 +58,19 @@ const defaultCycleState = {
   data: [],
   ignoredForAutoCalculations: false,
   postpartumMode: false,
+  interpretationOverrides: {
+    temperatureRise: {
+      mode: 'auto',
+      baselineTemp: null,
+      firstHighIsoDate: null,
+      updatedAt: null,
+    },
+    fertileStart: {
+      mode: 'auto',
+      isoDate: null,
+      updatedAt: null,
+    },
+  },
   issues: {
     outOfRange: [],
     duplicates: [],
@@ -67,6 +82,41 @@ const defaultCycleState = {
 const normalizeCycleForState = (cycle) => ({
   ...cycle,
   postpartumMode: cycle?.postpartumMode === true,
+  interpretationOverrides: {
+    temperatureRise: {
+      mode:
+        ['manual', 'ignored'].includes(cycle?.interpretationOverrides?.temperatureRise?.mode)
+          ? cycle.interpretationOverrides.temperatureRise.mode
+          : 'auto',
+      baselineTemp: Number.isFinite(
+        Number(cycle?.interpretationOverrides?.temperatureRise?.baselineTemp)
+      )
+        ? Number(Number(cycle.interpretationOverrides.temperatureRise.baselineTemp).toFixed(2))
+        : null,
+      firstHighIsoDate:
+        typeof cycle?.interpretationOverrides?.temperatureRise?.firstHighIsoDate === 'string'
+          ? cycle.interpretationOverrides.temperatureRise.firstHighIsoDate
+          : null,
+      updatedAt:
+        typeof cycle?.interpretationOverrides?.temperatureRise?.updatedAt === 'string'
+          ? cycle.interpretationOverrides.temperatureRise.updatedAt
+          : null,
+    },
+    fertileStart: {
+      mode:
+        cycle?.interpretationOverrides?.fertileStart?.mode === 'manual'
+          ? 'manual'
+          : 'auto',
+      isoDate:
+        typeof cycle?.interpretationOverrides?.fertileStart?.isoDate === 'string'
+          ? cycle.interpretationOverrides.fertileStart.isoDate
+          : null,
+      updatedAt:
+        typeof cycle?.interpretationOverrides?.fertileStart?.updatedAt === 'string'
+          ? cycle.interpretationOverrides.fertileStart.updatedAt
+          : null,
+    },
+  },
 });
 
 const filterEntriesByEndDate = (entries, endDate) => {
@@ -125,6 +175,14 @@ const formatUiDate = (isoDate) => {
   return isValid(parsed) ? format(parsed, 'dd/MM/yyyy') : isoDate;
 };
 
+const resolvePayloadFertilitySymbol = (payload) => {
+  if (!payload || typeof payload !== 'object') return null;
+  if (Object.prototype.hasOwnProperty.call(payload, 'fertility_symbol')) {
+    return payload.fertility_symbol ?? null;
+  }
+  return payload.fertilitySymbol ?? null;
+};
+
 const buildEntryForState = ({
   payload,
   entryId,
@@ -142,7 +200,8 @@ const buildEntryForState = ({
     temperature_chart: payload.temperature_chart ?? null,
     mucus_sensation: payload.mucus_sensation ?? null,
     mucus_appearance: payload.mucus_appearance ?? null,
-    fertility_symbol: payload.fertility_symbol ?? null,
+    fertility_symbol: resolvePayloadFertilitySymbol(payload),
+    fertilitySymbol: resolvePayloadFertilitySymbol(payload),
     observations: payload.observations ?? null,
     had_relations: payload.had_relations ?? false,
     ignored: payload.ignored ?? false,
@@ -160,6 +219,7 @@ const buildEntryForState = ({
     return {
       ...existingEntry,
       ...entryForProcessing,
+      fertilitySymbol: entryForProcessing.fertility_symbol ?? null,
       isoDate,
       measurements: entryForProcessing.measurements,
       measurementsLoaded: Array.isArray(payload.measurements)
@@ -171,6 +231,7 @@ const buildEntryForState = ({
   return {
     ...existingEntry,
     ...processed[0],
+    fertilitySymbol: processed[0]?.fertility_symbol ?? null,
     measurements: entryForProcessing.measurements,
     measurementsLoaded: Array.isArray(payload.measurements)
       ? true
@@ -457,7 +518,17 @@ export const CycleDataProvider = ({ children }) => {
         console.error('User or cycle id is missing');
         throw new Error('User or cycle id is missing');
       }
+    const todayIso = format(startOfDay(new Date()), 'yyyy-MM-dd');
 
+if (newData?.isoDate && newData.isoDate > todayIso) {
+  throw createAppError(
+    'future-date-not-allowed',
+    'Fecha no permitida',
+    'No se pueden guardar registros en días futuros.',
+    { isoDate: newData.isoDate, todayIso },
+    { label: 'Cambiar fecha' }
+  );
+}
       setIsLoading(true);
 
       try {
@@ -539,8 +610,7 @@ export const CycleDataProvider = ({ children }) => {
           newData.mucusAppearance ?? newData.mucus_appearance ?? ''
         );
         const observationsValue = trimValue(newData.observations ?? '');
-        const fertilitySymbolValue =
-          newData.fertility_symbol ?? newData.fertilitySymbol ?? null;
+        const fertilitySymbolValue = resolvePayloadFertilitySymbol(newData);
         const hasFertilitySymbol =
           fertilitySymbolValue !== null &&
           fertilitySymbolValue !== undefined &&
@@ -588,7 +658,7 @@ export const CycleDataProvider = ({ children }) => {
           measurements: measurementsPayload,
           mucus_sensation: newData.mucusSensation || null,
           mucus_appearance: newData.mucusAppearance || null,
-          fertility_symbol: newData.fertility_symbol === 'none' ? null : newData.fertility_symbol,
+          fertility_symbol: fertilitySymbolValue === 'none' ? null : fertilitySymbolValue,
           observations: newData.observations || null,
           had_relations: hadRelationsValue,
           ignored: targetRecord ? (newData.ignored ?? targetRecord.ignored) : newData.ignored || false,
@@ -1360,6 +1430,45 @@ const getCycleFromState = useCallback(
     [user, currentCycle, archivedCycles, loadCycleData, toast]
   );
 
+  const updateCycleInterpretationOverrides = useCallback(
+    async (cycleIdToUpdate, overrides) => {
+      if (!user?.uid || !cycleIdToUpdate) return;
+      const nextOverrides = normalizeCycleForState({ interpretationOverrides: overrides })
+        .interpretationOverrides;
+      const previousCurrentCycle = currentCycle;
+      const previousArchivedCycles = archivedCycles;
+
+      const updateCycle = (cycle) => {
+        if (!cycle || cycle.id !== cycleIdToUpdate) return cycle;
+        return { ...cycle, interpretationOverrides: nextOverrides };
+      };
+
+      setCurrentCycle((prevCycle) => updateCycle(prevCycle));
+      setArchivedCycles((prevCycles) => prevCycles.map((cycle) => updateCycle(cycle)));
+
+      try {
+        await updateCycleInterpretationOverridesDB(user.uid, cycleIdToUpdate, nextOverrides);
+        loadCycleData({ silent: true }).catch((error) =>
+          console.error(
+            'Background cycle data refresh failed after updating interpretation overrides:',
+            error
+          )
+        );
+      } catch (error) {
+        console.error('Error updating cycle interpretation overrides:', error);
+        setCurrentCycle(previousCurrentCycle);
+        setArchivedCycles(previousArchivedCycles);
+        toast({
+          title: 'Error',
+          description: 'No se pudieron actualizar los ajustes de interpretacion del ciclo.',
+          variant: 'destructive',
+        });
+        throw error;
+      }
+    },
+    [user, currentCycle, archivedCycles, loadCycleData, toast]
+  );
+
   const refreshData = useCallback(
     ({ silent = true } = {}) => loadCycleData({ silent }),
     [loadCycleData]
@@ -1494,6 +1603,7 @@ const getCycleFromState = useCallback(
     toggleIgnoreRecord,
     setCycleIgnoreForAutoCalculations,
     updateCyclePostpartumMode,
+    updateCycleInterpretationOverrides,
     addArchivedCycle,
     previewInsertCycleRange,
     insertCycleRange,

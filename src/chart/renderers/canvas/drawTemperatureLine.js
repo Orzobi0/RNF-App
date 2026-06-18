@@ -11,6 +11,7 @@ export const drawTemperatureLine = ({
   visibleEndIndex,
   isWithinTemperaturePlotArea,
   temperatureRiseHighlightPath,
+  temperatureRiseHighlightOpacity = 1,
 }) => {
   const stops = theme.svg?.temperatureGradient;
   const tempLineStroke = (() => {
@@ -94,7 +95,7 @@ export const drawTemperatureLine = ({
       ctx.lineWidth = 4;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
-      ctx.globalAlpha = 0.9;
+      ctx.globalAlpha = 0.9 * temperatureRiseHighlightOpacity;
       ctx.stroke();
       ctx.globalAlpha = 1;
     }
