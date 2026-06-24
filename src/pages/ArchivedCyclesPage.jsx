@@ -12,6 +12,7 @@ import EditCycleDatesDialog from '@/components/EditCycleDatesDialog';
 import ArchivedCycleDeleteDialog from '@/components/ArchivedCycleDeleteDialog';
 import CycleOptionsSheet from '@/components/CycleOptionsSheet';
 import { useToast } from '@/components/ui/use-toast';
+import { cn } from '@/lib/utils';
 
 const CYCLE_OPTIONS_SHEET_EXIT_DELAY_MS = 220;
 
@@ -49,6 +50,17 @@ const normalizeCycleRowData = (cycle) => {
     durationDays,
   };
 };
+
+const formatCycleOptionsMeta = ({ durationDays, recordCount }) => {
+  const recordText = `${recordCount} registro${recordCount !== 1 ? 's' : ''}`;
+
+  if (!durationDays) {
+    return recordText;
+  }
+
+  return `${durationDays} día${durationDays !== 1 ? 's' : ''} · ${recordText}`;
+};
+
 const getGapDaysBetweenCycles = (newerCycle, olderCycle) => {
   if (!newerCycle?.startDate || !olderCycle?.endDate) return 0;
 
@@ -406,6 +418,7 @@ const gapAfterCurrentCycle = useMemo(() => {
 
 const CycleRow = ({ cycle, isFirst, isLast }) => {
   const { rangeLabel, recordCount, durationDays } = normalizeCycleRowData(cycle);
+  const isSelected = Boolean(cycleForActions?.id && cycleForActions.id === cycle.id);
 
   return (
     <div
@@ -418,7 +431,10 @@ const CycleRow = ({ cycle, isFirst, isLast }) => {
           navigateToCycle(cycle);
         }
       }}
-      className="group relative flex w-full items-start gap-3 px-4 py-3.5 text-left transition-colors hover:bg-rose-50/35 active:bg-rose-50/60"
+      className={cn(
+        'group relative flex w-full items-start gap-3 px-4 py-3.5 text-left transition-colors duration-150 hover:bg-rose-50/35 active:bg-rose-50/60',
+        isSelected && 'bg-rose-50/60 shadow-[inset_0_0_0_1px_rgba(244,114,182,0.28)]'
+      )}
     >
       {cycle.isCurrent ? (
         <span className="absolute bottom-3 left-0 top-3 w-1 rounded-r-full bg-fertiliapp-fuerte" />
@@ -634,6 +650,8 @@ const totalRecordCount = allCycles.reduce(
           }
         }}
         cycleLabel={cycleForActions ? normalizeCycleRowData(cycleForActions).rangeLabel : ''}
+        cycleMeta={cycleForActions ? formatCycleOptionsMeta(normalizeCycleRowData(cycleForActions)) : ''}
+        isCurrentCycle={Boolean(cycleForActions?.isCurrent)}
         postpartumMode={Boolean(cycleForActions?.postpartumMode)}
         isUpdatingPostpartum={isUpdatingPostpartum}
         editDatesLabel={cycleForActions?.isCurrent ? 'Editar fecha de inicio' : 'Editar fechas'}

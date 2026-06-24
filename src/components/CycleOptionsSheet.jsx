@@ -28,6 +28,8 @@ const CycleOptionsSheet = ({
   open,
   onOpenChange,
   cycleLabel,
+  cycleMeta,
+  isCurrentCycle = false,
   postpartumMode = false,
   isUpdatingPostpartum = false,
   editDatesLabel = 'Editar fecha de inicio',
@@ -199,11 +201,11 @@ useBackClose(open, handleBackClose);
               <DialogPrimitive.Title className="text-lg font-semibold leading-tight text-slate-900">
                 Opciones del ciclo
               </DialogPrimitive.Title>
-              {cycleLabel ? (
-                <DialogPrimitive.Description className="mt-1 text-sm font-medium text-slate-500">
-                  {cycleLabel}
-                </DialogPrimitive.Description>
-              ) : null}
+              <DialogPrimitive.Description className="sr-only">
+                {[cycleLabel, cycleMeta, isCurrentCycle ? 'Ciclo actual' : null, postpartumMode ? 'Modo postparto activado' : null]
+                  .filter(Boolean)
+                  .join('. ')}
+              </DialogPrimitive.Description>
             </div>
           </div>
 
@@ -211,6 +213,38 @@ useBackClose(open, handleBackClose);
             <X className="h-5 w-5" aria-hidden="true" />
             <span className="sr-only">Cerrar opciones del ciclo</span>
           </DialogPrimitive.Close>
+
+          <div className="mb-3 grid grid-cols-[auto_minmax(0,1fr)] gap-3 rounded-2xl border border-rose-100/70 bg-rose-50/35 px-3 py-2.5">
+            <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-fertiliapp-fuerte">
+              <CalendarDays className="h-4 w-4" aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+              <div className="flex min-w-0 items-center gap-1.5">
+                <p className="min-w-0 flex-1 truncate text-sm font-semibold leading-5 text-slate-800">
+                  {cycleLabel}
+                </p>
+                {isCurrentCycle ? (
+                  <span className="shrink-0 rounded-full bg-fertiliapp-fuerte px-2 py-0.5 text-[10px] font-semibold leading-4 text-white">
+                    Actual
+                  </span>
+                ) : null}
+                {postpartumMode ? (
+                  <span
+                    className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-rose-100 bg-white text-fertiliapp-fuerte"
+                    aria-label="Modo postparto activado"
+                    title="Modo postparto activado"
+                  >
+                    <Baby className="h-3 w-3" aria-hidden="true" />
+                  </span>
+                ) : null}
+              </div>
+              {cycleMeta ? (
+                <p className="mt-0.5 truncate text-xs font-medium leading-4 text-slate-500">
+                  {cycleMeta}
+                </p>
+              ) : null}
+            </div>
+          </div>
 
           <div className="mt-2 min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pb-1">
             <button
@@ -237,14 +271,14 @@ useBackClose(open, handleBackClose);
                 onPostpartumChange?.(!postpartumMode);
               }}
               disabled={!canTogglePostpartum}
-              className="grid min-h-[68px] w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 rounded-2xl border border-rose-100/80 bg-rose-50/35 px-3 py-3 text-left transition hover:bg-rose-50/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 disabled:cursor-not-allowed disabled:opacity-70"
+              className="grid min-h-[56px] w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 rounded-2xl border border-rose-100/80 bg-rose-50/35 px-3 py-3 text-left transition hover:bg-rose-50/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 disabled:cursor-not-allowed disabled:opacity-70"
             >
               <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-rose-600">
                 <Baby className="h-4 w-4" aria-hidden="true" />
               </span>
               <span className="min-w-0">
                 <span className="block text-sm font-semibold text-slate-800">Modo postparto</span>
-                <span className="mt-0.5 block text-xs leading-relaxed text-slate-500">
+                <span className="sr-only">
                   Aplica las reglas de interpretación de postparto.
                 </span>
               </span>
@@ -289,7 +323,7 @@ useBackClose(open, handleBackClose);
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm font-semibold text-red-900">{deleteLabel || deleteTitle}</span>
                   {deleteDescription ? (
-                    <span className="mt-0.5 block text-xs leading-relaxed text-red-800">
+                    <span className="sr-only">
                       {deleteDescription}
                     </span>
                   ) : null}

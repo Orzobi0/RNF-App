@@ -2136,6 +2136,8 @@ const handleNextCalendarMonth = useCallback(() => {
         open={showCycleOptionsSheet}
         onOpenChange={setShowCycleOptionsSheet}
         cycleLabel={resolvedHeaderTitle}
+        cycleMeta={resolvedHeaderMeta}
+        isCurrentCycle={isCurrentCycle}
         postpartumMode={Boolean(cycle?.postpartumMode)}
         isUpdatingPostpartum={isUpdatingPostpartum}
         editDatesLabel={includeEndDate ? 'Editar fechas' : 'Editar fecha de inicio'}
