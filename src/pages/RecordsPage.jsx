@@ -106,7 +106,7 @@ const renderCycleNavButton = (direction, targetCycle) => {
         onClick={onOpenCycleOptions}
         disabled={isProcessing || isUpdatingDates}
         aria-label="Opciones del ciclo"
-        className="absolute left-4 top-2.5 z-20 h-10 w-10 bg-transparent text-white shadow-none"
+        className="absolute left-4 top-2.5 z-20 h-10 w-10 !border-transparent !bg-transparent !shadow-none text-white hover:!bg-transparent hover:text-white active:!bg-white/10 active:text-white focus-visible:!bg-white/10"
       >
         <EllipsisVertical className="h-4 w-4" />
         <span className="sr-only">Opciones del ciclo</span>
@@ -2103,7 +2103,7 @@ const handleNextCalendarMonth = useCallback(() => {
         <DialogContent
           unstyled
           hideClose
-          className="w-[96vw] max-w-xl border-0 bg-transparent p-0 text-gray-800 shadow-none"
+          className="w-[88vw] max-w-xl border-0 bg-transparent p-0 text-gray-800 shadow-none"
         >
           <CycleDatesEditor
             cycle={cycle}

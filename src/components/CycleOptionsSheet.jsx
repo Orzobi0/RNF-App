@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { Baby, CalendarDays, ChevronRight, Loader2, RotateCcw, Trash2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import useBackClose from '@/hooks/useBackClose';
 
 const DRAG_CLOSE_THRESHOLD_PX = 80;
 
@@ -95,6 +96,11 @@ const CycleOptionsSheet = ({
     },
     [onOpenChange]
   );
+const handleBackClose = useCallback(() => {
+  onOpenChange?.(false);
+}, [onOpenChange]);
+
+useBackClose(open, handleBackClose);
 
   const handleDragPointerDown = useCallback((event) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
