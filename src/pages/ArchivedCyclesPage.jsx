@@ -1,17 +1,19 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCycleData } from '@/hooks/useCycleData';
 import { HeaderIconButtonPrimary } from '@/components/HeaderIconButton';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import DeletionDialog from '@/components/DeletionDialog';
 import { differenceInCalendarDays, format, parseISO, addDays, isValid, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Archive, Baby, CalendarDays, EllipsisVertical, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { Archive, Baby, CalendarDays, EllipsisVertical, Plus } from 'lucide-react';
 import EditCycleDatesDialog from '@/components/EditCycleDatesDialog';
 import ArchivedCycleDeleteDialog from '@/components/ArchivedCycleDeleteDialog';
+import CycleOptionsSheet from '@/components/CycleOptionsSheet';
 import { useToast } from '@/components/ui/use-toast';
+
+const CYCLE_OPTIONS_SHEET_EXIT_DELAY_MS = 220;
 
 const formatArchivedDate = (date) => format(date, 'dd MMM yy', { locale: es });
 
@@ -90,6 +92,7 @@ const ArchivedCyclesPage = () => {
     previewInsertCycleRange,
     insertCycleRange,
     undoCurrentCycle,
+    updateCyclePostpartumMode,
   } = useCycleData();
 
   const { toast } = useToast();
@@ -100,8 +103,19 @@ const ArchivedCyclesPage = () => {
   const [cycleToDelete, setCycleToDelete] = useState(null);
   const [showUndoCycleDialog, setShowUndoCycleDialog] = useState(false);
   const [isUndoingCycle, setIsUndoingCycle] = useState(false);
+  const [isUpdatingPostpartum, setIsUpdatingPostpartum] = useState(false);
   const [addCycleError, setAddCycleError] = useState(null);
   const [editCycleError, setEditCycleError] = useState(null);
+  const actionSheetTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (actionSheetTimeoutRef.current) {
+        window.clearTimeout(actionSheetTimeoutRef.current);
+        actionSheetTimeoutRef.current = null;
+      }
+    };
+  }, []);
   
   const allCycles = currentCycle?.id
   ? [{ ...currentCycle, isCurrent: true, needsCompletion: !currentCycle.endDate }, ...(archivedCycles || [])]
@@ -306,6 +320,77 @@ const gapAfterCurrentCycle = useMemo(() => {
       setIsUndoingCycle(false);
     }
   }, [currentCycleWithFlag?.id, getPublicError, toast, undoCurrentCycle]);
+
+  const runAfterActionSheetClose = useCallback((callback) => {
+    if (actionSheetTimeoutRef.current) {
+      window.clearTimeout(actionSheetTimeoutRef.current);
+    }
+
+    setCycleForActions(null);
+    actionSheetTimeoutRef.current = window.setTimeout(() => {
+      actionSheetTimeoutRef.current = null;
+      callback();
+    }, CYCLE_OPTIONS_SHEET_EXIT_DELAY_MS);
+  }, []);
+
+  const handleEditCycleFromSheet = useCallback(() => {
+    if (!cycleForActions) return;
+    const targetCycle = cycleForActions;
+
+    runAfterActionSheetClose(() => {
+      setEditingCycle(targetCycle);
+      setEditCycleError(null);
+    });
+  }, [cycleForActions, runAfterActionSheetClose]);
+
+  const handleUndoCycleFromSheet = useCallback(() => {
+    if (!cycleForActions?.isCurrent || !undoCandidate) return;
+
+    runAfterActionSheetClose(() => {
+      setShowUndoCycleDialog(true);
+    });
+  }, [cycleForActions?.isCurrent, runAfterActionSheetClose, undoCandidate]);
+
+  const handleDeleteCycleFromSheet = useCallback(() => {
+    if (!cycleForActions || cycleForActions.isCurrent) return;
+    const targetCycle = cycleForActions;
+
+    runAfterActionSheetClose(() => {
+      setCycleToDelete(targetCycle);
+    });
+  }, [cycleForActions, runAfterActionSheetClose]);
+
+  const handlePostpartumChange = useCallback(
+    async (checked) => {
+      if (!cycleForActions?.id || typeof updateCyclePostpartumMode !== 'function' || isUpdatingPostpartum) {
+        return;
+      }
+
+      const nextValue = checked === true;
+      const targetCycleId = cycleForActions.id;
+
+      setIsUpdatingPostpartum(true);
+      try {
+        await updateCyclePostpartumMode(targetCycleId, nextValue);
+        setCycleForActions((current) =>
+          current?.id === targetCycleId ? { ...current, postpartumMode: nextValue } : current
+        );
+        toast({
+          title: nextValue ? 'Modo postparto activado' : 'Modo postparto desactivado',
+        });
+      } catch (error) {
+        console.error('Failed to persist postpartum mode from archived cycles page', error);
+        toast({
+          title: 'No se pudo actualizar el modo postparto',
+          description: 'Inténtalo de nuevo.',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsUpdatingPostpartum(false);
+      }
+    },
+    [cycleForActions?.id, isUpdatingPostpartum, toast, updateCyclePostpartumMode]
+  );
 
   const openActions = (event, cycle) => {
     event.stopPropagation();
@@ -541,59 +626,26 @@ const totalRecordCount = allCycles.reduce(
         })}
       </div>
 
-      <Dialog open={Boolean(cycleForActions)} onOpenChange={(open) => !open && setCycleForActions(null)}>
-        <DialogContent className="rounded-2xl border border-slate-100 bg-white sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Acciones del ciclo</DialogTitle>
-            <DialogDescription className="text-left text-sm text-slate-500">
-              {cycleForActions ? normalizeCycleRowData(cycleForActions).rangeLabel : ''}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-2">
-            <button
-              type="button"
-              className="flex w-full items-center gap-2 rounded-xl border border-slate-100 bg-white px-3 py-3 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-              onClick={() => {
-                setEditingCycle(cycleForActions);
-                setEditCycleError(null);
-                setCycleForActions(null);
-              }}
-            >
-              <Pencil className="h-4 w-4" />
-              Editar fechas
-            </button>
-
-            {cycleForActions?.isCurrent ? (
-              undoCandidate ? (
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-2 rounded-xl border border-amber-100 bg-amber-50 px-3 py-3 text-left text-sm font-medium text-amber-800 transition hover:bg-amber-100"
-                  onClick={() => {
-                    setShowUndoCycleDialog(true);
-                    setCycleForActions(null);
-                  }}
-                >
-                  <RotateCcw className="h-4 w-4" />
-                  Deshacer ciclo
-                </button>
-              ) : null
-            ) : (
-              <button
-                type="button"
-                className="flex w-full items-center gap-2 rounded-xl border border-red-100 bg-red-50 px-3 py-3 text-left text-sm font-medium text-red-700 transition hover:bg-red-100"
-                onClick={() => {
-                  setCycleToDelete(cycleForActions);
-                  setCycleForActions(null);
-                }}
-              >
-                <Trash2 className="h-4 w-4" />
-                Eliminar ciclo
-              </button>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+      <CycleOptionsSheet
+        open={Boolean(cycleForActions)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCycleForActions(null);
+          }
+        }}
+        cycleLabel={cycleForActions ? normalizeCycleRowData(cycleForActions).rangeLabel : ''}
+        postpartumMode={Boolean(cycleForActions?.postpartumMode)}
+        isUpdatingPostpartum={isUpdatingPostpartum}
+        editDatesLabel={cycleForActions?.isCurrent ? 'Editar fecha de inicio' : 'Editar fechas'}
+        onEditStartDate={handleEditCycleFromSheet}
+        onPostpartumChange={handlePostpartumChange}
+        showUndoCycle={Boolean(cycleForActions?.isCurrent && undoCandidate)}
+        onUndoCycle={handleUndoCycleFromSheet}
+        showDeleteCycle={Boolean(cycleForActions && !cycleForActions.isCurrent)}
+        onDeleteCycle={handleDeleteCycleFromSheet}
+        deleteDescription="Podrás elegir cómo gestionar sus registros antes de confirmar."
+        isProcessing={isUpdatingPostpartum || isUndoingCycle}
+      />
 
       <EditCycleDatesDialog
         isOpen={showAddDialog}
@@ -617,11 +669,12 @@ const totalRecordCount = allCycles.reduce(
         onConfirm={handleUpdateCycle}
         initialStartDate={editingCycle?.startDate}
         initialEndDate={editingCycle?.endDate}
+        includeEndDate={!editingCycle?.isCurrent}
         cycleId={editingCycle?.id}
         checkOverlap={checkCycleOverlap}
         previewUpdateCycleDates={previewUpdateCycleDates}
-        title="Editar fechas del ciclo"
-        description="Actualiza las fechas del ciclo."
+        title={editingCycle?.isCurrent ? 'Editar fecha de inicio' : 'Editar fechas del ciclo'}
+        description={editingCycle?.isCurrent ? 'Actualiza la fecha de inicio del ciclo actual.' : 'Actualiza las fechas del ciclo.'}
         cycleData={editingCycle?.data ?? []}
         otherCycles={allCycles}
         errorMessage={editCycleError?.message}
