@@ -8,6 +8,7 @@ import React, {
 } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import CycleDatesEditor from '@/components/CycleDatesEditor';
+import CycleOptionsSheet from '@/components/CycleOptionsSheet';
 import DataEntryForm from '@/components/DataEntryForm';
 import DayDetail from '@/components/DayDetail';
 import DeletionDialog from '@/components/DeletionDialog';
@@ -17,7 +18,7 @@ import { ToastAction } from '@/components/ui/toast';
 import { HeaderIconButtonPrimary } from '@/components/HeaderIconButton';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Baby, ChevronLeft, ChevronRight, Edit, Plus, ClipboardList, Heart, Loader2 } from 'lucide-react';
+import { Baby, ChevronLeft, ChevronRight, Edit, EllipsisVertical, Plus, ClipboardList, Heart, Loader2 } from 'lucide-react';
 import NewCycleDialog from '@/components/NewCycleDialog';
 import {
   format,
@@ -59,6 +60,7 @@ const RecordsHeader = ({
   isCurrentCycle,
   topAccessory,
   onEditDates,
+  onOpenCycleOptions,
   onAddRecord,
   isProcessing,
   isUpdatingDates,
@@ -70,6 +72,7 @@ const RecordsHeader = ({
 }) => {
   const cycleLabel = isCurrentCycle ? 'CICLO ACTUAL' : 'CICLO ARCHIVADO';
   const editDatesLabel = isCurrentCycle ? 'Editar fechas del ciclo actual' : 'Editar fechas del ciclo archivado';
+  const showCycleOptionsButton = typeof onOpenCycleOptions === 'function';
 
 const renderCycleNavButton = (direction, targetCycle) => {
   const Icon = direction === 'previous' ? ChevronLeft : ChevronRight;
@@ -97,6 +100,19 @@ const renderCycleNavButton = (direction, targetCycle) => {
   return (
   <div className="px-4 pt-2">
     <div className="relative overflow-hidden rounded-3xl bg-fertiliapp-fuerte px-4 pb-3 pt-2.5 text-white shadow-[0_8px_18px_rgba(216,92,112,0.14)]">
+    {showCycleOptionsButton && (
+      <HeaderIconButtonPrimary
+        type="button"
+        onClick={onOpenCycleOptions}
+        disabled={isProcessing || isUpdatingDates}
+        aria-label="Opciones del ciclo"
+        className="absolute left-4 top-2.5 z-20 h-10 w-10 bg-transparent text-white shadow-none"
+      >
+        <EllipsisVertical className="h-4 w-4" />
+        <span className="sr-only">Opciones del ciclo</span>
+      </HeaderIconButtonPrimary>
+    )}
+
     <HeaderIconButtonPrimary
       type="button"
       onClick={onAddRecord}
@@ -108,23 +124,29 @@ const renderCycleNavButton = (direction, targetCycle) => {
       <span className="sr-only">Añadir registro</span>
     </HeaderIconButtonPrimary>
 
-    <div className="mx-auto max-w-[calc(100%-3.5rem)] text-center">
+    <div className={cn('mx-auto text-center', showCycleOptionsButton ? 'max-w-[calc(100%-7rem)]' : 'max-w-[calc(100%-3.5rem)]')}>
       <div className="truncate text-[9px] font-semibold uppercase leading-4 tracking-[0.2em] text-white/72">
         {cycleLabel}
       </div>
 
-      <button
-        type="button"
-        onClick={onEditDates}
-        data-date-editor-toggle="true"
-        disabled={isProcessing || isUpdatingDates}
-        aria-label={editDatesLabel}
-        aria-pressed={isDateEditorOpen}
-        aria-expanded={isDateEditorOpen}
-        className="date-editor-toggle mt-0.5 inline-flex max-w-full items-center justify-center rounded-full px-1.5 py-0.5 text-center text-[18px] font-semibold leading-tight text-white transition hover:bg-white/10 active:bg-white/15 disabled:opacity-60"
-      >
-        <span className="truncate">{title}</span>
-      </button>
+      {showCycleOptionsButton ? (
+        <div className="mt-0.5 max-w-full truncate px-1.5 py-0.5 text-center text-[18px] font-semibold leading-tight text-white">
+          {title}
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={onEditDates}
+          data-date-editor-toggle="true"
+          disabled={isProcessing || isUpdatingDates}
+          aria-label={editDatesLabel}
+          aria-pressed={isDateEditorOpen}
+          aria-expanded={isDateEditorOpen}
+          className="date-editor-toggle mt-0.5 inline-flex max-w-full items-center justify-center rounded-full px-1.5 py-0.5 text-center text-[18px] font-semibold leading-tight text-white transition hover:bg-white/10 active:bg-white/15 disabled:opacity-60"
+        >
+          <span className="truncate">{title}</span>
+        </button>
+      )}
     </div>
 
     <div className="pointer-events-none absolute left-4 right-4 top-[3.05rem] z-10 flex items-center justify-between">
@@ -244,6 +266,7 @@ export const RecordsExperience = ({
     refreshData: contextRefreshData,
     getMeasurementsForEntry: contextGetMeasurementsForEntry,
     undoCurrentCycle: contextUndoCurrentCycle,
+    updateCyclePostpartumMode: contextUpdateCyclePostpartumMode,
     repairDialogState,
     openDataRepairDialog,
     closeDataRepairDialog,
@@ -299,6 +322,8 @@ export const RecordsExperience = ({
   const [recordToDelete, setRecordToDelete] = useState(null);
   const [showUndoCycleDialog, setShowUndoCycleDialog] = useState(false);
   const [isUndoingCycle, setIsUndoingCycle] = useState(false);
+  const [showCycleOptionsSheet, setShowCycleOptionsSheet] = useState(false);
+  const [isUpdatingPostpartum, setIsUpdatingPostpartum] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [showStartDateEditor, setShowStartDateEditor] = useState(false);
@@ -459,7 +484,6 @@ export const RecordsExperience = ({
   );
   const isCalendarOpen = true;
   const activeRecordLoadRef = useRef(null);
-  const cycleDatesEditorRef = useRef(null);
   const cycleNavigationTimeoutRef = useRef(null);
 
   useEffect(() => {
@@ -1303,6 +1327,59 @@ const handleNextCalendarMonth = useCallback(() => {
     openStartDateEditor();
   }, [closeStartDateEditor, openStartDateEditor, showStartDateEditor]);
 
+  const handleOpenCycleOptions = useCallback(() => {
+    setShowCycleOptionsSheet(true);
+  }, []);
+
+  const handleEditStartDateFromCycleOptions = useCallback(() => {
+    setShowCycleOptionsSheet(false);
+    window.setTimeout(() => {
+      openStartDateEditor();
+    }, 0);
+  }, [openStartDateEditor]);
+
+  const handleUndoCycleFromOptions = useCallback(() => {
+    setShowCycleOptionsSheet(false);
+    window.setTimeout(() => {
+      setShowUndoCycleDialog(true);
+    }, 0);
+  }, []);
+
+  const handleDeleteCycleFromOptions = useCallback(() => {
+    if (!onRequestDeleteCycle) return;
+    setShowCycleOptionsSheet(false);
+    window.setTimeout(() => {
+      onRequestDeleteCycle();
+    }, 0);
+  }, [onRequestDeleteCycle]);
+
+  const handlePostpartumChange = useCallback(
+    async (checked) => {
+      if (!cycle?.id || typeof contextUpdateCyclePostpartumMode !== 'function' || isUpdatingPostpartum) {
+        return;
+      }
+
+      setIsUpdatingPostpartum(true);
+      try {
+        await contextUpdateCyclePostpartumMode(cycle.id, checked === true);
+        await refreshData?.({ silent: true });
+        toast({
+          title: checked === true ? 'Modo postparto activado' : 'Modo postparto desactivado',
+        });
+      } catch (error) {
+        console.error('Failed to persist postpartum mode from records page', error);
+        toast({
+          title: 'No se pudo actualizar el modo postparto',
+          description: 'Inténtalo de nuevo.',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsUpdatingPostpartum(false);
+      }
+    },
+    [contextUpdateCyclePostpartumMode, cycle?.id, isUpdatingPostpartum, refreshData, toast]
+  );
+
 
   const handleConfirmUndoCycle = useCallback(async () => {
     if (!contextCurrentCycle?.id) return;
@@ -1317,13 +1394,6 @@ const handleNextCalendarMonth = useCallback(() => {
       setIsUndoingCycle(false);
     }
   }, [closeStartDateEditor, contextCurrentCycle?.id, contextUndoCurrentCycle]);
-
-  const handleDeleteCycleFromEditor = useCallback(() => {
-    if (onRequestDeleteCycle) {
-      closeStartDateEditor();
-      onRequestDeleteCycle();
-    }
-  }, [closeStartDateEditor, onRequestDeleteCycle]);
 
   const handleCancelOverlapStart = useCallback(() => {
     resetStartDateFlow();
@@ -1880,6 +1950,7 @@ const handleNextCalendarMonth = useCallback(() => {
       isCurrentCycle={isCurrentCycle}
       topAccessory={resolvedTopAccessory}
       onEditDates={toggleStartDateEditor}
+      onOpenCycleOptions={handleOpenCycleOptions}
       onAddRecord={handleOpenAddRecord}
       isProcessing={isProcessing}
       isUpdatingDates={isUpdatingStartDate}
@@ -1896,43 +1967,6 @@ const handleNextCalendarMonth = useCallback(() => {
           <div className="space-y-1.5 relative z-10">
             <DataIssuesBanner issues={cycle?.issues} onReview={() => openDataRepairDialog?.(cycle?.id)} />
 
-            {showStartDateEditor && (
-              <motion.div
-                ref={cycleDatesEditorRef}
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4 }}
-              >
-                <CycleDatesEditor
-                  cycle={cycle}
-                  startDate={draftStartDate}
-                  endDate={includeEndDate ? draftEndDate : cycle?.endDate}
-                  otherCycles={[...(archivedCycles ?? []), contextCurrentCycle].filter(Boolean)}
-                  onStartDateChange={(value) => setDraftStartDate(value)}
-                  onEndDateChange={includeEndDate ? (value) => setDraftEndDate(value) : undefined}
-                  onSave={handleSaveStartDate}
-                  onCancel={closeStartDateEditor}
-                  isProcessing={isUpdatingStartDate || isLoading || isUndoingCycle}
-                  dateError={startDateError}
-                  includeEndDate={includeEndDate}
-                  showOverlapDialog={showOverlapDialog}
-                  overlapCycle={overlapCycle}
-                  overlapImpactPreview={overlapImpactPreview}
-                  onConfirmOverlap={handleConfirmOverlapStart}
-                  onCancelOverlap={handleCancelOverlapStart}
-                  onClearError={() => setStartDateError('')}
-                  saveLabel={includeEndDate ? 'Guardar fechas' : 'Guardar cambios'}
-                  title={includeEndDate ? 'Editar fechas del ciclo' : 'Editar fecha de inicio'}
-                  onUndoCycle={undoCandidate ? () => setShowUndoCycleDialog(true) : undefined}
-                  isUndoingCycle={isUndoingCycle}
-                  onDeleteCycle={onRequestDeleteCycle ? handleDeleteCycleFromEditor : undefined}
-                  deleteTitle={dateEditorDeleteTitle}
-                  deleteDescription={dateEditorDeleteDescription}
-                  deleteLabel={dateEditorDeleteLabel}
-                  isDeletingCycle={isDeletingCycle}
-                />
-              </motion.div>
-            )}
             <AnimatePresence initial={false}>
               {isCalendarOpen && (
                 <motion.div
@@ -2056,6 +2090,65 @@ const handleNextCalendarMonth = useCallback(() => {
         {afterRecordsContent && <div className="pt-4 space-y-4">{afterRecordsContent}</div>}
         </div>
       </div>
+
+      <Dialog
+        open={showStartDateEditor}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeStartDateEditor();
+          }
+        }}
+      >
+        <DialogContent
+          unstyled
+          hideClose
+          className="w-[96vw] max-w-xl border-0 bg-transparent p-0 text-gray-800 shadow-none"
+        >
+          <CycleDatesEditor
+            cycle={cycle}
+            startDate={draftStartDate}
+            endDate={includeEndDate ? draftEndDate : cycle?.endDate}
+            otherCycles={[...(archivedCycles ?? []), contextCurrentCycle].filter(Boolean)}
+            onStartDateChange={(value) => setDraftStartDate(value)}
+            onEndDateChange={includeEndDate ? (value) => setDraftEndDate(value) : undefined}
+            onSave={handleSaveStartDate}
+            onCancel={closeStartDateEditor}
+            isProcessing={isUpdatingStartDate || isLoading || isUndoingCycle}
+            dateError={startDateError}
+            includeEndDate={includeEndDate}
+            showOverlapDialog={showOverlapDialog}
+            overlapCycle={overlapCycle}
+            overlapImpactPreview={overlapImpactPreview}
+            onConfirmOverlap={handleConfirmOverlapStart}
+            onCancelOverlap={handleCancelOverlapStart}
+            onClearError={() => setStartDateError('')}
+            saveLabel={includeEndDate ? 'Guardar fechas' : 'Guardar cambios'}
+            title={includeEndDate ? 'Editar fechas del ciclo' : 'Editar fecha de inicio'}
+            isUndoingCycle={isUndoingCycle}
+            showCycleActions={false}
+            className="w-full"
+          />
+        </DialogContent>
+      </Dialog>
+
+      <CycleOptionsSheet
+        open={showCycleOptionsSheet}
+        onOpenChange={setShowCycleOptionsSheet}
+        cycleLabel={resolvedHeaderTitle}
+        postpartumMode={Boolean(cycle?.postpartumMode)}
+        isUpdatingPostpartum={isUpdatingPostpartum}
+        editDatesLabel={includeEndDate ? 'Editar fechas' : 'Editar fecha de inicio'}
+        onEditStartDate={handleEditStartDateFromCycleOptions}
+        onPostpartumChange={handlePostpartumChange}
+        showUndoCycle={isCurrentCycle && Boolean(undoCandidate)}
+        onUndoCycle={handleUndoCycleFromOptions}
+        showDeleteCycle={!isCurrentCycle && Boolean(onRequestDeleteCycle)}
+        onDeleteCycle={handleDeleteCycleFromOptions}
+        deleteTitle={dateEditorDeleteTitle}
+        deleteDescription={dateEditorDeleteDescription}
+        deleteLabel={dateEditorDeleteLabel}
+        isProcessing={isProcessing || isLoading || isUpdatingStartDate || isUndoingCycle || isDeletingCycle}
+      />
 
       <Dialog
         open={showForm}
