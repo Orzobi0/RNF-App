@@ -219,6 +219,7 @@ const resolveInitialSelectedIsoDate = ({ cycle, routeSelectedIso }) => {
 };
 
 const CALENDAR_BUTTON_SCROLL_DURATION_MS = 170;
+const CYCLE_OPTIONS_SHEET_EXIT_DELAY_MS = 200;
 
 const easeOutCubic = (value) => 1 - Math.pow(1 - value, 3);
 const getCalendarMonthScrollLeft = (container, index) => {
@@ -1335,14 +1336,14 @@ const handleNextCalendarMonth = useCallback(() => {
     setShowCycleOptionsSheet(false);
     window.setTimeout(() => {
       openStartDateEditor();
-    }, 0);
+    }, CYCLE_OPTIONS_SHEET_EXIT_DELAY_MS);
   }, [openStartDateEditor]);
 
   const handleUndoCycleFromOptions = useCallback(() => {
     setShowCycleOptionsSheet(false);
     window.setTimeout(() => {
       setShowUndoCycleDialog(true);
-    }, 0);
+    }, CYCLE_OPTIONS_SHEET_EXIT_DELAY_MS);
   }, []);
 
   const handleDeleteCycleFromOptions = useCallback(() => {
@@ -1350,7 +1351,7 @@ const handleNextCalendarMonth = useCallback(() => {
     setShowCycleOptionsSheet(false);
     window.setTimeout(() => {
       onRequestDeleteCycle();
-    }, 0);
+    }, CYCLE_OPTIONS_SHEET_EXIT_DELAY_MS);
   }, [onRequestDeleteCycle]);
 
   const handlePostpartumChange = useCallback(
