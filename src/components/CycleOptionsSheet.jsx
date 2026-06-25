@@ -215,21 +215,21 @@ useBackClose(open, handleBackClose);
             <span className="sr-only">Cerrar opciones del ciclo</span>
           </DialogPrimitive.Close>
 
-          <div className="mt-2 min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain pb-1">
+          <div className="mt-0 min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain">
             {showCycleSummary ? (
               <button
                 type="button"
                 onClick={onCycleSummaryClick}
                 disabled={!onCycleSummaryClick || isProcessing}
                 aria-label={cycleLabel ? `Ver registros de ${cycleLabel}` : 'Ver registros del ciclo'}
-                className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl px-1 py-1 text-left transition hover:bg-rose-50/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 disabled:cursor-not-allowed disabled:opacity-60"
+                className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border border-rose-100/70 bg-rose-50 px-3 py-2.5 text-left transition hover:bg-rose-50/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-fertiliapp-fuerte">
                   <CalendarDays className="h-4 w-4" aria-hidden="true" />
                 </span>
                 <span className="min-w-0">
                   <span className="flex min-w-0 items-center gap-1.5">
-                    <span className="min-w-0 flex-1 truncate text-sm font-semibold leading-5 text-slate-800">
+                    <span className="min-w-0 flex-1 truncate text-sm font-semibold leading-5 text-fertiliapp-fuerte">
                       {cycleLabel}
                     </span>
                     {isCurrentCycle ? (
@@ -239,11 +239,11 @@ useBackClose(open, handleBackClose);
                     ) : null}
                     {postpartumMode ? (
                       <span
-                        className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-rose-100 bg-white text-fertiliapp-fuerte"
+                        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-rose-100 bg-rose-100 text-fertiliapp-fuerte"
                         aria-label="Modo postparto activado"
                         title="Modo postparto activado"
                       >
-                        <Baby className="h-3 w-3" aria-hidden="true" />
+                        <Baby className="h-4 w-4" aria-hidden="true" />
                       </span>
                     ) : null}
                   </span>
@@ -253,7 +253,6 @@ useBackClose(open, handleBackClose);
                     </span>
                   ) : null}
                 </span>
-                <ChevronRight className="h-5 w-5 shrink-0 text-slate-400" aria-hidden="true" />
               </button>
             ) : null}
 
@@ -329,7 +328,7 @@ useBackClose(open, handleBackClose);
                 disabled={isProcessing}
                 className="flex min-h-[56px] w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-red-700 transition hover:bg-red-50/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-700">
+                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-red-700">
                   <Trash2 className="h-4 w-4" aria-hidden="true" />
                 </span>
                 <span className="min-w-0 flex-1">
