@@ -372,6 +372,15 @@ const gapAfterCurrentCycle = useMemo(() => {
     });
   }, [cycleForActions, runAfterActionSheetClose]);
 
+  const handleViewCycleFromSheet = useCallback(() => {
+    if (!cycleForActions) return;
+    const targetCycle = cycleForActions;
+
+    runAfterActionSheetClose(() => {
+      navigateToCycle(targetCycle);
+    });
+  }, [cycleForActions, runAfterActionSheetClose]);
+
   const handlePostpartumChange = useCallback(
     async (checked) => {
       if (!cycleForActions?.id || typeof updateCyclePostpartumMode !== 'function' || isUpdatingPostpartum) {
@@ -649,9 +658,11 @@ const totalRecordCount = allCycles.reduce(
             setCycleForActions(null);
           }
         }}
+        showCycleSummary
         cycleLabel={cycleForActions ? normalizeCycleRowData(cycleForActions).rangeLabel : ''}
         cycleMeta={cycleForActions ? formatCycleOptionsMeta(normalizeCycleRowData(cycleForActions)) : ''}
         isCurrentCycle={Boolean(cycleForActions?.isCurrent)}
+        onCycleSummaryClick={handleViewCycleFromSheet}
         postpartumMode={Boolean(cycleForActions?.postpartumMode)}
         isUpdatingPostpartum={isUpdatingPostpartum}
         editDatesLabel={cycleForActions?.isCurrent ? 'Editar fecha de inicio' : 'Editar fechas'}

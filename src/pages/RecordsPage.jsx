@@ -7,8 +7,8 @@ import React, {
   useRef,
 } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import CycleDatesEditor from '@/components/CycleDatesEditor';
 import CycleOptionsSheet from '@/components/CycleOptionsSheet';
+import EditCycleDatesDialog from '@/components/EditCycleDatesDialog';
 import DataEntryForm from '@/components/DataEntryForm';
 import DayDetail from '@/components/DayDetail';
 import DeletionDialog from '@/components/DeletionDialog';
@@ -328,15 +328,7 @@ export const RecordsExperience = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [showStartDateEditor, setShowStartDateEditor] = useState(false);
-  const [draftStartDate, setDraftStartDate] = useState(() => cycle?.startDate || '');
-  const [draftEndDate, setDraftEndDate] = useState(() => cycle?.endDate || '');
   const [startDateError, setStartDateError] = useState('');
-  const [pendingStartDate, setPendingStartDate] = useState(null);
-  const [pendingEndDate, setPendingEndDate] = useState(null);
-  const [pendingIncludeEndDate, setPendingIncludeEndDate] = useState(false);
-  const [overlapCycle, setOverlapCycle] = useState(null);
-  const [overlapImpactPreview, setOverlapImpactPreview] = useState(null);
-  const [showOverlapDialog, setShowOverlapDialog] = useState(false);
   const [isUpdatingStartDate, setIsUpdatingStartDate] = useState(false);
   const [selectedDate, setSelectedDate] = useState(() =>
   resolveInitialSelectedIsoDate({ cycle, routeSelectedIso })
@@ -486,11 +478,6 @@ export const RecordsExperience = ({
   const isCalendarOpen = true;
   const activeRecordLoadRef = useRef(null);
   const cycleNavigationTimeoutRef = useRef(null);
-
-  useEffect(() => {
-    setDraftStartDate(cycle?.startDate || '');
-    setDraftEndDate(cycle?.endDate || '');
-  }, [cycle?.startDate, cycle?.endDate]);
 
   useLayoutEffect(() => {
   const nextSelectedIso = resolveInitialSelectedIsoDate({ cycle, routeSelectedIso });
@@ -1295,30 +1282,15 @@ const handleNextCalendarMonth = useCallback(() => {
   }
 }, [visibleCalendarMonthIndex]);
 
-  const resetStartDateFlow = useCallback(() => {
-    setPendingStartDate(null);
-    setPendingEndDate(null);
-    setPendingIncludeEndDate(false);
-    setOverlapCycle(null);
-    setOverlapImpactPreview(null);
-    setShowOverlapDialog(false);
-  }, []);
-
   const openStartDateEditor = useCallback(() => {
-    setDraftStartDate(cycle?.startDate || '');
-    setDraftEndDate(cycle?.endDate || '');
     setStartDateError('');
-    resetStartDateFlow();
     setShowStartDateEditor(true);
-  }, [cycle?.startDate, cycle?.endDate, resetStartDateFlow]);
+  }, []);
 
   const closeStartDateEditor = useCallback(() => {
     setShowStartDateEditor(false);
     setStartDateError('');
-    resetStartDateFlow();
-    setDraftStartDate(cycle?.startDate || '');
-    setDraftEndDate(cycle?.endDate || '');
-  }, [cycle?.startDate, cycle?.endDate, resetStartDateFlow]);
+  }, []);
 
   const toggleStartDateEditor = useCallback(() => {
     if (showStartDateEditor) {
@@ -1396,17 +1368,16 @@ const handleNextCalendarMonth = useCallback(() => {
     }
   }, [closeStartDateEditor, contextCurrentCycle?.id, contextUndoCurrentCycle]);
 
-  const handleCancelOverlapStart = useCallback(() => {
-    resetStartDateFlow();
-  }, [resetStartDateFlow]);
+  const handleSaveStartDate = useCallback(async ({ startDate, endDate } = {}) => {
+    const nextStartDate = startDate ?? cycle?.startDate ?? '';
+    const nextEndDate = includeEndDate ? (endDate ?? cycle?.endDate ?? '') : undefined;
 
-  const handleSaveStartDate = useCallback(async () => {
-    if (!draftStartDate) {
+    if (!nextStartDate) {
       setStartDateError('La fecha de inicio es obligatoria');
       return;
     }
 
-    if (includeEndDate && draftEndDate && draftEndDate < draftStartDate) {
+    if (includeEndDate && nextEndDate && nextEndDate < nextStartDate) {
       setStartDateError('La fecha de fin no puede ser anterior al inicio');
       return;
     }
@@ -1419,47 +1390,12 @@ const handleNextCalendarMonth = useCallback(() => {
     setIsUpdatingStartDate(true);
 
     try {
-      const resolvedEndDate = includeEndDate ? draftEndDate || undefined : undefined;
-      const impactPreview = previewUpdateCycleDates
-        ? await previewUpdateCycleDates(cycle.id, draftStartDate, resolvedEndDate)
-        : null;
-
-      if (impactPreview) {
-        setPendingStartDate(draftStartDate);
-        setPendingEndDate(resolvedEndDate ?? null);
-        setPendingIncludeEndDate(!!includeEndDate);
-        setOverlapCycle(null);
-        setOverlapImpactPreview(impactPreview);
-        setShowOverlapDialog(true);
-        setIsUpdatingStartDate(false);
-        return;
-      }
-
-      const overlap = checkCycleOverlap
-        ? await checkCycleOverlap(
-            cycle.id,
-            draftStartDate,
-            resolvedEndDate
-          )
-        : null;
-
-      if (overlap) {
-        setPendingStartDate(draftStartDate);
-        setPendingEndDate(resolvedEndDate ?? null);
-        setPendingIncludeEndDate(!!includeEndDate);
-        setOverlapCycle(overlap);
-        setOverlapImpactPreview(null);
-        setShowOverlapDialog(true);
-        setIsUpdatingStartDate(false);
-        return;
-      }
-
       await updateCycleDates(
         cycle.id,
-        draftStartDate,
-        includeEndDate ? draftEndDate || undefined : undefined
+        nextStartDate,
+        includeEndDate ? nextEndDate || undefined : undefined
       );
-      await refreshData({ silent: true });
+      await refreshData?.({ silent: true });
       closeStartDateEditor();
     } catch (error) {
       const publicError = getPublicError ? getPublicError(error) : null;
@@ -1479,79 +1415,17 @@ const handleNextCalendarMonth = useCallback(() => {
       setIsUpdatingStartDate(false);
     }
   }, [
-    draftStartDate,
-    draftEndDate,
     includeEndDate,
-    cycle?.id,
-    checkCycleOverlap,
-    previewUpdateCycleDates,
-    updateCycleDates,
-    refreshData,
-    toast,
-    closeStartDateEditor,
-  ]);
-
-  const handleConfirmOverlapStart = useCallback(async () => {
-    if (!cycle?.id || !pendingStartDate) {
-      resetStartDateFlow();
-      return;
-    }
-
-    setIsUpdatingStartDate(true);
-    setShowOverlapDialog(false);
-
-    try {
-      const currentStartDate = cycle.startDate;
-      const currentEndDate = cycle.endDate ?? undefined;
-      const hasStartChange = pendingStartDate !== currentStartDate;
-      const resolvedPendingEnd = pendingIncludeEndDate
-        ? pendingEndDate ?? undefined
-        : undefined;
-      const hasEndChange =
-        pendingIncludeEndDate &&
-        pendingEndDate !== null &&
-        resolvedPendingEnd !== currentEndDate;
-
-      await updateCycleDates(
-        cycle.id,
-        hasStartChange ? pendingStartDate : undefined,
-        resolvedPendingEnd
-      );
-      await refreshData({ silent: true });
-      closeStartDateEditor();
-    } catch (error) {
-      const publicError = getPublicError ? getPublicError(error) : null;
-      console.error('Error adjusting cycle dates from records page:', error);
-      setStartDateError(publicError?.message || 'No se pudieron actualizar las fechas');
-      toast({
-        title: publicError?.title || 'Error',
-        description: publicError?.message || 'No se pudieron actualizar las fechas.',
-        variant: 'destructive',
-        action: publicError?.action?.label === 'Revisar' ? (
-          <ToastAction altText="Revisar" onClick={() => openDataRepairDialog?.(cycle?.id)}>
-            Revisar
-          </ToastAction>
-        ) : undefined,
-      });
-    } finally {
-      setIsUpdatingStartDate(false);
-      resetStartDateFlow();
-    }
-  }, [
     cycle?.id,
     cycle?.startDate,
     cycle?.endDate,
-    pendingStartDate,
-    pendingIncludeEndDate,
-    pendingEndDate,
     updateCycleDates,
     refreshData,
     toast,
     closeStartDateEditor,
-    resetStartDateFlow,
+    getPublicError,
+    openDataRepairDialog,
   ]);
-
-
 
   const handleCloseForm = useCallback(() => {
     setShowForm(false);
@@ -2092,45 +1966,23 @@ const handleNextCalendarMonth = useCallback(() => {
         </div>
       </div>
 
-      <Dialog
-        open={showStartDateEditor}
-        onOpenChange={(open) => {
-          if (!open) {
-            closeStartDateEditor();
-          }
-        }}
-      >
-        <DialogContent
-          unstyled
-          hideClose
-          className="w-[88vw] max-w-xl border-0 bg-transparent p-0 text-gray-800 shadow-none"
-        >
-          <CycleDatesEditor
-            cycle={cycle}
-            startDate={draftStartDate}
-            endDate={includeEndDate ? draftEndDate : cycle?.endDate}
-            otherCycles={[...(archivedCycles ?? []), contextCurrentCycle].filter(Boolean)}
-            onStartDateChange={(value) => setDraftStartDate(value)}
-            onEndDateChange={includeEndDate ? (value) => setDraftEndDate(value) : undefined}
-            onSave={handleSaveStartDate}
-            onCancel={closeStartDateEditor}
-            isProcessing={isUpdatingStartDate || isLoading || isUndoingCycle}
-            dateError={startDateError}
-            includeEndDate={includeEndDate}
-            showOverlapDialog={showOverlapDialog}
-            overlapCycle={overlapCycle}
-            overlapImpactPreview={overlapImpactPreview}
-            onConfirmOverlap={handleConfirmOverlapStart}
-            onCancelOverlap={handleCancelOverlapStart}
-            onClearError={() => setStartDateError('')}
-            saveLabel={includeEndDate ? 'Guardar fechas' : 'Guardar cambios'}
-            title={includeEndDate ? 'Editar fechas del ciclo' : 'Editar fecha de inicio'}
-            isUndoingCycle={isUndoingCycle}
-            showCycleActions={false}
-            className="w-full"
-          />
-        </DialogContent>
-      </Dialog>
+      <EditCycleDatesDialog
+        isOpen={showStartDateEditor}
+        onClose={closeStartDateEditor}
+        onConfirm={handleSaveStartDate}
+        initialStartDate={cycle?.startDate}
+        initialEndDate={cycle?.endDate}
+        includeEndDate={includeEndDate}
+        cycleId={cycle?.id}
+        checkOverlap={checkCycleOverlap}
+        previewUpdateCycleDates={previewUpdateCycleDates}
+        title={includeEndDate ? 'Editar fechas del ciclo' : 'Editar fecha de inicio'}
+        description={includeEndDate ? 'Actualiza las fechas del ciclo.' : 'Actualiza la fecha de inicio del ciclo actual.'}
+        cycleData={cycle?.data ?? []}
+        otherCycles={[...(archivedCycles ?? []), contextCurrentCycle].filter(Boolean)}
+        errorMessage={startDateError}
+        onResetError={() => setStartDateError('')}
+      />
 
       <CycleOptionsSheet
         open={showCycleOptionsSheet}

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
-import { Baby, CalendarDays, ChevronRight, Loader2, RotateCcw, Trash2, X } from 'lucide-react';
+import { Baby, CalendarDays, ChevronRight, Loader2, RotateCcw, Pencil,  Trash2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import useBackClose from '@/hooks/useBackClose';
 
@@ -27,9 +27,11 @@ const SwitchIndicator = ({ checked, disabled }) => (
 const CycleOptionsSheet = ({
   open,
   onOpenChange,
+  showCycleSummary = false,
   cycleLabel,
   cycleMeta,
   isCurrentCycle = false,
+  onCycleSummaryClick,
   postpartumMode = false,
   isUpdatingPostpartum = false,
   editDatesLabel = 'Editar fecha de inicio',
@@ -40,7 +42,6 @@ const CycleOptionsSheet = ({
   onDeleteCycle,
   showDeleteCycle = false,
   deleteTitle = 'Eliminar ciclo',
-  deleteDescription = 'Elimina este ciclo y sus registros.',
   deleteLabel = 'Eliminar ciclo',
   isProcessing = false,
 }) => {
@@ -214,91 +215,100 @@ useBackClose(open, handleBackClose);
             <span className="sr-only">Cerrar opciones del ciclo</span>
           </DialogPrimitive.Close>
 
-          <div className="mb-3 grid grid-cols-[auto_minmax(0,1fr)] gap-3 rounded-2xl border border-rose-100/70 bg-rose-50/35 px-3 py-2.5">
-            <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-fertiliapp-fuerte">
-              <CalendarDays className="h-4 w-4" aria-hidden="true" />
-            </span>
-            <div className="min-w-0">
-              <div className="flex min-w-0 items-center gap-1.5">
-                <p className="min-w-0 flex-1 truncate text-sm font-semibold leading-5 text-slate-800">
-                  {cycleLabel}
-                </p>
-                {isCurrentCycle ? (
-                  <span className="shrink-0 rounded-full bg-fertiliapp-fuerte px-2 py-0.5 text-[10px] font-semibold leading-4 text-white">
-                    Actual
-                  </span>
-                ) : null}
-                {postpartumMode ? (
-                  <span
-                    className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-rose-100 bg-white text-fertiliapp-fuerte"
-                    aria-label="Modo postparto activado"
-                    title="Modo postparto activado"
-                  >
-                    <Baby className="h-3 w-3" aria-hidden="true" />
-                  </span>
-                ) : null}
-              </div>
-              {cycleMeta ? (
-                <p className="mt-0.5 truncate text-xs font-medium leading-4 text-slate-500">
-                  {cycleMeta}
-                </p>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="mt-2 min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pb-1">
-            <button
-              type="button"
-              onClick={onEditStartDate}
-              disabled={isProcessing}
-              className="flex min-h-[56px] w-full items-center gap-3 rounded-2xl border border-rose-100/80 bg-white px-3 py-3 text-left transition hover:bg-rose-50/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-fertiliapp-fuerte">
-                <CalendarDays className="h-4 w-4" aria-hidden="true" />
-              </span>
-              <span className="min-w-0 flex-1 text-sm font-semibold text-slate-800">
-                {editDatesLabel}
-              </span>
-              <ChevronRight className="h-5 w-5 shrink-0 text-slate-400" aria-hidden="true" />
-            </button>
-
-            <button
-              type="button"
-              role="switch"
-              aria-checked={postpartumMode}
-              onClick={() => {
-                if (!canTogglePostpartum) return;
-                onPostpartumChange?.(!postpartumMode);
-              }}
-              disabled={!canTogglePostpartum}
-              className="grid min-h-[56px] w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 rounded-2xl border border-rose-100/80 bg-rose-50/35 px-3 py-3 text-left transition hover:bg-rose-50/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 disabled:cursor-not-allowed disabled:opacity-70"
-            >
-              <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-rose-600">
-                <Baby className="h-4 w-4" aria-hidden="true" />
-              </span>
-              <span className="min-w-0">
-                <span className="block text-sm font-semibold text-slate-800">Modo postparto</span>
-                <span className="sr-only">
-                  Aplica las reglas de interpretación de postparto.
+          <div className="mt-2 min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain pb-1">
+            {showCycleSummary ? (
+              <button
+                type="button"
+                onClick={onCycleSummaryClick}
+                disabled={!onCycleSummaryClick || isProcessing}
+                aria-label={cycleLabel ? `Ver registros de ${cycleLabel}` : 'Ver registros del ciclo'}
+                className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl px-1 py-1 text-left transition hover:bg-rose-50/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-fertiliapp-fuerte">
+                  <CalendarDays className="h-4 w-4" aria-hidden="true" />
                 </span>
-              </span>
-              <span className="inline-flex h-8 min-w-11 items-center justify-end">
-                {isUpdatingPostpartum ? (
-                  <Loader2 className="h-5 w-5 animate-spin text-rose-400" aria-hidden="true" />
-                ) : (
-                  <SwitchIndicator checked={postpartumMode} disabled={!canTogglePostpartum} />
-                )}
-              </span>
-            </button>
+                <span className="min-w-0">
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <span className="min-w-0 flex-1 truncate text-sm font-semibold leading-5 text-slate-800">
+                      {cycleLabel}
+                    </span>
+                    {isCurrentCycle ? (
+                      <span className="shrink-0 rounded-full bg-fertiliapp-fuerte px-2 py-0.5 text-[10px] font-semibold leading-4 text-white">
+                        Actual
+                      </span>
+                    ) : null}
+                    {postpartumMode ? (
+                      <span
+                        className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-rose-100 bg-white text-fertiliapp-fuerte"
+                        aria-label="Modo postparto activado"
+                        title="Modo postparto activado"
+                      >
+                        <Baby className="h-3 w-3" aria-hidden="true" />
+                      </span>
+                    ) : null}
+                  </span>
+                  {cycleMeta ? (
+                    <span className="mt-0.5 block truncate text-xs font-medium leading-4 text-slate-500">
+                      {cycleMeta}
+                    </span>
+                  ) : null}
+                </span>
+                <ChevronRight className="h-5 w-5 shrink-0 text-slate-400" aria-hidden="true" />
+              </button>
+            ) : null}
+
+            <div className="overflow-hidden rounded-2xl border border-rose-100/80 bg-white">
+              <button
+                type="button"
+                onClick={onEditStartDate}
+                disabled={isProcessing}
+                className="flex min-h-[56px] w-full items-center gap-3 px-3 py-3 text-left transition hover:bg-rose-50/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-rose-200 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-fertiliapp-fuerte">
+                  <Pencil className="h-4 w-4" aria-hidden="true" />
+                </span>
+                <span className="min-w-0 flex-1 text-sm font-semibold text-slate-800">
+                  {editDatesLabel}
+                </span>
+                <ChevronRight className="h-5 w-5 shrink-0 text-slate-400" aria-hidden="true" />
+              </button>
+
+              <div className="mx-3 h-px bg-rose-100/70" />
+
+              <button
+                type="button"
+                role="switch"
+                aria-checked={postpartumMode}
+                onClick={() => {
+                  if (!canTogglePostpartum) return;
+                  onPostpartumChange?.(!postpartumMode);
+                }}
+                disabled={!canTogglePostpartum}
+                className="grid min-h-[56px] w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 px-3 py-3 text-left transition hover:bg-rose-50/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-rose-200 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-rose-600">
+                  <Baby className="h-4 w-4" aria-hidden="true" />
+                </span>
+                <span className="min-w-0 text-sm font-semibold text-slate-800">Modo postparto</span>
+                <span className="inline-flex h-8 min-w-11 items-center justify-end">
+                  {isUpdatingPostpartum ? (
+                    <Loader2 className="h-5 w-5 animate-spin text-rose-400" aria-hidden="true" />
+                  ) : (
+                    <SwitchIndicator checked={postpartumMode} disabled={!canTogglePostpartum} />
+                  )}
+                </span>
+              </button>
+            </div>
 
             {showUndoCycle ? (
+              <div className="border-t border-rose-100/80 pt-4">
               <button
                 type="button"
                 onClick={onUndoCycle}
                 disabled={isProcessing}
-                className="flex min-h-[56px] w-full items-center gap-3 rounded-2xl border border-amber-100 bg-amber-50/70 px-3 py-3 text-left transition hover:bg-amber-100/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
+                className="flex min-h-[56px] w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition hover:bg-amber-50/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-amber-700">
+                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-700">
                   <RotateCcw className="h-4 w-4" aria-hidden="true" />
                 </span>
                 <span className="min-w-0 flex-1">
@@ -308,27 +318,25 @@ useBackClose(open, handleBackClose);
                   </span>
                 </span>
               </button>
+              </div>
             ) : null}
 
             {showDeleteCycle ? (
+              <div className="border-t border-rose-100/80 pt-4">
               <button
                 type="button"
                 onClick={onDeleteCycle}
                 disabled={isProcessing}
-                className="flex min-h-[56px] w-full items-center gap-3 rounded-2xl border border-red-100 bg-red-50/70 px-3 py-3 text-left transition hover:bg-red-100/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200 disabled:cursor-not-allowed disabled:opacity-60"
+                className="flex min-h-[56px] w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-red-700 transition hover:bg-red-50/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-red-700">
+                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-700">
                   <Trash2 className="h-4 w-4" aria-hidden="true" />
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm font-semibold text-red-900">{deleteLabel || deleteTitle}</span>
-                  {deleteDescription ? (
-                    <span className="sr-only">
-                      {deleteDescription}
-                    </span>
-                  ) : null}
                 </span>
               </button>
+              </div>
             ) : null}
           </div>
         </DialogPrimitive.Content>
