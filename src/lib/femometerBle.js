@@ -110,6 +110,14 @@ const ERROR_MESSAGES = {
   DEVICE_DISCONNECTED: 'El termómetro se desconectó antes de terminar la comprobación.',
   SERVICE_DISCOVERY_FAILED: 'No se pudieron detectar los servicios BLE.',
   SERVICE_DISCOVERY_TIMEOUT: 'La detección de servicios BLE ha tardado demasiado.',
+  HEALTH_THERMOMETER_NOT_FOUND: 'No se encontró el servicio de termómetro.',
+  TEMPERATURE_MEASUREMENT_NOT_FOUND: 'No se encontró la característica de temperatura.',
+  INDICATE_NOT_SUPPORTED: 'La característica de temperatura no expone indicaciones.',
+  INDICATION_ENABLE_FAILED: 'No se pudieron activar las indicaciones de temperatura.',
+  CCCD_NOT_FOUND: 'No se encontró el descriptor estándar de indicaciones.',
+  CCCD_WRITE_FAILED: 'No se pudo activar el descriptor estándar de indicaciones.',
+  TEMPERATURE_LISTENER_IN_PROGRESS: 'Ya hay una escucha de temperatura en curso.',
+  TEMPERATURE_LISTENER_SETUP_TIMEOUT: 'La preparación de la escucha BLE ha tardado demasiado.',
   UNAVAILABLE_PLATFORM: 'Esta prueba solo está disponible en la app Android.',
   NATIVE_BRIDGE_UNAVAILABLE: 'El puente nativo de Capacitor no está disponible.',
   UNKNOWN: 'No se pudo completar la prueba BLE.',
@@ -211,6 +219,53 @@ export const scanForFemometer = async () => {
 
 export const connectAndInspectFemometer = async (deviceId) =>
   callFemometerBle('connectAndInspect', { deviceId });
+
+export const startFemometerTemperatureListener = async (deviceId) =>
+  callFemometerBle('startTemperatureListener', { deviceId });
+
+export const stopFemometerTemperatureListener = async () =>
+  callFemometerBle('stopTemperatureListener');
+
+export const addFemometerTemperatureListener = async (callback) => {
+  assertAndroidNative();
+  const bridge = getCapacitorBridge();
+  const eventName = 'femometerTemperatureIndication';
+
+  if (typeof bridge.nativeCallback === 'function') {
+    const callbackId = bridge.nativeCallback(
+      'FemometerBle',
+      'addListener',
+      { eventName },
+      callback
+    );
+    return {
+      remove: async () => {
+        if (typeof bridge.nativePromise === 'function') {
+          await bridge.nativePromise('FemometerBle', 'removeListener', { eventName, callbackId });
+        } else if (typeof bridge.toNative === 'function') {
+          await new Promise((resolve, reject) => {
+            bridge.toNative(
+              'FemometerBle',
+              'removeListener',
+              { eventName, callbackId },
+              { resolve, reject }
+            );
+          });
+        }
+      },
+    };
+  }
+
+  if (typeof FemometerBle.addListener === 'function') {
+    return FemometerBle.addListener(eventName, callback);
+  }
+
+  throw createFemometerBleError(
+    'NATIVE_BRIDGE_UNAVAILABLE',
+    undefined,
+    'No hay puente nativo disponible para registrar eventos FemometerBle.'
+  );
+};
 
 export const disconnectFemometer = async () => {
   if (!isFemometerBleAndroidNative()) return;

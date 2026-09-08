@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity,
   BadgeCheck,
@@ -28,12 +28,15 @@ import InstallPrompt from '@/components/InstallPrompt';
 import { ensureHealthConnectPermissions } from '@/lib/healthConnectSync';
 import { useHealthConnect } from '@/contexts/HealthConnectContext.jsx';
 import {
+  addFemometerTemperatureListener,
   connectAndInspectFemometer,
   disconnectFemometer,
   isFemometerBleAndroidNative,
   isFemometerBlePrototypeEnabled,
   requestBluetoothPermissions,
   scanForFemometer,
+  startFemometerTemperatureListener,
+  stopFemometerTemperatureListener,
 } from '@/lib/femometerBle';
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
@@ -267,12 +270,39 @@ const FemometerBlePrototypePanel = () => {
   const [isScanning, setIsScanning] = useState(false);
   const [isInspecting, setIsInspecting] = useState(false);
   const [lastTechnicalError, setLastTechnicalError] = useState(null);
+  const [isStartingTemperatureListener, setIsStartingTemperatureListener] = useState(false);
+  const [isTemperatureListenerActive, setIsTemperatureListenerActive] = useState(false);
+  const [temperatureConnectionReady, setTemperatureConnectionReady] = useState(false);
+  const [temperatureIndicationsActive, setTemperatureIndicationsActive] = useState(false);
+  const [temperatureSecondsRemaining, setTemperatureSecondsRemaining] = useState(90);
+  const [temperatureListenerMessage, setTemperatureListenerMessage] = useState('');
+  const [lastTemperatureReading, setLastTemperatureReading] = useState(null);
+  const temperatureListenerSubscriptionRef = useRef(null);
+  const temperatureListenerStartedAtRef = useRef(null);
 
   useEffect(() => {
     return () => {
+      temperatureListenerSubscriptionRef.current?.remove?.();
+      temperatureListenerSubscriptionRef.current = null;
+      stopFemometerTemperatureListener().catch(() => {});
       disconnectFemometer().catch(() => {});
     };
   }, []);
+
+  useEffect(() => {
+    if (!isTemperatureListenerActive || !temperatureListenerStartedAtRef.current) return undefined;
+
+    const interval = window.setInterval(() => {
+      const elapsedSeconds = Math.floor((Date.now() - temperatureListenerStartedAtRef.current) / 1000);
+      const remaining = Math.max(0, 90 - elapsedSeconds);
+      setTemperatureSecondsRemaining(remaining);
+      if (remaining === 0) {
+        window.clearInterval(interval);
+      }
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [isTemperatureListenerActive]);
 
   const showBleError = (error, fallbackTitle = 'No se pudo completar la prueba') => {
     toast({
@@ -295,6 +325,11 @@ const FemometerBlePrototypePanel = () => {
     setIsScanning(true);
     setInspectionResult(null);
     setLastTechnicalError(null);
+    setIsTemperatureListenerActive(false);
+    setTemperatureConnectionReady(false);
+    setTemperatureIndicationsActive(false);
+    setTemperatureListenerMessage('');
+    setLastTemperatureReading(null);
     setSelectedDeviceId('');
     try {
       await requestBluetoothPermissions();
@@ -339,6 +374,88 @@ const FemometerBlePrototypePanel = () => {
     } finally {
       disconnectFemometer().catch(() => {});
       setIsInspecting(false);
+    }
+  };
+
+  const resetTemperatureListenerState = () => {
+    temperatureListenerStartedAtRef.current = null;
+    setIsTemperatureListenerActive(false);
+    setTemperatureConnectionReady(false);
+    setTemperatureIndicationsActive(false);
+    setTemperatureSecondsRemaining(90);
+  };
+
+  const handleTemperatureEvent = (event) => {
+    if (event?.temperatureC !== undefined && event?.temperatureC !== null) {
+      setLastTemperatureReading(event);
+      setTemperatureListenerMessage('Temperatura recibida.');
+      return;
+    }
+
+    if (event?.status === 'timeout') {
+      setTemperatureListenerMessage(
+        'No se recibió una temperatura. Este modelo puede requerir después un comando propio para descargar las mediciones guardadas.'
+      );
+      resetTemperatureListenerState();
+      return;
+    }
+
+    if (event?.status === 'disconnected') {
+      setTemperatureListenerMessage(event?.message || 'El termómetro se desconectó.');
+      resetTemperatureListenerState();
+    }
+  };
+
+  const handleStartTemperatureListener = async () => {
+    if (!selectedDeviceId) {
+      toast({
+        title: 'Selecciona un termómetro',
+        description: 'Busca y selecciona BM-Vinca2 antes de escuchar temperatura.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsStartingTemperatureListener(true);
+    setLastTechnicalError(null);
+    setTemperatureListenerMessage('');
+    setLastTemperatureReading(null);
+    setTemperatureSecondsRemaining(90);
+
+    try {
+      temperatureListenerSubscriptionRef.current?.remove?.();
+      temperatureListenerSubscriptionRef.current = await addFemometerTemperatureListener(
+        handleTemperatureEvent
+      );
+      const result = await startFemometerTemperatureListener(selectedDeviceId);
+      setTemperatureConnectionReady(Boolean(result?.connectionReady));
+      setTemperatureIndicationsActive(Boolean(result?.indicationsActive));
+      setIsTemperatureListenerActive(true);
+      temperatureListenerStartedAtRef.current = Date.now();
+      setTemperatureListenerMessage('Escuchando el termómetro…');
+    } catch (error) {
+      temperatureListenerSubscriptionRef.current?.remove?.();
+      temperatureListenerSubscriptionRef.current = null;
+      resetTemperatureListenerState();
+      storeTechnicalError(error);
+      showBleError(error, 'Error escuchando temperatura');
+    } finally {
+      setIsStartingTemperatureListener(false);
+    }
+  };
+
+  const handleStopTemperatureListener = async () => {
+    setIsStartingTemperatureListener(false);
+    try {
+      await stopFemometerTemperatureListener();
+    } catch (error) {
+      storeTechnicalError(error);
+      showBleError(error, 'Error deteniendo escucha');
+    } finally {
+      temperatureListenerSubscriptionRef.current?.remove?.();
+      temperatureListenerSubscriptionRef.current = null;
+      resetTemperatureListenerState();
+      setTemperatureListenerMessage('Escucha detenida.');
     }
   };
 
@@ -414,12 +531,81 @@ const FemometerBlePrototypePanel = () => {
               <Button
                 type="button"
                 onClick={handleInspect}
-                disabled={!selectedDeviceId || isScanning || isInspecting}
+                disabled={!selectedDeviceId || isScanning || isInspecting || isTemperatureListenerActive}
                 variant="outline"
                 className="min-h-11 w-full border-rose-200 bg-white text-fertiliapp-fuerte hover:bg-rose-50"
               >
                 {isInspecting ? 'Comprobando conexión…' : 'Comprobar compatibilidad'}
               </Button>
+
+              {!isTemperatureListenerActive ? (
+                <Button
+                  type="button"
+                  onClick={handleStartTemperatureListener}
+                  disabled={!selectedDeviceId || isScanning || isInspecting || isStartingTemperatureListener}
+                  className="min-h-11 w-full bg-fertiliapp-fuerte text-white hover:brightness-95"
+                >
+                  {isStartingTemperatureListener ? 'Preparando escucha…' : 'Escuchar temperatura'}
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  onClick={handleStopTemperatureListener}
+                  variant="outline"
+                  className="min-h-11 w-full border-amber-200 bg-white text-amber-700 hover:bg-amber-50"
+                >
+                  Detener escucha
+                </Button>
+              )}
+            </div>
+          ) : null}
+
+          {(isStartingTemperatureListener ||
+            isTemperatureListenerActive ||
+            temperatureListenerMessage ||
+            lastTemperatureReading) ? (
+            <div className="space-y-3 rounded-xl border border-rose-100 bg-rose-50/50 px-3 py-3">
+              <div className="space-y-1.5">
+                {renderStatusLine(
+                  temperatureConnectionReady,
+                  'Conexión lista',
+                  isStartingTemperatureListener ? 'Preparando conexión BLE' : 'Conexión no activa'
+                )}
+                {renderStatusLine(
+                  temperatureIndicationsActive,
+                  'Indicaciones activas',
+                  isStartingTemperatureListener ? 'Activando indicaciones' : 'Indicaciones no activas'
+                )}
+                {isTemperatureListenerActive ? (
+                  <p className="text-sm font-medium text-slate-700">
+                    Escuchando el termómetro… {temperatureSecondsRemaining}s restantes
+                  </p>
+                ) : null}
+                {temperatureListenerMessage ? (
+                  <p className="text-sm leading-relaxed text-slate-600">
+                    {temperatureListenerMessage}
+                  </p>
+                ) : null}
+              </div>
+
+              {lastTemperatureReading ? (
+                <div className="rounded-lg border border-white bg-white px-3 py-2">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                    Última lectura recibida
+                  </p>
+                  <p className="mt-1 text-lg font-semibold text-slate-800">
+                    {Number(lastTemperatureReading.temperatureC).toFixed(2)} °C
+                  </p>
+                  <div className="mt-1 space-y-0.5 text-sm text-slate-600">
+                    <p>Recibida: {lastTemperatureReading.receivedAt || 'sin hora'}</p>
+                    <p>
+                      Hora del termómetro:{' '}
+                      {lastTemperatureReading.deviceTimestamp || 'no incluida'}
+                    </p>
+                    <p>Tipo: {lastTemperatureReading.measurementType || 'no incluido'}</p>
+                  </div>
+                </div>
+              ) : null}
             </div>
           ) : null}
 
