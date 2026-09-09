@@ -1,0 +1,47 @@
+name: Staging Hosting (manual, disabled until configured)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  deploy:
+    if: ${{ vars.ENABLE_FIREBASE_STAGING_DEPLOY == 'true' }}
+    environment: staging
+    runs-on: ubuntu-latest
+    env:
+      VITE_APP_ENV: staging
+      VITE_FIREBASE_API_KEY: ${{ secrets.STAGING_FIREBASE_WEB_API_KEY }}
+      VITE_FIREBASE_AUTH_DOMAIN: fertiliapp-staging.firebaseapp.com
+      VITE_FIREBASE_PROJECT_ID: fertiliapp-staging
+      VITE_FIREBASE_STORAGE_BUCKET: ''
+      VITE_FIREBASE_MESSAGING_SENDER_ID: '574564111406'
+      VITE_FIREBASE_APP_ID: '1:574564111406:web:e49df0e56568b3a4f4fbbf'
+      VITE_FIREBASE_MEASUREMENT_ID: ''
+      VITE_ENABLE_ANALYTICS: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:staging
+      - run: npm run build:staging
+      - run: npm install --global firebase-tools@15.5.1
+      - name: Load staging-only deploy identity
+        env:
+          STAGING_DEPLOY_CREDENTIAL: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_FERTILIAPP_STAGING }}
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const credential = JSON.parse(process.env.STAGING_DEPLOY_CREDENTIAL);
+          if (credential.project_id !== 'fertiliapp-staging') throw new Error('Wrong deploy credential project');
+          const file = process.env.RUNNER_TEMP + '/firebase-staging.json';
+          fs.writeFileSync(file, JSON.stringify(credential), { mode: 0o600 });
+          fs.appendFileSync(process.env.GITHUB_ENV, 'GOOGLE_APPLICATION_CREDENTIALS=' + file + '\n');
+          NODE
+      - name: Verify destination and deploy Hosting only
+        run: npm run deploy:staging:hosting
+      - name: Remove temporary deploy credential
+        if: always()
+        run: rm -f -- "$RUNNER_TEMP/firebase-staging.json"
