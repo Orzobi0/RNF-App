@@ -5,11 +5,23 @@
   "homepage": "https://orzobi0.github.io/RNF-App",
   "private": true,
   "scripts": {
-    "dev": "vite --host",
-    "build": "vite build",
-    "preview": "vite preview",
-    "predeploy": "npm run build",
-    "deploy": "gh-pages -d dist"
+    "dev": "npm run dev:staging",
+    "dev:staging": "vite --mode staging --host 127.0.0.1",
+    "build": "npm run build:staging",
+    "build:staging": "vite build --mode staging && node scripts/check-staging.mjs --build",
+    "build:production": "vite build --mode production",
+    "preview": "vite preview --mode staging --host 127.0.0.1",
+    "check:staging": "node scripts/check-staging.mjs",
+    "test:staging": "node --test scripts/staging-isolation.test.mjs",
+    "test:staging:session": "node --test scripts/session-api.test.cjs",
+    "prepare:staging:session": "node scripts/prepare-staging-session.mjs",
+    "sync:staging:android": "node scripts/sync-staging-android.mjs",
+    "deploy:staging:session": "node scripts/deploy-staging.mjs session",
+    "deploy:staging:hosting": "node scripts/deploy-staging.mjs hosting",
+    "check:experiment": "node scripts/deploy-experiment.mjs --check",
+    "test:experiment": "node --test scripts/experiment-deployment.test.mjs",
+    "deploy:experiment:hosting": "node scripts/deploy-experiment.mjs",
+    "deploy": "node -e \"throw new Error('Choose deploy:staging:session or deploy:staging:hosting explicitly')\""
   },
   "dependencies": {
     "@capacitor/android": "^5.7.8",

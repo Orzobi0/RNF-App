@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { isStaging } from '@/lib/firebaseClient';
 import { useToast } from '@/components/ui/use-toast';
 import {
   Dialog,
@@ -136,6 +137,7 @@ const AuthPage = () => {
           >
             FertiliApp
           </motion.h1>
+          {isStaging && <p className="mb-3 text-sm font-semibold text-amber-800">Entorno de pruebas</p>}
           <p className="text-lg text-gray-600">
             {isLogin ? 'Inicia sesión para continuar' : 'Crea tu cuenta'}
           </p>

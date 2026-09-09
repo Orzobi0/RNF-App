@@ -1,6 +1,25 @@
 {
   "hosting": [
     {
+      "target": "experiment",
+      "public": "dist",
+      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+      "headers": [
+        {
+          "source": "/sw.js",
+          "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }]
+        },
+        {
+          "source": "/index.html",
+          "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }]
+        }
+      ],
+      "rewrites": [
+        { "source": "/api/**", "function": "sessionApi" },
+        { "source": "**", "destination": "/index.html" }
+      ]
+    },
+    {
       "target": "production",
       "public": "dist",
       "ignore": [
@@ -24,45 +43,6 @@
             {
               "key": "Cache-Control",
               "value": "no-cache, no-store, must-revalidate"
-            }
-          ]
-        }
-      ],
-      "rewrites": [
-        {
-          "source": "/api/**",
-          "function": "sessionApi"
-        },
-        {
-          "source": "**",
-          "destination": "/index.html"
-        }
-      ]
-    },
-    {
-      "target": "experiment",
-      "public": "dist",
-      "ignore": [
-        "firebase.json",
-        "**/.*",
-        "**/node_modules/**"
-      ],
-      "headers": [
-        {
-          "source": "/sw.js",
-          "headers": [
-            {
-              "key": "Cache-Control",
-              "value": "no-cache"
-            }
-          ]
-        },
-        {
-          "source": "/index.html",
-          "headers": [
-            {
-              "key": "Cache-Control",
-              "value": "no-cache"
             }
           ]
         }

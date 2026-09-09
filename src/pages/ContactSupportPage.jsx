@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/use-toast';
-import { functions as firebaseFunctions } from '@/lib/firebaseClient';
+import { functions as firebaseFunctions, isStaging } from '@/lib/firebaseClient';
 import { useWhatsNew } from '@/contexts/WhatsNewContext.jsx';
 
 const CONTACT_EMAIL = 'info@fertiliapp.com';
@@ -38,10 +38,12 @@ const ContactSupportPage = () => {
   }, [markSupportSeen]);
 
   const handleOpenSupportEmail = () => {
+    if (isStaging) return;
     window.location.href = `mailto:${CONTACT_EMAIL}`;
   };
 
   const handleCopySupportEmail = async () => {
+    if (isStaging) return;
     if (typeof navigator === 'undefined' || !navigator.clipboard) {
       toast({
         title: 'No se pudo copiar',
@@ -68,6 +70,7 @@ const ContactSupportPage = () => {
 
   const handleSupportSubmit = async (e) => {
     e.preventDefault();
+    if (isStaging) return;
     setSentSuccessfully(false);
 
     const trimmedSubject = supportSubject.trim();
@@ -161,6 +164,16 @@ const ContactSupportPage = () => {
       setSendingSupportMessage(false);
     }
   };
+
+  if (isStaging) {
+    return (
+      <div className="mx-auto max-w-2xl space-y-4 p-6">
+        <Link to="/settings" className="underline">Volver a ajustes</Link>
+        <h1 className="text-xl font-semibold">Soporte en pruebas</h1>
+        <p>El envío de mensajes está desactivado en este entorno de pruebas.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="relative flex min-h-full flex-col bg-slate-50">
