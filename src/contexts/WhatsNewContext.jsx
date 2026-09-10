@@ -71,7 +71,18 @@ export const WhatsNewProvider = ({ children }) => {
   useEffect(() => {
     if (!ready || remotelySeen || (!locallySeen && !legacySeen)) return undefined;
     writeFlag(modalKey);
+    if (legacySeen) {
+      setDismissedKeys((previous) => new Set(previous).add(modalKey));
+    }
     persistModalSeen();
+    if (legacySeen) {
+      try {
+        window.localStorage.removeItem(WHATS_NEW_KEYS.modalSeen);
+      } catch (error) {
+        // Storage restrictions must not reopen the modal for the migrated account.
+      }
+      setState((previous) => ({ ...previous, modalSeen: false }));
+    }
     window.addEventListener('online', persistModalSeen);
     return () => window.removeEventListener('online', persistModalSeen);
   }, [legacySeen, locallySeen, modalKey, persistModalSeen, ready, remotelySeen]);
