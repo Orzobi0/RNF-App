@@ -6,7 +6,7 @@
   "private": true,
   "scripts": {
     "dev": "npm run dev:staging",
-    "dev:staging": "vite --mode staging --host 127.0.0.1",
+    "dev:staging": "vite --mode staging --host 0.0.0.0",
     "build": "npm run build:staging",
     "build:staging": "vite build --mode staging && node scripts/check-staging.mjs --build",
     "build:production": "vite build --mode production",

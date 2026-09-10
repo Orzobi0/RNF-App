@@ -17,6 +17,7 @@ export const PREFERENCE_DEFAULTS = {
   t8Mode: 'auto',
   showRelationsRow: true,
   showDailyStatusCard: true,
+  lastSeenWhatsNewVersion: '',
   fertilityStartConfig: createDefaultFertilityStartConfig(),
 };
 
@@ -109,6 +110,8 @@ const normalizeNumberOrNull = (value) => {
 
 export const normalizePreferenceValue = (key, value, currentPreferences = PREFERENCE_DEFAULTS) => {
   switch (key) {
+    case 'lastSeenWhatsNewVersion':
+      return typeof value === 'string' ? value : '';
     case 'preferredTemperatureTime':
       return typeof value === 'string' ? value : '';
     case 'cpmMode':
@@ -145,6 +148,7 @@ export const normalizeStoredPreferences = (rawPreferences = {}) => {
   const normalized = {
     ...defaults,
     ...rest,
+    lastSeenWhatsNewVersion: normalizePreferenceValue('lastSeenWhatsNewVersion', rest.lastSeenWhatsNewVersion),
   };
 
   PREFERENCES_UI_FIELDS.forEach((fieldKey) => {

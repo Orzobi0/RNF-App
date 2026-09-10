@@ -659,7 +659,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const savePreferences = async (prefs = {}) => {
+  const savePreferences = async (prefs = {}, { silent = false } = {}) => {
     if (!auth.currentUser) return;
     const prefRef = doc(db, `users/${auth.currentUser.uid}/preferences`, 'display');
     const currentPreferences = normalizeStoredPreferences(preferences ?? PREFERENCE_DEFAULTS);
@@ -681,7 +681,7 @@ export const AuthProvider = ({ children }) => {
       });
     } catch (error) {
       console.error('Failed to save preferences', error);
-      toast({
+      if (!silent) toast({
         title: 'Error al guardar preferencias',
         description: 'No se pudieron guardar las preferencias. Inténtalo de nuevo.',
         variant: 'destructive',

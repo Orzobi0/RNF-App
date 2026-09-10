@@ -1,4 +1,5 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 
 export const WHATS_NEW_VERSION = '2026-06-interpretacion';
 
@@ -37,7 +38,43 @@ const readState = () => ({
 });
 
 export const WhatsNewProvider = ({ children }) => {
+  const { user, preferences, loadingAuth, restoringSession, savePreferences } = useAuth();
   const [state, setState] = useState(readState);
+  const [dismissedKeys, setDismissedKeys] = useState(() => new Set());
+  const attemptedSaves = useRef(new Set());
+  const modalKey = user?.uid
+    ? `${WHATS_NEW_KEYS.modalSeen}:user:${user.uid}`
+    : null;
+  const ready = Boolean(modalKey && preferences && !loadingAuth && !restoringSession);
+  const remotelySeen = preferences?.lastSeenWhatsNewVersion === WHATS_NEW_VERSION;
+  const locallySeen = Boolean(modalKey && (dismissedKeys.has(modalKey) || readFlag(modalKey)));
+  const legacySeen = !preferences?.lastSeenWhatsNewVersion && state.modalSeen;
+  const modalSeen = !ready || remotelySeen || locallySeen || legacySeen;
+
+  const persistModalSeen = useCallback(() => {
+    if (!ready || remotelySeen || attemptedSaves.current.has(modalKey)) return;
+    attemptedSaves.current.add(modalKey);
+    void savePreferences({ lastSeenWhatsNewVersion: WHATS_NEW_VERSION }, { silent: true })
+      .catch(() => {
+        // Keep the local acknowledgement; allow a later retry without reopening the modal.
+        attemptedSaves.current.delete(modalKey);
+      });
+  }, [modalKey, ready, remotelySeen, savePreferences]);
+
+  const markModalSeen = useCallback(() => {
+    if (!ready) return;
+    writeFlag(modalKey);
+    setDismissedKeys((previous) => new Set(previous).add(modalKey));
+    persistModalSeen();
+  }, [modalKey, persistModalSeen, ready]);
+
+  useEffect(() => {
+    if (!ready || remotelySeen || (!locallySeen && !legacySeen)) return undefined;
+    writeFlag(modalKey);
+    persistModalSeen();
+    window.addEventListener('online', persistModalSeen);
+    return () => window.removeEventListener('online', persistModalSeen);
+  }, [legacySeen, locallySeen, modalKey, persistModalSeen, ready, remotelySeen]);
 
   const markSeen = useCallback((name) => {
     const key = WHATS_NEW_KEYS[name];
@@ -53,27 +90,27 @@ export const WhatsNewProvider = ({ children }) => {
     if (typeof window === 'undefined') return undefined;
 
     const handleStorage = (event) => {
-      if (!Object.values(WHATS_NEW_KEYS).includes(event.key)) return;
+      if (!Object.values(WHATS_NEW_KEYS).includes(event.key) && event.key !== modalKey) return;
       setState(readState());
     };
 
     window.addEventListener('storage', handleStorage);
     return () => window.removeEventListener('storage', handleStorage);
-  }, []);
+  }, [modalKey]);
 
   const value = useMemo(
     () => ({
       version: WHATS_NEW_VERSION,
-      modalSeen: state.modalSeen,
+      modalSeen,
       supportSeen: state.supportSeen,
       chartInterpretationSeen: state.chartInterpretationSeen,
       hasUnseenSupport: !state.supportSeen,
       hasUnseenChartInterpretation: !state.chartInterpretationSeen,
-      markModalSeen: () => markSeen('modalSeen'),
+      markModalSeen,
       markSupportSeen: () => markSeen('supportSeen'),
       markChartInterpretationSeen: () => markSeen('chartInterpretationSeen'),
     }),
-    [markSeen, state.chartInterpretationSeen, state.modalSeen, state.supportSeen]
+    [markModalSeen, markSeen, modalSeen, state.chartInterpretationSeen, state.supportSeen]
   );
 
   return (

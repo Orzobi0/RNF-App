@@ -48,7 +48,7 @@ const MainLayout = ({ children, hideBottomNav = false }) => {
     <div className="relative flex min-h-app flex-col overflow-hidden">
       {isStaging && (
         <div className="relative z-30 shrink-0 bg-amber-100 px-3 py-1 text-center text-xs font-semibold text-amber-950">
-          Entorno de pruebas · Datos separados de producción
+          Entorno de pruebas
         </div>
       )}
       {!hideBottomNav && (
