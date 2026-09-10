@@ -16,6 +16,7 @@ export const PREFERENCE_DEFAULTS = {
   cpmMode: 'auto',
   t8Mode: 'auto',
   showRelationsRow: true,
+  showDailyStatusCard: true,
   fertilityStartConfig: createDefaultFertilityStartConfig(),
 };
 
@@ -28,6 +29,7 @@ export const PREFERENCES_UI_FIELDS = [
   'manualT8',
   'manualT8Base',
   'showRelationsRow',
+  'showDailyStatusCard',
   'fertilityStartConfig',
 ];
 
@@ -115,6 +117,8 @@ export const normalizePreferenceValue = (key, value, currentPreferences = PREFER
       return T8_MODE_OPTIONS.has(value) ? value : currentPreferences.t8Mode;
     case 'showRelationsRow':
       return typeof value === 'boolean' ? value : Boolean(currentPreferences.showRelationsRow);
+    case 'showDailyStatusCard':
+      return typeof value === 'boolean' ? value : (currentPreferences.showDailyStatusCard ?? true);
     case 'manualCpm':
     case 'manualT8':
     case 'manualCpmBase':
@@ -221,6 +225,7 @@ export const validatePreferenceField = (key, value, fullPreferences = {}) => {
     case 't8Mode':
       return T8_MODE_OPTIONS.has(value) ? null : 'Modo T-8 inválido.';
     case 'showRelationsRow':
+    case 'showDailyStatusCard':
       return typeof value === 'boolean' ? null : 'Valor inválido.';
     case 'fertilityStartConfig':
       return null;

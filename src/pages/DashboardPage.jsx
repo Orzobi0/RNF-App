@@ -56,6 +56,7 @@ const CycleOverviewCard = ({
   cpmMetric = {},
   t8Metric = {},
   cycleStatusSummary = null,
+  showDailyStatusCard = true,
   onOpenCycleStatus = () => {},
   isDetailInteractionModalOpen = false,
 }) => {
@@ -1534,7 +1535,7 @@ if (dot.peakStatus === 'P') {
   </div>
 </div>
 
-    {cycleStatusSummary && (
+    {cycleStatusSummary && showDailyStatusCard && (
       <motion.button
           type="button"
           onClick={onOpenCycleStatus}
@@ -2561,6 +2562,7 @@ const handleConfirmDeleteRecord = useCallback(async () => {
   cpmMetric={cpmMetric}
   t8Metric={t8Metric}
   cycleStatusSummary={cycleStatusSummary}
+  showDailyStatusCard={preferences?.showDailyStatusCard ?? true}
   onOpenCycleStatus={handleOpenCycleStatusChart}
   isDetailInteractionModalOpen={showForm}
 />

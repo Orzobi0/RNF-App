@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Clock3, Heart, Trash2 } from 'lucide-react';
+import { ChevronLeft, Clock3, Eye, Heart, Trash2 } from 'lucide-react';
 import useBackClose from '@/hooks/useBackClose';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -515,6 +515,23 @@ const handleClearPreferredTime = useCallback(async () => {
               }
               disabled={Boolean(savingKeys.showRelationsRow)}
               id="toggle-show-rs-row"
+            />
+            <PreferenceSwitchRow
+              icon={Eye}
+              iconTone="medium"
+              title="Mostrar estado del día"
+              description="Muestra la interpretación diaria en la pantalla principal."
+              checked={Boolean(uiPreferences.showDailyStatusCard)}
+              onChange={(checked) =>
+                handleSimpleFieldChange({
+                  key: 'showDailyStatusCard',
+                  value: checked,
+                  successTitle: 'Preferencia guardada',
+                  errorTitle: 'No se pudo actualizar la visualización',
+                })
+              }
+              disabled={Boolean(savingKeys.showDailyStatusCard)}
+              id="toggle-show-daily-status-card"
             />
           </PreferenceSection>
         </div>
