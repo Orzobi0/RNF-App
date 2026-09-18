@@ -21,7 +21,6 @@ import {
   Plus,
   Heart,
   Edit3,
-  RefreshCcw,
   CalendarPlus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -87,9 +86,6 @@ const DataEntryFormFields = ({
   recordedDates = [],
   submitCurrentState,
   initialSectionKey = null,
-  onSyncTemperature = () => {},
-  isSyncingTemperature = false,
-  canSyncTemperature = false,
   onOpenNewCycle = null,
 }) => {
   const { preferences, savePreferences } = useAuth();
@@ -730,12 +726,7 @@ const [activeSection, setActiveSection] = useState(() => {
     ? 'border border-transparent bg-rose-50/90 text-rose-600 shadow-none hover:bg-rose-50/90'
     : 'border border-transparent bg-transparent text-slate-500 shadow-none hover:bg-transparent'
 );
-  const syncTemperatureClasses = cn(
-    'inline-flex items-center gap-1 rounded-full border border-slate-200/70 bg-white/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-temp shadow-sm transition-colors',
-    canSyncTemperature && !isSyncingTemperature
-      ? 'hover:border-temp hover:bg-white'
-      : 'cursor-not-allowed opacity-60'
-  );
+
 
   const handleRelationsToggle = async () => {
     if (isProcessing || typeof submitCurrentState !== 'function' || !selectedIsoDate) {
@@ -1795,20 +1786,7 @@ const [activeSection, setActiveSection] = useState(() => {
         </button>
       </div>
 
-      {canSyncTemperature && (
-        <div className="mt-1.5 flex justify-center">
-          <button
-            type="button"
-            className={syncTemperatureClasses}
-            onClick={onSyncTemperature}
-            disabled={isProcessing || isSyncingTemperature || !canSyncTemperature}
-            aria-label="Sincronizar temperaturas"
-          >
-            <RefreshCcw className="h-3.5 w-3.5" aria-hidden="true" />
-            {isSyncingTemperature ? 'Sincronizando...' : '+ temperatura'}
-          </button>
-        </div>
-      )}
+
     </div>
 
 </div>

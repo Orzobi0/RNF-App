@@ -1,4 +1,5 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
+import { isFemometerPrototypeEnabled } from './appFeatures';
 
 const FemometerBle = registerPlugin('FemometerBle');
 
@@ -42,6 +43,11 @@ const ensureAndroidBridgeOnMessage = () => {
     const callbackId = result?.callbackId;
     const pending = callbackId ? androidBridgePendingCalls.get(callbackId) : null;
     if (pending) {
+      if (pending.callback) {
+        if (!result.success || result.save === false) androidBridgePendingCalls.delete(callbackId);
+        pending.callback(result.data, result.success ? undefined : result.error);
+        return;
+      }
       androidBridgePendingCalls.delete(callbackId);
       if (pending.timeout) clearTimeout(pending.timeout);
       if (result?.success) {
@@ -116,10 +122,12 @@ const ERROR_MESSAGES = {
   INDICATION_ENABLE_FAILED: 'No se pudieron activar las indicaciones de temperatura.',
   CCCD_NOT_FOUND: 'No se encontró el descriptor estándar de indicaciones.',
   CCCD_WRITE_FAILED: 'No se pudo activar el descriptor estándar de indicaciones.',
+  MEASUREMENT_INTERVAL_FAILED: 'El termómetro no aceptó la configuración para enviar temperaturas. Vuelve a conectarlo.',
   TEMPERATURE_LISTENER_IN_PROGRESS: 'Ya hay una escucha de temperatura en curso.',
   TEMPERATURE_LISTENER_SETUP_TIMEOUT: 'La preparación de la escucha BLE ha tardado demasiado.',
   UNAVAILABLE_PLATFORM: 'Esta prueba solo está disponible en la app Android.',
   NATIVE_BRIDGE_UNAVAILABLE: 'El puente nativo de Capacitor no está disponible.',
+  UNIMPLEMENTED: 'Esta instalación no dispone de la función solicitada. Actualiza la app Android e inténtalo de nuevo.',
   UNKNOWN: 'No se pudo completar la prueba BLE.',
 };
 
@@ -133,7 +141,7 @@ export const isFemometerBleAndroidNative = () => {
 };
 
 export const isFemometerBlePrototypeEnabled = () =>
-  import.meta.env.VITE_ENABLE_FEMOMETER_BLE_PROTOTYPE === 'true';
+  isFemometerPrototypeEnabled(import.meta.env);
 
 const getErrorCode = (error) => {
   const rawCode = error?.code || error?.errorCode;
@@ -230,34 +238,66 @@ export const addFemometerTemperatureListener = async (callback) => {
   assertAndroidNative();
   const bridge = getCapacitorBridge();
   const eventName = 'femometerTemperatureIndication';
+  const onEvent = (data, error) => {
+    if (error) {
+      callback({ status: 'error', message: normalizeFemometerBleError(error).message });
+    } else {
+      callback(data);
+    }
+  };
 
-  if (typeof bridge.nativeCallback === 'function') {
-    const callbackId = bridge.nativeCallback(
+  if (typeof bridge.nativeCallback === 'function' || typeof bridge.toNative === 'function') {
+    const nativeCallback = (plugin, method, options, handler) =>
+      typeof bridge.nativeCallback === 'function'
+        ? bridge.nativeCallback(plugin, method, options, handler)
+        : bridge.toNative(plugin, method, options, { callback: handler });
+    const callbackId = nativeCallback(
       'FemometerBle',
       'addListener',
       { eventName },
-      callback
+      onEvent
     );
     return {
       remove: async () => {
-        if (typeof bridge.nativePromise === 'function') {
-          await bridge.nativePromise('FemometerBle', 'removeListener', { eventName, callbackId });
-        } else if (typeof bridge.toNative === 'function') {
-          await new Promise((resolve, reject) => {
-            bridge.toNative(
-              'FemometerBle',
-              'removeListener',
-              { eventName, callbackId },
-              { resolve, reject }
-            );
-          });
-        }
+        // Capacitor removeListener returns NONE: it never resolves a nativePromise.
+        nativeCallback('FemometerBle', 'removeListener', { eventName, callbackId });
+      },
+    };
+  }
+
+  const androidBridge = getAndroidBridge();
+  if (androidBridge && typeof androidBridge.postMessage === 'function') {
+    ensureAndroidBridgeOnMessage();
+    const callbackId = String(++androidBridgeCallbackId);
+    androidBridgePendingCalls.set(callbackId, { callback: onEvent });
+    try {
+      androidBridge.postMessage(JSON.stringify({
+        callbackId, pluginId: 'FemometerBle', methodName: 'addListener', options: { eventName },
+      }));
+    } catch (error) {
+      androidBridgePendingCalls.delete(callbackId);
+      throw normalizeFemometerBleError(error);
+    }
+    let removed = false;
+    return {
+      remove: async () => {
+        if (removed) return;
+        removed = true;
+        androidBridgePendingCalls.delete(callbackId);
+        androidBridge.postMessage(JSON.stringify({
+          callbackId: '-1', pluginId: 'FemometerBle', methodName: 'removeListener',
+          options: { eventName, callbackId },
+        }));
       },
     };
   }
 
   if (typeof FemometerBle.addListener === 'function') {
-    return FemometerBle.addListener(eventName, callback);
+    try {
+      return await FemometerBle.addListener(eventName, onEvent);
+    } catch (error) {
+      throw normalizeFemometerBleError(error);
+    }
   }
 
   throw createFemometerBleError(

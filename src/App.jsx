@@ -3,7 +3,6 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { ErrorBoundary } from '@/components/dev/ErrorBoundary';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { CycleDataProvider } from '@/contexts/CycleDataContext.jsx';
-import { HealthConnectProvider } from '@/contexts/HealthConnectContext.jsx';
 import { WhatsNewProvider } from '@/contexts/WhatsNewContext.jsx';
 import AppBackground from '@/components/layout/AppBackground';
 import RouteErrorBoundary from '@/components/errors/RouteErrorBoundary';
@@ -253,11 +252,9 @@ function App() {
       <AuthProvider>
         <WhatsNewProvider>
           <CycleDataProvider>
-            <HealthConnectProvider>
-              <ErrorBoundary>
-                <AppContent />
-              </ErrorBoundary>
-            </HealthConnectProvider>
+            <ErrorBoundary>
+              <AppContent />
+            </ErrorBoundary>
           </CycleDataProvider>
         </WhatsNewProvider>
         <Toaster />

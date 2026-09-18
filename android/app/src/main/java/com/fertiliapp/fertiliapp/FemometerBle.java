@@ -58,10 +58,14 @@ public class FemometerBle extends Plugin {
     private static final long SCAN_TIMEOUT_MS = 8000L;
     private static final long CONNECT_TIMEOUT_MS = 15000L;
     private static final long DISCOVER_TIMEOUT_MS = 10000L;
-    private static final long TEMPERATURE_LISTENER_TIMEOUT_MS = 90000L;
+    // Allow a 3–5 minute measurement plus time to position the thermometer.
+    private static final long TEMPERATURE_LISTENER_TIMEOUT_MS = 6 * 60 * 1000L;
     private static final String DEVICE_NAME_FRAGMENT = "bm-vinca2";
     private static final UUID HEALTH_THERMOMETER_UUID = UUID.fromString("00001809-0000-1000-8000-00805f9b34fb");
     private static final UUID TEMPERATURE_MEASUREMENT_UUID = UUID.fromString("00002a1c-0000-1000-8000-00805f9b34fb");
+    private static final UUID MEASUREMENT_INTERVAL_UUID = UUID.fromString("00002a21-0000-1000-8000-00805f9b34fb");
+    private static final UUID VINCA_SERVICE_UUID = UUID.fromString("0f0e0d0c-0b0a-0908-0706-050403020100");
+    private static final UUID VINCA_INDICATION_UUID = UUID.fromString("3f3e3d3c-3b3a-3938-3736-353433323130");
     private static final UUID CLIENT_CHARACTERISTIC_CONFIG_UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
     private static final String TEMPERATURE_EVENT = "femometerTemperatureIndication";
 
@@ -76,6 +80,7 @@ public class FemometerBle extends Plugin {
     private Runnable connectTimeoutRunnable;
     private BluetoothGatt temperatureGatt;
     private BluetoothGattCharacteristic temperatureCharacteristic;
+    private BluetoothGattCharacteristic vincaIndicationCharacteristic;
     private PluginCall temperatureListenerCall;
     private Runnable temperatureSetupTimeoutRunnable;
     private Runnable temperatureListenerTimeoutRunnable;
@@ -333,6 +338,7 @@ public class FemometerBle extends Plugin {
         BluetoothGattCallback callback = new BluetoothGattCallback() {
             @Override
             public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
+                if (gatt != temperatureGatt) return;
                 if (status != BluetoothGatt.GATT_SUCCESS) {
                     rejectTemperatureStart("No se pudo conectar con el termometro.", "CONNECTION_FAILED");
                     return;
@@ -367,6 +373,7 @@ public class FemometerBle extends Plugin {
 
             @Override
             public void onServicesDiscovered(BluetoothGatt gatt, int status) {
+                if (gatt != temperatureGatt) return;
                 if (status != BluetoothGatt.GATT_SUCCESS) {
                     rejectTemperatureStart("No se pudieron detectar los servicios BLE.", "SERVICE_DISCOVERY_FAILED");
                     return;
@@ -416,6 +423,7 @@ public class FemometerBle extends Plugin {
 
             @Override
             public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
+                if (gatt != temperatureGatt || temperatureListenerCall == null) return;
                 if (!CLIENT_CHARACTERISTIC_CONFIG_UUID.equals(descriptor.getUuid())) {
                     return;
                 }
@@ -424,23 +432,30 @@ public class FemometerBle extends Plugin {
                     return;
                 }
 
-                Log.d(TAG, "Temperature indications active");
-                clearTemperatureSetupTimeout();
-                PluginCall pending = temperatureListenerCall;
-                temperatureListenerCall = null;
-                scheduleTemperatureListenerTimeout();
-
-                JSObject result = new JSObject();
-                result.put("connectionReady", true);
-                result.put("indicationsActive", true);
-                result.put("timeoutSeconds", TEMPERATURE_LISTENER_TIMEOUT_MS / 1000);
-                if (pending != null) {
-                    pending.resolve(result);
+                UUID subscribedUuid = descriptor.getCharacteristic().getUuid();
+                Log.d(TAG, "Indications enabled: " + subscribedUuid);
+                if (TEMPERATURE_MEASUREMENT_UUID.equals(subscribedUuid)) {
+                    enableVincaIndications(gatt);
+                } else if (VINCA_INDICATION_UUID.equals(subscribedUuid)) {
+                    configureMeasurementInterval(gatt);
                 }
             }
 
             @Override
+            public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+                if (gatt != temperatureGatt || temperatureListenerCall == null) return;
+                if (!MEASUREMENT_INTERVAL_UUID.equals(characteristic.getUuid())) return;
+                if (status != BluetoothGatt.GATT_SUCCESS) {
+                    rejectTemperatureStart("No se pudo configurar el envio de temperaturas.", "MEASUREMENT_INTERVAL_FAILED");
+                    return;
+                }
+                Log.d(TAG, "Measurement interval configured: 1 second");
+                finishTemperatureSetup();
+            }
+
+            @Override
             public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
+                if (gatt != temperatureGatt) return;
                 handleTemperatureCharacteristicChanged(characteristic, characteristic.getValue());
             }
 
@@ -450,6 +465,7 @@ public class FemometerBle extends Plugin {
                 BluetoothGattCharacteristic characteristic,
                 byte[] value
             ) {
+                if (gatt != temperatureGatt) return;
                 handleTemperatureCharacteristicChanged(characteristic, value);
             }
         };
@@ -617,7 +633,72 @@ public class FemometerBle extends Plugin {
         return propertyNames;
     }
 
+    // Configure each GATT operation only after the previous write is acknowledged.
+    private void enableVincaIndications(BluetoothGatt gatt) {
+        BluetoothGattService service = gatt.getService(VINCA_SERVICE_UUID);
+        BluetoothGattCharacteristic characteristic = service == null ? null : service.getCharacteristic(VINCA_INDICATION_UUID);
+        if (characteristic == null) {
+            configureMeasurementInterval(gatt);
+            return;
+        }
+        BluetoothGattDescriptor descriptor = characteristic.getDescriptor(CLIENT_CHARACTERISTIC_CONFIG_UUID);
+        try {
+            if (descriptor == null || !gatt.setCharacteristicNotification(characteristic, true)) {
+                rejectTemperatureStart("No se pudo preparar el canal Vinca 2.", "INDICATION_ENABLE_FAILED");
+                return;
+            }
+            vincaIndicationCharacteristic = characteristic;
+            if (!writeDescriptorValue(gatt, descriptor, BluetoothGattDescriptor.ENABLE_INDICATION_VALUE)) {
+                rejectTemperatureStart("No se pudo activar el canal Vinca 2.", "CCCD_WRITE_FAILED");
+            }
+        } catch (SecurityException error) {
+            rejectTemperatureStart("Faltan permisos Bluetooth.", "PERMISSION_NOT_GRANTED");
+        }
+    }
+
+    private void configureMeasurementInterval(BluetoothGatt gatt) {
+        BluetoothGattService service = gatt.getService(HEALTH_THERMOMETER_UUID);
+        BluetoothGattCharacteristic interval = service == null ? null : service.getCharacteristic(MEASUREMENT_INTERVAL_UUID);
+        if (interval == null || (interval.getProperties() & BluetoothGattCharacteristic.PROPERTY_WRITE) == 0) {
+            rejectTemperatureStart("Este dispositivo no permite configurar el envio Vinca 2.", "MEASUREMENT_INTERVAL_FAILED");
+            return;
+        }
+        // Bluetooth 0x2A21: uint16 little-endian, seconds. Vinca 2 uses 1 second.
+        byte[] intervalValue = new byte[] { 1, 0 };
+        try {
+            boolean started;
+            if (Build.VERSION.SDK_INT >= 33) {
+                started = gatt.writeCharacteristic(interval, intervalValue, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT) == BluetoothGatt.GATT_SUCCESS;
+            } else {
+                interval.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
+                interval.setValue(intervalValue);
+                started = gatt.writeCharacteristic(interval);
+            }
+            if (!started) rejectTemperatureStart("No se pudo solicitar el envio de temperaturas.", "MEASUREMENT_INTERVAL_FAILED");
+        } catch (SecurityException error) {
+            rejectTemperatureStart("Faltan permisos Bluetooth.", "PERMISSION_NOT_GRANTED");
+        }
+    }
+
+    private void finishTemperatureSetup() {
+        clearTemperatureSetupTimeout();
+        PluginCall pending = temperatureListenerCall;
+        temperatureListenerCall = null;
+        scheduleTemperatureListenerTimeout();
+        JSObject result = new JSObject();
+        result.put("connectionReady", true);
+        result.put("indicationsActive", true);
+        result.put("timeoutSeconds", TEMPERATURE_LISTENER_TIMEOUT_MS / 1000);
+        result.put("measurementIntervalConfigured", true);
+        if (pending != null) pending.resolve(result);
+        Log.d(TAG, "Temperature listener ready: Vinca setup v2");
+    }
+
     private void handleTemperatureCharacteristicChanged(BluetoothGattCharacteristic characteristic, byte[] value) {
+        if (characteristic != null) {
+            // Log transport metadata only, never temperatures or raw measurement bytes.
+            Log.d(TAG, "BLE indication: " + characteristic.getUuid() + ", bytes=" + (value == null ? 0 : value.length));
+        }
         if (characteristic == null || !TEMPERATURE_MEASUREMENT_UUID.equals(characteristic.getUuid())) {
             return;
         }
@@ -856,8 +937,8 @@ public class FemometerBle extends Plugin {
     private void scheduleTemperatureListenerTimeout() {
         clearTemperatureListenerTimeout();
         temperatureListenerTimeoutRunnable = () -> {
-            Log.d(TAG, "Temperature listener timed out without indication");
-            notifyTemperatureListenerState("timeout", "No se recibio una temperatura.");
+            Log.d(TAG, "Temperature listening window ended");
+            notifyTemperatureListenerState("timeout", "Ha finalizado el tiempo de escucha.");
             stopTemperatureListenerInternal(false, null, null);
         };
         mainHandler.postDelayed(temperatureListenerTimeoutRunnable, TEMPERATURE_LISTENER_TIMEOUT_MS);
@@ -892,13 +973,18 @@ public class FemometerBle extends Plugin {
 
         BluetoothGatt gatt = temperatureGatt;
         BluetoothGattCharacteristic characteristic = temperatureCharacteristic;
+        BluetoothGattCharacteristic vincaCharacteristic = vincaIndicationCharacteristic;
         temperatureGatt = null;
         temperatureCharacteristic = null;
+        vincaIndicationCharacteristic = null;
 
         if (gatt != null) {
             try {
                 if (characteristic != null) {
                     gatt.setCharacteristicNotification(characteristic, false);
+                }
+                if (vincaCharacteristic != null) {
+                    gatt.setCharacteristicNotification(vincaCharacteristic, false);
                 }
             } catch (SecurityException error) {
                 Log.e(TAG, "SecurityException disabling local indication listener", error);
