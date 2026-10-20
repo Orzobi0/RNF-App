@@ -1,3 +1,5 @@
+import TemperatureMeasurementsSheet, { TemperatureMeasurementTrigger } from '@/components/TemperatureMeasurementsSheet';
+import { measurementsFromRecord } from '@/lib/temperatureMeasurements';
 import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -6,8 +8,6 @@ import {
   Heart,
   Loader2,
   Trash2,
-  Thermometer,
-  Clock,
   Droplets,
   Circle,
   FileText,
@@ -27,6 +27,9 @@ const DayDetail = ({
   isPeakDay,
   existingPeakIsoDate,
   onEdit,
+  onLoadMeasurements,
+  onSaveMeasurements,
+  onTemperatureSheetOpenChange,
   onDelete,
   onAdd,
   onToggleRelations,
@@ -39,6 +42,46 @@ const DayDetail = ({
 
 const persistedRecord = isPersistedRecord(details?.record) ? details.record : null;
 const hasPersistedRecord = Boolean(persistedRecord);
+  const [temperaturesOpen, setTemperaturesOpen] = useState(false);
+  useEffect(() => {
+    onTemperatureSheetOpenChange?.(temperaturesOpen);
+    return () => onTemperatureSheetOpenChange?.(false);
+  }, [temperaturesOpen, onTemperatureSheetOpenChange]);
+  const [temperatureMeasurements, setTemperatureMeasurements] = useState([]);
+  const [temperaturesLoading, setTemperaturesLoading] = useState(false);
+  const [temperaturesError, setTemperaturesError] = useState('');
+  const loadVersion = useRef(0);
+  useEffect(() => {
+    loadVersion.current += 1;
+    setTemperaturesOpen(false);
+    setTemperatureMeasurements([]);
+  }, [isoDate]);
+  useEffect(() => () => { loadVersion.current += 1; }, []);
+  const openTemperatures = async () => {
+    if (!persistedRecord || !onLoadMeasurements || !measurementsFromRecord(persistedRecord).length) {
+      handleSectionOpen('temperature', 'temperature'); return;
+    }
+    const version = ++loadVersion.current;
+    setTemperatureMeasurements(measurementsFromRecord(persistedRecord));
+    setTemperaturesOpen(true); setTemperaturesError('');
+    if (persistedRecord.measurementsLoaded || persistedRecord.measurements?.length) {
+      setTemperaturesLoading(false);
+      return;
+    }
+    setTemperaturesLoading(true);
+    try {
+      const loaded = await onLoadMeasurements(persistedRecord);
+      if (loadVersion.current === version) setTemperatureMeasurements(loaded);
+    } catch {
+      if (loadVersion.current === version) setTemperaturesError('No se pudieron cargar las temperaturas. No se ha modificado el registro.');
+    } finally {
+      if (loadVersion.current === version) setTemperaturesLoading(false);
+    }
+  };
+  const saveTemperatures = async (next, operation) => {
+    await onSaveMeasurements(persistedRecord, next, operation);
+    setTemperatureMeasurements(next);
+  };
   const [isPeakProcessing, setIsPeakProcessing] = useState(false);
 
   const formattedDate = useMemo(() => {
@@ -223,9 +266,6 @@ const smartOpen = (key, sectionKey, fieldName) => {
     return options.placeholder || '—';
   };
 
-  const temperatureValue = details?.hasTemperature ? `${details.displayTemp} °C` : '—';
-  const isTemperatureIgnored = Boolean(details?.hasTemperature && persistedRecord?.ignored);
-  const timeValue = details?.timeValue || '—';
   const hasTimeValue = Boolean(details?.timeValue);
   const hasRelations = Boolean(details?.hasRelations);
   const showRelationsAction = useMemo(
@@ -371,45 +411,18 @@ const footerIconButtonClass =
 
       {/* Cuerpo: 3 filas, más grandes y estructuradas */}
       <div className="mt-4 space-y-3">
-        {/* Fila 1: temperatura + hora */}
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            type="button"
-            onClick={() => handleSectionOpen('temperature', 'temperature')}
-            className={cn(
-              detailCellCompactClass,
-              'text-left'
-            )}
-          >
-            <span aria-hidden="true" className={cn(detailAccentClass, detailCellStyles.temperature.accent)} />
-            <Thermometer className={cn('h-5 w-5 shrink-0', detailCellStyles.temperature.icon)} />
-            <div className="flex items-center gap-1 flex-wrap">
-              <span className={cn('font-semibold', detailCellStyles.temperature.value, isTemperatureIgnored && 'text-slate-400 line-through decoration-1')}>
-                {renderChipValue(temperatureValue)}
-              </span>
-              {details?.showCorrectedIndicator && (
-                <span
-                  className="h-2 w-2 rounded-full bg-amber-500"
-                  aria-label="Temperatura corregida"
-                />
-              )}
-            </div>
-          </button>
-          <button
-            type="button"
-            onClick={() => handleSectionOpen('temperature', 'time')}
-            className={cn(
-              detailCellCompactClass,
-              'text-left'
-            )}
-          >
-            <span aria-hidden="true" className={cn(detailAccentClass, detailCellStyles.time.accent)} />
-            <Clock className={cn('h-5 w-5 shrink-0', detailCellStyles.time.icon)} />
-            <span className={cn('font-semibold', detailCellStyles.time.value)}>
-              {renderChipValue(timeValue)}
-            </span>
-          </button>
-        </div>
+        <TemperatureMeasurementTrigger
+          measurements={temperaturesOpen && !temperaturesLoading && !temperaturesError ? temperatureMeasurements : measurementsFromRecord(persistedRecord)}
+          ignored={persistedRecord?.ignored} disabled={isProcessing}
+          onClick={openTemperatures}
+        />
+        <TemperatureMeasurementsSheet open={temperaturesOpen} onOpenChange={setTemperaturesOpen}
+          ignored={persistedRecord?.ignored} isoDate={isoDate} measurements={temperatureMeasurements} onChange={saveTemperatures}
+          loading={temperaturesLoading} loadError={temperaturesError} onRetry={openTemperatures}
+          onOpenForm={onEdit ? async (measurements, overrides) => {
+            await onEdit({ ...persistedRecord, ...overrides, measurements, measurementsLoaded: true }, null, null);
+            setTemperaturesOpen(false);
+          } : undefined} />
 
         {/* Fila 2: moco */}
         <div className="grid grid-cols-2 gap-3">

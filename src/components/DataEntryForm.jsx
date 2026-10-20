@@ -10,6 +10,7 @@ import { parseISO } from 'date-fns';
 
 const DataEntryForm = ({
   onSubmit,
+  onSaveMeasurements,
   initialData,
   onCancel,
   cycleStartDate,
@@ -133,11 +134,8 @@ const DataEntryForm = ({
     date,
     setDate,
     measurements,
-    addMeasurement,
+    saveMeasurementsFromSheet,
     updateMeasurement,
-    removeMeasurement,
-    confirmMeasurement,
-    selectMeasurement,
     mucusSensation,
     setMucusSensation,
     mucusAppearance,
@@ -166,6 +164,7 @@ const DataEntryForm = ({
     cycleData,
     onDateSelect,
     defaultIsoDate,
+    onSaveMeasurements,
   );
   useEffect(() => {
     if (!formDraft) {
@@ -227,11 +226,9 @@ const DataEntryForm = ({
       date={date}
       setDate={setDate}
       measurements={measurements}
-      addMeasurement={addMeasurement}
+      setMeasurements={saveMeasurementsFromSheet}
+      autoSaveMeasurements={Boolean(onSaveMeasurements)}
       updateMeasurement={updateMeasurement}
-      removeMeasurement={removeMeasurement}
-      confirmMeasurement={confirmMeasurement}
-      selectMeasurement={selectMeasurement}
       mucusSensation={mucusSensation}
       setMucusSensation={setMucusSensation}
       mucusAppearance={mucusAppearance}

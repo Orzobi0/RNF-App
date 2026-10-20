@@ -1,3 +1,4 @@
+import { measurementsFromRecord, normalizeMeasurements, measurementsForSheetSave } from '@/lib/temperatureMeasurements';
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { format, startOfDay, parseISO } from 'date-fns';
 import { useToast } from '@/components/ui/use-toast';
@@ -11,7 +12,8 @@ export const useDataEntryForm = (
   cycleEndDate,
   cycleData = [],
   onDateSelect,
-  defaultIsoDate
+  defaultIsoDate,
+  onSaveMeasurements
 ) => {
   const buildEmptyMeasurement = (overrides = {}) => {
     const now = format(new Date(), 'HH:mm');
@@ -23,6 +25,7 @@ export const useDataEntryForm = (
       time_corrected: now,
       use_corrected: false,
       confirmed: true,
+      source: 'manual', device_model: null, device_key: null,
       ...overrides,
     };
   };
@@ -57,42 +60,7 @@ export const useDataEntryForm = (
   };
 
   const [date, setDate] = useState(getDefaultDate);
-  const [measurements, setMeasurements] = useState(() => {
-    if (Array.isArray(initialData?.measurements) && initialData.measurements.length > 0) {
-      const mapped = initialData.measurements.map((m) => ({
-        temperature: m.temperature ?? '',
-        time: m.time || format(new Date(), 'HH:mm'),
-        selected: !!m.selected,
-        temperature_corrected: m.temperature_corrected ?? '',
-        time_corrected: m.time_corrected || m.time || format(new Date(), 'HH:mm'),
-        use_corrected: !!m.use_corrected,
-        confirmed: true,
-      }));
-      if (!mapped.some((x) => x.selected)) mapped[0].selected = true;
-      return mapped;
-    }
-    // fallback (legacy o measurements vacío)
-    return [
-      buildEmptyMeasurement({
-        temperature:
-          initialData?.temperature_raw === null || initialData?.temperature_raw === undefined
-            ? ''
-            : String(initialData.temperature_raw),
-        temperature_corrected:
-          initialData?.temperature_corrected === null ||
-          initialData?.temperature_corrected === undefined
-            ? ''
-            : String(initialData.temperature_corrected),
-        time: initialData?.timestamp
-          ? format(parseISO(initialData.timestamp), 'HH:mm')
-          : format(new Date(), 'HH:mm'),
-        time_corrected: initialData?.timestamp
-          ? format(parseISO(initialData.timestamp), 'HH:mm')
-          : format(new Date(), 'HH:mm'),
-        use_corrected: !!initialData?.use_corrected,
-      }),
-    ];
-  });
+  const [measurements, setMeasurements] = useState(() => measurementsFromRecord(initialData));
 
   const [mucusSensation, setMucusSensation] = useState(
     initialData?.mucusSensation ?? initialData?.mucus_sensation ?? ''
@@ -117,6 +85,8 @@ export const useDataEntryForm = (
   }, [cycleData]);
   const { toast } = useToast();
 
+  const persistedMeasurementsRef = useRef(measurementsFromRecord(initialData));
+  const preserveDraftDateRef = useRef(null);
   const previousInitialDataRef = useRef(initialData);
   const previousDefaultIsoRef = useRef(defaultIsoDate);
 
@@ -127,43 +97,15 @@ export const useDataEntryForm = (
     previousInitialDataRef.current = initialData;
     previousDefaultIsoRef.current = defaultIsoDate;
 
+    // A temperature-only save refreshes the record, but must not replace other
+    // unsaved fields in the open form with the persisted versions.
+    if (preserveDraftDateRef.current === format(date, 'yyyy-MM-dd') &&
+        (!initialData || initialData.isoDate === preserveDraftDateRef.current) && !defaultIsoChanged) return;
+    preserveDraftDateRef.current = null;
+    persistedMeasurementsRef.current = measurementsFromRecord(initialData);
     if (initialData) {
       setDate(parseISO(initialData.isoDate));
-      if (Array.isArray(initialData.measurements) && initialData.measurements.length > 0) {
-        const mapped = initialData.measurements.map((m) => ({
-            temperature: m.temperature ?? '',
-            time: m.time || format(new Date(), 'HH:mm'),
-            selected: !!m.selected,
-            temperature_corrected: m.temperature_corrected ?? '',
-            time_corrected: m.time_corrected || m.time || format(new Date(), 'HH:mm'),
-            use_corrected: !!m.use_corrected,
-            confirmed: true,
-          }));
-        if (!mapped.some((x) => x.selected)) mapped[0].selected = true;
-        setMeasurements(mapped);
-      } else {
-        // si viene [] o no viene, muestra al menos 1 fila editable
-        setMeasurements([
-          buildEmptyMeasurement({
-            temperature:
-              initialData?.temperature_raw === null || initialData?.temperature_raw === undefined
-                ? ''
-                : String(initialData.temperature_raw),
-            temperature_corrected:
-              initialData?.temperature_corrected === null ||
-              initialData?.temperature_corrected === undefined
-                ? ''
-                : String(initialData.temperature_corrected),
-            time: initialData?.timestamp
-              ? format(parseISO(initialData.timestamp), 'HH:mm')
-              : format(new Date(), 'HH:mm'),
-            time_corrected: initialData?.timestamp
-              ? format(parseISO(initialData.timestamp), 'HH:mm')
-              : format(new Date(), 'HH:mm'),
-            use_corrected: !!initialData?.use_corrected,
-          }),
-        ]);
-      }
+      setMeasurements(measurementsFromRecord(initialData));
       setMucusSensation(initialData.mucusSensation ?? initialData.mucus_sensation ?? '');
       setMucusAppearance(initialData.mucusAppearance ?? initialData.mucus_appearance ?? '');
       setFertilitySymbol(initialData.fertility_symbol || FERTILITY_SYMBOLS.NONE.value);
@@ -220,7 +162,7 @@ export const useDataEntryForm = (
     const iso = format(date, 'yyyy-MM-dd');
     const found = cycleData.find((r) => r.isoDate === iso);
     onDateSelect(found || null);
-    if (found) {
+    if (found && preserveDraftDateRef.current !== iso) {
       setPeakTag(found.peak_marker === 'peak' ? 'peak' : null);
     }
   }, [date, cycleData, onDateSelect]);
@@ -234,7 +176,7 @@ export const useDataEntryForm = (
       return [
         ...prev,
         buildEmptyMeasurement({
-          temperature: prev[prev.length - 1]?.temperature || '',
+          temperature: '',
           time: now,
           time_corrected: now,
           selected: false,
@@ -245,9 +187,8 @@ export const useDataEntryForm = (
   };
   const removeMeasurement = (index) => {
     setMeasurements((prev) => {
+      if (prev[index]?.selected && prev.length > 1) return prev;
       const next = prev.filter((_, i) => i !== index);
-      if (!next.length) return [buildEmptyMeasurement()];
-      if (!next.some((m) => m.selected)) next[0] = { ...next[0], selected: true };
       return next;
     });
   };
@@ -263,7 +204,7 @@ export const useDataEntryForm = (
   const updateMeasurement = (index, field, value) => {
     setMeasurements((prev) => {
       const copy = [...prev];
-      copy[index] = { ...copy[index], [field]: value };
+      copy[index] = { ...(copy[index] ?? buildEmptyMeasurement()), [field]: value };
       return copy;
     });
   };
@@ -356,12 +297,14 @@ const isoDate = format(selectedDay, 'yyyy-MM-dd');
 
     return {
       isoDate,
-      measurements: filteredMeasurements.map((m) => ({
+      measurementsComplete: !!initialData?.measurementsLoaded || !initialData?.id,
+      measurements: normalizeMeasurements(filteredMeasurements).map((m) => ({
+        source: m.source ?? null, device_model: m.device_model ?? null, device_key: m.device_key ?? null,
         temperature: normalizeMeasurementValue(m.temperature),
         time: m.time,
         selected: m.selected,
         temperature_corrected: normalizeMeasurementValue(m.temperature_corrected),
-        time_corrected: m.time_corrected,
+        time_corrected: m.time_corrected ?? m.time ?? '',
         use_corrected: !!m.use_corrected,
       })),
       mucusSensation,
@@ -402,21 +345,7 @@ const isoDate = format(selectedDay, 'yyyy-MM-dd');
       }
     }
 
-    if (Array.isArray(draft.measurements) && draft.measurements.length > 0) {
-      const mapped = draft.measurements.map((m, index) => ({
-        temperature: m.temperature ?? '',
-        time: m.time || format(new Date(), 'HH:mm'),
-        selected: index === 0 ? true : !!m.selected,
-        temperature_corrected: m.temperature_corrected ?? '',
-        time_corrected: m.time_corrected || m.time || format(new Date(), 'HH:mm'),
-        use_corrected: !!m.use_corrected,
-        confirmed: true,
-      }));
-      if (!mapped.some((item) => item.selected)) {
-        mapped[0].selected = true;
-      }
-      setMeasurements(mapped);
-    }
+    if (Array.isArray(draft.measurements)) setMeasurements(normalizeMeasurements(draft.measurements));
 
     setMucusSensation(draft.mucusSensation ?? draft.mucus_sensation ?? '');
     setMucusAppearance(draft.mucusAppearance ?? draft.mucus_appearance ?? '');
@@ -437,6 +366,7 @@ const isoDate = format(selectedDay, 'yyyy-MM-dd');
         time_corrected: format(new Date(), 'HH:mm'),
         use_corrected: false,
         confirmed: true,
+        source: 'manual', device_model: null, device_key: null,
       },
     ]);
     setMucusSensation('');
@@ -469,6 +399,25 @@ const isoDate = format(selectedDay, 'yyyy-MM-dd');
     return result;
   };
 
+  const saveMeasurementsFromSheet = async (next, operation) => {
+    if (!onSaveMeasurements) { setMeasurements(next); if (typeof operation?.ignored === 'boolean') setIgnored(operation.ignored); return; }
+    const toSave = measurementsForSheetSave(persistedMeasurementsRef.current, normalizeMeasurements(measurements), next, operation);
+    const payload = buildSubmissionPayload({ overrideMeasurements: toSave });
+    if (!payload) throw new Error('La fecha o las temperaturas no son válidas.');
+    const previousPreservedDate = preserveDraftDateRef.current;
+    preserveDraftDateRef.current = payload.isoDate;
+    try {
+      await onSaveMeasurements(payload.isoDate, payload.measurements, operation);
+      if (typeof operation?.ignored === 'boolean') setIgnored(operation.ignored);
+      persistedMeasurementsRef.current = payload.measurements;
+      setMeasurements(next);
+      toast({ title: 'Temperaturas guardadas', duration: 1600 });
+    } catch (error) {
+      preserveDraftDateRef.current = previousPreservedDate;
+      throw error;
+    }
+  };
+
   const handleSubmit = (e) => {
     if (e && typeof e.preventDefault === 'function') {
       e.preventDefault();
@@ -481,6 +430,8 @@ const isoDate = format(selectedDay, 'yyyy-MM-dd');
     date,
     setDate,
     measurements,
+    setMeasurements,
+    saveMeasurementsFromSheet,
     addMeasurement,
     updateMeasurement,
     selectMeasurement,

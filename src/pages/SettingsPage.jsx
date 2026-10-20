@@ -11,7 +11,6 @@ import {
   Mail,
   Thermometer,
 } from 'lucide-react';
-import { App } from '@capacitor/app';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWhatsNew } from '@/contexts/WhatsNewContext.jsx';
 import { useToast } from '@/components/ui/use-toast';
@@ -1002,22 +1001,6 @@ const SettingsPage = () => {
         />
       )
     : null;
-
-  useEffect(() => {
-    refreshPermissions();
-    let listener;
-    const attachListener = async () => {
-      listener = await App.addListener('appStateChange', ({ isActive }) => {
-        if (isActive) {
-          refreshPermissions();
-        }
-      });
-    };
-    attachListener();
-    return () => {
-      listener?.remove();
-    };
-  }, [refreshPermissions]);
 
   useEffect(() => {
     return () => {

@@ -10,6 +10,8 @@ import FertilityChart from '@/components/FertilityChart';
 import PhaseEducationSheet from '@/components/chartElements/PhaseEducationSheet';
 import InterpretationSettingsDialog from '@/components/InterpretationSettingsDialog';
 import { useCycleData } from '@/hooks/useCycleData';
+import TemperatureMeasurementsSheet from '@/components/TemperatureMeasurementsSheet';
+import { loadRecordMeasurements } from '@/lib/temperatureMeasurements';
 import { useFertilityCalculatorsEditor } from '@/hooks/useFertilityCalculatorsEditor';
 import { differenceInDays, format, parseISO, startOfDay } from 'date-fns';
 import generatePlaceholders from '@/lib/generatePlaceholders';
@@ -311,6 +313,7 @@ const ChartPage = () => {
     archivedCycles,
     isLoading,
     addOrUpdateDataPoint,
+    getMeasurementsForEntry,
     toggleIgnoreRecord,
     getCycleById,
     previewStartNewCycle,
@@ -321,6 +324,11 @@ const ChartPage = () => {
   } = useCycleData();
 
   const [fetchedCycle, setFetchedCycle] = useState(null);
+  const [temperatureRecord, setTemperatureRecord] = useState(null);
+  const [sheetMeasurements, setSheetMeasurements] = useState([]);
+  const [sheetLoading, setSheetLoading] = useState(false);
+  const [sheetError, setSheetError] = useState('');
+  const sheetLoadVersion = useRef(0);
   const [externalLoading, setExternalLoading] = useState(false);
   const [notFound, setNotFound] = useState(false);
 
@@ -755,6 +763,20 @@ useEffect(() => {
     window.removeEventListener('orientationchange', handleOrientationChange);
   };
 }, [isIPhoneOrIPod]);
+  const loadTemperatures = useCallback(async (record) => {
+    if (!record?.id || String(record.id).startsWith('placeholder-')) return [];
+    return loadRecordMeasurements(record, targetCycle.id, getMeasurementsForEntry);
+  }, [targetCycle?.id, getMeasurementsForEntry]);
+  const handleDateSelect = useCallback(async (record) => {
+    if (!record) { setEditingRecord(null); return; }
+    try {
+      const measurements = await loadTemperatures(record);
+      setEditingRecord({ ...record, measurements, measurementsLoaded: true });
+    } catch {
+      toast({ title: 'No se pudieron cargar las temperaturas', variant: 'destructive' });
+      setShowForm(false);
+    }
+  }, [loadTemperatures, toast]);
   if (showLoading) {
     return (
       <MainLayout>
@@ -1057,10 +1079,47 @@ const rotatedDrawerStyle = applyRotation
     }
   : undefined;
 
-  const handleEdit = (record, sectionKey = null) => {
-    setEditingRecord(record);
+  const handleEdit = async (record, sectionKey = null) => {
+    let measurements;
+    try {
+      measurements = await loadTemperatures(record);
+    } catch {
+      toast({ title: 'No se pudieron cargar las temperaturas', variant: 'destructive' });
+      return false;
+    }
+    setEditingRecord({ ...record, measurements, measurementsLoaded: true });
     setInitialSectionKey(sectionKey ?? null);
     setShowForm(true);
+  };
+  const openTemperatures = async (point) => {
+    const version = ++sheetLoadVersion.current;
+    const record = targetCycle.data?.find((entry) => entry.isoDate === point.isoDate) || point;
+    setTemperatureRecord(record);
+    setSheetMeasurements([]);
+    setSheetLoading(true);
+    setSheetError('');
+    try {
+      const measurements = await loadTemperatures(record);
+      if (sheetLoadVersion.current === version) setSheetMeasurements(measurements);
+    } catch {
+      if (sheetLoadVersion.current === version) setSheetError('No se pudieron cargar las temperaturas. Inténtalo de nuevo.');
+    } finally {
+      if (sheetLoadVersion.current === version) setSheetLoading(false);
+    }
+  };
+  const saveChartMeasurements = async (isoDate, measurements, operation) => {
+    const record = targetCycle.data?.find((entry) => entry.isoDate === isoDate) || null;
+    await addOrUpdateDataPoint({
+      isoDate, measurements, measurementsComplete: true,
+      mucusSensation: record?.mucusSensation ?? record?.mucus_sensation ?? '',
+      mucusAppearance: record?.mucusAppearance ?? record?.mucus_appearance ?? '',
+      fertility_symbol: record?.fertility_symbol ?? 'none',
+      observations: record?.observations ?? '',
+      had_relations: record?.had_relations ?? record?.hadRelations ?? false,
+      ignored: typeof operation?.ignored === 'boolean' ? operation.ignored : record?.ignored ?? false,
+      peak_marker: record?.peak_marker ?? null,
+    }, record, targetCycle.id);
+    await refreshFallbackCycle();
   };
 
   const handleToggleIgnore = async (cId, recordId) => {
@@ -1975,9 +2034,6 @@ const rotatedDrawerStyle = applyRotation
     }
   };
 
-  const handleDateSelect = (record) => {
-    setEditingRecord(record);
-  };
   const closePhaseOverlay = useCallback(() => {
     setPhaseOverlay(null);
   }, []);
@@ -2630,6 +2686,7 @@ const isManualFertile =
           orientation={orientation}
           onToggleIgnore={handleToggleIgnore}
           onEdit={handleEdit}
+          onOpenTemperatures={openTemperatures}
           onTogglePeak={handleTogglePeak}
           cycleId={targetCycle.id}
           initialScrollIndex={scrollStart}
@@ -2792,6 +2849,7 @@ const isManualFertile =
           >
             <DataEntryForm
               onSubmit={handleSave}
+              onSaveMeasurements={saveChartMeasurements}
               onCancel={handleCloseForm}
               initialData={editingRecord}
               cycleStartDate={targetCycle.startDate}
@@ -2806,6 +2864,25 @@ const isManualFertile =
           </DialogContent>
         </Dialog>
         
+        <TemperatureMeasurementsSheet
+          open={Boolean(temperatureRecord)}
+          onOpenChange={(open) => { if (!open) { sheetLoadVersion.current += 1; setTemperatureRecord(null); } }}
+          isoDate={temperatureRecord?.isoDate}
+          ignored={(targetCycle.data?.find((entry) => entry.isoDate === temperatureRecord?.isoDate) || temperatureRecord)?.ignored}
+          measurements={sheetMeasurements}
+          loading={sheetLoading}
+          loadError={sheetError}
+          onRetry={() => openTemperatures(temperatureRecord)}
+          onChange={async (measurements, operation) => {
+            await saveChartMeasurements(temperatureRecord.isoDate, measurements, operation);
+            setSheetMeasurements(measurements);
+          }}
+          onOpenForm={async (measurements, overrides) => {
+            const record = targetCycle.data?.find((entry) => entry.isoDate === temperatureRecord.isoDate) || temperatureRecord;
+            if (await handleEdit({ ...record, ...overrides, measurements, measurementsLoaded: true }) === false) return;
+            setTemperatureRecord(null);
+          }}
+        />
         <NewCycleDialog
           isOpen={showNewCycleDialog}
           onClose={() => {

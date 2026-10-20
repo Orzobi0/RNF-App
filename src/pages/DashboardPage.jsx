@@ -1,4 +1,5 @@
-﻿import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { loadRecordMeasurements, measurementsFromRecord } from '@/lib/temperatureMeasurements';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
   Plus,
@@ -44,6 +45,8 @@ import {
 const DATA_ENTRY_FORM_DRAFT_KEY = 'dashboard:data-entry-form-draft';
 
 const CycleOverviewCard = ({
+  onLoadMeasurements,
+  onSaveMeasurements,
   cycleData,
   onEdit,
   onDeleteRecord = () => {},
@@ -67,6 +70,7 @@ const CycleOverviewCard = ({
   const hasInitializedWheelRef = useRef(true);
 const circleRef = useRef(null);
 const activeDetailPanelRef = useRef(null);
+const [temperatureSheetOpen, setTemperatureSheetOpen] = useState(false);
 const wheelDragRef = useRef({
   pointerId: null,
   startOffset: 0,
@@ -117,7 +121,7 @@ const recentSignaturesRef = useRef(new Map());
 }, [activePoint, records]);
 
   useEffect(() => {
-    if (!activePoint || isDetailInteractionModalOpen) return undefined;
+    if (!activePoint || isDetailInteractionModalOpen || temperatureSheetOpen) return undefined;
 
     const handlePointerDownOutsideDetail = (event) => {
       const detailPanel = activeDetailPanelRef.current;
@@ -134,7 +138,7 @@ const recentSignaturesRef = useRef(new Map());
     return () => {
       document.removeEventListener('pointerdown', handlePointerDownOutsideDetail, true);
     };
-  }, [activePoint, isDetailInteractionModalOpen]);
+  }, [activePoint, isDetailInteractionModalOpen, temperatureSheetOpen]);
 
   useEffect(() => {
     const prevSignatures = recentSignaturesRef.current;
@@ -1636,6 +1640,9 @@ if (dot.peakStatus === 'P') {
       peakStatuses[resolvedActivePoint.isoDate] === 'P'
     )}
     onEdit={onEdit}
+    onLoadMeasurements={onLoadMeasurements}
+    onSaveMeasurements={onSaveMeasurements}
+    onTemperatureSheetOpenChange={setTemperatureSheetOpen}
     onAdd={handleAddFromDetailPanel}
     onDelete={onDeleteRecord}
     onToggleRelations={handleToggleRelations}
@@ -1746,6 +1753,7 @@ const ModernFertilityDashboard = () => {
     currentCycle,
     archivedCycles,
     addOrUpdateDataPoint,
+    getMeasurementsForEntry,
     deleteRecord,
     startNewCycle,
     isLoading,
@@ -1981,6 +1989,7 @@ const ModernFertilityDashboard = () => {
   ]);
 
   const [showForm, setShowForm] = useState(false);
+  const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showNewCycleDialog, setShowNewCycleDialog] = useState(false);
   const [newCyclePrefillDate, setNewCyclePrefillDate] = useState(null);
@@ -2030,69 +2039,49 @@ const ModernFertilityDashboard = () => {
   setFormDraftToRestore(null);
 }, [clearDataEntryDraft]);
 
-  const handleDateSelect = useCallback((record) => {
-    setEditingRecord(record);
-  }, []);
+  const dateMeasurementLoad = useRef(0);
+  const handleDateSelect = useCallback(async (record) => {
+    const request = ++dateMeasurementLoad.current;
+    setEditingRecord((previous) => previous?.id === record?.id && previous?.measurementsLoaded ? previous : record);
+    if (!record?.id || String(record.id).startsWith('placeholder-')) {
+      setIsDetailLoading(false); return;
+    }
+    setIsDetailLoading(true);
+    try {
+      const measurements = await loadRecordMeasurements(record, currentCycle?.id, getMeasurementsForEntry);
+      if (dateMeasurementLoad.current === request) {
+        setEditingRecord((previous) => previous?.id === record.id
+          ? previous.measurementsLoaded ? previous : { ...previous, measurements, measurementsLoaded: true }
+          : previous);
+      }
+    } catch {
+      if (dateMeasurementLoad.current === request) {
+        setShowForm(false);
+        toast({ title: 'No se pudieron cargar las temperaturas', description: 'Inténtalo de nuevo antes de editar.', variant: 'destructive' });
+      }
+    } finally {
+      if (dateMeasurementLoad.current === request) setIsDetailLoading(false);
+    }
+  }, [currentCycle?.id, getMeasurementsForEntry, toast]);
 
-  const handleEdit = useCallback((record, sectionKey = null, fieldName = null) => {
-  setEditingRecord(record);
-  setFocusedField(fieldName ?? null);
-  setInitialSectionKey(sectionKey ?? null);
-  setShowForm(true);
-}, []);
+  const handleEdit = useCallback(async (record, sectionKey = null, fieldName = null) => {
+    try {
+      const measurements = await loadRecordMeasurements(record, currentCycle?.id, getMeasurementsForEntry);
+      setEditingRecord({ ...record, measurements, measurementsLoaded: true });
+      setFocusedField(fieldName ?? null);
+      setInitialSectionKey(sectionKey ?? null);
+      setShowForm(true);
+    } catch {
+      toast({ title: 'No se pudieron cargar las temperaturas', description: 'Inténtalo de nuevo antes de editar.', variant: 'destructive' });
+    }
+  }, [currentCycle?.id, getMeasurementsForEntry, toast]);
 
   const buildDashboardRecordPayload = useCallback(
   (isoDate, overrides = {}) => {
     const existingRecord =
       currentCycle?.data?.find((record) => record.isoDate === isoDate) || null;
 
-    const baseTime =
-      existingRecord?.timestamp && isValid(parseISO(existingRecord.timestamp))
-        ? format(parseISO(existingRecord.timestamp), 'HH:mm')
-        : format(new Date(), 'HH:mm');
-
-    const fallbackTemperatureRaw =
-      existingRecord?.temperature_raw ?? existingRecord?.temperature ?? '';
-
-    const fallbackTemperatureCorrected =
-      existingRecord?.temperature_corrected ?? '';
-
-    const fallbackUseCorrected = Boolean(existingRecord?.use_corrected);
-
-    const measurements = existingRecord?.measurements?.length
-      ? existingRecord.measurements.map((measurement, idx) => {
-          const measurementTime =
-            measurement?.time ||
-            (measurement?.timestamp && isValid(parseISO(measurement.timestamp))
-              ? format(parseISO(measurement.timestamp), 'HH:mm')
-              : baseTime);
-
-          return {
-            temperature:
-              measurement?.temperature ??
-              measurement?.temperature_raw ??
-              fallbackTemperatureRaw,
-            temperature_corrected:
-              measurement?.temperature_corrected ?? fallbackTemperatureCorrected,
-            time: measurementTime,
-            time_corrected: measurement?.time_corrected || measurementTime,
-            use_corrected:
-              measurement?.use_corrected !== undefined
-                ? Boolean(measurement?.use_corrected)
-                : fallbackUseCorrected,
-            selected: Boolean(measurement?.selected ?? idx === 0),
-          };
-        })
-      : [
-          {
-            temperature: fallbackTemperatureRaw,
-            temperature_corrected: fallbackTemperatureCorrected,
-            time: baseTime,
-            time_corrected: baseTime,
-            use_corrected: fallbackUseCorrected,
-            selected: true,
-          },
-        ];
+    const measurements = measurementsFromRecord(existingRecord);
 
     const existingFertilitySymbol =
       existingRecord && Object.prototype.hasOwnProperty.call(existingRecord, 'fertility_symbol')
@@ -2119,6 +2108,20 @@ const ModernFertilityDashboard = () => {
   },
   [currentCycle?.data]
 );
+  const loadDayMeasurements = useCallback(
+    (record) => loadRecordMeasurements(record, currentCycle?.id, getMeasurementsForEntry),
+    [currentCycle?.id, getMeasurementsForEntry]
+  );
+  const saveFormMeasurements = useCallback(async (isoDate, measurements, operation) => {
+    const record = currentCycle?.data?.find((item) => item.isoDate === isoDate) || null;
+    const payload = buildDashboardRecordPayload(isoDate, { measurements, measurementsComplete: true, ...(typeof operation?.ignored === 'boolean' ? { ignored: operation.ignored } : {}) });
+    await addOrUpdateDataPoint(payload, record, currentCycle?.id);
+  }, [currentCycle?.data, currentCycle?.id, buildDashboardRecordPayload, addOrUpdateDataPoint]);
+  const saveDayMeasurements = useCallback(async (record, measurements, operation) => {
+    const payload = buildDashboardRecordPayload(record.isoDate, { measurements, measurementsComplete: true, ...(typeof operation?.ignored === 'boolean' ? { ignored: operation.ignored } : {}) });
+    await addOrUpdateDataPoint(payload, record, currentCycle?.id);
+  }, [buildDashboardRecordPayload, addOrUpdateDataPoint, currentCycle?.id]);
+
 const handleToggleRelationsFromDashboard = useCallback(
   async (isoDate) => {
     if (!isoDate) return;
@@ -2138,6 +2141,7 @@ const handleToggleRelationsFromDashboard = useCallback(
     });
 
     try {
+      if (existingRecord?.id) payload.measurements = await loadDayMeasurements(existingRecord);
       await addOrUpdateDataPoint(payload, existingRecord);
 
       toast({
@@ -2153,7 +2157,7 @@ const handleToggleRelationsFromDashboard = useCallback(
       });
     }
   },
-  [addOrUpdateDataPoint, buildDashboardRecordPayload, currentCycle?.data, toast]
+  [addOrUpdateDataPoint, buildDashboardRecordPayload, currentCycle?.data, toast, loadDayMeasurements]
 );
 
 const handleTogglePeakFromDashboard = useCallback(
@@ -2168,7 +2172,8 @@ const handleTogglePeakFromDashboard = useCallback(
     });
 
     try {
-      await addOrUpdateDataPoint(payload, existingRecord);
+      if (existingRecord?.id) payload.measurements = await loadDayMeasurements(existingRecord);
+        await addOrUpdateDataPoint(payload, existingRecord);
 
       toast({
         title: getPeakDayToastMessage(peakMode),
@@ -2184,7 +2189,7 @@ const handleTogglePeakFromDashboard = useCallback(
       throw error;
     }
   },
-  [addOrUpdateDataPoint, buildDashboardRecordPayload, currentCycle?.data, toast]
+  [addOrUpdateDataPoint, buildDashboardRecordPayload, currentCycle?.data, toast, loadDayMeasurements]
 );
 
   const handleRequestDeleteRecord = useCallback(
@@ -2552,6 +2557,8 @@ const handleConfirmDeleteRecord = useCallback(async () => {
           <CycleOverviewCard
   cycleData={{ ...currentCycle, currentDay, records: currentCycle.data }}
   onEdit={handleEdit}
+  onLoadMeasurements={loadDayMeasurements}
+  onSaveMeasurements={saveDayMeasurements}
   onDeleteRecord={handleRequestDeleteRecord}
   onToggleRelations={handleToggleRelationsFromDashboard}
   onTogglePeak={handleTogglePeakFromDashboard}
@@ -2688,11 +2695,12 @@ const handleConfirmDeleteRecord = useCallback(async () => {
         >
           <DataEntryForm
             onSubmit={handleSave}
+        onSaveMeasurements={saveFormMeasurements}
             onCancel={handleCloseForm}
             initialData={editingRecord}
             cycleStartDate={currentCycle.startDate}
             cycleEndDate={currentCycle.endDate}
-            isProcessing={isProcessing}
+            isProcessing={isProcessing || isDetailLoading}
             isEditing={!!editingRecord && !isPlaceholderRecord}
             cycleData={currentCycle.data}
             onDateSelect={handleDateSelect}

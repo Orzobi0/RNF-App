@@ -1,3 +1,5 @@
+import TemperatureMeasurementsSheet from '@/components/TemperatureMeasurementsSheet';
+import { normalizeMeasurements, newManualMeasurement } from '@/lib/temperatureMeasurements';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,7 +20,7 @@ import {
   Check,
   Trash2,
   Circle,
-  Plus,
+  ChevronRight,
   Heart,
   Edit3,
   CalendarPlus,
@@ -59,11 +61,9 @@ const DataEntryFormFields = ({
   date,
   setDate,
   measurements,
-  addMeasurement,
+  setMeasurements,
+  autoSaveMeasurements = false,
   updateMeasurement,
-  removeMeasurement,
-  confirmMeasurement,
-  selectMeasurement,
   mucusSensation,
   setMucusSensation,
   mucusAppearance,
@@ -89,6 +89,10 @@ const DataEntryFormFields = ({
   onOpenNewCycle = null,
 }) => {
   const { preferences, savePreferences } = useAuth();
+  const [temperaturesOpen, setTemperaturesOpen] = useState(false);
+  const validMeasurements = normalizeMeasurements(measurements);
+  const selectedMeasurementIndex = Math.max(0, measurements.findIndex((measurement) => measurement.selected));
+  const selectedMeasurement = measurements[selectedMeasurementIndex] ?? { ...newManualMeasurement(), selected: true };
   const [open, setOpen] = useState(false);
   const [correctionIndex, setCorrectionIndex] = useState(null);
   const [preferredTimeEditorIndex, setPreferredTimeEditorIndex] = useState(null);
@@ -631,24 +635,14 @@ const [activeSection, setActiveSection] = useState(() => {
   }, [isViewAll]);
 
   useEffect(() => {
-    if (correctionIndex !== null) {
-      return;
-    }
-
-    const existingCorrectionIndex = measurements.findIndex((measurement) => {
-      if (!measurement) return false;
-
-      return Boolean(measurement.use_corrected);
-    });
-
-    if (existingCorrectionIndex !== -1) {
-      setCorrectionIndex(existingCorrectionIndex);
-    }
-  }, [correctionIndex, measurements]);
+    setCorrectionIndex(null);
+    closePreferredTimeEditor();
+  }, [selectedMeasurementIndex, selectedIsoDate, closePreferredTimeEditor]);
 
   const handleTempAdjust = (index, delta) => {
-    const originalTemp = parseFloat(measurements[index].temperature ?? 0);
-    const current = parseFloat(measurements[index].temperature_corrected ?? originalTemp);
+    const originalTemp = parseFloat(measurements[index]?.temperature || 0);
+    const corrected = measurements[index]?.temperature_corrected;
+    const current = corrected === '' || corrected == null ? originalTemp : parseFloat(corrected);
     const newTemp = (current + delta).toFixed(2);
     updateMeasurement(index, 'temperature_corrected', newTemp);
     
@@ -952,9 +946,10 @@ const [activeSection, setActiveSection] = useState(() => {
         return (
           <div className={cn(formSectionSurfaceClass, 'space-y-2 p-2.5')}>
             <span aria-hidden="true" className={cn(formAccentClass, 'bg-temp opacity-75')} />
-            {measurements.map((m, idx) => {
-              const measurementSelectId = `measurement_select_${idx}`;
-              const isCorrectionOpen = correctionIndex === idx;
+            {(() => {
+              const idx = selectedMeasurementIndex;
+              const m = { ...selectedMeasurement, temperature: selectedMeasurement.temperature ?? '', temperature_corrected: selectedMeasurement.temperature_corrected ?? '', time_corrected: selectedMeasurement.time_corrected ?? selectedMeasurement.time ?? '' };
+              const isCorrectionOpen = correctionIndex === idx || (correctionIndex === null && m.use_corrected);
               const isCorrected = Boolean(m.use_corrected);
               const hasPreferredTime = Boolean(preferredTemperatureTime);
               const isPreferredApplied = hasPreferredTime && m.time === preferredTemperatureTime;
@@ -984,35 +979,15 @@ const [activeSection, setActiveSection] = useState(() => {
                   <div className="flex items-center justify-between gap-2">
                     <Label className="flex items-center text-subtitulo text-[13px] font-semibold">
                     <Thermometer className="mr-1 h-4 w-4 text-temp" />
-                      Medición {idx + 1}
+                      Temperatura
                     </Label>
-                    <label
-                      htmlFor={measurementSelectId}
-                      className={cn(
-    'flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide shadow-none',
-    m.selected && ignored
-      ? 'border-alerta-2-suave bg-white/80 text-alerta-2'
-      : m.selected
-      ? 'border-temp bg-white/90 text-temp'
-      : 'border-slate-200/70 bg-white/75 text-slate-500'
-  )}
-                    >
-                      <input
-                        id={measurementSelectId}
-                        type="radio"
-                        checked={m.selected}
-                        onChange={() => selectMeasurement(idx)}
-                        disabled={isProcessing}
-                        className="h-3 w-3 text-temp focus:ring-temp"
-                      />
-                      <span>gráfica</span>
-                      {m.selected && ignored && <EyeOff className="h-3 w-3" aria-hidden="true" />}
-                    </label>
+                    <span className="text-[9px] font-semibold uppercase tracking-wide text-temp">Gráfica</span>
                   </div>
                 <div className="space-y-0.5">
   <div className="grid grid-cols-[minmax(0,1fr)_96px_68px] items-center gap-1.5">
     <Input
-      data-field={idx === 0 ? 'temperature' : undefined}
+      data-field="temperature"
+      aria-label="Temperatura"
       type="number"
       step="0.01"
       min="34.0"
@@ -1022,7 +997,7 @@ const [activeSection, setActiveSection] = useState(() => {
       onInput={(e) => updateMeasurement(idx, 'temperature', e.target.value)}
       placeholder="36.50"
       className={cn(
-        'h-8 text-[14px] leading-none',
+        'h-8 px-2 text-[14px] leading-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none',
         formInputClass,
         temperatureInputClass,
         RADIUS.field
@@ -1031,7 +1006,8 @@ const [activeSection, setActiveSection] = useState(() => {
     />
 
     <Input
-  data-field={idx === 0 ? 'time' : undefined}
+  data-field="time"
+  aria-label="Hora de toma"
   type="time"
   value={m.time}
   onChange={(e) => updateMeasurement(idx, 'time', e.target.value)}
@@ -1161,7 +1137,7 @@ const [activeSection, setActiveSection] = useState(() => {
       size="xs"
       variant="outline"
       disabled={isProcessing}
-      aria-pressed={correctionIndex === idx}
+      aria-pressed={isCorrectionOpen}
         className={cn(
           'h-8 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-temp focus-visible:ring-offset-1',
           isCorrectionOpen
@@ -1171,8 +1147,8 @@ const [activeSection, setActiveSection] = useState(() => {
           : 'border-slate-200/70 bg-white/70 text-temp hover:border-temp hover:bg-white hover:text-temp active:bg-white active:text-temp'
       )}
       onClick={() => {
-        if (correctionIndex === idx) {
-          setCorrectionIndex(null);
+        if (isCorrectionOpen) {
+          setCorrectionIndex(-1);
         } else {
           setCorrectionIndex(idx);
           if (m.temperature_corrected === '' || m.temperature_corrected === undefined) {
@@ -1214,72 +1190,17 @@ const [activeSection, setActiveSection] = useState(() => {
       </Button>
     )}
 
-    {!m.confirmed && (
-      <>
-        <Button
-          type="button"
-          size="icon"
-          onClick={() => confirmMeasurement(idx)}
-          disabled={isProcessing}
-          className="h-8 w-8 rounded-full bg-white text-green-600 shadow-sm"
-          aria-label="Confirmar medición"
-        >
-          <Check className="h-4 w-4" />
-        </Button>
-        <Button
-          type="button"
-          size="icon"
-          onClick={() => removeMeasurement(idx)}
-          disabled={isProcessing}
-          className="h-8 w-8 rounded-full bg-white text-rose-600 shadow-sm"
-          aria-label="Eliminar medición"
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </>
-    )}
-
-    {m.confirmed && isEditing && (
-      (() => {
-        const isEmptyMeasurement =
-          String(m.temperature ?? '').trim() === '' &&
-          String(m.temperature_corrected ?? '').trim() === '';
-        const canRemove = measurements.length > 1 || isEmptyMeasurement;
-        if (!canRemove) return null;
-        return (
-          <Button
-            type="button"
-            size="icon"
-            onClick={() => removeMeasurement(idx)}
-            disabled={isProcessing}
-            className="h-8 w-8 rounded-full bg-white text-rose-600 hover:bg-rose-50 hover:text-rose-700 shadow-sm"
-            aria-label="Eliminar medición"
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        );
-      })()
-    )}
   </div>
-
-  {idx === measurements.length - 1 && (
-    <Button
-      type="button"
-      onClick={addMeasurement}
-      disabled={isProcessing}
-      size="xs"
-      variant="outline"
-      className="ml-auto flex h-8 items-center gap-1 rounded-full border-slate-200/70 bg-white/80 px-2.5 py-1 text-[11px] text-temp shadow-sm transition-colors hover:border-temp hover:bg-white"
-      aria-label="Añadir una nueva medición"
-    >
-      <Plus className="h-3 w-3" />
-      Medición
-    </Button>
-  )}
+  <Button type="button" variant="outline" size="xs" disabled={isProcessing}
+    onClick={() => setTemperaturesOpen(true)}
+    className="ml-auto flex min-h-8 items-center gap-1 rounded-full border-slate-200/70 bg-white/80 px-2.5 py-1 text-[11px] text-temp shadow-sm hover:border-temp hover:bg-white"
+    aria-label="Ver temperaturas del día">
+    {validMeasurements.length > 1 ? `Otras temperaturas · ${validMeasurements.length}` : 'Otras temperaturas'}
+    <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+  </Button>
 </div>
 
-                  
-{correctionIndex === idx && (
+{isCorrectionOpen && (
   <div className="mt-1.5 space-y-1.5 rounded-3xl border border-slate-200/60 bg-white/80 p-2 shadow-sm">
     <div className="grid grid-cols-2 gap-1.5">
       <Input
@@ -1287,6 +1208,7 @@ const [activeSection, setActiveSection] = useState(() => {
         step="0.01"
         min="34.0"
         max="40.0"
+        aria-label="Temperatura corregida"
         value={m.temperature_corrected}
         onChange={(e) => {
           const value = e.target.value;
@@ -1307,6 +1229,7 @@ const [activeSection, setActiveSection] = useState(() => {
 
       <Input
         type="time"
+        aria-label="Hora corregida"
         value={m.time_corrected}
         onChange={(e) => updateMeasurement(idx, 'time_corrected', e.target.value)}
         className={cn(
@@ -1366,8 +1289,11 @@ const [activeSection, setActiveSection] = useState(() => {
 )}
                 </div>
               );
-            })}
-
+            })()}
+            <TemperatureMeasurementsSheet open={temperaturesOpen} onOpenChange={setTemperaturesOpen}
+              ignored={ignored} isoDate={selectedIsoDate} measurements={validMeasurements} onChange={setMeasurements}
+              preferredTime={preferredTemperatureTime} autoSave={autoSaveMeasurements}
+              onOpenForm={() => setTemperaturesOpen(false)} />
           </div>
         );
       case 'moco': {

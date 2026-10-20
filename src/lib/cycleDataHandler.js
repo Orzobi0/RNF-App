@@ -334,6 +334,10 @@ export const processCycleEntries = (entriesFromView, cycleStartIsoDate) => {
         ? format(parseISO(entry.iso_date), 'dd/MM')
         : 'N/A',
       cycleDay: generateCycleDaysForRecord(entry.iso_date || entry.timestamp, cycleStartIsoDate),
+      temperature_source: entry.temperature_source ?? null,
+      temperature_device_model: entry.temperature_device_model ?? null,
+      temperature_device_key: entry.temperature_device_key ?? null,
+      temperature_time_corrected: entry.temperature_time_corrected ?? null,
       temperature_raw: rawTemp,
       temperature_corrected: correctedTemp,
       use_corrected: !!entry.use_corrected,
@@ -807,6 +811,10 @@ const moveEntriesWithMeasurementsDB = async ({
     (typeof value === 'string' && value.trim() === '');
 
   const MERGE_KEYS = [
+    'temperature_source',
+    'temperature_device_model',
+    'temperature_device_key',
+    'temperature_time_corrected',
     'temperature_raw',
     'temperature_corrected',
     'use_corrected',
@@ -1034,6 +1042,10 @@ export const splitCycleAtDate = async (userId, previousCycleId, newCycleId, star
     (typeof v === 'string' && v.trim() === '');
 
   const MERGE_KEYS = [
+    'temperature_source',
+    'temperature_device_model',
+    'temperature_device_key',
+    'temperature_time_corrected',
     'temperature_raw',
     'temperature_corrected',
     'use_corrected',
@@ -1418,6 +1430,10 @@ export const createNewCycleEntry = async (payload) => {
   const timestamp = payload.timestamp ?? new Date().toISOString();
   const entryData = {
     timestamp,
+    temperature_source: payload.temperature_source ?? null,
+    temperature_device_model: payload.temperature_device_model ?? null,
+    temperature_device_key: payload.temperature_device_key ?? null,
+    temperature_time_corrected: payload.temperature_time_corrected ?? null,
     temperature_raw: payload.temperature_raw ?? null,
     temperature_corrected: payload.temperature_corrected ?? null,
     use_corrected: Boolean(payload.use_corrected),
@@ -1532,6 +1548,10 @@ export const upsertCycleEntryByIsoDateDB = async (userId, cycleId, isoDate, payl
   const entryData = {
     timestamp: payload.timestamp ?? new Date().toISOString(),
     iso_date: isoDateKey,
+    temperature_source: payload.temperature_source ?? null,
+    temperature_device_model: payload.temperature_device_model ?? null,
+    temperature_device_key: payload.temperature_device_key ?? null,
+    temperature_time_corrected: payload.temperature_time_corrected ?? null,
     temperature_raw: payload.temperature_raw ?? null,
     temperature_corrected: payload.temperature_corrected ?? null,
     use_corrected: Boolean(payload.use_corrected),
@@ -1618,6 +1638,10 @@ export const updateCycleEntry = async (userId, cycleId, entryId, payload) => {
   const entryRef = doc(db, `users/${userId}/cycles/${cycleId}/entries/${entryId}`);
 
   const allowedFields = [
+    'temperature_source',
+    'temperature_device_model',
+    'temperature_device_key',
+    'temperature_time_corrected',
     'temperature_raw',
     'temperature_corrected',
     'use_corrected',
@@ -1668,7 +1692,7 @@ export const fetchEntryMeasurementsDB = async (userId, cycleId, entryId) => {
     return mSnap.docs.map((m) => ({ id: m.id, ...m.data() }));
   } catch (error) {
     console.error('Error fetching measurements for entry', entryId, error);
-    return [];
+    throw error;
   }
 };
 

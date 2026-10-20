@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { PeakModeButton } from '@/components/ui/peak-mode-button';
-import { X, Edit3, Thermometer, Droplets, Circle, Heart, FileText } from 'lucide-react';
+import { X, Edit3, Thermometer, Droplets, Circle, Heart, FileText, ChevronRight } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { getSymbolAppearance } from '@/config/fertilitySymbols';
@@ -15,6 +15,7 @@ const ChartTooltip = ({
   chartHeight,
   onToggleIgnore,
   onEdit,
+  onOpenTemperatures,
   onClose,
   onTogglePeak,
   currentPeakIsoDate,
@@ -193,6 +194,10 @@ const ChartTooltip = ({
   const handleEditClick = () => {
     handleSectionEdit();
   };
+  const openTemperatures = () => {
+    onOpenTemperatures?.(point);
+    onClose?.();
+  };
 
   const handleSectionEdit = (sectionKey) => {
     if (!onEdit) return;
@@ -314,6 +319,11 @@ const ChartTooltip = ({
 
           {showEmptyState ? (
             <div className="space-y-3">
+              {onOpenTemperatures && <button type="button" onClick={openTemperatures} className={tooltipCellClass} aria-label="Añadir temperatura">
+                <Thermometer className="h-[18px] w-[18px] shrink-0 text-temp opacity-35" />
+                <span className="flex-1 text-suave">Sin temperatura</span>
+                <ChevronRight className="h-4 w-4 text-slate-400" />
+              </button>}
               <motion.div
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -374,25 +384,26 @@ const ChartTooltip = ({
           ) : (
             <>
               <div className="space-y-2">
-                {hasTemperature && (
+                {(hasTemperature || onOpenTemperatures) && (
                   <motion.button
                     type="button"
-                    onClick={() => handleSectionEdit('temperature')}
+                    onClick={onOpenTemperatures ? openTemperatures : () => handleSectionEdit('temperature')}
+                    aria-label={hasTemperature ? 'Gestionar temperaturas' : 'Añadir temperatura'}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.1 }}
                     className={tooltipCellClass}
-                    disabled={!onEdit}
+                    disabled={!onEdit && !onOpenTemperatures}
                   >
                     <span aria-hidden="true" className={cn(tooltipAccentClass, tooltipCellStyles.temperature.accent)} />
                     <Thermometer className={cn('h-[18px] w-[18px] shrink-0', tooltipCellStyles.temperature.icon)} />
                     <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
                       <div className="flex min-w-0 items-baseline gap-1.5">
                         <span className={cn('font-semibold leading-none tabular-nums', tooltipCellStyles.temperature.value)}>
-                          {parseFloat(temp).toFixed(2)}
+                          {hasTemperature ? parseFloat(temp).toFixed(2) : 'Sin temperatura'}
                         </span>
                         <span className={cn('text-xs font-semibold leading-none', tooltipCellStyles.temperature.secondary)}>
-                          °C
+                          {hasTemperature ? '°C' : ''}
                         </span>
                         {point.use_corrected && (
                           <span
@@ -408,6 +419,7 @@ const ChartTooltip = ({
                         </span>
                       )}
                     </div>
+                    {onOpenTemperatures && <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />}
                   </motion.button>
                 )}
 

@@ -1,3 +1,4 @@
+import { loadRecordMeasurements, measurementsFromRecord } from '@/lib/temperatureMeasurements';
 import React, {
   useState,
   useCallback,
@@ -1467,12 +1468,15 @@ const handleNextCalendarMonth = useCallback(() => {
                 : prev
             );
           }
+        } catch {
+          setShowForm(false);
+          toast({ title: 'No se pudieron cargar las temperaturas', description: 'Inténtalo de nuevo antes de editar.', variant: 'destructive' });
         } finally {
           setIsDetailLoading(false);
         }
       }
     },
-    [cycle?.id, getMeasurementsForEntry]
+    [cycle?.id, getMeasurementsForEntry, toast]
   );
 
   const handleEdit = useCallback(
@@ -1485,9 +1489,30 @@ const handleNextCalendarMonth = useCallback(() => {
     setRecordToDelete(record || null);
   };
 
-  const handleDateSelect = useCallback((record) => {
-    setEditingRecord(record);
-  }, []);
+  const dateMeasurementLoad = useRef(0);
+  const handleDateSelect = useCallback(async (record) => {
+    const request = ++dateMeasurementLoad.current;
+    setEditingRecord((previous) => previous?.id === record?.id && previous?.measurementsLoaded ? previous : record);
+    if (!record?.id || String(record.id).startsWith('placeholder-')) {
+      setIsDetailLoading(false); return;
+    }
+    setIsDetailLoading(true);
+    try {
+      const measurements = await loadRecordMeasurements(record, cycle?.id, getMeasurementsForEntry);
+      if (dateMeasurementLoad.current === request) {
+        setEditingRecord((previous) => previous?.id === record.id
+          ? previous.measurementsLoaded ? previous : { ...previous, measurements, measurementsLoaded: true }
+          : previous);
+      }
+    } catch {
+      if (dateMeasurementLoad.current === request) {
+        setShowForm(false);
+        toast({ title: 'No se pudieron cargar las temperaturas', description: 'Inténtalo de nuevo antes de editar.', variant: 'destructive' });
+      }
+    } finally {
+      if (dateMeasurementLoad.current === request) setIsDetailLoading(false);
+    }
+  }, [cycle?.id, getMeasurementsForEntry, toast]);
 
   const handleAddRecordForDay = useCallback((isoDate, sectionKey = null, fieldName = null) => {
     if (!isoDate) {
@@ -1528,47 +1553,7 @@ const handleNextCalendarMonth = useCallback(() => {
   const buildRecordPayloadForDate = useCallback(
     (isoDate, overrides = {}) => {
       const existingRecord = cycle?.data?.find((record) => record.isoDate === isoDate) || null;
-      const baseTime = existingRecord?.timestamp && isValid(parseISO(existingRecord.timestamp))
-        ? format(parseISO(existingRecord.timestamp), 'HH:mm')
-        : format(new Date(), 'HH:mm');
-
-      const fallbackTemperatureRaw = existingRecord?.temperature_raw ?? existingRecord?.temperature ?? '';
-      const fallbackTemperatureCorrected = existingRecord?.temperature_corrected ?? '';
-      const fallbackUseCorrected = Boolean(existingRecord?.use_corrected);
-      const measurements = existingRecord?.measurements?.length
-        ? existingRecord.measurements.map((measurement, idx) => {
-            const measurementTime =
-              measurement?.time ||
-              (measurement?.timestamp && isValid(parseISO(measurement.timestamp))
-                ? format(parseISO(measurement.timestamp), 'HH:mm')
-                : baseTime);
-
-            return {
-              temperature:
-                measurement?.temperature ??
-                measurement?.temperature_raw ??
-                fallbackTemperatureRaw,
-              temperature_corrected:
-                measurement?.temperature_corrected ?? fallbackTemperatureCorrected,
-              time: measurementTime,
-              time_corrected: measurement?.time_corrected || measurementTime,
-              use_corrected:
-                measurement?.use_corrected !== undefined
-                  ? Boolean(measurement?.use_corrected)
-                  : fallbackUseCorrected,
-              selected: Boolean(measurement?.selected ?? idx === 0),
-            };
-          })
-        : [
-            {
-              temperature: fallbackTemperatureRaw,
-              temperature_corrected: fallbackTemperatureCorrected,
-              time: baseTime,
-              time_corrected: baseTime,
-              use_corrected: fallbackUseCorrected,
-              selected: true,
-            },
-          ];
+      const measurements = measurementsFromRecord(existingRecord);
 
       return {
         isoDate,
@@ -1579,11 +1564,26 @@ const handleNextCalendarMonth = useCallback(() => {
         observations: existingRecord?.observations ?? '',
         peak_marker: existingRecord?.peak_marker ?? null,
         ignored: existingRecord?.ignored ?? false,
+        had_relations: existingRecord?.had_relations ?? existingRecord?.hadRelations ?? false,
         ...overrides,
       };
     },
     [cycle?.data]
   );
+  const loadDayMeasurements = useCallback(
+    (record) => loadRecordMeasurements(record, cycle?.id, getMeasurementsForEntry),
+    [cycle?.id, getMeasurementsForEntry]
+  );
+  const saveFormMeasurements = useCallback(async (isoDate, measurements, operation) => {
+    const record = cycle?.data?.find((item) => item.isoDate === isoDate) || null;
+    const payload = buildRecordPayloadForDate(isoDate, { measurements, measurementsComplete: true, ...(typeof operation?.ignored === 'boolean' ? { ignored: operation.ignored } : {}) });
+    await addOrUpdateDataPoint(payload, record, cycle?.id);
+  }, [cycle?.data, cycle?.id, buildRecordPayloadForDate, addOrUpdateDataPoint]);
+  const saveDayMeasurements = useCallback(async (record, measurements, operation) => {
+    const payload = buildRecordPayloadForDate(record.isoDate, { measurements, measurementsComplete: true, ...(typeof operation?.ignored === 'boolean' ? { ignored: operation.ignored } : {}) });
+    await addOrUpdateDataPoint(payload, record, cycle?.id);
+  }, [buildRecordPayloadForDate, addOrUpdateDataPoint, cycle?.id]);
+
   const handleSave = async (data, { keepFormOpen = false, submitAction = null } = {}) => {
   setIsProcessing(true);
 
@@ -1645,6 +1645,7 @@ const handleNextCalendarMonth = useCallback(() => {
 
       setIsProcessing(true);
       try {
+        if (existingRecord?.id) payload.measurements = await loadDayMeasurements(existingRecord);
         await addOrUpdateDataPoint(payload, existingRecord);
         toast({
           title: getRelationsToastMessage(!hasRelations),
@@ -1656,7 +1657,7 @@ const handleNextCalendarMonth = useCallback(() => {
         setIsProcessing(false);
       }
     },
-    [addOrUpdateDataPoint, buildRecordPayloadForDate, cycle?.data, toast]
+    [addOrUpdateDataPoint, buildRecordPayloadForDate, cycle?.data, toast, loadDayMeasurements]
   );
 
   const handleTogglePeak = useCallback(
@@ -1672,6 +1673,7 @@ const handleNextCalendarMonth = useCallback(() => {
 
       setIsProcessing(true);
       try {
+        if (existingRecord?.id) payload.measurements = await loadDayMeasurements(existingRecord);
         await addOrUpdateDataPoint(payload, existingRecord);
         toast({
           title: getPeakDayToastMessage(peakMode),
@@ -1688,7 +1690,7 @@ const handleNextCalendarMonth = useCallback(() => {
         setIsProcessing(false);
       }
     },
-    [addOrUpdateDataPoint, buildRecordPayloadForDate, cycle?.data, toast]
+    [addOrUpdateDataPoint, buildRecordPayloadForDate, cycle?.data, toast, loadDayMeasurements]
   );
 
   const confirmDelete = async () => {
@@ -1954,6 +1956,8 @@ const handleNextCalendarMonth = useCallback(() => {
               isPeakDay={selectedIsPeakDay}
               existingPeakIsoDate={currentPeakIsoDate}
               onEdit={handleEdit}
+              onLoadMeasurements={loadDayMeasurements}
+              onSaveMeasurements={saveDayMeasurements}
               onDelete={handleDeleteRequest}
               onAdd={handleAddRecordForDay}
               onToggleRelations={handleToggleRelations}
@@ -2022,6 +2026,7 @@ const handleNextCalendarMonth = useCallback(() => {
 >
       <DataEntryForm
         onSubmit={handleSave}
+        onSaveMeasurements={saveFormMeasurements}
         onCancel={handleCloseForm}
         initialData={editingRecord}
         cycleStartDate={cycle?.startDate}
