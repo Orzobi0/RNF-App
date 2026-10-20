@@ -19,6 +19,7 @@ const ChartTooltip = ({
   onOpenMucus,
   onClose,
   onTogglePeak,
+  onToggleRelations,
   currentPeakIsoDate,
   showRelationsRow = false,
 }) => {
@@ -33,6 +34,7 @@ const ChartTooltip = ({
   const scaledRef = useRef(null);
   const [tooltipHeight, setTooltipHeight] = useState(tooltipMinHeight);
   const [peakActionPending, setPeakActionPending] = useState(false);
+  const [relationsActionPending, setRelationsActionPending] = useState(false);
 
   useEffect(() => {
     if (scaledRef.current) {
@@ -41,7 +43,6 @@ const ChartTooltip = ({
     } else {
       setTooltipHeight(tooltipMinHeight);
     }
-    setPeakActionPending(false);
   }, [point, tooltipMinHeight]);
 
   const MARGIN = 10;
@@ -149,14 +150,10 @@ const ChartTooltip = ({
   const mucusAppearance = point.mucus_appearance ?? point.mucusAppearance ?? '';
   const observations = point.observations ?? '';
   const hasRelations = Boolean(point.had_relations ?? point.hadRelations);
-  const visibleHasRelations = Boolean(showRelationsRow && hasRelations);
   const hasSymbol = symbolInfo && symbolInfo.value !== 'none';
   const hasTemperature = temp != null;
   const isTemperatureIgnored = Boolean(point.ignored && hasTemperature);
-  const hasMucusInfo = Boolean((mucusSensation && mucusSensation.trim()) || (mucusAppearance && mucusAppearance.trim()));
   const hasObservations = Boolean(observations && observations.trim());
-  const hasAnyData = hasTemperature || hasSymbol || hasMucusInfo || hasObservations || visibleHasRelations;
-  const showEmptyState = !hasAnyData;
   const peakStatus = point.peakStatus || (point.peak_marker === 'peak' ? 'P' : null);
   const peakLabels = {
     P: 'Día pico',
@@ -180,7 +177,7 @@ const ChartTooltip = ({
   const peakButtonAriaLabel = peakButtonLabel;
 
   const handlePeakToggle = async () => {
-    if (!onTogglePeak || peakActionPending) return;
+    if (!onTogglePeak || peakActionPending || relationsActionPending) return;
     setPeakActionPending(true);
     try {
       await onTogglePeak(point, !isPeakDay);
@@ -189,6 +186,19 @@ const ChartTooltip = ({
       console.error('Error toggling peak marker from tooltip:', error);
     } finally {
       setPeakActionPending(false);
+    }
+  };
+
+  const handleRelationsToggle = async () => {
+    if (!onToggleRelations || relationsActionPending || peakActionPending) return;
+    setRelationsActionPending(true);
+    try {
+      await onToggleRelations(point, !hasRelations);
+      onClose?.();
+    } catch (error) {
+      console.error('Error toggling relations from tooltip:', error);
+    } finally {
+      setRelationsActionPending(false);
     }
   };
 
@@ -238,9 +248,9 @@ const ChartTooltip = ({
 
   const tooltipCellStyles = {
     temperature: {
-      accent: isTemperatureIgnored ? 'bg-slate-300 opacity-70' : 'bg-temp opacity-90',
-      icon: isTemperatureIgnored ? 'text-slate-400' : 'text-temp',
-      value: isTemperatureIgnored ? 'text-slate-400 line-through decoration-1' : 'text-titulo',
+      accent: isTemperatureIgnored ? 'bg-slate-300 opacity-70' : hasTemperature ? 'bg-temp opacity-90' : 'bg-temp opacity-25',
+      icon: isTemperatureIgnored ? 'text-slate-400' : hasTemperature ? 'text-temp' : 'text-temp opacity-35',
+      value: isTemperatureIgnored ? 'text-slate-400 line-through decoration-1' : hasTemperature ? 'text-titulo' : 'text-suave',
       secondary: isTemperatureIgnored ? 'text-slate-400' : 'text-suave',
     },
     sensation: {
@@ -323,78 +333,7 @@ const ChartTooltip = ({
             </div>
           </div>
 
-          {showEmptyState ? (
-            <div className="space-y-3">
-              {onOpenTemperatures && <button type="button" onClick={openTemperatures} className={tooltipCellClass} aria-label="Añadir temperatura">
-                <Thermometer className="h-[18px] w-[18px] shrink-0 text-temp opacity-35" />
-                <span className="flex-1 text-suave">Sin temperatura</span>
-                <ChevronRight className="h-4 w-4 text-slate-400" />
-              </button>}
-              {onOpenMucus && <div className="space-y-2">
-                <button type="button" onClick={() => openMucus('mucusSensation')} className={tooltipCellClass} aria-label="Editar sensación"><Droplets className="h-4 w-4 text-sensacion opacity-35" /><span className="text-suave">Sensación</span></button>
-                <button type="button" onClick={() => openMucus('mucusAppearance')} className={tooltipCellClass} aria-label="Editar apariencia"><Circle className="h-4 w-4 text-apariencia opacity-35" /><span className="text-suave">Apariencia</span></button>
-              </div>}
-              <motion.div
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className="rounded-2xl border border-dashed border-rose-200/80 bg-white/70 p-3 text-center shadow-sm"
-              >
-                <p className="text-sm font-semibold text-subtitulo">Sin datos registrados para este día.</p>
-              </motion.div>
-
-              {(canTogglePeak || onEdit || showRelationsRow) && (
-                <motion.div
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2 }}
-                  className="flex items-center justify-between gap-2 border-t border-slate-200/60 pt-3"
-                >
-                  {onEdit && (
-                    <Button
-                      onClick={handleEditClick}
-                      variant="outline"
-                      size="sm"
-                      className="order-last ml-auto h-9 rounded-full border-slate-200 bg-white/80 px-3 text-xs font-semibold text-subtitulo shadow-sm transition hover:bg-white hover:text-fertiliapp-fuerte focus-visible:ring-2 focus-visible:ring-rose-200"
-                    >
-                      <Edit3 className="mr-1.5 h-3.5 w-3.5" />
-                      Añadir datos
-                    </Button>
-                  )}
-
-                  <div className="flex items-center gap-2">
-                    {canTogglePeak && (
-                      <PeakModeButton
-                        mode={peakMode}
-                        size="sm"
-                        onClick={handlePeakToggle}
-                        pending={peakActionPending}
-                        aria-label={peakButtonAriaLabel}
-                        title={peakButtonLabel}
-                        className="shrink-0"
-                      />
-                    )}
-
-                    {showRelationsRow && (
-                      <div
-                        className={cn(
-                          'flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-rose-100 bg-white/80 text-fertiliapp-fuerte shadow-sm transition-opacity',
-                          visibleHasRelations ? 'opacity-100' : 'opacity-0'
-                        )}
-                        aria-hidden="true"
-                        title={visibleHasRelations ? 'Relaciones registradas' : undefined}
-                      >
-                        <Heart className="h-4 w-4" fill="currentColor" />
-                      </div>
-                    )}
-                  </div>
-                </motion.div>
-              )}
-            </div>
-          ) : (
-            <>
               <div className="space-y-2">
-                {(hasTemperature || onOpenTemperatures) && (
                   <motion.button
                     type="button"
                     onClick={onOpenTemperatures ? openTemperatures : () => handleSectionEdit('temperature')}
@@ -410,12 +349,12 @@ const ChartTooltip = ({
                     <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
                       <div className="flex min-w-0 items-baseline gap-1.5">
                         <span className={cn('font-semibold leading-none tabular-nums', tooltipCellStyles.temperature.value)}>
-                          {hasTemperature ? parseFloat(temp).toFixed(2) : 'Sin temperatura'}
+                          {hasTemperature ? parseFloat(temp).toFixed(2) : '-'}
                         </span>
                         <span className={cn('text-xs font-semibold leading-none', tooltipCellStyles.temperature.secondary)}>
                           {hasTemperature ? '°C' : ''}
                         </span>
-                        {point.use_corrected && (
+                        {hasTemperature && point.use_corrected && (
                           <span
                             className="h-2 w-2 shrink-0 rounded-full bg-amber-500 shadow-[0_0_4px_rgba(245,158,11,0.45)]"
                             title="Temperatura corregida"
@@ -423,7 +362,7 @@ const ChartTooltip = ({
                           />
                         )}
                       </div>
-                      {temperatureTime && (
+                      {hasTemperature && temperatureTime && (
                         <span className="shrink-0 text-xs font-medium text-suave tabular-nums">
                           {temperatureTime}
                         </span>
@@ -431,7 +370,6 @@ const ChartTooltip = ({
                     </div>
                     {onOpenTemperatures && <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />}
                   </motion.button>
-                )}
 
                 <motion.button
                   type="button"
@@ -491,7 +429,7 @@ const ChartTooltip = ({
                 )}
               </div>
 
-              {(onEdit || (onToggleIgnore && !isPlaceholder && point.id) || (canTogglePeak && !isPlaceholder) || showRelationsRow) && (
+              {(onEdit || (onToggleIgnore && !isPlaceholder && point.id) || canTogglePeak || showRelationsRow) && (
                 <motion.div
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -499,12 +437,13 @@ const ChartTooltip = ({
                   className="mt-3 flex items-center justify-between gap-2 border-t border-slate-200/60 pt-3"
                 >
                   <div className="flex w-full items-center gap-2">
-                    {canTogglePeak && !isPlaceholder && (
+                    {canTogglePeak && (
                       <PeakModeButton
                         mode={peakMode}
                         size="sm"
                         onClick={handlePeakToggle}
                         pending={peakActionPending}
+                        disabled={relationsActionPending}
                         aria-label={peakButtonAriaLabel}
                         title={peakButtonLabel}
                         className="shrink-0"
@@ -523,23 +462,26 @@ const ChartTooltip = ({
                       </Button>
                     )}
 
-                    {showRelationsRow && (
-                      <div
+                    {showRelationsRow && onToggleRelations && (
+                      <button
+                        type="button"
+                        onClick={handleRelationsToggle}
+                        disabled={relationsActionPending || peakActionPending}
+                        aria-pressed={hasRelations}
+                        aria-busy={relationsActionPending}
+                        title={hasRelations ? 'Hubo relaciones' : 'Sin relaciones'}
+                        aria-label={hasRelations ? 'Hubo relaciones' : 'Sin relaciones'}
                         className={cn(
-                          'flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-rose-100 bg-white/80 text-fertiliapp-fuerte shadow-sm transition-opacity',
-                          visibleHasRelations ? 'opacity-100' : 'opacity-0'
+                          'flex h-9 w-9 shrink-0 items-center justify-center rounded-full border shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 disabled:opacity-50',
+                          hasRelations ? 'border-rose-200 bg-rose-50 text-rose-500' : 'border-slate-200 bg-white text-slate-300'
                         )}
-                        aria-hidden="true"
-                        title={visibleHasRelations ? 'Relaciones registradas' : undefined}
                       >
-                        <Heart className="h-4 w-4" fill="currentColor" />
-                      </div>
+                        <Heart className={cn('h-4 w-4', hasRelations && 'fill-current')} />
+                      </button>
                     )}
                   </div>
                 </motion.div>
               )}
-            </>
-          )}
         </div>
       </div>
     </motion.div>

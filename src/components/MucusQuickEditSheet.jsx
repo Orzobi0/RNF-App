@@ -105,14 +105,14 @@ export default function MucusQuickEditSheet({
             <Input ref={sensationRef} id="quick-mucus-sensation" disabled={busy} value={draft.mucusSensation} enterKeyHint="next"
               onChange={(event) => setDraft({ ...draft, mucusSensation: event.target.value })}
               onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); appearanceRef.current?.focus(); } }}
-              className="rounded-full border-slate-200 text-base text-slate-700 focus-visible:ring-sensacion" />
+              className="rounded-full border-slate-200/70 bg-white text-base font-semibold text-slate-700 shadow-sm focus:border-sensacion focus:ring-2 focus:ring-sensacion focus-visible:ring-sensacion" />
           </div>
           <div className="rounded-3xl border border-apariencia bg-white/85 p-3 shadow-sm">
             <label htmlFor="quick-mucus-appearance" className="mb-2 flex items-center gap-1 text-sm font-semibold text-subtitulo"><Circle className="h-4 w-4 text-apariencia" />Apariencia</label>
             <Input ref={appearanceRef} id="quick-mucus-appearance" disabled={busy} value={draft.mucusAppearance} enterKeyHint="done"
               onChange={(event) => setDraft({ ...draft, mucusAppearance: event.target.value })}
               onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); } }}
-              className="rounded-full border-slate-200 text-base text-slate-700 focus-visible:ring-apariencia" />
+              className="rounded-full border-slate-200/70 bg-white text-base font-semibold text-slate-700 shadow-sm focus:border-apariencia focus:ring-2 focus:ring-apariencia focus-visible:ring-apariencia" />
           </div>
         </div>
         <div className="flex shrink-0 gap-2 px-4 pt-2">

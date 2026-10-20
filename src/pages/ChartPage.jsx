@@ -1,3 +1,4 @@
+import { getRelationsToastMessage, getPeakDayToastMessage } from '@/lib/recordToastMessages';
 import React, {
   useState,
   useLayoutEffect,
@@ -1918,15 +1919,33 @@ const rotatedDrawerStyle = applyRotation
       }),
     [buildFertileStartSummary, buildFertilityStartOutput, fertileStartDraft.isoDate]
   );
+  const handleToggleRelations = async (point, hasRelations) => {
+    try {
+      if (!targetCycle?.id || !point?.isoDate) throw new Error('Falta el ciclo o la fecha');
+      const record = targetCycle.data?.find((entry) => entry.isoDate === point.isoDate) || null;
+      await addOrUpdateDataPoint(buildChartRecordPayload(record, point.isoDate, {
+        had_relations: hasRelations, measurementsComplete: false,
+      }), record, targetCycle.id);
+      await refreshFallbackCycle();
+      toast({ title: getRelationsToastMessage(hasRelations), duration: 1400 });
+    } catch (error) {
+      toast({ title: 'Error', description: 'No se pudieron actualizar las relaciones sexuales', variant: 'destructive' });
+      throw error;
+    }
+  };
+
   const handleTogglePeak = async (record, shouldMarkAsPeak = true) => {
     if (!targetCycle?.id || !record?.isoDate) {
-      return;
+      const error = new Error('Falta el ciclo o la fecha');
+      toast({ title: 'Error', description: 'No se pudo actualizar el día pico', variant: 'destructive' });
+      throw error;
     }
 
     const markAsPeak = shouldMarkAsPeak ?? !(
       record.peak_marker === 'peak' || record.peakStatus === 'P'
     );
 
+    const peakMode = !markAsPeak ? 'remove' : currentPeakIsoDate && currentPeakIsoDate !== record.isoDate ? 'update' : 'assign';
     setIsProcessing(true);
     try {
       const latest = targetCycle.data?.find((entry) => entry.isoDate === record.isoDate) || record;
@@ -1937,8 +1956,11 @@ const rotatedDrawerStyle = applyRotation
 
       await addOrUpdateDataPoint(payload, existingRecord, targetCycle.id);
       await refreshFallbackCycle();
+      toast({ title: getPeakDayToastMessage(peakMode), duration: 1400 });
     } catch (error) {
       console.error('Error toggling peak marker:', error);
+      toast({ title: 'Error', description: 'No se pudo actualizar el día pico', variant: 'destructive' });
+      throw error;
     } finally {
       setIsProcessing(false);
     }
@@ -2632,6 +2654,7 @@ const isManualFertile =
           onOpenTemperatures={openTemperatures}
           onOpenMucus={openMucus}
           onTogglePeak={handleTogglePeak}
+          onToggleRelations={handleToggleRelations}
           cycleId={targetCycle.id}
           initialScrollIndex={scrollStart}
           visibleDays={visibleDays}
