@@ -17,6 +17,8 @@ const ChartTooltip = ({
   onEdit,
   onOpenTemperatures,
   onOpenMucus,
+  onOpenObservations,
+  onOpenSymbol,
   onClose,
   onTogglePeak,
   onToggleRelations,
@@ -307,11 +309,11 @@ const ChartTooltip = ({
             </div>
 
             <div className="flex shrink-0 items-center gap-1">
-              {(hasSymbol || onEdit) && (
+              {(hasSymbol || onEdit || onOpenSymbol) && (
                 <button
                   type="button"
-                  onClick={() => handleSectionEdit('moco', 'fertilitySymbol')}
-                  disabled={!onEdit}
+                  onClick={() => { if (onOpenSymbol) { onOpenSymbol(point); onClose?.(); } else handleSectionEdit('moco', 'fertilitySymbol'); }}
+                  disabled={!onEdit && !onOpenSymbol}
                   className={cn(
                     'flex h-7 w-7 items-center justify-center rounded-full border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 disabled:opacity-80',
                     hasSymbol ? getTooltipSymbolClasses() : 'border-dashed border-slate-300 bg-white hover:bg-slate-50'
@@ -405,15 +407,16 @@ const ChartTooltip = ({
                   </span>
                 </motion.button>
 
-                {hasObservations && (
+                {(hasObservations || onOpenObservations) && (
                   <motion.button
                     type="button"
-                    onClick={() => handleSectionEdit('observations')}
+                    aria-label="Editar observaciones"
+                    onClick={() => { if (onOpenObservations) { onOpenObservations(point); onClose?.(); } else handleSectionEdit('observations'); }}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.28 }}
                     className={cn(tooltipCellClass, 'items-start')}
-                    disabled={!onEdit}
+                    disabled={!onEdit && !onOpenObservations}
                   >
                     <span aria-hidden="true" className={cn(tooltipAccentClass, tooltipCellStyles.observations.accent)} />
                     <FileText className={cn('mt-0.5 h-4 w-4 shrink-0', tooltipCellStyles.observations.icon)} />
@@ -423,7 +426,7 @@ const ChartTooltip = ({
                         tooltipCellStyles.observations.value
                       )}
                     >
-                      {observations}
+                      {observations || '-'}
                     </span>
                   </motion.button>
                 )}

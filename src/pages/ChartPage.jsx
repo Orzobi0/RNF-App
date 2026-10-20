@@ -1,3 +1,5 @@
+import ObservationsQuickEditSheet from '@/components/ObservationsQuickEditSheet';
+import SymbolQuickEditSheet from '@/components/SymbolQuickEditSheet';
 import { getRelationsToastMessage, getPeakDayToastMessage } from '@/lib/recordToastMessages';
 import React, {
   useState,
@@ -326,6 +328,8 @@ const ChartPage = () => {
 
   const [fetchedCycle, setFetchedCycle] = useState(null);
   const [temperatureRecord, setTemperatureRecord] = useState(null);
+  const [observationsTarget, setObservationsTarget] = useState(null);
+  const [symbolTarget, setSymbolTarget] = useState(null);
   const [mucusTarget, setMucusTarget] = useState(null);
   const [focusedField, setFocusedField] = useState(null);
   const [sheetMeasurements, setSheetMeasurements] = useState([]);
@@ -1086,7 +1090,7 @@ const rotatedDrawerStyle = applyRotation
     }
   : undefined;
 
-  const handleEdit = async (record, sectionKey = null, fieldName = null) => {
+  const handleEdit = async (record, sectionKey = null, fieldName = null, savedValues = {}) => {
     const request = ++dateMeasurementLoad.current;
     const latestRecord = targetCycle.data?.find((entry) => entry.isoDate === record?.isoDate) || record;
     let measurements;
@@ -1098,7 +1102,7 @@ const rotatedDrawerStyle = applyRotation
       return false;
     }
     if (dateMeasurementLoad.current !== request) return false;
-    setEditingRecord({ ...latestRecord, measurements, measurementsLoaded: true });
+    setEditingRecord({ ...latestRecord, ...savedValues, measurements, measurementsLoaded: true });
     setInitialSectionKey(sectionKey ?? null);
     setFocusedField(fieldName ?? null);
     setShowForm(true);
@@ -1145,6 +1149,12 @@ const rotatedDrawerStyle = applyRotation
   };
   const saveChartMucus = async (values) => {
     const isoDate = mucusTarget.record.isoDate;
+    const record = targetCycle.data?.find((entry) => entry.isoDate === isoDate) || null;
+    await addOrUpdateDataPoint(buildChartRecordPayload(record, isoDate, { ...values, measurementsComplete: false }), record, targetCycle.id);
+    await refreshFallbackCycle();
+  };
+
+  const saveChartDetails = async (isoDate, values) => {
     const record = targetCycle.data?.find((entry) => entry.isoDate === isoDate) || null;
     await addOrUpdateDataPoint(buildChartRecordPayload(record, isoDate, { ...values, measurementsComplete: false }), record, targetCycle.id);
     await refreshFallbackCycle();
@@ -2670,6 +2680,8 @@ const isManualFertile =
           onEdit={handleEdit}
           onOpenTemperatures={openTemperatures}
           onOpenMucus={openMucus}
+          onOpenObservations={(point) => setObservationsTarget(targetCycle.data?.find((entry) => entry.isoDate === point.isoDate) || point)}
+          onOpenSymbol={(point) => setSymbolTarget(targetCycle.data?.find((entry) => entry.isoDate === point.isoDate) || point)}
           onTogglePeak={handleTogglePeak}
           onToggleRelations={handleToggleRelations}
           cycleId={targetCycle.id}
@@ -2849,6 +2861,14 @@ const isManualFertile =
           </DialogContent>
         </Dialog>
         
+        <ObservationsQuickEditSheet open={Boolean(observationsTarget)} onOpenChange={(value) => { if (!value) setObservationsTarget(null); }}
+          isoDate={observationsTarget?.isoDate} initialValues={observationsTarget}
+          onSave={(values) => saveChartDetails(observationsTarget.isoDate, values)}
+          onOpenForm={(values) => handleEdit(observationsTarget, 'observations', 'observations', values)} />
+        <SymbolQuickEditSheet open={Boolean(symbolTarget)} onOpenChange={(value) => { if (!value) setSymbolTarget(null); }}
+          isoDate={symbolTarget?.isoDate} initialValues={symbolTarget}
+          onSave={(values) => saveChartDetails(symbolTarget.isoDate, values)}
+          onOpenForm={() => handleEdit(symbolTarget, 'moco', 'fertilitySymbol')} />
         <MucusQuickEditSheet open={Boolean(mucusTarget)} onOpenChange={(value) => { if (!value) setMucusTarget(null); }}
           isoDate={mucusTarget?.record.isoDate} initialValues={mucusTarget?.record} initialField={mucusTarget?.field}
           onSave={saveChartMucus}

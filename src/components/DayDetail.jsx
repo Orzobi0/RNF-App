@@ -1,3 +1,5 @@
+import ObservationsQuickEditSheet from '@/components/ObservationsQuickEditSheet';
+import SymbolQuickEditSheet from '@/components/SymbolQuickEditSheet';
 import MucusQuickEditSheet from '@/components/MucusQuickEditSheet';
 import TemperatureMeasurementsSheet, { TemperatureMeasurementTrigger } from '@/components/TemperatureMeasurementsSheet';
 import { measurementsFromRecord } from '@/lib/temperatureMeasurements';
@@ -31,6 +33,7 @@ const DayDetail = ({
   onLoadMeasurements,
   onSaveMeasurements,
   onSaveMucus,
+  onSaveDetails,
   onTemperatureSheetOpenChange,
   onDelete,
   onAdd,
@@ -45,11 +48,13 @@ const DayDetail = ({
 const persistedRecord = isPersistedRecord(details?.record) ? details.record : null;
 const hasPersistedRecord = Boolean(persistedRecord);
   const [temperaturesOpen, setTemperaturesOpen] = useState(false);
+  const [observationsOpen, setObservationsOpen] = useState(false);
+  const [symbolOpen, setSymbolOpen] = useState(false);
   const [mucusField, setMucusField] = useState(null);
   useEffect(() => {
-    onTemperatureSheetOpenChange?.(temperaturesOpen || Boolean(mucusField));
+    onTemperatureSheetOpenChange?.(temperaturesOpen || Boolean(mucusField) || observationsOpen || symbolOpen);
     return () => onTemperatureSheetOpenChange?.(false);
-  }, [temperaturesOpen, mucusField, onTemperatureSheetOpenChange]);
+  }, [temperaturesOpen, mucusField, observationsOpen, symbolOpen, onTemperatureSheetOpenChange]);
   const [temperatureMeasurements, setTemperatureMeasurements] = useState([]);
   const [temperaturesLoading, setTemperaturesLoading] = useState(false);
   const [temperaturesError, setTemperaturesError] = useState('');
@@ -58,6 +63,8 @@ const hasPersistedRecord = Boolean(persistedRecord);
     loadVersion.current += 1;
     setTemperaturesOpen(false);
     setMucusField(null);
+    setObservationsOpen(false);
+    setSymbolOpen(false);
     setTemperatureMeasurements([]);
   }, [isoDate]);
   useEffect(() => () => { loadVersion.current += 1; }, []);
@@ -232,26 +239,6 @@ useEffect(() => {
   return () => ro.disconnect();
 }, [recomputeOverflow]);
 
-const smartOpen = (key, sectionKey, fieldName) => {
-  // si está truncado y aún no hemos expandido => expandir TODO primero
-  if (!isTextExpanded && overflow[key]) {
-    setIsTextExpanded(true);
-    return;
-  }
-  handleSectionOpen(sectionKey, fieldName);
-};
-
-  const handleSectionOpen = (sectionKey, fieldName = null) => {
-  if (persistedRecord && onEdit) {
-    onEdit(persistedRecord, sectionKey, fieldName);
-    return;
-  }
-
-  if (isoDate && onAdd) {
-    onAdd(isoDate, sectionKey, fieldName);
-  }
-};
-
   const handleRelationsToggle = () => {
     if (!isoDate || !onToggleRelations) return;
     onToggleRelations(isoDate);
@@ -394,7 +381,7 @@ const footerIconButtonClass =
 
     <button
       type="button"
-      onClick={() => handleSectionOpen('symbol', 'fertilitySymbol')}
+      onClick={() => setSymbolOpen(true)}
       className={cn(
         'flex h-7 w-7 items-center justify-center rounded-full border shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200',
         getSymbolClasses(),
@@ -425,6 +412,14 @@ const footerIconButtonClass =
             setTemperaturesOpen(false);
           } : undefined} />
 
+        <ObservationsQuickEditSheet open={observationsOpen} onOpenChange={setObservationsOpen}
+          isoDate={isoDate} initialValues={persistedRecord}
+          onSave={(values) => onSaveDetails(isoDate, values)}
+          onOpenForm={(values) => onEdit({ ...persistedRecord, id: persistedRecord?.id || `placeholder-${isoDate}`, isoDate, ...values }, 'observations', 'observations')} />
+        <SymbolQuickEditSheet open={symbolOpen} onOpenChange={setSymbolOpen}
+          isoDate={isoDate} initialValues={persistedRecord}
+          onSave={(values) => onSaveDetails(isoDate, values)}
+          onOpenForm={() => onEdit({ ...persistedRecord, id: persistedRecord?.id || `placeholder-${isoDate}`, isoDate }, 'moco', 'fertilitySymbol')} />
         <MucusQuickEditSheet open={Boolean(mucusField)} onOpenChange={(value) => { if (!value) setMucusField(null); }}
           isoDate={isoDate} initialField={mucusField} initialValues={persistedRecord}
           onSave={(values) => onSaveMucus(isoDate, values)}
@@ -501,7 +496,8 @@ const footerIconButtonClass =
 <div className="flex items-center gap-3">
   <button
     type="button"
-    onClick={() => smartOpen('observations', 'observations', 'observations')}
+    onClick={() => setObservationsOpen(true)}
+    aria-label="Editar observaciones"
     className={cn(
       detailCellMultilineClass,
       isTextExpanded ? 'items-start' : 'items-center',

@@ -48,6 +48,7 @@ const CycleOverviewCard = ({
   onLoadMeasurements,
   onSaveMeasurements,
   onSaveMucus,
+  onSaveDetails,
   cycleData,
   onEdit,
   onDeleteRecord = () => {},
@@ -1644,6 +1645,7 @@ if (dot.peakStatus === 'P') {
     onLoadMeasurements={onLoadMeasurements}
     onSaveMeasurements={onSaveMeasurements}
     onSaveMucus={onSaveMucus}
+    onSaveDetails={onSaveDetails}
     onTemperatureSheetOpenChange={setTemperatureSheetOpen}
     onAdd={handleAddFromDetailPanel}
     onDelete={onDeleteRecord}
@@ -2125,7 +2127,7 @@ const ModernFertilityDashboard = () => {
     const payload = buildDashboardRecordPayload(isoDate, { measurements, measurementsComplete: true, ...(typeof operation?.ignored === 'boolean' ? { ignored: operation.ignored } : {}) });
     await addOrUpdateDataPoint(payload, existing, currentCycle?.id);
   }, [buildDashboardRecordPayload, addOrUpdateDataPoint, currentCycle?.id, currentCycle?.data]);
-  const saveDayMucus = useCallback(async (isoDate, values) => {
+  const saveDayQuickEdit = useCallback(async (isoDate, values) => {
     const record = currentCycle?.data?.find((item) => item.isoDate === isoDate) || null;
     await addOrUpdateDataPoint(buildDashboardRecordPayload(isoDate, { ...values, measurementsComplete: false }), record, currentCycle?.id);
   }, [buildDashboardRecordPayload, addOrUpdateDataPoint, currentCycle?.id, currentCycle?.data]);
@@ -2567,7 +2569,8 @@ const handleConfirmDeleteRecord = useCallback(async () => {
   onEdit={handleEdit}
   onLoadMeasurements={loadDayMeasurements}
   onSaveMeasurements={saveDayMeasurements}
-              onSaveMucus={saveDayMucus}
+              onSaveMucus={saveDayQuickEdit}
+              onSaveDetails={saveDayQuickEdit}
   onDeleteRecord={handleRequestDeleteRecord}
   onToggleRelations={handleToggleRelationsFromDashboard}
   onTogglePeak={handleTogglePeakFromDashboard}

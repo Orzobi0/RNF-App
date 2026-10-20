@@ -1585,7 +1585,7 @@ const handleNextCalendarMonth = useCallback(() => {
     const payload = buildRecordPayloadForDate(isoDate, { measurements, measurementsComplete: true, ...(typeof operation?.ignored === 'boolean' ? { ignored: operation.ignored } : {}) });
     await addOrUpdateDataPoint(payload, existing, cycle?.id);
   }, [buildRecordPayloadForDate, addOrUpdateDataPoint, cycle?.id, cycle?.data]);
-  const saveDayMucus = useCallback(async (isoDate, values) => {
+  const saveDayQuickEdit = useCallback(async (isoDate, values) => {
     const record = cycle?.data?.find((item) => item.isoDate === isoDate) || null;
     await addOrUpdateDataPoint(buildRecordPayloadForDate(isoDate, { ...values, measurementsComplete: false }), record, cycle?.id);
   }, [buildRecordPayloadForDate, addOrUpdateDataPoint, cycle?.id, cycle?.data]);
@@ -1964,7 +1964,8 @@ const handleNextCalendarMonth = useCallback(() => {
               onEdit={handleEdit}
               onLoadMeasurements={loadDayMeasurements}
               onSaveMeasurements={saveDayMeasurements}
-              onSaveMucus={saveDayMucus}
+              onSaveMucus={saveDayQuickEdit}
+              onSaveDetails={saveDayQuickEdit}
               onDelete={handleDeleteRequest}
               onAdd={handleAddRecordForDay}
               onToggleRelations={handleToggleRelations}

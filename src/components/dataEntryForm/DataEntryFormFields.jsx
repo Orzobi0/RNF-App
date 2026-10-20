@@ -43,7 +43,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { normalizePreferenceValue, validatePreferenceField } from '@/lib/preferences';
 const VIEW_ALL_STORAGE_KEY = 'dataEntryForm:viewAll:global';
 const DEFAULT_SECTION_STORAGE_KEY = '__default__';
-const RADIUS = { field: 'rounded-3xl', dropdown: 'rounded-3xl' };
+const RADIUS = { field: 'rounded-2xl', dropdown: 'rounded-2xl' };
 
 const readStoredViewAllPreference = () => {
   if (typeof window === 'undefined') {
@@ -917,10 +917,10 @@ const [activeSection, setActiveSection] = useState(() => {
 ];
 
   const formSectionSurfaceClass =
-  'relative overflow-hidden rounded-3xl border border-slate-200/60 bg-white p-3 shadow-sm';
+  'relative overflow-hidden rounded-2xl border border-slate-200/60 bg-white p-3 shadow-sm';
 
   const formCompactFieldSurfaceClass =
-  'relative overflow-hidden space-y-1.5 rounded-3xl border border-slate-200/60 bg-white p-2.5 shadow-sm';
+  'relative overflow-hidden space-y-1.5 rounded-2xl border border-slate-200/60 bg-white p-2.5 shadow-sm';
 
   const formAccentClass =
   'pointer-events-none absolute bottom-3 left-0 top-3 w-1 rounded-r-full';
@@ -957,7 +957,7 @@ const [activeSection, setActiveSection] = useState(() => {
                 <div
    key={idx}
    className={cn(
-     'relative overflow-hidden space-y-1.5 rounded-3xl border bg-white/75 p-2.5 shadow-sm transition-colors',
+     'relative overflow-hidden space-y-1.5 rounded-2xl border bg-white/75 p-2.5 shadow-sm transition-colors',
      m.selected && ignored
        ? 'border-alerta-2-suave bg-white/60 ring-1 ring-alerta-2-suave'
        : m.selected

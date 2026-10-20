@@ -1,8 +1,10 @@
+import { useAuth } from '@/contexts/AuthContext';
+import { normalizePreferenceValue, validatePreferenceField } from '@/lib/preferences';
 import React, { useEffect, useRef, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { ChevronRight, MoreHorizontal, Thermometer, X, Check, Edit3, Clock, Eye, EyeOff } from 'lucide-react';
+import { ChevronRight, MoreHorizontal, Thermometer, X, Check, Edit3, Clock, Eye, EyeOff, Trash2 } from 'lucide-react';
 import { addHours, format, parse, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
@@ -50,7 +52,11 @@ export const TemperatureMeasurementTrigger = ({ measurements, onClick, disabled,
   </button>;
 };
 
-export default function TemperatureMeasurementsSheet({ open, onOpenChange, isoDate, measurements, onChange, loading = false, loadError = '', onRetry, preferredTime, autoSave = true, onOpenForm, ignored = false }) {
+export default function TemperatureMeasurementsSheet({ open, onOpenChange, isoDate, measurements, onChange, loading = false, loadError = '', onRetry, autoSave = true, onOpenForm, ignored = false }) {
+  const { preferences, savePreferences } = useAuth();
+  const preferredTime = normalizePreferenceValue('preferredTemperatureTime', preferences?.preferredTemperatureTime) || '';
+  const [preferredEditorOpen, setPreferredEditorOpen] = useState(false);
+  const [preferredDraft, setPreferredDraft] = useState('');
   const [correctionOpen, setCorrectionOpen] = useState(false);
   const [editor, setEditor] = useState(null);
   const [deleting, setDeleting] = useState(null);
@@ -70,7 +76,7 @@ export default function TemperatureMeasurementsSheet({ open, onOpenChange, isoDa
     window.visualViewport.addEventListener('resize', update);
     return () => window.visualViewport.removeEventListener('resize', update);
   }, [open]);
-  useEffect(() => { setEditor(null); setDeleting(null); setError(''); autoOpened.current = false; }, [open, isoDate]);
+  useEffect(() => { setEditor(null); setDeleting(null); setPreferredEditorOpen(false); setError(''); autoOpened.current = false; }, [open, isoDate]);
   const commit = async (next, operation) => {
     if (saving.current) return;
     saving.current = true;
@@ -86,6 +92,7 @@ export default function TemperatureMeasurementsSheet({ open, onOpenChange, isoDa
     } finally { saving.current = false; setBusy(false); }
   };
   const edit = (index) => {
+    setPreferredEditorOpen(false);
     setError('');
     setCorrectionOpen(index !== null && !!measurements[index]?.use_corrected);
     setEditor({ index, ignored: index === null ? false : ignored, initialIgnored: ignored, draft: index === null ? { ...newManualMeasurement(), selected: measurements.length === 0 } : { ...measurements[index] } });
@@ -96,6 +103,27 @@ export default function TemperatureMeasurementsSheet({ open, onOpenChange, isoDa
     if (measurements.length === 0) edit(null);
   }, [open, isoDate, loading, loadError, measurements.length]);
   const field = (key, value) => setEditor((current) => ({ ...current, draft: { ...current.draft, [key]: value } }));
+  const openPreferredTimeEditor = () => {
+    setPreferredDraft(preferredTime || editor?.draft.time || '');
+    setPreferredEditorOpen(true);
+  };
+  const savePreferredTime = async (clear = false) => {
+    if (saving.current) return;
+    const value = clear ? '' : preferredDraft;
+    const validationError = validatePreferenceField('preferredTemperatureTime', value);
+    if (validationError) { setError(validationError); return; }
+    const applyFirst = !clear && !preferredTime && editor?.draft.source !== 'bluetooth';
+    saving.current = true;
+    setBusy(true);
+    setError('');
+    try {
+      await savePreferences({ preferredTemperatureTime: value });
+      if (applyFirst) field('time', value);
+      setPreferredEditorOpen(false);
+    } catch {
+      setError('No se pudo guardar la hora preferida. Inténtalo de nuevo.');
+    } finally { saving.current = false; setBusy(false); }
+  };
   const adjustCorrection = (delta) => {
     const raw = temperatureNumber(editor.draft.temperature);
     if (raw === null) return;
@@ -193,11 +221,29 @@ export default function TemperatureMeasurementsSheet({ open, onOpenChange, isoDa
                 <div className={`relative overflow-hidden space-y-1.5 rounded-3xl border p-2.5 shadow-sm ring-1 transition-colors ${editor.draft.selected && editor.ignored ? 'border-alerta-2-suave bg-white/60 ring-alerta-2-suave' : 'border-temp bg-white/85 ring-temp'}`}>
                   <span aria-hidden="true" className={`pointer-events-none absolute bottom-3 left-0 top-3 w-1 rounded-r-full ${editor.draft.selected && editor.ignored ? 'bg-alerta-2 opacity-75' : 'bg-temp opacity-85'}`} />
                   <div className="flex items-center gap-1 text-[13px] font-semibold text-subtitulo"><Thermometer className="h-4 w-4 text-temp" />Temperatura</div>
-                  <div className={preferredTime ? 'grid grid-cols-[minmax(0,1fr)_96px_68px] gap-1.5' : 'grid grid-cols-[minmax(0,1fr)_110px] gap-1.5'}>
+                  <div className={editor.draft.source !== 'bluetooth' ? 'grid grid-cols-[minmax(0,1fr)_96px_68px] gap-1.5' : 'grid grid-cols-[minmax(0,1fr)_110px] gap-1.5'}>
                     <Input aria-label="Temperatura (°C)" autoFocus type="number" inputMode="decimal" step="0.01" min="34" max="40" placeholder="36.50" value={editor.draft.temperature ?? ''} onChange={(e) => field('temperature', e.target.value)} className={editorInputClass} />
                     <Input aria-label="Hora de toma" type="time" required value={editor.draft.time ?? ''} onChange={(e) => field('time', e.target.value)} className={editorInputClass} />
-                    {preferredTime && <Button type="button" variant="outline" aria-label={`Aplicar hora preferida ${preferredTime}`} onClick={() => field('time', preferredTime)} className="h-8 rounded-2xl px-1 text-[11px] text-temp"><Clock className="mr-1 h-3 w-3" />{preferredTime}</Button>}
+                    {editor.draft.source !== 'bluetooth' && <div className="relative">
+                      <Button type="button" variant="outline" aria-label={preferredTime ? `Aplicar hora preferida ${preferredTime}` : 'Definir hora preferida'}
+                        onClick={() => preferredTime ? field('time', preferredTime) : openPreferredTimeEditor()}
+                        className={`h-8 w-full rounded-2xl px-1 text-[11px] font-semibold ${preferredTime ? editor.draft.time === preferredTime ? 'border-secundario bg-secundario text-white hover:bg-secundario' : 'border-slate-200/70 bg-white/80 text-temp' : 'border-dashed border-slate-200 bg-white/70 text-slate-400'}`}>
+                        <Clock className="mr-1 h-3 w-3" />{preferredTime || '--:--'}
+                      </Button>
+                      {preferredTime && <button type="button" aria-label="Editar hora preferida" title="Editar hora preferida" onClick={openPreferredTimeEditor}
+                        className="absolute -right-1 -top-1 inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-200 bg-white text-temp shadow-sm"><Edit3 className="h-2.5 w-2.5" /></button>}
+                    </div>}
                   </div>
+                  {preferredEditorOpen && editor.draft.source !== 'bluetooth' && <div className="space-y-1 rounded-2xl border border-slate-200/60 bg-white/75 p-2 shadow-sm">
+                    <label htmlFor="sheet-preferred-time" className="block text-[11px] font-semibold text-subtitulo">Hora preferida</label>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Input id="sheet-preferred-time" type="time" value={preferredDraft} onChange={(event) => setPreferredDraft(event.target.value)} className={`${editorInputClass} w-28`} />
+                      <Button type="button" size="xs" disabled={!preferredDraft} onClick={() => savePreferredTime()} className="h-8 rounded-full bg-temp px-3 text-[11px] text-white hover:bg-temp">Guardar</Button>
+                      <Button type="button" size="xs" variant="ghost" onClick={() => setPreferredEditorOpen(false)} className="h-8 rounded-full px-2 text-[11px] text-temp">Cancelar</Button>
+                      {preferredTime && <Button type="button" size="icon" variant="ghost" aria-label="Eliminar hora preferida" onClick={() => savePreferredTime(true)} className="h-8 w-8 rounded-full text-rose-600"><Trash2 className="h-4 w-4" /></Button>}
+                    </div>
+                  </div>}
+
                   <Button type="button" size="xs" variant="outline" aria-pressed={correctionOpen} onClick={() => {
                     setCorrectionOpen(!correctionOpen);
                     if (!correctionOpen) {
