@@ -18,6 +18,7 @@ const FertilityChart = ({
   onToggleIgnore,
   onEdit,
   onOpenTemperatures,
+  onOpenMucus,
   onTogglePeak,
   cycleId,
   initialScrollIndex = 0,
@@ -2630,6 +2631,7 @@ const rotationWrapperStyle = rotationStageStyle
               onToggleIgnore={handleToggleIgnore}
               onEdit={onEdit}
               onOpenTemperatures={onOpenTemperatures}
+              onOpenMucus={onOpenMucus}
               onClose={clearActivePoint}
               onTogglePeak={onTogglePeak}
               currentPeakIsoDate={currentPeakIsoDate}

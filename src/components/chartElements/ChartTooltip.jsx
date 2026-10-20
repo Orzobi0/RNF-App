@@ -16,6 +16,7 @@ const ChartTooltip = ({
   onToggleIgnore,
   onEdit,
   onOpenTemperatures,
+  onOpenMucus,
   onClose,
   onTogglePeak,
   currentPeakIsoDate,
@@ -199,6 +200,11 @@ const ChartTooltip = ({
     onClose?.();
   };
 
+  const openMucus = (field) => {
+    onOpenMucus(point, field);
+    onClose?.();
+  };
+
   const handleSectionEdit = (sectionKey) => {
     if (!onEdit) return;
     onEdit(point, sectionKey);
@@ -324,6 +330,10 @@ const ChartTooltip = ({
                 <span className="flex-1 text-suave">Sin temperatura</span>
                 <ChevronRight className="h-4 w-4 text-slate-400" />
               </button>}
+              {onOpenMucus && <div className="space-y-2">
+                <button type="button" onClick={() => openMucus('mucusSensation')} className={tooltipCellClass} aria-label="Editar sensación"><Droplets className="h-4 w-4 text-sensacion opacity-35" /><span className="text-suave">Sensación</span></button>
+                <button type="button" onClick={() => openMucus('mucusAppearance')} className={tooltipCellClass} aria-label="Editar apariencia"><Circle className="h-4 w-4 text-apariencia opacity-35" /><span className="text-suave">Apariencia</span></button>
+              </div>}
               <motion.div
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -425,12 +435,13 @@ const ChartTooltip = ({
 
                 <motion.button
                   type="button"
-                  onClick={() => handleSectionEdit('sensation')}
+                  aria-label="Editar sensación"
+                  onClick={() => onOpenMucus ? openMucus('mucusSensation') : handleSectionEdit('sensation')}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.18 }}
                   className={tooltipCellClass}
-                  disabled={!onEdit}
+                  disabled={!onEdit && !onOpenMucus}
                 >
                   <span aria-hidden="true" className={cn(tooltipAccentClass, tooltipCellStyles.sensation.accent)} />
                   <Droplets className={cn('h-4 w-4 shrink-0', tooltipCellStyles.sensation.icon)} />
@@ -441,12 +452,13 @@ const ChartTooltip = ({
 
                 <motion.button
                   type="button"
-                  onClick={() => handleSectionEdit('appearance')}
+                  aria-label="Editar apariencia"
+                  onClick={() => onOpenMucus ? openMucus('mucusAppearance') : handleSectionEdit('appearance')}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.23 }}
                   className={tooltipCellClass}
-                  disabled={!onEdit}
+                  disabled={!onEdit && !onOpenMucus}
                 >
                   <span aria-hidden="true" className={cn(tooltipAccentClass, tooltipCellStyles.appearance.accent)} />
                   <Circle className={cn('h-4 w-4 shrink-0', tooltipCellStyles.appearance.icon)} />

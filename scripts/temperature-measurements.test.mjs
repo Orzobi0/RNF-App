@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  loadRecordMeasurements, measurementsFromRecord, measurementSourceLabel,
+  measurementPayloadForRecord, loadRecordMeasurements, measurementsFromRecord, measurementSourceLabel,
   newManualMeasurement, normalizeMeasurements, selectedMeasurementSummary, sortedMeasurements, measurementTimeForSummary, measurementsForSheetSave,
 } from '../src/lib/temperatureMeasurements.js';
 
@@ -109,4 +109,31 @@ test('saving a manual row preserves other rows and allows immediate selection', 
   assert.equal(added[3].selected, false);
   const selected = added.map((m, i) => ({ ...m, selected: i === 3 }));
   assert.equal(selectedMeasurementSummary(measurementsForSheetSave(added, added, selected, { action: 'select' })).temperature_chart, 36.7);
+});
+
+test('quick mucus/peak edits preserve a non-first selection and all measurement metadata', () => {
+  const rows = measurements.map((m, index) => ({ ...m, selected: index === 1 }));
+  const payload = measurementPayloadForRecord({ measurements: rows, measurementsLoaded: true });
+  assert.equal(payload.measurementsComplete, true);
+  assert.deepEqual(payload.measurements, rows);
+  assert.equal(selectedMeasurementSummary(payload.measurements).temperature_device_key, 'test-device');
+});
+
+test('summary-only edits remain incomplete and preserve original/corrected values and provenance', () => {
+  const selected = measurements[1];
+  const record = { id: 'day', timestamp: '2026-10-01T10:03:00', ...selectedMeasurementSummary([{ ...selected, selected: true }]) };
+  const payload = measurementPayloadForRecord(record);
+  assert.equal(payload.measurementsComplete, false);
+  assert.equal(payload.measurements[0].temperature, selected.temperature);
+  assert.equal(payload.measurements[0].time, selected.time);
+  assert.equal(payload.measurements[0].time_corrected, selected.time_corrected);
+  assert.deepEqual(selectedMeasurementSummary(payload.measurements), selectedMeasurementSummary([{ ...selected, selected: true }]));
+});
+
+test('new and empty days do not fetch a subcollection for a placeholder', async () => {
+  const fetch = () => { throw new Error('Unexpected read'); };
+  assert.deepEqual(await loadRecordMeasurements(null, 'cycle', fetch), []);
+  assert.deepEqual(await loadRecordMeasurements({ id: 'placeholder-day' }, 'cycle', fetch), []);
+  assert.deepEqual(measurementPayloadForRecord(null), { measurements: [], measurementsComplete: false });
+  assert.equal(measurementPayloadForRecord({ measurements: [], measurementsLoaded: true }).measurementsComplete, true);
 });

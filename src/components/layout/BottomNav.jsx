@@ -1,10 +1,8 @@
 import React from 'react';
 import { NavLink, useMatch } from 'react-router-dom';
 import { Heart, ChartSpline, Calendar, Archive, UserRoundCog } from 'lucide-react';
-import { useWhatsNew } from '@/contexts/WhatsNewContext.jsx';
 
 const BottomNav = () => {
-  const { hasUnseenSupport } = useWhatsNew();
   const cycleMatch = useMatch('/cycle/:cycleId');
   const chartCycleMatch = useMatch('/chart/:cycleId');
   const contextCycleId = cycleMatch?.params?.cycleId || chartCycleMatch?.params?.cycleId;
@@ -25,7 +23,7 @@ const BottomNav = () => {
     },
     { to: '/', label: 'Ciclo actual', icon: Heart, activeFill: true },
     { to: '/archived-cycles', label: 'Mis ciclos', icon: Archive },
-    { to: '/settings', label: 'Cuenta', icon: UserRoundCog, showNewBadge: hasUnseenSupport },
+    { to: '/settings', label: 'Cuenta', icon: UserRoundCog },
   ];
 
 return (

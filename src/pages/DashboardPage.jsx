@@ -1,4 +1,4 @@
-import { loadRecordMeasurements, measurementsFromRecord } from '@/lib/temperatureMeasurements';
+import { measurementPayloadForRecord, loadRecordMeasurements } from '@/lib/temperatureMeasurements';
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
@@ -47,6 +47,7 @@ const DATA_ENTRY_FORM_DRAFT_KEY = 'dashboard:data-entry-form-draft';
 const CycleOverviewCard = ({
   onLoadMeasurements,
   onSaveMeasurements,
+  onSaveMucus,
   cycleData,
   onEdit,
   onDeleteRecord = () => {},
@@ -1642,6 +1643,7 @@ if (dot.peakStatus === 'P') {
     onEdit={onEdit}
     onLoadMeasurements={onLoadMeasurements}
     onSaveMeasurements={onSaveMeasurements}
+    onSaveMucus={onSaveMucus}
     onTemperatureSheetOpenChange={setTemperatureSheetOpen}
     onAdd={handleAddFromDetailPanel}
     onDelete={onDeleteRecord}
@@ -2073,6 +2075,7 @@ const ModernFertilityDashboard = () => {
       setShowForm(true);
     } catch {
       toast({ title: 'No se pudieron cargar las temperaturas', description: 'Inténtalo de nuevo antes de editar.', variant: 'destructive' });
+      return false;
     }
   }, [currentCycle?.id, getMeasurementsForEntry, toast]);
 
@@ -2081,7 +2084,6 @@ const ModernFertilityDashboard = () => {
     const existingRecord =
       currentCycle?.data?.find((record) => record.isoDate === isoDate) || null;
 
-    const measurements = measurementsFromRecord(existingRecord);
 
     const existingFertilitySymbol =
       existingRecord && Object.prototype.hasOwnProperty.call(existingRecord, 'fertility_symbol')
@@ -2090,7 +2092,7 @@ const ModernFertilityDashboard = () => {
 
     return {
       isoDate,
-      measurements,
+      ...measurementPayloadForRecord(existingRecord),
       mucusSensation:
         existingRecord?.mucusSensation ?? existingRecord?.mucus_sensation ?? '',
       mucusAppearance:
@@ -2118,9 +2120,15 @@ const ModernFertilityDashboard = () => {
     await addOrUpdateDataPoint(payload, record, currentCycle?.id);
   }, [currentCycle?.data, currentCycle?.id, buildDashboardRecordPayload, addOrUpdateDataPoint]);
   const saveDayMeasurements = useCallback(async (record, measurements, operation) => {
-    const payload = buildDashboardRecordPayload(record.isoDate, { measurements, measurementsComplete: true, ...(typeof operation?.ignored === 'boolean' ? { ignored: operation.ignored } : {}) });
-    await addOrUpdateDataPoint(payload, record, currentCycle?.id);
-  }, [buildDashboardRecordPayload, addOrUpdateDataPoint, currentCycle?.id]);
+    const isoDate = record?.isoDate || operation?.isoDate;
+    const existing = currentCycle?.data?.find((item) => item.isoDate === isoDate) || null;
+    const payload = buildDashboardRecordPayload(isoDate, { measurements, measurementsComplete: true, ...(typeof operation?.ignored === 'boolean' ? { ignored: operation.ignored } : {}) });
+    await addOrUpdateDataPoint(payload, existing, currentCycle?.id);
+  }, [buildDashboardRecordPayload, addOrUpdateDataPoint, currentCycle?.id, currentCycle?.data]);
+  const saveDayMucus = useCallback(async (isoDate, values) => {
+    const record = currentCycle?.data?.find((item) => item.isoDate === isoDate) || null;
+    await addOrUpdateDataPoint(buildDashboardRecordPayload(isoDate, { ...values, measurementsComplete: false }), record, currentCycle?.id);
+  }, [buildDashboardRecordPayload, addOrUpdateDataPoint, currentCycle?.id, currentCycle?.data]);
 
 const handleToggleRelationsFromDashboard = useCallback(
   async (isoDate) => {
@@ -2559,6 +2567,7 @@ const handleConfirmDeleteRecord = useCallback(async () => {
   onEdit={handleEdit}
   onLoadMeasurements={loadDayMeasurements}
   onSaveMeasurements={saveDayMeasurements}
+              onSaveMucus={saveDayMucus}
   onDeleteRecord={handleRequestDeleteRecord}
   onToggleRelations={handleToggleRelationsFromDashboard}
   onTogglePeak={handleTogglePeakFromDashboard}

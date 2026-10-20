@@ -12,7 +12,6 @@ import {
   Thermometer,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useWhatsNew } from '@/contexts/WhatsNewContext.jsx';
 import { useToast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -653,7 +652,6 @@ const SettingsPage = () => {
     refreshCurrentUser,
     resendVerificationEmail,
   } = useAuth();
-  const { hasUnseenSupport } = useWhatsNew();
   const { currentCycle, archivedCycles } = useCycleData();
 
   const { toast } = useToast();
@@ -1116,7 +1114,6 @@ const SettingsPage = () => {
               description="Problemas, dudas o sugerencias"
               to="/settings/support"
               ariaLabel="Abrir contacto y soporte"
-              showNewBadge={hasUnseenSupport}
             />
             <div className="bg-white px-4 py-3">
               <InstallPrompt

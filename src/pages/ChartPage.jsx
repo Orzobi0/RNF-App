@@ -10,8 +10,9 @@ import FertilityChart from '@/components/FertilityChart';
 import PhaseEducationSheet from '@/components/chartElements/PhaseEducationSheet';
 import InterpretationSettingsDialog from '@/components/InterpretationSettingsDialog';
 import { useCycleData } from '@/hooks/useCycleData';
+import MucusQuickEditSheet from '@/components/MucusQuickEditSheet';
 import TemperatureMeasurementsSheet from '@/components/TemperatureMeasurementsSheet';
-import { loadRecordMeasurements } from '@/lib/temperatureMeasurements';
+import { loadRecordMeasurements, measurementPayloadForRecord } from '@/lib/temperatureMeasurements';
 import { useFertilityCalculatorsEditor } from '@/hooks/useFertilityCalculatorsEditor';
 import { differenceInDays, format, parseISO, startOfDay } from 'date-fns';
 import generatePlaceholders from '@/lib/generatePlaceholders';
@@ -41,7 +42,6 @@ import {
 } from '@/lib/fertilityStart';
 import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { useWhatsNew } from '@/contexts/WhatsNewContext.jsx';
 import { computeOvulationMetrics } from '@/hooks/useFertilityChart';
 import ChartControls from '@/components/ChartControls';
 import computePeakStatuses from '@/lib/computePeakStatuses';
@@ -325,6 +325,8 @@ const ChartPage = () => {
 
   const [fetchedCycle, setFetchedCycle] = useState(null);
   const [temperatureRecord, setTemperatureRecord] = useState(null);
+  const [mucusTarget, setMucusTarget] = useState(null);
+  const [focusedField, setFocusedField] = useState(null);
   const [sheetMeasurements, setSheetMeasurements] = useState([]);
   const [sheetLoading, setSheetLoading] = useState(false);
   const [sheetError, setSheetError] = useState('');
@@ -389,7 +391,6 @@ const ChartPage = () => {
     : externalLoading || (isLoading && !archivedMatch && !fetchedCycle);
 
   const { preferences, savePreferences } = useAuth();
-  const { hasUnseenChartInterpretation, markChartInterpretationSeen } = useWhatsNew();
   const { toast } = useToast();
   const calculatorEditor = useFertilityCalculatorsEditor({
     currentCycle,
@@ -560,11 +561,6 @@ const toggleSettings = useCallback(() => {
   if (settingsOpen) closeSettings();
   else openSettings();
 }, [settingsOpen, openSettings, closeSettings]);
-
-const handleToggleSettingsFromControls = useCallback(() => {
-  markChartInterpretationSeen();
-  toggleSettings();
-}, [markChartInterpretationSeen, toggleSettings]);
 
 useEffect(() => {
   if (settingsOpen) return;
@@ -764,7 +760,6 @@ useEffect(() => {
   };
 }, [isIPhoneOrIPod]);
   const loadTemperatures = useCallback(async (record) => {
-    if (!record?.id || String(record.id).startsWith('placeholder-')) return [];
     return loadRecordMeasurements(record, targetCycle.id, getMeasurementsForEntry);
   }, [targetCycle?.id, getMeasurementsForEntry]);
   const handleDateSelect = useCallback(async (record) => {
@@ -1079,7 +1074,7 @@ const rotatedDrawerStyle = applyRotation
     }
   : undefined;
 
-  const handleEdit = async (record, sectionKey = null) => {
+  const handleEdit = async (record, sectionKey = null, fieldName = null) => {
     let measurements;
     try {
       measurements = await loadTemperatures(record);
@@ -1089,6 +1084,7 @@ const rotatedDrawerStyle = applyRotation
     }
     setEditingRecord({ ...record, measurements, measurementsLoaded: true });
     setInitialSectionKey(sectionKey ?? null);
+    setFocusedField(fieldName);
     setShowForm(true);
   };
   const openTemperatures = async (point) => {
@@ -1107,18 +1103,34 @@ const rotatedDrawerStyle = applyRotation
       if (sheetLoadVersion.current === version) setSheetLoading(false);
     }
   };
+  const buildChartRecordPayload = (record, isoDate, overrides = {}) => ({
+    isoDate,
+    ...measurementPayloadForRecord(record),
+    mucusSensation: record?.mucusSensation ?? record?.mucus_sensation ?? '',
+    mucusAppearance: record?.mucusAppearance ?? record?.mucus_appearance ?? '',
+    fertility_symbol: record?.fertility_symbol ?? record?.fertilitySymbol ?? 'none',
+    observations: record?.observations ?? '',
+    had_relations: record?.had_relations ?? record?.hadRelations ?? false,
+    ignored: record?.ignored ?? false,
+    peak_marker: record?.peak_marker ?? null,
+    ...overrides,
+  });
   const saveChartMeasurements = async (isoDate, measurements, operation) => {
     const record = targetCycle.data?.find((entry) => entry.isoDate === isoDate) || null;
-    await addOrUpdateDataPoint({
-      isoDate, measurements, measurementsComplete: true,
-      mucusSensation: record?.mucusSensation ?? record?.mucus_sensation ?? '',
-      mucusAppearance: record?.mucusAppearance ?? record?.mucus_appearance ?? '',
-      fertility_symbol: record?.fertility_symbol ?? 'none',
-      observations: record?.observations ?? '',
-      had_relations: record?.had_relations ?? record?.hadRelations ?? false,
-      ignored: typeof operation?.ignored === 'boolean' ? operation.ignored : record?.ignored ?? false,
-      peak_marker: record?.peak_marker ?? null,
-    }, record, targetCycle.id);
+    await addOrUpdateDataPoint(buildChartRecordPayload(record, isoDate, {
+      measurements, measurementsComplete: true,
+      ...(typeof operation?.ignored === 'boolean' ? { ignored: operation.ignored } : {}),
+    }), record, targetCycle.id);
+    await refreshFallbackCycle();
+  };
+  const openMucus = (point, field) => {
+    const record = targetCycle.data?.find((entry) => entry.isoDate === point.isoDate) || point;
+    setMucusTarget({ record, field });
+  };
+  const saveChartMucus = async (values) => {
+    const isoDate = mucusTarget.record.isoDate;
+    const record = targetCycle.data?.find((entry) => entry.isoDate === isoDate) || null;
+    await addOrUpdateDataPoint(buildChartRecordPayload(record, isoDate, { ...values, measurementsComplete: false }), record, targetCycle.id);
     await refreshFallbackCycle();
   };
 
@@ -1911,88 +1923,20 @@ const rotatedDrawerStyle = applyRotation
       return;
     }
 
-    const normalizeMeasurementValue = (value) => {
-      if (value === null || value === undefined || value === '') {
-        return null;
-      }
-      const parsed = parseFloat(String(value).replace(',', '.'));
-      return Number.isFinite(parsed) ? parsed : null;
-    };
-
     const markAsPeak = shouldMarkAsPeak ?? !(
       record.peak_marker === 'peak' || record.peakStatus === 'P'
     );
 
     setIsProcessing(true);
     try {
-      const fallbackTime = record.timestamp
-        ? format(parseISO(record.timestamp), 'HH:mm')
-        : format(new Date(), 'HH:mm');
-
-      let measurementsSource = Array.isArray(record.measurements) && record.measurements.length > 0
-        ? record.measurements
-        : [
-            {
-              temperature: record.temperature_chart ?? record.temperature_raw ?? null,
-              temperature_corrected: record.temperature_corrected ?? null,
-              time: fallbackTime,
-              time_corrected: record.time_corrected ?? fallbackTime,
-              selected: true,
-              use_corrected: record.use_corrected ?? false,
-            },
-          ];
-
-      if (measurementsSource.length === 0) {
-        measurementsSource = [
-          {
-            temperature: null,
-            temperature_corrected: null,
-            time: fallbackTime,
-            time_corrected: fallbackTime,
-            selected: true,
-            use_corrected: false,
-          },
-        ];
-      }
-
-      const normalizedMeasurements = measurementsSource.map((measurement, index) => {
-        const timeValue = measurement.time || fallbackTime;
-        const correctedTime = measurement.time_corrected || timeValue;
-
-        return {
-          temperature: normalizeMeasurementValue(
-            measurement.temperature ?? measurement.temperature_raw
-          ),
-          time: timeValue,
-          selected: index === 0 ? true : !!measurement.selected,
-          temperature_corrected: normalizeMeasurementValue(
-            measurement.temperature_corrected
-          ),
-          time_corrected: correctedTime,
-          use_corrected: !!measurement.use_corrected,
-        };
-      });
-
-      if (!normalizedMeasurements.some((measurement) => measurement.selected)) {
-        normalizedMeasurements[0].selected = true;
-      }
-
-      const payload = {
-        isoDate: record.isoDate,
-        measurements: normalizedMeasurements,
-        mucusSensation: record.mucus_sensation ?? record.mucusSensation ?? '',
-        mucusAppearance: record.mucus_appearance ?? record.mucusAppearance ?? '',
-        fertility_symbol: record.fertility_symbol ?? 'none',
-        observations: record.observations ?? '',
-        had_relations: record.had_relations ?? record.hadRelations ?? false,
-        ignored: record.ignored ?? false,
-        peak_marker: markAsPeak ? 'peak' : null,
-      };
+      const latest = targetCycle.data?.find((entry) => entry.isoDate === record.isoDate) || record;
+      const payload = buildChartRecordPayload(latest, record.isoDate, { peak_marker: markAsPeak ? 'peak' : null, measurementsComplete: false });
 
       const existingRecord =
         record?.id && !String(record.id).startsWith('placeholder-') ? record : null;
 
       await addOrUpdateDataPoint(payload, existingRecord, targetCycle.id);
+      await refreshFallbackCycle();
     } catch (error) {
       console.error('Error toggling peak marker:', error);
     } finally {
@@ -2677,8 +2621,7 @@ const isManualFertile =
           onToggleManualBaseline={() => setShowManualBaseline((prev) => !prev)}
           onInterpretationPointerUp={handleInterpretationPointerUp}
           onToggleFullScreen={handleToggleFullScreen}
-          onToggleSettings={handleToggleSettingsFromControls}
-          showSettingsNewBadge={hasUnseenChartInterpretation}
+          onToggleSettings={toggleSettings}
         />
         <FertilityChart
           data={mergedData}
@@ -2687,6 +2630,7 @@ const isManualFertile =
           onToggleIgnore={handleToggleIgnore}
           onEdit={handleEdit}
           onOpenTemperatures={openTemperatures}
+          onOpenMucus={openMucus}
           onTogglePeak={handleTogglePeak}
           cycleId={targetCycle.id}
           initialScrollIndex={scrollStart}
@@ -2859,11 +2803,19 @@ const isManualFertile =
               cycleData={targetCycle.data}
               onDateSelect={handleDateSelect}
               initialSectionKey={initialSectionKey}
+              focusedField={focusedField}
               onOpenNewCycle={handleOpenNewCycleDialog}
             />
           </DialogContent>
         </Dialog>
         
+        <MucusQuickEditSheet open={Boolean(mucusTarget)} onOpenChange={(value) => { if (!value) setMucusTarget(null); }}
+          isoDate={mucusTarget?.record.isoDate} initialValues={mucusTarget?.record} initialField={mucusTarget?.field}
+          onSave={saveChartMucus}
+          onOpenForm={(values) => {
+            const record = targetCycle.data?.find((entry) => entry.isoDate === mucusTarget.record.isoDate) || mucusTarget.record;
+            return handleEdit({ ...record, ...values }, 'moco', mucusTarget.field);
+          }} />
         <TemperatureMeasurementsSheet
           open={Boolean(temperatureRecord)}
           onOpenChange={(open) => { if (!open) { sheetLoadVersion.current += 1; setTemperatureRecord(null); } }}

@@ -1,4 +1,4 @@
-import { loadRecordMeasurements, measurementsFromRecord } from '@/lib/temperatureMeasurements';
+import { measurementPayloadForRecord, loadRecordMeasurements } from '@/lib/temperatureMeasurements';
 import React, {
   useState,
   useCallback,
@@ -1457,7 +1457,7 @@ const handleNextCalendarMonth = useCallback(() => {
       const hasLoadedMeasurements =
         record?.measurementsLoaded ||
         (Array.isArray(record?.measurements) && record.measurements.length > 0);
-      if (getMeasurementsForEntry && record?.id && cycle?.id && !hasLoadedMeasurements) {
+      if (getMeasurementsForEntry && record?.id && !String(record.id).startsWith('placeholder-') && cycle?.id && !hasLoadedMeasurements) {
         setIsDetailLoading(true);
         try {
           const measurements = await getMeasurementsForEntry(cycle.id, record.id);
@@ -1471,6 +1471,7 @@ const handleNextCalendarMonth = useCallback(() => {
         } catch {
           setShowForm(false);
           toast({ title: 'No se pudieron cargar las temperaturas', description: 'Inténtalo de nuevo antes de editar.', variant: 'destructive' });
+          return false;
         } finally {
           setIsDetailLoading(false);
         }
@@ -1553,11 +1554,10 @@ const handleNextCalendarMonth = useCallback(() => {
   const buildRecordPayloadForDate = useCallback(
     (isoDate, overrides = {}) => {
       const existingRecord = cycle?.data?.find((record) => record.isoDate === isoDate) || null;
-      const measurements = measurementsFromRecord(existingRecord);
 
       return {
         isoDate,
-        measurements,
+        ...measurementPayloadForRecord(existingRecord),
         mucusSensation: existingRecord?.mucusSensation ?? existingRecord?.mucus_sensation ?? '',
         mucusAppearance: existingRecord?.mucusAppearance ?? existingRecord?.mucus_appearance ?? '',
         fertility_symbol: existingRecord?.fertility_symbol ?? existingRecord?.fertilitySymbol ?? 'none',
@@ -1580,9 +1580,15 @@ const handleNextCalendarMonth = useCallback(() => {
     await addOrUpdateDataPoint(payload, record, cycle?.id);
   }, [cycle?.data, cycle?.id, buildRecordPayloadForDate, addOrUpdateDataPoint]);
   const saveDayMeasurements = useCallback(async (record, measurements, operation) => {
-    const payload = buildRecordPayloadForDate(record.isoDate, { measurements, measurementsComplete: true, ...(typeof operation?.ignored === 'boolean' ? { ignored: operation.ignored } : {}) });
-    await addOrUpdateDataPoint(payload, record, cycle?.id);
-  }, [buildRecordPayloadForDate, addOrUpdateDataPoint, cycle?.id]);
+    const isoDate = record?.isoDate || operation?.isoDate;
+    const existing = cycle?.data?.find((item) => item.isoDate === isoDate) || null;
+    const payload = buildRecordPayloadForDate(isoDate, { measurements, measurementsComplete: true, ...(typeof operation?.ignored === 'boolean' ? { ignored: operation.ignored } : {}) });
+    await addOrUpdateDataPoint(payload, existing, cycle?.id);
+  }, [buildRecordPayloadForDate, addOrUpdateDataPoint, cycle?.id, cycle?.data]);
+  const saveDayMucus = useCallback(async (isoDate, values) => {
+    const record = cycle?.data?.find((item) => item.isoDate === isoDate) || null;
+    await addOrUpdateDataPoint(buildRecordPayloadForDate(isoDate, { ...values, measurementsComplete: false }), record, cycle?.id);
+  }, [buildRecordPayloadForDate, addOrUpdateDataPoint, cycle?.id, cycle?.data]);
 
   const handleSave = async (data, { keepFormOpen = false, submitAction = null } = {}) => {
   setIsProcessing(true);
@@ -1958,6 +1964,7 @@ const handleNextCalendarMonth = useCallback(() => {
               onEdit={handleEdit}
               onLoadMeasurements={loadDayMeasurements}
               onSaveMeasurements={saveDayMeasurements}
+              onSaveMucus={saveDayMucus}
               onDelete={handleDeleteRequest}
               onAdd={handleAddRecordForDay}
               onToggleRelations={handleToggleRelations}
@@ -2032,7 +2039,7 @@ const handleNextCalendarMonth = useCallback(() => {
         cycleStartDate={cycle?.startDate}
         cycleEndDate={cycle?.endDate}
         isProcessing={isProcessing || isDetailLoading}
-        isEditing={!!editingRecord}
+        isEditing={!!editingRecord?.id && !String(editingRecord.id).startsWith('placeholder-')}
         cycleData={cycle?.data}
         onDateSelect={handleDateSelect}
         defaultIsoDate={defaultFormIsoDate}

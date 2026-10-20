@@ -41,12 +41,12 @@ export const TemperatureMeasurementTrigger = ({ measurements, onClick, disabled,
     <span aria-hidden="true" className={`absolute bottom-2 left-0 top-2 w-1 rounded-r-full bg-temp ${hasTemperature ? 'opacity-75' : 'opacity-25'}`} />
     <Thermometer className={`h-[18px] w-[18px] shrink-0 text-temp ${hasTemperature ? '' : 'opacity-35'}`} />
     <span className={`shrink-0 font-semibold ${hasTemperature ? 'text-subtitulo' : 'text-suave'} ${ignored ? 'line-through opacity-60' : ''}`}>
-      {measurementDisplay(selected)}
+      {hasTemperature ? measurementDisplay(selected) : '-'}
     </span>
     {selected?.time && <span className="shrink-0 text-xs text-slate-500">{selected.time}</span>}
     <MeasurementSourceChip measurement={selected} />
     {selected?.use_corrected && <span title="Temperatura corregida" aria-label="Temperatura corregida" className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />}
-    {hasTemperature && <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-slate-400" />}
+    <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-slate-400" />
   </button>;
 };
 
@@ -57,6 +57,7 @@ export default function TemperatureMeasurementsSheet({ open, onOpenChange, isoDa
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const saving = useRef(false);
+  const autoOpened = useRef(false);
   const editorRef = useRef(null);
   const sheetRef = useRef(null);
   const deleteTriggerRef = useRef(null);
@@ -69,14 +70,14 @@ export default function TemperatureMeasurementsSheet({ open, onOpenChange, isoDa
     window.visualViewport.addEventListener('resize', update);
     return () => window.visualViewport.removeEventListener('resize', update);
   }, [open]);
-  useEffect(() => { setEditor(null); setDeleting(null); setError(''); }, [open, isoDate]);
+  useEffect(() => { setEditor(null); setDeleting(null); setError(''); autoOpened.current = false; }, [open, isoDate]);
   const commit = async (next, operation) => {
     if (saving.current) return;
     saving.current = true;
     setBusy(true); setError('');
     try {
       const normalized = normalizeMeasurements(next);
-      await onChange(normalized, operation);
+      await onChange(normalized, normalized.length === 0 ? { ...operation, ignored: false } : operation);
       setEditor(null); setDeleting(null);
       return normalized;
     } catch {
@@ -87,8 +88,13 @@ export default function TemperatureMeasurementsSheet({ open, onOpenChange, isoDa
   const edit = (index) => {
     setError('');
     setCorrectionOpen(index !== null && !!measurements[index]?.use_corrected);
-    setEditor({ index, ignored, initialIgnored: ignored, draft: index === null ? newManualMeasurement() : { ...measurements[index] } });
+    setEditor({ index, ignored: index === null ? false : ignored, initialIgnored: ignored, draft: index === null ? { ...newManualMeasurement(), selected: measurements.length === 0 } : { ...measurements[index] } });
   };
+  useEffect(() => {
+    if (!open || loading || loadError || autoOpened.current) return;
+    autoOpened.current = true;
+    if (measurements.length === 0) edit(null);
+  }, [open, isoDate, loading, loadError, measurements.length]);
   const field = (key, value) => setEditor((current) => ({ ...current, draft: { ...current.draft, [key]: value } }));
   const adjustCorrection = (delta) => {
     const raw = temperatureNumber(editor.draft.temperature);
@@ -118,7 +124,11 @@ export default function TemperatureMeasurementsSheet({ open, onOpenChange, isoDa
   const openForm = async () => {
     if (saving.current || loading) return;
     // Do not discard an editor draft when switching to the full record form.
-    const next = editor ? await saveEdit() : measurements;
+    const emptyNewDraft = editor?.index === null &&
+      !String(editor.draft.temperature ?? '').trim() &&
+      !String(editor.draft.temperature_corrected ?? '').trim() &&
+      !editorRef.current?.querySelector('input:invalid');
+    const next = editor && !emptyNewDraft ? await saveEdit() : measurements;
     if (!next) return;
     try {
       await onOpenForm(next, editor?.draft.selected && editor.ignored !== editor.initialIgnored
@@ -137,7 +147,7 @@ export default function TemperatureMeasurementsSheet({ open, onOpenChange, isoDa
   };
   return <Dialog.Root open={open} onOpenChange={(value) => { if (!saving.current) onOpenChange(value); }}>
     <Dialog.Portal>
-      <Dialog.Overlay className="fixed inset-0 z-[100] bg-slate-950/30"
+      <Dialog.Overlay className="fixed inset-0 z-[100] bg-slate-950/10"
         onPointerDown={(event) => { backdropPressRef.current = event.target === event.currentTarget && event.button === 0; }}
         onPointerCancel={() => { backdropPressRef.current = false; }}
         onClick={(event) => {
@@ -177,6 +187,7 @@ export default function TemperatureMeasurementsSheet({ open, onOpenChange, isoDa
             <div aria-hidden="true" className="h-12 animate-pulse rounded-3xl border border-slate-200/60 bg-slate-50 motion-reduce:animate-none" />
           </div> : loadError ? <Button type="button" onClick={onRetry}>Reintentar</Button> : editor ? (
             <form ref={editorRef} onSubmit={(event) => { event.preventDefault(); event.stopPropagation(); saveEdit(); }} className="space-y-4 pb-3">
+              {measurements.length === 0 && <p className="text-sm text-suave">Sin temperaturas registradas</p>}
               <p className="font-semibold">{editor.index === null ? 'Añadir medición manual' : 'Editar medición'}</p>
               <fieldset disabled={busy} className="space-y-3">
                 <div className={`relative overflow-hidden space-y-1.5 rounded-3xl border p-2.5 shadow-sm ring-1 transition-colors ${editor.draft.selected && editor.ignored ? 'border-alerta-2-suave bg-white/60 ring-alerta-2-suave' : 'border-temp bg-white/85 ring-temp'}`}>
@@ -196,14 +207,14 @@ export default function TemperatureMeasurementsSheet({ open, onOpenChange, isoDa
                   }} className={`h-8 rounded-full px-2.5 text-[11px] font-semibold ${correctionOpen ? 'border-temp bg-temp text-white hover:bg-temp hover:text-white' : 'border-slate-200/70 bg-white/70 text-temp'}`}>
                     {editor.draft.use_corrected ? <Check className="mr-1 h-3.5 w-3.5" /> : <Edit3 className="mr-1 h-3.5 w-3.5" />}{editor.draft.use_corrected ? 'Corregida' : 'Corregir'}
                   </Button>
-                  <Button type="button" variant="outline" disabled={!editor.draft.selected || editor.index === null}
+                  {editor.index !== null && <Button type="button" variant="outline" disabled={!editor.draft.selected || editor.index === null}
                     aria-pressed={editor.draft.selected && editor.ignored}
                     onClick={() => setEditor((current) => ({ ...current, ignored: !current.ignored }))}
                     className={`ml-2 h-8 rounded-full px-2.5 text-[11px] font-semibold ${editor.draft.selected && editor.ignored ? 'border-alerta-2 bg-alerta-2 text-white hover:bg-alerta-2 hover:text-white' : 'border-slate-200/70 bg-white/80 text-temp hover:border-temp hover:bg-white hover:text-temp focus:text-temp active:text-temp'}`}>
                     {editor.draft.selected && editor.ignored ? <EyeOff className="mr-1 h-4 w-4" /> : <Eye className="mr-1 h-4 w-4" />}
                     {editor.draft.selected && editor.ignored ? 'Restaurar' : 'Despreciar'}
-                  </Button>
-                  {!editor.draft.selected && <p className="text-xs text-suave">Para despreciarla, selecciona primero esta medición para la gráfica.</p>}
+                  </Button>}
+                  {editor.index !== null && !editor.draft.selected && <p className="text-xs text-suave">Para despreciarla, selecciona primero esta medición para la gráfica.</p>}
                   {correctionOpen && <div className="space-y-1.5 rounded-3xl border border-slate-200/60 bg-white/80 p-2 shadow-sm">
                     <div className="grid grid-cols-2 gap-1.5">
                       <Input aria-label="Temperatura corregida (opcional)" type="number" inputMode="decimal" step="0.01" min="34" max="40" value={editor.draft.temperature_corrected ?? ''} onChange={(e) => { field('temperature_corrected', e.target.value); field('use_corrected', true); }} className={editorInputClass} />

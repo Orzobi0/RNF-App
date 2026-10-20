@@ -82,6 +82,7 @@ export const measurementTimeForSummary = (measurements) => {
 };
 
 export const loadRecordMeasurements = async (record, cycleId, getMeasurements) => {
+  if (!record?.id || String(record.id).startsWith('placeholder-')) return measurementsFromRecord(record);
   const loaded = record.measurementsLoaded || record.measurements?.length
     ? record.measurements : await getMeasurements(cycleId, record.id);
   return measurementsFromRecord(record, loaded);
@@ -98,3 +99,9 @@ export const measurementsForSheetSave = (saved, current, next, operation = {}) =
   if (action === 'delete') return normalizeMeasurements(saved.filter((_, i) => i !== index));
   return next;
 };
+
+// Summary-only edits must never claim that the subcollection is complete.
+export const measurementPayloadForRecord = (record) => ({
+  measurements: measurementsFromRecord(record),
+  measurementsComplete: Boolean(record?.measurementsLoaded || record?.measurements?.length),
+});

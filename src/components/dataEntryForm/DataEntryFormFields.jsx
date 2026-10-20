@@ -1075,7 +1075,7 @@ const [activeSection, setActiveSection] = useState(() => {
 {preferredTimeEditorIndex === idx && (
   <div className="mt-1 rounded-2xl border border-slate-200/60 bg-white/75 p-2 shadow-sm">
     <Label className="mb-1 block text-[11px] font-semibold text-subtitulo">
-      Hora preferida global
+      Hora preferida
     </Label>
     <div className="flex items-center gap-2">
   <Input

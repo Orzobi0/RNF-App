@@ -628,7 +628,7 @@ if (newData?.isoDate && newData.isoDate > todayIso) {
           cycle_id: cycleIdToUse,
           user_id: user.uid,
           timestamp: format(recordDateTime, "yyyy-MM-dd'T'HH:mm:ssXXX"),
-          measurements: measurementsPayload?.length >= 2 ? measurementsPayload
+          measurements: newData.measurementsComplete === false ? undefined : measurementsPayload?.length >= 2 ? measurementsPayload
             : (targetRecord?.measurementsLoaded || newData.measurementsComplete) ? [] : undefined,
           mucus_sensation: newData.mucusSensation || null,
           mucus_appearance: newData.mucusAppearance || null,
@@ -653,7 +653,7 @@ if (newData?.isoDate && newData.isoDate > todayIso) {
             });
           } else {
             await updateCycleEntry(user.uid, cycleIdToUse, targetRecord.id, recordPayload);
-            updateEntryState(cycleIdToUse, targetRecord.id, { ...recordPayload, measurements: measurementsPayload }, newData.isoDate);
+            updateEntryState(cycleIdToUse, targetRecord.id, { ...recordPayload, measurements: newData.measurementsComplete === false ? undefined : measurementsPayload }, newData.isoDate);
           }
         } else {
           if (isPayloadEmpty) {
@@ -667,7 +667,7 @@ if (newData?.isoDate && newData.isoDate > todayIso) {
           );
           savedEntryId = created?.id ?? null;
           if (savedEntryId) {
-            updateEntryState(cycleIdToUse, savedEntryId, { ...recordPayload, measurements: measurementsPayload }, newData.isoDate);
+            updateEntryState(cycleIdToUse, savedEntryId, { ...recordPayload, measurements: newData.measurementsComplete === false ? undefined : measurementsPayload }, newData.isoDate);
           }
         }
         const ambitoCicloMetric =

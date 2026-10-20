@@ -1,3 +1,4 @@
+import MucusQuickEditSheet from '@/components/MucusQuickEditSheet';
 import TemperatureMeasurementsSheet, { TemperatureMeasurementTrigger } from '@/components/TemperatureMeasurementsSheet';
 import { measurementsFromRecord } from '@/lib/temperatureMeasurements';
 import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
@@ -29,6 +30,7 @@ const DayDetail = ({
   onEdit,
   onLoadMeasurements,
   onSaveMeasurements,
+  onSaveMucus,
   onTemperatureSheetOpenChange,
   onDelete,
   onAdd,
@@ -43,10 +45,11 @@ const DayDetail = ({
 const persistedRecord = isPersistedRecord(details?.record) ? details.record : null;
 const hasPersistedRecord = Boolean(persistedRecord);
   const [temperaturesOpen, setTemperaturesOpen] = useState(false);
+  const [mucusField, setMucusField] = useState(null);
   useEffect(() => {
-    onTemperatureSheetOpenChange?.(temperaturesOpen);
+    onTemperatureSheetOpenChange?.(temperaturesOpen || Boolean(mucusField));
     return () => onTemperatureSheetOpenChange?.(false);
-  }, [temperaturesOpen, onTemperatureSheetOpenChange]);
+  }, [temperaturesOpen, mucusField, onTemperatureSheetOpenChange]);
   const [temperatureMeasurements, setTemperatureMeasurements] = useState([]);
   const [temperaturesLoading, setTemperaturesLoading] = useState(false);
   const [temperaturesError, setTemperaturesError] = useState('');
@@ -54,17 +57,15 @@ const hasPersistedRecord = Boolean(persistedRecord);
   useEffect(() => {
     loadVersion.current += 1;
     setTemperaturesOpen(false);
+    setMucusField(null);
     setTemperatureMeasurements([]);
   }, [isoDate]);
   useEffect(() => () => { loadVersion.current += 1; }, []);
   const openTemperatures = async () => {
-    if (!persistedRecord || !onLoadMeasurements || !measurementsFromRecord(persistedRecord).length) {
-      handleSectionOpen('temperature', 'temperature'); return;
-    }
     const version = ++loadVersion.current;
     setTemperatureMeasurements(measurementsFromRecord(persistedRecord));
     setTemperaturesOpen(true); setTemperaturesError('');
-    if (persistedRecord.measurementsLoaded || persistedRecord.measurements?.length) {
+    if (!persistedRecord || persistedRecord.measurementsLoaded || persistedRecord.measurements?.length) {
       setTemperaturesLoading(false);
       return;
     }
@@ -79,7 +80,7 @@ const hasPersistedRecord = Boolean(persistedRecord);
     }
   };
   const saveTemperatures = async (next, operation) => {
-    await onSaveMeasurements(persistedRecord, next, operation);
+    await onSaveMeasurements(persistedRecord, next, { ...operation, isoDate });
     setTemperatureMeasurements(next);
   };
   const [isPeakProcessing, setIsPeakProcessing] = useState(false);
@@ -420,15 +421,21 @@ const footerIconButtonClass =
           ignored={persistedRecord?.ignored} isoDate={isoDate} measurements={temperatureMeasurements} onChange={saveTemperatures}
           loading={temperaturesLoading} loadError={temperaturesError} onRetry={openTemperatures}
           onOpenForm={onEdit ? async (measurements, overrides) => {
-            await onEdit({ ...persistedRecord, ...overrides, measurements, measurementsLoaded: true }, null, null);
+            if (await onEdit({ ...persistedRecord, id: persistedRecord?.id || `placeholder-${isoDate}`, isoDate, ...overrides, measurements, measurementsLoaded: true }, null, null) === false) return;
             setTemperaturesOpen(false);
           } : undefined} />
+
+        <MucusQuickEditSheet open={Boolean(mucusField)} onOpenChange={(value) => { if (!value) setMucusField(null); }}
+          isoDate={isoDate} initialField={mucusField} initialValues={persistedRecord}
+          onSave={(values) => onSaveMucus(isoDate, values)}
+          onOpenForm={(values) => onEdit({ ...persistedRecord, id: persistedRecord?.id || `placeholder-${isoDate}`, isoDate, ...values }, 'moco', mucusField)} />
 
         {/* Fila 2: moco */}
         <div className="grid grid-cols-2 gap-3">
           <button
   type="button"
-  onClick={() => smartOpen('sensation', 'sensation', 'mucusSensation')}
+  aria-label="Editar sensación"
+  onClick={() => setMucusField('mucusSensation')}
   className={cn(
     detailCellCompactClass,
     isTextExpanded ? 'items-start' : 'items-center',
@@ -459,7 +466,8 @@ const footerIconButtonClass =
 
        <button
   type="button"
-  onClick={() => smartOpen('appearance', 'appearance', 'mucusAppearance')}
+  aria-label="Editar apariencia"
+  onClick={() => setMucusField('mucusAppearance')}
   className={cn(
     detailCellCompactClass,
     isTextExpanded ? 'items-start' : 'items-center',
