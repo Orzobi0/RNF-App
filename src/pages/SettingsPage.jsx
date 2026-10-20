@@ -16,7 +16,6 @@ import { useToast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { buildCyclesPdfBlob, downloadBlobAsFile } from '@/lib/cycleExport';
 import { getAuthErrorMessage } from '@/lib/authErrorMessages';
 import ExportCyclesDialog from '@/components/ExportCyclesDialog';
 import { useCycleData } from '@/hooks/useCycleData';
@@ -761,6 +760,7 @@ const SettingsPage = () => {
         return;
       }
 
+      const { buildCyclesPdfBlob, downloadBlobAsFile } = await import('@/lib/cycleExport');
       const filename = buildCyclesExportFilename(selectedCycles);
       const includeChart = pdfContentMode !== 'table';
       const chartOnly = pdfContentMode === 'chart';

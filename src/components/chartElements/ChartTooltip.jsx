@@ -215,9 +215,9 @@ const ChartTooltip = ({
     onClose?.();
   };
 
-  const handleSectionEdit = (sectionKey) => {
+  const handleSectionEdit = (sectionKey, fieldName) => {
     if (!onEdit) return;
-    onEdit(point, sectionKey);
+    onEdit(point, sectionKey, fieldName);
     if (onClose) onClose();
   };
 
@@ -307,17 +307,17 @@ const ChartTooltip = ({
             </div>
 
             <div className="flex shrink-0 items-center gap-1">
-              {hasSymbol && (
+              {(hasSymbol || onEdit) && (
                 <button
                   type="button"
-                  onClick={() => handleSectionEdit('symbol')}
+                  onClick={() => handleSectionEdit('moco', 'fertilitySymbol')}
                   disabled={!onEdit}
                   className={cn(
                     'flex h-7 w-7 items-center justify-center rounded-full border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 disabled:opacity-80',
-                    getTooltipSymbolClasses()
+                    hasSymbol ? getTooltipSymbolClasses() : 'border-dashed border-slate-300 bg-white hover:bg-slate-50'
                   )}
-                  title={symbolInfo.label}
-                  aria-label={symbolInfo.label}
+                  title={hasSymbol ? symbolInfo.label : 'Añadir símbolo'}
+                  aria-label={hasSymbol ? symbolInfo.label : 'Añadir símbolo'}
                 />
               )}
 

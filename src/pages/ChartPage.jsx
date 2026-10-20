@@ -763,14 +763,25 @@ useEffect(() => {
   const loadTemperatures = useCallback(async (record) => {
     return loadRecordMeasurements(record, targetCycle.id, getMeasurementsForEntry);
   }, [targetCycle?.id, getMeasurementsForEntry]);
+  const dateMeasurementLoad = useRef(0);
   const handleDateSelect = useCallback(async (record) => {
-    if (!record) { setEditingRecord(null); return; }
+    const request = ++dateMeasurementLoad.current;
+    setEditingRecord((previous) =>
+      previous?.id === record?.id && previous?.measurementsLoaded ? previous : record
+    );
+    if (!record?.id || String(record.id).startsWith('placeholder-')) return;
     try {
       const measurements = await loadTemperatures(record);
-      setEditingRecord({ ...record, measurements, measurementsLoaded: true });
+      if (dateMeasurementLoad.current === request) {
+        setEditingRecord((previous) => previous?.id === record.id
+          ? previous.measurementsLoaded ? previous : { ...previous, measurements, measurementsLoaded: true }
+          : previous);
+      }
     } catch {
-      toast({ title: 'No se pudieron cargar las temperaturas', variant: 'destructive' });
-      setShowForm(false);
+      if (dateMeasurementLoad.current === request) {
+        toast({ title: 'No se pudieron cargar las temperaturas', variant: 'destructive' });
+        setShowForm(false);
+      }
     }
   }, [loadTemperatures, toast]);
   if (showLoading) {
@@ -1076,16 +1087,20 @@ const rotatedDrawerStyle = applyRotation
   : undefined;
 
   const handleEdit = async (record, sectionKey = null, fieldName = null) => {
+    const request = ++dateMeasurementLoad.current;
+    const latestRecord = targetCycle.data?.find((entry) => entry.isoDate === record?.isoDate) || record;
     let measurements;
     try {
-      measurements = await loadTemperatures(record);
+      measurements = await loadTemperatures(latestRecord);
     } catch {
+      if (dateMeasurementLoad.current !== request) return false;
       toast({ title: 'No se pudieron cargar las temperaturas', variant: 'destructive' });
       return false;
     }
-    setEditingRecord({ ...record, measurements, measurementsLoaded: true });
+    if (dateMeasurementLoad.current !== request) return false;
+    setEditingRecord({ ...latestRecord, measurements, measurementsLoaded: true });
     setInitialSectionKey(sectionKey ?? null);
-    setFocusedField(fieldName);
+    setFocusedField(fieldName ?? null);
     setShowForm(true);
   };
   const openTemperatures = async (point) => {
@@ -1966,9 +1981,11 @@ const rotatedDrawerStyle = applyRotation
     }
   };
   const handleCloseForm = useCallback(() => {
+    dateMeasurementLoad.current += 1;
     setShowForm(false);
     setEditingRecord(null);
     setInitialSectionKey(null);
+    setFocusedField(null);
   }, []);
 
   const handleOpenNewCycleDialog = useCallback((initialIsoDate = null) => {
