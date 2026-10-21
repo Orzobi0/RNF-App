@@ -17,6 +17,7 @@ import {
   FileText,
   Plus,
   ChevronDown,
+  X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PeakModeButton } from '@/components/ui/peak-mode-button';
@@ -32,6 +33,7 @@ const DayDetail = ({
   isPeakDay,
   existingPeakIsoDate,
   onEdit,
+  onClose,
   onLoadMeasurements,
   onSaveMeasurements,
   onSaveMucus,
@@ -412,6 +414,16 @@ const footerIconButtonClass =
         <Plus className="h-3 w-3 text-slate-400/80" strokeWidth={2.1} aria-hidden="true" />
       )}
     </button>
+    {onClose && (
+      <button
+        type="button"
+        onClick={(event) => { event.stopPropagation(); onClose(); }}
+        aria-label="Cerrar detalle del día"
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-400 hover:text-rose-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
+      >
+        <X className="h-4 w-4" aria-hidden="true" />
+      </button>
+    )}
   </div>
 </div>
 

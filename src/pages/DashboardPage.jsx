@@ -72,6 +72,8 @@ const CycleOverviewCard = ({
   const hasInitializedWheelRef = useRef(true);
 const circleRef = useRef(null);
 const activeDetailPanelRef = useRef(null);
+const daySelectorRef = useRef(null);
+const pendingDetailReveal = useRef(false);
 const [temperatureSheetOpen, setTemperatureSheetOpen] = useState(false);
 const wheelDragRef = useRef({
   pointerId: null,
@@ -123,24 +125,77 @@ const recentSignaturesRef = useRef(new Map());
 }, [activePoint, records]);
 
   useEffect(() => {
-    if (!activePoint || isDetailInteractionModalOpen || temperatureSheetOpen) return undefined;
+  if (!activePoint || isDetailInteractionModalOpen || temperatureSheetOpen) {
+    return undefined;
+  }
 
-    const handlePointerDownOutsideDetail = (event) => {
-      const detailPanel = activeDetailPanelRef.current;
+  const handleClickOutsideDetail = (event) => {
+    const target = event.target;
 
-      if (detailPanel && detailPanel.contains(event.target)) {
-        return;
-      }
+    // No cerrar al interactuar con DayDetail,
+    // el círculo o el selector de días.
+    if (
+      activeDetailPanelRef.current?.contains(target) ||
+      circleRef.current?.contains(target) ||
+      daySelectorRef.current?.contains(target)
+    ) {
+      return;
+    }
 
-      setActivePoint(null);
-    };
+    setActivePoint(null);
+  };
 
-    document.addEventListener('pointerdown', handlePointerDownOutsideDetail, true);
+  document.addEventListener('click', handleClickOutsideDetail, true);
 
-    return () => {
-      document.removeEventListener('pointerdown', handlePointerDownOutsideDetail, true);
-    };
-  }, [activePoint, isDetailInteractionModalOpen, temperatureSheetOpen]);
+  return () => {
+    document.removeEventListener('click', handleClickOutsideDetail, true);
+  };
+}, [activePoint, isDetailInteractionModalOpen, temperatureSheetOpen]);
+
+  // Una sola comprobación por apertura; cualquier gesto posterior la cancela.
+  useEffect(() => {
+    if (!activePoint) {
+      pendingDetailReveal.current = false;
+      return;
+    }
+    const cancelReveal = () => { pendingDetailReveal.current = false; };
+    const events = ['wheel', 'touchmove', 'pointerdown', 'keydown'];
+    events.forEach((name) => document.addEventListener(name, cancelReveal, { capture: true, passive: true }));
+    return () => events.forEach((name) => document.removeEventListener(name, cancelReveal, true));
+  }, [Boolean(activePoint)]);
+
+  const revealDetailIfNeeded = () => {
+    if (!pendingDetailReveal.current || !activePoint) return;
+    pendingDetailReveal.current = false;
+    const panel = activeDetailPanelRef.current;
+    if (!panel || isDetailInteractionModalOpen || temperatureSheetOpen) return;
+    let scroller = panel.parentElement;
+    while (scroller && (!/(auto|scroll)/.test(getComputedStyle(scroller).overflowY) ||
+        scroller.scrollHeight <= scroller.clientHeight)) {
+      scroller = scroller.parentElement;
+    }
+    scroller ||= document.scrollingElement;
+    if (!scroller) return;
+    const viewport = window.visualViewport;
+    const viewportTop = viewport?.offsetTop ?? 0;
+    const viewportBottom = viewportTop + (viewport?.height ?? window.innerHeight);
+    const scrollRect = scroller.getBoundingClientRect();
+    const isDocumentScroll = scroller === document.scrollingElement;
+    const nav = document.querySelector('nav[aria-label="Navegación inferior"]');
+    const top = Math.max(viewportTop, isDocumentScroll ? viewportTop : scrollRect.top) + 8;
+    const bottom = Math.min(viewportBottom, isDocumentScroll ? viewportBottom : scrollRect.bottom,
+      nav?.getBoundingClientRect().top ?? viewportBottom) - 8;
+    if (bottom <= top) return;
+    const rect = panel.getBoundingClientRect();
+    const usefulHeight = Math.min(160, rect.height, bottom - top);
+    const delta = rect.top < top ? rect.top - top : Math.max(0, rect.top + usefulHeight - bottom);
+    if (Math.abs(delta) < 1) return;
+    // El estilo local evita que scroll-behavior global imponga movimiento reducido.
+    const previousBehavior = scroller.style.scrollBehavior;
+    if (prefersReducedMotion) scroller.style.scrollBehavior = 'auto';
+    scroller.scrollBy({ top: delta, behavior: prefersReducedMotion ? 'auto' : 'smooth' });
+    scroller.style.scrollBehavior = previousBehavior;
+  };
 
   useEffect(() => {
     const prevSignatures = recentSignaturesRef.current;
@@ -576,13 +631,6 @@ const seamGateEndX = center + seamGateOuterRadius * Math.cos(seamAngle);
 const seamGateEndY = center + seamGateOuterRadius * Math.sin(seamAngle);
   
 
-  useEffect(() => {
-    if (!hasOverflow) {
-      return;
-    }
-
-    setActivePoint(null);
-  }, [wheelOffset, hasOverflow]);
 
   const handleDotClick = useCallback((dot, event) => {
   event.stopPropagation();
@@ -632,12 +680,12 @@ const seamGateEndY = center + seamGateOuterRadius * Math.sin(seamAngle);
   }
 
   if (resolvedActivePoint?.isoDate && targetRecord.isoDate === resolvedActivePoint.isoDate) {
-    setActivePoint(null);
     return;
   }
 
+  if (!resolvedActivePoint) pendingDetailReveal.current = true;
   setActivePoint(targetRecord);
-}, [currentPeakIsoDate, resolvedActivePoint?.isoDate]);
+}, [currentPeakIsoDate, resolvedActivePoint]);
 
 const handleDotPointerDown = useCallback(
   (event) => {
@@ -684,7 +732,6 @@ const handleDotPointerMove = useCallback(
     if (!drag.moved && Math.abs(drag.accumulatedDrag) >= dragStartThreshold) {
       drag.moved = true;
       suppressDotClickRef.current = true;
-      setActivePoint(null);
     }
 
     const steppedDelta =
@@ -719,6 +766,7 @@ const handleDotPointerUp = useCallback(
 );
 const handleDotTap = useCallback(
   (dot, event) => {
+    event.stopPropagation();
     if (suppressDotClickRef.current) {
       suppressDotClickRef.current = false;
       return;
@@ -753,7 +801,7 @@ const handleRingPointerDown = useCallback(
     if (!nextDragState) return;
 
     ringDragActiveRef.current = true;
-    setActivePoint(null);
+    suppressDotClickRef.current = false;
     wheelDragRef.current = nextDragState;
 
     event.currentTarget.setPointerCapture?.(event.pointerId);
@@ -788,6 +836,7 @@ const handleRingPointerMove = useCallback(
 
     if (!drag.moved && Math.abs(drag.accumulatedDrag) >= dragStartThreshold) {
       drag.moved = true;
+      suppressDotClickRef.current = true;
     }
 
     const steppedDelta =
@@ -1142,7 +1191,13 @@ const handleRingPointerCancel = useCallback(
               className="block w-full h-full wheel-no-tap"
               viewBox={`0 0 ${viewBoxSize} ${viewBoxSize}`}
               preserveAspectRatio="xMidYMid meet"
-              onClick={() => setActivePoint(null)}
+              onClick={() => {
+                if (suppressDotClickRef.current) {
+                  suppressDotClickRef.current = false;
+                  return;
+                }
+                setActivePoint(null);
+              }}
             >
               <defs>
                 <pattern id="spotting-pattern-dashboard" patternUnits="userSpaceOnUse" width="6" height="6">
@@ -1496,7 +1551,7 @@ if (dot.peakStatus === 'P') {
           </motion.div>
           
 
-          <div className="flex h-[40px] items-center justify-center">
+          <div ref={daySelectorRef} className="flex h-[40px] items-center justify-center">
             {hasOverflow && (
               <div className="flex items-center justify-center gap-3">
                 <button
@@ -1541,13 +1596,54 @@ if (dot.peakStatus === 'P') {
   </div>
 </div>
 
+    <AnimatePresence initial={false}>
+      {resolvedActivePoint && activePointDetails && (
+        <motion.div
+          key="day-detail"
+          className="-mx-4 overflow-hidden"
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: 'auto', opacity: 1 }}
+          exit={{ height: 0, opacity: 0 }}
+          transition={{ duration: prefersReducedMotion ? 0 : 0.25, ease: [0.22, 1, 0.36, 1] }}
+          onAnimationComplete={revealDetailIfNeeded}
+        >
+          <div className="pt-3 pb-1">
+            <div ref={activeDetailPanelRef} onClick={(event) => event.stopPropagation()}>
+  <DayDetail
+    isoDate={resolvedActivePoint.isoDate}
+    cycleDay={resolvedActivePoint.cycleDay ?? null}
+    details={activePointDetails}
+    peakStatus={peakStatuses[resolvedActivePoint.isoDate] || resolvedActivePoint.peakStatus || null}
+    existingPeakIsoDate={currentPeakIsoDate}
+    isPeakDay={Boolean(
+      resolvedActivePoint.peak_marker === 'peak' ||
+      peakStatuses[resolvedActivePoint.isoDate] === 'P'
+    )}
+    onClose={() => setActivePoint(null)}
+    onEdit={onEdit}
+    onLoadMeasurements={onLoadMeasurements}
+    onSaveMeasurements={onSaveMeasurements}
+    onSaveMucus={onSaveMucus}
+    onSaveDetails={onSaveDetails}
+    onTemperatureSheetOpenChange={setTemperatureSheetOpen}
+    onAdd={handleAddFromDetailPanel}
+    onDelete={onDeleteRecord}
+    onToggleRelations={handleToggleRelations}
+    onTogglePeak={onTogglePeak}
+  />
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+
     {cycleStatusSummary && showDailyStatusCard && (
       <motion.button
           type="button"
           onClick={onOpenCycleStatus}
           aria-label="Abrir gráfica con interpretación"
           className={cn(
-            'mx-2 mb-2 mt-5 block w-auto rounded-3xl border p-3 text-left shadow-[0_10px_24px_rgba(216,92,112,0.08)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent',
+            '-mx-4 mb-2 mt-5 block w-auto rounded-3xl border p-3 text-left shadow-[0_10px_24px_rgba(216,92,112,0.08)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent',
             statusTone.button
           )}
         >
@@ -1588,7 +1684,7 @@ if (dot.peakStatus === 'P') {
     )}
 
     <motion.div
-          className="mx-2 mt-2 rounded-2xl border border-rose-100/50 bg-white/55 p-2 shadow-[0_8px_18px_rgba(216,92,112,0.06)]"
+          className="-mx-4 mt-2 rounded-2xl border border-rose-100/50 bg-white/55 p-2 shadow-[0_8px_18px_rgba(216,92,112,0.06)]"
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.2, delay: 0.06 }}
@@ -1614,50 +1710,7 @@ if (dot.peakStatus === 'P') {
           </div>
         </motion.div>
 
-          <AnimatePresence initial={false}>
-  {resolvedActivePoint && activePointDetails && (
-    <motion.div
-      className="fixed inset-x-0 z-40 px-4 pointer-events-none"
-      style={{ bottom: 'calc(var(--bottom-nav-safe) + 10px)' }}
-      initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 24 }}
-      animate={prefersReducedMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
-      exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 18 }}
-      transition={{ duration: 0.18, ease: 'easeOut' }}
-    >
-      <div
-        ref={activeDetailPanelRef}
-        className="mx-auto w-full max-w-md pointer-events-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="max-h-[38dvh] overflow-y-auto rounded-[30px] shadow-[0_-8px_30px_rgba(221,86,101,0.12)]">
-          <div>
-  <DayDetail
-    isoDate={resolvedActivePoint.isoDate}
-    cycleDay={resolvedActivePoint.cycleDay ?? null}
-    details={activePointDetails}
-    peakStatus={peakStatuses[resolvedActivePoint.isoDate] || resolvedActivePoint.peakStatus || null}
-    existingPeakIsoDate={currentPeakIsoDate}
-    isPeakDay={Boolean(
-      resolvedActivePoint.peak_marker === 'peak' ||
-      peakStatuses[resolvedActivePoint.isoDate] === 'P'
-    )}
-    onEdit={onEdit}
-    onLoadMeasurements={onLoadMeasurements}
-    onSaveMeasurements={onSaveMeasurements}
-    onSaveMucus={onSaveMucus}
-    onSaveDetails={onSaveDetails}
-    onTemperatureSheetOpenChange={setTemperatureSheetOpen}
-    onAdd={handleAddFromDetailPanel}
-    onDelete={onDeleteRecord}
-    onToggleRelations={handleToggleRelations}
-    onTogglePeak={onTogglePeak}
-  />
-</div>
-        </div>
-      </div>
-    </motion.div>
-  )}
-</AnimatePresence>
+
       </motion.div>
     </div>
   );
