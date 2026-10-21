@@ -1,5 +1,8 @@
-name: Staging Hosting (manual, disabled until configured)
+name: Staging Hosting (automatic)
 on:
+  push:
+    branches:
+      - mayo_interpertacion
   workflow_dispatch:
 permissions:
   contents: read
