@@ -98,9 +98,9 @@ export default function ObservationsQuickEditSheet({
           {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}
           <div className="rounded-3xl border border-observaciones bg-white p-3 shadow-sm">
             <label htmlFor="quick-observations" className="mb-2 flex items-center gap-1 text-sm font-semibold text-subtitulo"><FileText className="h-4 w-4 text-observaciones" />Observaciones</label>
-            <Textarea ref={inputRef} id="quick-observations" rows={5} disabled={busy} value={draft.observations}
+            <Textarea ref={inputRef} id="quick-observations" rows={2} disabled={busy} value={draft.observations}
               onChange={(event) => setDraft({ observations: event.target.value })}
-              className="min-h-32 bg-white text-base text-slate-700 focus:border-observaciones focus:ring-2 focus:ring-observaciones focus-visible:ring-observaciones" />
+              className="h-[72px] min-h-[72px] resize-none overflow-y-auto bg-white text-base text-slate-700 focus:border-observaciones focus:ring-2 focus:ring-observaciones focus-visible:ring-observaciones" />
           </div>
         </div>
         <div className="flex shrink-0 gap-2 px-4 pt-2">

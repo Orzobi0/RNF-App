@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { PeakModeButton } from '@/components/ui/peak-mode-button';
-import { X, Edit3, Thermometer, Droplets, Circle, Heart, FileText, ChevronRight } from 'lucide-react';
+import { X, Edit3, Thermometer, Droplets, Circle, Heart, FileText, ChevronRight, Plus } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { getSymbolAppearance } from '@/config/fertilitySymbols';
@@ -316,11 +316,19 @@ const ChartTooltip = ({
                   disabled={!onEdit && !onOpenSymbol}
                   className={cn(
                     'flex h-7 w-7 items-center justify-center rounded-full border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 disabled:opacity-80',
-                    hasSymbol ? getTooltipSymbolClasses() : 'border-dashed border-slate-300 bg-white hover:bg-slate-50'
+                    hasSymbol ? getTooltipSymbolClasses() : 'border-dashed border-slate-300/80 bg-transparent text-slate-400 hover:bg-slate-50/60'
                   )}
                   title={hasSymbol ? symbolInfo.label : 'Añadir símbolo'}
                   aria-label={hasSymbol ? symbolInfo.label : 'Añadir símbolo'}
-                />
+                >
+                  {!hasSymbol && (
+                    <Plus
+                      className="h-3 w-3 text-slate-400/80"
+                      strokeWidth={2.1}
+                      aria-hidden="true"
+                    />
+                  )}
+                </button>
               )}
 
               <Button

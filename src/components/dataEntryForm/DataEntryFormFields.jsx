@@ -43,7 +43,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { normalizePreferenceValue, validatePreferenceField } from '@/lib/preferences';
 const VIEW_ALL_STORAGE_KEY = 'dataEntryForm:viewAll:global';
 const DEFAULT_SECTION_STORAGE_KEY = '__default__';
-const RADIUS = { field: 'rounded-2xl', dropdown: 'rounded-2xl' };
+const RADIUS = { field: 'rounded-xl', dropdown: 'rounded-2xl' };
 
 const readStoredViewAllPreference = () => {
   if (typeof window === 'undefined') {
@@ -1040,7 +1040,7 @@ const [activeSection, setActiveSection] = useState(() => {
       }
     }}
     className={cn(
-      'ml-0 h-8 w-full rounded-2xl text-[11px] font-semibold shadow-sm',
+      'ml-0 h-8 w-full rounded-xl text-[11px] font-semibold shadow-sm',
       hasPreferredTime
         ? isPreferredApplied
           ? 'border-secundario bg-secundario text-white hover:bg-secundario'
@@ -1195,7 +1195,7 @@ const [activeSection, setActiveSection] = useState(() => {
     onClick={() => setTemperaturesOpen(true)}
     className="ml-auto flex min-h-8 items-center gap-1 rounded-full border-slate-200/70 bg-white/80 px-2.5 py-1 text-[11px] text-temp shadow-sm hover:border-temp hover:bg-white"
     aria-label="Ver temperaturas del día">
-    {validMeasurements.length > 1 ? `Otras temperaturas · ${validMeasurements.length}` : 'Otras temperaturas'}
+    {validMeasurements.length > 1 ? `Mediciones · ${validMeasurements.length}` : 'Mediciones'}
     <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
   </Button>
 </div>
@@ -1333,7 +1333,7 @@ const [activeSection, setActiveSection] = useState(() => {
                     type="button"
                     onClick={() => setFocusedMucusField('sensation')}
                     className={cn(
-                      'min-h-9 w-full rounded-3xl border border-slate-200/70 bg-white px-3 py-2 text-left text-[14px] font-semibold leading-snug text-slate-700 shadow-sm',
+                      'min-h-9 w-full rounded-xl border border-slate-200/70 bg-white px-3 py-2 text-left text-[14px] font-semibold leading-snug text-slate-700 shadow-sm',
                       'whitespace-normal break-words focus-visible:outline-none focus-visible:ring-2',
                       sensationInputClass
                     )}
@@ -1373,7 +1373,7 @@ const [activeSection, setActiveSection] = useState(() => {
                     type="button"
                     onClick={() => setFocusedMucusField('appearance')}
                     className={cn(
-                      'min-h-9 w-full rounded-3xl border border-slate-200/70 bg-white px-3 py-2 text-left text-[14px] font-semibold leading-snug text-slate-700 shadow-sm',
+                      'min-h-9 w-full rounded-xl border border-slate-200/70 bg-white px-3 py-2 text-left text-[14px] font-semibold leading-snug text-slate-700 shadow-sm',
                       'whitespace-normal break-words focus-visible:outline-none focus-visible:ring-2',
                       appearanceInputClass
                     )}

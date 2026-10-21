@@ -80,8 +80,8 @@ export default function SymbolQuickEditSheet({
           <div className="grid grid-cols-3 gap-2" aria-label="Símbolo">
             {FERTILITY_SYMBOL_OPTIONS.map((option) => <button key={option.value} type="button" disabled={busy}
               aria-pressed={selected === option.value} onClick={() => submit(option.value)}
-              className={`relative flex min-h-24 flex-col items-center justify-center gap-2 rounded-2xl border p-2 text-sm text-slate-700 focus-visible:ring-2 focus-visible:ring-rose-300 disabled:opacity-60 ${selected === option.value ? 'border-rose-400 bg-rose-50 ring-1 ring-rose-300' : 'border-slate-200 bg-white'}`}>
-              <span aria-hidden="true" className={`h-10 w-10 rounded-full ${option.color}`} />
+              className={`relative flex min-h-20 flex-col items-center justify-center gap-1.5 rounded-2xl border p-1.5 text-xs text-slate-700 focus-visible:ring-2 focus-visible:ring-rose-300 disabled:opacity-60 ${selected === option.value ? 'border-rose-400 bg-rose-50 ring-1 ring-rose-300' : 'border-slate-200 bg-white'}`}>
+              <span aria-hidden="true" className={`h-8 w-8 rounded-full ${option.color}`} />
               <span>{option.label}</span>
               {selected === option.value && <Check aria-hidden="true" className="absolute right-1 top-1 h-4 w-4 text-rose-600" />}
             </button>)}
