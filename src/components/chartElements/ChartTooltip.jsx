@@ -423,14 +423,14 @@ const ChartTooltip = ({
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.28 }}
-                    className={cn(tooltipCellClass, 'items-start')}
+                    className={tooltipCellClass}
                     disabled={!onEdit && !onOpenObservations}
                   >
                     <span aria-hidden="true" className={cn(tooltipAccentClass, tooltipCellStyles.observations.accent)} />
-                    <FileText className={cn('mt-0.5 h-4 w-4 shrink-0', tooltipCellStyles.observations.icon)} />
+                    <FileText className={cn('h-4 w-4 shrink-0', tooltipCellStyles.observations.icon)} />
                     <span
                       className={cn(
-                        'min-w-0 flex-1 text-sm font-semibold leading-tight [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] overflow-hidden',
+                        'min-w-0 flex-1 truncate font-semibold leading-tight',
                         tooltipCellStyles.observations.value
                       )}
                     >

@@ -1,10 +1,48 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { FileText, Edit3, X } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+
+function CompactTextarea({ inputRef, value, ...props }) {
+  const resize = useCallback(() => {
+    const field = inputRef.current;
+    if (!field) return;
+    const style = getComputedStyle(field);
+    const padding = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+    const borders = parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
+    const maxHeight = 2 * parseFloat(style.lineHeight) + padding + borders;
+    const scrollTop = field.scrollTop;
+    // Resetear solo durante la medición permite reducir la altura al borrar.
+    // No se modifica el valor, el foco ni la selección del textarea.
+    field.style.height = '0px';
+    field.style.maxHeight = `${maxHeight}px`;
+    field.style.height = `${Math.min(maxHeight, Math.max(40, field.scrollHeight + borders))}px`;
+    field.scrollTop = scrollTop;
+  }, [inputRef]);
+
+  useLayoutEffect(() => {
+    resize();
+  }, [resize, value]);
+
+  useLayoutEffect(() => {
+    const field = inputRef.current;
+    if (!field) return;
+    let width = field.clientWidth;
+    const observer = new ResizeObserver(() => {
+      if (field.clientWidth === width) return;
+      width = field.clientWidth;
+      resize();
+    });
+    observer.observe(field);
+    return () => observer.disconnect();
+  }, [inputRef, resize]);
+
+  return <Textarea {...props} ref={inputRef} value={value} rows={1} />;
+}
+
 
 export default function ObservationsQuickEditSheet({
   open, onOpenChange, isoDate, initialValues,
@@ -98,9 +136,9 @@ export default function ObservationsQuickEditSheet({
           {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}
           <div className="rounded-3xl border border-observaciones bg-white p-3 shadow-sm">
             <label htmlFor="quick-observations" className="mb-2 flex items-center gap-1 text-sm font-semibold text-subtitulo"><FileText className="h-4 w-4 text-observaciones" />Observaciones</label>
-            <Textarea ref={inputRef} id="quick-observations" rows={2} disabled={busy} value={draft.observations}
+            <CompactTextarea inputRef={inputRef} id="quick-observations" disabled={busy} value={draft.observations}
               onChange={(event) => setDraft({ observations: event.target.value })}
-              className="h-[72px] min-h-[72px] resize-none overflow-y-auto bg-white text-base text-slate-700 focus:border-observaciones focus:ring-2 focus:ring-observaciones focus-visible:ring-observaciones" />
+              className="h-10 min-h-10 resize-none overflow-x-hidden overflow-y-auto break-words bg-white text-base leading-6 text-slate-700 focus:border-observaciones focus:ring-2 focus:ring-observaciones focus-visible:ring-observaciones" />
           </div>
         </div>
         <div className="flex shrink-0 gap-2 px-4 pt-2">

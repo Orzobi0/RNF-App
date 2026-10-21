@@ -1,10 +1,48 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { Circle, Droplets, Edit3, X } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+
+function CompactTextarea({ inputRef, value, ...props }) {
+  const resize = useCallback(() => {
+    const field = inputRef.current;
+    if (!field) return;
+    const style = getComputedStyle(field);
+    const padding = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+    const borders = parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
+    const maxHeight = 2 * parseFloat(style.lineHeight) + padding + borders;
+    const scrollTop = field.scrollTop;
+    // Resetear solo durante la medición permite reducir la altura al borrar.
+    // No se modifica el valor, el foco ni la selección del textarea.
+    field.style.height = '0px';
+    field.style.maxHeight = `${maxHeight}px`;
+    field.style.height = `${Math.min(maxHeight, Math.max(40, field.scrollHeight + borders))}px`;
+    field.scrollTop = scrollTop;
+  }, [inputRef]);
+
+  useLayoutEffect(() => {
+    resize();
+  }, [resize, value]);
+
+  useLayoutEffect(() => {
+    const field = inputRef.current;
+    if (!field) return;
+    let width = field.clientWidth;
+    const observer = new ResizeObserver(() => {
+      if (field.clientWidth === width) return;
+      width = field.clientWidth;
+      resize();
+    });
+    observer.observe(field);
+    return () => observer.disconnect();
+  }, [inputRef, resize]);
+
+  return <Textarea {...props} ref={inputRef} value={value} rows={1} />;
+}
+
 
 export default function MucusQuickEditSheet({
   open, onOpenChange, isoDate, initialValues, initialField = 'mucusSensation',
@@ -102,17 +140,17 @@ export default function MucusQuickEditSheet({
           {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}
           <div className="rounded-3xl border border-sensacion bg-white/85 p-3 shadow-sm">
             <label htmlFor="quick-mucus-sensation" className="mb-2 flex items-center gap-1 text-sm font-semibold text-subtitulo"><Droplets className="h-4 w-4 text-sensacion" />Sensación</label>
-            <Input ref={sensationRef} id="quick-mucus-sensation" disabled={busy} value={draft.mucusSensation} enterKeyHint="next"
+            <CompactTextarea inputRef={sensationRef} id="quick-mucus-sensation" disabled={busy} value={draft.mucusSensation} enterKeyHint="next"
               onChange={(event) => setDraft({ ...draft, mucusSensation: event.target.value })}
-              onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); appearanceRef.current?.focus(); } }}
-              className="rounded-full border-slate-200/70 bg-white text-base font-semibold text-slate-700 shadow-sm focus:border-sensacion focus:ring-2 focus:ring-sensacion focus-visible:ring-sensacion" />
+              onKeyDown={(event) => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); appearanceRef.current?.focus(); } }}
+              className="h-10 min-h-10 resize-none overflow-x-hidden overflow-y-auto break-words rounded-[20px] border-slate-200/70 bg-white text-base leading-6 font-semibold text-slate-700 shadow-sm focus:border-sensacion focus:ring-2 focus:ring-sensacion focus-visible:ring-sensacion" />
           </div>
           <div className="rounded-3xl border border-apariencia bg-white/85 p-3 shadow-sm">
             <label htmlFor="quick-mucus-appearance" className="mb-2 flex items-center gap-1 text-sm font-semibold text-subtitulo"><Circle className="h-4 w-4 text-apariencia" />Apariencia</label>
-            <Input ref={appearanceRef} id="quick-mucus-appearance" disabled={busy} value={draft.mucusAppearance} enterKeyHint="done"
+            <CompactTextarea inputRef={appearanceRef} id="quick-mucus-appearance" disabled={busy} value={draft.mucusAppearance} enterKeyHint="done"
               onChange={(event) => setDraft({ ...draft, mucusAppearance: event.target.value })}
-              onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); } }}
-              className="rounded-full border-slate-200/70 bg-white text-base font-semibold text-slate-700 shadow-sm focus:border-apariencia focus:ring-2 focus:ring-apariencia focus-visible:ring-apariencia" />
+              onKeyDown={(event) => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); event.currentTarget.blur(); } }}
+              className="h-10 min-h-10 resize-none overflow-x-hidden overflow-y-auto break-words rounded-[20px] border-slate-200/70 bg-white text-base leading-6 font-semibold text-slate-700 shadow-sm focus:border-apariencia focus:ring-2 focus:ring-apariencia focus-visible:ring-apariencia" />
           </div>
         </div>
         <div className="flex shrink-0 gap-2 px-4 pt-2">

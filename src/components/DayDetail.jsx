@@ -4,6 +4,7 @@ import MucusQuickEditSheet from '@/components/MucusQuickEditSheet';
 import TemperatureMeasurementsSheet, { TemperatureMeasurementTrigger } from '@/components/TemperatureMeasurementsSheet';
 import { measurementsFromRecord } from '@/lib/temperatureMeasurements';
 import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
+import { motion, useReducedMotion } from 'framer-motion';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
@@ -15,6 +16,7 @@ import {
   Circle,
   FileText,
   Plus,
+  ChevronDown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PeakModeButton } from '@/components/ui/peak-mode-button';
@@ -42,6 +44,7 @@ const DayDetail = ({
   isProcessing,
 }) => {
   const { preferences } = useAuth();
+  const shouldReduceMotion = useReducedMotion();
   const isPersistedRecord = (record) =>
   Boolean(record?.id) && !String(record.id).startsWith('placeholder-');
 
@@ -214,22 +217,23 @@ const isOverflowing = (el) => {
 };
 
 const recomputeOverflow = useCallback(() => {
-  if (isTextExpanded) {
-    setOverflow({ sensation: false, appearance: false, observations: false });
-    return;
-  }
-  setOverflow({
+  // Conservar la medición compacta: el texto abierto ya no está truncado.
+  if (isTextExpanded) return;
+  const next = {
     sensation: isOverflowing(sensationTextRef.current),
     appearance: isOverflowing(appearanceTextRef.current),
     observations: isOverflowing(observationsTextRef.current),
-  });
+  };
+  setOverflow((previous) =>
+    Object.keys(next).every((key) => previous[key] === next[key]) ? previous : next
+  );
 }, [isTextExpanded]);
 
 useEffect(() => {
   // esperar a layout estable (iOS)
   const id = requestAnimationFrame(() => recomputeOverflow());
   return () => cancelAnimationFrame(id);
-}, [recomputeOverflow, sensationRaw, appearanceRaw, observationsRaw]);
+}, [recomputeOverflow, isoDate, sensationRaw, appearanceRaw, observationsRaw]);
 
 useEffect(() => {
   const ro = new ResizeObserver(() => recomputeOverflow());
@@ -237,7 +241,21 @@ useEffect(() => {
   if (appearanceTextRef.current) ro.observe(appearanceTextRef.current);
   if (observationsTextRef.current) ro.observe(observationsTextRef.current);
   return () => ro.disconnect();
-}, [recomputeOverflow]);
+}, [recomputeOverflow, isoDate]);
+
+const hasTextOverflow = overflow.sensation || overflow.appearance || overflow.observations;
+const expandMucusRows = isTextExpanded && (overflow.sensation || overflow.appearance);
+// Los hijos con layout="position" compensan la escala de las celdas
+// para mantener legibles el texto y los iconos durante el cambio de tamaño.
+const textLayoutProps = {
+  layout: !shouldReduceMotion,
+  layoutDependency: isTextExpanded,
+  transition: { layout: { duration: shouldReduceMotion ? 0 : 0.25, ease: [0.22, 1, 0.36, 1] } },
+};
+const positionLayoutProps = {
+  ...textLayoutProps,
+  layout: shouldReduceMotion ? false : 'position',
+};
 
   const handleRelationsToggle = () => {
     if (!isoDate || !onToggleRelations) return;
@@ -306,10 +324,10 @@ if (peakStatus) {
 
   // Base para celdas tactiles neutras con acento discreto.
 const detailCellCompactClass =
-  'relative flex items-center gap-2.5 overflow-hidden rounded-2xl border border-rose-100/70 bg-white px-3 py-2 text-sm min-h-[2.75rem] shadow-none transition hover:bg-rose-50/30 active:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fertiliapp-suave';
+  'relative flex items-center gap-2.5 overflow-hidden rounded-2xl border border-rose-100/70 bg-white px-3 py-2 text-sm min-h-[2.75rem] shadow-none transition-colors hover:bg-rose-50/30 active:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fertiliapp-suave';
 
 const detailCellMultilineClass =
-  'relative flex gap-2.5 overflow-hidden rounded-2xl border border-rose-100/70 bg-white px-3 py-2 text-sm min-h-[2.75rem] shadow-none transition hover:bg-rose-50/30 active:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fertiliapp-suave';
+  'relative flex gap-2.5 overflow-hidden rounded-2xl border border-rose-100/70 bg-white px-3 py-2 text-sm min-h-[2.75rem] shadow-none transition-colors hover:bg-rose-50/30 active:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fertiliapp-suave';
 
 const detailAccentClass =
   'pointer-events-none absolute bottom-2 left-0 top-2 w-1 rounded-r-full';
@@ -426,18 +444,21 @@ const footerIconButtonClass =
           onOpenForm={(values) => onEdit({ ...persistedRecord, id: persistedRecord?.id || `placeholder-${isoDate}`, isoDate, ...values }, 'moco', mucusField)} />
 
         {/* Fila 2: moco */}
-        <div className="grid grid-cols-2 gap-3">
-          <button
+        <div className={cn('grid gap-3', expandMucusRows ? 'grid-cols-1' : 'grid-cols-2')}>
+          <motion.button
+  {...textLayoutProps}
+  style={{ borderRadius: 16 }}
   type="button"
   aria-label="Editar sensación"
   onClick={() => setMucusField('mucusSensation')}
   className={cn(
     detailCellCompactClass,
     isTextExpanded ? 'items-start' : 'items-center',
-    'text-left'
+    'min-w-0 text-left'
   )}
 >
   <span aria-hidden="true" className={cn(detailAccentClass, detailCellStyles.sensation.accent)} />
+  <motion.span {...positionLayoutProps} className="flex shrink-0">
   <Droplets
     className={cn(
       'h-[18px] w-[18px] shrink-0',
@@ -445,7 +466,8 @@ const footerIconButtonClass =
       isTextExpanded && 'mt-0.5'
     )}
   />
-  <div className="min-w-0 flex-1">
+  </motion.span>
+  <motion.div {...positionLayoutProps} className="min-w-0 flex-1">
     <div
       ref={sensationTextRef}
       className={cn(
@@ -456,20 +478,23 @@ const footerIconButtonClass =
     >
       {renderChipValue(mucusSensationValue)}
     </div>
-  </div>
-</button>
+  </motion.div>
+</motion.button>
 
-       <button
+       <motion.button
+  {...textLayoutProps}
+  style={{ borderRadius: 16 }}
   type="button"
   aria-label="Editar apariencia"
   onClick={() => setMucusField('mucusAppearance')}
   className={cn(
     detailCellCompactClass,
     isTextExpanded ? 'items-start' : 'items-center',
-    'text-left'
+    'min-w-0 text-left'
   )}
 >
   <span aria-hidden="true" className={cn(detailAccentClass, detailCellStyles.appearance.accent)} />
+  <motion.span {...positionLayoutProps} className="flex shrink-0">
   <Circle
     className={cn(
       'h-[18px] w-[18px] shrink-0',
@@ -477,7 +502,8 @@ const footerIconButtonClass =
       isTextExpanded && 'mt-0.5'
     )}
   />
-  <div className="min-w-0 flex-1">
+  </motion.span>
+  <motion.div {...positionLayoutProps} className="min-w-0 flex-1">
     <div
       ref={appearanceTextRef}
       className={cn(
@@ -488,13 +514,15 @@ const footerIconButtonClass =
     >
       {renderChipValue(mucusAppearanceValue)}
     </div>
-  </div>
-</button>
+  </motion.div>
+</motion.button>
         </div>
 
         {/* Fila 3: observaciones + acciones */}
-<div className="flex items-center gap-3">
-  <button
+<motion.div {...positionLayoutProps} className="flex items-center gap-3">
+  <motion.button
+    {...textLayoutProps}
+    style={{ borderRadius: 16 }}
     type="button"
     onClick={() => setObservationsOpen(true)}
     aria-label="Editar observaciones"
@@ -505,6 +533,7 @@ const footerIconButtonClass =
     )}
   >
     <span aria-hidden="true" className={cn(detailAccentClass, detailCellStyles.observations.accent)} />
+    <motion.span {...positionLayoutProps} className="flex shrink-0">
     <FileText
       className={cn(
         'h-[18px] w-[18px] shrink-0',
@@ -512,7 +541,8 @@ const footerIconButtonClass =
         isTextExpanded && 'mt-0.5'
       )}
     />
-    <div className="min-w-0 flex-1">
+    </motion.span>
+    <motion.div {...positionLayoutProps} className="min-w-0 flex-1">
       <div
         ref={observationsTextRef}
         className={cn(
@@ -524,10 +554,10 @@ const footerIconButtonClass =
       >
         {renderChipValue(observationsValue, { placeholder: '-' })}
       </div>
-    </div>
-  </button>
+    </motion.div>
+  </motion.button>
 
-  <div className="flex shrink-0 items-center gap-1">
+  <motion.div {...positionLayoutProps} className="flex shrink-0 items-center gap-1">
     {showRelationsAction && (
       <button
         type="button"
@@ -599,9 +629,27 @@ const footerIconButtonClass =
         Añadir
       </Button>
     )}
-  </div>
-</div>
+  </motion.div>
+</motion.div>
       </div>
+      {(hasTextOverflow || isTextExpanded) && (
+        <motion.button
+          {...positionLayoutProps}
+          type="button"
+          aria-label={isTextExpanded ? 'Contraer texto' : 'Mostrar texto completo'}
+          aria-expanded={isTextExpanded}
+          onClick={(event) => {
+            event.stopPropagation();
+            setIsTextExpanded((expanded) => !expanded);
+          }}
+          className="mx-auto -mb-4 flex h-11 w-full items-center justify-center rounded-full text-slate-400 hover:text-rose-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 sm:-mb-5"
+        >
+          <ChevronDown
+            aria-hidden="true"
+            className={cn('h-4 w-4', isTextExpanded && 'rotate-180')}
+          />
+        </motion.button>
+      )}
     </div>
   );
 };
