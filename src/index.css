@@ -133,7 +133,7 @@
   }
 
   body {
-    background: linear-gradient(135deg, #FFFAFC 0%, #f7eaef 100%);
+    background: #FFF7F9;
     scroll-behavior: smooth;
     color: hsl(var(--foreground));
     font-family: 'Inter', sans-serif;
@@ -250,123 +250,9 @@
 
 .app-background {
   min-height: 100vh;
-  background:
-    radial-gradient(circle at 50% -10%, rgba(255, 255, 255, 0.7) 0, transparent 60%),
-    linear-gradient(to bottom,
-      #ffdbde 0%,
-      /* algo más de color solo arriba */
-      #ffe5e7 35%,
-      #ffe8eb 100%);
+  background: #FFF7F9;
   position: relative;
   overflow: hidden;
-}
-
-/* BASE DE LAS OLAS */
-.wave {
-  position: absolute;
-  opacity: 0.8;
-  filter: blur(3px);
-  border-radius: 70%;
-  pointer-events: none;
-  will-change: transform;
-}
-
-/* movimiento lateral suave para el lado izquierdo */
-@keyframes waveDriftLeft {
-  0% {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-
-  50% {
-    transform: translate3d(10px, 6px, 0) scale(1.02);
-  }
-
-  100% {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-}
-
-/* movimiento lateral suave para el lado derecho */
-@keyframes waveDriftRight {
-  0% {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-
-  50% {
-    transform: translate3d(-10px, 6px, 0) scale(1.02);
-  }
-
-  100% {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-}
-
-/* ===== GRUPO IZQUIERDO ===== */
-
-.wave--left-1 {
-  width: 110%;
-  height: 25%;
-  background: #ffe6e9;
-  top: -8%;
-  left: -60%;
-  clip-path: ellipse(90% 40% at 10% 20%);
-  animation: waveDriftLeft 16s ease-in-out infinite;
-}
-
-.wave--left-2 {
-  width: 110%;
-  height: 60%;
-  background: #fcdfe3;
-  top: 50%;
-  left: -38%;
-  clip-path: ellipse(90% 80% at 70% 80%);
-  animation: waveDriftLeft 22s ease-in-out infinite;
-  animation-delay: -8s;
-}
-
-.wave--left-3 {
-  width: 110%;
-  height: 60%;
-  background: #ffe9ed;
-  bottom: -8%;
-  left: -36%;
-  clip-path: ellipse(70% 80% at 0% 80%);
-  animation: waveDriftLeft 25s ease-in-out infinite;
-  animation-delay: -4s;
-}
-
-/* ===== GRUPO DERECHO ===== */
-
-.wave--right-1 {
-  width: 110%;
-  height: 55%;
-  background: #ffe6e8;
-  top: -25%;
-  right: -45%;
-  clip-path: ellipse(55% 80% at 100% 60%);
-  animation: waveDriftRight 20s ease-in-out infinite;
-}
-
-.wave--right-2 {
-  width: 110%;
-  height: 60%;
-  background: #fce5e8;
-  top: 30%;
-  right: -18%;
-  clip-path: ellipse(70% 50% at 100% 30%);
-  animation: waveDriftRight 30s ease-in-out infinite;
-  animation-delay: -10s;
-}
-
-.wave--right-3 {
-  width: 110%;
-  height: 60%;
-  background: #ffe0e3;
-  bottom: -30%;
-  right: -40%;
-  clip-path: ellipse(70% 80% at 50% 80%);
-  animation: waveDriftRight 26s ease-in-out infinite;
-  animation-delay: -6s;
 }
 
 @layer utilities {

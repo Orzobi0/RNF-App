@@ -56,6 +56,8 @@ const CycleOverviewCard = ({
   onTogglePeak = () => {},
   currentPeakIsoDate,
   onEditStartDate = () => {},
+  onAddRecord,
+  onAddCycle,
   handleOpenCpmDialog = () => {},
   handleOpenT8Dialog = () => {},
   cpmMetric = {},
@@ -487,7 +489,7 @@ const EMPTY_DAY_COLORS = {
           main: 'transparent',
           light: 'transparent',
           glow: 'rgba(180, 169, 176, 0.1)',
-          border: 'rgba(180, 169, 176, 0.4)',
+          border: 'rgba(180, 169, 176, 0.55)',
         };
       } else if (isFutureDay || day > cycleData.currentDay) {
         // Future days: transparent with pale pink border
@@ -495,7 +497,7 @@ const EMPTY_DAY_COLORS = {
           main: 'transparent',
           light: 'transparent',
           glow: 'rgba(251, 192, 203, 0.1)',
-          border: 'rgba(252, 170, 185, 0.35)',
+          border: 'rgba(252, 170, 185, 0.52)',
         };
       }
       const isToday = day === cycleData.currentDay;
@@ -892,7 +894,7 @@ const handleRingPointerCancel = useCallback(
   switch (status) {
     case 'relative-infertile':
       return {
-        button: 'border-emerald-100 bg-emerald-50/65 hover:bg-emerald-50/85',
+        button: 'border-emerald-100/80 bg-emerald-50/40 hover:bg-emerald-50/65',
         accent: 'bg-emerald-400',
         label: 'text-emerald-700',
         title: 'text-emerald-950',
@@ -902,7 +904,7 @@ const handleRingPointerCancel = useCallback(
 
     case 'fertile-open':
       return {
-        button: 'border-rose-100 bg-rose-50/70 hover:bg-rose-50/90',
+        button: 'border-rose-100/80 bg-rose-50/40 hover:bg-rose-50/65',
         accent: 'bg-fertiliapp-fuerte',
         label: 'text-fertiliapp-fuerte',
         title: 'text-rose-950',
@@ -915,7 +917,7 @@ const handleRingPointerCancel = useCallback(
     case 'postpeak-2':
     case 'postpeak-3':
       return {
-        button: 'border-pink-100 bg-pink-50/75 hover:bg-pink-50/95',
+        button: 'border-pink-100/80 bg-pink-50/40 hover:bg-pink-50/65',
         accent: 'bg-pink-500',
         label: 'text-pink-600',
         title: 'text-pink-950',
@@ -926,7 +928,7 @@ const handleRingPointerCancel = useCallback(
     case 'temperature-estimated':
     case 'mucus-estimated':
       return {
-        button: 'border-sky-100 bg-sky-50/75 hover:bg-sky-50/95',
+        button: 'border-sky-100/80 bg-sky-50/40 hover:bg-sky-50/65',
         accent: 'bg-sky-400',
         label: 'text-sky-700',
         title: 'text-sky-950',
@@ -936,7 +938,7 @@ const handleRingPointerCancel = useCallback(
 
     case 'postovulatory-confirmed':
       return {
-        button: 'border-blue-200 bg-blue-50/85 hover:bg-blue-50',
+        button: 'border-blue-100 bg-blue-50/45 hover:bg-blue-50/70',
         accent: 'bg-blue-500',
         label: 'text-blue-700',
         title: 'text-blue-950',
@@ -946,7 +948,7 @@ const handleRingPointerCancel = useCallback(
 
     default:
       return {
-        button: 'border-slate-100 bg-white/75 hover:bg-white/90',
+        button: 'border-slate-100 bg-white/90 hover:bg-white',
         accent: 'bg-slate-300',
         label: 'text-slate-500',
         title: 'text-slate-800',
@@ -960,24 +962,24 @@ const handleRingPointerCancel = useCallback(
   <button
     type="button"
     onClick={onClick}
-    className="flex min-h-[42px] min-w-0 flex-1 items-center justify-between gap-2 rounded-2xl border border-rose-100/60 bg-white/70 px-3 py-2 text-left transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70"
+    className="flex min-w-0 flex-col items-stretch justify-between gap-2 rounded-2xl border border-rose-100/70 bg-white/90 px-3 py-3 text-left shadow-[0_6px_18px_rgba(104,72,86,0.08)] transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/70"
     aria-label={ariaLabel}
   >
     <div className="min-w-0">
-      <div className="flex min-w-0 items-center gap-1.5">
-        <span className="text-[10px] font-bold uppercase tracking-wide text-rose-500">
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-1">
+        <span className="text-xs font-semibold uppercase tracking-wide text-fertiliapp-fuerte">
           {label}
         </span>
 
         {modeLabel ? (
-          <span className="max-w-[58px] truncate rounded-full bg-rose-50/80 px-1.5 py-0.5 text-[9px] font-semibold text-rose-400">
+          <span className="shrink-0 rounded-full bg-rose-50/80 px-1.5 py-0.5 text-[10px] font-medium text-subtitulo">
             {modeLabel}
           </span>
         ) : null}
       </div>
     </div>
 
-    <span className="shrink-0 text-base font-semibold tabular-nums text-slate-800">
+    <span className="break-words text-2xl font-semibold leading-tight tabular-nums text-slate-800">
       {value ?? '—'}
     </span>
   </button>
@@ -1123,40 +1125,43 @@ const handleRingPointerCancel = useCallback(
 
   return (
     <div className="relative flex flex-col space-y-2">
-      {/* Fecha actual - Parte superior con padding reducido */}
+      {/* Fecha y acciones en dos filas, con el menú integrado en la cabecera. */}
       <motion.div
-        className="relative overflow-hidden px-4 pt-4 pb-1 text-center flex-shrink-0"
+        className="relative z-20 pt-4 pb-1 text-center flex-shrink-0"
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
       >
-        <h1 className="text-2xl font-bold text-titulo mb-1">
+        <h1 className="mb-3 text-2xl font-semibold leading-snug tracking-tight text-titulo sm:text-[26px]">
           {new Date().toLocaleDateString('es-ES', {
             weekday: 'long',
             day: 'numeric',
             month: 'long'
           })}
         </h1>
-        <button
-          type="button"
-          onClick={onEditStartDate}
-          className="inline-flex items-center gap-2 rounded-full bg-white/60 px-3 py-1.5 text-sm font-semibold text-subtitulo shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-rose-300 focus:ring-offset-2 focus:ring-offset-transparent hover:bg-white"
-          title="Editar fecha de inicio del ciclo"
-        >
-          <Edit className="w-4 h-4" />
-          {`Ciclo actual`}
-          </button>
-          {cycleData?.postpartumMode && (
-            <Badge
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-rose-200 bg-rose-50 p-0 text-rose-600 hover:bg-rose-50"
-              aria-label="Modo postparto activado"
-              title="Modo postparto activado"
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={onEditStartDate}
+              className="inline-flex items-center gap-2 rounded-full border border-rose-100/80 bg-white/85 px-3 py-1.5 text-sm font-medium text-subtitulo shadow-[0_2px_6px_rgba(216,92,112,0.04)] transition-colors focus:outline-none focus:ring-2 focus:ring-rose-300 focus:ring-offset-2 focus:ring-offset-transparent hover:bg-white"
+              title="Editar fecha de inicio del ciclo"
             >
-              <Baby className="h-4 w-4" aria-hidden="true" />
-            </Badge>
-          )}
-        
-
+              <Edit className="w-4 h-4" />
+              {`Ciclo actual`}
+            </button>
+            {cycleData?.postpartumMode && (
+              <Badge
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-rose-200 bg-rose-50 p-0 text-rose-600 hover:bg-rose-50"
+                aria-label="Modo postparto activado"
+                title="Modo postparto activado"
+              >
+                <Baby className="h-4 w-4" aria-hidden="true" />
+              </Badge>
+            )}
+          </div>
+          <FloatingActionButton onAddRecord={onAddRecord} onAddCycle={onAddCycle} />
+        </div>
       </motion.div>
 
       {/* Contenedor principal con flex-grow para usar todo el espacio disponible */}
@@ -1187,6 +1192,7 @@ const handleRingPointerCancel = useCallback(
   transition={{ duration: 0.18, ease: 'easeOut' }}
   onWheel={handleWheelScroll}
 >
+  
             <svg
               className="block w-full h-full wheel-no-tap"
               viewBox={`0 0 ${viewBoxSize} ${viewBoxSize}`}
@@ -1309,10 +1315,16 @@ const handleRingPointerCancel = useCallback(
           : 'rgba(255,255,255,0.3)'
       }
       strokeWidth={
-        dot.colors.border && dot.colors.border !== 'none'
-          ? (dot.isToday ? 2.2 : 1.2)
-          : 0
-      }
+  dot.colors.border && dot.colors.border !== 'none'
+    ? (
+        dot.isToday
+          ? 2.2
+          : dot.record?.fertility_symbol === 'white'
+            ? 1.8
+            : 1.2
+      )
+    : 0
+}
       filter={
         dot.record?.fertility_symbol === 'white'
           ? 'url(#whiteSymbolShadow)'
@@ -1643,7 +1655,7 @@ if (dot.peakStatus === 'P') {
           onClick={onOpenCycleStatus}
           aria-label="Abrir gráfica con interpretación"
           className={cn(
-            '-mx-4 mb-2 mt-5 block w-auto rounded-3xl border p-3 text-left shadow-[0_10px_24px_rgba(216,92,112,0.08)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent',
+            '-mx-4 mb-2 mt-5 block w-auto rounded-3xl border p-3 text-left shadow-[0_6px_18px_rgba(104,72,86,0.08)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent',
             statusTone.button
           )}
         >
@@ -1654,8 +1666,8 @@ if (dot.peakStatus === 'P') {
             />
 
             <div className="min-w-0 flex-1">
-              <div className="flex items-center justify-between gap-2">
-                <span className={cn('text-[11px] font-semibold uppercase tracking-wide', statusTone.title)}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className={cn('text-[11px] font-medium uppercase tracking-wide', statusTone.title)}>
                   Estado del día
                 </span>
 
@@ -1671,11 +1683,11 @@ if (dot.peakStatus === 'P') {
                 </div>
               </div>
 
-              <p className={cn('mt-2 text-[15px] font-semibold leading-tight', statusTone.label)}>
+              <p className={cn('mt-2 break-words text-[15px] font-semibold leading-snug', statusTone.label)}>
                 {cycleStatusSummary.headline}
               </p>
 
-              <p className={cn('mt-1 text-[13px] leading-snug', statusTone.body)}>
+              <p className={cn('mt-0.5 break-words text-[13px] leading-snug', statusTone.body)}>
                 {cycleStatusSummary.body}
               </p>
             </div>
@@ -1684,15 +1696,11 @@ if (dot.peakStatus === 'P') {
     )}
 
     <motion.div
-          className="-mx-4 mt-2 rounded-2xl border border-rose-100/50 bg-white/55 p-2 shadow-[0_8px_18px_rgba(216,92,112,0.06)]"
+          className="-mx-4 mt-2 grid grid-cols-2 items-stretch gap-3"
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.2, delay: 0.06 }}
         >
-          <div className="flex items-center justify-between px-2 pb-1">
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-600">Cálculo</span>
-          </div>
-          <div className="flex gap-2">
             {renderCompactCalcItem({
               label: 'CPM',
               value: cpmMetric?.finalFormatted ?? '—',
@@ -1707,7 +1715,6 @@ if (dot.peakStatus === 'P') {
               ariaLabel: 'Editar T-8',
               modeLabel: t8Metric?.modeLabel ?? 'Auto',
             })}
-          </div>
         </motion.div>
 
 
@@ -1755,9 +1762,9 @@ const FloatingActionButton = ({ onAddRecord, onAddCycle }) => {
   };
 
   return (
-    <div ref={containerRef} className="fixed right-4 top-12 md:top-6 flex flex-col-reverse items-end space-y-2 z-50">
+    <div ref={containerRef} className="relative z-30 shrink-0">
       {open && (
-  <div className="flex flex-col space-y-2 mt-1">
+  <div className="absolute right-0 top-full mt-2 flex w-max max-w-[calc(100vw-32px)] flex-col gap-2">
     <motion.button
       onClick={handleAddRecord}
       className="flex items-center gap-1 px-4 h-10 rounded-full bg-fertiliapp-fuerte hover:brightness-50 text-white/90 shadow-sm shadow-[#DD5665]"
@@ -1788,13 +1795,15 @@ const FloatingActionButton = ({ onAddRecord, onAddCycle }) => {
 )}
 
       <motion.button
+        type="button"
+        aria-label="Añadir"
+        aria-expanded={open}
         onClick={() => setOpen(!open)}
-        className="flex items-center justify-center rounded-full bg-white/80 border border-fertiliapp-fuerte text-fertiliapp-fuerte hover:brightness-95 shadow-sm shadow-[#5BA9B8] w-12 h-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2"
+        className="flex items-center justify-center rounded-full bg-fertiliapp-fuerte text-white hover:brightness-95 shadow-[0_4px_12px_rgba(216,92,112,0.16)] w-12 h-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2"
         whileTap={{ scale: 0.95 }}
         whileHover={{ scale: 1.05 }}
         initial={{ scale: 0 }}
         animate={{ scale: 1 }}
-        style={{ filter: 'drop-shadow(0 4px 12px rgba(221, 86, 101, 0.35))' }}
       >
         <motion.span animate={{ rotate: open ? 135 : 0 }} transition={{ type: 'spring', stiffness: 260, damping: 20 }}>
           <Plus className="h-5 w-5" />
@@ -2609,7 +2618,7 @@ const handleConfirmDeleteRecord = useCallback(async () => {
 
   return (
     <>
-      <div className="mx-auto flex h-[calc(var(--app-vh,1vh)*100 - var(--bottom-nav-safe))] w-full flex-col space-y-4 px-4 pb-10 pt-4">
+      <div className="mx-auto flex h-[calc(var(--app-vh,1vh)*100 - var(--bottom-nav-safe))] w-full flex-col space-y-4 bg-[#FFF7F9] px-4 pb-10 pt-4">
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -2629,6 +2638,13 @@ const handleConfirmDeleteRecord = useCallback(async () => {
   onTogglePeak={handleTogglePeakFromDashboard}
   currentPeakIsoDate={currentPeakIsoDate}
   onEditStartDate={handleOpenStartDateEditor}
+  onAddRecord={() => {
+    setEditingRecord(null);
+    setFocusedField(null);
+    setInitialSectionKey(null);
+    setShowForm(true);
+  }}
+  onAddCycle={() => handleOpenNewCycleDialog()}
   handleOpenCpmDialog={handleOpenCpmDialog}
   handleOpenT8Dialog={handleOpenT8Dialog}
   cpmMetric={cpmMetric}
@@ -2777,15 +2793,7 @@ const handleConfirmDeleteRecord = useCallback(async () => {
         </DialogContent>
       </Dialog>
 
-      <FloatingActionButton
-  onAddRecord={() => {
-    setEditingRecord(null);
-    setFocusedField(null);
-    setInitialSectionKey(null);
-    setShowForm(true);
-  }}
-  onAddCycle={() => handleOpenNewCycleDialog()}
-/>
+
 
       <NewCycleDialog
         isOpen={showNewCycleDialog}
