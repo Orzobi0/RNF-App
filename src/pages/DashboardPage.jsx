@@ -491,15 +491,15 @@ const EMPTY_DAY_COLORS = {
           glow: 'rgba(180, 169, 176, 0.1)',
           border: 'rgba(180, 169, 176, 0.55)',
         };
-      } else if (isFutureDay || day > cycleData.currentDay) {
-        // Future days: transparent with pale pink border
-        colors = {
-          main: 'transparent',
-          light: 'transparent',
-          glow: 'rgba(251, 192, 203, 0.1)',
-          border: 'rgba(252, 170, 185, 0.52)',
-        };
-      }
+        } else if (isFutureDay || day > cycleData.currentDay) {
+          // Días futuros: borde gris neutro, distinto del blanco fértil.
+          colors = {
+            main: 'transparent',
+            light: 'transparent',
+            glow: 'rgba(156, 163, 175, 0.04)',
+            border: 'rgba(156, 163, 175, 0.15)',
+          };
+        }
       const isToday = day === cycleData.currentDay;
       if (isToday) {
         if (recordWithCycleDay) {
@@ -1139,8 +1139,9 @@ const handleRingPointerCancel = useCallback(
             month: 'long'
           })}
         </h1>
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <div className="grid grid-cols-[48px_minmax(0,1fr)_48px] items-center gap-2">
+        <div aria-hidden="true" className="h-12 w-12" />
+        <div className="flex min-w-0 items-center justify-center gap-2">
             <button
               type="button"
               onClick={onEditStartDate}
