@@ -539,6 +539,18 @@ const EMPTY_DAY_COLORS = {
   };
 
   const dots = createProgressDots();
+  // Guía circular: desde el primer día visible hasta hoy.
+const lastConnectedIndex = Math.min(
+  totalDots - 1,
+  Math.max(-1, cycleData.currentDay - wheelOffset - 1)
+);
+
+const guidePath = lastConnectedIndex > 0
+  ? `M ${dots[0].x} ${dots[0].y}
+     A ${radius} ${radius} 0
+     ${lastConnectedIndex > totalDots / 2 ? 1 : 0} 1
+     ${dots[lastConnectedIndex].x} ${dots[lastConnectedIndex].y}`
+  : null;
   const changedDaySet = useMemo(() => new Set(recentlyChangedDays), [recentlyChangedDays]);
   const wheelRotationDegrees = (wheelOffset * 360) / totalDots;
 
@@ -1211,11 +1223,11 @@ const handleRingPointerCancel = useCallback(
                   <rect width="6" height="6" fill="#fb7185" />
                   <circle cx="3" cy="3" r="1.5" fill="rgba(255,255,255,0.85)" />
                 </pattern>
-                <radialGradient id="ringGlow" cx="50%" cy="50%" r="78%" fx="30%" fy="20%">
-                  <stop offset="0%" stopColor="#FFE7E8" stopOpacity="0.98" />
-                  <stop offset="60%" stopColor="#FFC0C1" stopOpacity="0.95" />
-                  <stop offset="100%" stopColor="#FFB5B3" stopOpacity="0.95" />
-                </radialGradient>
+              <radialGradient id="ringGlow" cx="50%" cy="50%" r="78%" fx="30%" fy="20%">
+                <stop offset="0%" stopColor="#FFE7E8" stopOpacity="0.98" />
+                <stop offset="60%" stopColor="#FFC0C1" stopOpacity="0.95" />
+                <stop offset="100%" stopColor="#FFB5B3" stopOpacity="0.95" />
+              </radialGradient>
                 <filter id="circleDepthShadow">
                   <feDropShadow dx="0" dy="10" stdDeviation="10" floodColor="rgba(221,86,101,0.22)" floodOpacity="1" />
                   <feDropShadow dx="0" dy="4" stdDeviation="4" floodColor="rgba(221,86,101,0.18)" floodOpacity="1" />
@@ -1283,6 +1295,17 @@ const handleRingPointerCancel = useCallback(
     willChange: 'transform' // hint a la GPU
   }}
 >
+{/* Guía de los días transcurridos */}
+{guidePath && (
+  <path
+    d={guidePath}
+    fill="none"
+    stroke="rgba(216,92,112,0.20)"
+    strokeWidth={2.5}
+    strokeLinecap="round"
+    pointerEvents="none"
+  />
+)}
                 {dots.map((dot, index) => (
   <g key={index}>
     <circle
@@ -1307,21 +1330,25 @@ const handleRingPointerCancel = useCallback(
       cy={dot.y}
       r={dot.isToday ? 12 : 11}
       fill={
-        dot.colors.pattern ||
-        (dot.isActive ? dot.colors.main : 'rgba(255,255,255,0.001)')
-      }
+  dot.colors.pattern ||
+  (dot.colors.main === 'transparent' || !dot.isActive
+    ? '#F0F1F3'
+    : dot.colors.main)
+}
       stroke={
-        dot.colors.border && dot.colors.border !== 'none'
-          ? dot.colors.border
-          : 'rgba(255,255,255,0.3)'
-      }
+  dot.record?.fertility_symbol === 'white' && !dot.isToday
+    ? 'rgba(251,113,133,0.85)'
+    : dot.colors.border && dot.colors.border !== 'none'
+      ? dot.colors.border
+      : 'rgba(255,255,255,0.3)'
+}
       strokeWidth={
   dot.colors.border && dot.colors.border !== 'none'
     ? (
         dot.isToday
           ? 2.2
           : dot.record?.fertility_symbol === 'white'
-            ? 1.8
+            ? 2.1
             : 1.2
       )
     : 0
@@ -1564,8 +1591,8 @@ if (dot.peakStatus === 'P') {
           </motion.div>
           
 
-          <div ref={daySelectorRef} className="flex h-[40px] items-center justify-center">
-            {hasOverflow && (
+          {hasOverflow && (
+            <div ref={daySelectorRef} className="flex h-[40px] items-center justify-center">
               <div className="flex items-center justify-center gap-3">
                 <button
                   type="button"
@@ -1603,8 +1630,8 @@ if (dot.peakStatus === 'P') {
                   <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
-            )}
-          </div>
+            </div>
+          )}
     </div>
   </div>
 </div>
