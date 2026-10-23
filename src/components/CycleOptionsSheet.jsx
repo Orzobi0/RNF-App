@@ -6,21 +6,22 @@ import useBackClose from '@/hooks/useBackClose';
 
 const DRAG_CLOSE_THRESHOLD_PX = 80;
 
-const SwitchIndicator = ({ checked, disabled }) => (
+const SwitchIndicator = ({ checked, loading }) => (
   <span
     className={cn(
-      'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition',
-      checked ? 'bg-rose-400' : 'bg-slate-300',
-      disabled && 'opacity-60'
+      'relative inline-flex h-7 w-[60px] shrink-0 items-center rounded-full transition-colors duration-200 motion-reduce:transition-none',
+      checked ? 'bg-[#D85C70]' : 'bg-slate-200'
     )}
     aria-hidden="true"
   >
     <span
       className={cn(
-        'inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform',
-        checked ? 'translate-x-5' : 'translate-x-0.5'
+        'inline-flex h-[22px] w-[22px] items-center justify-center rounded-full bg-white shadow-sm transition-[transform,color] duration-200 motion-reduce:transition-none',
+        checked ? 'translate-x-[35px] text-[#D85C70]' : 'translate-x-[3px] text-slate-400'
       )}
-    />
+    >
+      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Baby className="h-4 w-4" />}
+    </span>
   </span>
 );
 
@@ -34,7 +35,6 @@ const CycleOptionsSheet = ({
   onCycleSummaryClick,
   postpartumMode = false,
   isUpdatingPostpartum = false,
-  editDatesLabel = 'Editar fecha de inicio',
   onEditStartDate,
   onPostpartumChange,
   onUndoCycle,
@@ -215,21 +215,21 @@ useBackClose(open, handleBackClose);
             <span className="sr-only">Cerrar opciones del ciclo</span>
           </DialogPrimitive.Close>
 
-          <div className="mt-0 min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain">
+          <div className="mt-0 min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain">
             {showCycleSummary ? (
               <button
                 type="button"
                 onClick={onCycleSummaryClick}
                 disabled={!onCycleSummaryClick || isProcessing}
                 aria-label={cycleLabel ? `Ver registros de ${cycleLabel}` : 'Ver registros del ciclo'}
-                className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border border-rose-100/70 bg-rose-50 px-3 py-2.5 text-left transition hover:bg-rose-50/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 disabled:cursor-not-allowed disabled:opacity-60"
+                className={cn(postpartumMode ? 'grid-cols-[auto_minmax(0,1fr)_auto]' : 'grid-cols-[auto_minmax(0,1fr)]', "grid w-full items-center gap-3 rounded-2xl border border-rose-100/70 bg-rose-50 px-3 py-2.5 text-left transition hover:bg-rose-50/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 disabled:cursor-not-allowed disabled:opacity-60")}
               >
                 <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-fertiliapp-fuerte">
-                  <CalendarDays className="h-4 w-4" aria-hidden="true" />
+                  <CalendarDays className="h-6 w-6" aria-hidden="true" />
                 </span>
                 <span className="min-w-0">
                   <span className="flex min-w-0 items-center gap-1.5">
-                    <span className="min-w-0 flex-1 truncate text-sm font-semibold leading-5 text-fertiliapp-fuerte">
+                    <span className="min-w-0 flex-1 truncate text-md font-semibold leading-5 text-fertiliapp-fuerte">
                       {cycleLabel}
                     </span>
                     {isCurrentCycle ? (
@@ -237,15 +237,7 @@ useBackClose(open, handleBackClose);
                         Actual
                       </span>
                     ) : null}
-                    {postpartumMode ? (
-                      <span
-                        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-rose-100 bg-rose-100 text-fertiliapp-fuerte"
-                        aria-label="Modo postparto activado"
-                        title="Modo postparto activado"
-                      >
-                        <Baby className="h-4 w-4" aria-hidden="true" />
-                      </span>
-                    ) : null}
+
                   </span>
                   {cycleMeta ? (
                     <span className="mt-0.5 block truncate text-xs font-medium leading-4 text-slate-500">
@@ -253,54 +245,68 @@ useBackClose(open, handleBackClose);
                     </span>
                   ) : null}
                 </span>
+                {postpartumMode ? (
+                  <span
+                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-rose-100 bg-rose-100 text-fertiliapp-fuerte shadow-[0_2px_6px_rgba(216,92,112,0.10)]"
+                    aria-label="Modo postparto activado"
+                    title="Modo postparto activado"
+                  >
+                    <Baby className="h-[18px] w-[18px]" aria-hidden="true" />
+                  </span>
+                ) : null}
               </button>
             ) : null}
 
-            <div className="overflow-hidden rounded-2xl border border-rose-100/80 bg-white">
+            <div className="grid grid-cols-[minmax(0,7fr)_minmax(0,3fr)] gap-2.5">
               <button
                 type="button"
                 onClick={onEditStartDate}
                 disabled={isProcessing}
-                className="flex min-h-[56px] w-full items-center gap-3 px-3 py-3 text-left transition hover:bg-rose-50/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-rose-200 disabled:cursor-not-allowed disabled:opacity-60"
+                className="flex h-[90px] min-w-0 flex-col justify-between rounded-2xl border border-rose-200/80 bg-white p-2.5 text-left shadow-[0_8px_22px_rgba(104,72,86,0.12)] transition-colors duration-200 hover:bg-rose-50/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-rose-300 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-fertiliapp-fuerte">
-                  <Pencil className="h-4 w-4" aria-hidden="true" />
+                <span className="flex w-full items-center justify-between gap-1">
+                  <span className="text-xs font-semibold tracking-wide text-[#D85C70]">FECHAS</span>
+                  <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-rose-50 text-[#D85C70]">
+                    <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                  </span>
                 </span>
-                <span className="min-w-0 flex-1 text-sm font-semibold text-slate-800">
-                  {editDatesLabel}
+                <span className="flex min-h-[34px] w-full items-center justify-between gap-1">
+                  <span className="min-w-0 text-sm font-bold leading-[17px] text-slate-800">
+                    {isCurrentCycle ? 'Editar fecha de inicio' : 'Editar fechas de inicio y fin'}
+                  </span>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
                 </span>
-                <ChevronRight className="h-5 w-5 shrink-0 text-slate-400" aria-hidden="true" />
               </button>
-
-              <div className="mx-3 h-px bg-rose-100/70" />
 
               <button
                 type="button"
                 role="switch"
                 aria-checked={postpartumMode}
+                aria-label="Modo postparto"
+                aria-busy={isUpdatingPostpartum}
                 onClick={() => {
                   if (!canTogglePostpartum) return;
                   onPostpartumChange?.(!postpartumMode);
                 }}
                 disabled={!canTogglePostpartum}
-                className="grid min-h-[56px] w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 px-3 py-3 text-left transition hover:bg-rose-50/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-rose-200 disabled:cursor-not-allowed disabled:opacity-70"
+                className={cn(
+                  'flex h-[90px] min-w-0 flex-col justify-between rounded-2xl border p-2.5 text-left transition-[background-color,border-color,box-shadow] duration-200 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-rose-300 disabled:cursor-not-allowed disabled:opacity-70',
+                  postpartumMode
+                    ? 'border-rose-200 bg-rose-50/70 shadow-[0_8px_22px_rgba(216,92,112,0.16)] hover:bg-rose-50'
+                    : 'border-rose-200/80 bg-white shadow-[0_8px_22px_rgba(104,72,86,0.12)] hover:bg-rose-50/45'
+                )}
               >
-                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-rose-600">
-                  <Baby className="h-4 w-4" aria-hidden="true" />
+                <span className="flex min-h-6 w-full items-center justify-center text-xs font-semibold text-[#D85C70]">
+                  POSTPARTO
                 </span>
-                <span className="min-w-0 text-sm font-semibold text-slate-800">Modo postparto</span>
-                <span className="inline-flex h-8 min-w-11 items-center justify-end">
-                  {isUpdatingPostpartum ? (
-                    <Loader2 className="h-5 w-5 animate-spin text-rose-400" aria-hidden="true" />
-                  ) : (
-                    <SwitchIndicator checked={postpartumMode} disabled={!canTogglePostpartum} />
-                  )}
+                <span className="flex w-full justify-center">
+                  <SwitchIndicator checked={postpartumMode} loading={isUpdatingPostpartum} />
                 </span>
               </button>
             </div>
 
             {showUndoCycle ? (
-              <div className="border-t border-rose-100/80 pt-4">
+              <div className="border-t border-rose-100/80 pt-2">
               <button
                 type="button"
                 onClick={onUndoCycle}
@@ -308,10 +314,10 @@ useBackClose(open, handleBackClose);
                 className="flex min-h-[56px] w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition hover:bg-amber-50/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-700">
-                  <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                  <RotateCcw className="h-5 w-5" aria-hidden="true" />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-semibold text-amber-900">Deshacer ciclo</span>
+                  <span className="block text-md font-semibold text-amber-900">Deshacer ciclo</span>
                   <span className="mt-0.5 block text-xs leading-relaxed text-amber-800">
                     Une el ciclo actual con el anterior.
                   </span>
@@ -321,7 +327,7 @@ useBackClose(open, handleBackClose);
             ) : null}
 
             {showDeleteCycle ? (
-              <div className="border-t border-rose-100/80 pt-4">
+              <div className="border-t border-rose-100/80 pt-2">
               <button
                 type="button"
                 onClick={onDeleteCycle}
@@ -329,10 +335,10 @@ useBackClose(open, handleBackClose);
                 className="flex min-h-[56px] w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-red-700 transition hover:bg-red-50/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-red-700">
-                  <Trash2 className="h-4 w-4" aria-hidden="true" />
+                  <Trash2 className="h-5 w-5" aria-hidden="true" />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-semibold text-red-900">{deleteLabel || deleteTitle}</span>
+                  <span className="block text-md font-semibold text-red-900">{deleteLabel || deleteTitle}</span>
                 </span>
               </button>
               </div>
