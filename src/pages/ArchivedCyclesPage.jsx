@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import DeletionDialog from '@/components/DeletionDialog';
 import { differenceInCalendarDays, format, parseISO, addDays, isValid, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Archive, Baby, CalendarDays, EllipsisVertical, Plus } from 'lucide-react';
+import { Archive, Baby, EllipsisVertical, Plus } from 'lucide-react';
 import EditCycleDatesDialog from '@/components/EditCycleDatesDialog';
 import ArchivedCycleDeleteDialog from '@/components/ArchivedCycleDeleteDialog';
 import CycleOptionsSheet from '@/components/CycleOptionsSheet';
@@ -17,6 +17,15 @@ import { cn } from '@/lib/utils';
 const CYCLE_OPTIONS_SHEET_EXIT_DELAY_MS = 220;
 
 const formatArchivedDate = (date) => format(date, 'dd MMM yy', { locale: es });
+
+// Compressed visual scale only; the underlying cycle duration is unchanged.
+const getCycleBarWidth = (days) => {
+  if (!Number.isFinite(days) || days < 1) return 0;
+  if (days <= 13) return 15 + ((days - 1) / 12) * 18;
+  if (days <= 35) return 34 + ((days - 14) / 21) * 32;
+  if (days <= 60) return 67 + ((days - 36) / 24) * 23;
+  return 100;
+};
 
 const getCycleGroupingDate = (cycle) => {
   const dateValue = cycle?.endDate || cycle?.startDate;
@@ -35,9 +44,12 @@ const normalizeCycleRowData = (cycle) => {
   const hasEndDate = Boolean(end);
   const startToShow = start && end && end < start ? end : start;
   const endToShow = start && end && end < start ? start : end;
-  const rangeLabel = `${startToShow ? formatArchivedDate(startToShow) : 'Sin fecha'} - ${
-    hasEndDate && endToShow ? formatArchivedDate(endToShow) : 'En curso'
-  }`;
+  const startLabel = startToShow && isValid(startToShow) ? formatArchivedDate(startToShow) : 'Sin fecha';
+  const endLabel = hasEndDate && endToShow && isValid(endToShow) ? formatArchivedDate(endToShow) : 'En curso';
+  const rangeLabel = `${startLabel} - ${endLabel}`;
+  const currentDay = cycle?.isCurrent && start && isValid(start)
+    ? differenceInCalendarDays(new Date(), start) + 1
+    : null;
   const recordCount = cycle?.data?.length ?? 0;
   const durationDays =
     startToShow && endToShow
@@ -46,6 +58,9 @@ const normalizeCycleRowData = (cycle) => {
 
   return {
     rangeLabel,
+    startLabel,
+    endLabel,
+    currentDay,
     recordCount,
     durationDays,
   };
@@ -426,7 +441,9 @@ const gapAfterCurrentCycle = useMemo(() => {
 );
 
 const CycleRow = ({ cycle, isFirst, isLast }) => {
-  const { rangeLabel, recordCount, durationDays } = normalizeCycleRowData(cycle);
+  const { startLabel, endLabel, currentDay, durationDays } = normalizeCycleRowData(cycle);
+  const days = cycle.isCurrent ? currentDay : durationDays;
+  const barWidth = getCycleBarWidth(days);
   const isSelected = Boolean(cycleForActions?.id && cycleForActions.id === cycle.id);
 
   return (
@@ -441,7 +458,7 @@ const CycleRow = ({ cycle, isFirst, isLast }) => {
         }
       }}
       className={cn(
-        'group relative flex w-full items-start gap-3 px-4 py-3.5 text-left transition-colors duration-150 hover:bg-rose-50/35 active:bg-rose-50/60',
+        'group relative grid w-full grid-cols-[minmax(0,1fr)_auto_2rem] items-center gap-x-1 gap-y-1 px-2 py-3.5 min-[360px]:pl-3 text-left transition-colors duration-150 hover:bg-rose-50/35 active:bg-rose-50/60 sm:pl-5 sm:pr-4',
         isSelected && 'bg-rose-50/60 shadow-[inset_0_0_0_1px_rgba(244,114,182,0.28)]'
       )}
     >
@@ -449,53 +466,49 @@ const CycleRow = ({ cycle, isFirst, isLast }) => {
         <span className="absolute bottom-3 left-0 top-3 w-1 rounded-r-full bg-fertiliapp-fuerte" />
       ) : null}
 
-      <span
-        className={`mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border ${
-          cycle.isCurrent
-            ? 'border-rose-100 bg-rose-50 text-fertiliapp-fuerte'
-            : 'border-rose-100/70 bg-rose-50/55 text-slate-400'
-        }`}
-      >
-        <CalendarDays className="h-4 w-4" />
+      <span className="col-start-1 row-start-1 whitespace-nowrap text-[13px] font-semibold leading-5 text-slate-800 min-[375px]:text-[15px]">
+        {startLabel} — {cycle.isCurrent ? 'En curso' : endLabel}
       </span>
-
-      <div className="min-w-0 flex-1">
-        <div className="mb-1 flex items-start justify-between gap-3">
-          <p className="truncate pr-2 text-[15px] font-semibold leading-5 text-slate-800">
-            {rangeLabel}
-          </p>
-
-          <div className="flex shrink-0 items-center gap-1.5">
-            {cycle.isCurrent ? (
-              <Badge className="rounded-full bg-fertiliapp-fuerte px-2.5 py-0.5 text-[10px] font-semibold text-white shadow-none">
-                Actual
-              </Badge>
-            ) : null}
-
-            {cycle.postpartumMode ? (
-              <Badge
-                variant="outline"
-                className="rounded-full border-rose-100 bg-rose-50 px-2.5 py-0.5 text-[10px] font-medium text-fertiliapp-fuerte"
-              >
-                <Baby className="mr-1 h-3 w-3" />
-              </Badge>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[12px] leading-4 text-slate-500">
-          {durationDays ? <span>{durationDays} días</span> : null}
-          {durationDays ? <span className="text-slate-300">·</span> : null}
-          <span className="font-medium text-slate-500">
-            {recordCount} registro{recordCount !== 1 ? 's' : ''}
-          </span>          
-        </div>
+      <div className="col-start-2 row-start-1 flex items-center gap-1 whitespace-nowrap">
+        {cycle.isCurrent ? (
+          <Badge className="rounded-full bg-fertiliapp-fuerte px-1.5 py-0.5 text-[10px] font-semibold text-white shadow-none min-[375px]:px-2.5">
+            Actual
+          </Badge>
+        ) : null}
+        {cycle.postpartumMode ? (
+          <Badge
+            variant="outline"
+            role="img"
+            aria-label="Posparto"
+            className="rounded-full border-rose-100 bg-rose-50 px-1 py-0.5 text-[10px] font-medium text-fertiliapp-fuerte min-[375px]:px-1.5"
+          >
+            <Baby aria-hidden="true" className="h-3 w-3" />
+          </Badge>
+        ) : null}
+      </div>
+      <div
+        role="img"
+        className="col-span-3 row-start-2 flex min-w-0 items-center gap-2"
+        aria-label={barWidth
+          ? (cycle.isCurrent ? `Día ${days}` : `${days} día${days !== 1 ? 's' : ''}`)
+          : 'Duración no disponible'}
+      >
+        {barWidth > 0 ? (
+          <span
+            aria-hidden="true"
+            className="h-2.5 shrink-0 rounded-full bg-fertiliapp-suave shadow-[inset_0_1px_2px_rgba(107,66,84,0.18)]"
+            style={{ width: `calc((100% - 4rem) * ${barWidth / 100})` }}
+          />
+        ) : null}
+        <span aria-hidden="true" className="relative -top-px shrink-0 text-sm font-medium leading-5 text-[#A45A72]">
+  {barWidth ? days : '—'}
+</span>
       </div>
 
       <button
         type="button"
         aria-label="Abrir acciones del ciclo"
-        className="-mr-1 mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-transparent text-slate-400 transition hover:border-rose-100 hover:bg-rose-50/70 hover:text-fertiliapp-fuerte"
+        className="absolute right-2 top-1/2 z-10 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-transparent text-slate-400 transition hover:border-rose-100 hover:bg-rose-50/70 hover:text-fertiliapp-fuerte sm:right-4"
         onClick={(event) => openActions(event, cycle)}
       >
         <EllipsisVertical className="h-4 w-4" />
@@ -588,7 +601,7 @@ const totalRecordCount = allCycles.reduce(
         </div>
       </div>
 
-        <div className="mx-auto w-full max-w-2xl space-y-5 px-4 pb-1 pt-4">
+        <div className="mx-auto w-full max-w-2xl space-y-5 px-2 pb-1 pt-4 min-[360px]:px-4">
           {currentCycle?.id ? (
             <section className="space-y-2">
               <h2 className="px-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-fertiliapp-fuerte">
