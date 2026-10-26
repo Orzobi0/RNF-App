@@ -25,7 +25,6 @@ import {
   CalendarDays,
   Check,
   CheckCircle2,
-  ChevronRight,
   CirclePlus,
   Heart,
   SlidersHorizontal,
@@ -114,13 +113,24 @@ const Label = ({ htmlFor, className = '', children }) => (
   <label htmlFor={htmlFor} className={className}>
     {htmlFor === 'toggle-relations-row' ? (
       <span className="flex items-center gap-2">
-        <Heart className="h-4 w-4 text-rose-400" aria-hidden="true" />
+        <Heart className="h-[18px] w-[18px] shrink-0 text-[#D85C70]" aria-hidden="true" />
         <span>{children}</span>
       </span>
     ) : (
       children
     )}
   </label>
+);
+
+const SwitchIndicator = ({ checked, icon: Icon }) => (
+  <span
+    aria-hidden="true"
+    className={`relative inline-flex h-[26px] w-[54px] shrink-0 items-center rounded-full transition-colors duration-200 motion-reduce:transition-none ${checked ? 'bg-[#D85C70]' : 'bg-slate-200'}`}
+  >
+    <span className={`inline-flex h-5 w-5 items-center justify-center rounded-full bg-white shadow-sm transition-[transform,color] duration-200 motion-reduce:transition-none ${checked ? 'translate-x-[31px] text-[#D85C70]' : 'translate-x-[3px] text-slate-400'}`}>
+      {Icon ? <Icon className="h-3.5 w-3.5" /> : null}
+    </span>
+  </span>
 );
 
 const Checkbox = ({
@@ -130,6 +140,8 @@ const Checkbox = ({
   disabled = false,
   className = '',
   variant = 'check',
+  icon: SwitchIcon,
+  ariaLabel,
 }) => {
   const handleToggle = () => {
     if (disabled) return;
@@ -142,18 +154,13 @@ const Checkbox = ({
         id={id}
         type="button"
         role="switch"
+        aria-label={ariaLabel}
         aria-checked={checked}
         disabled={disabled}
         onClick={handleToggle}
-        className={`relative inline-flex h-5 w-9 min-w-9 shrink-0 flex-none items-center rounded-full transition ${
-          checked ? 'bg-rose-400' : 'bg-slate-300'
-        } ${disabled ? 'cursor-not-allowed opacity-50' : ''} ${className}`}
+        className={`inline-flex shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2 ${disabled ? 'cursor-not-allowed opacity-50' : ''} ${className}`}
       >
-        <span
-          className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
-            checked ? 'translate-x-4' : 'translate-x-0.5'
-          }`}
-        />
+        <SwitchIndicator checked={checked} icon={SwitchIcon} />
       </button>
     );
   }
@@ -633,17 +640,21 @@ useEffect(() => {
     return active.length > 0 ? active.join(' · ') : 'Sin cálculos activos';
   }, [cyclePostpartumMode, cpmSelection, t8Selection]);
 
-  const interpretationCardChips = useMemo(() => {
-    const fertileStartChip = targetCycle?.interpretationOverrides?.fertileStart?.mode === 'manual'
-      ? 'Inicio fértil: Manual'
-      : 'Inicio fértil: Auto';
+  const interpretationCardRows = useMemo(() => {
+    const fertileStartState = targetCycle?.interpretationOverrides?.fertileStart?.mode === 'manual'
+      ? 'Manual'
+      : 'Auto';
     const temperatureMode = targetCycle?.interpretationOverrides?.temperatureRise?.mode;
-    const thermalChip = temperatureMode === 'ignored'
-      ? 'Subida térmica: Ignorada'
+    const thermalState = temperatureMode === 'ignored'
+      ? 'Ignorada'
       : temperatureMode === 'manual'
-        ? 'Subida térmica: Manual'
-        : 'Subida térmica: Auto';
-    return [fertileStartChip, thermalChip, calculatorPanelSummary];
+        ? 'Manual'
+        : 'Auto';
+    return [
+      { label: 'Inicio fértil', value: fertileStartState },
+      { label: 'Subida térmica', value: thermalState },
+      { label: 'Cálculos', value: calculatorPanelSummary },
+    ];
   }, [
     calculatorPanelSummary,
     targetCycle?.interpretationOverrides?.fertileStart?.mode,
@@ -1458,64 +1469,72 @@ const rotatedDrawerStyle = applyRotation
                 ×
               </Button>
             </div>
-            <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
+            <div className="min-h-0 space-y-3 overflow-y-auto pr-1">
                             <button
                 type="button"
-                className="w-full rounded-2xl border border-orange-100/70 bg-orange-50/40 p-4 text-left transition hover:border-orange-200 hover:bg-orange-50/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-200"
+                className="w-full rounded-2xl border border-rose-100/70 bg-rose-50/30 p-4 text-left shadow-[0_6px_18px_rgba(104,72,86,0.08)] transition hover:border-rose-200 hover:bg-rose-50/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300"
                 onClick={openInterpretationSettings}
               >
                 <div className="flex items-start gap-3">
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-orange-600">
+                    <div className="flex items-center gap-1">
+                      <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[#D85C70]">
                         <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
                       </span>
                       <h3 className="text-sm font-semibold text-slate-700">
                         Ajustes de interpretación
                       </h3>
                     </div>
-                    <p className="mt-1 text-xs leading-relaxed text-slate-500">
-                      Configura cómo se interpreta este ciclo.
-                    </p>
-                    <div className="mt-3 flex flex-wrap gap-1.5">
-                      {interpretationCardChips.map((chip) => (
-                        <span
-                          key={chip}
-                          className="rounded-full border border-orange-100 bg-white/80 px-2 py-0.5 text-[11px] font-medium text-slate-500"
-                        >
-                          {chip}
-                        </span>
-                      ))}
-                    </div>
                   </div>
-                  <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+                </div>
+                <div className="mt-3 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-center gap-x-2 text-xs">
+                  {interpretationCardRows.map(({ label, value }) => (
+                    <React.Fragment key={label}>
+                      <span className={`flex min-h-[30px] items-center py-1 font-medium ${
+  label === 'Inicio fértil'
+    ? 'text-[#A64D72]'
+    : label === 'Subida térmica'
+      ? 'text-[#A15467]'
+      : label === 'Cálculos'
+        ? 'text-[#486E8C]'
+        : 'text-slate-700'
+}`}>
+  {label}
+</span>
+                      <span className={`min-w-0 py-1 text-right text-[11px] font-medium leading-4 ${
+                        value === 'Manual' ? 'text-[#B9495F]'
+                          : value === 'Ignorada' || value === 'Cálculo omitido' ? 'text-amber-700'
+                          : label === 'Cálculos' && value !== 'Sin cálculos activos' ? 'text-[#4E7393]'
+                          : 'text-slate-600'
+                      }`}>{value}</span>
+                    </React.Fragment>
+                  ))}
                 </div>
               </button>
               
-<div className="rounded-2xl border border-red-100/70 bg-red-50/40 p-4">
-  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2">
-    <div className="flex items-center gap-2 min-w-0">
-      <span className="inline-flex items-center justify-center rounded-full  bg-rose-50/90 p-1 text-rose-600">
-        <Baby className="h-3.5 w-3.5" aria-hidden="true" />
-      </span>
-      <p className="text-sm font-semibold text-slate-700">Modo postparto</p>
-    </div>
-
-    <Checkbox
-      variant="switch"
-      checked={cyclePostpartumMode}
-      onCheckedChange={handlePostpartumChange}
-      className="mt-0.5"
-    />
-
-    <p className="col-span-2 text-xs leading-relaxed text-slate-500">
-      Si está activo, se aplicarán sus reglas correspondientes.
+<div>
+  <button
+    type="button"
+    role="switch"
+    aria-label="Modo postparto"
+    aria-checked={cyclePostpartumMode}
+    onClick={() => handlePostpartumChange(!cyclePostpartumMode)}
+    className={`flex min-h-[68px] w-full items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition-[background-color,border-color,box-shadow] duration-200 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-rose-300 ${cyclePostpartumMode
+      ? 'border-rose-200 bg-rose-50 shadow-[0_6px_18px_rgba(216,92,112,0.12)]'
+      : 'border-rose-200/80 bg-white shadow-[0_6px_18px_rgba(104,72,86,0.08)] hover:bg-rose-50/45'}`}
+  >
+    <span className="min-w-0 text-sm font-semibold text-slate-700">Modo postparto</span>
+    <SwitchIndicator checked={cyclePostpartumMode} icon={Baby} />
+  </button>
+  {cyclePostpartumMode && (
+    <p className="mt-2 px-1 text-xs leading-relaxed text-[#D85C70]">
+      Postparto activo: se aplicarán sus reglas correspondientes
     </p>
-  </div>
-</div> 
-              
-<div className="rounded-2xl border border-pink-100/70 bg-pink-50/40 p-4">
-  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2">
+  )}
+</div>
+
+<div className="rounded-2xl border border-rose-100/70 bg-rose-50/30 p-4 shadow-[0_6px_18px_rgba(104,72,86,0.08)]">
+  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2">
     <Label htmlFor="toggle-relations-row" className="text-sm font-semibold text-slate-700">
       Mostrar relaciones
     </Label>
@@ -1525,7 +1544,6 @@ const rotatedDrawerStyle = applyRotation
       variant="switch"
       checked={chartSettings.showRelationsRow}
       onCheckedChange={handleRelationsSettingChange}
-      className="mt-0.5"
     />
 
     <p className="col-span-2 text-xs leading-relaxed text-slate-500">

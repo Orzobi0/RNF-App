@@ -207,7 +207,7 @@ const getThermalChip = ({ manualActive, ignoredActive, summary, summaryOutOfRule
   if (ignoredActive) {
     return {
       label: 'Ignorada',
-      className: 'border-slate-200 bg-slate-100 text-slate-700',
+      className: 'border-amber-200 bg-amber-50 text-amber-700',
     };
   }
 
@@ -227,14 +227,14 @@ const getThermalChip = ({ manualActive, ignoredActive, summary, summaryOutOfRule
     }
     return {
       label: 'Manual',
-      className: 'border-rose-200 bg-rose-50 text-rose-700',
+      className: 'border-rose-200 bg-rose-50 text-[#B9495F]',
     };
   }
 
   if (summary?.status === 'confirmed') {
     return {
       label: 'Auto',
-      className: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+      className: 'border-slate-200 bg-slate-50 text-slate-600',
     };
   }
 
@@ -248,7 +248,7 @@ const getFertileStartChip = ({ manualActive, summary, warning }) => {
   if (manualActive) {
     return {
       label: 'Manual',
-      className: 'border-pink-200 bg-pink-50 text-pink-700',
+      className: 'border-rose-200 bg-rose-50 text-[#B9495F]',
       warning: Boolean(warning),
     };
   }
@@ -260,11 +260,18 @@ const getFertileStartChip = ({ manualActive, summary, warning }) => {
   }
   return {
     label: 'Auto',
-    className: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    className: 'border-slate-200 bg-slate-50 text-slate-600',
   };
 };
 
-const SectionHeader = ({ title, chip, expanded, onToggle, disabled = false }) => (
+const SectionHeader = ({
+  title,
+  chip,
+  expanded,
+  onToggle,
+  disabled = false,
+  titleClassName = 'text-slate-800',
+}) => (
   <button
     type="button"
     className={`flex min-h-12 w-full items-center gap-3 px-3 py-2.5 text-left ${
@@ -274,7 +281,9 @@ const SectionHeader = ({ title, chip, expanded, onToggle, disabled = false }) =>
     disabled={disabled}
     aria-expanded={disabled ? undefined : expanded}
   >
-    <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800">{title}</span>
+    <span className={`min-w-0 flex-1 truncate text-sm font-semibold ${titleClassName}`}>
+  {title}
+</span>
     <span
       className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
         chip?.className ?? 'border-slate-200 bg-slate-50 text-slate-500'
@@ -353,8 +362,8 @@ const CalculatorStatusChip = ({ status }) => {
   const className = normalized.includes('sin usar')
     ? 'border-slate-200 bg-slate-50 text-slate-600'
     : normalized.includes('manual')
-      ? 'border-rose-200 bg-rose-50 text-rose-700'
-      : 'border-emerald-200 bg-emerald-50 text-emerald-700';
+      ? 'border-rose-200 bg-rose-50 text-[#B9495F]'
+      : 'border-blue-200 bg-blue-50 text-[#4E7393]';
 
   return (
     <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${className}`}>
@@ -704,46 +713,12 @@ style={dialogPanelStyle}
         </header>
 
         <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-3 pb-2 pt-3 sm:px-4 sm:pb-4">
-          <section className="overflow-hidden rounded-2xl border border-emerald-200/70 bg-gradient-to-br from-emerald-50/70 to-teal-50/40">
-            <SectionHeader
-              title="Cálculo"
-              chip={{
-                label: cyclePostpartumMode ? 'Omitido por postparto' : calculatorSummary,
-                className: cyclePostpartumMode
-                  ? 'border-rose-200 bg-rose-50 text-rose-600'
-                  : 'border-emerald-200 bg-emerald-50 text-emerald-700',
-              }}
-              expanded={calculationExpanded}
-              onToggle={toggleCalculation}
-            />
 
-            <ExpandableContent
-  open={calculationExpanded}
-  instant={isRotated}
-  className="space-y-2 border-t border-emerald-100 bg-white/75 px-3 py-3"
->
-                {cyclePostpartumMode && (
-                  <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs leading-relaxed text-rose-600">
-                    El modo postparto está activo: CPM y T-8 se omiten del cálculo final.
-                  </p>
-                )}
-
-                <div className="space-y-2">
-                  {calculatorItems.map((item) => (
-                    <CalculatorRow
-                      key={item.key}
-                      item={item}
-                      postpartum={cyclePostpartumMode}
-                      onEdit={onCalculatorEdit}
-                    />
-                  ))}
-                </div>
-            </ExpandableContent>
-          </section>
 
           <section className="overflow-hidden rounded-2xl border border-pink-100 bg-gradient-to-br from-pink-50/65 to-rose-50/35">
             <SectionHeader
               title="Inicio fértil"
+              titleClassName="text-[#A64D72]"
               chip={fertileStartChip}
               expanded={fertileStartExpanded}
               onToggle={toggleFertileStart}
@@ -806,6 +781,7 @@ style={dialogPanelStyle}
           <section className="overflow-hidden rounded-2xl border border-red-100 bg-gradient-to-br from-red-50/60 to-rose-50/35">
             <SectionHeader
               title="Subida térmica"
+              titleClassName="text-[#A15467]"
               chip={thermalChip}
               expanded={thermalExpanded}
               onToggle={toggleThermal}
@@ -915,6 +891,45 @@ style={dialogPanelStyle}
                     )}
                   </div>
                 )}
+            </ExpandableContent>
+          </section>
+                    <section className="overflow-hidden rounded-2xl border border-blue-200/70 bg-gradient-to-br from-blue-50/70 to-sky-50/40">
+            <SectionHeader
+              title="Cálculo"
+              titleClassName="text-[#486E8C]"
+              chip={{
+                label: cyclePostpartumMode ? 'Omitido por postparto' : calculatorSummary,
+                className: cyclePostpartumMode
+                  ? 'border-amber-200 bg-amber-50 text-amber-700'
+                  : calculatorSummary === 'Sin cálculos activos'
+                    ? 'border-slate-200 bg-slate-50 text-slate-600'
+                    : 'border-blue-200 bg-blue-50 text-[#4E7393]',
+              }}
+              expanded={calculationExpanded}
+              onToggle={toggleCalculation}
+            />
+
+            <ExpandableContent
+  open={calculationExpanded}
+  instant={isRotated}
+  className="space-y-2 border-t border-blue-100 bg-white/75 px-3 py-3"
+>
+                {cyclePostpartumMode && (
+                  <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-700">
+                    El modo postparto está activo: CPM y T-8 se omiten del cálculo final.
+                  </p>
+                )}
+
+                <div className="space-y-2">
+                  {calculatorItems.map((item) => (
+                    <CalculatorRow
+                      key={item.key}
+                      item={item}
+                      postpartum={cyclePostpartumMode}
+                      onEdit={onCalculatorEdit}
+                    />
+                  ))}
+                </div>
             </ExpandableContent>
           </section>
         </div>
