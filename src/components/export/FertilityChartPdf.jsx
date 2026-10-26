@@ -1,42 +1,25 @@
-import React, { useMemo } from 'react';
+import React from 'react';
+import { Heart } from 'lucide-react';
+import { chartTheme } from '@/components/chartElements/chartTheme';
 import { getSymbolAppearance, getSymbolColorPalette } from '@/config/fertilitySymbols';
 
 const PALETTE = {
-  pageBg: '#fffdfd',
-  panelBg: '#ffffff',
-  panelBorder: '#f3d7e2',
-  chartBg: '#ffffff',
-  chartBorder: '#e8bfd0',
-  gridMajor: '#efc1d1',
-  gridMinor: '#f8e3eb',
-  verticalMajor: '#efd0dc',
-  verticalMinor: '#f7e7ee',
-  textStrong: '#8f1a55',
+  textStrong: chartTheme.palette.darkRoseText,
   text: '#475569',
-  textMuted: '#64748b',
-  tempLine: '#e25576',
-  tempLineHalo: '#fff2f7',
-  tempPoint: '#e25576',
-  tempPointIgnoredFill: '#d4dbe6',
-  tempPointIgnoredStroke: '#8a95a8',
-  correctionLine: '#94a3b8',
-  rowHeaderBg: '#fce7f0',
-  rowBorder: '#e8cbd7',
-  rowAlt: '#fff8fb',
+  tempLine: chartTheme.palette.mainBrand,
+  tempPoint: chartTheme.points.fill,
+};
+
+// Category tokens from src/index.css, kept explicit for standalone SVG export.
+const ROW_ACCENTS = {
+  mucusSensation: { color: '#4C9BB8' },
+  mucusAppearance: { color: '#5BBF9A' },
+  observations: { color: '#B58ACB' },
+  had_relations: { color: '#E37988' },
 };
 
 const DEFAULT_TEMP_MIN = 36.0;
-const DEFAULT_TEMP_MAX = 37.5;
-
-const TEXT_RULES = {
-  date: { maxLines: 1, maxCharsBase: 11 },
-  cycleDay: { maxLines: 1, maxCharsBase: 6 },
-  fertility_symbol: { maxLines: 1, maxCharsBase: 12 },
-  mucusSensation: { maxLines: 5, maxCharsBase: 22 },
-  mucusAppearance: { maxLines: 5, maxCharsBase: 22 },
-  observations: { maxLines: 5, maxCharsBase: 24 },
-  had_relations: { maxLines: 1, maxCharsBase: 4 },
-};
+const DEFAULT_TEMP_MAX = 37.2;
 
 const normalizeTemp = (value) => {
   if (value === null || value === undefined) return null;
@@ -61,7 +44,7 @@ const toSafeBool = (value) => {
   return false;
 };
 
-const resolveTemperaturePoint = (entry, index) => {
+export const resolveTemperaturePoint = (entry, index) => {
   const measurements = Array.isArray(entry?.measurements) ? entry.measurements : [];
   const selectedMeasurement =
     measurements.find((measurement) => measurement?.selected) ?? null;
@@ -84,13 +67,13 @@ const resolveTemperaturePoint = (entry, index) => {
   );
 
   const displayTemperature = normalizeTemp(
-  entry?.displayTemperature ??
+    (selectedMeasurement ? (useCorrected ? corrected : raw) : entry?.displayTemperature) ??
     (useCorrected ? corrected : raw) ??
     corrected ??
     raw
-);
+  );
 
-if (displayTemperature === null) return null;
+  if (displayTemperature === null) return null;
 
   const ignored = toSafeBool(
     selectedMeasurement?.ignoredForCalc ??
@@ -107,19 +90,19 @@ if (displayTemperature === null) return null;
     Math.abs(displayTemperature - corrected) < 1e-6;
 
   return {
-  index,
-  cycleDay: Number.isFinite(Number(entry?.cycleDay)) ? Number(entry.cycleDay) : index + 1,
-  displayTemperature,
-  raw,
-  corrected,
-  ignored,
-  hasCorrection,
-};
+    index,
+    cycleDay: Number.isFinite(Number(entry?.cycleDay)) ? Number(entry.cycleDay) : index + 1,
+    displayTemperature,
+    raw,
+    corrected,
+    ignored,
+    hasCorrection,
+  };
 };
 
 const buildTempTicks = (minTemp, maxTemp) => {
   const ticks = [];
-  for (let t = minTemp; t <= maxTemp + 1e-6; t += 0.1) ticks.push(Number(t.toFixed(1)));
+  for (let tenth = Math.round(minTemp * 10); tenth <= Math.round(maxTemp * 10); tenth++) ticks.push(tenth / 10);
   return ticks;
 };
 
@@ -157,54 +140,6 @@ const getEntryPeakStatus = (entry) =>
       entry?.peak_marker
   );
 
-const wrapTextWithLimit = (text, maxCharsPerLine, maxLines) => {
-  const value = String(text ?? '').trim();
-  if (!value) return [];
-
-  const words = value.split(/\s+/);
-  const lines = [];
-  let current = '';
-
-  words.forEach((word) => {
-    if (!current) {
-      current = word;
-      return;
-    }
-    const candidate = `${current} ${word}`;
-    if (candidate.length <= maxCharsPerLine) {
-      current = candidate;
-    } else {
-      lines.push(current);
-      current = word;
-    }
-  });
-
-  if (current) lines.push(current);
-  if (lines.length <= maxLines) return lines;
-
-  const truncated = lines.slice(0, maxLines);
-  truncated[maxLines - 1] = `${truncated[maxLines - 1].replace(/[.\s…]+$/g, '').slice(0, Math.max(1, maxCharsPerLine - 1))}…`;
-  return truncated;
-};
-
-const getCellLines = (entry, rowKey, colW) => {
-  if (rowKey === 'fertility_symbol') {
-    const symbol = getSymbolAppearance(entry?.fertility_symbol);
-    if (!symbol || symbol.value === 'none') return [];
-    return [symbol.label ?? ''];
-  }
-
-  let base = '';
-  if (rowKey === 'date') base = formatDateShort(entry);
-  else if (rowKey === 'cycleDay') base = entry?.cycleDay ? `D${entry.cycleDay}` : '';
-  else if (rowKey === 'had_relations') base = entry?.had_relations ? 'Sí' : '';
-  else base = entry?.[rowKey] ?? '';
-
-  const rules = TEXT_RULES[rowKey] ?? { maxLines: 2, maxCharsBase: 16 };
-  const maxCharsPerLine = Math.max(4, Math.min(32, Math.floor(colW / 7.2) + Math.floor(rules.maxCharsBase / 4)));
-  return wrapTextWithLimit(base, maxCharsPerLine, rules.maxLines);
-};
-
 const drawSymbol = ({ entry, x, y, width, height }) => {
   const symbolInfo = getSymbolAppearance(entry?.fertility_symbol);
   if (!symbolInfo || symbolInfo.value === 'none') return null;
@@ -234,480 +169,181 @@ const drawSymbol = ({ entry, x, y, width, height }) => {
   );
 };
 
-const FertilityChartPdf = ({
-  entries = [],
-  width = 1600,
-  height = 900,
-  title = '',
-  includeRs = true,
-  embedded = false,
-  showTitle = true,
-  fixedDaySlots = 31,
-}) => {
-  const layout = useMemo(() => {
-    const margin = embedded
-  ? { top: 6, right: 18, bottom: 12, left: 18 }
-  : { top: 20, right: 24, bottom: 18, left: 24 };
-
-const panelPadding = embedded ? 8 : 14;
-const titleH = showTitle ? 30 : 0;
-const chartRowsGap = 6;
-
-const panelInnerH = height - margin.top - margin.bottom - panelPadding * 2 - titleH;
-const graphAreaH = Math.round(panelInnerH * 0.31);
-const rowsAreaH = panelInnerH - graphAreaH;
-
-    const rows = [
-      { key: 'date', label: 'Fecha', minHeight: 17, lineHeight: 9.5, paddingY: 3.5 },
-      { key: 'cycleDay', label: 'Día', minHeight: 17, lineHeight: 9.5, paddingY: 3.5 },
-      { key: 'fertility_symbol', label: 'Símbolo', minHeight: 20, lineHeight: 10, paddingY: 3.8 },
-      { key: 'mucusSensation', label: 'Sensación', minHeight: 18, lineHeight: 9.8, paddingY: 3.5 },
-      { key: 'mucusAppearance', label: 'Apariencia', minHeight: 18, lineHeight: 9.8, paddingY: 3.5 },
-      { key: 'observations', label: 'Observaciones', minHeight: 18, lineHeight: 9.8, paddingY: 3.5 },
-    ];
-
-    if (includeRs) rows.push({ key: 'had_relations', label: 'RS', minHeight: 17, lineHeight: 9.5, paddingY: 3.5 });
-
-    const temperaturePoints = entries
-  .map((entry, index) => resolveTemperaturePoint(entry, index))
-  .filter(Boolean);
-
-const calculationTemperatures = temperaturePoints
-  .filter((point) => !point.ignored)
-  .map((point) => point.displayTemperature)
-  .filter((value) => value !== null);
-
-const safeMin = calculationTemperatures.length
-  ? Math.min(...calculationTemperatures)
-  : DEFAULT_TEMP_MIN;
-const safeMax = calculationTemperatures.length
-  ? Math.max(...calculationTemperatures)
-  : DEFAULT_TEMP_MAX;
-    const desiredRange = DEFAULT_TEMP_MAX - DEFAULT_TEMP_MIN;
-    let minTemp = Math.floor((Math.min(safeMin, DEFAULT_TEMP_MIN) - 0.1) * 10) / 10;
-    let maxTemp = Math.ceil((Math.max(safeMax, DEFAULT_TEMP_MAX) + 0.1) * 10) / 10;
-
-    if (maxTemp - minTemp < desiredRange) {
-      const midpoint = (minTemp + maxTemp) / 2;
-      minTemp = Math.floor((midpoint - desiredRange / 2) * 10) / 10;
-      maxTemp = Math.ceil((midpoint + desiredRange / 2) * 10) / 10;
-    }
-
-    const dayCount = Math.max(1, entries.length);
-const chartLeft = margin.left + panelPadding + 78;
-
-const maxChartRight = width - margin.right - panelPadding;
-const maxChartW = maxChartRight - chartLeft;
-
-// 31 huecos estándar.
-// Si algún día hubiese más de 31, no desbordamos: reducimos para que siga cabiendo.
-const slotCount = Math.max(dayCount, fixedDaySlots);
-
-const colW = maxChartW / slotCount;
-const chartW = colW * dayCount;
-const chartRight = chartLeft + chartW;
-
-    const panelX = margin.left;
-    const panelY = margin.top;
-    const panelW = width - margin.left - margin.right;
-
-    const titleY = panelY + panelPadding + 8;
-    const chartTop = panelY + panelPadding + titleH;
-    const chartBottom = chartTop + graphAreaH;
-    const rowsTop = chartBottom + chartRowsGap;
-    const rowHeights = rows.map((row) => {
-      const maxLines = Math.max(
-        1,
-        ...entries.map((entry) => {
-          if (row.key === 'fertility_symbol') {
-            const symbol = getSymbolAppearance(entry?.fertility_symbol);
-            return symbol && symbol.value !== 'none' ? 1 : 0;
-          }
-          return getCellLines(entry, row.key, colW).length;
-        }),
-      );
-      return Math.max(row.minHeight, row.paddingY * 2 + maxLines * row.lineHeight);
-    });
-    const rowsContentH = rowHeights.reduce((acc, value) => acc + value, 0);
-    const rowsBottom = rowsTop + rowsContentH;
-    const panelContentBottom = rowsBottom + panelPadding;
-    const panelH = panelContentBottom - panelY;
-    const svgHeight = panelContentBottom + margin.bottom;
-
-    return {
-      margin,
-      panelPadding,
-      panelX,
-      panelY,
-      panelW,
-      panelH,
-      svgHeight,
-      titleY,
-      graphAreaH,
-      rowsAreaH,
-      chartRowsGap,
-      rows,
-      rowHeights,
-      rowsBottom,
-      minTemp,
-      maxTemp,
-      ticks: buildTempTicks(minTemp, maxTemp),
-      chartLeft,
-      chartRight,
-      chartW,
-      colW,
-      chartTop,
-      chartBottom,
-      rowsTop,
-      dayCount,
-      temperaturePoints,
-    };
-  }, [embedded, entries, fixedDaySlots, height, includeRs, showTitle, width]);
-
-  const tempRange = Math.max(layout.maxTemp - layout.minTemp, 0.1);
-  const getX = (index) => layout.chartLeft + layout.colW * (index + 0.5);
-  const getY = (temperature) =>
-    layout.chartBottom - ((temperature - layout.minTemp) / tempRange) * layout.graphAreaH;
-
-  const inDisplayRange = (temp) =>
-  temp !== null && temp >= layout.minTemp && temp <= layout.maxTemp;
-
-  const points = layout.temperaturePoints
-    .filter(Boolean)
-    .filter((point) => point.displayTemperature !== null)
-    .filter((point) => inDisplayRange(point.displayTemperature));
-
-   // - La línea principal solo usa puntos válidos NO ignorados y tramos consecutivos.
-  // - La línea secundaria conecta todos los puntos válidos en orden cuando hay huecos.
-  const linePoints = points.filter((point) => !point.ignored);
-
-  let mainPath = '';
-  let lastValidIndex = null;
-  let hasIndexGaps = false;
-
-  linePoints.forEach((point) => {
-    const x = getX(point.index);
-    const y = getY(point.displayTemperature);
-
-    if (lastValidIndex !== null) {
-      if (point.index === lastValidIndex + 1) {
-        mainPath += ` L ${x} ${y}`;
-      } else {
-        mainPath += `${mainPath ? ' ' : ''}M ${x} ${y}`;
-        hasIndexGaps = true;
-      }
-    } else {
-      mainPath = `M ${x} ${y}`;
-    }
-
-    lastValidIndex = point.index;
+// Logical units are paper points, independent of raster resolution (240 dpi).
+export const PDF_CHART = Object.freeze({ width: 273 * 72 / 25.4, labelWidth: 70, slots: 31, fontSize: 6, lineHeight: 7.5, maxCellLines: 5 });
+export const getCycleTemperatureRange = (entries) => {
+  let min = DEFAULT_TEMP_MIN;
+  let max = DEFAULT_TEMP_MAX;
+  entries.forEach((entry, index) => {
+    const point = resolveTemperaturePoint(entry, index);
+    if (!point) return;
+    const values = point.hasCorrection ? [point.displayTemperature, point.raw] : [point.displayTemperature];
+    values.forEach(value => { min = Math.min(min, value - 0.1); max = Math.max(max, value + 0.1); });
   });
+  // Round only the axis limits outwards; tolerance avoids an extra step from
+  // floating-point arithmetic at an exact tenth. Measurement values stay intact.
+  return { minTemp: Math.floor(min * 10 + 1e-9) / 10, maxTemp: Math.ceil(max * 10 - 1e-9) / 10 };
+};
 
-    const hasContinuousSegment = mainPath.includes('L');
-  const gapConnectorPath =
-    hasIndexGaps && linePoints.length > 1
-      ? linePoints
-          .map((point, idx) => {
-            const x = getX(point.index);
-            const y = getY(point.displayTemperature);
-            return `${idx === 0 ? 'M' : 'L'} ${x} ${y}`;
-          })
-          .join(' ')
-      : '';
+export const buildTemperaturePaths = (points, getX, getY) => {
+  const valid = points.filter(point => !point.ignored);
+  let mainPath = '';
+  let gapConnectorPath = '';
+  for (let i = 1; i < valid.length; i++) {
+    const a = valid[i - 1];
+    const b = valid[i];
+    const segment = `M ${getX(a.index)} ${getY(a.displayTemperature)} L ${getX(b.index)} ${getY(b.displayTemperature)} `;
+    if (b.cycleDay === a.cycleDay + 1 && b.index === a.index + 1) mainPath += segment;
+    else gapConnectorPath += segment;
+  }
+  return { mainPath: mainPath.trim(), gapConnectorPath: gapConnectorPath.trim() };
+};
 
-  let rowCursor = layout.rowsTop;
+let cellTextContext;
+// Canvas and SVG use the same Arial size in logical paper points.
+// Reserve one point on either side of the centered cell text.
+export const getPdfCellLines = (text, widthPt = (PDF_CHART.width - PDF_CHART.labelWidth) / PDF_CHART.slots - 2) => {
+  const value = String(text ?? '').trim();
+  if (!value) return [];
+  cellTextContext ??= document.createElement('canvas').getContext('2d');
+  if (!cellTextContext) throw new Error('No se pudo medir el texto de la gráfica PDF.');
+  cellTextContext.font = `${PDF_CHART.fontSize}px Arial`;
+  const fits = value => cellTextContext.measureText(value).width <= widthPt;
+  const segmenter = typeof Intl.Segmenter === 'function'
+    ? new Intl.Segmenter(undefined, { granularity: 'grapheme' }) : null;
+  const lines = [];
+  for (const paragraph of value.split(/\r?\n/)) {
+    let line = '';
+    for (const word of paragraph.split(/\s+/).filter(Boolean)) {
+      if (line && fits(`${line} ${word}`)) { line += ` ${word}`; continue; }
+      if (line) { lines.push(line); line = ''; }
+      const characters = segmenter
+        ? Array.from(segmenter.segment(word), part => part.segment) : Array.from(word);
+      for (const character of characters) {
+        if (line && !fits(line + character)) { lines.push(line); line = ''; }
+        line += character;
+      }
+    }
+    lines.push(line);
+  }
+  return lines;
+};
 
+export const preparePdfChart = (entries = [], includeRs = true, temperatureRange = getCycleTemperatureRange(entries)) => {
+  if (entries.length > PDF_CHART.slots) throw new Error('Un bloque PDF no puede superar 31 días.');
+  const notes = [];
+  const cells = entries.map(entry => {
+    const result = {};
+    for (const [key, label] of [['mucusSensation', 'Sensación'], ['mucusAppearance', 'Apariencia'], ['observations', 'Observaciones']]) {
+      const text = String(entry?.[key] ?? '');
+      const lines = getPdfCellLines(text);
+      if (lines.length <= PDF_CHART.maxCellLines) {
+        result[key] = lines;
+      } else {
+        // Numbering is local to the identified block: at most 31 days x 3 fields.
+        // A dedicated fifth line keeps even [93] inside the fixed-width column.
+        const number = notes.length + 1;
+        result[key] = [...lines.slice(0, PDF_CHART.maxCellLines - 1), `[${number}]`];
+        notes.push({ number, cycleDay: entry.cycleDay, date: formatDateShort(entry), label, text });
+      }
+    }
+    result.date = [formatDateShort(entry)];
+    result.cycleDay = [String(entry.cycleDay ?? '')];
+    result.had_relations = [toSafeBool(entry.had_relations) ? 'Sí' : ''];
+    return result;
+  });
+  const rows = [
+    { key: 'date', label: 'Fecha' }, { key: 'cycleDay', label: 'Día del ciclo' },
+    { key: 'fertility_symbol', label: 'Símbolo' },
+    { key: 'mucusSensation', label: 'Sensación' }, { key: 'mucusAppearance', label: 'Apariencia' },
+    { key: 'observations', label: 'Observaciones' },
+    ...(includeRs ? [{ key: 'had_relations', label: 'Relaciones' }] : []),
+  ].map(row => {
+    const isTextRow = ['mucusSensation', 'mucusAppearance', 'observations'].includes(row.key);
+    const fontSize = isTextRow ? PDF_CHART.fontSize : row.key === 'date' ? 7.5 : 8;
+    const lineHeight = isTextRow ? PDF_CHART.lineHeight : 10;
+    return { ...row, fontSize, lineHeight, height: 4 + lineHeight * Math.max(1, ...cells.map(cell => cell[row.key]?.length ?? 1)) };
+  });
+  const ticks = buildTempTicks(temperatureRange.minTemp, temperatureRange.maxTemp);
+  // 5 mm per tenth in the usual range. The 80 mm ceiling accommodates wide
+  // ranges plus three five-line rows on one A4 page, without hiding any points.
+  // This depends only on the cycle range, never on fitting two blocks on a page.
+  const graphHeight = Math.min(80, (temperatureRange.maxTemp - temperatureRange.minTemp) * 10 * 5) * 72 / 25.4;
+  const chartTop = 16;
+  return {
+    ...temperatureRange, cells, rows, notes, ticks, chartTop, graphHeight,
+    width: PDF_CHART.width, colW: (PDF_CHART.width - PDF_CHART.labelWidth) / PDF_CHART.slots,
+    height: chartTop + graphHeight + rows.reduce((sum, row) => sum + row.height, 0) + 12,
+    points: entries.map(resolveTemperaturePoint).filter(Boolean),
+  };
+};
+
+const FertilityChartPdf = ({ entries = [], includeRs = true, temperatureRange, layout: prepared }) => {
+  const layout = prepared ?? preparePdfChart(entries, includeRs, temperatureRange);
+  const left = PDF_CHART.labelWidth;
+  const right = left + entries.length * layout.colW;
+  const bottom = layout.chartTop + layout.graphHeight;
+  const getX = index => left + (index + 0.5) * layout.colW;
+  const getY = temp => bottom - (temp - layout.minTemp) / (layout.maxTemp - layout.minTemp) * layout.graphHeight;
+  const { mainPath, gapConnectorPath } = buildTemperaturePaths(layout.points, getX, getY);
+  // Keep every tenth as a grid line; only space labels out for exceptional ranges.
+  const tickLabelStep = Math.max(1, Math.ceil(10 / (layout.graphHeight / ((layout.maxTemp - layout.minTemp) * 10))));
+  let rowY = bottom;
+  const boardBottom = layout.height - 12;
+  const monthChanges = entries.map((entry, index) => index > 0 &&
+    formatDateShort(entry).slice(-2) !== formatDateShort(entries[index - 1]).slice(-2));
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width={width} height={layout.svgHeight} viewBox={`0 0 ${width} ${layout.svgHeight}`}>
-      <defs>
-        <linearGradient id="pdf-temp-line-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#f9738f" />
-          <stop offset="50%" stopColor="#e25576" />
-          <stop offset="100%" stopColor="#be2f5e" />
-        </linearGradient>
-        <pattern id="spotting-pattern-pdf" patternUnits="userSpaceOnUse" width="6" height="6">
-          <rect width="6" height="6" fill="#fb7185" />
-          <circle cx="3" cy="3" r="1.4" fill="rgba(255,255,255,0.85)" />
-        </pattern>
-      </defs>
-
-      <rect x="0" y="0" width={width} height={layout.svgHeight} fill={PALETTE.pageBg} />
-      <rect
-        x={layout.panelX}
-        y={layout.panelY}
-        width={layout.panelW}
-        height={layout.panelH}
-        rx="16"
-        fill={PALETTE.panelBg}
-        stroke={PALETTE.panelBorder}
-      />
-
-      {showTitle ? (
-  <text x={layout.chartLeft} y={layout.titleY} fontSize="20" fontWeight="700" fill={PALETTE.textStrong}>
-    {title}
-  </text>
-) : null}
-
-      <rect
-        x={layout.chartLeft}
-        y={layout.chartTop}
-        width={layout.chartW}
-        height={layout.graphAreaH}
-        fill={PALETTE.chartBg}
-        stroke={PALETTE.chartBorder}
-      />
-
-      {layout.ticks.map((tick) => {
-        const y = getY(tick);
-        const major = Math.abs((tick * 10) % 5) < 1e-9;
-        return (
-          <g key={`tick-${tick}`}>
-            <line
-              x1={layout.chartLeft}
-              y1={y}
-              x2={layout.chartRight}
-              y2={y}
-              stroke={major ? PALETTE.gridMajor : PALETTE.gridMinor}
-              strokeWidth={major ? 1 : 0.8}
-            />
-            <text
-              x={layout.chartLeft - 10}
-              y={y + 4}
-              fontSize="11.2"
-              textAnchor="end"
-              fill={PALETTE.text}
-            >
-              {tick.toFixed(1)}
-            </text>
-          </g>
-        );
-      })}
-
-      {entries.map((entry, index) => {
-        const x = getX(index);
-        const major = entry?.cycleDay ? entry.cycleDay % 4 === 0 : index % 4 === 3;
-        return (
-          <line
-            key={`v-${entry?.id ?? index}`}
-            x1={x}
-            y1={layout.chartTop}
-            x2={x}
-            y2={layout.chartBottom}
-            stroke={major ? PALETTE.verticalMajor : PALETTE.verticalMinor}
-            strokeWidth={major ? 0.75 : 0.55}
-          />
-        );
-      })}
-
-      <rect
-        x={layout.chartLeft}
-        y={layout.chartTop}
-        width={layout.chartW}
-        height={layout.graphAreaH}
-        fill="none"
-        stroke={PALETTE.chartBorder}
-        strokeWidth="1.2"
-      />
-
-      <text x={layout.margin.left + 18} y={layout.chartTop + 14} fontSize="11.5" fontWeight="600" fill={PALETTE.textStrong}>
-        Temperatura (°C)
-      </text>
-
-   {hasContinuousSegment && (
-        <path
-          d={mainPath}
-          fill="none"
-          stroke={PALETTE.tempLineHalo}
-          strokeOpacity="0.95"
-          strokeWidth="2.4"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      )}
-
-      {gapConnectorPath && (
-        <path
-          d={gapConnectorPath}
-          fill="none"
-          stroke="#cf6f95"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeDasharray="5 5"
-          strokeOpacity="0.85"
-        />
-      )}
-
-      {hasContinuousSegment && (
-        <path
-          d={mainPath}
-          fill="none"
-          stroke="url(#pdf-temp-line-gradient)"
-          strokeWidth="1.9"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      )}
-
-      {points.map((point) => {
-        const cx = getX(point.index);
-        const cy = getY(point.displayTemperature);
-        const rawOutOfRangeTop =
-          point.hasCorrection &&
-          point.raw !== null &&
-          point.raw > layout.maxTemp;
-        const rawOutOfRangeBottom =
-          point.hasCorrection &&
-          point.raw !== null &&
-          point.raw < layout.minTemp;
-        const rawVisible =
-          point.hasCorrection &&
-          point.raw !== null &&
-          inDisplayRange(point.raw);
-        const rawY = rawVisible ? getY(point.raw) : null;
-        const rawClampedY = rawOutOfRangeTop
-          ? getY(layout.maxTemp)
-          : rawOutOfRangeBottom
-            ? getY(layout.minTemp)
-            : rawY;
-        const showClampedCorrection =
-          point.hasCorrection &&
-          point.raw !== null &&
-          rawClampedY !== null &&
-          Math.abs(rawClampedY - cy) > 0.001;
-        const isIgnored = point.ignored;
-
-        return (
-          <g key={`p-${point.index}`}>
-            {showClampedCorrection ? (
-              <>
-                <line
-                  x1={cx}
-                  y1={rawClampedY}
-                  x2={cx}
-                  y2={cy}
-                  stroke={PALETTE.correctionLine}
-                  strokeWidth="1"
-                  strokeDasharray="4 4"
-                />
-                {rawVisible && rawY !== null ? (
-                  <circle cx={cx} cy={rawY} r="2.8" fill="#dbe1ea" stroke="#9aa5b8" strokeWidth="1" />
-                ) : null}
-              </>
-            ) : null}
-            <circle cx={cx} cy={cy} r="4.2" fill="#ffffff" fillOpacity="0.96" />
-            <circle
-              cx={cx}
-              cy={cy}
-              r="3.4"
-              fill={isIgnored ? PALETTE.tempPointIgnoredFill : PALETTE.tempPoint}
-              stroke={isIgnored ? PALETTE.tempPointIgnoredStroke : '#ffffff'}
-              strokeWidth="1.25"
-            />
-          </g>
-        );
-      })}
-
+    <svg xmlns="http://www.w3.org/2000/svg" width={layout.width} height={layout.height} viewBox={`0 0 ${layout.width} ${layout.height}`} fontFamily="Arial, sans-serif" fontSize="8">
+      <defs><pattern id="spotting-pattern-pdf" patternUnits="userSpaceOnUse" width="4" height="4"><rect width="4" height="4" fill="#fb7185" /><circle cx="2" cy="2" r="0.8" fill="#fff" /></pattern></defs>
+      <rect width={layout.width} height={layout.height} fill="#fff" />
+      <defs><clipPath id="pdf-board-clip"><rect x="0.4" y="0.4" width={right - 0.8} height={boardBottom - 0.8} rx="3" /></clipPath></defs>
+      <g clipPath="url(#pdf-board-clip)">
+      <rect width={right} height={boardBottom} fill={chartTheme.palette.chartBoard} />
+      <text x="2" y="9" fill={PALETTE.textStrong} fontWeight="bold">Temperatura °C</text>
+      {layout.ticks.map((tick, index) => <g key={tick}>
+        <line x1={left} x2={right} y1={getY(tick)} y2={getY(tick)} stroke={Math.round(tick * 10) % 5 === 0 ? '#DBAEBE' : '#E9D6DD'} strokeWidth={Math.round(tick * 10) % 5 === 0 ? 0.6 : 0.35} />
+        {index % tickLabelStep === 0 && <text x={left - 5} y={Math.min(bottom - 2, getY(tick) + 2.5)} textAnchor="end" fontWeight={Math.round(tick * 10) % 5 === 0 ? 600 : 400} fill={Math.round(tick * 10) % 5 === 0 ? chartTheme.grid.labelMajor : chartTheme.grid.labelMinor}>{tick.toFixed(2).replace('.', ',')}</text>}
+      </g>)}
+      {entries.map((entry, i) => <line key={i} x1={getX(i)} x2={getX(i)} y1={layout.chartTop} y2={bottom} stroke={chartTheme.grid.vertical} strokeWidth="0.35" />)}
+      <rect x={left} y={layout.chartTop} width={right - left} height={layout.graphHeight} fill="none" stroke={chartTheme.background.rowsSeparator} strokeWidth="0.5" />
+      {gapConnectorPath && <path data-path="gaps" d={gapConnectorPath} fill="none" stroke={chartTheme.temperature.gapStroke} strokeWidth="1" strokeDasharray="3 2" />}
+      {mainPath && <path data-path="continuous" d={mainPath} fill="none" stroke={PALETTE.tempLine} strokeWidth="1.3" strokeLinejoin="round" />}
+      {layout.points.map(point => <g key={point.index}>
+        {point.hasCorrection && <>
+          <line x1={getX(point.index)} x2={getX(point.index)} y1={getY(point.raw)} y2={getY(point.displayTemperature)} stroke="#677586" strokeWidth="0.7" strokeDasharray="2 2" />
+          <circle cx={getX(point.index)} cy={getY(point.raw)} r="1.7" fill="#fff" stroke="#677586" strokeWidth="0.8" />
+        </>}
+        <circle data-ignored={point.ignored} cx={getX(point.index)} cy={getY(point.displayTemperature)} r="2" fill={point.ignored ? '#e1e5eb' : PALETTE.tempPoint} stroke={point.ignored ? '#586779' : '#fff'} strokeWidth="0.65" />
+      </g>)}
       {layout.rows.map((row, rowIndex) => {
-        const rowH = layout.rowHeights[rowIndex];
-        const y = rowCursor;
-        rowCursor += rowH;
-
-        return (
-          <g key={row.key}>
-            <rect
-              x={layout.margin.left + layout.panelPadding}
-              y={y}
-              width={layout.chartLeft - (layout.margin.left + layout.panelPadding)}
-              height={rowH}
-              fill={PALETTE.rowHeaderBg}
-              stroke={PALETTE.rowBorder}
-            />
-            <text x={layout.margin.left + layout.panelPadding + 10} y={y + rowH / 2 + 4} fontSize="11.2"  fill={PALETTE.text}>
-              {row.label}
-            </text>
-
-            <rect
-              x={layout.chartLeft}
-              y={y}
-              width={layout.chartW}
-              height={rowH}
-              fill={rowIndex % 2 === 0 ? '#fff' : PALETTE.rowAlt}
-              stroke={PALETTE.rowBorder}
-            />
-
-            {entries.map((entry, colIndex) => {
-  const x = layout.chartLeft + colIndex * layout.colW;
-  const cx = x + layout.colW / 2;
-  const lines = getCellLines(entry, row.key, layout.colW);
-  const lineGap = row.lineHeight;
-  const textStartY = y + Math.max(12, rowH / 2 - ((lines.length - 1) * lineGap) / 2);
-
-  const peakStatus = row.key === 'fertility_symbol' ? getEntryPeakStatus(entry) : '';
-  const peakLabel = peakStatus === 'P' ? 'X' : peakStatus ? `+${peakStatus}` : '';
-
-  const symbolW = Math.min(layout.colW * 0.9, rowH * 2.2);
-const symbolH = Math.min(rowH * 0.84, layout.colW * 0.5);
-
-const peakFontSize =
-  peakStatus === 'P'
-    ? Math.min(24, rowH * 0.95, layout.colW * 0.75)
-    : Math.min(15.5, rowH * 0.66, layout.colW * 0.52);
-
-const peakTextY = y + rowH * 0.52;
-
-  return (
-                <g key={`${row.key}-${entry?.id ?? colIndex}`}>
-                  <line x1={x} y1={y} x2={x} y2={y + rowH} stroke={PALETTE.rowBorder} strokeWidth="0.8" />
-                  {row.key === 'fertility_symbol' ? (
-  <>
-    {drawSymbol({
-      entry,
-      x: cx,
-      y: y + rowH * 0.5,
-      width: symbolW,
-      height: symbolH,
-    })}
-
-    {peakLabel ? (
-  <text
-    x={cx}
-    y={peakTextY}
-    fontSize={peakFontSize}
-    fontWeight={peakStatus === 'P' ? '900' : '800'}
-    textAnchor="middle"
-    dominantBaseline="central"
-    fill={PALETTE.textStrong}
-    stroke="#ffffff"
-    strokeWidth={peakStatus === 'P' ? 3.4 : 2.6}
-    paintOrder="stroke"
-  >
-    {peakLabel}
-  </text>
-) : null}
-  </>
-) : (
-                    lines.map((line, lineIndex) => (
-                      <text
-                        key={`${row.key}-${colIndex}-${lineIndex}`}
-                        x={cx}
-                        y={textStartY + lineIndex * lineGap}
-                        fontSize="11.2"
-                        textAnchor="middle"
-                        fill={PALETTE.text}
-                      >
-                        {line}
-                      </text>
-                    ))
-                  )}
-                </g>
-              );
-            })}
-            <line x1={layout.chartRight} y1={y} x2={layout.chartRight} y2={y + rowH} stroke={PALETTE.rowBorder} strokeWidth="0.8" />
-          </g>
-        );
+        const y = rowY; rowY += row.height;
+        const accent = ROW_ACCENTS[row.key];
+        const dayRow = row.key === 'cycleDay';
+        const dateRow = row.key === 'date';
+        return <g key={row.key}>
+          <rect x="0" y={y} width={left} height={row.height} fill={chartTheme.palette.softRail} stroke={chartTheme.background.rowsSeparator} strokeWidth="0.35" />
+          {accent && <line x1="1" x2="1" y1={y + 2} y2={y + row.height - 2} stroke={accent.color} strokeWidth="1.2" />}
+          <text x="4" y={y + row.height / 2} dominantBaseline="central" fontSize="7.5" fontWeight="bold" fill={PALETTE.textStrong}>{row.label}</text>
+          <rect x={left} y={y} width={right - left} height={row.height} fill={dayRow ? chartTheme.palette.chartSoftBackground : dateRow || rowIndex % 2 ? chartTheme.palette.chartRows : '#fff'} stroke={chartTheme.background.rowsSeparator} strokeWidth="0.35" />
+          {entries.map((entry, i) => {
+            const lines = layout.cells[i][row.key] ?? [];
+            const peak = getEntryPeakStatus(entry);
+            return <g key={i}>
+              <line x1={left + i * layout.colW} x2={left + i * layout.colW} y1={y} y2={y + row.height} stroke={dateRow && monthChanges[i] ? chartTheme.grid.horizontalMajor : chartTheme.background.rowsSeparator} strokeWidth={dateRow && monthChanges[i] ? 0.9 : 0.35} />
+              {row.key === 'fertility_symbol' ? <>
+                {drawSymbol({ entry, x: getX(i), y: y + row.height / 2, width: layout.colW - 5, height: 8 })}
+                {peak && <text x={getX(i)} y={y + row.height / 2 + 2.8} fontWeight="bold" textAnchor="middle" fill={PALETTE.textStrong} stroke="#fff" strokeWidth="1.5" paintOrder="stroke">{peak === 'P' ? 'X' : `+${peak}`}</text>}
+              </> : row.key === 'had_relations' ? (
+                toSafeBool(entry.had_relations) && <Heart x={getX(i) - 4} y={y + row.height / 2 - 4} width={8} height={8} color={PALETTE.tempLine} fill={PALETTE.tempLine} aria-label="Relación registrada" />
+              ) : lines.map((line, j) => <text key={j} x={getX(i)} y={y + row.height / 2 - (lines.length - 1) * row.lineHeight / 2 + j * row.lineHeight} dominantBaseline="central" fontSize={row.fontSize} fontWeight={dayRow || dateRow ? 600 : 400} textAnchor="middle" fill={dayRow ? PALETTE.textStrong : dateRow ? '#64748b' : PALETTE.text}>{line}</text>)}
+            </g>;
+          })}
+        </g>;
       })}
-      <line x1={layout.chartLeft} y1={layout.rowsBottom} x2={layout.chartRight} y2={layout.rowsBottom} stroke={PALETTE.rowBorder} strokeWidth="0.8" />
+      </g>
+      <rect x="0.4" y="0.4" width={right - 0.8} height={boardBottom - 0.8} rx="3" fill="none" stroke={chartTheme.background.rowsSeparator} strokeWidth="0.6" />
+      {/* Keep the existing bottom space as breathing room before annotations,
+          without changing the image dimensions or pagination. */}
     </svg>
   );
 };

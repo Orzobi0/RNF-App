@@ -3,7 +3,8 @@ import { computePeakStatuses } from '@/lib/computePeakStatuses';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { getSymbolAppearance } from '@/config/fertilitySymbols';
-import { renderCycleChartPdfToPng } from '@/lib/exportCycleChartPdfImage';
+import { getCycleTemperatureRange, preparePdfChart } from '@/components/export/FertilityChartPdf';
+import { renderCycleChartPdfToPng, wrapPdfUnicodeNote, renderPdfUnicodeNote } from '@/lib/exportCycleChartPdfImage';
 
 
 const cycleHeaders = [
@@ -530,7 +531,7 @@ const drawSectionTitle = (doc, { x, y, title = '', subtitle = '' }) => {
     doc.text(subtitle, x, currentY);
   }
 };
-const buildFixedChartSegments = (entries = [], maxDaysPerPage = 31, minTailDays = 4) => {
+export const buildFixedChartSegments = (entries = [], maxDaysPerPage = 31, minTailDays = 4) => {
   const totalDays = entries?.length ?? 0;
   if (!totalDays) return [];
 
@@ -573,137 +574,124 @@ const buildFixedChartSegments = (entries = [], maxDaysPerPage = 31, minTailDays 
   return segments.filter((segment) => segment.visibleDays > 0);
 };
 
-const exportChartOnlyPdf = async ({ doc, cycle, formattedCycle, includeRs, horizontalMargin }) => {
+const exportChartOnlyPdf = async ({ doc, cycle, includeRs }) => {
+  const margin = 12;
+  const pageBottom = doc.internal.pageSize.getHeight() - 12;
   const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
-  const pageMarginX = 12;
-  const pageMarginTop = 30;
-  const pageMarginBottom = 10;
-  const headerGap = 1.5;
-  const chartGap = 5;
-  const cycleGap = 6;
-
-  let cursorY = pageMarginTop;
-  let isFirstPage = true;
-
-  const startNewPage = (pageTitle = 'Gráfica del ciclo') => {
-    if (!isFirstPage) doc.addPage();
-    isFirstPage = false;
-
-    drawPdfPageChrome(doc, {
-      title: pageTitle,
-      badge: 'FertiliApp',
-    });
-
-    cursorY = pageMarginTop;
-  };
-
-const baseEntries = ensureProcessedEntries(cycle) ?? [];
-const peakStatuses = computePeakStatuses(baseEntries);
-
-const fullEntries = buildFullTimelineEntries(cycle, baseEntries).map((entry) => {
-  const peakStatus = resolvePeakStatusForEntry(entry, peakStatuses);
-
-  return {
-    ...entry,
-    peakStatus: peakStatus || null,
-    normalizedPeakStatus: peakStatus || null,
-    peak_marker: peakStatus === 'P' ? 'peak' : entry?.peak_marker ?? null,
-  };
-});
-
-const segments = buildFixedChartSegments(fullEntries, 31);
-const cycleRangeLabel = getCycleDateRangeLabel(cycle);
-
-  if (isFirstPage) {
-    startNewPage(`Gráfica del ciclo ${cycleRangeLabel}`);
-  }
-
-  if (!segments.length) {
+  const contentWidth = 273;
+  const ptToMm = value => value * 25.4 / 72;
+  let cursor = 24;
+  let blocksOnPage = 0;
+  const heading = () => {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    // FertiliApp's chart brand color; table export keeps its existing theme.
+    doc.setTextColor('#B8324B');
+    doc.text(`Ciclo ${formatDate(cycle?.startDate ?? entries[0]?.isoDate)} – ${formatDate(cycle?.endDate ?? entries[entries.length - 1]?.isoDate)}`, margin, 10);
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(11);
-    doc.setTextColor(...PDF_THEME.text);
-    doc.text('No hay datos para graficar.', horizontalMargin, 38);
+    doc.setFontSize(7.5);
+    doc.setTextColor(...PDF_THEME.muted);
+    doc.text('FertiliApp', pageWidth - margin, 10, { align: 'right' });
+    doc.setFontSize(8);
+    doc.setTextColor(...PDF_THEME.muted);
+    doc.text(`${entries.length} ${entries.length === 1 ? 'día' : 'días'}${cycle?.endDate ? '' : ' · en curso'}`, margin, 15);
+    const hasTramos = segments.length > 1;
+
+if (!hasTramos) {
+  doc.setDrawColor('#FBCBD6');
+  const previousLineWidth = doc.getLineWidth();
+  doc.setLineWidth(0.15);
+  doc.line(margin, 20, pageWidth - margin, 20);
+  doc.setLineWidth(previousLineWidth);
+}
+
+cursor = hasTramos ? 20 : 24;
+blocksOnPage = 0;
+  };
+  const newPage = () => { doc.addPage(); heading(); };
+  const baseEntries = ensureProcessedEntries(cycle) ?? [];
+  const peakStatuses = computePeakStatuses(baseEntries);
+  const entries = buildFullTimelineEntries(cycle, baseEntries).map(entry => ({
+    ...entry, normalizedPeakStatus: resolvePeakStatusForEntry(entry, peakStatuses),
+  }));
+  const temperatureRange = getCycleTemperatureRange(entries);
+  const segments = buildFixedChartSegments(entries, 31);
+  heading();
+  if (!segments.length) {
+    doc.text('No hay datos para graficar.', margin, cursor);
     return;
   }
+  for (const [segmentIndex, segment] of segments.entries()) {
+    const segmentEntries = entries.slice(segment.startIndex, segment.endExclusive);
+    const layout = preparePdfChart(segmentEntries, includeRs, temperatureRange);
+    const imageHeight = ptToMm(layout.height);
+    const hasTramos = segments.length > 1;
+    const blockHeight = (hasTramos ? 10 : 6) + imageHeight;
+    const range = segments.length > 1
+      ? `Tramo ${segmentIndex + 1} de ${segments.length} · días ${segment.dayFrom}–${segment.dayTo}`
+      : 'Ciclo completo';
+    if (blockHeight > pageBottom - 24) throw new Error('El rango térmico requiere un bloque mayor que A4. Revisa las temperaturas registradas.');
+    if (blocksOnPage === 2 || cursor + blockHeight > pageBottom) newPage();
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor('#7A3A48');
+    if (hasTramos) {
+  doc.text(`${range} · ${formatDate(segment.isoFrom)} – ${formatDate(segment.isoTo)}`, margin, cursor);
 
-  for (let segmentIndex = 0; segmentIndex < segments.length; segmentIndex += 1) {
-    const segment = segments[segmentIndex];
+  doc.setDrawColor('#FBCBD6');
+  const previousLineWidth = doc.getLineWidth();
+  doc.setLineWidth(0.15);
+  doc.line(margin, cursor + 4, pageWidth - margin, cursor + 4);
+  doc.setLineWidth(previousLineWidth);
+}
+    const image = await renderCycleChartPdfToPng({ entries: segmentEntries, layout });
+    doc.addImage(image.data, 'PNG', margin, cursor + (hasTramos ? 7 : 3), contentWidth, imageHeight, undefined, 'SLOW');
+    cursor += blockHeight + 3;
+    blocksOnPage++;
 
-    const datePart =
-      segment.isoFrom && segment.isoTo
-        ? ` (${formatDate(segment.isoFrom)}–${formatDate(segment.isoTo)})`
-        : '';
-
-    const contentW = pageWidth - pageMarginX * 2;
-    const targetDpi = 280;
-    const mmToPx = (mm) => (mm / 25.4) * targetDpi;
-    const segmentEntries = fullEntries.slice(segment.startIndex, segment.endExclusive);
-
-    const image = await renderCycleChartPdfToPng({
-      entries: segmentEntries,
-      title: `${formattedCycle.title} · Días ${segment.dayFrom}–${segment.dayTo}`,
-      includeRs,
-      widthPx: Math.round(mmToPx(contentW)),
-      heightPx: Math.round(mmToPx((pageHeight - pageMarginTop - pageMarginBottom) * 0.9)),
-      pixelRatio: 1.75,
-      embedded: true,
-      showTitle: false,
-    });
-
-    const imageHeightMm = contentW * (image.heightPx / image.widthPx);
-    const cardTopPad = 5;
-    const textToImageGap = 2;
-    const cardBottomPad = 3;
-
-    const cardH = cardTopPad + textToImageGap + headerGap + imageHeightMm + cardBottomPad;
-    const blockHeight = cardH + chartGap;
-    const requiredHeight = blockHeight + (segmentIndex === segments.length - 1 ? cycleGap : 0);
-    const fitsCurrentPage = cursorY + requiredHeight <= pageHeight - pageMarginBottom;
-
-    if (!fitsCurrentPage) {
-      startNewPage(`Gráfica del ciclo ${cycleRangeLabel}`);
-    }
-
-    const cardX = pageMarginX;
-    const cardY = cursorY;
-    const cardW = contentW;
-    const cardInnerPad = 4;
-
-    const subtitleY = cardY + cardTopPad;
-    const contentY = subtitleY + textToImageGap + headerGap;
-
-    drawSectionCard(doc, cardX, cardY, cardW, cardH);
-const isFirstSegment = segmentIndex === 0;
-const hasMoreSegments = segmentIndex < segments.length - 1;
-
-const segmentSubtitle = isFirstSegment
-  ? `Días ${segment.dayFrom}–${segment.dayTo}${datePart}${hasMoreSegments ? ' · ...' : ''}`
-  : `... · días ${segment.dayFrom}–${segment.dayTo}${datePart}`;
-  drawSectionTitle(doc, {
-  x: cardX + cardInnerPad,
-  y: subtitleY,
-  title: '',
-  subtitle: segmentSubtitle,
-});
-
-    doc.addImage(
-      image.dataUrl,
-      'PNG',
-      cardX + cardInnerPad,
-      contentY,
-      cardW - cardInnerPad * 2,
-      imageHeightMm
-    );
-
-    cursorY = cardY + cardH + chartGap;
-
-    if (segmentIndex === segments.length - 1) {
-      cursorY += cycleGap;
+    // Native PDF text is searchable and does not inflate the raster or lose long notes.
+    if (layout.notes.length) {
+      let continued = false;
+      const notesHeading = () => {
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
+        doc.setTextColor('#D85C70');
+        doc.text(`Anotaciones${continued ? ' (continuación)' : ''}${segments.length > 1 ? ` · ${range}` : ''}`, margin, cursor);
+        cursor += 5;
+      };
+      if (cursor + 18 > pageBottom) { newPage(); continued = true; }
+      notesHeading();
+      for (const note of layout.notes) {
+        const label = `[${note.number}] Día ${note.cycleDay} · ${note.date} · ${note.label}`;
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+        const unicode = /[^\u0000-\u00ff]/u.test(note.text);
+        const noteWidthPt = (contentWidth - 4) * 72 / 25.4;
+        const lines = unicode ? wrapPdfUnicodeNote(note.text, noteWidthPt) : doc.splitTextToSize(note.text, contentWidth - 4);
+        let offset = 0;
+        while (offset < lines.length) {
+          if (cursor + 11 > pageBottom) { newPage(); continued = true; notesHeading(); }
+          doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
+          doc.setTextColor(...PDF_THEME.text);
+          doc.text(`${label}${offset ? ' (continuación)' : ''}`, margin, cursor);
+          cursor += 4;
+          const count = Math.max(1, Math.floor((pageBottom - cursor) / 4));
+          const part = lines.slice(offset, offset + count);
+          doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+          if (unicode) {
+            const noteImage = await renderPdfUnicodeNote(part, noteWidthPt);
+            doc.addImage(noteImage.data, 'PNG', margin + 2, cursor - 9 * 25.4 / 72, contentWidth - 4, part.length * 4, undefined, 'SLOW');
+            cursor += part.length * 4;
+          } else {
+            part.forEach(line => { doc.text(line, margin + 2, cursor); cursor += 4; });
+          }
+          offset += part.length;
+          cursor += 3;
+        }
+      }
+      cursor += 2;
     }
   }
 };
-  
+
 export const buildCyclesPdfBlob = async (
   cycles,
   { includeChart = true, includeRs = true, chartOnly = false } = {},
@@ -711,7 +699,7 @@ export const buildCyclesPdfBlob = async (
   const formatted = formatCyclesForExport(cycles, { includeRs });
   if (!formatted.length) return;
 
-  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4', compress: true, putOnlyUsedFonts: true });
   const horizontalMargin = 14;
   const tableWidth = doc.internal.pageSize.getWidth() - horizontalMargin * 2;
 
@@ -801,6 +789,13 @@ export const buildCyclesPdfBlob = async (
     }
   }
 
+  const pageCount = doc.getNumberOfPages();
+  for (let page = 1; page <= pageCount; page++) {
+    doc.setPage(page);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7);
+    doc.setTextColor(...PDF_THEME.muted);
+    doc.text(`FertiliApp · ${page} / ${pageCount}`, doc.internal.pageSize.getWidth() - 12, doc.internal.pageSize.getHeight() - 5, { align: 'right' });
+  }
   return doc.output('blob');
 };
 
