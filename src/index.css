@@ -186,9 +186,21 @@
 
 .calendar-spotting-dot {
   background-color: #fb7185;
-  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.85) 0.8px, transparent 0.8px);
-  background-size: 3px 3px;
-  background-position: 0 0;
+  background-image:
+    radial-gradient(circle at 25% 25%, #fff 1.6px, transparent 1.8px),
+    radial-gradient(circle at 50% 25%, #fff 1.6px, transparent 1.8px),
+    radial-gradient(circle at 75% 25%, #fff 1.6px, transparent 1.8px),
+
+    radial-gradient(circle at 25% 50%, #fff 1.6px, transparent 1.8px),
+    radial-gradient(circle at 50% 50%, #fff 1.6px, transparent 1.8px),
+    radial-gradient(circle at 75% 50%, #fff 1.6px, transparent 1.8px),
+
+    radial-gradient(circle at 25% 75%, #fff 1.6px, transparent 1.8px),
+    radial-gradient(circle at 50% 75%, #fff 1.6px, transparent 1.8px),
+    radial-gradient(circle at 75% 75%, #fff 1.6px, transparent 1.8px);
+
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
 }
 .in-cycle-range-start,
 .in-cycle-range-middle,

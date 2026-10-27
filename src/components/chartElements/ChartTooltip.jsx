@@ -236,14 +236,14 @@ const ChartTooltip = ({
       case 'spot':
         return 'bg-rose-500 border-slate-300 shadow-md spotting-pattern-icon';
       case 'white':
-        return 'bg-white border-rose-300 shadow-md';
+        return 'bg-white border-rose-500 shadow-md';
       default:
         return 'bg-slate-200 border-slate-300 shadow-md';
     }
   };
 
   const tooltipCellClass =
-    'relative flex w-full min-h-[44px] items-center gap-2.5 overflow-hidden rounded-2xl border border-slate-200/60 bg-white/70 px-3 py-2 text-left text-sm shadow-sm transition active:bg-white/90 disabled:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fertiliapp-suave';
+    'relative flex w-full min-h-[40px] items-center gap-2.5 overflow-hidden rounded-2xl border border-slate-200/60 bg-white/70 px-3 py-1.5 text-left text-sm shadow-sm transition active:bg-white/90 disabled:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fertiliapp-suave';
 
   const tooltipAccentClass =
     'pointer-events-none absolute bottom-2 left-0 top-2 w-1 rounded-r-full';
@@ -290,7 +290,7 @@ const ChartTooltip = ({
         style={{ transform: `scale(${scale})`, width: baseWidth, minHeight: baseMinHeight }}
       >
         <div className="relative overflow-hidden rounded-3xl border border-rose-400/80 bg-white/90 p-3 shadow-lg backdrop-blur-md">
-          <div className="mb-3 flex items-start justify-between gap-2">
+          <div className="mb-2 flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-1">
                 <h3 className="shrink-0 text-[18px] font-semibold leading-none text-titulo tabular-nums">
@@ -343,7 +343,7 @@ const ChartTooltip = ({
             </div>
           </div>
 
-              <div className="space-y-2">
+              <div className="space-y-1">
                   <motion.button
                     type="button"
                     onClick={onOpenTemperatures ? openTemperatures : () => handleSectionEdit('temperature')}
@@ -445,7 +445,7 @@ const ChartTooltip = ({
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.3 }}
-                  className="mt-3 flex items-center justify-between gap-2 border-t border-slate-200/60 pt-3"
+                  className="mt-2 flex items-center justify-between gap-2 border-t border-slate-200/60 pt-2"
                 >
                   <div className="flex w-full items-center gap-2">
                     {canTogglePeak && (

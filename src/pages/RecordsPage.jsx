@@ -906,7 +906,7 @@ return {
             ? isWhiteSymbol
               ? 'text-fertiliapp-fuerte'
               : 'text-white'
-            : 'text-fertiliapp-fuerte'
+            : 'text-slate-700 font-semibold'
           : isToday
           ? 'text-subtitulo font-semibold'
           : activeModifiers.outside
@@ -924,10 +924,12 @@ return {
             'pointer-events-none absolute inset-0 rounded-full transition-opacity',
             symbolInfo?.color ?? '',
             symbolInfo?.pattern === 'spotting-pattern' ? 'calendar-spotting-dot' : '',
-            symbolValue === 'white' ? 'bg-rose-50 ring-1 ring-rose-300/90 shadow-sm' : '',
+            symbolValue === 'white' ? '!bg-white ring-1 ring-rose-400/90 shadow-sm' : '',
  symbolValue === 'white'
-   ? isSelected ? 'opacity-90' : 'opacity-100'
-   : isSelected ? 'opacity-50' : 'opacity-25'
+  ? (isSelected ? 'opacity-90' : 'opacity-100')
+  : symbolValue === 'spot'
+    ? 'opacity-50'
+    : (isSelected ? 'opacity-70' : 'opacity-35')
           )
         : null;
 
@@ -948,13 +950,13 @@ return {
       {isToday && !isSelected && !(activeModifiers.outside || activeModifiers.outsideCycle) && (
     <span
       aria-hidden="true"
-      className="pointer-events-none absolute -inset-[4px] rounded-full border border-fertiliapp-fuerte"
+      className="pointer-events-none absolute -inset-[4px] rounded-full border border-dashed border-slate-500/80"
     />
   )}
       {isSelected && (
     <span
       aria-hidden="true"
-      className="pointer-events-none absolute -inset-[2px] rounded-full bg-tarjeta border-2 border-fertiliapp-fuerte"
+      className="pointer-events-none absolute -inset-[2px] rounded-full bg-slate-100 border-2 border-slate-500"
     />
   )}
       {symbolBackgroundClass && <span className={symbolBackgroundClass} aria-hidden="true" />}
@@ -1886,7 +1888,7 @@ const handleNextCalendarMonth = useCallback(() => {
                             modifiers={calendarModifiers}
                             labels={calendarLabels}
                             components={{ DayContent: renderCalendarDay }}
-                            className="w-full !p-2.5 [&_button]:text-slate-900 [&_button:hover]:bg-tarjeta [&_button[aria-selected=true]]:bg-transparent"
+                            className="w-full !p-2.5 [&_button]:text-slate-900 [&_button:hover]:!bg-transparent [&_button[aria-selected=true]]:bg-transparent"
                             classNames={calendarClassNames}
                             modifiersClassNames={{
                               hasRecord: 'text-slate-900 hover:text-slate-900 hover:bg-rose-50',
