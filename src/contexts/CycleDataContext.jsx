@@ -740,11 +740,14 @@ if (newData?.isoDate && newData.isoDate > todayIso) {
   );
 
   const getMeasurementsForEntry = useCallback(
-    async (cycleId, entryId) => {
+    async (cycleId, entryId, { requireComplete = false } = {}) => {
       if (!user?.uid || !cycleId || !entryId) throw new Error('No se pueden cargar las mediciones sin usuario, ciclo y registro.');
       const { measurements, measurementsComplete: complete } = await fetchEntryMeasurementsDB(user.uid, cycleId, entryId);
       measurementReadStatus.current.set(JSON.stringify([user.uid, cycleId, entryId]), complete);
       updateEntryMeasurementsState(cycleId, entryId, measurements, complete);
+      if (requireComplete && !complete) {
+        throw new Error('La lectura de temperaturas está incompleta. Revisa la conexión e inténtalo de nuevo.');
+      }
       return measurements;
     },
     [user, updateEntryMeasurementsState]

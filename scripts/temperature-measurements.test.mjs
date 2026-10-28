@@ -145,3 +145,28 @@ test('explicit partial cache cannot become complete merely by containing measure
   await loadRecordMeasurements(record, 'cycle', async () => { fetched = true; return measurements; });
   assert.equal(fetched, true);
 });
+
+test('editable sheet reads require explicit completeness, including nonempty cached arrays', async () => {
+  for (const flags of [{}, { measurementsLoaded: true }, { measurementsLoaded: true, measurementsComplete: false }]) {
+    let reads = 0;
+    await loadRecordMeasurements({ id: 'day', measurements, ...flags }, 'cycle', async (cycle, id, options) => {
+      assert.equal(cycle, 'cycle');
+      assert.equal(id, 'day');
+      assert.equal(options.requireComplete, true);
+      reads++;
+      return measurements;
+    }, { requireComplete: true });
+    assert.equal(reads, 1);
+  }
+  for (const rows of [[], measurements]) {
+    const loaded = await loadRecordMeasurements({ id: 'day', measurements: rows, measurementsLoaded: true, measurementsComplete: true }, 'cycle', () => { throw Error('Unexpected read'); }, { requireComplete: true });
+    assert.deepEqual(loaded, rows);
+  }
+});
+
+test('incomplete or failed strict reads propagate without exposing editable measurements', async () => {
+  await assert.rejects(loadRecordMeasurements({ id: 'day', measurements }, 'cycle', async (_, __, options) => {
+    assert.equal(options.requireComplete, true);
+    throw Error('Incomplete read');
+  }, { requireComplete: true }), /Incomplete read/);
+});

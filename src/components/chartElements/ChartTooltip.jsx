@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { PeakModeButton } from '@/components/ui/peak-mode-button';
-import { X, Edit3, Thermometer, Droplets, Circle, Heart, FileText, ChevronRight, Plus } from 'lucide-react';
+import { X, Loader2, Edit3, Thermometer, Droplets, Circle, Heart, FileText, ChevronRight, Plus } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { getSymbolAppearance } from '@/config/fertilitySymbols';
@@ -37,6 +37,17 @@ const ChartTooltip = ({
   const [tooltipHeight, setTooltipHeight] = useState(tooltipMinHeight);
   const [peakActionPending, setPeakActionPending] = useState(false);
   const [relationsActionPending, setRelationsActionPending] = useState(false);
+  const [temperaturePending, setTemperaturePending] = useState(false);
+  const [temperatureError, setTemperatureError] = useState('');
+  const temperatureRequest = useRef(null);
+  useEffect(() => {
+    setTemperaturePending(false);
+    setTemperatureError('');
+    return () => {
+      temperatureRequest.current?.abort();
+      temperatureRequest.current = null;
+    };
+  }, [point.isoDate]);
 
   useEffect(() => {
     if (scaledRef.current) {
@@ -207,9 +218,30 @@ const ChartTooltip = ({
   const handleEditClick = () => {
     handleSectionEdit();
   };
-  const openTemperatures = () => {
-    onOpenTemperatures?.(point);
-    onClose?.();
+  const openTemperatures = async () => {
+    if (temperatureRequest.current) {
+      temperatureRequest.current.abort();
+      temperatureRequest.current = null;
+      setTemperaturePending(false);
+      return;
+    }
+    const request = new AbortController();
+    temperatureRequest.current = request;
+    setTemperaturePending(true);
+    setTemperatureError('');
+    try {
+      const opened = await onOpenTemperatures(point, request.signal);
+      if (request.signal.aborted) return;
+      if (opened) onClose?.();
+      else setTemperatureError('No se pudieron cargar todas las temperaturas. Pulsa de nuevo para reintentar.');
+    } catch {
+      if (!request.signal.aborted) setTemperatureError('No se pudieron cargar todas las temperaturas. Pulsa de nuevo para reintentar.');
+    } finally {
+      if (temperatureRequest.current === request) {
+        temperatureRequest.current = null;
+        setTemperaturePending(false);
+      }
+    }
   };
 
   const openMucus = (field) => {
@@ -347,7 +379,8 @@ const ChartTooltip = ({
                   <motion.button
                     type="button"
                     onClick={onOpenTemperatures ? openTemperatures : () => handleSectionEdit('temperature')}
-                    aria-label={hasTemperature ? 'Gestionar temperaturas' : 'Añadir temperatura'}
+                    aria-busy={temperaturePending}
+                    aria-label={temperaturePending ? 'Cancelar carga de temperaturas' : hasTemperature ? 'Gestionar temperaturas' : 'Añadir temperatura'}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.1 }}
@@ -378,8 +411,9 @@ const ChartTooltip = ({
                         </span>
                       )}
                     </div>
-                    {onOpenTemperatures && <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />}
+                    {onOpenTemperatures && (temperaturePending ? <Loader2 aria-hidden="true" className="h-4 w-4 shrink-0 animate-spin text-slate-400 motion-reduce:animate-none" /> : <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />)}
                   </motion.button>
+                  {temperatureError && <p role="alert" className="text-xs text-rose-700">{temperatureError}</p>}
 
                 <motion.button
                   type="button"

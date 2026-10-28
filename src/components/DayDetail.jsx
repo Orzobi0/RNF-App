@@ -71,23 +71,39 @@ const hasPersistedRecord = Boolean(persistedRecord);
     setObservationsOpen(false);
     setSymbolOpen(false);
     setTemperatureMeasurements([]);
+    setTemperaturesLoading(false);
+    setTemperaturesError('');
   }, [isoDate]);
   useEffect(() => () => { loadVersion.current += 1; }, []);
+  const cancelTemperatureLoad = () => {
+    loadVersion.current += 1;
+    setTemperaturesLoading(false);
+  };
   const openTemperatures = async () => {
     const version = ++loadVersion.current;
-    setTemperatureMeasurements(measurementsFromRecord(persistedRecord));
-    setTemperaturesOpen(true); setTemperaturesError('');
-    if (!persistedRecord || persistedRecord.measurementsLoaded || persistedRecord.measurements?.length) {
+    setTemperaturesError('');
+    if (!persistedRecord || (persistedRecord.measurementsLoaded === true && persistedRecord.measurementsComplete === true)) {
+      setTemperatureMeasurements(measurementsFromRecord(persistedRecord));
       setTemperaturesLoading(false);
+      setTemperaturesOpen(true);
       return;
     }
     setTemperaturesLoading(true);
+    let timeout;
     try {
-      const loaded = await onLoadMeasurements(persistedRecord);
-      if (loadVersion.current === version) setTemperatureMeasurements(loaded);
+      const loaded = await Promise.race([
+        onLoadMeasurements(persistedRecord, { requireComplete: true }),
+        new Promise((_, reject) => {
+          timeout = setTimeout(() => reject(new Error('Tiempo de espera agotado')), 15000);
+        }),
+      ]);
+      if (loadVersion.current !== version) return;
+      setTemperatureMeasurements(loaded);
+      setTemperaturesOpen(true);
     } catch {
-      if (loadVersion.current === version) setTemperaturesError('No se pudieron cargar las temperaturas. No se ha modificado el registro.');
+      if (loadVersion.current === version) setTemperaturesError('No se pudieron cargar todas las temperaturas. Revisa la conexión e inténtalo de nuevo. No se ha modificado el registro.');
     } finally {
+      clearTimeout(timeout);
       if (loadVersion.current === version) setTemperaturesLoading(false);
     }
   };
@@ -432,13 +448,17 @@ const footerIconButtonClass =
         <TemperatureMeasurementTrigger
           measurements={temperaturesOpen && !temperaturesLoading && !temperaturesError ? temperatureMeasurements : measurementsFromRecord(persistedRecord)}
           ignored={persistedRecord?.ignored} disabled={isProcessing}
-          onClick={openTemperatures}
+          loading={temperaturesLoading}
+          onClick={temperaturesLoading ? cancelTemperatureLoad : openTemperatures}
         />
+        {temperaturesError && <div role="alert" className="text-sm text-rose-700">
+          {temperaturesError}
+          <Button type="button" variant="ghost" onClick={openTemperatures}>Reintentar</Button>
+        </div>}
         <TemperatureMeasurementsSheet open={temperaturesOpen} onOpenChange={setTemperaturesOpen}
           ignored={persistedRecord?.ignored} isoDate={isoDate} measurements={temperatureMeasurements} onChange={saveTemperatures}
-          loading={temperaturesLoading} loadError={temperaturesError} onRetry={openTemperatures}
           onOpenForm={onEdit ? async (measurements, overrides) => {
-            if (await onEdit({ ...persistedRecord, id: persistedRecord?.id || `placeholder-${isoDate}`, isoDate, ...overrides, measurements, measurementsLoaded: true }, null, null) === false) return;
+            if (await onEdit({ ...persistedRecord, id: persistedRecord?.id || `placeholder-${isoDate}`, isoDate, ...overrides, measurements, measurementsLoaded: true, measurementsComplete: true }, null, null) === false) return;
             setTemperaturesOpen(false);
           } : undefined} />
 

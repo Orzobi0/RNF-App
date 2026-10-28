@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useEffect, useRef } from 'react';
+import React, { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { ErrorBoundary } from '@/components/dev/ErrorBoundary';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
@@ -54,12 +54,51 @@ function ProtectedRoute({ children }) {
 
 function PreferencesGate({ children, withLayout = false }) {
   const { preferencesReady, preferencesError, retryPreferences } = useAuth();
+  const [slowLoading, setSlowLoading] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const retryPending = useRef(false);
+
+  useEffect(() => {
+    if (preferencesReady) {
+      setSlowLoading(false);
+      return;
+    }
+    const timeout = setTimeout(() => setSlowLoading(true), 8000);
+    return () => clearTimeout(timeout);
+  }, [preferencesReady]);
+
+  useEffect(() => {
+    // retryPreferences starts background work; completion is signalled by auth state.
+    if (preferencesReady || preferencesError) {
+      retryPending.current = false;
+      setRetrying(false);
+    }
+  }, [preferencesReady, preferencesError, retrying]);
+
+  const handleRetry = () => {
+    if (retryPending.current) return;
+    retryPending.current = true;
+    setRetrying(true);
+    retryPreferences();
+  };
+
   if (preferencesReady) return children;
   const content = (
       <div className="mx-auto max-w-md p-6 text-center text-fertiliapp-fuerte" role="status">
         <p>{preferencesError ? 'No hemos podido cargar tus preferencias.' : 'Cargando tus preferencias...'}</p>
         <p className="mt-2 text-sm">Esperamos a tus ajustes para mostrar la interpretación correctamente.</p>
-        {preferencesError && <button className="mt-4 rounded-xl bg-white px-5 py-3" onClick={retryPreferences}>Reintentar</button>}
+        {(slowLoading || preferencesError || retrying) && (
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-center">
+            <button type="button" className="min-h-11 rounded-xl bg-white px-4 py-3 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50"
+              disabled={retrying} onClick={handleRetry}>
+              {retrying ? 'Reintentando carga...' : 'Reintentar carga'}
+            </button>
+            <button type="button" className="min-h-11 rounded-xl border border-current/20 px-4 py-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+              onClick={() => window.location.reload()}>
+              Recargar aplicación
+            </button>
+          </div>
+        )}
       </div>
   );
   return withLayout ? <MainLayout>{content}</MainLayout> : content;

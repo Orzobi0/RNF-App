@@ -81,10 +81,14 @@ export const measurementTimeForSummary = (measurements) => {
   return selected?.time?.trim() || measurements.find((m) => m?.time?.trim())?.time || null;
 };
 
-export const loadRecordMeasurements = async (record, cycleId, getMeasurements) => {
+export const loadRecordMeasurements = async (record, cycleId, getMeasurements, options = {}) => {
   if (!record?.id || String(record.id).startsWith('placeholder-')) return measurementsFromRecord(record);
-  const loaded = record.measurementsComplete !== false && (record.measurementsLoaded || record.measurements?.length)
-    ? record.measurements : await getMeasurements(cycleId, record.id);
+  const complete = options.requireComplete
+    ? record.measurementsLoaded === true && record.measurementsComplete === true
+    : record.measurementsComplete !== false && (record.measurementsLoaded || record.measurements?.length);
+  const loaded = complete ? record.measurements : options.requireComplete
+    ? await getMeasurements(cycleId, record.id, options)
+    : await getMeasurements(cycleId, record.id);
   return measurementsFromRecord(record, loaded);
 };
 

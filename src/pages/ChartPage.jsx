@@ -15,7 +15,7 @@ import InterpretationSettingsDialog from '@/components/InterpretationSettingsDia
 import { useCycleData } from '@/hooks/useCycleData';
 import MucusQuickEditSheet from '@/components/MucusQuickEditSheet';
 import TemperatureMeasurementsSheet from '@/components/TemperatureMeasurementsSheet';
-import { loadRecordMeasurements, measurementPayloadForRecord } from '@/lib/temperatureMeasurements';
+import { loadRecordMeasurements, measurementPayloadForRecord, measurementsFromRecord } from '@/lib/temperatureMeasurements';
 import { useFertilityCalculatorsEditor } from '@/hooks/useFertilityCalculatorsEditor';
 import { differenceInDays, format, parseISO, startOfDay } from 'date-fns';
 import generatePlaceholders from '@/lib/generatePlaceholders';
@@ -340,9 +340,8 @@ const ChartPage = () => {
   const [mucusTarget, setMucusTarget] = useState(null);
   const [focusedField, setFocusedField] = useState(null);
   const [sheetMeasurements, setSheetMeasurements] = useState([]);
-  const [sheetLoading, setSheetLoading] = useState(false);
-  const [sheetError, setSheetError] = useState('');
   const sheetLoadVersion = useRef(0);
+  useEffect(() => () => { sheetLoadVersion.current += 1; }, [cycleId]);
   const [externalLoading, setExternalLoading] = useState(false);
   const [notFound, setNotFound] = useState(false);
 
@@ -775,8 +774,8 @@ useEffect(() => {
     window.removeEventListener('orientationchange', handleOrientationChange);
   };
 }, [isIPhoneOrIPod]);
-  const loadTemperatures = useCallback(async (record) => {
-    return loadRecordMeasurements(record, targetCycle.id, getMeasurementsForEntry);
+  const loadTemperatures = useCallback(async (record, options) => {
+    return loadRecordMeasurements(record, targetCycle.id, getMeasurementsForEntry, options);
   }, [targetCycle?.id, getMeasurementsForEntry]);
   const dateMeasurementLoad = useRef(0);
   const handleDateSelect = useCallback(async (record) => {
@@ -1118,20 +1117,26 @@ const rotatedDrawerStyle = applyRotation
     setFocusedField(fieldName ?? null);
     setShowForm(true);
   };
-  const openTemperatures = async (point) => {
+  const openTemperatures = async (point, signal) => {
     const version = ++sheetLoadVersion.current;
     const record = targetCycle.data?.find((entry) => entry.isoDate === point.isoDate) || point;
-    setTemperatureRecord(record);
-    setSheetMeasurements([]);
-    setSheetLoading(true);
-    setSheetError('');
+    let timeout;
     try {
-      const measurements = await loadTemperatures(record);
-      if (sheetLoadVersion.current === version) setSheetMeasurements(measurements);
+      const complete = record.measurementsLoaded === true && record.measurementsComplete === true;
+      const measurements = complete ? measurementsFromRecord(record) : await Promise.race([
+        loadTemperatures(record, { requireComplete: true }),
+        new Promise((_, reject) => {
+          timeout = setTimeout(() => reject(new Error('Tiempo de espera agotado')), 15000);
+        }),
+      ]);
+      if (sheetLoadVersion.current !== version || signal?.aborted) return false;
+      setSheetMeasurements(measurements);
+      setTemperatureRecord(record);
+      return true;
     } catch {
-      if (sheetLoadVersion.current === version) setSheetError('No se pudieron cargar las temperaturas. Inténtalo de nuevo.');
+      return false;
     } finally {
-      if (sheetLoadVersion.current === version) setSheetLoading(false);
+      clearTimeout(timeout);
     }
   };
   const buildChartRecordPayload = (record, isoDate, overrides = {}) => ({
@@ -2900,9 +2905,6 @@ const isManualFertile =
           isoDate={temperatureRecord?.isoDate}
           ignored={(targetCycle.data?.find((entry) => entry.isoDate === temperatureRecord?.isoDate) || temperatureRecord)?.ignored}
           measurements={sheetMeasurements}
-          loading={sheetLoading}
-          loadError={sheetError}
-          onRetry={() => openTemperatures(temperatureRecord)}
           onChange={async (measurements, operation) => {
             await saveChartMeasurements(temperatureRecord.isoDate, measurements, operation);
             setSheetMeasurements(measurements);

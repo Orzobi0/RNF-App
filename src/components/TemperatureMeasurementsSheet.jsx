@@ -1,10 +1,10 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { normalizePreferenceValue, validatePreferenceField } from '@/lib/preferences';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { ChevronRight, MoreHorizontal, Thermometer, X, Check, Edit3, Clock, Eye, EyeOff, Trash2 } from 'lucide-react';
+import { ChevronRight, Loader2, MoreHorizontal, Thermometer, X, Check, Edit3, Clock, Eye, EyeOff, Trash2 } from 'lucide-react';
 import { addHours, format, parse, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
@@ -34,11 +34,11 @@ const measurementRowClass = (selected, ignored = false) => `relative flex items-
   selected && ignored ? 'border-alerta-2-suave bg-white/60 ring-1 ring-alerta-2-suave' : selected ? 'border-temp bg-white/85 ring-1 ring-temp' : 'border-slate-200/60 bg-white/85'
 }`;
 
-export const TemperatureMeasurementTrigger = ({ measurements, onClick, disabled, ignored }) => {
+export const TemperatureMeasurementTrigger = ({ measurements, onClick, disabled, ignored, loading = false }) => {
   const valid = normalizeMeasurements(measurements);
   const selected = valid.find((m) => m.selected);
   const hasTemperature = Boolean(selected);
-  return <button type="button" onClick={onClick} disabled={disabled} aria-label={hasTemperature ? "Gestionar temperaturas" : "Añadir temperatura"}
+  return <button type="button" onClick={onClick} disabled={disabled} aria-busy={loading} aria-label={loading ? "Cancelar carga de temperaturas" : hasTemperature ? "Gestionar temperaturas" : "Añadir temperatura"}
     className="relative flex min-h-[44px] w-full items-center gap-1.5 rounded-2xl border border-rose-100/70 bg-white px-3 py-2 text-left text-sm focus-visible:ring-2 focus-visible:ring-rose-300 disabled:opacity-50">
     <span aria-hidden="true" className={`absolute bottom-2 left-0 top-2 w-1 rounded-r-full bg-temp ${hasTemperature ? 'opacity-75' : 'opacity-25'}`} />
     <Thermometer className={`h-[18px] w-[18px] shrink-0 text-temp ${hasTemperature ? '' : 'opacity-35'}`} />
@@ -48,7 +48,7 @@ export const TemperatureMeasurementTrigger = ({ measurements, onClick, disabled,
     {selected?.time && <span className="shrink-0 text-xs text-slate-500">{selected.time}</span>}
     <MeasurementSourceChip measurement={selected} />
     {selected?.use_corrected && <span title="Temperatura corregida" aria-label="Temperatura corregida" className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />}
-    <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-slate-400" />
+    {loading ? <Loader2 aria-hidden="true" className="ml-auto h-4 w-4 shrink-0 animate-spin text-slate-400 motion-reduce:animate-none" /> : <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-slate-400" />}
   </button>;
 };
 
@@ -76,7 +76,7 @@ export default function TemperatureMeasurementsSheet({ open, onOpenChange, isoDa
     window.visualViewport.addEventListener('resize', update);
     return () => window.visualViewport.removeEventListener('resize', update);
   }, [open]);
-  useEffect(() => { setEditor(null); setDeleting(null); setPreferredEditorOpen(false); setError(''); autoOpened.current = false; }, [open, isoDate]);
+  useLayoutEffect(() => { setEditor(null); setDeleting(null); setPreferredEditorOpen(false); setError(''); autoOpened.current = false; }, [open, isoDate]);
   const commit = async (next, operation) => {
     if (saving.current) return;
     saving.current = true;
@@ -97,7 +97,7 @@ export default function TemperatureMeasurementsSheet({ open, onOpenChange, isoDa
     setCorrectionOpen(index !== null && !!measurements[index]?.use_corrected);
     setEditor({ index, ignored: index === null ? false : ignored, initialIgnored: ignored, draft: index === null ? { ...newManualMeasurement(), selected: measurements.length === 0 } : { ...measurements[index] } });
   };
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open || loading || loadError || autoOpened.current) return;
     autoOpened.current = true;
     if (measurements.length === 0) edit(null);

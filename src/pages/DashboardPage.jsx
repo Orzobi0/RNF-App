@@ -2203,7 +2203,7 @@ const ModernFertilityDashboard = () => {
   [currentCycle?.data]
 );
   const loadDayMeasurements = useCallback(
-    (record) => loadRecordMeasurements(record, currentCycle?.id, getMeasurementsForEntry),
+    (record, options) => loadRecordMeasurements(record, currentCycle?.id, getMeasurementsForEntry, options),
     [currentCycle?.id, getMeasurementsForEntry]
   );
   const saveFormMeasurements = useCallback(async (isoDate, measurements, operation) => {

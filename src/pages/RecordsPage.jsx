@@ -1,3 +1,4 @@
+import { loadFormMeasurements } from '@/lib/loadFormMeasurements';
 import { measurementPayloadForRecord, loadRecordMeasurements } from '@/lib/temperatureMeasurements';
 import React, {
   useState,
@@ -1440,46 +1441,40 @@ const handleNextCalendarMonth = useCallback(() => {
     activeRecordLoadRef.current = null;
   }, []);
 
-  const openRecordForm = useCallback(
-    async (record, fieldName = null, sectionKey = null) => {
-      if (!record) return;
+  // One request per selected record and form session. Context refreshes must
+  // neither restart the request nor replace the user's draft.
+  const handleDateSelect = useCallback(async (record) => {
+    const key = JSON.stringify([cycle?.id, record?.id ?? record?.isoDate ?? null]);
+    if (activeRecordLoadRef.current?.key === key) return;
+    const request = { key };
+    activeRecordLoadRef.current = request;
+    setEditingRecord(record);
+    setIsDetailLoading(true);
+    try {
+      const measurements = await loadFormMeasurements(record, cycle?.id, getMeasurementsForEntry);
+      if (activeRecordLoadRef.current !== request) return;
+      setEditingRecord(record ? { ...record, measurements, measurementsLoaded: true, measurementsComplete: true } : null);
+    } catch {
+      if (activeRecordLoadRef.current !== request) return;
+      handleCloseForm();
+      toast({ title: 'No se pudieron cargar las temperaturas', description: 'Revisa la conexión y vuelve a pulsar Editar para intentarlo de nuevo.', variant: 'destructive' });
+    } finally {
+      if (activeRecordLoadRef.current === request) setIsDetailLoading(false);
+    }
+  }, [cycle?.id, getMeasurementsForEntry, handleCloseForm, toast]);
 
-      activeRecordLoadRef.current = record.id ?? null;
-      setEditingRecord(record);
+  const openRecordForm = useCallback(
+    (record, fieldName = null, sectionKey = null) => {
+      if (!record) return;
+      activeRecordLoadRef.current = null;
       setDefaultFormIsoDate(record.isoDate ?? null);
       setFocusedField(fieldName);
       setInitialSectionKey(sectionKey ?? null);
-
-      if (record.isoDate) {
-        setSelectedDate(record.isoDate);
-      }
-
+      if (record.isoDate) setSelectedDate(record.isoDate);
+      void handleDateSelect(record);
       setShowForm(true);
-
-      const hasLoadedMeasurements =
-        record?.measurementsLoaded ||
-        (Array.isArray(record?.measurements) && record.measurements.length > 0);
-      if (getMeasurementsForEntry && record?.id && !String(record.id).startsWith('placeholder-') && cycle?.id && !hasLoadedMeasurements) {
-        setIsDetailLoading(true);
-        try {
-          const measurements = await getMeasurementsForEntry(cycle.id, record.id);
-          if (activeRecordLoadRef.current === record.id) {
-            setEditingRecord((prev) =>
-              prev?.id === record.id
-                ? { ...prev, measurements, measurementsLoaded: true }
-                : prev
-            );
-          }
-        } catch {
-          setShowForm(false);
-          toast({ title: 'No se pudieron cargar las temperaturas', description: 'Inténtalo de nuevo antes de editar.', variant: 'destructive' });
-          return false;
-        } finally {
-          setIsDetailLoading(false);
-        }
-      }
     },
-    [cycle?.id, getMeasurementsForEntry, toast]
+    [handleDateSelect]
   );
 
   const handleEdit = useCallback(
@@ -1491,31 +1486,6 @@ const handleNextCalendarMonth = useCallback(() => {
     const record = cycle?.data?.find((r) => r.id === recordId);
     setRecordToDelete(record || null);
   };
-
-  const dateMeasurementLoad = useRef(0);
-  const handleDateSelect = useCallback(async (record) => {
-    const request = ++dateMeasurementLoad.current;
-    setEditingRecord((previous) => previous?.id === record?.id && previous?.measurementsLoaded ? previous : record);
-    if (!record?.id || String(record.id).startsWith('placeholder-')) {
-      setIsDetailLoading(false); return;
-    }
-    setIsDetailLoading(true);
-    try {
-      const measurements = await loadRecordMeasurements(record, cycle?.id, getMeasurementsForEntry);
-      if (dateMeasurementLoad.current === request) {
-        setEditingRecord((previous) => previous?.id === record.id
-          ? previous.measurementsLoaded ? previous : { ...previous, measurements, measurementsLoaded: true }
-          : previous);
-      }
-    } catch {
-      if (dateMeasurementLoad.current === request) {
-        setShowForm(false);
-        toast({ title: 'No se pudieron cargar las temperaturas', description: 'Inténtalo de nuevo antes de editar.', variant: 'destructive' });
-      }
-    } finally {
-      if (dateMeasurementLoad.current === request) setIsDetailLoading(false);
-    }
-  }, [cycle?.id, getMeasurementsForEntry, toast]);
 
   const handleAddRecordForDay = useCallback((isoDate, sectionKey = null, fieldName = null) => {
     if (!isoDate) {
@@ -1573,7 +1543,7 @@ const handleNextCalendarMonth = useCallback(() => {
     [cycle?.data]
   );
   const loadDayMeasurements = useCallback(
-    (record) => loadRecordMeasurements(record, cycle?.id, getMeasurementsForEntry),
+    (record, options) => loadRecordMeasurements(record, cycle?.id, getMeasurementsForEntry, options),
     [cycle?.id, getMeasurementsForEntry]
   );
   const saveFormMeasurements = useCallback(async (isoDate, measurements, operation) => {
