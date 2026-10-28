@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { MoveVertical } from 'lucide-react';
 import { motion } from 'framer-motion';
 import ChartTooltip from '@/components/chartElements/ChartTooltip';
@@ -288,6 +288,7 @@ useEffect(() => {
   const scrollRafRef = useRef(null);
   const [isScrolling, setIsScrolling] = useState(false);
   const scrollStopTimerRef = useRef(null);
+  const scrollPositionRef = useRef(null);
   const pointerGestureRef = useRef({
     pointerId: null,
     startX: 0,
@@ -1919,18 +1920,37 @@ if (
     [allDataPoints.length, getOverscanDays, visibleDays]
   );
 
-  useEffect(() => {
-  if (!chartRef.current) return;
-  const dayWidth = chartRef.current.clientWidth / visibleDays;
-  chartRef.current.scrollLeft = Math.max(0, dayWidth * initialScrollIndex);
-  updateVisibleRange(chartRef.current.scrollLeft);
+  useLayoutEffect(() => {
+  const node = chartRef.current;
+  // Wait for the chart's measured layout, including after a rotation/resize.
+  if (!node || !allDataPoints.length || dimensions.width <= 0 ||
+      node.clientWidth <= 0 || dimensions.viewportWidth !== node.clientWidth) return;
+  const initialDayWidth = node.clientWidth / Math.max(visibleDays, 1);
+  const startX = getX(0);
+  const dayWidth = Math.max(getX(1) - startX, 1);
+  const previous = scrollPositionRef.current;
+  const isNewCycle = !previous || previous.cycleId !== cycleId;
+  const requestedLeft = isNewCycle
+    ? initialDayWidth * initialScrollIndex
+    : startX + previous.anchor * dayWidth;
+  const nextLeft = Math.min(Math.max(0, requestedLeft), Math.max(0, node.scrollWidth - node.clientWidth));
+  if (Math.abs(node.scrollLeft - nextLeft) > 0.5) node.scrollLeft = nextLeft;
+  scrollPositionRef.current = {
+    cycleId, dayWidth, startX, scrollLeft: node.scrollLeft,
+    // Retain the intended day even if a wider viewport temporarily fits the cycle.
+    anchor: isNewCycle ? (node.scrollLeft - startX) / dayWidth : previous.anchor,
+    viewportWidth: node.clientWidth, scrollWidth: node.scrollWidth,
+  };
+  updateVisibleRange(node.scrollLeft);
 }, [
+  cycleId,
   initialScrollIndex,
   visibleDays,
   dimensions.width,
   dimensions.viewportWidth,
   dimensions.viewportHeight,
   orientation,
+  getX,
   updateVisibleRange,
 ]);
 
@@ -1938,6 +1958,16 @@ if (
     const node = chartRef.current;
     if (!node) return;
     const handleScroll = () => {
+      const position = scrollPositionRef.current;
+      // A resize can clamp native scrollLeft before React receives the new
+      // dimensions. Keep the last user position until the layout effect adapts it.
+      if (position && node.clientWidth === position.viewportWidth && node.scrollWidth === position.scrollWidth) {
+        const left = Math.max(0, Math.min(node.scrollLeft, node.scrollWidth - node.clientWidth));
+        if (Math.abs(left - position.scrollLeft) > 0.5) {
+          position.anchor = (left - position.startX) / position.dayWidth;
+          position.scrollLeft = left;
+        }
+      }
       setIsScrolling(true);
       if (scrollStopTimerRef.current) window.clearTimeout(scrollStopTimerRef.current);
       scrollStopTimerRef.current = window.setTimeout(() => setIsScrolling(false), 140);
