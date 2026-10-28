@@ -52,6 +52,19 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
+function PreferencesGate({ children, withLayout = false }) {
+  const { preferencesReady, preferencesError, retryPreferences } = useAuth();
+  if (preferencesReady) return children;
+  const content = (
+      <div className="mx-auto max-w-md p-6 text-center text-fertiliapp-fuerte" role="status">
+        <p>{preferencesError ? 'No hemos podido cargar tus preferencias.' : 'Cargando tus preferencias...'}</p>
+        <p className="mt-2 text-sm">Esperamos a tus ajustes para mostrar la interpretación correctamente.</p>
+        {preferencesError && <button className="mt-4 rounded-xl bg-white px-5 py-3" onClick={retryPreferences}>Reintentar</button>}
+      </div>
+  );
+  return withLayout ? <MainLayout>{content}</MainLayout> : content;
+}
+
 function ServiceWorkerRouteUpdater() {
   const location = useLocation();
   const lastCheckRef = useRef(0);
@@ -94,7 +107,7 @@ function ServiceWorkerRouteUpdater() {
 }
 
 function AppContent() {
-  const { user, loadingAuth, restoringSession } = useAuth();
+  const { user, loadingAuth, restoringSession, sessionError, retrySession, goToLogin } = useAuth();
   const location = useLocation();
 
   if (loadingAuth || restoringSession) {
@@ -114,6 +127,21 @@ function AppContent() {
           >
             Recuperando sesión...
           </motion.p>
+        </div>
+      </AppBackground>
+    );
+  }
+
+  if (sessionError && !user) {
+    return (
+      <AppBackground>
+        <div className="flex min-h-app items-center justify-center px-5">
+          <div className="max-w-sm space-y-4 text-center text-fertiliapp-fuerte" role="alert">
+            <h1 className="text-xl font-semibold">No hemos podido recuperar tu sesión</h1>
+            <p>Puede deberse a la conexión o a un error temporal. Vuelve a intentarlo.</p>
+            <button className="w-full rounded-xl bg-white px-5 py-3 font-medium" onClick={retrySession}>Reintentar</button>
+            <button className="w-full px-5 py-3 underline" onClick={goToLogin}>Ir a inicio de sesión</button>
+          </div>
         </div>
       </AppBackground>
     );
@@ -161,7 +189,7 @@ const routeErrorBoundaryKey = location.pathname.startsWith('/cycle/')
                 element={
                   <ProtectedRoute>
                     <MainLayout>
-                      <DashboardPage />
+                      <PreferencesGate><DashboardPage /></PreferencesGate>
                     </MainLayout>
                   </ProtectedRoute>
                 }
@@ -170,7 +198,7 @@ const routeErrorBoundaryKey = location.pathname.startsWith('/cycle/')
                 path="/chart/:cycleId?"
                 element={
                   <ProtectedRoute>
-                    <ChartPage />
+                    <PreferencesGate withLayout><ChartPage /></PreferencesGate>
                   </ProtectedRoute>
                 }
               />
@@ -209,7 +237,7 @@ const routeErrorBoundaryKey = location.pathname.startsWith('/cycle/')
                 element={
                   <ProtectedRoute>
                     <MainLayout>
-                      <PreferencesPage />
+                      <PreferencesGate><PreferencesPage /></PreferencesGate>
                     </MainLayout>
                   </ProtectedRoute>
                 }

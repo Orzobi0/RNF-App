@@ -48,6 +48,15 @@ import {
 } from '@/lib/analytics';
 
 
+// The read status is authoritative even when an editor infers completeness from length.
+const assertEditableMeasurementRead = (payload, complete) => {
+  if (complete === false && Array.isArray(payload.measurements) && payload.measurementsComplete !== false) {
+    throw createAppError('measurements-incomplete', 'Temperaturas disponibles solo para consulta',
+      'Estas mediciones proceden de la caché y pueden estar incompletas. Conecta a Internet y vuelve a cargar el día antes de editar temperaturas.',
+      undefined, { label: 'Reintentar' });
+  }
+};
+
 const CycleDataContext = createContext(null);
 
 const defaultCycleState = {
@@ -179,6 +188,14 @@ const buildEntryForState = ({
   cycleStartDate,
   existingEntry,
 }) => {
+  if (existingEntry && payload.measurementsComplete === false) {
+    payload = { ...payload };
+    for (const key of Object.keys(existingEntry)) {
+      if (key.startsWith('temperature_') || key === 'use_corrected' || key === 'timestamp') {
+        payload[key] = existingEntry[key];
+      }
+    }
+  }
   const entryForProcessing = {
     id: entryId,
     iso_date: isoDate,
@@ -241,6 +258,7 @@ const sortEntriesByTimestamp = (entries) =>
 
 export const CycleDataProvider = ({ children }) => {
   const { user } = useAuth();
+  const measurementReadStatus = useRef(new Map());
   const { toast } = useToast();
   const [currentCycle, setCurrentCycle] = useState(defaultCycleState);
   const [archivedCycles, setArchivedCycles] = useState([]);
@@ -464,13 +482,13 @@ export const CycleDataProvider = ({ children }) => {
     setArchivedCycles((prevCycles) => prevCycles.map((cycle) => applyUpdate(cycle)));
   }, []);
 
-  const updateEntryMeasurementsState = useCallback((cycleId, entryId, measurements) => {
+  const updateEntryMeasurementsState = useCallback((cycleId, entryId, measurements, complete) => {
     const applyUpdate = (cycle) => {
       if (!cycle || cycle.id !== cycleId) return cycle;
       const currentData = Array.isArray(cycle.data) ? cycle.data : [];
       const nextData = currentData.map((entry) =>
         entry.id === entryId
-          ? { ...entry, measurements, measurementsLoaded: true }
+          ? { ...entry, measurements, measurementsLoaded: complete, measurementsComplete: complete }
           : entry
       );
       return { ...cycle, data: nextData };
@@ -537,6 +555,11 @@ if (newData?.isoDate && newData.isoDate > todayIso) {
         if (targetRecord && String(targetRecord.id).startsWith('placeholder-')) {
           targetRecord = null;
         }
+        const readKey = JSON.stringify([user.uid, cycleIdToUse, targetRecord?.id]);
+        const knownComplete = measurementReadStatus.current.get(readKey) ??
+          targetCycle?.data?.find(record => record.id === targetRecord?.id)?.measurementsComplete ??
+          targetRecord?.measurementsComplete;
+        assertEditableMeasurementRead(newData, knownComplete);
         const existingPeakRecord =
           targetCycle?.data?.find((record) => record?.peak_marker === 'peak') || null;
 
@@ -628,8 +651,8 @@ if (newData?.isoDate && newData.isoDate > todayIso) {
           cycle_id: cycleIdToUse,
           user_id: user.uid,
           timestamp: format(recordDateTime, "yyyy-MM-dd'T'HH:mm:ssXXX"),
-          measurements: newData.measurementsComplete === false ? undefined : measurementsPayload?.length >= 2 ? measurementsPayload
-            : (targetRecord?.measurementsLoaded || newData.measurementsComplete) ? [] : undefined,
+          measurementsComplete: Array.isArray(newData.measurements) ? newData.measurementsComplete : false,
+          measurements: newData.measurementsComplete === false || !measurementsPayload ? undefined : measurementsPayload,
           mucus_sensation: newData.mucusSensation || null,
           mucus_appearance: newData.mucusAppearance || null,
           fertility_symbol: fertilitySymbolValue === 'none' ? null : fertilitySymbolValue,
@@ -642,18 +665,23 @@ if (newData?.isoDate && newData.isoDate > todayIso) {
           ...temperatureSummary
         };
 
+        if (recordPayload.measurementsComplete === false) {
+          // Keep the same summary in local state as in Firestore for partial edits.
+          for (const key of Object.keys(temperatureSummary)) delete recordPayload[key];
+          delete recordPayload.timestamp;
+        }
         let savedEntryId = targetRecord?.id ?? null;
         if (targetRecord) {
           const isRemovingPeak =
             peakMarkerProvided && targetRecord?.peak_marker === 'peak' && !isPeakMarked;
-          if (isPayloadEmpty && isRemovingPeak) {
+          if (isPayloadEmpty && isRemovingPeak && knownComplete !== false && newData.measurementsComplete !== false) {
             await deleteCycleEntryDB(user.uid, cycleIdToUse, targetRecord.id);
             updateEntryState(cycleIdToUse, targetRecord.id, recordPayload, newData.isoDate, {
               remove: true,
             });
           } else {
-            await updateCycleEntry(user.uid, cycleIdToUse, targetRecord.id, recordPayload);
-            updateEntryState(cycleIdToUse, targetRecord.id, { ...recordPayload, measurements: newData.measurementsComplete === false ? undefined : measurementsPayload }, newData.isoDate);
+            const saved = await updateCycleEntry(user.uid, cycleIdToUse, targetRecord.id, recordPayload);
+            updateEntryState(cycleIdToUse, targetRecord.id, { ...recordPayload, measurements: recordPayload.measurementsComplete === false ? undefined : (saved.measurements ?? measurementsPayload) }, newData.isoDate);
           }
         } else {
           if (isPayloadEmpty) {
@@ -667,7 +695,7 @@ if (newData?.isoDate && newData.isoDate > todayIso) {
           );
           savedEntryId = created?.id ?? null;
           if (savedEntryId) {
-            updateEntryState(cycleIdToUse, savedEntryId, { ...recordPayload, measurements: newData.measurementsComplete === false ? undefined : measurementsPayload }, newData.isoDate);
+            updateEntryState(cycleIdToUse, savedEntryId, { ...recordPayload, measurements: recordPayload.measurementsComplete === false ? undefined : (created.measurements ?? measurementsPayload) }, newData.isoDate);
           }
         }
         const ambitoCicloMetric =
@@ -714,8 +742,9 @@ if (newData?.isoDate && newData.isoDate > todayIso) {
   const getMeasurementsForEntry = useCallback(
     async (cycleId, entryId) => {
       if (!user?.uid || !cycleId || !entryId) throw new Error('No se pueden cargar las mediciones sin usuario, ciclo y registro.');
-      const measurements = await fetchEntryMeasurementsDB(user.uid, cycleId, entryId);
-      updateEntryMeasurementsState(cycleId, entryId, measurements);
+      const { measurements, measurementsComplete: complete } = await fetchEntryMeasurementsDB(user.uid, cycleId, entryId);
+      measurementReadStatus.current.set(JSON.stringify([user.uid, cycleId, entryId]), complete);
+      updateEntryMeasurementsState(cycleId, entryId, measurements, complete);
       return measurements;
     },
     [user, updateEntryMeasurementsState]

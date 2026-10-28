@@ -137,3 +137,11 @@ test('new and empty days do not fetch a subcollection for a placeholder', async 
   assert.deepEqual(measurementPayloadForRecord(null), { measurements: [], measurementsComplete: false });
   assert.equal(measurementPayloadForRecord({ measurements: [], measurementsLoaded: true }).measurementsComplete, true);
 });
+
+test('explicit partial cache cannot become complete merely by containing measurements', async () => {
+  const record = { id: 'cached-day', measurements, measurementsLoaded: true, measurementsComplete: false };
+  assert.equal(measurementPayloadForRecord(record).measurementsComplete, false);
+  let fetched = false;
+  await loadRecordMeasurements(record, 'cycle', async () => { fetched = true; return measurements; });
+  assert.equal(fetched, true);
+});

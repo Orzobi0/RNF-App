@@ -1,7 +1,10 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 
-export const WHATS_NEW_VERSION = '2026-06-interpretacion';
+export const WHATS_NEW_VERSION = '2026-10-mejoras';
+
+export const WHATS_NEW_ANNOUNCEMENT_ENABLED = false;
+export const WHATS_NEW_INDICATORS_ENABLED = false;
 
 export const WHATS_NEW_KEYS = {
   modalSeen: `fertiliapp:whatsNew:modalSeen:${WHATS_NEW_VERSION}`,
@@ -38,14 +41,14 @@ const readState = () => ({
 });
 
 export const WhatsNewProvider = ({ children }) => {
-  const { user, preferences, loadingAuth, restoringSession, savePreferences } = useAuth();
+  const { user, preferences, loadingAuth, restoringSession, preferencesReady, preferencesSynced, savePreferences } = useAuth();
   const [state, setState] = useState(readState);
   const [dismissedKeys, setDismissedKeys] = useState(() => new Set());
   const attemptedSaves = useRef(new Set());
   const modalKey = user?.uid
     ? `${WHATS_NEW_KEYS.modalSeen}:user:${user.uid}`
     : null;
-  const ready = Boolean(modalKey && preferences && !loadingAuth && !restoringSession);
+  const ready = Boolean(WHATS_NEW_ANNOUNCEMENT_ENABLED && preferencesReady && preferencesSynced && modalKey && preferences && !loadingAuth && !restoringSession);
   const remotelySeen = preferences?.lastSeenWhatsNewVersion === WHATS_NEW_VERSION;
   const locallySeen = Boolean(modalKey && (dismissedKeys.has(modalKey) || readFlag(modalKey)));
   const legacySeen = !preferences?.lastSeenWhatsNewVersion && state.modalSeen;
@@ -115,8 +118,8 @@ export const WhatsNewProvider = ({ children }) => {
       modalSeen,
       supportSeen: state.supportSeen,
       chartInterpretationSeen: state.chartInterpretationSeen,
-      hasUnseenSupport: !state.supportSeen,
-      hasUnseenChartInterpretation: !state.chartInterpretationSeen,
+      hasUnseenSupport: WHATS_NEW_INDICATORS_ENABLED && !state.supportSeen,
+      hasUnseenChartInterpretation: WHATS_NEW_INDICATORS_ENABLED && !state.chartInterpretationSeen,
       markModalSeen,
       markSupportSeen: () => markSeen('supportSeen'),
       markChartInterpretationSeen: () => markSeen('chartInterpretationSeen'),

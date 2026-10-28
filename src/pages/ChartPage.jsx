@@ -802,7 +802,7 @@ useEffect(() => {
   if (showLoading) {
     return (
       <MainLayout>
-        <div className="flex h-full flex-col items-center justify-center space-y-4 bg-[#FFF8FA] px-4 py-8 text-center text-fertiliapp-fuerte">
+        <div className="flex h-full flex-col items-center justify-center space-y-4 bg-[#FFF7F9] px-4 py-8 text-center text-fertiliapp-fuerte">
           <p>Cargando…</p>
         </div>
       </MainLayout>
