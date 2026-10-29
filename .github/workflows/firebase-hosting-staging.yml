@@ -2,7 +2,7 @@ name: Staging Hosting (automatic)
 on:
   push:
     branches:
-      - mayo_interpertacion
+      - nov26
   workflow_dispatch:
 permissions:
   contents: read

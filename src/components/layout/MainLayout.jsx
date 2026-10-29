@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core';
 import React, { useEffect } from 'react';
 import BottomNav from './BottomNav';
 import { isStaging } from '@/lib/firebaseClient';
@@ -27,6 +28,9 @@ const updateNativeStatusBar = (color, darkIcons) => {
 
 const MainLayout = ({ children, hideBottomNav = false }) => {
   const statusBarColor = STATUS_BAR_COLORS.default;
+  const isAndroidNative =
+  Capacitor.isNativePlatform() &&
+  Capacitor.getPlatform() === 'android';
 
   const mainClass = hideBottomNav
     ? 'relative z-10 flex-1 w-full overflow-hidden'
@@ -59,7 +63,11 @@ const MainLayout = ({ children, hideBottomNav = false }) => {
   />
 )}
 
-      <main className={mainClass}>{children}</main>
+      <main
+  className={`${mainClass}${isAndroidNative && !hideBottomNav ? ' android-page-scroll' : ''}`}
+>
+  {children}
+</main>
       {!hideBottomNav && <BottomNav />}
     </div>
   );
