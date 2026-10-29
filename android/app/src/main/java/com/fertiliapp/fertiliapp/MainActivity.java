@@ -23,11 +23,33 @@ public class MainActivity extends BridgeActivity {
         setStatusBar(DEFAULT_STATUS_BAR_COLOR, true);
 
         if (getBridge() != null && getBridge().getWebView() != null) {
-            getBridge().getWebView().addJavascriptInterface(
-                new StatusBarBridge(),
-                "FertiliAppStatusBar"
-            );
-        }
+
+    int textZoomInicial = getBridge()
+        .getWebView()
+        .getSettings()
+        .getTextZoom();
+
+    Log.d("FertiliAppText",
+        "TextZoom inicial: " + textZoomInicial
+        + " | FontScale Android: "
+        + getResources().getConfiguration().fontScale
+    );
+
+    // Prueba exclusivamente en Android Staging
+    if (getPackageName().endsWith(".staging")) {
+        getBridge().getWebView().getSettings().setTextZoom(100);
+
+        Log.d("FertiliAppText",
+            "TextZoom aplicado: "
+            + getBridge().getWebView().getSettings().getTextZoom()
+        );
+    }
+
+    getBridge().getWebView().addJavascriptInterface(
+        new StatusBarBridge(),
+        "FertiliAppStatusBar"
+    );
+}
     }
 
     private void setStatusBar(String color, boolean darkIcons) {

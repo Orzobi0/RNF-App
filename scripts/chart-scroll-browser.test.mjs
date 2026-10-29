@@ -22,7 +22,7 @@ const bundle = await build({
   return <FertilityChart {...props} reduceMotion={true} />;
  }
  createRoot(document.getElementById('root')).render(<Harness />);` },
- bundle:true,write:false,format:'iife',alias:{'@':path.resolve('src')},define:{'process.env.NODE_ENV':'"development"','import.meta':'{env:{DEV:false}}'},
+ bundle:true,write:false,format:'iife',alias:{'@':path.resolve('src')},define:{'process.env.NODE_ENV':'"development"','import.meta':'{"env":{"DEV":false}}'},
  plugins:[{name:'chart-observation',setup(b){
   b.onLoad({filter:/[\\/]FertilityChart\.jsx$/},()=>({loader:'jsx',resolveDir:path.dirname(chartPath),contents:source.replace('const scrollPositionRef = useRef(null);',`const scrollPositionRef = useRef(null);
   window.chartTest = () => ({node: chartRef.current, x0:getX(0), step:getX(1)-getX(0), dimensions, cycleId});`)}));
