@@ -1,3 +1,5 @@
+import { loadFormMeasurements } from '@/lib/loadFormMeasurements';
+import { measurementPayloadForRecord, loadRecordMeasurements } from '@/lib/temperatureMeasurements';
 import React, {
   useState,
   useCallback,
@@ -7,7 +9,8 @@ import React, {
   useRef,
 } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import CycleDatesEditor from '@/components/CycleDatesEditor';
+import CycleOptionsSheet from '@/components/CycleOptionsSheet';
+import EditCycleDatesDialog from '@/components/EditCycleDatesDialog';
 import DataEntryForm from '@/components/DataEntryForm';
 import DayDetail from '@/components/DayDetail';
 import DeletionDialog from '@/components/DeletionDialog';
@@ -17,7 +20,7 @@ import { ToastAction } from '@/components/ui/toast';
 import { HeaderIconButtonPrimary } from '@/components/HeaderIconButton';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Baby, ChevronLeft, ChevronRight, Edit, Plus, ClipboardList, Heart, Loader2 } from 'lucide-react';
+import { Baby, ChevronLeft, ChevronRight, Edit, EllipsisVertical, Plus, ClipboardList, Heart, Loader2 } from 'lucide-react';
 import NewCycleDialog from '@/components/NewCycleDialog';
 import {
   format,
@@ -59,6 +62,7 @@ const RecordsHeader = ({
   isCurrentCycle,
   topAccessory,
   onEditDates,
+  onOpenCycleOptions,
   onAddRecord,
   isProcessing,
   isUpdatingDates,
@@ -70,6 +74,7 @@ const RecordsHeader = ({
 }) => {
   const cycleLabel = isCurrentCycle ? 'CICLO ACTUAL' : 'CICLO ARCHIVADO';
   const editDatesLabel = isCurrentCycle ? 'Editar fechas del ciclo actual' : 'Editar fechas del ciclo archivado';
+  const showCycleOptionsButton = typeof onOpenCycleOptions === 'function';
 
 const renderCycleNavButton = (direction, targetCycle) => {
   const Icon = direction === 'previous' ? ChevronLeft : ChevronRight;
@@ -97,6 +102,19 @@ const renderCycleNavButton = (direction, targetCycle) => {
   return (
   <div className="px-4 pt-2">
     <div className="relative overflow-hidden rounded-3xl bg-fertiliapp-fuerte px-4 pb-3 pt-2.5 text-white shadow-[0_8px_18px_rgba(216,92,112,0.14)]">
+    {showCycleOptionsButton && (
+      <HeaderIconButtonPrimary
+        type="button"
+        onClick={onOpenCycleOptions}
+        disabled={isProcessing || isUpdatingDates}
+        aria-label="Opciones del ciclo"
+        className="absolute left-4 top-2.5 z-20 h-10 w-10 !border-transparent !bg-transparent !shadow-none text-white hover:!bg-transparent hover:text-white active:!bg-white/10 active:text-white focus-visible:!bg-white/10"
+      >
+        <EllipsisVertical className="h-4 w-4" />
+        <span className="sr-only">Opciones del ciclo</span>
+      </HeaderIconButtonPrimary>
+    )}
+
     <HeaderIconButtonPrimary
       type="button"
       onClick={onAddRecord}
@@ -108,23 +126,29 @@ const renderCycleNavButton = (direction, targetCycle) => {
       <span className="sr-only">Añadir registro</span>
     </HeaderIconButtonPrimary>
 
-    <div className="mx-auto max-w-[calc(100%-3.5rem)] text-center">
+    <div className={cn('mx-auto text-center', showCycleOptionsButton ? 'max-w-[calc(100%-7rem)]' : 'max-w-[calc(100%-3.5rem)]')}>
       <div className="truncate text-[9px] font-semibold uppercase leading-4 tracking-[0.2em] text-white/72">
         {cycleLabel}
       </div>
 
-      <button
-        type="button"
-        onClick={onEditDates}
-        data-date-editor-toggle="true"
-        disabled={isProcessing || isUpdatingDates}
-        aria-label={editDatesLabel}
-        aria-pressed={isDateEditorOpen}
-        aria-expanded={isDateEditorOpen}
-        className="date-editor-toggle mt-0.5 inline-flex max-w-full items-center justify-center rounded-full px-1.5 py-0.5 text-center text-[18px] font-semibold leading-tight text-white transition hover:bg-white/10 active:bg-white/15 disabled:opacity-60"
-      >
-        <span className="truncate">{title}</span>
-      </button>
+      {showCycleOptionsButton ? (
+        <div className="mt-0.5 max-w-full truncate px-1.5 py-0.5 text-center text-[18px] font-semibold leading-tight text-white">
+          {title}
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={onEditDates}
+          data-date-editor-toggle="true"
+          disabled={isProcessing || isUpdatingDates}
+          aria-label={editDatesLabel}
+          aria-pressed={isDateEditorOpen}
+          aria-expanded={isDateEditorOpen}
+          className="date-editor-toggle mt-0.5 inline-flex max-w-full items-center justify-center rounded-full px-1.5 py-0.5 text-center text-[18px] font-semibold leading-tight text-white transition hover:bg-white/10 active:bg-white/15 disabled:opacity-60"
+        >
+          <span className="truncate">{title}</span>
+        </button>
+      )}
     </div>
 
     <div className="pointer-events-none absolute left-4 right-4 top-[3.05rem] z-10 flex items-center justify-between">
@@ -197,6 +221,7 @@ const resolveInitialSelectedIsoDate = ({ cycle, routeSelectedIso }) => {
 };
 
 const CALENDAR_BUTTON_SCROLL_DURATION_MS = 170;
+const CYCLE_OPTIONS_SHEET_EXIT_DELAY_MS = 200;
 
 const easeOutCubic = (value) => 1 - Math.pow(1 - value, 3);
 const getCalendarMonthScrollLeft = (container, index) => {
@@ -244,6 +269,7 @@ export const RecordsExperience = ({
     refreshData: contextRefreshData,
     getMeasurementsForEntry: contextGetMeasurementsForEntry,
     undoCurrentCycle: contextUndoCurrentCycle,
+    updateCyclePostpartumMode: contextUpdateCyclePostpartumMode,
     repairDialogState,
     openDataRepairDialog,
     closeDataRepairDialog,
@@ -299,18 +325,12 @@ export const RecordsExperience = ({
   const [recordToDelete, setRecordToDelete] = useState(null);
   const [showUndoCycleDialog, setShowUndoCycleDialog] = useState(false);
   const [isUndoingCycle, setIsUndoingCycle] = useState(false);
+  const [showCycleOptionsSheet, setShowCycleOptionsSheet] = useState(false);
+  const [isUpdatingPostpartum, setIsUpdatingPostpartum] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [showStartDateEditor, setShowStartDateEditor] = useState(false);
-  const [draftStartDate, setDraftStartDate] = useState(() => cycle?.startDate || '');
-  const [draftEndDate, setDraftEndDate] = useState(() => cycle?.endDate || '');
   const [startDateError, setStartDateError] = useState('');
-  const [pendingStartDate, setPendingStartDate] = useState(null);
-  const [pendingEndDate, setPendingEndDate] = useState(null);
-  const [pendingIncludeEndDate, setPendingIncludeEndDate] = useState(false);
-  const [overlapCycle, setOverlapCycle] = useState(null);
-  const [overlapImpactPreview, setOverlapImpactPreview] = useState(null);
-  const [showOverlapDialog, setShowOverlapDialog] = useState(false);
   const [isUpdatingStartDate, setIsUpdatingStartDate] = useState(false);
   const [selectedDate, setSelectedDate] = useState(() =>
   resolveInitialSelectedIsoDate({ cycle, routeSelectedIso })
@@ -459,13 +479,7 @@ export const RecordsExperience = ({
   );
   const isCalendarOpen = true;
   const activeRecordLoadRef = useRef(null);
-  const cycleDatesEditorRef = useRef(null);
   const cycleNavigationTimeoutRef = useRef(null);
-
-  useEffect(() => {
-    setDraftStartDate(cycle?.startDate || '');
-    setDraftEndDate(cycle?.endDate || '');
-  }, [cycle?.startDate, cycle?.endDate]);
 
   useLayoutEffect(() => {
   const nextSelectedIso = resolveInitialSelectedIsoDate({ cycle, routeSelectedIso });
@@ -893,7 +907,7 @@ return {
             ? isWhiteSymbol
               ? 'text-fertiliapp-fuerte'
               : 'text-white'
-            : 'text-fertiliapp-fuerte'
+            : 'text-slate-700 font-semibold'
           : isToday
           ? 'text-subtitulo font-semibold'
           : activeModifiers.outside
@@ -911,10 +925,12 @@ return {
             'pointer-events-none absolute inset-0 rounded-full transition-opacity',
             symbolInfo?.color ?? '',
             symbolInfo?.pattern === 'spotting-pattern' ? 'calendar-spotting-dot' : '',
-            symbolValue === 'white' ? 'bg-rose-50 ring-1 ring-rose-300/90 shadow-sm' : '',
+            symbolValue === 'white' ? '!bg-white ring-1 ring-rose-400/90 shadow-sm' : '',
  symbolValue === 'white'
-   ? isSelected ? 'opacity-90' : 'opacity-100'
-   : isSelected ? 'opacity-50' : 'opacity-25'
+  ? (isSelected ? 'opacity-90' : 'opacity-100')
+  : symbolValue === 'spot'
+    ? 'opacity-50'
+    : (isSelected ? 'opacity-70' : 'opacity-35')
           )
         : null;
 
@@ -935,13 +951,13 @@ return {
       {isToday && !isSelected && !(activeModifiers.outside || activeModifiers.outsideCycle) && (
     <span
       aria-hidden="true"
-      className="pointer-events-none absolute -inset-[4px] rounded-full border border-fertiliapp-fuerte"
+      className="pointer-events-none absolute -inset-[4px] rounded-full border border-dashed border-slate-500/80"
     />
   )}
       {isSelected && (
     <span
       aria-hidden="true"
-      className="pointer-events-none absolute -inset-[2px] rounded-full bg-tarjeta border-2 border-fertiliapp-fuerte"
+      className="pointer-events-none absolute -inset-[2px] rounded-full bg-slate-100 border-2 border-slate-500"
     />
   )}
       {symbolBackgroundClass && <span className={symbolBackgroundClass} aria-hidden="true" />}
@@ -1270,30 +1286,15 @@ const handleNextCalendarMonth = useCallback(() => {
   }
 }, [visibleCalendarMonthIndex]);
 
-  const resetStartDateFlow = useCallback(() => {
-    setPendingStartDate(null);
-    setPendingEndDate(null);
-    setPendingIncludeEndDate(false);
-    setOverlapCycle(null);
-    setOverlapImpactPreview(null);
-    setShowOverlapDialog(false);
-  }, []);
-
   const openStartDateEditor = useCallback(() => {
-    setDraftStartDate(cycle?.startDate || '');
-    setDraftEndDate(cycle?.endDate || '');
     setStartDateError('');
-    resetStartDateFlow();
     setShowStartDateEditor(true);
-  }, [cycle?.startDate, cycle?.endDate, resetStartDateFlow]);
+  }, []);
 
   const closeStartDateEditor = useCallback(() => {
     setShowStartDateEditor(false);
     setStartDateError('');
-    resetStartDateFlow();
-    setDraftStartDate(cycle?.startDate || '');
-    setDraftEndDate(cycle?.endDate || '');
-  }, [cycle?.startDate, cycle?.endDate, resetStartDateFlow]);
+  }, []);
 
   const toggleStartDateEditor = useCallback(() => {
     if (showStartDateEditor) {
@@ -1302,6 +1303,59 @@ const handleNextCalendarMonth = useCallback(() => {
     }
     openStartDateEditor();
   }, [closeStartDateEditor, openStartDateEditor, showStartDateEditor]);
+
+  const handleOpenCycleOptions = useCallback(() => {
+    setShowCycleOptionsSheet(true);
+  }, []);
+
+  const handleEditStartDateFromCycleOptions = useCallback(() => {
+    setShowCycleOptionsSheet(false);
+    window.setTimeout(() => {
+      openStartDateEditor();
+    }, CYCLE_OPTIONS_SHEET_EXIT_DELAY_MS);
+  }, [openStartDateEditor]);
+
+  const handleUndoCycleFromOptions = useCallback(() => {
+    setShowCycleOptionsSheet(false);
+    window.setTimeout(() => {
+      setShowUndoCycleDialog(true);
+    }, CYCLE_OPTIONS_SHEET_EXIT_DELAY_MS);
+  }, []);
+
+  const handleDeleteCycleFromOptions = useCallback(() => {
+    if (!onRequestDeleteCycle) return;
+    setShowCycleOptionsSheet(false);
+    window.setTimeout(() => {
+      onRequestDeleteCycle();
+    }, CYCLE_OPTIONS_SHEET_EXIT_DELAY_MS);
+  }, [onRequestDeleteCycle]);
+
+  const handlePostpartumChange = useCallback(
+    async (checked) => {
+      if (!cycle?.id || typeof contextUpdateCyclePostpartumMode !== 'function' || isUpdatingPostpartum) {
+        return;
+      }
+
+      setIsUpdatingPostpartum(true);
+      try {
+        await contextUpdateCyclePostpartumMode(cycle.id, checked === true);
+        await refreshData?.({ silent: true });
+        toast({
+          title: checked === true ? 'Modo postparto activado' : 'Modo postparto desactivado',
+        });
+      } catch (error) {
+        console.error('Failed to persist postpartum mode from records page', error);
+        toast({
+          title: 'No se pudo actualizar el modo postparto',
+          description: 'Inténtalo de nuevo.',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsUpdatingPostpartum(false);
+      }
+    },
+    [contextUpdateCyclePostpartumMode, cycle?.id, isUpdatingPostpartum, refreshData, toast]
+  );
 
 
   const handleConfirmUndoCycle = useCallback(async () => {
@@ -1318,24 +1372,16 @@ const handleNextCalendarMonth = useCallback(() => {
     }
   }, [closeStartDateEditor, contextCurrentCycle?.id, contextUndoCurrentCycle]);
 
-  const handleDeleteCycleFromEditor = useCallback(() => {
-    if (onRequestDeleteCycle) {
-      closeStartDateEditor();
-      onRequestDeleteCycle();
-    }
-  }, [closeStartDateEditor, onRequestDeleteCycle]);
+  const handleSaveStartDate = useCallback(async ({ startDate, endDate } = {}) => {
+    const nextStartDate = startDate ?? cycle?.startDate ?? '';
+    const nextEndDate = includeEndDate ? (endDate ?? cycle?.endDate ?? '') : undefined;
 
-  const handleCancelOverlapStart = useCallback(() => {
-    resetStartDateFlow();
-  }, [resetStartDateFlow]);
-
-  const handleSaveStartDate = useCallback(async () => {
-    if (!draftStartDate) {
+    if (!nextStartDate) {
       setStartDateError('La fecha de inicio es obligatoria');
       return;
     }
 
-    if (includeEndDate && draftEndDate && draftEndDate < draftStartDate) {
+    if (includeEndDate && nextEndDate && nextEndDate < nextStartDate) {
       setStartDateError('La fecha de fin no puede ser anterior al inicio');
       return;
     }
@@ -1348,47 +1394,12 @@ const handleNextCalendarMonth = useCallback(() => {
     setIsUpdatingStartDate(true);
 
     try {
-      const resolvedEndDate = includeEndDate ? draftEndDate || undefined : undefined;
-      const impactPreview = previewUpdateCycleDates
-        ? await previewUpdateCycleDates(cycle.id, draftStartDate, resolvedEndDate)
-        : null;
-
-      if (impactPreview) {
-        setPendingStartDate(draftStartDate);
-        setPendingEndDate(resolvedEndDate ?? null);
-        setPendingIncludeEndDate(!!includeEndDate);
-        setOverlapCycle(null);
-        setOverlapImpactPreview(impactPreview);
-        setShowOverlapDialog(true);
-        setIsUpdatingStartDate(false);
-        return;
-      }
-
-      const overlap = checkCycleOverlap
-        ? await checkCycleOverlap(
-            cycle.id,
-            draftStartDate,
-            resolvedEndDate
-          )
-        : null;
-
-      if (overlap) {
-        setPendingStartDate(draftStartDate);
-        setPendingEndDate(resolvedEndDate ?? null);
-        setPendingIncludeEndDate(!!includeEndDate);
-        setOverlapCycle(overlap);
-        setOverlapImpactPreview(null);
-        setShowOverlapDialog(true);
-        setIsUpdatingStartDate(false);
-        return;
-      }
-
       await updateCycleDates(
         cycle.id,
-        draftStartDate,
-        includeEndDate ? draftEndDate || undefined : undefined
+        nextStartDate,
+        includeEndDate ? nextEndDate || undefined : undefined
       );
-      await refreshData({ silent: true });
+      await refreshData?.({ silent: true });
       closeStartDateEditor();
     } catch (error) {
       const publicError = getPublicError ? getPublicError(error) : null;
@@ -1408,79 +1419,17 @@ const handleNextCalendarMonth = useCallback(() => {
       setIsUpdatingStartDate(false);
     }
   }, [
-    draftStartDate,
-    draftEndDate,
     includeEndDate,
-    cycle?.id,
-    checkCycleOverlap,
-    previewUpdateCycleDates,
-    updateCycleDates,
-    refreshData,
-    toast,
-    closeStartDateEditor,
-  ]);
-
-  const handleConfirmOverlapStart = useCallback(async () => {
-    if (!cycle?.id || !pendingStartDate) {
-      resetStartDateFlow();
-      return;
-    }
-
-    setIsUpdatingStartDate(true);
-    setShowOverlapDialog(false);
-
-    try {
-      const currentStartDate = cycle.startDate;
-      const currentEndDate = cycle.endDate ?? undefined;
-      const hasStartChange = pendingStartDate !== currentStartDate;
-      const resolvedPendingEnd = pendingIncludeEndDate
-        ? pendingEndDate ?? undefined
-        : undefined;
-      const hasEndChange =
-        pendingIncludeEndDate &&
-        pendingEndDate !== null &&
-        resolvedPendingEnd !== currentEndDate;
-
-      await updateCycleDates(
-        cycle.id,
-        hasStartChange ? pendingStartDate : undefined,
-        resolvedPendingEnd
-      );
-      await refreshData({ silent: true });
-      closeStartDateEditor();
-    } catch (error) {
-      const publicError = getPublicError ? getPublicError(error) : null;
-      console.error('Error adjusting cycle dates from records page:', error);
-      setStartDateError(publicError?.message || 'No se pudieron actualizar las fechas');
-      toast({
-        title: publicError?.title || 'Error',
-        description: publicError?.message || 'No se pudieron actualizar las fechas.',
-        variant: 'destructive',
-        action: publicError?.action?.label === 'Revisar' ? (
-          <ToastAction altText="Revisar" onClick={() => openDataRepairDialog?.(cycle?.id)}>
-            Revisar
-          </ToastAction>
-        ) : undefined,
-      });
-    } finally {
-      setIsUpdatingStartDate(false);
-      resetStartDateFlow();
-    }
-  }, [
     cycle?.id,
     cycle?.startDate,
     cycle?.endDate,
-    pendingStartDate,
-    pendingIncludeEndDate,
-    pendingEndDate,
     updateCycleDates,
     refreshData,
     toast,
     closeStartDateEditor,
-    resetStartDateFlow,
+    getPublicError,
+    openDataRepairDialog,
   ]);
-
-
 
   const handleCloseForm = useCallback(() => {
     setShowForm(false);
@@ -1492,42 +1441,40 @@ const handleNextCalendarMonth = useCallback(() => {
     activeRecordLoadRef.current = null;
   }, []);
 
-  const openRecordForm = useCallback(
-    async (record, fieldName = null, sectionKey = null) => {
-      if (!record) return;
+  // One request per selected record and form session. Context refreshes must
+  // neither restart the request nor replace the user's draft.
+  const handleDateSelect = useCallback(async (record) => {
+    const key = JSON.stringify([cycle?.id, record?.id ?? record?.isoDate ?? null]);
+    if (activeRecordLoadRef.current?.key === key) return;
+    const request = { key };
+    activeRecordLoadRef.current = request;
+    setEditingRecord(record);
+    setIsDetailLoading(true);
+    try {
+      const measurements = await loadFormMeasurements(record, cycle?.id, getMeasurementsForEntry);
+      if (activeRecordLoadRef.current !== request) return;
+      setEditingRecord(record ? { ...record, measurements, measurementsLoaded: true, measurementsComplete: true } : null);
+    } catch {
+      if (activeRecordLoadRef.current !== request) return;
+      handleCloseForm();
+      toast({ title: 'No se pudieron cargar las temperaturas', description: 'Revisa la conexión y vuelve a pulsar Editar para intentarlo de nuevo.', variant: 'destructive' });
+    } finally {
+      if (activeRecordLoadRef.current === request) setIsDetailLoading(false);
+    }
+  }, [cycle?.id, getMeasurementsForEntry, handleCloseForm, toast]);
 
-      activeRecordLoadRef.current = record.id ?? null;
-      setEditingRecord(record);
+  const openRecordForm = useCallback(
+    (record, fieldName = null, sectionKey = null) => {
+      if (!record) return;
+      activeRecordLoadRef.current = null;
       setDefaultFormIsoDate(record.isoDate ?? null);
       setFocusedField(fieldName);
       setInitialSectionKey(sectionKey ?? null);
-
-      if (record.isoDate) {
-        setSelectedDate(record.isoDate);
-      }
-
+      if (record.isoDate) setSelectedDate(record.isoDate);
+      void handleDateSelect(record);
       setShowForm(true);
-
-      const hasLoadedMeasurements =
-        record?.measurementsLoaded ||
-        (Array.isArray(record?.measurements) && record.measurements.length > 0);
-      if (getMeasurementsForEntry && record?.id && cycle?.id && !hasLoadedMeasurements) {
-        setIsDetailLoading(true);
-        try {
-          const measurements = await getMeasurementsForEntry(cycle.id, record.id);
-          if (activeRecordLoadRef.current === record.id) {
-            setEditingRecord((prev) =>
-              prev?.id === record.id
-                ? { ...prev, measurements, measurementsLoaded: true }
-                : prev
-            );
-          }
-        } finally {
-          setIsDetailLoading(false);
-        }
-      }
     },
-    [cycle?.id, getMeasurementsForEntry]
+    [handleDateSelect]
   );
 
   const handleEdit = useCallback(
@@ -1539,10 +1486,6 @@ const handleNextCalendarMonth = useCallback(() => {
     const record = cycle?.data?.find((r) => r.id === recordId);
     setRecordToDelete(record || null);
   };
-
-  const handleDateSelect = useCallback((record) => {
-    setEditingRecord(record);
-  }, []);
 
   const handleAddRecordForDay = useCallback((isoDate, sectionKey = null, fieldName = null) => {
     if (!isoDate) {
@@ -1583,62 +1526,42 @@ const handleNextCalendarMonth = useCallback(() => {
   const buildRecordPayloadForDate = useCallback(
     (isoDate, overrides = {}) => {
       const existingRecord = cycle?.data?.find((record) => record.isoDate === isoDate) || null;
-      const baseTime = existingRecord?.timestamp && isValid(parseISO(existingRecord.timestamp))
-        ? format(parseISO(existingRecord.timestamp), 'HH:mm')
-        : format(new Date(), 'HH:mm');
-
-      const fallbackTemperatureRaw = existingRecord?.temperature_raw ?? existingRecord?.temperature ?? '';
-      const fallbackTemperatureCorrected = existingRecord?.temperature_corrected ?? '';
-      const fallbackUseCorrected = Boolean(existingRecord?.use_corrected);
-      const measurements = existingRecord?.measurements?.length
-        ? existingRecord.measurements.map((measurement, idx) => {
-            const measurementTime =
-              measurement?.time ||
-              (measurement?.timestamp && isValid(parseISO(measurement.timestamp))
-                ? format(parseISO(measurement.timestamp), 'HH:mm')
-                : baseTime);
-
-            return {
-              temperature:
-                measurement?.temperature ??
-                measurement?.temperature_raw ??
-                fallbackTemperatureRaw,
-              temperature_corrected:
-                measurement?.temperature_corrected ?? fallbackTemperatureCorrected,
-              time: measurementTime,
-              time_corrected: measurement?.time_corrected || measurementTime,
-              use_corrected:
-                measurement?.use_corrected !== undefined
-                  ? Boolean(measurement?.use_corrected)
-                  : fallbackUseCorrected,
-              selected: Boolean(measurement?.selected ?? idx === 0),
-            };
-          })
-        : [
-            {
-              temperature: fallbackTemperatureRaw,
-              temperature_corrected: fallbackTemperatureCorrected,
-              time: baseTime,
-              time_corrected: baseTime,
-              use_corrected: fallbackUseCorrected,
-              selected: true,
-            },
-          ];
 
       return {
         isoDate,
-        measurements,
+        ...measurementPayloadForRecord(existingRecord),
         mucusSensation: existingRecord?.mucusSensation ?? existingRecord?.mucus_sensation ?? '',
         mucusAppearance: existingRecord?.mucusAppearance ?? existingRecord?.mucus_appearance ?? '',
         fertility_symbol: existingRecord?.fertility_symbol ?? existingRecord?.fertilitySymbol ?? 'none',
         observations: existingRecord?.observations ?? '',
         peak_marker: existingRecord?.peak_marker ?? null,
         ignored: existingRecord?.ignored ?? false,
+        had_relations: existingRecord?.had_relations ?? existingRecord?.hadRelations ?? false,
         ...overrides,
       };
     },
     [cycle?.data]
   );
+  const loadDayMeasurements = useCallback(
+    (record, options) => loadRecordMeasurements(record, cycle?.id, getMeasurementsForEntry, options),
+    [cycle?.id, getMeasurementsForEntry]
+  );
+  const saveFormMeasurements = useCallback(async (isoDate, measurements, operation) => {
+    const record = cycle?.data?.find((item) => item.isoDate === isoDate) || null;
+    const payload = buildRecordPayloadForDate(isoDate, { measurements, measurementsComplete: true, ...(typeof operation?.ignored === 'boolean' ? { ignored: operation.ignored } : {}) });
+    await addOrUpdateDataPoint(payload, record, cycle?.id);
+  }, [cycle?.data, cycle?.id, buildRecordPayloadForDate, addOrUpdateDataPoint]);
+  const saveDayMeasurements = useCallback(async (record, measurements, operation) => {
+    const isoDate = record?.isoDate || operation?.isoDate;
+    const existing = cycle?.data?.find((item) => item.isoDate === isoDate) || null;
+    const payload = buildRecordPayloadForDate(isoDate, { measurements, measurementsComplete: true, ...(typeof operation?.ignored === 'boolean' ? { ignored: operation.ignored } : {}) });
+    await addOrUpdateDataPoint(payload, existing, cycle?.id);
+  }, [buildRecordPayloadForDate, addOrUpdateDataPoint, cycle?.id, cycle?.data]);
+  const saveDayQuickEdit = useCallback(async (isoDate, values) => {
+    const record = cycle?.data?.find((item) => item.isoDate === isoDate) || null;
+    await addOrUpdateDataPoint(buildRecordPayloadForDate(isoDate, { ...values, measurementsComplete: false }), record, cycle?.id);
+  }, [buildRecordPayloadForDate, addOrUpdateDataPoint, cycle?.id, cycle?.data]);
+
   const handleSave = async (data, { keepFormOpen = false, submitAction = null } = {}) => {
   setIsProcessing(true);
 
@@ -1700,6 +1623,7 @@ const handleNextCalendarMonth = useCallback(() => {
 
       setIsProcessing(true);
       try {
+        if (existingRecord?.id) payload.measurements = await loadDayMeasurements(existingRecord);
         await addOrUpdateDataPoint(payload, existingRecord);
         toast({
           title: getRelationsToastMessage(!hasRelations),
@@ -1711,7 +1635,7 @@ const handleNextCalendarMonth = useCallback(() => {
         setIsProcessing(false);
       }
     },
-    [addOrUpdateDataPoint, buildRecordPayloadForDate, cycle?.data, toast]
+    [addOrUpdateDataPoint, buildRecordPayloadForDate, cycle?.data, toast, loadDayMeasurements]
   );
 
   const handleTogglePeak = useCallback(
@@ -1727,6 +1651,7 @@ const handleNextCalendarMonth = useCallback(() => {
 
       setIsProcessing(true);
       try {
+        if (existingRecord?.id) payload.measurements = await loadDayMeasurements(existingRecord);
         await addOrUpdateDataPoint(payload, existingRecord);
         toast({
           title: getPeakDayToastMessage(peakMode),
@@ -1743,7 +1668,7 @@ const handleNextCalendarMonth = useCallback(() => {
         setIsProcessing(false);
       }
     },
-    [addOrUpdateDataPoint, buildRecordPayloadForDate, cycle?.data, toast]
+    [addOrUpdateDataPoint, buildRecordPayloadForDate, cycle?.data, toast, loadDayMeasurements]
   );
 
   const confirmDelete = async () => {
@@ -1880,6 +1805,7 @@ const handleNextCalendarMonth = useCallback(() => {
       isCurrentCycle={isCurrentCycle}
       topAccessory={resolvedTopAccessory}
       onEditDates={toggleStartDateEditor}
+      onOpenCycleOptions={handleOpenCycleOptions}
       onAddRecord={handleOpenAddRecord}
       isProcessing={isProcessing}
       isUpdatingDates={isUpdatingStartDate}
@@ -1896,43 +1822,6 @@ const handleNextCalendarMonth = useCallback(() => {
           <div className="space-y-1.5 relative z-10">
             <DataIssuesBanner issues={cycle?.issues} onReview={() => openDataRepairDialog?.(cycle?.id)} />
 
-            {showStartDateEditor && (
-              <motion.div
-                ref={cycleDatesEditorRef}
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4 }}
-              >
-                <CycleDatesEditor
-                  cycle={cycle}
-                  startDate={draftStartDate}
-                  endDate={includeEndDate ? draftEndDate : cycle?.endDate}
-                  otherCycles={[...(archivedCycles ?? []), contextCurrentCycle].filter(Boolean)}
-                  onStartDateChange={(value) => setDraftStartDate(value)}
-                  onEndDateChange={includeEndDate ? (value) => setDraftEndDate(value) : undefined}
-                  onSave={handleSaveStartDate}
-                  onCancel={closeStartDateEditor}
-                  isProcessing={isUpdatingStartDate || isLoading || isUndoingCycle}
-                  dateError={startDateError}
-                  includeEndDate={includeEndDate}
-                  showOverlapDialog={showOverlapDialog}
-                  overlapCycle={overlapCycle}
-                  overlapImpactPreview={overlapImpactPreview}
-                  onConfirmOverlap={handleConfirmOverlapStart}
-                  onCancelOverlap={handleCancelOverlapStart}
-                  onClearError={() => setStartDateError('')}
-                  saveLabel={includeEndDate ? 'Guardar fechas' : 'Guardar cambios'}
-                  title={includeEndDate ? 'Editar fechas del ciclo' : 'Editar fecha de inicio'}
-                  onUndoCycle={undoCandidate ? () => setShowUndoCycleDialog(true) : undefined}
-                  isUndoingCycle={isUndoingCycle}
-                  onDeleteCycle={onRequestDeleteCycle ? handleDeleteCycleFromEditor : undefined}
-                  deleteTitle={dateEditorDeleteTitle}
-                  deleteDescription={dateEditorDeleteDescription}
-                  deleteLabel={dateEditorDeleteLabel}
-                  isDeletingCycle={isDeletingCycle}
-                />
-              </motion.div>
-            )}
             <AnimatePresence initial={false}>
               {isCalendarOpen && (
                 <motion.div
@@ -1969,7 +1858,7 @@ const handleNextCalendarMonth = useCallback(() => {
                             modifiers={calendarModifiers}
                             labels={calendarLabels}
                             components={{ DayContent: renderCalendarDay }}
-                            className="w-full !p-2.5 [&_button]:text-slate-900 [&_button:hover]:bg-tarjeta [&_button[aria-selected=true]]:bg-transparent"
+                            className="w-full !p-2.5 [&_button]:text-slate-900 [&_button:hover]:!bg-transparent [&_button[aria-selected=true]]:bg-transparent"
                             classNames={calendarClassNames}
                             modifiersClassNames={{
                               hasRecord: 'text-slate-900 hover:text-slate-900 hover:bg-rose-50',
@@ -2045,6 +1934,10 @@ const handleNextCalendarMonth = useCallback(() => {
               isPeakDay={selectedIsPeakDay}
               existingPeakIsoDate={currentPeakIsoDate}
               onEdit={handleEdit}
+              onLoadMeasurements={loadDayMeasurements}
+              onSaveMeasurements={saveDayMeasurements}
+              onSaveMucus={saveDayQuickEdit}
+              onSaveDetails={saveDayQuickEdit}
               onDelete={handleDeleteRequest}
               onAdd={handleAddRecordForDay}
               onToggleRelations={handleToggleRelations}
@@ -2056,6 +1949,45 @@ const handleNextCalendarMonth = useCallback(() => {
         {afterRecordsContent && <div className="pt-4 space-y-4">{afterRecordsContent}</div>}
         </div>
       </div>
+
+      <EditCycleDatesDialog
+        isOpen={showStartDateEditor}
+        onClose={closeStartDateEditor}
+        onConfirm={handleSaveStartDate}
+        initialStartDate={cycle?.startDate}
+        initialEndDate={cycle?.endDate}
+        includeEndDate={includeEndDate}
+        cycleId={cycle?.id}
+        checkOverlap={checkCycleOverlap}
+        previewUpdateCycleDates={previewUpdateCycleDates}
+        title={includeEndDate ? 'Editar fechas del ciclo' : 'Editar fecha de inicio'}
+        description={includeEndDate ? 'Actualiza las fechas del ciclo.' : 'Actualiza la fecha de inicio del ciclo actual.'}
+        cycleData={cycle?.data ?? []}
+        otherCycles={[...(archivedCycles ?? []), contextCurrentCycle].filter(Boolean)}
+        errorMessage={startDateError}
+        onResetError={() => setStartDateError('')}
+      />
+
+      <CycleOptionsSheet
+        open={showCycleOptionsSheet}
+        onOpenChange={setShowCycleOptionsSheet}
+        cycleLabel={resolvedHeaderTitle}
+        cycleMeta={resolvedHeaderMeta}
+        isCurrentCycle={isCurrentCycle}
+        postpartumMode={Boolean(cycle?.postpartumMode)}
+        isUpdatingPostpartum={isUpdatingPostpartum}
+        editDatesLabel={includeEndDate ? 'Editar fechas' : 'Editar fecha de inicio'}
+        onEditStartDate={handleEditStartDateFromCycleOptions}
+        onPostpartumChange={handlePostpartumChange}
+        showUndoCycle={isCurrentCycle && Boolean(undoCandidate)}
+        onUndoCycle={handleUndoCycleFromOptions}
+        showDeleteCycle={!isCurrentCycle && Boolean(onRequestDeleteCycle)}
+        onDeleteCycle={handleDeleteCycleFromOptions}
+        deleteTitle={dateEditorDeleteTitle}
+        deleteDescription={dateEditorDeleteDescription}
+        deleteLabel={dateEditorDeleteLabel}
+        isProcessing={isProcessing || isLoading || isUpdatingStartDate || isUndoingCycle || isDeletingCycle}
+      />
 
       <Dialog
         open={showForm}
@@ -2074,12 +2006,13 @@ const handleNextCalendarMonth = useCallback(() => {
 >
       <DataEntryForm
         onSubmit={handleSave}
+        onSaveMeasurements={saveFormMeasurements}
         onCancel={handleCloseForm}
         initialData={editingRecord}
         cycleStartDate={cycle?.startDate}
         cycleEndDate={cycle?.endDate}
         isProcessing={isProcessing || isDetailLoading}
-        isEditing={!!editingRecord}
+        isEditing={!!editingRecord?.id && !String(editingRecord.id).startsWith('placeholder-')}
         cycleData={cycle?.data}
         onDateSelect={handleDateSelect}
         defaultIsoDate={defaultFormIsoDate}

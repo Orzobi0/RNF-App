@@ -1,3 +1,4 @@
+import { selectedMeasurementSummary, measurementTimeForSummary, hasMeasurementTemperature } from '@/lib/temperatureMeasurements';
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { format, startOfDay, parseISO, addDays, parse, isValid } from 'date-fns';
 import { useToast } from '@/components/ui/use-toast';
@@ -38,8 +39,6 @@ import {
   shouldShowCycleImpactPreview,
 } from '@/lib/cycleDataHandler';
 import { getCachedCycleData, saveCycleDataToCache, clearCycleDataCache } from '@/lib/cycleCache';
-import { getFunctions, httpsCallable } from "firebase/functions";
-import { readBbtFromHealthConnect } from "@/lib/healthConnectSync";
 import {
   trackDailyRecordSaved,
   trackUserSavedRecordDay,
@@ -48,6 +47,15 @@ import {
   trackRecordDeleteError,
 } from '@/lib/analytics';
 
+
+// The read status is authoritative even when an editor infers completeness from length.
+const assertEditableMeasurementRead = (payload, complete) => {
+  if (complete === false && Array.isArray(payload.measurements) && payload.measurementsComplete !== false) {
+    throw createAppError('measurements-incomplete', 'Temperaturas disponibles solo para consulta',
+      'Estas mediciones proceden de la caché y pueden estar incompletas. Conecta a Internet y vuelve a cargar el día antes de editar temperaturas.',
+      undefined, { label: 'Reintentar' });
+  }
+};
 
 const CycleDataContext = createContext(null);
 
@@ -137,16 +145,6 @@ const normalizeTemp = (val) => {
   return isNaN(num) ? null : num;
 };
 
-const isMeasurementValid = (measurement) => {
-  if (!measurement) return false;
-  const raw = measurement.temperature;
-  const corrected = measurement.temperature_corrected;
-  const rawString = raw === null || raw === undefined ? '' : String(raw).trim();
-  const correctedString =
-    corrected === null || corrected === undefined ? '' : String(corrected).trim();
-  return rawString !== '' || correctedString !== '';
-};
-
 const normalizeDate = (date) => {
   if (!date) return null;
   if (typeof date === 'string') {
@@ -190,10 +188,22 @@ const buildEntryForState = ({
   cycleStartDate,
   existingEntry,
 }) => {
+  if (existingEntry && payload.measurementsComplete === false) {
+    payload = { ...payload };
+    for (const key of Object.keys(existingEntry)) {
+      if (key.startsWith('temperature_') || key === 'use_corrected' || key === 'timestamp') {
+        payload[key] = existingEntry[key];
+      }
+    }
+  }
   const entryForProcessing = {
     id: entryId,
     iso_date: isoDate,
     timestamp: payload.timestamp,
+    temperature_source: payload.temperature_source ?? null,
+    temperature_device_model: payload.temperature_device_model ?? null,
+    temperature_device_key: payload.temperature_device_key ?? null,
+    temperature_time_corrected: payload.temperature_time_corrected ?? null,
     temperature_raw: payload.temperature_raw ?? null,
     temperature_corrected: payload.temperature_corrected ?? null,
     use_corrected: Boolean(payload.use_corrected),
@@ -248,6 +258,7 @@ const sortEntriesByTimestamp = (entries) =>
 
 export const CycleDataProvider = ({ children }) => {
   const { user } = useAuth();
+  const measurementReadStatus = useRef(new Map());
   const { toast } = useToast();
   const [currentCycle, setCurrentCycle] = useState(defaultCycleState);
   const [archivedCycles, setArchivedCycles] = useState([]);
@@ -471,13 +482,13 @@ export const CycleDataProvider = ({ children }) => {
     setArchivedCycles((prevCycles) => prevCycles.map((cycle) => applyUpdate(cycle)));
   }, []);
 
-  const updateEntryMeasurementsState = useCallback((cycleId, entryId, measurements) => {
+  const updateEntryMeasurementsState = useCallback((cycleId, entryId, measurements, complete) => {
     const applyUpdate = (cycle) => {
       if (!cycle || cycle.id !== cycleId) return cycle;
       const currentData = Array.isArray(cycle.data) ? cycle.data : [];
       const nextData = currentData.map((entry) =>
         entry.id === entryId
-          ? { ...entry, measurements, measurementsLoaded: true }
+          ? { ...entry, measurements, measurementsLoaded: complete, measurementsComplete: complete }
           : entry
       );
       return { ...cycle, data: nextData };
@@ -544,6 +555,11 @@ if (newData?.isoDate && newData.isoDate > todayIso) {
         if (targetRecord && String(targetRecord.id).startsWith('placeholder-')) {
           targetRecord = null;
         }
+        const readKey = JSON.stringify([user.uid, cycleIdToUse, targetRecord?.id]);
+        const knownComplete = measurementReadStatus.current.get(readKey) ??
+          targetCycle?.data?.find(record => record.id === targetRecord?.id)?.measurementsComplete ??
+          targetRecord?.measurementsComplete;
+        assertEditableMeasurementRead(newData, knownComplete);
         const existingPeakRecord =
           targetCycle?.data?.find((record) => record?.peak_marker === 'peak') || null;
 
@@ -558,18 +574,12 @@ if (newData?.isoDate && newData.isoDate > todayIso) {
         }
 
         const measurementsList = Array.isArray(newData.measurements) ? newData.measurements : [];
-        const validMeasurements = measurementsList.filter(isMeasurementValid);
+        const validMeasurements = measurementsList.filter(hasMeasurementTemperature);
         const selectedMeasurement =
           validMeasurements.find((measurement) => measurement?.selected) || validMeasurements[0] || null;
-        const measurementWithTime =
-          measurementsList.find(
-            (measurement) =>
-              measurement?.time && String(measurement.time).trim() !== ''
-          ) || selectedMeasurement;
+        const measurementTime = measurementTimeForSummary(measurementsList);
         const fallbackTime = (() => {
-          if (measurementWithTime?.time && String(measurementWithTime.time).trim() !== '') {
-            return measurementWithTime.time;
-          }
+          if (measurementTime) return measurementTime;
           if (targetRecord?.timestamp) {
             try {
               return format(parseISO(targetRecord.timestamp), 'HH:mm');
@@ -581,10 +591,7 @@ if (newData?.isoDate && newData.isoDate > todayIso) {
         })();
         const recordDateTime = parse(`${newData.isoDate} ${fallbackTime}`, 'yyyy-MM-dd HH:mm', new Date());
 
-        const rawTemp = normalizeTemp(selectedMeasurement?.temperature);
-        const correctedTemp = normalizeTemp(selectedMeasurement?.temperature_corrected);
-        const useCorrected = !!selectedMeasurement?.use_corrected && correctedTemp !== null;
-        const chartTemp = useCorrected ? correctedTemp : rawTemp;
+        const temperatureSummary = selectedMeasurementSummary(validMeasurements);
 
         const peakMarkerProvided = Object.prototype.hasOwnProperty.call(
           newData,
@@ -636,26 +643,16 @@ if (newData?.isoDate && newData.isoDate > todayIso) {
               targetRecord?.peak_marker === 'peak' &&
               !isPeakMarked
             );
-        const hadMultipleMeasurements =
-          !!targetRecord?.measurementsLoaded &&
-          Array.isArray(targetRecord?.measurements) &&
-          targetRecord.measurements.length >= 2;
-
-        const shouldPersistMeasurements = validMeasurements.length >= 2;
-        const shouldClearMeasurements = hadMultipleMeasurements && validMeasurements.length < 2;
-
+        // Keep the full set locally; persistence stores a subcollection only for 2+.
         const measurementsPayload = Array.isArray(newData.measurements)
-          ? shouldPersistMeasurements
-            ? validMeasurements
-            : shouldClearMeasurements
-              ? []
-              : undefined
+          ? validMeasurements.map((m) => ({ ...m, selected: m === selectedMeasurement }))
           : undefined;
         const recordPayload = {
           cycle_id: cycleIdToUse,
           user_id: user.uid,
           timestamp: format(recordDateTime, "yyyy-MM-dd'T'HH:mm:ssXXX"),
-          measurements: measurementsPayload,
+          measurementsComplete: Array.isArray(newData.measurements) ? newData.measurementsComplete : false,
+          measurements: newData.measurementsComplete === false || !measurementsPayload ? undefined : measurementsPayload,
           mucus_sensation: newData.mucusSensation || null,
           mucus_appearance: newData.mucusAppearance || null,
           fertility_symbol: fertilitySymbolValue === 'none' ? null : fertilitySymbolValue,
@@ -665,24 +662,26 @@ if (newData?.isoDate && newData.isoDate > todayIso) {
           peak_marker: peakMarkerProvided
             ? newData.peak_marker ?? null
             : targetRecord?.peak_marker ?? null,
-          temperature_raw: rawTemp,
-          temperature_corrected: correctedTemp,
-          use_corrected: useCorrected,
-          temperature_chart: chartTemp
+          ...temperatureSummary
         };
 
+        if (recordPayload.measurementsComplete === false) {
+          // Keep the same summary in local state as in Firestore for partial edits.
+          for (const key of Object.keys(temperatureSummary)) delete recordPayload[key];
+          delete recordPayload.timestamp;
+        }
         let savedEntryId = targetRecord?.id ?? null;
         if (targetRecord) {
           const isRemovingPeak =
             peakMarkerProvided && targetRecord?.peak_marker === 'peak' && !isPeakMarked;
-          if (isPayloadEmpty && isRemovingPeak) {
+          if (isPayloadEmpty && isRemovingPeak && knownComplete !== false && newData.measurementsComplete !== false) {
             await deleteCycleEntryDB(user.uid, cycleIdToUse, targetRecord.id);
             updateEntryState(cycleIdToUse, targetRecord.id, recordPayload, newData.isoDate, {
               remove: true,
             });
           } else {
-            await updateCycleEntry(user.uid, cycleIdToUse, targetRecord.id, recordPayload);
-            updateEntryState(cycleIdToUse, targetRecord.id, recordPayload, newData.isoDate);
+            const saved = await updateCycleEntry(user.uid, cycleIdToUse, targetRecord.id, recordPayload);
+            updateEntryState(cycleIdToUse, targetRecord.id, { ...recordPayload, measurements: recordPayload.measurementsComplete === false ? undefined : (saved.measurements ?? measurementsPayload) }, newData.isoDate);
           }
         } else {
           if (isPayloadEmpty) {
@@ -696,7 +695,7 @@ if (newData?.isoDate && newData.isoDate > todayIso) {
           );
           savedEntryId = created?.id ?? null;
           if (savedEntryId) {
-            updateEntryState(cycleIdToUse, savedEntryId, recordPayload, newData.isoDate);
+            updateEntryState(cycleIdToUse, savedEntryId, { ...recordPayload, measurements: recordPayload.measurementsComplete === false ? undefined : (created.measurements ?? measurementsPayload) }, newData.isoDate);
           }
         }
         const ambitoCicloMetric =
@@ -741,10 +740,14 @@ if (newData?.isoDate && newData.isoDate > todayIso) {
   );
 
   const getMeasurementsForEntry = useCallback(
-    async (cycleId, entryId) => {
-      if (!user?.uid || !cycleId || !entryId) return [];
-      const measurements = await fetchEntryMeasurementsDB(user.uid, cycleId, entryId);
-      updateEntryMeasurementsState(cycleId, entryId, measurements);
+    async (cycleId, entryId, { requireComplete = false } = {}) => {
+      if (!user?.uid || !cycleId || !entryId) throw new Error('No se pueden cargar las mediciones sin usuario, ciclo y registro.');
+      const { measurements, measurementsComplete: complete } = await fetchEntryMeasurementsDB(user.uid, cycleId, entryId);
+      measurementReadStatus.current.set(JSON.stringify([user.uid, cycleId, entryId]), complete);
+      updateEntryMeasurementsState(cycleId, entryId, measurements, complete);
+      if (requireComplete && !complete) {
+        throw new Error('La lectura de temperaturas está incompleta. Revisa la conexión e inténtalo de nuevo.');
+      }
       return measurements;
     },
     [user, updateEntryMeasurementsState]
@@ -1474,83 +1477,6 @@ const getCycleFromState = useCallback(
     [loadCycleData]
   );
 
-  const syncHealthConnectTemperatures = useCallback(async () => {
-    if (!user?.uid) throw new Error("NO_USER");
-    if (!currentCycle?.id || !currentCycle?.startDate) throw new Error("NO_CURRENT_CYCLE");
-
-    setIsLoading(true);
-    try {
-      const items = await readBbtFromHealthConnect({ startDate: currentCycle.startDate });
-
-      if (!items.length) {
-        toast({ title: "Sin registros", description: "No se encontraron temperaturas en Health Connect." });
-        return;
-      }
-
-      const functions = getFunctions(); // si usas región, aquí: getFunctions(app, "europe-west1")
-      const syncFn = httpsCallable(functions, "syncBasalBodyTemperature");
-
-      const resp = await syncFn({
-        cycleId: currentCycle.id,
-        items,
-      });
-
-      const data = resp?.data;
-      toast({
-        title: "Sincronización hecha",
-        description: `Nuevos: ${data?.createdMeasurements ?? 0} · Ya estaban: ${data?.skippedMeasurements ?? 0} · Rechazados: ${data?.rejected ?? 0}`,
-      });
-
-      await loadCycleData({ silent: true });
-      return data;
-    } catch (e) {
-      console.error(e);
-      const toReadableError = (error) =>
-        typeof error === "string" ? error : error?.message ?? JSON.stringify(error);
-      const message = toReadableError(e);
-      if (message.includes("HEALTH_CONNECT_NotInstalled") || message.includes("HEALTH_CONNECT_NotSupported")) {
-        toast({
-          title: "Health Connect no disponible",
-          description: "Instala Health Connect para poder sincronizar tus registros.",
-          variant: "destructive",
-        });
-        return null;
-      }
-      if (message.includes("HEALTH_CONNECT_ONLY_IN_APP")) {
-        toast({
-          title: "Solo en la app Android",
-          description: "La sincronización está disponible únicamente en la app Android.",
-          variant: "destructive",
-        });
-        return null;
-      }
-      if (message.includes("HEALTH_CONNECT_PERMISSION_DENIED")) {
-        toast({
-          title: "Permisos requeridos",
-          description: "Debes conceder permisos de Health Connect para sincronizar.",
-          variant: "destructive",
-        });
-        return null;
-      }
-      if (message.includes("HEALTH_CONNECT_INVALID_START_DATE")) {
-        toast({
-          title: "Fecha de inicio inválida",
-          description: "No se pudo leer la fecha de inicio del ciclo actual.",
-          variant: "destructive",
-        });
-        return null;
-      }
-      toast({
-        title: "Error al sincronizar",
-        description: message,
-        variant: "destructive",
-      });
-      return null;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [user, currentCycle, loadCycleData, toast]);
-
   const openDataRepairDialog = useCallback((cycleId = null) => {
     setRepairDialogState({ open: true, cycleId: cycleId ?? currentCycle?.id ?? null });
   }, [currentCycle?.id]);
@@ -1587,7 +1513,6 @@ const getCycleFromState = useCallback(
   const value = {
     currentCycle,
     archivedCycles,
-    syncHealthConnectTemperatures,
     addOrUpdateDataPoint,
     deleteRecord,
     startNewCycle,

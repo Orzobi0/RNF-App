@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { PeakModeButton } from '@/components/ui/peak-mode-button';
-import { X, Edit3, Thermometer, Droplets, Circle, Heart, FileText } from 'lucide-react';
+import { X, Loader2, Edit3, Thermometer, Droplets, Circle, Heart, FileText, ChevronRight, Plus } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { getSymbolAppearance } from '@/config/fertilitySymbols';
@@ -15,8 +15,13 @@ const ChartTooltip = ({
   chartHeight,
   onToggleIgnore,
   onEdit,
+  onOpenTemperatures,
+  onOpenMucus,
+  onOpenObservations,
+  onOpenSymbol,
   onClose,
   onTogglePeak,
+  onToggleRelations,
   currentPeakIsoDate,
   showRelationsRow = false,
 }) => {
@@ -31,6 +36,18 @@ const ChartTooltip = ({
   const scaledRef = useRef(null);
   const [tooltipHeight, setTooltipHeight] = useState(tooltipMinHeight);
   const [peakActionPending, setPeakActionPending] = useState(false);
+  const [relationsActionPending, setRelationsActionPending] = useState(false);
+  const [temperaturePending, setTemperaturePending] = useState(false);
+  const [temperatureError, setTemperatureError] = useState('');
+  const temperatureRequest = useRef(null);
+  useEffect(() => {
+    setTemperaturePending(false);
+    setTemperatureError('');
+    return () => {
+      temperatureRequest.current?.abort();
+      temperatureRequest.current = null;
+    };
+  }, [point.isoDate]);
 
   useEffect(() => {
     if (scaledRef.current) {
@@ -39,7 +56,6 @@ const ChartTooltip = ({
     } else {
       setTooltipHeight(tooltipMinHeight);
     }
-    setPeakActionPending(false);
   }, [point, tooltipMinHeight]);
 
   const MARGIN = 10;
@@ -147,14 +163,10 @@ const ChartTooltip = ({
   const mucusAppearance = point.mucus_appearance ?? point.mucusAppearance ?? '';
   const observations = point.observations ?? '';
   const hasRelations = Boolean(point.had_relations ?? point.hadRelations);
-  const visibleHasRelations = Boolean(showRelationsRow && hasRelations);
   const hasSymbol = symbolInfo && symbolInfo.value !== 'none';
   const hasTemperature = temp != null;
   const isTemperatureIgnored = Boolean(point.ignored && hasTemperature);
-  const hasMucusInfo = Boolean((mucusSensation && mucusSensation.trim()) || (mucusAppearance && mucusAppearance.trim()));
   const hasObservations = Boolean(observations && observations.trim());
-  const hasAnyData = hasTemperature || hasSymbol || hasMucusInfo || hasObservations || visibleHasRelations;
-  const showEmptyState = !hasAnyData;
   const peakStatus = point.peakStatus || (point.peak_marker === 'peak' ? 'P' : null);
   const peakLabels = {
     P: 'Día pico',
@@ -178,7 +190,7 @@ const ChartTooltip = ({
   const peakButtonAriaLabel = peakButtonLabel;
 
   const handlePeakToggle = async () => {
-    if (!onTogglePeak || peakActionPending) return;
+    if (!onTogglePeak || peakActionPending || relationsActionPending) return;
     setPeakActionPending(true);
     try {
       await onTogglePeak(point, !isPeakDay);
@@ -190,13 +202,56 @@ const ChartTooltip = ({
     }
   };
 
+  const handleRelationsToggle = async () => {
+    if (!onToggleRelations || relationsActionPending || peakActionPending) return;
+    setRelationsActionPending(true);
+    try {
+      await onToggleRelations(point, !hasRelations);
+      onClose?.();
+    } catch (error) {
+      console.error('Error toggling relations from tooltip:', error);
+    } finally {
+      setRelationsActionPending(false);
+    }
+  };
+
   const handleEditClick = () => {
     handleSectionEdit();
   };
+  const openTemperatures = async () => {
+    if (temperatureRequest.current) {
+      temperatureRequest.current.abort();
+      temperatureRequest.current = null;
+      setTemperaturePending(false);
+      return;
+    }
+    const request = new AbortController();
+    temperatureRequest.current = request;
+    setTemperaturePending(true);
+    setTemperatureError('');
+    try {
+      const opened = await onOpenTemperatures(point, request.signal);
+      if (request.signal.aborted) return;
+      if (opened) onClose?.();
+      else setTemperatureError('No se pudieron cargar todas las temperaturas. Pulsa de nuevo para reintentar.');
+    } catch {
+      if (!request.signal.aborted) setTemperatureError('No se pudieron cargar todas las temperaturas. Pulsa de nuevo para reintentar.');
+    } finally {
+      if (temperatureRequest.current === request) {
+        temperatureRequest.current = null;
+        setTemperaturePending(false);
+      }
+    }
+  };
 
-  const handleSectionEdit = (sectionKey) => {
+  const openMucus = (field) => {
+    onOpenMucus(point, field);
+    onClose?.();
+  };
+
+  const handleSectionEdit = (sectionKey, fieldName) => {
     if (!onEdit) return;
-    onEdit(point, sectionKey);
+    onEdit(point, sectionKey, fieldName);
     if (onClose) onClose();
   };
 
@@ -213,23 +268,23 @@ const ChartTooltip = ({
       case 'spot':
         return 'bg-rose-500 border-slate-300 shadow-md spotting-pattern-icon';
       case 'white':
-        return 'bg-white border-rose-300 shadow-md';
+        return 'bg-white border-rose-500 shadow-md';
       default:
         return 'bg-slate-200 border-slate-300 shadow-md';
     }
   };
 
   const tooltipCellClass =
-    'relative flex w-full min-h-[44px] items-center gap-2.5 overflow-hidden rounded-2xl border border-slate-200/60 bg-white/70 px-3 py-2 text-left text-sm shadow-sm transition active:bg-white/90 disabled:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fertiliapp-suave';
+    'relative flex w-full min-h-[40px] items-center gap-2.5 overflow-hidden rounded-2xl border border-slate-200/60 bg-white/70 px-3 py-1.5 text-left text-sm shadow-sm transition active:bg-white/90 disabled:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fertiliapp-suave';
 
   const tooltipAccentClass =
     'pointer-events-none absolute bottom-2 left-0 top-2 w-1 rounded-r-full';
 
   const tooltipCellStyles = {
     temperature: {
-      accent: isTemperatureIgnored ? 'bg-slate-300 opacity-70' : 'bg-temp opacity-90',
-      icon: isTemperatureIgnored ? 'text-slate-400' : 'text-temp',
-      value: isTemperatureIgnored ? 'text-slate-400 line-through decoration-1' : 'text-titulo',
+      accent: isTemperatureIgnored ? 'bg-slate-300 opacity-70' : hasTemperature ? 'bg-temp opacity-90' : 'bg-temp opacity-25',
+      icon: isTemperatureIgnored ? 'text-slate-400' : hasTemperature ? 'text-temp' : 'text-temp opacity-35',
+      value: isTemperatureIgnored ? 'text-slate-400 line-through decoration-1' : hasTemperature ? 'text-titulo' : 'text-suave',
       secondary: isTemperatureIgnored ? 'text-slate-400' : 'text-suave',
     },
     sensation: {
@@ -267,7 +322,7 @@ const ChartTooltip = ({
         style={{ transform: `scale(${scale})`, width: baseWidth, minHeight: baseMinHeight }}
       >
         <div className="relative overflow-hidden rounded-3xl border border-rose-400/80 bg-white/90 p-3 shadow-lg backdrop-blur-md">
-          <div className="mb-3 flex items-start justify-between gap-2">
+          <div className="mb-2 flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-1">
                 <h3 className="shrink-0 text-[18px] font-semibold leading-none text-titulo tabular-nums">
@@ -286,18 +341,26 @@ const ChartTooltip = ({
             </div>
 
             <div className="flex shrink-0 items-center gap-1">
-              {hasSymbol && (
+              {(hasSymbol || onEdit || onOpenSymbol) && (
                 <button
                   type="button"
-                  onClick={() => handleSectionEdit('symbol')}
-                  disabled={!onEdit}
+                  onClick={() => { if (onOpenSymbol) { onOpenSymbol(point); onClose?.(); } else handleSectionEdit('moco', 'fertilitySymbol'); }}
+                  disabled={!onEdit && !onOpenSymbol}
                   className={cn(
                     'flex h-7 w-7 items-center justify-center rounded-full border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 disabled:opacity-80',
-                    getTooltipSymbolClasses()
+                    hasSymbol ? getTooltipSymbolClasses() : 'border-dashed border-slate-300/80 bg-transparent text-slate-400 hover:bg-slate-50/60'
                   )}
-                  title={symbolInfo.label}
-                  aria-label={symbolInfo.label}
-                />
+                  title={hasSymbol ? symbolInfo.label : 'Añadir símbolo'}
+                  aria-label={hasSymbol ? symbolInfo.label : 'Añadir símbolo'}
+                >
+                  {!hasSymbol && (
+                    <Plus
+                      className="h-3 w-3 text-slate-400/80"
+                      strokeWidth={2.1}
+                      aria-hidden="true"
+                    />
+                  )}
+                </button>
               )}
 
               <Button
@@ -312,89 +375,29 @@ const ChartTooltip = ({
             </div>
           </div>
 
-          {showEmptyState ? (
-            <div className="space-y-3">
-              <motion.div
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className="rounded-2xl border border-dashed border-rose-200/80 bg-white/70 p-3 text-center shadow-sm"
-              >
-                <p className="text-sm font-semibold text-subtitulo">Sin datos registrados para este día.</p>
-              </motion.div>
-
-              {(canTogglePeak || onEdit || showRelationsRow) && (
-                <motion.div
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2 }}
-                  className="flex items-center justify-between gap-2 border-t border-slate-200/60 pt-3"
-                >
-                  {onEdit && (
-                    <Button
-                      onClick={handleEditClick}
-                      variant="outline"
-                      size="sm"
-                      className="order-last ml-auto h-9 rounded-full border-slate-200 bg-white/80 px-3 text-xs font-semibold text-subtitulo shadow-sm transition hover:bg-white hover:text-fertiliapp-fuerte focus-visible:ring-2 focus-visible:ring-rose-200"
-                    >
-                      <Edit3 className="mr-1.5 h-3.5 w-3.5" />
-                      Añadir datos
-                    </Button>
-                  )}
-
-                  <div className="flex items-center gap-2">
-                    {canTogglePeak && (
-                      <PeakModeButton
-                        mode={peakMode}
-                        size="sm"
-                        onClick={handlePeakToggle}
-                        pending={peakActionPending}
-                        aria-label={peakButtonAriaLabel}
-                        title={peakButtonLabel}
-                        className="shrink-0"
-                      />
-                    )}
-
-                    {showRelationsRow && (
-                      <div
-                        className={cn(
-                          'flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-rose-100 bg-white/80 text-fertiliapp-fuerte shadow-sm transition-opacity',
-                          visibleHasRelations ? 'opacity-100' : 'opacity-0'
-                        )}
-                        aria-hidden="true"
-                        title={visibleHasRelations ? 'Relaciones registradas' : undefined}
-                      >
-                        <Heart className="h-4 w-4" fill="currentColor" />
-                      </div>
-                    )}
-                  </div>
-                </motion.div>
-              )}
-            </div>
-          ) : (
-            <>
-              <div className="space-y-2">
-                {hasTemperature && (
+              <div className="space-y-1">
                   <motion.button
                     type="button"
-                    onClick={() => handleSectionEdit('temperature')}
+                    onClick={onOpenTemperatures ? openTemperatures : () => handleSectionEdit('temperature')}
+                    aria-busy={temperaturePending}
+                    aria-label={temperaturePending ? 'Cancelar carga de temperaturas' : hasTemperature ? 'Gestionar temperaturas' : 'Añadir temperatura'}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.1 }}
                     className={tooltipCellClass}
-                    disabled={!onEdit}
+                    disabled={!onEdit && !onOpenTemperatures}
                   >
                     <span aria-hidden="true" className={cn(tooltipAccentClass, tooltipCellStyles.temperature.accent)} />
                     <Thermometer className={cn('h-[18px] w-[18px] shrink-0', tooltipCellStyles.temperature.icon)} />
                     <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
                       <div className="flex min-w-0 items-baseline gap-1.5">
                         <span className={cn('font-semibold leading-none tabular-nums', tooltipCellStyles.temperature.value)}>
-                          {parseFloat(temp).toFixed(2)}
+                          {hasTemperature ? parseFloat(temp).toFixed(2) : '-'}
                         </span>
                         <span className={cn('text-xs font-semibold leading-none', tooltipCellStyles.temperature.secondary)}>
-                          °C
+                          {hasTemperature ? '°C' : ''}
                         </span>
-                        {point.use_corrected && (
+                        {hasTemperature && point.use_corrected && (
                           <span
                             className="h-2 w-2 shrink-0 rounded-full bg-amber-500 shadow-[0_0_4px_rgba(245,158,11,0.45)]"
                             title="Temperatura corregida"
@@ -402,23 +405,25 @@ const ChartTooltip = ({
                           />
                         )}
                       </div>
-                      {temperatureTime && (
+                      {hasTemperature && temperatureTime && (
                         <span className="shrink-0 text-xs font-medium text-suave tabular-nums">
                           {temperatureTime}
                         </span>
                       )}
                     </div>
+                    {onOpenTemperatures && (temperaturePending ? <Loader2 aria-hidden="true" className="h-4 w-4 shrink-0 animate-spin text-slate-400 motion-reduce:animate-none" /> : <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />)}
                   </motion.button>
-                )}
+                  {temperatureError && <p role="alert" className="text-xs text-rose-700">{temperatureError}</p>}
 
                 <motion.button
                   type="button"
-                  onClick={() => handleSectionEdit('sensation')}
+                  aria-label="Editar sensación"
+                  onClick={() => onOpenMucus ? openMucus('mucusSensation') : handleSectionEdit('sensation')}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.18 }}
                   className={tooltipCellClass}
-                  disabled={!onEdit}
+                  disabled={!onEdit && !onOpenMucus}
                 >
                   <span aria-hidden="true" className={cn(tooltipAccentClass, tooltipCellStyles.sensation.accent)} />
                   <Droplets className={cn('h-4 w-4 shrink-0', tooltipCellStyles.sensation.icon)} />
@@ -429,12 +434,13 @@ const ChartTooltip = ({
 
                 <motion.button
                   type="button"
-                  onClick={() => handleSectionEdit('appearance')}
+                  aria-label="Editar apariencia"
+                  onClick={() => onOpenMucus ? openMucus('mucusAppearance') : handleSectionEdit('appearance')}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.23 }}
                   className={tooltipCellClass}
-                  disabled={!onEdit}
+                  disabled={!onEdit && !onOpenMucus}
                 >
                   <span aria-hidden="true" className={cn(tooltipAccentClass, tooltipCellStyles.appearance.accent)} />
                   <Circle className={cn('h-4 w-4 shrink-0', tooltipCellStyles.appearance.icon)} />
@@ -443,44 +449,46 @@ const ChartTooltip = ({
                   </span>
                 </motion.button>
 
-                {hasObservations && (
+                {(hasObservations || onOpenObservations) && (
                   <motion.button
                     type="button"
-                    onClick={() => handleSectionEdit('observations')}
+                    aria-label="Editar observaciones"
+                    onClick={() => { if (onOpenObservations) { onOpenObservations(point); onClose?.(); } else handleSectionEdit('observations'); }}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.28 }}
-                    className={cn(tooltipCellClass, 'items-start')}
-                    disabled={!onEdit}
+                    className={tooltipCellClass}
+                    disabled={!onEdit && !onOpenObservations}
                   >
                     <span aria-hidden="true" className={cn(tooltipAccentClass, tooltipCellStyles.observations.accent)} />
-                    <FileText className={cn('mt-0.5 h-4 w-4 shrink-0', tooltipCellStyles.observations.icon)} />
+                    <FileText className={cn('h-4 w-4 shrink-0', tooltipCellStyles.observations.icon)} />
                     <span
                       className={cn(
-                        'min-w-0 flex-1 text-sm font-semibold leading-tight [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] overflow-hidden',
+                        'min-w-0 flex-1 truncate font-semibold leading-tight',
                         tooltipCellStyles.observations.value
                       )}
                     >
-                      {observations}
+                      {observations || '-'}
                     </span>
                   </motion.button>
                 )}
               </div>
 
-              {(onEdit || (onToggleIgnore && !isPlaceholder && point.id) || (canTogglePeak && !isPlaceholder) || showRelationsRow) && (
+              {(onEdit || (onToggleIgnore && !isPlaceholder && point.id) || canTogglePeak || showRelationsRow) && (
                 <motion.div
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.3 }}
-                  className="mt-3 flex items-center justify-between gap-2 border-t border-slate-200/60 pt-3"
+                  className="mt-2 flex items-center justify-between gap-2 border-t border-slate-200/60 pt-2"
                 >
                   <div className="flex w-full items-center gap-2">
-                    {canTogglePeak && !isPlaceholder && (
+                    {canTogglePeak && (
                       <PeakModeButton
                         mode={peakMode}
                         size="sm"
                         onClick={handlePeakToggle}
                         pending={peakActionPending}
+                        disabled={relationsActionPending}
                         aria-label={peakButtonAriaLabel}
                         title={peakButtonLabel}
                         className="shrink-0"
@@ -499,23 +507,26 @@ const ChartTooltip = ({
                       </Button>
                     )}
 
-                    {showRelationsRow && (
-                      <div
+                    {showRelationsRow && onToggleRelations && (
+                      <button
+                        type="button"
+                        onClick={handleRelationsToggle}
+                        disabled={relationsActionPending || peakActionPending}
+                        aria-pressed={hasRelations}
+                        aria-busy={relationsActionPending}
+                        title={hasRelations ? 'Hubo relaciones' : 'Sin relaciones'}
+                        aria-label={hasRelations ? 'Hubo relaciones' : 'Sin relaciones'}
                         className={cn(
-                          'flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-rose-100 bg-white/80 text-fertiliapp-fuerte shadow-sm transition-opacity',
-                          visibleHasRelations ? 'opacity-100' : 'opacity-0'
+                          'flex h-9 w-9 shrink-0 items-center justify-center rounded-full border shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 disabled:opacity-50',
+                          hasRelations ? 'border-rose-200 bg-rose-50 text-rose-500' : 'border-slate-200 bg-white text-slate-300'
                         )}
-                        aria-hidden="true"
-                        title={visibleHasRelations ? 'Relaciones registradas' : undefined}
                       >
-                        <Heart className="h-4 w-4" fill="currentColor" />
-                      </div>
+                        <Heart className={cn('h-4 w-4', hasRelations && 'fill-current')} />
+                      </button>
                     )}
                   </div>
                 </motion.div>
               )}
-            </>
-          )}
         </div>
       </div>
     </motion.div>

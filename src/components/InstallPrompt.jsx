@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -42,6 +43,9 @@ export default function InstallPrompt({
   const [isStandalone, setIsStandalone] = useState(false);
 
   useEffect(() => {
+    // Native installations do not expose the PWA standalone display mode.
+    if (Capacitor.isNativePlatform()) return;
+
     const ua = window.navigator.userAgent.toLowerCase();
     const isIOS = /iphone|ipad|ipod/.test(ua);
     const standalone =
@@ -157,6 +161,8 @@ export default function InstallPrompt({
 
   const shouldShowNativeButton = !isStandalone && canNativePrompt && !!deferredPrompt;
   const shouldShowManualBlock = !isStandalone && (showManualHelp || (forceVisible && !shouldShowNativeButton));
+
+  if (Capacitor.isNativePlatform()) return null;
 
   if (showIOS) {
     return (

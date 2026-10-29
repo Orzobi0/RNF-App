@@ -2,6 +2,8 @@ import path from 'node:path';
 import fs from 'node:fs';
 import react from '@vitejs/plugin-react';
 import { createLogger, defineConfig, loadEnv } from 'vite';
+import { validateFirebaseEnvironment } from './src/lib/firebaseEnvironment.js';
+import { createHash } from 'node:crypto';
 
 const configHorizonsViteErrorHandler = `
 const observer = new MutationObserver((mutations) => {
@@ -182,12 +184,12 @@ const addTransformIndexHtml = {
 		};
 	},
 };
-const injectSWAssets = () => ({
+const injectSWAssets = (outDir) => ({
         name: 'inject-sw-assets',
         apply: 'build',
         closeBundle() {
-                const manifestPath = path.resolve('dist/manifest.json');
-                const swPath = path.resolve('dist/sw.js');
+                const manifestPath = path.resolve(outDir, 'manifest.json');
+                const swPath = path.resolve(outDir, 'sw.js');
                 if (!fs.existsSync(manifestPath) || !fs.existsSync(swPath)) {
                         return;
                 }
@@ -222,29 +224,72 @@ logger.error = (msg, options) => {
 }
 
 export default defineConfig(({ mode }) => {
-	const env = loadEnv(mode, process.cwd(), '');
-	const firebaseProjectId = env.VITE_FIREBASE_PROJECT_ID || 'rnf-app';
-	const functionsOrigin = env.VITE_FUNCTIONS_EMULATOR_ORIGIN || 'http://127.0.0.1:5001';
+        const staging = mode === 'staging';
+        if (!staging && mode !== 'production') throw new Error('Use npm run dev:staging or an explicit production build.');
+        const envDir = staging ? path.resolve('environments/staging') : process.cwd();
+	const env = loadEnv(mode, envDir, 'VITE_');
+        env.VITE_APP_ENV = staging ? 'staging' : 'production';
+        validateFirebaseEnvironment(env);
+        const outDir = staging ? 'dist-staging' : 'dist';
+        // Staging proxy is fixed; root .env and emulator overrides cannot redirect it.
+        const sessionProxy = staging ? {
+                target: 'https://fertiliapp-staging.web.app',
+                changeOrigin: true,
+                secure: true,
+        } : {
+                target: env.VITE_FUNCTIONS_EMULATOR_ORIGIN || 'http://127.0.0.1:5001',
+                changeOrigin: true,
+                secure: false,
+                rewrite: apiPath => `/${env.VITE_FIREBASE_PROJECT_ID}/us-central1/sessionApi${apiPath}`,
+        };
+        const stagingManifest = {
+                name: 'staging-build-manifest',
+                apply: 'build',
+                transformIndexHtml(html) {
+                        return staging ? html.replace('<title>FertiliApp</title>', '<title>FertiliApp · Pruebas</title>')
+                                .replace('name="apple-mobile-web-app-title" content="FertiliApp"', 'name="apple-mobile-web-app-title" content="FertiliApp Pruebas"') : html;
+                },
+                closeBundle: {
+                        order: 'post',
+                        handler() {
+                                if (!staging) return;
+                                const pwaPath = path.join(outDir, 'manifest.webmanifest');
+                                const pwa = JSON.parse(fs.readFileSync(pwaPath, 'utf8'));
+                                pwa.name = 'FertiliApp · Entorno de pruebas';
+                                pwa.short_name = 'Fertili Pruebas';
+                                fs.writeFileSync(pwaPath, JSON.stringify(pwa, null, 2));
+                                const files = {};
+                                const walk = directory => {
+                                        for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+                                                const file = path.join(directory, entry.name);
+                                                if (entry.isDirectory()) walk(file);
+                                                else if (entry.name !== 'staging-build.json') files[path.relative(outDir, file).replaceAll('\\', '/')] = createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+                                        }
+                                };
+                                walk(outDir);
+                                fs.writeFileSync(path.join(outDir, 'staging-build.json'), JSON.stringify({ projectId: env.VITE_FIREBASE_PROJECT_ID, appId: env.VITE_FIREBASE_APP_ID, mode, files }, null, 2));
+                        },
+                },
+        };
 
 	return {
         base: '/',
+        envDir,
         customLogger: logger,
-        build: { manifest: true },
-		define: { __DATE__: JSON.stringify(new Date().toISOString()) },
-        plugins: [react(), addTransformIndexHtml, injectSWAssets()],
+        build: { manifest: 'manifest.json', outDir },
+		define: { __DATE__: JSON.stringify(new Date().toISOString()), 'import.meta.env.VITE_APP_ENV': JSON.stringify(env.VITE_APP_ENV) },
+        plugins: [react(), addTransformIndexHtml, injectSWAssets(outDir), stagingManifest],
+        preview: { port: staging ? 4174 : 4173, proxy: { '/api': sessionProxy } },
         server: {
+                port: staging ? 5174 : 5173,
+                strictPort: true,
                 cors: true,
                 headers: {
                         'Cross-Origin-Embedder-Policy': 'credentialless',
         },
                 allowedHosts: true,
                 proxy: {
-                        '/api': {
-                                target: functionsOrigin,
-                                changeOrigin: true,
-                                secure: false,
-                                rewrite: apiPath => `/${firebaseProjectId}/us-central1/sessionApi${apiPath}`,
-                        },
+                        '/api': sessionProxy,
                 },
 	},
 	resolve: {

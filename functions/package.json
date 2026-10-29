@@ -6,7 +6,7 @@
     "serve": "firebase emulators:start --only functions",
     "shell": "firebase functions:shell",
     "start": "npm run shell",
-    "deploy": "firebase deploy --only functions",
+    "deploy": "node -e \"throw new Error('Use npm run deploy:staging:session from the repository root')\"",
     "logs": "firebase functions:log"
   },
   "engines": {

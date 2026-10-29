@@ -52,6 +52,7 @@ const CycleDatesEditor = ({
   onUndoCycle,
   isUndoingCycle = false,
   otherCycles = [],
+  showCycleActions = true,
 }) => {
   const formattedStartDate = cycle?.startDate ? formatDateDisplay(cycle.startDate) : null;
   const formattedEndDate = cycle?.endDate ? formatDateDisplay(cycle.endDate) : 'En curso';
@@ -260,7 +261,7 @@ const CycleDatesEditor = ({
                 {saveLabel}
               </Button>
             </div>
-            {onUndoCycle && (
+            {showCycleActions && onUndoCycle && (
               <div className="mt-4 rounded-3xl border border-amber-200/80 bg-gradient-to-r from-amber-50 to-orange-50 p-4 text-left">
                 <h3 className="mb-2 font-semibold text-amber-900">Deshacer ciclo</h3>
                 <p className="mb-3 text-sm text-amber-800">
@@ -276,7 +277,7 @@ const CycleDatesEditor = ({
                 </Button>
               </div>
             )}
-            {onDeleteCycle && (
+            {showCycleActions && onDeleteCycle && (
               <div className="mt-6 rounded-3xl border border-red-200/80 bg-gradient-to-r from-red-50 to-rose-50 p-4 text-left">
                 <h3 className="mb-2 font-semibold text-red-800">{deleteTitle}</h3>
                 {deleteDescription && (

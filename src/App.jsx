@@ -1,9 +1,8 @@
-import React, { Suspense, lazy, useEffect, useRef } from 'react';
+import React, { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { ErrorBoundary } from '@/components/dev/ErrorBoundary';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { CycleDataProvider } from '@/contexts/CycleDataContext.jsx';
-import { HealthConnectProvider } from '@/contexts/HealthConnectContext.jsx';
 import { WhatsNewProvider } from '@/contexts/WhatsNewContext.jsx';
 import AppBackground from '@/components/layout/AppBackground';
 import RouteErrorBoundary from '@/components/errors/RouteErrorBoundary';
@@ -53,6 +52,58 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
+function PreferencesGate({ children, withLayout = false }) {
+  const { preferencesReady, preferencesError, retryPreferences } = useAuth();
+  const [slowLoading, setSlowLoading] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const retryPending = useRef(false);
+
+  useEffect(() => {
+    if (preferencesReady) {
+      setSlowLoading(false);
+      return;
+    }
+    const timeout = setTimeout(() => setSlowLoading(true), 8000);
+    return () => clearTimeout(timeout);
+  }, [preferencesReady]);
+
+  useEffect(() => {
+    // retryPreferences starts background work; completion is signalled by auth state.
+    if (preferencesReady || preferencesError) {
+      retryPending.current = false;
+      setRetrying(false);
+    }
+  }, [preferencesReady, preferencesError, retrying]);
+
+  const handleRetry = () => {
+    if (retryPending.current) return;
+    retryPending.current = true;
+    setRetrying(true);
+    retryPreferences();
+  };
+
+  if (preferencesReady) return children;
+  const content = (
+      <div className="mx-auto max-w-md p-6 text-center text-fertiliapp-fuerte" role="status">
+        <p>{preferencesError ? 'No hemos podido cargar tus preferencias.' : 'Cargando tus preferencias...'}</p>
+        <p className="mt-2 text-sm">Esperamos a tus ajustes para mostrar la interpretación correctamente.</p>
+        {(slowLoading || preferencesError || retrying) && (
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-center">
+            <button type="button" className="min-h-11 rounded-xl bg-white px-4 py-3 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50"
+              disabled={retrying} onClick={handleRetry}>
+              {retrying ? 'Reintentando carga...' : 'Reintentar carga'}
+            </button>
+            <button type="button" className="min-h-11 rounded-xl border border-current/20 px-4 py-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+              onClick={() => window.location.reload()}>
+              Recargar aplicación
+            </button>
+          </div>
+        )}
+      </div>
+  );
+  return withLayout ? <MainLayout>{content}</MainLayout> : content;
+}
+
 function ServiceWorkerRouteUpdater() {
   const location = useLocation();
   const lastCheckRef = useRef(0);
@@ -95,7 +146,7 @@ function ServiceWorkerRouteUpdater() {
 }
 
 function AppContent() {
-  const { user, loadingAuth, restoringSession } = useAuth();
+  const { user, loadingAuth, restoringSession, sessionError, retrySession, goToLogin } = useAuth();
   const location = useLocation();
 
   if (loadingAuth || restoringSession) {
@@ -115,6 +166,21 @@ function AppContent() {
           >
             Recuperando sesión...
           </motion.p>
+        </div>
+      </AppBackground>
+    );
+  }
+
+  if (sessionError && !user) {
+    return (
+      <AppBackground>
+        <div className="flex min-h-app items-center justify-center px-5">
+          <div className="max-w-sm space-y-4 text-center text-fertiliapp-fuerte" role="alert">
+            <h1 className="text-xl font-semibold">No hemos podido recuperar tu sesión</h1>
+            <p>Puede deberse a la conexión o a un error temporal. Vuelve a intentarlo.</p>
+            <button className="w-full rounded-xl bg-white px-5 py-3 font-medium" onClick={retrySession}>Reintentar</button>
+            <button className="w-full px-5 py-3 underline" onClick={goToLogin}>Ir a inicio de sesión</button>
+          </div>
         </div>
       </AppBackground>
     );
@@ -162,7 +228,7 @@ const routeErrorBoundaryKey = location.pathname.startsWith('/cycle/')
                 element={
                   <ProtectedRoute>
                     <MainLayout>
-                      <DashboardPage />
+                      <PreferencesGate><DashboardPage /></PreferencesGate>
                     </MainLayout>
                   </ProtectedRoute>
                 }
@@ -171,7 +237,7 @@ const routeErrorBoundaryKey = location.pathname.startsWith('/cycle/')
                 path="/chart/:cycleId?"
                 element={
                   <ProtectedRoute>
-                    <ChartPage />
+                    <PreferencesGate withLayout><ChartPage /></PreferencesGate>
                   </ProtectedRoute>
                 }
               />
@@ -210,7 +276,7 @@ const routeErrorBoundaryKey = location.pathname.startsWith('/cycle/')
                 element={
                   <ProtectedRoute>
                     <MainLayout>
-                      <PreferencesPage />
+                      <PreferencesGate><PreferencesPage /></PreferencesGate>
                     </MainLayout>
                   </ProtectedRoute>
                 }
@@ -253,11 +319,9 @@ function App() {
       <AuthProvider>
         <WhatsNewProvider>
           <CycleDataProvider>
-            <HealthConnectProvider>
-              <ErrorBoundary>
-                <AppContent />
-              </ErrorBoundary>
-            </HealthConnectProvider>
+            <ErrorBoundary>
+              <AppContent />
+            </ErrorBoundary>
           </CycleDataProvider>
         </WhatsNewProvider>
         <Toaster />

@@ -241,17 +241,31 @@ export const drawBottomRows = ({
         }
         ctx.restore();
       } else {
-        ctx.fillStyle = symbolPalette.main;
-        ctx.fill();
-      }
-      const strokeColor = symbolPalette.border === 'none'
-        ? null
-        : (symbolPalette.border || SYMBOL_BORDER_FALLBACK);
-      if (strokeColor) {
-        ctx.strokeStyle = strokeColor;
-        ctx.lineWidth = symbolInfo.value === 'white' ? 1.6 : 1;
-        ctx.stroke();
-      }
+  ctx.fillStyle = symbolInfo.value === 'white'
+    ? '#FFFFFF'
+    : symbolPalette.main;
+  ctx.fill();
+}
+      const isWhiteFertile = symbolInfo.value === 'white';
+
+const strokeColor = isWhiteFertile
+  ? 'rgba(251,113,133,0.85)'
+  : symbolPalette.border === 'none'
+    ? null
+    : (symbolPalette.border || SYMBOL_BORDER_FALLBACK);
+
+if (strokeColor) {
+  if (isWhiteFertile) {
+    ctx.shadowColor = 'rgba(189,16,44,0.3)';
+    ctx.shadowBlur = 2;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0.5;
+  }
+
+  ctx.strokeStyle = strokeColor;
+  ctx.lineWidth = isWhiteFertile ? 1.5 : 1;
+  ctx.stroke();
+}
       ctx.restore();
       if (peakStatus) {
         if (isPeakMarker) {

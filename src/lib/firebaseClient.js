@@ -13,6 +13,13 @@ import {
   browserLocalPersistence
 } from 'firebase/auth';
 import { getFunctions } from 'firebase/functions';
+import { validateFirebaseEnvironment } from './firebaseEnvironment';
+
+const environment = validateFirebaseEnvironment(
+  import.meta.env,
+  typeof window !== 'undefined' ? window.location.hostname : '',
+);
+export const isStaging = environment.staging;
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,

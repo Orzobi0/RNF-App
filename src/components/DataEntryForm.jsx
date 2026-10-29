@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useMemo, useCallback } from 'react';
 import DataEntryFormFields from '@/components/dataEntryForm/DataEntryFormFields';
 import DataEntryFormActions from '@/components/dataEntryForm/DataEntryFormActions';
 import { motion } from 'framer-motion';
@@ -7,14 +7,10 @@ import { XCircle, Edit3 } from 'lucide-react';
 import { useDataEntryForm } from '@/hooks/useDataEntryForm';
 import useBackClose from '@/hooks/useBackClose';
 import { parseISO } from 'date-fns';
-import { useToast } from '@/components/ui/use-toast';
-import { ensureHealthConnectPermissions } from '@/lib/healthConnectSync';
-import { useCycleData } from '@/hooks/useCycleData';
-import { useHealthConnect } from '@/contexts/HealthConnectContext.jsx';
-import { useNavigate } from 'react-router-dom';
 
 const DataEntryForm = ({
   onSubmit,
+  onSaveMeasurements,
   initialData,
   onCancel,
   cycleStartDate,
@@ -31,11 +27,6 @@ const DataEntryForm = ({
 }) => {
   const formRef = useRef(null);
   useBackClose(Boolean(onCancel), onCancel);
-  const { toast } = useToast();
-  const navigate = useNavigate();
-  const { syncHealthConnectTemperatures } = useCycleData();
-  const { isAvailable, hasPermissions, refreshPermissions, isAndroidApp } = useHealthConnect();
-  const [syncingHealthConnect, setSyncingHealthConnect] = useState(false);
   const normalizeFocusedField = useCallback((field) => {
   switch (field) {
     case 'sensation':
@@ -143,11 +134,8 @@ const DataEntryForm = ({
     date,
     setDate,
     measurements,
-    addMeasurement,
+    saveMeasurementsFromSheet,
     updateMeasurement,
-    removeMeasurement,
-    confirmMeasurement,
-    selectMeasurement,
     mucusSensation,
     setMucusSensation,
     mucusAppearance,
@@ -176,6 +164,7 @@ const DataEntryForm = ({
     cycleData,
     onDateSelect,
     defaultIsoDate,
+    onSaveMeasurements,
   );
   useEffect(() => {
     if (!formDraft) {
@@ -189,61 +178,6 @@ const DataEntryForm = ({
     () => cycleData.map((r) => parseISO(r.isoDate)),
     [cycleData]
   );
-
-  const handleSyncTemperature = async () => {
-    if (syncingHealthConnect || isProcessing) return;
-
-    if (!isAndroidApp) {
-      toast({
-        title: 'Disponible solo en Android',
-        description: 'Health Connect funciona únicamente en la app Android.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    if (!isAvailable) {
-      toast({
-        title: 'Health Connect no disponible',
-        description: 'Instala Health Connect para sincronizar tus temperaturas.',
-        variant: 'destructive',
-      });
-      navigate('/settings');
-      return;
-    }
-
-    let granted = hasPermissions;
-    if (!granted) {
-      try {
-        granted = await ensureHealthConnectPermissions();
-      } catch (error) {
-        const message = String(error?.message || error);
-        toast({
-          title: 'Health Connect: error pidiendo permisos',
-          description: message,
-          variant: 'destructive',
-        });
-      } finally {
-        await refreshPermissions();
-      }
-    }
-
-    if (!granted) {
-      toast({
-        title: 'Permisos requeridos',
-        description: 'Activa Health Connect en ajustes para sincronizar.',
-      });
-      navigate('/settings');
-      return;
-    }
-
-    setSyncingHealthConnect(true);
-    try {
-      await syncHealthConnectTemperatures();
-    } finally {
-      setSyncingHealthConnect(false);
-    }
-  };
 
   const handleOpenNewCycle = useCallback(
     (selectedIsoDate) => {
@@ -292,11 +226,9 @@ const DataEntryForm = ({
       date={date}
       setDate={setDate}
       measurements={measurements}
-      addMeasurement={addMeasurement}
+      setMeasurements={saveMeasurementsFromSheet}
+      autoSaveMeasurements={Boolean(onSaveMeasurements)}
       updateMeasurement={updateMeasurement}
-      removeMeasurement={removeMeasurement}
-      confirmMeasurement={confirmMeasurement}
-      selectMeasurement={selectMeasurement}
       mucusSensation={mucusSensation}
       setMucusSensation={setMucusSensation}
       mucusAppearance={mucusAppearance}
@@ -320,9 +252,6 @@ const DataEntryForm = ({
       recordedDates={recordedDates}
       submitCurrentState={submitCurrentState}
       initialSectionKey={initialSectionKey}
-      onSyncTemperature={handleSyncTemperature}
-      isSyncingTemperature={syncingHealthConnect}
-      canSyncTemperature={Boolean(isAndroidApp && isAvailable)}
       onOpenNewCycle={handleOpenNewCycle}
     />
   </div>

@@ -1,4 +1,10 @@
+import ObservationsQuickEditSheet from '@/components/ObservationsQuickEditSheet';
+import SymbolQuickEditSheet from '@/components/SymbolQuickEditSheet';
+import MucusQuickEditSheet from '@/components/MucusQuickEditSheet';
+import TemperatureMeasurementsSheet, { TemperatureMeasurementTrigger } from '@/components/TemperatureMeasurementsSheet';
+import { measurementsFromRecord } from '@/lib/temperatureMeasurements';
 import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
+import { motion, useReducedMotion } from 'framer-motion';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
@@ -6,12 +12,12 @@ import {
   Heart,
   Loader2,
   Trash2,
-  Thermometer,
-  Clock,
   Droplets,
   Circle,
   FileText,
   Plus,
+  ChevronDown,
+  X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PeakModeButton } from '@/components/ui/peak-mode-button';
@@ -27,6 +33,12 @@ const DayDetail = ({
   isPeakDay,
   existingPeakIsoDate,
   onEdit,
+  onClose,
+  onLoadMeasurements,
+  onSaveMeasurements,
+  onSaveMucus,
+  onSaveDetails,
+  onTemperatureSheetOpenChange,
   onDelete,
   onAdd,
   onToggleRelations,
@@ -34,11 +46,71 @@ const DayDetail = ({
   isProcessing,
 }) => {
   const { preferences } = useAuth();
+  const shouldReduceMotion = useReducedMotion();
   const isPersistedRecord = (record) =>
   Boolean(record?.id) && !String(record.id).startsWith('placeholder-');
 
 const persistedRecord = isPersistedRecord(details?.record) ? details.record : null;
 const hasPersistedRecord = Boolean(persistedRecord);
+  const [temperaturesOpen, setTemperaturesOpen] = useState(false);
+  const [observationsOpen, setObservationsOpen] = useState(false);
+  const [symbolOpen, setSymbolOpen] = useState(false);
+  const [mucusField, setMucusField] = useState(null);
+  useEffect(() => {
+    onTemperatureSheetOpenChange?.(temperaturesOpen || Boolean(mucusField) || observationsOpen || symbolOpen);
+    return () => onTemperatureSheetOpenChange?.(false);
+  }, [temperaturesOpen, mucusField, observationsOpen, symbolOpen, onTemperatureSheetOpenChange]);
+  const [temperatureMeasurements, setTemperatureMeasurements] = useState([]);
+  const [temperaturesLoading, setTemperaturesLoading] = useState(false);
+  const [temperaturesError, setTemperaturesError] = useState('');
+  const loadVersion = useRef(0);
+  useEffect(() => {
+    loadVersion.current += 1;
+    setTemperaturesOpen(false);
+    setMucusField(null);
+    setObservationsOpen(false);
+    setSymbolOpen(false);
+    setTemperatureMeasurements([]);
+    setTemperaturesLoading(false);
+    setTemperaturesError('');
+  }, [isoDate]);
+  useEffect(() => () => { loadVersion.current += 1; }, []);
+  const cancelTemperatureLoad = () => {
+    loadVersion.current += 1;
+    setTemperaturesLoading(false);
+  };
+  const openTemperatures = async () => {
+    const version = ++loadVersion.current;
+    setTemperaturesError('');
+    if (!persistedRecord || (persistedRecord.measurementsLoaded === true && persistedRecord.measurementsComplete === true)) {
+      setTemperatureMeasurements(measurementsFromRecord(persistedRecord));
+      setTemperaturesLoading(false);
+      setTemperaturesOpen(true);
+      return;
+    }
+    setTemperaturesLoading(true);
+    let timeout;
+    try {
+      const loaded = await Promise.race([
+        onLoadMeasurements(persistedRecord, { requireComplete: true }),
+        new Promise((_, reject) => {
+          timeout = setTimeout(() => reject(new Error('Tiempo de espera agotado')), 15000);
+        }),
+      ]);
+      if (loadVersion.current !== version) return;
+      setTemperatureMeasurements(loaded);
+      setTemperaturesOpen(true);
+    } catch {
+      if (loadVersion.current === version) setTemperaturesError('No se pudieron cargar todas las temperaturas. Revisa la conexión e inténtalo de nuevo. No se ha modificado el registro.');
+    } finally {
+      clearTimeout(timeout);
+      if (loadVersion.current === version) setTemperaturesLoading(false);
+    }
+  };
+  const saveTemperatures = async (next, operation) => {
+    await onSaveMeasurements(persistedRecord, next, { ...operation, isoDate });
+    setTemperatureMeasurements(next);
+  };
   const [isPeakProcessing, setIsPeakProcessing] = useState(false);
 
   const formattedDate = useMemo(() => {
@@ -163,22 +235,23 @@ const isOverflowing = (el) => {
 };
 
 const recomputeOverflow = useCallback(() => {
-  if (isTextExpanded) {
-    setOverflow({ sensation: false, appearance: false, observations: false });
-    return;
-  }
-  setOverflow({
+  // Conservar la medición compacta: el texto abierto ya no está truncado.
+  if (isTextExpanded) return;
+  const next = {
     sensation: isOverflowing(sensationTextRef.current),
     appearance: isOverflowing(appearanceTextRef.current),
     observations: isOverflowing(observationsTextRef.current),
-  });
+  };
+  setOverflow((previous) =>
+    Object.keys(next).every((key) => previous[key] === next[key]) ? previous : next
+  );
 }, [isTextExpanded]);
 
 useEffect(() => {
   // esperar a layout estable (iOS)
   const id = requestAnimationFrame(() => recomputeOverflow());
   return () => cancelAnimationFrame(id);
-}, [recomputeOverflow, sensationRaw, appearanceRaw, observationsRaw]);
+}, [recomputeOverflow, isoDate, sensationRaw, appearanceRaw, observationsRaw]);
 
 useEffect(() => {
   const ro = new ResizeObserver(() => recomputeOverflow());
@@ -186,26 +259,20 @@ useEffect(() => {
   if (appearanceTextRef.current) ro.observe(appearanceTextRef.current);
   if (observationsTextRef.current) ro.observe(observationsTextRef.current);
   return () => ro.disconnect();
-}, [recomputeOverflow]);
+}, [recomputeOverflow, isoDate]);
 
-const smartOpen = (key, sectionKey, fieldName) => {
-  // si está truncado y aún no hemos expandido => expandir TODO primero
-  if (!isTextExpanded && overflow[key]) {
-    setIsTextExpanded(true);
-    return;
-  }
-  handleSectionOpen(sectionKey, fieldName);
+const hasTextOverflow = overflow.sensation || overflow.appearance || overflow.observations;
+const expandMucusRows = isTextExpanded && (overflow.sensation || overflow.appearance);
+// Los hijos con layout="position" compensan la escala de las celdas
+// para mantener legibles el texto y los iconos durante el cambio de tamaño.
+const textLayoutProps = {
+  layout: !shouldReduceMotion,
+  layoutDependency: isTextExpanded,
+  transition: { layout: { duration: shouldReduceMotion ? 0 : 0.25, ease: [0.22, 1, 0.36, 1] } },
 };
-
-  const handleSectionOpen = (sectionKey, fieldName = null) => {
-  if (persistedRecord && onEdit) {
-    onEdit(persistedRecord, sectionKey, fieldName);
-    return;
-  }
-
-  if (isoDate && onAdd) {
-    onAdd(isoDate, sectionKey, fieldName);
-  }
+const positionLayoutProps = {
+  ...textLayoutProps,
+  layout: shouldReduceMotion ? false : 'position',
 };
 
   const handleRelationsToggle = () => {
@@ -223,9 +290,6 @@ const smartOpen = (key, sectionKey, fieldName) => {
     return options.placeholder || '—';
   };
 
-  const temperatureValue = details?.hasTemperature ? `${details.displayTemp} °C` : '—';
-  const isTemperatureIgnored = Boolean(details?.hasTemperature && persistedRecord?.ignored);
-  const timeValue = details?.timeValue || '—';
   const hasTimeValue = Boolean(details?.timeValue);
   const hasRelations = Boolean(details?.hasRelations);
   const showRelationsAction = useMemo(
@@ -261,7 +325,7 @@ if (peakStatus) {
       case 'spot':
         return 'bg-rose-500 border-slate-300 shadow-md';
       case 'white':
-        return 'bg-white border-rose-300 shadow-md';
+        return 'bg-white border-2 border-rose-400 shadow-md';
       default:
         return 'bg-slate-200 border-slate-300 shadow-md';
     }
@@ -278,10 +342,10 @@ if (peakStatus) {
 
   // Base para celdas tactiles neutras con acento discreto.
 const detailCellCompactClass =
-  'relative flex items-center gap-2.5 overflow-hidden rounded-2xl border border-rose-100/70 bg-white px-3 py-2 text-sm min-h-[2.75rem] shadow-none transition hover:bg-rose-50/30 active:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fertiliapp-suave';
+  'relative flex items-center gap-2.5 overflow-hidden rounded-2xl border border-rose-100/70 bg-white px-3 py-2 text-sm min-h-[2.75rem] shadow-none transition-colors hover:bg-rose-50/30 active:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fertiliapp-suave';
 
 const detailCellMultilineClass =
-  'relative flex gap-2.5 overflow-hidden rounded-2xl border border-rose-100/70 bg-white px-3 py-2 text-sm min-h-[2.75rem] shadow-none transition hover:bg-rose-50/30 active:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fertiliapp-suave';
+  'relative flex gap-2.5 overflow-hidden rounded-2xl border border-rose-100/70 bg-white px-3 py-2 text-sm min-h-[2.75rem] shadow-none transition-colors hover:bg-rose-50/30 active:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fertiliapp-suave';
 
 const detailAccentClass =
   'pointer-events-none absolute bottom-2 left-0 top-2 w-1 rounded-r-full';
@@ -353,7 +417,7 @@ const footerIconButtonClass =
 
     <button
       type="button"
-      onClick={() => handleSectionOpen('symbol', 'fertilitySymbol')}
+      onClick={() => setSymbolOpen(true)}
       className={cn(
         'flex h-7 w-7 items-center justify-center rounded-full border shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200',
         getSymbolClasses(),
@@ -366,63 +430,67 @@ const footerIconButtonClass =
         <Plus className="h-3 w-3 text-slate-400/80" strokeWidth={2.1} aria-hidden="true" />
       )}
     </button>
+    {onClose && (
+      <button
+        type="button"
+        onClick={(event) => { event.stopPropagation(); onClose(); }}
+        aria-label="Cerrar detalle del día"
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-400 hover:text-rose-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
+      >
+        <X className="h-4 w-4" aria-hidden="true" />
+      </button>
+    )}
   </div>
 </div>
 
       {/* Cuerpo: 3 filas, más grandes y estructuradas */}
       <div className="mt-4 space-y-3">
-        {/* Fila 1: temperatura + hora */}
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            type="button"
-            onClick={() => handleSectionOpen('temperature', 'temperature')}
-            className={cn(
-              detailCellCompactClass,
-              'text-left'
-            )}
-          >
-            <span aria-hidden="true" className={cn(detailAccentClass, detailCellStyles.temperature.accent)} />
-            <Thermometer className={cn('h-5 w-5 shrink-0', detailCellStyles.temperature.icon)} />
-            <div className="flex items-center gap-1 flex-wrap">
-              <span className={cn('font-semibold', detailCellStyles.temperature.value, isTemperatureIgnored && 'text-slate-400 line-through decoration-1')}>
-                {renderChipValue(temperatureValue)}
-              </span>
-              {details?.showCorrectedIndicator && (
-                <span
-                  className="h-2 w-2 rounded-full bg-amber-500"
-                  aria-label="Temperatura corregida"
-                />
-              )}
-            </div>
-          </button>
-          <button
-            type="button"
-            onClick={() => handleSectionOpen('temperature', 'time')}
-            className={cn(
-              detailCellCompactClass,
-              'text-left'
-            )}
-          >
-            <span aria-hidden="true" className={cn(detailAccentClass, detailCellStyles.time.accent)} />
-            <Clock className={cn('h-5 w-5 shrink-0', detailCellStyles.time.icon)} />
-            <span className={cn('font-semibold', detailCellStyles.time.value)}>
-              {renderChipValue(timeValue)}
-            </span>
-          </button>
-        </div>
+        <TemperatureMeasurementTrigger
+          measurements={temperaturesOpen && !temperaturesLoading && !temperaturesError ? temperatureMeasurements : measurementsFromRecord(persistedRecord)}
+          ignored={persistedRecord?.ignored} disabled={isProcessing}
+          loading={temperaturesLoading}
+          onClick={temperaturesLoading ? cancelTemperatureLoad : openTemperatures}
+        />
+        {temperaturesError && <div role="alert" className="text-sm text-rose-700">
+          {temperaturesError}
+          <Button type="button" variant="ghost" onClick={openTemperatures}>Reintentar</Button>
+        </div>}
+        <TemperatureMeasurementsSheet open={temperaturesOpen} onOpenChange={setTemperaturesOpen}
+          ignored={persistedRecord?.ignored} isoDate={isoDate} measurements={temperatureMeasurements} onChange={saveTemperatures}
+          onOpenForm={onEdit ? async (measurements, overrides) => {
+            if (await onEdit({ ...persistedRecord, id: persistedRecord?.id || `placeholder-${isoDate}`, isoDate, ...overrides, measurements, measurementsLoaded: true, measurementsComplete: true }, null, null) === false) return;
+            setTemperaturesOpen(false);
+          } : undefined} />
+
+        <ObservationsQuickEditSheet open={observationsOpen} onOpenChange={setObservationsOpen}
+          isoDate={isoDate} initialValues={persistedRecord}
+          onSave={(values) => onSaveDetails(isoDate, values)}
+          onOpenForm={(values) => onEdit({ ...persistedRecord, id: persistedRecord?.id || `placeholder-${isoDate}`, isoDate, ...values }, 'observations', 'observations')} />
+        <SymbolQuickEditSheet open={symbolOpen} onOpenChange={setSymbolOpen}
+          isoDate={isoDate} initialValues={persistedRecord}
+          onSave={(values) => onSaveDetails(isoDate, values)}
+          onOpenForm={() => onEdit({ ...persistedRecord, id: persistedRecord?.id || `placeholder-${isoDate}`, isoDate }, 'moco', 'fertilitySymbol')} />
+        <MucusQuickEditSheet open={Boolean(mucusField)} onOpenChange={(value) => { if (!value) setMucusField(null); }}
+          isoDate={isoDate} initialField={mucusField} initialValues={persistedRecord}
+          onSave={(values) => onSaveMucus(isoDate, values)}
+          onOpenForm={(values) => onEdit({ ...persistedRecord, id: persistedRecord?.id || `placeholder-${isoDate}`, isoDate, ...values }, 'moco', mucusField)} />
 
         {/* Fila 2: moco */}
-        <div className="grid grid-cols-2 gap-3">
-          <button
+        <div className={cn('grid gap-3', expandMucusRows ? 'grid-cols-1' : 'grid-cols-2')}>
+          <motion.button
+  {...textLayoutProps}
+  style={{ borderRadius: 16 }}
   type="button"
-  onClick={() => smartOpen('sensation', 'sensation', 'mucusSensation')}
+  aria-label="Editar sensación"
+  onClick={() => setMucusField('mucusSensation')}
   className={cn(
     detailCellCompactClass,
     isTextExpanded ? 'items-start' : 'items-center',
-    'text-left'
+    'min-w-0 text-left'
   )}
 >
   <span aria-hidden="true" className={cn(detailAccentClass, detailCellStyles.sensation.accent)} />
+  <motion.span {...positionLayoutProps} className="flex shrink-0">
   <Droplets
     className={cn(
       'h-[18px] w-[18px] shrink-0',
@@ -430,7 +498,8 @@ const footerIconButtonClass =
       isTextExpanded && 'mt-0.5'
     )}
   />
-  <div className="min-w-0 flex-1">
+  </motion.span>
+  <motion.div {...positionLayoutProps} className="min-w-0 flex-1">
     <div
       ref={sensationTextRef}
       className={cn(
@@ -441,19 +510,23 @@ const footerIconButtonClass =
     >
       {renderChipValue(mucusSensationValue)}
     </div>
-  </div>
-</button>
+  </motion.div>
+</motion.button>
 
-       <button
+       <motion.button
+  {...textLayoutProps}
+  style={{ borderRadius: 16 }}
   type="button"
-  onClick={() => smartOpen('appearance', 'appearance', 'mucusAppearance')}
+  aria-label="Editar apariencia"
+  onClick={() => setMucusField('mucusAppearance')}
   className={cn(
     detailCellCompactClass,
     isTextExpanded ? 'items-start' : 'items-center',
-    'text-left'
+    'min-w-0 text-left'
   )}
 >
   <span aria-hidden="true" className={cn(detailAccentClass, detailCellStyles.appearance.accent)} />
+  <motion.span {...positionLayoutProps} className="flex shrink-0">
   <Circle
     className={cn(
       'h-[18px] w-[18px] shrink-0',
@@ -461,7 +534,8 @@ const footerIconButtonClass =
       isTextExpanded && 'mt-0.5'
     )}
   />
-  <div className="min-w-0 flex-1">
+  </motion.span>
+  <motion.div {...positionLayoutProps} className="min-w-0 flex-1">
     <div
       ref={appearanceTextRef}
       className={cn(
@@ -472,15 +546,18 @@ const footerIconButtonClass =
     >
       {renderChipValue(mucusAppearanceValue)}
     </div>
-  </div>
-</button>
+  </motion.div>
+</motion.button>
         </div>
 
         {/* Fila 3: observaciones + acciones */}
-<div className="flex items-center gap-3">
-  <button
+<motion.div {...positionLayoutProps} className="flex items-center gap-3">
+  <motion.button
+    {...textLayoutProps}
+    style={{ borderRadius: 16 }}
     type="button"
-    onClick={() => smartOpen('observations', 'observations', 'observations')}
+    onClick={() => setObservationsOpen(true)}
+    aria-label="Editar observaciones"
     className={cn(
       detailCellMultilineClass,
       isTextExpanded ? 'items-start' : 'items-center',
@@ -488,6 +565,7 @@ const footerIconButtonClass =
     )}
   >
     <span aria-hidden="true" className={cn(detailAccentClass, detailCellStyles.observations.accent)} />
+    <motion.span {...positionLayoutProps} className="flex shrink-0">
     <FileText
       className={cn(
         'h-[18px] w-[18px] shrink-0',
@@ -495,7 +573,8 @@ const footerIconButtonClass =
         isTextExpanded && 'mt-0.5'
       )}
     />
-    <div className="min-w-0 flex-1">
+    </motion.span>
+    <motion.div {...positionLayoutProps} className="min-w-0 flex-1">
       <div
         ref={observationsTextRef}
         className={cn(
@@ -507,10 +586,10 @@ const footerIconButtonClass =
       >
         {renderChipValue(observationsValue, { placeholder: '-' })}
       </div>
-    </div>
-  </button>
+    </motion.div>
+  </motion.button>
 
-  <div className="flex shrink-0 items-center gap-1">
+  <motion.div {...positionLayoutProps} className="flex shrink-0 items-center gap-1">
     {showRelationsAction && (
       <button
         type="button"
@@ -582,9 +661,27 @@ const footerIconButtonClass =
         Añadir
       </Button>
     )}
-  </div>
-</div>
+  </motion.div>
+</motion.div>
       </div>
+      {(hasTextOverflow || isTextExpanded) && (
+        <motion.button
+          {...positionLayoutProps}
+          type="button"
+          aria-label={isTextExpanded ? 'Contraer texto' : 'Mostrar texto completo'}
+          aria-expanded={isTextExpanded}
+          onClick={(event) => {
+            event.stopPropagation();
+            setIsTextExpanded((expanded) => !expanded);
+          }}
+          className="mx-auto -mb-4 flex h-11 w-full items-center justify-center rounded-full text-slate-400 hover:text-rose-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 sm:-mb-5"
+        >
+          <ChevronDown
+            aria-hidden="true"
+            className={cn('h-4 w-4', isTextExpanded && 'rotate-180')}
+          />
+        </motion.button>
+      )}
     </div>
   );
 };

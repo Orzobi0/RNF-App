@@ -1,0 +1,24 @@
+{
+  "hosting": {
+    "target": "staging",
+    "public": "dist-staging",
+    "ignore": ["firebase.staging.json", "**/.*", "**/node_modules/**"],
+    "predeploy": ["node scripts/check-staging.mjs --build"],
+    "headers": [
+      {"source": "/sw.js", "headers": [{"key": "Cache-Control", "value": "no-cache, no-store, must-revalidate"}]},
+      {"source": "/index.html", "headers": [{"key": "Cache-Control", "value": "no-cache, no-store, must-revalidate"}]},
+      {"source": "/api/**", "headers": [{"key": "Cache-Control", "value": "no-store"}]}
+    ],
+    "rewrites": [
+      {"source": "/api/**", "function": {"functionId": "sessionApi", "region": "us-central1"}},
+      {"source": "**", "destination": "/index.html"}
+    ]
+  },
+  "functions": [{
+    "source": ".firebase/session-staging",
+    "codebase": "default",
+    "runtime": "nodejs22",
+    "ignore": ["node_modules", ".git", "*.log", ".env*"],
+    "predeploy": ["node scripts/check-staging.mjs", "node scripts/prepare-staging-session.mjs"]
+  }]
+}

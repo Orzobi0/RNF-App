@@ -53,7 +53,7 @@ const extractPath = (path = "/") => {
   return hasTrailingSlash ? noPrefix.slice(0, -1) : noPrefix;
 };
 
-const sessionApi = functions.https.onRequest(async (req, res) => {
+const sessionHandler = async (req, res) => {
   const method = req.method;
   const path = extractPath(req.path || "/");
 
@@ -139,8 +139,13 @@ const sessionApi = functions.https.onRequest(async (req, res) => {
     console.error("[sessionApi]", method, path, error);
     return sendJson(res, 500, {ok: false, code: "internal"});
   }
-});
+};
+
+const createSessionApi = (options = {}) =>
+  functions.https.onRequest(options, sessionHandler);
+const sessionApi = createSessionApi();
 
 module.exports = {
   sessionApi,
+  createSessionApi,
 };

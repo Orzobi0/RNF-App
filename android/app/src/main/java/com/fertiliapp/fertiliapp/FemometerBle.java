@@ -1,0 +1,1106 @@
+package com.fertiliapp.fertiliapp;
+
+import android.Manifest;
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothGatt;
+import android.bluetooth.BluetoothGattCallback;
+import android.bluetooth.BluetoothGattCharacteristic;
+import android.bluetooth.BluetoothGattDescriptor;
+import android.bluetooth.BluetoothGattService;
+import android.bluetooth.BluetoothManager;
+import android.bluetooth.BluetoothProfile;
+import android.bluetooth.le.BluetoothLeScanner;
+import android.bluetooth.le.ScanCallback;
+import android.bluetooth.le.ScanResult;
+import android.content.Context;
+import android.content.pm.PackageManager;
+import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
+import android.util.Log;
+
+import com.getcapacitor.JSArray;
+import com.getcapacitor.JSObject;
+import com.getcapacitor.PermissionState;
+import com.getcapacitor.Plugin;
+import com.getcapacitor.PluginCall;
+import com.getcapacitor.PluginMethod;
+import com.getcapacitor.annotation.CapacitorPlugin;
+import com.getcapacitor.annotation.Permission;
+import com.getcapacitor.annotation.PermissionCallback;
+
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.TimeZone;
+import java.util.UUID;
+
+@CapacitorPlugin(
+    name = "FemometerBle",
+    permissions = {
+        @Permission(alias = "bluetoothScan", strings = { Manifest.permission.BLUETOOTH_SCAN }),
+        @Permission(alias = "bluetoothConnect", strings = { Manifest.permission.BLUETOOTH_CONNECT }),
+        @Permission(alias = "location", strings = { Manifest.permission.ACCESS_FINE_LOCATION })
+    }
+)
+public class FemometerBle extends Plugin {
+    private static final String TAG = "FemometerBle";
+    private static final String BLUETOOTH_SCAN_ALIAS = "bluetoothScan";
+    private static final String BLUETOOTH_CONNECT_ALIAS = "bluetoothConnect";
+    private static final String LOCATION_ALIAS = "location";
+    private static final long SCAN_TIMEOUT_MS = 8000L;
+    private static final long CONNECT_TIMEOUT_MS = 15000L;
+    private static final long DISCOVER_TIMEOUT_MS = 10000L;
+    // Allow a 3–5 minute measurement plus time to position the thermometer.
+    private static final long TEMPERATURE_LISTENER_TIMEOUT_MS = 6 * 60 * 1000L;
+    private static final String DEVICE_NAME_FRAGMENT = "bm-vinca2";
+    private static final UUID HEALTH_THERMOMETER_UUID = UUID.fromString("00001809-0000-1000-8000-00805f9b34fb");
+    private static final UUID TEMPERATURE_MEASUREMENT_UUID = UUID.fromString("00002a1c-0000-1000-8000-00805f9b34fb");
+    private static final UUID MEASUREMENT_INTERVAL_UUID = UUID.fromString("00002a21-0000-1000-8000-00805f9b34fb");
+    private static final UUID VINCA_SERVICE_UUID = UUID.fromString("0f0e0d0c-0b0a-0908-0706-050403020100");
+    private static final UUID VINCA_INDICATION_UUID = UUID.fromString("3f3e3d3c-3b3a-3938-3736-353433323130");
+    private static final UUID CLIENT_CHARACTERISTIC_CONFIG_UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
+    private static final String TEMPERATURE_EVENT = "femometerTemperatureIndication";
+
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private final Map<String, ScannedDevice> devicesById = new LinkedHashMap<>();
+    private final Map<String, String> idsByAddress = new LinkedHashMap<>();
+
+    private PluginCall scanCall;
+    private ScanCallback scanCallback;
+    private BluetoothGatt activeGatt;
+    private PluginCall connectCall;
+    private Runnable connectTimeoutRunnable;
+    private BluetoothGatt temperatureGatt;
+    private BluetoothGattCharacteristic temperatureCharacteristic;
+    private BluetoothGattCharacteristic vincaIndicationCharacteristic;
+    private PluginCall temperatureListenerCall;
+    private Runnable temperatureSetupTimeoutRunnable;
+    private Runnable temperatureListenerTimeoutRunnable;
+
+    @PluginMethod
+    public void requestBluetoothPermissions(PluginCall call) {
+        Log.d(TAG, "requestBluetoothPermissions called");
+        logPermissionStates("before request");
+
+        String unavailableCode = getUnavailableCode();
+        if (unavailableCode != null) {
+            Log.d(TAG, "Permission request blocked: " + unavailableCode);
+            rejectWithCode(call, unavailableCode);
+            return;
+        }
+
+        String[] aliases = getRequiredPermissionAliases();
+        if (aliases.length == 0 || hasRequiredRuntimePermissions()) {
+            Log.d(TAG, "Permissions already granted");
+            JSObject result = new JSObject();
+            result.put("granted", true);
+            call.resolve(result);
+            return;
+        }
+
+        requestPermissionForAliases(aliases, call, "bluetoothPermissionsCallback");
+    }
+
+    @PermissionCallback
+    private void bluetoothPermissionsCallback(PluginCall call) {
+        boolean granted = hasRequiredRuntimePermissions();
+        Log.d(TAG, "Permission callback result: granted=" + granted);
+        logPermissionStates("after callback");
+
+        JSObject result = new JSObject();
+        result.put("granted", granted);
+        result.put("androidVersion", Build.VERSION.SDK_INT);
+        result.put("permissionStates", buildPermissionStatesObject());
+
+        if (granted) {
+            call.resolve(result);
+        } else {
+            call.reject("Permisos Bluetooth denegados.", "PERMISSION_NOT_GRANTED", result);
+        }
+    }
+
+    @PluginMethod
+    public void scan(PluginCall call) {
+        Log.d(TAG, "scan called");
+        String blockedCode = getBlockedOperationCode();
+        if (blockedCode != null) {
+            Log.d(TAG, "Scan blocked: " + blockedCode);
+            rejectWithCode(call, blockedCode);
+            return;
+        }
+        if (scanCall != null) {
+            Log.d(TAG, "Scan blocked: SCAN_IN_PROGRESS");
+            call.reject("Ya hay una busqueda BLE en curso.", "SCAN_IN_PROGRESS");
+            return;
+        }
+
+        BluetoothLeScanner scanner = getScanner();
+        if (scanner == null) {
+            Log.d(TAG, "Scan blocked: SCANNER_UNAVAILABLE");
+            call.reject("No se pudo iniciar el escaneo BLE.", "SCANNER_UNAVAILABLE");
+            return;
+        }
+
+        devicesById.clear();
+        idsByAddress.clear();
+        scanCall = call;
+        scanCallback = new ScanCallback() {
+            @Override
+            public void onScanResult(int callbackType, ScanResult result) {
+                handleScanResult(result);
+            }
+
+            @Override
+            public void onBatchScanResults(List<ScanResult> results) {
+                if (results == null) return;
+                for (ScanResult result : results) {
+                    handleScanResult(result);
+                }
+            }
+
+            @Override
+            public void onScanFailed(int errorCode) {
+                Log.e(TAG, "BLE scan failed with errorCode=" + errorCode);
+                PluginCall pending = scanCall;
+                stopScanInternal();
+                if (pending != null) {
+                    pending.reject("Fallo la busqueda BLE.", "SCAN_FAILED");
+                }
+            }
+        };
+
+        try {
+            scanner.startScan(scanCallback);
+            Log.d(TAG, "BLE scan started");
+        } catch (SecurityException error) {
+            Log.e(TAG, "SecurityException starting BLE scan", error);
+            stopScanInternal();
+            call.reject("Faltan permisos Bluetooth para buscar dispositivos.", "PERMISSION_NOT_GRANTED");
+            return;
+        } catch (IllegalStateException error) {
+            Log.e(TAG, "IllegalStateException starting BLE scan", error);
+            stopScanInternal();
+            call.reject("Bluetooth no esta disponible para buscar dispositivos.", "BLUETOOTH_UNAVAILABLE");
+            return;
+        } catch (Exception error) {
+            Log.e(TAG, "Unexpected exception starting BLE scan", error);
+            stopScanInternal();
+            call.reject("No se pudo iniciar la busqueda BLE.", "SCAN_FAILED");
+            return;
+        }
+
+        mainHandler.postDelayed(() -> {
+            PluginCall pending = scanCall;
+            stopScanInternal();
+            if (pending != null) {
+                Log.d(TAG, "BLE scan finished: femometerDevices=" + devicesById.size());
+                JSObject result = new JSObject();
+                result.put("devices", buildScannedDevicesArray());
+                pending.resolve(result);
+            }
+        }, SCAN_TIMEOUT_MS);
+    }
+
+    @PluginMethod
+    public void connectAndInspect(PluginCall call) {
+        String deviceId = call.getString("deviceId");
+        if (deviceId == null || deviceId.trim().isEmpty()) {
+            call.reject("Falta el identificador interno del dispositivo.", "DEVICE_ID_REQUIRED");
+            return;
+        }
+
+        String blockedCode = getBlockedOperationCode();
+        if (blockedCode != null) {
+            rejectWithCode(call, blockedCode);
+            return;
+        }
+
+        ScannedDevice scannedDevice = devicesById.get(deviceId);
+        if (scannedDevice == null) {
+            call.reject("El dispositivo seleccionado ya no esta disponible. Vuelve a buscarlo.", "DEVICE_NOT_FOUND");
+            return;
+        }
+
+        if (connectCall != null) {
+            call.reject("Ya hay una conexion BLE en curso.", "CONNECTION_IN_PROGRESS");
+            return;
+        }
+
+        closeActiveGatt();
+        connectCall = call;
+
+        BluetoothGattCallback callback = new BluetoothGattCallback() {
+            @Override
+            public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
+                if (status != BluetoothGatt.GATT_SUCCESS) {
+                    rejectConnectCall("No se pudo conectar con el termometro.", "CONNECTION_FAILED");
+                    return;
+                }
+
+                if (newState == BluetoothProfile.STATE_CONNECTED) {
+                    scheduleConnectTimeout(DISCOVER_TIMEOUT_MS, "SERVICE_DISCOVERY_TIMEOUT", "La deteccion de servicios BLE ha tardado demasiado.");
+                    try {
+                        if (!gatt.discoverServices()) {
+                            rejectConnectCall("No se pudo iniciar la deteccion de servicios BLE.", "SERVICE_DISCOVERY_FAILED");
+                        }
+                    } catch (SecurityException error) {
+                        Log.e(TAG, "SecurityException discovering BLE services", error);
+                        rejectConnectCall("Faltan permisos Bluetooth para detectar servicios.", "PERMISSION_NOT_GRANTED");
+                    } catch (Exception error) {
+                        Log.e(TAG, "Unexpected exception discovering BLE services", error);
+                        rejectConnectCall("No se pudo iniciar la deteccion de servicios BLE.", "SERVICE_DISCOVERY_FAILED");
+                    }
+                    return;
+                }
+
+                if (newState == BluetoothProfile.STATE_DISCONNECTED && connectCall != null) {
+                    rejectConnectCall("El termometro se desconecto antes de terminar la comprobacion.", "DEVICE_DISCONNECTED");
+                }
+            }
+
+            @Override
+            public void onServicesDiscovered(BluetoothGatt gatt, int status) {
+                if (status != BluetoothGatt.GATT_SUCCESS) {
+                    rejectConnectCall("No se pudieron detectar los servicios BLE.", "SERVICE_DISCOVERY_FAILED");
+                    return;
+                }
+
+                PluginCall pending = connectCall;
+                JSObject result = buildInspectionResult(gatt);
+                clearConnectState();
+                activeGatt = null;
+                closeGatt(gatt);
+                if (pending != null) {
+                    pending.resolve(result);
+                }
+            }
+        };
+
+        scheduleConnectTimeout(CONNECT_TIMEOUT_MS, "CONNECTION_TIMEOUT", "La conexion BLE ha tardado demasiado.");
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                activeGatt = scannedDevice.device.connectGatt(getContext(), false, callback, BluetoothDevice.TRANSPORT_LE);
+            } else {
+                activeGatt = scannedDevice.device.connectGatt(getContext(), false, callback);
+            }
+        } catch (SecurityException error) {
+            Log.e(TAG, "SecurityException connecting BLE device", error);
+            rejectConnectCall("Faltan permisos Bluetooth para conectar.", "PERMISSION_NOT_GRANTED");
+        } catch (Exception error) {
+            Log.e(TAG, "Unexpected exception connecting BLE device", error);
+            rejectConnectCall("No se pudo abrir la conexion BLE.", "CONNECTION_FAILED");
+        }
+
+        if (activeGatt == null && connectCall != null) {
+            rejectConnectCall("No se pudo abrir la conexion BLE.", "CONNECTION_FAILED");
+        }
+    }
+
+    @PluginMethod
+    public void startTemperatureListener(PluginCall call) {
+        String deviceId = call.getString("deviceId");
+        if (deviceId == null || deviceId.trim().isEmpty()) {
+            call.reject("Falta el identificador interno del dispositivo.", "DEVICE_ID_REQUIRED");
+            return;
+        }
+
+        String blockedCode = getBlockedOperationCode();
+        if (blockedCode != null) {
+            Log.d(TAG, "Temperature listener blocked: " + blockedCode);
+            rejectWithCode(call, blockedCode);
+            return;
+        }
+
+        ScannedDevice scannedDevice = devicesById.get(deviceId);
+        if (scannedDevice == null) {
+            call.reject("El dispositivo seleccionado ya no esta disponible. Vuelve a buscarlo.", "DEVICE_NOT_FOUND");
+            return;
+        }
+
+        if (temperatureListenerCall != null || temperatureGatt != null) {
+            call.reject("Ya hay una escucha de temperatura en curso.", "TEMPERATURE_LISTENER_IN_PROGRESS");
+            return;
+        }
+
+        Log.d(TAG, "Starting temperature indication listener");
+        closeActiveGatt();
+        stopTemperatureListenerInternal(false, null, null);
+        temperatureListenerCall = call;
+
+        BluetoothGattCallback callback = new BluetoothGattCallback() {
+            @Override
+            public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
+                if (gatt != temperatureGatt) return;
+                if (status != BluetoothGatt.GATT_SUCCESS) {
+                    rejectTemperatureStart("No se pudo conectar con el termometro.", "CONNECTION_FAILED");
+                    return;
+                }
+
+                if (newState == BluetoothProfile.STATE_CONNECTED) {
+                    Log.d(TAG, "Temperature listener connected, discovering services");
+                    try {
+                        if (!gatt.discoverServices()) {
+                            rejectTemperatureStart("No se pudo iniciar la deteccion de servicios BLE.", "SERVICE_DISCOVERY_FAILED");
+                        }
+                    } catch (SecurityException error) {
+                        Log.e(TAG, "SecurityException discovering services for listener", error);
+                        rejectTemperatureStart("Faltan permisos Bluetooth para detectar servicios.", "PERMISSION_NOT_GRANTED");
+                    } catch (Exception error) {
+                        Log.e(TAG, "Unexpected exception discovering services for listener", error);
+                        rejectTemperatureStart("No se pudo iniciar la deteccion de servicios BLE.", "SERVICE_DISCOVERY_FAILED");
+                    }
+                    return;
+                }
+
+                if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+                    Log.d(TAG, "Temperature listener disconnected");
+                    if (temperatureListenerCall != null) {
+                        rejectTemperatureStart("El termometro se desconecto antes de activar indicaciones.", "DEVICE_DISCONNECTED");
+                    } else {
+                        notifyTemperatureListenerState("disconnected", "El termometro se desconecto.");
+                        stopTemperatureListenerInternal(false, null, null);
+                    }
+                }
+            }
+
+            @Override
+            public void onServicesDiscovered(BluetoothGatt gatt, int status) {
+                if (gatt != temperatureGatt) return;
+                if (status != BluetoothGatt.GATT_SUCCESS) {
+                    rejectTemperatureStart("No se pudieron detectar los servicios BLE.", "SERVICE_DISCOVERY_FAILED");
+                    return;
+                }
+
+                BluetoothGattService service = gatt.getService(HEALTH_THERMOMETER_UUID);
+                if (service == null) {
+                    rejectTemperatureStart("No se encontro el servicio Health Thermometer.", "HEALTH_THERMOMETER_NOT_FOUND");
+                    return;
+                }
+
+                BluetoothGattCharacteristic characteristic = service.getCharacteristic(TEMPERATURE_MEASUREMENT_UUID);
+                if (characteristic == null) {
+                    rejectTemperatureStart("No se encontro la caracteristica Temperature Measurement.", "TEMPERATURE_MEASUREMENT_NOT_FOUND");
+                    return;
+                }
+
+                int properties = characteristic.getProperties();
+                if ((properties & BluetoothGattCharacteristic.PROPERTY_INDICATE) == 0) {
+                    rejectTemperatureStart("Temperature Measurement no expone indicaciones.", "INDICATE_NOT_SUPPORTED");
+                    return;
+                }
+
+                BluetoothGattDescriptor descriptor = characteristic.getDescriptor(CLIENT_CHARACTERISTIC_CONFIG_UUID);
+                if (descriptor == null) {
+                    rejectTemperatureStart("No se encontro el descriptor CCCD 0x2902.", "CCCD_NOT_FOUND");
+                    return;
+                }
+
+                try {
+                    if (!gatt.setCharacteristicNotification(characteristic, true)) {
+                        rejectTemperatureStart("No se pudo activar la escucha local de indicaciones.", "INDICATION_ENABLE_FAILED");
+                        return;
+                    }
+                    temperatureCharacteristic = characteristic;
+                    if (!writeDescriptorValue(gatt, descriptor, BluetoothGattDescriptor.ENABLE_INDICATION_VALUE)) {
+                        rejectTemperatureStart("No se pudo escribir el descriptor CCCD para indicaciones.", "CCCD_WRITE_FAILED");
+                    }
+                } catch (SecurityException error) {
+                    Log.e(TAG, "SecurityException enabling indications", error);
+                    rejectTemperatureStart("Faltan permisos Bluetooth para activar indicaciones.", "PERMISSION_NOT_GRANTED");
+                } catch (Exception error) {
+                    Log.e(TAG, "Unexpected exception enabling indications", error);
+                    rejectTemperatureStart("No se pudieron activar las indicaciones.", "INDICATION_ENABLE_FAILED");
+                }
+            }
+
+            @Override
+            public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
+                if (gatt != temperatureGatt || temperatureListenerCall == null) return;
+                if (!CLIENT_CHARACTERISTIC_CONFIG_UUID.equals(descriptor.getUuid())) {
+                    return;
+                }
+                if (status != BluetoothGatt.GATT_SUCCESS) {
+                    rejectTemperatureStart("No se confirmo la escritura del descriptor CCCD.", "CCCD_WRITE_FAILED");
+                    return;
+                }
+
+                UUID subscribedUuid = descriptor.getCharacteristic().getUuid();
+                Log.d(TAG, "Indications enabled: " + subscribedUuid);
+                if (TEMPERATURE_MEASUREMENT_UUID.equals(subscribedUuid)) {
+                    enableVincaIndications(gatt);
+                } else if (VINCA_INDICATION_UUID.equals(subscribedUuid)) {
+                    configureMeasurementInterval(gatt);
+                }
+            }
+
+            @Override
+            public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+                if (gatt != temperatureGatt || temperatureListenerCall == null) return;
+                if (!MEASUREMENT_INTERVAL_UUID.equals(characteristic.getUuid())) return;
+                if (status != BluetoothGatt.GATT_SUCCESS) {
+                    rejectTemperatureStart("No se pudo configurar el envio de temperaturas.", "MEASUREMENT_INTERVAL_FAILED");
+                    return;
+                }
+                Log.d(TAG, "Measurement interval configured: 1 second");
+                finishTemperatureSetup();
+            }
+
+            @Override
+            public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
+                if (gatt != temperatureGatt) return;
+                handleTemperatureCharacteristicChanged(characteristic, characteristic.getValue());
+            }
+
+            @Override
+            public void onCharacteristicChanged(
+                BluetoothGatt gatt,
+                BluetoothGattCharacteristic characteristic,
+                byte[] value
+            ) {
+                if (gatt != temperatureGatt) return;
+                handleTemperatureCharacteristicChanged(characteristic, value);
+            }
+        };
+
+        scheduleTemperatureSetupTimeout();
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                temperatureGatt = scannedDevice.device.connectGatt(getContext(), false, callback, BluetoothDevice.TRANSPORT_LE);
+            } else {
+                temperatureGatt = scannedDevice.device.connectGatt(getContext(), false, callback);
+            }
+        } catch (SecurityException error) {
+            Log.e(TAG, "SecurityException connecting temperature listener", error);
+            rejectTemperatureStart("Faltan permisos Bluetooth para conectar.", "PERMISSION_NOT_GRANTED");
+        } catch (Exception error) {
+            Log.e(TAG, "Unexpected exception connecting temperature listener", error);
+            rejectTemperatureStart("No se pudo abrir la conexion BLE.", "CONNECTION_FAILED");
+        }
+
+        if (temperatureGatt == null && temperatureListenerCall != null) {
+            rejectTemperatureStart("No se pudo abrir la conexion BLE.", "CONNECTION_FAILED");
+        }
+    }
+
+    @PluginMethod
+    public void stopTemperatureListener(PluginCall call) {
+        Log.d(TAG, "Stopping temperature listener");
+        stopTemperatureListenerInternal(false, null, null);
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void disconnect(PluginCall call) {
+        stopScanInternal();
+        rejectPendingConnect("Conexion cancelada.", "CONNECTION_CANCELLED");
+        stopTemperatureListenerInternal(false, null, null);
+        closeActiveGatt();
+        call.resolve();
+    }
+
+    @Override
+    protected void handleOnStop() {
+        stopScanInternal();
+        rejectPendingConnect("Conexion cancelada al cerrar la app.", "CONNECTION_CANCELLED");
+        stopTemperatureListenerInternal(false, null, null);
+        closeActiveGatt();
+    }
+
+    @Override
+    protected void handleOnDestroy() {
+        stopScanInternal();
+        rejectPendingConnect("Conexion cancelada al cerrar la app.", "CONNECTION_CANCELLED");
+        stopTemperatureListenerInternal(false, null, null);
+        closeActiveGatt();
+    }
+
+    private void handleScanResult(ScanResult result) {
+        if (result == null || result.getDevice() == null) return;
+
+        String advertisedName = null;
+        if (result.getScanRecord() != null) {
+            advertisedName = result.getScanRecord().getDeviceName();
+        }
+        if (advertisedName == null) {
+            try {
+                advertisedName = result.getDevice().getName();
+            } catch (SecurityException error) {
+                Log.e(TAG, "SecurityException reading advertised device name", error);
+                return;
+            } catch (Exception error) {
+                Log.e(TAG, "Unexpected exception reading advertised device name", error);
+                return;
+            }
+        }
+        if (advertisedName == null || !advertisedName.toLowerCase(Locale.ROOT).contains(DEVICE_NAME_FRAGMENT)) {
+            return;
+        }
+
+        String address;
+        try {
+            address = result.getDevice().getAddress();
+        } catch (SecurityException error) {
+            Log.e(TAG, "SecurityException reading internal BLE address", error);
+            return;
+        } catch (Exception error) {
+            Log.e(TAG, "Unexpected exception reading internal BLE address", error);
+            return;
+        }
+
+        String id = idsByAddress.get(address);
+        if (id == null) {
+            id = UUID.randomUUID().toString();
+            idsByAddress.put(address, id);
+        }
+        devicesById.put(id, new ScannedDevice(result.getDevice(), advertisedName, result.getRssi()));
+    }
+
+    private JSArray buildScannedDevicesArray() {
+        JSArray devices = new JSArray();
+        for (Map.Entry<String, ScannedDevice> entry : devicesById.entrySet()) {
+            JSObject device = new JSObject();
+            device.put("id", entry.getKey());
+            device.put("name", entry.getValue().name);
+            device.put("rssi", entry.getValue().rssi);
+            devices.put(device);
+        }
+        return devices;
+    }
+
+    private JSObject buildInspectionResult(BluetoothGatt gatt) {
+        boolean healthThermometerFound = false;
+        boolean temperatureMeasurementFound = false;
+        JSArray services = new JSArray();
+
+        for (BluetoothGattService service : gatt.getServices()) {
+            UUID serviceUuid = service.getUuid();
+            if (HEALTH_THERMOMETER_UUID.equals(serviceUuid)) {
+                healthThermometerFound = true;
+            }
+
+            JSObject serviceJson = new JSObject();
+            serviceJson.put("uuid", serviceUuid.toString());
+            JSArray characteristics = new JSArray();
+
+            for (BluetoothGattCharacteristic characteristic : service.getCharacteristics()) {
+                UUID characteristicUuid = characteristic.getUuid();
+                if (TEMPERATURE_MEASUREMENT_UUID.equals(characteristicUuid)) {
+                    temperatureMeasurementFound = true;
+                }
+
+                JSObject characteristicJson = new JSObject();
+                characteristicJson.put("uuid", characteristicUuid.toString());
+                characteristicJson.put("properties", buildPropertiesArray(characteristic.getProperties()));
+                characteristics.put(characteristicJson);
+            }
+
+            serviceJson.put("characteristics", characteristics);
+            services.put(serviceJson);
+        }
+
+        JSObject result = new JSObject();
+        result.put("healthThermometerFound", healthThermometerFound);
+        result.put("temperatureMeasurementFound", temperatureMeasurementFound);
+        result.put("services", services);
+        return result;
+    }
+
+    private JSArray buildPropertiesArray(int properties) {
+        JSArray propertyNames = new JSArray();
+        if ((properties & BluetoothGattCharacteristic.PROPERTY_READ) != 0) {
+            propertyNames.put("read");
+        }
+        if ((properties & BluetoothGattCharacteristic.PROPERTY_WRITE) != 0) {
+            propertyNames.put("write");
+        }
+        if ((properties & BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE) != 0) {
+            propertyNames.put("writeWithoutResponse");
+        }
+        if ((properties & BluetoothGattCharacteristic.PROPERTY_NOTIFY) != 0) {
+            propertyNames.put("notify");
+        }
+        if ((properties & BluetoothGattCharacteristic.PROPERTY_INDICATE) != 0) {
+            propertyNames.put("indicate");
+        }
+        return propertyNames;
+    }
+
+    // Configure each GATT operation only after the previous write is acknowledged.
+    private void enableVincaIndications(BluetoothGatt gatt) {
+        BluetoothGattService service = gatt.getService(VINCA_SERVICE_UUID);
+        BluetoothGattCharacteristic characteristic = service == null ? null : service.getCharacteristic(VINCA_INDICATION_UUID);
+        if (characteristic == null) {
+            configureMeasurementInterval(gatt);
+            return;
+        }
+        BluetoothGattDescriptor descriptor = characteristic.getDescriptor(CLIENT_CHARACTERISTIC_CONFIG_UUID);
+        try {
+            if (descriptor == null || !gatt.setCharacteristicNotification(characteristic, true)) {
+                rejectTemperatureStart("No se pudo preparar el canal Vinca 2.", "INDICATION_ENABLE_FAILED");
+                return;
+            }
+            vincaIndicationCharacteristic = characteristic;
+            if (!writeDescriptorValue(gatt, descriptor, BluetoothGattDescriptor.ENABLE_INDICATION_VALUE)) {
+                rejectTemperatureStart("No se pudo activar el canal Vinca 2.", "CCCD_WRITE_FAILED");
+            }
+        } catch (SecurityException error) {
+            rejectTemperatureStart("Faltan permisos Bluetooth.", "PERMISSION_NOT_GRANTED");
+        }
+    }
+
+    private void configureMeasurementInterval(BluetoothGatt gatt) {
+        BluetoothGattService service = gatt.getService(HEALTH_THERMOMETER_UUID);
+        BluetoothGattCharacteristic interval = service == null ? null : service.getCharacteristic(MEASUREMENT_INTERVAL_UUID);
+        if (interval == null || (interval.getProperties() & BluetoothGattCharacteristic.PROPERTY_WRITE) == 0) {
+            rejectTemperatureStart("Este dispositivo no permite configurar el envio Vinca 2.", "MEASUREMENT_INTERVAL_FAILED");
+            return;
+        }
+        // Bluetooth 0x2A21: uint16 little-endian, seconds. Vinca 2 uses 1 second.
+        byte[] intervalValue = new byte[] { 1, 0 };
+        try {
+            boolean started;
+            if (Build.VERSION.SDK_INT >= 33) {
+                started = gatt.writeCharacteristic(interval, intervalValue, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT) == BluetoothGatt.GATT_SUCCESS;
+            } else {
+                interval.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
+                interval.setValue(intervalValue);
+                started = gatt.writeCharacteristic(interval);
+            }
+            if (!started) rejectTemperatureStart("No se pudo solicitar el envio de temperaturas.", "MEASUREMENT_INTERVAL_FAILED");
+        } catch (SecurityException error) {
+            rejectTemperatureStart("Faltan permisos Bluetooth.", "PERMISSION_NOT_GRANTED");
+        }
+    }
+
+    private void finishTemperatureSetup() {
+        clearTemperatureSetupTimeout();
+        PluginCall pending = temperatureListenerCall;
+        temperatureListenerCall = null;
+        scheduleTemperatureListenerTimeout();
+        JSObject result = new JSObject();
+        result.put("connectionReady", true);
+        result.put("indicationsActive", true);
+        result.put("timeoutSeconds", TEMPERATURE_LISTENER_TIMEOUT_MS / 1000);
+        result.put("measurementIntervalConfigured", true);
+        if (pending != null) pending.resolve(result);
+        Log.d(TAG, "Temperature listener ready: Vinca setup v2");
+    }
+
+    private void handleTemperatureCharacteristicChanged(BluetoothGattCharacteristic characteristic, byte[] value) {
+        if (characteristic != null) {
+            // Log transport metadata only, never temperatures or raw measurement bytes.
+            Log.d(TAG, "BLE indication: " + characteristic.getUuid() + ", bytes=" + (value == null ? 0 : value.length));
+        }
+        if (characteristic == null || !TEMPERATURE_MEASUREMENT_UUID.equals(characteristic.getUuid())) {
+            return;
+        }
+        if (value == null || value.length < 5) {
+            Log.e(TAG, "Temperature indication payload too short");
+            return;
+        }
+
+        try {
+            JSObject decoded = decodeTemperatureMeasurement(value);
+            Log.d(TAG, "Temperature indication received");
+            notifyListeners(TEMPERATURE_EVENT, decoded);
+        } catch (Exception error) {
+            Log.e(TAG, "Error decoding temperature indication", error);
+            JSObject event = new JSObject();
+            event.put("error", "DECODE_FAILED");
+            event.put("rawHex", bytesToHex(value));
+            notifyListeners(TEMPERATURE_EVENT, event);
+        }
+    }
+
+    private JSObject decodeTemperatureMeasurement(byte[] value) {
+        int flags = value[0] & 0xFF;
+        boolean isFahrenheit = (flags & 0x01) != 0;
+        boolean hasTimestamp = (flags & 0x02) != 0;
+        boolean hasMeasurementType = (flags & 0x04) != 0;
+
+        int offset = 1;
+        double temperature = decodeIeee11073Float(value, offset);
+        offset += 4;
+        double temperatureC = isFahrenheit ? (temperature - 32.0) * 5.0 / 9.0 : temperature;
+
+        String deviceTimestamp = null;
+        if (hasTimestamp && value.length >= offset + 7) {
+            int year = uint16(value, offset);
+            int month = value[offset + 2] & 0xFF;
+            int day = value[offset + 3] & 0xFF;
+            int hour = value[offset + 4] & 0xFF;
+            int minute = value[offset + 5] & 0xFF;
+            int second = value[offset + 6] & 0xFF;
+            deviceTimestamp = formatDeviceTimestamp(year, month, day, hour, minute, second);
+            offset += 7;
+        }
+
+        Integer measurementTypeCode = null;
+        String measurementType = null;
+        if (hasMeasurementType && value.length > offset) {
+            measurementTypeCode = value[offset] & 0xFF;
+            measurementType = measurementTypeName(measurementTypeCode);
+        }
+
+        JSObject result = new JSObject();
+        result.put("temperatureC", roundTemperature(temperatureC));
+        result.put("temperatureUnit", isFahrenheit ? "fahrenheit" : "celsius");
+        result.put("temperatureOriginal", roundTemperature(temperature));
+        result.put("receivedAt", formatIsoLocal(new Date()));
+        result.put("deviceTimestamp", deviceTimestamp);
+        result.put("measurementType", measurementType != null ? measurementType : null);
+        result.put("measurementTypeCode", measurementTypeCode != null ? measurementTypeCode : null);
+        result.put("flags", flags);
+        result.put("rawHex", bytesToHex(value));
+        return result;
+    }
+
+    private double decodeIeee11073Float(byte[] value, int offset) {
+        int mantissa = (value[offset] & 0xFF) | ((value[offset + 1] & 0xFF) << 8) | ((value[offset + 2] & 0xFF) << 16);
+        if ((mantissa & 0x00800000) != 0) {
+            mantissa |= 0xFF000000;
+        }
+        int exponent = value[offset + 3];
+        return mantissa * Math.pow(10, exponent);
+    }
+
+    private int uint16(byte[] value, int offset) {
+        return (value[offset] & 0xFF) | ((value[offset + 1] & 0xFF) << 8);
+    }
+
+    private double roundTemperature(double value) {
+        return Math.round(value * 100.0) / 100.0;
+    }
+
+    private String formatDeviceTimestamp(int year, int month, int day, int hour, int minute, int second) {
+        try {
+            Calendar calendar = Calendar.getInstance();
+            calendar.clear();
+            calendar.set(year, month - 1, day, hour, minute, second);
+            return formatIsoLocal(calendar.getTime());
+        } catch (Exception error) {
+            Log.e(TAG, "Error formatting device timestamp", error);
+            return null;
+        }
+    }
+
+    private String formatIsoLocal(Date date) {
+        SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.US);
+        format.setTimeZone(TimeZone.getDefault());
+        return format.format(date);
+    }
+
+    private String measurementTypeName(int code) {
+        switch (code) {
+            case 1:
+                return "armpit";
+            case 2:
+                return "body";
+            case 3:
+                return "ear";
+            case 4:
+                return "finger";
+            case 5:
+                return "gastrointestinal";
+            case 6:
+                return "mouth";
+            case 7:
+                return "rectum";
+            case 8:
+                return "toe";
+            case 9:
+                return "tympanum";
+            default:
+                return "code_" + code;
+        }
+    }
+
+    private String bytesToHex(byte[] bytes) {
+        StringBuilder builder = new StringBuilder();
+        for (byte item : bytes) {
+            builder.append(String.format(Locale.US, "%02X", item));
+        }
+        return builder.toString();
+    }
+
+    private boolean writeDescriptorValue(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, byte[] value) {
+        if (Build.VERSION.SDK_INT >= 33) {
+            return gatt.writeDescriptor(descriptor, value) == BluetoothGatt.GATT_SUCCESS;
+        }
+        descriptor.setValue(Arrays.copyOf(value, value.length));
+        return gatt.writeDescriptor(descriptor);
+    }
+
+    private BluetoothAdapter getBluetoothAdapter() {
+        BluetoothManager bluetoothManager = (BluetoothManager) getContext().getSystemService(Context.BLUETOOTH_SERVICE);
+        return bluetoothManager != null ? bluetoothManager.getAdapter() : null;
+    }
+
+    private BluetoothLeScanner getScanner() {
+        BluetoothAdapter adapter = getBluetoothAdapter();
+        return adapter != null ? adapter.getBluetoothLeScanner() : null;
+    }
+
+    private String getUnavailableCode() {
+        if (!getContext().getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
+            return "BLE_NOT_SUPPORTED";
+        }
+        BluetoothAdapter adapter = getBluetoothAdapter();
+        if (adapter == null) {
+            return "BLUETOOTH_UNAVAILABLE";
+        }
+        return null;
+    }
+
+    private String getBlockedOperationCode() {
+        String unavailableCode = getUnavailableCode();
+        if (unavailableCode != null) return unavailableCode;
+        if (!hasRequiredRuntimePermissions()) {
+            return "PERMISSION_NOT_GRANTED";
+        }
+        BluetoothAdapter adapter = getBluetoothAdapter();
+        if (adapter == null || !adapter.isEnabled()) {
+            return "BLUETOOTH_DISABLED";
+        }
+        return null;
+    }
+
+    private String[] getRequiredPermissionAliases() {
+        List<String> aliases = new ArrayList<>();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            aliases.add(BLUETOOTH_SCAN_ALIAS);
+            aliases.add(BLUETOOTH_CONNECT_ALIAS);
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            aliases.add(LOCATION_ALIAS);
+        }
+        return aliases.toArray(new String[0]);
+    }
+
+    private boolean hasRequiredRuntimePermissions() {
+        for (String alias : getRequiredPermissionAliases()) {
+            if (getPermissionState(alias) != PermissionState.GRANTED) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private JSObject buildPermissionStatesObject() {
+        JSObject states = new JSObject();
+        states.put(BLUETOOTH_SCAN_ALIAS, String.valueOf(getPermissionState(BLUETOOTH_SCAN_ALIAS)));
+        states.put(BLUETOOTH_CONNECT_ALIAS, String.valueOf(getPermissionState(BLUETOOTH_CONNECT_ALIAS)));
+        states.put(LOCATION_ALIAS, String.valueOf(getPermissionState(LOCATION_ALIAS)));
+        return states;
+    }
+
+    private void logPermissionStates(String stage) {
+        Log.d(
+            TAG,
+            "Permission states " + stage +
+                ": android=" + Build.VERSION.SDK_INT +
+                ", scan=" + getPermissionState(BLUETOOTH_SCAN_ALIAS) +
+                ", connect=" + getPermissionState(BLUETOOTH_CONNECT_ALIAS) +
+                ", location=" + getPermissionState(LOCATION_ALIAS)
+        );
+    }
+
+    private void scheduleConnectTimeout(long timeoutMs, String code, String message) {
+        if (connectTimeoutRunnable != null) {
+            mainHandler.removeCallbacks(connectTimeoutRunnable);
+        }
+        connectTimeoutRunnable = () -> rejectConnectCall(message, code);
+        mainHandler.postDelayed(connectTimeoutRunnable, timeoutMs);
+    }
+
+    private void scheduleTemperatureSetupTimeout() {
+        clearTemperatureSetupTimeout();
+        temperatureSetupTimeoutRunnable = () ->
+            rejectTemperatureStart("La preparacion de indicaciones BLE ha tardado demasiado.", "TEMPERATURE_LISTENER_SETUP_TIMEOUT");
+        mainHandler.postDelayed(temperatureSetupTimeoutRunnable, CONNECT_TIMEOUT_MS + DISCOVER_TIMEOUT_MS);
+    }
+
+    private void clearTemperatureSetupTimeout() {
+        if (temperatureSetupTimeoutRunnable != null) {
+            mainHandler.removeCallbacks(temperatureSetupTimeoutRunnable);
+            temperatureSetupTimeoutRunnable = null;
+        }
+    }
+
+    private void scheduleTemperatureListenerTimeout() {
+        clearTemperatureListenerTimeout();
+        temperatureListenerTimeoutRunnable = () -> {
+            Log.d(TAG, "Temperature listening window ended");
+            notifyTemperatureListenerState("timeout", "Ha finalizado el tiempo de escucha.");
+            stopTemperatureListenerInternal(false, null, null);
+        };
+        mainHandler.postDelayed(temperatureListenerTimeoutRunnable, TEMPERATURE_LISTENER_TIMEOUT_MS);
+    }
+
+    private void clearTemperatureListenerTimeout() {
+        if (temperatureListenerTimeoutRunnable != null) {
+            mainHandler.removeCallbacks(temperatureListenerTimeoutRunnable);
+            temperatureListenerTimeoutRunnable = null;
+        }
+    }
+
+    private void rejectTemperatureStart(String message, String code) {
+        PluginCall pending = temperatureListenerCall;
+        stopTemperatureListenerInternal(false, null, null);
+        if (pending != null) {
+            pending.reject(message, code);
+        }
+    }
+
+    private void notifyTemperatureListenerState(String status, String message) {
+        JSObject event = new JSObject();
+        event.put("status", status);
+        event.put("message", message);
+        notifyListeners(TEMPERATURE_EVENT, event);
+    }
+
+    private void stopTemperatureListenerInternal(boolean notifyStopped, String status, String message) {
+        clearTemperatureSetupTimeout();
+        clearTemperatureListenerTimeout();
+        temperatureListenerCall = null;
+
+        BluetoothGatt gatt = temperatureGatt;
+        BluetoothGattCharacteristic characteristic = temperatureCharacteristic;
+        BluetoothGattCharacteristic vincaCharacteristic = vincaIndicationCharacteristic;
+        temperatureGatt = null;
+        temperatureCharacteristic = null;
+        vincaIndicationCharacteristic = null;
+
+        if (gatt != null) {
+            try {
+                if (characteristic != null) {
+                    gatt.setCharacteristicNotification(characteristic, false);
+                }
+                if (vincaCharacteristic != null) {
+                    gatt.setCharacteristicNotification(vincaCharacteristic, false);
+                }
+            } catch (SecurityException error) {
+                Log.e(TAG, "SecurityException disabling local indication listener", error);
+            } catch (Exception error) {
+                Log.e(TAG, "Unexpected exception disabling local indication listener", error);
+            }
+            closeGatt(gatt);
+        }
+
+        if (notifyStopped) {
+            notifyTemperatureListenerState(status != null ? status : "stopped", message != null ? message : "Escucha detenida.");
+        }
+    }
+
+    private void rejectConnectCall(String message, String code) {
+        PluginCall pending = connectCall;
+        clearConnectState();
+        closeActiveGatt();
+        if (pending != null) {
+            pending.reject(message, code);
+        }
+    }
+
+    private void rejectPendingConnect(String message, String code) {
+        PluginCall pending = connectCall;
+        clearConnectState();
+        if (pending != null) {
+            pending.reject(message, code);
+        }
+    }
+
+    private void clearConnectState() {
+        if (connectTimeoutRunnable != null) {
+            mainHandler.removeCallbacks(connectTimeoutRunnable);
+            connectTimeoutRunnable = null;
+        }
+        connectCall = null;
+    }
+
+    private void stopScanInternal() {
+        if (scanCallback != null) {
+            try {
+                BluetoothLeScanner scanner = getScanner();
+                if (scanner != null) {
+                    scanner.stopScan(scanCallback);
+                }
+            } catch (SecurityException error) {
+                Log.e(TAG, "SecurityException stopping BLE scan", error);
+                // Best effort cleanup only.
+            } catch (IllegalStateException error) {
+                Log.e(TAG, "IllegalStateException stopping BLE scan", error);
+                // Best effort cleanup only.
+            } catch (Exception error) {
+                Log.e(TAG, "Unexpected exception stopping BLE scan", error);
+                // Best effort cleanup only.
+            }
+        }
+        scanCallback = null;
+        scanCall = null;
+    }
+
+    private void closeActiveGatt() {
+        BluetoothGatt gatt = activeGatt;
+        activeGatt = null;
+        closeGatt(gatt);
+    }
+
+    private void closeGatt(BluetoothGatt gatt) {
+        if (gatt == null) return;
+        try {
+            gatt.disconnect();
+        } catch (SecurityException error) {
+            Log.e(TAG, "SecurityException disconnecting BLE GATT", error);
+            // Best effort cleanup only.
+        } catch (Exception error) {
+            Log.e(TAG, "Unexpected exception disconnecting BLE GATT", error);
+            // Best effort cleanup only.
+        }
+        try {
+            gatt.close();
+        } catch (SecurityException error) {
+            Log.e(TAG, "SecurityException closing BLE GATT", error);
+            // Best effort cleanup only.
+        } catch (Exception error) {
+            Log.e(TAG, "Unexpected exception closing BLE GATT", error);
+            // Best effort cleanup only.
+        }
+    }
+
+    private void rejectWithCode(PluginCall call, String code) {
+        switch (code) {
+            case "BLE_NOT_SUPPORTED":
+                call.reject("Este dispositivo no tiene soporte BLE.", code);
+                break;
+            case "BLUETOOTH_DISABLED":
+                call.reject("Bluetooth esta apagado.", code);
+                break;
+            case "PERMISSION_NOT_GRANTED":
+                call.reject("Faltan permisos Bluetooth.", code);
+                break;
+            case "BLUETOOTH_UNAVAILABLE":
+            default:
+                call.reject("Bluetooth no esta disponible.", code);
+                break;
+        }
+    }
+
+    private static class ScannedDevice {
+        final BluetoothDevice device;
+        final String name;
+        final int rssi;
+
+        ScannedDevice(BluetoothDevice device, String name, int rssi) {
+            this.device = device;
+            this.name = name;
+            this.rssi = rssi;
+        }
+    }
+}

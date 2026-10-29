@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import useBackClose from '@/hooks/useBackClose';
 import {
@@ -13,7 +13,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format, isValid, parseISO, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Calendar as CalendarIcon } from 'lucide-react';
+import { Calendar as CalendarIcon, Loader2 } from 'lucide-react';
 import OverlapWarningDialog from '@/components/OverlapWarningDialog';
 
 const NewCycleDialog = ({
@@ -29,7 +29,28 @@ const NewCycleDialog = ({
   const [showOverlapWarning, setShowOverlapWarning] = useState(false);
   const [pendingStartDate, setPendingStartDate] = useState(null);
   const [impactPreview, setImpactPreview] = useState(null);
-  useBackClose(isOpen, onClose);
+  const [isCreating, setIsCreating] = useState(false);
+  const [isPreviewing, setIsPreviewing] = useState(false);
+  const busyRef = useRef(false);
+  const handleClose = () => {
+    if (!busyRef.current) onClose();
+  };
+  useBackClose(isOpen, handleClose);
+
+  useEffect(() => {
+    if (!isOpen || (!isCreating && !isPreviewing)) return;
+
+    // Keep the existing dialog history entry while busy, including repeated
+    // mobile Back gestures. Capture runs before the router/useBackClose handlers.
+    const dialogState = window.history.state;
+    const dialogUrl = window.location.href;
+    const preventBack = (event) => {
+      event.stopImmediatePropagation();
+      window.history.pushState(dialogState, '', dialogUrl);
+    };
+    window.addEventListener('popstate', preventBack, true);
+    return () => window.removeEventListener('popstate', preventBack, true);
+  }, [isOpen, isCreating, isPreviewing]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -62,31 +83,53 @@ const NewCycleDialog = ({
     });
   }, [currentCycleRecords, isFirstCycle, startDate]);
 
+  const createCycle = async (date) => {
+    setIsCreating(true);
+    try {
+      // The caller also awaits the data reload and owns success/error handling.
+      await onConfirm(date);
+    } finally {
+      setIsCreating(false);
+      setShowOverlapWarning(false);
+      setPendingStartDate(null);
+      setImpactPreview(null);
+      busyRef.current = false;
+    }
+  };
+
   const handleConfirm = async () => {
-    if (onPreview) {
-      const preview = await onPreview(startDate);
-      if (preview) {
-        setImpactPreview(preview);
+    if (busyRef.current || showOverlapWarning) return;
+    busyRef.current = true;
+    setIsPreviewing(true);
+    try {
+      if (onPreview) {
+        const preview = await onPreview(startDate);
+        if (preview) {
+          setImpactPreview(preview);
+          setPendingStartDate(startDate);
+          setShowOverlapWarning(true);
+          return;
+        }
+      }
+
+      if (!isFirstCycle && hasOverlapRecords) {
         setPendingStartDate(startDate);
         setShowOverlapWarning(true);
         return;
       }
+      await createCycle(startDate);
+    } finally {
+      setIsPreviewing(false);
+      busyRef.current = false;
     }
-
-    if (!isFirstCycle && hasOverlapRecords) {
-      setPendingStartDate(startDate);
-      setShowOverlapWarning(true);
-      return;
-    }
-    onConfirm(startDate);
   };
 
   const handleConfirmOverlap = () => {
-    if (!pendingStartDate) return;
-    setShowOverlapWarning(false);
-    onConfirm(pendingStartDate);
-    setPendingStartDate(null);
-    setImpactPreview(null);
+    if (!pendingStartDate || busyRef.current) return;
+    busyRef.current = true;
+    // Keep the warning mounted until completion to avoid a history.back()
+    // from its cleanup competing with mobile navigation during the operation.
+    return createCycle(pendingStartDate);
   };
 
   const formattedCurrentStart = !isFirstCycle
@@ -115,8 +158,13 @@ const NewCycleDialog = ({
 
   return (
     <>
-      <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="bg-white border-pink-100 text-gray-800 rounded-3xl">
+      <Dialog open={isOpen || isCreating} onOpenChange={handleClose}>
+        <DialogContent
+          hideClose={isCreating || isPreviewing}
+          onEscapeKeyDown={(event) => { if (busyRef.current) event.preventDefault(); }}
+          onInteractOutside={(event) => { if (busyRef.current) event.preventDefault(); }}
+          className="bg-white border-pink-100 text-gray-800 rounded-3xl"
+        >
           <DialogHeader>
             <DialogTitle>Iniciar nuevo ciclo</DialogTitle>
             <DialogDescription className="text-gray-600">
@@ -133,6 +181,7 @@ const NewCycleDialog = ({
               <PopoverTrigger asChild>
                 <Button
                   type="button"
+                  disabled={isCreating || isPreviewing}
                   variant="outline"
                   className="mt-1 w-full justify-start border-gray-200 bg-gray-50 text-left font-normal text-gray-800"
                 >
@@ -174,7 +223,8 @@ const NewCycleDialog = ({
           <DialogFooter className="sm:justify-end">
             <Button
               variant="outline"
-              onClick={onClose}
+              onClick={handleClose}
+              disabled={isCreating || isPreviewing}
               className="border-gray-300 text-subtitulo hover:brightness-95"
             >
               Cancelar
@@ -182,6 +232,7 @@ const NewCycleDialog = ({
             <Button
               variant="primary"
               onClick={handleConfirm}
+              disabled={isCreating || isPreviewing}
               className="bg-fertiliapp-fuerte hover:brightness-95 text-white"
             >
               {isFirstCycle ? 'Iniciar ciclo' : 'Confirmar nuevo ciclo'}
@@ -192,6 +243,7 @@ const NewCycleDialog = ({
       <OverlapWarningDialog
         isOpen={showOverlapWarning}
         onCancel={() => {
+          if (busyRef.current) return;
           setShowOverlapWarning(false);
           setPendingStartDate(null);
           setImpactPreview(null);
@@ -213,6 +265,25 @@ const NewCycleDialog = ({
         impactSummary={impactPreview?.impactSummary}
         adjustedCyclesPreview={impactPreview?.adjustedCyclesPreview || []}
       />
+      {/* Stay inside Radix's modal/focus stack; Overlay's body portal is outside it. */}
+      <Dialog open={isCreating}>
+        <DialogContent
+          hideClose
+          overlayClassName="z-[100] bg-black/25 bg-none backdrop-blur-sm"
+          className="z-[101] w-[90%] max-w-md border-fertiliapp-suave bg-white/90 px-5 py-4 shadow-lg sm:max-w-md"
+          onEscapeKeyDown={(event) => event.preventDefault()}
+          onPointerDownOutside={(event) => event.preventDefault()}
+          onInteractOutside={(event) => event.preventDefault()}
+        >
+          <div role="status" aria-live="polite" className="flex items-center gap-3">
+            <Loader2 aria-hidden="true" className="h-5 w-5 shrink-0 animate-spin text-fertiliapp-fuerte" />
+            <div className="min-w-0">
+              <DialogTitle className="text-base font-semibold text-titulo">Creando nuevo ciclo…</DialogTitle>
+              <DialogDescription className="text-sm">Puede tardar unos segundos.</DialogDescription>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 };

@@ -3,7 +3,9 @@ import {
   doc,
   addDoc,
   getDoc,
+  getDocFromServer,
   getDocs,
+  getDocsFromServer,
   updateDoc,
   deleteDoc,
   setDoc,
@@ -334,6 +336,10 @@ export const processCycleEntries = (entriesFromView, cycleStartIsoDate) => {
         ? format(parseISO(entry.iso_date), 'dd/MM')
         : 'N/A',
       cycleDay: generateCycleDaysForRecord(entry.iso_date || entry.timestamp, cycleStartIsoDate),
+      temperature_source: entry.temperature_source ?? null,
+      temperature_device_model: entry.temperature_device_model ?? null,
+      temperature_device_key: entry.temperature_device_key ?? null,
+      temperature_time_corrected: entry.temperature_time_corrected ?? null,
       temperature_raw: rawTemp,
       temperature_corrected: correctedTemp,
       use_corrected: !!entry.use_corrected,
@@ -807,6 +813,10 @@ const moveEntriesWithMeasurementsDB = async ({
     (typeof value === 'string' && value.trim() === '');
 
   const MERGE_KEYS = [
+    'temperature_source',
+    'temperature_device_model',
+    'temperature_device_key',
+    'temperature_time_corrected',
     'temperature_raw',
     'temperature_corrected',
     'use_corrected',
@@ -1034,6 +1044,10 @@ export const splitCycleAtDate = async (userId, previousCycleId, newCycleId, star
     (typeof v === 'string' && v.trim() === '');
 
   const MERGE_KEYS = [
+    'temperature_source',
+    'temperature_device_model',
+    'temperature_device_key',
+    'temperature_time_corrected',
     'temperature_raw',
     'temperature_corrected',
     'use_corrected',
@@ -1418,6 +1432,10 @@ export const createNewCycleEntry = async (payload) => {
   const timestamp = payload.timestamp ?? new Date().toISOString();
   const entryData = {
     timestamp,
+    temperature_source: payload.temperature_source ?? null,
+    temperature_device_model: payload.temperature_device_model ?? null,
+    temperature_device_key: payload.temperature_device_key ?? null,
+    temperature_time_corrected: payload.temperature_time_corrected ?? null,
     temperature_raw: payload.temperature_raw ?? null,
     temperature_corrected: payload.temperature_corrected ?? null,
     use_corrected: Boolean(payload.use_corrected),
@@ -1481,6 +1499,58 @@ export const createNewCycleEntry = async (payload) => {
   return { id: null };
 };
 
+// A cache query cannot prove that every remote measurement was read.
+const prepareMeasurementReplacement = async (entryRef, payload, reservedWrites = 1) => {
+  if (!Array.isArray(payload.measurements) || payload.measurementsComplete === false || payload.measurementsLoaded === false) return null;
+  const measurementsRef = collection(entryRef, 'measurements');
+  let snapshot;
+  try {
+    snapshot = await getDocsFromServer(measurementsRef);
+    if (snapshot.metadata?.fromCache || snapshot.metadata?.hasPendingWrites) throw new Error('incomplete-measurements');
+  } catch (error) {
+    throw createAppError(
+      'measurements-connection-required', 'No se pudieron guardar las temperaturas',
+      'Conecta a Internet y reintenta para sustituir todas las mediciones de forma segura.',
+      undefined, { label: 'Reintentar' }, error
+    );
+  }
+  const next = payload.measurements.length >= 2 ? payload.measurements : [];
+  const previousData = snapshot.docs.map(item => ({ ...item.data(), id: item.id }))
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const comparable = measurement => JSON.stringify(Object.entries(measurement)
+    .filter(([key, value]) => key !== 'id' && key !== 'order' && value !== undefined)
+    .sort(([a], [b]) => a.localeCompare(b)));
+  if (next.length === previousData.length &&
+      next.every((measurement, index) => comparable(measurement) === comparable(previousData[index]))) return null;
+  if (reservedWrites + snapshot.docs.length + next.length > 500) {
+    throw createAppError('measurements-batch-limit', 'Demasiadas mediciones',
+      'No se puede sustituir este conjunto en una sola operación. No se ha modificado ningún dato.',
+      undefined, { label: 'Revisar mediciones' });
+  }
+  return {
+    previous: snapshot.docs.map(item => item.ref),
+    next: next.map((measurement, order) => {
+      const ref = doc(measurementsRef);
+      // Document identity belongs to Firestore, never to a stale form draft.
+      const { id, ...data } = measurement;
+      return { ref, data: { ...data, order } };
+    }),
+  };
+};
+
+const queueMeasurementReplacement = (batch, replacement) => {
+  if (!replacement) return;
+  replacement.previous.forEach(ref => batch.delete(ref));
+  replacement.next.forEach(({ ref, data }) => batch.set(ref, data));
+};
+
+const protectIncompleteTemperatures = (data, payload) => {
+  if (payload.measurementsComplete !== false && payload.measurementsLoaded !== false) return;
+  for (const key of Object.keys(data)) {
+    if (key.startsWith('temperature_') || key === 'use_corrected' || key === 'timestamp') delete data[key];
+  }
+};
+
 export const upsertCycleEntryByIsoDateDB = async (userId, cycleId, isoDate, payload) => {
   if (!userId || !cycleId || !isoDate) {
     throw createAppError(
@@ -1532,6 +1602,10 @@ export const upsertCycleEntryByIsoDateDB = async (userId, cycleId, isoDate, payl
   const entryData = {
     timestamp: payload.timestamp ?? new Date().toISOString(),
     iso_date: isoDateKey,
+    temperature_source: payload.temperature_source ?? null,
+    temperature_device_model: payload.temperature_device_model ?? null,
+    temperature_device_key: payload.temperature_device_key ?? null,
+    temperature_time_corrected: payload.temperature_time_corrected ?? null,
     temperature_raw: payload.temperature_raw ?? null,
     temperature_corrected: payload.temperature_corrected ?? null,
     use_corrected: Boolean(payload.use_corrected),
@@ -1545,8 +1619,13 @@ export const upsertCycleEntryByIsoDateDB = async (userId, cycleId, isoDate, payl
     peak_marker: payload.peak_marker ?? null,
   };
 
+  let resolvedRef;
+  let upsertResult;
+  protectIncompleteTemperatures(entryData, payload);
   // 1) Intentar resolver por índice (camino normal, rápido)
-  const indexSnap = await getDoc(indexRef);
+  const replacingMeasurements = Array.isArray(payload.measurements) &&
+    payload.measurementsComplete !== false && payload.measurementsLoaded !== false;
+  const indexSnap = await (replacingMeasurements ? getDocFromServer(indexRef) : getDoc(indexRef));
   if (indexSnap.exists()) {
     const indexedEntryId = indexSnap.data()?.entryId;
     if (!indexedEntryId) {
@@ -1559,15 +1638,12 @@ export const upsertCycleEntryByIsoDateDB = async (userId, cycleId, isoDate, payl
       );
     }
     const indexedEntryRef = doc(entriesCollectionRef, indexedEntryId);
-    const batch = writeBatch(db);
-    batch.set(indexedEntryRef, entryData, { merge: true });
-    batch.set(indexRef, { entryId: indexedEntryId }, { merge: true });
-    await batch.commit();
-    var upsertResult = { id: indexedEntryId };
+    resolvedRef = indexedEntryRef;
+    upsertResult = { id: indexedEntryId };
   } else {
     // 2) Legacy: buscar por iso_date fuera de transacción (tu SDK revienta si se hace dentro)
     const entriesByIsoQuery = query(entriesCollectionRef, where('iso_date', '==', isoDateKey), limit(2));
-    const entriesByIsoSnap = await getDocs(entriesByIsoQuery);
+    const entriesByIsoSnap = await (replacingMeasurements ? getDocsFromServer(entriesByIsoQuery) : getDocs(entriesByIsoQuery));
 
     if (entriesByIsoSnap.size > 1) {
       const duplicateIds = entriesByIsoSnap.docs.map((entryDoc) => entryDoc.id);
@@ -1587,37 +1663,38 @@ export const upsertCycleEntryByIsoDateDB = async (userId, cycleId, isoDate, payl
     const resolvedEntryId =
       entriesByIsoSnap.size === 1 ? entriesByIsoSnap.docs[0].id : isoDateKey;
 
-    const batch = writeBatch(db);
-    batch.set(resolvedEntryRef, entryData, { merge: true });
-    batch.set(indexRef, { entryId: resolvedEntryId }, { merge: true });
-    await batch.commit();
-    var upsertResult = { id: resolvedEntryId };
+    resolvedRef = resolvedEntryRef;
+    upsertResult = { id: resolvedEntryId };
   }
 
-  if (
-    Array.isArray(payload.measurements) &&
-    (payload.measurements.length >= 2 || payload.measurements.length === 0)
-  ) {
-    const measurementsRef = collection(
-      db,
-      `users/${userId}/cycles/${cycleId}/entries/${upsertResult.id}/measurements`
-    );
-    const measurementsSnap = await getDocs(measurementsRef);
-    await deleteDocRefsInBatches(measurementsSnap.docs.map((measurementDoc) => measurementDoc.ref));
-    if (payload.measurements.length >= 2) {
-      for (const measurement of payload.measurements) {
-        await addDoc(measurementsRef, measurement);
+  // Existing-day partial patches must not fill omitted fields with defaults.
+  {
+    for (const key of Object.keys(entryData)) {
+      if (key !== 'iso_date' && !Object.prototype.hasOwnProperty.call(payload, key) &&
+          !(key === 'had_relations' && Object.prototype.hasOwnProperty.call(payload, 'hadRelations'))) {
+        delete entryData[key];
       }
     }
   }
+  const replacement = await prepareMeasurementReplacement(resolvedRef, payload, 2);
+  const batch = writeBatch(db);
+  batch.set(resolvedRef, entryData, { merge: true });
+  batch.set(indexRef, { entryId: upsertResult.id }, { merge: true });
+  queueMeasurementReplacement(batch, replacement);
+  await batch.commit();
 
-  return upsertResult;
+  return { ...upsertResult, ...(replacement?.next.length
+    ? { measurements: replacement.next.map(({ ref, data }) => ({ ...data, id: ref.id })) } : {}) };
 };
 
 export const updateCycleEntry = async (userId, cycleId, entryId, payload) => {
   const entryRef = doc(db, `users/${userId}/cycles/${cycleId}/entries/${entryId}`);
 
   const allowedFields = [
+    'temperature_source',
+    'temperature_device_model',
+    'temperature_device_key',
+    'temperature_time_corrected',
     'temperature_raw',
     'temperature_corrected',
     'use_corrected',
@@ -1643,33 +1720,26 @@ export const updateCycleEntry = async (userId, cycleId, entryId, payload) => {
     entryToUpdate.timestamp = payload.timestamp;
   }
   
-  if (Object.keys(entryToUpdate).length === 0) {
-    return { id: entryId };
-  }
-
-  await updateDoc(entryRef, entryToUpdate);
-  if (Array.isArray(payload.measurements) && (payload.measurements.length >= 2 || payload.measurements.length === 0)) {
-    const mRef = collection(db, `users/${userId}/cycles/${cycleId}/entries/${entryId}/measurements`);
-    const mSnap = await getDocs(mRef);
-    await Promise.all(mSnap.docs.map((d) => deleteDoc(d.ref)));
-    if (payload.measurements.length >= 2) {
-      for (const m of payload.measurements) {
-        await addDoc(mRef, m);
-      }
-    }
-  }
-  return { id: entryId };
+  protectIncompleteTemperatures(entryToUpdate, payload);
+  const replacement = await prepareMeasurementReplacement(entryRef, payload);
+  if (!Object.keys(entryToUpdate).length && !replacement) return { id: entryId };
+  const batch = writeBatch(db);
+  if (Object.keys(entryToUpdate).length) batch.update(entryRef, entryToUpdate);
+  queueMeasurementReplacement(batch, replacement);
+  await batch.commit();
+  return { id: entryId, ...(replacement?.next.length
+    ? { measurements: replacement.next.map(({ ref, data }) => ({ ...data, id: ref.id })) } : {}) };
 };
 
 export const fetchEntryMeasurementsDB = async (userId, cycleId, entryId) => {
-  try {
-    const mRef = collection(db, `users/${userId}/cycles/${cycleId}/entries/${entryId}/measurements`);
-    const mSnap = await getDocs(mRef);
-    return mSnap.docs.map((m) => ({ id: m.id, ...m.data() }));
-  } catch (error) {
-    console.error('Error fetching measurements for entry', entryId, error);
-    return [];
-  }
+  const mRef = collection(db, 'users/' + userId + '/cycles/' + cycleId + '/entries/' + entryId + '/measurements');
+  // getDocs can serve cached documents offline; never advertise that as complete.
+  const snapshot = await getDocs(mRef);
+  return {
+    measurements: snapshot.docs.map(item => ({ ...item.data(), id: item.id }))
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+    measurementsComplete: snapshot.metadata?.fromCache === false && snapshot.metadata?.hasPendingWrites === false,
+  };
 };
 
 export const addMeasurement = async (userId, cycleId, entryId, measurement) => {

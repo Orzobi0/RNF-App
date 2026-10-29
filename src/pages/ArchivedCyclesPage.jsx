@@ -1,19 +1,31 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCycleData } from '@/hooks/useCycleData';
 import { HeaderIconButtonPrimary } from '@/components/HeaderIconButton';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import DeletionDialog from '@/components/DeletionDialog';
 import { differenceInCalendarDays, format, parseISO, addDays, isValid, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Archive, Baby, CalendarDays, EllipsisVertical, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { Archive, Baby, EllipsisVertical, Plus } from 'lucide-react';
 import EditCycleDatesDialog from '@/components/EditCycleDatesDialog';
 import ArchivedCycleDeleteDialog from '@/components/ArchivedCycleDeleteDialog';
+import CycleOptionsSheet from '@/components/CycleOptionsSheet';
 import { useToast } from '@/components/ui/use-toast';
+import { cn } from '@/lib/utils';
+
+const CYCLE_OPTIONS_SHEET_EXIT_DELAY_MS = 220;
 
 const formatArchivedDate = (date) => format(date, 'dd MMM yy', { locale: es });
+
+// Compressed visual scale only; the underlying cycle duration is unchanged.
+const getCycleBarWidth = (days) => {
+  if (!Number.isFinite(days) || days < 1) return 0;
+  if (days <= 13) return 15 + ((days - 1) / 12) * 18;
+  if (days <= 35) return 34 + ((days - 14) / 21) * 32;
+  if (days <= 60) return 67 + ((days - 36) / 24) * 23;
+  return 100;
+};
 
 const getCycleGroupingDate = (cycle) => {
   const dateValue = cycle?.endDate || cycle?.startDate;
@@ -32,9 +44,12 @@ const normalizeCycleRowData = (cycle) => {
   const hasEndDate = Boolean(end);
   const startToShow = start && end && end < start ? end : start;
   const endToShow = start && end && end < start ? start : end;
-  const rangeLabel = `${startToShow ? formatArchivedDate(startToShow) : 'Sin fecha'} - ${
-    hasEndDate && endToShow ? formatArchivedDate(endToShow) : 'En curso'
-  }`;
+  const startLabel = startToShow && isValid(startToShow) ? formatArchivedDate(startToShow) : 'Sin fecha';
+  const endLabel = hasEndDate && endToShow && isValid(endToShow) ? formatArchivedDate(endToShow) : 'En curso';
+  const rangeLabel = `${startLabel} - ${endLabel}`;
+  const currentDay = cycle?.isCurrent && start && isValid(start)
+    ? differenceInCalendarDays(new Date(), start) + 1
+    : null;
   const recordCount = cycle?.data?.length ?? 0;
   const durationDays =
     startToShow && endToShow
@@ -43,10 +58,24 @@ const normalizeCycleRowData = (cycle) => {
 
   return {
     rangeLabel,
+    startLabel,
+    endLabel,
+    currentDay,
     recordCount,
     durationDays,
   };
 };
+
+const formatCycleOptionsMeta = ({ durationDays, recordCount }) => {
+  const recordText = `${recordCount} registro${recordCount !== 1 ? 's' : ''}`;
+
+  if (!durationDays) {
+    return recordText;
+  }
+
+  return `${durationDays} día${durationDays !== 1 ? 's' : ''} · ${recordText}`;
+};
+
 const getGapDaysBetweenCycles = (newerCycle, olderCycle) => {
   if (!newerCycle?.startDate || !olderCycle?.endDate) return 0;
 
@@ -90,6 +119,7 @@ const ArchivedCyclesPage = () => {
     previewInsertCycleRange,
     insertCycleRange,
     undoCurrentCycle,
+    updateCyclePostpartumMode,
   } = useCycleData();
 
   const { toast } = useToast();
@@ -100,8 +130,19 @@ const ArchivedCyclesPage = () => {
   const [cycleToDelete, setCycleToDelete] = useState(null);
   const [showUndoCycleDialog, setShowUndoCycleDialog] = useState(false);
   const [isUndoingCycle, setIsUndoingCycle] = useState(false);
+  const [isUpdatingPostpartum, setIsUpdatingPostpartum] = useState(false);
   const [addCycleError, setAddCycleError] = useState(null);
   const [editCycleError, setEditCycleError] = useState(null);
+  const actionSheetTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (actionSheetTimeoutRef.current) {
+        window.clearTimeout(actionSheetTimeoutRef.current);
+        actionSheetTimeoutRef.current = null;
+      }
+    };
+  }, []);
   
   const allCycles = currentCycle?.id
   ? [{ ...currentCycle, isCurrent: true, needsCompletion: !currentCycle.endDate }, ...(archivedCycles || [])]
@@ -307,6 +348,86 @@ const gapAfterCurrentCycle = useMemo(() => {
     }
   }, [currentCycleWithFlag?.id, getPublicError, toast, undoCurrentCycle]);
 
+  const runAfterActionSheetClose = useCallback((callback) => {
+    if (actionSheetTimeoutRef.current) {
+      window.clearTimeout(actionSheetTimeoutRef.current);
+    }
+
+    setCycleForActions(null);
+    actionSheetTimeoutRef.current = window.setTimeout(() => {
+      actionSheetTimeoutRef.current = null;
+      callback();
+    }, CYCLE_OPTIONS_SHEET_EXIT_DELAY_MS);
+  }, []);
+
+  const handleEditCycleFromSheet = useCallback(() => {
+    if (!cycleForActions) return;
+    const targetCycle = cycleForActions;
+
+    runAfterActionSheetClose(() => {
+      setEditingCycle(targetCycle);
+      setEditCycleError(null);
+    });
+  }, [cycleForActions, runAfterActionSheetClose]);
+
+  const handleUndoCycleFromSheet = useCallback(() => {
+    if (!cycleForActions?.isCurrent || !undoCandidate) return;
+
+    runAfterActionSheetClose(() => {
+      setShowUndoCycleDialog(true);
+    });
+  }, [cycleForActions?.isCurrent, runAfterActionSheetClose, undoCandidate]);
+
+  const handleDeleteCycleFromSheet = useCallback(() => {
+    if (!cycleForActions || cycleForActions.isCurrent) return;
+    const targetCycle = cycleForActions;
+
+    runAfterActionSheetClose(() => {
+      setCycleToDelete(targetCycle);
+    });
+  }, [cycleForActions, runAfterActionSheetClose]);
+
+  const handleViewCycleFromSheet = useCallback(() => {
+    if (!cycleForActions) return;
+    const targetCycle = cycleForActions;
+
+    runAfterActionSheetClose(() => {
+      navigateToCycle(targetCycle);
+    });
+  }, [cycleForActions, runAfterActionSheetClose]);
+
+  const handlePostpartumChange = useCallback(
+    async (checked) => {
+      if (!cycleForActions?.id || typeof updateCyclePostpartumMode !== 'function' || isUpdatingPostpartum) {
+        return;
+      }
+
+      const nextValue = checked === true;
+      const targetCycleId = cycleForActions.id;
+
+      setIsUpdatingPostpartum(true);
+      try {
+        await updateCyclePostpartumMode(targetCycleId, nextValue);
+        setCycleForActions((current) =>
+          current?.id === targetCycleId ? { ...current, postpartumMode: nextValue } : current
+        );
+        toast({
+          title: nextValue ? 'Modo postparto activado' : 'Modo postparto desactivado',
+        });
+      } catch (error) {
+        console.error('Failed to persist postpartum mode from archived cycles page', error);
+        toast({
+          title: 'No se pudo actualizar el modo postparto',
+          description: 'Inténtalo de nuevo.',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsUpdatingPostpartum(false);
+      }
+    },
+    [cycleForActions?.id, isUpdatingPostpartum, toast, updateCyclePostpartumMode]
+  );
+
   const openActions = (event, cycle) => {
     event.stopPropagation();
     setCycleForActions(cycle);
@@ -320,7 +441,10 @@ const gapAfterCurrentCycle = useMemo(() => {
 );
 
 const CycleRow = ({ cycle, isFirst, isLast }) => {
-  const { rangeLabel, recordCount, durationDays } = normalizeCycleRowData(cycle);
+  const { startLabel, endLabel, currentDay, durationDays } = normalizeCycleRowData(cycle);
+  const days = cycle.isCurrent ? currentDay : durationDays;
+  const barWidth = getCycleBarWidth(days);
+  const isSelected = Boolean(cycleForActions?.id && cycleForActions.id === cycle.id);
 
   return (
     <div
@@ -333,59 +457,58 @@ const CycleRow = ({ cycle, isFirst, isLast }) => {
           navigateToCycle(cycle);
         }
       }}
-      className="group relative flex w-full items-start gap-3 px-4 py-3.5 text-left transition-colors hover:bg-rose-50/35 active:bg-rose-50/60"
+      className={cn(
+        'group relative grid w-full grid-cols-[minmax(0,1fr)_auto_2rem] items-center gap-x-1 gap-y-1 px-2 py-3.5 min-[360px]:pl-3 text-left transition-colors duration-150 hover:bg-rose-50/35 active:bg-rose-50/60 sm:pl-5 sm:pr-4',
+        isSelected && 'bg-rose-50/60 shadow-[inset_0_0_0_1px_rgba(244,114,182,0.28)]'
+      )}
     >
       {cycle.isCurrent ? (
         <span className="absolute bottom-3 left-0 top-3 w-1 rounded-r-full bg-fertiliapp-fuerte" />
       ) : null}
 
-      <span
-        className={`mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border ${
-          cycle.isCurrent
-            ? 'border-rose-100 bg-rose-50 text-fertiliapp-fuerte'
-            : 'border-rose-100/70 bg-rose-50/55 text-slate-400'
-        }`}
-      >
-        <CalendarDays className="h-4 w-4" />
+      <span className="col-start-1 row-start-1 whitespace-nowrap text-[13px] font-semibold leading-5 text-slate-800 min-[375px]:text-[15px]">
+        {startLabel} — {cycle.isCurrent ? 'En curso' : endLabel}
       </span>
-
-      <div className="min-w-0 flex-1">
-        <div className="mb-1 flex items-start justify-between gap-3">
-          <p className="truncate pr-2 text-[15px] font-semibold leading-5 text-slate-800">
-            {rangeLabel}
-          </p>
-
-          <div className="flex shrink-0 items-center gap-1.5">
-            {cycle.isCurrent ? (
-              <Badge className="rounded-full bg-fertiliapp-fuerte px-2.5 py-0.5 text-[10px] font-semibold text-white shadow-none">
-                Actual
-              </Badge>
-            ) : null}
-
-            {cycle.postpartumMode ? (
-              <Badge
-                variant="outline"
-                className="rounded-full border-rose-100 bg-rose-50 px-2.5 py-0.5 text-[10px] font-medium text-fertiliapp-fuerte"
-              >
-                <Baby className="mr-1 h-3 w-3" />
-              </Badge>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[12px] leading-4 text-slate-500">
-          {durationDays ? <span>{durationDays} días</span> : null}
-          {durationDays ? <span className="text-slate-300">·</span> : null}
-          <span className="font-medium text-slate-500">
-            {recordCount} registro{recordCount !== 1 ? 's' : ''}
-          </span>          
-        </div>
+      <div className="col-start-2 row-start-1 flex items-center gap-1 whitespace-nowrap">
+        {cycle.isCurrent ? (
+          <Badge className="rounded-full bg-fertiliapp-fuerte px-1.5 py-0.5 text-[10px] font-semibold text-white shadow-none min-[375px]:px-2.5">
+            Actual
+          </Badge>
+        ) : null}
+        {cycle.postpartumMode ? (
+          <Badge
+            variant="outline"
+            role="img"
+            aria-label="Posparto"
+            className="rounded-full border-rose-100 bg-rose-50 px-1 py-0.5 text-[10px] font-medium text-fertiliapp-fuerte min-[375px]:px-1.5"
+          >
+            <Baby aria-hidden="true" className="h-3 w-3" />
+          </Badge>
+        ) : null}
+      </div>
+      <div
+        role="img"
+        className="col-span-3 row-start-2 flex min-w-0 items-center gap-2"
+        aria-label={barWidth
+          ? (cycle.isCurrent ? `Día ${days}` : `${days} día${days !== 1 ? 's' : ''}`)
+          : 'Duración no disponible'}
+      >
+        {barWidth > 0 ? (
+          <span
+            aria-hidden="true"
+            className="h-2.5 shrink-0 rounded-full bg-fertiliapp-suave shadow-[inset_0_1px_2px_rgba(107,66,84,0.18)]"
+            style={{ width: `calc((100% - 4rem) * ${barWidth / 100})` }}
+          />
+        ) : null}
+        <span aria-hidden="true" className="relative -top-px shrink-0 text-sm font-medium leading-5 text-[#A45A72]">
+  {barWidth ? days : '—'}
+</span>
       </div>
 
       <button
         type="button"
         aria-label="Abrir acciones del ciclo"
-        className="-mr-1 mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-transparent text-slate-400 transition hover:border-rose-100 hover:bg-rose-50/70 hover:text-fertiliapp-fuerte"
+        className="absolute right-2 top-1/2 z-10 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-transparent text-slate-400 transition hover:border-rose-100 hover:bg-rose-50/70 hover:text-fertiliapp-fuerte sm:right-4"
         onClick={(event) => openActions(event, cycle)}
       >
         <EllipsisVertical className="h-4 w-4" />
@@ -478,7 +601,7 @@ const totalRecordCount = allCycles.reduce(
         </div>
       </div>
 
-        <div className="mx-auto w-full max-w-2xl space-y-5 px-4 pb-1 pt-4">
+        <div className="mx-auto w-full max-w-2xl space-y-5 px-2 pb-1 pt-4 min-[360px]:px-4">
           {currentCycle?.id ? (
             <section className="space-y-2">
               <h2 className="px-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-fertiliapp-fuerte">
@@ -541,59 +664,30 @@ const totalRecordCount = allCycles.reduce(
         })}
       </div>
 
-      <Dialog open={Boolean(cycleForActions)} onOpenChange={(open) => !open && setCycleForActions(null)}>
-        <DialogContent className="rounded-2xl border border-slate-100 bg-white sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Acciones del ciclo</DialogTitle>
-            <DialogDescription className="text-left text-sm text-slate-500">
-              {cycleForActions ? normalizeCycleRowData(cycleForActions).rangeLabel : ''}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-2">
-            <button
-              type="button"
-              className="flex w-full items-center gap-2 rounded-xl border border-slate-100 bg-white px-3 py-3 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-              onClick={() => {
-                setEditingCycle(cycleForActions);
-                setEditCycleError(null);
-                setCycleForActions(null);
-              }}
-            >
-              <Pencil className="h-4 w-4" />
-              Editar fechas
-            </button>
-
-            {cycleForActions?.isCurrent ? (
-              undoCandidate ? (
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-2 rounded-xl border border-amber-100 bg-amber-50 px-3 py-3 text-left text-sm font-medium text-amber-800 transition hover:bg-amber-100"
-                  onClick={() => {
-                    setShowUndoCycleDialog(true);
-                    setCycleForActions(null);
-                  }}
-                >
-                  <RotateCcw className="h-4 w-4" />
-                  Deshacer ciclo
-                </button>
-              ) : null
-            ) : (
-              <button
-                type="button"
-                className="flex w-full items-center gap-2 rounded-xl border border-red-100 bg-red-50 px-3 py-3 text-left text-sm font-medium text-red-700 transition hover:bg-red-100"
-                onClick={() => {
-                  setCycleToDelete(cycleForActions);
-                  setCycleForActions(null);
-                }}
-              >
-                <Trash2 className="h-4 w-4" />
-                Eliminar ciclo
-              </button>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+      <CycleOptionsSheet
+        open={Boolean(cycleForActions)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCycleForActions(null);
+          }
+        }}
+        showCycleSummary
+        cycleLabel={cycleForActions ? normalizeCycleRowData(cycleForActions).rangeLabel : ''}
+        cycleMeta={cycleForActions ? formatCycleOptionsMeta(normalizeCycleRowData(cycleForActions)) : ''}
+        isCurrentCycle={Boolean(cycleForActions?.isCurrent)}
+        onCycleSummaryClick={handleViewCycleFromSheet}
+        postpartumMode={Boolean(cycleForActions?.postpartumMode)}
+        isUpdatingPostpartum={isUpdatingPostpartum}
+        editDatesLabel={cycleForActions?.isCurrent ? 'Editar fecha de inicio' : 'Editar fechas'}
+        onEditStartDate={handleEditCycleFromSheet}
+        onPostpartumChange={handlePostpartumChange}
+        showUndoCycle={Boolean(cycleForActions?.isCurrent && undoCandidate)}
+        onUndoCycle={handleUndoCycleFromSheet}
+        showDeleteCycle={Boolean(cycleForActions && !cycleForActions.isCurrent)}
+        onDeleteCycle={handleDeleteCycleFromSheet}
+        deleteDescription="Podrás elegir cómo gestionar sus registros antes de confirmar."
+        isProcessing={isUpdatingPostpartum || isUndoingCycle}
+      />
 
       <EditCycleDatesDialog
         isOpen={showAddDialog}
@@ -617,11 +711,12 @@ const totalRecordCount = allCycles.reduce(
         onConfirm={handleUpdateCycle}
         initialStartDate={editingCycle?.startDate}
         initialEndDate={editingCycle?.endDate}
+        includeEndDate={!editingCycle?.isCurrent}
         cycleId={editingCycle?.id}
         checkOverlap={checkCycleOverlap}
         previewUpdateCycleDates={previewUpdateCycleDates}
-        title="Editar fechas del ciclo"
-        description="Actualiza las fechas del ciclo."
+        title={editingCycle?.isCurrent ? 'Editar fecha de inicio' : 'Editar fechas del ciclo'}
+        description={editingCycle?.isCurrent ? 'Actualiza la fecha de inicio del ciclo actual.' : 'Actualiza las fechas del ciclo.'}
         cycleData={editingCycle?.data ?? []}
         otherCycles={allCycles}
         errorMessage={editCycleError?.message}

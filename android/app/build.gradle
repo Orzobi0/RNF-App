@@ -1,10 +1,18 @@
 apply plugin: 'com.android.application'
 
+def firebaseEnvironment = System.getenv('CAPACITOR_ENV') ?: 'staging'
+if (!(firebaseEnvironment in ['staging', 'production'])) {
+    throw new GradleException('CAPACITOR_ENV must be staging or production')
+}
+def stagingFirebase = firebaseEnvironment == 'staging'
+def firebaseAppId = stagingFirebase ? 'com.fertiliapp.fertiliapp.staging' : 'com.fertiliapp.fertiliapp'
+
 android {
     namespace "com.fertiliapp.fertiliapp"
     compileSdkVersion rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.fertiliapp.fertiliapp"
+        applicationId firebaseAppId
+        manifestPlaceholders = [fertiliAppLabel: stagingFirebase ? 'FertiliApp Pruebas' : '@string/app_name']
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
@@ -43,6 +51,27 @@ dependencies {
 }
 
 apply from: 'capacitor.build.gradle'
+
+// Capacitor sync does not update applicationId in an existing native project.
+// Refuse stale generated assets before packaging an APK for either environment.
+tasks.register('verifyFirebaseEnvironment') {
+    doLast {
+        def configFile = file('src/main/assets/capacitor.config.json')
+        if (!configFile.exists()) throw new GradleException('Run the matching web build and cap sync android first')
+        def config = new groovy.json.JsonSlurper().parse(configFile)
+        def expectedUrl = stagingFirebase ? 'https://fertiliapp-staging.web.app' : 'https://rnf-app.web.app'
+        if (config.appId != firebaseAppId || config.server?.url != expectedUrl) {
+            throw new GradleException('Capacitor assets do not match CAPACITOR_ENV; rebuild and sync explicitly')
+        }
+        if (stagingFirebase) {
+            def manifestFile = file('src/main/assets/public/staging-build.json')
+            if (!manifestFile.exists()) throw new GradleException('Staging web build is missing from Android assets')
+            def manifest = new groovy.json.JsonSlurper().parse(manifestFile)
+            if (manifest.projectId != 'fertiliapp-staging') throw new GradleException('Wrong Firebase project in Android assets')
+        }
+    }
+}
+preBuild.dependsOn('verifyFirebaseEnvironment')
 
 try {
     def servicesJSON = file('google-services.json')

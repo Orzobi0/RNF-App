@@ -8,6 +8,7 @@ pnpm-debug.log*
 
 # Vite / build
 dist/
+dist-staging/
 .vite/
 
 # Env & secrets

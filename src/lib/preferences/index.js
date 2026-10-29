@@ -16,6 +16,8 @@ export const PREFERENCE_DEFAULTS = {
   cpmMode: 'auto',
   t8Mode: 'auto',
   showRelationsRow: true,
+  showDailyStatusCard: true,
+  lastSeenWhatsNewVersion: '',
   fertilityStartConfig: createDefaultFertilityStartConfig(),
 };
 
@@ -28,6 +30,7 @@ export const PREFERENCES_UI_FIELDS = [
   'manualT8',
   'manualT8Base',
   'showRelationsRow',
+  'showDailyStatusCard',
   'fertilityStartConfig',
 ];
 
@@ -107,6 +110,8 @@ const normalizeNumberOrNull = (value) => {
 
 export const normalizePreferenceValue = (key, value, currentPreferences = PREFERENCE_DEFAULTS) => {
   switch (key) {
+    case 'lastSeenWhatsNewVersion':
+      return typeof value === 'string' ? value : '';
     case 'preferredTemperatureTime':
       return typeof value === 'string' ? value : '';
     case 'cpmMode':
@@ -115,6 +120,8 @@ export const normalizePreferenceValue = (key, value, currentPreferences = PREFER
       return T8_MODE_OPTIONS.has(value) ? value : currentPreferences.t8Mode;
     case 'showRelationsRow':
       return typeof value === 'boolean' ? value : Boolean(currentPreferences.showRelationsRow);
+    case 'showDailyStatusCard':
+      return typeof value === 'boolean' ? value : (currentPreferences.showDailyStatusCard ?? true);
     case 'manualCpm':
     case 'manualT8':
     case 'manualCpmBase':
@@ -141,6 +148,7 @@ export const normalizeStoredPreferences = (rawPreferences = {}) => {
   const normalized = {
     ...defaults,
     ...rest,
+    lastSeenWhatsNewVersion: normalizePreferenceValue('lastSeenWhatsNewVersion', rest.lastSeenWhatsNewVersion),
   };
 
   PREFERENCES_UI_FIELDS.forEach((fieldKey) => {
@@ -221,6 +229,7 @@ export const validatePreferenceField = (key, value, fullPreferences = {}) => {
     case 't8Mode':
       return T8_MODE_OPTIONS.has(value) ? null : 'Modo T-8 inválido.';
     case 'showRelationsRow':
+    case 'showDailyStatusCard':
       return typeof value === 'boolean' ? null : 'Valor inválido.';
     case 'fertilityStartConfig':
       return null;

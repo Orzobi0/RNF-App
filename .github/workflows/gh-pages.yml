@@ -1,15 +1,14 @@
-name: Deploy Vite to GitHub Pages
+name: Legacy GitHub Pages (manual, disabled by default)
 
 on:
-  push:
-    branches:
-      - main        # O la rama principal que uses
+  workflow_dispatch:
 permissions:
   contents: write
   pages: write
 
 jobs:
   build-and-deploy:
+    if: ${{ vars.ENABLE_LEGACY_GITHUB_PAGES_DEPLOY == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: ✔️ Checkout repository
@@ -24,7 +23,7 @@ jobs:
         run: npm ci
 
       - name: 🛠 Build project
-        run: npm run build
+        run: npm run build:production
         env:
           VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
           VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}

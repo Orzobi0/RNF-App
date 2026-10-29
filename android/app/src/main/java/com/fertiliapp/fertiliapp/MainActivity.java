@@ -3,6 +3,7 @@ package com.fertiliapp.fertiliapp;
 import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.view.Window;
 import android.webkit.JavascriptInterface;
@@ -11,19 +12,44 @@ import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
     private static final String DEFAULT_STATUS_BAR_COLOR = "#FFE4E6";
+    private static final String FEMOMETER_BLE_TAG = "FemometerBle";
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        Log.d(FEMOMETER_BLE_TAG, "Registering FemometerBle Capacitor plugin");
+        registerPlugin(FemometerBle.class);
         super.onCreate(savedInstanceState);
 
         setStatusBar(DEFAULT_STATUS_BAR_COLOR, true);
 
         if (getBridge() != null && getBridge().getWebView() != null) {
-            getBridge().getWebView().addJavascriptInterface(
-                new StatusBarBridge(),
-                "FertiliAppStatusBar"
-            );
-        }
+
+    int textZoomInicial = getBridge()
+        .getWebView()
+        .getSettings()
+        .getTextZoom();
+
+    Log.d("FertiliAppText",
+        "TextZoom inicial: " + textZoomInicial
+        + " | FontScale Android: "
+        + getResources().getConfiguration().fontScale
+    );
+
+    // Prueba exclusivamente en Android Staging
+    if (getPackageName().endsWith(".staging")) {
+        getBridge().getWebView().getSettings().setTextZoom(100);
+
+        Log.d("FertiliAppText",
+            "TextZoom aplicado: "
+            + getBridge().getWebView().getSettings().getTextZoom()
+        );
+    }
+
+    getBridge().getWebView().addJavascriptInterface(
+        new StatusBarBridge(),
+        "FertiliAppStatusBar"
+    );
+}
     }
 
     private void setStatusBar(String color, boolean darkIcons) {

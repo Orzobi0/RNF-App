@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useCycleData } from '@/hooks/useCycleData';
 import { useToast } from '@/components/ui/use-toast';
@@ -44,6 +44,9 @@ const CycleDetailPage = () => {
     getPublicError,
   } = useCycleData();
   const { toast } = useToast();
+  // Context measurements change this selector; they must not reload the cycle.
+  const getCycleFromStateRef = useRef(getCycleFromState);
+  getCycleFromStateRef.current = getCycleFromState;
 
   const [cycleData, setCycleData] = useState(null);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
@@ -103,7 +106,7 @@ const CycleDetailPage = () => {
 
       let localCycle = null;
 
-      const stateCycle = getCycleFromState(cycleId);
+      const stateCycle = getCycleFromStateRef.current(cycleId);
       if (stateCycle) {
         localCycle = stateCycle;
       } else {
@@ -186,7 +189,6 @@ const CycleDetailPage = () => {
    }, [
     cycleId,
     getCycleById,
-    getCycleFromState,
     navigate,
     saveCycleDataToLocalStorage,
     toast,

@@ -1,3 +1,6 @@
+import ObservationsQuickEditSheet from '@/components/ObservationsQuickEditSheet';
+import SymbolQuickEditSheet from '@/components/SymbolQuickEditSheet';
+import { getRelationsToastMessage, getPeakDayToastMessage } from '@/lib/recordToastMessages';
 import React, {
   useState,
   useLayoutEffect,
@@ -10,6 +13,9 @@ import FertilityChart from '@/components/FertilityChart';
 import PhaseEducationSheet from '@/components/chartElements/PhaseEducationSheet';
 import InterpretationSettingsDialog from '@/components/InterpretationSettingsDialog';
 import { useCycleData } from '@/hooks/useCycleData';
+import MucusQuickEditSheet from '@/components/MucusQuickEditSheet';
+import TemperatureMeasurementsSheet from '@/components/TemperatureMeasurementsSheet';
+import { loadRecordMeasurements, measurementPayloadForRecord, measurementsFromRecord } from '@/lib/temperatureMeasurements';
 import { useFertilityCalculatorsEditor } from '@/hooks/useFertilityCalculatorsEditor';
 import { differenceInDays, format, parseISO, startOfDay } from 'date-fns';
 import generatePlaceholders from '@/lib/generatePlaceholders';
@@ -19,7 +25,6 @@ import {
   CalendarDays,
   Check,
   CheckCircle2,
-  ChevronRight,
   CirclePlus,
   Heart,
   SlidersHorizontal,
@@ -39,7 +44,6 @@ import {
 } from '@/lib/fertilityStart';
 import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { useWhatsNew } from '@/contexts/WhatsNewContext.jsx';
 import { computeOvulationMetrics } from '@/hooks/useFertilityChart';
 import ChartControls from '@/components/ChartControls';
 import computePeakStatuses from '@/lib/computePeakStatuses';
@@ -109,13 +113,24 @@ const Label = ({ htmlFor, className = '', children }) => (
   <label htmlFor={htmlFor} className={className}>
     {htmlFor === 'toggle-relations-row' ? (
       <span className="flex items-center gap-2">
-        <Heart className="h-4 w-4 text-rose-400" aria-hidden="true" />
+        <Heart className="h-[18px] w-[18px] shrink-0 text-[#D85C70]" aria-hidden="true" />
         <span>{children}</span>
       </span>
     ) : (
       children
     )}
   </label>
+);
+
+const SwitchIndicator = ({ checked, icon: Icon }) => (
+  <span
+    aria-hidden="true"
+    className={`relative inline-flex h-[26px] w-[54px] shrink-0 items-center rounded-full transition-colors duration-200 motion-reduce:transition-none ${checked ? 'bg-[#D85C70]' : 'bg-slate-200'}`}
+  >
+    <span className={`inline-flex h-5 w-5 items-center justify-center rounded-full bg-white shadow-sm transition-[transform,color] duration-200 motion-reduce:transition-none ${checked ? 'translate-x-[31px] text-[#D85C70]' : 'translate-x-[3px] text-slate-400'}`}>
+      {Icon ? <Icon className="h-3.5 w-3.5" /> : null}
+    </span>
+  </span>
 );
 
 const Checkbox = ({
@@ -125,6 +140,8 @@ const Checkbox = ({
   disabled = false,
   className = '',
   variant = 'check',
+  icon: SwitchIcon,
+  ariaLabel,
 }) => {
   const handleToggle = () => {
     if (disabled) return;
@@ -137,18 +154,13 @@ const Checkbox = ({
         id={id}
         type="button"
         role="switch"
+        aria-label={ariaLabel}
         aria-checked={checked}
         disabled={disabled}
         onClick={handleToggle}
-        className={`relative inline-flex h-5 w-9 min-w-9 shrink-0 flex-none items-center rounded-full transition ${
-          checked ? 'bg-rose-400' : 'bg-slate-300'
-        } ${disabled ? 'cursor-not-allowed opacity-50' : ''} ${className}`}
+        className={`inline-flex shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2 ${disabled ? 'cursor-not-allowed opacity-50' : ''} ${className}`}
       >
-        <span
-          className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
-            checked ? 'translate-x-4' : 'translate-x-0.5'
-          }`}
-        />
+        <SwitchIndicator checked={checked} icon={SwitchIcon} />
       </button>
     );
   }
@@ -311,6 +323,7 @@ const ChartPage = () => {
     archivedCycles,
     isLoading,
     addOrUpdateDataPoint,
+    getMeasurementsForEntry,
     toggleIgnoreRecord,
     getCycleById,
     previewStartNewCycle,
@@ -321,6 +334,14 @@ const ChartPage = () => {
   } = useCycleData();
 
   const [fetchedCycle, setFetchedCycle] = useState(null);
+  const [temperatureRecord, setTemperatureRecord] = useState(null);
+  const [observationsTarget, setObservationsTarget] = useState(null);
+  const [symbolTarget, setSymbolTarget] = useState(null);
+  const [mucusTarget, setMucusTarget] = useState(null);
+  const [focusedField, setFocusedField] = useState(null);
+  const [sheetMeasurements, setSheetMeasurements] = useState([]);
+  const sheetLoadVersion = useRef(0);
+  useEffect(() => () => { sheetLoadVersion.current += 1; }, [cycleId]);
   const [externalLoading, setExternalLoading] = useState(false);
   const [notFound, setNotFound] = useState(false);
 
@@ -381,7 +402,6 @@ const ChartPage = () => {
     : externalLoading || (isLoading && !archivedMatch && !fetchedCycle);
 
   const { preferences, savePreferences } = useAuth();
-  const { hasUnseenChartInterpretation, markChartInterpretationSeen } = useWhatsNew();
   const { toast } = useToast();
   const calculatorEditor = useFertilityCalculatorsEditor({
     currentCycle,
@@ -553,11 +573,6 @@ const toggleSettings = useCallback(() => {
   else openSettings();
 }, [settingsOpen, openSettings, closeSettings]);
 
-const handleToggleSettingsFromControls = useCallback(() => {
-  markChartInterpretationSeen();
-  toggleSettings();
-}, [markChartInterpretationSeen, toggleSettings]);
-
 useEffect(() => {
   if (settingsOpen) return;
   if (!drawerMounted) return;
@@ -624,17 +639,21 @@ useEffect(() => {
     return active.length > 0 ? active.join(' · ') : 'Sin cálculos activos';
   }, [cyclePostpartumMode, cpmSelection, t8Selection]);
 
-  const interpretationCardChips = useMemo(() => {
-    const fertileStartChip = targetCycle?.interpretationOverrides?.fertileStart?.mode === 'manual'
-      ? 'Inicio fértil: Manual'
-      : 'Inicio fértil: Auto';
+  const interpretationCardRows = useMemo(() => {
+    const fertileStartState = targetCycle?.interpretationOverrides?.fertileStart?.mode === 'manual'
+      ? 'Manual'
+      : 'Auto';
     const temperatureMode = targetCycle?.interpretationOverrides?.temperatureRise?.mode;
-    const thermalChip = temperatureMode === 'ignored'
-      ? 'Subida térmica: Ignorada'
+    const thermalState = temperatureMode === 'ignored'
+      ? 'Ignorada'
       : temperatureMode === 'manual'
-        ? 'Subida térmica: Manual'
-        : 'Subida térmica: Auto';
-    return [fertileStartChip, thermalChip, calculatorPanelSummary];
+        ? 'Manual'
+        : 'Auto';
+    return [
+      { label: 'Inicio fértil', value: fertileStartState },
+      { label: 'Subida térmica', value: thermalState },
+      { label: 'Cálculos', value: calculatorPanelSummary },
+    ];
   }, [
     calculatorPanelSummary,
     targetCycle?.interpretationOverrides?.fertileStart?.mode,
@@ -755,10 +774,34 @@ useEffect(() => {
     window.removeEventListener('orientationchange', handleOrientationChange);
   };
 }, [isIPhoneOrIPod]);
+  const loadTemperatures = useCallback(async (record, options) => {
+    return loadRecordMeasurements(record, targetCycle.id, getMeasurementsForEntry, options);
+  }, [targetCycle?.id, getMeasurementsForEntry]);
+  const dateMeasurementLoad = useRef(0);
+  const handleDateSelect = useCallback(async (record) => {
+    const request = ++dateMeasurementLoad.current;
+    setEditingRecord((previous) =>
+      previous?.id === record?.id && previous?.measurementsLoaded ? previous : record
+    );
+    if (!record?.id || String(record.id).startsWith('placeholder-')) return;
+    try {
+      const measurements = await loadTemperatures(record);
+      if (dateMeasurementLoad.current === request) {
+        setEditingRecord((previous) => previous?.id === record.id
+          ? previous.measurementsLoaded ? previous : { ...previous, measurements, measurementsLoaded: true }
+          : previous);
+      }
+    } catch {
+      if (dateMeasurementLoad.current === request) {
+        toast({ title: 'No se pudieron cargar las temperaturas', variant: 'destructive' });
+        setShowForm(false);
+      }
+    }
+  }, [loadTemperatures, toast]);
   if (showLoading) {
     return (
       <MainLayout>
-        <div className="flex h-full flex-col items-center justify-center space-y-4 bg-[#FFF8FA] px-4 py-8 text-center text-fertiliapp-fuerte">
+        <div className="flex h-full flex-col items-center justify-center space-y-4 bg-[#FFF7F9] px-4 py-8 text-center text-fertiliapp-fuerte">
           <p>Cargando…</p>
         </div>
       </MainLayout>
@@ -1057,10 +1100,80 @@ const rotatedDrawerStyle = applyRotation
     }
   : undefined;
 
-  const handleEdit = (record, sectionKey = null) => {
-    setEditingRecord(record);
+  const handleEdit = async (record, sectionKey = null, fieldName = null, savedValues = {}) => {
+    const request = ++dateMeasurementLoad.current;
+    const latestRecord = targetCycle.data?.find((entry) => entry.isoDate === record?.isoDate) || record;
+    let measurements;
+    try {
+      measurements = await loadTemperatures(latestRecord);
+    } catch {
+      if (dateMeasurementLoad.current !== request) return false;
+      toast({ title: 'No se pudieron cargar las temperaturas', variant: 'destructive' });
+      return false;
+    }
+    if (dateMeasurementLoad.current !== request) return false;
+    setEditingRecord({ ...latestRecord, ...savedValues, measurements, measurementsLoaded: true });
     setInitialSectionKey(sectionKey ?? null);
+    setFocusedField(fieldName ?? null);
     setShowForm(true);
+  };
+  const openTemperatures = async (point, signal) => {
+    const version = ++sheetLoadVersion.current;
+    const record = targetCycle.data?.find((entry) => entry.isoDate === point.isoDate) || point;
+    let timeout;
+    try {
+      const complete = record.measurementsLoaded === true && record.measurementsComplete === true;
+      const measurements = complete ? measurementsFromRecord(record) : await Promise.race([
+        loadTemperatures(record, { requireComplete: true }),
+        new Promise((_, reject) => {
+          timeout = setTimeout(() => reject(new Error('Tiempo de espera agotado')), 15000);
+        }),
+      ]);
+      if (sheetLoadVersion.current !== version || signal?.aborted) return false;
+      setSheetMeasurements(measurements);
+      setTemperatureRecord(record);
+      return true;
+    } catch {
+      return false;
+    } finally {
+      clearTimeout(timeout);
+    }
+  };
+  const buildChartRecordPayload = (record, isoDate, overrides = {}) => ({
+    isoDate,
+    ...measurementPayloadForRecord(record),
+    mucusSensation: record?.mucusSensation ?? record?.mucus_sensation ?? '',
+    mucusAppearance: record?.mucusAppearance ?? record?.mucus_appearance ?? '',
+    fertility_symbol: record?.fertility_symbol ?? record?.fertilitySymbol ?? 'none',
+    observations: record?.observations ?? '',
+    had_relations: record?.had_relations ?? record?.hadRelations ?? false,
+    ignored: record?.ignored ?? false,
+    peak_marker: record?.peak_marker ?? null,
+    ...overrides,
+  });
+  const saveChartMeasurements = async (isoDate, measurements, operation) => {
+    const record = targetCycle.data?.find((entry) => entry.isoDate === isoDate) || null;
+    await addOrUpdateDataPoint(buildChartRecordPayload(record, isoDate, {
+      measurements, measurementsComplete: true,
+      ...(typeof operation?.ignored === 'boolean' ? { ignored: operation.ignored } : {}),
+    }), record, targetCycle.id);
+    await refreshFallbackCycle();
+  };
+  const openMucus = (point, field) => {
+    const record = targetCycle.data?.find((entry) => entry.isoDate === point.isoDate) || point;
+    setMucusTarget({ record, field });
+  };
+  const saveChartMucus = async (values) => {
+    const isoDate = mucusTarget.record.isoDate;
+    const record = targetCycle.data?.find((entry) => entry.isoDate === isoDate) || null;
+    await addOrUpdateDataPoint(buildChartRecordPayload(record, isoDate, { ...values, measurementsComplete: false }), record, targetCycle.id);
+    await refreshFallbackCycle();
+  };
+
+  const saveChartDetails = async (isoDate, values) => {
+    const record = targetCycle.data?.find((entry) => entry.isoDate === isoDate) || null;
+    await addOrUpdateDataPoint(buildChartRecordPayload(record, isoDate, { ...values, measurementsComplete: false }), record, targetCycle.id);
+    await refreshFallbackCycle();
   };
 
   const handleToggleIgnore = async (cId, recordId) => {
@@ -1361,64 +1474,72 @@ const rotatedDrawerStyle = applyRotation
                 ×
               </Button>
             </div>
-            <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
+            <div className="min-h-0 space-y-3 overflow-y-auto pr-1">
                             <button
                 type="button"
-                className="w-full rounded-2xl border border-orange-100/70 bg-orange-50/40 p-4 text-left transition hover:border-orange-200 hover:bg-orange-50/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-200"
+                className="w-full rounded-2xl border border-rose-100/70 bg-rose-50/30 p-4 text-left shadow-[0_6px_18px_rgba(104,72,86,0.08)] transition hover:border-rose-200 hover:bg-rose-50/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300"
                 onClick={openInterpretationSettings}
               >
                 <div className="flex items-start gap-3">
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-orange-600">
+                    <div className="flex items-center gap-1">
+                      <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[#D85C70]">
                         <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
                       </span>
                       <h3 className="text-sm font-semibold text-slate-700">
                         Ajustes de interpretación
                       </h3>
                     </div>
-                    <p className="mt-1 text-xs leading-relaxed text-slate-500">
-                      Configura cómo se interpreta este ciclo.
-                    </p>
-                    <div className="mt-3 flex flex-wrap gap-1.5">
-                      {interpretationCardChips.map((chip) => (
-                        <span
-                          key={chip}
-                          className="rounded-full border border-orange-100 bg-white/80 px-2 py-0.5 text-[11px] font-medium text-slate-500"
-                        >
-                          {chip}
-                        </span>
-                      ))}
-                    </div>
                   </div>
-                  <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+                </div>
+                <div className="mt-3 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-center gap-x-2 text-xs">
+                  {interpretationCardRows.map(({ label, value }) => (
+                    <React.Fragment key={label}>
+                      <span className={`flex min-h-[30px] items-center py-1 font-medium ${
+  label === 'Inicio fértil'
+    ? 'text-[#A64D72]'
+    : label === 'Subida térmica'
+      ? 'text-[#A15467]'
+      : label === 'Cálculos'
+        ? 'text-[#486E8C]'
+        : 'text-slate-700'
+}`}>
+  {label}
+</span>
+                      <span className={`min-w-0 py-1 text-right text-[11px] font-medium leading-4 ${
+                        value === 'Manual' ? 'text-[#B9495F]'
+                          : value === 'Ignorada' || value === 'Cálculo omitido' ? 'text-amber-700'
+                          : label === 'Cálculos' && value !== 'Sin cálculos activos' ? 'text-[#4E7393]'
+                          : 'text-slate-600'
+                      }`}>{value}</span>
+                    </React.Fragment>
+                  ))}
                 </div>
               </button>
               
-<div className="rounded-2xl border border-red-100/70 bg-red-50/40 p-4">
-  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2">
-    <div className="flex items-center gap-2 min-w-0">
-      <span className="inline-flex items-center justify-center rounded-full  bg-rose-50/90 p-1 text-rose-600">
-        <Baby className="h-3.5 w-3.5" aria-hidden="true" />
-      </span>
-      <p className="text-sm font-semibold text-slate-700">Modo postparto</p>
-    </div>
-
-    <Checkbox
-      variant="switch"
-      checked={cyclePostpartumMode}
-      onCheckedChange={handlePostpartumChange}
-      className="mt-0.5"
-    />
-
-    <p className="col-span-2 text-xs leading-relaxed text-slate-500">
-      Si está activo, se aplicarán sus reglas correspondientes.
+<div>
+  <button
+    type="button"
+    role="switch"
+    aria-label="Modo postparto"
+    aria-checked={cyclePostpartumMode}
+    onClick={() => handlePostpartumChange(!cyclePostpartumMode)}
+    className={`flex min-h-[68px] w-full items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition-[background-color,border-color,box-shadow] duration-200 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-rose-300 ${cyclePostpartumMode
+      ? 'border-rose-200 bg-rose-50 shadow-[0_6px_18px_rgba(216,92,112,0.12)]'
+      : 'border-rose-200/80 bg-white shadow-[0_6px_18px_rgba(104,72,86,0.08)] hover:bg-rose-50/45'}`}
+  >
+    <span className="min-w-0 text-sm font-semibold text-slate-700">Modo postparto</span>
+    <SwitchIndicator checked={cyclePostpartumMode} icon={Baby} />
+  </button>
+  {cyclePostpartumMode && (
+    <p className="mt-2 px-1 text-xs leading-relaxed text-[#D85C70]">
+      Postparto activo: se aplicarán sus reglas correspondientes
     </p>
-  </div>
-</div> 
-              
-<div className="rounded-2xl border border-pink-100/70 bg-pink-50/40 p-4">
-  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2">
+  )}
+</div>
+
+<div className="rounded-2xl border border-rose-100/70 bg-rose-50/30 p-4 shadow-[0_6px_18px_rgba(104,72,86,0.08)]">
+  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2">
     <Label htmlFor="toggle-relations-row" className="text-sm font-semibold text-slate-700">
       Mostrar relaciones
     </Label>
@@ -1428,7 +1549,6 @@ const rotatedDrawerStyle = applyRotation
       variant="switch"
       checked={chartSettings.showRelationsRow}
       onCheckedChange={handleRelationsSettingChange}
-      className="mt-0.5"
     />
 
     <p className="col-span-2 text-xs leading-relaxed text-slate-500">
@@ -1847,103 +1967,58 @@ const rotatedDrawerStyle = applyRotation
       }),
     [buildFertileStartSummary, buildFertilityStartOutput, fertileStartDraft.isoDate]
   );
+  const handleToggleRelations = async (point, hasRelations) => {
+    try {
+      if (!targetCycle?.id || !point?.isoDate) throw new Error('Falta el ciclo o la fecha');
+      const record = targetCycle.data?.find((entry) => entry.isoDate === point.isoDate) || null;
+      await addOrUpdateDataPoint(buildChartRecordPayload(record, point.isoDate, {
+        had_relations: hasRelations, measurementsComplete: false,
+      }), record, targetCycle.id);
+      await refreshFallbackCycle();
+      toast({ title: getRelationsToastMessage(hasRelations), duration: 1400 });
+    } catch (error) {
+      toast({ title: 'Error', description: 'No se pudieron actualizar las relaciones sexuales', variant: 'destructive' });
+      throw error;
+    }
+  };
+
   const handleTogglePeak = async (record, shouldMarkAsPeak = true) => {
     if (!targetCycle?.id || !record?.isoDate) {
-      return;
+      const error = new Error('Falta el ciclo o la fecha');
+      toast({ title: 'Error', description: 'No se pudo actualizar el día pico', variant: 'destructive' });
+      throw error;
     }
-
-    const normalizeMeasurementValue = (value) => {
-      if (value === null || value === undefined || value === '') {
-        return null;
-      }
-      const parsed = parseFloat(String(value).replace(',', '.'));
-      return Number.isFinite(parsed) ? parsed : null;
-    };
 
     const markAsPeak = shouldMarkAsPeak ?? !(
       record.peak_marker === 'peak' || record.peakStatus === 'P'
     );
 
+    const peakMode = !markAsPeak ? 'remove' : currentPeakIsoDate && currentPeakIsoDate !== record.isoDate ? 'update' : 'assign';
     setIsProcessing(true);
     try {
-      const fallbackTime = record.timestamp
-        ? format(parseISO(record.timestamp), 'HH:mm')
-        : format(new Date(), 'HH:mm');
-
-      let measurementsSource = Array.isArray(record.measurements) && record.measurements.length > 0
-        ? record.measurements
-        : [
-            {
-              temperature: record.temperature_chart ?? record.temperature_raw ?? null,
-              temperature_corrected: record.temperature_corrected ?? null,
-              time: fallbackTime,
-              time_corrected: record.time_corrected ?? fallbackTime,
-              selected: true,
-              use_corrected: record.use_corrected ?? false,
-            },
-          ];
-
-      if (measurementsSource.length === 0) {
-        measurementsSource = [
-          {
-            temperature: null,
-            temperature_corrected: null,
-            time: fallbackTime,
-            time_corrected: fallbackTime,
-            selected: true,
-            use_corrected: false,
-          },
-        ];
-      }
-
-      const normalizedMeasurements = measurementsSource.map((measurement, index) => {
-        const timeValue = measurement.time || fallbackTime;
-        const correctedTime = measurement.time_corrected || timeValue;
-
-        return {
-          temperature: normalizeMeasurementValue(
-            measurement.temperature ?? measurement.temperature_raw
-          ),
-          time: timeValue,
-          selected: index === 0 ? true : !!measurement.selected,
-          temperature_corrected: normalizeMeasurementValue(
-            measurement.temperature_corrected
-          ),
-          time_corrected: correctedTime,
-          use_corrected: !!measurement.use_corrected,
-        };
-      });
-
-      if (!normalizedMeasurements.some((measurement) => measurement.selected)) {
-        normalizedMeasurements[0].selected = true;
-      }
-
-      const payload = {
-        isoDate: record.isoDate,
-        measurements: normalizedMeasurements,
-        mucusSensation: record.mucus_sensation ?? record.mucusSensation ?? '',
-        mucusAppearance: record.mucus_appearance ?? record.mucusAppearance ?? '',
-        fertility_symbol: record.fertility_symbol ?? 'none',
-        observations: record.observations ?? '',
-        had_relations: record.had_relations ?? record.hadRelations ?? false,
-        ignored: record.ignored ?? false,
-        peak_marker: markAsPeak ? 'peak' : null,
-      };
+      const latest = targetCycle.data?.find((entry) => entry.isoDate === record.isoDate) || record;
+      const payload = buildChartRecordPayload(latest, record.isoDate, { peak_marker: markAsPeak ? 'peak' : null, measurementsComplete: false });
 
       const existingRecord =
         record?.id && !String(record.id).startsWith('placeholder-') ? record : null;
 
       await addOrUpdateDataPoint(payload, existingRecord, targetCycle.id);
+      await refreshFallbackCycle();
+      toast({ title: getPeakDayToastMessage(peakMode), duration: 1400 });
     } catch (error) {
       console.error('Error toggling peak marker:', error);
+      toast({ title: 'Error', description: 'No se pudo actualizar el día pico', variant: 'destructive' });
+      throw error;
     } finally {
       setIsProcessing(false);
     }
   };
   const handleCloseForm = useCallback(() => {
+    dateMeasurementLoad.current += 1;
     setShowForm(false);
     setEditingRecord(null);
     setInitialSectionKey(null);
+    setFocusedField(null);
   }, []);
 
   const handleOpenNewCycleDialog = useCallback((initialIsoDate = null) => {
@@ -1975,9 +2050,6 @@ const rotatedDrawerStyle = applyRotation
     }
   };
 
-  const handleDateSelect = (record) => {
-    setEditingRecord(record);
-  };
   const closePhaseOverlay = useCallback(() => {
     setPhaseOverlay(null);
   }, []);
@@ -2621,8 +2693,7 @@ const isManualFertile =
           onToggleManualBaseline={() => setShowManualBaseline((prev) => !prev)}
           onInterpretationPointerUp={handleInterpretationPointerUp}
           onToggleFullScreen={handleToggleFullScreen}
-          onToggleSettings={handleToggleSettingsFromControls}
-          showSettingsNewBadge={hasUnseenChartInterpretation}
+          onToggleSettings={toggleSettings}
         />
         <FertilityChart
           data={mergedData}
@@ -2630,7 +2701,12 @@ const isManualFertile =
           orientation={orientation}
           onToggleIgnore={handleToggleIgnore}
           onEdit={handleEdit}
+          onOpenTemperatures={openTemperatures}
+          onOpenMucus={openMucus}
+          onOpenObservations={(point) => setObservationsTarget(targetCycle.data?.find((entry) => entry.isoDate === point.isoDate) || point)}
+          onOpenSymbol={(point) => setSymbolTarget(targetCycle.data?.find((entry) => entry.isoDate === point.isoDate) || point)}
           onTogglePeak={handleTogglePeak}
+          onToggleRelations={handleToggleRelations}
           cycleId={targetCycle.id}
           initialScrollIndex={scrollStart}
           visibleDays={visibleDays}
@@ -2792,6 +2868,7 @@ const isManualFertile =
           >
             <DataEntryForm
               onSubmit={handleSave}
+              onSaveMeasurements={saveChartMeasurements}
               onCancel={handleCloseForm}
               initialData={editingRecord}
               cycleStartDate={targetCycle.startDate}
@@ -2801,11 +2878,43 @@ const isManualFertile =
               cycleData={targetCycle.data}
               onDateSelect={handleDateSelect}
               initialSectionKey={initialSectionKey}
+              focusedField={focusedField}
               onOpenNewCycle={handleOpenNewCycleDialog}
             />
           </DialogContent>
         </Dialog>
         
+        <ObservationsQuickEditSheet open={Boolean(observationsTarget)} onOpenChange={(value) => { if (!value) setObservationsTarget(null); }}
+          isoDate={observationsTarget?.isoDate} initialValues={observationsTarget}
+          onSave={(values) => saveChartDetails(observationsTarget.isoDate, values)}
+          onOpenForm={(values) => handleEdit(observationsTarget, 'observations', 'observations', values)} />
+        <SymbolQuickEditSheet open={Boolean(symbolTarget)} onOpenChange={(value) => { if (!value) setSymbolTarget(null); }}
+          isoDate={symbolTarget?.isoDate} initialValues={symbolTarget}
+          onSave={(values) => saveChartDetails(symbolTarget.isoDate, values)}
+          onOpenForm={() => handleEdit(symbolTarget, 'moco', 'fertilitySymbol')} />
+        <MucusQuickEditSheet open={Boolean(mucusTarget)} onOpenChange={(value) => { if (!value) setMucusTarget(null); }}
+          isoDate={mucusTarget?.record.isoDate} initialValues={mucusTarget?.record} initialField={mucusTarget?.field}
+          onSave={saveChartMucus}
+          onOpenForm={(values) => {
+            const record = targetCycle.data?.find((entry) => entry.isoDate === mucusTarget.record.isoDate) || mucusTarget.record;
+            return handleEdit({ ...record, ...values }, 'moco', mucusTarget.field);
+          }} />
+        <TemperatureMeasurementsSheet
+          open={Boolean(temperatureRecord)}
+          onOpenChange={(open) => { if (!open) { sheetLoadVersion.current += 1; setTemperatureRecord(null); } }}
+          isoDate={temperatureRecord?.isoDate}
+          ignored={(targetCycle.data?.find((entry) => entry.isoDate === temperatureRecord?.isoDate) || temperatureRecord)?.ignored}
+          measurements={sheetMeasurements}
+          onChange={async (measurements, operation) => {
+            await saveChartMeasurements(temperatureRecord.isoDate, measurements, operation);
+            setSheetMeasurements(measurements);
+          }}
+          onOpenForm={async (measurements, overrides) => {
+            const record = targetCycle.data?.find((entry) => entry.isoDate === temperatureRecord.isoDate) || temperatureRecord;
+            if (await handleEdit({ ...record, ...overrides, measurements, measurementsLoaded: true }) === false) return;
+            setTemperatureRecord(null);
+          }}
+        />
         <NewCycleDialog
           isOpen={showNewCycleDialog}
           onClose={() => {

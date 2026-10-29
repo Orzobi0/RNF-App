@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Activity,
   BadgeCheck,
+  Bluetooth,
   Settings2,
   ChevronRight,
   CircleAlert,
@@ -9,22 +9,28 @@ import {
   Lock,
   LogOut,
   Mail,
+  Thermometer,
 } from 'lucide-react';
-import { App } from '@capacitor/app';
 import { useAuth } from '@/contexts/AuthContext';
-import { useWhatsNew } from '@/contexts/WhatsNewContext.jsx';
 import { useToast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ToastAction } from '@/components/ui/toast';
-import { buildCyclesPdfBlob, downloadBlobAsFile } from '@/lib/cycleExport';
 import { getAuthErrorMessage } from '@/lib/authErrorMessages';
 import ExportCyclesDialog from '@/components/ExportCyclesDialog';
 import { useCycleData } from '@/hooks/useCycleData';
 import InstallPrompt from '@/components/InstallPrompt';
-import { ensureHealthConnectPermissions } from '@/lib/healthConnectSync';
-import { useHealthConnect } from '@/contexts/HealthConnectContext.jsx';
+import {
+  addFemometerTemperatureListener,
+  connectAndInspectFemometer,
+  disconnectFemometer,
+  isFemometerBleAndroidNative,
+  isFemometerBlePrototypeEnabled,
+  requestBluetoothPermissions,
+  scanForFemometer,
+  startFemometerTemperatureListener,
+  stopFemometerTemperatureListener,
+} from '@/lib/femometerBle';
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 
@@ -183,61 +189,6 @@ const SettingsLinkRow = ({
   </Link>
 );
 
-const SettingsSwitchRow = ({
-  icon: Icon,
-  title,
-  description,
-  checked,
-  onToggle,
-  disabled = false,
-  ariaLabel,
-  iconTone = 'cool',
-}) => (
-  <button
-    type="button"
-    role="switch"
-    aria-checked={checked}
-    aria-label={ariaLabel ?? title}
-    onClick={() => {
-      if (disabled) return;
-      onToggle(!checked);
-    }}
-    disabled={disabled}
-    className={cn(SETTINGS_ROW_CLASS, 'disabled:cursor-not-allowed disabled:opacity-60')}
-  >
-    <div className="flex min-w-0 items-center gap-3">
-      <span
-  className={cn(
-    'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl',
-    getSettingsIconToneClasses(iconTone)
-  )}
->
-  <Icon className="h-4 w-4" aria-hidden="true" />
-</span>
-
-      <div className="min-w-0">
-        <p className="text-sm font-semibold text-slate-800">{title}</p>
-        {description ? <p className="mt-0.5 text-sm text-slate-500">{description}</p> : null}
-      </div>
-    </div>
-
-    <span
-      className={cn(
-        'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-slate-200 transition-colors',
-        checked ? 'bg-rose-400' : 'bg-slate-200'
-      )}
-      aria-hidden="true"
-    >
-      <span
-        className={cn(
-          'inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform',
-          checked ? 'translate-x-5' : 'translate-x-0'
-        )}
-      />
-    </span>
-  </button>
-);
-
 const SettingsSection = ({ title, children, className }) => (
   <section className={cn('space-y-2', className)}>
     <h2 className="px-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
@@ -249,6 +200,447 @@ const SettingsSection = ({ title, children, className }) => (
   </section>
 );
 
+const DEFAULT_TEMPERATURE_LISTEN_SECONDS = 6 * 60;
+
+const FemometerBlePrototypePanel = () => {
+  const { toast } = useToast();
+  const [devices, setDevices] = useState([]);
+  const [selectedDeviceId, setSelectedDeviceId] = useState('');
+  const [inspectionResult, setInspectionResult] = useState(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const [isInspecting, setIsInspecting] = useState(false);
+  const [lastTechnicalError, setLastTechnicalError] = useState(null);
+  const [isStartingTemperatureListener, setIsStartingTemperatureListener] = useState(false);
+  const [isTemperatureListenerActive, setIsTemperatureListenerActive] = useState(false);
+  const [temperatureConnectionReady, setTemperatureConnectionReady] = useState(false);
+  const [temperatureIndicationsActive, setTemperatureIndicationsActive] = useState(false);
+  const [temperatureSecondsRemaining, setTemperatureSecondsRemaining] = useState(DEFAULT_TEMPERATURE_LISTEN_SECONDS);
+  const [temperatureListenerMessage, setTemperatureListenerMessage] = useState('');
+  const [lastTemperatureReading, setLastTemperatureReading] = useState(null);
+  const temperatureListenerSubscriptionRef = useRef(null);
+  const temperatureListenerStartedAtRef = useRef(null);
+  const temperatureListenDurationRef = useRef(DEFAULT_TEMPERATURE_LISTEN_SECONDS);
+  const temperatureReceivedInSessionRef = useRef(false);
+
+  useEffect(() => {
+    return () => {
+      temperatureListenerSubscriptionRef.current?.remove?.();
+      temperatureListenerSubscriptionRef.current = null;
+      stopFemometerTemperatureListener().catch(() => {});
+      disconnectFemometer().catch(() => {});
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isTemperatureListenerActive || !temperatureListenerStartedAtRef.current) return undefined;
+
+    const interval = window.setInterval(() => {
+      const elapsedSeconds = Math.floor((Date.now() - temperatureListenerStartedAtRef.current) / 1000);
+      const remaining = Math.max(0, temperatureListenDurationRef.current - elapsedSeconds);
+      setTemperatureSecondsRemaining(remaining);
+      if (remaining === 0) {
+        window.clearInterval(interval);
+      }
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [isTemperatureListenerActive]);
+
+  const showBleError = (error, fallbackTitle = 'No se pudo completar la prueba') => {
+    toast({
+      title: fallbackTitle,
+      description: error?.message || 'Inténtalo de nuevo.',
+      variant: 'destructive',
+    });
+  };
+
+  const storeTechnicalError = (error) => {
+    setLastTechnicalError({
+      code: error?.code || 'UNKNOWN',
+      technicalMessage: String(error?.technicalMessage || error?.message || 'Sin detalle tecnico')
+        .split('\n')[0]
+        .slice(0, 500),
+    });
+  };
+
+  const handleScan = async () => {
+    setIsScanning(true);
+    setInspectionResult(null);
+    setLastTechnicalError(null);
+    setIsTemperatureListenerActive(false);
+    setTemperatureConnectionReady(false);
+    setTemperatureIndicationsActive(false);
+    setTemperatureListenerMessage('');
+    setLastTemperatureReading(null);
+    setSelectedDeviceId('');
+    try {
+      await requestBluetoothPermissions();
+      const foundDevices = await scanForFemometer();
+      setDevices(foundDevices);
+      if (foundDevices.length > 0) {
+        setSelectedDeviceId(foundDevices[0].id);
+      } else {
+        toast({
+          title: 'Termómetro no encontrado',
+          description: 'No se detectó BM-Vinca2. Despierta el termómetro y vuelve a buscar.',
+        });
+      }
+    } catch (error) {
+      setDevices([]);
+      storeTechnicalError(error);
+      showBleError(error, 'Error buscando termómetro');
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  const handleInspect = async () => {
+    if (!selectedDeviceId) {
+      toast({
+        title: 'Selecciona un termómetro',
+        description: 'Busca y selecciona BM-Vinca2 antes de comprobar la compatibilidad.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsInspecting(true);
+    setInspectionResult(null);
+    setLastTechnicalError(null);
+    try {
+      const result = await connectAndInspectFemometer(selectedDeviceId);
+      setInspectionResult(result);
+    } catch (error) {
+      storeTechnicalError(error);
+      showBleError(error, 'Error comprobando conexión');
+    } finally {
+      disconnectFemometer().catch(() => {});
+      setIsInspecting(false);
+    }
+  };
+
+  const resetTemperatureListenerState = () => {
+    temperatureListenerStartedAtRef.current = null;
+    setIsTemperatureListenerActive(false);
+    setTemperatureConnectionReady(false);
+    setTemperatureIndicationsActive(false);
+    setTemperatureSecondsRemaining(0);
+  };
+
+  const handleTemperatureEvent = (event) => {
+    if (event?.temperatureC !== undefined && event?.temperatureC !== null) {
+      temperatureReceivedInSessionRef.current = true;
+      setLastTemperatureReading(event);
+      setTemperatureListenerMessage('Temperatura recibida. La escucha continúa para recibir otra medición.');
+      return;
+    }
+
+    if (event?.status === 'timeout') {
+      setTemperatureListenerMessage(
+        temperatureReceivedInSessionRef.current
+          ? 'Escucha finalizada. La última temperatura recibida se muestra abajo.'
+          : 'Escucha finalizada sin recibir temperaturas. Puedes volver a escuchar cuando el termómetro esté preparado.'
+      );
+      resetTemperatureListenerState();
+      return;
+    }
+
+    if (event?.status === 'error') {
+      setTemperatureListenerMessage(event.message || 'No se pudo recibir la temperatura.');
+      resetTemperatureListenerState();
+      stopFemometerTemperatureListener().catch(() => {});
+      return;
+    }
+
+    if (event?.status === 'disconnected') {
+      setTemperatureListenerMessage(event?.message || 'El termómetro se desconectó.');
+      resetTemperatureListenerState();
+    }
+  };
+
+  const handleStartTemperatureListener = async () => {
+    if (!selectedDeviceId) {
+      toast({
+        title: 'Selecciona un termómetro',
+        description: 'Busca y selecciona BM-Vinca2 antes de escuchar temperatura.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsStartingTemperatureListener(true);
+    setLastTechnicalError(null);
+    setTemperatureListenerMessage('');
+    setLastTemperatureReading(null);
+    temperatureReceivedInSessionRef.current = false;
+    setTemperatureSecondsRemaining(DEFAULT_TEMPERATURE_LISTEN_SECONDS);
+
+    try {
+      temperatureListenerSubscriptionRef.current?.remove?.();
+      temperatureListenerSubscriptionRef.current = await addFemometerTemperatureListener(
+        handleTemperatureEvent
+      );
+      const result = await startFemometerTemperatureListener(selectedDeviceId);
+      // Android owns the deadline; older APKs can still report a shorter window.
+      const timeoutSeconds = Number(result?.timeoutSeconds);
+      temperatureListenDurationRef.current = Number.isFinite(timeoutSeconds) && timeoutSeconds > 0
+        ? Math.floor(timeoutSeconds)
+        : DEFAULT_TEMPERATURE_LISTEN_SECONDS;
+      setTemperatureSecondsRemaining(temperatureListenDurationRef.current);
+      setTemperatureConnectionReady(Boolean(result?.connectionReady));
+      setTemperatureIndicationsActive(Boolean(result?.indicationsActive));
+      setIsTemperatureListenerActive(true);
+      temperatureListenerStartedAtRef.current = Date.now();
+      setTemperatureListenerMessage(temperatureReceivedInSessionRef.current
+        ? 'Temperatura recibida. La escucha continúa para recibir otra medición.'
+        : 'Escuchando el termómetro…');
+    } catch (error) {
+      temperatureListenerSubscriptionRef.current?.remove?.();
+      temperatureListenerSubscriptionRef.current = null;
+      resetTemperatureListenerState();
+      storeTechnicalError(error);
+      showBleError(error, 'Error escuchando temperatura');
+    } finally {
+      setIsStartingTemperatureListener(false);
+    }
+  };
+
+  const handleStopTemperatureListener = async () => {
+    setIsStartingTemperatureListener(false);
+    try {
+      await stopFemometerTemperatureListener();
+    } catch (error) {
+      storeTechnicalError(error);
+      showBleError(error, 'Error deteniendo escucha');
+    } finally {
+      temperatureListenerSubscriptionRef.current?.remove?.();
+      temperatureListenerSubscriptionRef.current = null;
+      resetTemperatureListenerState();
+      setTemperatureListenerMessage('Escucha detenida.');
+    }
+  };
+
+  const renderStatusLine = (ok, successText, missingText) => (
+    <li className={cn('flex gap-2 text-sm', ok ? 'text-emerald-700' : 'text-amber-700')}>
+      <span className="shrink-0 font-semibold" aria-hidden="true">
+        {ok ? '✓' : '!'}
+      </span>
+      <span>{ok ? successText : missingText}</span>
+    </li>
+  );
+
+  return (
+    <div className="bg-white px-4 py-4">
+      <div className="flex items-start gap-3">
+        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-500">
+          <Thermometer className="h-4 w-4" aria-hidden="true" />
+        </span>
+        <div className="min-w-0 flex-1 space-y-3">
+          <div>
+            <p className="text-sm font-semibold text-slate-800">
+              Termómetro Femometer — prueba técnica
+            </p>
+            <p className="mt-0.5 text-sm leading-relaxed text-slate-500">
+              Busca un termómetro compatible y comprueba su conexión.
+            </p>
+            <p className="mt-0.5 text-sm leading-relaxed text-slate-500">
+              Permite probar la recepción de temperaturas. Todavía no las guarda en tus registros.
+            </p>
+            <p className="mt-0.5 text-sm leading-relaxed text-slate-500">
+              Mantén esta pantalla abierta mientras mides. Puedes detener la escucha en cualquier momento.
+            </p>
+          </div>
+
+          <Button
+            type="button"
+            onClick={handleScan}
+            disabled={isScanning || isInspecting}
+            className="min-h-11 w-full bg-fertiliapp-fuerte text-white hover:brightness-95"
+          >
+            <Bluetooth className="mr-2 h-4 w-4" aria-hidden="true" />
+            {isScanning ? 'Buscando…' : 'Buscar termómetro'}
+          </Button>
+
+          {devices.length > 0 ? (
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                Dispositivo disponible
+              </p>
+              {devices.map((device) => {
+                const selected = selectedDeviceId === device.id;
+                return (
+                  <button
+                    key={device.id}
+                    type="button"
+                    onClick={() => setSelectedDeviceId(device.id)}
+                    className={cn(
+                      'flex min-h-12 w-full items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left transition',
+                      selected
+                        ? 'border-rose-200 bg-rose-50 text-slate-800'
+                        : 'border-slate-100 bg-white text-slate-700 hover:bg-slate-50'
+                    )}
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-semibold">{device.name}</span>
+                      <span className="block text-xs text-slate-500">Señal {device.rssi} dBm</span>
+                    </span>
+                    {selected ? (
+                      <span className="shrink-0 text-sm font-semibold text-rose-600">
+                        Seleccionado
+                      </span>
+                    ) : null}
+                  </button>
+                );
+              })}
+              <Button
+                type="button"
+                onClick={handleInspect}
+                disabled={!selectedDeviceId || isScanning || isInspecting || isTemperatureListenerActive}
+                variant="outline"
+                className="min-h-11 w-full border-rose-200 bg-white text-fertiliapp-fuerte hover:bg-rose-50"
+              >
+                {isInspecting ? 'Comprobando conexión…' : 'Comprobar compatibilidad'}
+              </Button>
+
+              {!isTemperatureListenerActive ? (
+                <Button
+                  type="button"
+                  onClick={handleStartTemperatureListener}
+                  disabled={!selectedDeviceId || isScanning || isInspecting || isStartingTemperatureListener}
+                  className="min-h-11 w-full bg-fertiliapp-fuerte text-white hover:brightness-95"
+                >
+                  {isStartingTemperatureListener ? 'Preparando escucha…' : 'Escuchar temperatura'}
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  onClick={handleStopTemperatureListener}
+                  variant="outline"
+                  className="min-h-11 w-full border-amber-200 bg-white text-amber-700 hover:bg-amber-50"
+                >
+                  Detener escucha
+                </Button>
+              )}
+            </div>
+          ) : null}
+
+          {(isStartingTemperatureListener ||
+            isTemperatureListenerActive ||
+            temperatureListenerMessage ||
+            lastTemperatureReading) ? (
+            <div className="space-y-3 rounded-xl border border-rose-100 bg-rose-50/50 px-3 py-3">
+              <div className="space-y-1.5">
+                {renderStatusLine(
+                  temperatureConnectionReady,
+                  'Conexión lista',
+                  isStartingTemperatureListener ? 'Preparando conexión BLE' : 'Conexión no activa'
+                )}
+                {renderStatusLine(
+                  temperatureIndicationsActive,
+                  'Indicaciones activas',
+                  isStartingTemperatureListener ? 'Activando indicaciones' : 'Indicaciones no activas'
+                )}
+                {isTemperatureListenerActive ? (
+                  <p className="text-sm font-medium text-slate-700">
+                    Escuchando el termómetro… {Math.floor(temperatureSecondsRemaining / 60)}:
+                    {String(temperatureSecondsRemaining % 60).padStart(2, '0')} restantes
+                  </p>
+                ) : null}
+                {temperatureListenerMessage ? (
+                  <p className="text-sm leading-relaxed text-slate-600">
+                    {temperatureListenerMessage}
+                  </p>
+                ) : null}
+              </div>
+
+              {lastTemperatureReading ? (
+                <div className="rounded-lg border border-white bg-white px-3 py-2">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                    Última lectura recibida
+                  </p>
+                  <p className="mt-1 text-lg font-semibold text-slate-800">
+                    {Number(lastTemperatureReading.temperatureC).toFixed(2)} °C
+                  </p>
+                  <div className="mt-1 space-y-0.5 text-sm text-slate-600">
+                    <p>Recibida: {lastTemperatureReading.receivedAt || 'sin hora'}</p>
+                    <p>
+                      Hora del termómetro:{' '}
+                      {lastTemperatureReading.deviceTimestamp || 'no incluida'}
+                    </p>
+                    <p>Tipo: {lastTemperatureReading.measurementType || 'no incluido'}</p>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {lastTechnicalError ? (
+            <details className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+              <summary className="cursor-pointer text-sm font-semibold text-amber-800">
+                Detalles del error
+              </summary>
+              <div className="mt-2 space-y-1 text-sm text-amber-900">
+                <p>
+                  <span className="font-semibold">Código:</span> {lastTechnicalError.code}
+                </p>
+                <p className="break-words">
+                  <span className="font-semibold">Mensaje técnico:</span>{' '}
+                  {lastTechnicalError.technicalMessage}
+                </p>
+              </div>
+            </details>
+          ) : null}
+
+          {inspectionResult ? (
+            <div className="space-y-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-3">
+              <ul className="space-y-1.5">
+                {renderStatusLine(
+                  true,
+                  'Termómetro BLE detectado',
+                  'No se detectó el termómetro BLE'
+                )}
+                {renderStatusLine(
+                  inspectionResult.healthThermometerFound,
+                  'Servicio de termómetro encontrado',
+                  'No se encontró el servicio Health Thermometer 0x1809'
+                )}
+                {renderStatusLine(
+                  inspectionResult.temperatureMeasurementFound,
+                  'Característica de temperatura encontrada',
+                  'No se encontró la característica Temperature Measurement 0x2A1C'
+                )}
+              </ul>
+
+              <details className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                <summary className="cursor-pointer text-sm font-semibold text-slate-700">
+                  Detalles técnicos
+                </summary>
+                <div className="mt-3 space-y-3">
+                  {(inspectionResult.services || []).map((service) => (
+                    <div key={service.uuid} className="space-y-1">
+                      <code className="block break-all text-xs text-slate-700">{service.uuid}</code>
+                      <ul className="space-y-1 pl-3">
+                        {(service.characteristics || []).map((characteristic) => (
+                          <li key={characteristic.uuid} className="text-xs text-slate-500">
+                            <code className="break-all text-slate-700">{characteristic.uuid}</code>
+                            <span className="block">
+                              {(characteristic.properties || []).join(', ') || 'sin propiedades'}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const SettingsPage = () => {
   const {
     user,
@@ -259,10 +651,8 @@ const SettingsPage = () => {
     refreshCurrentUser,
     resendVerificationEmail,
   } = useAuth();
-  const { hasUnseenSupport } = useWhatsNew();
   const { currentCycle, archivedCycles } = useCycleData();
-  const { isAvailable, hasPermissions, refreshPermissions, isChecking, isAndroidApp } =
-    useHealthConnect();
+
   const { toast } = useToast();
 
   const [showEmailDialog, setShowEmailDialog] = useState(false);
@@ -286,6 +676,8 @@ const SettingsPage = () => {
   const [refreshingVerification, setRefreshingVerification] = useState(false);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const forceInstallPrompt = import.meta.env.VITE_FORCE_INSTALL_PROMPT === 'true';
+  const showFemometerBlePrototype =
+    isFemometerBleAndroidNative() && isFemometerBlePrototypeEnabled();
 
     const allCycles = useMemo(() => {
     const combined = [];
@@ -368,6 +760,7 @@ const SettingsPage = () => {
         return;
       }
 
+      const { buildCyclesPdfBlob, downloadBlobAsFile } = await import('@/lib/cycleExport');
       const filename = buildCyclesExportFilename(selectedCycles);
       const includeChart = pdfContentMode !== 'table';
       const chartOnly = pdfContentMode === 'chart';
@@ -589,72 +982,6 @@ const SettingsPage = () => {
     }
   };
 
-  const handleOpenHealthConnectSettings = async () => {
-    const { HealthConnect } = await import('capacitor-health-connect');
-    try {
-      if (typeof HealthConnect?.openHealthConnectSetting === 'function') {
-        await HealthConnect.openHealthConnectSetting();
-        return;
-      }
-      throw new Error('HC_OPEN_SETTINGS_UNAVAILABLE');
-    } catch (error) {
-      console.error('Error al abrir ajustes de Health Connect', error);
-      toast({
-        title: 'No se pudo abrir Salud automáticamente',
-        description: 'Abre Salud/Health Connect y concede permisos a FertiliApp manualmente.',
-        variant: 'destructive',
-      });
-    }
-   };
-
-  const handleHealthConnectToggle = async (nextValue) => {
-    if (!isAndroidApp) {
-      toast({
-        title: 'Disponible solo en Android',
-        description: 'Health Connect funciona únicamente en la app Android.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-  if (!nextValue) {
-      toast({
-        title: 'Revoca desde ajustes',
-        description: 'Para revocar permisos ve a los ajustes de Health Connect.',
-      });
-      await handleOpenHealthConnectSettings();
-      await refreshPermissions();
-      return;
-    }
-
-  let granted = false;
-    try {
-      granted = await ensureHealthConnectPermissions();
-    } catch (error) {
-      const msg = String(error?.message || error);
-      toast({
-        title: 'Health Connect: error pidiendo permisos',
-        description: msg,
-        variant: 'destructive',
-      });
-    } finally {
-      await refreshPermissions();
-    }
-
-    if (!granted) {
-      toast({
-        title: 'Permisos requeridos',
-        description: 'Se abrirá Salud/Health Connect para conceder permisos.',
-        action: (
-          <ToastAction altText="Abrir Salud" onClick={handleOpenHealthConnectSettings}>
-            Abrir Salud
-          </ToastAction>
-        ),
-      });
-      await handleOpenHealthConnectSettings();
-    }
-  };
-
   const emailStatusIcon = user?.email
     ? user.emailVerified
       ? (
@@ -672,22 +999,6 @@ const SettingsPage = () => {
         />
       )
     : null;
-
-  useEffect(() => {
-    refreshPermissions();
-    let listener;
-    const attachListener = async () => {
-      listener = await App.addListener('appStateChange', ({ isActive }) => {
-        if (isActive) {
-          refreshPermissions();
-        }
-      });
-    };
-    attachListener();
-    return () => {
-      listener?.remove();
-    };
-  }, [refreshPermissions]);
 
   useEffect(() => {
     return () => {
@@ -789,24 +1100,9 @@ const SettingsPage = () => {
             />
           </SettingsSection>
 
-          {isAndroidApp ? (
+          {showFemometerBlePrototype ? (
             <SettingsSection title="Integraciones">
-              <SettingsSwitchRow
-                icon={Activity}
-                iconTone="purple"
-                title="Health Connect"
-                description={
-                  !isAvailable
-                    ? 'Instala Health Connect para habilitar la sincronización.'
-                    : hasPermissions
-                      ? 'Conectado. Puedes sincronizar desde el formulario.'
-                      : 'Activa permisos para importar tus temperaturas.'
-                }
-                checked={hasPermissions}
-                onToggle={handleHealthConnectToggle}
-                disabled={!isAvailable || isChecking}
-                ariaLabel="Configurar Health Connect"
-              />
+              <FemometerBlePrototypePanel />
             </SettingsSection>
           ) : null}
 
@@ -818,7 +1114,6 @@ const SettingsPage = () => {
               description="Problemas, dudas o sugerencias"
               to="/settings/support"
               ariaLabel="Abrir contacto y soporte"
-              showNewBadge={hasUnseenSupport}
             />
             <div className="bg-white px-4 py-3">
               <InstallPrompt
