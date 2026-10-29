@@ -60,8 +60,25 @@ export const drawTemperatureLine = ({
   }
   drawPath(theme.temperature.lineWidth, tempLineStroke, 1);
 
+  const isValidGapPoint = (index) =>
+    isWithinTemperaturePlotArea(ysTemp[index]) && !points[index]?.ignored;
+  let gapStartIndex = visibleStartIndex;
+  let gapEndIndex = visibleEndIndex;
+  if (gapStartIndex <= gapEndIndex) {
+    // Include both endpoints of gaps crossing this tile, even across several tiles.
+    // Each canvas keeps its existing clipping and draws the same complete dash path.
+    while (gapStartIndex > 0) {
+      gapStartIndex -= 1;
+      if (isValidGapPoint(gapStartIndex)) break;
+    }
+    while (gapEndIndex < points.length - 1) {
+      gapEndIndex += 1;
+      if (isValidGapPoint(gapEndIndex)) break;
+    }
+  }
+
   let prevValidIndex = null;
-  for (let index = visibleStartIndex; index <= visibleEndIndex; index += 1) {
+  for (let index = gapStartIndex; index <= gapEndIndex; index += 1) {
     const y = ysTemp[index];
     const point = points[index];
     if (!isWithinTemperaturePlotArea(y) || point?.ignored) continue;
