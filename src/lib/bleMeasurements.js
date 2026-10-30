@@ -15,7 +15,7 @@ export const normalizeBleMeasurement = (event, model = null) => {
       && day >= 1 && day <= days && hour < 24 && minute < 60 && second < 60;
   }
   return {
-    temperature: event.temperatureC, time: valid ? raw.slice(11, 16) : '', selected: false,
+    temperature: event.temperatureC, temperature_original: event.temperatureC, time: valid ? raw.slice(11, 16) : '', selected: false,
     temperature_corrected: '', time_corrected: '', use_corrected: false,
     source: 'bluetooth', device_model: model, device_key: null,
     device_timestamp: raw, received_at: event.receivedAt ?? null,
@@ -29,7 +29,7 @@ export const normalizeBleMeasurement = (event, model = null) => {
 const validIsoDay = (day) => typeof day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(day)
   && normalizeBleMeasurement({ temperatureC: 0, deviceTimestamp: `${day}T00:00:00` }).device_date_reliability === 'unverified';
 
-// Manual confirmation is a form draft, never evidence about the device clock.
+// Manual confirmation authorizes this incorporation, never verifies the device clock.
 export const prepareManualBleDraft = (measurement, { isoDate, time, confirmed, userId, cycleId, nowMs } = {}) => {
   const localDate = new Date(`${isoDate}T${time}:00`);
   if (confirmed !== true || !userId || !cycleId || !validIsoDay(isoDate)
@@ -41,8 +41,18 @@ export const prepareManualBleDraft = (measurement, { isoDate, time, confirmed, u
     throw new Error('Confirma una fecha y hora reales válidas, no futuras.');
   }
   return { userId, cycleId, isoDate, manuallyConfirmed: true,
-    measurements: [{ ...measurement, time, selected: true }] };
+    measurements: [{ ...measurement, time, selected: true,
+      confirmed_timestamp: `${isoDate}T${time}:00`,
+      confirmed_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    }] };
 };
+
+// Suspicion only: these are not unique measurement identifiers.
+export const isPossibleBleDuplicate = (existing, incoming) => existing?.source === 'bluetooth'
+  && existing.device_model === incoming?.device_model
+  && typeof incoming.device_timestamp === 'string' && incoming.device_timestamp.length > 0
+  && existing.device_timestamp === incoming.device_timestamp
+  && temperatureNumber(existing.temperature_original ?? existing.temperature) === temperatureNumber(incoming.temperature_original ?? incoming.temperature);
 
 /** Classifies a normalized BLE measurement, without selecting or saving anything.
  * cycles use the existing {id, startDate, endDate, data: records[]} shape.

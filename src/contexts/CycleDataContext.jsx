@@ -1,5 +1,4 @@
 import { selectedMeasurementSummary, measurementTimeForSummary, hasMeasurementTemperature } from '@/lib/temperatureMeasurements';
-import { isFemometerBleAndroidNative, isFemometerBlePrototypeEnabled } from '@/lib/femometerBle';
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { format, startOfDay, parseISO, addDays, parse, isValid } from 'date-fns';
 import { useToast } from '@/components/ui/use-toast';
@@ -8,6 +7,7 @@ import {
   processCycleEntries,
   detectCycleDataIssues,
   createNewCycleDB,
+  incorporateBleMeasurementDB,
   upsertCycleEntryByIsoDateDB,
   updateCycleEntry,
   deleteCycleEntryDB,
@@ -198,6 +198,7 @@ const buildEntryForState = ({
     }
   }
   const entryForProcessing = {
+    temperature_bluetooth_origin: payload.temperature_bluetooth_origin ?? null,
     id: entryId,
     iso_date: isoDate,
     timestamp: payload.timestamp,
@@ -522,6 +523,19 @@ export const CycleDataProvider = ({ children }) => {
     setArchivedCycles((prevCycles) => prevCycles.map((cycle) => applyUpdate(cycle)));
   }, []);
 
+  const incorporateBleMeasurement = useCallback(async (draft, options) => {
+    if (!user?.uid || draft?.userId !== user.uid || draft?.cycleId !== currentCycle.id) {
+      throw createAppError('ble-import-conflict', 'Requiere revisión', 'La cuenta o el ciclo actual han cambiado.');
+    }
+    const saved = await incorporateBleMeasurementDB(draft, options);
+    // Use the server result, never a cached measurement list as the write payload.
+    if (lastUserIdRef.current === draft.userId) {
+      measurementReadStatus.current.set(JSON.stringify([draft.userId, draft.cycleId, saved.id]), true);
+      updateEntryState(draft.cycleId, saved.id, saved, draft.isoDate);
+    }
+    return saved;
+  }, [user?.uid, currentCycle.id, updateEntryState]);
+
   const addOrUpdateDataPoint = useCallback(
     async (newData, editingRecord, targetCycleId = null) => {
       const cycleIdToUse = targetCycleId ?? currentCycle.id;
@@ -529,14 +543,6 @@ export const CycleDataProvider = ({ children }) => {
       if (!user?.uid || !cycleIdToUse) {
         console.error('User or cycle id is missing');
         throw new Error('User or cycle id is missing');
-      }
-      const bleImport = newData?.bleManualImport;
-      if (bleImport && (!isFemometerBleAndroidNative() || !isFemometerBlePrototypeEnabled()
-        || bleImport.userId !== user.uid || bleImport.cycleId !== currentCycle.id
-        || cycleIdToUse !== currentCycle.id || newData.isoDate !== bleImport.isoDate
-        || editingRecord || newData.measurements?.length !== 1
-        || newData.measurements[0]?.source !== 'bluetooth' || newData.measurements[0]?.device_model !== 'BM-Vinca2')) {
-        throw createAppError('ble-day-unavailable', 'Requiere revisión', 'La incorporación ya no corresponde a esta cuenta, ciclo o medición.');
       }
     const todayIso = format(startOfDay(new Date()), 'yyyy-MM-dd');
 
@@ -563,10 +569,6 @@ if (newData?.isoDate && newData.isoDate > todayIso) {
         }
         if (targetRecord && String(targetRecord.id).startsWith('placeholder-')) {
           targetRecord = null;
-        }
-        if (bleImport && (targetRecord || (newData.peak_marker === 'peak'
-          && targetCycle?.data?.some(record => record.peak_marker === 'peak')))) {
-          throw createAppError('ble-day-unavailable', 'Requiere revisión', 'No se modificarán registros existentes desde esta incorporación.');
         }
         const readKey = JSON.stringify([user.uid, cycleIdToUse, targetRecord?.id]);
         const knownComplete = measurementReadStatus.current.get(readKey) ??
@@ -704,8 +706,7 @@ if (newData?.isoDate && newData.isoDate > todayIso) {
             user.uid,
             cycleIdToUse,
             newData.isoDate,
-            recordPayload,
-            { requireEmptyDay: Boolean(bleImport) }
+            recordPayload
           );
           savedEntryId = created?.id ?? null;
           if (savedEntryId) {
@@ -1528,6 +1529,7 @@ const getCycleFromState = useCallback(
     currentCycle,
     archivedCycles,
     addOrUpdateDataPoint,
+    incorporateBleMeasurement,
     deleteRecord,
     startNewCycle,
     updateCycleDates,

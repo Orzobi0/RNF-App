@@ -24,7 +24,6 @@ const DataEntryForm = ({
   initialSectionKey = null,
   onOpenNewCycle,
   formDraft = null,
-  manualConfirmationOnly = false,
 }) => {
   const formRef = useRef(null);
   useBackClose(Boolean(onCancel), onCancel);
@@ -194,10 +193,7 @@ const DataEntryForm = ({
   return (
     <motion.form
   ref={formRef}
-  onSubmit={manualConfirmationOnly ? event => {
-    event.preventDefault();
-    return submitCurrentState({ skipReset: true });
-  } : handleSubmit}
+  onSubmit={handleSubmit}
   className="flex h-[92dvh] max-h-[92dvh] min-h-0 w-full flex-col overflow-hidden rounded-3xl border border-pink-200/80 bg-[#FFF7FA] p-3 shadow-[0_24px_70px_rgba(15,23,42,0.22),0_10px_30px_rgba(244,114,182,0.18)] ring-1 ring-white/80 sm:p-4"
   initial={{ opacity: 0, y: -20 }}
   animate={{ opacity: 1, y: 0 }}
@@ -226,10 +222,9 @@ const DataEntryForm = ({
   </div>
 
   <div className="min-h-0 flex-1 overflow-y-auto bg-[#FFF7FA] pr-1">
-    {manualConfirmationOnly ? <p className="mb-2 text-sm">Incorporación Bluetooth: nada se guarda hasta pulsar Guardar. Para cambiar el día, cancela y vuelve a Ajustes.</p> : null}
     <DataEntryFormFields
       date={date}
-      setDate={manualConfirmationOnly ? () => {} : setDate}
+      setDate={setDate}
       measurements={measurements}
       setMeasurements={saveMeasurementsFromSheet}
       autoSaveMeasurements={Boolean(onSaveMeasurements)}
@@ -255,7 +250,7 @@ const DataEntryForm = ({
       cycleStartDate={cycleStartDate}
       cycleEndDate={cycleEndDate}
       recordedDates={recordedDates}
-      submitCurrentState={manualConfirmationOnly ? () => {} : submitCurrentState}
+      submitCurrentState={submitCurrentState}
       initialSectionKey={initialSectionKey}
       onOpenNewCycle={handleOpenNewCycle}
     />

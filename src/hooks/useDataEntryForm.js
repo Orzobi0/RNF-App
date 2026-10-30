@@ -1,4 +1,4 @@
-import { measurementsFromRecord, normalizeMeasurements, measurementsForSheetSave } from '@/lib/temperatureMeasurements';
+import { measurementsFromRecord, normalizeMeasurements, measurementsForSheetSave, measurementOriginFields } from '@/lib/temperatureMeasurements';
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { format, startOfDay, parseISO } from 'date-fns';
 import { useToast } from '@/components/ui/use-toast';
@@ -299,6 +299,7 @@ const isoDate = format(selectedDay, 'yyyy-MM-dd');
       isoDate,
       measurementsComplete: !!initialData?.measurementsLoaded || !initialData?.id,
       measurements: normalizeMeasurements(filteredMeasurements).map((m) => ({
+        ...measurementOriginFields(m),
         source: m.source ?? null, device_model: m.device_model ?? null, device_key: m.device_key ?? null,
         temperature: normalizeMeasurementValue(m.temperature),
         time: m.time,

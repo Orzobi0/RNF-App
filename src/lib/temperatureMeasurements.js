@@ -10,6 +10,12 @@ export const hasMeasurementTemperature = (measurement) =>
   temperatureNumber(measurement?.temperature) !== null ||
   temperatureNumber(measurement?.temperature_corrected) !== null;
 
+// Kept on each measurement, or in the daily summary when there is only one.
+export const measurementOriginFields = (measurement) => Object.fromEntries([
+  'temperature_original', 'device_timestamp', 'received_at', 'device_date_reliability',
+  'device_timezone', 'confirmed_timestamp', 'confirmed_timezone',
+].filter(key => measurement?.[key] !== undefined).map(key => [key, measurement[key]]));
+
 export const normalizeMeasurements = (measurements) => {
   const valid = measurements.filter(hasMeasurementTemperature);
   const selected = Math.max(0, valid.findIndex((m) => m.selected));
@@ -27,6 +33,7 @@ export const measurementsFromRecord = (record, loaded = record?.measurements) =>
   const time = record?.timestamp && isValid(parseISO(record.timestamp))
     ? format(parseISO(record.timestamp), 'HH:mm') : '';
   return normalizeMeasurements([{
+    ...(record?.temperature_source === 'bluetooth' ? record.temperature_bluetooth_origin : {}),
     temperature: record?.temperature_raw ?? '',
     temperature_corrected: record?.temperature_corrected ?? '',
     time, time_corrected: record?.temperature_time_corrected ?? time,
@@ -64,7 +71,9 @@ export const selectedMeasurementSummary = (measurements) => {
   const raw = temperatureNumber(selected?.temperature);
   const corrected = temperatureNumber(selected?.temperature_corrected);
   const useCorrected = !!selected?.use_corrected && corrected !== null;
+  const origin = measurementOriginFields(selected);
   return {
+    temperature_bluetooth_origin: selected?.source === 'bluetooth' && Object.keys(origin).length ? origin : null,
     temperature_raw: raw,
     temperature_corrected: corrected,
     use_corrected: useCorrected,

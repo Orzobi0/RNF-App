@@ -17,6 +17,8 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebaseClient';
 import { isFemometerBleAndroidNative, isFemometerBlePrototypeEnabled } from '@/lib/femometerBle';
+import { prepareManualBleDraft, isPossibleBleDuplicate } from '@/lib/bleMeasurements';
+import { measurementsFromRecord, selectedMeasurementSummary } from '@/lib/temperatureMeasurements';
 import { format, differenceInDays, startOfDay, parseISO, compareAsc, addDays, isValid } from 'date-fns';
 
 const isDevEnvironment =
@@ -1433,6 +1435,7 @@ export const createNewCycleEntry = async (payload) => {
   const userId = payload.user_id;
   const timestamp = payload.timestamp ?? new Date().toISOString();
   const entryData = {
+    temperature_bluetooth_origin: payload.temperature_bluetooth_origin ?? null,
     timestamp,
     temperature_source: payload.temperature_source ?? null,
     temperature_device_model: payload.temperature_device_model ?? null,
@@ -1546,6 +1549,138 @@ const queueMeasurementReplacement = (batch, replacement) => {
   replacement.next.forEach(({ ref, data }) => batch.set(ref, data));
 };
 
+// Compare relevant stored values structurally, never by map insertion order.
+const equalBleValue = (left, right) => {
+  if (Object.is(left, right)) return true;
+  if (left == null || right == null || typeof left !== 'object' || typeof right !== 'object') return false;
+  if (typeof left.isEqual === 'function') return left.isEqual(right);
+  if (left instanceof Date && right instanceof Date) return left.getTime() === right.getTime();
+  if (Array.isArray(left) !== Array.isArray(right)) return false;
+  const keys = Object.keys(left);
+  return keys.length === Object.keys(right).length
+    && keys.every(key => Object.prototype.hasOwnProperty.call(right, key) && equalBleValue(left[key], right[key]));
+};
+const bleDayTemperatureState = data => Object.fromEntries(Object.entries(data ?? {}).filter(([key]) =>
+  key.startsWith('temperature_') || ['timestamp', 'iso_date', 'use_corrected', 'measurements_revision'].includes(key)));
+
+// Append only. Server queries discover document IDs; transaction reads supply
+// the values used for the write. No other day's measurements are read or locked.
+export const incorporateBleMeasurementDB = async (draft, { allowPossibleDuplicate = false } = {}) => {
+  const review = (message, check = 'validation') => createAppError('ble-import-conflict', 'Requiere revisión',
+    `${message} [${check}]`, { check });
+  if (!isFemometerBleAndroidNative() || !isFemometerBlePrototypeEnabled()) throw review('Disponible solo en Android Staging.');
+  const confirmed = prepareManualBleDraft(draft?.measurements?.[0], {
+    ...draft, confirmed: draft?.manuallyConfirmed, time: draft?.measurements?.[0]?.time, nowMs: Date.now(),
+  });
+  const { userId, cycleId, isoDate } = confirmed;
+  const incoming = confirmed.measurements[0];
+  const requireServer = snapshot => {
+    if (snapshot.metadata?.fromCache || snapshot.metadata?.hasPendingWrites) {
+      throw review('Se necesita una lectura completa del servidor.', 'server-read');
+    }
+    return snapshot;
+  };
+  const readCollection = async ref => requireServer(await getDocsFromServer(ref)).docs;
+  const cycles = await readCollection(collection(db, `users/${userId}/cycles`));
+  const ranges = cycles.map(item => ({ ...item.data(), id: item.id }));
+  const candidates = ranges.filter(item => item.start_date <= isoDate && (!item.end_date || isoDate <= item.end_date));
+  if (ranges.some(item => !item.start_date || !isValid(parseISO(item.start_date))
+    || (item.end_date && (!isValid(parseISO(item.end_date)) || item.end_date < item.start_date)))
+    || candidates.length !== 1 || candidates[0].id !== cycleId || candidates[0].end_date) {
+    throw review('La fecha debe pertenecer inequívocamente al ciclo actual.', 'cycle-range');
+  }
+  const cycleRef = doc(db, `users/${userId}/cycles/${cycleId}`);
+  const entriesRef = collection(db, `users/${userId}/cycles/${cycleId}/entries`);
+  // Summaries resolve legacy daily IDs/duplicate days and offer advisory matches.
+  // They are not a complete duplicate search across other days' measurements.
+  const entries = await readCollection(entriesRef);
+  if (entries.some(item => !resolveIsoDateFromEntryData(item.data()))) throw review('Hay registros sin fecha válida en este ciclo.', 'entry-date');
+  const dayEntries = entries.filter(item => resolveIsoDateFromEntryData(item.data()) === isoDate);
+  if (dayEntries.length > 1) throw review('Hay más de un registro diario para esta fecha.', 'duplicate-day');
+  const indexRef = doc(db, `users/${userId}/cycles/${cycleId}/entries_by_iso/${isoDate}`);
+  const index = requireServer(await getDocFromServer(indexRef));
+  if (index.exists() && index.data().entryId !== dayEntries[0]?.id) throw review('El índice del día no coincide con sus registros.', 'day-index');
+  const entryRef = dayEntries[0]?.ref ?? doc(entriesRef, isoDate);
+  const entry = dayEntries[0] ?? requireServer(await getDocFromServer(entryRef));
+  if (!dayEntries.length && entry.exists()) throw review('El documento del día ya existe con otra fecha.', 'entry-date');
+  const measurementsRef = collection(entryRef, 'measurements');
+  const otherSummaryMatch = entries.some(item => item.id !== entryRef.id
+    && measurementsFromRecord(item.data(), []).some(value => isPossibleBleDuplicate(value, incoming)));
+
+  return runTransaction(db, async transaction => {
+    // Read the parent BEFORE discovering measurement IDs. All app measurement
+    // saves also write this parent. Firestore retries if it changes after this
+    // read, including when the selected summary retains the same field values.
+    const [currentCycle, currentIndex, currentEntry] = await Promise.all([
+      transaction.get(cycleRef), transaction.get(indexRef), transaction.get(entryRef),
+    ]);
+    const range = currentCycle.data();
+    if (!currentCycle.exists() || !range.start_date || range.end_date || isoDate < range.start_date) {
+      throw review('El rango del ciclo ha cambiado. Revisa la fecha.', 'cycle-range-changed');
+    }
+    if (currentIndex.exists() !== index.exists() || currentIndex.data()?.entryId !== index.data()?.entryId) {
+      throw review('El índice diario ha cambiado. Vuelve a intentarlo.', 'day-index-changed');
+    }
+    if (currentEntry.exists() !== entry.exists()) {
+      throw review('El registro del día fue creado o eliminado durante la operación.', 'day-existence-changed');
+    }
+    if (!equalBleValue(bleDayTemperatureState(currentEntry.data()), bleDayTemperatureState(entry.data()))) {
+      throw review('Las temperaturas o la revisión del día han cambiado. Vuelve a intentarlo.', 'day-temperature-changed');
+    }
+    // This query is NOT transactional. Re-run it on each SDK attempt, then read
+    // every discovered member transactionally. The parent read above guards
+    // membership changes made by the normal app save/replacement operations.
+    const discovered = await readCollection(measurementsRef);
+    const members = await Promise.all(discovered.map(item => transaction.get(item.ref)));
+    if (members.some((item, i) => !item.exists() || !equalBleValue(item.data(), discovered[i].data()))) {
+      throw review('Una medición del día cambió durante la lectura. Vuelve a intentarlo.', 'measurement-changed');
+    }
+    if (!currentEntry.exists() && members.length) throw review('Hay mediciones sin registro diario.', 'orphan-measurements');
+    const loaded = members.map(item => ({ ...item.data(), id: item.id })).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    const previous = measurementsFromRecord(currentEntry.data(), loaded);
+    const selectedCount = loaded.filter(item => item.selected).length;
+    if (loaded.length && (previous.length !== loaded.length || selectedCount > 1)) {
+      throw review('Revisa las mediciones y la selección del día.', 'invalid-selection');
+    }
+    if (!allowPossibleDuplicate && (otherSummaryMatch || previous.some(item => isPossibleBleDuplicate(item, incoming)))) {
+      throw createAppError('ble-possible-duplicate', 'Posible duplicado',
+        'Hay una coincidencia en las mediciones del día o en los resúmenes consultados del ciclo. No es una identificación única. Cancela o confirma que es otra medición.');
+    }
+    const hasSelected = loaded.length ? selectedCount === 1 : previous.length > 0;
+    const added = { ...incoming, selected: !hasSelected };
+    const writes = [];
+    // Preserve raw selection flags; measurementsFromRecord selects a fallback
+    // for display, which must not turn an unselected stored reading into one.
+    let measurements = loaded.length ? [...loaded] : [...previous];
+    if (measurements.length) {
+      if (!members.length) {
+        const ref = doc(measurementsRef);
+        const { id, ...data } = previous[0];
+        writes.push({ ref, data: { ...data, order: 0 } });
+        measurements[0] = { ...data, id: ref.id };
+      }
+      const order = Math.max(-1, ...loaded.map(item => Number.isFinite(item.order) ? item.order : 0)) + 1;
+      const ref = doc(measurementsRef);
+      writes.push({ ref, data: { ...added, order: members.length ? order : 1 } });
+      measurements.push({ ...added, id: ref.id });
+    } else measurements = [added];
+    const patch = hasSelected ? { iso_date: isoDate } : {
+      iso_date: isoDate, timestamp: format(parseISO(incoming.confirmed_timestamp), "yyyy-MM-dd'T'HH:mm:ssXXX"),
+      ...selectedMeasurementSummary([added]),
+    };
+    const revision = currentEntry.data()?.measurements_revision ?? 0;
+    if (!Number.isSafeInteger(revision) || revision < 0 || revision >= Number.MAX_SAFE_INTEGER) {
+      throw review('No se pudo verificar la revisión del día.', 'invalid-revision');
+    }
+    patch.measurements_revision = revision + 1;
+    transaction.set(entryRef, patch, { merge: true });
+    transaction.set(indexRef, { entryId: entryRef.id }, { merge: true });
+    writes.forEach(({ ref, data }) => transaction.set(ref, data));
+    return { ...currentEntry.data(), ...patch, id: entryRef.id, isoDate, cycleId, measurements,
+      measurementsLoaded: true, measurementsComplete: true };
+  });
+};
+
 const protectIncompleteTemperatures = (data, payload) => {
   if (payload.measurementsComplete !== false && payload.measurementsLoaded !== false) return;
   for (const key of Object.keys(data)) {
@@ -1553,33 +1688,7 @@ const protectIncompleteTemperatures = (data, payload) => {
   }
 };
 
-const bleDayUnavailable = () => createAppError('ble-day-unavailable', 'Requiere revisión',
-  'El día ya tiene un registro o no se puede comprobar que siga vacío. No se ha incorporado la temperatura.');
-
-// Read only, explicitly from the server. Context/cache summaries cannot certify absence.
-export const assertBleImportDayAvailableDB = async (userId, cycleId, isoDate) => {
-  if (!isFemometerBleAndroidNative() || !isFemometerBlePrototypeEnabled()
-    || !userId || !cycleId || !/^\d{4}-\d{2}-\d{2}$/.test(isoDate ?? '')) throw bleDayUnavailable();
-  const cycles = await getDocsFromServer(collection(db, `users/${userId}/cycles`));
-  if (cycles.metadata?.fromCache || cycles.metadata?.hasPendingWrites) throw bleDayUnavailable();
-  const ranges = cycles.docs.map(item => ({ id: item.id, ...item.data() }));
-  const matches = ranges.filter(item => item.start_date <= isoDate && (!item.end_date || item.end_date >= isoDate));
-  if (ranges.some(item => !item.start_date || !isValid(parseISO(item.start_date))
-    || (item.end_date && (!isValid(parseISO(item.end_date)) || item.end_date < item.start_date)))
-    || matches.length !== 1 || matches[0].id !== cycleId || matches[0].end_date) throw bleDayUnavailable();
-  const entries = await getDocsFromServer(collection(db, `users/${userId}/cycles/${cycleId}/entries`));
-  if (entries.metadata?.fromCache || entries.metadata?.hasPendingWrites) throw bleDayUnavailable();
-  if (entries.docs.some(item => {
-    const day = resolveIsoDateFromEntryData(item.data());
-    return !day || day === isoDate;
-  })) throw bleDayUnavailable();
-};
-
-export const upsertCycleEntryByIsoDateDB = async (userId, cycleId, isoDate, payload, { requireEmptyDay = false } = {}) => {
-  if (requireEmptyDay && (!isFemometerBleAndroidNative() || !isFemometerBlePrototypeEnabled()
-    || payload.measurements?.length !== 1 || payload.measurements[0]?.source !== 'bluetooth'
-    || payload.measurements[0]?.device_model !== 'BM-Vinca2' || !Number.isFinite(payload.temperature_raw)
-    || payload.measurementsComplete !== true)) throw bleDayUnavailable();
+export const upsertCycleEntryByIsoDateDB = async (userId, cycleId, isoDate, payload) => {
   if (!userId || !cycleId || !isoDate) {
     throw createAppError(
       'invalid-iso-date-upsert',
@@ -1604,7 +1713,7 @@ export const upsertCycleEntryByIsoDateDB = async (userId, cycleId, isoDate, payl
   const entriesCollectionRef = collection(db, `users/${userId}/cycles/${cycleId}/entries`);
   const indexRef = doc(db, `users/${userId}/cycles/${cycleId}/entries_by_iso/${isoDateKey}`);
   const cycleRef = doc(db, `users/${userId}/cycles/${cycleId}`);
-  const cycleSnap = await (requireEmptyDay ? getDocFromServer(cycleRef) : getDoc(cycleRef));
+  const cycleSnap = await getDoc(cycleRef);
   if (!cycleSnap.exists()) {
     throw createAppError(
       'unknown',
@@ -1629,6 +1738,7 @@ export const upsertCycleEntryByIsoDateDB = async (userId, cycleId, isoDate, payl
 
   const entryData = {
     timestamp: payload.timestamp ?? new Date().toISOString(),
+    temperature_bluetooth_origin: payload.temperature_bluetooth_origin ?? null,
     iso_date: isoDateKey,
     temperature_source: payload.temperature_source ?? null,
     temperature_device_model: payload.temperature_device_model ?? null,
@@ -1649,23 +1759,6 @@ export const upsertCycleEntryByIsoDateDB = async (userId, cycleId, isoDate, payl
 
   let resolvedRef;
   let upsertResult;
-  if (requireEmptyDay) {
-    await assertBleImportDayAvailableDB(userId, cycleId, isoDateKey);
-    // Same documents and single-measurement summary as the existing save path.
-    // No replacement/deletion of measurements is allowed in this branch.
-    const newRef = doc(entriesCollectionRef, isoDateKey);
-    await runTransaction(db, async transaction => {
-      const [currentCycle, currentIndex, currentDay] = await Promise.all([
-        transaction.get(cycleRef), transaction.get(indexRef), transaction.get(newRef),
-      ]);
-      const range = currentCycle.data();
-      if (!currentCycle.exists() || range.end_date || !range.start_date || isoDateKey < range.start_date
-        || currentIndex.exists() || currentDay.exists()) throw bleDayUnavailable();
-      transaction.set(newRef, entryData);
-      transaction.set(indexRef, { entryId: isoDateKey });
-    });
-    return { id: isoDateKey };
-  }
   protectIncompleteTemperatures(entryData, payload);
   // 1) Intentar resolver por índice (camino normal, rápido)
   const replacingMeasurements = Array.isArray(payload.measurements) &&
@@ -1736,6 +1829,7 @@ export const updateCycleEntry = async (userId, cycleId, entryId, payload) => {
   const entryRef = doc(db, `users/${userId}/cycles/${cycleId}/entries/${entryId}`);
 
   const allowedFields = [
+    'temperature_bluetooth_origin',
     'temperature_source',
     'temperature_device_model',
     'temperature_device_key',

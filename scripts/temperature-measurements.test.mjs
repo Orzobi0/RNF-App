@@ -24,6 +24,7 @@ test('selection drives chart, corrections and provenance together', () => {
     temperature_chart: 36.63, temperature_source: 'bluetooth',
     temperature_device_model: 'BM-Vinca2', temperature_device_key: 'test-device',
     temperature_time_corrected: '12:03',
+    temperature_bluetooth_origin: null,
   });
   assert.equal(next.find((m) => m.selected).time, '10:03');
   assert.equal(measurementTimeForSummary(next), '10:03');

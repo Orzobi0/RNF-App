@@ -21,7 +21,6 @@ import ExportCyclesDialog from '@/components/ExportCyclesDialog';
 import { useCycleData } from '@/hooks/useCycleData';
 import InstallPrompt from '@/components/InstallPrompt';
 import { normalizeBleMeasurement, prepareManualBleDraft } from '@/lib/bleMeasurements';
-import { assertBleImportDayAvailableDB } from '@/lib/cycleDataHandler';
 import {
   createFemometerPanelSession,
   isFemometerBleAndroidNative,
@@ -201,21 +200,25 @@ const DEFAULT_TEMPERATURE_LISTEN_SECONDS = 6 * 60;
 const FemometerBlePrototypePanel = ({ userId }) => {
   const sessionRef = useRef(null);
   const navigate = useNavigate();
-  const { currentCycle, isLoading } = useCycleData();
+  const { currentCycle, isLoading, incorporateBleMeasurement } = useCycleData();
   const cycleRef = useRef(currentCycle);
   cycleRef.current = currentCycle;
   const [importDraft, setImportDraft] = useState(null);
   const [importError, setImportError] = useState('');
   const [importBusy, setImportBusy] = useState(false);
+  const [possibleDuplicate, setPossibleDuplicate] = useState(false);
+  const [importResult, setImportResult] = useState(null);
   const importBusyRef = useRef(false);
   const beginImport = () => {
     const measurement = normalizeBleMeasurement(lastTemperatureReading, 'BM-Vinca2');
     if (!measurement) return;
     setImportError('');
+    setPossibleDuplicate(false);
+    setImportResult(null);
     setImportDraft({ measurement, isoDate: measurement.time ? measurement.device_timestamp.slice(0, 10) : '',
       time: measurement.time, confirmed: false });
   };
-  const confirmImport = async () => {
+  const confirmImport = async (allowPossibleDuplicate = false) => {
     if (importBusyRef.current) return;
     const session = sessionRef.current;
     const cycleId = currentCycle?.id;
@@ -225,11 +228,16 @@ const FemometerBlePrototypePanel = ({ userId }) => {
     try {
       if (isLoading || !cycleId || !session) throw new Error('Espera a que se cargue el ciclo actual.');
       const draft = prepareManualBleDraft(importDraft.measurement, { ...importDraft, userId, cycleId, nowMs: Date.now() });
-      await assertBleImportDayAvailableDB(userId, cycleId, draft.isoDate);
+      const saved = await incorporateBleMeasurement(draft, { allowPossibleDuplicate });
       if (sessionRef.current !== session || cycleRef.current?.id !== cycleId) return;
-      navigate('/records', { state: { bleManualDraft: draft } });
+      setImportResult(saved);
+      setImportDraft(null);
+      setPossibleDuplicate(false);
     } catch (error) {
-      if (sessionRef.current === session) setImportError(`Requiere revisión: ${error?.title ? error.message : 'No se pudo validar la fecha o comprobar el día vacío. Revisa los datos y la conexión.'}`);
+      if (sessionRef.current === session) {
+        setPossibleDuplicate(error?.code === 'ble-possible-duplicate');
+        setImportError(`${error?.code === 'ble-possible-duplicate' ? 'Posible duplicado' : 'Requiere revisión'}: ${error?.title ? error.message : 'No se pudo incorporar la lectura. Revisa la fecha y la conexión antes de reintentar.'}`);
+      }
     } finally {
       importBusyRef.current = false;
       if (sessionRef.current === session) setImportBusy(false);
@@ -537,18 +545,18 @@ const FemometerBlePrototypePanel = ({ userId }) => {
                       <p className="text-sm">Confirma la fecha y hora reales de {importDraft.measurement.temperature} °C (hora local del teléfono). La fecha del termómetro sigue sin verificar.</p>
                       <label className="block text-sm">Fecha
                         <Input type="date" value={importDraft.isoDate} disabled={importBusy}
-                          onChange={event => setImportDraft({ ...importDraft, isoDate: event.target.value, confirmed: false })} />
+                          onChange={event => { setPossibleDuplicate(false); setImportError(''); setImportDraft({ ...importDraft, isoDate: event.target.value, confirmed: false }); }} />
                       </label>
                       <label className="block text-sm">Hora
                         <Input type="time" value={importDraft.time} disabled={importBusy}
-                          onChange={event => setImportDraft({ ...importDraft, time: event.target.value, confirmed: false })} />
+                          onChange={event => { setPossibleDuplicate(false); setImportError(''); setImportDraft({ ...importDraft, time: event.target.value, confirmed: false }); }} />
                       </label>
                       <label className="flex gap-2 text-sm"><input type="checkbox" checked={importDraft.confirmed} disabled={importBusy}
-                        onChange={event => setImportDraft({ ...importDraft, confirmed: event.target.checked })} />Confirmo que esta es la fecha y hora reales de la medición.</label>
-                      <Button type="button" disabled={!importDraft.confirmed || importBusy} onClick={confirmImport}>
-                        {importBusy ? 'Comprobando día…' : 'Abrir formulario'}
+                        onChange={event => setImportDraft({ ...importDraft, confirmed: event.target.checked })} />Confirmo la fecha y hora reales y autorizo guardar esta temperatura en el registro.</label>
+                      <Button type="button" disabled={!importDraft.confirmed || importBusy} onClick={() => confirmImport(possibleDuplicate)}>
+                        {importBusy ? 'Incorporando…' : possibleDuplicate ? 'Es otra medición: confirmar y guardar' : 'Confirmar e incorporar'}
                       </Button>
-                      <Button type="button" variant="ghost" disabled={importBusy} onClick={() => { setImportDraft(null); setImportError(''); }}>Cancelar</Button>
+                      <Button type="button" variant="ghost" disabled={importBusy} onClick={() => { setImportDraft(null); setImportError(''); setPossibleDuplicate(false); }}>Cancelar</Button>
                       {importError ? <p role="alert" className="text-sm text-amber-800">{importError}</p> : null}
                     </div>
                   ) : null}
@@ -557,6 +565,10 @@ const FemometerBlePrototypePanel = ({ userId }) => {
             </div>
           ) : null}
 
+          {importResult ? <div role="status" className="space-y-2 text-sm">
+            <p>Temperatura incorporada al registro del {importResult.isoDate}.</p>
+            <Button type="button" variant="outline" onClick={() => navigate('/records', { state: { selectedDate: importResult.isoDate } })}>Ver registro actualizado</Button>
+          </div> : null}
           {lastTechnicalError ? (
             <details className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
               <summary className="cursor-pointer text-sm font-semibold text-amber-800">
