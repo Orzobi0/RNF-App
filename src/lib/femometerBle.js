@@ -101,6 +101,15 @@ const androidBridgePromise = (pluginName, methodName, options = {}) => {
 };
 
 const ERROR_MESSAGES = {
+  CLOCK_BUSY: 'Ya hay una operación de reloj en curso.',
+  CLOCK_NOT_CONNECTED: 'Inicia la escucha y espera a que esté preparada.',
+  CLOCK_UNSUPPORTED: 'El termómetro no anuncia soporte para esta operación de reloj.',
+  CLOCK_WRITE_FAILED: 'El termómetro rechazó el ajuste de fecha y hora. La escucha continúa.',
+  CLOCK_READ_FAILED: 'No se pudo leer/verificar el reloj. Un ajuste enviado podría haberse aplicado.',
+  CLOCK_INVALID_DATE: 'El reloj devolvió una fecha desconocida o inválida.',
+  CLOCK_TIMEOUT: 'El reloj no respondió. El ajuste podría haberse aplicado; detén y reconecta antes de reintentar.',
+  CLOCK_RECONNECT_REQUIRED: 'Detén y vuelve a conectar antes de consultar o ajustar el reloj.',
+  CLOCK_OPERATION_FAILED: 'Falló la operación de reloj. La escucha continúa.',
   USER_REQUIRED: 'Inicia sesión para recordar tu termómetro.',
   DEVICE_NOT_VERIFIED: 'Comprueba la compatibilidad del termómetro antes de recordarlo.',
   PERSISTENCE_FAILED: 'No se pudo actualizar el termómetro recordado. Vuelve a intentarlo.',
@@ -329,8 +338,12 @@ export const disconnectFemometer = async () => {
   }
 };
 
+export const readFemometerClock = () => callFemometerBle('readClock');
+export const syncFemometerClock = () => callFemometerBle('syncClock');
+
 export const createFemometerPanelSession = createFemometerSessionManager({
   getRememberedFemometer, scanForFemometer, requestBluetoothPermissions,
   addFemometerTemperatureListener, startFemometerTemperatureListener,
   disconnectFemometer, connectAndInspectFemometer, rememberFemometer, forgetFemometer,
+  readFemometerClock, syncFemometerClock,
 });

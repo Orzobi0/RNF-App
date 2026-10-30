@@ -65,12 +65,13 @@ public class FemometerBle extends Plugin {
     private static final UUID HEALTH_THERMOMETER_UUID = UUID.fromString("00001809-0000-1000-8000-00805f9b34fb");
     private static final UUID TEMPERATURE_MEASUREMENT_UUID = UUID.fromString("00002a1c-0000-1000-8000-00805f9b34fb");
     private static final UUID MEASUREMENT_INTERVAL_UUID = UUID.fromString("00002a21-0000-1000-8000-00805f9b34fb");
-    private static final UUID VINCA_SERVICE_UUID = UUID.fromString("0f0e0d0c-0b0a-0908-0706-050403020100");
-    private static final UUID VINCA_INDICATION_UUID = UUID.fromString("3f3e3d3c-3b3a-3938-3736-353433323130");
+    private static final UUID VINCA_SERVICE_UUID = Vinca2Profile.CONFIGURATION_SERVICE;
+    private static final UUID VINCA_INDICATION_UUID = Vinca2Profile.INDICATION;
     private static final UUID CLIENT_CHARACTERISTIC_CONFIG_UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
     private static final String TEMPERATURE_EVENT = "femometerTemperatureIndication";
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private final BleClockOperation clockOperation = new BleClockOperation(mainHandler);
     private final Map<String, ScannedDevice> devicesById = new LinkedHashMap<>();
     private final Map<String, String> idsByAddress = new LinkedHashMap<>();
 
@@ -525,6 +526,10 @@ public class FemometerBle extends Plugin {
 
             @Override
             public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+                if (gatt == temperatureGatt && Vinca2Profile.CURRENT_TIME.equals(characteristic.getUuid())) {
+                    clockOperation.onWrite(gatt, status);
+                    return;
+                }
                 if (gatt != temperatureGatt || temperatureListenerCall == null) return;
                 if (!MEASUREMENT_INTERVAL_UUID.equals(characteristic.getUuid())) return;
                 if (status != BluetoothGatt.GATT_SUCCESS) {
@@ -539,6 +544,18 @@ public class FemometerBle extends Plugin {
             public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
                 if (gatt != temperatureGatt) return;
                 handleTemperatureCharacteristicChanged(characteristic, characteristic.getValue());
+            }
+
+            @Override
+            public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+                if (gatt == temperatureGatt && Vinca2Profile.CURRENT_TIME.equals(characteristic.getUuid()))
+                    clockOperation.onRead(gatt, characteristic.getValue(), status);
+            }
+
+            @Override
+            public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, byte[] value, int status) {
+                if (gatt == temperatureGatt && Vinca2Profile.CURRENT_TIME.equals(characteristic.getUuid()))
+                    clockOperation.onRead(gatt, value, status);
             }
 
             @Override
@@ -570,6 +587,21 @@ public class FemometerBle extends Plugin {
         if (temperatureGatt == null && temperatureListenerCall != null) {
             rejectTemperatureStart("No se pudo abrir la conexion BLE.", "CONNECTION_FAILED");
         }
+    }
+
+    @PluginMethod
+    public void readClock(PluginCall call) { operateClock(call, false); }
+
+    @PluginMethod
+    public void syncClock(PluginCall call) { operateClock(call, true); }
+
+    private void operateClock(PluginCall call, boolean write) {
+        String blocked = getBlockedOperationCode();
+        if (blocked != null) { rejectWithCode(call, blocked); return; }
+        if (temperatureGatt == null || temperatureListenerCall != null || connectCall != null || scanCall != null) {
+            call.reject("Espera a que la escucha este preparada.", "CLOCK_NOT_CONNECTED"); return;
+        }
+        clockOperation.start(temperatureGatt, call, write);
     }
 
     @PluginMethod
@@ -695,6 +727,7 @@ public class FemometerBle extends Plugin {
         result.put("healthThermometerFound", healthThermometerFound);
         result.put("temperatureMeasurementFound", temperatureMeasurementFound);
         result.put("services", services);
+        result.put("capabilities", Vinca2Profile.capabilities(gatt));
         return result;
     }
 
@@ -775,6 +808,7 @@ public class FemometerBle extends Plugin {
         result.put("indicationsActive", true);
         result.put("timeoutSeconds", TEMPERATURE_LISTENER_TIMEOUT_MS / 1000);
         result.put("measurementIntervalConfigured", true);
+        result.put("capabilities", Vinca2Profile.capabilities(temperatureGatt));
         if (pending != null) pending.resolve(result);
         Log.d(TAG, "Temperature listener ready: Vinca setup v2");
     }
@@ -841,6 +875,8 @@ public class FemometerBle extends Plugin {
         result.put("temperatureOriginal", roundTemperature(temperature));
         result.put("receivedAt", formatIsoLocal(new Date()));
         result.put("deviceTimestamp", deviceTimestamp);
+        result.put("deviceTimestampReliability", deviceTimestamp == null ? (hasTimestamp ? "invalid" : "missing") : "unverified");
+        result.put("deviceTimeZone", "unknown");
         result.put("measurementType", measurementType != null ? measurementType : null);
         result.put("measurementTypeCode", measurementTypeCode != null ? measurementTypeCode : null);
         result.put("flags", flags);
@@ -867,10 +903,7 @@ public class FemometerBle extends Plugin {
 
     private String formatDeviceTimestamp(int year, int month, int day, int hour, int minute, int second) {
         try {
-            Calendar calendar = Calendar.getInstance();
-            calendar.clear();
-            calendar.set(year, month - 1, day, hour, minute, second);
-            return formatIsoLocal(calendar.getTime());
+            return BleClockCodec.dateTime(year, month, day, hour, minute, second);
         } catch (Exception error) {
             Log.e(TAG, "Error formatting device timestamp");
             return null;
@@ -1053,6 +1086,7 @@ public class FemometerBle extends Plugin {
     }
 
     private void stopTemperatureListenerInternal(boolean notifyStopped, String status, String message) {
+        clockOperation.cancel();
         clearTemperatureSetupTimeout();
         clearTemperatureListenerTimeout();
         temperatureListenerCall = null;

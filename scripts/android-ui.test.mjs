@@ -32,6 +32,84 @@ const sessionFixture = (overrides = {}) => {
   return { mount, calls, states, readings, emit: value => event(value) };
 };
 
+const clockFixture = (overrides = {}) => sessionFixture({
+  startFemometerTemperatureListener: async () => ({ capabilities: {
+    model: 'BM-Vinca2', clockSync: true, clockRead: true, clockProtocol: 'bluetooth-current-time',
+  } }),
+  ...overrides,
+});
+
+test('clock is explicit and unsupported or failed sync does not stop temperature events', async () => {
+  let writes = 0;
+  for (const supported of [false, true]) {
+    const f = clockFixture({
+      startFemometerTemperatureListener: async () => ({ capabilities: { model: 'BM-Vinca2', clockSync: supported } }),
+      syncFemometerClock: async () => { writes++; throw { code: 'CLOCK_WRITE_FAILED' }; },
+    });
+    const session = f.mount();
+    await session.start();
+    assert.equal(writes, 0);
+    await session.syncClock();
+    assert.equal(f.states.at(-1).clockError.code, supported ? 'CLOCK_WRITE_FAILED' : 'CLOCK_UNSUPPORTED');
+    assert.equal(f.states.at(-1).status, 'listening');
+    f.emit({ temperatureC: 36.7 });
+    assert.equal(f.readings.length, 1);
+    assert.equal(f.calls.some(([name]) => name === 'disconnect'), false);
+    await session.dispose();
+  }
+});
+
+test('clock operations serialize without invalidating the temperature subscription', async () => {
+  const sync = deferred();
+  let writes = 0;
+  let reads = 0;
+  const f = clockFixture({
+    syncFemometerClock: () => { writes++; return sync.promise; },
+    readFemometerClock: async () => { reads++; return {}; },
+  });
+  const session = f.mount();
+  await session.start();
+  const pending = session.syncClock();
+  await session.syncClock();
+  await session.readClock();
+  await tick();
+  f.emit({ temperatureC: 36.6, deviceTimestamp: '2020-01-01T00:00:00' });
+  assert.equal(f.readings.length, 1);
+  assert.equal(writes, 1);
+  assert.equal(reads, 0);
+  sync.resolve({ verified: true, writeAccepted: true });
+  await pending;
+  f.emit({ temperatureC: 36.5 });
+  assert.equal(f.readings.length, 2);
+  assert.equal(f.states.at(-1).clockResult.verified, true);
+  assert.equal(f.states.at(-1).clockBusy, false);
+  await session.dispose();
+});
+
+test('account change cancels a pending clock result and waits before opening another connection', async () => {
+  const sync = deferred();
+  let attempts = 0;
+  const f = clockFixture({
+    syncFemometerClock: () => sync.promise,
+    disconnectFemometer: async () => { sync.reject({ code: 'CONNECTION_CANCELLED' }); },
+    startFemometerTemperatureListener: async () => {
+      attempts++;
+      return { capabilities: { model: 'BM-Vinca2', clockSync: true } };
+    },
+  });
+  const first = f.mount('a');
+  await first.start();
+  const pending = first.syncClock();
+  await tick();
+  const second = f.mount('b');
+  await second.start();
+  await pending;
+  assert.equal(attempts, 2);
+  assert.equal(f.states.at(-1).clockResult, null);
+  assert.equal(f.states.at(-1).clockError, null);
+  await second.dispose();
+});
+
 test('automatic session exposes only the exact remembered match and subscribes once', async () => {
   const f = sessionFixture();
   const session = f.mount();

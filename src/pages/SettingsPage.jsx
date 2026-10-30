@@ -20,6 +20,7 @@ import { getAuthErrorMessage } from '@/lib/authErrorMessages';
 import ExportCyclesDialog from '@/components/ExportCyclesDialog';
 import { useCycleData } from '@/hooks/useCycleData';
 import InstallPrompt from '@/components/InstallPrompt';
+import { normalizeBleMeasurement } from '@/lib/bleMeasurements';
 import {
   createFemometerPanelSession,
   isFemometerBleAndroidNative,
@@ -239,7 +240,7 @@ const FemometerBlePrototypePanel = ({ userId }) => {
     }, event => {
       if (event?.temperatureC !== undefined && event?.temperatureC !== null) {
         temperatureReceivedInSessionRef.current = true;
-        setLastTemperatureReading(event);
+        setLastTemperatureReading({ ...event, normalized: normalizeBleMeasurement(event, 'BM-Vinca2') });
         setTemperatureListenerMessage('Temperatura recibida. La escucha continúa para recibir otra medición.');
       } else if (event?.status === 'timeout') {
         setTemperatureListenerMessage(temperatureReceivedInSessionRef.current
@@ -343,6 +344,32 @@ const FemometerBlePrototypePanel = ({ userId }) => {
                     : rememberedSearch === 'error' ? 'No se pudo comprobar si está presente. La asociación se conserva.'
                       : 'Tienes un termómetro recordado. Busca para comprobar si está presente.'}
           </p>
+          {isTemperatureListenerActive ? (
+            <div className="space-y-2 rounded-xl border border-slate-100 px-3 py-3">
+              <p className="text-sm font-semibold text-slate-800">Reloj del termómetro</p>
+              <p className="text-sm text-slate-500">
+                El ajuste utiliza la hora local del móvil. No corrige las fechas de lecturas anteriores.
+              </p>
+              {!sessionState.capabilities?.clockSync ? <p className="text-sm text-slate-500">Sin soporte de ajuste de reloj anunciado.</p> : null}
+              <Button type="button" variant="outline"
+                disabled={busy || sessionState.clockBusy || !sessionState.capabilities?.clockRead}
+                onClick={() => sessionRef.current?.readClock()}>Leer reloj</Button>
+              <Button type="button" variant="outline"
+                disabled={busy || sessionState.clockBusy || !sessionState.capabilities?.clockSync}
+                onClick={() => sessionRef.current?.syncClock()}>Sincronizar fecha y hora</Button>
+              {sessionState.clockBusy ? <p role="status" className="text-sm">Consultando/ajustando reloj…</p> : null}
+              {sessionState.clockError ? <p role="status" className="text-sm text-amber-700">{sessionState.clockError.message}</p> : null}
+              {sessionState.clockResult ? (
+                <div role="status" className="text-sm text-slate-600">
+                  <p>{sessionState.clockResult.operation === 'read' ? 'Lectura del reloj'
+                    : sessionState.clockResult.verified ? 'Ajuste verificado mediante lectura (tolerancia de 5 segundos).'
+                      : 'Escritura aceptada, pero el ajuste no ha podido verificarse. Comprueba el reloj.'}</p>
+                  <p>Hora del dispositivo: {sessionState.clockResult.deviceLocalTime || 'no disponible'} (zona desconocida)</p>
+                  {sessionState.clockResult.requestedLocalTime ? <p>Hora enviada: {sessionState.clockResult.requestedLocalTime} · {sessionState.clockResult.phoneTimeZone}</p> : null}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           {remembered ? (
             <Button type="button" variant="outline" onClick={() => handleRememberedChange(true)}
               disabled={busy || isUpdatingRemembered || isScanning || isInspecting || isTemperatureListenerActive}>
@@ -463,6 +490,9 @@ const FemometerBlePrototypePanel = ({ userId }) => {
                       Hora del termómetro:{' '}
                       {lastTemperatureReading.deviceTimestamp || 'no incluida'}
                     </p>
+                    <p>Fiabilidad de la fecha: {lastTemperatureReading.normalized?.device_date_reliability === 'invalid'
+                      ? 'inválida' : lastTemperatureReading.normalized?.device_date_reliability === 'missing'
+                        ? 'no incluida' : 'sin verificar; zona horaria desconocida'}</p>
                     <p>Tipo: {lastTemperatureReading.measurementType || 'no incluido'}</p>
                   </div>
                 </div>
