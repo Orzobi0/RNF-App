@@ -29,6 +29,21 @@ export const normalizeBleMeasurement = (event, model = null) => {
 const validIsoDay = (day) => typeof day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(day)
   && normalizeBleMeasurement({ temperatureC: 0, deviceTimestamp: `${day}T00:00:00` }).device_date_reliability === 'unverified';
 
+// Manual confirmation is a form draft, never evidence about the device clock.
+export const prepareManualBleDraft = (measurement, { isoDate, time, confirmed, userId, cycleId, nowMs } = {}) => {
+  const localDate = new Date(`${isoDate}T${time}:00`);
+  if (confirmed !== true || !userId || !cycleId || !validIsoDay(isoDate)
+    || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time ?? '')
+    || !Number.isFinite(nowMs) || !Number.isFinite(localDate.getTime()) || localDate.getTime() > nowMs
+    || localDate.getHours() !== Number(time.slice(0, 2)) || localDate.getMinutes() !== Number(time.slice(3))
+    || measurement?.source !== 'bluetooth' || measurement.device_model !== 'BM-Vinca2'
+    || temperatureNumber(measurement.temperature) === null) {
+    throw new Error('Confirma una fecha y hora reales válidas, no futuras.');
+  }
+  return { userId, cycleId, isoDate, manuallyConfirmed: true,
+    measurements: [{ ...measurement, time, selected: true }] };
+};
+
 /** Classifies a normalized BLE measurement, without selecting or saving anything.
  * cycles use the existing {id, startDate, endDate, data: records[]} shape.
  * cyclesComplete certifies the cycle ranges; recordsComplete certifies only the

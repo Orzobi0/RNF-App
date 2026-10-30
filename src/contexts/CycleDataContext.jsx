@@ -1,4 +1,5 @@
 import { selectedMeasurementSummary, measurementTimeForSummary, hasMeasurementTemperature } from '@/lib/temperatureMeasurements';
+import { isFemometerBleAndroidNative, isFemometerBlePrototypeEnabled } from '@/lib/femometerBle';
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { format, startOfDay, parseISO, addDays, parse, isValid } from 'date-fns';
 import { useToast } from '@/components/ui/use-toast';
@@ -529,6 +530,14 @@ export const CycleDataProvider = ({ children }) => {
         console.error('User or cycle id is missing');
         throw new Error('User or cycle id is missing');
       }
+      const bleImport = newData?.bleManualImport;
+      if (bleImport && (!isFemometerBleAndroidNative() || !isFemometerBlePrototypeEnabled()
+        || bleImport.userId !== user.uid || bleImport.cycleId !== currentCycle.id
+        || cycleIdToUse !== currentCycle.id || newData.isoDate !== bleImport.isoDate
+        || editingRecord || newData.measurements?.length !== 1
+        || newData.measurements[0]?.source !== 'bluetooth' || newData.measurements[0]?.device_model !== 'BM-Vinca2')) {
+        throw createAppError('ble-day-unavailable', 'Requiere revisión', 'La incorporación ya no corresponde a esta cuenta, ciclo o medición.');
+      }
     const todayIso = format(startOfDay(new Date()), 'yyyy-MM-dd');
 
 if (newData?.isoDate && newData.isoDate > todayIso) {
@@ -554,6 +563,10 @@ if (newData?.isoDate && newData.isoDate > todayIso) {
         }
         if (targetRecord && String(targetRecord.id).startsWith('placeholder-')) {
           targetRecord = null;
+        }
+        if (bleImport && (targetRecord || (newData.peak_marker === 'peak'
+          && targetCycle?.data?.some(record => record.peak_marker === 'peak')))) {
+          throw createAppError('ble-day-unavailable', 'Requiere revisión', 'No se modificarán registros existentes desde esta incorporación.');
         }
         const readKey = JSON.stringify([user.uid, cycleIdToUse, targetRecord?.id]);
         const knownComplete = measurementReadStatus.current.get(readKey) ??
@@ -691,7 +704,8 @@ if (newData?.isoDate && newData.isoDate > todayIso) {
             user.uid,
             cycleIdToUse,
             newData.isoDate,
-            recordPayload
+            recordPayload,
+            { requireEmptyDay: Boolean(bleImport) }
           );
           savedEntryId = created?.id ?? null;
           if (savedEntryId) {

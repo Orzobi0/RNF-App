@@ -1,4 +1,6 @@
 import { loadFormMeasurements } from '@/lib/loadFormMeasurements';
+import { prepareManualBleDraft } from '@/lib/bleMeasurements';
+import { isFemometerBleAndroidNative, isFemometerBlePrototypeEnabled } from '@/lib/femometerBle';
 import { measurementPayloadForRecord, loadRecordMeasurements } from '@/lib/temperatureMeasurements';
 import React, {
   useState,
@@ -278,7 +280,7 @@ export const RecordsExperience = ({
     deleteIssueEntry,
     getPublicError,
   } = useCycleData();
-  const { preferences } = useAuth();
+  const { preferences, user } = useAuth();
   const showRelationsRow = useMemo(
     () => normalizeStoredPreferences(preferences ?? PREFERENCE_DEFAULTS).showRelationsRow,
     [preferences]
@@ -321,6 +323,9 @@ export const RecordsExperience = ({
   }, [location.state]);
 
   const [showForm, setShowForm] = useState(false);
+  const [bleDraft, setBleDraft] = useState(null);
+  const consumedBleDraftRef = useRef(null);
+  const bleSaveBusyRef = useRef(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [recordToDelete, setRecordToDelete] = useState(null);
   const [showUndoCycleDialog, setShowUndoCycleDialog] = useState(false);
@@ -1432,6 +1437,7 @@ const handleNextCalendarMonth = useCallback(() => {
   ]);
 
   const handleCloseForm = useCallback(() => {
+    setBleDraft(null);
     setShowForm(false);
     setEditingRecord(null);
     setDefaultFormIsoDate(null);
@@ -1440,6 +1446,35 @@ const handleNextCalendarMonth = useCallback(() => {
     setIsDetailLoading(false);
     activeRecordLoadRef.current = null;
   }, []);
+
+  useEffect(() => {
+    const pending = location.state?.bleManualDraft;
+    if (!pending || consumedBleDraftRef.current === pending || isLoading) return;
+    consumedBleDraftRef.current = pending;
+    // Consume the handoff in history too: Back/reload must not reopen this draft.
+    const { bleManualDraft: _consumed, ...rest } = location.state;
+    navigate(location.pathname, { replace: true, state: rest });
+    try {
+      if (!isFemometerBleAndroidNative() || !isFemometerBlePrototypeEnabled() || cycleProp
+        || pending.userId !== user?.uid || pending.cycleId !== contextCurrentCycle?.id
+        || !Array.isArray(cycle?.data) || cycle.endDate || pending.isoDate < cycle.startDate
+        || cycle.data.some(record => (record.isoDate ?? record.iso_date) === pending.isoDate)) throw new Error();
+      const draft = prepareManualBleDraft(pending.measurements?.[0], {
+        ...pending, confirmed: pending.manuallyConfirmed, time: pending.measurements?.[0]?.time, nowMs: Date.now(),
+      });
+      setBleDraft(draft);
+      setEditingRecord(null);
+      setDefaultFormIsoDate(draft.isoDate);
+      setSelectedDate(draft.isoDate);
+      setShowForm(true);
+    } catch {
+      toast({ title: 'Requiere revisión', description: 'La fecha, cuenta o ciclo ha cambiado, o el día ya tiene un registro. Vuelve a Ajustes.', variant: 'destructive' });
+    }
+  }, [location, navigate, isLoading, cycleProp, cycle, contextCurrentCycle?.id, user?.uid, toast]);
+
+  useEffect(() => {
+    if (bleDraft && (bleDraft.userId !== user?.uid || bleDraft.cycleId !== cycle?.id)) handleCloseForm();
+  }, [bleDraft, user?.uid, cycle?.id, handleCloseForm]);
 
   // One request per selected record and form session. Context refreshes must
   // neither restart the request nor replace the user's draft.
@@ -1563,18 +1598,33 @@ const handleNextCalendarMonth = useCallback(() => {
   }, [buildRecordPayloadForDate, addOrUpdateDataPoint, cycle?.id, cycle?.data]);
 
   const handleSave = async (data, { keepFormOpen = false, submitAction = null } = {}) => {
+  if (bleDraft && (bleSaveBusyRef.current || keepFormOpen || submitAction)) return;
+  if (bleDraft) bleSaveBusyRef.current = true;
   setIsProcessing(true);
 
   const toastMessage =
     submitAction === 'relations'
       ? getRelationsToastMessage(Boolean(data?.had_relations ?? data?.hadRelations))
       : getRecordUpdateToastMessage(editingRecord, data);
-    toast({
+    if (!bleDraft) toast({
   title: toastMessage,
   duration: submitAction === 'relations' ? 1400 : 2000,
 });
     try {
-      await addOrUpdateDataPoint(data, editingRecord);
+      if (bleDraft) {
+        if (user?.uid !== bleDraft.userId || cycle?.id !== bleDraft.cycleId || data.isoDate !== bleDraft.isoDate
+          || editingRecord || !Array.isArray(cycle?.data)
+          || cycle.data.some(record => (record.isoDate ?? record.iso_date) === data.isoDate)
+          || data.measurements?.length !== 1) throw new Error('El día o la medición han cambiado.');
+        prepareManualBleDraft(data.measurements[0], { ...bleDraft, confirmed: true,
+          time: data.measurements[0].time, nowMs: Date.now() });
+        await contextAddOrUpdateDataPoint({ ...data, bleManualImport: {
+          userId: bleDraft.userId, cycleId: bleDraft.cycleId, isoDate: bleDraft.isoDate,
+        } }, null, bleDraft.cycleId);
+        setBleDraft(null);
+      } else {
+        await addOrUpdateDataPoint(data, editingRecord);
+      }
       toast({
         title: toastMessage,
         duration: 2000,
@@ -1590,8 +1640,8 @@ const handleNextCalendarMonth = useCallback(() => {
       const publicError = getPublicError ? getPublicError(error) : null;
       const canReview = ['duplicate-iso-date', 'entry-out-of-range'].includes(publicError?.code);
       toast({
-        title: publicError?.title || 'Error',
-        description: publicError?.message || 'No se pudo guardar el registro',
+        title: bleDraft ? 'Requiere revisión' : publicError?.title || 'Error',
+        description: bleDraft ? 'No se pudo incorporar la temperatura. Comprueba la conexión y que el día siga vacío; no se sobrescribirán registros.' : publicError?.message || 'No se pudo guardar el registro',
         variant: 'destructive',
         action: canReview ? (
           <ToastAction altText="Revisar" onClick={() => openDataRepairDialog?.(cycle?.id)}>
@@ -1600,6 +1650,7 @@ const handleNextCalendarMonth = useCallback(() => {
         ) : undefined,
       });
     } finally {
+      bleSaveBusyRef.current = false;
       setIsProcessing(false);
       if (keepFormOpen) {
         setDefaultFormIsoDate(data?.isoDate ?? null);
@@ -2005,8 +2056,10 @@ const handleNextCalendarMonth = useCallback(() => {
   className="w-[96vw] max-w-2xl border-0 bg-transparent p-0 text-gray-800 shadow-none overflow-visible"
 >
       <DataEntryForm
+        formDraft={bleDraft}
+        manualConfirmationOnly={Boolean(bleDraft)}
         onSubmit={handleSave}
-        onSaveMeasurements={saveFormMeasurements}
+        onSaveMeasurements={bleDraft ? undefined : saveFormMeasurements}
         onCancel={handleCloseForm}
         initialData={editingRecord}
         cycleStartDate={cycle?.startDate}
@@ -2014,11 +2067,11 @@ const handleNextCalendarMonth = useCallback(() => {
         isProcessing={isProcessing || isDetailLoading}
         isEditing={!!editingRecord?.id && !String(editingRecord.id).startsWith('placeholder-')}
         cycleData={cycle?.data}
-        onDateSelect={handleDateSelect}
+        onDateSelect={bleDraft ? undefined : handleDateSelect}
         defaultIsoDate={defaultFormIsoDate}
         focusedField={focusedField}
         initialSectionKey={initialSectionKey}
-        onOpenNewCycle={handleOpenNewCycleDialog}
+        onOpenNewCycle={bleDraft ? undefined : handleOpenNewCycleDialog}
         onJumpToDayDetail={(iso) => {
           if (!iso) return;
           setSelectedDate(iso);

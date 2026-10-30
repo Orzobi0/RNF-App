@@ -10,11 +10,13 @@ import {
   deleteDoc,
   setDoc,
   writeBatch,
+  runTransaction,
   query,
   where,
   limit,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebaseClient';
+import { isFemometerBleAndroidNative, isFemometerBlePrototypeEnabled } from '@/lib/femometerBle';
 import { format, differenceInDays, startOfDay, parseISO, compareAsc, addDays, isValid } from 'date-fns';
 
 const isDevEnvironment =
@@ -1551,7 +1553,33 @@ const protectIncompleteTemperatures = (data, payload) => {
   }
 };
 
-export const upsertCycleEntryByIsoDateDB = async (userId, cycleId, isoDate, payload) => {
+const bleDayUnavailable = () => createAppError('ble-day-unavailable', 'Requiere revisión',
+  'El día ya tiene un registro o no se puede comprobar que siga vacío. No se ha incorporado la temperatura.');
+
+// Read only, explicitly from the server. Context/cache summaries cannot certify absence.
+export const assertBleImportDayAvailableDB = async (userId, cycleId, isoDate) => {
+  if (!isFemometerBleAndroidNative() || !isFemometerBlePrototypeEnabled()
+    || !userId || !cycleId || !/^\d{4}-\d{2}-\d{2}$/.test(isoDate ?? '')) throw bleDayUnavailable();
+  const cycles = await getDocsFromServer(collection(db, `users/${userId}/cycles`));
+  if (cycles.metadata?.fromCache || cycles.metadata?.hasPendingWrites) throw bleDayUnavailable();
+  const ranges = cycles.docs.map(item => ({ id: item.id, ...item.data() }));
+  const matches = ranges.filter(item => item.start_date <= isoDate && (!item.end_date || item.end_date >= isoDate));
+  if (ranges.some(item => !item.start_date || !isValid(parseISO(item.start_date))
+    || (item.end_date && (!isValid(parseISO(item.end_date)) || item.end_date < item.start_date)))
+    || matches.length !== 1 || matches[0].id !== cycleId || matches[0].end_date) throw bleDayUnavailable();
+  const entries = await getDocsFromServer(collection(db, `users/${userId}/cycles/${cycleId}/entries`));
+  if (entries.metadata?.fromCache || entries.metadata?.hasPendingWrites) throw bleDayUnavailable();
+  if (entries.docs.some(item => {
+    const day = resolveIsoDateFromEntryData(item.data());
+    return !day || day === isoDate;
+  })) throw bleDayUnavailable();
+};
+
+export const upsertCycleEntryByIsoDateDB = async (userId, cycleId, isoDate, payload, { requireEmptyDay = false } = {}) => {
+  if (requireEmptyDay && (!isFemometerBleAndroidNative() || !isFemometerBlePrototypeEnabled()
+    || payload.measurements?.length !== 1 || payload.measurements[0]?.source !== 'bluetooth'
+    || payload.measurements[0]?.device_model !== 'BM-Vinca2' || !Number.isFinite(payload.temperature_raw)
+    || payload.measurementsComplete !== true)) throw bleDayUnavailable();
   if (!userId || !cycleId || !isoDate) {
     throw createAppError(
       'invalid-iso-date-upsert',
@@ -1576,7 +1604,7 @@ export const upsertCycleEntryByIsoDateDB = async (userId, cycleId, isoDate, payl
   const entriesCollectionRef = collection(db, `users/${userId}/cycles/${cycleId}/entries`);
   const indexRef = doc(db, `users/${userId}/cycles/${cycleId}/entries_by_iso/${isoDateKey}`);
   const cycleRef = doc(db, `users/${userId}/cycles/${cycleId}`);
-  const cycleSnap = await getDoc(cycleRef);
+  const cycleSnap = await (requireEmptyDay ? getDocFromServer(cycleRef) : getDoc(cycleRef));
   if (!cycleSnap.exists()) {
     throw createAppError(
       'unknown',
@@ -1621,6 +1649,23 @@ export const upsertCycleEntryByIsoDateDB = async (userId, cycleId, isoDate, payl
 
   let resolvedRef;
   let upsertResult;
+  if (requireEmptyDay) {
+    await assertBleImportDayAvailableDB(userId, cycleId, isoDateKey);
+    // Same documents and single-measurement summary as the existing save path.
+    // No replacement/deletion of measurements is allowed in this branch.
+    const newRef = doc(entriesCollectionRef, isoDateKey);
+    await runTransaction(db, async transaction => {
+      const [currentCycle, currentIndex, currentDay] = await Promise.all([
+        transaction.get(cycleRef), transaction.get(indexRef), transaction.get(newRef),
+      ]);
+      const range = currentCycle.data();
+      if (!currentCycle.exists() || range.end_date || !range.start_date || isoDateKey < range.start_date
+        || currentIndex.exists() || currentDay.exists()) throw bleDayUnavailable();
+      transaction.set(newRef, entryData);
+      transaction.set(indexRef, { entryId: isoDateKey });
+    });
+    return { id: isoDateKey };
+  }
   protectIncompleteTemperatures(entryData, payload);
   // 1) Intentar resolver por índice (camino normal, rápido)
   const replacingMeasurements = Array.isArray(payload.measurements) &&

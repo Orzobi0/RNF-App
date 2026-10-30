@@ -20,14 +20,15 @@ import { getAuthErrorMessage } from '@/lib/authErrorMessages';
 import ExportCyclesDialog from '@/components/ExportCyclesDialog';
 import { useCycleData } from '@/hooks/useCycleData';
 import InstallPrompt from '@/components/InstallPrompt';
-import { normalizeBleMeasurement } from '@/lib/bleMeasurements';
+import { normalizeBleMeasurement, prepareManualBleDraft } from '@/lib/bleMeasurements';
+import { assertBleImportDayAvailableDB } from '@/lib/cycleDataHandler';
 import {
   createFemometerPanelSession,
   isFemometerBleAndroidNative,
   isFemometerBlePrototypeEnabled,
 } from '@/lib/femometerBle';
 import { cn } from '@/lib/utils';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 import {
   Dialog,
@@ -199,6 +200,41 @@ const DEFAULT_TEMPERATURE_LISTEN_SECONDS = 6 * 60;
 
 const FemometerBlePrototypePanel = ({ userId }) => {
   const sessionRef = useRef(null);
+  const navigate = useNavigate();
+  const { currentCycle, isLoading } = useCycleData();
+  const cycleRef = useRef(currentCycle);
+  cycleRef.current = currentCycle;
+  const [importDraft, setImportDraft] = useState(null);
+  const [importError, setImportError] = useState('');
+  const [importBusy, setImportBusy] = useState(false);
+  const importBusyRef = useRef(false);
+  const beginImport = () => {
+    const measurement = normalizeBleMeasurement(lastTemperatureReading, 'BM-Vinca2');
+    if (!measurement) return;
+    setImportError('');
+    setImportDraft({ measurement, isoDate: measurement.time ? measurement.device_timestamp.slice(0, 10) : '',
+      time: measurement.time, confirmed: false });
+  };
+  const confirmImport = async () => {
+    if (importBusyRef.current) return;
+    const session = sessionRef.current;
+    const cycleId = currentCycle?.id;
+    importBusyRef.current = true;
+    setImportBusy(true);
+    setImportError('');
+    try {
+      if (isLoading || !cycleId || !session) throw new Error('Espera a que se cargue el ciclo actual.');
+      const draft = prepareManualBleDraft(importDraft.measurement, { ...importDraft, userId, cycleId, nowMs: Date.now() });
+      await assertBleImportDayAvailableDB(userId, cycleId, draft.isoDate);
+      if (sessionRef.current !== session || cycleRef.current?.id !== cycleId) return;
+      navigate('/records', { state: { bleManualDraft: draft } });
+    } catch (error) {
+      if (sessionRef.current === session) setImportError(`Requiere revisión: ${error?.title ? error.message : 'No se pudo validar la fecha o comprobar el día vacío. Revisa los datos y la conexión.'}`);
+    } finally {
+      importBusyRef.current = false;
+      if (sessionRef.current === session) setImportBusy(false);
+    }
+  };
   const [sessionState, setSessionState] = useState({
     status: 'checking', busy: true, remembered: null, devices: [], selectedDeviceId: '',
     inspectionResult: null, error: null, listenerResult: null,
@@ -495,6 +531,27 @@ const FemometerBlePrototypePanel = ({ userId }) => {
                         ? 'no incluida' : 'sin verificar; zona horaria desconocida'}</p>
                     <p>Tipo: {lastTemperatureReading.measurementType || 'no incluido'}</p>
                   </div>
+                  <Button type="button" variant="outline" disabled={importBusy} onClick={beginImport}>Incorporar al registro</Button>
+                  {importDraft ? (
+                    <div className="mt-3 space-y-2">
+                      <p className="text-sm">Confirma la fecha y hora reales de {importDraft.measurement.temperature} °C (hora local del teléfono). La fecha del termómetro sigue sin verificar.</p>
+                      <label className="block text-sm">Fecha
+                        <Input type="date" value={importDraft.isoDate} disabled={importBusy}
+                          onChange={event => setImportDraft({ ...importDraft, isoDate: event.target.value, confirmed: false })} />
+                      </label>
+                      <label className="block text-sm">Hora
+                        <Input type="time" value={importDraft.time} disabled={importBusy}
+                          onChange={event => setImportDraft({ ...importDraft, time: event.target.value, confirmed: false })} />
+                      </label>
+                      <label className="flex gap-2 text-sm"><input type="checkbox" checked={importDraft.confirmed} disabled={importBusy}
+                        onChange={event => setImportDraft({ ...importDraft, confirmed: event.target.checked })} />Confirmo que esta es la fecha y hora reales de la medición.</label>
+                      <Button type="button" disabled={!importDraft.confirmed || importBusy} onClick={confirmImport}>
+                        {importBusy ? 'Comprobando día…' : 'Abrir formulario'}
+                      </Button>
+                      <Button type="button" variant="ghost" disabled={importBusy} onClick={() => { setImportDraft(null); setImportError(''); }}>Cancelar</Button>
+                      {importError ? <p role="alert" className="text-sm text-amber-800">{importError}</p> : null}
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
             </div>

@@ -1,4 +1,5 @@
 import test from 'node:test';
+import './ble-manual-import.test.mjs';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { STAGING_APP_ID, validateFirebaseEnvironment } from '../src/lib/firebaseEnvironment.js';
