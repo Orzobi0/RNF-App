@@ -1,5 +1,6 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { isFemometerPrototypeEnabled } from './appFeatures';
+import { createFemometerSessionManager } from './femometerSession';
 
 const FemometerBle = registerPlugin('FemometerBle');
 
@@ -327,3 +328,9 @@ export const disconnectFemometer = async () => {
     throw normalizeFemometerBleError(error);
   }
 };
+
+export const createFemometerPanelSession = createFemometerSessionManager({
+  getRememberedFemometer, scanForFemometer, requestBluetoothPermissions,
+  addFemometerTemperatureListener, startFemometerTemperatureListener,
+  disconnectFemometer, connectAndInspectFemometer, rememberFemometer, forgetFemometer,
+});

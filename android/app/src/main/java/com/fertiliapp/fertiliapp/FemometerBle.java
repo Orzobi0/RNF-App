@@ -223,11 +223,13 @@ public class FemometerBle extends Plugin {
         scanCallback = new ScanCallback() {
             @Override
             public void onScanResult(int callbackType, ScanResult result) {
+                if (scanCall != call) return;
                 handleScanResult(result);
             }
 
             @Override
             public void onBatchScanResults(List<ScanResult> results) {
+                if (scanCall != call) return;
                 if (results == null) return;
                 for (ScanResult result : results) {
                     handleScanResult(result);
@@ -236,6 +238,7 @@ public class FemometerBle extends Plugin {
 
             @Override
             public void onScanFailed(int errorCode) {
+                if (scanCall != call) return;
                 Log.e(TAG, "BLE scan failed with errorCode=" + errorCode);
                 PluginCall pending = scanCall;
                 stopScanInternal();
@@ -266,6 +269,7 @@ public class FemometerBle extends Plugin {
         }
 
         mainHandler.postDelayed(() -> {
+            if (scanCall != call) return;
             PluginCall pending = scanCall;
             stopScanInternal();
             if (pending != null) {
@@ -309,6 +313,7 @@ public class FemometerBle extends Plugin {
         BluetoothGattCallback callback = new BluetoothGattCallback() {
             @Override
             public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
+                if (gatt != activeGatt || connectCall != call) return;
                 if (status != BluetoothGatt.GATT_SUCCESS) {
                     rejectConnectCall("No se pudo conectar con el termometro.", "CONNECTION_FAILED");
                     return;
@@ -570,32 +575,32 @@ public class FemometerBle extends Plugin {
     @PluginMethod
     public void stopTemperatureListener(PluginCall call) {
         Log.d(TAG, "Stopping temperature listener");
-        stopTemperatureListenerInternal(false, null, null);
+        rejectTemperatureStart("Escucha cancelada.", "CONNECTION_CANCELLED");
         call.resolve();
     }
 
     @PluginMethod
     public void disconnect(PluginCall call) {
-        stopScanInternal();
+        cancelScan();
         rejectPendingConnect("Conexion cancelada.", "CONNECTION_CANCELLED");
-        stopTemperatureListenerInternal(false, null, null);
+        rejectTemperatureStart("Escucha cancelada.", "CONNECTION_CANCELLED");
         closeActiveGatt();
         call.resolve();
     }
 
     @Override
     protected void handleOnStop() {
-        stopScanInternal();
+        cancelScan();
         rejectPendingConnect("Conexion cancelada al cerrar la app.", "CONNECTION_CANCELLED");
-        stopTemperatureListenerInternal(false, null, null);
+        rejectTemperatureStart("Escucha cancelada.", "CONNECTION_CANCELLED");
         closeActiveGatt();
     }
 
     @Override
     protected void handleOnDestroy() {
-        stopScanInternal();
+        cancelScan();
         rejectPendingConnect("Conexion cancelada al cerrar la app.", "CONNECTION_CANCELLED");
-        stopTemperatureListenerInternal(false, null, null);
+        rejectTemperatureStart("Escucha cancelada.", "CONNECTION_CANCELLED");
         closeActiveGatt();
     }
 
@@ -1103,6 +1108,12 @@ public class FemometerBle extends Plugin {
             connectTimeoutRunnable = null;
         }
         connectCall = null;
+    }
+
+    private void cancelScan() {
+        PluginCall pending = scanCall;
+        stopScanInternal();
+        if (pending != null) pending.reject("Busqueda cancelada.", "CONNECTION_CANCELLED");
     }
 
     private void stopScanInternal() {

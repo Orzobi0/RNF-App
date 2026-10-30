@@ -21,18 +21,9 @@ import ExportCyclesDialog from '@/components/ExportCyclesDialog';
 import { useCycleData } from '@/hooks/useCycleData';
 import InstallPrompt from '@/components/InstallPrompt';
 import {
-  addFemometerTemperatureListener,
-  connectAndInspectFemometer,
-  disconnectFemometer,
-  getRememberedFemometer,
-  rememberFemometer,
-  forgetFemometer,
+  createFemometerPanelSession,
   isFemometerBleAndroidNative,
   isFemometerBlePrototypeEnabled,
-  requestBluetoothPermissions,
-  scanForFemometer,
-  startFemometerTemperatureListener,
-  stopFemometerTemperatureListener,
 } from '@/lib/femometerBle';
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
@@ -206,263 +197,91 @@ const SettingsSection = ({ title, children, className }) => (
 const DEFAULT_TEMPERATURE_LISTEN_SECONDS = 6 * 60;
 
 const FemometerBlePrototypePanel = ({ userId }) => {
-  const { toast } = useToast();
-  const [remembered, setRemembered] = useState(null);
-  const [isUpdatingRemembered, setIsUpdatingRemembered] = useState(false);
-  const [rememberedSearch, setRememberedSearch] = useState('pending');
-  useEffect(() => {
-    let cancelled = false;
-    getRememberedFemometer(userId).then(result => {
-      if (!cancelled) setRemembered(result.remembered);
-    }).catch(error => {
-      if (!cancelled) {
-        setRememberedSearch('error');
-        storeTechnicalError(error);
-      }
-    });
-    return () => { cancelled = true; };
-  }, [userId]);
-  const [devices, setDevices] = useState([]);
-  const [selectedDeviceId, setSelectedDeviceId] = useState('');
-  const [inspectionResult, setInspectionResult] = useState(null);
-  const [isScanning, setIsScanning] = useState(false);
-  const [isInspecting, setIsInspecting] = useState(false);
-  const [lastTechnicalError, setLastTechnicalError] = useState(null);
-  const [isStartingTemperatureListener, setIsStartingTemperatureListener] = useState(false);
-  const [isTemperatureListenerActive, setIsTemperatureListenerActive] = useState(false);
-  const [temperatureConnectionReady, setTemperatureConnectionReady] = useState(false);
-  const [temperatureIndicationsActive, setTemperatureIndicationsActive] = useState(false);
+  const sessionRef = useRef(null);
+  const [sessionState, setSessionState] = useState({
+    status: 'checking', busy: true, remembered: null, devices: [], selectedDeviceId: '',
+    inspectionResult: null, error: null, listenerResult: null,
+  });
+  const { status, busy, remembered, devices, selectedDeviceId, inspectionResult } = sessionState;
+  const isScanning = status === 'searching';
+  const isInspecting = status === 'inspecting';
+  const isStartingTemperatureListener = status === 'connecting';
+  const isTemperatureListenerActive = status === 'listening';
+  const isUpdatingRemembered = busy && !isScanning && !isInspecting && !isStartingTemperatureListener;
+  const temperatureConnectionReady = Boolean(sessionState.listenerResult?.connectionReady);
+  const temperatureIndicationsActive = Boolean(sessionState.listenerResult?.indicationsActive);
+  const lastTechnicalError = sessionState.error ? {
+    code: sessionState.error.code || 'UNKNOWN',
+    technicalMessage: String(sessionState.error.technicalMessage || sessionState.error.message || 'Sin detalle técnico').split('\n')[0].slice(0, 500),
+  } : null;
+  const rememberedSearch = status === 'error' ? 'error'
+    : status === 'missing' ? 'missing' : devices.some(device => device.isRemembered) ? 'found' : 'pending';
   const [temperatureSecondsRemaining, setTemperatureSecondsRemaining] = useState(DEFAULT_TEMPERATURE_LISTEN_SECONDS);
   const [temperatureListenerMessage, setTemperatureListenerMessage] = useState('');
   const [lastTemperatureReading, setLastTemperatureReading] = useState(null);
-  const temperatureListenerSubscriptionRef = useRef(null);
-  const temperatureListenerStartedAtRef = useRef(null);
-  const temperatureListenDurationRef = useRef(DEFAULT_TEMPERATURE_LISTEN_SECONDS);
   const temperatureReceivedInSessionRef = useRef(false);
 
   useEffect(() => {
+    let previousStatus;
+    const session = createFemometerPanelSession(userId, next => {
+      setSessionState(next);
+      if (next.status !== previousStatus) {
+        if (next.status === 'searching' || next.status === 'connecting') {
+          setLastTemperatureReading(null);
+          temperatureReceivedInSessionRef.current = false;
+          setTemperatureListenerMessage('');
+        }
+        if (next.status === 'listening' && !temperatureReceivedInSessionRef.current) {
+          setTemperatureListenerMessage('Escuchando el termómetro…');
+        }
+      }
+      previousStatus = next.status;
+    }, event => {
+      if (event?.temperatureC !== undefined && event?.temperatureC !== null) {
+        temperatureReceivedInSessionRef.current = true;
+        setLastTemperatureReading(event);
+        setTemperatureListenerMessage('Temperatura recibida. La escucha continúa para recibir otra medición.');
+      } else if (event?.status === 'timeout') {
+        setTemperatureListenerMessage(temperatureReceivedInSessionRef.current
+          ? 'Escucha finalizada. La última temperatura recibida se muestra abajo.'
+          : 'Escucha finalizada sin recibir temperaturas. Puedes volver a escuchar cuando el termómetro esté preparado.');
+      } else if (event?.message) {
+        setTemperatureListenerMessage(event.message);
+      }
+    });
+    sessionRef.current = session;
+    void session.start();
     return () => {
-      temperatureListenerSubscriptionRef.current?.remove?.();
-      temperatureListenerSubscriptionRef.current = null;
-      stopFemometerTemperatureListener().catch(() => {});
-      disconnectFemometer().catch(() => {});
+      sessionRef.current = null;
+      void session.dispose();
     };
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
-    if (!isTemperatureListenerActive || !temperatureListenerStartedAtRef.current) return undefined;
-
+    if (!isTemperatureListenerActive) return undefined;
+    const timeout = Number(sessionState.listenerResult?.timeoutSeconds);
+    const duration = Number.isFinite(timeout) && timeout > 0 ? Math.floor(timeout) : DEFAULT_TEMPERATURE_LISTEN_SECONDS;
+    const startedAt = Date.now();
+    setTemperatureSecondsRemaining(duration);
     const interval = window.setInterval(() => {
-      const elapsedSeconds = Math.floor((Date.now() - temperatureListenerStartedAtRef.current) / 1000);
-      const remaining = Math.max(0, temperatureListenDurationRef.current - elapsedSeconds);
-      setTemperatureSecondsRemaining(remaining);
-      if (remaining === 0) {
-        window.clearInterval(interval);
-      }
+      setTemperatureSecondsRemaining(Math.max(0, duration - Math.floor((Date.now() - startedAt) / 1000)));
     }, 1000);
-
     return () => window.clearInterval(interval);
-  }, [isTemperatureListenerActive]);
+  }, [isTemperatureListenerActive, sessionState.listenerResult]);
 
-  const showBleError = (error, fallbackTitle = 'No se pudo completar la prueba') => {
-    toast({
-      title: fallbackTitle,
-      description: error?.message || 'Inténtalo de nuevo.',
-      variant: 'destructive',
-    });
+  const handleScan = () => sessionRef.current?.scan();
+  const handleInspect = () => sessionRef.current?.inspect();
+  const handleRememberedChange = (forget = false) => sessionRef.current?.remember(forget);
+  const handleStartTemperatureListener = () => sessionRef.current?.listen();
+  const handleStopTemperatureListener = () => {
+    setTemperatureListenerMessage('Escucha detenida.');
+    return sessionRef.current?.stop();
   };
-
-  const storeTechnicalError = (error) => {
-    setLastTechnicalError({
-      code: error?.code || 'UNKNOWN',
-      technicalMessage: String(error?.technicalMessage || error?.message || 'Sin detalle tecnico')
-        .split('\n')[0]
-        .slice(0, 500),
-    });
-  };
-
-  const handleScan = async () => {
-    setIsScanning(true);
-    setRememberedSearch('pending');
-    setInspectionResult(null);
-    setLastTechnicalError(null);
-    setIsTemperatureListenerActive(false);
-    setTemperatureConnectionReady(false);
-    setTemperatureIndicationsActive(false);
-    setTemperatureListenerMessage('');
-    setLastTemperatureReading(null);
-    setSelectedDeviceId('');
-    try {
-      await requestBluetoothPermissions();
-      const saved = await getRememberedFemometer(userId);
-      setRemembered(saved.remembered);
-      const foundDevices = await scanForFemometer(userId);
-      setDevices(foundDevices);
-      const match = foundDevices.find(device => device.isRemembered);
-      setRememberedSearch(match ? 'found' : 'missing');
-      if (match) setSelectedDeviceId(match.id);
-      else if (!saved.remembered && foundDevices.length > 0) setSelectedDeviceId(foundDevices[0].id);
-      if (foundDevices.length === 0) {
-        toast({
-          title: 'Termómetro no encontrado',
-          description: 'No se detectó BM-Vinca2. Despierta el termómetro y vuelve a buscar.',
-        });
-      }
-    } catch (error) {
-      setRememberedSearch('error');
-      setDevices([]);
-      storeTechnicalError(error);
-      showBleError(error, 'Error buscando termómetro');
-    } finally {
-      setIsScanning(false);
-    }
-  };
-
-  const handleRememberedChange = async (forget = false) => {
-    setIsUpdatingRemembered(true);
-    try {
-      const result = forget
-        ? await forgetFemometer(userId)
-        : await rememberFemometer(userId, selectedDeviceId);
-      setRemembered(result.remembered);
-      setRememberedSearch(forget ? 'pending' : 'found');
-      setDevices(current => current.map(device => ({
-        ...device, isRemembered: !forget && device.id === selectedDeviceId,
-      })));
-    } catch (error) {
-      storeTechnicalError(error);
-      showBleError(error, 'No se pudo actualizar el termómetro recordado');
-    } finally {
-      setIsUpdatingRemembered(false);
-    }
-  };
-
-  const handleInspect = async () => {
-    if (!selectedDeviceId) {
-      toast({
-        title: 'Selecciona un termómetro',
-        description: 'Busca y selecciona BM-Vinca2 antes de comprobar la compatibilidad.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setIsInspecting(true);
-    setInspectionResult(null);
-    setLastTechnicalError(null);
-    try {
-      const result = await connectAndInspectFemometer(selectedDeviceId);
-      setInspectionResult(result);
-    } catch (error) {
-      storeTechnicalError(error);
-      showBleError(error, 'Error comprobando conexión');
-    } finally {
-      disconnectFemometer().catch(() => {});
-      setIsInspecting(false);
-    }
-  };
-
-  const resetTemperatureListenerState = () => {
-    temperatureListenerStartedAtRef.current = null;
-    setIsTemperatureListenerActive(false);
-    setTemperatureConnectionReady(false);
-    setTemperatureIndicationsActive(false);
-    setTemperatureSecondsRemaining(0);
-  };
-
-  const handleTemperatureEvent = (event) => {
-    if (event?.temperatureC !== undefined && event?.temperatureC !== null) {
-      temperatureReceivedInSessionRef.current = true;
-      setLastTemperatureReading(event);
-      setTemperatureListenerMessage('Temperatura recibida. La escucha continúa para recibir otra medición.');
-      return;
-    }
-
-    if (event?.status === 'timeout') {
-      setTemperatureListenerMessage(
-        temperatureReceivedInSessionRef.current
-          ? 'Escucha finalizada. La última temperatura recibida se muestra abajo.'
-          : 'Escucha finalizada sin recibir temperaturas. Puedes volver a escuchar cuando el termómetro esté preparado.'
-      );
-      resetTemperatureListenerState();
-      return;
-    }
-
-    if (event?.status === 'error') {
-      setTemperatureListenerMessage(event.message || 'No se pudo recibir la temperatura.');
-      resetTemperatureListenerState();
-      stopFemometerTemperatureListener().catch(() => {});
-      return;
-    }
-
-    if (event?.status === 'disconnected') {
-      setTemperatureListenerMessage(event?.message || 'El termómetro se desconectó.');
-      resetTemperatureListenerState();
-    }
-  };
-
-  const handleStartTemperatureListener = async () => {
-    if (!selectedDeviceId) {
-      toast({
-        title: 'Selecciona un termómetro',
-        description: 'Busca y selecciona BM-Vinca2 antes de escuchar temperatura.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setIsStartingTemperatureListener(true);
-    setLastTechnicalError(null);
-    setTemperatureListenerMessage('');
-    setLastTemperatureReading(null);
-    temperatureReceivedInSessionRef.current = false;
-    setTemperatureSecondsRemaining(DEFAULT_TEMPERATURE_LISTEN_SECONDS);
-
-    try {
-      temperatureListenerSubscriptionRef.current?.remove?.();
-      temperatureListenerSubscriptionRef.current = await addFemometerTemperatureListener(
-        handleTemperatureEvent
-      );
-      const result = await startFemometerTemperatureListener(selectedDeviceId);
-      // Android owns the deadline; older APKs can still report a shorter window.
-      const timeoutSeconds = Number(result?.timeoutSeconds);
-      temperatureListenDurationRef.current = Number.isFinite(timeoutSeconds) && timeoutSeconds > 0
-        ? Math.floor(timeoutSeconds)
-        : DEFAULT_TEMPERATURE_LISTEN_SECONDS;
-      setTemperatureSecondsRemaining(temperatureListenDurationRef.current);
-      setTemperatureConnectionReady(Boolean(result?.connectionReady));
-      setTemperatureIndicationsActive(Boolean(result?.indicationsActive));
-      setIsTemperatureListenerActive(true);
-      temperatureListenerStartedAtRef.current = Date.now();
-      setTemperatureListenerMessage(temperatureReceivedInSessionRef.current
-        ? 'Temperatura recibida. La escucha continúa para recibir otra medición.'
-        : 'Escuchando el termómetro…');
-    } catch (error) {
-      temperatureListenerSubscriptionRef.current?.remove?.();
-      temperatureListenerSubscriptionRef.current = null;
-      resetTemperatureListenerState();
-      storeTechnicalError(error);
-      showBleError(error, 'Error escuchando temperatura');
-    } finally {
-      setIsStartingTemperatureListener(false);
-    }
-  };
-
-  const handleStopTemperatureListener = async () => {
-    setIsStartingTemperatureListener(false);
-    try {
-      await stopFemometerTemperatureListener();
-    } catch (error) {
-      storeTechnicalError(error);
-      showBleError(error, 'Error deteniendo escucha');
-    } finally {
-      temperatureListenerSubscriptionRef.current?.remove?.();
-      temperatureListenerSubscriptionRef.current = null;
-      resetTemperatureListenerState();
-      setTemperatureListenerMessage('Escucha detenida.');
-    }
-  };
-
+  const statusText = {
+    checking: 'Consultando termómetro recordado…', idle: 'Selección manual disponible',
+    searching: 'Buscando termómetro', connecting: 'Conectando', listening: 'Escuchando temperaturas',
+    missing: 'No encontrado', error: 'Error', stopping: 'Deteniendo…', stopped: 'Detenido', inspecting: 'Comprobando compatibilidad',
+  }[status];
   const renderStatusLine = (ok, successText, missingText) => (
     <li className={cn('flex gap-2 text-sm', ok ? 'text-emerald-700' : 'text-amber-700')}>
       <span className="shrink-0 font-semibold" aria-hidden="true">
@@ -484,7 +303,7 @@ const FemometerBlePrototypePanel = ({ userId }) => {
               Termómetro Femometer — prueba técnica
             </p>
             <p className="mt-0.5 text-sm leading-relaxed text-slate-500">
-              Busca un termómetro compatible y comprueba su conexión.
+              Si tienes un termómetro recordado, intentaremos escucharlo al abrir esta pantalla. También puedes buscarlo manualmente.
             </p>
             <p className="mt-0.5 text-sm leading-relaxed text-slate-500">
               Permite probar la recepción de temperaturas. Todavía no las guarda en tus registros.
@@ -494,10 +313,21 @@ const FemometerBlePrototypePanel = ({ userId }) => {
             </p>
           </div>
 
+          <div className="space-y-2">
+            <p role="status" className="text-sm font-medium text-slate-700">{statusText}</p>
+            {sessionState.error?.message ? <p className="text-sm text-amber-700">{sessionState.error.message}</p> : null}
+            {remembered && !busy && !isTemperatureListenerActive ? (
+              <Button type="button" variant="outline" onClick={() => sessionRef.current?.start()}>Reintentar</Button>
+            ) : null}
+            {(busy || isTemperatureListenerActive) && status !== 'stopping' ? (
+              <Button type="button" variant="outline" onClick={handleStopTemperatureListener}>Detener</Button>
+            ) : null}
+          </div>
+
           <Button
             type="button"
             onClick={handleScan}
-            disabled={isScanning || isInspecting || isUpdatingRemembered || isStartingTemperatureListener || isTemperatureListenerActive}
+            disabled={busy || isScanning || isInspecting || isUpdatingRemembered || isStartingTemperatureListener || isTemperatureListenerActive}
             className="min-h-11 w-full bg-fertiliapp-fuerte text-white hover:brightness-95"
           >
             <Bluetooth className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -515,7 +345,7 @@ const FemometerBlePrototypePanel = ({ userId }) => {
           </p>
           {remembered ? (
             <Button type="button" variant="outline" onClick={() => handleRememberedChange(true)}
-              disabled={isUpdatingRemembered || isScanning || isInspecting}>
+              disabled={busy || isUpdatingRemembered || isScanning || isInspecting || isTemperatureListenerActive}>
               Olvidar termómetro
             </Button>
           ) : null}
@@ -531,8 +361,8 @@ const FemometerBlePrototypePanel = ({ userId }) => {
                   <button
                     key={device.id}
                     type="button"
-                    disabled={isScanning || isInspecting || isUpdatingRemembered || isStartingTemperatureListener || isTemperatureListenerActive}
-                    onClick={() => { setSelectedDeviceId(device.id); setInspectionResult(null); }}
+                    disabled={busy || isScanning || isInspecting || isUpdatingRemembered || isStartingTemperatureListener || isTemperatureListenerActive}
+                    onClick={() => sessionRef.current?.select(device.id)}
                     className={cn(
                       'flex min-h-12 w-full items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left transition',
                       selected
@@ -556,7 +386,7 @@ const FemometerBlePrototypePanel = ({ userId }) => {
               <Button
                 type="button"
                 onClick={handleInspect}
-                disabled={!selectedDeviceId || isScanning || isInspecting || isTemperatureListenerActive}
+                disabled={busy || !selectedDeviceId || isScanning || isInspecting || isTemperatureListenerActive}
                 variant="outline"
                 className="min-h-11 w-full border-rose-200 bg-white text-fertiliapp-fuerte hover:bg-rose-50"
               >
@@ -564,7 +394,7 @@ const FemometerBlePrototypePanel = ({ userId }) => {
               </Button>
 
               <Button type="button" variant="outline" onClick={() => handleRememberedChange()}
-                disabled={!inspectionResult?.compatible || !selectedDeviceId || isScanning || isInspecting || isUpdatingRemembered || isStartingTemperatureListener || isTemperatureListenerActive}>
+                disabled={busy || !inspectionResult?.compatible || !selectedDeviceId || isScanning || isInspecting || isUpdatingRemembered || isStartingTemperatureListener || isTemperatureListenerActive}>
                 {isUpdatingRemembered ? 'Actualizando…' : 'Recordar termómetro seleccionado'}
               </Button>
 
@@ -572,7 +402,7 @@ const FemometerBlePrototypePanel = ({ userId }) => {
                 <Button
                   type="button"
                   onClick={handleStartTemperatureListener}
-                  disabled={!selectedDeviceId || isScanning || isInspecting || isStartingTemperatureListener}
+                  disabled={busy || !selectedDeviceId || isScanning || isInspecting || isStartingTemperatureListener}
                   className="min-h-11 w-full bg-fertiliapp-fuerte text-white hover:brightness-95"
                 >
                   {isStartingTemperatureListener ? 'Preparando escucha…' : 'Escuchar temperatura'}

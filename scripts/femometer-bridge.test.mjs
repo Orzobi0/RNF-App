@@ -2,6 +2,44 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'vite';
 
+test('panel automatic session uses the real bridge wrappers without requesting permissions or inspecting', async () => {
+  const server = await createServer({ mode: 'staging', optimizeDeps: { noDiscovery: true, include: [] }, server: { middlewareMode: true, hmr: false }, appType: 'custom' });
+  const oldWindow = globalThis.window;
+  const calls = [];
+  let session;
+  try {
+    globalThis.window = { Capacitor: {
+      isNativePlatform: () => true, getPlatform: () => 'android',
+      nativePromise: async (plugin, method, options) => {
+        calls.push({ plugin, method, options });
+        if (method === 'getRememberedDevice') return { remembered: true };
+        if (method === 'scan') return { devices: [{ id: 'wrong' }, { id: 'right', isRemembered: true }] };
+        if (method === 'startTemperatureListener') return { connectionReady: true, indicationsActive: true };
+        if (method === 'disconnect') return {};
+        throw new Error(`Unexpected method: ${method}`);
+      },
+      nativeCallback: (plugin, method, options) => {
+        calls.push({ plugin, method, options });
+        return 'subscription';
+      },
+    } };
+    const ble = await server.ssrLoadModule('/src/lib/femometerBle.js');
+    const states = [];
+    session = ble.createFemometerPanelSession('account', state => states.push(state), () => {});
+    await session.start();
+    assert.deepEqual(calls.map(call => call.method), ['getRememberedDevice', 'scan', 'addListener', 'startTemperatureListener']);
+    assert.deepEqual(calls[1].options, { userId: 'account' });
+    assert.deepEqual(calls[3].options, { deviceId: 'right' });
+    assert.equal(states.at(-1).status, 'listening');
+    await session.dispose();
+    assert.deepEqual(calls.slice(-2).map(call => call.method), ['disconnect', 'removeListener']);
+  } finally {
+    await session?.dispose();
+    globalThis.window = oldWindow;
+    await server.close();
+  }
+});
+
 test('Android message bridge receives multiple readings and releases the subscription', async () => {
   const server = await createServer({ mode: 'staging', optimizeDeps: { noDiscovery: true, include: [] }, server: { middlewareMode: true, hmr: false }, appType: 'custom' });
   const oldWindow = globalThis.window;
