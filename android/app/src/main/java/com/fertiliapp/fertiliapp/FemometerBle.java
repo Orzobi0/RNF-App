@@ -14,6 +14,7 @@ import android.bluetooth.le.BluetoothLeScanner;
 import android.bluetooth.le.ScanCallback;
 import android.bluetooth.le.ScanResult;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Handler;
@@ -84,6 +85,73 @@ public class FemometerBle extends Plugin {
     private PluginCall temperatureListenerCall;
     private Runnable temperatureSetupTimeoutRunnable;
     private Runnable temperatureListenerTimeoutRunnable;
+
+    // UID comes from the authenticated web session; no Firebase native dependency.
+    // Never return the stored address through the bridge.
+    private SharedPreferences rememberedDevices() {
+        return getContext().getSharedPreferences("femometer_identity_v1", Context.MODE_PRIVATE);
+    }
+
+    private boolean isStaging() {
+        return "com.fertiliapp.fertiliapp.staging".equals(getContext().getPackageName());
+    }
+
+    private String requireUser(PluginCall call) {
+        if (!isStaging()) {
+            call.reject("Solo disponible en Android Staging.", "UNAVAILABLE_PLATFORM");
+            return null;
+        }
+        String userId = call.getString("userId");
+        if (userId == null || userId.trim().isEmpty()) {
+            call.reject("Se requiere una sesion autenticada.", "USER_REQUIRED");
+            return null;
+        }
+        return userId;
+    }
+
+    @PluginMethod
+    public void getRememberedDevice(PluginCall call) {
+        String userId = requireUser(call);
+        if (userId == null) return;
+        JSObject result = new JSObject();
+        result.put("remembered", rememberedDevices().contains(userId));
+        call.resolve(result);
+    }
+
+    @PluginMethod
+    public void rememberDevice(PluginCall call) {
+        String userId = requireUser(call);
+        if (userId == null) return;
+        ScannedDevice device = devicesById.get(call.getString("deviceId"));
+        if (scanCall != null || device == null) {
+            call.reject("Vuelve a buscar el termometro.", "DEVICE_NOT_FOUND");
+            return;
+        }
+        if (!device.compatible) {
+            call.reject("Comprueba primero la compatibilidad.", "DEVICE_NOT_VERIFIED");
+            return;
+        }
+        if (!rememberedDevices().edit().putString(userId, device.address).commit()) {
+            call.reject("No se pudo guardar el termometro.", "PERSISTENCE_FAILED");
+            return;
+        }
+        JSObject result = new JSObject();
+        result.put("remembered", true);
+        call.resolve(result);
+    }
+
+    @PluginMethod
+    public void forgetDevice(PluginCall call) {
+        String userId = requireUser(call);
+        if (userId == null) return;
+        if (!rememberedDevices().edit().remove(userId).commit()) {
+            call.reject("No se pudo olvidar el termometro.", "PERSISTENCE_FAILED");
+            return;
+        }
+        JSObject result = new JSObject();
+        result.put("remembered", false);
+        call.resolve(result);
+    }
 
     @PluginMethod
     public void requestBluetoothPermissions(PluginCall call) {
@@ -181,17 +249,17 @@ public class FemometerBle extends Plugin {
             scanner.startScan(scanCallback);
             Log.d(TAG, "BLE scan started");
         } catch (SecurityException error) {
-            Log.e(TAG, "SecurityException starting BLE scan", error);
+            Log.e(TAG, "SecurityException starting BLE scan");
             stopScanInternal();
             call.reject("Faltan permisos Bluetooth para buscar dispositivos.", "PERMISSION_NOT_GRANTED");
             return;
         } catch (IllegalStateException error) {
-            Log.e(TAG, "IllegalStateException starting BLE scan", error);
+            Log.e(TAG, "IllegalStateException starting BLE scan");
             stopScanInternal();
             call.reject("Bluetooth no esta disponible para buscar dispositivos.", "BLUETOOTH_UNAVAILABLE");
             return;
         } catch (Exception error) {
-            Log.e(TAG, "Unexpected exception starting BLE scan", error);
+            Log.e(TAG, "Unexpected exception starting BLE scan");
             stopScanInternal();
             call.reject("No se pudo iniciar la busqueda BLE.", "SCAN_FAILED");
             return;
@@ -203,7 +271,7 @@ public class FemometerBle extends Plugin {
             if (pending != null) {
                 Log.d(TAG, "BLE scan finished: femometerDevices=" + devicesById.size());
                 JSObject result = new JSObject();
-                result.put("devices", buildScannedDevicesArray());
+                result.put("devices", buildScannedDevicesArray(pending.getString("userId")));
                 pending.resolve(result);
             }
         }, SCAN_TIMEOUT_MS);
@@ -229,12 +297,13 @@ public class FemometerBle extends Plugin {
             return;
         }
 
-        if (connectCall != null) {
+        if (connectCall != null || scanCall != null) {
             call.reject("Ya hay una conexion BLE en curso.", "CONNECTION_IN_PROGRESS");
             return;
         }
 
         closeActiveGatt();
+        scannedDevice.compatible = false;
         connectCall = call;
 
         BluetoothGattCallback callback = new BluetoothGattCallback() {
@@ -252,10 +321,10 @@ public class FemometerBle extends Plugin {
                             rejectConnectCall("No se pudo iniciar la deteccion de servicios BLE.", "SERVICE_DISCOVERY_FAILED");
                         }
                     } catch (SecurityException error) {
-                        Log.e(TAG, "SecurityException discovering BLE services", error);
+                        Log.e(TAG, "SecurityException discovering BLE services");
                         rejectConnectCall("Faltan permisos Bluetooth para detectar servicios.", "PERMISSION_NOT_GRANTED");
                     } catch (Exception error) {
-                        Log.e(TAG, "Unexpected exception discovering BLE services", error);
+                        Log.e(TAG, "Unexpected exception discovering BLE services");
                         rejectConnectCall("No se pudo iniciar la deteccion de servicios BLE.", "SERVICE_DISCOVERY_FAILED");
                     }
                     return;
@@ -268,6 +337,7 @@ public class FemometerBle extends Plugin {
 
             @Override
             public void onServicesDiscovered(BluetoothGatt gatt, int status) {
+                if (gatt != activeGatt || connectCall == null) return;
                 if (status != BluetoothGatt.GATT_SUCCESS) {
                     rejectConnectCall("No se pudieron detectar los servicios BLE.", "SERVICE_DISCOVERY_FAILED");
                     return;
@@ -275,6 +345,13 @@ public class FemometerBle extends Plugin {
 
                 PluginCall pending = connectCall;
                 JSObject result = buildInspectionResult(gatt);
+                BluetoothGattService service = gatt.getService(HEALTH_THERMOMETER_UUID);
+                BluetoothGattCharacteristic measurement = service == null ? null
+                    : service.getCharacteristic(TEMPERATURE_MEASUREMENT_UUID);
+                scannedDevice.compatible = measurement != null
+                    && (measurement.getProperties() & BluetoothGattCharacteristic.PROPERTY_INDICATE) != 0
+                    && measurement.getDescriptor(CLIENT_CHARACTERISTIC_CONFIG_UUID) != null;
+                result.put("compatible", scannedDevice.compatible);
                 clearConnectState();
                 activeGatt = null;
                 closeGatt(gatt);
@@ -292,10 +369,10 @@ public class FemometerBle extends Plugin {
                 activeGatt = scannedDevice.device.connectGatt(getContext(), false, callback);
             }
         } catch (SecurityException error) {
-            Log.e(TAG, "SecurityException connecting BLE device", error);
+            Log.e(TAG, "SecurityException connecting BLE device");
             rejectConnectCall("Faltan permisos Bluetooth para conectar.", "PERMISSION_NOT_GRANTED");
         } catch (Exception error) {
-            Log.e(TAG, "Unexpected exception connecting BLE device", error);
+            Log.e(TAG, "Unexpected exception connecting BLE device");
             rejectConnectCall("No se pudo abrir la conexion BLE.", "CONNECTION_FAILED");
         }
 
@@ -351,10 +428,10 @@ public class FemometerBle extends Plugin {
                             rejectTemperatureStart("No se pudo iniciar la deteccion de servicios BLE.", "SERVICE_DISCOVERY_FAILED");
                         }
                     } catch (SecurityException error) {
-                        Log.e(TAG, "SecurityException discovering services for listener", error);
+                        Log.e(TAG, "SecurityException discovering services for listener");
                         rejectTemperatureStart("Faltan permisos Bluetooth para detectar servicios.", "PERMISSION_NOT_GRANTED");
                     } catch (Exception error) {
-                        Log.e(TAG, "Unexpected exception discovering services for listener", error);
+                        Log.e(TAG, "Unexpected exception discovering services for listener");
                         rejectTemperatureStart("No se pudo iniciar la deteccion de servicios BLE.", "SERVICE_DISCOVERY_FAILED");
                     }
                     return;
@@ -413,10 +490,10 @@ public class FemometerBle extends Plugin {
                         rejectTemperatureStart("No se pudo escribir el descriptor CCCD para indicaciones.", "CCCD_WRITE_FAILED");
                     }
                 } catch (SecurityException error) {
-                    Log.e(TAG, "SecurityException enabling indications", error);
+                    Log.e(TAG, "SecurityException enabling indications");
                     rejectTemperatureStart("Faltan permisos Bluetooth para activar indicaciones.", "PERMISSION_NOT_GRANTED");
                 } catch (Exception error) {
-                    Log.e(TAG, "Unexpected exception enabling indications", error);
+                    Log.e(TAG, "Unexpected exception enabling indications");
                     rejectTemperatureStart("No se pudieron activar las indicaciones.", "INDICATION_ENABLE_FAILED");
                 }
             }
@@ -478,10 +555,10 @@ public class FemometerBle extends Plugin {
                 temperatureGatt = scannedDevice.device.connectGatt(getContext(), false, callback);
             }
         } catch (SecurityException error) {
-            Log.e(TAG, "SecurityException connecting temperature listener", error);
+            Log.e(TAG, "SecurityException connecting temperature listener");
             rejectTemperatureStart("Faltan permisos Bluetooth para conectar.", "PERMISSION_NOT_GRANTED");
         } catch (Exception error) {
-            Log.e(TAG, "Unexpected exception connecting temperature listener", error);
+            Log.e(TAG, "Unexpected exception connecting temperature listener");
             rejectTemperatureStart("No se pudo abrir la conexion BLE.", "CONNECTION_FAILED");
         }
 
@@ -523,6 +600,7 @@ public class FemometerBle extends Plugin {
     }
 
     private void handleScanResult(ScanResult result) {
+        if (scanCall == null) return;
         if (result == null || result.getDevice() == null) return;
 
         String advertisedName = null;
@@ -533,10 +611,10 @@ public class FemometerBle extends Plugin {
             try {
                 advertisedName = result.getDevice().getName();
             } catch (SecurityException error) {
-                Log.e(TAG, "SecurityException reading advertised device name", error);
+                Log.e(TAG, "SecurityException reading advertised device name");
                 return;
             } catch (Exception error) {
-                Log.e(TAG, "Unexpected exception reading advertised device name", error);
+                Log.e(TAG, "Unexpected exception reading advertised device name");
                 return;
             }
         }
@@ -548,10 +626,10 @@ public class FemometerBle extends Plugin {
         try {
             address = result.getDevice().getAddress();
         } catch (SecurityException error) {
-            Log.e(TAG, "SecurityException reading internal BLE address", error);
+            Log.e(TAG, "SecurityException reading internal BLE address");
             return;
         } catch (Exception error) {
-            Log.e(TAG, "Unexpected exception reading internal BLE address", error);
+            Log.e(TAG, "Unexpected exception reading internal BLE address");
             return;
         }
 
@@ -560,16 +638,18 @@ public class FemometerBle extends Plugin {
             id = UUID.randomUUID().toString();
             idsByAddress.put(address, id);
         }
-        devicesById.put(id, new ScannedDevice(result.getDevice(), advertisedName, result.getRssi()));
+        devicesById.put(id, new ScannedDevice(result.getDevice(), address, advertisedName, result.getRssi()));
     }
 
-    private JSArray buildScannedDevicesArray() {
+    private JSArray buildScannedDevicesArray(String userId) {
+        String rememberedAddress = userId == null ? null : rememberedDevices().getString(userId, null);
         JSArray devices = new JSArray();
         for (Map.Entry<String, ScannedDevice> entry : devicesById.entrySet()) {
             JSObject device = new JSObject();
             device.put("id", entry.getKey());
             device.put("name", entry.getValue().name);
             device.put("rssi", entry.getValue().rssi);
+            device.put("isRemembered", entry.getValue().address.equals(rememberedAddress));
             devices.put(device);
         }
         return devices;
@@ -712,7 +792,7 @@ public class FemometerBle extends Plugin {
             Log.d(TAG, "Temperature indication received");
             notifyListeners(TEMPERATURE_EVENT, decoded);
         } catch (Exception error) {
-            Log.e(TAG, "Error decoding temperature indication", error);
+            Log.e(TAG, "Error decoding temperature indication");
             JSObject event = new JSObject();
             event.put("error", "DECODE_FAILED");
             event.put("rawHex", bytesToHex(value));
@@ -787,7 +867,7 @@ public class FemometerBle extends Plugin {
             calendar.set(year, month - 1, day, hour, minute, second);
             return formatIsoLocal(calendar.getTime());
         } catch (Exception error) {
-            Log.e(TAG, "Error formatting device timestamp", error);
+            Log.e(TAG, "Error formatting device timestamp");
             return null;
         }
     }
@@ -850,6 +930,7 @@ public class FemometerBle extends Plugin {
     }
 
     private String getUnavailableCode() {
+        if (!isStaging()) return "UNAVAILABLE_PLATFORM";
         if (!getContext().getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
             return "BLE_NOT_SUPPORTED";
         }
@@ -987,9 +1068,9 @@ public class FemometerBle extends Plugin {
                     gatt.setCharacteristicNotification(vincaCharacteristic, false);
                 }
             } catch (SecurityException error) {
-                Log.e(TAG, "SecurityException disabling local indication listener", error);
+                Log.e(TAG, "SecurityException disabling local indication listener");
             } catch (Exception error) {
-                Log.e(TAG, "Unexpected exception disabling local indication listener", error);
+                Log.e(TAG, "Unexpected exception disabling local indication listener");
             }
             closeGatt(gatt);
         }
@@ -1032,13 +1113,13 @@ public class FemometerBle extends Plugin {
                     scanner.stopScan(scanCallback);
                 }
             } catch (SecurityException error) {
-                Log.e(TAG, "SecurityException stopping BLE scan", error);
+                Log.e(TAG, "SecurityException stopping BLE scan");
                 // Best effort cleanup only.
             } catch (IllegalStateException error) {
-                Log.e(TAG, "IllegalStateException stopping BLE scan", error);
+                Log.e(TAG, "IllegalStateException stopping BLE scan");
                 // Best effort cleanup only.
             } catch (Exception error) {
-                Log.e(TAG, "Unexpected exception stopping BLE scan", error);
+                Log.e(TAG, "Unexpected exception stopping BLE scan");
                 // Best effort cleanup only.
             }
         }
@@ -1057,19 +1138,19 @@ public class FemometerBle extends Plugin {
         try {
             gatt.disconnect();
         } catch (SecurityException error) {
-            Log.e(TAG, "SecurityException disconnecting BLE GATT", error);
+            Log.e(TAG, "SecurityException disconnecting BLE GATT");
             // Best effort cleanup only.
         } catch (Exception error) {
-            Log.e(TAG, "Unexpected exception disconnecting BLE GATT", error);
+            Log.e(TAG, "Unexpected exception disconnecting BLE GATT");
             // Best effort cleanup only.
         }
         try {
             gatt.close();
         } catch (SecurityException error) {
-            Log.e(TAG, "SecurityException closing BLE GATT", error);
+            Log.e(TAG, "SecurityException closing BLE GATT");
             // Best effort cleanup only.
         } catch (Exception error) {
-            Log.e(TAG, "Unexpected exception closing BLE GATT", error);
+            Log.e(TAG, "Unexpected exception closing BLE GATT");
             // Best effort cleanup only.
         }
     }
@@ -1094,11 +1175,14 @@ public class FemometerBle extends Plugin {
 
     private static class ScannedDevice {
         final BluetoothDevice device;
+        final String address;
+        volatile boolean compatible;
         final String name;
         final int rssi;
 
-        ScannedDevice(BluetoothDevice device, String name, int rssi) {
+        ScannedDevice(BluetoothDevice device, String address, String name, int rssi) {
             this.device = device;
+            this.address = address;
             this.name = name;
             this.rssi = rssi;
         }

@@ -2,13 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { isFemometerPrototypeEnabled } from '../src/lib/appFeatures.js';
 
-test('staging exposes thermometer without a local flag; production remains opt-in', () => {
+test('staging exposes thermometer without a local flag; production cannot opt in', () => {
   assert.equal(isFemometerPrototypeEnabled({ VITE_APP_ENV: 'staging' }), true);
   assert.equal(isFemometerPrototypeEnabled({ VITE_APP_ENV: 'production' }), false);
   assert.equal(isFemometerPrototypeEnabled({}), false);
   for (const environment of ['staging', 'production']) {
     assert.equal(isFemometerPrototypeEnabled({ VITE_APP_ENV: environment, VITE_ENABLE_FEMOMETER_BLE_PROTOTYPE: 'false' }), false);
-    assert.equal(isFemometerPrototypeEnabled({ VITE_APP_ENV: environment, VITE_ENABLE_FEMOMETER_BLE_PROTOTYPE: 'true' }), true);
+    assert.equal(isFemometerPrototypeEnabled({ VITE_APP_ENV: environment, VITE_ENABLE_FEMOMETER_BLE_PROTOTYPE: 'true' }), environment === 'staging');
   }
 });
 

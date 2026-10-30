@@ -28,6 +28,29 @@ test('Android message bridge receives multiple readings and releases the subscri
     const request = messages.at(-1);
     deliver({ callbackId: request.callbackId, success: true, data: { devices: [{ id: 'test' }] } });
     assert.equal((await scan)[0].id, 'test');
+    // Identity stays native: only account scope, temporary IDs and presence flags cross the bridge.
+    for (const [method, invoke, options, response] of [
+      ['getRememberedDevice', () => ble.getRememberedFemometer('user-a'), { userId: 'user-a' }, { remembered: true }],
+      ['rememberDevice', () => ble.rememberFemometer('user-a', 'temporary-id'), { userId: 'user-a', deviceId: 'temporary-id' }, { remembered: true }],
+      ['forgetDevice', () => ble.forgetFemometer('user-b'), { userId: 'user-b' }, { remembered: false }],
+    ]) {
+      const pending = invoke();
+      const request = messages.at(-1);
+      assert.equal(request.methodName, method);
+      assert.deepEqual(request.options, options);
+      deliver({ callbackId: request.callbackId, success: true, data: response });
+      assert.deepEqual(await pending, response);
+    }
+    const rememberedScan = ble.scanForFemometer('user-a');
+    const rememberedRequest = messages.at(-1);
+    assert.deepEqual(rememberedRequest.options, { userId: 'user-a' });
+    deliver({ callbackId: rememberedRequest.callbackId, success: true, data: {
+      devices: [{ id: 'new-temporary-id', isRemembered: true }, { id: 'other', isRemembered: false }],
+    } });
+    assert.deepEqual((await rememberedScan).map(device => device.isRemembered), [true, false]);
+    const failedSave = ble.rememberFemometer('user-a', 'unverified');
+    deliver({ callbackId: messages.at(-1).callbackId, success: false, error: { code: 'DEVICE_NOT_VERIFIED' } });
+    await assert.rejects(failedSave, error => error.code === 'DEVICE_NOT_VERIFIED');
     await listener.remove();
     const removal = messages.at(-1);
     assert.equal(removal.methodName, 'removeListener');
@@ -52,6 +75,9 @@ test('Android message bridge receives multiple readings and releases the subscri
     assert.equal(readings.at(-1).temperatureC, 36.6);
     await nativeListener.remove();
     assert.equal(nativeCalls.at(-1)[1], 'removeListener');
+    globalThis.window.Capacitor.isNativePlatform = () => false;
+    await assert.rejects(ble.getRememberedFemometer('user-a'), error => error.code === 'UNAVAILABLE_PLATFORM');
+    await assert.rejects(ble.scanForFemometer('user-a'), error => error.code === 'UNAVAILABLE_PLATFORM');
   } finally {
     globalThis.window = oldWindow;
     await server.close();

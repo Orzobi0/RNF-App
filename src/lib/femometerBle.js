@@ -100,6 +100,9 @@ const androidBridgePromise = (pluginName, methodName, options = {}) => {
 };
 
 const ERROR_MESSAGES = {
+  USER_REQUIRED: 'Inicia sesión para recordar tu termómetro.',
+  DEVICE_NOT_VERIFIED: 'Comprueba la compatibilidad del termómetro antes de recordarlo.',
+  PERSISTENCE_FAILED: 'No se pudo actualizar el termómetro recordado. Vuelve a intentarlo.',
   BLE_NOT_SUPPORTED: 'Este dispositivo no tiene soporte BLE.',
   BLUETOOTH_UNAVAILABLE: 'Bluetooth no está disponible en este dispositivo.',
   BLUETOOTH_DISABLED: 'Bluetooth está apagado. Actívalo y vuelve a intentarlo.',
@@ -178,7 +181,7 @@ export const normalizeFemometerBleError = (error) => {
 };
 
 const assertAndroidNative = () => {
-  if (!isFemometerBleAndroidNative()) {
+  if (!isFemometerBleAndroidNative() || !isFemometerBlePrototypeEnabled()) {
     throw createFemometerBleError(
       'UNAVAILABLE_PLATFORM',
       undefined,
@@ -220,10 +223,19 @@ export const requestBluetoothPermissions = async () => {
   return result;
 };
 
-export const scanForFemometer = async () => {
-  const result = await callFemometerBle('scan');
+export const scanForFemometer = async (userId) => {
+  const result = await callFemometerBle('scan', { userId });
   return Array.isArray(result?.devices) ? result.devices : [];
 };
+
+export const getRememberedFemometer = (userId) =>
+  callFemometerBle('getRememberedDevice', { userId });
+
+export const rememberFemometer = (userId, deviceId) =>
+  callFemometerBle('rememberDevice', { userId, deviceId });
+
+export const forgetFemometer = (userId) =>
+  callFemometerBle('forgetDevice', { userId });
 
 export const connectAndInspectFemometer = async (deviceId) =>
   callFemometerBle('connectAndInspect', { deviceId });

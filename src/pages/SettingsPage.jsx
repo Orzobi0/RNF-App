@@ -24,6 +24,9 @@ import {
   addFemometerTemperatureListener,
   connectAndInspectFemometer,
   disconnectFemometer,
+  getRememberedFemometer,
+  rememberFemometer,
+  forgetFemometer,
   isFemometerBleAndroidNative,
   isFemometerBlePrototypeEnabled,
   requestBluetoothPermissions,
@@ -202,8 +205,23 @@ const SettingsSection = ({ title, children, className }) => (
 
 const DEFAULT_TEMPERATURE_LISTEN_SECONDS = 6 * 60;
 
-const FemometerBlePrototypePanel = () => {
+const FemometerBlePrototypePanel = ({ userId }) => {
   const { toast } = useToast();
+  const [remembered, setRemembered] = useState(null);
+  const [isUpdatingRemembered, setIsUpdatingRemembered] = useState(false);
+  const [rememberedSearch, setRememberedSearch] = useState('pending');
+  useEffect(() => {
+    let cancelled = false;
+    getRememberedFemometer(userId).then(result => {
+      if (!cancelled) setRemembered(result.remembered);
+    }).catch(error => {
+      if (!cancelled) {
+        setRememberedSearch('error');
+        storeTechnicalError(error);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [userId]);
   const [devices, setDevices] = useState([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState('');
   const [inspectionResult, setInspectionResult] = useState(null);
@@ -265,6 +283,7 @@ const FemometerBlePrototypePanel = () => {
 
   const handleScan = async () => {
     setIsScanning(true);
+    setRememberedSearch('pending');
     setInspectionResult(null);
     setLastTechnicalError(null);
     setIsTemperatureListenerActive(false);
@@ -275,22 +294,46 @@ const FemometerBlePrototypePanel = () => {
     setSelectedDeviceId('');
     try {
       await requestBluetoothPermissions();
-      const foundDevices = await scanForFemometer();
+      const saved = await getRememberedFemometer(userId);
+      setRemembered(saved.remembered);
+      const foundDevices = await scanForFemometer(userId);
       setDevices(foundDevices);
-      if (foundDevices.length > 0) {
-        setSelectedDeviceId(foundDevices[0].id);
-      } else {
+      const match = foundDevices.find(device => device.isRemembered);
+      setRememberedSearch(match ? 'found' : 'missing');
+      if (match) setSelectedDeviceId(match.id);
+      else if (!saved.remembered && foundDevices.length > 0) setSelectedDeviceId(foundDevices[0].id);
+      if (foundDevices.length === 0) {
         toast({
           title: 'Termómetro no encontrado',
           description: 'No se detectó BM-Vinca2. Despierta el termómetro y vuelve a buscar.',
         });
       }
     } catch (error) {
+      setRememberedSearch('error');
       setDevices([]);
       storeTechnicalError(error);
       showBleError(error, 'Error buscando termómetro');
     } finally {
       setIsScanning(false);
+    }
+  };
+
+  const handleRememberedChange = async (forget = false) => {
+    setIsUpdatingRemembered(true);
+    try {
+      const result = forget
+        ? await forgetFemometer(userId)
+        : await rememberFemometer(userId, selectedDeviceId);
+      setRemembered(result.remembered);
+      setRememberedSearch(forget ? 'pending' : 'found');
+      setDevices(current => current.map(device => ({
+        ...device, isRemembered: !forget && device.id === selectedDeviceId,
+      })));
+    } catch (error) {
+      storeTechnicalError(error);
+      showBleError(error, 'No se pudo actualizar el termómetro recordado');
+    } finally {
+      setIsUpdatingRemembered(false);
     }
   };
 
@@ -454,12 +497,28 @@ const FemometerBlePrototypePanel = () => {
           <Button
             type="button"
             onClick={handleScan}
-            disabled={isScanning || isInspecting}
+            disabled={isScanning || isInspecting || isUpdatingRemembered || isStartingTemperatureListener || isTemperatureListenerActive}
             className="min-h-11 w-full bg-fertiliapp-fuerte text-white hover:brightness-95"
           >
             <Bluetooth className="mr-2 h-4 w-4" aria-hidden="true" />
             {isScanning ? 'Buscando…' : 'Buscar termómetro'}
           </Button>
+
+          <p role="status" className="text-sm text-slate-600">
+            {remembered === null
+              ? (rememberedSearch === 'error' ? 'No se pudo consultar el termómetro recordado. Vuelve a buscar.' : 'Consultando termómetro recordado…')
+              : !remembered ? 'No hay termómetro recordado para esta cuenta en este móvil.'
+                : rememberedSearch === 'found' ? 'Termómetro recordado encontrado en la última búsqueda.'
+                  : rememberedSearch === 'missing' ? 'Termómetro recordado no encontrado. Enciéndelo y vuelve a buscar, o selecciona otro manualmente.'
+                    : rememberedSearch === 'error' ? 'No se pudo comprobar si está presente. La asociación se conserva.'
+                      : 'Tienes un termómetro recordado. Busca para comprobar si está presente.'}
+          </p>
+          {remembered ? (
+            <Button type="button" variant="outline" onClick={() => handleRememberedChange(true)}
+              disabled={isUpdatingRemembered || isScanning || isInspecting}>
+              Olvidar termómetro
+            </Button>
+          ) : null}
 
           {devices.length > 0 ? (
             <div className="space-y-2">
@@ -472,7 +531,8 @@ const FemometerBlePrototypePanel = () => {
                   <button
                     key={device.id}
                     type="button"
-                    onClick={() => setSelectedDeviceId(device.id)}
+                    disabled={isScanning || isInspecting || isUpdatingRemembered || isStartingTemperatureListener || isTemperatureListenerActive}
+                    onClick={() => { setSelectedDeviceId(device.id); setInspectionResult(null); }}
                     className={cn(
                       'flex min-h-12 w-full items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left transition',
                       selected
@@ -483,6 +543,7 @@ const FemometerBlePrototypePanel = () => {
                     <span className="min-w-0">
                       <span className="block truncate text-sm font-semibold">{device.name}</span>
                       <span className="block text-xs text-slate-500">Señal {device.rssi} dBm</span>
+                      {device.isRemembered ? <span className="block text-xs text-emerald-700">Termómetro recordado</span> : null}
                     </span>
                     {selected ? (
                       <span className="shrink-0 text-sm font-semibold text-rose-600">
@@ -500,6 +561,11 @@ const FemometerBlePrototypePanel = () => {
                 className="min-h-11 w-full border-rose-200 bg-white text-fertiliapp-fuerte hover:bg-rose-50"
               >
                 {isInspecting ? 'Comprobando conexión…' : 'Comprobar compatibilidad'}
+              </Button>
+
+              <Button type="button" variant="outline" onClick={() => handleRememberedChange()}
+                disabled={!inspectionResult?.compatible || !selectedDeviceId || isScanning || isInspecting || isUpdatingRemembered || isStartingTemperatureListener || isTemperatureListenerActive}>
+                {isUpdatingRemembered ? 'Actualizando…' : 'Recordar termómetro seleccionado'}
               </Button>
 
               {!isTemperatureListenerActive ? (
@@ -1102,7 +1168,7 @@ const SettingsPage = () => {
 
           {showFemometerBlePrototype ? (
             <SettingsSection title="Integraciones">
-              <FemometerBlePrototypePanel />
+              {user?.uid ? <FemometerBlePrototypePanel key={user.uid} userId={user.uid} /> : null}
             </SettingsSection>
           ) : null}
 
