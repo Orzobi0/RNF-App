@@ -71,6 +71,18 @@ const CycleOverviewCard = ({
   isDetailInteractionModalOpen = false,
 }) => {
   const { enabled: bluetoothEnabled } = useFemometer();
+  const dateHeadingRef = useRef(null);
+  const [dateScale, setDateScale] = useState(1);
+  useEffect(() => {
+    if (!bluetoothEnabled || !dateHeadingRef.current) return undefined;
+    const heading = dateHeadingRef.current;
+    const fit = () => setDateScale(Math.min(1, heading.clientWidth / (heading.firstElementChild?.scrollWidth || 1)));
+    const observer = new ResizeObserver(fit);
+    observer.observe(heading);
+    if (heading.firstElementChild) observer.observe(heading.firstElementChild);
+    fit();
+    return () => observer.disconnect();
+  }, [bluetoothEnabled]);
   const records = cycleData.records || [];
   const isPostpartumModeEnabled = Boolean(cycleData?.postpartumMode);
   const [activePoint, setActivePoint] = useState(null);
@@ -1149,14 +1161,17 @@ const handleRingPointerCancel = useCallback(
         transition={{ duration: 0.4 }}
       >
         <div className="relative">
-        <h1 className={cn('mb-3 font-semibold leading-snug tracking-tight text-titulo', bluetoothEnabled
-          ? 'min-h-[33px] content-center truncate pr-12 text-[clamp(0.875rem,4vw,1.5rem)] sm:text-[26px]'
+        <h1 ref={dateHeadingRef} className={cn('mb-3 font-semibold leading-snug tracking-tight text-titulo', bluetoothEnabled
+          ? 'relative mr-12 h-[33px] overflow-hidden text-2xl sm:h-[35.75px] sm:text-[26px]'
           : 'text-2xl sm:text-[26px]')}>
+          <span className={bluetoothEnabled ? 'absolute left-1/2 inline-block w-max whitespace-nowrap' : undefined}
+            style={bluetoothEnabled ? { transform: `translateX(-50%) scale(${dateScale})` } : undefined}>
           {new Date().toLocaleDateString('es-ES', {
             weekday: 'long',
             day: 'numeric',
             month: 'long'
           })}
+          </span>
         </h1>
         {bluetoothEnabled && <div className="absolute -top-1 right-0"><DashboardBluetoothStatus /></div>}
         </div>

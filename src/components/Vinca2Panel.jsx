@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 const DEFAULT_TEMPERATURE_LISTEN_SECONDS = 6 * 60;
 
 const Vinca2Panel = ({ userId }) => {
-  const { sessionRef, sessionState, readings, listeningStartedAt, temperatureListenerMessage, incorporateReading, openClockDialog } = useFemometer();
+  const { sessionRef, sessionState, readings, listeningStartedAt, temperatureListenerMessage, incorporateReading, openClockDialog, lifecycleStatus } = useFemometer();
   const [selectedReadingId, setSelectedReadingId] = useState(null);
   const lastTemperatureReading = readings.find(item => item.uiId === selectedReadingId) ?? readings.at(-1) ?? null;
   const mountedRef = useRef(false);
@@ -138,6 +138,14 @@ const Vinca2Panel = ({ userId }) => {
 
           <div className="space-y-2">
             <p role="status" className="text-sm font-medium text-slate-700">{statusText}</p>
+            <div className="text-xs text-slate-500" role="status">
+              <p>Ciclo de vida Android: {lifecycleStatus === 'registered' ? 'listener registrado (pendiente de comprobar eventos reales)' : lifecycleStatus === 'unavailable' ? 'no disponible; utiliza la búsqueda manual' : 'registrando listener'}.</p>
+              <p>{sessionState.foreground ? `Regreso detectado a las ${new Date(sessionState.foreground.detectedAt).toLocaleTimeString()}: ${({
+                reconnecting: 'iniciando reconexión', listening_active: 'escucha vigente; no se reconecta',
+                operation_in_progress: 'ya hay una operación en curso', no_remembered_device: 'sin termómetro recordado',
+                brief_cooldown: 'espera breve de 5 segundos entre intentos de regreso',
+              })[sessionState.foreground.reason]}.` : 'Todavía no se ha detectado ningún regreso a primer plano.'}</p>
+            </div>
             {sessionState.error?.message ? <p className="text-sm text-amber-700">{sessionState.error.message}</p> : null}
             {remembered && !busy && !isTemperatureListenerActive ? (
               <Button type="button" variant="outline" onClick={() => sessionRef.current?.start()}>Reintentar</Button>

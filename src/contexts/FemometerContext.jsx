@@ -9,9 +9,22 @@ const inactive = { enabled: false, readings: [], pendingCount: 0 };
 const FemometerContext = createContext(inactive);
 export const useFemometer = () => useContext(FemometerContext);
 
+// Visual-only opt-in. Never constructs a native session or enables persistence.
+export const localFemometerPreview = (env, location) => {
+  if (!env?.DEV || env.MODE !== 'staging' || !['localhost', '127.0.0.1', '[::1]'].includes(location?.hostname)) return null;
+  const mode = new URLSearchParams(location.search).get('blePreview');
+  if (!['disconnected', 'listening', 'searching', 'attention'].includes(mode)) return null;
+  return { ...inactive, enabled: true, preview: true, pendingCount: 2, sessionRef: { current: null },
+    sessionState: { status: mode === 'attention' ? 'listening' : mode === 'disconnected' ? 'stopped' : mode,
+      remembered: false, devices: [], capabilities: { clockSync: true }, clockResult: { significantDrift: mode === 'attention' } },
+    openClockDialog: () => {}, lifecycleStatus: 'preview' };
+};
+
 // One owner per authenticated account, above the routes. Pages only consume it.
 export const FemometerProvider = ({ children }) => {
   const { user } = useAuth();
+  const preview = localFemometerPreview(import.meta.env, globalThis.location);
+  if (user?.uid && preview) return <FemometerContext.Provider value={preview}>{children}</FemometerContext.Provider>;
   const enabled = Boolean(user?.uid) && isFemometerBlePrototypeEnabled() && isFemometerBleAndroidNative();
   return enabled ? <FemometerSessionOwner key={user.uid} userId={user.uid}>{children}</FemometerSessionOwner>
     : <FemometerContext.Provider value={inactive}>{children}</FemometerContext.Provider>;
@@ -26,6 +39,7 @@ export const FemometerSessionOwner = ({ userId, children }) => {
   const [listeningStartedAt, setListeningStartedAt] = useState(null);
   const [temperatureListenerMessage, setTemperatureListenerMessage] = useState('');
   const [clockDialogOpen, setClockDialogOpen] = useState(false);
+  const [lifecycleStatus, setLifecycleStatus] = useState('registering');
   const updateReadings = next => { readingsRef.current = next; setReadings(next); };
 
   useEffect(() => {
@@ -61,7 +75,10 @@ export const FemometerSessionOwner = ({ userId, children }) => {
       if (alive && isActive) foregroundTimer = setTimeout(() => {
         if (alive) void session.resume();
       }, 250);
-    }).catch(() => null); // Manual retry remains available if lifecycle registration fails.
+    }).then(handle => {
+      if (alive) setLifecycleStatus('registered');
+      return handle;
+    }).catch(() => { if (alive) setLifecycleStatus('unavailable'); return null; });
     return () => {
       alive = false;
       clearTimeout(foregroundTimer);
@@ -93,7 +110,7 @@ export const FemometerSessionOwner = ({ userId, children }) => {
   };
   return <FemometerContext.Provider value={{ enabled: true, sessionRef, sessionState, readings,
     pendingCount: readings.filter(item => item.importStatus !== 'incorporated').length,
-    listeningStartedAt, temperatureListenerMessage, incorporateReading,
+    listeningStartedAt, temperatureListenerMessage, incorporateReading, lifecycleStatus,
     openClockDialog: () => setClockDialogOpen(true) }}>{children}
     <FemometerFeedback sessionState={sessionState} sessionRef={sessionRef} readings={readings}
       clockDialogOpen={clockDialogOpen} setClockDialogOpen={setClockDialogOpen} />

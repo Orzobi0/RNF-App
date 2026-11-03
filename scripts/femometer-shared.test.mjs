@@ -78,7 +78,8 @@ test('foreground keeps live listening, restarts an expired listener once and ret
   native.emit({ status: 'timeout' }); // Queued terminal event, cleanup in flight.
   await owner.foreground();
   assert.equal(native.calls.connections, 2); // Cooldown.
-  native.flags.now += 60_001;
+  assert.equal(owner.render().sessionState.foreground.reason, 'brief_cooldown');
+  native.flags.now += 5_001;
   await owner.foreground();
   assert.equal(native.calls.connections, 3);
   assert.equal(native.calls.permissions, 0);
@@ -98,15 +99,19 @@ test('foreground after unsuccessful scan is bounded and requires a remembered de
   const owner = await mountedOwner(native);
   native.flags.found = true;
   await owner.foreground();
-  assert.equal(native.calls.connections, 0);
-  native.flags.now = 60_000;
+  assert.equal(native.calls.connections, 1); // First return is not blocked by mount's scan.
+  native.emit({ status: 'disconnected' }); await flush();
   await owner.foreground();
   assert.equal(native.calls.connections, 1);
+  assert.equal(owner.render().sessionState.foreground.reason, 'brief_cooldown');
+  await Promise.all([owner.render().sessionRef.current.start(), owner.render().sessionRef.current.start()]);
+  assert.equal(native.calls.connections, 2); // Explicit retry bypasses only the cooldown.
+  assert.equal(native.calls.peakListeners, 1);
   native.flags.remembered = false;
   await owner.changeAccount('b');
   native.flags.now += 120_000;
   await owner.foreground();
-  assert.equal(native.calls.connections, 1);
+  assert.equal(native.calls.connections, 2);
   owner.cleanup(); await flush();
 });
 
@@ -250,26 +255,55 @@ test('web, production and signed-out sessions never mount a BLE owner', async ()
 const treeNodes = node => !node || typeof node !== 'object' ? [] : [node,
   ...(node.props?.children ?? []).flat(Infinity).flatMap(treeNodes)];
 
-test('mobile Bluetooth indicator distinguishes states and navigates to devices without owning a session', async () => {
+test('mobile Bluetooth popover offers shared search, device navigation and global clock dialog', async () => {
   const harness = hooks();
-  let ble = { enabled: true, pendingCount: 3, sessionState: { status: 'listening' } };
+  let starts = 0; let scans = 0; let clocks = 0;
+  let ble = { enabled: true, pendingCount: 3, sessionState: { status: 'listening' },
+    sessionRef: { current: { start: () => starts++, scan: () => scans++ } }, openClockDialog: () => clocks++ };
   const destinations = [];
   const { DeviceStatusButton } = await loadFrontend('src/components/DeviceStatusButton.jsx', {
     ...harness.bindings, useFemometer: () => ble, useNavigate: () => path => destinations.push(path),
     Bluetooth: 'connected', BluetoothOff: 'disconnected', CircleAlert: 'attention', Loader2: 'searching',
+    Popover: 'popover', PopoverTrigger: 'trigger', PopoverContent: 'content', Button: 'action',
   }, ['DeviceStatusButton']);
+  const render = () => harness.render(() => ({ props: { value: DeviceStatusButton() } }));
   for (const [status, icon] of [['listening', 'connected'], ['searching', 'searching'], ['connecting', 'searching'], ['stopped', 'disconnected'], ['error', 'attention']]) {
     ble.sessionState = { status };
-    const button = DeviceStatusButton();
+    const tree = render();
+    assert.equal(tree.type, 'popover');
+    const button = treeNodes(tree).find(node => node.type === 'button');
     assert.match(button.props.className, /min-h-\[44px\]/);
     assert.match(button.props.className, /min-w-\[44px\]/);
     assert.equal(button.props.children[0].type, icon);
     assert.match(button.props['aria-label'], /3 lecturas pendientes/);
-    button.props.onClick();
+    treeNodes(tree).find(node => node.type === 'action' && node.props.children.includes('Ir a Dispositivos')).props.onClick();
   }
   assert.ok(destinations.every(path => path === '/settings/devices'));
+  ble.sessionState = { status: 'stopped', remembered: true };
+  treeNodes(render()).find(node => node.type === 'action' && node.props.children.includes('Buscar termómetro')).props.onClick();
+  assert.equal(starts, 1); assert.equal(scans, 0);
+  ble.sessionState = { status: 'listening', capabilities: { clockSync: true }, clockResult: { significantDrift: true } };
+  let nodes = treeNodes(render());
+  nodes.find(node => node.type === 'action' && node.props.children.includes('Sincronizar reloj')).props.onClick();
+  assert.equal(clocks, 1);
+  nodes.find(node => node.type === 'action' && node.props.children.includes('Ver lecturas')).props.onClick();
+  assert.equal(destinations.at(-1), '/settings/devices/vinca2#bluetooth-readings');
   ble.enabled = false;
-  assert.equal(DeviceStatusButton(), null);
+  assert.equal(render(), null);
+});
+
+test('visual BLE preview requires explicit localhost staging development opt-in and never owns a session', async () => {
+  const { localFemometerPreview } = await loadFrontend('src/contexts/FemometerContext.jsx', hooks().bindings, ['localFemometerPreview']);
+  const location = { hostname: 'localhost', search: '?blePreview=listening' };
+  const env = { DEV: true, MODE: 'staging' };
+  const preview = localFemometerPreview(env, location);
+  assert.equal(preview.preview, true);
+  assert.equal(preview.sessionRef.current, null);
+  assert.equal(localFemometerPreview({ ...env, DEV: false }, location), null);
+  assert.equal(localFemometerPreview({ ...env, MODE: 'production' }, location), null);
+  assert.equal(localFemometerPreview({ ...env, MODE: 'experiment' }, location), null);
+  assert.equal(localFemometerPreview(env, { ...location, hostname: 'fertiliapp-staging.web.app' }), null);
+  assert.equal(localFemometerPreview(env, { ...location, search: '' }), null);
 });
 
 test('global clock prompt appears once per connection and synchronizes only on explicit action', async () => {

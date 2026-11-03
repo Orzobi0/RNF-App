@@ -30,7 +30,7 @@ export const createFemometerSessionManager = (api) => {
     let subscription;
     const now = api.now ?? Date.now;
     let listeningExpiresAt = 0;
-    let lastAutomaticAttempt = -Infinity;
+    let lastForegroundAttempt = -Infinity;
     let resumeJob;
     let state = {
       status: 'checking', busy: false, remembered: null, devices: [],
@@ -147,15 +147,17 @@ export const createFemometerSessionManager = (api) => {
     const session = {
       readClock: () => clock(false),
       syncClock: () => clock(true),
-      start: () => run((call, current) => {
-        lastAutomaticAttempt = now();
-        return search(true, call, current);
-      }),
+      start: () => run((call, current) => search(true, call, current)),
       resume: () => {
-        if (disposed || resumeJob || job || !state.remembered) return resumeJob ?? Promise.resolve();
-        if (state.status === 'listening' && now() < listeningExpiresAt) return Promise.resolve();
-        if (now() - lastAutomaticAttempt < 60_000) return Promise.resolve();
-        lastAutomaticAttempt = now();
+        if (disposed) return Promise.resolve();
+        const decision = reason => publish({ foreground: { detectedAt: now(), reason } });
+        if (resumeJob || job) { decision('operation_in_progress'); return resumeJob ?? Promise.resolve(); }
+        if (!state.remembered) { decision('no_remembered_device'); return Promise.resolve(); }
+        if (state.status === 'listening' && now() < listeningExpiresAt) { decision('listening_active'); return Promise.resolve(); }
+        // Mount/manual searches do not consume the first foreground attempt.
+        if (now() - lastForegroundAttempt < 5_000) { decision('brief_cooldown'); return Promise.resolve(); }
+        lastForegroundAttempt = now();
+        decision('reconnecting');
         resumeJob = (async () => {
           // Drain a pending terminal event, or invalidate an expired native listener
           // whose timeout event Android has not delivered yet, before reconnecting.
