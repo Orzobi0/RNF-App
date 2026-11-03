@@ -14,7 +14,7 @@ const DeviceStatusButton = () => {
   const Icon = attention ? CircleAlert : searching ? Loader2 : status === 'listening' ? Bluetooth : BluetoothOff;
   const description = `Bluetooth: ${label}. ${ble.pendingCount} lecturas pendientes. Abrir dispositivos`;
   return <button type="button" aria-label={description} title={description}
-    className={`relative flex h-11 w-11 min-h-[44px] min-w-[44px] self-end items-center justify-center rounded-full focus-visible:ring-2 focus-visible:ring-rose-300 ${attention ? 'text-amber-700' : status === 'listening' ? 'text-emerald-700' : 'text-slate-500'}`}
+    className={`relative flex h-11 w-11 min-h-[44px] min-w-[44px] shrink-0 self-end items-center justify-center rounded-full focus-visible:ring-2 focus-visible:ring-rose-300 ${attention ? 'text-amber-700' : status === 'listening' ? 'text-emerald-700' : 'text-slate-500'}`}
     onClick={() => navigate('/settings/devices')}>
     <Icon aria-hidden="true" className={`h-5 w-5 ${searching && !attention ? 'animate-spin motion-reduce:animate-none' : ''}`} />
     {ble.pendingCount > 0 && <span aria-hidden="true" className="absolute right-0 top-0 min-w-4 rounded-full bg-rose-100 px-1 text-[10px] font-semibold text-rose-800">{ble.pendingCount > 99 ? '99+' : ble.pendingCount}</span>}

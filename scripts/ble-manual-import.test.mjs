@@ -3,6 +3,18 @@ import assert from 'node:assert/strict';
 import * as dates from 'date-fns';
 import { loadFrontend } from './helpers/load-frontend.mjs';
 import { normalizeBleMeasurement, prepareManualBleDraft, classifyBleMeasurement, isPossibleBleDuplicate } from '../src/lib/bleMeasurements.js';
+
+test('Vinca2 possible duplicate uses original minute and exact original temperature, never reception time', () => {
+  const original = normalizeBleMeasurement({ temperatureC: 36.42, deviceTimestamp: '2020-01-02T08:15:01' }, 'BM-Vinca2');
+  const resent = { ...original, device_timestamp: '2020-01-02T08:15:59', received_at: '2026-11-03T10:00:00Z' };
+  assert.equal(isPossibleBleDuplicate(original, resent), true);
+  for (const patch of [
+    { device_timestamp: '2020-01-02T08:16:01' }, { device_timestamp: '2020-01-03T08:15:01' },
+    { temperature_original: 36.43 }, { device_model: 'other' }, { device_timestamp: null },
+    { device_timestamp: '2020-02-30T08:15:01' },
+  ]) assert.equal(isPossibleBleDuplicate(original, { ...resent, ...patch }), false);
+  assert.equal(isPossibleBleDuplicate({ ...original, device_timestamp: null }, { ...original, device_timestamp: null }), false);
+});
 import { selectedMeasurementSummary, measurementsFromRecord } from '../src/lib/temperatureMeasurements.js';
 
 const measurement = normalizeBleMeasurement({ temperatureC: 36.42, deviceTimestamp: '2020-01-01T08:00:00' }, 'BM-Vinca2');

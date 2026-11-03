@@ -28,6 +28,10 @@ export const createFemometerSessionManager = (api) => {
     let stopping;
     let disposal;
     let subscription;
+    const now = api.now ?? Date.now;
+    let listeningExpiresAt = 0;
+    let lastAutomaticAttempt = -Infinity;
+    let resumeJob;
     let state = {
       status: 'checking', busy: false, remembered: null, devices: [],
       selectedDeviceId: '', inspectionResult: null, error: null, listenerResult: null,
@@ -84,6 +88,7 @@ export const createFemometerSessionManager = (api) => {
         }
       });
       const result = await call(() => api.startFemometerTemperatureListener(deviceId));
+      listeningExpiresAt = now() + (Number(result?.timeoutSeconds) || 360) * 1000;
       publish({ status: 'listening', listenerResult: result, capabilities: thermometerCapabilities(result?.capabilities) });
       automaticClockPending = state.capabilities.clockRead;
     };
@@ -142,7 +147,24 @@ export const createFemometerSessionManager = (api) => {
     const session = {
       readClock: () => clock(false),
       syncClock: () => clock(true),
-      start: () => run((call, current) => search(true, call, current)),
+      start: () => run((call, current) => {
+        lastAutomaticAttempt = now();
+        return search(true, call, current);
+      }),
+      resume: () => {
+        if (disposed || resumeJob || job || !state.remembered) return resumeJob ?? Promise.resolve();
+        if (state.status === 'listening' && now() < listeningExpiresAt) return Promise.resolve();
+        if (now() - lastAutomaticAttempt < 60_000) return Promise.resolve();
+        lastAutomaticAttempt = now();
+        resumeJob = (async () => {
+          // Drain a pending terminal event, or invalidate an expired native listener
+          // whose timeout event Android has not delivered yet, before reconnecting.
+          if (stopping) await stopping;
+          else if (state.status === 'listening') await session.stop();
+          if (!disposed && !job && !clockJob && !stopping) await session.start();
+        })().finally(() => { resumeJob = null; });
+        return resumeJob;
+      },
       scan: () => run((call, current) => search(false, call, current)),
       select: (id) => {
         if (disposed || job || stopping || state.status === 'listening') return;

@@ -47,11 +47,21 @@ export const prepareManualBleDraft = (measurement, { isoDate, time, confirmed, u
     }] };
 };
 
-// Suspicion only: these are not unique measurement identifiers.
+// BM-Vinca2 can resend the same original minute with different seconds.
+const originalMinute = timestamp => {
+  const normalized = normalizeBleMeasurement({ temperatureC: 0, deviceTimestamp: timestamp });
+  return normalized.device_date_reliability === 'unverified' ? timestamp.slice(0, 16) : null;
+};
+
+// Suspicion only: these are not unique measurement identifiers. Reception time
+// and the user's confirmed date never identify a measurement from the device.
 export const isPossibleBleDuplicate = (existing, incoming) => existing?.source === 'bluetooth'
   && existing.device_model === incoming?.device_model
   && typeof incoming.device_timestamp === 'string' && incoming.device_timestamp.length > 0
-  && existing.device_timestamp === incoming.device_timestamp
+  && (incoming.device_model === 'BM-Vinca2'
+    ? originalMinute(incoming.device_timestamp) !== null && originalMinute(existing.device_timestamp) === originalMinute(incoming.device_timestamp)
+    : existing.device_timestamp === incoming.device_timestamp)
+  && temperatureNumber(incoming.temperature_original ?? incoming.temperature) !== null
   && temperatureNumber(existing.temperature_original ?? existing.temperature) === temperatureNumber(incoming.temperature_original ?? incoming.temperature);
 
 /** Classifies a normalized BLE measurement, without selecting or saving anything.

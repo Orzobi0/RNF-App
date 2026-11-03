@@ -27,6 +27,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import DashboardBluetoothStatus from '@/components/DeviceStatusButton';
+import { useFemometer } from '@/contexts/FemometerContext';
 
 import { useFertilityChart } from '@/hooks/useFertilityChart';
 import { useFertilityCalculatorsEditor } from '@/hooks/useFertilityCalculatorsEditor';
@@ -69,6 +70,7 @@ const CycleOverviewCard = ({
   onOpenCycleStatus = () => {},
   isDetailInteractionModalOpen = false,
 }) => {
+  const { enabled: bluetoothEnabled } = useFemometer();
   const records = cycleData.records || [];
   const isPostpartumModeEnabled = Boolean(cycleData?.postpartumMode);
   const [activePoint, setActivePoint] = useState(null);
@@ -1146,13 +1148,18 @@ const handleRingPointerCancel = useCallback(
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
       >
-        <h1 className="mb-3 text-2xl font-semibold leading-snug tracking-tight text-titulo sm:text-[26px]">
+        <div className="relative">
+        <h1 className={cn('mb-3 font-semibold leading-snug tracking-tight text-titulo', bluetoothEnabled
+          ? 'min-h-[33px] content-center truncate pr-12 text-[clamp(0.875rem,4vw,1.5rem)] sm:text-[26px]'
+          : 'text-2xl sm:text-[26px]')}>
           {new Date().toLocaleDateString('es-ES', {
             weekday: 'long',
             day: 'numeric',
             month: 'long'
           })}
         </h1>
+        {bluetoothEnabled && <div className="absolute -top-1 right-0"><DashboardBluetoothStatus /></div>}
+        </div>
         <div className="grid grid-cols-[48px_minmax(0,1fr)_48px] items-center gap-2">
         <div aria-hidden="true" className="h-12 w-12" />
         <div className="flex min-w-0 items-center justify-center gap-2">
@@ -2650,7 +2657,6 @@ const handleConfirmDeleteRecord = useCallback(async () => {
   return (
     <>
       <div className="mx-auto flex h-[calc(var(--app-vh,1vh)*100 - var(--bottom-nav-safe))] w-full flex-col space-y-4 bg-[#FFF7F9] px-4 pb-10 pt-4">
-        <DashboardBluetoothStatus />
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}

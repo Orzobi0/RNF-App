@@ -3,6 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { createFemometerPanelSession, isFemometerBleAndroidNative, isFemometerBlePrototypeEnabled } from '@/lib/femometerBle';
 import { normalizeBleMeasurement } from '@/lib/bleMeasurements';
 import FemometerFeedback from '@/components/FemometerFeedback';
+import { App as CapacitorApp } from '@capacitor/app';
 
 const inactive = { enabled: false, readings: [], pendingCount: 0 };
 const FemometerContext = createContext(inactive);
@@ -52,8 +53,19 @@ export const FemometerSessionOwner = ({ userId, children }) => {
     });
     sessionRef.current = session;
     void session.start();
+    let foregroundTimer;
+    // One deferred check lets queued native terminal events run first. This is
+    // not a polling timer; the manager also checks the native listening deadline.
+    const lifecycle = CapacitorApp.addListener('appStateChange', ({ isActive }) => {
+      clearTimeout(foregroundTimer);
+      if (alive && isActive) foregroundTimer = setTimeout(() => {
+        if (alive) void session.resume();
+      }, 250);
+    }).catch(() => null); // Manual retry remains available if lifecycle registration fails.
     return () => {
       alive = false;
+      clearTimeout(foregroundTimer);
+      void lifecycle.then(handle => handle?.remove()).catch(() => {});
       sessionRef.current = null;
       readingsRef.current = [];
       void session.dispose();

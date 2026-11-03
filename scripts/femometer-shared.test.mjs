@@ -7,10 +7,11 @@ import { loadFrontend, hooks, deferred, flush } from './helpers/load-frontend.mj
 const bridge = () => {
   const calls = { connections: 0, disconnects: 0, listeners: 0, peakListeners: 0, clock: 0, sync: 0, permissions: 0 };
   let emit;
-  const flags = { clockFails: false, clockWait: null, syncFails: false };
+  const flags = { clockFails: false, clockWait: null, syncFails: false, now: 0, remembered: true, found: true };
   const api = {
-    getRememberedFemometer: async () => ({ remembered: true }),
-    scanForFemometer: async () => [{ id: 'temporary', isRemembered: true }],
+    now: () => flags.now,
+    getRememberedFemometer: async () => ({ remembered: flags.remembered }),
+    scanForFemometer: async () => flags.found ? [{ id: 'temporary', isRemembered: true }] : [],
     requestBluetoothPermissions: async () => { calls.permissions++; },
     addFemometerTemperatureListener: async callback => {
       emit = callback; calls.listeners++; calls.peakListeners = Math.max(calls.peakListeners, calls.listeners);
@@ -36,14 +37,78 @@ const bridge = () => {
 async function mountedOwner(native, initialUser = 'a') {
   const harness = hooks();
   let userId = initialUser;
+  const lifecycle = new Set();
+  const timers = new Set();
   const { FemometerSessionOwner } = await loadFrontend('src/contexts/FemometerContext.jsx', {
     ...harness.bindings, normalizeBleMeasurement, createFemometerPanelSession: native.factory,
     FemometerFeedback: 'feedback',
+    CapacitorApp: { addListener: async (name, callback) => {
+      assert.equal(name, 'appStateChange'); lifecycle.add(callback);
+      return { remove: async () => lifecycle.delete(callback) };
+    } },
+    setTimeout: callback => { timers.add(callback); return callback; },
+    clearTimeout: callback => timers.delete(callback),
   }, ['FemometerSessionOwner']);
   const render = () => harness.render(() => FemometerSessionOwner({ userId, children: null }));
   render(); await flush();
-  return { render, cleanup: harness.cleanup, changeAccount: async next => { userId = next; render(); await flush(); } };
+  return { render, cleanup: harness.cleanup, lifecycle, timers,
+    foreground: async () => {
+      lifecycle.forEach(callback => callback({ isActive: true }));
+      for (const callback of timers) { timers.delete(callback); callback(); }
+      await flush();
+    },
+    changeAccount: async next => { userId = next; render(); await flush(); } };
 }
+
+test('foreground keeps live listening, restarts an expired listener once and retains pending readings', async () => {
+  const native = bridge();
+  const owner = await mountedOwner(native);
+  native.emit({ temperatureC: 36.4 });
+  native.flags.now = 120_000;
+  await owner.foreground();
+  assert.equal(native.calls.connections, 1);
+  assert.equal(native.calls.disconnects, 0);
+  // No native timeout event arrived while suspended.
+  native.flags.now = 361_000;
+  await Promise.all([owner.foreground(), owner.foreground()]);
+  assert.equal(native.calls.connections, 2);
+  assert.equal(native.calls.disconnects, 1);
+  assert.equal(native.calls.peakListeners, 1);
+  assert.equal(owner.render().pendingCount, 1);
+  native.emit({ status: 'timeout' }); // Queued terminal event, cleanup in flight.
+  await owner.foreground();
+  assert.equal(native.calls.connections, 2); // Cooldown.
+  native.flags.now += 60_001;
+  await owner.foreground();
+  assert.equal(native.calls.connections, 3);
+  assert.equal(native.calls.permissions, 0);
+  await owner.changeAccount('b');
+  assert.equal(owner.lifecycle.size, 1);
+  assert.equal(owner.render().pendingCount, 0);
+  owner.cleanup(); await flush();
+  assert.equal(owner.lifecycle.size, 0);
+  assert.equal(owner.timers.size, 0);
+  assert.equal(native.calls.listeners, 0);
+  await owner.foreground();
+  assert.equal(native.calls.connections, 4);
+});
+
+test('foreground after unsuccessful scan is bounded and requires a remembered device', async () => {
+  const native = bridge(); native.flags.found = false;
+  const owner = await mountedOwner(native);
+  native.flags.found = true;
+  await owner.foreground();
+  assert.equal(native.calls.connections, 0);
+  native.flags.now = 60_000;
+  await owner.foreground();
+  assert.equal(native.calls.connections, 1);
+  native.flags.remembered = false;
+  await owner.changeAccount('b');
+  native.flags.now += 120_000;
+  await owner.foreground();
+  assert.equal(native.calls.connections, 1);
+  owner.cleanup(); await flush();
+});
 
 test('shared owner survives page consumers and retains consecutive identical readings; only successful save marks its row', async () => {
   const native = bridge();
