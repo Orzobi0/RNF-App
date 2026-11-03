@@ -26,22 +26,8 @@ import computePeakStatuses from '@/lib/computePeakStatuses';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
-import { useFemometer } from '@/contexts/FemometerContext';
+import DashboardBluetoothStatus from '@/components/DeviceStatusButton';
 
-const DashboardBluetoothStatus = () => {
-  const ble = useFemometer();
-  const navigate = useNavigate();
-  if (!ble.enabled) return null;
-  const { status, remembered } = ble.sessionState;
-  const label = status === 'listening' ? 'Conectado' : status === 'searching' ? 'Buscando termómetro'
-    : status === 'connecting' ? 'Conectando' : status === 'missing' ? 'No encontrado'
-      : status === 'error' ? 'Revisar conexión' : remembered ? 'Termómetro recordado' : 'Sin termómetro recordado';
-  return <button type="button" className="min-h-11 w-full rounded-xl border border-rose-100 bg-white px-3 py-2 text-left text-xs text-slate-600"
-    onClick={() => navigate('/settings#bluetooth-readings')}>
-    Bluetooth · {label} · {ble.pendingCount} pendientes
-    {ble.sessionState.clockResult?.significantDrift ? <span className="block text-amber-700">Revisar hora del termómetro</span> : null}
-  </button>;
-};
 import { useFertilityChart } from '@/hooks/useFertilityChart';
 import { useFertilityCalculatorsEditor } from '@/hooks/useFertilityCalculatorsEditor';
 import FertilityCalculatorsEditorDialogs from '@/components/FertilityCalculatorsEditorDialogs';

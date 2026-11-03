@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useRef, useState } from 'r
 import { useAuth } from '@/contexts/AuthContext';
 import { createFemometerPanelSession, isFemometerBleAndroidNative, isFemometerBlePrototypeEnabled } from '@/lib/femometerBle';
 import { normalizeBleMeasurement } from '@/lib/bleMeasurements';
+import FemometerFeedback from '@/components/FemometerFeedback';
 
 const inactive = { enabled: false, readings: [], pendingCount: 0 };
 const FemometerContext = createContext(inactive);
@@ -23,6 +24,7 @@ export const FemometerSessionOwner = ({ userId, children }) => {
     devices: [], selectedDeviceId: '', inspectionResult: null, listenerResult: null });
   const [listeningStartedAt, setListeningStartedAt] = useState(null);
   const [temperatureListenerMessage, setTemperatureListenerMessage] = useState('');
+  const [clockDialogOpen, setClockDialogOpen] = useState(false);
   const updateReadings = next => { readingsRef.current = next; setReadings(next); };
 
   useEffect(() => {
@@ -64,13 +66,13 @@ export const FemometerSessionOwner = ({ userId, children }) => {
     const owner = sessionRef.current;
     const row = readingsRef.current.find(item => item.uiId === uiId);
     if (!owner || row?.importStatus !== 'pending') throw new Error('La lectura ya está incorporada o se está guardando.');
-    const status = importStatus => {
-      if (sessionRef.current === owner) updateReadings(readingsRef.current.map(item => item.uiId === uiId ? { ...item, importStatus } : item));
+    const status = (importStatus, extra = {}) => {
+      if (sessionRef.current === owner) updateReadings(readingsRef.current.map(item => item.uiId === uiId ? { ...item, importStatus, ...extra } : item));
     };
     status('saving');
     try {
       const result = await save();
-      status('incorporated');
+      status('incorporated', { savedIsoDate: result?.isoDate });
       return result;
     } catch (error) {
       status('pending');
@@ -79,5 +81,9 @@ export const FemometerSessionOwner = ({ userId, children }) => {
   };
   return <FemometerContext.Provider value={{ enabled: true, sessionRef, sessionState, readings,
     pendingCount: readings.filter(item => item.importStatus !== 'incorporated').length,
-    listeningStartedAt, temperatureListenerMessage, incorporateReading }}>{children}</FemometerContext.Provider>;
+    listeningStartedAt, temperatureListenerMessage, incorporateReading,
+    openClockDialog: () => setClockDialogOpen(true) }}>{children}
+    <FemometerFeedback sessionState={sessionState} sessionRef={sessionRef} readings={readings}
+      clockDialogOpen={clockDialogOpen} setClockDialogOpen={setClockDialogOpen} />
+  </FemometerContext.Provider>;
 };

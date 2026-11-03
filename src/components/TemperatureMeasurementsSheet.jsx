@@ -10,6 +10,7 @@ import { es } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
+import { isFemometerBleAndroidNative, isFemometerBlePrototypeEnabled } from '@/lib/femometerBle';
 import {
   measurementDisplay, measurementSourceLabel, newManualMeasurement,
   normalizeMeasurements, sortedMeasurements, temperatureNumber,
@@ -18,6 +19,22 @@ import {
 export const MeasurementSourceChip = ({ measurement, label }) => {
   const text = measurementSourceLabel(measurement, label);
   return text ? <span title={text} className="inline-block min-w-0 max-w-20 truncate rounded-full bg-rose-50 px-1.5 py-0.5 text-[10px] font-normal leading-4 text-slate-600">{text}</span> : null;
+};
+
+export const BluetoothMeasurementDetails = ({ measurement: m }) => {
+  if (m?.source !== 'bluetooth' || !isFemometerBlePrototypeEnabled() || !isFemometerBleAndroidNative()) return null;
+  const fields = [
+    ['Origen', 'Bluetooth'], ['Modelo', m.device_model], ['Temperatura original (°C)', m.temperature_original],
+    ['Fecha del termómetro', m.device_timestamp], ['Fecha confirmada', m.confirmed_timestamp],
+    ['Zona confirmada', m.confirmed_timezone], ['Recibida', m.received_at],
+    ['Fiabilidad de la fecha del termómetro', m.device_date_reliability === 'unverified' ? 'Sin verificar' : m.device_date_reliability],
+    ['Temperatura corregida (°C)', m.temperature_corrected], ['Hora corregida', m.temperature_corrected !== '' && m.temperature_corrected != null ? m.time_corrected : null],
+    ['Usa corrección', m.temperature_corrected !== '' && m.temperature_corrected != null ? (m.use_corrected ? 'Sí' : 'No') : null],
+  ].filter(([, value]) => value !== null && value !== undefined && value !== '');
+  return <details className="px-3 py-1 text-xs text-slate-600">
+    <summary className="min-h-11 cursor-pointer py-3">Origen y detalles Bluetooth</summary>
+    <dl className="space-y-1 pb-2">{fields.map(([label, value]) => <div key={label} className="break-words"><dt className="inline font-semibold">{label}: </dt><dd className="inline">{String(value)}</dd></div>)}</dl>
+  </details>;
 };
 
 const MeasurementValue = ({ measurement, ignored = false }) => (
@@ -281,7 +298,7 @@ export default function TemperatureMeasurementsSheet({ open, onOpenChange, isoDa
           ) : <div className="space-y-3 px-0.5 pb-3">
             <p className="pb-2 text-xs text-slate-500">Selecciona la temperatura para la gráfica e interpretación.{autoSave && ' Los cambios se guardan al momento.'}</p>
             {!measurements.length && <p className="py-4 text-sm text-slate-500">Sin temperatura</p>}
-            {sortedMeasurements(measurements).map(({ measurement: m, index }) => <div key={m.id ?? index} className={measurementRowClass(m.selected, ignored)}>
+            {sortedMeasurements(measurements).map(({ measurement: m, index }) => <React.Fragment key={m.id ?? index}><div className={measurementRowClass(m.selected, ignored)}>
               <span aria-hidden="true" className={`pointer-events-none absolute bottom-3 left-0 top-3 w-1 rounded-r-full ${m.selected && ignored ? 'bg-alerta-2 opacity-75' : m.selected ? 'bg-temp opacity-85' : 'bg-temp opacity-25'}`} />
               <label className="flex min-h-11 min-w-0 flex-1 cursor-pointer items-center gap-2 p-1">
                 <input type="radio" className="h-4 w-4 shrink-0 focus-visible:outline-temp" style={{ accentColor: 'var(--color-temp)' }} name="selected-temperature" checked={!!m.selected} disabled={busy} onChange={() => commit(measurements.map((item, i) => ({ ...item, selected: i === index })), { action: 'select', index, ignored: false })} aria-label={`Usar ${measurementDisplay(m)} a las ${m.time || 'hora desconocida'}`} />
@@ -293,7 +310,7 @@ export default function TemperatureMeasurementsSheet({ open, onOpenChange, isoDa
                   <DropdownMenu.Item className="cursor-pointer rounded-lg p-3 text-rose-700 outline-none focus:bg-rose-50" onSelect={() => requestDelete(index)}>Eliminar</DropdownMenu.Item>
                 </DropdownMenu.Content></DropdownMenu.Portal>
               </DropdownMenu.Root>
-            </div>)}
+            </div><BluetoothMeasurementDetails measurement={m} /></React.Fragment>)}
             <Button type="button" variant="outline" disabled={busy} onClick={() => edit(null)} className="mt-3 min-h-11 w-full rounded-3xl border-slate-200/70 bg-white/80 text-temp shadow-sm hover:border-temp hover:bg-white hover:text-temp">+ Añadir medición manual</Button>
           </div>}
         </div>

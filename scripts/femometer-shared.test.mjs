@@ -7,7 +7,7 @@ import { loadFrontend, hooks, deferred, flush } from './helpers/load-frontend.mj
 const bridge = () => {
   const calls = { connections: 0, disconnects: 0, listeners: 0, peakListeners: 0, clock: 0, sync: 0, permissions: 0 };
   let emit;
-  const flags = { clockFails: false, clockWait: null };
+  const flags = { clockFails: false, clockWait: null, syncFails: false };
   const api = {
     getRememberedFemometer: async () => ({ remembered: true }),
     scanForFemometer: async () => [{ id: 'temporary', isRemembered: true }],
@@ -28,7 +28,7 @@ const bridge = () => {
       if (flags.clockFails) throw Error('clock failed');
       return { deviceLocalTime: '2020-01-01T08:00:00' };
     },
-    syncFemometerClock: async () => { calls.sync++; return {}; },
+    syncFemometerClock: async () => { calls.sync++; if (flags.syncFails) throw Error('sync failed'); return {}; },
   };
   return { factory: createFemometerSessionManager(api), calls, flags, emit: event => emit?.(event) };
 };
@@ -38,6 +38,7 @@ async function mountedOwner(native, initialUser = 'a') {
   let userId = initialUser;
   const { FemometerSessionOwner } = await loadFrontend('src/contexts/FemometerContext.jsx', {
     ...harness.bindings, normalizeBleMeasurement, createFemometerPanelSession: native.factory,
+    FemometerFeedback: 'feedback',
   }, ['FemometerSessionOwner']);
   const render = () => harness.render(() => FemometerSessionOwner({ userId, children: null }));
   render(); await flush();
@@ -179,4 +180,130 @@ test('web, production and signed-out sessions never mount a BLE owner', async ()
     assert.equal(harness.render(FemometerProvider).enabled, false);
     assert.equal(created, 0);
   }
+});
+
+const treeNodes = node => !node || typeof node !== 'object' ? [] : [node,
+  ...(node.props?.children ?? []).flat(Infinity).flatMap(treeNodes)];
+
+test('mobile Bluetooth indicator distinguishes states and navigates to devices without owning a session', async () => {
+  const harness = hooks();
+  let ble = { enabled: true, pendingCount: 3, sessionState: { status: 'listening' } };
+  const destinations = [];
+  const { DeviceStatusButton } = await loadFrontend('src/components/DeviceStatusButton.jsx', {
+    ...harness.bindings, useFemometer: () => ble, useNavigate: () => path => destinations.push(path),
+    Bluetooth: 'connected', BluetoothOff: 'disconnected', CircleAlert: 'attention', Loader2: 'searching',
+  }, ['DeviceStatusButton']);
+  for (const [status, icon] of [['listening', 'connected'], ['searching', 'searching'], ['connecting', 'searching'], ['stopped', 'disconnected'], ['error', 'attention']]) {
+    ble.sessionState = { status };
+    const button = DeviceStatusButton();
+    assert.match(button.props.className, /min-h-\[44px\]/);
+    assert.match(button.props.className, /min-w-\[44px\]/);
+    assert.equal(button.props.children[0].type, icon);
+    assert.match(button.props['aria-label'], /3 lecturas pendientes/);
+    button.props.onClick();
+  }
+  assert.ok(destinations.every(path => path === '/settings/devices'));
+  ble.enabled = false;
+  assert.equal(DeviceStatusButton(), null);
+});
+
+test('global clock prompt appears once per connection and synchronizes only on explicit action', async () => {
+  const harness = hooks(); let syncs = 0; const opened = [];
+  const navigate = () => {};
+  const { FemometerFeedback } = await loadFrontend('src/components/FemometerFeedback.jsx', {
+    ...harness.bindings, useNavigate: () => navigate, toast: () => ({ dismiss() {}, update() {} }), ToastAction: 'action',
+    Button: 'button', Dialog: 'dialog', DialogContent: 'content', DialogHeader: 'header', DialogTitle: 'title', DialogDescription: 'description', DialogFooter: 'footer',
+  }, ['FemometerFeedback']);
+  const props = { readings: [], sessionRef: { current: { syncClock: () => { syncs++; } } }, clockDialogOpen: false,
+    setClockDialogOpen: value => opened.push(value), sessionState: { status: 'listening', listenerResult: {}, capabilities: { clockSync: true },
+      clockResult: { significantDrift: true, deviceLocalTime: '2020-01-01T08:00:00', phoneLocalTime: '2026-11-03T08:00:00' } } };
+  const render = () => harness.render(() => ({ props: { value: FemometerFeedback(props) } }));
+  let tree = render();
+  assert.deepEqual(opened, [true]);
+  assert.equal(syncs, 0);
+  treeNodes(tree).find(node => node.type === 'button' && node.props.children.includes('Más tarde')).props.onClick();
+  render(); render();
+  assert.deepEqual(opened, [true, false]);
+  treeNodes(tree).find(node => node.type === 'button' && node.props.children.includes('Sincronizar reloj')).props.onClick();
+  assert.equal(syncs, 1);
+  props.sessionState = { ...props.sessionState, clockError: { message: 'read failed' } };
+  tree = render();
+  assert.ok(treeNodes(tree).some(node => node.props.role === 'alert'));
+  props.sessionState = { ...props.sessionState, listenerResult: {} };
+  render();
+  assert.deepEqual(opened, [true, false, true]);
+  harness.cleanup();
+});
+
+test('receipt notices group readings and never announce incorporation before a confirmed save', async () => {
+  const harness = hooks(); const notices = []; const routes = []; const navigate = (...args) => routes.push(args);
+  const { FemometerFeedback } = await loadFrontend('src/components/FemometerFeedback.jsx', {
+    ...harness.bindings, useNavigate: () => navigate,
+    toast: data => { const item = { ...data }; notices.push(item); return { dismiss() {}, update: next => Object.assign(item, next) }; },
+    ToastAction: 'action', Button: 'button', Dialog: 'dialog', DialogContent: 'content', DialogHeader: 'header', DialogTitle: 'title', DialogDescription: 'description', DialogFooter: 'footer',
+  }, ['FemometerFeedback']);
+  const props = { sessionState: {}, readings: [], setClockDialogOpen: () => {} };
+  const render = () => harness.render(() => ({ props: { value: FemometerFeedback(props) } }));
+  render();
+  props.readings = [{ uiId: 1, importStatus: 'pending' }]; render();
+  assert.equal(notices.at(-1).title, 'Temperatura recibida');
+  props.readings = [...props.readings, { uiId: 2, importStatus: 'pending' }]; render();
+  assert.equal(notices.length, 1);
+  assert.equal(notices[0].title, 'Temperaturas recibidas');
+  props.readings = props.readings.map(row => row.uiId === 1 ? { ...row, importStatus: 'saving' } : row); render();
+  assert.equal(notices.length, 1);
+  props.readings = props.readings.map(row => row.uiId === 1 ? { ...row, importStatus: 'pending' } : row); render();
+  assert.equal(notices.length, 1);
+  props.readings = props.readings.map(row => row.uiId === 1 ? { ...row, importStatus: 'incorporated', savedIsoDate: '2026-11-03' } : row); render();
+  assert.equal(notices.at(-1).title, 'Temperatura incorporada');
+  notices.at(-1).action.props.onClick();
+  assert.deepEqual(routes.at(-1), ['/records', { state: { selectedDate: '2026-11-03' } }]);
+  harness.cleanup();
+});
+
+test('a voluntary failed clock synchronization preserves listening and pending readings', async () => {
+  const native = bridge(); native.flags.syncFails = true;
+  const owner = await mountedOwner(native);
+  try {
+    native.emit({ temperatureC: 36.4 });
+    assert.equal(native.calls.sync, 0);
+    await owner.render().sessionRef.current.syncClock();
+    assert.equal(native.calls.sync, 1);
+    assert.equal(owner.render().sessionState.clockError.message, 'sync failed');
+    assert.equal(owner.render().sessionState.status, 'listening');
+    assert.equal(owner.render().pendingCount, 1);
+    assert.equal(native.calls.disconnects, 0);
+  } finally { owner.cleanup(); await flush(); }
+});
+
+test('device routes use the shared state and are unavailable outside the enabled prototype', async () => {
+  const harness = hooks(); let enabled = true;
+  const { DevicesPage, Vinca2DevicePage } = await loadFrontend('src/pages/DevicesPage.jsx', {
+    ...harness.bindings, useAuth: () => ({ user: { uid: 'a' } }),
+    useFemometer: () => ({ enabled, pendingCount: 2, sessionState: { remembered: true, status: 'listening' } }),
+    Link: 'link', Navigate: 'redirect', Vinca2Panel: 'panel', Button: 'button', ChevronLeft: 'back', ChevronRight: 'next', Thermometer: 'thermometer',
+  }, ['DevicesPage', 'Vinca2DevicePage']);
+  assert.ok(treeNodes(DevicesPage()).some(node => node.type === 'link' && node.props.to === '/settings/devices/vinca2'));
+  assert.ok(treeNodes(Vinca2DevicePage()).some(node => node.type === 'panel' && node.props.userId === 'a'));
+  enabled = false;
+  assert.equal(DevicesPage().type, 'redirect');
+  assert.equal(Vinca2DevicePage().props.to, '/settings');
+});
+
+test('Bluetooth origin details show only available metadata and remain read-only and gated', async () => {
+  const harness = hooks(); let enabled = true;
+  const { BluetoothMeasurementDetails } = await loadFrontend('src/components/TemperatureMeasurementsSheet.jsx', {
+    ...harness.bindings, isFemometerBlePrototypeEnabled: () => enabled, isFemometerBleAndroidNative: () => true,
+  }, ['BluetoothMeasurementDetails'], source => source.replace('export default function TemperatureMeasurementsSheet', 'function TemperatureMeasurementsSheet'));
+  const props = { measurement: { source: 'bluetooth', device_model: 'BM-Vinca2', device_timestamp: '2020-01-01T08:00:00',
+    confirmed_timestamp: '2026-11-03T08:00:00', device_date_reliability: 'unverified' } };
+  const tree = BluetoothMeasurementDetails(props);
+  const rendered = treeNodes(tree).map(node => (node.props.children ?? []).filter(item => typeof item === 'string').join(' ')).join(' ');
+  assert.match(rendered, /2020-01-01/);
+  assert.match(rendered, /2026-11-03/);
+  assert.match(rendered, /Sin verificar/);
+  assert.doesNotMatch(rendered, /Recibida/);
+  assert.ok(!treeNodes(tree).some(node => ['input', 'form', 'button'].includes(node.type)));
+  enabled = false;
+  assert.equal(BluetoothMeasurementDetails(props), null);
 });

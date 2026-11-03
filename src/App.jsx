@@ -15,6 +15,8 @@ const DashboardPage = lazy(() => import('@/pages/DashboardPage'));
 const ArchivedCyclesPage = lazy(() => import('@/pages/ArchivedCyclesPage'));
 const CycleDetailPage = lazy(() => import('@/pages/CycleDetailPage'));
 const SettingsPage = lazy(() => import('@/pages/SettingsPage'));
+const DevicesPage = lazy(() => import('@/pages/DevicesPage'));
+const Vinca2DevicePage = lazy(() => import('@/pages/DevicesPage').then(module => ({ default: module.Vinca2DevicePage })));
 const PreferencesPage = lazy(() => import('@/pages/PreferencesPage'));
 const ContactSupportPage = lazy(() => import('@/pages/ContactSupportPage'));
 const ChartPage = lazy(() => import('@/pages/ChartPage'));
@@ -282,6 +284,8 @@ const routeErrorBoundaryKey = location.pathname.startsWith('/cycle/')
                   </ProtectedRoute>
                 }
               />
+              <Route path="/settings/devices" element={<ProtectedRoute><MainLayout><DevicesPage /></MainLayout></ProtectedRoute>} />
+              <Route path="/settings/devices/vinca2" element={<ProtectedRoute><MainLayout><Vinca2DevicePage /></MainLayout></ProtectedRoute>} />
               <Route
                 path="/settings/support"
                 element={

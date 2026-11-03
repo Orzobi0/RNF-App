@@ -124,7 +124,11 @@ export const createFemometerSessionManager = (api) => {
       }).then(result => {
         if (current()) {
           const driftSeconds = femometerClockDriftSeconds(result?.deviceLocalTime);
+          const phone = new Date();
+          const pad = value => String(value).padStart(2, '0');
+          const phoneLocalTime = `${phone.getFullYear()}-${pad(phone.getMonth() + 1)}-${pad(phone.getDate())}T${pad(phone.getHours())}:${pad(phone.getMinutes())}:${pad(phone.getSeconds())}`;
           publish({ clockResult: { ...result, operation: sync ? 'sync' : 'read', driftSeconds,
+            phoneLocalTime,
             significantDrift: driftSeconds !== null && Math.abs(driftSeconds) > 120 } });
         }
       }).catch(error => {
