@@ -1,5 +1,18 @@
 import { thermometerCapabilities } from './thermometerCapabilities.js';
 
+// Compare wall-clock components: the thermometer reports local time without a zone.
+export const femometerClockDriftSeconds = (value, now = Date.now()) => {
+  const match = typeof value === 'string' && value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/);
+  if (!match || !Number.isFinite(now)) return null;
+  const [year, month, day, hour, minute, second] = match.slice(1).map(Number);
+  const device = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+  if (device.getUTCFullYear() !== year || device.getUTCMonth() !== month - 1 || device.getUTCDate() !== day
+    || device.getUTCHours() !== hour || device.getUTCMinutes() !== minute || device.getUTCSeconds() !== second) return null;
+  const phone = new Date(now);
+  return Math.round((device.getTime() - Date.UTC(phone.getFullYear(), phone.getMonth(), phone.getDate(),
+    phone.getHours(), phone.getMinutes(), phone.getSeconds())) / 1000);
+};
+
 // One native BLE owner across panel remounts, including React StrictMode replay.
 // The injected bridge also lets lifecycle races be tested without BLE hardware.
 export const createFemometerSessionManager = (api) => {
@@ -11,6 +24,7 @@ export const createFemometerSessionManager = (api) => {
     let version = 0;
     let job;
     let clockJob;
+    let automaticClockPending = false;
     let stopping;
     let disposal;
     let subscription;
@@ -47,11 +61,18 @@ export const createFemometerSessionManager = (api) => {
         if (current()) publish({ status: 'error', error, listenerResult: null });
       }).finally(() => {
         job = null;
-        if (current()) publish({ busy: false });
+        if (current()) {
+          publish({ busy: false });
+          if (automaticClockPending) {
+            automaticClockPending = false;
+            return clock(false);
+          }
+        }
       });
       return job;
     };
     const listen = async (deviceId, call, current) => {
+      automaticClockPending = false;
       publish({ status: 'connecting', listenerResult: null, clockResult: null, clockError: null, capabilities: thermometerCapabilities() });
       // Assign even a late subscription so cancellation can remove it after job settles.
       subscription = await api.addFemometerTemperatureListener(event => {
@@ -64,6 +85,7 @@ export const createFemometerSessionManager = (api) => {
       });
       const result = await call(() => api.startFemometerTemperatureListener(deviceId));
       publish({ status: 'listening', listenerResult: result, capabilities: thermometerCapabilities(result?.capabilities) });
+      automaticClockPending = state.capabilities.clockRead;
     };
     const search = async (automatic, call, current) => {
       publish({ status: 'checking', devices: [], selectedDeviceId: '', inspectionResult: null });
@@ -100,7 +122,11 @@ export const createFemometerSessionManager = (api) => {
         if (!current()) return;
         return sync ? api.syncFemometerClock() : api.readFemometerClock();
       }).then(result => {
-        if (current()) publish({ clockResult: { ...result, operation: sync ? 'sync' : 'read' } });
+        if (current()) {
+          const driftSeconds = femometerClockDriftSeconds(result?.deviceLocalTime);
+          publish({ clockResult: { ...result, operation: sync ? 'sync' : 'read', driftSeconds,
+            significantDrift: driftSeconds !== null && Math.abs(driftSeconds) > 120 } });
+        }
       }).catch(error => {
         if (current()) publish({ clockError: error }); // Never tear down measurement reception for a clock failure.
       }).finally(() => {

@@ -19,10 +19,10 @@ import { Label } from '@/components/ui/label';
 import { getAuthErrorMessage } from '@/lib/authErrorMessages';
 import ExportCyclesDialog from '@/components/ExportCyclesDialog';
 import { useCycleData } from '@/hooks/useCycleData';
+import { useFemometer } from '@/contexts/FemometerContext';
 import InstallPrompt from '@/components/InstallPrompt';
 import { normalizeBleMeasurement, prepareManualBleDraft } from '@/lib/bleMeasurements';
 import {
-  createFemometerPanelSession,
   isFemometerBleAndroidNative,
   isFemometerBlePrototypeEnabled,
 } from '@/lib/femometerBle';
@@ -198,7 +198,16 @@ const SettingsSection = ({ title, children, className }) => (
 const DEFAULT_TEMPERATURE_LISTEN_SECONDS = 6 * 60;
 
 const FemometerBlePrototypePanel = ({ userId }) => {
-  const sessionRef = useRef(null);
+  const { sessionRef, sessionState, readings, listeningStartedAt, temperatureListenerMessage, incorporateReading } = useFemometer();
+  const [selectedReadingId, setSelectedReadingId] = useState(null);
+  const lastTemperatureReading = readings.find(item => item.uiId === selectedReadingId) ?? readings.at(-1) ?? null;
+  const mountedRef = useRef(false);
+  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
+  useEffect(() => {
+    if (window.location.hash !== '#bluetooth-readings') return undefined;
+    const frame = requestAnimationFrame(() => document.getElementById('bluetooth-readings')?.scrollIntoView({ block: 'start' }));
+    return () => cancelAnimationFrame(frame);
+  }, []);
   const navigate = useNavigate();
   const { currentCycle, isLoading, incorporateBleMeasurement } = useCycleData();
   const cycleRef = useRef(currentCycle);
@@ -211,11 +220,12 @@ const FemometerBlePrototypePanel = ({ userId }) => {
   const importBusyRef = useRef(false);
   const beginImport = () => {
     const measurement = normalizeBleMeasurement(lastTemperatureReading, 'BM-Vinca2');
-    if (!measurement) return;
+    if (!measurement || lastTemperatureReading.importStatus !== 'pending') return;
+    setSelectedReadingId(lastTemperatureReading.uiId);
     setImportError('');
     setPossibleDuplicate(false);
     setImportResult(null);
-    setImportDraft({ measurement, isoDate: measurement.time ? measurement.device_timestamp.slice(0, 10) : '',
+    setImportDraft({ readingId: lastTemperatureReading.uiId, measurement, isoDate: measurement.time ? measurement.device_timestamp.slice(0, 10) : '',
       time: measurement.time, confirmed: false });
   };
   const confirmImport = async (allowPossibleDuplicate = false) => {
@@ -228,25 +238,21 @@ const FemometerBlePrototypePanel = ({ userId }) => {
     try {
       if (isLoading || !cycleId || !session) throw new Error('Espera a que se cargue el ciclo actual.');
       const draft = prepareManualBleDraft(importDraft.measurement, { ...importDraft, userId, cycleId, nowMs: Date.now() });
-      const saved = await incorporateBleMeasurement(draft, { allowPossibleDuplicate });
-      if (sessionRef.current !== session || cycleRef.current?.id !== cycleId) return;
+      const saved = await incorporateReading(importDraft.readingId, () => incorporateBleMeasurement(draft, { allowPossibleDuplicate }));
+      if (!mountedRef.current || sessionRef.current !== session || cycleRef.current?.id !== cycleId) return;
       setImportResult(saved);
       setImportDraft(null);
       setPossibleDuplicate(false);
     } catch (error) {
-      if (sessionRef.current === session) {
+      if (mountedRef.current && sessionRef.current === session) {
         setPossibleDuplicate(error?.code === 'ble-possible-duplicate');
         setImportError(`${error?.code === 'ble-possible-duplicate' ? 'Posible duplicado' : 'Requiere revisión'}: ${error?.title ? error.message : 'No se pudo incorporar la lectura. Revisa la fecha y la conexión antes de reintentar.'}`);
       }
     } finally {
       importBusyRef.current = false;
-      if (sessionRef.current === session) setImportBusy(false);
+      if (mountedRef.current && sessionRef.current === session) setImportBusy(false);
     }
   };
-  const [sessionState, setSessionState] = useState({
-    status: 'checking', busy: true, remembered: null, devices: [], selectedDeviceId: '',
-    inspectionResult: null, error: null, listenerResult: null,
-  });
   const { status, busy, remembered, devices, selectedDeviceId, inspectionResult } = sessionState;
   const isScanning = status === 'searching';
   const isInspecting = status === 'inspecting';
@@ -262,64 +268,23 @@ const FemometerBlePrototypePanel = ({ userId }) => {
   const rememberedSearch = status === 'error' ? 'error'
     : status === 'missing' ? 'missing' : devices.some(device => device.isRemembered) ? 'found' : 'pending';
   const [temperatureSecondsRemaining, setTemperatureSecondsRemaining] = useState(DEFAULT_TEMPERATURE_LISTEN_SECONDS);
-  const [temperatureListenerMessage, setTemperatureListenerMessage] = useState('');
-  const [lastTemperatureReading, setLastTemperatureReading] = useState(null);
-  const temperatureReceivedInSessionRef = useRef(false);
-
-  useEffect(() => {
-    let previousStatus;
-    const session = createFemometerPanelSession(userId, next => {
-      setSessionState(next);
-      if (next.status !== previousStatus) {
-        if (next.status === 'searching' || next.status === 'connecting') {
-          setLastTemperatureReading(null);
-          temperatureReceivedInSessionRef.current = false;
-          setTemperatureListenerMessage('');
-        }
-        if (next.status === 'listening' && !temperatureReceivedInSessionRef.current) {
-          setTemperatureListenerMessage('Escuchando el termómetro…');
-        }
-      }
-      previousStatus = next.status;
-    }, event => {
-      if (event?.temperatureC !== undefined && event?.temperatureC !== null) {
-        temperatureReceivedInSessionRef.current = true;
-        setLastTemperatureReading({ ...event, normalized: normalizeBleMeasurement(event, 'BM-Vinca2') });
-        setTemperatureListenerMessage('Temperatura recibida. La escucha continúa para recibir otra medición.');
-      } else if (event?.status === 'timeout') {
-        setTemperatureListenerMessage(temperatureReceivedInSessionRef.current
-          ? 'Escucha finalizada. La última temperatura recibida se muestra abajo.'
-          : 'Escucha finalizada sin recibir temperaturas. Puedes volver a escuchar cuando el termómetro esté preparado.');
-      } else if (event?.message) {
-        setTemperatureListenerMessage(event.message);
-      }
-    });
-    sessionRef.current = session;
-    void session.start();
-    return () => {
-      sessionRef.current = null;
-      void session.dispose();
-    };
-  }, [userId]);
-
   useEffect(() => {
     if (!isTemperatureListenerActive) return undefined;
     const timeout = Number(sessionState.listenerResult?.timeoutSeconds);
     const duration = Number.isFinite(timeout) && timeout > 0 ? Math.floor(timeout) : DEFAULT_TEMPERATURE_LISTEN_SECONDS;
-    const startedAt = Date.now();
-    setTemperatureSecondsRemaining(duration);
+    const startedAt = listeningStartedAt ?? Date.now();
+    setTemperatureSecondsRemaining(Math.max(0, duration - Math.floor((Date.now() - startedAt) / 1000)));
     const interval = window.setInterval(() => {
       setTemperatureSecondsRemaining(Math.max(0, duration - Math.floor((Date.now() - startedAt) / 1000)));
     }, 1000);
     return () => window.clearInterval(interval);
-  }, [isTemperatureListenerActive, sessionState.listenerResult]);
+  }, [isTemperatureListenerActive, sessionState.listenerResult, listeningStartedAt]);
 
   const handleScan = () => sessionRef.current?.scan();
   const handleInspect = () => sessionRef.current?.inspect();
   const handleRememberedChange = (forget = false) => sessionRef.current?.remember(forget);
   const handleStartTemperatureListener = () => sessionRef.current?.listen();
   const handleStopTemperatureListener = () => {
-    setTemperatureListenerMessage('Escucha detenida.');
     return sessionRef.current?.stop();
   };
   const statusText = {
@@ -337,7 +302,7 @@ const FemometerBlePrototypePanel = ({ userId }) => {
   );
 
   return (
-    <div className="bg-white px-4 py-4">
+    <div id="bluetooth-readings" className="bg-white px-4 py-4">
       <div className="flex items-start gap-3">
         <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-500">
           <Thermometer className="h-4 w-4" aria-hidden="true" />
@@ -403,6 +368,10 @@ const FemometerBlePrototypePanel = ({ userId }) => {
                 onClick={() => sessionRef.current?.syncClock()}>Sincronizar fecha y hora</Button>
               {sessionState.clockBusy ? <p role="status" className="text-sm">Consultando/ajustando reloj…</p> : null}
               {sessionState.clockError ? <p role="status" className="text-sm text-amber-700">{sessionState.clockError.message}</p> : null}
+              {sessionState.clockResult?.significantDrift ? <p role="status" className="text-sm text-amber-700">
+                El reloj difiere más de 2 minutos de la hora local del móvil. Puedes usar «Sincronizar fecha y hora».
+                Esto no verifica las fechas de lecturas históricas.
+              </p> : null}
               {sessionState.clockResult ? (
                 <div role="status" className="text-sm text-slate-600">
                   <p>{sessionState.clockResult.operation === 'read' ? 'Lectura del reloj'
@@ -520,10 +489,20 @@ const FemometerBlePrototypePanel = ({ userId }) => {
                 ) : null}
               </div>
 
+              {readings.length ? <ul aria-label="Lecturas Bluetooth de esta sesión" className="max-h-64 space-y-2 overflow-y-auto">
+                {readings.map(reading => <li key={reading.uiId}>
+                  <button type="button" disabled={importBusy} aria-pressed={lastTemperatureReading?.uiId === reading.uiId}
+                    className="w-full rounded-lg border border-rose-100 bg-white px-3 py-2 text-left text-sm"
+                    onClick={() => { setSelectedReadingId(reading.uiId); setImportDraft(null); setImportError(''); setPossibleDuplicate(false); }}>
+                    {Number(reading.temperatureC).toFixed(2)} °C · {reading.deviceTimestamp || 'Sin fecha del termómetro'}
+                    <span className="block text-xs text-slate-500">{reading.importStatus === 'incorporated' ? 'Incorporada' : reading.importStatus === 'saving' ? 'Guardando…' : 'Pendiente de revisión'}</span>
+                  </button>
+                </li>)}
+              </ul> : null}
               {lastTemperatureReading ? (
                 <div className="rounded-lg border border-white bg-white px-3 py-2">
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
-                    Última lectura recibida
+                    Lectura seleccionada
                   </p>
                   <p className="mt-1 text-lg font-semibold text-slate-800">
                     {Number(lastTemperatureReading.temperatureC).toFixed(2)} °C
@@ -539,7 +518,7 @@ const FemometerBlePrototypePanel = ({ userId }) => {
                         ? 'no incluida' : 'sin verificar; zona horaria desconocida'}</p>
                     <p>Tipo: {lastTemperatureReading.measurementType || 'no incluido'}</p>
                   </div>
-                  <Button type="button" variant="outline" disabled={importBusy} onClick={beginImport}>Incorporar al registro</Button>
+                  <Button type="button" variant="outline" disabled={importBusy || lastTemperatureReading.importStatus !== 'pending'} onClick={beginImport}>Incorporar al registro</Button>
                   {importDraft ? (
                     <div className="mt-3 space-y-2">
                       <p className="text-sm">Confirma la fecha y hora reales de {importDraft.measurement.temperature} °C (hora local del teléfono). La fecha del termómetro sigue sin verificar.</p>

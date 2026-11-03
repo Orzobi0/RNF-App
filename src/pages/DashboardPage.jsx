@@ -26,6 +26,22 @@ import computePeakStatuses from '@/lib/computePeakStatuses';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
+import { useFemometer } from '@/contexts/FemometerContext';
+
+const DashboardBluetoothStatus = () => {
+  const ble = useFemometer();
+  const navigate = useNavigate();
+  if (!ble.enabled) return null;
+  const { status, remembered } = ble.sessionState;
+  const label = status === 'listening' ? 'Conectado' : status === 'searching' ? 'Buscando termómetro'
+    : status === 'connecting' ? 'Conectando' : status === 'missing' ? 'No encontrado'
+      : status === 'error' ? 'Revisar conexión' : remembered ? 'Termómetro recordado' : 'Sin termómetro recordado';
+  return <button type="button" className="min-h-11 w-full rounded-xl border border-rose-100 bg-white px-3 py-2 text-left text-xs text-slate-600"
+    onClick={() => navigate('/settings#bluetooth-readings')}>
+    Bluetooth · {label} · {ble.pendingCount} pendientes
+    {ble.sessionState.clockResult?.significantDrift ? <span className="block text-amber-700">Revisar hora del termómetro</span> : null}
+  </button>;
+};
 import { useFertilityChart } from '@/hooks/useFertilityChart';
 import { useFertilityCalculatorsEditor } from '@/hooks/useFertilityCalculatorsEditor';
 import FertilityCalculatorsEditorDialogs from '@/components/FertilityCalculatorsEditorDialogs';
@@ -2615,6 +2631,7 @@ const handleConfirmDeleteRecord = useCallback(async () => {
       <div className="mx-auto flex min-h-screen max-w-md items-center justify-center px-4 py-4">
         <div className="w-full space-y-4 rounded-3xl border border-rose-100/70 bg-white/80 p-4 text-center shadow-sm">
           <p className="text-[15px] font-semibold text-slate-800">No hay ciclo activo.</p>
+          <DashboardBluetoothStatus />
           <button
             onClick={() => handleOpenNewCycleDialog()}
             className="h-11 w-full rounded-full bg-fertiliapp-fuerte px-4 text-sm font-semibold text-white shadow-sm transition hover:brightness-95"
@@ -2647,6 +2664,7 @@ const handleConfirmDeleteRecord = useCallback(async () => {
   return (
     <>
       <div className="mx-auto flex h-[calc(var(--app-vh,1vh)*100 - var(--bottom-nav-safe))] w-full flex-col space-y-4 bg-[#FFF7F9] px-4 pb-10 pt-4">
+        <DashboardBluetoothStatus />
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
