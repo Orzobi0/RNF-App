@@ -4,15 +4,17 @@ import { toast } from '@/components/ui/use-toast';
 import { ToastAction } from '@/components/ui/toast';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Thermometer, Check } from 'lucide-react';
 
 // Mounted with the authenticated BLE owner, not with any route.
-export function FemometerFeedback({ sessionState, sessionRef, readings, clockDialogOpen, setClockDialogOpen }) {
+export function FemometerFeedback({ sessionState, sessionRef, readings, clockDialogOpen, setClockDialogOpen, openReadingReview }) {
   const navigate = useNavigate();
   const noticedConnection = useRef(null);
   const receivedIds = useRef(new Set());
   const savedIds = useRef(new Set());
   const notice = useRef(null);
   const batch = useRef({ time: 0, count: 0 });
+  const savedBatch = useRef({ time: 0, count: 0 });
   const { status, listenerResult, clockResult, clockError, clockBusy, capabilities } = sessionState;
   useEffect(() => {
     if (status === 'listening' && clockResult?.significantDrift && listenerResult
@@ -27,24 +29,36 @@ export function FemometerFeedback({ sessionState, sessionRef, readings, clockDia
     received.forEach(row => receivedIds.current.add(row.uiId));
     saved.forEach(row => savedIds.current.add(row.uiId));
     if (saved.length) {
-      notice.current?.dismiss();
       batch.current = { time: 0, count: 0 };
       const last = saved.at(-1);
-      notice.current = toast({ title: saved.length === 1 ? 'Temperatura incorporada' : 'Temperaturas incorporadas',
-        description: 'Guardado confirmado en tu registro.', duration: 5000,
-        action: <ToastAction altText="Ver registro" onClick={() => navigate('/records', { state: { selectedDate: last.savedIsoDate } })}>Ver registro</ToastAction> });
+      const now = Date.now();
+      const grouped = now - savedBatch.current.time < 2500;
+      const count = (grouped ? savedBatch.current.count : 0) + saved.length;
+      const props = { title: count === 1 ? 'Temperatura incorporada' : `${count} temperaturas incorporadas`,
+        className: 'rounded-2xl border-rose-100 bg-white shadow-md',
+        description: <span className="flex items-center gap-2"><Thermometer className="h-4 w-4 shrink-0" aria-hidden="true" /><Check className="h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" />
+          {last.normalized?.temperature ?? last.temperatureC} °C · {last.savedTime || ''} · {last.savedIsoDate}. Guardado confirmado.</span>, duration: 5000,
+        action: <ToastAction altText="Ver día" onClick={() => navigate('/records', { state: { selectedDate: last.savedIsoDate, scrollToDayDetail: true } })}>Ver día</ToastAction> };
+      if (grouped && notice.current) notice.current.update(props);
+      else { notice.current?.dismiss(); notice.current = toast(props); }
+      savedBatch.current = { time: now, count };
     } else if (received.length) {
       const now = Date.now();
       const grouped = now - batch.current.time < 2500;
       const count = (grouped ? batch.current.count : 0) + received.length;
-      const props = { title: count === 1 ? 'Temperatura recibida' : 'Temperaturas recibidas',
-        description: `${count} ${count === 1 ? 'lectura recibida' : 'lecturas recibidas'}. Revisa y confirma para guardar.`, duration: 5000,
-        action: <ToastAction altText="Abrir dispositivos" onClick={() => navigate('/settings/devices')}>Dispositivos</ToastAction> };
+      savedBatch.current = { time: 0, count: 0 };
+      const firstPending = readings.find(row => row.importStatus === 'pending');
+      const reason = firstPending?.normalized?.device_date_reliability === 'invalid' ? 'Fecha del termómetro inválida.'
+        : firstPending?.normalized?.device_date_reliability === 'missing' ? 'Falta la fecha del termómetro.' : 'No se puede verificar la fecha histórica del termómetro.';
+      const props = { title: count === 1 ? 'Revisar temperatura' : `${count} temperaturas por revisar`,
+        className: 'rounded-2xl border-rose-100 bg-white shadow-md',
+        description: `${firstPending?.normalized?.temperature ?? firstPending?.temperatureC ?? ''} °C. ${reason}`, duration: 6000,
+        action: <ToastAction altText="Revisar y guardar" onClick={() => openReadingReview?.(firstPending?.uiId)}>Revisar y guardar</ToastAction> };
       if (grouped && notice.current) notice.current.update(props);
       else notice.current = toast(props);
       batch.current = { time: now, count };
     }
-  }, [readings, navigate]);
+  }, [readings, navigate, openReadingReview]);
   useEffect(() => () => notice.current?.dismiss(), []);
   const connected = status === 'listening';
   return <Dialog open={clockDialogOpen} onOpenChange={setClockDialogOpen}>

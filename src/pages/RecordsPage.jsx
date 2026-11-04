@@ -1,5 +1,6 @@
 import { loadFormMeasurements } from '@/lib/loadFormMeasurements';
 import { measurementPayloadForRecord, loadRecordMeasurements } from '@/lib/temperatureMeasurements';
+import { useFemometer } from '@/contexts/FemometerContext';
 import React, {
   useState,
   useCallback,
@@ -191,6 +192,19 @@ const formatTemperatureDisplay = (value) => {
     maximumFractionDigits: 2,
   }).format(n);
 };
+export const useBleDayDetailNavigation = ({ enabled, requestKey, requested, isoDate, selectedDate, ready, select }) => {
+  const handled = useRef(null);
+  useEffect(() => {
+    if (!enabled || !requested || !isoDate || handled.current === requestKey || !ready) return undefined;
+    if (selectedDate !== isoDate) { select(isoDate); return undefined; }
+    const frame = requestAnimationFrame(() => {
+      const detail = document.getElementById('day-detail-card');
+      if (detail) { detail.scrollIntoView({ behavior: 'smooth', block: 'start' }); handled.current = requestKey; }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [enabled, requestKey, requested, isoDate, selectedDate, ready, select]);
+};
+
 const resolveInitialSelectedIsoDate = ({ cycle, routeSelectedIso }) => {
   if (routeSelectedIso) {
     return routeSelectedIso;
@@ -310,6 +324,7 @@ export const RecordsExperience = ({
   const { toast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
+  const ble = useFemometer();
     const routeSelectedIso = useMemo(() => {
     const value = location.state?.selectedDate;
     if (typeof value !== 'string') return null;
@@ -1006,6 +1021,9 @@ return {
 
   const selectedDayData = selectedDate ? cycleDayMap.get(selectedDate) || null : null;
   const selectedDayDetails = selectedDayData?.details ?? null;
+  useBleDayDetailNavigation({ enabled: ble.enabled && !ble.preview, requestKey: location.key,
+    requested: location.state?.scrollToDayDetail, isoDate: routeSelectedIso, selectedDate,
+    ready: !isLoading && !isDetailLoading && Boolean(selectedDayDetails), select: setSelectedDate });
   const selectedPeakStatus = selectedDayDetails?.peakStatus ?? (selectedDate ? peakStatuses[selectedDate] ?? null : null);
   const selectedIsPeakDay = selectedDayDetails?.isPeakDay ?? selectedPeakStatus === 'P';
   const currentPeakIsoDate = useMemo(() => {
@@ -1927,6 +1945,7 @@ const handleNextCalendarMonth = useCallback(() => {
             </motion.div>
           ) : (
             <DayDetail
+              id={ble.enabled && !ble.preview ? 'day-detail-card' : undefined}
               isoDate={selectedDate}
               cycleDay={selectedDayData?.cycleDay ?? null}
               details={selectedDayDetails}

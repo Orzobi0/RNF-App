@@ -1,71 +1,20 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Bluetooth, Thermometer } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { useCycleData } from '@/hooks/useCycleData';
 import { useFemometer } from '@/contexts/FemometerContext';
-import { normalizeBleMeasurement, prepareManualBleDraft } from '@/lib/bleMeasurements';
 import { cn } from '@/lib/utils';
 
 const DEFAULT_TEMPERATURE_LISTEN_SECONDS = 6 * 60;
 
-const Vinca2Panel = ({ userId }) => {
-  const { sessionRef, sessionState, readings, listeningStartedAt, temperatureListenerMessage, incorporateReading, openClockDialog, lifecycleStatus } = useFemometer();
+const Vinca2Panel = () => {
+  const { sessionRef, sessionState, readings, listeningStartedAt, temperatureListenerMessage, openReadingReview, openClockDialog, lifecycleStatus } = useFemometer();
   const [selectedReadingId, setSelectedReadingId] = useState(null);
   const lastTemperatureReading = readings.find(item => item.uiId === selectedReadingId) ?? readings.at(-1) ?? null;
-  const mountedRef = useRef(false);
-  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
   useEffect(() => {
     if (window.location.hash !== '#bluetooth-readings') return undefined;
     const frame = requestAnimationFrame(() => document.getElementById('bluetooth-readings')?.scrollIntoView({ block: 'start' }));
     return () => cancelAnimationFrame(frame);
   }, []);
-  const navigate = useNavigate();
-  const { currentCycle, isLoading, incorporateBleMeasurement } = useCycleData();
-  const cycleRef = useRef(currentCycle);
-  cycleRef.current = currentCycle;
-  const [importDraft, setImportDraft] = useState(null);
-  const [importError, setImportError] = useState('');
-  const [importBusy, setImportBusy] = useState(false);
-  const [possibleDuplicate, setPossibleDuplicate] = useState(false);
-  const [importResult, setImportResult] = useState(null);
-  const importBusyRef = useRef(false);
-  const beginImport = () => {
-    const measurement = normalizeBleMeasurement(lastTemperatureReading, 'BM-Vinca2');
-    if (!measurement || lastTemperatureReading.importStatus !== 'pending') return;
-    setSelectedReadingId(lastTemperatureReading.uiId);
-    setImportError('');
-    setPossibleDuplicate(false);
-    setImportResult(null);
-    setImportDraft({ readingId: lastTemperatureReading.uiId, measurement, isoDate: measurement.time ? measurement.device_timestamp.slice(0, 10) : '',
-      time: measurement.time, confirmed: false });
-  };
-  const confirmImport = async (allowPossibleDuplicate = false) => {
-    if (importBusyRef.current) return;
-    const session = sessionRef.current;
-    const cycleId = currentCycle?.id;
-    importBusyRef.current = true;
-    setImportBusy(true);
-    setImportError('');
-    try {
-      if (isLoading || !cycleId || !session) throw new Error('Espera a que se cargue el ciclo actual.');
-      const draft = prepareManualBleDraft(importDraft.measurement, { ...importDraft, userId, cycleId, nowMs: Date.now() });
-      const saved = await incorporateReading(importDraft.readingId, () => incorporateBleMeasurement(draft, { allowPossibleDuplicate }));
-      if (!mountedRef.current || sessionRef.current !== session || cycleRef.current?.id !== cycleId) return;
-      setImportResult(saved);
-      setImportDraft(null);
-      setPossibleDuplicate(false);
-    } catch (error) {
-      if (mountedRef.current && sessionRef.current === session) {
-        setPossibleDuplicate(error?.code === 'ble-possible-duplicate');
-        setImportError(`${error?.code === 'ble-possible-duplicate' ? 'Posible duplicado' : 'Requiere revisión'}: ${error?.title ? error.message : 'No se pudo incorporar la lectura. Revisa la fecha y la conexión antes de reintentar.'}`);
-      }
-    } finally {
-      importBusyRef.current = false;
-      if (mountedRef.current && sessionRef.current === session) setImportBusy(false);
-    }
-  };
   const { status, busy, remembered, devices, selectedDeviceId, inspectionResult } = sessionState;
   const isScanning = status === 'searching';
   const isInspecting = status === 'inspecting';
@@ -313,9 +262,9 @@ const Vinca2Panel = ({ userId }) => {
 
               {readings.length ? <ul aria-label="Lecturas Bluetooth de esta sesión" className="max-h-64 space-y-2 overflow-y-auto">
                 {readings.map(reading => <li key={reading.uiId}>
-                  <button type="button" disabled={importBusy} aria-pressed={lastTemperatureReading?.uiId === reading.uiId}
+                  <button type="button" disabled={reading.importStatus === 'saving'} aria-pressed={lastTemperatureReading?.uiId === reading.uiId}
                     className="w-full rounded-lg border border-rose-100 bg-white px-3 py-2 text-left text-sm"
-                    onClick={() => { setSelectedReadingId(reading.uiId); setImportDraft(null); setImportError(''); setPossibleDuplicate(false); }}>
+                    onClick={() => setSelectedReadingId(reading.uiId)}>
                     {Number(reading.temperatureC).toFixed(2)} °C · {reading.deviceTimestamp || 'Sin fecha del termómetro'}
                     <span className="block text-xs text-slate-500">{reading.importStatus === 'incorporated' ? 'Incorporada' : reading.importStatus === 'saving' ? 'Guardando…' : 'Pendiente de revisión'}</span>
                   </button>
@@ -340,36 +289,13 @@ const Vinca2Panel = ({ userId }) => {
                         ? 'no incluida' : 'sin verificar; zona horaria desconocida'}</p>
                     <p>Tipo: {lastTemperatureReading.measurementType || 'no incluido'}</p>
                   </div>
-                  <Button type="button" variant="outline" disabled={importBusy || lastTemperatureReading.importStatus !== 'pending'} onClick={beginImport}>Incorporar al registro</Button>
-                  {importDraft ? (
-                    <div className="mt-3 space-y-2">
-                      <p className="text-sm">Confirma la fecha y hora reales de {importDraft.measurement.temperature} °C (hora local del teléfono). La fecha del termómetro sigue sin verificar.</p>
-                      <label className="block text-sm">Fecha
-                        <Input type="date" value={importDraft.isoDate} disabled={importBusy}
-                          onChange={event => { setPossibleDuplicate(false); setImportError(''); setImportDraft({ ...importDraft, isoDate: event.target.value, confirmed: false }); }} />
-                      </label>
-                      <label className="block text-sm">Hora
-                        <Input type="time" value={importDraft.time} disabled={importBusy}
-                          onChange={event => { setPossibleDuplicate(false); setImportError(''); setImportDraft({ ...importDraft, time: event.target.value, confirmed: false }); }} />
-                      </label>
-                      <label className="flex gap-2 text-sm"><input type="checkbox" checked={importDraft.confirmed} disabled={importBusy}
-                        onChange={event => setImportDraft({ ...importDraft, confirmed: event.target.checked })} />Confirmo la fecha y hora reales y autorizo guardar esta temperatura en el registro.</label>
-                      <Button type="button" disabled={!importDraft.confirmed || importBusy} onClick={() => confirmImport(possibleDuplicate)}>
-                        {importBusy ? 'Incorporando…' : possibleDuplicate ? 'Es otra medición: confirmar y guardar' : 'Confirmar e incorporar'}
-                      </Button>
-                      <Button type="button" variant="ghost" disabled={importBusy} onClick={() => { setImportDraft(null); setImportError(''); setPossibleDuplicate(false); }}>Cancelar</Button>
-                      {importError ? <p role="alert" className="text-sm text-amber-800">{importError}</p> : null}
-                    </div>
-                  ) : null}
+                  <Button type="button" variant="outline" disabled={lastTemperatureReading.importStatus !== 'pending'}
+                    onClick={() => openReadingReview(lastTemperatureReading.uiId)}>Incorporar al registro</Button>
                 </div>
               ) : null}
             </div>
           ) : null}
 
-          {importResult ? <div role="status" className="space-y-2 text-sm">
-            <p>Temperatura incorporada al registro del {importResult.isoDate}.</p>
-            <Button type="button" variant="outline" onClick={() => navigate('/records', { state: { selectedDate: importResult.isoDate } })}>Ver registro actualizado</Button>
-          </div> : null}
           {lastTechnicalError ? (
             <details className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
               <summary className="cursor-pointer text-sm font-semibold text-amber-800">

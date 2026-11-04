@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createFemometerSessionManager, femometerClockDriftSeconds } from '../src/lib/femometerSession.js';
-import { normalizeBleMeasurement } from '../src/lib/bleMeasurements.js';
+import { normalizeBleMeasurement, prepareManualBleDraft, classifyBleMeasurement } from '../src/lib/bleMeasurements.js';
 import { loadFrontend, hooks, deferred, flush } from './helpers/load-frontend.mjs';
 
 const bridge = () => {
@@ -41,7 +41,7 @@ async function mountedOwner(native, initialUser = 'a') {
   const timers = new Set();
   const { FemometerSessionOwner } = await loadFrontend('src/contexts/FemometerContext.jsx', {
     ...harness.bindings, normalizeBleMeasurement, createFemometerPanelSession: native.factory,
-    FemometerFeedback: 'feedback',
+    FemometerFeedback: 'feedback', BleReadingReview: 'review',
     CapacitorApp: { addListener: async (name, callback) => {
       assert.equal(name, 'appStateChange'); lifecycle.add(callback);
       return { remove: async () => lifecycle.delete(callback) };
@@ -264,7 +264,10 @@ test('mobile Bluetooth popover offers shared search, device navigation and globa
   const { DeviceStatusButton } = await loadFrontend('src/components/DeviceStatusButton.jsx', {
     ...harness.bindings, useFemometer: () => ble, useNavigate: () => path => destinations.push(path),
     Bluetooth: 'connected', BluetoothOff: 'disconnected', CircleAlert: 'attention', Loader2: 'searching',
-    Popover: 'popover', PopoverTrigger: 'trigger', PopoverContent: 'content', Button: 'action',
+    Popover: 'popover', PopoverTrigger: 'trigger', PopoverContent: 'content', Button: 'action', RefreshCw: 'refresh',
+Settings2: 'settings',
+ClipboardList: 'readings',
+Clock3: 'clock',
   }, ['DeviceStatusButton']);
   const render = () => harness.render(() => ({ props: { value: DeviceStatusButton() } }));
   for (const [status, icon] of [['listening', 'connected'], ['searching', 'searching'], ['connecting', 'searching'], ['stopped', 'disconnected'], ['error', 'attention']]) {
@@ -276,17 +279,17 @@ test('mobile Bluetooth popover offers shared search, device navigation and globa
     assert.match(button.props.className, /min-w-\[44px\]/);
     assert.equal(button.props.children[0].type, icon);
     assert.match(button.props['aria-label'], /3 lecturas pendientes/);
-    treeNodes(tree).find(node => node.type === 'action' && node.props.children.includes('Ir a Dispositivos')).props.onClick();
+    treeNodes(tree).find(node => node.type === 'action' && node.props['aria-label'] === 'Ir a Dispositivos').props.onClick();
   }
   assert.ok(destinations.every(path => path === '/settings/devices'));
   ble.sessionState = { status: 'stopped', remembered: true };
-  treeNodes(render()).find(node => node.type === 'action' && node.props.children.includes('Buscar termómetro')).props.onClick();
+  treeNodes(render()).find(node => node.type === 'action' && node.props['aria-label'] === 'Buscar termómetro').props.onClick();
   assert.equal(starts, 1); assert.equal(scans, 0);
   ble.sessionState = { status: 'listening', capabilities: { clockSync: true }, clockResult: { significantDrift: true } };
   let nodes = treeNodes(render());
-  nodes.find(node => node.type === 'action' && node.props.children.includes('Sincronizar reloj')).props.onClick();
+  nodes.find(node => node.type === 'action' && node.props['aria-label'] === 'Sincronizar reloj').props.onClick();
   assert.equal(clocks, 1);
-  nodes.find(node => node.type === 'action' && node.props.children.includes('Ver lecturas')).props.onClick();
+  nodes.find(node => node.type === 'action' && node.props['aria-label'] === 'Ver lecturas').props.onClick();
   assert.equal(destinations.at(-1), '/settings/devices/vinca2#bluetooth-readings');
   ble.enabled = false;
   assert.equal(render(), null);
@@ -311,7 +314,7 @@ test('global clock prompt appears once per connection and synchronizes only on e
   const navigate = () => {};
   const { FemometerFeedback } = await loadFrontend('src/components/FemometerFeedback.jsx', {
     ...harness.bindings, useNavigate: () => navigate, toast: () => ({ dismiss() {}, update() {} }), ToastAction: 'action',
-    Button: 'button', Dialog: 'dialog', DialogContent: 'content', DialogHeader: 'header', DialogTitle: 'title', DialogDescription: 'description', DialogFooter: 'footer',
+    Thermometer: 'thermometer', Check: 'check', Button: 'button', Dialog: 'dialog', DialogContent: 'content', DialogHeader: 'header', DialogTitle: 'title', DialogDescription: 'description', DialogFooter: 'footer',
   }, ['FemometerFeedback']);
   const props = { readings: [], sessionRef: { current: { syncClock: () => { syncs++; } } }, clockDialogOpen: false,
     setClockDialogOpen: value => opened.push(value), sessionState: { status: 'listening', listenerResult: {}, capabilities: { clockSync: true },
@@ -339,16 +342,20 @@ test('receipt notices group readings and never announce incorporation before a c
   const { FemometerFeedback } = await loadFrontend('src/components/FemometerFeedback.jsx', {
     ...harness.bindings, useNavigate: () => navigate,
     toast: data => { const item = { ...data }; notices.push(item); return { dismiss() {}, update: next => Object.assign(item, next) }; },
-    ToastAction: 'action', Button: 'button', Dialog: 'dialog', DialogContent: 'content', DialogHeader: 'header', DialogTitle: 'title', DialogDescription: 'description', DialogFooter: 'footer',
+    ToastAction: 'action', Thermometer: 'thermometer', Check: 'check', Button: 'button', Dialog: 'dialog', DialogContent: 'content', DialogHeader: 'header', DialogTitle: 'title', DialogDescription: 'description', DialogFooter: 'footer',
   }, ['FemometerFeedback']);
-  const props = { sessionState: {}, readings: [], setClockDialogOpen: () => {} };
+  const reviews = [];
+  const props = { sessionState: {}, readings: [], setClockDialogOpen: () => {}, openReadingReview: id => reviews.push(id) };
   const render = () => harness.render(() => ({ props: { value: FemometerFeedback(props) } }));
   render();
   props.readings = [{ uiId: 1, importStatus: 'pending' }]; render();
-  assert.equal(notices.at(-1).title, 'Temperatura recibida');
+  assert.equal(notices.at(-1).title, 'Revisar temperatura');
+  notices.at(-1).action.props.onClick();
+  assert.deepEqual(reviews, [1]);
+  assert.equal(routes.length, 0);
   props.readings = [...props.readings, { uiId: 2, importStatus: 'pending' }]; render();
   assert.equal(notices.length, 1);
-  assert.equal(notices[0].title, 'Temperaturas recibidas');
+  assert.equal(notices[0].title, '2 temperaturas por revisar');
   props.readings = props.readings.map(row => row.uiId === 1 ? { ...row, importStatus: 'saving' } : row); render();
   assert.equal(notices.length, 1);
   props.readings = props.readings.map(row => row.uiId === 1 ? { ...row, importStatus: 'pending' } : row); render();
@@ -356,7 +363,7 @@ test('receipt notices group readings and never announce incorporation before a c
   props.readings = props.readings.map(row => row.uiId === 1 ? { ...row, importStatus: 'incorporated', savedIsoDate: '2026-11-03' } : row); render();
   assert.equal(notices.at(-1).title, 'Temperatura incorporada');
   notices.at(-1).action.props.onClick();
-  assert.deepEqual(routes.at(-1), ['/records', { state: { selectedDate: '2026-11-03' } }]);
+  assert.deepEqual(routes.at(-1), ['/records', { state: { selectedDate: '2026-11-03', scrollToDayDetail: true } }]);
   harness.cleanup();
 });
 
@@ -380,7 +387,7 @@ test('device routes use the shared state and are unavailable outside the enabled
   const { DevicesPage, Vinca2DevicePage } = await loadFrontend('src/pages/DevicesPage.jsx', {
     ...harness.bindings, useAuth: () => ({ user: { uid: 'a' } }),
     useFemometer: () => ({ enabled, pendingCount: 2, sessionState: { remembered: true, status: 'listening' } }),
-    Link: 'link', Navigate: 'redirect', Vinca2Panel: 'panel', Button: 'button', ChevronLeft: 'back', ChevronRight: 'next', Thermometer: 'thermometer',
+    Link: 'link', Navigate: 'redirect', Vinca2Panel: 'panel', Button: 'button', ChevronLeft: 'back', ChevronRight: 'next', Thermometer: 'thermometer', 
   }, ['DevicesPage', 'Vinca2DevicePage']);
   assert.ok(treeNodes(DevicesPage()).some(node => node.type === 'link' && node.props.to === '/settings/devices/vinca2'));
   assert.ok(treeNodes(Vinca2DevicePage()).some(node => node.type === 'panel' && node.props.userId === 'a'));
@@ -405,4 +412,61 @@ test('Bluetooth origin details show only available metadata and remain read-only
   assert.ok(!treeNodes(tree).some(node => ['input', 'form', 'button'].includes(node.type)));
   enabled = false;
   assert.equal(BluetoothMeasurementDetails(props), null);
+});
+
+test('quick review preserves the original date, cancels without saving and requires a second explicit duplicate confirmation', async () => {
+  const harness = hooks(); let closed = 0; const saves = []; let duplicate = true;
+  const session = {}; const cycle = { id: 'cycle' };
+  const reading = { uiId: 1, temperatureC: 36.42, deviceTimestamp: '2020-01-02T08:15:00', importStatus: 'pending' };
+  const { BleReadingReview } = await loadFrontend('src/components/BleReadingReview.jsx', {
+    ...harness.bindings, useNavigate: () => () => {}, normalizeBleMeasurement, prepareManualBleDraft,
+    useFemometer: () => ({ sessionRef: { current: session }, incorporateReading: async (id, save) => { assert.equal(id, 1); return save(); } }),
+    useCycleData: () => ({ currentCycle: cycle, isLoading: false, incorporateBleMeasurement: async (draft, options) => {
+      saves.push({ draft, options });
+      if (duplicate) { duplicate = false; throw { code: 'ble-possible-duplicate', title: 'Posible duplicado', message: 'Coincidencia sospechosa' }; }
+      return { isoDate: draft.isoDate };
+    } }),
+    Button: 'button', Input: 'input', Dialog: 'dialog', DialogContent: 'content', DialogHeader: 'header', DialogTitle: 'title', DialogDescription: 'description',
+  }, ['BleReadingReview']);
+  const render = () => harness.render(() => ({ props: { value: BleReadingReview({ userId: 'a', reading, onClose: () => closed++ }) } }));
+  let nodes = treeNodes(render());
+  assert.equal(nodes.find(node => node.type === 'input' && node.props.type === 'date').props.value, '2020-01-02');
+  nodes.find(node => node.type === 'button' && node.props.children.includes('Cancelar')).props.onClick();
+  assert.equal(saves.length, 0); assert.equal(closed, 1);
+  nodes.find(node => node.type === 'input' && node.props.type === 'checkbox').props.onChange({ target: { checked: true } });
+  nodes = treeNodes(render());
+  await nodes.find(node => node.type === 'button' && node.props.children.includes('Confirmar e incorporar')).props.onClick();
+  assert.equal(saves[0].options.allowPossibleDuplicate, false);
+  assert.equal(saves[0].draft.measurements[0].device_date_reliability, 'unverified');
+  nodes = treeNodes(render());
+  assert.ok(nodes.some(node => node.props.role === 'alert'));
+  await nodes.find(node => node.type === 'button' && node.props.children.includes('Es otra medición: confirmar y guardar')).props.onClick();
+  assert.equal(saves[1].options.allowPossibleDuplicate, true);
+  assert.equal(closed, 2);
+  harness.cleanup();
+});
+
+test('current clock verification cannot make an unattributed historical measurement eligible automatically', () => {
+  const reading = normalizeBleMeasurement({ temperatureC: 36.4, deviceTimestamp: '2020-01-02T08:00:00', receivedAt: '2026-11-04T08:00:00' }, 'BM-Vinca2');
+  assert.equal(reading.device_key, null);
+  assert.equal(classifyBleMeasurement(reading, { nowMs: Date.now(), clockResult: { verified: true } }).reason, 'unverified-date');
+});
+
+test('Ver día waits for exact date and loaded detail, scrolls once and never opens temperature sheet', async () => {
+  const harness = hooks(); const selected = []; const scrolls = []; const frames = new Set();
+  const { useBleDayDetailNavigation } = await loadFrontend('src/pages/RecordsPage.jsx', {
+    ...harness.bindings,
+    requestAnimationFrame: fn => { frames.add(fn); return fn; }, cancelAnimationFrame: fn => frames.delete(fn),
+    document: { getElementById: id => { assert.equal(id, 'day-detail-card'); return { scrollIntoView: options => scrolls.push(options) }; } },
+  }, ['useBleDayDetailNavigation']);
+  const props = { enabled: true, requested: true, requestKey: 'nav1', isoDate: '2026-11-03', selectedDate: '2026-11-02', ready: false, select: date => selected.push(date) };
+  const render = () => harness.render(() => { useBleDayDetailNavigation(props); return { props: { value: null } }; });
+  render(); assert.equal(frames.size, 0);
+  props.ready = true; render(); assert.deepEqual(selected, ['2026-11-03']);
+  props.selectedDate = props.isoDate; render();
+  for (const fn of frames) { frames.delete(fn); fn(); }
+  assert.deepEqual(scrolls, [{ behavior: 'smooth', block: 'start' }]);
+  render(); assert.equal(frames.size, 0);
+  props.enabled = false; props.requestKey = 'nav2'; render(); assert.equal(frames.size, 0);
+  harness.cleanup();
 });

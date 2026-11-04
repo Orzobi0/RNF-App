@@ -3,6 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { createFemometerPanelSession, isFemometerBleAndroidNative, isFemometerBlePrototypeEnabled } from '@/lib/femometerBle';
 import { normalizeBleMeasurement } from '@/lib/bleMeasurements';
 import FemometerFeedback from '@/components/FemometerFeedback';
+import BleReadingReview from '@/components/BleReadingReview';
 import { App as CapacitorApp } from '@capacitor/app';
 
 const inactive = { enabled: false, readings: [], pendingCount: 0 };
@@ -39,6 +40,7 @@ export const FemometerSessionOwner = ({ userId, children }) => {
   const [listeningStartedAt, setListeningStartedAt] = useState(null);
   const [temperatureListenerMessage, setTemperatureListenerMessage] = useState('');
   const [clockDialogOpen, setClockDialogOpen] = useState(false);
+  const [reviewReadingId, setReviewReadingId] = useState(null);
   const [lifecycleStatus, setLifecycleStatus] = useState('registering');
   const updateReadings = next => { readingsRef.current = next; setReadings(next); };
 
@@ -94,25 +96,32 @@ export const FemometerSessionOwner = ({ userId, children }) => {
   const incorporateReading = async (uiId, save) => {
     const owner = sessionRef.current;
     const row = readingsRef.current.find(item => item.uiId === uiId);
-    if (!owner || row?.importStatus !== 'pending') throw new Error('La lectura ya está incorporada o se está guardando.');
+    if (!owner || row?.importStatus !== 'pending' || readingsRef.current.some(item => item.importStatus === 'saving')) throw new Error('La lectura ya está incorporada o hay otra incorporación en curso.');
     const status = (importStatus, extra = {}) => {
       if (sessionRef.current === owner) updateReadings(readingsRef.current.map(item => item.uiId === uiId ? { ...item, importStatus, ...extra } : item));
     };
     status('saving');
     try {
       const result = await save();
-      status('incorporated', { savedIsoDate: result?.isoDate });
+      status('incorporated', { savedIsoDate: result?.isoDate,
+        savedTime: result?.measurements?.at(-1)?.time });
       return result;
     } catch (error) {
-      status('pending');
+      status('pending', { reviewError: { code: error?.code,
+        message: error?.title ? error.message : 'No se pudo confirmar la incorporación. Revisa la fecha y la conexión.' } });
       throw error;
     }
   };
+  const openReadingReview = id => {
+    if (readingsRef.current.some(row => row.uiId === id && row.importStatus === 'pending')) setReviewReadingId(id);
+  };
+  const reviewReading = readings.find(row => row.uiId === reviewReadingId && row.importStatus !== 'incorporated');
   return <FemometerContext.Provider value={{ enabled: true, sessionRef, sessionState, readings,
     pendingCount: readings.filter(item => item.importStatus !== 'incorporated').length,
-    listeningStartedAt, temperatureListenerMessage, incorporateReading, lifecycleStatus,
+    listeningStartedAt, temperatureListenerMessage, incorporateReading, lifecycleStatus, openReadingReview,
     openClockDialog: () => setClockDialogOpen(true) }}>{children}
-    <FemometerFeedback sessionState={sessionState} sessionRef={sessionRef} readings={readings}
+    <FemometerFeedback sessionState={sessionState} sessionRef={sessionRef} readings={readings} openReadingReview={openReadingReview}
       clockDialogOpen={clockDialogOpen} setClockDialogOpen={setClockDialogOpen} />
+    {reviewReading && <BleReadingReview key={reviewReading.uiId} userId={userId} reading={reviewReading} onClose={() => setReviewReadingId(null)} />}
   </FemometerContext.Provider>;
 };

@@ -1,5 +1,42 @@
 # Reloj y contrato mínimo BLE — Android Staging
 
+## Bloqueo del guardado automático (04-11-2026)
+
+La revisión del contrato actual no permite habilitar escrituras automáticas con
+fechas demostrables. `getRememberedDevice` devuelve solo `remembered`; el escaneo
+expone identificadores temporales e `isRemembered`. La dirección persistida en
+SharedPreferences no sale del código nativo. `normalizeBleMeasurement` devuelve
+`device_key: null`. Por tanto, no hay una clave pública estable que permita vincular
+evidencia local del reloj o pendientes a la misma cuenta **y dispositivo** tras
+reinicios, sustituciones u olvidos. No se usa el modelo como identidad.
+
+Incluso con identidad, Current Time describe el reloj actual. Las indicaciones
+no incluyen época de sincronización, zona, offset ni un marcador que distinga una
+toma nueva del historial previo. Una fecha posterior al ajuste en el calendario
+no demuestra que la toma se realizara después del ajuste: el reloj anterior podría
+haber estado adelantado. Tampoco resuelve horas repetidas por DST o cambios de zona.
+La recepción reciente y una lectura correcta del reloj no verifican esos hechos.
+
+Antes de automatizar hacen falta: una identidad opaca persistente proporcionada
+por el propietario nativo y asociada a la conexión/lectura real (sin exponer la
+dirección BLE), y un contrato contrastado que permita atribuir cada toma a un
+intervalo de reloj verificado, excluyendo historial anterior y ambigüedades de zona.
+No se ha cambiado Java ni inventado un identificador o `dateEvidence.verified`.
+
+También queda pendiente la cola persistente y la recuperación de escrituras
+interrumpidas. El guardado actual no dispone de un recibo de operación que permita
+distinguir un commit con respuesta perdida de una toma legítima coincidente.
+Una clave local de operación podría servir para idempotencia, pero no sería un
+identificador de medición del termómetro. No se reintenta automáticamente un resultado
+incierto ni se presenta la comparación de modelo/minuto/temperatura como unicidad.
+
+Mientras faltan esas garantías, todas las lecturas siguen pendientes de revisión
+en memoria. El aviso abre un diálogo compartido sobre la pantalla actual; confirmar
+reutiliza `prepareManualBleDraft` y `incorporateBleMeasurementDB`, con sus lecturas
+del servidor, detección conservadora de duplicados y transacción append-only.
+Cancelar o fallar conserva la lectura en la sesión. Cerrar completamente la APK
+todavía pierde esos pendientes; no se promete recuperación entre sesiones.
+
 ## Fundamento técnico (30-10-2026)
 
 - [Bluetooth SIG: Current Time Service](https://www.bluetooth.com/wp-content/uploads/Files/Specification/HTML/CTS_v1.0/out/en/index-en.html): servicio estándar de hora local; lectura requerida, escritura opcional. El servidor puede rechazar campos ignorados con error ATT 0x80. La escritura no implica por sí sola que el reloj haya quedado ajustado.
