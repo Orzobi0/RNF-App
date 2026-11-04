@@ -175,7 +175,7 @@ export const FemometerSessionOwner = ({ userId, children }) => {
       onExpand={() => openReadingReview()} onMinimize={() => setReviewExpanded(false)} onSelect={openReadingReview}
       storageError={storageError} deviceKey={sessionState.deviceKey}>
       {reviewReading && <BleReadingReview key={reviewReading.uiId} userId={userId} reading={reviewReading}
-        onClose={() => {}} onSaved={() => setReviewReadingId(null)} />}
+        onClose={() => setReviewExpanded(false)} onSaved={() => setReviewReadingId(null)} />}
     </FemometerReviewCard>
   </FemometerContext.Provider>;
 };
