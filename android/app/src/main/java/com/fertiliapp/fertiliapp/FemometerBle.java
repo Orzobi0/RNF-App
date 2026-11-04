@@ -86,6 +86,45 @@ public class FemometerBle extends Plugin {
     private PluginCall temperatureListenerCall;
     private Runnable temperatureSetupTimeoutRunnable;
     private Runnable temperatureListenerTimeoutRunnable;
+    private String temperatureDeviceKey;
+    private FemometerIdentityStore identityStore;
+
+    private synchronized FemometerIdentityStore identities() {
+        if (identityStore == null) {
+            SharedPreferences records = getContext().getSharedPreferences("femometer_identity_v2", Context.MODE_PRIVATE);
+            identityStore = new FemometerIdentityStore(new FemometerIdentityStore.Storage() {
+                public String legacyAddress(String user) { return rememberedDevices().getString(user, null); }
+                public FemometerIdentityStore.Binding read(String user) {
+                    String value = records.getString(user, null);
+                    if (value == null) return null;
+                    try {
+                        org.json.JSONObject json = new org.json.JSONObject(value);
+                        return new FemometerIdentityStore.Binding(json.isNull("address") ? null : json.getString("address"),
+                            json.isNull("key") ? null : json.getString("key"));
+                    } catch (Exception error) { throw new IllegalStateException("IDENTITY_INVALID"); }
+                }
+                public boolean write(String user, FemometerIdentityStore.Binding binding) {
+                    JSObject json = new JSObject();
+                    json.put("address", binding.address == null ? org.json.JSONObject.NULL : binding.address);
+                    json.put("key", binding.key == null ? org.json.JSONObject.NULL : binding.key);
+                    boolean saved = records.edit().putString(user, json.toString()).commit();
+                    // V2 is authoritative before removing the legacy entry; a
+                    // crash cannot resurrect an old address after forgetting.
+                    if (saved) rememberedDevices().edit().remove(user).apply();
+                    return saved;
+                }
+            });
+        }
+        return identityStore;
+    }
+
+    private JSObject publicBinding(String user) {
+        FemometerIdentityStore.Binding binding = identities().get(user);
+        JSObject result = new JSObject();
+        result.put("remembered", binding.address != null);
+        result.put("deviceKey", binding.key);
+        return result;
+    }
 
     // UID comes from the authenticated web session; no Firebase native dependency.
     // Never return the stored address through the bridge.
@@ -114,15 +153,15 @@ public class FemometerBle extends Plugin {
     public void getRememberedDevice(PluginCall call) {
         String userId = requireUser(call);
         if (userId == null) return;
-        JSObject result = new JSObject();
-        result.put("remembered", rememberedDevices().contains(userId));
-        call.resolve(result);
+        try { call.resolve(publicBinding(userId)); }
+        catch (IllegalStateException error) { call.reject("No se pudo leer la vinculacion.", "PERSISTENCE_FAILED"); }
     }
 
     @PluginMethod
     public void rememberDevice(PluginCall call) {
         String userId = requireUser(call);
         if (userId == null) return;
+        if (temperatureGatt != null || temperatureListenerCall != null) { call.reject("Deten la escucha antes de cambiar la vinculacion.", "CONNECTION_ACTIVE"); return; }
         ScannedDevice device = devicesById.get(call.getString("deviceId"));
         if (scanCall != null || device == null) {
             call.reject("Vuelve a buscar el termometro.", "DEVICE_NOT_FOUND");
@@ -132,26 +171,25 @@ public class FemometerBle extends Plugin {
             call.reject("Comprueba primero la compatibilidad.", "DEVICE_NOT_VERIFIED");
             return;
         }
-        if (!rememberedDevices().edit().putString(userId, device.address).commit()) {
+        try {
+            identities().remember(userId, device.address);
+            call.resolve(publicBinding(userId));
+        } catch (IllegalStateException error) {
             call.reject("No se pudo guardar el termometro.", "PERSISTENCE_FAILED");
-            return;
         }
-        JSObject result = new JSObject();
-        result.put("remembered", true);
-        call.resolve(result);
     }
 
     @PluginMethod
     public void forgetDevice(PluginCall call) {
         String userId = requireUser(call);
         if (userId == null) return;
-        if (!rememberedDevices().edit().remove(userId).commit()) {
+        if (temperatureGatt != null || temperatureListenerCall != null) { call.reject("Deten la escucha antes de olvidar.", "CONNECTION_ACTIVE"); return; }
+        try {
+            identities().forget(userId);
+            call.resolve(publicBinding(userId));
+        } catch (IllegalStateException error) {
             call.reject("No se pudo olvidar el termometro.", "PERSISTENCE_FAILED");
-            return;
         }
-        JSObject result = new JSObject();
-        result.put("remembered", false);
-        call.resolve(result);
     }
 
     @PluginMethod
@@ -276,8 +314,10 @@ public class FemometerBle extends Plugin {
             if (pending != null) {
                 Log.d(TAG, "BLE scan finished: femometerDevices=" + devicesById.size());
                 JSObject result = new JSObject();
-                result.put("devices", buildScannedDevicesArray(pending.getString("userId")));
-                pending.resolve(result);
+                try {
+                    result.put("devices", buildScannedDevicesArray(pending.getString("userId")));
+                    pending.resolve(result);
+                } catch (IllegalStateException error) { pending.reject("No se pudo leer la vinculacion.", "PERSISTENCE_FAILED"); }
             }
         }, SCAN_TIMEOUT_MS);
     }
@@ -389,6 +429,8 @@ public class FemometerBle extends Plugin {
 
     @PluginMethod
     public void startTemperatureListener(PluginCall call) {
+        String userId = requireUser(call);
+        if (userId == null) return;
         String deviceId = call.getString("deviceId");
         if (deviceId == null || deviceId.trim().isEmpty()) {
             call.reject("Falta el identificador interno del dispositivo.", "DEVICE_ID_REQUIRED");
@@ -416,7 +458,11 @@ public class FemometerBle extends Plugin {
         Log.d(TAG, "Starting temperature indication listener");
         closeActiveGatt();
         stopTemperatureListenerInternal(false, null, null);
+        try {
+            temperatureDeviceKey = identities().keyForAddress(userId, scannedDevice.address);
+        } catch (IllegalStateException error) { call.reject("No se pudo leer la vinculacion.", "PERSISTENCE_FAILED"); return; }
         temperatureListenerCall = call;
+        final String connectedDeviceKey = temperatureDeviceKey;
 
         BluetoothGattCallback callback = new BluetoothGattCallback() {
             @Override
@@ -543,7 +589,7 @@ public class FemometerBle extends Plugin {
             @Override
             public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
                 if (gatt != temperatureGatt) return;
-                handleTemperatureCharacteristicChanged(characteristic, characteristic.getValue());
+                handleTemperatureCharacteristicChanged(characteristic, characteristic.getValue(), connectedDeviceKey);
             }
 
             @Override
@@ -565,7 +611,7 @@ public class FemometerBle extends Plugin {
                 byte[] value
             ) {
                 if (gatt != temperatureGatt) return;
-                handleTemperatureCharacteristicChanged(characteristic, value);
+                handleTemperatureCharacteristicChanged(characteristic, value, connectedDeviceKey);
             }
         };
 
@@ -601,7 +647,7 @@ public class FemometerBle extends Plugin {
         if (temperatureGatt == null || temperatureListenerCall != null || connectCall != null || scanCall != null) {
             call.reject("Espera a que la escucha este preparada.", "CLOCK_NOT_CONNECTED"); return;
         }
-        clockOperation.start(temperatureGatt, call, write);
+        clockOperation.start(temperatureGatt, call, write, temperatureDeviceKey);
     }
 
     @PluginMethod
@@ -679,7 +725,7 @@ public class FemometerBle extends Plugin {
     }
 
     private JSArray buildScannedDevicesArray(String userId) {
-        String rememberedAddress = userId == null ? null : rememberedDevices().getString(userId, null);
+        String rememberedAddress = userId == null ? null : identities().get(userId).address;
         JSArray devices = new JSArray();
         for (Map.Entry<String, ScannedDevice> entry : devicesById.entrySet()) {
             JSObject device = new JSObject();
@@ -809,11 +855,12 @@ public class FemometerBle extends Plugin {
         result.put("timeoutSeconds", TEMPERATURE_LISTENER_TIMEOUT_MS / 1000);
         result.put("measurementIntervalConfigured", true);
         result.put("capabilities", Vinca2Profile.capabilities(temperatureGatt));
+        result.put("deviceKey", temperatureDeviceKey);
         if (pending != null) pending.resolve(result);
         Log.d(TAG, "Temperature listener ready: Vinca setup v2");
     }
 
-    private void handleTemperatureCharacteristicChanged(BluetoothGattCharacteristic characteristic, byte[] value) {
+    private void handleTemperatureCharacteristicChanged(BluetoothGattCharacteristic characteristic, byte[] value, String connectedDeviceKey) {
         if (characteristic != null) {
             // Log transport metadata only, never temperatures or raw measurement bytes.
             Log.d(TAG, "BLE indication: " + characteristic.getUuid() + ", bytes=" + (value == null ? 0 : value.length));
@@ -828,6 +875,7 @@ public class FemometerBle extends Plugin {
 
         try {
             JSObject decoded = decodeTemperatureMeasurement(value);
+            decoded.put("deviceKey", connectedDeviceKey);
             Log.d(TAG, "Temperature indication received");
             notifyListeners(TEMPERATURE_EVENT, decoded);
         } catch (Exception error) {
@@ -1095,6 +1143,7 @@ public class FemometerBle extends Plugin {
         BluetoothGattCharacteristic characteristic = temperatureCharacteristic;
         BluetoothGattCharacteristic vincaCharacteristic = vincaIndicationCharacteristic;
         temperatureGatt = null;
+        temperatureDeviceKey = null;
         temperatureCharacteristic = null;
         vincaIndicationCharacteristic = null;
 

@@ -17,13 +17,26 @@ export const normalizeBleMeasurement = (event, model = null) => {
   return {
     temperature: event.temperatureC, temperature_original: event.temperatureC, time: valid ? raw.slice(11, 16) : '', selected: false,
     temperature_corrected: '', time_corrected: '', use_corrected: false,
-    source: 'bluetooth', device_model: model, device_key: null,
+    source: 'bluetooth', device_model: model, device_key: typeof event.deviceKey === 'string' ? event.deviceKey : null,
     device_timestamp: raw, received_at: event.receivedAt ?? null,
     device_date_reliability: raw === null
       ? (event.deviceTimestampReliability === 'invalid' ? 'invalid' : 'missing')
       : valid ? 'unverified' : 'invalid',
     device_timezone: 'unknown',
   };
+};
+
+// Processing receipts must come from a confirmed app write, never BLE fields or
+// matching temperature/time. No current packet proves the clock epoch of a take.
+export const decideVinca2Reading = (measurement, { existing = [], receipt, localId, userId, deviceKey } = {}) => {
+  if (!measurement || measurement.source !== 'bluetooth') return { status: 'review', reason: 'invalid-measurement' };
+  if (receipt?.serverConfirmed === true && localId && receipt.localId === localId
+    && userId && receipt.userId === userId && deviceKey && receipt.deviceKey === deviceKey
+    && measurement.device_key === deviceKey) return { status: 'already_processed', reason: 'confirmed-processing-receipt' };
+  if (existing.some(item => isPossibleBleDuplicate(item, measurement))) return { status: 'possible_duplicate', reason: 'same-original-minute-and-temperature' };
+  if (!deviceKey || measurement.device_key !== deviceKey) return { status: 'review', reason: 'device-identity-unavailable' };
+  if (measurement.device_date_reliability === 'invalid' || measurement.device_date_reliability === 'missing') return { status: 'review', reason: 'invalid-or-missing-date' };
+  return { status: 'review', reason: 'measurement-clock-epoch-unproven' };
 };
 
 const validIsoDay = (day) => typeof day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(day)

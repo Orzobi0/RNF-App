@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 const DEFAULT_TEMPERATURE_LISTEN_SECONDS = 6 * 60;
 
 const Vinca2Panel = () => {
-  const { sessionRef, sessionState, readings, listeningStartedAt, temperatureListenerMessage, openReadingReview, openClockDialog, lifecycleStatus } = useFemometer();
+  const { sessionRef, sessionState, readings, listeningStartedAt, temperatureListenerMessage, openReadingReview, openClockDialog, lifecycleStatus, clockHistory } = useFemometer();
   const [selectedReadingId, setSelectedReadingId] = useState(null);
   const lastTemperatureReading = readings.find(item => item.uiId === selectedReadingId) ?? readings.at(-1) ?? null;
   useEffect(() => {
@@ -87,6 +87,11 @@ const Vinca2Panel = () => {
 
           <div className="space-y-2">
             <p role="status" className="text-sm font-medium text-slate-700">{statusText}</p>
+            {clockHistory && <div className="text-xs text-slate-600">
+              <p>Último estado horario conservado: {({ synchronized_verified: 'sincronizado y verificado', read_correct: 'leído y aparentemente correcto', misaligned: 'desajustado', unknown: 'desconocido' })[clockHistory.state]}.</p>
+              {clockHistory.lastVerifiedSync && <p>Última sincronización verificada: {new Date(clockHistory.lastVerifiedSync.checkedAt).toLocaleString()}.</p>}
+              <p>Este historial no verifica las fechas de las temperaturas.</p>
+            </div>}
             <div className="text-xs text-slate-500" role="status">
               <p>Ciclo de vida Android: {lifecycleStatus === 'registered' ? 'listener registrado (pendiente de comprobar eventos reales)' : lifecycleStatus === 'unavailable' ? 'no disponible; utiliza la búsqueda manual' : 'registrando listener'}.</p>
               <p>{sessionState.foreground ? `Regreso detectado a las ${new Date(sessionState.foreground.detectedAt).toLocaleTimeString()}: ${({
@@ -289,7 +294,7 @@ const Vinca2Panel = () => {
                         ? 'no incluida' : 'sin verificar; zona horaria desconocida'}</p>
                     <p>Tipo: {lastTemperatureReading.measurementType || 'no incluido'}</p>
                   </div>
-                  <Button type="button" variant="outline" disabled={lastTemperatureReading.importStatus !== 'pending'}
+                  <Button type="button" variant="outline" disabled={!['pending', 'uncertain'].includes(lastTemperatureReading.importStatus)}
                     onClick={() => openReadingReview(lastTemperatureReading.uiId)}>Incorporar al registro</Button>
                 </div>
               ) : null}

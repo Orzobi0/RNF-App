@@ -70,7 +70,7 @@ const DeviceStatusButton = () => {
       </Button>
     )}
 
-    {status === 'listening' && (
+    {ble.pendingCount > 0 && (
       <Button
         type="button"
         variant="outline"
@@ -78,7 +78,7 @@ const DeviceStatusButton = () => {
         className="h-11 w-11 rounded-full"
         title="Ver lecturas"
         aria-label="Ver lecturas"
-        onClick={() => go('/settings/devices/vinca2#bluetooth-readings')}
+        onClick={() => { setOpen(false); ble.openReadingReview?.(); }}
       >
         <ClipboardList className="h-5 w-5" aria-hidden="true" />
         <span className="sr-only">Ver lecturas</span>

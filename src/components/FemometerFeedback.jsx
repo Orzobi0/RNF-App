@@ -10,10 +10,8 @@ import { Thermometer, Check } from 'lucide-react';
 export function FemometerFeedback({ sessionState, sessionRef, readings, clockDialogOpen, setClockDialogOpen, openReadingReview }) {
   const navigate = useNavigate();
   const noticedConnection = useRef(null);
-  const receivedIds = useRef(new Set());
   const savedIds = useRef(new Set());
   const notice = useRef(null);
-  const batch = useRef({ time: 0, count: 0 });
   const savedBatch = useRef({ time: 0, count: 0 });
   const { status, listenerResult, clockResult, clockError, clockBusy, capabilities } = sessionState;
   useEffect(() => {
@@ -24,12 +22,9 @@ export function FemometerFeedback({ sessionState, sessionRef, readings, clockDia
     }
   }, [status, listenerResult, clockResult?.significantDrift, setClockDialogOpen]);
   useEffect(() => {
-    const received = readings.filter(row => !receivedIds.current.has(row.uiId));
     const saved = readings.filter(row => row.importStatus === 'incorporated' && !savedIds.current.has(row.uiId));
-    received.forEach(row => receivedIds.current.add(row.uiId));
     saved.forEach(row => savedIds.current.add(row.uiId));
     if (saved.length) {
-      batch.current = { time: 0, count: 0 };
       const last = saved.at(-1);
       const now = Date.now();
       const grouped = now - savedBatch.current.time < 2500;
@@ -42,21 +37,6 @@ export function FemometerFeedback({ sessionState, sessionRef, readings, clockDia
       if (grouped && notice.current) notice.current.update(props);
       else { notice.current?.dismiss(); notice.current = toast(props); }
       savedBatch.current = { time: now, count };
-    } else if (received.length) {
-      const now = Date.now();
-      const grouped = now - batch.current.time < 2500;
-      const count = (grouped ? batch.current.count : 0) + received.length;
-      savedBatch.current = { time: 0, count: 0 };
-      const firstPending = readings.find(row => row.importStatus === 'pending');
-      const reason = firstPending?.normalized?.device_date_reliability === 'invalid' ? 'Fecha del termómetro inválida.'
-        : firstPending?.normalized?.device_date_reliability === 'missing' ? 'Falta la fecha del termómetro.' : 'No se puede verificar la fecha histórica del termómetro.';
-      const props = { title: count === 1 ? 'Revisar temperatura' : `${count} temperaturas por revisar`,
-        className: 'rounded-2xl border-rose-100 bg-white shadow-md',
-        description: `${firstPending?.normalized?.temperature ?? firstPending?.temperatureC ?? ''} °C. ${reason}`, duration: 6000,
-        action: <ToastAction altText="Revisar y guardar" onClick={() => openReadingReview?.(firstPending?.uiId)}>Revisar y guardar</ToastAction> };
-      if (grouped && notice.current) notice.current.update(props);
-      else notice.current = toast(props);
-      batch.current = { time: now, count };
     }
   }, [readings, navigate, openReadingReview]);
   useEffect(() => () => notice.current?.dismiss(), []);

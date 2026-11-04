@@ -1,25 +1,29 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createFemometerSessionManager, femometerClockDriftSeconds } from '../src/lib/femometerSession.js';
-import { normalizeBleMeasurement, prepareManualBleDraft, classifyBleMeasurement } from '../src/lib/bleMeasurements.js';
+import { normalizeBleMeasurement, prepareManualBleDraft, classifyBleMeasurement, decideVinca2Reading } from '../src/lib/bleMeasurements.js';
+import { createFemometerLocalState, updateFemometerClockHistory } from '../src/lib/femometerLocalState.js';
 import { loadFrontend, hooks, deferred, flush } from './helpers/load-frontend.mjs';
+
+const memoryStorage = () => { const data = new Map(); return { getItem: key => data.get(key) ?? null, setItem: (key, value) => data.set(key, value) }; };
 
 const bridge = () => {
   const calls = { connections: 0, disconnects: 0, listeners: 0, peakListeners: 0, clock: 0, sync: 0, permissions: 0 };
-  let emit;
+  let emit; let deviceKey = null; const storage = memoryStorage();
   const flags = { clockFails: false, clockWait: null, syncFails: false, now: 0, remembered: true, found: true };
   const api = {
     now: () => flags.now,
-    getRememberedFemometer: async () => ({ remembered: flags.remembered }),
+    getRememberedFemometer: async user => ({ remembered: flags.remembered, deviceKey: flags.remembered ? 'bound-' + user : null }),
     scanForFemometer: async () => flags.found ? [{ id: 'temporary', isRemembered: true }] : [],
     requestBluetoothPermissions: async () => { calls.permissions++; },
     addFemometerTemperatureListener: async callback => {
       emit = callback; calls.listeners++; calls.peakListeners = Math.max(calls.peakListeners, calls.listeners);
       return { remove: async () => { calls.listeners--; } };
     },
-    startFemometerTemperatureListener: async () => {
+    startFemometerTemperatureListener: async (id, user) => {
+      deviceKey = 'bound-' + user;
       calls.connections++;
-      return { connectionReady: true, indicationsActive: true, timeoutSeconds: 360,
+      return { deviceKey, connectionReady: true, indicationsActive: true, timeoutSeconds: 360,
         capabilities: { model: 'BM-Vinca2', clockRead: true, clockSync: true } };
     },
     disconnectFemometer: async () => { calls.disconnects++; },
@@ -27,11 +31,11 @@ const bridge = () => {
       calls.clock++;
       if (flags.clockWait) return flags.clockWait.promise;
       if (flags.clockFails) throw Error('clock failed');
-      return { deviceLocalTime: '2020-01-01T08:00:00' };
+      return { deviceKey, deviceLocalTime: '2020-01-01T08:00:00' };
     },
     syncFemometerClock: async () => { calls.sync++; if (flags.syncFails) throw Error('sync failed'); return {}; },
   };
-  return { factory: createFemometerSessionManager(api), calls, flags, emit: event => emit?.(event) };
+  return { factory: createFemometerSessionManager(api), calls, flags, storage, emit: event => emit?.({ deviceKey, ...event }) };
 };
 
 async function mountedOwner(native, initialUser = 'a') {
@@ -41,7 +45,8 @@ async function mountedOwner(native, initialUser = 'a') {
   const timers = new Set();
   const { FemometerSessionOwner } = await loadFrontend('src/contexts/FemometerContext.jsx', {
     ...harness.bindings, normalizeBleMeasurement, createFemometerPanelSession: native.factory,
-    FemometerFeedback: 'feedback', BleReadingReview: 'review',
+    FemometerFeedback: 'feedback', BleReadingReview: 'review', FemometerReviewCard: 'card',
+    createFemometerLocalState: (_, user) => createFemometerLocalState(native.storage, user),
     CapacitorApp: { addListener: async (name, callback) => {
       assert.equal(name, 'appStateChange'); lifecycle.add(callback);
       return { remove: async () => lifecycle.delete(callback) };
@@ -133,7 +138,7 @@ test('shared owner survives page consumers and retains consecutive identical rea
     assert.equal(value.readings.length, 2);
     assert.notEqual(value.readings[0].uiId, value.readings[1].uiId);
     assert.equal(value.pendingCount, 2); // Cancelling review calls no save, so both remain.
-    await assert.rejects(() => value.incorporateReading(1, async () => { throw Error('save failed'); }));
+    await assert.rejects(() => value.incorporateReading(1, async () => { throw { code: 'ble-import-conflict' }; }));
     assert.equal(owner.render().pendingCount, 2);
     const pending = deferred();
     const saving = owner.render().incorporateReading(1, () => pending.promise);
@@ -257,9 +262,9 @@ const treeNodes = node => !node || typeof node !== 'object' ? [] : [node,
 
 test('mobile Bluetooth popover offers shared search, device navigation and global clock dialog', async () => {
   const harness = hooks();
-  let starts = 0; let scans = 0; let clocks = 0;
+  let starts = 0; let scans = 0; let clocks = 0; let reviews = 0;
   let ble = { enabled: true, pendingCount: 3, sessionState: { status: 'listening' },
-    sessionRef: { current: { start: () => starts++, scan: () => scans++ } }, openClockDialog: () => clocks++ };
+    sessionRef: { current: { start: () => starts++, scan: () => scans++ } }, openClockDialog: () => clocks++, openReadingReview: () => reviews++ };
   const destinations = [];
   const { DeviceStatusButton } = await loadFrontend('src/components/DeviceStatusButton.jsx', {
     ...harness.bindings, useFemometer: () => ble, useNavigate: () => path => destinations.push(path),
@@ -290,7 +295,7 @@ Clock3: 'clock',
   nodes.find(node => node.type === 'action' && node.props['aria-label'] === 'Sincronizar reloj').props.onClick();
   assert.equal(clocks, 1);
   nodes.find(node => node.type === 'action' && node.props['aria-label'] === 'Ver lecturas').props.onClick();
-  assert.equal(destinations.at(-1), '/settings/devices/vinca2#bluetooth-readings');
+  assert.equal(reviews, 1);
   ble.enabled = false;
   assert.equal(render(), null);
 });
@@ -349,17 +354,9 @@ test('receipt notices group readings and never announce incorporation before a c
   const render = () => harness.render(() => ({ props: { value: FemometerFeedback(props) } }));
   render();
   props.readings = [{ uiId: 1, importStatus: 'pending' }]; render();
-  assert.equal(notices.at(-1).title, 'Revisar temperatura');
-  notices.at(-1).action.props.onClick();
-  assert.deepEqual(reviews, [1]);
-  assert.equal(routes.length, 0);
+  assert.equal(notices.length, 0); // Review lives in the persistent card, never a transient toast.
   props.readings = [...props.readings, { uiId: 2, importStatus: 'pending' }]; render();
-  assert.equal(notices.length, 1);
-  assert.equal(notices[0].title, '2 temperaturas por revisar');
-  props.readings = props.readings.map(row => row.uiId === 1 ? { ...row, importStatus: 'saving' } : row); render();
-  assert.equal(notices.length, 1);
-  props.readings = props.readings.map(row => row.uiId === 1 ? { ...row, importStatus: 'pending' } : row); render();
-  assert.equal(notices.length, 1);
+  assert.equal(notices.length, 0);
   props.readings = props.readings.map(row => row.uiId === 1 ? { ...row, importStatus: 'incorporated', savedIsoDate: '2026-11-03' } : row); render();
   assert.equal(notices.at(-1).title, 'Temperatura incorporada');
   notices.at(-1).action.props.onClick();
@@ -468,5 +465,95 @@ test('Ver día waits for exact date and loaded detail, scrolls once and never op
   assert.deepEqual(scrolls, [{ behavior: 'smooth', block: 'start' }]);
   render(); assert.equal(frames.size, 0);
   props.enabled = false; props.requestKey = 'nav2'; render(); assert.equal(frames.size, 0);
+  harness.cleanup();
+});
+
+test('local pending queue recovers by account/device, preserves drafts and fails closed on interrupted writes', () => {
+  const storage = memoryStorage(); const local = createFemometerLocalState(storage, 'a');
+  const row = { uiId: 1, localId: 'review-operation', receivedOrder: 1, deviceKey: 'device-a', temperatureC: 36.42,
+    deviceTimestamp: '2020-01-01T08:00:00', importStatus: 'pending', draft: { isoDate: '2026-11-03', time: '08:00', confirmed: false }, rawHex: 'not retained' };
+  local.activate('device-a'); local.saveReadings([row]);
+  const recovered = createFemometerLocalState(storage, 'a').recover();
+  assert.equal(recovered[0].draft.isoDate, '2026-11-03'); assert.equal(recovered[0].rawHex, undefined);
+  assert.equal(createFemometerLocalState(storage, 'b').recover().length, 0);
+  local.saveReadings([{ ...row, importStatus: 'saving' }]);
+  assert.equal(createFemometerLocalState(storage, 'a').recover()[0].importStatus, 'uncertain');
+  local.activate('device-b');
+  assert.equal(local.recover()[0].deviceKey, 'device-a'); // Retired association remains separate.
+  local.saveReadings([{ ...row, importStatus: 'incorporated' }]);
+  assert.equal(createFemometerLocalState(storage, 'a').recover().length, 0);
+});
+
+test('clock history distinguishes sync from read, survives recreation and invalidates trust on forget', () => {
+  const storage = memoryStorage(); const local = createFemometerLocalState(storage, 'a'); local.activate('device');
+  const sync = { operation: 'sync', checkedAt: 1, verified: true, driftSeconds: 0, phoneTimeZone: 'Europe/Madrid', phoneUtcOffsetMinutes: 60 };
+  assert.equal(local.saveClock('device', sync).state, 'synchronized_verified');
+  const reopened = createFemometerLocalState(storage, 'a');
+  assert.equal(reopened.clock('device').lastVerifiedSync.checkedAt, 1);
+  let history = reopened.saveClock('device', { ...sync, operation: 'read', verified: false, checkedAt: 2 });
+  assert.equal(history.state, 'read_correct'); assert.equal(history.lastVerifiedSync.checkedAt, 1);
+  history = reopened.saveClock('device', { ...sync, operation: 'read', verified: false, driftSeconds: -3600, checkedAt: 3 });
+  assert.equal(history.state, 'misaligned'); assert.equal(history.lastSignificantChange.checkedAt, 3);
+  history = reopened.saveClock('device', { operation: 'read', checkedAt: 4, errorCode: 'CLOCK_TIMEOUT' });
+  assert.equal(history.state, 'unknown'); assert.equal(history.lastValidCheck.checkedAt, 3);
+  reopened.activate(null); assert.equal(reopened.clock('device').state, 'unknown');
+  reopened.activate('replacement'); assert.equal(reopened.clock('replacement'), null);
+  assert.equal(reopened.saveClock('device', sync), null);
+  assert.equal(createFemometerLocalState(storage, 'b').clock('device'), null);
+  assert.equal(updateFemometerClockHistory(null, { ...sync, phoneZoneChanged: true }).state, 'unknown');
+});
+
+test('decision never infers a clock epoch or processing receipt from BLE time/model', () => {
+  const measurement = normalizeBleMeasurement({ temperatureC: 36.42, deviceTimestamp: '2020-01-01T08:15:20', deviceKey: 'device' }, 'BM-Vinca2');
+  const context = { userId: 'a', deviceKey: 'device', localId: 'local-only', clockHistory: { state: 'synchronized_verified' } };
+  assert.equal(decideVinca2Reading(measurement, context).status, 'review');
+  const sameMinute = { ...measurement, device_timestamp: '2020-01-01T08:15:59' };
+  assert.equal(decideVinca2Reading(measurement, { ...context, existing: [sameMinute] }).status, 'possible_duplicate');
+  assert.equal(decideVinca2Reading(measurement, { ...context, existing: [{ ...sameMinute, temperature_original: 36.43 }] }).status, 'review');
+  const receipt = { localId: 'local-only', userId: 'a', deviceKey: 'device', serverConfirmed: true };
+  assert.equal(decideVinca2Reading(measurement, { ...context, receipt }).status, 'already_processed');
+  assert.equal(decideVinca2Reading(measurement, { ...context, receipt: { ...receipt, userId: 'b' } }).status, 'review');
+  assert.equal(measurement.device_date_reliability, 'unverified');
+});
+
+test('owner restores pending work and edits, removes only confirmed saves and never retries an interrupted save', async () => {
+  const native = bridge(); let owner = await mountedOwner(native);
+  native.emit({ temperatureC: 36.4, deviceTimestamp: '2020-01-01T08:00:00' });
+  native.emit({ temperatureC: 36.5, deviceTimestamp: '2020-01-01T08:01:00' });
+  owner.render().updateReadingDraft(1, { isoDate: '2026-11-03', time: '08:00', confirmed: true });
+  owner.cleanup(); await flush(); owner = await mountedOwner(native);
+  assert.equal(owner.render().pendingCount, 2);
+  assert.equal(owner.render().readings[0].draft.confirmed, false);
+  assert.equal(owner.render().readings[0].draft.isoDate, '2026-11-03');
+  await owner.render().incorporateReading(1, async () => ({ isoDate: '2026-11-03', measurements: [{ time: '08:00' }] }));
+  assert.equal(owner.render().pendingCount, 1);
+  const saving = deferred(); const operation = owner.render().incorporateReading(2, () => saving.promise);
+  owner.cleanup(); await flush(); owner = await mountedOwner(native);
+  assert.equal(owner.render().readings[0].importStatus, 'uncertain');
+  let attempts = 0;
+  await assert.rejects(() => owner.render().incorporateReading(2, () => { attempts++; }));
+  assert.equal(attempts, 0);
+  saving.resolve({}); await operation;
+  assert.equal(owner.render().pendingCount, 1);
+  await owner.changeAccount('b'); assert.equal(owner.render().pendingCount, 0);
+  owner.cleanup(); await flush();
+});
+
+test('persistent review card selects readings, minimizes explicitly and advances after save', async () => {
+  const harness = hooks(); const selected = []; let minimized = 0;
+  const { FemometerReviewCard } = await loadFrontend('src/components/FemometerReviewCard.jsx', {
+    ...harness.bindings, window: {}, Button: 'button', Thermometer: 'thermometer', ChevronDown: 'chevron',
+  }, ['FemometerReviewCard'], source => source.replace('export default function FemometerReviewCard', 'function FemometerReviewCard'));
+  const rows = [1, 2].map(uiId => ({ uiId, deviceKey: 'device', temperatureC: 36 + uiId / 10, importStatus: 'pending' }));
+  const props = { readings: rows, selected: rows[0], expanded: true, deviceKey: 'device', onSelect: id => selected.push(id), onMinimize: () => minimized++, onExpand() {}, children: 'editor' };
+  const render = () => harness.render(() => ({ props: { value: FemometerReviewCard(props) } }));
+  let nodes = treeNodes(render());
+  nodes.find(node => node.type === 'button' && node.props['aria-pressed'] === false).props.onClick();
+  assert.deepEqual(selected, [2]);
+  nodes.find(node => node.type === 'button' && node.props['aria-expanded'] === true).props.onClick();
+  assert.equal(minimized, 1); assert.equal(rows.length, 2);
+  props.readings = [rows[1]]; props.selected = rows[1];
+  assert.equal(treeNodes(render()).filter(node => node.props['aria-pressed'] === true).length, 1);
+  props.expanded = false; assert.equal(treeNodes(render()).some(node => node.props.id === 'ble-pending-review'), false);
   harness.cleanup();
 });

@@ -250,8 +250,8 @@ export const forgetFemometer = (userId) =>
 export const connectAndInspectFemometer = async (deviceId) =>
   callFemometerBle('connectAndInspect', { deviceId });
 
-export const startFemometerTemperatureListener = async (deviceId) =>
-  callFemometerBle('startTemperatureListener', { deviceId });
+export const startFemometerTemperatureListener = async (deviceId, userId) =>
+  callFemometerBle('startTemperatureListener', { deviceId, userId });
 
 export const stopFemometerTemperatureListener = async () =>
   callFemometerBle('stopTemperatureListener');

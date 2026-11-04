@@ -25,10 +25,11 @@ final class BleClockOperation {
     private String phoneZone;
     private int phoneOffset;
     private String requestedLocal;
+    private String deviceKey;
 
     BleClockOperation(Handler handler) { this.handler = handler; }
 
-    synchronized void start(BluetoothGatt gatt, PluginCall call, boolean sync) {
+    synchronized void start(BluetoothGatt gatt, PluginCall call, boolean sync, String boundDeviceKey) {
         if (pending != null) { call.reject("Ya hay una operacion de reloj.", "CLOCK_BUSY"); return; }
         if (gatt == null) { call.reject("Inicia la escucha antes de consultar el reloj.", "CLOCK_NOT_CONNECTED"); return; }
         if (gatt == uncertainTransport) {
@@ -43,6 +44,7 @@ final class BleClockOperation {
         transport = gatt;
         characteristic = target;
         syncing = sync;
+        deviceKey = boundDeviceKey;
         writing = sync;
         accepted = false;
         Calendar now = phoneNow();
@@ -99,13 +101,19 @@ final class BleClockOperation {
     }
 
     private void complete(int[] fields) {
+        Calendar checkedPhone = phoneNow();
+        String checkedZone = checkedPhone.getTimeZone().getID();
+        int checkedOffset = checkedPhone.getTimeZone().getOffset(checkedPhone.getTimeInMillis());
         JSObject result = new JSObject();
         result.put("writeAccepted", accepted);
-        result.put("verified", syncing && fields != null && BleClockCodec.matchesPhone(fields, phoneNow(), phoneZone, phoneOffset));
+        result.put("deviceKey", deviceKey);
+        result.put("checkedAt", System.currentTimeMillis());
+        result.put("verified", syncing && fields != null && BleClockCodec.matchesPhone(fields, checkedPhone, phoneZone, phoneOffset));
         result.put("deviceLocalTime", fields == null ? null : BleClockCodec.localText(fields));
         result.put("requestedLocalTime", syncing ? requestedLocal : null);
-        result.put("phoneTimeZone", phoneZone);
-        result.put("phoneUtcOffsetMinutes", phoneOffset / 60000);
+        result.put("phoneTimeZone", checkedZone);
+        result.put("phoneUtcOffsetMinutes", checkedOffset / 60000);
+        result.put("phoneZoneChanged", !checkedZone.equals(phoneZone) || checkedOffset != phoneOffset);
         result.put("deviceTimeZone", "unknown");
         PluginCall call = pending;
         clear();

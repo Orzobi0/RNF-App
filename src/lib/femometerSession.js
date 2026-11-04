@@ -87,7 +87,7 @@ export const createFemometerSessionManager = (api) => {
             event.status === 'timeout' ? null : { message: event.message || 'El termómetro se desconectó.' });
         }
       });
-      const result = await call(() => api.startFemometerTemperatureListener(deviceId));
+      const result = await call(() => api.startFemometerTemperatureListener(deviceId, userId));
       listeningExpiresAt = now() + (Number(result?.timeoutSeconds) || 360) * 1000;
       publish({ status: 'listening', listenerResult: result, capabilities: thermometerCapabilities(result?.capabilities) });
       automaticClockPending = state.capabilities.clockRead;
@@ -95,7 +95,7 @@ export const createFemometerSessionManager = (api) => {
     const search = async (automatic, call, current) => {
       publish({ status: 'checking', devices: [], selectedDeviceId: '', inspectionResult: null });
       const saved = await call(() => api.getRememberedFemometer(userId));
-      publish({ remembered: saved.remembered });
+      publish({ remembered: saved.remembered, deviceKey: saved.deviceKey ?? null });
       if (automatic && !saved.remembered) {
         publish({ status: 'idle' });
         return;
@@ -122,7 +122,10 @@ export const createFemometerSessionManager = (api) => {
         publish({ clockError: { code: 'CLOCK_UNSUPPORTED', message: 'Operación de reloj no disponible en este dispositivo.' } });
         return Promise.resolve();
       }
-      publish({ clockBusy: true, clockResult: null, clockError: null });
+      publish({ clockBusy: true, clockResult: null, clockError: null, clockAttempt: {
+        deviceKey: state.listenerResult?.deviceKey ?? null, operation: sync ? 'sync' : 'read', checkedAt: now(),
+        phoneTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, phoneUtcOffsetMinutes: -new Date().getTimezoneOffset(),
+      } });
       clockJob = Promise.resolve().then(() => {
         if (!current()) return;
         return sync ? api.syncFemometerClock() : api.readFemometerClock();
@@ -133,11 +136,13 @@ export const createFemometerSessionManager = (api) => {
           const pad = value => String(value).padStart(2, '0');
           const phoneLocalTime = `${phone.getFullYear()}-${pad(phone.getMonth() + 1)}-${pad(phone.getDate())}T${pad(phone.getHours())}:${pad(phone.getMinutes())}:${pad(phone.getSeconds())}`;
           publish({ clockResult: { ...result, operation: sync ? 'sync' : 'read', driftSeconds,
+            checkedAt: result?.checkedAt ?? now(),
             phoneLocalTime,
             significantDrift: driftSeconds !== null && Math.abs(driftSeconds) > 120 } });
         }
       }).catch(error => {
-        if (current()) publish({ clockError: error }); // Never tear down measurement reception for a clock failure.
+        if (current()) publish({ clockError: { ...error, message: error.message, operation: sync ? 'sync' : 'read',
+          checkedAt: now(), deviceKey: state.listenerResult?.deviceKey ?? null } }); // Keep receiving.
       }).finally(() => {
         clockJob = null;
         if (current()) publish({ clockBusy: false });
@@ -182,7 +187,7 @@ export const createFemometerSessionManager = (api) => {
       remember: (forget = false) => run(async call => {
         const result = await call(() => forget ? api.forgetFemometer(userId)
           : api.rememberFemometer(userId, state.selectedDeviceId));
-        publish({ remembered: result.remembered, status: 'idle', devices: state.devices.map(device => ({
+        publish({ remembered: result.remembered, deviceKey: result.deviceKey ?? null, status: 'idle', clockResult: null, clockError: null, devices: state.devices.map(device => ({
           ...device, isRemembered: !forget && device.id === state.selectedDeviceId,
         })) });
       }),

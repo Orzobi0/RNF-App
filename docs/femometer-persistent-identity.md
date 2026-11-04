@@ -1,5 +1,59 @@
 # Identificación local del BM-Vinca2 (Android Staging)
 
+## Contrato opaco persistente (implementación actual)
+
+`FemometerIdentityStore` conserva en SharedPreferences `femometer_identity_v2`
+una asociación por UID: dirección privada + UUID aleatorio. V2 es autoritativo.
+La primera consulta migra la dirección antigua de `femometer_identity_v1` y
+confirma el UUID antes de devolverlo. Si falla la escritura no se devuelve una
+identidad temporal como si fuera persistente. Después se limpia el valor antiguo.
+
+Recordar la misma dirección conserva el UUID. Reemplazarla genera otro UUID.
+Olvidar guarda una marca vacía (tombstone), para que una interrupción durante la
+migración nunca resucite la asociación antigua. Volver a vincular después de
+olvidar genera una identidad nueva, incluso con la misma dirección. Las cuentas
+no comparten UUID. No se identifica por nombre ni por modelo.
+
+`getRememberedDevice` / `rememberDevice` devuelven `remembered` y `deviceKey`.
+`startTemperatureListener` recibe UID + identificador temporal de escaneo;
+Android resuelve la dirección desde su mapa privado y solo adjunta `deviceKey`
+si coincide con la vinculación de esa cuenta. La clave se captura en el callback
+GATT de esa conexión. Los eventos de otra conexión no heredan la clave actual.
+El resultado de escucha y las respuestas del reloj incluyen la misma clave.
+JavaScript no envía una clave para que el nativo la acepte.
+
+No se permite cambiar/olvidar la vinculación durante una escucha activa. La
+sesión compartida mantiene su límite de escucha y limpia el GATT al cambiar de
+cuenta. El UID sigue procediendo de la sesión autenticada web, como en fase 1;
+no se introduce autenticación Firebase nativa.
+
+El UUID identifica una **vinculación local**, no un número de serie universal.
+Si el dispositivo cambia su dirección BLE (pila, firmware, dirección privada),
+la coincidencia deja de funcionar y requiere inspección y revinculación manual.
+No se reconoce arbitrariamente otro BM-Vinca2 como el anterior. No se exponen
+ni se registran direcciones, UUID o UID en logs.
+
+### Prueba física de esta fase
+
+1. Usar una vinculación antigua y consultar Dispositivos: debe migrar sin volver
+   a seleccionar el termómetro. Recibir dos temperaturas vinculadas.
+2. Reiniciar la APK y después Android: los dos pendientes deben reaparecer,
+   separados de cualquier otra cuenta. Apagar/encender el termómetro y reconectar.
+3. Sincronizar y comprobar que Dispositivos conserva la última verificación al
+   reabrir. Una lectura posterior correcta debe mostrarse como lectura, no ajuste.
+4. Revisar ambas tomas dentro de la tarjeta, corregir una fecha, minimizar,
+   reabrir desde el icono y guardar. Solo la toma confirmada desaparece y se
+   selecciona la siguiente. «Ver día» abre exactamente su DayDetail.
+5. Detener, olvidar y volver a vincular: no debe heredarse la confianza del reloj.
+   Los pendientes antiguos se conservan como otra vinculación, nunca se reasignan.
+6. Interrumpir un guardado: al reabrir debe quedar incierto, exigir comprobar el
+   registro y no reintentarse automáticamente. Probar retransmisiones y la
+   confirmación adicional de una medición realmente distinta.
+7. Cambiar de cuenta y repetir. Sin permisos/BT activo no deben perderse pendientes.
+
+No se ha validado físicamente el cambio de dirección tras sustituir la pila.
+
+
 La preferencia privada `femometer_identity_v1` asocia el UID de la sesión con la dirección BLE vista por Android. El UID procede de AuthContext: no se añade autenticación nativa ni almacenamiento en Firestore. Es separación local por cuenta dentro de la app, no una nueva frontera de autorización frente a código que controle el puente web.
 
 El puente permite consultar la existencia de la asociación, recordar un identificador temporal y olvidar la asociación de esa cuenta. Para guardar, el dispositivo debe proceder del escaneo actual y haber superado la inspección nativa: servicio Health Thermometer, característica Temperature Measurement con indicaciones y descriptor CCCD. No basta el nombre anunciado ni un booleano enviado por JavaScript. Las respuestas nunca contienen la dirección. Los errores nativos no incluyen excepciones completas en logs, que podrían contener identificadores Bluetooth.

@@ -1,41 +1,78 @@
 # Reloj y contrato mínimo BLE — Android Staging
 
-## Bloqueo del guardado automático (04-11-2026)
+## Historial local y automatización (implementación actual)
 
-La revisión del contrato actual no permite habilitar escrituras automáticas con
-fechas demostrables. `getRememberedDevice` devuelve solo `remembered`; el escaneo
-expone identificadores temporales e `isRemembered`. La dirección persistida en
-SharedPreferences no sale del código nativo. `normalizeBleMeasurement` devuelve
-`device_key: null`. Por tanto, no hay una clave pública estable que permita vincular
-evidencia local del reloj o pendientes a la misma cuenta **y dispositivo** tras
-reinicios, sustituciones u olvidos. No se usa el modelo como identidad.
+La identidad opaca nativa resuelve el bloqueo de asociación entre sesiones: el
+resultado de conectar, cada indicación y cada respuesta del reloj incluyen
+`deviceKey`, calculado por Android para la dirección realmente seleccionada y el
+UID de la sesión. No se acepta una clave de dispositivo enviada por JavaScript.
 
-Incluso con identidad, Current Time describe el reloj actual. Las indicaciones
-no incluyen época de sincronización, zona, offset ni un marcador que distinga una
-toma nueva del historial previo. Una fecha posterior al ajuste en el calendario
-no demuestra que la toma se realizara después del ajuste: el reloj anterior podría
-haber estado adelantado. Tampoco resuelve horas repetidas por DST o cambios de zona.
-La recepción reciente y una lectura correcta del reloj no verifican esos hechos.
+El historial se conserva en el documento local `fertiliapp:ble-review:v1:<UID>`
+por UUID de vinculación. Guarda la última comprobación (incluidos fallos), la
+última lectura válida, la última sincronización verificada y el último cambio
+significativo de desviación/zona/offset. Cada comprobación conserva operación,
+instante, resultado, aceptación de escritura, fecha local leída, desviación,
+zona y offset del móvil cuando están disponibles. No contiene direcciones BLE.
+No se registran estos datos en logs. Olvidar/reemplazar invalida el estado anterior;
+una vinculación nueva no hereda la evidencia de la antigua.
 
-Antes de automatizar hacen falta: una identidad opaca persistente proporcionada
-por el propietario nativo y asociada a la conexión/lectura real (sin exponer la
-dirección BLE), y un contrato contrastado que permita atribuir cada toma a un
-intervalo de reloj verificado, excluyendo historial anterior y ambigüedades de zona.
-No se ha cambiado Java ni inventado un identificador o `dateEvidence.verified`.
+Estados separados: `synchronized_verified` exige escritura y lectura posterior
+verificada por el código nativo; `read_correct` es solo una lectura con desviación
+no superior a 120 segundos; `misaligned` indica mayor desviación; `unknown` indica
+fallo, cambio de zona durante la comprobación o invalidación. Una lectura correcta
+posterior no borra la fecha de la última sincronización, pero tampoco se presenta
+como una nueva sincronización.
 
-También queda pendiente la cola persistente y la recuperación de escrituras
-interrumpidas. El guardado actual no dispone de un recibo de operación que permita
-distinguir un commit con respuesta perdida de una toma legítima coincidente.
-Una clave local de operación podría servir para idempotencia, pero no sería un
-identificador de medición del termómetro. No se reintenta automáticamente un resultado
-incierto ni se presenta la comparación de modelo/minuto/temperatura como unicidad.
+### Qué sabemos de las indicaciones recibidas
 
-Mientras faltan esas garantías, todas las lecturas siguen pendientes de revisión
-en memoria. El aviso abre un diálogo compartido sobre la pantalla actual; confirmar
-reutiliza `prepareManualBleDraft` y `incorporateBleMeasurementDB`, con sus lecturas
-del servidor, detección conservadora de duplicados y transacción append-only.
-Cancelar o fallar conserva la lectura en la sesión. Cerrar completamente la APK
-todavía pierde esos pendientes; no se promete recuperación entre sesiones.
+La implementación decodifica Health Thermometer Measurement (`0x2A1C`): flags,
+valor IEEE-11073, fecha/hora opcional y tipo de medición opcional. El bit 0 indica
+unidad, el 1 presencia de fecha y el 2 presencia de tipo. El tipo describe el lugar
+de medición, no su antigüedad. `receivedAt` se añade en Android; el orden de llegada
+es únicamente el orden de callbacks recibidos, no orden cronológico garantizado.
+El contrato observado no proporciona número de toma, época de ajuste, zona/offset
+del termómetro ni un indicador fiable de historial/retransmisión. No se asigna
+significado propietario a bits reservados ni a características no documentadas.
+
+`decideVinca2Reading` devuelve `possible_duplicate` ante coincidencia conservadora
+de modelo/minuto original/temperatura; `already_processed` únicamente con un
+recibo explícito de escritura confirmada de la aplicación ligado a esa operación
+local, cuenta y dispositivo. Ese recibo no identifica futuras retransmisiones.
+El resto devuelve `review`, con motivo; **ninguna entrada activa `auto`**.
+Ni el UUID del dispositivo ni el identificador local de revisión identifican una toma.
+
+Para habilitar `auto` falta demostrar cómo atribuir una indicación a una época
+horaria comprobada y excluir historial anterior. Ensayo físico: conservar tomas
+previas al ajuste (también con reloj adelantado), sincronizar, realizar nuevas tomas,
+reconectar/reiniciar y observar qué paquetes se repiten y si cambian las fechas del
+historial. Probar también cambio de pila, zona y hora repetida de DST. La observación
+por sí sola no autoriza un algoritmo: haría falta un marcador o contrato contrastado
+que resuelva esa atribución. Una fecha de 2020 sigue siendo de 2020 y sin verificar.
+
+### Pendientes y resultados inciertos
+
+Se conserva solo trabajo pendiente de revisión, con fecha/temperatura originales,
+recepción, normalización, orden de llegada, borrador de fecha/hora y error de revisión.
+La autorización manual nunca se restaura marcada. Los UUID de vinculación separan
+los grupos dentro de cada cuenta. Cambiar de cuenta no carga datos ajenos; los
+pendientes de una vinculación antigua conservan su origen y no se reasignan.
+Los paquetes crudos no se guardan. Se usa localStorage ya disponible, sin dependencias.
+Una lectura de un dispositivo aún sin vincular carece de UUID: se señala como
+**solo de esta sesión** y no se atribuye a otro termómetro para persistirla.
+
+Antes de escribir en Firestore se conserva `saving`. Si se interrumpe la APK,
+se recupera como `uncertain` y se exige comprobar manualmente Mis registros antes
+de repetir. La transacción existente vuelve a detectar posibles duplicados, con
+su confirmación excepcional separada. No hay reintentos automáticos ni una garantía
+de exactamente una escritura en un fallo con resultado desconocido. Tras una
+respuesta de escritura correcta se retira el pendiente; si falla esa actualización
+local, al reiniciar seguirá como incierto y no se guardará solo.
+
+La tarjeta flotante no caduca ni se cierra al tocar fuera: puede minimizarse y
+recuperarse desde el icono. Al incorporar una toma muestra el aviso temporal de éxito
+y pasa a la siguiente pendiente. Las lecturas siguen sin guardar hasta la confirmación.
+Borrar los datos del sitio/app o desinstalar elimina la cola y el historial local;
+no es un respaldo remoto ni una segunda colección de registros.
 
 ## Fundamento técnico (30-10-2026)
 
