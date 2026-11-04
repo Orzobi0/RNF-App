@@ -134,3 +134,12 @@ Validación ejecutada:
 - `git diff --check`: correcto.
 
 No se ha instalado el APK ni sincronizado físicamente el reloj. No se ha desplegado ni creado commit. Las pruebas del controlador simulan el transporte y no certifican el comportamiento GATT del firmware real.
+
+
+## Filtro de antigüedad de 24 horas (noviembre 2026)
+
+`classifyBleMeasurementAge` es pura: recibe la fecha original, `nowMs` y una zona IANA si la fecha no incluye offset. La ventana incluye exactamente 24 horas; una fecha futura o mayor de 24 horas requiere revisión. No usa la recepción como hora de medición. Resuelve los offsets alrededor del día para rechazar horas inexistentes o repetidas por horario de verano. Sin zona conocida, se detiene con `unknown-time-zone`.
+
+`candidate` significa únicamente que pasa ese filtro, nunca `verified`. `decideVinca2Reading` mantiene revisión ante identidad ausente, duplicado sospechoso, resultado incierto, reloj desajustado, historial insuficiente, toma anterior al ajuste o ciclo no demostrado. Incluso con todos esos datos, devuelve `measurement-clock-epoch-unproven`: el paquete actual no demuestra a qué periodo de reloj pertenece la toma. Una sincronización hoy no verifica una lectura histórica. No hay escrituras automáticas.
+
+La cola conserva el motivo de clasificación al recibir la lectura, como diagnóstico, sin cambiar `device_date_reliability`. El guardado manual y su transacción no han cambiado. Para levantar el bloqueo hacen falta evidencias físicas del historial y retransmisiones antes/después de ajustes, cambios de zona y pila, además de una forma justificable de atribuir cada toma al periodo verificado; comprobar solo la hora actual no basta.

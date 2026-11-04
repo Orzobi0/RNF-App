@@ -1,33 +1,31 @@
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState, lazy, Suspense } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { createFemometerPanelSession, isFemometerBleAndroidNative, isFemometerBlePrototypeEnabled } from '@/lib/femometerBle';
-import { normalizeBleMeasurement } from '@/lib/bleMeasurements';
+import { normalizeBleMeasurement, decideVinca2Reading } from '@/lib/bleMeasurements';
 import FemometerFeedback from '@/components/FemometerFeedback';
 import BleReadingReview from '@/components/BleReadingReview';
 import { createFemometerLocalState } from '@/lib/femometerLocalState';
 import FemometerReviewCard from '@/components/FemometerReviewCard';
+import { isBleVisualLabEnabled } from '@/lib/bleVisualLab';
+import { Capacitor } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
 
 const inactive = { enabled: false, readings: [], pendingCount: 0 };
 const FemometerContext = createContext(inactive);
 export const useFemometer = () => useContext(FemometerContext);
 
-// Visual-only opt-in. Never constructs a native session or enables persistence.
-export const localFemometerPreview = (env, location) => {
-  if (!env?.DEV || env.MODE !== 'staging' || !['localhost', '127.0.0.1', '[::1]'].includes(location?.hostname)) return null;
-  const mode = new URLSearchParams(location.search).get('blePreview');
-  if (!['disconnected', 'listening', 'searching', 'attention'].includes(mode)) return null;
-  return { ...inactive, enabled: true, preview: true, pendingCount: 2, sessionRef: { current: null },
-    sessionState: { status: mode === 'attention' ? 'listening' : mode === 'disconnected' ? 'stopped' : mode,
-      remembered: false, devices: [], capabilities: { clockSync: true }, clockResult: { significantDrift: mode === 'attention' } },
-    openClockDialog: () => {}, lifecycleStatus: 'preview' };
-};
+// Keep the opt-in for this provider lifetime so ordinary route changes do not
+// discard it. The dev module is not included in published builds.
+const BluetoothVisualLab = import.meta.env.DEV
+  ? lazy(() => import('@/components/dev/BluetoothVisualLab')) : null;
 
 // One owner per authenticated account, above the routes. Pages only consume it.
 export const FemometerProvider = ({ children }) => {
   const { user } = useAuth();
-  const preview = localFemometerPreview(import.meta.env, globalThis.location);
-  if (user?.uid && preview) return <FemometerContext.Provider value={preview}>{children}</FemometerContext.Provider>;
+  const [preview, setPreview] = useState(() => isBleVisualLabEnabled(import.meta.env, globalThis.location, Capacitor.isNativePlatform()));
+  if (user?.uid && preview && BluetoothVisualLab) return <Suspense fallback={null}>
+    <BluetoothVisualLab key={user.uid} Provider={FemometerContext.Provider} onDisable={() => setPreview(false)}>{children}</BluetoothVisualLab>
+  </Suspense>;
   const enabled = Boolean(user?.uid) && isFemometerBlePrototypeEnabled() && isFemometerBleAndroidNative();
   return enabled ? <FemometerSessionOwner key={user.uid} userId={user.uid}>{children}</FemometerSessionOwner>
     : <FemometerContext.Provider value={inactive}>{children}</FemometerContext.Provider>;
@@ -104,7 +102,10 @@ export const FemometerSessionOwner = ({ userId, children }) => {
         // UI-only sequence, never passed as a device identity or measurement key.
         updateReadings([...readingsRef.current, { ...event, normalized, deviceKey: normalized.device_key,
           localId: globalThis.crypto.randomUUID(), receivedOrder: receivedOrder = Math.max(Date.now(), receivedOrder + 1),
-          uiId: ++sequence, importStatus: 'pending' }]);
+          dateReview: decideVinca2Reading(normalized, { deviceKey: normalized.device_key,
+              nowMs: Date.now(), timeZone: localRef.current?.clock(normalized.device_key)?.lastValidCheck?.phoneTimeZone,
+              clockHistory: localRef.current?.clock(normalized.device_key) }),
+            uiId: ++sequence, importStatus: 'pending' }]);
         setTemperatureListenerMessage(normalized.device_key ? 'Lectura recibida y pendiente de revisión.' : 'Lectura de un termómetro sin vincular: solo se conserva durante esta sesión. Vincúlalo antes de nuevas tomas.');
       } else if (event?.status === 'timeout') setTemperatureListenerMessage('Escucha finalizada. Las lecturas recibidas siguen disponibles.');
       else if (event?.message) setTemperatureListenerMessage(event.message);

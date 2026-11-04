@@ -1,9 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Thermometer, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 // Persistent non-modal region: no timeout, no dismissal on outside interaction.
 export default function FemometerReviewCard({ readings, selected, expanded, onExpand, onMinimize, onSelect, storageError, deviceKey, children }) {
+  const card = useRef(null);
+  useEffect(() => { card.current?.scrollTo({ top: 0 }); }, [selected?.uiId]);
   const [viewport, setViewport] = useState(null);
   useEffect(() => {
     const view = window.visualViewport;
@@ -14,12 +16,11 @@ export default function FemometerReviewCard({ readings, selected, expanded, onEx
   }, []);
   if (!readings.length) return storageError ? <p role="alert" className="fixed bottom-24 right-3 z-50 max-w-sm rounded-2xl bg-white p-4 shadow-md">{storageError}</p> : null;
   const saving = readings.some(row => row.importStatus === 'saving');
-  return <section aria-label="Temperaturas Bluetooth pendientes"
+  return <section ref={card} aria-label="Temperaturas Bluetooth pendientes"
     onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); onMinimize(); } }}
-    className="fixed right-3 z-[60] w-[calc(100%-24px)] max-w-sm overflow-y-auto overscroll-contain rounded-3xl border border-rose-100 bg-white p-4 text-slate-700 shadow-lg"
-    style={expanded ? { top: `calc(${viewport?.top ?? 0}px + env(safe-area-inset-top, 0px) + 12px)`,
-      maxHeight: viewport ? `calc(${viewport.height}px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 24px)` : 'calc(100dvh - 24px)' }
-      : { bottom: 'calc(env(safe-area-inset-bottom, 0px) + 80px)' }}>
+    className={`fixed z-[60] ${expanded ? 'left-3 w-[calc(100%-24px)]' : 'left-3 w-[calc(100%-80px)]'} max-w-sm overflow-y-auto overscroll-contain rounded-3xl border border-rose-100 bg-white p-4 text-slate-700 shadow-lg`}
+    style={{ top: `calc(${viewport?.top ?? 0}px + var(--ble-safe-top, env(safe-area-inset-top, 0px)) + 12px + var(--ble-notice-height, 0px))`,
+      maxHeight: `calc(${viewport ? `${viewport.height}px` : '100dvh'} - var(--ble-safe-top, env(safe-area-inset-top, 0px)) - env(safe-area-inset-bottom, 0px) - 24px - var(--ble-notice-height, 0px))` }}>
     <div className="flex items-center gap-2">
       <Thermometer className="h-5 w-5 shrink-0 text-rose-500" aria-hidden="true" />
       <p role="status" className="flex-1 text-sm font-semibold">{readings.length} {readings.length === 1 ? 'temperatura por revisar' : 'temperaturas por revisar'}</p>
@@ -38,6 +39,7 @@ export default function FemometerReviewCard({ readings, selected, expanded, onEx
           {row.temperatureC} °C · {row.deviceTimestamp || 'Sin fecha'}
           <span className="block text-xs text-slate-500">{!row.deviceKey ? 'Sin vincular: solo en esta sesión'
             : row.deviceKey === deviceKey ? 'Termómetro vinculado' : 'Otra vinculación conservada; revisa su origen'}
+            {row.dateReview?.reason === 'older-than-24-hours' ? ' · Más de 24 horas: revisión manual' : ''}
             {row.importStatus === 'uncertain' ? ' · Resultado de guardado incierto' : row.importStatus === 'saving' ? ' · Guardando…' : ''}</span>
         </button></li>)}
       </ul>

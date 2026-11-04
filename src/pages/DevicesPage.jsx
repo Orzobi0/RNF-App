@@ -26,7 +26,7 @@ export function DevicesPage() {
     <Link to="/settings/devices/vinca2" className="flex min-h-14 items-center gap-3 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
       <span className="rounded-xl bg-rose-50 p-2 text-rose-500"><Thermometer className="h-5 w-5" /></span>
       <span className="min-w-0 flex-1"><span className="block font-semibold text-slate-800">Vinca 2</span>
-        <span className="block text-sm text-slate-500">{ble.sessionState.status === 'listening' ? 'Conectado' : linked ? 'Termómetro recordado' : 'Configurar BM-Vinca2'} · {ble.pendingCount} pendientes</span>
+        <span className="block text-sm text-slate-500">{ble.sessionState.status === 'listening' ? 'Escuchando temperaturas' : linked ? 'Termómetro recordado' : 'Configurar BM-Vinca2'} · {ble.pendingCount} pendientes</span>
       </span><ChevronRight className="h-4 w-4 text-slate-400" />
     </Link>
     {ble.sessionState.clockResult?.significantDrift && <Button variant="outline" onClick={ble.openClockDialog}>Revisar hora del termómetro</Button>}

@@ -26,9 +26,46 @@ export const normalizeBleMeasurement = (event, model = null) => {
   };
 };
 
+// Wall-clock resolution is a range check, NOT evidence of the clock's accuracy.
+// A named zone is mandatory for timestamps without an offset. Enumerating the
+// zone's offsets around that day detects both repeated and nonexistent DST times.
+export const classifyBleMeasurementAge = (measurement, { nowMs, timeZone } = {}) => {
+  const review = reason => ({ status: 'review', reason, candidate: false });
+  const raw = measurement?.device_timestamp;
+  if (!raw) return review('missing-date');
+  if (normalizeBleMeasurement({ temperatureC: 0, deviceTimestamp: raw })?.device_date_reliability !== 'unverified') return review('invalid-date');
+  if (!Number.isFinite(nowMs)) return review('unknown-reference-time');
+  let epochs;
+  if (/(Z|[+-]\d{2}:\d{2})$/.test(raw)) {
+    const epoch = Date.parse(raw);
+    if (!Number.isFinite(epoch)) return review('invalid-date');
+    epochs = [epoch];
+  } else {
+    if (!timeZone) return review('unknown-time-zone');
+    try {
+      const format = new Intl.DateTimeFormat('en-GB', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
+      const wall = epoch => { const parts = Object.fromEntries(format.formatToParts(epoch).map(p => [p.type, p.value]));
+        return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}`; };
+      const nominal = Date.parse(`${raw.slice(0, 19)}Z`);
+      const offsets = new Set();
+      for (let hour = -36; hour <= 36; hour++) {
+        const probe = nominal + hour * 3600000;
+        offsets.add(Date.parse(`${wall(probe)}Z`) - probe);
+      }
+      epochs = [...offsets].map(offset => nominal - offset).filter(epoch => wall(epoch) === raw.slice(0, 19));
+    } catch { return review('unknown-time-zone'); }
+  }
+  if (!epochs.length) return review('nonexistent-local-date');
+  if (epochs.length !== 1) return review('ambiguous-local-date');
+  const ageMs = nowMs - epochs[0];
+  if (ageMs < 0) return review('future-date');
+  if (ageMs > 86400000) return review('older-than-24-hours');
+  return { status: 'candidate', candidate: true, reason: 'within-24-hours-not-verified', epochMs: epochs[0], ageMs };
+};
+
 // Processing receipts must come from a confirmed app write, never BLE fields or
 // matching temperature/time. No current packet proves the clock epoch of a take.
-export const decideVinca2Reading = (measurement, { existing = [], receipt, localId, userId, deviceKey } = {}) => {
+export const decideVinca2Reading = (measurement, { existing = [], receipt, localId, userId, deviceKey, nowMs, timeZone, clockHistory, cycleCertain, saveStatus } = {}) => {
   if (!measurement || measurement.source !== 'bluetooth') return { status: 'review', reason: 'invalid-measurement' };
   if (receipt?.serverConfirmed === true && localId && receipt.localId === localId
     && userId && receipt.userId === userId && deviceKey && receipt.deviceKey === deviceKey
@@ -36,6 +73,15 @@ export const decideVinca2Reading = (measurement, { existing = [], receipt, local
   if (existing.some(item => isPossibleBleDuplicate(item, measurement))) return { status: 'possible_duplicate', reason: 'same-original-minute-and-temperature' };
   if (!deviceKey || measurement.device_key !== deviceKey) return { status: 'review', reason: 'device-identity-unavailable' };
   if (measurement.device_date_reliability === 'invalid' || measurement.device_date_reliability === 'missing') return { status: 'review', reason: 'invalid-or-missing-date' };
+  if (saveStatus === 'uncertain') return { status: 'review', reason: 'save-result-unknown' };
+  if (Number.isFinite(nowMs)) {
+    const age = classifyBleMeasurementAge(measurement, { nowMs, timeZone });
+    if (!age.candidate) return age;
+    if (clockHistory?.state === 'misaligned') return { status: 'review', reason: 'clock-misaligned', candidate: true };
+    if (!clockHistory?.lastVerifiedSync || !clockHistory?.lastValidCheck || clockHistory.invalidatedAt || clockHistory.state === 'unknown') return { status: 'review', reason: 'clock-history-insufficient', candidate: true };
+    if (age.epochMs < clockHistory.lastVerifiedSync.checkedAt) return { status: 'review', reason: 'measurement-before-clock-sync', candidate: true };
+    if (cycleCertain !== true) return { status: 'review', reason: 'destination-cycle-uncertain', candidate: true };
+  }
   return { status: 'review', reason: 'measurement-clock-epoch-unproven' };
 };
 

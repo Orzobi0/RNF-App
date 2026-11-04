@@ -1,17 +1,17 @@
-import React, { useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { toast } from '@/components/ui/use-toast';
-import { ToastAction } from '@/components/ui/toast';
+import React, { useEffect, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { BleSavedNotice } from './BleSavedNotice';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Thermometer, Check } from 'lucide-react';
 
 // Mounted with the authenticated BLE owner, not with any route.
 export function FemometerFeedback({ sessionState, sessionRef, readings, clockDialogOpen, setClockDialogOpen, openReadingReview }) {
   const navigate = useNavigate();
   const noticedConnection = useRef(null);
   const savedIds = useRef(new Set());
-  const notice = useRef(null);
+  const [notice, setNotice] = useState(null);
+  const location = useLocation();
+  useEffect(() => { setNotice(null); }, [location.key]);
   const savedBatch = useRef({ time: 0, count: 0 });
   const { status, listenerResult, clockResult, clockError, clockBusy, capabilities } = sessionState;
   useEffect(() => {
@@ -29,19 +29,14 @@ export function FemometerFeedback({ sessionState, sessionRef, readings, clockDia
       const now = Date.now();
       const grouped = now - savedBatch.current.time < 2500;
       const count = (grouped ? savedBatch.current.count : 0) + saved.length;
-      const props = { title: count === 1 ? 'Temperatura incorporada' : `${count} temperaturas incorporadas`,
-        className: 'rounded-2xl border-rose-100 bg-white shadow-md',
-        description: <span className="flex items-center gap-2"><Thermometer className="h-4 w-4 shrink-0" aria-hidden="true" /><Check className="h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" />
-          {last.normalized?.temperature ?? last.temperatureC} °C · {last.savedTime || ''} · {last.savedIsoDate}. Guardado confirmado.</span>, duration: 5000,
-        action: <ToastAction altText="Ver día" onClick={() => navigate('/records', { state: { selectedDate: last.savedIsoDate, scrollToDayDetail: true } })}>Ver día</ToastAction> };
-      if (grouped && notice.current) notice.current.update(props);
-      else { notice.current?.dismiss(); notice.current = toast(props); }
+      setNotice({ count, temperature: last.normalized?.temperature ?? last.temperatureC,
+        time: last.savedTime || '', isoDate: last.savedIsoDate });
       savedBatch.current = { time: now, count };
     }
   }, [readings, navigate, openReadingReview]);
-  useEffect(() => () => notice.current?.dismiss(), []);
   const connected = status === 'listening';
-  return <Dialog open={clockDialogOpen} onOpenChange={setClockDialogOpen}>
+  return <><BleSavedNotice notice={notice} onDismiss={() => setNotice(null)}
+    onViewDay={isoDate => navigate('/records', { state: { selectedDate: isoDate, scrollToDayDetail: true } })} /><Dialog open={clockDialogOpen} onOpenChange={setClockDialogOpen}>
     <DialogContent className="w-[calc(100%-32px)] max-w-md rounded-3xl">
       <DialogHeader><DialogTitle>Reloj del termómetro</DialogTitle>
         <DialogDescription>El reloj puede diferir del móvil. Sincronizarlo no verifica ni corrige las fechas de mediciones anteriores.</DialogDescription>
@@ -60,7 +55,7 @@ export function FemometerFeedback({ sessionState, sessionRef, readings, clockDia
         {capabilities?.clockSync && <Button disabled={!connected || clockBusy} onClick={() => sessionRef.current?.syncClock()}>Sincronizar reloj</Button>}
       </DialogFooter>
     </DialogContent>
-  </Dialog>;
+  </Dialog></>;
 }
 
 export default FemometerFeedback;

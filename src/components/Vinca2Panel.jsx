@@ -50,9 +50,9 @@ const Vinca2Panel = () => {
     return sessionRef.current?.stop();
   };
   const statusText = {
-    checking: 'Consultando termómetro recordado…', idle: 'Selección manual disponible',
+    checking: 'Consultando termómetro recordado…', idle: remembered ? 'Desconectado' : 'Sin vincular',
     searching: 'Buscando termómetro', connecting: 'Conectando', listening: 'Escuchando temperaturas',
-    missing: 'No encontrado', error: 'Error', stopping: 'Deteniendo…', stopped: 'Detenido', inspecting: 'Comprobando compatibilidad',
+    missing: 'Termómetro no encontrado', error: 'Requiere atención', stopping: 'Deteniendo…', stopped: 'Desconectado', inspecting: 'Comprobando compatibilidad',
   }[status];
   const renderStatusLine = (ok, successText, missingText) => (
     <li className={cn('flex gap-2 text-sm', ok ? 'text-emerald-700' : 'text-amber-700')}>

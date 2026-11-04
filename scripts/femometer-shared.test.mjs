@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createFemometerSessionManager, femometerClockDriftSeconds } from '../src/lib/femometerSession.js';
-import { normalizeBleMeasurement, prepareManualBleDraft, classifyBleMeasurement, decideVinca2Reading } from '../src/lib/bleMeasurements.js';
+import { normalizeBleMeasurement, prepareManualBleDraft, classifyBleMeasurement, decideVinca2Reading, classifyBleMeasurementAge } from '../src/lib/bleMeasurements.js';
+import { isBleVisualLabEnabled } from '../src/lib/bleVisualLab.js';
 import { createFemometerLocalState, updateFemometerClockHistory } from '../src/lib/femometerLocalState.js';
 import { loadFrontend, hooks, deferred, flush } from './helpers/load-frontend.mjs';
 
@@ -44,7 +45,7 @@ async function mountedOwner(native, initialUser = 'a') {
   const lifecycle = new Set();
   const timers = new Set();
   const { FemometerSessionOwner } = await loadFrontend('src/contexts/FemometerContext.jsx', {
-    ...harness.bindings, normalizeBleMeasurement, createFemometerPanelSession: native.factory,
+    ...harness.bindings, normalizeBleMeasurement, decideVinca2Reading, createFemometerPanelSession: native.factory,
     FemometerFeedback: 'feedback', BleReadingReview: 'review', FemometerReviewCard: 'card',
     createFemometerLocalState: (_, user) => createFemometerLocalState(native.storage, user),
     CapacitorApp: { addListener: async (name, callback) => {
@@ -248,7 +249,7 @@ test('web, production and signed-out sessions never mount a BLE owner', async ()
     { android: true, staging: true, uid: null }]) {
     const harness = hooks(); let created = 0;
     const { FemometerProvider } = await loadFrontend('src/contexts/FemometerContext.jsx', {
-      ...harness.bindings, useAuth: () => ({ user: flags.uid ? { uid: flags.uid } : null }),
+      ...harness.bindings, isBleVisualLabEnabled, Capacitor: { isNativePlatform: () => flags.android }, useAuth: () => ({ user: flags.uid ? { uid: flags.uid } : null }),
       isFemometerBleAndroidNative: () => flags.android, isFemometerBlePrototypeEnabled: () => flags.staging,
       createFemometerPanelSession: () => { created++; },
     }, ['FemometerProvider']);
@@ -257,24 +258,24 @@ test('web, production and signed-out sessions never mount a BLE owner', async ()
   }
 });
 
-const treeNodes = node => !node || typeof node !== 'object' ? [] : [node,
+const treeNodes = node => !node || typeof node !== 'object' ? [] : typeof node.type === 'function' ? treeNodes(node.type(node.props)) : [node,
   ...(node.props?.children ?? []).flat(Infinity).flatMap(treeNodes)];
 
-test('mobile Bluetooth popover offers shared search, device navigation and global clock dialog', async () => {
+test('mobile Bluetooth popover offers three independent actions despite pending readings', async () => {
   const harness = hooks();
   let starts = 0; let scans = 0; let clocks = 0; let reviews = 0;
   let ble = { enabled: true, pendingCount: 3, sessionState: { status: 'listening' },
     sessionRef: { current: { start: () => starts++, scan: () => scans++ } }, openClockDialog: () => clocks++, openReadingReview: () => reviews++ };
   const destinations = [];
-  const { DeviceStatusButton } = await loadFrontend('src/components/DeviceStatusButton.jsx', {
+  const { DeviceStatusButtonView } = await loadFrontend('src/components/DeviceStatusButtonView.jsx', {
     ...harness.bindings, useFemometer: () => ble, useNavigate: () => path => destinations.push(path),
     Bluetooth: 'connected', BluetoothOff: 'disconnected', CircleAlert: 'attention', Loader2: 'searching',
     Popover: 'popover', PopoverTrigger: 'trigger', PopoverContent: 'content', Button: 'action', RefreshCw: 'refresh',
 Settings2: 'settings',
 ClipboardList: 'readings',
 Clock3: 'clock',
-  }, ['DeviceStatusButton']);
-  const render = () => harness.render(() => ({ props: { value: DeviceStatusButton() } }));
+  }, ['DeviceStatusButtonView']);
+  const render = () => harness.render(() => ({ props: { value: DeviceStatusButtonView({ ble, navigate: path => destinations.push(path) }) } }));
   for (const [status, icon] of [['listening', 'connected'], ['searching', 'searching'], ['connecting', 'searching'], ['stopped', 'disconnected'], ['error', 'attention']]) {
     ble.sessionState = { status };
     const tree = render();
@@ -288,37 +289,23 @@ Clock3: 'clock',
   }
   assert.ok(destinations.every(path => path === '/settings/devices'));
   ble.sessionState = { status: 'stopped', remembered: true };
-  treeNodes(render()).find(node => node.type === 'action' && node.props['aria-label'] === 'Buscar termómetro').props.onClick();
+  treeNodes(render()).find(node => node.type === 'action' && node.props['aria-label'] === 'Buscar nuevas').props.onClick();
   assert.equal(starts, 1); assert.equal(scans, 0);
   ble.sessionState = { status: 'listening', capabilities: { clockSync: true }, clockResult: { significantDrift: true } };
   let nodes = treeNodes(render());
-  nodes.find(node => node.type === 'action' && node.props['aria-label'] === 'Sincronizar reloj').props.onClick();
-  assert.equal(clocks, 1);
-  nodes.find(node => node.type === 'action' && node.props['aria-label'] === 'Ver lecturas').props.onClick();
+  assert.equal(nodes.filter(node => node.type === 'action').length, 3);
+  assert.equal(nodes.find(node => node.type === 'action' && node.props['aria-label'] === 'Buscar nuevas').props.disabled, true);
+  nodes.find(node => node.type === 'action' && node.props['aria-label'] === 'Incorporar (3)').props.onClick();
   assert.equal(reviews, 1);
   ble.enabled = false;
   assert.equal(render(), null);
-});
-
-test('visual BLE preview requires explicit localhost staging development opt-in and never owns a session', async () => {
-  const { localFemometerPreview } = await loadFrontend('src/contexts/FemometerContext.jsx', hooks().bindings, ['localFemometerPreview']);
-  const location = { hostname: 'localhost', search: '?blePreview=listening' };
-  const env = { DEV: true, MODE: 'staging' };
-  const preview = localFemometerPreview(env, location);
-  assert.equal(preview.preview, true);
-  assert.equal(preview.sessionRef.current, null);
-  assert.equal(localFemometerPreview({ ...env, DEV: false }, location), null);
-  assert.equal(localFemometerPreview({ ...env, MODE: 'production' }, location), null);
-  assert.equal(localFemometerPreview({ ...env, MODE: 'experiment' }, location), null);
-  assert.equal(localFemometerPreview(env, { ...location, hostname: 'fertiliapp-staging.web.app' }), null);
-  assert.equal(localFemometerPreview(env, { ...location, search: '' }), null);
 });
 
 test('global clock prompt appears once per connection and synchronizes only on explicit action', async () => {
   const harness = hooks(); let syncs = 0; const opened = [];
   const navigate = () => {};
   const { FemometerFeedback } = await loadFrontend('src/components/FemometerFeedback.jsx', {
-    ...harness.bindings, useNavigate: () => navigate, toast: () => ({ dismiss() {}, update() {} }), ToastAction: 'action',
+    ...harness.bindings, useNavigate: () => navigate, useLocation: () => ({ key: 'page' }), BleSavedNotice: 'saved-notice', toast: () => ({ dismiss() {}, update() {} }), ToastAction: 'action',
     Thermometer: 'thermometer', Check: 'check', Button: 'button', Dialog: 'dialog', DialogContent: 'content', DialogHeader: 'header', DialogTitle: 'title', DialogDescription: 'description', DialogFooter: 'footer',
   }, ['FemometerFeedback']);
   const props = { readings: [], sessionRef: { current: { syncClock: () => { syncs++; } } }, clockDialogOpen: false,
@@ -342,25 +329,25 @@ test('global clock prompt appears once per connection and synchronizes only on e
   harness.cleanup();
 });
 
-test('receipt notices group readings and never announce incorporation before a confirmed save', async () => {
-  const harness = hooks(); const notices = []; const routes = []; const navigate = (...args) => routes.push(args);
+test('confirmed notices group, remain dismissible and link to the exact day', async () => {
+  const harness = hooks(); const routes = []; let page = 'dashboard';
+  const navigate = (...args) => routes.push(args);
   const { FemometerFeedback } = await loadFrontend('src/components/FemometerFeedback.jsx', {
-    ...harness.bindings, useNavigate: () => navigate,
-    toast: data => { const item = { ...data }; notices.push(item); return { dismiss() {}, update: next => Object.assign(item, next) }; },
-    ToastAction: 'action', Thermometer: 'thermometer', Check: 'check', Button: 'button', Dialog: 'dialog', DialogContent: 'content', DialogHeader: 'header', DialogTitle: 'title', DialogDescription: 'description', DialogFooter: 'footer',
+    ...harness.bindings, useNavigate: () => navigate, useLocation: () => ({ key: page }), BleSavedNotice: 'saved-notice',
+    Button: 'button', Dialog: 'dialog', DialogContent: 'content', DialogHeader: 'header', DialogTitle: 'title', DialogDescription: 'description', DialogFooter: 'footer',
   }, ['FemometerFeedback']);
-  const reviews = [];
-  const props = { sessionState: {}, readings: [], setClockDialogOpen: () => {}, openReadingReview: id => reviews.push(id) };
-  const render = () => harness.render(() => ({ props: { value: FemometerFeedback(props) } }));
-  render();
-  props.readings = [{ uiId: 1, importStatus: 'pending' }]; render();
-  assert.equal(notices.length, 0); // Review lives in the persistent card, never a transient toast.
-  props.readings = [...props.readings, { uiId: 2, importStatus: 'pending' }]; render();
-  assert.equal(notices.length, 0);
-  props.readings = props.readings.map(row => row.uiId === 1 ? { ...row, importStatus: 'incorporated', savedIsoDate: '2026-11-03' } : row); render();
-  assert.equal(notices.at(-1).title, 'Temperatura incorporada');
-  notices.at(-1).action.props.onClick();
-  assert.deepEqual(routes.at(-1), ['/records', { state: { selectedDate: '2026-11-03', scrollToDayDetail: true } }]);
+  const props = { sessionState: {}, readings: [], setClockDialogOpen() {} };
+  const render = () => { harness.render(() => ({ props: { value: FemometerFeedback(props) } }));
+    return treeNodes(harness.render(() => ({ props: { value: FemometerFeedback(props) } }))).find(n => n.type === 'saved-notice').props; };
+  assert.equal(render().notice, null);
+  props.readings = [{ uiId: 1, importStatus: 'saving' }]; assert.equal(render().notice, null);
+  props.readings = [{ uiId: 1, importStatus: 'incorporated', savedIsoDate: '2026-11-03' }];
+  assert.equal(render().notice.count, 1);
+  props.readings = [...props.readings, { uiId: 2, importStatus: 'incorporated', savedIsoDate: '2026-11-04' }];
+  assert.equal(render().notice.count, 2);
+  render().onViewDay(render().notice.isoDate);
+  assert.deepEqual(routes.at(-1), ['/records', { state: { selectedDate: '2026-11-04', scrollToDayDetail: true } }]);
+  page = 'records'; assert.equal(render().notice, null);
   harness.cleanup();
 });
 
@@ -415,8 +402,9 @@ test('quick review preserves the original date, cancels without saving and requi
   const harness = hooks(); let closed = 0; const saves = []; let duplicate = true;
   const session = {}; const cycle = { id: 'cycle' };
   const reading = { uiId: 1, temperatureC: 36.42, deviceTimestamp: '2020-01-02T08:15:00', importStatus: 'pending' };
+  const { BleReadingReviewView } = await loadFrontend('src/components/BleReadingReviewView.jsx', { ...harness.bindings, Button: 'button', Input: 'input' }, ['BleReadingReviewView']);
   const { BleReadingReview } = await loadFrontend('src/components/BleReadingReview.jsx', {
-    ...harness.bindings, useNavigate: () => () => {}, normalizeBleMeasurement, prepareManualBleDraft,
+    ...harness.bindings, BleReadingReviewView, useNavigate: () => () => {}, normalizeBleMeasurement, prepareManualBleDraft,
     useFemometer: () => ({ sessionRef: { current: session }, incorporateReading: async (id, save) => { assert.equal(id, 1); return save(); } }),
     useCycleData: () => ({ currentCycle: cycle, isLoading: false, incorporateBleMeasurement: async (draft, options) => {
       saves.push({ draft, options });
@@ -555,5 +543,145 @@ test('persistent review card selects readings, minimizes explicitly and advances
   props.readings = [rows[1]]; props.selected = rows[1];
   assert.equal(treeNodes(render()).filter(node => node.props['aria-pressed'] === true).length, 1);
   props.expanded = false; assert.equal(treeNodes(render()).some(node => node.props.id === 'ble-pending-review'), false);
+  harness.cleanup();
+});
+
+
+test('three pending readings do not prevent a new bounded listening session or a fourth reading', async () => {
+  const native = bridge(); const owner = await mountedOwner(native);
+  try {
+    for (let i = 0; i < 3; i++) native.emit({ temperatureC: 36.4 + i / 10, deviceTimestamp: '2026-11-04T08:00:00' });
+    const ids = owner.render().readings.map(row => row.localId);
+    native.emit({ status: 'timeout' }); await flush();
+    await Promise.all([owner.render().sessionRef.current.start(), owner.render().sessionRef.current.start()]);
+    native.emit({ temperatureC: 36.7 });
+    assert.equal(owner.render().pendingCount, 4);
+    assert.deepEqual(owner.render().readings.slice(0, 3).map(row => row.localId), ids);
+    assert.equal(native.calls.peakListeners, 1);
+    assert.equal(native.calls.connections, 2);
+  } finally { owner.cleanup(); await flush(); }
+});
+
+test('24-hour candidate window never verifies the clock and resolves DST conservatively', () => {
+  const nowMs = Date.parse('2026-11-04T12:00:00Z');
+  const age = (timestamp, options = {}) => classifyBleMeasurementAge({ device_timestamp: timestamp }, { nowMs, ...options });
+  assert.equal(age('2026-11-03T12:00:00Z').candidate, true);
+  assert.equal(age('2026-11-03T11:59:59Z').reason, 'older-than-24-hours');
+  assert.equal(age('2026-11-04T12:00:01Z').reason, 'future-date');
+  assert.equal(age(null).reason, 'missing-date');
+  assert.equal(age('2026-02-30T12:00:00Z').reason, 'invalid-date');
+  assert.equal(age('2026-11-04T12:00:00').reason, 'unknown-time-zone');
+  assert.equal(age('2026-10-25T02:30:00', { timeZone: 'Europe/Madrid' }).reason, 'ambiguous-local-date');
+  assert.equal(age('2026-03-29T02:30:00', { timeZone: 'Europe/Madrid' }).reason, 'nonexistent-local-date');
+  assert.equal(age('2026-11-04T13:00:00', { timeZone: 'Europe/Madrid' }).ageMs, 0);
+  const measurement = normalizeBleMeasurement({ temperatureC: 36.4, deviceKey: 'device', deviceTimestamp: '2026-11-04T08:00:00Z' });
+  assert.equal(decideVinca2Reading(measurement, { nowMs, deviceKey: 'device' }).reason, 'clock-history-insufficient');
+  const options = { nowMs, deviceKey: 'device', cycleCertain: true, clockHistory: { state: 'read_correct', lastValidCheck: {}, lastVerifiedSync: { checkedAt: nowMs - 3600000 } } };
+  assert.equal(decideVinca2Reading(measurement, options).reason, 'measurement-before-clock-sync');
+  options.clockHistory.lastVerifiedSync.checkedAt = nowMs - 86400000;
+  assert.equal(decideVinca2Reading(measurement, options).reason, 'measurement-clock-epoch-unproven');
+  assert.equal(measurement.device_date_reliability, 'unverified');
+});
+
+test('visual laboratory is explicitly localhost development only; state is fictitious and detached', async () => {
+  const { isBleVisualLabEnabled, createBleLabScenario, bleLabScenarios } = await import('../src/lib/bleVisualLab.js');
+  const env = { DEV: true, MODE: 'staging' }; const location = { hostname: 'localhost', search: '?visualLab=1' };
+  assert.equal(isBleVisualLabEnabled(env, location), true);
+  for (const host of ['fertiliapp-staging.web.app', 'example.com', '192.168.1.5']) assert.equal(isBleVisualLabEnabled(env, { ...location, hostname: host }), false);
+  for (const mode of ['production', 'experiment']) assert.equal(isBleVisualLabEnabled({ ...env, MODE: mode }, location), false);
+  assert.equal(isBleVisualLabEnabled({ ...env, DEV: false }, location), false);
+  assert.equal(isBleVisualLabEnabled(env, location, true), false);
+  assert.equal(isBleVisualLabEnabled(env, { ...location, search: '' }), false);
+  for (const scenario of Object.keys(bleLabScenarios)) {
+    const first = createBleLabScenario(scenario), second = createBleLabScenario(scenario);
+    first.readings.push({ uiId: 'demo' });
+    assert.notDeepEqual(first.readings, second.readings);
+    assert.ok(second.readings.every(row => row.deviceKey === 'fictional-device'));
+  }
+});
+
+test('Bluetooth success presentation has no expiry and supports outside, swipe and explicit dismissal', async () => {
+  const harness = hooks(); const events = new Map(); let dismissed = 0; const days = [];
+  const { BleSavedNotice } = await loadFrontend('src/components/BleSavedNotice.jsx', {
+    ...harness.bindings, Toast: { Provider: 'provider', Root: 'notice', Title: 'title', Description: 'description', Close: 'close', Viewport: 'viewport' },
+    Thermometer: 'thermometer', Check: 'check', X: 'x', Button: 'button',
+    document: { addEventListener: (name, fn) => events.set(name, fn), removeEventListener: name => events.delete(name), documentElement: { style: { setProperty() {}, removeProperty() {} } } },
+  }, ['BleSavedNotice']);
+  const props = { notice: { count: 1, temperature: 36.4, time: '08:00', isoDate: '2026-11-04' }, onDismiss: () => dismissed++, onViewDay: date => days.push(date) };
+  const tree = harness.render(() => ({ props: { value: BleSavedNotice(props) } }));
+  assert.equal(tree.props.duration, Infinity);
+  const nodes = treeNodes(tree), root = nodes.find(node => node.type === 'notice');
+  assert.equal(root.props.duration, Infinity);
+  root.props.ref({ contains: () => false });
+  events.get('click')({ target: {} }); assert.equal(dismissed, 1);
+  root.props.onTouchStart({ touches: [{ clientX: 10, clientY: 100 }] });
+  root.props.onTouchEnd({ changedTouches: [{ clientX: 10, clientY: 10 }] }); assert.equal(dismissed, 2);
+  root.props.onOpenChange(false); assert.equal(dismissed, 3);
+  nodes.find(node => node.type === 'button' && node.props.children.includes('Ver día')).props.onClick();
+  assert.deepEqual(days, ['2026-11-04']); assert.equal(dismissed, 4);
+  harness.cleanup(); assert.equal(events.size, 0);
+});
+
+
+test('integrated lab keeps the real application children and route state; fake BLE never runs a save adapter', async () => {
+  const { createBleLabScenario, bleLabScenarios } = await import('../src/lib/bleVisualLab.js');
+  const harness = hooks(); const routes = []; const timers = new Set();
+  let location = { key: 'dashboard', pathname: '/', search: '?visualLab=1', hash: '' };
+  const children = { type: 'real-application', props: {} };
+  const { BluetoothVisualLab } = await loadFrontend('src/components/dev/BluetoothVisualLab.jsx', {
+    ...harness.bindings, useLocation: () => location, useNavigate: () => (...args) => routes.push(args),
+    createBleLabScenario, bleLabScenarios, Button: 'button', FemometerReviewCard: 'card', BleReadingReviewView: 'editor', BleSavedNotice: 'notice', FemometerFeedback: 'clock',
+    setTimeout: fn => { timers.add(fn); return fn; }, clearTimeout: fn => timers.delete(fn),
+  }, ['BluetoothVisualLab'], source => source.replace('export default function BluetoothVisualLab', 'function BluetoothVisualLab'));
+  const render = () => harness.render(() => ({ props: { value: BluetoothVisualLab({ Provider: 'provider', children }) } }));
+  let tree = render(); assert.equal(tree.props.children[0], children); assert.equal(tree.props.value.enabled, false);
+  treeNodes(tree).find(n => n.type === 'button' && n.props['aria-expanded'] === false).props.onClick();
+  tree = render();
+  const select = (label, value) => treeNodes(render()).find(n => n.type === 'select' && n.props['aria-label'] === label).props.onChange({ target: { value } });
+  select('Modo de previsualización', 'android'); select('Escenario visual', 'multiple');
+  tree = render(); assert.equal(tree.props.value.enabled, true); assert.equal(tree.props.value.pendingCount, 3);
+  assert.equal(tree.props.children[0], children); assert.equal(routes.length, 0);
+  location = { ...location, key: 'records', pathname: '/records', search: '' };
+  tree = render(); assert.equal(tree.props.value.pendingCount, 3); assert.equal(tree.props.value.enabled, true);
+  let writes = 0;
+  await assert.rejects(tree.props.value.incorporateReading(1, () => writes++), /guardados reales/);
+  assert.equal(writes, 0);
+  let editor = treeNodes(tree).find(n => n.type === 'editor');
+  editor.props.onConfirmation(true); tree = render();
+  treeNodes(tree).find(n => n.type === 'editor').props.confirm();
+  tree = render(); assert.equal(tree.props.value.pendingCount, 2); assert.equal(writes, 0);
+  assert.equal(treeNodes(tree).find(n => n.type === 'notice').props.notice.count, 1);
+  treeNodes(tree).find(n => n.type === 'card').props.onMinimize(); tree = render();
+  assert.equal(treeNodes(tree).find(n => n.type === 'card').props.expanded, false);
+  tree.props.value.openReadingReview(); tree = render();
+  assert.equal(treeNodes(tree).find(n => n.type === 'card').props.expanded, true);
+  select('Escenario visual', 'disconnected'); tree = render();
+  tree.props.value.sessionRef.current.start(); render();
+  assert.equal(timers.size, 1);
+  for (const fn of timers) { timers.delete(fn); fn(); }
+  assert.equal(render().props.value.sessionState.status, 'listening');
+  select('Modo de previsualización', 'web'); tree = render();
+  assert.equal(tree.props.value.enabled, false); assert.equal(treeNodes(tree).some(n => n.type === 'card'), false);
+  treeNodes(tree).find(n => n.type === 'button' && n.props.children.includes('Desactivar modo visual')).props.onClick();
+  tree = render(); assert.equal(tree.props.children[0], children); assert.equal(treeNodes(tree).some(n => n.type === 'aside'), false);
+  assert.equal(routes.at(-1)[0].pathname, '/records'); assert.equal(routes.at(-1)[0].search, '');
+  harness.cleanup();
+});
+
+test('lab owner is authenticated and opt-in survives route navigation without mounting native BLE', async () => {
+  const harness = hooks(); let user = { uid: 'a' }; const location = { hostname: 'localhost', search: '?visualLab=1' };
+  const { FemometerProvider } = await loadFrontend('src/contexts/FemometerContext.jsx', {
+    ...harness.bindings, lazy: () => 'visual-lab', Suspense: 'suspense',
+    isBleVisualLabEnabled, Capacitor: { isNativePlatform: () => false }, globalThis: { location },
+    useAuth: () => ({ user }), isFemometerBleAndroidNative: () => false, isFemometerBlePrototypeEnabled: () => true,
+  }, ['FemometerProvider'], source => source.replaceAll('import.meta.env', "({ DEV: true, MODE: 'staging' })"));
+  const render = () => harness.render(() => ({ props: { value: FemometerProvider({ children: 'real-pages' }) } }));
+  let tree = render(); assert.equal(tree.type, 'suspense');
+  assert.equal(tree.props.children[0].type, 'visual-lab');
+  location.search = ''; tree = render(); assert.equal(tree.type, 'suspense');
+  user = null; tree = render(); assert.equal(tree.props.value.enabled, false);
+  user = { uid: 'b' }; tree = render(); assert.equal(tree.props.children[0].props.key, 'b');
+  tree.props.children[0].props.onDisable();
+  user = { uid: 'c' }; tree = render(); assert.equal(tree.props.value.enabled, false);
   harness.cleanup();
 });
