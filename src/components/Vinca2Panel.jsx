@@ -1,371 +1,146 @@
-import React, { useEffect, useState } from 'react';
-import { Bluetooth, Thermometer } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Bluetooth, ChevronRight, Clock3, Info, Thermometer, Unlink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { useFemometer } from '@/contexts/FemometerContext';
-import { cn } from '@/lib/utils';
+import Vinca2Diagnostics from '@/components/Vinca2Diagnostics';
 
-const DEFAULT_TEMPERATURE_LISTEN_SECONDS = 6 * 60;
+export const vinca2StatusText = status => ({
+  checking: 'Consultando vinculación…', idle: 'Desconectado', stopped: 'Desconectado',
+  searching: 'Buscando termómetro…', inspecting: 'Comprobando compatibilidad…',
+  connecting: 'Conectando…', listening: 'Escuchando temperaturas', stopping: 'Deteniendo…',
+  missing: 'Termómetro no encontrado', error: 'No se pudo completar la conexión',
+})[status] || 'Desconectado';
 
 const Vinca2Panel = () => {
-  const { sessionRef, sessionState, readings, listeningStartedAt, temperatureListenerMessage, openReadingReview, openClockDialog, lifecycleStatus, clockHistory } = useFemometer();
-  const [selectedReadingId, setSelectedReadingId] = useState(null);
-  const lastTemperatureReading = readings.find(item => item.uiId === selectedReadingId) ?? readings.at(-1) ?? null;
+  const { sessionRef, sessionState, pendingCount, openReadingReview, openClockDialog, clockHistory } = useFemometer();
+  const { status, remembered, devices = [], selectedDeviceId, inspectionResult, capabilities } = sessionState;
+  const [setupStarted, setSetupStarted] = useState(false);
+  const [selectedByUser, setSelectedByUser] = useState(null);
+  const [justLinked, setJustLinked] = useState(false);
+  const [confirmForget, setConfirmForget] = useState(false);
+  const [working, setWorking] = useState(false);
+  const [actionError, setActionError] = useState(null);
+  const operationLock = useRef(false);
+  const listening = status === 'listening';
+  const busy = working || sessionState.busy || sessionState.clockBusy || sessionState.restarting
+    || ['checking', 'searching', 'connecting', 'inspecting', 'stopping'].includes(status);
+  const selected = selectedByUser === selectedDeviceId && devices.some(device => device.id === selectedByUser);
+  const compatible = selected && inspectionResult?.compatible === true;
   useEffect(() => {
     if (window.location.hash !== '#bluetooth-readings') return undefined;
     const frame = requestAnimationFrame(() => document.getElementById('bluetooth-readings')?.scrollIntoView({ block: 'start' }));
     return () => cancelAnimationFrame(frame);
   }, []);
-  const { status, busy, remembered, devices, selectedDeviceId, inspectionResult } = sessionState;
-  const isScanning = status === 'searching';
-  const isInspecting = status === 'inspecting';
-  const isStartingTemperatureListener = status === 'connecting';
-  const isTemperatureListenerActive = status === 'listening';
-  const isUpdatingRemembered = busy && !isScanning && !isInspecting && !isStartingTemperatureListener;
-  const temperatureConnectionReady = Boolean(sessionState.listenerResult?.connectionReady);
-  const temperatureIndicationsActive = Boolean(sessionState.listenerResult?.indicationsActive);
-  const lastTechnicalError = sessionState.error ? {
-    code: sessionState.error.code || 'UNKNOWN',
-    technicalMessage: String(sessionState.error.technicalMessage || sessionState.error.message || 'Sin detalle técnico').split('\n')[0].slice(0, 500),
-  } : null;
-  const rememberedSearch = status === 'error' ? 'error'
-    : status === 'missing' ? 'missing' : devices.some(device => device.isRemembered) ? 'found' : 'pending';
-  const [temperatureSecondsRemaining, setTemperatureSecondsRemaining] = useState(DEFAULT_TEMPERATURE_LISTEN_SECONDS);
-  useEffect(() => {
-    if (!isTemperatureListenerActive) return undefined;
-    const timeout = Number(sessionState.listenerResult?.timeoutSeconds);
-    const duration = Number.isFinite(timeout) && timeout > 0 ? Math.floor(timeout) : DEFAULT_TEMPERATURE_LISTEN_SECONDS;
-    const startedAt = listeningStartedAt ?? Date.now();
-    setTemperatureSecondsRemaining(Math.max(0, duration - Math.floor((Date.now() - startedAt) / 1000)));
-    const interval = window.setInterval(() => {
-      setTemperatureSecondsRemaining(Math.max(0, duration - Math.floor((Date.now() - startedAt) / 1000)));
-    }, 1000);
-    return () => window.clearInterval(interval);
-  }, [isTemperatureListenerActive, sessionState.listenerResult, listeningStartedAt]);
-
-  const handleScan = () => sessionRef.current?.scan();
-  const handleInspect = () => sessionRef.current?.inspect();
-  const handleRememberedChange = (forget = false) => sessionRef.current?.remember(forget);
-  const handleStartTemperatureListener = () => sessionRef.current?.listen();
-  const handleStopTemperatureListener = () => {
-    return sessionRef.current?.stop();
+  useEffect(() => { if (remembered === false) setJustLinked(false); }, [remembered]);
+  const run = async (operation, argument) => {
+    if (operationLock.current || busy) return;
+    if (listening && !['restart', 'stop', 'readClock', 'syncClock'].includes(operation)) return;
+    if (operation === 'remember' && !argument && !compatible) return;
+    operationLock.current = true;
+    setWorking(true); setActionError(null);
+    try {
+      if (operation === 'scan') { setSetupStarted(true); setSelectedByUser(null); }
+      if (operation === 'remember' && !argument) setJustLinked(true);
+      await sessionRef.current?.[operation](argument);
+      if (operation === 'remember' && argument) { setConfirmForget(false); setSetupStarted(false); setSelectedByUser(null); }
+    } catch (error) {
+      setActionError(error?.message || 'No se pudo completar la operación. Vuelve a intentarlo.');
+    } finally { operationLock.current = false; setWorking(false); }
   };
-  const statusText = {
-    checking: 'Consultando termómetro recordado…', idle: remembered ? 'Desconectado' : 'Sin vincular',
-    searching: 'Buscando termómetro', connecting: 'Conectando', listening: 'Escuchando temperaturas',
-    missing: 'Termómetro no encontrado', error: 'Requiere atención', stopping: 'Deteniendo…', stopped: 'Desconectado', inspecting: 'Comprobando compatibilidad',
-  }[status];
-  const renderStatusLine = (ok, successText, missingText) => (
-    <li className={cn('flex gap-2 text-sm', ok ? 'text-emerald-700' : 'text-amber-700')}>
-      <span className="shrink-0 font-semibold" aria-hidden="true">
-        {ok ? '✓' : '!'}
-      </span>
-      <span>{ok ? successText : missingText}</span>
-    </li>
-  );
-
-  return (
-    <div id="bluetooth-readings" className="bg-white px-4 py-4">
-      <div className="flex items-start gap-3">
-        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-500">
-          <Thermometer className="h-4 w-4" aria-hidden="true" />
-        </span>
-        <div className="min-w-0 flex-1 space-y-3">
-          <div>
-            <p className="text-sm font-semibold text-slate-800">
-              Vinca 2
-            </p>
-            <p className="mt-0.5 text-sm leading-relaxed text-slate-500">
-              Si tienes un termómetro recordado, intentaremos escucharlo al abrir esta pantalla. También puedes buscarlo manualmente.
-            </p>
-            <p className="mt-0.5 text-sm leading-relaxed text-slate-500">
-              Permite probar la recepción de temperaturas. Todavía no las guarda en tus registros.
-            </p>
-            <p className="mt-0.5 text-sm leading-relaxed text-slate-500">
-              Mantén esta pantalla abierta mientras mides. Puedes detener la escucha en cualquier momento.
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <p role="status" className="text-sm font-medium text-slate-700">{statusText}</p>
-            {clockHistory && <div className="text-xs text-slate-600">
-              <p>Último estado horario conservado: {({ synchronized_verified: 'sincronizado y verificado', read_correct: 'leído y aparentemente correcto', misaligned: 'desajustado', unknown: 'desconocido' })[clockHistory.state]}.</p>
-              {clockHistory.lastVerifiedSync && <p>Última sincronización verificada: {new Date(clockHistory.lastVerifiedSync.checkedAt).toLocaleString()}.</p>}
-              <p>Este historial no verifica las fechas de las temperaturas.</p>
-            </div>}
-            <div className="text-xs text-slate-500" role="status">
-              <p>Ciclo de vida Android: {lifecycleStatus === 'registered' ? 'listener registrado (pendiente de comprobar eventos reales)' : lifecycleStatus === 'unavailable' ? 'no disponible; utiliza la búsqueda manual' : 'registrando listener'}.</p>
-              <p>{sessionState.foreground ? `Regreso detectado a las ${new Date(sessionState.foreground.detectedAt).toLocaleTimeString()}: ${({
-                reconnecting: 'iniciando reconexión', listening_active: 'escucha vigente; no se reconecta',
-                operation_in_progress: 'ya hay una operación en curso', no_remembered_device: 'sin termómetro recordado',
-                brief_cooldown: 'espera breve de 5 segundos entre intentos de regreso',
-              })[sessionState.foreground.reason]}.` : 'Todavía no se ha detectado ningún regreso a primer plano.'}</p>
-            </div>
-            {sessionState.error?.message ? <p className="text-sm text-amber-700">{sessionState.error.message}</p> : null}
-            {remembered && !busy && !isTemperatureListenerActive ? (
-              <Button type="button" variant="outline" onClick={() => sessionRef.current?.start()}>Reintentar</Button>
-            ) : null}
-            {(busy || isTemperatureListenerActive) && status !== 'stopping' ? (
-              <Button type="button" variant="outline" onClick={handleStopTemperatureListener}>Detener</Button>
-            ) : null}
-          </div>
-
-          <Button
-            type="button"
-            onClick={handleScan}
-            disabled={busy || isScanning || isInspecting || isUpdatingRemembered || isStartingTemperatureListener || isTemperatureListenerActive}
-            className="min-h-11 w-full bg-fertiliapp-fuerte text-white hover:brightness-95"
-          >
-            <Bluetooth className="mr-2 h-4 w-4" aria-hidden="true" />
-            {isScanning ? 'Buscando…' : 'Buscar termómetro'}
-          </Button>
-
-          <p role="status" className="text-sm text-slate-600">
-            {remembered === null
-              ? (rememberedSearch === 'error' ? 'No se pudo consultar el termómetro recordado. Vuelve a buscar.' : 'Consultando termómetro recordado…')
-              : !remembered ? 'No hay termómetro recordado para esta cuenta en este móvil.'
-                : rememberedSearch === 'found' ? 'Termómetro recordado encontrado en la última búsqueda.'
-                  : rememberedSearch === 'missing' ? 'Termómetro recordado no encontrado. Enciéndelo y vuelve a buscar, o selecciona otro manualmente.'
-                    : rememberedSearch === 'error' ? 'No se pudo comprobar si está presente. La asociación se conserva.'
-                      : 'Tienes un termómetro recordado. Busca para comprobar si está presente.'}
-          </p>
-          {isTemperatureListenerActive ? (
-            <div className="space-y-2 rounded-xl border border-slate-100 px-3 py-3">
-              <p className="text-sm font-semibold text-slate-800">Reloj del termómetro</p>
-              <p className="text-sm text-slate-500">
-                El ajuste utiliza la hora local del móvil. No corrige las fechas de lecturas anteriores.
-              </p>
-              {!sessionState.capabilities?.clockSync ? <p className="text-sm text-slate-500">Sin soporte de ajuste de reloj anunciado.</p> : null}
-              <Button type="button" variant="outline"
-                disabled={busy || sessionState.clockBusy || !sessionState.capabilities?.clockRead}
-                onClick={() => sessionRef.current?.readClock()}>Leer reloj</Button>
-              <Button type="button" variant="outline"
-                disabled={busy || sessionState.clockBusy || !sessionState.capabilities?.clockSync}
-                onClick={() => sessionRef.current?.syncClock()}>Sincronizar fecha y hora</Button>
-              {sessionState.clockBusy ? <p role="status" className="text-sm">Consultando/ajustando reloj…</p> : null}
-              {sessionState.clockError ? <p role="status" className="text-sm text-amber-700">{sessionState.clockError.message}</p> : null}
-              {sessionState.clockResult?.significantDrift ? <p role="status" className="text-sm text-amber-700">
-                El reloj difiere más de 2 minutos de la hora local del móvil. Puedes usar «Sincronizar fecha y hora».
-                Esto no verifica las fechas de lecturas históricas.
-              </p> : null}
-              {sessionState.capabilities?.clockSync && <Button type="button" variant="outline" onClick={openClockDialog}>Revisar reloj</Button>}
-              {sessionState.clockResult ? (
-                <div role="status" className="text-sm text-slate-600">
-                  <p>{sessionState.clockResult.operation === 'read' ? 'Lectura del reloj'
-                    : sessionState.clockResult.verified ? 'Ajuste verificado mediante lectura (tolerancia de 5 segundos).'
-                      : 'Escritura aceptada, pero el ajuste no ha podido verificarse. Comprueba el reloj.'}</p>
-                  <p>Hora del dispositivo: {sessionState.clockResult.deviceLocalTime || 'no disponible'} (zona desconocida)</p>
-                  {sessionState.clockResult.requestedLocalTime ? <p>Hora enviada: {sessionState.clockResult.requestedLocalTime} · {sessionState.clockResult.phoneTimeZone}</p> : null}
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-          {remembered ? (
-            <Button type="button" variant="outline" onClick={() => handleRememberedChange(true)}
-              disabled={busy || isUpdatingRemembered || isScanning || isInspecting || isTemperatureListenerActive}>
-              Olvidar termómetro
-            </Button>
-          ) : null}
-
-          {devices.length > 0 ? (
-            <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
-                Dispositivo disponible
-              </p>
-              {devices.map((device) => {
-                const selected = selectedDeviceId === device.id;
-                return (
-                  <button
-                    key={device.id}
-                    type="button"
-                    disabled={busy || isScanning || isInspecting || isUpdatingRemembered || isStartingTemperatureListener || isTemperatureListenerActive}
-                    onClick={() => sessionRef.current?.select(device.id)}
-                    className={cn(
-                      'flex min-h-12 w-full items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left transition',
-                      selected
-                        ? 'border-rose-200 bg-rose-50 text-slate-800'
-                        : 'border-slate-100 bg-white text-slate-700 hover:bg-slate-50'
-                    )}
-                  >
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm font-semibold">{device.name}</span>
-                      <span className="block text-xs text-slate-500">Señal {device.rssi} dBm</span>
-                      {device.isRemembered ? <span className="block text-xs text-emerald-700">Termómetro recordado</span> : null}
-                    </span>
-                    {selected ? (
-                      <span className="shrink-0 text-sm font-semibold text-rose-600">
-                        Seleccionado
-                      </span>
-                    ) : null}
-                  </button>
-                );
-              })}
-              <Button
-                type="button"
-                onClick={handleInspect}
-                disabled={busy || !selectedDeviceId || isScanning || isInspecting || isTemperatureListenerActive}
-                variant="outline"
-                className="min-h-11 w-full border-rose-200 bg-white text-fertiliapp-fuerte hover:bg-rose-50"
-              >
-                {isInspecting ? 'Comprobando conexión…' : 'Comprobar compatibilidad'}
-              </Button>
-
-              <Button type="button" variant="outline" onClick={() => handleRememberedChange()}
-                disabled={busy || !inspectionResult?.compatible || !selectedDeviceId || isScanning || isInspecting || isUpdatingRemembered || isStartingTemperatureListener || isTemperatureListenerActive}>
-                {isUpdatingRemembered ? 'Actualizando…' : 'Recordar termómetro seleccionado'}
-              </Button>
-
-              {!isTemperatureListenerActive ? (
-                <Button
-                  type="button"
-                  onClick={handleStartTemperatureListener}
-                  disabled={busy || !selectedDeviceId || isScanning || isInspecting || isStartingTemperatureListener}
-                  className="min-h-11 w-full bg-fertiliapp-fuerte text-white hover:brightness-95"
-                >
-                  {isStartingTemperatureListener ? 'Preparando escucha…' : 'Escuchar temperatura'}
-                </Button>
-              ) : (
-                <Button
-                  type="button"
-                  onClick={handleStopTemperatureListener}
-                  variant="outline"
-                  className="min-h-11 w-full border-amber-200 bg-white text-amber-700 hover:bg-amber-50"
-                >
-                  Detener escucha
-                </Button>
-              )}
-            </div>
-          ) : null}
-
-          {(isStartingTemperatureListener ||
-            isTemperatureListenerActive ||
-            temperatureListenerMessage ||
-            lastTemperatureReading) ? (
-            <div className="space-y-3 rounded-xl border border-rose-100 bg-rose-50/50 px-3 py-3">
-              <div className="space-y-1.5">
-                {renderStatusLine(
-                  temperatureConnectionReady,
-                  'Conexión lista',
-                  isStartingTemperatureListener ? 'Preparando conexión BLE' : 'Conexión no activa'
-                )}
-                {renderStatusLine(
-                  temperatureIndicationsActive,
-                  'Indicaciones activas',
-                  isStartingTemperatureListener ? 'Activando indicaciones' : 'Indicaciones no activas'
-                )}
-                {isTemperatureListenerActive ? (
-                  <p className="text-sm font-medium text-slate-700">
-                    Escuchando el termómetro… {Math.floor(temperatureSecondsRemaining / 60)}:
-                    {String(temperatureSecondsRemaining % 60).padStart(2, '0')} restantes
-                  </p>
-                ) : null}
-                {temperatureListenerMessage ? (
-                  <p className="text-sm leading-relaxed text-slate-600">
-                    {temperatureListenerMessage}
-                  </p>
-                ) : null}
-              </div>
-
-              {readings.length ? <ul aria-label="Lecturas Bluetooth de esta sesión" className="max-h-64 space-y-2 overflow-y-auto">
-                {readings.map(reading => <li key={reading.uiId}>
-                  <button type="button" disabled={reading.importStatus === 'saving'} aria-pressed={lastTemperatureReading?.uiId === reading.uiId}
-                    className="w-full rounded-lg border border-rose-100 bg-white px-3 py-2 text-left text-sm"
-                    onClick={() => setSelectedReadingId(reading.uiId)}>
-                    {Number(reading.temperatureC).toFixed(2)} °C · {reading.deviceTimestamp || 'Sin fecha del termómetro'}
-                    <span className="block text-xs text-slate-500">{reading.importStatus === 'incorporated' ? 'Incorporada' : reading.importStatus === 'saving' ? 'Guardando…' : 'Pendiente de revisión'}</span>
-                  </button>
-                </li>)}
-              </ul> : null}
-              {lastTemperatureReading ? (
-                <div className="rounded-lg border border-white bg-white px-3 py-2">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
-                    Lectura seleccionada
-                  </p>
-                  <p className="mt-1 text-lg font-semibold text-slate-800">
-                    {Number(lastTemperatureReading.temperatureC).toFixed(2)} °C
-                  </p>
-                  <div className="mt-1 space-y-0.5 text-sm text-slate-600">
-                    <p>Recibida: {lastTemperatureReading.receivedAt || 'sin hora'}</p>
-                    <p>
-                      Hora del termómetro:{' '}
-                      {lastTemperatureReading.deviceTimestamp || 'no incluida'}
-                    </p>
-                    <p>Fiabilidad de la fecha: {lastTemperatureReading.normalized?.device_date_reliability === 'invalid'
-                      ? 'inválida' : lastTemperatureReading.normalized?.device_date_reliability === 'missing'
-                        ? 'no incluida' : 'sin verificar; zona horaria desconocida'}</p>
-                    <p>Tipo: {lastTemperatureReading.measurementType || 'no incluido'}</p>
-                  </div>
-                  <Button type="button" variant="outline" disabled={!['pending', 'uncertain'].includes(lastTemperatureReading.importStatus)}
-                    onClick={() => openReadingReview(lastTemperatureReading.uiId)}>Incorporar al registro</Button>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-
-          {lastTechnicalError ? (
-            <details className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
-              <summary className="cursor-pointer text-sm font-semibold text-amber-800">
-                Detalles del error
-              </summary>
-              <div className="mt-2 space-y-1 text-sm text-amber-900">
-                <p>
-                  <span className="font-semibold">Código:</span> {lastTechnicalError.code}
-                </p>
-                <p className="break-words">
-                  <span className="font-semibold">Mensaje técnico:</span>{' '}
-                  {lastTechnicalError.technicalMessage}
-                </p>
-              </div>
-            </details>
-          ) : null}
-
-          {inspectionResult ? (
-            <div className="space-y-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-3">
-              <ul className="space-y-1.5">
-                {renderStatusLine(
-                  true,
-                  'Termómetro BLE detectado',
-                  'No se detectó el termómetro BLE'
-                )}
-                {renderStatusLine(
-                  inspectionResult.healthThermometerFound,
-                  'Servicio de termómetro encontrado',
-                  'No se encontró el servicio Health Thermometer 0x1809'
-                )}
-                {renderStatusLine(
-                  inspectionResult.temperatureMeasurementFound,
-                  'Característica de temperatura encontrada',
-                  'No se encontró la característica Temperature Measurement 0x2A1C'
-                )}
-              </ul>
-
-              <details className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-                <summary className="cursor-pointer text-sm font-semibold text-slate-700">
-                  Detalles técnicos
-                </summary>
-                <div className="mt-3 space-y-3">
-                  {(inspectionResult.services || []).map((service) => (
-                    <div key={service.uuid} className="space-y-1">
-                      <code className="block break-all text-xs text-slate-700">{service.uuid}</code>
-                      <ul className="space-y-1 pl-3">
-                        {(service.characteristics || []).map((characteristic) => (
-                          <li key={characteristic.uuid} className="text-xs text-slate-500">
-                            <code className="break-all text-slate-700">{characteristic.uuid}</code>
-                            <span className="block">
-                              {(characteristic.properties || []).join(', ') || 'sin propiedades'}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ))}
-                </div>
-              </details>
-            </div>
-          ) : null}
-        </div>
+  const retry = ['error', 'missing'].includes(status);
+  const stepTwo = remembered === false && (setupStarted || devices.length > 0 || ['searching', 'inspecting'].includes(status));
+  const operation = remembered === null ? 'start' : remembered ? (listening ? 'restart' : 'start')
+    : retry || !stepTwo || !devices.length ? 'scan' : compatible ? 'remember' : 'inspect';
+  const primaryLabel = busy ? (['checking', 'searching', 'connecting', 'inspecting', 'stopping'].includes(status) ? vinca2StatusText(status) : 'Preparando…')
+    : remembered === null ? 'Reintentar' : remembered ? (listening ? 'Reiniciar escucha' : retry ? 'Reintentar' : 'Conectar')
+      : retry ? 'Reintentar' : operation === 'scan' ? 'Buscar termómetro' : compatible ? 'Vincular termómetro' : 'Comprobar compatibilidad';
+  const clockLabel = ({ synchronized_verified: 'Verificado', read_correct: 'Hora leída y aparentemente correcta', misaligned: 'Desajustado' })[clockHistory?.state] || 'Sin verificar';
+  const rowClass = 'flex min-h-14 w-full items-center gap-3 py-4 text-left text-sm disabled:opacity-50';
+  return <div id="bluetooth-readings" className="min-w-0 bg-white text-slate-700">
+    <div className="flex items-start gap-3 py-5">
+      <Thermometer className="mt-1 h-6 w-6 shrink-0 text-fertiliapp-fuerte" aria-hidden="true" />
+      <div className="min-w-0">
+        <h2 className="text-xl font-semibold text-titulo">Femometer Vinca 2</h2>
+        <p className="text-sm text-slate-500">BM-Vinca2</p>
+        <p className="mt-2 text-sm font-medium">{remembered === null ? 'Consultando vinculación…' : remembered ? 'Vinculado' : 'Sin configurar'}</p>
+        <p role="status" className="text-sm text-slate-500">{vinca2StatusText(status)}</p>
       </div>
     </div>
-  );
+    {remembered === false && <section className="space-y-3 pb-4" aria-label="Primera configuración">
+      <p className="text-xs font-semibold text-fertiliapp-fuerte">Paso {stepTwo ? '2' : '1'} de 3</p>
+      <h3 className="font-semibold text-titulo">{stepTwo ? 'Seleccionar y vincular' : 'Preparar termómetro'}</h3>
+      {!stepTwo ? <ol className="list-decimal space-y-2 pl-5 text-sm leading-relaxed">
+        <li><strong>Cierra completamente Femometer Connect si está abierta.</strong></li>
+        <li>Activa Bluetooth en el móvil.</li>
+        <li>Acerca el Vinca 2 y prepáralo para la conexión.</li>
+      </ol> : <>
+        <p className="text-sm">Selecciona tu termómetro. Comprobaremos su compatibilidad antes de vincularlo.</p>
+        <div className="divide-y divide-slate-100">
+          {devices.map(device => <button key={device.id} type="button" disabled={busy || listening}
+            aria-pressed={selected && selectedDeviceId === device.id}
+            className={`${rowClass} ${selected && selectedDeviceId === device.id ? 'text-fertiliapp-fuerte' : ''}`}
+            onClick={() => { if (busy || operationLock.current || listening) return; sessionRef.current?.select(device.id); setSelectedByUser(device.id); }}>
+            <Bluetooth className="h-4 w-4 shrink-0" aria-hidden="true" /><span className="min-w-0 flex-1 break-words">{device.name || 'Termómetro detectado'}</span>
+            {selected && selectedDeviceId === device.id && <span className="text-xs">Seleccionado</span>}
+          </button>)}
+        </div>
+        {selected && inspectionResult && <p role="status" className="text-sm">{compatible ? 'Compatible con FertiliApp. Ya puedes vincularlo.' : 'Este dispositivo no ha superado la comprobación de compatibilidad. Selecciona otro o vuelve a buscar.'}</p>}
+        {!busy && !devices.length && <p className="text-sm">No se ha encontrado el termómetro. Acércalo, comprueba que Bluetooth esté activo y vuelve a buscar.</p>}
+      </>}
+    </section>}
+    {remembered && justLinked && <section className="space-y-2 pb-4" aria-label="Configuración completada">
+      <p className="text-xs font-semibold text-fertiliapp-fuerte">Paso 3 de 3</p>
+      <h3 className="font-semibold text-titulo">Preparado para recibir temperaturas</h3>
+      {!listening && <p className="text-sm">Termómetro vinculado. Pulsa Conectar para preparar la escucha.</p>}
+    </section>}
+    {(actionError || sessionState.error) && <div role="alert" className="mb-4 text-sm text-amber-800">
+      <p>{actionError || sessionState.error?.message || 'No se pudo conectar. Vuelve a intentarlo.'}</p>
+      {sessionState.error?.code === 'PERMISSION_NOT_GRANTED' && <p>Permite el acceso a Bluetooth al reintentar. Si el móvil ya no lo solicita, revisa los permisos de FertiliApp en los ajustes del teléfono.</p>}
+      {sessionState.error?.code === 'BLUETOOTH_DISABLED' && <p>Activa Bluetooth en los ajustes del móvil y vuelve a intentarlo.</p>}
+    </div>}
+    {(remembered !== null || retry) && <Button type="button" className="min-h-11 w-full whitespace-normal bg-fertiliapp-fuerte text-white hover:brightness-95"
+      disabled={busy || (operation === 'inspect' && !selected)} onClick={() => run(operation)}>{primaryLabel}</Button>}
+    {listening && <Button type="button" variant="ghost" className="mt-2 min-h-11 w-full" disabled={busy} onClick={() => run('stop')}>Detener escucha</Button>}
+    {remembered === false && stepTwo && devices.length > 0 && <Button type="button" variant="ghost" className="mt-2 min-h-11 w-full" disabled={busy || listening} onClick={() => run('scan')}>Volver a buscar</Button>}
+    <button type="button" className={`${rowClass} border-b border-slate-100`} onClick={() => openReadingReview()}>
+      <Thermometer className="h-4 w-4 shrink-0" aria-hidden="true" /><span className="flex-1">Temperaturas pendientes</span><span>{pendingCount}</span><ChevronRight className="h-4 w-4" aria-hidden="true" />
+    </button>
+    <section aria-labelledby="vinca-configuration" className="pt-6">
+      <h3 id="vinca-configuration" className="text-base font-semibold text-titulo">Configuración</h3>
+      <div className="divide-y divide-slate-100">
+        <div>
+          <button type="button" className={rowClass} onClick={openClockDialog}><Clock3 className="h-4 w-4 shrink-0" aria-hidden="true" /><span className="flex-1">Reloj del termómetro<span className="mt-1 block text-xs text-slate-500">{clockLabel}</span></span><ChevronRight className="h-4 w-4" aria-hidden="true" /></button>
+          {listening && <div className="space-y-2 pb-4 text-sm">
+            <p className="text-xs text-slate-500">El ajuste utiliza la hora local del móvil. No corrige las fechas de lecturas anteriores.</p>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" className="min-h-11" disabled={busy || !capabilities?.clockRead} onClick={() => run('readClock')}>Leer reloj</Button>
+              <Button variant="outline" className="min-h-11 whitespace-normal" disabled={busy || !capabilities?.clockSync} onClick={() => run('syncClock')}>Sincronizar fecha y hora</Button>
+            </div>
+            {sessionState.clockBusy && <p role="status">Consultando/ajustando reloj…</p>}
+            {sessionState.clockError && <p role="alert">{sessionState.clockError.message}</p>}
+          </div>}
+        </div>
+        <details>
+          <summary className={`${rowClass} cursor-pointer`}><Info className="h-4 w-4 shrink-0" aria-hidden="true" /><span className="flex-1">Modelo y compatibilidad</span><ChevronRight className="h-4 w-4" aria-hidden="true" /></summary>
+          <div className="space-y-2 pb-4 text-sm text-slate-500">
+            <p>Femometer Vinca 2 / BM-Vinca2. Modelo compatible con FertiliApp.</p>
+            {inspectionResult && <p>{inspectionResult.compatible ? 'Compatibilidad del dispositivo comprobada.' : 'El dispositivo inspeccionado no ha superado la comprobación.'}</p>}
+            {capabilities?.clockRead && <p>Lectura del reloj anunciada.</p>}{capabilities?.clockSync && <p>Ajuste del reloj anunciado.</p>}
+            {capabilities?.historyReceive && <p>Recepción de temperaturas históricas anunciada.</p>}{capabilities?.historyRequest && <p>Solicitud de historial anunciada.</p>}
+            {capabilities?.modeConfiguration && <p>Configuración de modo anunciada; control todavía no disponible.</p>}
+          </div>
+        </details>
+        {remembered && <button type="button" className={rowClass} disabled={busy} onClick={() => setConfirmForget(true)}><Unlink className="h-4 w-4 shrink-0" aria-hidden="true" /><span className="flex-1">Desvincular termómetro</span><ChevronRight className="h-4 w-4" aria-hidden="true" /></button>}
+      </div>
+    </section>
+    <Dialog open={confirmForget} onOpenChange={setConfirmForget}><DialogContent className="top-[calc(env(safe-area-inset-top,0px)+16px)] max-h-[85dvh] w-[calc(100%-32px)] max-w-md translate-y-0 overflow-y-auto rounded-2xl">
+      <DialogHeader><DialogTitle>Desvincular termómetro</DialogTitle><DialogDescription>Se quitará la vinculación de esta cuenta en este móvil. No se borrarán temperaturas pendientes ni registros guardados.</DialogDescription></DialogHeader>
+      {listening && <p className="text-sm">Debes detener la escucha antes de desvincular el termómetro.</p>}
+      {pendingCount > 0 && <p className="text-sm">Tienes {pendingCount} temperaturas pendientes conservadas localmente. Podrás seguir revisándolas.</p>}
+      <DialogFooter><Button variant="outline" onClick={() => setConfirmForget(false)}>Cancelar</Button><Button disabled={busy || listening || !remembered} onClick={() => run('remember', true)}>Confirmar desvinculación</Button></DialogFooter>
+    </DialogContent></Dialog>
+    <Vinca2Diagnostics />
+  </div>;
 };
-
 export default Vinca2Panel;

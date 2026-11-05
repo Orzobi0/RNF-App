@@ -62,10 +62,15 @@ export default function BluetoothVisualLab({ Provider, children }) {
   const draft = selected?.draft;
   const error = selected?.reviewError ?? null;
   const restartLock = useRef(false);
+  const operationBlocked = () => restartLock.current || sessionState.busy || sessionState.clockBusy || ['checking', 'searching', 'connecting', 'inspecting', 'stopping', 'listening'].includes(sessionState.status);
   const search = () => {
     if (restartLock.current || ['checking', 'searching', 'connecting', 'inspecting', 'stopping', 'listening'].includes(sessionState.status)) return;
-    setSessionState(previous => ({ ...previous, status: 'searching', error: null }));
-    timer.current = setTimeout(() => setSessionState(previous => ({ ...previous, status: 'listening' })), 900);
+    if (!sessionState.remembered) return;
+    setSessionState(previous => ({ ...previous, status: 'searching', busy: true, error: null }));
+    timer.current = setTimeout(() => {
+      setSessionState(previous => ({ ...previous, status: 'connecting' }));
+      timer.current = setTimeout(() => setSessionState(previous => ({ ...previous, status: 'listening', busy: false, listenerResult: { connectionReady: true, indicationsActive: true, timeoutSeconds: 360 } })), 500);
+    }, 900);
   };
   const updateDraft = patch => setReadings(rows => rows.map(row => row.uiId === selected.uiId ? { ...row, reviewError: row.reviewError?.code === 'ble-possible-duplicate' ? null : row.reviewError, draft: { ...row.draft, ...patch } } : row));
   const receiveReading = () => {
@@ -117,7 +122,13 @@ export default function BluetoothVisualLab({ Provider, children }) {
   // This object contains no transport or persistence adapter. Even an accidental
   // invocation from a real consumer cannot call native plugins or a save callback.
   sessionRef.current = {
-    start: search, scan: search, listen: search,
+    start: search, listen: search,
+    scan: () => {
+      if (operationBlocked()) return;
+      setSessionState(previous => ({ ...previous, status: 'searching', busy: true, error: null, devices: [], selectedDeviceId: '', inspectionResult: null }));
+      timer.current = setTimeout(() => setSessionState(previous => ({ ...previous, status: 'idle', busy: false,
+        devices: [{ id: 'lab-vinca', name: 'BM-Vinca2 (simulado)', rssi: -48 }, { id: 'lab-other', name: 'Dispositivo incompatible (simulado)', rssi: -72 }] })), 900);
+    },
     restart: () => {
       if (restartLock.current || sessionState.busy || sessionState.clockBusy) return;
       restartLock.current = true;
@@ -132,10 +143,28 @@ export default function BluetoothVisualLab({ Provider, children }) {
       }, 400);
     },
     stop: async () => { clearTimeout(timer.current); restartLock.current = false; setSessionState(previous => ({ ...previous, status: 'stopped', restarting: false, busy: false })); },
-    select: id => setSessionState(previous => ({ ...previous, selectedDeviceId: id })),
-    inspect: async () => setSessionState(previous => ({ ...previous, inspectionResult: { compatible: true } })),
-    remember: async forget => setSessionState(previous => ({ ...previous, remembered: !forget })),
-    readClock: async () => setClockDialogOpen(true),
+    select: id => {
+      if (operationBlocked() || !sessionState.devices.some(device => device.id === id)) return;
+      setSessionState(previous => ({ ...previous, selectedDeviceId: id, inspectionResult: null }));
+    },
+    inspect: () => {
+      if (operationBlocked() || !sessionState.selectedDeviceId) return;
+      setSessionState(previous => ({ ...previous, status: 'inspecting', busy: true, inspectionResult: null }));
+      timer.current = setTimeout(() => setSessionState(previous => ({ ...previous, status: 'idle', busy: false,
+        inspectionResult: { compatible: previous.selectedDeviceId === 'lab-vinca', healthThermometerFound: previous.selectedDeviceId === 'lab-vinca',
+          temperatureMeasurementFound: previous.selectedDeviceId === 'lab-vinca', services: [{ uuid: '00001809-0000-1000-8000-00805f9b34fb', characteristics: [{ uuid: '00002a1c-0000-1000-8000-00805f9b34fb', properties: ['indicate'] }] }] } })), 600);
+    },
+    remember: async forget => {
+      if (operationBlocked() || (!forget && !sessionState.inspectionResult?.compatible)) return;
+      setSessionState(previous => ({ ...previous, remembered: !forget, status: 'idle', clockResult: null, clockError: null,
+        devices: previous.devices.map(device => ({ ...device, isRemembered: !forget && device.id === previous.selectedDeviceId })) }));
+      if (forget) setClockHistory(null);
+    },
+    readClock: async () => {
+      if (sessionState.status !== 'listening' || sessionState.clockBusy || !sessionState.capabilities.clockRead) return;
+      setSessionState(previous => ({ ...previous, clockResult: { operation: 'read', significantDrift: false, driftSeconds: 0 }, clockError: null }));
+      setClockHistory({ state: 'read_correct' });
+    },
     syncClock: async () => {
       if (sessionState.status !== 'listening' || sessionState.clockBusy || !sessionState.capabilities.clockSync) return;
       setSessionState(previous => ({ ...previous, clockBusy: true, clockError: null, clockResult: null }));

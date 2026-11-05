@@ -378,13 +378,22 @@ test('a voluntary failed clock synchronization preserves listening and pending r
 
 test('device routes use the shared state and are unavailable outside the enabled prototype', async () => {
   const harness = hooks(); let enabled = true;
+  let deviceState = { remembered: true, status: 'listening' };
   const { DevicesPage, Vinca2DevicePage } = await loadFrontend('src/pages/DevicesPage.jsx', {
     ...harness.bindings, useAuth: () => ({ user: { uid: 'a' } }),
-    useFemometer: () => ({ enabled, pendingCount: 2, sessionState: { remembered: true, status: 'listening' } }),
-    Link: 'link', Navigate: 'redirect', Vinca2Panel: 'panel', Button: 'button', ChevronLeft: 'back', ChevronRight: 'next', Thermometer: 'thermometer', 
+    useFemometer: () => ({ enabled, pendingCount: 2, sessionState: deviceState }),
+    Link: 'link', Navigate: 'redirect', Vinca2Panel: 'panel', vinca2StatusText: status => status === 'listening' ? 'Escuchando temperaturas' : 'Desconectado', Button: 'button', ChevronLeft: 'back', ChevronRight: 'next', Thermometer: 'thermometer', 
   }, ['DevicesPage', 'Vinca2DevicePage']);
   assert.ok(treeNodes(DevicesPage()).some(node => node.type === 'link' && node.props.to === '/settings/devices/vinca2'));
-  assert.ok(treeNodes(Vinca2DevicePage()).some(node => node.type === 'panel' && node.props.userId === 'a'));
+  assert.ok(treeNodes(Vinca2DevicePage()).some(node => node.type === 'panel'));
+  assert.match(JSON.stringify(DevicesPage()), /Vinculado/);
+  deviceState = { remembered: true, status: 'stopped' };
+  assert.match(JSON.stringify(DevicesPage()), /Desconectado/);
+  deviceState = { remembered: false, status: 'idle' };
+  assert.match(JSON.stringify(DevicesPage()), /Sin configurar/);
+  deviceState = { remembered: null, status: 'checking' };
+  assert.match(JSON.stringify(DevicesPage()), /Consultando vinculación/);
+  assert.doesNotMatch(JSON.stringify(DevicesPage()), /Sin configurar/);
   enabled = false;
   assert.equal(DevicesPage().type, 'redirect');
   assert.equal(Vinca2DevicePage().props.to, '/settings');
@@ -735,6 +744,23 @@ test('integrated lab keeps the real application children and route state; fake B
   assert.equal(timers.size, 1);
   for (const fn of timers) { timers.delete(fn); fn(); }
   assert.equal(render().props.value.sessionState.status, 'listening');
+  select('Escenario visual', 'unlinked');
+  const lab = () => render().props.value;
+  const finish = () => { for (const fn of timers) { timers.delete(fn); fn(); } };
+  assert.equal(lab().sessionState.remembered, false);
+  lab().sessionRef.current.scan();
+  assert.equal(lab().sessionState.status, 'searching'); finish();
+  assert.equal(lab().sessionState.devices.length, 2);
+  lab().sessionRef.current.select('lab-other'); lab().sessionRef.current.inspect(); finish();
+  await lab().sessionRef.current.remember(); assert.equal(lab().sessionState.remembered, false);
+  lab().sessionRef.current.select('lab-vinca'); lab().sessionRef.current.inspect();
+  assert.equal(lab().sessionState.status, 'inspecting'); finish();
+  await lab().sessionRef.current.remember(); assert.equal(lab().sessionState.remembered, true);
+  lab().sessionRef.current.start(); finish(); assert.equal(lab().sessionState.status, 'listening');
+  await lab().sessionRef.current.remember(true); assert.equal(lab().sessionState.remembered, true);
+  await lab().sessionRef.current.stop();
+  await lab().sessionRef.current.remember(true); assert.equal(lab().sessionState.remembered, false);
+  assert.equal(writes, 0);
   select('Modo de previsualización', 'web'); tree = render();
   assert.equal(tree.props.value.enabled, false); assert.equal(treeNodes(tree).some(n => n.type === 'card'), false);
   for (let i = 0; i < 3; i++) {
@@ -1062,4 +1088,121 @@ test('special review sections replace decisions and hide unsafe or redundant inc
   assert.equal(nodes().filter(node => node.type === 'input').length, 2);
   assert.equal(hasButton('Confirmar e incorporar'), true);
   assert.equal(hasButton('Cancelar'), false);
+});
+
+async function vincaPanelFixture(initial = {}) {
+  const harness = hooks();
+  const calls = [];
+  let ble = { pendingCount: 2, clockHistory: null, sessionState: { remembered: false, status: 'idle', devices: [], ...initial },
+    sessionRef: { current: {} }, openReadingReview: () => calls.push('review'), openClockDialog: () => calls.push('clock') };
+  const { Vinca2Panel } = await loadFrontend('src/components/Vinca2Panel.jsx', {
+    ...harness.bindings, useFemometer: () => ble, window: { location: { hash: '' } },
+    Button: 'button', Bluetooth: 'icon', ChevronRight: 'icon', Clock3: 'icon', Info: 'icon', Thermometer: 'icon', Unlink: 'icon',
+    Dialog: 'dialog', DialogContent: 'dialog-content', DialogHeader: 'header', DialogTitle: 'title', DialogDescription: 'description', DialogFooter: 'footer', Vinca2Diagnostics: 'diagnostics',
+  }, ['Vinca2Panel']);
+  const render = () => harness.render(() => ({ props: { value: Vinca2Panel() } }));
+  const button = label => treeNodes(render()).find(node => node.type === 'button' && JSON.stringify(node.props.children).includes(label));
+  render();
+  return { ble, calls, render, button, cleanup: harness.cleanup };
+}
+
+test('Vinca setup uses session scan permissions once, explicit selection and confirmed compatibility before linking', async () => {
+  const h = await vincaPanelFixture();
+  let permissions = 0; let remembers = 0; let inspected = '';
+  const session = createFemometerSessionManager({
+    getRememberedFemometer: async () => ({ remembered: remembers > 0 }),
+    requestBluetoothPermissions: async () => { permissions++; },
+    scanForFemometer: async () => [{ id: 'other', name: 'Otro' }, { id: 'vinca', name: 'BM-Vinca2' }],
+    connectAndInspectFemometer: async id => { inspected = id; return { compatible: id === 'vinca' }; },
+    disconnectFemometer: async () => {},
+    rememberFemometer: async () => { remembers++; return { remembered: true }; },
+  })('a', state => { h.ble.sessionState = state; }, () => {});
+  h.ble.sessionRef.current = session;
+  try {
+    assert.match(JSON.stringify(h.render()), /Cierra completamente Femometer Connect/);
+    await h.button('Buscar termómetro').props.onClick();
+    assert.equal(permissions, 1);
+    // Session may preselect its first result; the UI still requires the user's choice.
+    assert.equal(h.button('Comprobar compatibilidad').props.disabled, true);
+    h.button('Otro').props.onClick(); await h.button('Comprobar compatibilidad').props.onClick();
+    assert.equal(inspected, 'other'); assert.equal(h.button('Vincular termómetro'), undefined);
+    h.button('BM-Vinca2').props.onClick(); await h.button('Comprobar compatibilidad').props.onClick();
+    assert.equal(remembers, 0);
+    await h.button('Vincular termómetro').props.onClick();
+    assert.equal(remembers, 1); assert.equal(h.ble.sessionState.remembered, true);
+    assert.match(JSON.stringify(h.render()), /Configuración completada/);
+    assert.ok(h.button('Conectar')); assert.doesNotMatch(JSON.stringify(h.render()), /Escuchando temperaturas/);
+  } finally { await session.dispose(); h.cleanup(); }
+});
+
+test('Vinca loading, permission errors and Bluetooth-off retry remain driven by session state', async () => {
+  const h = await vincaPanelFixture({ remembered: null, status: 'checking' });
+  assert.doesNotMatch(JSON.stringify(h.render()), /Primera configuración/);
+  assert.match(JSON.stringify(h.render()), /Consultando vinculación/);
+  let scans = 0;
+  h.ble.sessionRef.current.scan = async () => { scans++; };
+  h.ble.sessionState = { remembered: false, status: 'error', devices: [], error: { code: 'PERMISSION_NOT_GRANTED', message: 'Permiso denegado' } };
+  assert.match(JSON.stringify(h.render()), /permisos de FertiliApp/);
+  await h.button('Reintentar').props.onClick(); assert.equal(scans, 1);
+  h.ble.sessionState.error = { code: 'BLUETOOTH_DISABLED', message: 'Bluetooth está apagado.' };
+  assert.match(JSON.stringify(h.render()), /Activa Bluetooth en los ajustes/);
+  h.cleanup();
+});
+
+test('linked Vinca exposes shared pending review and clock, serializes operations and confirms unlink without deleting readings', async () => {
+  const h = await vincaPanelFixture({ remembered: true, status: 'stopped' });
+  const wait = deferred();
+  h.ble.sessionRef.current = { start: () => { h.calls.push('start'); return wait.promise; },
+    restart: async () => h.calls.push('restart'), stop: async () => h.calls.push('stop'), remember: async forget => h.calls.push(['remember', forget]) };
+  assert.match(JSON.stringify(h.render()), /Vinculado/); assert.match(JSON.stringify(h.render()), /Desconectado/);
+  h.button('Temperaturas pendientes').props.onClick(); h.button('Reloj del termómetro').props.onClick();
+  assert.deepEqual(h.calls, ['review', 'clock']);
+  const click = h.button('Conectar').props.onClick;
+  const operation = click(); await click(); assert.equal(h.calls.filter(x => x === 'start').length, 1);
+  wait.resolve(); await operation;
+  for (const status of ['searching', 'connecting', 'stopping', 'inspecting']) {
+    h.ble.sessionState.status = status;
+    assert.ok(treeNodes(h.render()).filter(n => n.type === 'button' && n.props.className?.includes('bg-fertiliapp-fuerte')).every(n => n.props.disabled));
+  }
+  h.ble.sessionState.status = 'listening';
+  await h.button('Reiniciar escucha').props.onClick(); assert.ok(h.calls.includes('restart'));
+  h.button('Desvincular termómetro').props.onClick();
+  assert.equal(treeNodes(h.render()).find(n => n.type === 'dialog').props.open, true);
+  assert.equal(h.button('Confirmar desvinculación').props.disabled, true);
+  assert.match(JSON.stringify(h.render()), /Debes detener la escucha/);
+  await h.button('Detener escucha').props.onClick(); assert.ok(h.calls.includes('stop'));
+  h.ble.sessionState.status = 'stopped';
+  h.button('Cancelar').props.onClick(); assert.equal(h.calls.some(Array.isArray), false);
+  h.button('Desvincular termómetro').props.onClick();
+  await h.button('Confirmar desvinculación').props.onClick();
+  assert.deepEqual(h.calls.at(-1), ['remember', true]); assert.equal(h.ble.pendingCount, 2);
+  h.cleanup();
+});
+
+test('technical diagnostics are collapsed by default and rendering never calls the session', async () => {
+  const harness = hooks();
+  const { Vinca2Diagnostics } = await loadFrontend('src/components/Vinca2Diagnostics.jsx', {
+    ...harness.bindings, Button: 'button', cn: (...values) => values.join(' '),
+    useFemometer: () => ({ sessionState: { status: 'stopped', devices: [], inspectionResult: { services: [{ uuid: 'service', characteristics: [{ uuid: 'characteristic', properties: ['indicate'] }] }] } }, readings: [], lifecycleStatus: 'unavailable',
+      sessionRef: { current: new Proxy({}, { get: () => { throw Error('Diagnostics must not access BLE'); } }) } }),
+  }, ['Vinca2Diagnostics']);
+  const tree = harness.render(() => ({ props: { value: Vinca2Diagnostics() } }));
+  assert.equal(tree.type, 'details'); assert.equal(tree.props.open, undefined);
+  assert.match(JSON.stringify(tree), /Diagnóstico técnico/); assert.match(JSON.stringify(tree), /characteristic/);
+  harness.cleanup();
+});
+
+test('Vinca configuration distinguishes read-correct history from verified sync and keeps manual clock controls', async () => {
+  const h = await vincaPanelFixture({ remembered: true, status: 'listening', capabilities: { clockRead: true, clockSync: true } });
+  h.ble.sessionRef.current = { readClock: async () => h.calls.push('read'), syncClock: async () => h.calls.push('sync') };
+  for (const [state, label] of [['unknown', 'Sin verificar'], ['read_correct', 'Hora leída y aparentemente correcta'], ['synchronized_verified', 'Verificado'], ['misaligned', 'Desajustado']]) {
+    h.ble.clockHistory = { state };
+    assert.ok(JSON.stringify(h.button('Reloj del termómetro')).includes(label));
+  }
+  await h.button('Leer reloj').props.onClick(); await h.button('Sincronizar fecha y hora').props.onClick();
+  assert.deepEqual(h.calls, ['read', 'sync']);
+  h.ble.sessionState.clockBusy = true;
+  assert.equal(h.button('Leer reloj').props.disabled, true);
+  assert.equal(h.button('Reiniciar escucha').props.disabled, true);
+  h.cleanup();
 });
