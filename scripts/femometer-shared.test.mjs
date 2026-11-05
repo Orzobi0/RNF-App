@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createFemometerSessionManager, femometerClockDriftSeconds } from '../src/lib/femometerSession.js';
 import { normalizeBleMeasurement, prepareManualBleDraft, classifyBleMeasurement, decideVinca2Reading, classifyBleMeasurementAge } from '../src/lib/bleMeasurements.js';
+import { measurementDisplay, measurementSourceLabel } from '../src/lib/temperatureMeasurements.js';
 import { isBleVisualLabEnabled } from '../src/lib/bleVisualLab.js';
 import { createFemometerLocalState, updateFemometerClockHistory } from '../src/lib/femometerLocalState.js';
 import { loadFrontend, hooks, deferred, flush } from './helpers/load-frontend.mjs';
@@ -411,7 +412,7 @@ test('quick review preserves the original date, cancels without saving and requi
   const harness = hooks(); let closed = 0; const saves = []; let duplicate = true;
   const session = {}; const cycle = { id: 'cycle' };
   const reading = { uiId: 1, temperatureC: 36.42, deviceTimestamp: '2020-01-02T08:15:00', importStatus: 'pending' };
-  const { BleReadingReviewView } = await loadFrontend('src/components/BleReadingReviewView.jsx', { ...harness.bindings, Button: 'button', Input: 'input' }, ['BleReadingReviewView']);
+  const { BleReadingReviewView } = await loadFrontend('src/components/BleReadingReviewView.jsx', { ...harness.bindings, measurementDisplay, measurementSourceLabel, Button: 'button', Input: 'input' }, ['BleReadingReviewView']);
   const { BleReadingReview } = await loadFrontend('src/components/BleReadingReview.jsx', {
     ...harness.bindings, BleReadingReviewView, useNavigate: () => () => {}, normalizeBleMeasurement, prepareManualBleDraft,
     useFemometer: () => ({ sessionRef: { current: session }, incorporateReading: async (id, save) => { assert.equal(id, 1); return save(); } }),
@@ -432,7 +433,11 @@ test('quick review preserves the original date, cancels without saving and requi
   assert.equal(saves[0].options.allowPossibleDuplicate, false);
   assert.equal(saves[0].draft.measurements[0].device_date_reliability, 'unverified');
   nodes = treeNodes(render());
-  assert.ok(nodes.some(node => node.props.role === 'alert'));
+  assert.ok(nodes.some(node => node.props['aria-label'] === 'Posible duplicado'));
+  const guarded = nodes.find(node => node.type === 'button' && node.props.children.includes('Es otra medición: confirmar y guardar'));
+  assert.equal(guarded.props.disabled, true); await guarded.props.onClick(); assert.equal(saves.length, 1);
+  nodes.find(node => node.type === 'button' && node.props.children.includes('Sí, es otra medición')).props.onClick();
+  nodes = treeNodes(render());
   await nodes.find(node => node.type === 'button' && node.props.children.includes('Es otra medición: confirmar y guardar')).props.onClick();
   assert.equal(saves[1].options.allowPossibleDuplicate, true);
   assert.equal(closed, 2);
@@ -536,12 +541,16 @@ test('owner restores pending work and edits, removes only confirmed saves and ne
 });
 
 test('persistent review card selects readings, minimizes explicitly and advances after save', async () => {
-  const harness = hooks(); const selected = []; let minimized = 0; let dismissed = 0;
+  const harness = hooks(); const selected = []; let minimized = 0; let dismissed = 0; let expanded = 0;
+  const timers = new Map();
+  const window = { innerWidth: 390, matchMedia: () => ({ matches: false }),
+    setTimeout: (fn, ms) => { assert.equal(ms, 200); timers.set(fn, ms); return fn; }, clearTimeout: fn => timers.delete(fn) };
   const { FemometerReviewCard } = await loadFrontend('src/components/FemometerReviewCard.jsx', {
-    ...harness.bindings, window: {}, Button: 'button', Thermometer: 'thermometer', ChevronDown: 'chevron', X: 'x',
+    ...harness.bindings, window, Button: 'button', PlusCircle: 'plus', ChevronDown: 'chevron', X: 'x',
   }, ['FemometerReviewCard'], source => source.replace('export default function FemometerReviewCard', 'function FemometerReviewCard'));
   const rows = [1, 2].map(uiId => ({ uiId, deviceKey: 'device', temperatureC: 36 + uiId / 10, importStatus: 'pending' }));
-  const props = { onDismiss: () => dismissed++, readings: rows, selected: rows[0], expanded: true, deviceKey: 'device', onSelect: id => selected.push(id), onMinimize: () => minimized++, onExpand() {}, children: 'editor' };
+  const props = { visible: true, onDismiss: () => { dismissed++; props.visible = false; }, readings: rows, selected: rows[0], expanded: true,
+    deviceKey: 'device', onSelect: id => selected.push(id), onMinimize: () => minimized++, onExpand: () => expanded++, children: 'editor' };
   const render = () => harness.render(() => ({ props: { value: FemometerReviewCard(props) } }));
   let nodes = treeNodes(render());
   nodes.find(node => node.type === 'button' && node.props['aria-pressed'] === false).props.onClick();
@@ -550,18 +559,25 @@ test('persistent review card selects readings, minimizes explicitly and advances
   assert.equal(minimized, 1); assert.equal(rows.length, 2);
   props.readings = [rows[1]]; props.selected = rows[1];
   assert.equal(treeNodes(render()).filter(node => node.props['aria-pressed'] === true).length, 1);
-  props.expanded = false; assert.equal(treeNodes(render()).find(node => node.props.id === 'ble-pending-review').props.hidden, true);
+  props.expanded = false;
+  const area = () => treeNodes(render()).find(node => node.props['aria-label'] === 'Revisar 1 temperaturas pendientes');
+  area().props.onClick(); assert.equal(expanded, 1);
   const swipe = (x, y) => {
-    const region = treeNodes(render()).find(node => node.props.onPointerDown);
-    const pointer = { pointerId: 1, isPrimary: true, button: 0, clientX: 100, clientY: 100,
-      target: { closest: () => null }, currentTarget: { setPointerCapture() {} } };
+    const region = area();
+    const pointer = { pointerId: 1, isPrimary: true, button: 0, clientX: 100, clientY: 100, currentTarget: { setPointerCapture() {} } };
     region.props.onPointerDown(pointer);
+    region.props.onPointerMove({ ...pointer, clientX: x, clientY: y });
     region.props.onPointerUp({ ...pointer, clientX: x, clientY: y });
   };
-  swipe(110, 90); assert.equal(dismissed, 0);
-  swipe(190, 100); swipe(100, 20); assert.equal(dismissed, 2);
-  treeNodes(render()).find(node => node.props['aria-label'] === 'Cerrar aviso de temperaturas pendientes').props.onClick();
-  assert.equal(dismissed, 3); assert.equal(props.readings.length, 1);
+  const finish = () => { for (const fn of timers.keys()) { timers.delete(fn); fn(); } render(); props.visible = true; render(); };
+  swipe(110, 90); assert.equal(dismissed, 0); assert.equal(timers.size, 0);
+  swipe(190, 100); assert.equal(dismissed, 0); assert.equal(timers.size, 1);
+  area().props.onClick(); assert.equal(expanded, 1); finish(); assert.equal(dismissed, 1);
+  swipe(100, 20); finish(); assert.equal(dismissed, 2);
+  swipe(10, 100); finish(); assert.equal(dismissed, 3);
+  treeNodes(render()).find(node => node.props['aria-label'] === 'Cerrar aviso').props.onClick();
+  assert.equal(dismissed, 3); finish(); assert.equal(dismissed, 4);
+  assert.equal(props.readings.length, 1);
   props.visible = false; assert.equal(render().props.hidden, true);
   assert.ok(treeNodes(render()).find(node => node.props.id === 'ble-pending-review').props.children.includes('editor'));
   harness.cleanup();
@@ -676,6 +692,30 @@ test('integrated lab keeps the real application children and route state; fake B
   assert.equal(treeNodes(tree).find(n => n.type === 'card').props.expanded, false);
   tree.props.value.openReadingReview(); tree = render();
   assert.equal(treeNodes(tree).find(n => n.type === 'card').props.expanded, true);
+  select('Escenario visual', 'duplicate'); tree = render();
+  let fakeEditor = () => treeNodes(render()).find(n => n.type === 'editor').props;
+  fakeEditor().confirm(); assert.equal(render().props.value.pendingCount, 1);
+  fakeEditor().onClose(); assert.equal(treeNodes(render()).find(n => n.type === 'card').props.visible, false);
+  render().props.value.openReadingReview(); fakeEditor().onDifferent(); fakeEditor().confirm();
+  assert.equal(render().props.value.pendingCount, 0);
+  select('Escenario visual', 'duplicate'); fakeEditor().onRepeated(); fakeEditor().onCancelDiscard();
+  assert.equal(render().props.value.pendingCount, 1);
+  fakeEditor().onRepeated(); fakeEditor().onDiscard(); assert.equal(render().props.value.pendingCount, 0);
+  select('Escenario visual', 'uncertain'); fakeEditor().onCheck();
+  for (const fn of timers) { timers.delete(fn); fn(); }
+  assert.equal(fakeEditor().check.result.measurements.length, 2);
+  fakeEditor().onAlreadyStored(); assert.equal(render().props.value.pendingCount, 0);
+  select('Escenario visual', 'uncertain'); fakeEditor().onCheck();
+  for (const fn of timers) { timers.delete(fn); fn(); }
+  fakeEditor().onMissing(); fakeEditor().confirm(); assert.equal(render().props.value.pendingCount, 0);
+  select('Escenario visual', 'uncertain');
+  treeNodes(render()).find(n => n.type === 'input' && n.props.type === 'checkbox').props.onChange({ target: { checked: true } });
+  fakeEditor().onCheck(); for (const fn of timers) { timers.delete(fn); fn(); }
+  assert.equal(fakeEditor().check.status, 'error'); fakeEditor().onMissing(); fakeEditor().confirm();
+  assert.equal(render().props.value.pendingCount, 1);
+  treeNodes(render()).find(n => n.type === 'button' && n.props.children.includes('Simular nueva temperatura')).props.onClick();
+  assert.equal(treeNodes(render()).find(n => n.type === 'card').props.expanded, true);
+  assert.equal(render().props.value.pendingCount, 2); assert.equal(writes, 0);
   select('Escenario visual', 'disconnected'); tree = render();
   tree.props.value.sessionRef.current.start(); render();
   assert.equal(timers.size, 1);
@@ -801,7 +841,148 @@ test('pending notice hides on dismissal and navigation, reopens explicitly and r
     assert.equal(owner.card().selected.draft.time, '08:15');
     native.emit({ temperatureC: 36.6 });
     assert.equal(owner.card().visible, true);
-    assert.equal(owner.card().expanded, false);
+    assert.equal(owner.card().expanded, true);
     assert.equal(owner.render().pendingCount, 2);
+  } finally { owner.cleanup(); await flush(); }
+});
+
+
+test('discard commits only the selected local pending and fails closed on storage, saving and stale sessions', async () => {
+  const native = bridge(); const owner = await mountedOwner(native);
+  try {
+    native.emit({ temperatureC: 36.4 }); native.emit({ temperatureC: 36.6 });
+    let value = owner.render(); const session = value.sessionRef.current;
+    const originalWrite = native.storage.setItem;
+    native.storage.setItem = () => { throw Error('storage full'); };
+    assert.throws(() => value.discardReading(1, session));
+    assert.equal(owner.render().pendingCount, 2);
+    native.storage.setItem = originalWrite;
+    const pending = deferred();
+    const saving = owner.render().incorporateReading(2, () => pending.promise);
+    assert.throws(() => owner.render().discardReading(1, session));
+    pending.reject(Error('network')); await assert.rejects(saving);
+    owner.render().discardReading(1, session);
+    assert.deepEqual(owner.render().readings.map(row => row.uiId), [2]);
+    assert.deepEqual(createFemometerLocalState(native.storage, 'a').recover().map(row => row.uiId), [2]);
+    const oldDiscard = owner.render().discardReading;
+    await owner.changeAccount('b');
+    assert.throws(() => oldDiscard(2, session));
+  } finally { owner.cleanup(); await flush(); }
+});
+
+test('original attempt destination is durable before saving and recovers uncertain without opening the notice', async () => {
+  const native = bridge(); let owner = await mountedOwner(native);
+  native.emit({ temperatureC: 36.4, deviceTimestamp: '2020-01-01T08:00:00' });
+  const attempt = { id: 'attempt-a', userId: 'a', cycleId: 'old-cycle', isoDate: '2026-11-03', time: '09:15' };
+  await assert.rejects(owner.render().incorporateReading(1, async () => {
+    const saved = createFemometerLocalState(native.storage, 'a').recover()[0];
+    assert.deepEqual(saved.attempt, attempt); assert.equal(saved.importStatus, 'uncertain');
+    throw Error('network');
+  }, { attempt }));
+  owner.cleanup(); await flush();
+  owner = await mountedOwner(native);
+  try {
+    assert.equal(owner.card().visible, false);
+    assert.equal(owner.render().readings[0].importStatus, 'uncertain');
+    assert.deepEqual(owner.render().readings[0].attempt, attempt);
+    let writes = 0;
+    await assert.rejects(owner.render().incorporateReading(1, () => writes++, { reviewedUncertain: true, reviewedAttemptId: 'other' }));
+    assert.equal(writes, 0);
+    assert.throws(() => owner.render().discardReading(1, owner.render().sessionRef.current, 'other'));
+  } finally { owner.cleanup(); await flush(); }
+});
+
+async function uncertainEditorFixture(patch = {}) {
+  const harness = hooks(); const requests = []; let writes = 0; let removed = 0; let closed = 0;
+  const sessionRef = { current: {} }; let cycle = { id: 'current-cycle' };
+  const reading = { uiId: 7, temperatureC: 36.4, deviceTimestamp: '2020-01-01T08:00:00', importStatus: 'uncertain',
+    draft: { isoDate: '2026-11-03', time: '09:15' },
+    attempt: { id: 'attempt', userId: 'a', cycleId: 'original-cycle', isoDate: '2026-11-02', time: '08:15' }, ...patch };
+  const { BleReadingReview } = await loadFrontend('src/components/BleReadingReview.jsx', {
+    ...harness.bindings, BleReadingReviewView: 'view', normalizeBleMeasurement, prepareManualBleDraft, useNavigate: () => () => {},
+    fetchBleAttemptDayDB: attempt => { const wait = deferred(); requests.push({ attempt, wait }); return wait.promise; },
+    useCycleData: () => ({ currentCycle: cycle, isLoading: false, incorporateBleMeasurement: async () => { writes++; return {}; } }),
+    useFemometer: () => ({ sessionRef, updateReadingDraft() {}, incorporateReading: async (_, save) => save(), discardReading: () => removed++ }),
+  }, ['BleReadingReview']);
+  const render = () => harness.render(() => ({ props: { value: BleReadingReview({ userId: 'a', reading, onClose: () => closed++ }) } })).props;
+  render();
+  return { render, reading, requests, sessionRef, cleanup: harness.cleanup, cycle: id => { cycle = { id }; },
+    counts: () => ({ writes, removed, closed }),
+    complete: request => request.wait.resolve({ complete: true, userId: 'a', cycleId: 'original-cycle', isoDate: '2026-11-02', exists: true, measurements: [] }) };
+}
+
+test('uncertain review queries the original destination and requires an explicit missing decision before saving', async () => {
+  const h = await uncertainEditorFixture();
+  try {
+    await h.render().confirm(); assert.equal(h.counts().writes, 0);
+    const query = h.render().onCheck();
+    assert.deepEqual(h.requests[0].attempt, h.reading.attempt);
+    h.complete(h.requests[0]); await query;
+    await h.render().confirm(); assert.equal(h.counts().writes, 0);
+    h.render().onMissing();
+    assert.equal(h.render().checkedUncertain, true);
+    await h.render().confirm(); assert.equal(h.counts().writes, 1);
+  } finally { h.cleanup(); }
+});
+
+test('uncertain query rejects partial or failed reads, invalidates date/cycle changes and ignores stale completions', async () => {
+  const h = await uncertainEditorFixture();
+  try {
+    let operation = h.render().onCheck(); h.requests.at(-1).wait.resolve({ complete: false }); await operation;
+    assert.equal(h.render().check.status, 'error');
+    operation = h.render().onCheck(); h.requests.at(-1).wait.reject(Error('offline')); await operation;
+    assert.equal(h.render().check.status, 'error');
+    operation = h.render().onCheck(); h.render().change({ isoDate: '2026-11-04' }); h.render();
+    h.complete(h.requests.at(-1)); await operation;
+    assert.notEqual(h.render().check.status, 'complete');
+    operation = h.render().onCheck(); h.complete(h.requests.at(-1)); await operation;
+    h.render().onMissing(); assert.equal(h.render().checkedUncertain, true);
+    h.cycle('another-cycle'); h.render(); assert.equal(h.render().checkedUncertain, false);
+    operation = h.render().onCheck(); h.sessionRef.current = {}; h.complete(h.requests.at(-1)); await operation;
+    assert.notEqual(h.render().check.status, 'complete');
+    assert.equal(h.counts().writes, 0);
+  } finally { h.cleanup(); }
+});
+
+test('already stored retires only the local reading; later and legacy attempts never retry', async () => {
+  const h = await uncertainEditorFixture();
+  try {
+    const query = h.render().onCheck(); h.complete(h.requests[0]); await query;
+    await h.render().onAlreadyStored(); assert.equal(h.counts().removed, 1); assert.equal(h.counts().writes, 0);
+    h.render().onClose(); assert.equal(h.counts().closed, 2);
+    delete h.reading.attempt; h.render();
+    assert.equal(h.render().canCheck, false);
+    await h.render().confirm(); assert.equal(h.counts().writes, 0);
+  } finally { h.cleanup(); }
+});
+
+
+test('duplicate permission is explicit and invalidated by editing; discard has a separate confirmation', async () => {
+  const h = await uncertainEditorFixture({ importStatus: 'pending', reviewError: { code: 'ble-possible-duplicate', message: 'Possible match' } });
+  try {
+    await h.render().confirm(); assert.equal(h.counts().writes, 0);
+    h.render().onDifferent(); assert.equal(h.render().duplicateApproved, true);
+    h.render().change({ time: '09:20' }); h.render();
+    assert.equal(h.render().duplicateApproved, false);
+    h.render().onRepeated(); assert.equal(h.render().discardConfirm, true);
+    h.render().onCancelDiscard(); assert.equal(h.render().discardConfirm, false);
+    assert.equal(h.counts().removed, 0);
+    h.render().onRepeated(); await h.render().onDiscard();
+    assert.equal(h.counts().removed, 1); assert.equal(h.counts().writes, 0);
+  } finally { h.cleanup(); }
+});
+
+test('cancel hides the whole pending window; only a subsequent new reading automatically shows a compact notice', async () => {
+  const native = bridge(); const owner = await mountedOwner(native);
+  try {
+    native.emit({ temperatureC: 36.4 });
+    owner.render().openReadingReview();
+    const card = owner.card();
+    card.children[0].props.onClose();
+    assert.equal(owner.card().visible, false); assert.equal(owner.render().pendingCount, 1);
+    owner.navigate('records'); owner.navigate('dashboard');
+    assert.equal(owner.card().visible, false);
+    native.emit({ temperatureC: 36.5 });
+    assert.equal(owner.card().visible, true); assert.equal(owner.card().expanded, false);
   } finally { owner.cleanup(); await flush(); }
 });

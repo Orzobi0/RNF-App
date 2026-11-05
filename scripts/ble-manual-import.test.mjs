@@ -15,7 +15,7 @@ test('Vinca2 possible duplicate uses original minute and exact original temperat
   ]) assert.equal(isPossibleBleDuplicate(original, { ...resent, ...patch }), false);
   assert.equal(isPossibleBleDuplicate({ ...original, device_timestamp: null }, { ...original, device_timestamp: null }), false);
 });
-import { selectedMeasurementSummary, measurementsFromRecord } from '../src/lib/temperatureMeasurements.js';
+import { selectedMeasurementSummary, measurementsFromRecord, hasMeasurementTemperature } from '../src/lib/temperatureMeasurements.js';
 
 const measurement = normalizeBleMeasurement({ temperatureC: 36.42, deviceTimestamp: '2020-01-01T08:00:00' }, 'BM-Vinca2');
 const confirmation = { isoDate: '2026-10-01', time: '08:00', confirmed: true, userId: 'u', cycleId: 'c',
@@ -43,7 +43,7 @@ async function fixture() {
   const root = 'users/u/cycles/c';
   const day = root + '/entries/2026-10-01';
   const store = new Map([[root, { start_date: '2026-10-01', end_date: null }]]);
-  const flags = { enabled: true, android: true, offline: false, cached: false, beforeTransaction: null,
+  const flags = { enabled: true, android: true, offline: false, cached: false, pendingWrites: false, beforeTransaction: null,
     afterMeasurementQuery: null, reorderTransactionMaps: false };
   const transactionReads = [];
   let commits = 0, serial = 0;
@@ -53,7 +53,7 @@ async function fixture() {
   };
   const snap = path => {
     const value = structuredClone(store.get(path));
-    return { id: path.split('/').at(-1), ref: ref(path), exists: () => value !== undefined, data: () => value };
+    return { metadata: { fromCache: flags.cached, hasPendingWrites: flags.pendingWrites }, id: path.split('/').at(-1), ref: ref(path), exists: () => value !== undefined, data: () => value };
   };
   const read = async reference => { if (flags.offline) throw Error('offline'); return snap(reference.path); };
   const writer = () => {
@@ -69,13 +69,13 @@ async function fixture() {
   const api = await loadFrontend('src/lib/cycleDataHandler.js', {
     ...dates, db, doc: (...parts) => parts.length === 1 ? ref(parts[0], 'generated-' + ++serial) : ref(...parts),
     collection: ref, getDoc: read, getDocFromServer: read,
-    prepareManualBleDraft, isPossibleBleDuplicate, measurementsFromRecord, selectedMeasurementSummary,
+    prepareManualBleDraft, isPossibleBleDuplicate, measurementsFromRecord, selectedMeasurementSummary, hasMeasurementTemperature,
     isFemometerBleAndroidNative: () => flags.android, isFemometerBlePrototypeEnabled: () => flags.enabled,
     getDocsFromServer: async reference => {
       if (flags.offline) throw Error('offline');
       const result = { docs: [...store.keys()].filter(path => path.startsWith(reference.path + '/')
         && !path.slice(reference.path.length + 1).includes('/')).map(snap),
-      metadata: { fromCache: flags.cached, hasPendingWrites: false } };
+      metadata: { fromCache: flags.cached, hasPendingWrites: flags.pendingWrites } };
       if (reference.path === day + '/measurements') flags.afterMeasurementQuery?.();
       return result;
     },
@@ -102,7 +102,7 @@ async function fixture() {
       }
       throw Error('transaction retries exhausted');
     },
-  }, ['incorporateBleMeasurementDB', 'updateCycleEntry']);
+  }, ['incorporateBleMeasurementDB', 'updateCycleEntry', 'fetchBleAttemptDayDB']);
   const draft = prepareManualBleDraft(measurement, confirmation);
   return { flags, store, root, day, draft, api, transactionReads, commits: () => commits,
     readings: () => [...store.entries()].filter(([path]) => path.startsWith(day + '/measurements/')).map(([, data]) => data),
@@ -283,4 +283,39 @@ test('normal manual replacement can still edit measurements and preserve their o
   assert.equal(h.readings().length, 0);
   assert.equal(measurementsFromRecord(h.store.get(h.day))[0].device_timestamp, measurement.device_timestamp);
   assert.equal(measurementsFromRecord(h.store.get(h.day))[0].confirmed_timestamp, restored.confirmed_timestamp);
+});
+
+
+test('uncertain attempt reads the complete server day, including legacy summary and multiple readings, without writes', async () => {
+  const h = await fixture();
+  const attempt = { userId: 'u', cycleId: 'c', isoDate: '2026-10-01' };
+  let result = await h.api.fetchBleAttemptDayDB(attempt);
+  assert.equal(result.complete, true); assert.equal(result.exists, false); assert.deepEqual(result.measurements, []);
+  h.store.set(h.day, { iso_date: attempt.isoDate, observations: 'No temperature' });
+  result = await h.api.fetchBleAttemptDayDB(attempt);
+  assert.equal(result.exists, true); assert.deepEqual(result.measurements, []);
+  h.store.set(h.day, { iso_date: attempt.isoDate, temperature_raw: 36.4, timestamp: '2026-10-01T08:00:00Z', temperature_source: 'manual' });
+  result = await h.api.fetchBleAttemptDayDB(attempt);
+  assert.equal(result.measurements.length, 1);
+  h.store.set(h.day + '/measurements/a', { temperature: 36.4, time: '08:00', source: 'manual', selected: true });
+  h.store.set(h.day + '/measurements/b', { temperature: 36.5, time: '08:15', source: 'bluetooth', device_model: 'BM-Vinca2', selected: false });
+  result = await h.api.fetchBleAttemptDayDB(attempt);
+  assert.equal(result.measurements.length, 2); assert.equal(result.measurements[1].selected, false);
+  assert.equal(h.commits(), 0);
+});
+
+test('uncertain server check rejects offline, cache, incomplete records and changes during the query', async () => {
+  const attempt = { userId: 'u', cycleId: 'c', isoDate: '2026-10-01' };
+  for (const mode of ['offline', 'cached', 'pendingWrites', 'count', 'invalid', 'changed', 'cycle', 'duplicate']) {
+    const h = await fixture();
+    h.store.set(h.day, { iso_date: attempt.isoDate, temperature_raw: 36.4 });
+    if (['offline', 'cached', 'pendingWrites'].includes(mode)) h.flags[mode] = true;
+    if (mode === 'count') h.store.get(h.day).measurementsCount = 3;
+    if (mode === 'invalid') h.store.set(h.day + '/measurements/a', { time: '08:00' });
+    if (mode === 'changed') h.flags.afterMeasurementQuery = () => h.store.set(h.day + '/measurements/new', { temperature: 36.8 });
+    if (mode === 'cycle') h.store.delete(h.root);
+    if (mode === 'duplicate') h.store.set(h.day + '-other', { iso_date: attempt.isoDate });
+    await assert.rejects(h.api.fetchBleAttemptDayDB(attempt));
+    assert.equal(h.commits(), 0);
+  }
 });

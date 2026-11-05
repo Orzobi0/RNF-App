@@ -3,73 +3,103 @@ import { useNavigate } from 'react-router-dom';
 import { useCycleData } from '@/hooks/useCycleData';
 import { useFemometer } from '@/contexts/FemometerContext';
 import { normalizeBleMeasurement, prepareManualBleDraft } from '@/lib/bleMeasurements';
+import { fetchBleAttemptDayDB } from '@/lib/cycleDataHandler';
 import { BleReadingReviewView } from '@/components/BleReadingReviewView';
 
-// The same explicit-confirmation flow for the global notice and Devices.
-// Mounted with a reading key so editing one reading never edits another draft.
-export function BleReadingReview({ userId, reading, onClose, onSaved }) {
-  const { sessionRef, incorporateReading, updateReadingDraft } = useFemometer();
+export function BleReadingReview({ userId, reading, onClose, onSaved, active = true }) {
+  const { sessionRef, incorporateReading, discardReading, updateReadingDraft, visualLab } = useFemometer();
   const { currentCycle, isLoading, incorporateBleMeasurement } = useCycleData();
   const navigate = useNavigate();
   const measurement = reading.normalized ?? normalizeBleMeasurement(reading, 'BM-Vinca2');
   const [draft, setDraft] = useState(() => ({ isoDate: measurement?.time ? measurement.device_timestamp.slice(0, 10) : '',
     time: measurement?.time || '', ...reading.draft, confirmed: false }));
-  const [checkedUncertain, setCheckedUncertain] = useState(false);
   const [error, setError] = useState(reading.reviewError ?? null);
   const [busy, setBusy] = useState(false);
+  const [duplicateApproval, setDuplicateApproval] = useState(null);
+  const [discardConfirm, setDiscardConfirm] = useState(false);
+  const [check, setCheck] = useState({ status: 'idle' });
+  const [missingApproval, setMissingApproval] = useState(null);
   const busyRef = useRef(false);
   const mounted = useRef(true);
-  const cycleRef = useRef(currentCycle);
-  cycleRef.current = currentCycle;
-  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const generation = useRef(0);
+  const queryActive = useRef(false);
+  const key = JSON.stringify([userId, reading.uiId, reading.attempt, currentCycle?.id, draft.isoDate, draft.time]);
+  const latest = useRef(key); latest.current = key;
+  const cycleRef = useRef(currentCycle?.id); cycleRef.current = currentCycle?.id;
+  const session = sessionRef.current;
+  useEffect(() => {
+    ++generation.current; queryActive.current = false; setCheck({ status: 'idle' }); setMissingApproval(null);
+    setDuplicateApproval(null); setDiscardConfirm(false);
+  }, [key, session, active]);
+  const valid = () => mounted.current && sessionRef.current === session && latest.current === key;
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; ++generation.current; }; }, []);
+  const complete = active && check.key === key && check.session === session && check.status === 'complete';
+  const checkedUncertain = complete && missingApproval === key;
+  const duplicateApproved = duplicateApproval?.key === key && duplicateApproval.session === session;
+  const attempt = reading.attempt;
+  const canCheck = !visualLab && active && attempt?.userId === userId && Boolean(attempt?.cycleId && attempt?.isoDate && attempt?.time && attempt?.id);
   const change = patch => {
+    if (busyRef.current) return;
+    ++generation.current; queryActive.current = false;
     const next = { ...draft, ...patch, confirmed: false };
+    setCheck({ status: 'idle' }); setMissingApproval(null); setDuplicateApproval(null); setDiscardConfirm(false);
     setError(null); setDraft(next); updateReadingDraft?.(reading.uiId, next);
   };
-  const confirm = async () => {
-    if (busyRef.current) return;
-    if (reading.importStatus === 'uncertain' && !checkedUncertain) return;
+  const checkDay = async () => {
+    if (!canCheck || busyRef.current || queryActive.current) return;
+    queryActive.current = true;
+    const request = ++generation.current;
+    setMissingApproval(null); setCheck({ key, session, status: 'loading' });
+    try {
+      const result = await fetchBleAttemptDayDB(attempt);
+      if (!result?.complete || result.userId !== userId || result.cycleId !== attempt.cycleId || result.isoDate !== attempt.isoDate
+        || !Array.isArray(result.measurements)) throw new Error('La consulta no está completa.');
+      if (valid() && request === generation.current) setCheck({ key, session, status: 'complete', result });
+    } catch (failure) {
+      if (valid() && request === generation.current) setCheck({ key, session, status: 'error', message: failure.message || 'No se pudo consultar el servidor.' });
+    } finally { if (request === generation.current) queryActive.current = false; }
+  };
+  const discard = async reason => {
+    if (!active || busyRef.current || !valid() || (reading.importStatus === 'uncertain' && !complete) || (reason === 'stored' ? !complete : !discardConfirm)) return;
     busyRef.current = true; setBusy(true);
-    const session = sessionRef.current;
+    try {
+      await discardReading(reading.uiId, session, complete ? attempt?.id : undefined);
+      if (valid()) (onSaved ?? onClose)();
+    } catch (failure) { if (valid()) setError({ code: 'local-discard-failed', message: failure.message }); }
+    finally { busyRef.current = false; if (valid()) setBusy(false); }
+  };
+  const confirm = async () => {
+    if (!active || busyRef.current || discardConfirm || !valid() || (reading.importStatus === 'uncertain' && !checkedUncertain)
+      || (error?.code === 'ble-possible-duplicate' && !duplicateApproved)) return;
+    busyRef.current = true; setBusy(true);
     const cycleId = currentCycle?.id;
-    const allowPossibleDuplicate = error?.code === 'ble-possible-duplicate';
     setError(null);
     try {
       if (isLoading || !cycleId || !session) throw new Error('Espera a que se cargue el ciclo actual.');
-      const payload = prepareManualBleDraft(measurement, {
-  ...draft,
-  confirmed: true,
-  userId,
-  cycleId,
-  nowMs: Date.now(),
-});
-      await incorporateReading(reading.uiId, () => incorporateBleMeasurement(payload, { allowPossibleDuplicate }), { reviewedUncertain: checkedUncertain });
-      if (mounted.current && sessionRef.current === session && cycleRef.current?.id === cycleId) (onSaved ?? onClose)();
+      const payload = prepareManualBleDraft(measurement, { ...draft, confirmed: true, userId, cycleId, nowMs: Date.now() });
+      const attempt = { id: globalThis.crypto.randomUUID(), userId, cycleId, isoDate: payload.isoDate, time: payload.measurements[0].time };
+      await incorporateReading(reading.uiId, () => incorporateBleMeasurement(payload, { allowPossibleDuplicate: duplicateApproved }),
+        { reviewedUncertain: checkedUncertain, reviewedAttemptId: reading.attempt?.id, attempt });
+      if (mounted.current && sessionRef.current === session && cycleRef.current === cycleId) (onSaved ?? onClose)();
     } catch (failure) {
+      // The attempt changes on an uncertain failure; still show the error for this session.
       if (mounted.current && sessionRef.current === session) setError({ code: failure?.code,
         message: failure?.title ? failure.message : 'No se pudo incorporar. Comprueba la fecha, el ciclo y la conexión antes de reintentar.' });
     } finally {
+      ++generation.current;
+      if (mounted.current && sessionRef.current === session) {
+        setMissingApproval(null); setCheck({ status: 'idle' }); setDuplicateApproval(null);
+      }
       busyRef.current = false;
       if (mounted.current && sessionRef.current === session) setBusy(false);
     }
   };
-  return (
-  <BleReadingReviewView
-    {...{
-      measurement,
-      reading,
-      draft,
-      busy,
-      error,
-      checkedUncertain,
-      setCheckedUncertain,
-      change,
-      confirm,
-      onClose,
-      navigate,
-    }}
-  />
-);
+  return <BleReadingReviewView {...{ measurement, reading, draft, busy, error, checkedUncertain, change, confirm, onClose, navigate,
+    duplicateApproved, discardConfirm, canCheck }}
+    check={check.key === key && check.session === session ? check : { status: 'idle' }} onCheck={checkDay}
+    onDifferent={() => { if (!busyRef.current) setDuplicateApproval({ key, session }); }}
+    onRepeated={() => setDiscardConfirm(true)} onCancelDiscard={() => setDiscardConfirm(false)} onDiscard={() => discard('duplicate')}
+    onAlreadyStored={() => discard('stored')} onMissing={() => { if (complete) setMissingApproval(key); }} />;
 }
 
 export default BleReadingReview;

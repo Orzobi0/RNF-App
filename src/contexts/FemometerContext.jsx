@@ -48,6 +48,8 @@ export const FemometerSessionOwner = ({ userId, children }) => {
   const [clockDialogOpen, setClockDialogOpen] = useState(false);
   const [reviewReadingId, setReviewReadingId] = useState(null);
   const [reviewExpanded, setReviewExpanded] = useState(false);
+  const reviewPresentation = useRef({});
+  reviewPresentation.current = { visible: reviewVisibleOn === location.key, expanded: reviewExpanded };
   const [storageError, setStorageError] = useState('');
   const [clockHistory, setClockHistory] = useState(null);
   const [lifecycleStatus, setLifecycleStatus] = useState('registering');
@@ -112,7 +114,7 @@ export const FemometerSessionOwner = ({ userId, children }) => {
               clockHistory: localRef.current?.clock(normalized.device_key) }),
             uiId: ++sequence, importStatus: 'pending' }]);
         setReviewVisibleOn(locationKey.current);
-        setReviewExpanded(false);
+        if (!reviewPresentation.current.visible || !reviewPresentation.current.expanded) setReviewExpanded(false);
         setTemperatureListenerMessage(normalized.device_key ? 'Lectura recibida y pendiente de revisión.' : 'Lectura de un termómetro sin vincular: solo se conserva durante esta sesión. Vincúlalo antes de nuevas tomas.');
       } else if (event?.status === 'timeout') setTemperatureListenerMessage('Escucha finalizada. Las lecturas recibidas siguen disponibles.');
       else if (event?.message) setTemperatureListenerMessage(event.message);
@@ -145,26 +147,39 @@ export const FemometerSessionOwner = ({ userId, children }) => {
 
   // Only wraps an explicitly confirmed save supplied by the existing panel.
   // The shared status survives navigation while that save is in flight.
-  const incorporateReading = async (uiId, save, { reviewedUncertain = false } = {}) => {
+  const incorporateReading = async (uiId, save, { reviewedUncertain = false, reviewedAttemptId, attempt } = {}) => {
     const owner = sessionRef.current;
     const row = readingsRef.current.find(item => item.uiId === uiId);
-    if (!owner || !(row?.importStatus === 'pending' || (row?.importStatus === 'uncertain' && reviewedUncertain)) || readingsRef.current.some(item => item.importStatus === 'saving')) throw new Error('Comprueba el resultado pendiente o espera a que termine la incorporación en curso.');
+    if (!owner || !(row?.importStatus === 'pending' || (row?.importStatus === 'uncertain' && reviewedUncertain && row.attempt?.id && reviewedAttemptId === row.attempt.id)) || readingsRef.current.some(item => item.importStatus === 'saving')) throw new Error('Comprueba el resultado pendiente o espera a que termine la incorporación en curso.');
+    if (attempt && (attempt.userId !== userId || !attempt.id || !attempt.cycleId || !attempt.isoDate || !attempt.time)) throw new Error('El destino del intento no es válido.');
     if (row.deviceKey && !localRef.current) throw new Error('No se puede asegurar la conservación local del intento.');
     const status = (importStatus, extra = {}) => {
       if (sessionRef.current === owner) updateReadings(readingsRef.current.map(item => item.uiId === uiId ? { ...item, importStatus, ...extra } : item));
     };
     // Persist the in-flight state BEFORE Firestore. A restart never retries it automatically.
-    updateReadings(readingsRef.current.map(item => item.uiId === uiId ? { ...item, importStatus: 'saving' } : item), true);
+    updateReadings(readingsRef.current.map(item => item.uiId === uiId ? { ...item, importStatus: 'saving', attempt: attempt ?? item.attempt } : item), true);
     try {
       const result = await save();
       status('incorporated', { savedIsoDate: result?.isoDate,
         savedTime: result?.measurements?.at(-1)?.time });
       return result;
     } catch (error) {
-      status(error?.code?.startsWith('ble-') ? 'pending' : 'uncertain', { reviewError: { code: error?.code,
+      status(error?.code?.startsWith('ble-') ? row.importStatus : 'uncertain', { ...(error?.code?.startsWith('ble-') ? { attempt: row.attempt } : {}), reviewError: { code: error?.code,
         message: error?.title ? error.message : 'No se pudo confirmar la incorporación. Revisa la fecha y la conexión.' } });
       throw error;
     }
+  };
+  // A local removal only: commit first, then publish. Never calls a save adapter.
+  const discardReading = (uiId, expectedSession, reviewedAttemptId) => {
+    const row = readingsRef.current.find(item => item.uiId === uiId);
+    if (!expectedSession || sessionRef.current !== expectedSession || !localRef.current
+      || !row || !['pending', 'uncertain'].includes(row.importStatus)
+      || (row.importStatus === 'uncertain' && (!row.attempt?.id || reviewedAttemptId !== row.attempt.id))
+      || readingsRef.current.some(item => item.importStatus === 'saving')) {
+      throw new Error('No se puede retirar esta pendiente ahora. Espera al guardado o vuelve a abrir la revisión.');
+    }
+    updateReadings(readingsRef.current.filter(item => item.uiId !== uiId), true);
+    setReviewReadingId(null);
   };
   const openReadingReview = id => {
     const pending = readingsRef.current.filter(row => row.importStatus !== 'incorporated' && row.importStatus !== 'discarded');
@@ -177,15 +192,15 @@ export const FemometerSessionOwner = ({ userId, children }) => {
   const updateReadingDraft = (id, draft) => updateReadings(readingsRef.current.map(row => row.uiId === id ? { ...row, draft: { ...draft, confirmed: false } } : row));
   return <FemometerContext.Provider value={{ enabled: true, sessionRef, sessionState, readings,
     pendingCount: pendingReadings.length, clockHistory, storageError, updateReadingDraft,
-    listeningStartedAt, temperatureListenerMessage, incorporateReading, lifecycleStatus, openReadingReview,
+    listeningStartedAt, temperatureListenerMessage, incorporateReading, discardReading, lifecycleStatus, openReadingReview,
     openClockDialog: () => setClockDialogOpen(true) }}>{children}
     <FemometerFeedback clockHistory={clockHistory} sessionState={sessionState} sessionRef={sessionRef} readings={readings} openReadingReview={openReadingReview}
       clockDialogOpen={clockDialogOpen} setClockDialogOpen={setClockDialogOpen} />
     <FemometerReviewCard visible={reviewVisibleOn === location.key} onDismiss={() => setReviewVisibleOn(null)} readings={pendingReadings} selected={reviewReading} expanded={reviewExpanded}
       onExpand={() => openReadingReview()} onMinimize={() => setReviewExpanded(false)} onSelect={openReadingReview}
       storageError={storageError} deviceKey={sessionState.deviceKey}>
-      {reviewReading && <BleReadingReview key={reviewReading.uiId} userId={userId} reading={reviewReading}
-        onClose={() => setReviewExpanded(false)} onSaved={() => setReviewReadingId(null)} />}
+      {reviewReading && <BleReadingReview active={reviewVisibleOn === location.key && reviewExpanded} key={reviewReading.uiId} userId={userId} reading={reviewReading}
+        onClose={() => setReviewVisibleOn(null)} onSaved={() => setReviewReadingId(null)} />}
     </FemometerReviewCard>
   </FemometerContext.Provider>;
 };

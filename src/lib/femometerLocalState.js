@@ -19,9 +19,9 @@ export const createFemometerLocalState = (storage, userId) => {
         devices[row.deviceKey] ??= { clock: null, pending: [] };
         // Do not retain raw packets or transport diagnostics in durable review work.
         const { uiId, localId, receivedOrder, deviceKey, temperatureC, deviceTimestamp, receivedAt,
-          normalized, importStatus, draft, reviewError, dateReview } = row;
+          normalized, importStatus, draft, reviewError, dateReview, attempt } = row;
         devices[row.deviceKey].pending.push({ uiId, localId, receivedOrder, deviceKey, temperatureC,
-          deviceTimestamp, receivedAt, normalized, importStatus, draft, reviewError, dateReview });
+          deviceTimestamp, receivedAt, normalized, importStatus, draft, reviewError, dateReview, attempt });
       }
       commit({ ...state, devices });
     },

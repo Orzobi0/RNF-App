@@ -20,12 +20,23 @@ export default function BluetoothVisualLab({ Provider, children }) {
   const [clockHistory, setClockHistory] = useState(initial.clockHistory);
   const [sessionState, setSessionState] = useState(initial.sessionState);
   const [reviewVisibleOn, setReviewVisibleOn] = useState(null);
-  useEffect(() => { setReviewVisibleOn(null); }, [location.key]);
+  useEffect(() => { setReviewVisibleOn(null); resetReview(); }, [location.key]);
   const [expanded, setExpanded] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [notice, setNotice] = useState(null);
   const [error, setError] = useState(null);
   const [checkedUncertain, setCheckedUncertain] = useState(false);
+  const [duplicateApproved, setDuplicateApproved] = useState(false);
+  const [discardConfirm, setDiscardConfirm] = useState(false);
+  const [check, setCheck] = useState({ status: 'idle' });
+  const [queryFails, setQueryFails] = useState(false);
+  const queryVersion = useRef(0);
+  const queryTimer = useRef(null);
+  useEffect(() => () => { ++queryVersion.current; clearTimeout(queryTimer.current); }, []);
+  const resetReview = () => {
+    ++queryVersion.current; clearTimeout(queryTimer.current);
+    setCheckedUncertain(false); setDuplicateApproved(false); setDiscardConfirm(false); setCheck({ status: 'idle' });
+  };
   const [clockDialogOpen, setClockDialogOpen] = useState(false);
   const timer = useRef(null);
   useEffect(() => () => clearTimeout(timer.current), []);
@@ -33,7 +44,10 @@ export default function BluetoothVisualLab({ Provider, children }) {
   const chooseScenario = value => {
     clearTimeout(timer.current);
     restartLock.current = false;
+    resetReview();
     const next = createBleLabScenario(value);
+    if (value === 'uncertain') next.readings = next.readings.map(row => ({ ...row,
+      attempt: { id: `lab-${row.uiId}`, userId: 'visual-lab', cycleId: 'fictional-cycle', isoDate: row.draft.isoDate, time: row.draft.time } }));
     setScenario(value); setClockHistory(next.clockHistory); setReadings(next.readings); setSessionState(next.sessionState);
     setReviewVisibleOn(next.readings.length ? location.key : null);
     setExpanded(next.expanded); setSelectedId(null); setNotice(next.notice); setCheckedUncertain(false);
@@ -52,18 +66,37 @@ export default function BluetoothVisualLab({ Provider, children }) {
   const receiveReading = () => {
     const row = createBleLabScenario('one').readings[0];
     setReadings(rows => [...rows, { ...row, uiId: Math.max(0, ...rows.map(item => item.uiId)) + 1 }]);
-    setExpanded(false); setReviewVisibleOn(location.key);
+    if (reviewVisibleOn !== location.key || !expanded) setExpanded(false);
+    setReviewVisibleOn(location.key);
+  };
+  const discard = () => {
+    if (!selected || selected.importStatus === 'saving' || (selected.importStatus === 'uncertain' && check.status !== 'complete') || (!discardConfirm && check.status !== 'complete')) return;
+    setReadings(rows => rows.filter(row => row.uiId !== selected.uiId));
+    setSelectedId(null); setError(null); resetReview();
+  };
+  const checkDay = () => {
+    const version = ++queryVersion.current;
+    setCheckedUncertain(false); setCheck({ status: 'loading' });
+    queryTimer.current = setTimeout(() => {
+      if (version !== queryVersion.current) return;
+      setCheck(queryFails ? { status: 'error', message: 'Fallo de red ficticio. No se ha completado la consulta.' }
+        : { status: 'complete', result: { exists: true, measurements: [
+          { id: 'lab-a', temperature: 36.4, time: '07:10', source: 'manual', selected: true },
+          { id: 'lab-b', temperature: 36.6, time: '08:10', source: 'bluetooth', device_model: 'BM-Vinca2', selected: false },
+        ] } });
+    }, 500);
   };
   const save = () => {
     if (
   !draft?.isoDate ||
   !draft?.time ||
   selected?.importStatus === 'saving' ||
-  (selected?.importStatus === 'uncertain' && !checkedUncertain)
+  (selected?.importStatus === 'uncertain' && !checkedUncertain) ||
+  (error?.code === 'ble-possible-duplicate' && !duplicateApproved) || discardConfirm
 ) return;
     setNotice(previous => ({ count: (previous?.count || 0) + 1, temperature: selected.temperatureC, isoDate: draft.isoDate, time: draft.time }));
     setReadings(rows => rows.filter(row => row.uiId !== selected.uiId));
-    setSelectedId(null); setError(null); setCheckedUncertain(false);
+    setSelectedId(null); setError(null); resetReview();
   };
 
   const enabled = mode === 'android';
@@ -118,15 +151,21 @@ export default function BluetoothVisualLab({ Provider, children }) {
         <p className="text-xs">Solo Bluetooth es ficticio. El resto de la cuenta Staging es real.</p>
         <label className="block">Modo<select className="mt-1 min-h-11 w-full rounded border bg-white" aria-label="Modo de previsualización" value={mode} onChange={event => { clearTimeout(timer.current); restartLock.current = false; setMode(event.target.value); setReviewVisibleOn(null); setSessionState(previous => ({ ...previous, restarting: false, busy: false, status: previous.restarting ? 'stopped' : previous.status })); setNotice(null); setClockDialogOpen(false); }}><option value="web">Web / PWA</option><option value="android">Android visual</option></select></label>
         {enabled && <label className="block">Escenario<select className="mt-1 min-h-11 w-full rounded border bg-white" aria-label="Escenario visual" value={scenario} onChange={event => chooseScenario(event.target.value)}>{Object.entries(bleLabScenarios).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>}
+        {enabled && scenario === 'uncertain' && <label className="flex items-center gap-2"><input type="checkbox" checked={queryFails} onChange={event => { setQueryFails(event.target.checked); resetReview(); }} />Simular fallo de consulta</label>}
         {enabled && <Button variant="outline" onClick={receiveReading}>Simular nueva temperatura</Button>}
       </div>}
     </aside>
     {enabled && <>
-      <FemometerReviewCard visible={reviewVisibleOn === location.key} onDismiss={() => setReviewVisibleOn(null)} readings={readings} selected={selected} expanded={expanded} onExpand={() => setExpanded(true)} onMinimize={() => setExpanded(false)} onSelect={id => { setSelectedId(id); setCheckedUncertain(false); }} deviceKey="fictional-device">
+      <FemometerReviewCard visible={reviewVisibleOn === location.key} onDismiss={() => { setReviewVisibleOn(null); resetReview(); }} readings={readings} selected={selected} expanded={expanded} onExpand={() => setExpanded(true)} onMinimize={() => setExpanded(false)} onSelect={id => { setSelectedId(id); resetReview(); }} deviceKey="fictional-device">
         {selected && <BleReadingReviewView measurement={{ temperature: selected.temperatureC, device_timestamp: selected.deviceTimestamp }} reading={selected}
-          draft={draft} busy={selected.importStatus === 'saving'} error={error} checkedUncertain={checkedUncertain} setCheckedUncertain={setCheckedUncertain}
-          change={patch => updateDraft({ ...patch, confirmed: false })} confirm={save}
-          onClose={() => { updateDraft({ confirmed: false }); setExpanded(false); }} navigate={navigate} />}
+          draft={draft} busy={selected.importStatus === 'saving'} error={error} checkedUncertain={checkedUncertain}
+          check={check} canCheck={Boolean(selected.attempt)} onCheck={checkDay}
+          duplicateApproved={duplicateApproved} discardConfirm={discardConfirm}
+          onDifferent={() => setDuplicateApproved(true)} onRepeated={() => setDiscardConfirm(true)}
+          onCancelDiscard={() => setDiscardConfirm(false)} onDiscard={discard}
+          onAlreadyStored={discard} onMissing={() => { if (check.status === 'complete') setCheckedUncertain(true); }}
+          change={patch => { updateDraft({ ...patch, confirmed: false }); resetReview(); }} confirm={save}
+          onClose={() => { setReviewVisibleOn(null); resetReview(); }} navigate={navigate} />}
       </FemometerReviewCard>
       <BleSavedNotice notice={notice} onDismiss={() => setNotice(null)} onViewDay={isoDate => navigate('/records', { state: { selectedDate: isoDate, scrollToDayDetail: true } })} />
       <FemometerFeedback clockHistory={clockHistory} readings={[]} sessionState={sessionState} sessionRef={sessionRef} clockDialogOpen={clockDialogOpen} setClockDialogOpen={setClockDialogOpen} />

@@ -18,7 +18,7 @@ import {
 import { db } from '@/lib/firebaseClient';
 import { isFemometerBleAndroidNative, isFemometerBlePrototypeEnabled } from '@/lib/femometerBle';
 import { prepareManualBleDraft, isPossibleBleDuplicate } from '@/lib/bleMeasurements';
-import { measurementsFromRecord, selectedMeasurementSummary } from '@/lib/temperatureMeasurements';
+import { measurementsFromRecord, selectedMeasurementSummary, hasMeasurementTemperature } from '@/lib/temperatureMeasurements';
 import { format, differenceInDays, startOfDay, parseISO, compareAsc, addDays, isValid } from 'date-fns';
 
 const isDevEnvironment =
@@ -1868,6 +1868,56 @@ export const updateCycleEntry = async (userId, cycleId, entryId, payload) => {
   await batch.commit();
   return { id: entryId, ...(replacement?.next.length
     ? { measurements: replacement.next.map(({ ref, data }) => ({ ...data, id: ref.id })) } : {}) };
+};
+
+// Read-only reconciliation of an uncertain BLE attempt. Never falls back to cache.
+export const fetchBleAttemptDayDB = async ({ userId, cycleId, isoDate }) => {
+  const incomplete = () => createAppError('ble-check-incomplete', 'Comprobación incompleta',
+    'No se pudo comprobar el día completo. Reintenta la consulta o decide más tarde.');
+  if (!userId || !cycleId || !/^\d{4}-\d{2}-\d{2}$/.test(isoDate ?? '')
+    || !isValid(parseISO(isoDate)) || format(parseISO(isoDate), 'yyyy-MM-dd') !== isoDate) throw incomplete();
+  const server = snapshot => {
+    if (snapshot.metadata?.fromCache !== false || snapshot.metadata?.hasPendingWrites !== false) throw incomplete();
+    return snapshot;
+  };
+  const readDoc = async ref => server(await getDocFromServer(ref));
+  const readAll = async ref => server(await getDocsFromServer(ref)).docs;
+  const cycleRef = doc(db, `users/${userId}/cycles/${cycleId}`);
+  const entriesRef = collection(db, `users/${userId}/cycles/${cycleId}/entries`);
+  const indexRef = doc(db, `users/${userId}/cycles/${cycleId}/entries_by_iso/${isoDate}`);
+  const cycle = await readDoc(cycleRef);
+  if (!cycle.exists() || !cycle.data().start_date || isoDate < cycle.data().start_date
+    || (cycle.data().end_date && isoDate > cycle.data().end_date)) throw incomplete();
+  const entries = await readAll(entriesRef);
+  if (entries.some(item => !resolveIsoDateFromEntryData(item.data()))) throw incomplete();
+  const day = entries.filter(item => resolveIsoDateFromEntryData(item.data()) === isoDate);
+  if (day.length > 1) throw incomplete();
+  const index = await readDoc(indexRef);
+  if (index.exists() && index.data().entryId !== day[0]?.id) throw incomplete();
+  const entryRef = day[0]?.ref ?? doc(entriesRef, isoDate);
+  const entry = await readDoc(entryRef);
+  if (entry.exists() !== Boolean(day.length) || (entry.exists() && !equalBleValue(entry.data(), day[0].data()))) throw incomplete();
+  const membersRef = collection(entryRef, 'measurements');
+  const members = await readAll(membersRef);
+  if (!entry.exists() && members.length) throw incomplete();
+  const loaded = members.map(item => ({ ...item.data(), id: item.id }));
+  if (loaded.some(item => !hasMeasurementTemperature(item)) || loaded.filter(item => item.selected).length > 1) throw incomplete();
+  // A summary is only a valid fallback for a single legacy measurement.
+  const count = entry.data()?.measurementsCount ?? entry.data()?.measurements_count;
+  if (count != null && (!Number.isInteger(count) || count < 0 || count > Math.max(loaded.length, 1))) throw incomplete();
+  if (Array.isArray(entry.data()?.measurements) && entry.data().measurements.length > Math.max(loaded.length, 1)) throw incomplete();
+  const measurements = loaded.length ? loaded : measurementsFromRecord(entry.data(), []);
+  if (count != null && count !== measurements.length) throw incomplete();
+  if (!loaded.length && !measurements.length && [entry.data()?.temperature_raw, entry.data()?.temperature_corrected]
+    .some(value => value !== undefined && value !== null && value !== '')) throw incomplete();
+  // Detect membership, values, cycle-range and index changes while reading.
+  const [again, membersAgain, indexAgain, cycleAgain] = await Promise.all([
+    readAll(entriesRef), readAll(membersRef), readDoc(indexRef), readDoc(cycleRef),
+  ]);
+  const values = rows => rows.map(item => ({ id: item.id, data: item.data() })).sort((a, b) => a.id.localeCompare(b.id));
+  if (!equalBleValue(values(entries), values(again)) || !equalBleValue(values(members), values(membersAgain))
+    || !equalBleValue(index.data(), indexAgain.data()) || !equalBleValue(cycle.data(), cycleAgain.data())) throw incomplete();
+  return { complete: true, userId, cycleId, isoDate, exists: entry.exists(), measurements };
 };
 
 export const fetchEntryMeasurementsDB = async (userId, cycleId, entryId) => {
