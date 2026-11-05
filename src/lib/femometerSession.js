@@ -32,6 +32,18 @@ export const createFemometerSessionManager = (api) => {
     let listeningExpiresAt = 0;
     let lastForegroundAttempt = -Infinity;
     let resumeJob;
+    let resumeLifecycle;
+    let restartJob;
+    let suspended = false;
+    let lifecycleVersion = 0;
+    let disconnectJob;
+    const disconnect = () => {
+      if (disconnectJob) return disconnectJob;
+      if (!acquired) return Promise.resolve();
+      disconnectJob = Promise.resolve().then(() => api.disconnectFemometer())
+        .then(() => { acquired = false; }).finally(() => { disconnectJob = null; });
+      return disconnectJob;
+    };
     let state = {
       status: 'checking', busy: false, remembered: null, devices: [],
       selectedDeviceId: '', inspectionResult: null, error: null, listenerResult: null,
@@ -46,8 +58,8 @@ export const createFemometerSessionManager = (api) => {
       subscription = null;
       await old?.remove();
     };
-    const run = (task) => {
-      if (disposed || job || clockJob || stopping || state.status === 'listening') return Promise.resolve();
+    const run = (task, restarting = false) => {
+      if (disposed || suspended || (restartJob && !restarting) || job || clockJob || stopping || state.status === 'listening') return Promise.resolve();
       const token = ++version;
       const current = () => !disposed && token === version;
       const check = () => { if (!current()) throw { code: 'CONNECTION_CANCELLED' }; };
@@ -60,7 +72,7 @@ export const createFemometerSessionManager = (api) => {
         await task(call, current);
       })().catch(async error => {
         if (!current()) return;
-        await api.disconnectFemometer().catch(() => {});
+        await disconnect().catch(() => {});
         await removeSubscription().catch(() => {});
         if (current()) publish({ status: 'error', error, listenerResult: null });
       }).finally(() => {
@@ -82,9 +94,9 @@ export const createFemometerSessionManager = (api) => {
       subscription = await api.addFemometerTemperatureListener(event => {
         if (!current()) return;
         onTemperature(event);
-        if (['timeout', 'disconnected', 'error'].includes(event?.status)) {
-          void session.stop(event.status === 'timeout' ? 'stopped' : 'error',
-            event.status === 'timeout' ? null : { message: event.message || 'El termómetro se desconectó.' });
+        if (['timeout', 'stopped', 'disconnected', 'error'].includes(event?.status)) {
+          void session.stop(['timeout', 'stopped'].includes(event.status) ? 'stopped' : 'error',
+            ['timeout', 'stopped'].includes(event.status) ? null : { message: event.message || 'El termómetro se desconectó.' });
         }
       });
       const result = await call(() => api.startFemometerTemperatureListener(deviceId, userId));
@@ -153,23 +165,54 @@ export const createFemometerSessionManager = (api) => {
       readClock: () => clock(false),
       syncClock: () => clock(true),
       start: () => run((call, current) => search(true, call, current)),
+      suspend: () => {
+        if (disposed || suspended) return stopping ?? Promise.resolve();
+        suspended = true;
+        ++lifecycleVersion;
+        // Android handleOnStop closes GATT without a terminal event once ready.
+        // Invalidate JS immediately and share the normal ordered cleanup.
+        return session.stop();
+      },
+      restart: () => {
+        if (restartJob) return restartJob;
+        if (disposed || suspended || job || clockJob || stopping || resumeJob) return Promise.resolve();
+        const lifecycle = lifecycleVersion;
+        publish({ restarting: true });
+        restartJob = Promise.resolve().then(async () => {
+          await session.stop();
+          if (!disposed && !suspended && lifecycle === lifecycleVersion && state.status !== 'error') {
+            await run((call, current) => search(true, call, current), true);
+          }
+        }).finally(() => { restartJob = null; publish({ restarting: false }); });
+        return restartJob;
+      },
       resume: () => {
         if (disposed) return Promise.resolve();
+        suspended = false;
+        const lifecycle = lifecycleVersion;
         const decision = reason => publish({ foreground: { detectedAt: now(), reason } });
-        if (resumeJob || job) { decision('operation_in_progress'); return resumeJob ?? Promise.resolve(); }
-        if (!state.remembered) { decision('no_remembered_device'); return Promise.resolve(); }
+        if (resumeJob) {
+          decision('operation_in_progress');
+          return resumeLifecycle === lifecycle ? resumeJob : resumeJob.then(() => {
+            if (!disposed && !suspended && lifecycle === lifecycleVersion) return session.resume();
+          });
+        }
+        if (!stopping && (job || restartJob)) { decision('operation_in_progress'); return job ?? restartJob; }
+        if (state.remembered === false) { decision('no_remembered_device'); return Promise.resolve(); }
         if (state.status === 'listening' && now() < listeningExpiresAt) { decision('listening_active'); return Promise.resolve(); }
         // Mount/manual searches do not consume the first foreground attempt.
         if (now() - lastForegroundAttempt < 5_000) { decision('brief_cooldown'); return Promise.resolve(); }
-        lastForegroundAttempt = now();
         decision('reconnecting');
-        resumeJob = (async () => {
-          // Drain a pending terminal event, or invalidate an expired native listener
-          // whose timeout event Android has not delivered yet, before reconnecting.
+        resumeLifecycle = lifecycle;
+        resumeJob = Promise.resolve().then(async () => {
           if (stopping) await stopping;
           else if (state.status === 'listening') await session.stop();
-          if (!disposed && !job && !clockJob && !stopping) await session.start();
-        })().finally(() => { resumeJob = null; });
+          if (restartJob) await restartJob;
+          if (!disposed && !suspended && lifecycle === lifecycleVersion && !job && !clockJob && !stopping) {
+            lastForegroundAttempt = now();
+            await session.start();
+          }
+        }).finally(() => { resumeJob = null; });
         return resumeJob;
       },
       scan: () => run((call, current) => search(false, call, current)),
@@ -193,6 +236,8 @@ export const createFemometerSessionManager = (api) => {
       }),
       stop: (status = 'stopped', error = null) => {
         if (stopping) return stopping;
+        listeningExpiresAt = 0;
+        automaticClockPending = false;
         ++version; // Invalidate all continuations and events synchronously.
         publish({ status: 'stopping', busy: true });
         const pending = Promise.all([job, clockJob]);
@@ -200,7 +245,7 @@ export const createFemometerSessionManager = (api) => {
           await ready;
           // A StrictMode mount cancelled before acquisition must not stop its successor.
           try {
-            if (acquired) await api.disconnectFemometer();
+            await disconnect();
           } finally {
             // Even if native cleanup fails, drain late JS work and remove its listener.
             await pending;

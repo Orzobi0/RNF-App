@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useRef, useState, lazy, Suspense } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { createFemometerPanelSession, isFemometerBleAndroidNative, isFemometerBlePrototypeEnabled } from '@/lib/femometerBle';
 import { normalizeBleMeasurement, decideVinca2Reading } from '@/lib/bleMeasurements';
@@ -31,6 +32,11 @@ export const FemometerProvider = ({ children }) => {
 };
 
 export const FemometerSessionOwner = ({ userId, children }) => {
+  const location = useLocation();
+  const locationKey = useRef(location.key);
+  locationKey.current = location.key;
+  const [reviewVisibleOn, setReviewVisibleOn] = useState(null);
+  useEffect(() => { setReviewVisibleOn(null); }, [location.key]);
   const sessionRef = useRef(null);
   const readingsRef = useRef([]);
   const localRef = useRef(null);
@@ -105,6 +111,8 @@ export const FemometerSessionOwner = ({ userId, children }) => {
               nowMs: Date.now(), timeZone: localRef.current?.clock(normalized.device_key)?.lastValidCheck?.phoneTimeZone,
               clockHistory: localRef.current?.clock(normalized.device_key) }),
             uiId: ++sequence, importStatus: 'pending' }]);
+        setReviewVisibleOn(locationKey.current);
+        setReviewExpanded(false);
         setTemperatureListenerMessage(normalized.device_key ? 'Lectura recibida y pendiente de revisión.' : 'Lectura de un termómetro sin vincular: solo se conserva durante esta sesión. Vincúlalo antes de nuevas tomas.');
       } else if (event?.status === 'timeout') setTemperatureListenerMessage('Escucha finalizada. Las lecturas recibidas siguen disponibles.');
       else if (event?.message) setTemperatureListenerMessage(event.message);
@@ -116,6 +124,7 @@ export const FemometerSessionOwner = ({ userId, children }) => {
     // not a polling timer; the manager also checks the native listening deadline.
     const lifecycle = CapacitorApp.addListener('appStateChange', ({ isActive }) => {
       clearTimeout(foregroundTimer);
+      if (alive && !isActive) void session.suspend();
       if (alive && isActive) foregroundTimer = setTimeout(() => {
         if (alive) void session.resume();
       }, 250);
@@ -159,7 +168,8 @@ export const FemometerSessionOwner = ({ userId, children }) => {
   };
   const openReadingReview = id => {
     const pending = readingsRef.current.filter(row => row.importStatus !== 'incorporated' && row.importStatus !== 'discarded');
-    setReviewReadingId(pending.find(row => row.uiId === id)?.uiId ?? pending[0]?.uiId ?? null);
+    setReviewReadingId(pending.find(row => row.uiId === (id ?? reviewReadingId))?.uiId ?? pending[0]?.uiId ?? null);
+    setReviewVisibleOn(location.key);
     setReviewExpanded(true);
   };
   const pendingReadings = readings.filter(row => row.importStatus !== 'incorporated' && row.importStatus !== 'discarded');
@@ -171,7 +181,7 @@ export const FemometerSessionOwner = ({ userId, children }) => {
     openClockDialog: () => setClockDialogOpen(true) }}>{children}
     <FemometerFeedback clockHistory={clockHistory} sessionState={sessionState} sessionRef={sessionRef} readings={readings} openReadingReview={openReadingReview}
       clockDialogOpen={clockDialogOpen} setClockDialogOpen={setClockDialogOpen} />
-    <FemometerReviewCard readings={pendingReadings} selected={reviewReading} expanded={reviewExpanded}
+    <FemometerReviewCard visible={reviewVisibleOn === location.key} onDismiss={() => setReviewVisibleOn(null)} readings={pendingReadings} selected={reviewReading} expanded={reviewExpanded}
       onExpand={() => openReadingReview()} onMinimize={() => setReviewExpanded(false)} onSelect={openReadingReview}
       storageError={storageError} deviceKey={sessionState.deviceKey}>
       {reviewReading && <BleReadingReview key={reviewReading.uiId} userId={userId} reading={reviewReading}

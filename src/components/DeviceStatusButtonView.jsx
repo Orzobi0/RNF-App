@@ -13,7 +13,7 @@ export const DeviceStatusButtonView = ({ ble, navigate }) => {
   const searching = ['checking', 'searching', 'connecting', 'inspecting'].includes(status);
   const listening = status === 'listening';
   const unlinked = !searching && !listening && remembered === false;
-  const label = listening ? 'Escuchando temperaturas' : status === 'stopping' ? 'Desconectando'
+  const label = state.restarting ? 'Reconectando' : listening ? 'Escuchando temperaturas' : status === 'stopping' ? 'Desconectando'
     : searching ? 'Buscando / conectando' : unlinked ? 'Sin vincular' : 'Desconectado';
   const Icon = listening || searching || unlinked ? Bluetooth : BluetoothOff;
   const explanation = error?.code === 'CONNECTION_CANCELLED' ? 'Conexión cancelada. Puedes buscar de nuevo.'
@@ -23,7 +23,7 @@ export const DeviceStatusButtonView = ({ ble, navigate }) => {
   return <Popover open={open} onOpenChange={setOpen}>
     <PopoverTrigger asChild><button type="button" aria-label={description} title={description}
       className={`relative flex h-11 w-11 min-h-[44px] min-w-[44px] shrink-0 self-end items-center justify-center rounded-full focus-visible:ring-2 focus-visible:ring-rose-300 ${listening ? 'text-emerald-700' : 'text-slate-500'}`}>
-      {searching && <svg aria-hidden="true" viewBox="0 0 44 44" className="absolute inset-0 h-11 w-11 animate-pulse motion-reduce:animate-none" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+      {(searching || listening) && <svg aria-hidden="true" viewBox="0 0 44 44" className="absolute inset-0 h-11 w-11 animate-pulse motion-reduce:animate-none" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
         <path d="M13 16 Q8 22 13 28 M8 12 Q0 22 8 32 M31 16 Q36 22 31 28 M36 12 Q44 22 36 32" />
       </svg>}
       <Icon aria-hidden="true" className="h-5 w-5" />
@@ -38,9 +38,9 @@ export const DeviceStatusButtonView = ({ ble, navigate }) => {
       {explanation && <p className="text-xs text-slate-600">{explanation}</p>}
       {issue && <p className="text-xs text-amber-800">El reloj requiere atención.</p>}
       <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-        <Button type="button" size="icon" className="h-11 w-11 rounded-full" title="Buscar nuevas" aria-label="Buscar nuevas"
-          disabled={searching || listening || status === 'stopping' || state.busy || state.clockBusy || (ble.preview && !ble.visualLab)}
-          onClick={() => { setOpen(false); void (remembered ? ble.sessionRef.current?.start() : ble.sessionRef.current?.scan()); }}>
+        <Button type="button" size="icon" className="h-11 w-11 rounded-full" title={state.restarting ? 'Reconectando' : listening ? 'Reiniciar escucha' : 'Buscar nuevas'} aria-label={state.restarting ? 'Reconectando' : listening ? 'Reiniciar escucha' : 'Buscar nuevas'}
+          disabled={searching || state.restarting || status === 'stopping' || state.busy || state.clockBusy || (ble.preview && !ble.visualLab)}
+          onClick={() => { setOpen(false); void (listening ? ble.sessionRef.current?.restart() : remembered ? ble.sessionRef.current?.start() : ble.sessionRef.current?.scan()); }}>
           <RefreshCw className="h-5 w-5" aria-hidden="true" />
         </Button>
         {ble.pendingCount > 0 && <Button type="button" variant="outline" size="icon" className="h-11 w-11 rounded-full" title="Incorporar" aria-label={`Incorporar (${ble.pendingCount})`}

@@ -11,7 +11,7 @@ const memoryStorage = () => { const data = new Map(); return { getItem: key => d
 const bridge = () => {
   const calls = { connections: 0, disconnects: 0, listeners: 0, peakListeners: 0, clock: 0, sync: 0, permissions: 0 };
   let emit; let deviceKey = null; const storage = memoryStorage();
-  const flags = { clockFails: false, clockWait: null, syncFails: false, now: 0, remembered: true, found: true };
+  const flags = { clockFails: false, clockWait: null, disconnectWait: null, syncFails: false, now: 0, remembered: true, found: true };
   const api = {
     now: () => flags.now,
     getRememberedFemometer: async user => ({ remembered: flags.remembered, deviceKey: flags.remembered ? 'bound-' + user : null }),
@@ -27,7 +27,7 @@ const bridge = () => {
       return { deviceKey, connectionReady: true, indicationsActive: true, timeoutSeconds: 360,
         capabilities: { model: 'BM-Vinca2', clockRead: true, clockSync: true } };
     },
-    disconnectFemometer: async () => { calls.disconnects++; },
+    disconnectFemometer: async () => { calls.disconnects++; if (flags.disconnectWait) await flags.disconnectWait.promise; },
     readFemometerClock: async () => {
       calls.clock++;
       if (flags.clockWait) return flags.clockWait.promise;
@@ -42,10 +42,11 @@ const bridge = () => {
 async function mountedOwner(native, initialUser = 'a') {
   const harness = hooks();
   let userId = initialUser;
+  let routeKey = 'dashboard';
   const lifecycle = new Set();
   const timers = new Set();
   const { FemometerSessionOwner } = await loadFrontend('src/contexts/FemometerContext.jsx', {
-    ...harness.bindings, normalizeBleMeasurement, decideVinca2Reading, createFemometerPanelSession: native.factory,
+    ...harness.bindings, useLocation: () => ({ key: routeKey }), normalizeBleMeasurement, decideVinca2Reading, createFemometerPanelSession: native.factory,
     FemometerFeedback: 'feedback', BleReadingReview: 'review', FemometerReviewCard: 'card',
     createFemometerLocalState: (_, user) => createFemometerLocalState(native.storage, user),
     CapacitorApp: { addListener: async (name, callback) => {
@@ -55,9 +56,13 @@ async function mountedOwner(native, initialUser = 'a') {
     setTimeout: callback => { timers.add(callback); return callback; },
     clearTimeout: callback => timers.delete(callback),
   }, ['FemometerSessionOwner']);
-  const render = () => harness.render(() => FemometerSessionOwner({ userId, children: null }));
+  let lastTree;
+  const render = () => harness.render(() => (lastTree = FemometerSessionOwner({ userId, children: null })));
   render(); await flush();
   return { render, cleanup: harness.cleanup, lifecycle, timers,
+    card: () => { render(); return treeNodes(lastTree).find(node => node.type === 'card').props; },
+    navigate: key => { routeKey = key; render(); },
+    background: async () => { lifecycle.forEach(callback => callback({ isActive: false })); await flush(); },
     foreground: async () => {
       lifecycle.forEach(callback => callback({ isActive: true }));
       for (const callback of timers) { timers.delete(callback); callback(); }
@@ -258,32 +263,35 @@ test('web, production and signed-out sessions never mount a BLE owner', async ()
   }
 });
 
+const clockHook = async harness => (await loadFrontend('src/components/useClockIssue.js', harness.bindings, ['useClockIssue'])).useClockIssue;
+
 const treeNodes = node => !node || typeof node !== 'object' ? [] : typeof node.type === 'function' ? treeNodes(node.type(node.props)) : [node,
   ...(node.props?.children ?? []).flat(Infinity).flatMap(treeNodes)];
 
-test('mobile Bluetooth popover offers three independent actions despite pending readings', async () => {
+test('Bluetooth popover keeps waves during listening and offers manual restart with independent indicators', async () => {
   const harness = hooks();
-  let starts = 0; let scans = 0; let clocks = 0; let reviews = 0;
+  let restarts = 0; let starts = 0; let scans = 0; let clocks = 0; let reviews = 0;
   let ble = { enabled: true, pendingCount: 3, sessionState: { status: 'listening' },
-    sessionRef: { current: { start: () => starts++, scan: () => scans++ } }, openClockDialog: () => clocks++, openReadingReview: () => reviews++ };
+    sessionRef: { current: { restart: () => restarts++, start: () => starts++, scan: () => scans++ } }, openClockDialog: () => clocks++, openReadingReview: () => reviews++ };
   const destinations = [];
   const { DeviceStatusButtonView } = await loadFrontend('src/components/DeviceStatusButtonView.jsx', {
-    ...harness.bindings, useFemometer: () => ble, useNavigate: () => path => destinations.push(path),
-    Bluetooth: 'connected', BluetoothOff: 'disconnected', CircleAlert: 'attention', Loader2: 'searching',
+    ...harness.bindings, useClockIssue: await clockHook(harness), useFemometer: () => ble, useNavigate: () => path => destinations.push(path),
+    Bluetooth: 'connected', BluetoothOff: 'disconnected', Plus: 'plus', Clock: 'clock',
     Popover: 'popover', PopoverTrigger: 'trigger', PopoverContent: 'content', Button: 'action', RefreshCw: 'refresh',
 Settings2: 'settings',
 ClipboardList: 'readings',
 Clock3: 'clock',
   }, ['DeviceStatusButtonView']);
   const render = () => harness.render(() => ({ props: { value: DeviceStatusButtonView({ ble, navigate: path => destinations.push(path) }) } }));
-  for (const [status, icon] of [['listening', 'connected'], ['searching', 'searching'], ['connecting', 'searching'], ['stopped', 'disconnected'], ['error', 'attention']]) {
+  for (const [status, icon] of [['listening', 'connected'], ['searching', 'connected'], ['connecting', 'connected'], ['stopped', 'disconnected'], ['error', 'disconnected']]) {
     ble.sessionState = { status };
     const tree = render();
     assert.equal(tree.type, 'popover');
     const button = treeNodes(tree).find(node => node.type === 'button');
     assert.match(button.props.className, /min-h-\[44px\]/);
     assert.match(button.props.className, /min-w-\[44px\]/);
-    assert.equal(button.props.children[0].type, icon);
+    assert.ok(treeNodes(button).some(node => node.type === icon));
+    assert.equal(treeNodes(button).some(node => node.type === 'svg'), ['listening', 'searching', 'connecting'].includes(status));
     assert.match(button.props['aria-label'], /3 lecturas pendientes/);
     treeNodes(tree).find(node => node.type === 'action' && node.props['aria-label'] === 'Ir a Dispositivos').props.onClick();
   }
@@ -293,19 +301,20 @@ Clock3: 'clock',
   assert.equal(starts, 1); assert.equal(scans, 0);
   ble.sessionState = { status: 'listening', capabilities: { clockSync: true }, clockResult: { significantDrift: true } };
   let nodes = treeNodes(render());
-  assert.equal(nodes.filter(node => node.type === 'action').length, 3);
-  assert.equal(nodes.find(node => node.type === 'action' && node.props['aria-label'] === 'Buscar nuevas').props.disabled, true);
+  assert.equal(nodes.filter(node => node.type === 'action').length, 4);
+  const restart = nodes.find(node => node.type === 'action' && node.props['aria-label'] === 'Reiniciar escucha');
+  assert.equal(Boolean(restart.props.disabled), false); restart.props.onClick(); assert.equal(restarts, 1);
   nodes.find(node => node.type === 'action' && node.props['aria-label'] === 'Incorporar (3)').props.onClick();
   assert.equal(reviews, 1);
   ble.enabled = false;
   assert.equal(render(), null);
 });
 
-test('global clock prompt appears once per connection and synchronizes only on explicit action', async () => {
+test('global clock prompt stays closed until explicit action', async () => {
   const harness = hooks(); let syncs = 0; const opened = [];
   const navigate = () => {};
   const { FemometerFeedback } = await loadFrontend('src/components/FemometerFeedback.jsx', {
-    ...harness.bindings, useNavigate: () => navigate, useLocation: () => ({ key: 'page' }), BleSavedNotice: 'saved-notice', toast: () => ({ dismiss() {}, update() {} }), ToastAction: 'action',
+    ...harness.bindings, useClockIssue: await clockHook(harness), useNavigate: () => navigate, useLocation: () => ({ key: 'page' }), BleSavedNotice: 'saved-notice', toast: () => ({ dismiss() {}, update() {} }), ToastAction: 'action',
     Thermometer: 'thermometer', Check: 'check', Button: 'button', Dialog: 'dialog', DialogContent: 'content', DialogHeader: 'header', DialogTitle: 'title', DialogDescription: 'description', DialogFooter: 'footer',
   }, ['FemometerFeedback']);
   const props = { readings: [], sessionRef: { current: { syncClock: () => { syncs++; } } }, clockDialogOpen: false,
@@ -313,19 +322,19 @@ test('global clock prompt appears once per connection and synchronizes only on e
       clockResult: { significantDrift: true, deviceLocalTime: '2020-01-01T08:00:00', phoneLocalTime: '2026-11-03T08:00:00' } } };
   const render = () => harness.render(() => ({ props: { value: FemometerFeedback(props) } }));
   let tree = render();
-  assert.deepEqual(opened, [true]);
+  assert.deepEqual(opened, []);
   assert.equal(syncs, 0);
-  treeNodes(tree).find(node => node.type === 'button' && node.props.children.includes('Más tarde')).props.onClick();
+  treeNodes(tree).find(node => node.type === 'button' && node.props.children.includes('Cerrar')).props.onClick();
   render(); render();
-  assert.deepEqual(opened, [true, false]);
-  treeNodes(tree).find(node => node.type === 'button' && node.props.children.includes('Sincronizar reloj')).props.onClick();
+  assert.deepEqual(opened, [false]);
+  treeNodes(tree).find(node => node.type === 'button' && node.props.children.includes('Sincronizar y verificar')).props.onClick();
   assert.equal(syncs, 1);
   props.sessionState = { ...props.sessionState, clockError: { message: 'read failed' } };
   tree = render();
   assert.ok(treeNodes(tree).some(node => node.props.role === 'alert'));
   props.sessionState = { ...props.sessionState, listenerResult: {} };
   render();
-  assert.deepEqual(opened, [true, false, true]);
+  assert.deepEqual(opened, [false]);
   harness.cleanup();
 });
 
@@ -333,7 +342,7 @@ test('confirmed notices group, remain dismissible and link to the exact day', as
   const harness = hooks(); const routes = []; let page = 'dashboard';
   const navigate = (...args) => routes.push(args);
   const { FemometerFeedback } = await loadFrontend('src/components/FemometerFeedback.jsx', {
-    ...harness.bindings, useNavigate: () => navigate, useLocation: () => ({ key: page }), BleSavedNotice: 'saved-notice',
+    ...harness.bindings, useClockIssue: await clockHook(harness), useNavigate: () => navigate, useLocation: () => ({ key: page }), BleSavedNotice: 'saved-notice',
     Button: 'button', Dialog: 'dialog', DialogContent: 'content', DialogHeader: 'header', DialogTitle: 'title', DialogDescription: 'description', DialogFooter: 'footer',
   }, ['FemometerFeedback']);
   const props = { sessionState: {}, readings: [], setClockDialogOpen() {} };
@@ -528,12 +537,12 @@ test('owner restores pending work and edits, removes only confirmed saves and ne
 });
 
 test('persistent review card selects readings, minimizes explicitly and advances after save', async () => {
-  const harness = hooks(); const selected = []; let minimized = 0;
+  const harness = hooks(); const selected = []; let minimized = 0; let dismissed = 0;
   const { FemometerReviewCard } = await loadFrontend('src/components/FemometerReviewCard.jsx', {
-    ...harness.bindings, window: {}, Button: 'button', Thermometer: 'thermometer', ChevronDown: 'chevron',
+    ...harness.bindings, window: {}, Button: 'button', Thermometer: 'thermometer', ChevronDown: 'chevron', X: 'x',
   }, ['FemometerReviewCard'], source => source.replace('export default function FemometerReviewCard', 'function FemometerReviewCard'));
   const rows = [1, 2].map(uiId => ({ uiId, deviceKey: 'device', temperatureC: 36 + uiId / 10, importStatus: 'pending' }));
-  const props = { readings: rows, selected: rows[0], expanded: true, deviceKey: 'device', onSelect: id => selected.push(id), onMinimize: () => minimized++, onExpand() {}, children: 'editor' };
+  const props = { onDismiss: () => dismissed++, readings: rows, selected: rows[0], expanded: true, deviceKey: 'device', onSelect: id => selected.push(id), onMinimize: () => minimized++, onExpand() {}, children: 'editor' };
   const render = () => harness.render(() => ({ props: { value: FemometerReviewCard(props) } }));
   let nodes = treeNodes(render());
   nodes.find(node => node.type === 'button' && node.props['aria-pressed'] === false).props.onClick();
@@ -542,7 +551,20 @@ test('persistent review card selects readings, minimizes explicitly and advances
   assert.equal(minimized, 1); assert.equal(rows.length, 2);
   props.readings = [rows[1]]; props.selected = rows[1];
   assert.equal(treeNodes(render()).filter(node => node.props['aria-pressed'] === true).length, 1);
-  props.expanded = false; assert.equal(treeNodes(render()).some(node => node.props.id === 'ble-pending-review'), false);
+  props.expanded = false; assert.equal(treeNodes(render()).find(node => node.props.id === 'ble-pending-review').props.hidden, true);
+  const swipe = (x, y) => {
+    const region = treeNodes(render()).find(node => node.props.onPointerDown);
+    const pointer = { pointerId: 1, isPrimary: true, button: 0, clientX: 100, clientY: 100,
+      target: { closest: () => null }, currentTarget: { setPointerCapture() {} } };
+    region.props.onPointerDown(pointer);
+    region.props.onPointerUp({ ...pointer, clientX: x, clientY: y });
+  };
+  swipe(110, 90); assert.equal(dismissed, 0);
+  swipe(190, 100); swipe(100, 20); assert.equal(dismissed, 2);
+  treeNodes(render()).find(node => node.props['aria-label'] === 'Cerrar aviso de temperaturas pendientes').props.onClick();
+  assert.equal(dismissed, 3); assert.equal(props.readings.length, 1);
+  props.visible = false; assert.equal(render().props.hidden, true);
+  assert.ok(treeNodes(render()).find(node => node.props.id === 'ble-pending-review').props.children.includes('editor'));
   harness.cleanup();
 });
 
@@ -686,4 +708,102 @@ test('lab owner is authenticated and available without query parameters across r
   user = null; tree = render(); assert.equal(tree.props.value.enabled, false);
   user = { uid: 'b' }; tree = render(); assert.equal(tree.props.children[0].props.key, 'b');
   harness.cleanup();
+});
+
+
+test('background invalidates listening immediately and foreground drains cleanup before reconnecting', async () => {
+  const native = bridge(); let state;
+  const readings = [];
+  const session = native.factory('a', next => { state = next; }, row => readings.push(row));
+  await session.start();
+  native.emit({ temperatureC: 36.4 });
+  const gate = deferred(); native.flags.disconnectWait = gate;
+  const stopping = session.suspend();
+  assert.equal(state.status, 'stopping');
+  const returning = session.resume();
+  await flush();
+  assert.equal(native.calls.connections, 1);
+  assert.equal(native.calls.disconnects, 1);
+  gate.resolve(); await Promise.all([stopping, returning]);
+  assert.equal(state.status, 'listening');
+  assert.equal(native.calls.connections, 2);
+  assert.equal(native.calls.peakListeners, 1);
+  assert.equal(readings.length, 1);
+  await session.dispose();
+});
+
+test('manual restart is single flight, drains listeners, retains readings and allows retry after missing device', async () => {
+  const native = bridge(); let state;
+  const readings = [];
+  const session = native.factory('a', next => { state = next; }, row => readings.push(row));
+  await session.start();
+  native.emit({ temperatureC: 36.5 });
+  const gate = deferred(); native.flags.disconnectWait = gate;
+  const restart = session.restart();
+  assert.equal(session.restart(), restart);
+  assert.equal(state.restarting, true);
+  await flush();
+  assert.equal(native.calls.connections, 1);
+  assert.equal(native.calls.disconnects, 1);
+  await session.start(); // Cannot overlap a manual restart.
+  gate.resolve(); await restart;
+  assert.equal(native.calls.connections, 2);
+  assert.equal(native.calls.peakListeners, 1);
+  assert.equal(state.status, 'listening');
+  assert.equal(state.restarting, false);
+  assert.equal(readings.length, 1);
+  native.flags.found = false;
+  await session.restart();
+  assert.equal(state.status, 'missing');
+  native.flags.found = true;
+  await session.start();
+  assert.equal(state.status, 'listening');
+  assert.equal(readings.length, 1);
+  await session.dispose();
+});
+
+test('background during manual restart cancels its search; rapid lifecycle changes cannot overlap connections', async () => {
+  const native = bridge(); let state;
+  const session = native.factory('a', next => { state = next; }, () => {});
+  await session.start();
+  const gate = deferred(); native.flags.disconnectWait = gate;
+  const restart = session.restart(); await flush();
+  const background = session.suspend();
+  const foreground = session.resume();
+  const backgroundAgain = session.suspend();
+  const foregroundAgain = session.resume();
+  gate.resolve();
+  await Promise.all([restart, background, foreground, backgroundAgain, foregroundAgain]);
+  assert.equal(native.calls.connections, 2);
+  assert.equal(native.calls.disconnects, 1);
+  assert.equal(native.calls.peakListeners, 1);
+  assert.equal(state.status, 'listening');
+  await session.dispose();
+});
+
+test('pending notice hides on dismissal and navigation, reopens explicitly and resurfaces compact for a new reading', async () => {
+  const native = bridge(); const owner = await mountedOwner(native);
+  try {
+    native.emit({ temperatureC: 36.4 });
+    assert.equal(owner.card().visible, true);
+    assert.equal(owner.card().expanded, false);
+    const row = owner.render().readings[0];
+    owner.render().updateReadingDraft(row.uiId, { isoDate: '2026-11-05', time: '08:15' });
+    owner.card().onDismiss();
+    assert.equal(owner.card().visible, false);
+    assert.equal(owner.render().pendingCount, 1);
+    owner.render().openReadingReview();
+    assert.equal(owner.card().visible, true);
+    assert.equal(owner.card().expanded, true);
+    owner.navigate('records');
+    assert.equal(owner.card().visible, false);
+    owner.navigate('dashboard');
+    assert.equal(owner.card().visible, false);
+    owner.render().openReadingReview();
+    assert.equal(owner.card().selected.draft.time, '08:15');
+    native.emit({ temperatureC: 36.6 });
+    assert.equal(owner.card().visible, true);
+    assert.equal(owner.card().expanded, false);
+    assert.equal(owner.render().pendingCount, 2);
+  } finally { owner.cleanup(); await flush(); }
 });
