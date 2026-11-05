@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { PlusCircle, ChevronDown, X } from 'lucide-react';
+import { PlusCircle, Copy, AlertTriangle, ChevronDown, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 // Dismissal hides the notice only. The session retains pending readings and edits.
@@ -143,6 +143,11 @@ suppressExpandClick.current = false;
     ) : null;
   }
 
+  const uncertain = selected?.importStatus === 'uncertain';
+  const duplicate = !uncertain && selected?.reviewError?.code === 'ble-possible-duplicate';
+  const HeaderIcon = uncertain ? AlertTriangle : duplicate ? Copy : PlusCircle;
+  const title = uncertain ? 'Guardado sin confirmar' : duplicate ? 'Posible duplicado'
+    : `${readings.length} ${readings.length === 1 ? 'temperatura pendiente' : 'temperaturas pendientes'}`;
   const saving = readings.some(row => row.importStatus === 'saving');
   const compact = !expanded;
   const dragDistance = Math.max(Math.abs(offset.x), Math.abs(offset.y));
@@ -174,8 +179,8 @@ suppressExpandClick.current = false;
       {/* Compact header is the swipe target; buttons remain ordinary tap targets. */}
       <div className={`flex items-center gap-2 ${expanded ? 'pr-8' : 'pr-6'}`}>
   <span className={`flex shrink-0 items-center justify-center ${compact ? 'h-8 w-8' : ''}`}>
-    <PlusCircle
-      className="h-6 w-6 text-fertiliapp-fuerte"
+    <HeaderIcon
+      className={`h-6 w-6 ${uncertain || duplicate ? 'text-amber-600' : 'text-fertiliapp-fuerte'}`}
       aria-hidden="true"
     />
   </span>
@@ -185,13 +190,11 @@ suppressExpandClick.current = false;
       role="status"
       className={`font-semibold ${
         compact
-          ? 'whitespace-nowrap text-[clamp(14px,3.2vw,13px)] leading-4'
+          ? `${uncertain || duplicate ? 'whitespace-normal' : 'whitespace-nowrap'} text-[clamp(14px,3.2vw,13px)] leading-4`
           : 'text-md'
       }`}
     >
-      {readings.length} {expanded
-        ? (readings.length === 1 ? 'temperatura pendiente' : 'temperaturas pendientes')
-        : (readings.length === 1 ? 'temperatura pendiente' : 'temperaturas pendientes')}
+      {title}
     </p>
 
     {compact && (

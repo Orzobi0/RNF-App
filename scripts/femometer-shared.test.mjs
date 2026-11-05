@@ -412,7 +412,7 @@ test('quick review preserves the original date, cancels without saving and requi
   const harness = hooks(); let closed = 0; const saves = []; let duplicate = true;
   const session = {}; const cycle = { id: 'cycle' };
   const reading = { uiId: 1, temperatureC: 36.42, deviceTimestamp: '2020-01-02T08:15:00', importStatus: 'pending' };
-  const { BleReadingReviewView } = await loadFrontend('src/components/BleReadingReviewView.jsx', { ...harness.bindings, measurementDisplay, measurementSourceLabel, Button: 'button', Input: 'input' }, ['BleReadingReviewView']);
+  const { BleReadingReviewView } = await loadFrontend('src/components/BleReadingReviewView.jsx', { ...harness.bindings, measurementDisplay, measurementSourceLabel, CheckCircle2: 'check', Trash2: 'trash', PlusCircle: 'plus', Button: 'button', Input: 'input' }, ['BleReadingReviewView']);
   const { BleReadingReview } = await loadFrontend('src/components/BleReadingReview.jsx', {
     ...harness.bindings, BleReadingReviewView, useNavigate: () => () => {}, normalizeBleMeasurement, prepareManualBleDraft,
     useFemometer: () => ({ sessionRef: { current: session }, incorporateReading: async (id, save) => { assert.equal(id, 1); return save(); } }),
@@ -434,11 +434,11 @@ test('quick review preserves the original date, cancels without saving and requi
   assert.equal(saves[0].draft.measurements[0].device_date_reliability, 'unverified');
   nodes = treeNodes(render());
   assert.ok(nodes.some(node => node.props['aria-label'] === 'Posible duplicado'));
-  const guarded = nodes.find(node => node.type === 'button' && node.props.children.includes('Es otra medición: confirmar y guardar'));
+  const guarded = nodes.find(node => node.type === 'button' && node.props.children.includes('Confirmar e incorporar'));
   assert.equal(guarded.props.disabled, true); await guarded.props.onClick(); assert.equal(saves.length, 1);
-  nodes.find(node => node.type === 'button' && node.props.children.includes('Sí, es otra medición')).props.onClick();
+  nodes.find(node => node.type === 'button' && JSON.stringify(node.props.children).includes('Sí, es otra medición')).props.onClick();
   nodes = treeNodes(render());
-  await nodes.find(node => node.type === 'button' && node.props.children.includes('Es otra medición: confirmar y guardar')).props.onClick();
+  await nodes.find(node => node.type === 'button' && node.props.children.includes('Confirmar e incorporar')).props.onClick();
   assert.equal(saves[1].options.allowPossibleDuplicate, true);
   assert.equal(closed, 2);
   harness.cleanup();
@@ -546,7 +546,7 @@ test('persistent review card selects readings, minimizes explicitly and advances
   const window = { innerWidth: 390, matchMedia: () => ({ matches: false }),
     setTimeout: (fn, ms) => { assert.equal(ms, 200); timers.set(fn, ms); return fn; }, clearTimeout: fn => timers.delete(fn) };
   const { FemometerReviewCard } = await loadFrontend('src/components/FemometerReviewCard.jsx', {
-    ...harness.bindings, window, Button: 'button', PlusCircle: 'plus', ChevronDown: 'chevron', X: 'x',
+    ...harness.bindings, window, Button: 'button', PlusCircle: 'plus', Copy: 'copy', AlertTriangle: 'warning', ChevronDown: 'chevron', X: 'x',
   }, ['FemometerReviewCard'], source => source.replace('export default function FemometerReviewCard', 'function FemometerReviewCard'));
   const rows = [1, 2].map(uiId => ({ uiId, deviceKey: 'device', temperatureC: 36 + uiId / 10, importStatus: 'pending' }));
   const props = { visible: true, onDismiss: () => { dismissed++; props.visible = false; }, readings: rows, selected: rows[0], expanded: true,
@@ -555,6 +555,18 @@ test('persistent review card selects readings, minimizes explicitly and advances
   let nodes = treeNodes(render());
   nodes.find(node => node.type === 'button' && node.props['aria-pressed'] === false).props.onClick();
   assert.deepEqual(selected, [2]);
+  rows[1].reviewError = { code: 'ble-possible-duplicate' };
+  assert.ok(treeNodes(render()).some(node => node.props.role === 'status' && node.props.children.includes('2 temperaturas pendientes')));
+  props.selected = rows[1];
+  assert.ok(treeNodes(render()).some(node => node.type === 'copy'));
+  props.expanded = false; assert.ok(treeNodes(render()).some(node => node.type === 'copy')); props.expanded = true;
+  assert.ok(treeNodes(render()).some(node => node.props.role === 'status' && node.props.children.includes('Posible duplicado')));
+  rows[1].importStatus = 'uncertain';
+  assert.ok(treeNodes(render()).some(node => node.type === 'warning'));
+  props.expanded = false; assert.ok(treeNodes(render()).some(node => node.type === 'warning')); props.expanded = true;
+  assert.ok(treeNodes(render()).some(node => node.props.role === 'status' && node.props.children.includes('Guardado sin confirmar')));
+  delete rows[1].reviewError; rows[1].importStatus = 'pending';
+  assert.ok(treeNodes(render()).some(node => node.type === 'plus'));
   nodes.find(node => node.type === 'button' && node.props['aria-expanded'] === true).props.onClick();
   assert.equal(minimized, 1); assert.equal(rows.length, 2);
   props.readings = [rows[1]]; props.selected = rows[1];
@@ -701,10 +713,12 @@ test('integrated lab keeps the real application children and route state; fake B
   select('Escenario visual', 'duplicate'); fakeEditor().onRepeated(); fakeEditor().onCancelDiscard();
   assert.equal(render().props.value.pendingCount, 1);
   fakeEditor().onRepeated(); fakeEditor().onDiscard(); assert.equal(render().props.value.pendingCount, 0);
-  select('Escenario visual', 'uncertain'); fakeEditor().onCheck();
+  select('Escenario visual', 'uncertain'); fakeEditor();
+  assert.equal(timers.size, 1); fakeEditor(); assert.equal(timers.size, 1);
   for (const fn of timers) { timers.delete(fn); fn(); }
   assert.equal(fakeEditor().check.result.measurements.length, 2);
-  fakeEditor().onAlreadyStored(); assert.equal(render().props.value.pendingCount, 0);
+  fakeEditor().onAlreadyStored(); assert.equal(render().props.value.pendingCount, 1);
+  fakeEditor().onConfirmStored(); assert.equal(render().props.value.pendingCount, 0);
   select('Escenario visual', 'uncertain'); fakeEditor().onCheck();
   for (const fn of timers) { timers.delete(fn); fn(); }
   fakeEditor().onMissing(); fakeEditor().confirm(); assert.equal(render().props.value.pendingCount, 0);
@@ -894,7 +908,7 @@ test('original attempt destination is durable before saving and recovers uncerta
 
 async function uncertainEditorFixture(patch = {}) {
   const harness = hooks(); const requests = []; let writes = 0; let removed = 0; let closed = 0;
-  const sessionRef = { current: {} }; let cycle = { id: 'current-cycle' };
+  const sessionRef = { current: {} }; let cycle = { id: 'current-cycle' }; let active = true;
   const reading = { uiId: 7, temperatureC: 36.4, deviceTimestamp: '2020-01-01T08:00:00', importStatus: 'uncertain',
     draft: { isoDate: '2026-11-03', time: '09:15' },
     attempt: { id: 'attempt', userId: 'a', cycleId: 'original-cycle', isoDate: '2026-11-02', time: '08:15' }, ...patch };
@@ -904,9 +918,9 @@ async function uncertainEditorFixture(patch = {}) {
     useCycleData: () => ({ currentCycle: cycle, isLoading: false, incorporateBleMeasurement: async () => { writes++; return {}; } }),
     useFemometer: () => ({ sessionRef, updateReadingDraft() {}, incorporateReading: async (_, save) => save(), discardReading: () => removed++ }),
   }, ['BleReadingReview']);
-  const render = () => harness.render(() => ({ props: { value: BleReadingReview({ userId: 'a', reading, onClose: () => closed++ }) } })).props;
-  render();
-  return { render, reading, requests, sessionRef, cleanup: harness.cleanup, cycle: id => { cycle = { id }; },
+  const render = () => harness.render(() => ({ props: { value: BleReadingReview({ userId: 'a', reading, active, onClose: () => closed++ }) } })).props;
+  render(); await flush();
+  return { render, reading, requests, sessionRef, active: value => { active = value; render(); }, cleanup: harness.cleanup, cycle: id => { cycle = { id }; },
     counts: () => ({ writes, removed, closed }),
     complete: request => request.wait.resolve({ complete: true, userId: 'a', cycleId: 'original-cycle', isoDate: '2026-11-02', exists: true, measurements: [] }) };
 }
@@ -917,7 +931,7 @@ test('uncertain review queries the original destination and requires an explicit
     await h.render().confirm(); assert.equal(h.counts().writes, 0);
     const query = h.render().onCheck();
     assert.deepEqual(h.requests[0].attempt, h.reading.attempt);
-    h.complete(h.requests[0]); await query;
+    h.complete(h.requests[0]); await query; await flush();
     await h.render().confirm(); assert.equal(h.counts().writes, 0);
     h.render().onMissing();
     assert.equal(h.render().checkedUncertain, true);
@@ -928,17 +942,17 @@ test('uncertain review queries the original destination and requires an explicit
 test('uncertain query rejects partial or failed reads, invalidates date/cycle changes and ignores stale completions', async () => {
   const h = await uncertainEditorFixture();
   try {
-    let operation = h.render().onCheck(); h.requests.at(-1).wait.resolve({ complete: false }); await operation;
+    let operation = h.render().onCheck(); h.requests.at(-1).wait.resolve({ complete: false }); await operation; await flush();
     assert.equal(h.render().check.status, 'error');
-    operation = h.render().onCheck(); h.requests.at(-1).wait.reject(Error('offline')); await operation;
+    operation = h.render().onCheck(); h.requests.at(-1).wait.reject(Error('offline')); await operation; await flush();
     assert.equal(h.render().check.status, 'error');
     operation = h.render().onCheck(); h.render().change({ isoDate: '2026-11-04' }); h.render();
-    h.complete(h.requests.at(-1)); await operation;
+    h.complete(h.requests.at(-1)); await operation; await flush();
     assert.notEqual(h.render().check.status, 'complete');
-    operation = h.render().onCheck(); h.complete(h.requests.at(-1)); await operation;
+    operation = h.render().onCheck(); h.complete(h.requests.at(-1)); await operation; await flush();
     h.render().onMissing(); assert.equal(h.render().checkedUncertain, true);
     h.cycle('another-cycle'); h.render(); assert.equal(h.render().checkedUncertain, false);
-    operation = h.render().onCheck(); h.sessionRef.current = {}; h.complete(h.requests.at(-1)); await operation;
+    operation = h.render().onCheck(); h.sessionRef.current = {}; h.complete(h.requests.at(-1)); await operation; await flush();
     assert.notEqual(h.render().check.status, 'complete');
     assert.equal(h.counts().writes, 0);
   } finally { h.cleanup(); }
@@ -947,8 +961,11 @@ test('uncertain query rejects partial or failed reads, invalidates date/cycle ch
 test('already stored retires only the local reading; later and legacy attempts never retry', async () => {
   const h = await uncertainEditorFixture();
   try {
-    const query = h.render().onCheck(); h.complete(h.requests[0]); await query;
-    await h.render().onAlreadyStored(); assert.equal(h.counts().removed, 1); assert.equal(h.counts().writes, 0);
+    const query = h.render().onCheck(); h.complete(h.requests[0]); await query; await flush();
+    h.render().onAlreadyStored(); assert.equal(h.counts().removed, 0);
+    assert.equal(h.render().storedConfirm, true);
+    h.render().onBackStored(); assert.equal(h.render().storedConfirm, false);
+    h.render().onAlreadyStored(); await h.render().onConfirmStored(); assert.equal(h.counts().removed, 1); assert.equal(h.counts().writes, 0);
     h.render().onClose(); assert.equal(h.counts().closed, 2);
     delete h.reading.attempt; h.render();
     assert.equal(h.render().canCheck, false);
@@ -961,7 +978,12 @@ test('duplicate permission is explicit and invalidated by editing; discard has a
   const h = await uncertainEditorFixture({ importStatus: 'pending', reviewError: { code: 'ble-possible-duplicate', message: 'Possible match' } });
   try {
     await h.render().confirm(); assert.equal(h.counts().writes, 0);
+    h.render().onRepeated(); assert.equal(h.render().discardConfirm, true);
     h.render().onDifferent(); assert.equal(h.render().duplicateApproved, true);
+    assert.equal(h.render().discardConfirm, false);
+    h.render().onRepeated(); assert.equal(h.render().duplicateApproved, false);
+    h.render().onCancelDiscard(); assert.equal(h.render().discardConfirm, false);
+    h.render().onDifferent();
     h.render().change({ time: '09:20' }); h.render();
     assert.equal(h.render().duplicateApproved, false);
     h.render().onRepeated(); assert.equal(h.render().discardConfirm, true);
@@ -984,5 +1006,60 @@ test('cancel hides the whole pending window; only a subsequent new reading autom
     assert.equal(owner.card().visible, false);
     native.emit({ temperatureC: 36.5 });
     assert.equal(owner.card().visible, true); assert.equal(owner.card().expanded, false);
+    assert.equal(owner.card().selected.temperatureC, 36.5);
   } finally { owner.cleanup(); await flush(); }
+});
+
+
+test('uncertain check starts once per opening and ignores a closed or replaced review', async () => {
+  const h = await uncertainEditorFixture();
+  try {
+    assert.equal(h.requests.length, 1);
+    h.render(); h.render(); await flush(); assert.equal(h.requests.length, 1);
+    h.active(false); h.complete(h.requests[0]); await flush();
+    assert.notEqual(h.render().check.status, 'complete');
+    h.active(true); await flush(); assert.equal(h.requests.length, 2);
+    h.complete(h.requests[1]); await flush();
+    h.render().onMissing(); assert.equal(h.render().checkedUncertain, true);
+    h.render().onAlreadyStored();
+    assert.equal(h.render().checkedUncertain, false); assert.equal(h.render().storedConfirm, true);
+    h.render().onMissing();
+    assert.equal(h.render().storedConfirm, false); assert.equal(h.render().checkedUncertain, true);
+    h.render().change({ time: '09:30' }); h.render(); await flush();
+    assert.equal(h.render().checkedUncertain, false);
+    assert.equal(h.render().incorporationRequested, true);
+    assert.equal(h.requests.length, 2); // Editing invalidates evidence without a query on every keystroke.
+    h.active(false); h.active(true); await flush(); assert.equal(h.requests.length, 3);
+    h.reading.uiId = 8; h.render(); await flush(); assert.equal(h.requests.length, 4);
+    h.complete(h.requests[2]); await flush(); assert.notEqual(h.render().check.status, 'complete');
+    h.complete(h.requests[3]); await flush(); assert.equal(h.render().check.status, 'complete');
+    assert.equal(h.counts().writes, 0); assert.equal(h.counts().removed, 0);
+  } finally { h.cleanup(); }
+});
+
+test('special review sections replace decisions and hide unsafe or redundant incorporation controls', async () => {
+  const harness = hooks();
+  const { BleReadingReviewView } = await loadFrontend('src/components/BleReadingReviewView.jsx', {
+    ...harness.bindings, measurementDisplay, measurementSourceLabel, CheckCircle2: 'check', Trash2: 'trash', PlusCircle: 'plus', Button: 'button', Input: 'input',
+  }, ['BleReadingReviewView']);
+  const props = { reading: { importStatus: 'pending' }, draft: { isoDate: '2026-11-03', time: '08:00' },
+    error: { code: 'ble-possible-duplicate' }, check: { status: 'complete', result: { measurements: [], exists: false } } };
+  const nodes = () => treeNodes(BleReadingReviewView(props));
+  const hasButton = text => nodes().some(node => node.type === 'button' && JSON.stringify(node.props.children).includes(text));
+  assert.equal(hasButton('Sí, es otra medición'), true);
+  props.discardConfirm = true;
+  assert.equal(hasButton('Sí, es otra medición'), false);
+  assert.equal(hasButton('Confirmar descarte local'), true);
+  assert.equal(hasButton('Volver'), true);
+  assert.equal(hasButton('Confirmar e incorporar'), false);
+  props.discardConfirm = false; props.error = null; props.reading.importStatus = 'uncertain';
+  assert.equal(nodes().some(node => node.type === 'input'), false);
+  assert.equal(hasButton('No, incorporarla'), true);
+  props.storedConfirm = true;
+  assert.equal(hasButton('No, incorporarla'), false);
+  assert.equal(hasButton('Confirmar que ya está guardada'), true);
+  props.storedConfirm = false; props.incorporationRequested = true;
+  assert.equal(nodes().filter(node => node.type === 'input').length, 2);
+  assert.equal(hasButton('Confirmar e incorporar'), true);
+  assert.equal(hasButton('Cancelar'), false);
 });

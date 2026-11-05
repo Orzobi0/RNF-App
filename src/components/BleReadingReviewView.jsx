@@ -1,54 +1,65 @@
 import React from 'react';
+import { CheckCircle2, Trash2, PlusCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { measurementDisplay, measurementSourceLabel } from '@/lib/temperatureMeasurements';
 import { Input } from '@/components/ui/input';
 
+const decisionButton = 'h-auto min-h-11 min-w-0 whitespace-normal rounded-xl px-2 py-2 text-sm leading-snug';
+const positive = `${decisionButton} border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100`;
+const alternative = `${decisionButton} border-rose-200 bg-rose-50 text-rose-800 hover:bg-rose-100`;
+const warning = 'space-y-3 rounded-2xl border border-amber-200 bg-amber-50/60 p-3 text-sm';
+
 export function BleReadingReviewView({
-  reading,
-  draft,
-  busy,
-  error,
-  checkedUncertain,
+  reading, draft, busy, error, checkedUncertain,
   check = { status: 'idle' }, canCheck = false, onCheck, onAlreadyStored, onMissing,
+  storedConfirm = false, incorporationRequested = false, onConfirmStored, onBackStored,
   duplicateApproved = false, discardConfirm = false, onDifferent, onRepeated, onCancelDiscard, onDiscard,
-  change,
-  confirm,
-  onClose,
-  navigate,
+  change, confirm, onClose, navigate,
 }) {
-  return (
-    <div aria-label="Revisar temperatura">
-      <div className="space-y-3">
-
-        {reading.importStatus === 'uncertain' && (
-          <section className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50/60 p-3 text-sm" aria-label="Comprobar guardado incierto">
-            <p>No pudimos confirmar el guardado de {reading.temperatureC ?? reading.normalized?.temperature} °C. No se repetirá automáticamente.</p>
-            {canCheck ? <p>Día del intento: {reading.attempt.isoDate} · {reading.attempt.time}. Se consulta su ciclo original.</p>
-              : <p>Este intento antiguo no conserva un destino seguro. Revisa Mis registros; no se puede autorizar otro guardado desde aquí.</p>}
-            {canCheck && <Button type="button" variant="outline" className="min-h-11 bg-white" disabled={busy || check.status === 'loading'} onClick={onCheck}>
-              {check.status === 'loading' ? 'Consultando servidor…' : 'Consultar / actualizar el día'}</Button>}
-            {check.status === 'error' && <p role="alert">{check.message} Puedes reintentar la consulta.</p>}
-            {check.status === 'complete' && <div className="space-y-2" aria-live="polite">
-              <p>Consulta completa del servidor. Compara las mediciones; una coincidencia no demuestra que sea la misma toma.</p>
-              {check.result.measurements.length ? <ul className="max-h-40 space-y-2 overflow-y-auto">
-                {check.result.measurements.map((item, index) => <li key={item.id ?? index} className="rounded-xl border border-rose-200 bg-white p-2">
-                  <span className="font-semibold text-rose-700">{measurementDisplay(item)}</span> · {item.time || 'Hora no disponible'}
-                  <span className="block text-xs text-slate-600">{measurementSourceLabel(item) || 'Procedencia no disponible'}{item.source === 'bluetooth' ? ' · Bluetooth' : ''}{item.selected === true ? ' · Seleccionada' : ''}</span>
-                </li>)}
-              </ul> : <p>{check.result.exists ? 'El día no contiene mediciones.' : 'No existe un registro para ese día.'}</p>}
-            </div>}
-            <p className="font-semibold">¿La temperatura pendiente ya está guardada?</p>
-            <div className="flex flex-col gap-2">
-              <Button type="button" variant="outline" className="min-h-11 bg-white" disabled={busy || check.status !== 'complete'} onClick={onAlreadyStored}>Sí, ya está guardada</Button>
-              <Button type="button" variant="outline" className="min-h-11 bg-white" disabled={busy || check.status !== 'complete'} onClick={onMissing}>No, falta incorporarla</Button>
-              <Button type="button" variant="ghost" className="min-h-11" disabled={busy} onClick={onClose}>Decidir más tarde</Button>
-            </div>
-            {checkedUncertain && <p>Has indicado que falta incorporarla. Revisa los datos y confirma abajo.</p>}
-            <Button type="button" variant="ghost" onClick={() => { onClose(); navigate('/records', { state: { selectedDate: reading.attempt?.isoDate || draft.isoDate, scrollToDayDetail: true } }); }}>Ver Mis registros</Button>
-          </section>
-        )}
-
+  const uncertain = reading.importStatus === 'uncertain';
+  const duplicate = error?.code === 'ble-possible-duplicate';
+  const complete = check.status === 'complete';
+  const showFields = !uncertain || incorporationRequested;
+  const originalDay = (reading.deviceTimestamp || reading.normalized?.device_timestamp || '').slice(0, 10);
+  const showConsultedDay = reading.attempt?.isoDate && (reading.attempt.isoDate !== originalDay || reading.attempt.isoDate !== draft.isoDate);
+  return <div aria-label="Revisar temperatura" className="space-y-3">
+    {uncertain && <section className={warning} aria-label="Comprobar guardado incierto">
+      <p>No hemos podido confirmar que la temperatura se haya guardado correctamente. Comprueba si ya está registrada.</p>
+      {showConsultedDay && <p>Día consultado: {reading.attempt.isoDate} (destino del intento).</p>}
+      {!canCheck && <p>Este intento no conserva un destino seguro. Revisa Mis registros antes de decidir.</p>}
+      {check.status === 'loading' && <p role="status">Consultando temperaturas…</p>}
+      {check.status === 'error' && <p role="alert">{check.message}</p>}
+      {canCheck && <Button type="button" variant="ghost" className="h-auto min-h-9 px-1 text-xs" disabled={busy || check.status === 'loading'} onClick={onCheck}>
+        {check.status === 'error' ? 'Reintentar consulta' : 'Actualizar temperaturas'}
+      </Button>}
+      {complete && <div aria-live="polite">
+        {check.result.measurements.length ? <ul className="max-h-40 space-y-2 overflow-y-auto">
+          {check.result.measurements.map((item, index) => <li key={item.id ?? index} className="rounded-xl border border-rose-200 bg-white p-2">
+            <span className="font-semibold text-rose-700">{measurementDisplay(item)}</span> · {item.time || 'Hora no disponible'}
+            <span className="block text-xs text-slate-600">{measurementSourceLabel(item) || 'Procedencia no disponible'}{item.source === 'bluetooth' ? ' · Bluetooth' : ''}{item.selected === true ? ' · Seleccionada' : ''}</span>
+          </li>)}
+        </ul> : <p>{check.result.exists ? 'El día no contiene mediciones.' : 'No existe un registro para ese día.'}</p>}
+      </div>}
+      {storedConfirm ? <div className="space-y-2">
+        <p>¿Confirmas que ya está guardada? Solo retiraremos esta pendiente local.</p>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" className={positive} disabled={busy || !complete} onClick={onConfirmStored}>Confirmar que ya está guardada</Button>
+          <Button type="button" variant="ghost" disabled={busy} onClick={onBackStored}>Volver</Button>
+        </div>
+      </div> : <>
+        <p className="font-semibold">¿Esta temperatura ya está guardada?</p>
         <div className="grid grid-cols-2 gap-2">
+          <Button type="button" variant="outline" className={positive} disabled={busy || !complete} onClick={onAlreadyStored}><CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" /><span>Sí, ya está guardada</span></Button>
+          <Button type="button" variant="outline" className={alternative} disabled={busy || !complete} onClick={onMissing}><PlusCircle className="h-4 w-4 shrink-0" aria-hidden="true" /><span>No, incorporarla</span></Button>
+        </div>
+      </>}
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" variant="ghost" className="min-h-11 px-1" onClick={() => { onClose(); navigate('/records', { state: { selectedDate: reading.attempt?.isoDate || draft.isoDate, scrollToDayDetail: true } }); }}>Ver Mis registros</Button>
+        <Button type="button" variant="ghost" className="min-h-11 px-1" disabled={busy} onClick={onClose}>Decidir más tarde</Button>
+      </div>
+    </section>}
+    {showFields && !storedConfirm && (
+<div className="grid grid-cols-2 gap-2">
           <label className="block min-w-0 text-sm font-medium text-slate-700">
             Fecha
             <Input
@@ -71,74 +82,32 @@ export function BleReadingReviewView({
             />
           </label>
         </div>
-
-        {error?.code === 'ble-possible-duplicate' && <section aria-label="Posible duplicado" className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50/60 p-3 text-sm">
-          <p>Hay una posible coincidencia. Puedes revisar la fecha y la hora antes de confirmar.</p>
-          <p className="font-semibold">¿Es una medición diferente?</p>
-          <div className="flex flex-col gap-2">
-            <Button type="button" variant="outline" className="min-h-11 bg-white" disabled={busy} onClick={onDifferent}>Sí, es otra medición</Button>
-            <Button type="button" variant="outline" className="min-h-11 bg-white" disabled={busy} onClick={onRepeated}>No, está repetida</Button>
-            <Button type="button" variant="ghost" disabled={busy} onClick={onClose}>Cancelar</Button>
-          </div>
-          {duplicateApproved && <p>Autorizada como otra medición para estos datos. Confirma la incorporación abajo.</p>}
-        </section>}
-        {discardConfirm && <section className="space-y-2 rounded-2xl border border-rose-200 bg-rose-50 p-3 text-sm">
-          <p>¿Retirar esta temperatura de las pendientes? No se borrará ningún registro guardado.</p>
-          <Button type="button" variant="outline" disabled={busy} onClick={onDiscard}>Confirmar descarte local</Button>
-          <Button type="button" variant="ghost" disabled={busy} onClick={onCancelDiscard}>Cancelar</Button>
-        </section>}
-
-        {error && error.code !== 'ble-possible-duplicate' && (
-          <p role="alert" className="text-sm text-amber-800">
-            {error.code === 'ble-possible-duplicate'
-              ? 'Posible duplicado'
-              : 'Requiere revisión'}: {error.message}
-          </p>
-        )}
-
-        {error?.code === 'ble-import-conflict' && (
-          <Button
-            variant="outline"
-            onClick={() => {
-              onClose();
-              navigate('/records');
-            }}
-          >
-            Revisar ciclo en Mis registros
-          </Button>
-        )}
-
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            className="min-h-11 rounded-full bg-fertiliapp-fuerte px-4 text-white hover:brightness-95"
-            disabled={
-              busy ||
-              !draft.isoDate ||
-              !draft.time ||
-              (reading.importStatus === 'uncertain' && !checkedUncertain) ||
-              (error?.code === 'ble-possible-duplicate' && !duplicateApproved) || discardConfirm
-            }
-            onClick={confirm}
-          >
-            {busy
-              ? 'Incorporando…'
-              : error?.code === 'ble-possible-duplicate'
-                ? 'Es otra medición: confirmar y guardar'
-                : 'Confirmar e incorporar'}
-          </Button>
-
-          <Button
-            type="button"
-            className="min-h-11"
-            variant="ghost"
-            disabled={busy}
-            onClick={onClose}
-          >
-            Cancelar
-          </Button>
+    )}
+    {(duplicate || discardConfirm) && (!uncertain || (incorporationRequested && checkedUncertain)) && <section aria-label="Posible duplicado" className={warning}>
+      {discardConfirm ? <div className="space-y-2">
+        <p>¿Retirar esta temperatura de las pendientes? No se borrará ningún registro guardado.</p>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" className={alternative} disabled={busy} onClick={onDiscard}><Trash2 className="h-4 w-4 shrink-0" aria-hidden="true" />Confirmar descarte local</Button>
+          <Button type="button" variant="ghost" disabled={busy} onClick={onCancelDiscard}>Volver</Button>
         </div>
-      </div>
-    </div>
-  );
+      </div> : <>
+        <p>Hemos encontrado una posible coincidencia con otra medición registrada.</p>
+        <p className="font-semibold">¿Es una medición diferente?</p>
+        <div className="grid grid-cols-2 gap-2">
+          <Button type="button" variant="outline" className={positive} disabled={busy} onClick={onDifferent}><CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" /><span>Sí, es otra medición</span></Button>
+          <Button type="button" variant="outline" className={alternative} disabled={busy} onClick={onRepeated}><Trash2 className="h-4 w-4 shrink-0" aria-hidden="true" /><span>No, está repetida</span></Button>
+        </div>
+      </>}
+      {!uncertain && <Button type="button" variant="ghost" disabled={busy} onClick={onClose}>Cancelar</Button>}
+    </section>}
+    {error && !duplicate && <p role="alert" className="text-sm text-amber-800">Requiere revisión: {error.message}</p>}
+    {error?.code === 'ble-import-conflict' && <Button variant="outline" onClick={() => { onClose(); navigate('/records'); }}>Revisar ciclo en Mis registros</Button>}
+    {!discardConfirm && !storedConfirm && showFields && <div className="flex flex-wrap items-center gap-2">
+      <Button type="button" className="min-h-11 rounded-full bg-fertiliapp-fuerte px-4 text-white hover:brightness-95"
+        disabled={busy || !draft.isoDate || !draft.time || (uncertain && !checkedUncertain) || (duplicate && !duplicateApproved)} onClick={confirm}>
+        {busy ? 'Incorporando…' : 'Confirmar e incorporar'}
+      </Button>
+      {!uncertain && !duplicate && <Button type="button" className="min-h-11" variant="ghost" disabled={busy} onClick={onClose}>Cancelar</Button>}
+    </div>}
+  </div>;
 }

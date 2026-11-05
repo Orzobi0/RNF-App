@@ -114,7 +114,9 @@ export const FemometerSessionOwner = ({ userId, children }) => {
               clockHistory: localRef.current?.clock(normalized.device_key) }),
             uiId: ++sequence, importStatus: 'pending' }]);
         setReviewVisibleOn(locationKey.current);
-        if (!reviewPresentation.current.visible || !reviewPresentation.current.expanded) setReviewExpanded(false);
+        if (!reviewPresentation.current.visible || !reviewPresentation.current.expanded) {
+          setReviewExpanded(false); setReviewReadingId(sequence);
+        }
         setTemperatureListenerMessage(normalized.device_key ? 'Lectura recibida y pendiente de revisión.' : 'Lectura de un termómetro sin vincular: solo se conserva durante esta sesión. Vincúlalo antes de nuevas tomas.');
       } else if (event?.status === 'timeout') setTemperatureListenerMessage('Escucha finalizada. Las lecturas recibidas siguen disponibles.');
       else if (event?.message) setTemperatureListenerMessage(event.message);
@@ -189,7 +191,7 @@ export const FemometerSessionOwner = ({ userId, children }) => {
   };
   const pendingReadings = readings.filter(row => row.importStatus !== 'incorporated' && row.importStatus !== 'discarded');
   const reviewReading = pendingReadings.find(row => row.uiId === reviewReadingId) ?? pendingReadings[0];
-  const updateReadingDraft = (id, draft) => updateReadings(readingsRef.current.map(row => row.uiId === id ? { ...row, draft: { ...draft, confirmed: false } } : row));
+  const updateReadingDraft = (id, draft) => updateReadings(readingsRef.current.map(row => row.uiId === id ? { ...row, reviewError: row.reviewError?.code === 'ble-possible-duplicate' ? null : row.reviewError, draft: { ...draft, confirmed: false } } : row));
   return <FemometerContext.Provider value={{ enabled: true, sessionRef, sessionState, readings,
     pendingCount: pendingReadings.length, clockHistory, storageError, updateReadingDraft,
     listeningStartedAt, temperatureListenerMessage, incorporateReading, discardReading, lifecycleStatus, openReadingReview,
