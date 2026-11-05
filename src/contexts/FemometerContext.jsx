@@ -169,7 +169,7 @@ export const FemometerSessionOwner = ({ userId, children }) => {
     pendingCount: pendingReadings.length, clockHistory, storageError, updateReadingDraft,
     listeningStartedAt, temperatureListenerMessage, incorporateReading, lifecycleStatus, openReadingReview,
     openClockDialog: () => setClockDialogOpen(true) }}>{children}
-    <FemometerFeedback sessionState={sessionState} sessionRef={sessionRef} readings={readings} openReadingReview={openReadingReview}
+    <FemometerFeedback clockHistory={clockHistory} sessionState={sessionState} sessionRef={sessionRef} readings={readings} openReadingReview={openReadingReview}
       clockDialogOpen={clockDialogOpen} setClockDialogOpen={setClockDialogOpen} />
     <FemometerReviewCard readings={pendingReadings} selected={reviewReading} expanded={reviewExpanded}
       onExpand={() => openReadingReview()} onMinimize={() => setReviewExpanded(false)} onSelect={openReadingReview}

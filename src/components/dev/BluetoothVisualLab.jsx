@@ -17,6 +17,7 @@ export default function BluetoothVisualLab({ Provider, children }) {
   const [panelOpen, setPanelOpen] = useState(false);
   const initial = createBleLabScenario('disconnected');
   const [readings, setReadings] = useState(initial.readings);
+  const [clockHistory, setClockHistory] = useState(initial.clockHistory);
   const [sessionState, setSessionState] = useState(initial.sessionState);
   const [expanded, setExpanded] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
@@ -30,7 +31,7 @@ export default function BluetoothVisualLab({ Provider, children }) {
   const chooseScenario = value => {
     clearTimeout(timer.current);
     const next = createBleLabScenario(value);
-    setScenario(value); setReadings(next.readings); setSessionState(next.sessionState);
+    setScenario(value); setClockHistory(next.clockHistory); setReadings(next.readings); setSessionState(next.sessionState);
     setExpanded(next.expanded); setSelectedId(null); setNotice(next.notice); setCheckedUncertain(false);
     setError(value === 'duplicate' ? { code: 'ble-possible-duplicate', message: 'Coincidencia ficticia de modelo, minuto y temperatura.' } : null);
     setClockDialogOpen(false);
@@ -39,7 +40,7 @@ export default function BluetoothVisualLab({ Provider, children }) {
   const draft = selected?.draft;
   const search = () => {
     if (['searching', 'connecting', 'listening'].includes(sessionState.status)) return;
-    setSessionState(previous => ({ ...previous, status: 'searching' }));
+    setSessionState(previous => ({ ...previous, status: 'searching', error: null }));
     timer.current = setTimeout(() => setSessionState(previous => ({ ...previous, status: 'listening' })), 900);
   };
   const updateDraft = patch => setReadings(rows => rows.map(row => row.uiId === selected.uiId ? { ...row, draft: { ...row.draft, ...patch } } : row));
@@ -61,10 +62,22 @@ export default function BluetoothVisualLab({ Provider, children }) {
     inspect: async () => setSessionState(previous => ({ ...previous, inspectionResult: { compatible: true } })),
     remember: async forget => setSessionState(previous => ({ ...previous, remembered: !forget })),
     readClock: async () => setClockDialogOpen(true),
-    syncClock: async () => setSessionState(previous => ({ ...previous, clockError: { message: 'Simulación visual: no se ha enviado ningún ajuste al termómetro.' } })),
+    syncClock: async () => {
+      if (sessionState.status !== 'listening' || sessionState.clockBusy || !sessionState.capabilities.clockSync) return;
+      setSessionState(previous => ({ ...previous, clockBusy: true, clockError: null, clockResult: null }));
+      timer.current = setTimeout(() => {
+        const failed = scenario === 'clockFailure';
+        const verified = !failed && scenario !== 'clockUnverified';
+        setSessionState(previous => ({ ...previous, clockBusy: false,
+          clockError: failed ? { message: 'Simulación: no se pudo verificar el reloj. Reinténtalo.' } : null,
+          clockResult: failed ? null : { operation: 'sync', verified, significantDrift: false, driftSeconds: verified ? 0 : null },
+        }));
+        if (verified) setClockHistory({ state: 'synchronized_verified' });
+      }, 1200);
+    },
   };
   const ble = { enabled, visualLab: true, preview: true, sessionState, readings, pendingCount: enabled ? readings.length : 0,
-    sessionRef, lifecycleStatus: 'preview', clockHistory: null, temperatureListenerMessage: 'Datos Bluetooth ficticios; no se guardan.',
+    sessionRef, lifecycleStatus: 'preview', clockHistory, temperatureListenerMessage: 'Datos Bluetooth ficticios; no se guardan.',
     openReadingReview: id => { setSelectedId(id ?? null); setExpanded(true); }, openClockDialog: () => setClockDialogOpen(true),
     incorporateReading: async () => { throw new Error('El laboratorio no permite guardados reales.'); },
     updateReadingDraft: () => {},
@@ -87,7 +100,7 @@ export default function BluetoothVisualLab({ Provider, children }) {
           onClose={() => { updateDraft({ confirmed: false }); setExpanded(false); }} navigate={navigate} />}
       </FemometerReviewCard>
       <BleSavedNotice notice={notice} onDismiss={() => setNotice(null)} onViewDay={isoDate => navigate('/records', { state: { selectedDate: isoDate, scrollToDayDetail: true } })} />
-      <FemometerFeedback readings={[]} sessionState={sessionState} sessionRef={sessionRef} clockDialogOpen={clockDialogOpen} setClockDialogOpen={setClockDialogOpen} />
+      <FemometerFeedback clockHistory={clockHistory} readings={[]} sessionState={sessionState} sessionRef={sessionRef} clockDialogOpen={clockDialogOpen} setClockDialogOpen={setClockDialogOpen} />
     </>}
   </Provider>;
 }
