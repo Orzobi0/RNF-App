@@ -9,10 +9,9 @@ import { Button } from '@/components/ui/button';
 
 // Only the BLE context is simulated. children are the unchanged authenticated
 // application, still under the real AuthProvider and CycleDataProvider.
-export default function BluetoothVisualLab({ Provider, children, onDisable }) {
+export default function BluetoothVisualLab({ Provider, children }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const [active, setActive] = useState(true);
   const [mode, setMode] = useState('web');
   const [scenario, setScenario] = useState('disconnected');
   const [panelOpen, setPanelOpen] = useState(false);
@@ -51,7 +50,7 @@ export default function BluetoothVisualLab({ Provider, children, onDisable }) {
     setSelectedId(null); setError(null); setCheckedUncertain(false);
   };
 
-  const enabled = active && mode === 'android';
+  const enabled = mode === 'android';
   const sessionRef = useRef(null);
   // This object contains no transport or persistence adapter. Even an accidental
   // invocation from a real consumer cannot call native plugins or a save callback.
@@ -70,23 +69,16 @@ export default function BluetoothVisualLab({ Provider, children, onDisable }) {
     incorporateReading: async () => { throw new Error('El laboratorio no permite guardados reales.'); },
     updateReadingDraft: () => {},
   };
-  const disable = () => {
-    clearTimeout(timer.current); setActive(false); setMode('web'); setNotice(null); setClockDialogOpen(false);
-    const query = new URLSearchParams(location.search); query.delete('visualLab');
-    navigate({ pathname: location.pathname, search: query.toString(), hash: location.hash }, { replace: true });
-    onDisable?.();
-  };
   return <Provider value={ble}>
     {children}
-    {active && <aside aria-label="Laboratorio Bluetooth" className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+88px)] right-3 z-[80] max-h-[50dvh] max-w-[calc(100vw-24px)] overflow-y-auto rounded-2xl border border-rose-200 bg-white p-2 text-sm text-slate-700 shadow-md">
+    <aside aria-label="Laboratorio Bluetooth" className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+88px)] right-3 z-[80] max-h-[50dvh] max-w-[calc(100vw-24px)] overflow-y-auto rounded-2xl border border-rose-200 bg-white p-2 text-sm text-slate-700 shadow-md">
       <Button variant="ghost" className="min-h-11" aria-expanded={panelOpen} onClick={() => setPanelOpen(value => !value)}>{panelOpen ? 'Minimizar laboratorio' : 'Laboratorio BLE'}</Button>
       {panelOpen && <div className="w-56 space-y-3 p-2">
         <p className="text-xs">Solo Bluetooth es ficticio. El resto de la cuenta Staging es real.</p>
         <label className="block">Modo<select className="mt-1 min-h-11 w-full rounded border bg-white" aria-label="Modo de previsualización" value={mode} onChange={event => { clearTimeout(timer.current); setMode(event.target.value); setNotice(null); setClockDialogOpen(false); }}><option value="web">Web / PWA</option><option value="android">Android visual</option></select></label>
         {enabled && <label className="block">Escenario<select className="mt-1 min-h-11 w-full rounded border bg-white" aria-label="Escenario visual" value={scenario} onChange={event => chooseScenario(event.target.value)}>{Object.entries(bleLabScenarios).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>}
-        <Button variant="outline" className="min-h-11" onClick={disable}>Desactivar modo visual</Button>
       </div>}
-    </aside>}
+    </aside>
     {enabled && <>
       <FemometerReviewCard readings={readings} selected={selected} expanded={expanded} onExpand={() => setExpanded(true)} onMinimize={() => setExpanded(false)} onSelect={id => { setSelectedId(id); setCheckedUncertain(false); }} deviceKey="fictional-device">
         {selected && <BleReadingReviewView measurement={{ temperature: selected.temperatureC, device_timestamp: selected.deviceTimestamp }} reading={selected}

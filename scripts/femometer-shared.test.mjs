@@ -585,13 +585,14 @@ test('24-hour candidate window never verifies the clock and resolves DST conserv
 
 test('visual laboratory is explicitly localhost development only; state is fictitious and detached', async () => {
   const { isBleVisualLabEnabled, createBleLabScenario, bleLabScenarios } = await import('../src/lib/bleVisualLab.js');
-  const env = { DEV: true, MODE: 'staging' }; const location = { hostname: 'localhost', search: '?visualLab=1' };
+  const env = { DEV: true, MODE: 'staging' }; const location = { hostname: 'localhost', search: '' };
   assert.equal(isBleVisualLabEnabled(env, location), true);
   for (const host of ['fertiliapp-staging.web.app', 'example.com', '192.168.1.5']) assert.equal(isBleVisualLabEnabled(env, { ...location, hostname: host }), false);
   for (const mode of ['production', 'experiment']) assert.equal(isBleVisualLabEnabled({ ...env, MODE: mode }, location), false);
   assert.equal(isBleVisualLabEnabled({ ...env, DEV: false }, location), false);
   assert.equal(isBleVisualLabEnabled(env, location, true), false);
-  assert.equal(isBleVisualLabEnabled(env, { ...location, search: '' }), false);
+  assert.equal(isBleVisualLabEnabled(env, { ...location, hostname: '127.0.0.1' }), true);
+  assert.equal(isBleVisualLabEnabled(env, { ...location, search: '?visualLab=1' }), true);
   for (const scenario of Object.keys(bleLabScenarios)) {
     const first = createBleLabScenario(scenario), second = createBleLabScenario(scenario);
     first.readings.push({ uiId: 'demo' });
@@ -626,7 +627,7 @@ test('Bluetooth success presentation has no expiry and supports outside, swipe a
 test('integrated lab keeps the real application children and route state; fake BLE never runs a save adapter', async () => {
   const { createBleLabScenario, bleLabScenarios } = await import('../src/lib/bleVisualLab.js');
   const harness = hooks(); const routes = []; const timers = new Set();
-  let location = { key: 'dashboard', pathname: '/', search: '?visualLab=1', hash: '' };
+  let location = { key: 'dashboard', pathname: '/', search: '', hash: '' };
   const children = { type: 'real-application', props: {} };
   const { BluetoothVisualLab } = await loadFrontend('src/components/dev/BluetoothVisualLab.jsx', {
     ...harness.bindings, useLocation: () => location, useNavigate: () => (...args) => routes.push(args),
@@ -662,14 +663,17 @@ test('integrated lab keeps the real application children and route state; fake B
   assert.equal(render().props.value.sessionState.status, 'listening');
   select('Modo de previsualización', 'web'); tree = render();
   assert.equal(tree.props.value.enabled, false); assert.equal(treeNodes(tree).some(n => n.type === 'card'), false);
-  treeNodes(tree).find(n => n.type === 'button' && n.props.children.includes('Desactivar modo visual')).props.onClick();
-  tree = render(); assert.equal(tree.props.children[0], children); assert.equal(treeNodes(tree).some(n => n.type === 'aside'), false);
-  assert.equal(routes.at(-1)[0].pathname, '/records'); assert.equal(routes.at(-1)[0].search, '');
+  for (let i = 0; i < 3; i++) {
+    select('Modo de previsualización', 'android'); tree = render(); assert.equal(tree.props.value.enabled, true);
+    select('Modo de previsualización', 'web'); tree = render(); assert.equal(tree.props.value.enabled, false);
+    assert.equal(tree.props.children[0], children); assert.equal(treeNodes(tree).some(n => n.type === 'aside'), true);
+  }
+  assert.equal(routes.length, 0);
   harness.cleanup();
 });
 
-test('lab owner is authenticated and opt-in survives route navigation without mounting native BLE', async () => {
-  const harness = hooks(); let user = { uid: 'a' }; const location = { hostname: 'localhost', search: '?visualLab=1' };
+test('lab owner is authenticated and available without query parameters across route navigation without mounting native BLE', async () => {
+  const harness = hooks(); let user = { uid: 'a' }; const location = { hostname: 'localhost', search: '' };
   const { FemometerProvider } = await loadFrontend('src/contexts/FemometerContext.jsx', {
     ...harness.bindings, lazy: () => 'visual-lab', Suspense: 'suspense',
     isBleVisualLabEnabled, Capacitor: { isNativePlatform: () => false }, globalThis: { location },
@@ -681,7 +685,5 @@ test('lab owner is authenticated and opt-in survives route navigation without mo
   location.search = ''; tree = render(); assert.equal(tree.type, 'suspense');
   user = null; tree = render(); assert.equal(tree.props.value.enabled, false);
   user = { uid: 'b' }; tree = render(); assert.equal(tree.props.children[0].props.key, 'b');
-  tree.props.children[0].props.onDisable();
-  user = { uid: 'c' }; tree = render(); assert.equal(tree.props.value.enabled, false);
   harness.cleanup();
 });

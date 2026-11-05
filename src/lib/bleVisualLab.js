@@ -1,8 +1,7 @@
 // Pure gate. Never substitute Capacitor platform detection globally.
 export const isBleVisualLabEnabled = (env, location, native = false) => env?.DEV === true
   && env.MODE === 'staging' && !native
-  && ['localhost', '127.0.0.1'].includes(location?.hostname)
-  && new URLSearchParams(location.search).get('visualLab') === '1';
+  && ['localhost', '127.0.0.1'].includes(location?.hostname);
 
 export const bleLabScenarios = {
   unlinked: 'Sin vincular', disconnected: 'Desconectado', searching: 'Buscando termómetro',

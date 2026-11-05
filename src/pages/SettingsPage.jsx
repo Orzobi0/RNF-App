@@ -19,10 +19,7 @@ import { getAuthErrorMessage } from '@/lib/authErrorMessages';
 import ExportCyclesDialog from '@/components/ExportCyclesDialog';
 import { useCycleData } from '@/hooks/useCycleData';
 import InstallPrompt from '@/components/InstallPrompt';
-import {
-  isFemometerBleAndroidNative,
-  isFemometerBlePrototypeEnabled,
-} from '@/lib/femometerBle';
+import { useFemometer } from '@/contexts/FemometerContext';
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 
@@ -227,8 +224,7 @@ const SettingsPage = () => {
   const [refreshingVerification, setRefreshingVerification] = useState(false);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const forceInstallPrompt = import.meta.env.VITE_FORCE_INSTALL_PROMPT === 'true';
-  const showFemometerBlePrototype =
-    isFemometerBleAndroidNative() && isFemometerBlePrototypeEnabled();
+  const { enabled: showFemometerBlePrototype } = useFemometer();
 
     const allCycles = useMemo(() => {
     const combined = [];

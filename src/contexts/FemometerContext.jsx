@@ -14,17 +14,16 @@ const inactive = { enabled: false, readings: [], pendingCount: 0 };
 const FemometerContext = createContext(inactive);
 export const useFemometer = () => useContext(FemometerContext);
 
-// Keep the opt-in for this provider lifetime so ordinary route changes do not
-// discard it. The dev module is not included in published builds.
+// Local development only. The dev module is not included in published builds.
 const BluetoothVisualLab = import.meta.env.DEV
   ? lazy(() => import('@/components/dev/BluetoothVisualLab')) : null;
 
 // One owner per authenticated account, above the routes. Pages only consume it.
 export const FemometerProvider = ({ children }) => {
   const { user } = useAuth();
-  const [preview, setPreview] = useState(() => isBleVisualLabEnabled(import.meta.env, globalThis.location, Capacitor.isNativePlatform()));
+  const preview = isBleVisualLabEnabled(import.meta.env, globalThis.location, Capacitor.isNativePlatform());
   if (user?.uid && preview && BluetoothVisualLab) return <Suspense fallback={null}>
-    <BluetoothVisualLab key={user.uid} Provider={FemometerContext.Provider} onDisable={() => setPreview(false)}>{children}</BluetoothVisualLab>
+    <BluetoothVisualLab key={user.uid} Provider={FemometerContext.Provider}>{children}</BluetoothVisualLab>
   </Suspense>;
   const enabled = Boolean(user?.uid) && isFemometerBlePrototypeEnabled() && isFemometerBleAndroidNative();
   return enabled ? <FemometerSessionOwner key={user.uid} userId={user.uid}>{children}</FemometerSessionOwner>
