@@ -55,7 +55,12 @@ export default function BluetoothVisualLab({ Provider, children }) {
     setExpanded(false); setReviewVisibleOn(location.key);
   };
   const save = () => {
-    if (!draft.confirmed || selected.importStatus === 'saving') return;
+    if (
+  !draft?.isoDate ||
+  !draft?.time ||
+  selected?.importStatus === 'saving' ||
+  (selected?.importStatus === 'uncertain' && !checkedUncertain)
+) return;
     setNotice(previous => ({ count: (previous?.count || 0) + 1, temperature: selected.temperatureC, isoDate: draft.isoDate, time: draft.time }));
     setReadings(rows => rows.filter(row => row.uiId !== selected.uiId));
     setSelectedId(null); setError(null); setCheckedUncertain(false);
@@ -120,7 +125,7 @@ export default function BluetoothVisualLab({ Provider, children }) {
       <FemometerReviewCard visible={reviewVisibleOn === location.key} onDismiss={() => setReviewVisibleOn(null)} readings={readings} selected={selected} expanded={expanded} onExpand={() => setExpanded(true)} onMinimize={() => setExpanded(false)} onSelect={id => { setSelectedId(id); setCheckedUncertain(false); }} deviceKey="fictional-device">
         {selected && <BleReadingReviewView measurement={{ temperature: selected.temperatureC, device_timestamp: selected.deviceTimestamp }} reading={selected}
           draft={draft} busy={selected.importStatus === 'saving'} error={error} checkedUncertain={checkedUncertain} setCheckedUncertain={setCheckedUncertain}
-          change={patch => updateDraft({ ...patch, confirmed: false })} onConfirmation={confirmed => updateDraft({ confirmed })} confirm={save}
+          change={patch => updateDraft({ ...patch, confirmed: false })} confirm={save}
           onClose={() => { updateDraft({ confirmed: false }); setExpanded(false); }} navigate={navigate} />}
       </FemometerReviewCard>
       <BleSavedNotice notice={notice} onDismiss={() => setNotice(null)} onViewDay={isoDate => navigate('/records', { state: { selectedDate: isoDate, scrollToDayDetail: true } })} />

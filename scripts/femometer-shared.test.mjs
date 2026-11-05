@@ -427,7 +427,6 @@ test('quick review preserves the original date, cancels without saving and requi
   assert.equal(nodes.find(node => node.type === 'input' && node.props.type === 'date').props.value, '2020-01-02');
   nodes.find(node => node.type === 'button' && node.props.children.includes('Cancelar')).props.onClick();
   assert.equal(saves.length, 0); assert.equal(closed, 1);
-  nodes.find(node => node.type === 'input' && node.props.type === 'checkbox').props.onChange({ target: { checked: true } });
   nodes = treeNodes(render());
   await nodes.find(node => node.type === 'button' && node.props.children.includes('Confirmar e incorporar')).props.onClick();
   assert.equal(saves[0].options.allowPossibleDuplicate, false);
@@ -670,7 +669,6 @@ test('integrated lab keeps the real application children and route state; fake B
   await assert.rejects(tree.props.value.incorporateReading(1, () => writes++), /guardados reales/);
   assert.equal(writes, 0);
   let editor = treeNodes(tree).find(n => n.type === 'editor');
-  editor.props.onConfirmation(true); tree = render();
   treeNodes(tree).find(n => n.type === 'editor').props.confirm();
   tree = render(); assert.equal(tree.props.value.pendingCount, 2); assert.equal(writes, 0);
   assert.equal(treeNodes(tree).find(n => n.type === 'notice').props.notice.count, 1);

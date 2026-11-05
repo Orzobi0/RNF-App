@@ -36,7 +36,13 @@ export function BleReadingReview({ userId, reading, onClose, onSaved }) {
     setError(null);
     try {
       if (isLoading || !cycleId || !session) throw new Error('Espera a que se cargue el ciclo actual.');
-      const payload = prepareManualBleDraft(measurement, { ...draft, userId, cycleId, nowMs: Date.now() });
+      const payload = prepareManualBleDraft(measurement, {
+  ...draft,
+  confirmed: true,
+  userId,
+  cycleId,
+  nowMs: Date.now(),
+});
       await incorporateReading(reading.uiId, () => incorporateBleMeasurement(payload, { allowPossibleDuplicate }), { reviewedUncertain: checkedUncertain });
       if (mounted.current && sessionRef.current === session && cycleRef.current?.id === cycleId) (onSaved ?? onClose)();
     } catch (failure) {
@@ -47,8 +53,23 @@ export function BleReadingReview({ userId, reading, onClose, onSaved }) {
       if (mounted.current && sessionRef.current === session) setBusy(false);
     }
   };
-  return <BleReadingReviewView {...{ measurement, reading, draft, busy, error, checkedUncertain, setCheckedUncertain, change, confirm, onClose, navigate }}
-    onConfirmation={confirmed => setDraft({ ...draft, confirmed })} />;
+  return (
+  <BleReadingReviewView
+    {...{
+      measurement,
+      reading,
+      draft,
+      busy,
+      error,
+      checkedUncertain,
+      setCheckedUncertain,
+      change,
+      confirm,
+      onClose,
+      navigate,
+    }}
+  />
+);
 }
 
 export default BleReadingReview;
