@@ -29,6 +29,10 @@ final class BleClockOperation {
 
     BleClockOperation(Handler handler) { this.handler = handler; }
 
+    // Shared transport exclusion only; the existing clock transaction is unchanged.
+    synchronized boolean busy() { return pending != null; }
+    synchronized boolean uncertain(BluetoothGatt gatt) { return gatt != null && gatt == uncertainTransport; }
+
     synchronized void start(BluetoothGatt gatt, PluginCall call, boolean sync, String boundDeviceKey) {
         if (pending != null) { call.reject("Ya hay una operacion de reloj.", "CLOCK_BUSY"); return; }
         if (gatt == null) { call.reject("Inicia la escucha antes de consultar el reloj.", "CLOCK_NOT_CONNECTED"); return; }

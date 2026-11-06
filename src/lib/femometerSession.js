@@ -1,5 +1,19 @@
 import { thermometerCapabilities } from './thermometerCapabilities.js';
 
+// Only these five session-scoped values cross into the UI; never retain identifiers.
+export const normalizeFemometerDeviceInfo = value => {
+  const text = input => {
+    if (typeof input !== 'string') return null;
+    const clean = input.replace(/[\p{C}\uFFFD]/gu, '').trim();
+    return clean && [...clean].length <= 128 ? clean : null;
+  };
+  return {
+    battery: Number.isInteger(value?.battery) && value.battery >= 0 && value.battery <= 100 ? value.battery : null,
+    model: text(value?.model), manufacturer: text(value?.manufacturer),
+    firmware: text(value?.firmware), software: text(value?.software),
+  };
+};
+
 // Compare wall-clock components: the thermometer reports local time without a zone.
 export const femometerClockDriftSeconds = (value, now = Date.now()) => {
   const match = typeof value === 'string' && value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/);
@@ -24,6 +38,7 @@ export const createFemometerSessionManager = (api) => {
     let version = 0;
     let job;
     let clockJob;
+    let deviceInfoJob;
     let automaticClockPending = false;
     let stopping;
     let disposal;
@@ -47,6 +62,7 @@ export const createFemometerSessionManager = (api) => {
     let state = {
       status: 'checking', busy: false, remembered: null, devices: [],
       selectedDeviceId: '', inspectionResult: null, error: null, listenerResult: null,
+      deviceInfoStatus: 'idle', deviceInfoBusy: false, deviceInfoResult: null, deviceInfoError: null,
       capabilities: thermometerCapabilities(), clockBusy: false, clockResult: null, clockError: null,
     };
     const publish = (patch) => {
@@ -59,7 +75,7 @@ export const createFemometerSessionManager = (api) => {
       await old?.remove();
     };
     const run = (task, restarting = false) => {
-      if (disposed || suspended || (restartJob && !restarting) || job || clockJob || stopping || state.status === 'listening') return Promise.resolve();
+      if (disposed || suspended || (restartJob && !restarting) || job || clockJob || deviceInfoJob || stopping || state.status === 'listening') return Promise.resolve();
       const token = ++version;
       const current = () => !disposed && token === version;
       const check = () => { if (!current()) throw { code: 'CONNECTION_CANCELLED' }; };
@@ -89,7 +105,7 @@ export const createFemometerSessionManager = (api) => {
     };
     const listen = async (deviceId, call, current) => {
       automaticClockPending = false;
-      publish({ status: 'connecting', listenerResult: null, clockResult: null, clockError: null, capabilities: thermometerCapabilities() });
+      publish({ deviceInfoStatus: 'idle', deviceInfoBusy: false, deviceInfoResult: null, deviceInfoError: null, status: 'connecting', listenerResult: null, clockResult: null, clockError: null, capabilities: thermometerCapabilities() });
       // Assign even a late subscription so cancellation can remove it after job settles.
       subscription = await api.addFemometerTemperatureListener(event => {
         if (!current()) return;
@@ -127,7 +143,7 @@ export const createFemometerSessionManager = (api) => {
       } else publish({ status: (!found.length || (saved.remembered && !match)) ? 'missing' : 'idle' });
     };
     const clock = (sync) => {
-      if (disposed || job || clockJob || stopping || state.status !== 'listening') return Promise.resolve();
+      if (disposed || job || clockJob || deviceInfoJob || stopping || state.status !== 'listening') return Promise.resolve();
       const token = version; // Do not invalidate the existing temperature subscription.
       const current = () => !disposed && token === version;
       if (!state.capabilities[sync ? 'clockSync' : 'clockRead']) {
@@ -161,7 +177,30 @@ export const createFemometerSessionManager = (api) => {
       });
       return clockJob;
     };
+    const readDeviceInfo = () => {
+      if (disposed || suspended || job || stopping || state.status !== 'listening'
+        || state.listenerResult?.connectionReady !== true || state.listenerResult?.indicationsActive !== true) return Promise.resolve();
+      if (deviceInfoJob || clockJob) return Promise.resolve();
+      const token = version;
+      const current = () => !disposed && token === version;
+      publish({ deviceInfoStatus: 'loading', deviceInfoBusy: true, deviceInfoResult: null, deviceInfoError: null });
+      deviceInfoJob = Promise.resolve().then(() => {
+        if (current()) return api.readFemometerDeviceInfo();
+      }).then(result => {
+        if (!current()) return;
+        const data = normalizeFemometerDeviceInfo(result);
+        publish({ deviceInfoResult: data, deviceInfoStatus: Object.values(data).some(value => value !== null) ? 'received' : 'unavailable' });
+      }).catch(error => {
+        if (current()) publish({ deviceInfoStatus: 'error', deviceInfoError: { code: error?.code,
+          message: error?.message || 'No se pudo consultar los datos. Vuelve a intentarlo.' } });
+      }).finally(() => {
+        deviceInfoJob = null;
+        if (current()) publish({ deviceInfoBusy: false });
+      });
+      return deviceInfoJob;
+    };
     const session = {
+      readDeviceInfo,
       readClock: () => clock(false),
       syncClock: () => clock(true),
       start: () => run((call, current) => search(true, call, current)),
@@ -175,7 +214,7 @@ export const createFemometerSessionManager = (api) => {
       },
       restart: () => {
         if (restartJob) return restartJob;
-        if (disposed || suspended || job || clockJob || stopping || resumeJob) return Promise.resolve();
+        if (disposed || suspended || job || clockJob || deviceInfoJob || stopping || resumeJob) return Promise.resolve();
         const lifecycle = lifecycleVersion;
         publish({ restarting: true });
         restartJob = Promise.resolve().then(async () => {
@@ -267,8 +306,8 @@ export const createFemometerSessionManager = (api) => {
         listeningExpiresAt = 0;
         automaticClockPending = false;
         ++version; // Invalidate all continuations and events synchronously.
-        publish({ status: 'stopping', busy: true });
-        const pending = Promise.all([job, clockJob]);
+        publish({ status: 'stopping', busy: true, deviceInfoStatus: 'idle', deviceInfoBusy: false, deviceInfoResult: null, deviceInfoError: null });
+        const pending = Promise.all([job, clockJob, deviceInfoJob]);
         stopping = (async () => {
           await ready;
           // A StrictMode mount cancelled before acquisition must not stop its successor.

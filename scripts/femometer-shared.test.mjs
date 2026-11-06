@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createFemometerSessionManager, femometerClockDriftSeconds } from '../src/lib/femometerSession.js';
+import { createFemometerSessionManager, femometerClockDriftSeconds, normalizeFemometerDeviceInfo } from '../src/lib/femometerSession.js';
 import { normalizeBleMeasurement, prepareManualBleDraft, classifyBleMeasurement, decideVinca2Reading, classifyBleMeasurementAge } from '../src/lib/bleMeasurements.js';
 import { measurementDisplay, measurementSourceLabel } from '../src/lib/temperatureMeasurements.js';
 import { isBleVisualLabEnabled } from '../src/lib/bleVisualLab.js';
@@ -10,7 +10,7 @@ import { loadFrontend, hooks, deferred, flush } from './helpers/load-frontend.mj
 const memoryStorage = () => { const data = new Map(); return { getItem: key => data.get(key) ?? null, setItem: (key, value) => data.set(key, value) }; };
 
 const bridge = () => {
-  const calls = { connections: 0, disconnects: 0, listeners: 0, peakListeners: 0, clock: 0, sync: 0, permissions: 0 };
+  const calls = { connections: 0, disconnects: 0, listeners: 0, peakListeners: 0, clock: 0, sync: 0, info: 0, permissions: 0 };
   let emit; let deviceKey = null; const storage = memoryStorage();
   const flags = { clockFails: false, clockWait: null, disconnectWait: null, syncFails: false, now: 0, remembered: true, found: true };
   const api = {
@@ -35,7 +35,13 @@ const bridge = () => {
       if (flags.clockFails) throw Error('clock failed');
       return { deviceKey, deviceLocalTime: '2020-01-01T08:00:00' };
     },
-    syncFemometerClock: async () => { calls.sync++; if (flags.syncFails) throw Error('sync failed'); return {}; },
+    syncFemometerClock: async () => { calls.sync++; if (flags.syncWait) return flags.syncWait.promise; if (flags.syncFails) throw Error('sync failed'); return {}; },
+    readFemometerDeviceInfo: async () => {
+      calls.info++;
+      if (flags.infoWait) return flags.infoWait.promise;
+      if (flags.infoError) throw flags.infoError;
+      return flags.infoResult ?? { battery: 85, model: 'BM-Vinca2', manufacturer: 'Femometer', firmware: 'FW-1', software: 'SW-2' };
+    },
   };
   return { factory: createFemometerSessionManager(api), calls, flags, storage, emit: event => emit?.({ deviceKey, ...event }) };
 };
@@ -1256,7 +1262,7 @@ test('Vinca configuration distinguishes read-correct history from verified sync 
   assert.deepEqual(h.calls, ['read', 'sync']);
   h.ble.sessionState.clockBusy = true;
   assert.equal(h.button('Leer reloj').props.disabled, true);
-  assert.equal(h.button('Reiniciar escucha').props.disabled, true);
+  assert.equal(h.button('Preparando…').props.disabled, true);
   h.cleanup();
 });
 
@@ -1366,4 +1372,176 @@ test('cancellation while inspection disconnect is pending cannot proceed to nati
   assert.equal(await binding, false); await stopping;
   assert.equal(h.calls.some(call => call[0] === 'remember'), false);
   assert.equal(h.storedKey(), 'old'); await h.session.dispose();
+});
+
+
+test('device info validates each field without conflating firmware/software or retaining identifiers', () => {
+  const empty = { battery: null, model: null, manufacturer: null, firmware: null, software: null };
+  assert.deepEqual(normalizeFemometerDeviceInfo(null), empty);
+  assert.deepEqual(normalizeFemometerDeviceInfo({ battery: 0, model: ' Vinca\0 ', manufacturer: 'Fémometer',
+    firmware: null, software: ' SW-2 ', serial: 'private', address: 'private' }),
+  { battery: 0, model: 'Vinca', manufacturer: 'Fémometer', firmware: null, software: 'SW-2' });
+  for (const battery of [-1, 101, 255, 1.5, '85', NaN, Infinity]) assert.equal(normalizeFemometerDeviceInfo({ battery }).battery, null);
+  assert.equal(normalizeFemometerDeviceInfo({ battery: 100 }).battery, 100);
+  assert.deepEqual(normalizeFemometerDeviceInfo({ model: 'x'.repeat(129), manufacturer: {}, firmware: '\0\uFFFD', software: '' }), empty);
+});
+
+test('device info is explicit, sequential with clock jobs, ignores duplicate presses and keeps temperatures', async () => {
+  const native = bridge(); const owner = await mountedOwner(native);
+  const session = owner.render().sessionRef.current;
+  assert.equal(native.calls.info, 0);
+  native.flags.infoWait = deferred();
+  const pending = session.readDeviceInfo();
+  await flush();
+  assert.equal(owner.render().sessionState.deviceInfoStatus, 'loading');
+  await Promise.all([session.readDeviceInfo(), session.readClock(), session.syncClock()]);
+  assert.equal(native.calls.info, 1); assert.equal(native.calls.clock, 1); assert.equal(native.calls.sync, 0);
+  native.emit({ temperatureC: 36.4 });
+  assert.equal(owner.render().pendingCount, 1);
+  native.flags.infoWait.resolve({ battery: 85, model: 'BM-Vinca2', manufacturer: 'Femometer', firmware: 'FW-1', software: 'SW-2' });
+  await pending;
+  assert.deepEqual(owner.render().sessionState.deviceInfoResult, { battery: 85, model: 'BM-Vinca2', manufacturer: 'Femometer', firmware: 'FW-1', software: 'SW-2' });
+  assert.equal(owner.render().sessionState.deviceInfoStatus, 'received');
+  assert.equal(owner.render().sessionState.status, 'listening');
+  assert.equal(native.calls.connections, 1); assert.equal(native.calls.disconnects, 0);
+  native.flags.syncWait = deferred();
+  const sync = session.syncClock(); await flush();
+  await session.readDeviceInfo(); assert.equal(native.calls.info, 1);
+  native.flags.syncWait.resolve({}); await sync;
+  owner.cleanup(); await flush();
+});
+
+test('device info absent fields, total absence and transport/timeout errors stay local to the query', async () => {
+  const native = bridge(); let state;
+  const session = native.factory('a', next => { state = next; }, () => {});
+  await session.readDeviceInfo(); assert.equal(native.calls.info, 0);
+  await session.start();
+  native.flags.infoResult = { battery: 85, software: 'SW-2' };
+  await session.readDeviceInfo();
+  assert.equal(state.deviceInfoResult.firmware, null); assert.equal(state.deviceInfoResult.software, 'SW-2');
+  native.flags.infoResult = { model: 'Vinca' };
+  await session.readDeviceInfo(); assert.equal(state.deviceInfoResult.battery, null);
+  native.flags.infoResult = {};
+  await session.readDeviceInfo(); assert.equal(state.deviceInfoStatus, 'unavailable');
+  for (const code of ['DEVICE_INFO_READ_FAILED', 'DEVICE_INFO_TIMEOUT', 'DEVICE_INFO_RECONNECT_REQUIRED']) {
+    native.flags.infoError = { code, message: 'Reconnect before retrying' };
+    await session.readDeviceInfo();
+    assert.equal(state.deviceInfoStatus, 'error'); assert.equal(state.deviceInfoError.code, code);
+    assert.equal(state.deviceInfoResult, null); assert.equal(state.status, 'listening'); assert.equal(state.error, null);
+  }
+  assert.equal(native.calls.disconnects, 0);
+  await session.dispose();
+});
+
+test('device info cancellation clears immediately and late results cannot cross connections or accounts', async () => {
+  for (const reason of ['disconnect', 'dispose', 'account', 'suspend']) {
+    const native = bridge(); let state; let nextState;
+    const session = native.factory('a', next => { state = next; }, () => {});
+    await session.start(); native.flags.infoWait = deferred();
+    const query = session.readDeviceInfo(); await flush();
+    let successor;
+    if (reason === 'account') successor = native.factory('b', next => { nextState = next; }, () => {});
+    const stopped = reason === 'suspend' ? session.suspend() : reason === 'dispose' || reason === 'account' ? session.dispose() : session.stop();
+    if (reason !== 'dispose' && reason !== 'account') {
+      assert.equal(state.deviceInfoResult, null); assert.equal(state.deviceInfoStatus, 'idle');
+    }
+    native.flags.infoWait.resolve({ battery: 99, software: 'old' });
+    await query; await stopped;
+    native.flags.infoWait = null;
+    if (successor) {
+      await successor.start(); assert.equal(nextState.deviceInfoResult, null);
+      await successor.readDeviceInfo(); assert.equal(nextState.deviceInfoResult.battery, 85);
+      await successor.dispose();
+    } else if (reason === 'disconnect') {
+      await session.start(); assert.equal(state.deviceInfoResult, null);
+      await session.readDeviceInfo(); assert.equal(state.deviceInfoResult.battery, 85);
+      await session.dispose();
+    }
+  }
+});
+
+test('a disconnected event cancels device info without removing pending measurements', async () => {
+  const native = bridge(); const owner = await mountedOwner(native);
+  native.emit({ temperatureC: 36.4 });
+  native.flags.infoWait = deferred();
+  const pending = owner.render().sessionRef.current.readDeviceInfo(); await flush();
+  native.emit({ status: 'disconnected' });
+  assert.equal(owner.render().sessionState.deviceInfoResult, null);
+  native.flags.infoWait.resolve({ battery: 85 }); await pending; await flush();
+  assert.equal(owner.render().sessionState.deviceInfoResult, null);
+  assert.equal(owner.render().pendingCount, 1);
+  owner.cleanup(); await flush();
+});
+
+test('Vinca device info button requires ready listening, renders separate rows and a local error', async () => {
+  const h = await vincaPanelFixture({ remembered: true, status: 'listening' });
+  assert.equal(h.button('Consultar datos').props.disabled, true);
+  h.ble.sessionState.listenerResult = { connectionReady: true, indicationsActive: true };
+  h.ble.sessionRef.current.readDeviceInfo = async () => h.calls.push('info');
+  assert.equal(h.button('Consultar datos').props.disabled, false);
+  await h.button('Consultar datos').props.onClick(); assert.deepEqual(h.calls, ['info']);
+  h.ble.sessionState.deviceInfoResult = { battery: 85, firmware: null, software: 'SW-only' };
+  let text = JSON.stringify(h.render());
+  assert.match(text, /85 %/); assert.match(text, /SW-only/); assert.match(text, /No disponible/);
+  h.ble.sessionState.deviceInfoBusy = true;
+  assert.equal(h.button('Consultar datos').props.disabled, true);
+  assert.match(JSON.stringify(h.render()), /Consultando datos/);
+  h.ble.sessionState.deviceInfoBusy = false;
+  h.ble.sessionState.deviceInfoError = { message: 'Consulta fallida' };
+  assert.match(JSON.stringify(h.render()), /Consulta fallida/);
+  assert.equal(h.button('Consultar datos').props.disabled, false);
+  h.ble.sessionState.clockBusy = true;
+  assert.equal(h.button('Consultar datos').props.disabled, true);
+  h.ble.sessionState.clockBusy = false; h.ble.sessionState.status = 'stopped';
+  assert.equal(h.button('Consultar datos').props.disabled, true);
+  assert.doesNotMatch(JSON.stringify(h.render()), /85 %|SW-only/);
+  h.cleanup();
+});
+
+
+test('lab device info simulates all results and cancellation without a native adapter', async () => {
+  const { createBleLabScenario, bleLabScenarios } = await import('../src/lib/bleVisualLab.js');
+  const harness = hooks(); const timers = new Set();
+  const { BluetoothVisualLab } = await loadFrontend('src/components/dev/BluetoothVisualLab.jsx', {
+    ...harness.bindings, useLocation: () => ({ key: 'devices' }), useNavigate: () => () => {},
+    createBleLabScenario, bleLabScenarios, Button: 'button', FemometerReviewCard: 'card', BleReadingReviewView: 'editor', BleSavedNotice: 'notice', FemometerFeedback: 'clock',
+    setTimeout: fn => { timers.add(fn); return fn; }, clearTimeout: fn => timers.delete(fn),
+  }, ['BluetoothVisualLab'], source => source.replace('export default function BluetoothVisualLab', 'function BluetoothVisualLab'));
+  const render = () => harness.render(() => ({ props: { value: BluetoothVisualLab({ Provider: 'provider', children: null }) } }));
+  const lab = () => render().props.value;
+  treeNodes(render()).find(n => n.type === 'button' && n.props['aria-expanded'] === false).props.onClick();
+  const select = (label, value) => treeNodes(render()).find(n => n.type === 'select' && n.props['aria-label'] === label).props.onChange({ target: { value } });
+  const finish = () => { for (const fn of timers) { timers.delete(fn); fn(); } };
+  select('Modo de previsualización', 'android');
+  await lab().sessionRef.current.readDeviceInfo(); assert.equal(timers.size, 0);
+  select('Escenario visual', 'multiple');
+  const count = lab().pendingCount;
+  for (const scenario of ['complete', 'noFirmware', 'noBattery', 'error']) {
+    select('Escenario de datos', scenario);
+    const query = lab().sessionRef.current.readDeviceInfo();
+    assert.equal(lab().sessionState.deviceInfoStatus, 'loading');
+    await lab().sessionRef.current.readDeviceInfo();
+    await lab().sessionRef.current.syncClock();
+    assert.equal(timers.size, 1);
+    finish(); await query;
+    const state = lab().sessionState;
+    assert.equal(state.status, 'listening'); assert.equal(lab().pendingCount, count);
+    assert.equal(state.deviceInfoStatus, scenario === 'error' ? 'error' : 'received');
+    if (scenario !== 'error') {
+      assert.equal(state.deviceInfoResult.battery, scenario === 'noBattery' ? null : 85);
+      assert.equal(state.deviceInfoResult.firmware, scenario === 'noFirmware' ? null : 'FW-demo');
+      assert.equal(state.deviceInfoResult.software, 'SW-demo');
+    } else assert.equal(state.deviceInfoResult, null);
+  }
+  const pending = lab().sessionRef.current.readDeviceInfo();
+  const late = [...timers];
+  select('Escenario visual', 'disconnected'); await pending;
+  late.forEach(fn => fn());
+  assert.equal(lab().sessionState.deviceInfoResult ?? null, null);
+  await lab().sessionRef.current.readDeviceInfo(); assert.equal(timers.size, 0);
+  select('Escenario visual', 'listening');
+  const cancelled = lab().sessionRef.current.readDeviceInfo();
+  await lab().sessionRef.current.stop(); await cancelled;
+  assert.equal(lab().sessionState.deviceInfoResult, null);
+  harness.cleanup();
 });

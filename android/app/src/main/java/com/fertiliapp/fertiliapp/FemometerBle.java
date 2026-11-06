@@ -72,6 +72,8 @@ public class FemometerBle extends Plugin {
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final BleClockOperation clockOperation = new BleClockOperation(mainHandler);
+    private final BleDeviceInfoOperation deviceInfoOperation = new BleDeviceInfoOperation(mainHandler);
+    private volatile boolean temperatureReady;
     private final Map<String, ScannedDevice> devicesById = new LinkedHashMap<>();
     private final Map<String, String> idsByAddress = new LinkedHashMap<>();
 
@@ -594,12 +596,14 @@ public class FemometerBle extends Plugin {
 
             @Override
             public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+                if (Build.VERSION.SDK_INT < 33 && gatt == temperatureGatt) deviceInfoOperation.onRead(gatt, characteristic, characteristic.getValue(), status);
                 if (gatt == temperatureGatt && Vinca2Profile.CURRENT_TIME.equals(characteristic.getUuid()))
                     clockOperation.onRead(gatt, characteristic.getValue(), status);
             }
 
             @Override
             public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, byte[] value, int status) {
+                if (gatt == temperatureGatt) deviceInfoOperation.onRead(gatt, characteristic, value, status);
                 if (gatt == temperatureGatt && Vinca2Profile.CURRENT_TIME.equals(characteristic.getUuid()))
                     clockOperation.onRead(gatt, value, status);
             }
@@ -641,13 +645,27 @@ public class FemometerBle extends Plugin {
     @PluginMethod
     public void syncClock(PluginCall call) { operateClock(call, true); }
 
-    private void operateClock(PluginCall call, boolean write) {
+    private synchronized void operateClock(PluginCall call, boolean write) {
         String blocked = getBlockedOperationCode();
         if (blocked != null) { rejectWithCode(call, blocked); return; }
         if (temperatureGatt == null || temperatureListenerCall != null || connectCall != null || scanCall != null) {
             call.reject("Espera a que la escucha este preparada.", "CLOCK_NOT_CONNECTED"); return;
         }
+        if (deviceInfoOperation.busy()) { call.reject("Hay una consulta de datos en curso.", "DEVICE_INFO_BUSY"); return; }
+        if (deviceInfoOperation.uncertain(temperatureGatt)) { call.reject("Deten y reconecta antes de usar el reloj.", "CLOCK_RECONNECT_REQUIRED"); return; }
         clockOperation.start(temperatureGatt, call, write, temperatureDeviceKey);
+    }
+
+    @PluginMethod
+    public synchronized void readDeviceInfo(PluginCall call) {
+        String blocked = getBlockedOperationCode();
+        if (blocked != null) { rejectWithCode(call, blocked); return; }
+        if (!temperatureReady || temperatureGatt == null || temperatureListenerCall != null || connectCall != null || scanCall != null) {
+            call.reject("Espera a que la escucha este preparada.", "DEVICE_INFO_NOT_CONNECTED"); return;
+        }
+        if (clockOperation.busy()) { call.reject("Hay una operacion de reloj en curso.", "CLOCK_BUSY"); return; }
+        if (clockOperation.uncertain(temperatureGatt)) { call.reject("Deten y reconecta antes de consultar datos.", "DEVICE_INFO_RECONNECT_REQUIRED"); return; }
+        deviceInfoOperation.start(temperatureGatt, call);
     }
 
     @PluginMethod
@@ -856,6 +874,7 @@ public class FemometerBle extends Plugin {
         result.put("measurementIntervalConfigured", true);
         result.put("capabilities", Vinca2Profile.capabilities(temperatureGatt));
         result.put("deviceKey", temperatureDeviceKey);
+        temperatureReady = true;
         if (pending != null) pending.resolve(result);
         Log.d(TAG, "Temperature listener ready: Vinca setup v2");
     }
@@ -1133,7 +1152,9 @@ public class FemometerBle extends Plugin {
         notifyListeners(TEMPERATURE_EVENT, event);
     }
 
-    private void stopTemperatureListenerInternal(boolean notifyStopped, String status, String message) {
+    private synchronized void stopTemperatureListenerInternal(boolean notifyStopped, String status, String message) {
+        temperatureReady = false;
+        deviceInfoOperation.cancel();
         clockOperation.cancel();
         clearTemperatureSetupTimeout();
         clearTemperatureListenerTimeout();

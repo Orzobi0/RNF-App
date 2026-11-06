@@ -20,7 +20,7 @@ const Vinca2Panel = () => {
   const [actionError, setActionError] = useState(null);
   const operationLock = useRef(false);
   const listening = status === 'listening';
-  const busy = working || sessionState.busy || sessionState.clockBusy || sessionState.restarting
+  const busy = working || sessionState.busy || sessionState.clockBusy || sessionState.deviceInfoBusy || sessionState.restarting
     || ['checking', 'searching', 'connecting', 'inspecting', 'stopping'].includes(status);
   useEffect(() => {
     if (window.location.hash !== '#bluetooth-readings') return undefined;
@@ -29,7 +29,7 @@ const Vinca2Panel = () => {
   }, []);
   const run = async (operation, argument) => {
     if (operationLock.current || busy) return;
-    if (listening && !['restart', 'stop', 'readClock', 'syncClock'].includes(operation)) return;
+    if (listening && !['restart', 'stop', 'readClock', 'syncClock', 'readDeviceInfo'].includes(operation)) return;
     operationLock.current = true;
     setWorking(true); setActionError(null);
     try {
@@ -87,6 +87,17 @@ const Vinca2Panel = () => {
           <summary className={`${rowClass} cursor-pointer`}><Info className="h-4 w-4 shrink-0" aria-hidden="true" /><span className="flex-1">Modelo y compatibilidad</span><ChevronRight className="h-4 w-4" aria-hidden="true" /></summary>
           <div className="space-y-2 pb-4 text-sm text-slate-500">
             <p>Femometer Vinca 2 / BM-Vinca2. Modelo compatible con FertiliApp.</p>
+            <Button type="button" variant="outline" className="inline-flex min-h-11 h-auto w-fit max-w-full px-3 py-2 text-sm"
+              disabled={busy || !listening || !sessionState.listenerResult?.connectionReady || !sessionState.listenerResult?.indicationsActive}
+              onClick={() => run('readDeviceInfo')}>Consultar datos</Button>
+            {sessionState.deviceInfoBusy && <p role="status">Consultando datos…</p>}
+            {sessionState.deviceInfoError && <p role="alert" className="text-xs text-amber-800">{sessionState.deviceInfoError.message}</p>}
+            <dl className="divide-y divide-slate-100">
+              {Object.entries({ battery: 'Batería', model: 'Modelo', manufacturer: 'Fabricante', firmware: 'Firmware', software: 'Software' }).map(([field, label]) => {
+                const value = listening ? sessionState.deviceInfoResult?.[field] : null;
+                return <div key={field} className="flex items-start justify-between gap-4 py-2"><dt>{label}</dt><dd className="min-w-0 break-words text-right text-slate-700">{value == null ? 'No disponible' : field === 'battery' ? `${value} %` : value}</dd></div>;
+              })}
+            </dl>
             {inspectionResult && sessionState.devices?.some(device => device.id === sessionState.selectedDeviceId && device.isRemembered) && <p>{inspectionResult.compatible ? 'Compatibilidad del dispositivo comprobada.' : 'El dispositivo inspeccionado no ha superado la comprobación.'}</p>}
             {capabilities?.clockRead && <p>Lectura del reloj anunciada.</p>}{capabilities?.clockSync && <p>Ajuste del reloj anunciado.</p>}
             {capabilities?.historyReceive && <p>Recepción de temperaturas históricas anunciada.</p>}{capabilities?.historyRequest && <p>Solicitud de historial anunciada.</p>}

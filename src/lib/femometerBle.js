@@ -101,6 +101,11 @@ const androidBridgePromise = (pluginName, methodName, options = {}) => {
 };
 
 const ERROR_MESSAGES = {
+  DEVICE_INFO_BUSY: 'Ya hay una consulta de datos en curso.',
+  DEVICE_INFO_NOT_CONNECTED: 'Inicia la escucha y espera a que esté preparada.',
+  DEVICE_INFO_READ_FAILED: 'No se pudo completar la consulta. Detén y reconecta antes de reintentar; la escucha continúa.',
+  DEVICE_INFO_TIMEOUT: 'La consulta no respondió. Detén y reconecta antes de reintentar; la escucha continúa.',
+  DEVICE_INFO_RECONNECT_REQUIRED: 'Detén y vuelve a conectar antes de consultar datos o usar el reloj.',
   CLOCK_BUSY: 'Ya hay una operación de reloj en curso.',
   CLOCK_NOT_CONNECTED: 'Inicia la escucha y espera a que esté preparada.',
   CLOCK_UNSUPPORTED: 'El termómetro no anuncia soporte para esta operación de reloj.',
@@ -338,6 +343,8 @@ export const disconnectFemometer = async () => {
   }
 };
 
+export const readFemometerDeviceInfo = () => callFemometerBle('readDeviceInfo');
+
 export const readFemometerClock = () => callFemometerBle('readClock');
 export const syncFemometerClock = () => callFemometerBle('syncClock');
 
@@ -345,5 +352,5 @@ export const createFemometerPanelSession = createFemometerSessionManager({
   getRememberedFemometer, scanForFemometer, requestBluetoothPermissions,
   addFemometerTemperatureListener, startFemometerTemperatureListener,
   disconnectFemometer, connectAndInspectFemometer, rememberFemometer, forgetFemometer,
-  readFemometerClock, syncFemometerClock,
+  readFemometerClock, syncFemometerClock, readFemometerDeviceInfo,
 });

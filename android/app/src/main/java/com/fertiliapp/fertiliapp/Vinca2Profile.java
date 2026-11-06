@@ -18,6 +18,14 @@ final class Vinca2Profile {
         return service == null ? null : service.getCharacteristic(CURRENT_TIME);
     }
 
+    // Whitelist only; deliberately excludes serial number and other identifiers.
+    static BluetoothGattCharacteristic deviceInfo(BluetoothGatt gatt, int index) {
+        String[] ids = { "2a19", "2a24", "2a29", "2a26", "2a28" };
+        UUID serviceId = UUID.fromString("0000" + (index == 0 ? "180f" : "180a") + "-0000-1000-8000-00805f9b34fb");
+        BluetoothGattService service = gatt.getService(serviceId);
+        return service == null ? null : service.getCharacteristic(UUID.fromString("0000" + ids[index] + "-0000-1000-8000-00805f9b34fb"));
+    }
+
     static JSObject capabilities(BluetoothGatt gatt) {
         BluetoothGattCharacteristic clock = clock(gatt);
         int properties = clock == null ? 0 : clock.getProperties();
