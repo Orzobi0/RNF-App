@@ -3,5 +3,6 @@
     "https://json.schemastore.org/github-workflow.json": ".github/workflows/*"
   },
   "git.ignoreLimitWarning": true,
-  "java.configuration.updateBuildConfiguration": "interactive"
+  "java.configuration.updateBuildConfiguration": "interactive",
+  "python.terminal.useEnvFile": true
 }

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Bluetooth, ChevronRight, Clock3, Info, Thermometer, Unlink } from 'lucide-react';
+import { ChevronRight, Clock3, Info, Thermometer, Unlink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { useFemometer } from '@/contexts/FemometerContext';
@@ -14,10 +14,7 @@ export const vinca2StatusText = status => ({
 
 const Vinca2Panel = () => {
   const { sessionRef, sessionState, pendingCount, openReadingReview, openClockDialog, clockHistory } = useFemometer();
-  const { status, remembered, devices = [], selectedDeviceId, inspectionResult, capabilities } = sessionState;
-  const [setupStarted, setSetupStarted] = useState(false);
-  const [selectedByUser, setSelectedByUser] = useState(null);
-  const [justLinked, setJustLinked] = useState(false);
+  const { status, remembered, inspectionResult, capabilities } = sessionState;
   const [confirmForget, setConfirmForget] = useState(false);
   const [working, setWorking] = useState(false);
   const [actionError, setActionError] = useState(null);
@@ -25,36 +22,27 @@ const Vinca2Panel = () => {
   const listening = status === 'listening';
   const busy = working || sessionState.busy || sessionState.clockBusy || sessionState.restarting
     || ['checking', 'searching', 'connecting', 'inspecting', 'stopping'].includes(status);
-  const selected = selectedByUser === selectedDeviceId && devices.some(device => device.id === selectedByUser);
-  const compatible = selected && inspectionResult?.compatible === true;
   useEffect(() => {
     if (window.location.hash !== '#bluetooth-readings') return undefined;
     const frame = requestAnimationFrame(() => document.getElementById('bluetooth-readings')?.scrollIntoView({ block: 'start' }));
     return () => cancelAnimationFrame(frame);
   }, []);
-  useEffect(() => { if (remembered === false) setJustLinked(false); }, [remembered]);
   const run = async (operation, argument) => {
     if (operationLock.current || busy) return;
     if (listening && !['restart', 'stop', 'readClock', 'syncClock'].includes(operation)) return;
-    if (operation === 'remember' && !argument && !compatible) return;
     operationLock.current = true;
     setWorking(true); setActionError(null);
     try {
-      if (operation === 'scan') { setSetupStarted(true); setSelectedByUser(null); }
-      if (operation === 'remember' && !argument) setJustLinked(true);
       await sessionRef.current?.[operation](argument);
-      if (operation === 'remember' && argument) { setConfirmForget(false); setSetupStarted(false); setSelectedByUser(null); }
+      if (operation === 'remember' && argument) setConfirmForget(false);
     } catch (error) {
       setActionError(error?.message || 'No se pudo completar la operación. Vuelve a intentarlo.');
     } finally { operationLock.current = false; setWorking(false); }
   };
   const retry = ['error', 'missing'].includes(status);
-  const stepTwo = remembered === false && (setupStarted || devices.length > 0 || ['searching', 'inspecting'].includes(status));
-  const operation = remembered === null ? 'start' : remembered ? (listening ? 'restart' : 'start')
-    : retry || !stepTwo || !devices.length ? 'scan' : compatible ? 'remember' : 'inspect';
+  const operation = listening ? 'restart' : 'start';
   const primaryLabel = busy ? (['checking', 'searching', 'connecting', 'inspecting', 'stopping'].includes(status) ? vinca2StatusText(status) : 'Preparando…')
-    : remembered === null ? 'Reintentar' : remembered ? (listening ? 'Reiniciar escucha' : retry ? 'Reintentar' : 'Conectar')
-      : retry ? 'Reintentar' : operation === 'scan' ? 'Buscar termómetro' : compatible ? 'Vincular termómetro' : 'Comprobar compatibilidad';
+    : listening ? 'Reiniciar escucha' : retry ? 'Reintentar' : 'Conectar';
   const clockLabel = ({ synchronized_verified: 'Verificado', read_correct: 'Hora leída y aparentemente correcta', misaligned: 'Desajustado' })[clockHistory?.state] || 'Sin verificar';
   const rowClass = 'flex min-h-14 w-full items-center gap-3 py-4 text-left text-sm disabled:opacity-50';
   return <div id="bluetooth-readings" className="min-w-0 bg-white text-slate-700">
@@ -67,42 +55,16 @@ const Vinca2Panel = () => {
         <p role="status" className="text-sm text-slate-500">{vinca2StatusText(status)}</p>
       </div>
     </div>
-    {remembered === false && <section className="space-y-3 pb-4" aria-label="Primera configuración">
-      <p className="text-xs font-semibold text-fertiliapp-fuerte">Paso {stepTwo ? '2' : '1'} de 3</p>
-      <h3 className="font-semibold text-titulo">{stepTwo ? 'Seleccionar y vincular' : 'Preparar termómetro'}</h3>
-      {!stepTwo ? <ol className="list-decimal space-y-2 pl-5 text-sm leading-relaxed">
-        <li><strong>Cierra completamente Femometer Connect si está abierta.</strong></li>
-        <li>Activa Bluetooth en el móvil.</li>
-        <li>Acerca el Vinca 2 y prepáralo para la conexión.</li>
-      </ol> : <>
-        <p className="text-sm">Selecciona tu termómetro. Comprobaremos su compatibilidad antes de vincularlo.</p>
-        <div className="divide-y divide-slate-100">
-          {devices.map(device => <button key={device.id} type="button" disabled={busy || listening}
-            aria-pressed={selected && selectedDeviceId === device.id}
-            className={`${rowClass} ${selected && selectedDeviceId === device.id ? 'text-fertiliapp-fuerte' : ''}`}
-            onClick={() => { if (busy || operationLock.current || listening) return; sessionRef.current?.select(device.id); setSelectedByUser(device.id); }}>
-            <Bluetooth className="h-4 w-4 shrink-0" aria-hidden="true" /><span className="min-w-0 flex-1 break-words">{device.name || 'Termómetro detectado'}</span>
-            {selected && selectedDeviceId === device.id && <span className="text-xs">Seleccionado</span>}
-          </button>)}
-        </div>
-        {selected && inspectionResult && <p role="status" className="text-sm">{compatible ? 'Compatible con FertiliApp. Ya puedes vincularlo.' : 'Este dispositivo no ha superado la comprobación de compatibilidad. Selecciona otro o vuelve a buscar.'}</p>}
-        {!busy && !devices.length && <p className="text-sm">No se ha encontrado el termómetro. Acércalo, comprueba que Bluetooth esté activo y vuelve a buscar.</p>}
-      </>}
-    </section>}
-    {remembered && justLinked && <section className="space-y-2 pb-4" aria-label="Configuración completada">
-      <p className="text-xs font-semibold text-fertiliapp-fuerte">Paso 3 de 3</p>
-      <h3 className="font-semibold text-titulo">Preparado para recibir temperaturas</h3>
-      {!listening && <p className="text-sm">Termómetro vinculado. Pulsa Conectar para preparar la escucha.</p>}
-    </section>}
     {(actionError || sessionState.error) && <div role="alert" className="mb-4 text-sm text-amber-800">
       <p>{actionError || sessionState.error?.message || 'No se pudo conectar. Vuelve a intentarlo.'}</p>
       {sessionState.error?.code === 'PERMISSION_NOT_GRANTED' && <p>Permite el acceso a Bluetooth al reintentar. Si el móvil ya no lo solicita, revisa los permisos de FertiliApp en los ajustes del teléfono.</p>}
       {sessionState.error?.code === 'BLUETOOTH_DISABLED' && <p>Activa Bluetooth en los ajustes del móvil y vuelve a intentarlo.</p>}
     </div>}
-    {(remembered !== null || retry) && <Button type="button" className="min-h-11 w-full whitespace-normal bg-fertiliapp-fuerte text-white hover:brightness-95"
-      disabled={busy || (operation === 'inspect' && !selected)} onClick={() => run(operation)}>{primaryLabel}</Button>}
-    {listening && <Button type="button" variant="ghost" className="mt-2 min-h-11 w-full" disabled={busy} onClick={() => run('stop')}>Detener escucha</Button>}
-    {remembered === false && stepTwo && devices.length > 0 && <Button type="button" variant="ghost" className="mt-2 min-h-11 w-full" disabled={busy || listening} onClick={() => run('scan')}>Volver a buscar</Button>}
+    <div className="flex flex-wrap items-center gap-2 pb-3">
+    <Button type="button" className="inline-flex min-h-11 h-auto w-fit max-w-full px-4 py-2 whitespace-normal bg-fertiliapp-fuerte text-white hover:brightness-95"
+      disabled={busy} onClick={() => run(operation)}>{primaryLabel}</Button>
+    {listening && <Button type="button" variant="ghost" className="inline-flex min-h-11 h-auto w-fit max-w-full px-4 py-2 whitespace-normal" disabled={busy} onClick={() => run('stop')}>Detener escucha</Button>}
+    </div>
     <button type="button" className={`${rowClass} border-b border-slate-100`} onClick={() => openReadingReview()}>
       <Thermometer className="h-4 w-4 shrink-0" aria-hidden="true" /><span className="flex-1">Temperaturas pendientes</span><span>{pendingCount}</span><ChevronRight className="h-4 w-4" aria-hidden="true" />
     </button>
@@ -114,8 +76,8 @@ const Vinca2Panel = () => {
           {listening && <div className="space-y-2 pb-4 text-sm">
             <p className="text-xs text-slate-500">El ajuste utiliza la hora local del móvil. No corrige las fechas de lecturas anteriores.</p>
             <div className="flex flex-wrap gap-2">
-              <Button variant="outline" className="min-h-11" disabled={busy || !capabilities?.clockRead} onClick={() => run('readClock')}>Leer reloj</Button>
-              <Button variant="outline" className="min-h-11 whitespace-normal" disabled={busy || !capabilities?.clockSync} onClick={() => run('syncClock')}>Sincronizar fecha y hora</Button>
+              <Button variant="outline" className="inline-flex min-h-11 h-auto w-fit max-w-full whitespace-normal px-4 py-2" disabled={busy || !capabilities?.clockRead} onClick={() => run('readClock')}>Leer reloj</Button>
+              <Button variant="outline" className="inline-flex min-h-11 h-auto w-fit max-w-full whitespace-normal px-4 py-2" disabled={busy || !capabilities?.clockSync} onClick={() => run('syncClock')}>Sincronizar fecha y hora</Button>
             </div>
             {sessionState.clockBusy && <p role="status">Consultando/ajustando reloj…</p>}
             {sessionState.clockError && <p role="alert">{sessionState.clockError.message}</p>}
@@ -125,7 +87,7 @@ const Vinca2Panel = () => {
           <summary className={`${rowClass} cursor-pointer`}><Info className="h-4 w-4 shrink-0" aria-hidden="true" /><span className="flex-1">Modelo y compatibilidad</span><ChevronRight className="h-4 w-4" aria-hidden="true" /></summary>
           <div className="space-y-2 pb-4 text-sm text-slate-500">
             <p>Femometer Vinca 2 / BM-Vinca2. Modelo compatible con FertiliApp.</p>
-            {inspectionResult && <p>{inspectionResult.compatible ? 'Compatibilidad del dispositivo comprobada.' : 'El dispositivo inspeccionado no ha superado la comprobación.'}</p>}
+            {inspectionResult && sessionState.devices?.some(device => device.id === sessionState.selectedDeviceId && device.isRemembered) && <p>{inspectionResult.compatible ? 'Compatibilidad del dispositivo comprobada.' : 'El dispositivo inspeccionado no ha superado la comprobación.'}</p>}
             {capabilities?.clockRead && <p>Lectura del reloj anunciada.</p>}{capabilities?.clockSync && <p>Ajuste del reloj anunciado.</p>}
             {capabilities?.historyReceive && <p>Recepción de temperaturas históricas anunciada.</p>}{capabilities?.historyRequest && <p>Solicitud de historial anunciada.</p>}
             {capabilities?.modeConfiguration && <p>Configuración de modo anunciada; control todavía no disponible.</p>}
@@ -138,7 +100,7 @@ const Vinca2Panel = () => {
       <DialogHeader><DialogTitle>Desvincular termómetro</DialogTitle><DialogDescription>Se quitará la vinculación de esta cuenta en este móvil. No se borrarán temperaturas pendientes ni registros guardados.</DialogDescription></DialogHeader>
       {listening && <p className="text-sm">Debes detener la escucha antes de desvincular el termómetro.</p>}
       {pendingCount > 0 && <p className="text-sm">Tienes {pendingCount} temperaturas pendientes conservadas localmente. Podrás seguir revisándolas.</p>}
-      <DialogFooter><Button variant="outline" onClick={() => setConfirmForget(false)}>Cancelar</Button><Button disabled={busy || listening || !remembered} onClick={() => run('remember', true)}>Confirmar desvinculación</Button></DialogFooter>
+      <DialogFooter><Button variant="outline" className="inline-flex min-h-11 h-auto w-fit max-w-full whitespace-normal px-4 py-2" onClick={() => setConfirmForget(false)}>Cancelar</Button><Button className="inline-flex min-h-11 h-auto w-fit max-w-full whitespace-normal px-4 py-2" disabled={busy || listening || !remembered} onClick={() => run('remember', true)}>Confirmar desvinculación</Button></DialogFooter>
     </DialogContent></Dialog>
     <Vinca2Diagnostics />
   </div>;

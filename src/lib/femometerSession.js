@@ -216,6 +216,34 @@ export const createFemometerSessionManager = (api) => {
         return resumeJob;
       },
       scan: () => run((call, current) => search(false, call, current)),
+      // One job owns the captured scan result through inspection, cleanup and persistence.
+      // Resolves true only after native confirmation; errors/cancellation retain the old binding.
+      selectAndRemember: (deviceId) => {
+        let confirmed = false;
+        return run(async call => {
+          if (!state.devices.some(device => device.id === deviceId)) {
+            throw { code: 'DEVICE_NOT_FOUND', message: 'Este resultado ya no está disponible. Vuelve a buscar.' };
+          }
+          publish({ status: 'inspecting', selectedDeviceId: deviceId, inspectionResult: null });
+          const inspection = await call(() => api.connectAndInspectFemometer(deviceId));
+          await call(() => api.disconnectFemometer());
+          if (typeof inspection?.compatible !== 'boolean') {
+            throw { code: 'INSPECTION_FAILED', message: 'No se pudo comprobar la compatibilidad. Vuelve a intentarlo.' };
+          }
+          publish({ inspectionResult: inspection });
+          if (inspection?.compatible !== true) {
+            publish({ status: 'idle' });
+            return;
+          }
+          const saved = await call(() => api.rememberFemometer(userId, deviceId));
+          if (saved?.remembered !== true) {
+            throw { code: 'PERSISTENCE_FAILED', message: 'No se pudo confirmar la vinculación. Vuelve a intentarlo.' };
+          }
+          publish({ remembered: true, deviceKey: saved.deviceKey ?? null, status: 'idle', clockResult: null, clockError: null,
+            devices: state.devices.map(device => ({ ...device, isRemembered: device.id === deviceId })) });
+          confirmed = true;
+        }).then(() => confirmed);
+      },
       select: (id) => {
         if (disposed || job || stopping || state.status === 'listening') return;
         if (state.devices.some(device => device.id === id)) publish({ selectedDeviceId: id, inspectionResult: null });

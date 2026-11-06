@@ -42,9 +42,17 @@ export default function BluetoothVisualLab({ Provider, children }) {
   };
   const [clockDialogOpen, setClockDialogOpen] = useState(false);
   const timer = useRef(null);
-  useEffect(() => () => clearTimeout(timer.current), []);
+  const bindingJob = useRef(null);
+  const cancelBinding = () => {
+    if (!bindingJob.current) return;
+    clearTimeout(timer.current);
+    bindingJob.current(false);
+    bindingJob.current = null;
+  };
+  useEffect(() => () => { cancelBinding(); clearTimeout(timer.current); }, []);
   useEffect(() => { setNotice(null); }, [location.key]);
   const chooseScenario = value => {
+    cancelBinding();
     clearTimeout(timer.current);
     restartLock.current = false;
     resetReview();
@@ -62,9 +70,9 @@ export default function BluetoothVisualLab({ Provider, children }) {
   const draft = selected?.draft;
   const error = selected?.reviewError ?? null;
   const restartLock = useRef(false);
-  const operationBlocked = () => restartLock.current || sessionState.busy || sessionState.clockBusy || ['checking', 'searching', 'connecting', 'inspecting', 'stopping', 'listening'].includes(sessionState.status);
+  const operationBlocked = () => bindingJob.current || restartLock.current || sessionState.busy || sessionState.clockBusy || ['checking', 'searching', 'connecting', 'inspecting', 'stopping', 'listening'].includes(sessionState.status);
   const search = () => {
-    if (restartLock.current || ['checking', 'searching', 'connecting', 'inspecting', 'stopping', 'listening'].includes(sessionState.status)) return;
+    if (operationBlocked()) return;
     if (!sessionState.remembered) return;
     setSessionState(previous => ({ ...previous, status: 'searching', busy: true, error: null }));
     timer.current = setTimeout(() => {
@@ -127,10 +135,37 @@ export default function BluetoothVisualLab({ Provider, children }) {
       if (operationBlocked()) return;
       setSessionState(previous => ({ ...previous, status: 'searching', busy: true, error: null, devices: [], selectedDeviceId: '', inspectionResult: null }));
       timer.current = setTimeout(() => setSessionState(previous => ({ ...previous, status: 'idle', busy: false,
-        devices: [{ id: 'lab-vinca', name: 'BM-Vinca2 (simulado)', rssi: -48 }, { id: 'lab-other', name: 'Dispositivo incompatible (simulado)', rssi: -72 }] })), 900);
+        devices: [{ id: 'lab-vinca', name: 'BM-Vinca2 (simulado)', rssi: -48 }, { id: 'lab-other', name: 'BM-Vinca2 (incompatible simulado)', rssi: -72 }, { id: 'lab-inspection-error', name: 'BM-Vinca2 (fallo de inspección simulado)', rssi: -65 }, { id: 'lab-save-error', name: 'BM-Vinca2 (fallo de vinculación simulado)', rssi: -60 }] })), 900);
+    },
+    selectAndRemember: deviceId => {
+      if (operationBlocked()) return Promise.resolve(false);
+      if (!sessionState.devices.some(device => device.id === deviceId)) {
+        setSessionState(previous => ({ ...previous, status: 'error', error: { code: 'DEVICE_NOT_FOUND', message: 'Este resultado ya no está disponible. Vuelve a buscar.' } }));
+        return Promise.resolve(false);
+      }
+      setSessionState(previous => ({ ...previous, status: 'inspecting', busy: true, selectedDeviceId: deviceId, inspectionResult: null, error: null }));
+      return new Promise(resolve => {
+        bindingJob.current = resolve;
+        timer.current = setTimeout(() => {
+          const inspectionFailed = deviceId === 'lab-inspection-error';
+          const compatible = !inspectionFailed && deviceId !== 'lab-other';
+          const saveFailed = deviceId === 'lab-save-error';
+          const confirmed = compatible && !saveFailed;
+          setSessionState(previous => ({ ...previous, status: inspectionFailed || saveFailed ? 'error' : 'idle', busy: false,
+            inspectionResult: inspectionFailed ? null : { compatible, healthThermometerFound: compatible, temperatureMeasurementFound: compatible,
+              services: [{ uuid: '00001809-0000-1000-8000-00805f9b34fb', characteristics: [{ uuid: '00002a1c-0000-1000-8000-00805f9b34fb', properties: ['indicate'] }] }] },
+            error: inspectionFailed ? { code: 'CONNECTION_TIMEOUT', message: 'Simulación: no se pudo completar la comprobación.' }
+              : saveFailed ? { code: 'PERSISTENCE_FAILED', message: 'Simulación: no se pudo confirmar la vinculación.' } : null,
+            ...(confirmed ? { remembered: true, deviceKey: 'fictional-device-new', clockResult: null, clockError: null,
+              devices: previous.devices.map(device => ({ ...device, isRemembered: device.id === deviceId })) } : {}),
+          }));
+          bindingJob.current = null;
+          resolve(confirmed);
+        }, 600);
+      });
     },
     restart: () => {
-      if (restartLock.current || sessionState.busy || sessionState.clockBusy) return;
+      if (bindingJob.current || restartLock.current || sessionState.busy || sessionState.clockBusy) return;
       restartLock.current = true;
       clearTimeout(timer.current);
       setSessionState(previous => ({ ...previous, status: 'stopping', restarting: true, busy: true }));
@@ -142,7 +177,7 @@ export default function BluetoothVisualLab({ Provider, children }) {
         }, 900);
       }, 400);
     },
-    stop: async () => { clearTimeout(timer.current); restartLock.current = false; setSessionState(previous => ({ ...previous, status: 'stopped', restarting: false, busy: false })); },
+    stop: async () => { cancelBinding(); clearTimeout(timer.current); restartLock.current = false; setSessionState(previous => ({ ...previous, status: 'stopped', restarting: false, busy: false })); },
     select: id => {
       if (operationBlocked() || !sessionState.devices.some(device => device.id === id)) return;
       setSessionState(previous => ({ ...previous, selectedDeviceId: id, inspectionResult: null }));
@@ -191,7 +226,7 @@ export default function BluetoothVisualLab({ Provider, children }) {
       <Button variant="ghost" className="min-h-11" aria-expanded={panelOpen} onClick={() => setPanelOpen(value => !value)}>{panelOpen ? 'Minimizar laboratorio' : 'Laboratorio BLE'}</Button>
       {panelOpen && <div className="w-56 space-y-3 p-2">
         <p className="text-xs">Solo Bluetooth es ficticio. El resto de la cuenta Staging es real.</p>
-        <label className="block">Modo<select className="mt-1 min-h-11 w-full rounded border bg-white" aria-label="Modo de previsualización" value={mode} onChange={event => { clearTimeout(timer.current); restartLock.current = false; setMode(event.target.value); setReviewVisibleOn(null); setSessionState(previous => ({ ...previous, restarting: false, busy: false, status: previous.restarting ? 'stopped' : previous.status })); setNotice(null); setClockDialogOpen(false); }}><option value="web">Web / PWA</option><option value="android">Android visual</option></select></label>
+        <label className="block">Modo<select className="mt-1 min-h-11 w-full rounded border bg-white" aria-label="Modo de previsualización" value={mode} onChange={event => { cancelBinding(); clearTimeout(timer.current); restartLock.current = false; setMode(event.target.value); setReviewVisibleOn(null); setSessionState(previous => ({ ...previous, restarting: false, busy: false, status: previous.restarting || previous.busy ? 'stopped' : previous.status })); setNotice(null); setClockDialogOpen(false); }}><option value="web">Web / PWA</option><option value="android">Android visual</option></select></label>
         {enabled && <label className="block">Escenario<select className="mt-1 min-h-11 w-full rounded border bg-white" aria-label="Escenario visual" value={scenario} onChange={event => chooseScenario(event.target.value)}>{Object.entries(bleLabScenarios).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>}
         {enabled && scenario === 'uncertain' && <label className="flex items-center gap-2"><input type="checkbox" checked={queryFails} onChange={event => { setQueryFails(event.target.checked); resetReview(); }} />Simular fallo de consulta</label>}
         {enabled && <Button variant="outline" onClick={receiveReading}>Simular nueva temperatura</Button>}
