@@ -10,7 +10,7 @@ import { loadFrontend, hooks, deferred, flush } from './helpers/load-frontend.mj
 const memoryStorage = () => { const data = new Map(); return { getItem: key => data.get(key) ?? null, setItem: (key, value) => data.set(key, value) }; };
 
 const bridge = () => {
-  const calls = { connections: 0, disconnects: 0, listeners: 0, peakListeners: 0, clock: 0, sync: 0, info: 0, permissions: 0 };
+  const calls = { connections: 0, disconnects: 0, listeners: 0, peakListeners: 0, clock: 0, sync: 0, info: 0, volume: [], permissions: 0 };
   let emit; let deviceKey = null; const storage = memoryStorage();
   const flags = { clockFails: false, clockWait: null, disconnectWait: null, syncFails: false, now: 0, remembered: true, found: true };
   const api = {
@@ -25,8 +25,9 @@ const bridge = () => {
     startFemometerTemperatureListener: async (id, user) => {
       deviceKey = 'bound-' + user;
       calls.connections++;
-      return { deviceKey, connectionReady: true, indicationsActive: true, timeoutSeconds: 360,
-        capabilities: { model: 'BM-Vinca2', clockRead: true, clockSync: true } };
+      if (flags.listenerWait) await flags.listenerWait.promise;
+      return { deviceKey, connectionReady: flags.listenerReady !== false, indicationsActive: flags.indicationsActive !== false, timeoutSeconds: 360,
+        capabilities: { model: 'BM-Vinca2', clockRead: true, clockSync: true, volumeWrite: flags.volumeSupported !== false } };
     },
     disconnectFemometer: async () => { calls.disconnects++; if (flags.disconnectWait) await flags.disconnectWait.promise; },
     readFemometerClock: async () => {
@@ -36,6 +37,12 @@ const bridge = () => {
       return { deviceKey, deviceLocalTime: '2020-01-01T08:00:00' };
     },
     syncFemometerClock: async () => { calls.sync++; if (flags.syncWait) return flags.syncWait.promise; if (flags.syncFails) throw Error('sync failed'); return {}; },
+    setFemometerVolume: async level => {
+      calls.volume.push(level);
+      if (flags.volumeWait) return flags.volumeWait.promise;
+      if (flags.volumeError) throw flags.volumeError;
+      return flags.volumeResult ?? { level, outcome: 'accepted', commandsAccepted: true, verified: false };
+    },
     readFemometerDeviceInfo: async () => {
       calls.info++;
       if (flags.infoWait) return flags.infoWait.promise;
@@ -1544,4 +1551,230 @@ test('lab device info simulates all results and cancellation without a native ad
   await lab().sessionRef.current.stop(); await cancelled;
   assert.equal(lab().sessionState.deviceInfoResult, null);
   harness.cleanup();
+});
+
+
+test('volume adapter validates the level and keeps the Android Staging boundary', async () => {
+  const calls = []; let staging = true; let platform = 'android';
+  const capacitor = { isNativePlatform: () => platform === 'android', getPlatform: () => platform,
+    nativePromise: async (...args) => { calls.push(args); return { commandsAccepted: true }; } };
+  const { setFemometerVolume } = await loadFrontend('src/lib/femometerBle.js', {
+    Capacitor: capacitor, window: { Capacitor: capacitor }, registerPlugin: () => ({}),
+    isFemometerPrototypeEnabled: () => staging, createFemometerSessionManager,
+  }, ['setFemometerVolume']);
+  for (const level of ['low', 'medium', 'high']) await setFemometerVolume(level);
+  assert.deepEqual(calls, ['low', 'medium', 'high'].map(level => ['FemometerBle', 'setVolume', { level }]));
+  for (const level of [null, undefined, '', 9, 'LOW', 'mute', ' low ']) await assert.rejects(setFemometerVolume(level), { code: 'VOLUME_INVALID_LEVEL' });
+  staging = false; await assert.rejects(setFemometerVolume('low'), { code: 'UNAVAILABLE_PLATFORM' });
+  staging = true; platform = 'web'; await assert.rejects(setFemometerVolume('low'), { code: 'UNAVAILABLE_PLATFORM' });
+  assert.equal(calls.length, 3);
+});
+
+test('volume is explicit, has no default and preserves listening and pending temperatures', async () => {
+  const native = bridge(); const owner = await mountedOwner(native);
+  const session = owner.render().sessionRef.current;
+  assert.equal(owner.render().sessionState.volumeResult, null); assert.deepEqual(native.calls.volume, []);
+  for (const level of ['low', 'medium', 'high']) {
+    await session.setVolume(level);
+    assert.deepEqual(owner.render().sessionState.volumeResult, { level, outcome: 'accepted', commandsAccepted: true, verified: false });
+  }
+  native.flags.volumeWait = deferred();
+  const pending = session.setVolume('low'); await flush();
+  assert.equal(owner.render().sessionState.volumeBusy, true); assert.equal(owner.render().sessionState.volumeResult, null);
+  await Promise.all([session.setVolume('high'), session.readClock(), session.syncClock(), session.readDeviceInfo(), session.restart()]);
+  assert.deepEqual(native.calls.volume, ['low', 'medium', 'high', 'low']);
+  assert.equal(native.calls.clock, 1); assert.equal(native.calls.sync, 0); assert.equal(native.calls.info, 0);
+  native.emit({ temperatureC: 36.4 }); assert.equal(owner.render().pendingCount, 1);
+  native.flags.volumeWait.resolve({ level: 'low', outcome: 'accepted', commandsAccepted: true, verified: true }); await pending;
+  assert.equal(owner.render().sessionState.volumeResult.verified, false);
+  assert.equal(owner.render().sessionState.status, 'listening'); assert.equal(owner.render().pendingCount, 1);
+  assert.equal(native.calls.connections, 1); assert.equal(native.calls.disconnects, 0);
+  await session.stop(); assert.equal(owner.render().pendingCount, 1); assert.equal(owner.render().sessionState.volumeResult, null);
+  owner.cleanup(); await flush();
+});
+
+test('volume refuses unsupported and invalid requests and is excluded by clock and device info', async () => {
+  const native = bridge(); let state;
+  const session = native.factory('a', next => { state = next; }, () => {});
+  await session.setVolume('low'); assert.equal(state.volumeError.code, 'VOLUME_NOT_CONNECTED');
+  native.flags.volumeSupported = false; await session.start();
+  await session.setVolume('low'); assert.equal(state.volumeError.code, 'VOLUME_UNSUPPORTED');
+  for (const level of ['mute', null, 0, 'Low']) {
+    await session.setVolume(level); assert.equal(state.volumeError.code, 'VOLUME_INVALID_LEVEL');
+  }
+  assert.deepEqual(native.calls.volume, []);
+  await session.stop(); native.flags.volumeSupported = true; await session.start();
+  native.flags.syncWait = deferred(); const sync = session.syncClock(); await flush();
+  await session.setVolume('low'); assert.deepEqual(native.calls.volume, []);
+  native.flags.syncWait.resolve({}); await sync;
+  native.flags.clockWait = deferred(); const clock = session.readClock(); await flush();
+  await session.setVolume('low'); assert.deepEqual(native.calls.volume, []);
+  native.flags.clockWait.resolve({}); await clock;
+  native.flags.infoWait = deferred(); const info = session.readDeviceInfo(); await flush();
+  await session.setVolume('low'); assert.deepEqual(native.calls.volume, []);
+  native.flags.infoWait.resolve({ battery: 85 }); await info;
+  await session.setVolume('medium'); assert.equal(state.volumeResult.level, 'medium');
+  await session.dispose();
+});
+
+test('volume errors distinguish write failure, cancellation and unknown result and require reconnection', async () => {
+  for (const code of ['VOLUME_FIRST_WRITE_FAILED', 'VOLUME_CONFIRM_WRITE_FAILED', 'VOLUME_TIMEOUT', 'VOLUME_CANCELLED']) {
+    const native = bridge(); let state; const events = [];
+    const session = native.factory('a', next => { state = next; }, event => events.push(event));
+    await session.start(); await session.setVolume('low');
+    native.flags.volumeError = { code, message: 'Simulated volume failure' };
+    await session.setVolume('high');
+    assert.equal(state.volumeResult, null); assert.equal(state.volumeBusy, false);
+    assert.equal(state.volumeError.outcome, code === 'VOLUME_TIMEOUT' ? 'unknown' : code === 'VOLUME_CANCELLED' ? 'cancelled' : 'error');
+    assert.equal(state.volumeReconnectRequired, true); assert.equal(state.status, 'listening'); assert.equal(state.error, null);
+    const count = native.calls.volume.length;
+    await Promise.all([session.setVolume('medium'), session.readDeviceInfo(), session.syncClock(), session.readClock()]);
+    assert.equal(native.calls.volume.length, count); assert.equal(native.calls.info, 0); assert.equal(native.calls.sync, 0); assert.equal(native.calls.clock, 1);
+    native.emit({ temperatureC: 36.4 }); assert.equal(events.length, 1); assert.equal(native.calls.disconnects, 0);
+    await session.stop(); native.flags.volumeError = null; await session.start();
+    assert.equal(state.volumeResult, null); assert.equal(state.volumeReconnectRequired, false);
+    await session.setVolume('medium'); assert.equal(state.volumeResult.level, 'medium');
+    await session.dispose();
+  }
+});
+
+test('malformed volume responses never advertise an accepted or verified adjustment', async () => {
+  for (const result of [{}, { level: 'high', outcome: 'accepted', commandsAccepted: true }, { level: 'low', commandsAccepted: false }]) {
+    const native = bridge(); let state; const session = native.factory('a', next => { state = next; }, () => {});
+    await session.start(); native.flags.volumeResult = result; await session.setVolume('low');
+    assert.equal(state.volumeResult, null); assert.equal(state.volumeError.outcome, 'unknown');
+    assert.equal(state.volumeReconnectRequired, true); await session.dispose();
+  }
+});
+
+test('volume cancellation and late completion cannot cross account or connection boundaries', async () => {
+  for (const reason of ['stop', 'suspend', 'dispose', 'account', 'disconnect']) {
+    const native = bridge(); let state; let successorState;
+    const session = native.factory('a', next => { state = next; }, () => {});
+    await session.start(); native.flags.volumeWait = deferred();
+    const pending = session.setVolume('high'); await flush();
+    let successor;
+    if (reason === 'account') successor = native.factory('b', next => { successorState = next; }, () => {});
+    if (reason === 'disconnect') native.emit({ status: 'disconnected' });
+    const stopped = reason === 'suspend' ? session.suspend() : ['account', 'dispose'].includes(reason) ? session.dispose() : session.stop();
+    if (!['account', 'dispose'].includes(reason)) {
+      assert.equal(state.volumeResult, null); assert.equal(state.volumeError.outcome, 'cancelled');
+    }
+    native.flags.volumeWait.resolve({ level: 'high', outcome: 'accepted', commandsAccepted: true });
+    await pending; await stopped; native.flags.volumeWait = null;
+    if (successor) {
+      await successor.start(); assert.equal(successorState.volumeResult, null);
+      await successor.setVolume('low'); assert.equal(successorState.volumeResult.level, 'low'); await successor.dispose();
+    } else if (['stop', 'disconnect'].includes(reason)) {
+      await session.start(); assert.equal(state.volumeResult, null);
+      await session.setVolume('low'); assert.equal(state.volumeResult.level, 'low'); await session.dispose();
+    }
+  }
+});
+
+test('Vinca volume controls show only sent levels, no default, and disable unsafe actions', async () => {
+  const h = await vincaPanelFixture({ remembered: true, status: 'listening', capabilities: { volumeWrite: true, clockRead: true, clockSync: true } });
+  assert.equal(h.button('Bajo').props.disabled, true);
+  h.ble.sessionState.listenerResult = { connectionReady: true, indicationsActive: true };
+  for (const label of ['Bajo', 'Medio', 'Alto']) {
+    assert.equal(h.button(label).props['aria-pressed'], false); assert.match(h.button(label).props.className, /min-h-11/);
+    assert.equal(h.button(label).props.disabled, false);
+  }
+  h.ble.sessionRef.current.setVolume = async level => h.calls.push(level);
+  for (const [level, label] of [['low', 'Bajo'], ['medium', 'Medio'], ['high', 'Alto']]) {
+    await h.button(label).props.onClick();
+    h.ble.sessionState.volumeResult = { level, commandsAccepted: true, verified: false };
+    assert.match(JSON.stringify(h.render()), new RegExp(`Ajuste enviado: ${label}`));
+    assert.equal(h.button(label).props['aria-pressed'], true);
+  }
+  assert.deepEqual(h.calls, ['low', 'medium', 'high']);
+  h.ble.sessionState.volumeResult = null; h.ble.sessionState.volumeBusy = true;
+  assert.match(JSON.stringify(h.render()), /Aplicando volumen/);
+  assert.equal(h.button('Consultar datos').props.disabled, true); assert.equal(h.button('Leer reloj').props.disabled, true);
+  h.ble.sessionState.volumeBusy = false; h.ble.sessionState.volumeReconnectRequired = true;
+  h.ble.sessionState.volumeError = { message: 'Resultado desconocido; reconecta' };
+  assert.match(JSON.stringify(h.render()), /Resultado desconocido/); assert.doesNotMatch(JSON.stringify(h.render()), /Ajuste enviado:/);
+  assert.equal(h.button('Bajo').props.disabled, true); assert.equal(h.button('Reiniciar escucha').props.disabled, false);
+  h.ble.sessionState.volumeReconnectRequired = false;
+  for (const flag of ['clockBusy', 'deviceInfoBusy']) { h.ble.sessionState[flag] = true; assert.equal(h.button('Bajo').props.disabled, true); h.ble.sessionState[flag] = false; }
+  h.ble.sessionState.status = 'stopped'; assert.equal(h.button('Alto').props.disabled, true);
+  h.cleanup();
+});
+
+
+test('volume lab simulates two stages, errors, timeout and exclusions without native access', async () => {
+  const { createBleLabScenario, bleLabScenarios } = await import('../src/lib/bleVisualLab.js');
+  const harness = hooks(); const timers = new Set();
+  const { BluetoothVisualLab } = await loadFrontend('src/components/dev/BluetoothVisualLab.jsx', {
+    ...harness.bindings, useLocation: () => ({ key: 'devices' }), useNavigate: () => () => {},
+    createBleLabScenario, bleLabScenarios, Button: 'button', FemometerReviewCard: 'card', BleReadingReviewView: 'editor', BleSavedNotice: 'notice', FemometerFeedback: 'clock',
+    setTimeout: fn => { timers.add(fn); return fn; }, clearTimeout: fn => timers.delete(fn),
+  }, ['BluetoothVisualLab'], source => source.replace('export default function BluetoothVisualLab', 'function BluetoothVisualLab'));
+  const render = () => harness.render(() => ({ props: { value: BluetoothVisualLab({ Provider: 'provider', children: null }) } }));
+  const lab = () => render().props.value;
+  treeNodes(render()).find(n => n.type === 'button' && n.props['aria-expanded'] === false).props.onClick();
+  const select = (label, value) => treeNodes(render()).find(n => n.type === 'select' && n.props['aria-label'] === label).props.onChange({ target: { value } });
+  const advance = () => { for (const fn of [...timers]) { timers.delete(fn); fn(); } };
+  await lab().sessionRef.current.setVolume('low'); assert.equal(timers.size, 0);
+  select('Modo de previsualización', 'android');
+  await lab().sessionRef.current.setVolume('low'); assert.equal(lab().sessionState.volumeError.code, 'VOLUME_NOT_CONNECTED');
+  select('Escenario visual', 'multiple');
+  await lab().sessionRef.current.setVolume('invalid'); assert.equal(lab().sessionState.volumeError.code, 'VOLUME_INVALID_LEVEL');
+  for (const level of ['low', 'medium', 'high']) {
+    const pending = lab().sessionRef.current.setVolume(level);
+    await lab().sessionRef.current.setVolume('low');
+    await lab().sessionRef.current.readClock(); await lab().sessionRef.current.syncClock(); await lab().sessionRef.current.readDeviceInfo();
+    assert.equal(timers.size, 1); assert.equal(lab().sessionState.volumeBusy, true);
+    advance(); assert.equal(lab().sessionState.volumeBusy, true); assert.equal(lab().sessionState.volumeResult, null);
+    advance(); await pending;
+    assert.deepEqual(lab().sessionState.volumeResult, { level, outcome: 'accepted', commandsAccepted: true, verified: false });
+    assert.equal(lab().pendingCount, 3); assert.equal(lab().sessionState.status, 'listening');
+  }
+  for (const [scenario, code, outcome] of [['firstError', 'VOLUME_FIRST_WRITE_FAILED', 'error'], ['confirmError', 'VOLUME_CONFIRM_WRITE_FAILED', 'error'], ['timeout', 'VOLUME_TIMEOUT', 'unknown']]) {
+    select('Escenario de volumen', scenario);
+    const pending = lab().sessionRef.current.setVolume('high');
+    advance(); if (scenario !== 'firstError') { assert.equal(lab().sessionState.volumeBusy, true); advance(); }
+    await pending;
+    assert.equal(lab().sessionState.volumeError.code, code); assert.equal(lab().sessionState.volumeError.outcome, outcome);
+    assert.equal(lab().sessionState.volumeResult, null); assert.equal(lab().pendingCount, 3);
+    await lab().sessionRef.current.setVolume('low');
+    await lab().sessionRef.current.readDeviceInfo(); await lab().sessionRef.current.syncClock(); assert.equal(timers.size, 0);
+    await lab().sessionRef.current.stop(); lab().sessionRef.current.start(); advance(); advance();
+    assert.equal(lab().sessionState.volumeResult, null);
+  }
+  select('Escenario de volumen', 'accepted');
+  const clock = lab().sessionRef.current.syncClock();
+  // Also blocked through a stale React closure before another render.
+  await lab().sessionRef.current.setVolume('high'); assert.equal(timers.size, 1);
+  advance(); await clock; assert.equal(lab().sessionState.volumeResult, null);
+  const info = lab().sessionRef.current.readDeviceInfo();
+  await lab().sessionRef.current.setVolume('high'); assert.equal(timers.size, 1);
+  advance(); await info; assert.equal(lab().sessionState.volumeResult, null);
+  const pending = lab().sessionRef.current.setVolume('high'); advance();
+  const late = [...timers];
+  await lab().sessionRef.current.stop(); await pending;
+  assert.equal(lab().sessionState.volumeError.outcome, 'cancelled');
+  late.forEach(fn => fn()); assert.equal(lab().sessionState.volumeResult, null);
+  assert.equal(lab().pendingCount, 3);
+  select('Escenario visual', 'listening');
+  const unmounted = lab().sessionRef.current.setVolume('low'); const afterUnmount = [...timers];
+  harness.cleanup(); await unmounted; afterUnmount.forEach(fn => fn()); assert.equal(timers.size, 0);
+});
+
+
+test('volume cannot write while listener initialization is pending or readiness is incomplete', async () => {
+  const native = bridge(); native.flags.listenerWait = deferred();
+  const session = native.factory('a', () => {}, () => {});
+  const starting = session.start(); await flush();
+  await session.setVolume('high'); assert.deepEqual(native.calls.volume, []);
+  native.flags.listenerWait.resolve(); await starting;
+  await session.setVolume('low'); assert.deepEqual(native.calls.volume, ['low']);
+  await session.dispose();
+  for (const flag of ['listenerReady', 'indicationsActive']) {
+    const incomplete = bridge(); incomplete.flags[flag] = false;
+    let state; const owner = incomplete.factory('a', next => { state = next; }, () => {});
+    await owner.start(); await owner.setVolume('low');
+    assert.deepEqual(incomplete.calls.volume, []); assert.equal(state.volumeError.code, 'VOLUME_NOT_CONNECTED');
+    await owner.dispose();
+  }
 });

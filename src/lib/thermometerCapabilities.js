@@ -5,6 +5,7 @@ export const thermometerCapabilities = (reported) => {
   return {
     model: known ? reported.model : null,
     clockProtocol: known ? reported.clockProtocol || 'unavailable' : 'unavailable',
+    volumeWrite: known && reported.volumeWrite === true,
     clockRead: known && reported.clockRead === true,
     clockSync: known && reported.clockSync === true,
     historyReceive: known && reported.historyReceive === true,

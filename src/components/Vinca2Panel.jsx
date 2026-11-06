@@ -20,7 +20,7 @@ const Vinca2Panel = () => {
   const [actionError, setActionError] = useState(null);
   const operationLock = useRef(false);
   const listening = status === 'listening';
-  const busy = working || sessionState.busy || sessionState.clockBusy || sessionState.deviceInfoBusy || sessionState.restarting
+  const busy = working || sessionState.busy || sessionState.clockBusy || sessionState.deviceInfoBusy || sessionState.volumeBusy || sessionState.restarting
     || ['checking', 'searching', 'connecting', 'inspecting', 'stopping'].includes(status);
   useEffect(() => {
     if (window.location.hash !== '#bluetooth-readings') return undefined;
@@ -29,7 +29,7 @@ const Vinca2Panel = () => {
   }, []);
   const run = async (operation, argument) => {
     if (operationLock.current || busy) return;
-    if (listening && !['restart', 'stop', 'readClock', 'syncClock', 'readDeviceInfo'].includes(operation)) return;
+    if (listening && !['restart', 'stop', 'readClock', 'syncClock', 'readDeviceInfo', 'setVolume'].includes(operation)) return;
     operationLock.current = true;
     setWorking(true); setActionError(null);
     try {
@@ -44,6 +44,9 @@ const Vinca2Panel = () => {
   const primaryLabel = busy ? (['checking', 'searching', 'connecting', 'inspecting', 'stopping'].includes(status) ? vinca2StatusText(status) : 'Preparando…')
     : listening ? 'Reiniciar escucha' : retry ? 'Reintentar' : 'Conectar';
   const clockLabel = ({ synchronized_verified: 'Verificado', read_correct: 'Hora leída y aparentemente correcta', misaligned: 'Desajustado' })[clockHistory?.state] || 'Sin verificar';
+  const volumeLabels = { low: 'Bajo', medium: 'Medio', high: 'Alto' };
+  const volumeResult = listening && sessionState.volumeResult?.commandsAccepted ? sessionState.volumeResult : null;
+  const volumeReady = listening && sessionState.listenerResult?.connectionReady && sessionState.listenerResult?.indicationsActive;
   const rowClass = 'flex min-h-14 w-full items-center gap-3 py-4 text-left text-sm disabled:opacity-50';
   return <div id="bluetooth-readings" className="min-w-0 bg-white text-slate-700">
     <div className="flex items-start gap-3 py-5">
@@ -76,19 +79,37 @@ const Vinca2Panel = () => {
           {listening && <div className="space-y-2 pb-4 text-sm">
             <p className="text-xs text-slate-500">El ajuste utiliza la hora local del móvil. No corrige las fechas de lecturas anteriores.</p>
             <div className="flex flex-wrap gap-2">
-              <Button variant="outline" className="inline-flex min-h-11 h-auto w-fit max-w-full whitespace-normal px-4 py-2" disabled={busy || !capabilities?.clockRead} onClick={() => run('readClock')}>Leer reloj</Button>
-              <Button variant="outline" className="inline-flex min-h-11 h-auto w-fit max-w-full whitespace-normal px-4 py-2" disabled={busy || !capabilities?.clockSync} onClick={() => run('syncClock')}>Sincronizar fecha y hora</Button>
+              <Button variant="outline" className="inline-flex min-h-11 h-auto w-fit max-w-full whitespace-normal px-4 py-2" disabled={busy || sessionState.volumeReconnectRequired || !capabilities?.clockRead} onClick={() => run('readClock')}>Leer reloj</Button>
+              <Button variant="outline" className="inline-flex min-h-11 h-auto w-fit max-w-full whitespace-normal px-4 py-2" disabled={busy || sessionState.volumeReconnectRequired || !capabilities?.clockSync} onClick={() => run('syncClock')}>Sincronizar fecha y hora</Button>
             </div>
             {sessionState.clockBusy && <p role="status">Consultando/ajustando reloj…</p>}
             {sessionState.clockError && <p role="alert">{sessionState.clockError.message}</p>}
           </div>}
         </div>
         <details>
+          <summary className={`${rowClass} cursor-pointer`}><span className="flex-1">Volumen</span><ChevronRight className="h-4 w-4" aria-hidden="true" /></summary>
+          <div className="space-y-2 pb-4 text-sm text-slate-500">
+            <p>{volumeResult ? `Ajuste enviado: ${volumeLabels[volumeResult.level]}` : 'No verificado'}</p>
+            {!volumeReady && <p>Conecta el termómetro y espera a que la escucha esté preparada.</p>}
+            {volumeReady && !capabilities?.volumeWrite && <p>El termómetro no anuncia escritura con respuesta compatible para el volumen.</p>}
+            <div role="group" aria-label="Nivel de volumen" className="flex flex-wrap gap-2">
+              {Object.entries(volumeLabels).map(([level, label]) => <Button key={level} type="button" variant="outline"
+                className="inline-flex min-h-11 h-auto w-fit max-w-full px-4 py-2"
+                aria-pressed={volumeResult?.level === level}
+                disabled={busy || !volumeReady || !capabilities?.volumeWrite || sessionState.volumeReconnectRequired}
+                onClick={() => run('setVolume', level)}>{label}</Button>)}
+            </div>
+            {sessionState.volumeBusy && <p role="status">Aplicando volumen…</p>}
+            {sessionState.volumeError && <p role="alert" className="text-xs text-amber-800">{sessionState.volumeError.message}</p>}
+            {volumeResult && <p className="text-xs">Comandos Bluetooth aceptados; volumen físico no verificado.</p>}
+          </div>
+        </details>
+        <details>
           <summary className={`${rowClass} cursor-pointer`}><Info className="h-4 w-4 shrink-0" aria-hidden="true" /><span className="flex-1">Modelo y compatibilidad</span><ChevronRight className="h-4 w-4" aria-hidden="true" /></summary>
           <div className="space-y-2 pb-4 text-sm text-slate-500">
             <p>Femometer Vinca 2 / BM-Vinca2. Modelo compatible con FertiliApp.</p>
             <Button type="button" variant="outline" className="inline-flex min-h-11 h-auto w-fit max-w-full px-3 py-2 text-sm"
-              disabled={busy || !listening || !sessionState.listenerResult?.connectionReady || !sessionState.listenerResult?.indicationsActive}
+              disabled={busy || sessionState.volumeReconnectRequired || !listening || !sessionState.listenerResult?.connectionReady || !sessionState.listenerResult?.indicationsActive}
               onClick={() => run('readDeviceInfo')}>Consultar datos</Button>
             {sessionState.deviceInfoBusy && <p role="status">Consultando datos…</p>}
             {sessionState.deviceInfoError && <p role="alert" className="text-xs text-amber-800">{sessionState.deviceInfoError.message}</p>}

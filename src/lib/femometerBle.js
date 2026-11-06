@@ -101,6 +101,15 @@ const androidBridgePromise = (pluginName, methodName, options = {}) => {
 };
 
 const ERROR_MESSAGES = {
+  VOLUME_BUSY: 'Hay otra operación Bluetooth en curso. Espera a que termine.',
+  VOLUME_INVALID_LEVEL: 'Selecciona Bajo, Medio o Alto.',
+  VOLUME_NOT_CONNECTED: 'Conecta el termómetro y espera a que la escucha esté preparada.',
+  VOLUME_UNSUPPORTED: 'Este termómetro no anuncia escritura con respuesta compatible para el volumen.',
+  VOLUME_FIRST_WRITE_FAILED: 'Falló el primer comando de volumen. Detén y reconecta antes de reintentar.',
+  VOLUME_CONFIRM_WRITE_FAILED: 'Falló la confirmación del volumen. El ajuste no está confirmado; detén y reconecta antes de reintentar.',
+  VOLUME_CANCELLED: 'Ajuste de volumen cancelado. Un comando enviado podría haberse aplicado.',
+  VOLUME_TIMEOUT: 'Resultado desconocido: el termómetro no respondió. Detén y reconecta antes de reintentar.',
+  VOLUME_RECONNECT_REQUIRED: 'Detén y vuelve a conectar antes de ajustar volumen, consultar datos o usar el reloj.',
   DEVICE_INFO_BUSY: 'Ya hay una consulta de datos en curso.',
   DEVICE_INFO_NOT_CONNECTED: 'Inicia la escucha y espera a que esté preparada.',
   DEVICE_INFO_READ_FAILED: 'No se pudo completar la consulta. Detén y reconecta antes de reintentar; la escucha continúa.',
@@ -343,6 +352,11 @@ export const disconnectFemometer = async () => {
   }
 };
 
+export const setFemometerVolume = async level => {
+  if (!['low', 'medium', 'high'].includes(level)) throw createFemometerBleError('VOLUME_INVALID_LEVEL');
+  return callFemometerBle('setVolume', { level });
+};
+
 export const readFemometerDeviceInfo = () => callFemometerBle('readDeviceInfo');
 
 export const readFemometerClock = () => callFemometerBle('readClock');
@@ -352,5 +366,5 @@ export const createFemometerPanelSession = createFemometerSessionManager({
   getRememberedFemometer, scanForFemometer, requestBluetoothPermissions,
   addFemometerTemperatureListener, startFemometerTemperatureListener,
   disconnectFemometer, connectAndInspectFemometer, rememberFemometer, forgetFemometer,
-  readFemometerClock, syncFemometerClock, readFemometerDeviceInfo,
+  readFemometerClock, syncFemometerClock, readFemometerDeviceInfo, setFemometerVolume,
 });

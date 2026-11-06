@@ -73,6 +73,7 @@ public class FemometerBle extends Plugin {
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final BleClockOperation clockOperation = new BleClockOperation(mainHandler);
     private final BleDeviceInfoOperation deviceInfoOperation = new BleDeviceInfoOperation(mainHandler);
+    private final BleVolumeOperation volumeOperation = new BleVolumeOperation(mainHandler);
     private volatile boolean temperatureReady;
     private final Map<String, ScannedDevice> devicesById = new LinkedHashMap<>();
     private final Map<String, String> idsByAddress = new LinkedHashMap<>();
@@ -574,6 +575,10 @@ public class FemometerBle extends Plugin {
 
             @Override
             public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+                if (gatt == temperatureGatt && Vinca2Profile.CONFIGURATION.equals(characteristic.getUuid())) {
+                    volumeOperation.onWrite(gatt, characteristic, status);
+                    return;
+                }
                 if (gatt == temperatureGatt && Vinca2Profile.CURRENT_TIME.equals(characteristic.getUuid())) {
                     clockOperation.onWrite(gatt, status);
                     return;
@@ -653,6 +658,8 @@ public class FemometerBle extends Plugin {
         }
         if (deviceInfoOperation.busy()) { call.reject("Hay una consulta de datos en curso.", "DEVICE_INFO_BUSY"); return; }
         if (deviceInfoOperation.uncertain(temperatureGatt)) { call.reject("Deten y reconecta antes de usar el reloj.", "CLOCK_RECONNECT_REQUIRED"); return; }
+        if (volumeOperation.busy()) { call.reject("Hay un ajuste de volumen en curso.", "VOLUME_BUSY"); return; }
+        if (volumeOperation.uncertain(temperatureGatt)) { call.reject("Deten y reconecta antes de operar.", "VOLUME_RECONNECT_REQUIRED"); return; }
         clockOperation.start(temperatureGatt, call, write, temperatureDeviceKey);
     }
 
@@ -665,7 +672,28 @@ public class FemometerBle extends Plugin {
         }
         if (clockOperation.busy()) { call.reject("Hay una operacion de reloj en curso.", "CLOCK_BUSY"); return; }
         if (clockOperation.uncertain(temperatureGatt)) { call.reject("Deten y reconecta antes de consultar datos.", "DEVICE_INFO_RECONNECT_REQUIRED"); return; }
+        if (volumeOperation.busy()) { call.reject("Hay un ajuste de volumen en curso.", "VOLUME_BUSY"); return; }
+        if (volumeOperation.uncertain(temperatureGatt)) { call.reject("Deten y reconecta antes de operar.", "VOLUME_RECONNECT_REQUIRED"); return; }
         deviceInfoOperation.start(temperatureGatt, call);
+    }
+
+    @PluginMethod
+    public synchronized void setVolume(PluginCall call) {
+        String blocked = getBlockedOperationCode();
+        if (blocked != null) { rejectWithCode(call, blocked); return; }
+        String level = call.getString("level");
+        if (BleVolumeOperation.command(level) < 0) { call.reject("Nivel de volumen desconocido.", "VOLUME_INVALID_LEVEL"); return; }
+        if (!temperatureReady || temperatureGatt == null || temperatureListenerCall != null || connectCall != null || scanCall != null) {
+            call.reject("Espera a que la escucha este preparada.", "VOLUME_NOT_CONNECTED"); return;
+        }
+        if (vincaIndicationCharacteristic == null || temperatureCharacteristic == null) {
+            call.reject("No se ha preparado un Vinca 2 compatible.", "VOLUME_UNSUPPORTED"); return;
+        }
+        if (clockOperation.busy() || deviceInfoOperation.busy()) { call.reject("Hay otra operacion GATT en curso.", "VOLUME_BUSY"); return; }
+        if (clockOperation.uncertain(temperatureGatt) || deviceInfoOperation.uncertain(temperatureGatt)) {
+            call.reject("Deten y reconecta antes de ajustar volumen.", "VOLUME_RECONNECT_REQUIRED"); return;
+        }
+        volumeOperation.start(temperatureGatt, call, level);
     }
 
     @PluginMethod
@@ -1154,6 +1182,7 @@ public class FemometerBle extends Plugin {
 
     private synchronized void stopTemperatureListenerInternal(boolean notifyStopped, String status, String message) {
         temperatureReady = false;
+        volumeOperation.cancel();
         deviceInfoOperation.cancel();
         clockOperation.cancel();
         clearTemperatureSetupTimeout();
