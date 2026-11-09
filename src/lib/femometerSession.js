@@ -40,6 +40,7 @@ export const createFemometerSessionManager = (api) => {
     let clockJob;
     let deviceInfoJob;
     let volumeJob;
+    let measurementModeJob;
     let automaticClockPending = false;
     let stopping;
     let disposal;
@@ -64,6 +65,7 @@ export const createFemometerSessionManager = (api) => {
       status: 'checking', busy: false, remembered: null, devices: [],
       selectedDeviceId: '', inspectionResult: null, error: null, listenerResult: null,
       volumeBusy: false, volumeResult: null, volumeError: null, volumeReconnectRequired: false,
+      measurementModeBusy: false, measurementModeResult: null, measurementModeError: null, measurementModeReconnectRequired: false,
       deviceInfoStatus: 'idle', deviceInfoBusy: false, deviceInfoResult: null, deviceInfoError: null,
       capabilities: thermometerCapabilities(), clockBusy: false, clockResult: null, clockError: null,
     };
@@ -77,7 +79,7 @@ export const createFemometerSessionManager = (api) => {
       await old?.remove();
     };
     const run = (task, restarting = false) => {
-      if (disposed || suspended || (restartJob && !restarting) || job || clockJob || deviceInfoJob || volumeJob || stopping || state.status === 'listening') return Promise.resolve();
+      if (disposed || suspended || (restartJob && !restarting) || job || clockJob || deviceInfoJob || volumeJob || measurementModeJob || stopping || state.status === 'listening') return Promise.resolve();
       const token = ++version;
       const current = () => !disposed && token === version;
       const check = () => { if (!current()) throw { code: 'CONNECTION_CANCELLED' }; };
@@ -107,7 +109,7 @@ export const createFemometerSessionManager = (api) => {
     };
     const listen = async (deviceId, call, current) => {
       automaticClockPending = false;
-      publish({ volumeBusy: false, volumeResult: null, volumeError: null, volumeReconnectRequired: false, deviceInfoStatus: 'idle', deviceInfoBusy: false, deviceInfoResult: null, deviceInfoError: null, status: 'connecting', listenerResult: null, clockResult: null, clockError: null, capabilities: thermometerCapabilities() });
+      publish({ measurementModeBusy: false, measurementModeResult: null, measurementModeError: null, measurementModeReconnectRequired: false, volumeBusy: false, volumeResult: null, volumeError: null, volumeReconnectRequired: false, deviceInfoStatus: 'idle', deviceInfoBusy: false, deviceInfoResult: null, deviceInfoError: null, status: 'connecting', listenerResult: null, clockResult: null, clockError: null, capabilities: thermometerCapabilities() });
       // Assign even a late subscription so cancellation can remove it after job settles.
       subscription = await api.addFemometerTemperatureListener(event => {
         if (!current()) return;
@@ -145,8 +147,8 @@ export const createFemometerSessionManager = (api) => {
       } else publish({ status: (!found.length || (saved.remembered && !match)) ? 'missing' : 'idle' });
     };
     const clock = (sync) => {
-      if (state.volumeReconnectRequired) return Promise.resolve();
-      if (disposed || job || clockJob || deviceInfoJob || volumeJob || stopping || state.status !== 'listening') return Promise.resolve();
+      if (state.volumeReconnectRequired || state.measurementModeReconnectRequired) return Promise.resolve();
+      if (disposed || job || clockJob || deviceInfoJob || volumeJob || measurementModeJob || stopping || state.status !== 'listening') return Promise.resolve();
       const token = version; // Do not invalidate the existing temperature subscription.
       const current = () => !disposed && token === version;
       if (!state.capabilities[sync ? 'clockSync' : 'clockRead']) {
@@ -183,7 +185,7 @@ export const createFemometerSessionManager = (api) => {
     const readDeviceInfo = () => {
       if (disposed || suspended || job || stopping || state.status !== 'listening'
         || state.listenerResult?.connectionReady !== true || state.listenerResult?.indicationsActive !== true) return Promise.resolve();
-      if (deviceInfoJob || clockJob || volumeJob || state.volumeReconnectRequired) return Promise.resolve();
+      if (deviceInfoJob || clockJob || volumeJob || measurementModeJob || state.measurementModeReconnectRequired || state.volumeReconnectRequired) return Promise.resolve();
       const token = version;
       const current = () => !disposed && token === version;
       publish({ deviceInfoStatus: 'loading', deviceInfoBusy: true, deviceInfoResult: null, deviceInfoError: null });
@@ -203,7 +205,7 @@ export const createFemometerSessionManager = (api) => {
       return deviceInfoJob;
     };
     const setVolume = level => {
-      if (disposed || suspended || stopping || job || restartJob || clockJob || deviceInfoJob || volumeJob || state.volumeBusy) return Promise.resolve();
+      if (disposed || suspended || stopping || job || restartJob || clockJob || deviceInfoJob || volumeJob || measurementModeJob || state.volumeBusy) return Promise.resolve();
       const reject = (code, message, outcome = 'error') => {
         publish({ volumeResult: null, volumeError: { code, message, outcome } });
         return Promise.resolve();
@@ -212,6 +214,7 @@ export const createFemometerSessionManager = (api) => {
       if (state.status !== 'listening' || state.listenerResult?.connectionReady !== true || state.listenerResult?.indicationsActive !== true) {
         return reject('VOLUME_NOT_CONNECTED', 'Conecta el termómetro y espera a que la escucha esté preparada.');
       }
+      if (state.measurementModeReconnectRequired) return reject('MEASUREMENT_MODE_RECONNECT_REQUIRED', 'Detén y reconecta antes de ajustar el volumen.', 'unknown');
       if (state.volumeReconnectRequired) return reject('VOLUME_RECONNECT_REQUIRED', 'Detén y vuelve a conectar antes de reintentar.', 'unknown');
       if (!state.capabilities.volumeWrite) return reject('VOLUME_UNSUPPORTED', 'Este termómetro no anuncia escritura con respuesta compatible para el volumen.');
       const token = version;
@@ -229,7 +232,7 @@ export const createFemometerSessionManager = (api) => {
         if (!current()) return;
         const code = error?.code || 'VOLUME_INVALID_RESPONSE';
         const cancelled = ['VOLUME_CANCELLED', 'CONNECTION_CANCELLED'].includes(code);
-        const unknown = ['VOLUME_TIMEOUT', 'VOLUME_INVALID_RESPONSE', 'NATIVE_BRIDGE_UNAVAILABLE', 'VOLUME_RECONNECT_REQUIRED', 'UNKNOWN'].includes(code);
+        const unknown = ['VOLUME_TIMEOUT', 'VOLUME_INVALID_RESPONSE', 'NATIVE_BRIDGE_UNAVAILABLE', 'VOLUME_RECONNECT_REQUIRED', 'MEASUREMENT_MODE_RECONNECT_REQUIRED', 'UNKNOWN'].includes(code);
         const reconnect = cancelled || unknown || ['VOLUME_FIRST_WRITE_FAILED', 'VOLUME_CONFIRM_WRITE_FAILED'].includes(code);
         publish({ volumeResult: null, volumeReconnectRequired: reconnect, volumeError: {
           code, outcome: cancelled ? 'cancelled' : unknown ? 'unknown' : 'error',
@@ -241,7 +244,47 @@ export const createFemometerSessionManager = (api) => {
       });
       return volumeJob;
     };
+    const setMeasurementMode = level => {
+      if (disposed || suspended || stopping || job || restartJob || clockJob || deviceInfoJob || volumeJob || measurementModeJob || state.measurementModeBusy) return Promise.resolve();
+      const reject = (code, message, outcome = 'error') => {
+        publish({ measurementModeResult: null, measurementModeError: { code, message, outcome } });
+        return Promise.resolve();
+      };
+      if (!['quick', 'normal', 'precise'].includes(level)) return reject('MEASUREMENT_MODE_INVALID_LEVEL', 'Selecciona Rápido, Normal o Preciso.');
+      if (state.status !== 'listening' || state.listenerResult?.connectionReady !== true || state.listenerResult?.indicationsActive !== true) {
+        return reject('MEASUREMENT_MODE_NOT_CONNECTED', 'Conecta el termómetro y espera a que la escucha esté preparada.');
+      }
+      if (state.volumeReconnectRequired || state.measurementModeReconnectRequired) return reject('MEASUREMENT_MODE_RECONNECT_REQUIRED', 'Detén y vuelve a conectar antes de reintentar.', 'unknown');
+      if (!state.capabilities.modeConfiguration) return reject('MEASUREMENT_MODE_UNSUPPORTED', 'Este termómetro no anuncia escritura con respuesta compatible para el modo.');
+      const token = version;
+      const current = () => !disposed && token === version;
+      publish({ measurementModeBusy: true, measurementModeResult: null, measurementModeError: null });
+      measurementModeJob = Promise.resolve().then(() => {
+        if (current()) return api.setFemometerMeasurementMode(level);
+      }).then(result => {
+        if (!current()) return;
+        if (result?.commandsAccepted !== true || result?.level !== level || result?.outcome !== 'accepted') {
+          throw { code: 'MEASUREMENT_MODE_INVALID_RESPONSE', message: 'Resultado desconocido. Detén y reconecta antes de reintentar.' };
+        }
+        publish({ measurementModeResult: { level, outcome: 'accepted', commandsAccepted: true, verified: false } });
+      }).catch(error => {
+        if (!current()) return;
+        const code = error?.code || 'MEASUREMENT_MODE_INVALID_RESPONSE';
+        const cancelled = ['MEASUREMENT_MODE_CANCELLED', 'CONNECTION_CANCELLED'].includes(code);
+        const unknown = ['MEASUREMENT_MODE_TIMEOUT', 'MEASUREMENT_MODE_INVALID_RESPONSE', 'NATIVE_BRIDGE_UNAVAILABLE', 'MEASUREMENT_MODE_RECONNECT_REQUIRED', 'UNKNOWN'].includes(code);
+        const reconnect = cancelled || unknown || ['MEASUREMENT_MODE_FIRST_WRITE_FAILED', 'MEASUREMENT_MODE_CONFIRM_WRITE_FAILED'].includes(code);
+        publish({ measurementModeResult: null, measurementModeReconnectRequired: reconnect, measurementModeError: {
+          code, outcome: cancelled ? 'cancelled' : unknown ? 'unknown' : 'error',
+          message: error?.message || 'No se pudo completar el ajuste. Detén y reconecta antes de reintentar.',
+        } });
+      }).finally(() => {
+        measurementModeJob = null;
+        if (current()) publish({ measurementModeBusy: false });
+      });
+      return measurementModeJob;
+    };
     const session = {
+      setMeasurementMode,
       setVolume,
       readDeviceInfo,
       readClock: () => clock(false),
@@ -257,7 +300,7 @@ export const createFemometerSessionManager = (api) => {
       },
       restart: () => {
         if (restartJob) return restartJob;
-        if (disposed || suspended || job || clockJob || deviceInfoJob || volumeJob || stopping || resumeJob) return Promise.resolve();
+        if (disposed || suspended || job || clockJob || deviceInfoJob || volumeJob || measurementModeJob || stopping || resumeJob) return Promise.resolve();
         const lifecycle = lifecycleVersion;
         publish({ restarting: true });
         restartJob = Promise.resolve().then(async () => {
@@ -349,9 +392,10 @@ export const createFemometerSessionManager = (api) => {
         listeningExpiresAt = 0;
         automaticClockPending = false;
         ++version; // Invalidate all continuations and events synchronously.
-        publish({ status: 'stopping', busy: true, volumeBusy: false, volumeResult: null, volumeReconnectRequired: false,
+        publish({ status: 'stopping', busy: true, measurementModeBusy: false, measurementModeResult: null, measurementModeReconnectRequired: false,
+          measurementModeError: measurementModeJob ? { code: 'MEASUREMENT_MODE_CANCELLED', outcome: 'cancelled', message: 'Ajuste de modo cancelado. Un comando enviado podría haberse aplicado.' } : null, volumeBusy: false, volumeResult: null, volumeReconnectRequired: false,
           volumeError: volumeJob ? { code: 'VOLUME_CANCELLED', outcome: 'cancelled', message: 'Ajuste de volumen cancelado. Un comando enviado podría haberse aplicado.' } : null, deviceInfoStatus: 'idle', deviceInfoBusy: false, deviceInfoResult: null, deviceInfoError: null });
-        const pending = Promise.all([job, clockJob, deviceInfoJob, volumeJob]);
+        const pending = Promise.all([job, clockJob, deviceInfoJob, volumeJob, measurementModeJob]);
         stopping = (async () => {
           await ready;
           // A StrictMode mount cancelled before acquisition must not stop its successor.

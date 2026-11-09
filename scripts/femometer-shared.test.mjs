@@ -10,7 +10,7 @@ import { loadFrontend, hooks, deferred, flush } from './helpers/load-frontend.mj
 const memoryStorage = () => { const data = new Map(); return { getItem: key => data.get(key) ?? null, setItem: (key, value) => data.set(key, value) }; };
 
 const bridge = () => {
-  const calls = { connections: 0, disconnects: 0, listeners: 0, peakListeners: 0, clock: 0, sync: 0, info: 0, volume: [], permissions: 0 };
+  const calls = { connections: 0, disconnects: 0, listeners: 0, peakListeners: 0, clock: 0, sync: 0, info: 0, volume: [], measurementMode: [], permissions: 0 };
   let emit; let deviceKey = null; const storage = memoryStorage();
   const flags = { clockFails: false, clockWait: null, disconnectWait: null, syncFails: false, now: 0, remembered: true, found: true };
   const api = {
@@ -27,7 +27,7 @@ const bridge = () => {
       calls.connections++;
       if (flags.listenerWait) await flags.listenerWait.promise;
       return { deviceKey, connectionReady: flags.listenerReady !== false, indicationsActive: flags.indicationsActive !== false, timeoutSeconds: 360,
-        capabilities: { model: 'BM-Vinca2', clockRead: true, clockSync: true, volumeWrite: flags.volumeSupported !== false } };
+        capabilities: { model: 'BM-Vinca2', clockRead: true, clockSync: true, volumeWrite: flags.volumeSupported !== false, modeConfiguration: flags.measurementModeSupported !== false } };
     },
     disconnectFemometer: async () => { calls.disconnects++; if (flags.disconnectWait) await flags.disconnectWait.promise; },
     readFemometerClock: async () => {
@@ -37,6 +37,12 @@ const bridge = () => {
       return { deviceKey, deviceLocalTime: '2020-01-01T08:00:00' };
     },
     syncFemometerClock: async () => { calls.sync++; if (flags.syncWait) return flags.syncWait.promise; if (flags.syncFails) throw Error('sync failed'); return {}; },
+    setFemometerMeasurementMode: async level => {
+      calls.measurementMode.push(level);
+      if (flags.measurementModeWait) return flags.measurementModeWait.promise;
+      if (flags.measurementModeError) throw flags.measurementModeError;
+      return flags.measurementModeResult ?? { level, outcome: 'accepted', commandsAccepted: true, verified: false };
+    },
     setFemometerVolume: async level => {
       calls.volume.push(level);
       if (flags.volumeWait) return flags.volumeWait.promise;
@@ -1777,4 +1783,265 @@ test('volume cannot write while listener initialization is pending or readiness 
     assert.deepEqual(incomplete.calls.volume, []); assert.equal(state.volumeError.code, 'VOLUME_NOT_CONNECTED');
     await owner.dispose();
   }
+});
+
+
+test('measurement mode adapter validates the level and keeps the Android Staging boundary', async () => {
+  const calls = []; let staging = true; let platform = 'android';
+  const capacitor = { isNativePlatform: () => platform === 'android', getPlatform: () => platform,
+    nativePromise: async (...args) => { calls.push(args); return { commandsAccepted: true }; } };
+  const { setFemometerMeasurementMode } = await loadFrontend('src/lib/femometerBle.js', {
+    Capacitor: capacitor, window: { Capacitor: capacitor }, registerPlugin: () => ({}),
+    isFemometerPrototypeEnabled: () => staging, createFemometerSessionManager,
+  }, ['setFemometerMeasurementMode']);
+  for (const level of ['quick', 'normal', 'precise']) await setFemometerMeasurementMode(level);
+  assert.deepEqual(calls, ['quick', 'normal', 'precise'].map(level => ['FemometerBle', 'setMeasurementMode', { level }]));
+  for (const level of [null, undefined, '', 9, 'QUICK', 'low', 'medium', 'high', 'mute', ' quick ']) await assert.rejects(setFemometerMeasurementMode(level), { code: 'MEASUREMENT_MODE_INVALID_LEVEL' });
+  staging = false; await assert.rejects(setFemometerMeasurementMode('quick'), { code: 'UNAVAILABLE_PLATFORM' });
+  staging = true; platform = 'web'; await assert.rejects(setFemometerMeasurementMode('quick'), { code: 'UNAVAILABLE_PLATFORM' });
+  assert.equal(calls.length, 3);
+});
+
+test('measurement mode is explicit, has no default and preserves listening and pending temperatures', async () => {
+  const native = bridge(); const owner = await mountedOwner(native);
+  const session = owner.render().sessionRef.current;
+  assert.equal(owner.render().sessionState.measurementModeResult, null); assert.deepEqual(native.calls.measurementMode, []);
+  for (const level of ['quick', 'normal', 'precise']) {
+    await session.setMeasurementMode(level);
+    assert.deepEqual(owner.render().sessionState.measurementModeResult, { level, outcome: 'accepted', commandsAccepted: true, verified: false });
+  }
+  native.flags.measurementModeWait = deferred();
+  const pending = session.setMeasurementMode('quick'); await flush();
+  assert.equal(owner.render().sessionState.measurementModeBusy, true); assert.equal(owner.render().sessionState.measurementModeResult, null);
+  await Promise.all([session.setVolume('low'), session.setMeasurementMode('precise'), session.readClock(), session.syncClock(), session.readDeviceInfo(), session.restart()]);
+  assert.deepEqual(native.calls.measurementMode, ['quick', 'normal', 'precise', 'quick']);
+  assert.equal(native.calls.clock, 1); assert.equal(native.calls.sync, 0); assert.equal(native.calls.info, 0);
+  native.emit({ temperatureC: 36.4 }); assert.equal(owner.render().pendingCount, 1);
+  native.flags.measurementModeWait.resolve({ level: 'quick', outcome: 'accepted', commandsAccepted: true, verified: true }); await pending;
+  assert.equal(owner.render().sessionState.measurementModeResult.verified, false);
+  assert.equal(owner.render().sessionState.status, 'listening'); assert.equal(owner.render().pendingCount, 1);
+  assert.equal(native.calls.connections, 1); assert.equal(native.calls.disconnects, 0);
+  await session.stop(); assert.equal(owner.render().pendingCount, 1); assert.equal(owner.render().sessionState.measurementModeResult, null);
+  owner.cleanup(); await flush();
+});
+
+test('measurement mode refuses unsupported and invalid requests and is excluded by clock and device info', async () => {
+  const native = bridge(); let state;
+  const session = native.factory('a', next => { state = next; }, () => {});
+  await session.setMeasurementMode('quick'); assert.equal(state.measurementModeError.code, 'MEASUREMENT_MODE_NOT_CONNECTED');
+  native.flags.measurementModeSupported = false; await session.start();
+  await session.setMeasurementMode('quick'); assert.equal(state.measurementModeError.code, 'MEASUREMENT_MODE_UNSUPPORTED');
+  for (const level of ['mute', null, 0, 'Low']) {
+    await session.setMeasurementMode(level); assert.equal(state.measurementModeError.code, 'MEASUREMENT_MODE_INVALID_LEVEL');
+  }
+  assert.deepEqual(native.calls.measurementMode, []);
+  await session.stop(); native.flags.measurementModeSupported = true; await session.start();
+  native.flags.syncWait = deferred(); const sync = session.syncClock(); await flush();
+  await session.setMeasurementMode('quick'); assert.deepEqual(native.calls.measurementMode, []);
+  native.flags.syncWait.resolve({}); await sync;
+  native.flags.clockWait = deferred(); const clock = session.readClock(); await flush();
+  await session.setMeasurementMode('quick'); assert.deepEqual(native.calls.measurementMode, []);
+  native.flags.clockWait.resolve({}); await clock;
+  native.flags.infoWait = deferred(); const info = session.readDeviceInfo(); await flush();
+  await session.setMeasurementMode('quick'); assert.deepEqual(native.calls.measurementMode, []);
+  native.flags.infoWait.resolve({ battery: 85 }); await info;
+  await session.setMeasurementMode('normal'); assert.equal(state.measurementModeResult.level, 'normal');
+  await session.dispose();
+});
+
+test('measurement mode errors distinguish write failure, cancellation and unknown result and require reconnection', async () => {
+  for (const code of ['MEASUREMENT_MODE_FIRST_WRITE_FAILED', 'MEASUREMENT_MODE_CONFIRM_WRITE_FAILED', 'MEASUREMENT_MODE_TIMEOUT', 'MEASUREMENT_MODE_CANCELLED']) {
+    const native = bridge(); let state; const events = [];
+    const session = native.factory('a', next => { state = next; }, event => events.push(event));
+    await session.start(); await session.setMeasurementMode('quick');
+    native.flags.measurementModeError = { code, message: 'Simulated measurementMode failure' };
+    await session.setMeasurementMode('precise');
+    assert.equal(state.measurementModeResult, null); assert.equal(state.measurementModeBusy, false);
+    assert.equal(state.measurementModeError.outcome, code === 'MEASUREMENT_MODE_TIMEOUT' ? 'unknown' : code === 'MEASUREMENT_MODE_CANCELLED' ? 'cancelled' : 'error');
+    assert.equal(state.measurementModeReconnectRequired, true); assert.equal(state.status, 'listening'); assert.equal(state.error, null);
+    const count = native.calls.measurementMode.length;
+    await Promise.all([session.setMeasurementMode('normal'), session.readDeviceInfo(), session.syncClock(), session.readClock()]);
+    assert.equal(native.calls.measurementMode.length, count); assert.equal(native.calls.info, 0); assert.equal(native.calls.sync, 0); assert.equal(native.calls.clock, 1);
+    native.emit({ temperatureC: 36.4 }); assert.equal(events.length, 1); assert.equal(native.calls.disconnects, 0);
+    await session.stop(); native.flags.measurementModeError = null; await session.start();
+    assert.equal(state.measurementModeResult, null); assert.equal(state.measurementModeReconnectRequired, false);
+    await session.setMeasurementMode('normal'); assert.equal(state.measurementModeResult.level, 'normal');
+    await session.dispose();
+  }
+});
+
+test('malformed measurement mode responses never advertise an accepted or verified adjustment', async () => {
+  for (const result of [{}, { level: 'precise', outcome: 'accepted', commandsAccepted: true }, { level: 'quick', commandsAccepted: false }]) {
+    const native = bridge(); let state; const session = native.factory('a', next => { state = next; }, () => {});
+    await session.start(); native.flags.measurementModeResult = result; await session.setMeasurementMode('quick');
+    assert.equal(state.measurementModeResult, null); assert.equal(state.measurementModeError.outcome, 'unknown');
+    assert.equal(state.measurementModeReconnectRequired, true); await session.dispose();
+  }
+});
+
+test('measurement mode cancellation and late completion cannot cross account or connection boundaries', async () => {
+  for (const reason of ['stop', 'suspend', 'dispose', 'account', 'disconnect']) {
+    const native = bridge(); let state; let successorState;
+    const session = native.factory('a', next => { state = next; }, () => {});
+    await session.start(); native.flags.measurementModeWait = deferred();
+    const pending = session.setMeasurementMode('precise'); await flush();
+    let successor;
+    if (reason === 'account') successor = native.factory('b', next => { successorState = next; }, () => {});
+    if (reason === 'disconnect') native.emit({ status: 'disconnected' });
+    const stopped = reason === 'suspend' ? session.suspend() : ['account', 'dispose'].includes(reason) ? session.dispose() : session.stop();
+    if (!['account', 'dispose'].includes(reason)) {
+      assert.equal(state.measurementModeResult, null); assert.equal(state.measurementModeError.outcome, 'cancelled');
+    }
+    native.flags.measurementModeWait.resolve({ level: 'precise', outcome: 'accepted', commandsAccepted: true });
+    await pending; await stopped; native.flags.measurementModeWait = null;
+    if (successor) {
+      await successor.start(); assert.equal(successorState.measurementModeResult, null);
+      await successor.setMeasurementMode('quick'); assert.equal(successorState.measurementModeResult.level, 'quick'); await successor.dispose();
+    } else if (['stop', 'disconnect'].includes(reason)) {
+      await session.start(); assert.equal(state.measurementModeResult, null);
+      await session.setMeasurementMode('quick'); assert.equal(state.measurementModeResult.level, 'quick'); await session.dispose();
+    }
+  }
+});
+
+test('Vinca measurement mode controls show only sent levels, no default, and disable unsafe actions', async () => {
+  const h = await vincaPanelFixture({ remembered: true, status: 'listening', capabilities: { modeConfiguration: true, clockRead: true, clockSync: true } });
+  assert.equal(h.button('Rápido').props.disabled, true);
+  assert.match(JSON.stringify(h.render()), /Estado desconocido/);
+  h.ble.sessionState.listenerResult = { connectionReady: true, indicationsActive: true };
+  for (const label of ['Rápido', 'Normal', 'Preciso']) {
+    assert.equal(h.button(label).props['aria-pressed'], false); assert.match(h.button(label).props.className, /min-h-11/);
+    assert.equal(h.button(label).props.disabled, false);
+  }
+  h.ble.sessionRef.current.setMeasurementMode = async level => h.calls.push(level);
+  for (const [level, label] of [['quick', 'Rápido'], ['normal', 'Normal'], ['precise', 'Preciso']]) {
+    await h.button(label).props.onClick();
+    h.ble.sessionState.measurementModeResult = { level, commandsAccepted: true, verified: false };
+    assert.match(JSON.stringify(h.render()), new RegExp(`Ajuste enviado: ${label}`));
+    assert.equal(h.button(label).props['aria-pressed'], true);
+  }
+  assert.deepEqual(h.calls, ['quick', 'normal', 'precise']);
+  h.ble.sessionState.measurementModeResult = null; h.ble.sessionState.measurementModeBusy = true;
+  assert.match(JSON.stringify(h.render()), /Aplicando modo…/);
+  assert.equal(h.button('Consultar datos').props.disabled, true); assert.equal(h.button('Leer reloj').props.disabled, true);
+  h.ble.sessionState.measurementModeBusy = false; h.ble.sessionState.measurementModeReconnectRequired = true;
+  h.ble.sessionState.measurementModeError = { message: 'Resultado desconocido; reconecta' };
+  assert.match(JSON.stringify(h.render()), /Resultado desconocido/); assert.doesNotMatch(JSON.stringify(h.render()), /Ajuste enviado:/);
+  assert.equal(h.button('Rápido').props.disabled, true); assert.equal(h.button('Reiniciar escucha').props.disabled, false);
+  h.ble.sessionState.measurementModeReconnectRequired = false;
+  for (const flag of ['clockBusy', 'deviceInfoBusy']) { h.ble.sessionState[flag] = true; assert.equal(h.button('Rápido').props.disabled, true); h.ble.sessionState[flag] = false; }
+  h.ble.sessionState.status = 'stopped'; assert.equal(h.button('Preciso').props.disabled, true);
+  h.cleanup();
+});
+
+
+test('measurement mode lab simulates two stages, errors, timeout and exclusions without native access', async () => {
+  const { createBleLabScenario, bleLabScenarios } = await import('../src/lib/bleVisualLab.js');
+  const harness = hooks(); const timers = new Set();
+  const { BluetoothVisualLab } = await loadFrontend('src/components/dev/BluetoothVisualLab.jsx', {
+    ...harness.bindings, useLocation: () => ({ key: 'devices' }), useNavigate: () => () => {},
+    createBleLabScenario, bleLabScenarios, Button: 'button', FemometerReviewCard: 'card', BleReadingReviewView: 'editor', BleSavedNotice: 'notice', FemometerFeedback: 'clock',
+    setTimeout: fn => { timers.add(fn); return fn; }, clearTimeout: fn => timers.delete(fn),
+  }, ['BluetoothVisualLab'], source => source.replace('export default function BluetoothVisualLab', 'function BluetoothVisualLab'));
+  const render = () => harness.render(() => ({ props: { value: BluetoothVisualLab({ Provider: 'provider', children: null }) } }));
+  const lab = () => render().props.value;
+  treeNodes(render()).find(n => n.type === 'button' && n.props['aria-expanded'] === false).props.onClick();
+  const select = (label, value) => treeNodes(render()).find(n => n.type === 'select' && n.props['aria-label'] === label).props.onChange({ target: { value } });
+  const advance = () => { for (const fn of [...timers]) { timers.delete(fn); fn(); } };
+  await lab().sessionRef.current.setMeasurementMode('quick'); assert.equal(timers.size, 0);
+  select('Modo de previsualización', 'android');
+  await lab().sessionRef.current.setMeasurementMode('quick'); assert.equal(lab().sessionState.measurementModeError.code, 'MEASUREMENT_MODE_NOT_CONNECTED');
+  select('Escenario visual', 'multiple');
+  await lab().sessionRef.current.setMeasurementMode('invalid'); assert.equal(lab().sessionState.measurementModeError.code, 'MEASUREMENT_MODE_INVALID_LEVEL');
+  for (const level of ['quick', 'normal', 'precise']) {
+    const pending = lab().sessionRef.current.setMeasurementMode(level);
+    await lab().sessionRef.current.setMeasurementMode('quick');
+    await lab().sessionRef.current.setVolume('low');
+    await lab().sessionRef.current.readClock(); await lab().sessionRef.current.syncClock(); await lab().sessionRef.current.readDeviceInfo();
+    assert.equal(timers.size, 1); assert.equal(lab().sessionState.measurementModeBusy, true);
+    advance(); assert.equal(lab().sessionState.measurementModeBusy, true); assert.equal(lab().sessionState.measurementModeResult, null);
+    advance(); await pending;
+    assert.deepEqual(lab().sessionState.measurementModeResult, { level, outcome: 'accepted', commandsAccepted: true, verified: false });
+    assert.equal(lab().pendingCount, 3); assert.equal(lab().sessionState.status, 'listening');
+  }
+  for (const [scenario, code, outcome] of [['firstError', 'MEASUREMENT_MODE_FIRST_WRITE_FAILED', 'error'], ['confirmError', 'MEASUREMENT_MODE_CONFIRM_WRITE_FAILED', 'error'], ['timeout', 'MEASUREMENT_MODE_TIMEOUT', 'unknown']]) {
+    select('Escenario de modo de medición', scenario);
+    const pending = lab().sessionRef.current.setMeasurementMode('precise');
+    advance(); if (scenario !== 'firstError') { assert.equal(lab().sessionState.measurementModeBusy, true); advance(); }
+    await pending;
+    assert.equal(lab().sessionState.measurementModeError.code, code); assert.equal(lab().sessionState.measurementModeError.outcome, outcome);
+    assert.equal(lab().sessionState.measurementModeResult, null); assert.equal(lab().pendingCount, 3);
+    await lab().sessionRef.current.setMeasurementMode('quick');
+    await lab().sessionRef.current.readDeviceInfo(); await lab().sessionRef.current.syncClock(); assert.equal(timers.size, 0);
+    await lab().sessionRef.current.stop(); lab().sessionRef.current.start(); advance(); advance();
+    assert.equal(lab().sessionState.measurementModeResult, null);
+  }
+  select('Escenario de modo de medición', 'accepted');
+  const clock = lab().sessionRef.current.syncClock();
+  // Also blocked through a stale React closure before another render.
+  await lab().sessionRef.current.setMeasurementMode('precise'); assert.equal(timers.size, 1);
+  advance(); await clock; assert.equal(lab().sessionState.measurementModeResult, null);
+  const info = lab().sessionRef.current.readDeviceInfo();
+  await lab().sessionRef.current.setMeasurementMode('precise'); assert.equal(timers.size, 1);
+  advance(); await info; assert.equal(lab().sessionState.measurementModeResult, null);
+  const volume = lab().sessionRef.current.setVolume('low');
+  await lab().sessionRef.current.setMeasurementMode('quick'); assert.equal(timers.size, 1);
+  advance(); advance(); await volume;
+  assert.equal(lab().sessionState.volumeResult.level, 'low');
+  assert.equal(lab().sessionState.measurementModeResult, null);
+  const pending = lab().sessionRef.current.setMeasurementMode('precise'); advance();
+  const late = [...timers];
+  await lab().sessionRef.current.stop(); await pending;
+  assert.equal(lab().sessionState.measurementModeError.outcome, 'cancelled');
+  late.forEach(fn => fn()); assert.equal(lab().sessionState.measurementModeResult, null);
+  assert.equal(lab().pendingCount, 3);
+  select('Escenario visual', 'listening');
+  const unmounted = lab().sessionRef.current.setMeasurementMode('quick'); const afterUnmount = [...timers];
+  harness.cleanup(); await unmounted; afterUnmount.forEach(fn => fn()); assert.equal(timers.size, 0);
+});
+
+
+test('measurement mode cannot write while listener initialization is pending or readiness is incomplete', async () => {
+  const native = bridge(); native.flags.listenerWait = deferred();
+  const session = native.factory('a', () => {}, () => {});
+  const starting = session.start(); await flush();
+  await session.setMeasurementMode('precise'); assert.deepEqual(native.calls.measurementMode, []);
+  native.flags.listenerWait.resolve(); await starting;
+  await session.setMeasurementMode('quick'); assert.deepEqual(native.calls.measurementMode, ['quick']);
+  await session.dispose();
+  for (const flag of ['listenerReady', 'indicationsActive']) {
+    const incomplete = bridge(); incomplete.flags[flag] = false;
+    let state; const owner = incomplete.factory('a', next => { state = next; }, () => {});
+    await owner.start(); await owner.setMeasurementMode('quick');
+    assert.deepEqual(incomplete.calls.measurementMode, []); assert.equal(state.measurementModeError.code, 'MEASUREMENT_MODE_NOT_CONNECTED');
+    await owner.dispose();
+  }
+});
+
+
+test('measurement mode and volume exclude each other and quarantine their shared characteristic', async () => {
+  const native = bridge(); let state;
+  const session = native.factory('a', next => { state = next; }, () => {});
+  await session.start();
+  native.flags.volumeWait = deferred();
+  const volume = session.setVolume('low'); await flush();
+  await session.setMeasurementMode('quick'); assert.deepEqual(native.calls.measurementMode, []);
+  native.flags.volumeWait.resolve({ level: 'low', outcome: 'accepted', commandsAccepted: true }); await volume;
+  native.flags.volumeWait = null;
+  native.flags.measurementModeWait = deferred();
+  const mode = session.setMeasurementMode('precise'); await flush();
+  await session.setVolume('high'); assert.deepEqual(native.calls.volume, ['low']);
+  native.flags.measurementModeWait.resolve({ level: 'precise', outcome: 'accepted', commandsAccepted: true }); await mode;
+  native.flags.measurementModeWait = null;
+  assert.equal(state.volumeResult.level, 'low'); assert.equal(state.measurementModeResult.level, 'precise');
+  native.flags.volumeError = { code: 'VOLUME_TIMEOUT', message: 'Timeout' };
+  await session.setVolume('high'); await session.setMeasurementMode('normal');
+  assert.deepEqual(native.calls.measurementMode, ['precise']); assert.equal(state.measurementModeResult, null);
+  await session.restart(); native.flags.volumeError = null;
+  native.flags.measurementModeError = { code: 'MEASUREMENT_MODE_CONFIRM_WRITE_FAILED', message: 'Confirmation failed' };
+  await session.setMeasurementMode('quick');
+  await session.setVolume('high'); await session.readClock(); await session.readDeviceInfo();
+  assert.deepEqual(native.calls.volume, ['low', 'high']); assert.equal(native.calls.info, 0);
+  assert.equal(native.calls.clock, 2); assert.equal(state.status, 'listening');
+  await session.dispose();
 });

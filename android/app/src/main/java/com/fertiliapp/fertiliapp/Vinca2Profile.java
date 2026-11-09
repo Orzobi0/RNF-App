@@ -34,6 +34,10 @@ final class Vinca2Profile {
         return service.getCharacteristic(CONFIGURATION);
     }
 
+    static BluetoothGattCharacteristic measurementMode(BluetoothGatt gatt) {
+        return volume(gatt); // Same Vinca configuration characteristic and compatibility guard.
+    }
+
     static JSObject capabilities(BluetoothGatt gatt) {
         BluetoothGattCharacteristic clock = clock(gatt);
         int properties = clock == null ? 0 : clock.getProperties();
@@ -46,7 +50,7 @@ final class Vinca2Profile {
         result.put("clockSync", (properties & BluetoothGattCharacteristic.PROPERTY_WRITE) != 0);
         result.put("historyReceive", true); // Buffered indications observed on this model.
         result.put("historyRequest", false); // No explicit history command implemented.
-        result.put("modeConfiguration", false); // Model supports modes; app does not configure them.
+        result.put("modeConfiguration", volume != null && BleMeasurementModeOperation.supportsResponse(volume.getProperties()));
         return result;
     }
 }

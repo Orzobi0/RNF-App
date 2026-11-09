@@ -101,6 +101,15 @@ const androidBridgePromise = (pluginName, methodName, options = {}) => {
 };
 
 const ERROR_MESSAGES = {
+  MEASUREMENT_MODE_BUSY: 'Hay otra operación Bluetooth en curso. Espera a que termine.',
+  MEASUREMENT_MODE_INVALID_LEVEL: 'Selecciona Rápido, Normal o Preciso.',
+  MEASUREMENT_MODE_NOT_CONNECTED: 'Conecta el termómetro y espera a que la escucha esté preparada.',
+  MEASUREMENT_MODE_UNSUPPORTED: 'Este termómetro no anuncia escritura con respuesta compatible para el modo.',
+  MEASUREMENT_MODE_FIRST_WRITE_FAILED: 'Falló el primer comando de modo. Detén y reconecta antes de reintentar.',
+  MEASUREMENT_MODE_CONFIRM_WRITE_FAILED: 'Falló la confirmación del modo. El ajuste no está confirmado; detén y reconecta antes de reintentar.',
+  MEASUREMENT_MODE_CANCELLED: 'Ajuste de modo cancelado. Un comando enviado podría haberse aplicado.',
+  MEASUREMENT_MODE_TIMEOUT: 'Resultado desconocido: el termómetro no respondió. Detén y reconecta antes de reintentar.',
+  MEASUREMENT_MODE_RECONNECT_REQUIRED: 'Detén y vuelve a conectar antes de ajustar modo, consultar datos o usar el reloj.',
   VOLUME_BUSY: 'Hay otra operación Bluetooth en curso. Espera a que termine.',
   VOLUME_INVALID_LEVEL: 'Selecciona Bajo, Medio o Alto.',
   VOLUME_NOT_CONNECTED: 'Conecta el termómetro y espera a que la escucha esté preparada.',
@@ -357,6 +366,11 @@ export const setFemometerVolume = async level => {
   return callFemometerBle('setVolume', { level });
 };
 
+export const setFemometerMeasurementMode = async level => {
+  if (!['quick', 'normal', 'precise'].includes(level)) throw createFemometerBleError('MEASUREMENT_MODE_INVALID_LEVEL');
+  return callFemometerBle('setMeasurementMode', { level });
+};
+
 export const readFemometerDeviceInfo = () => callFemometerBle('readDeviceInfo');
 
 export const readFemometerClock = () => callFemometerBle('readClock');
@@ -366,5 +380,5 @@ export const createFemometerPanelSession = createFemometerSessionManager({
   getRememberedFemometer, scanForFemometer, requestBluetoothPermissions,
   addFemometerTemperatureListener, startFemometerTemperatureListener,
   disconnectFemometer, connectAndInspectFemometer, rememberFemometer, forgetFemometer,
-  readFemometerClock, syncFemometerClock, readFemometerDeviceInfo, setFemometerVolume,
+  readFemometerClock, syncFemometerClock, readFemometerDeviceInfo, setFemometerVolume, setFemometerMeasurementMode,
 });

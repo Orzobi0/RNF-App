@@ -74,6 +74,7 @@ public class FemometerBle extends Plugin {
     private final BleClockOperation clockOperation = new BleClockOperation(mainHandler);
     private final BleDeviceInfoOperation deviceInfoOperation = new BleDeviceInfoOperation(mainHandler);
     private final BleVolumeOperation volumeOperation = new BleVolumeOperation(mainHandler);
+    private final BleMeasurementModeOperation measurementModeOperation = new BleMeasurementModeOperation(mainHandler);
     private volatile boolean temperatureReady;
     private final Map<String, ScannedDevice> devicesById = new LinkedHashMap<>();
     private final Map<String, String> idsByAddress = new LinkedHashMap<>();
@@ -576,7 +577,11 @@ public class FemometerBle extends Plugin {
             @Override
             public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
                 if (gatt == temperatureGatt && Vinca2Profile.CONFIGURATION.equals(characteristic.getUuid())) {
-                    volumeOperation.onWrite(gatt, characteristic, status);
+                    synchronized (FemometerBle.this) {
+                        // Both settings share one characteristic: deliver each callback to one owner only.
+                        if (measurementModeOperation.busy()) measurementModeOperation.onWrite(gatt, characteristic, status);
+                        else volumeOperation.onWrite(gatt, characteristic, status);
+                    }
                     return;
                 }
                 if (gatt == temperatureGatt && Vinca2Profile.CURRENT_TIME.equals(characteristic.getUuid())) {
@@ -660,6 +665,8 @@ public class FemometerBle extends Plugin {
         if (deviceInfoOperation.uncertain(temperatureGatt)) { call.reject("Deten y reconecta antes de usar el reloj.", "CLOCK_RECONNECT_REQUIRED"); return; }
         if (volumeOperation.busy()) { call.reject("Hay un ajuste de volumen en curso.", "VOLUME_BUSY"); return; }
         if (volumeOperation.uncertain(temperatureGatt)) { call.reject("Deten y reconecta antes de operar.", "VOLUME_RECONNECT_REQUIRED"); return; }
+        if (measurementModeOperation.busy()) { call.reject("Hay un ajuste de modo en curso.", "MEASUREMENT_MODE_BUSY"); return; }
+        if (measurementModeOperation.uncertain(temperatureGatt)) { call.reject("Deten y reconecta antes de operar.", "MEASUREMENT_MODE_RECONNECT_REQUIRED"); return; }
         clockOperation.start(temperatureGatt, call, write, temperatureDeviceKey);
     }
 
@@ -674,6 +681,8 @@ public class FemometerBle extends Plugin {
         if (clockOperation.uncertain(temperatureGatt)) { call.reject("Deten y reconecta antes de consultar datos.", "DEVICE_INFO_RECONNECT_REQUIRED"); return; }
         if (volumeOperation.busy()) { call.reject("Hay un ajuste de volumen en curso.", "VOLUME_BUSY"); return; }
         if (volumeOperation.uncertain(temperatureGatt)) { call.reject("Deten y reconecta antes de operar.", "VOLUME_RECONNECT_REQUIRED"); return; }
+        if (measurementModeOperation.busy()) { call.reject("Hay un ajuste de modo en curso.", "MEASUREMENT_MODE_BUSY"); return; }
+        if (measurementModeOperation.uncertain(temperatureGatt)) { call.reject("Deten y reconecta antes de operar.", "MEASUREMENT_MODE_RECONNECT_REQUIRED"); return; }
         deviceInfoOperation.start(temperatureGatt, call);
     }
 
@@ -693,7 +702,30 @@ public class FemometerBle extends Plugin {
         if (clockOperation.uncertain(temperatureGatt) || deviceInfoOperation.uncertain(temperatureGatt)) {
             call.reject("Deten y reconecta antes de ajustar volumen.", "VOLUME_RECONNECT_REQUIRED"); return;
         }
+        if (measurementModeOperation.busy()) { call.reject("Hay un ajuste de modo en curso.", "MEASUREMENT_MODE_BUSY"); return; }
+        if (measurementModeOperation.uncertain(temperatureGatt)) { call.reject("Deten y reconecta antes de operar.", "MEASUREMENT_MODE_RECONNECT_REQUIRED"); return; }
         volumeOperation.start(temperatureGatt, call, level);
+    }
+
+    @PluginMethod
+    public synchronized void setMeasurementMode(PluginCall call) {
+        String blocked = getBlockedOperationCode();
+        if (blocked != null) { rejectWithCode(call, blocked); return; }
+        String level = call.getString("level");
+        if (BleMeasurementModeOperation.command(level) < 0) { call.reject("Modo de medicion desconocido.", "MEASUREMENT_MODE_INVALID_LEVEL"); return; }
+        if (!temperatureReady || temperatureGatt == null || temperatureListenerCall != null || connectCall != null || scanCall != null) {
+            call.reject("Espera a que la escucha este preparada.", "MEASUREMENT_MODE_NOT_CONNECTED"); return;
+        }
+        if (vincaIndicationCharacteristic == null || temperatureCharacteristic == null) {
+            call.reject("No se ha preparado un Vinca 2 compatible.", "MEASUREMENT_MODE_UNSUPPORTED"); return;
+        }
+        if (clockOperation.busy() || deviceInfoOperation.busy()) { call.reject("Hay otra operacion GATT en curso.", "MEASUREMENT_MODE_BUSY"); return; }
+        if (clockOperation.uncertain(temperatureGatt) || deviceInfoOperation.uncertain(temperatureGatt)) {
+            call.reject("Deten y reconecta antes de ajustar modo.", "MEASUREMENT_MODE_RECONNECT_REQUIRED"); return;
+        }
+        if (volumeOperation.busy()) { call.reject("Hay un ajuste de volumen en curso.", "MEASUREMENT_MODE_BUSY"); return; }
+        if (volumeOperation.uncertain(temperatureGatt)) { call.reject("Deten y reconecta antes de ajustar modo.", "MEASUREMENT_MODE_RECONNECT_REQUIRED"); return; }
+        measurementModeOperation.start(temperatureGatt, call, level);
     }
 
     @PluginMethod
@@ -1182,6 +1214,7 @@ public class FemometerBle extends Plugin {
 
     private synchronized void stopTemperatureListenerInternal(boolean notifyStopped, String status, String message) {
         temperatureReady = false;
+        measurementModeOperation.cancel();
         volumeOperation.cancel();
         deviceInfoOperation.cancel();
         clockOperation.cancel();
