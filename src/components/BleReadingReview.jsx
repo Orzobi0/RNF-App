@@ -105,9 +105,10 @@ export function BleReadingReview({ userId, reading, onClose, onSaved, active = t
       if (mounted.current && sessionRef.current === session) setBusy(false);
     }
   };
-  return <BleReadingReviewView {...{ measurement, reading, draft, busy, error, checkedUncertain, change, confirm, onClose, navigate,
+  return <BleReadingReviewView {...{ measurement, reading, draft, busy: busy || reading.importStatus === 'saving', error, checkedUncertain, change, confirm, onClose, navigate,
     duplicateApproved, discardConfirm, storedConfirm, incorporationRequested, canCheck }}
     check={check.key === key && check.session === session ? check : { status: 'idle' }} onCheck={checkDay}
+    onRequestDiscard={() => { if (active && !busyRef.current && valid() && reading.importStatus === 'pending') { setDuplicateApproval(null); setDiscardConfirm(true); } }}
     onDifferent={() => { if (!busyRef.current) { setDiscardConfirm(false); setDuplicateApproval({ key, session }); } }}
     onRepeated={() => { setDuplicateApproval(null); setDiscardConfirm(true); }} onCancelDiscard={() => { setDiscardConfirm(false); setDuplicateApproval(null); }} onDiscard={() => discard('duplicate')}
     onAlreadyStored={() => { if (complete) { setMissingApproval(null); setIncorporationRequested(false); setDiscardConfirm(false); setDuplicateApproval(null); setStoredConfirm(true); } }}

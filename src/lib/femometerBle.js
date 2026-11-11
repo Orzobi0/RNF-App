@@ -101,6 +101,7 @@ const androidBridgePromise = (pluginName, methodName, options = {}) => {
 };
 
 const ERROR_MESSAGES = {
+  GATT_CLOSE_FAILED: 'No se pudo cerrar la conexión Bluetooth. Reintenta antes de conectar o desvincular.',
   MEASUREMENT_MODE_BUSY: 'Hay otra operación Bluetooth en curso. Espera a que termine.',
   MEASUREMENT_MODE_INVALID_LEVEL: 'Selecciona Rápido, Normal o Preciso.',
   MEASUREMENT_MODE_NOT_CONNECTED: 'Conecta el termómetro y espera a que la escucha esté preparada.',

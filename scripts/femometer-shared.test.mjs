@@ -9,6 +9,8 @@ import { loadFrontend, hooks, deferred, flush } from './helpers/load-frontend.mj
 
 const memoryStorage = () => { const data = new Map(); return { getItem: key => data.get(key) ?? null, setItem: (key, value) => data.set(key, value) }; };
 
+const localText = millis => { const d = new Date(millis); const pad = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; };
+
 const bridge = () => {
   const calls = { connections: 0, disconnects: 0, listeners: 0, peakListeners: 0, clock: 0, sync: 0, info: 0, volume: [], measurementMode: [], permissions: 0 };
   let emit; let deviceKey = null; const storage = memoryStorage();
@@ -34,7 +36,7 @@ const bridge = () => {
       calls.clock++;
       if (flags.clockWait) return flags.clockWait.promise;
       if (flags.clockFails) throw Error('clock failed');
-      return { deviceKey, deviceLocalTime: '2020-01-01T08:00:00' };
+      return { deviceKey, deviceLocalTime: localText(flags.now - 600_000) };
     },
     syncFemometerClock: async () => { calls.sync++; if (flags.syncWait) return flags.syncWait.promise; if (flags.syncFails) throw Error('sync failed'); return {}; },
     setFemometerMeasurementMode: async level => {
@@ -56,7 +58,7 @@ const bridge = () => {
       return flags.infoResult ?? { battery: 85, model: 'BM-Vinca2', manufacturer: 'Femometer', firmware: 'FW-1', software: 'SW-2' };
     },
   };
-  return { factory: createFemometerSessionManager(api), calls, flags, storage, emit: event => emit?.({ deviceKey, ...event }) };
+  return { factory: createFemometerSessionManager(api), api, calls, flags, storage, emit: event => emit?.({ deviceKey, ...event }) };
 };
 
 async function mountedOwner(native, initialUser = 'a') {
@@ -304,7 +306,7 @@ Clock3: 'clock',
   }, ['DeviceStatusButtonView']);
   const render = () => harness.render(() => ({ props: { value: DeviceStatusButtonView({ ble, navigate: path => destinations.push(path) }) } }));
   for (const [status, icon] of [['listening', 'connected'], ['searching', 'connected'], ['connecting', 'connected'], ['stopped', 'disconnected'], ['error', 'disconnected']]) {
-    ble.sessionState = { status };
+    ble.sessionState = { status, listenerResult: status === 'listening' ? { connectionReady: true, indicationsActive: true } : null };
     const tree = render();
     assert.equal(tree.type, 'popover');
     const button = treeNodes(tree).find(node => node.type === 'button');
@@ -319,7 +321,7 @@ Clock3: 'clock',
   ble.sessionState = { status: 'stopped', remembered: true };
   treeNodes(render()).find(node => node.type === 'action' && node.props['aria-label'] === 'Buscar nuevas').props.onClick();
   assert.equal(starts, 1); assert.equal(scans, 0);
-  ble.sessionState = { status: 'listening', capabilities: { clockSync: true }, clockResult: { significantDrift: true } };
+  ble.sessionState = { status: 'listening', listenerResult: { connectionReady: true, indicationsActive: true }, capabilities: { clockSync: true }, clockResult: { significantDrift: true } };
   let nodes = treeNodes(render());
   assert.equal(nodes.filter(node => node.type === 'action').length, 4);
   const restart = nodes.find(node => node.type === 'action' && node.props['aria-label'] === 'Reiniciar escucha');
@@ -338,7 +340,7 @@ test('global clock prompt stays closed until explicit action', async () => {
     Thermometer: 'thermometer', Check: 'check', Button: 'button', Dialog: 'dialog', DialogContent: 'content', DialogHeader: 'header', DialogTitle: 'title', DialogDescription: 'description', DialogFooter: 'footer',
   }, ['FemometerFeedback']);
   const props = { readings: [], sessionRef: { current: { syncClock: () => { syncs++; } } }, clockDialogOpen: false,
-    setClockDialogOpen: value => opened.push(value), sessionState: { status: 'listening', listenerResult: {}, capabilities: { clockSync: true },
+    setClockDialogOpen: value => opened.push(value), sessionState: { status: 'listening', listenerResult: { connectionReady: true, indicationsActive: true }, capabilities: { clockSync: true },
       clockResult: { significantDrift: true, deviceLocalTime: '2020-01-01T08:00:00', phoneLocalTime: '2026-11-03T08:00:00' } } };
   const render = () => harness.render(() => ({ props: { value: FemometerFeedback(props) } }));
   let tree = render();
@@ -768,7 +770,7 @@ test('integrated lab keeps the real application children and route state; fake B
   assert.equal(render().props.value.sessionState.status, 'listening');
   select('Escenario visual', 'unlinked');
   const lab = () => render().props.value;
-  const finish = () => { for (const fn of timers) { timers.delete(fn); fn(); } };
+  const finish = () => { for (const fn of timers) { timers.delete(fn); fn(); render(); } };
   assert.equal(lab().sessionState.remembered, false);
   lab().sessionRef.current.scan();
   assert.equal(lab().sessionState.status, 'searching'); finish();
@@ -781,7 +783,8 @@ test('integrated lab keeps the real application children and route state; fake B
   assert.equal(await lab().sessionRef.current.selectAndRemember('lab-vinca'), false);
   assert.equal(lab().sessionState.status, 'inspecting'); finish();
   assert.equal(await binding, true); assert.equal(lab().sessionState.remembered, true);
-  assert.equal(lab().sessionState.status, 'idle');
+  assert.equal(lab().sessionState.status, 'listening');
+  await lab().sessionRef.current.stop();
   const oldKey = lab().sessionState.deviceKey;
   binding = lab().sessionRef.current.selectAndRemember('lab-save-error'); finish();
   assert.equal(await binding, false); assert.equal(lab().sessionState.deviceKey, oldKey);
@@ -789,9 +792,8 @@ test('integrated lab keeps the real application children and route state; fake B
   await lab().sessionRef.current.stop(); finish();
   assert.equal(await binding, false); assert.equal(lab().sessionState.deviceKey, oldKey);
   lab().sessionRef.current.start(); finish(); assert.equal(lab().sessionState.status, 'listening');
-  await lab().sessionRef.current.remember(true); assert.equal(lab().sessionState.remembered, true);
-  await lab().sessionRef.current.stop();
   await lab().sessionRef.current.remember(true); assert.equal(lab().sessionState.remembered, false);
+  assert.equal(lab().sessionState.status, 'stopped');
   assert.equal(writes, 0);
   select('Modo de previsualización', 'web'); tree = render();
   assert.equal(tree.props.value.enabled, false); assert.equal(treeNodes(tree).some(n => n.type === 'card'), false);
@@ -1107,7 +1109,7 @@ test('special review sections replace decisions and hide unsafe or redundant inc
   assert.equal(hasButton('Sí, es otra medición'), true);
   props.discardConfirm = true;
   assert.equal(hasButton('Sí, es otra medición'), false);
-  assert.equal(hasButton('Confirmar descarte local'), true);
+  assert.equal(hasButton('Confirmar descarte'), true);
   assert.equal(hasButton('Volver'), true);
   assert.equal(hasButton('Confirmar e incorporar'), false);
   props.discardConfirm = false; props.error = null; props.reading.importStatus = 'uncertain';
@@ -1163,8 +1165,10 @@ test('Devices searches with one permission request and links with one result tap
     scanForFemometer: async () => [{ id: 'other', name: 'Otro' }, { id: 'vinca', name: 'BM-Vinca2' }],
     connectAndInspectFemometer: async id => { calls.push('inspect:' + id); return { compatible: id === 'vinca' }; },
     disconnectFemometer: async () => { calls.push('disconnect'); },
-    rememberFemometer: async (_, id) => { calls.push('remember:' + id); return { remembered: true }; },
-  })('a', state => { h.ble.sessionState = state; }, () => { throw Error('No listening during binding'); });
+    rememberFemometer: async (_, id) => { calls.push('remember:' + id); return { remembered: true, deviceKey: 'new' }; },
+    addFemometerTemperatureListener: async () => ({ remove: async () => {} }),
+    startFemometerTemperatureListener: async () => { calls.push('listen'); return { deviceKey: 'new', connectionReady: true, indicationsActive: true }; },
+  })('a', state => { h.ble.sessionState = state; }, () => {}, createFemometerLocalState(memoryStorage(), 'a'));
   h.ble.sessionRef.current = session;
   try {
     assert.match(JSON.stringify(h.render()), /Cierra completamente Femometer Connect/);
@@ -1176,9 +1180,9 @@ test('Devices searches with one permission request and links with one result tap
     assert.match(JSON.stringify(h.render()), /Este termómetro no es compatible actualmente/);
     const click = h.button('BM-Vinca2').props.onClick;
     const first = click(); await click(); await first;
-    assert.deepEqual(calls, ['inspect:other', 'disconnect', 'inspect:vinca', 'disconnect', 'remember:vinca']);
+    assert.deepEqual(calls, ['inspect:other', 'disconnect', 'inspect:vinca', 'disconnect', 'remember:vinca', 'listen']);
     assert.match(JSON.stringify(h.render()), /Termómetro vinculado/);
-    assert.equal(h.ble.sessionState.status, 'idle');
+    assert.equal(h.ble.sessionState.status, 'listening');
     assert.ok(treeNodes(h.render()).some(n => n.type === 'link' && n.props.to === '/settings/devices/vinca2'));
   } finally { await session.dispose(); h.cleanup(); }
 });
@@ -1201,18 +1205,18 @@ test('Devices loading and permission/Bluetooth failures are retryable without a 
 
 test('replacement requires confirmation, can be abandoned and retains the linked row on failure', async () => {
   const h = await devicesFixture({ remembered: true, status: 'listening', deviceKey: 'old' });
-  h.ble.sessionRef.current = { scan: async () => { h.ble.sessionState.devices = [{ id: 'new', name: 'BM-Vinca2 nuevo' }]; },
+  h.ble.sessionRef.current = { beginChange: async () => { h.ble.sessionState.status = 'stopped'; return true; }, cancelChange: async () => {}, scan: async () => { h.ble.sessionState.devices = [{ id: 'new', name: 'BM-Vinca2 nuevo' }]; },
     selectAndRemember: async id => { h.ble.sessionState = { ...h.ble.sessionState, status: 'error', selectedDeviceId: id, inspectionResult: null, error: { message: 'Timeout de comprobación' } }; return false; } };
   h.button('Cambiar termómetro').props.onClick();
-  assert.equal(h.button('Continuar').props.disabled, true);
+  assert.equal(h.button('Continuar').props.disabled, false);
   h.button('Cancelar').props.onClick();
   h.ble.sessionState.status = 'stopped';
-  h.button('Cambiar termómetro').props.onClick(); h.button('Continuar').props.onClick();
+  h.button('Cambiar termómetro').props.onClick(); await h.button('Continuar').props.onClick();
   await h.button('Buscar termómetros').props.onClick();
   await h.button('BM-Vinca2 nuevo').props.onClick();
   assert.doesNotMatch(JSON.stringify(h.render()), /Este termómetro no es compatible actualmente/);
   assert.equal(h.ble.sessionState.deviceKey, 'old'); assert.equal(h.ble.pendingCount, 2);
-  h.button('Cancelar cambio').props.onClick();
+  await h.button('Cancelar cambio').props.onClick();
   assert.equal(h.button('Buscar termómetros'), undefined);
   assert.ok(treeNodes(h.render()).some(n => n.type === 'link' && n.props.to === '/settings/devices/vinca2'));
   h.cleanup();
@@ -1222,7 +1226,7 @@ test('linked Vinca exposes shared pending review and clock, serializes operation
   const h = await vincaPanelFixture({ remembered: true, status: 'stopped' });
   const wait = deferred();
   h.ble.sessionRef.current = { start: () => { h.calls.push('start'); return wait.promise; },
-    restart: async () => h.calls.push('restart'), stop: async () => h.calls.push('stop'), remember: async forget => h.calls.push(['remember', forget]) };
+    restart: async () => h.calls.push('restart'), stop: async () => h.calls.push('stop'), unlink: async () => { h.calls.push(['unlink']); return true; } };
   assert.match(JSON.stringify(h.render()), /Vinculado/); assert.match(JSON.stringify(h.render()), /Desconectado/);
   h.button('Temperaturas pendientes').props.onClick(); h.button('Reloj del termómetro').props.onClick();
   assert.deepEqual(h.calls, ['review', 'clock']);
@@ -1240,14 +1244,14 @@ test('linked Vinca exposes shared pending review and clock, serializes operation
   await h.button('Reiniciar escucha').props.onClick(); assert.ok(h.calls.includes('restart'));
   h.button('Desvincular termómetro').props.onClick();
   assert.equal(treeNodes(h.render()).find(n => n.type === 'dialog').props.open, true);
-  assert.equal(h.button('Confirmar desvinculación').props.disabled, true);
-  assert.match(JSON.stringify(h.render()), /Debes detener la escucha/);
+  assert.equal(h.button('Confirmar desvinculación').props.disabled, false);
+  assert.match(JSON.stringify(h.render()), /Se detendrá la escucha/);
   await h.button('Detener escucha').props.onClick(); assert.ok(h.calls.includes('stop'));
   h.ble.sessionState.status = 'stopped';
   h.button('Cancelar').props.onClick(); assert.equal(h.calls.some(Array.isArray), false);
   h.button('Desvincular termómetro').props.onClick();
   await h.button('Confirmar desvinculación').props.onClick();
-  assert.deepEqual(h.calls.at(-1), ['remember', true]); assert.equal(h.ble.pendingCount, 2);
+  assert.deepEqual(h.calls.at(-1), ['unlink']); assert.equal(h.ble.pendingCount, 2);
   h.cleanup();
 });
 
@@ -1291,13 +1295,15 @@ const coordinatedBindingFixture = async (overrides = {}) => {
     disconnectFemometer: async () => { calls.push(['disconnect']); },
     rememberFemometer: async (user, id) => { calls.push(['remember', user, id]); storedKey = id; return { remembered: true, deviceKey: id }; },
     forgetFemometer: () => { throw Error('Never forget before replacing'); },
-    startFemometerTemperatureListener: () => { throw Error('Binding must not start listening'); },
+    addFemometerTemperatureListener: async () => ({ remove: async () => {} }),
+    startFemometerTemperatureListener: async id => { calls.push(['listen', id]); return { deviceKey: id, connectionReady: true, indicationsActive: true }; },
     ...overrides,
   };
   const factory = createFemometerSessionManager(api);
-  const session = factory('a', next => { state = next; }, () => {});
+  const local = createFemometerLocalState(memoryStorage(), 'a');
+  const session = factory('a', next => { state = next; }, () => {}, local);
   await session.scan();
-  return { session, factory, api, calls, state: () => state, storedKey: () => storedKey };
+  return { session, factory, api, calls, local, state: () => state, storedKey: () => storedKey };
 };
 
 test('coordinated binding waits for disconnect, freezes selection and keeps previous binding until native confirmation', async () => {
@@ -1320,7 +1326,8 @@ test('coordinated binding waits for disconnect, freezes selection and keeps prev
   assert.equal(h.state().deviceKey, 'old');
   persistence.resolve({ remembered: true, deviceKey: 'new' });
   assert.equal(await binding, true); assert.equal(h.state().deviceKey, 'new');
-  assert.equal(h.state().status, 'idle'); assert.equal(h.state().busy, false);
+  assert.equal(h.state().status, 'listening'); assert.equal(h.state().busy, false);
+  assert.deepEqual(h.state().preferences, { volume: 'medium', measurementMode: 'normal' });
   await h.session.dispose();
 });
 
@@ -1437,12 +1444,13 @@ test('device info absent fields, total absence and transport/timeout errors stay
   native.flags.infoResult = {};
   await session.readDeviceInfo(); assert.equal(state.deviceInfoStatus, 'unavailable');
   for (const code of ['DEVICE_INFO_READ_FAILED', 'DEVICE_INFO_TIMEOUT', 'DEVICE_INFO_RECONNECT_REQUIRED']) {
+    await session.stop(); await session.start();
     native.flags.infoError = { code, message: 'Reconnect before retrying' };
     await session.readDeviceInfo();
     assert.equal(state.deviceInfoStatus, 'error'); assert.equal(state.deviceInfoError.code, code);
     assert.equal(state.deviceInfoResult, null); assert.equal(state.status, 'listening'); assert.equal(state.error, null);
   }
-  assert.equal(native.calls.disconnects, 0);
+  assert.equal(native.calls.disconnects, 3);
   await session.dispose();
 });
 
@@ -1524,7 +1532,7 @@ test('lab device info simulates all results and cancellation without a native ad
   const lab = () => render().props.value;
   treeNodes(render()).find(n => n.type === 'button' && n.props['aria-expanded'] === false).props.onClick();
   const select = (label, value) => treeNodes(render()).find(n => n.type === 'select' && n.props['aria-label'] === label).props.onChange({ target: { value } });
-  const finish = () => { for (const fn of timers) { timers.delete(fn); fn(); } };
+  const finish = () => { for (const fn of timers) { timers.delete(fn); fn(); render(); } };
   select('Modo de previsualización', 'android');
   await lab().sessionRef.current.readDeviceInfo(); assert.equal(timers.size, 0);
   select('Escenario visual', 'multiple');
@@ -1690,7 +1698,8 @@ test('Vinca volume controls show only sent levels, no default, and disable unsaf
   for (const [level, label] of [['low', 'Bajo'], ['medium', 'Medio'], ['high', 'Alto']]) {
     await h.button(label).props.onClick();
     h.ble.sessionState.volumeResult = { level, commandsAccepted: true, verified: false };
-    assert.match(JSON.stringify(h.render()), new RegExp(`Ajuste enviado: ${label}`));
+    h.ble.sessionState.preferences = { ...h.ble.sessionState.preferences, volume: level };
+    assert.match(JSON.stringify(h.render()), new RegExp(`Volumen aplicado en esta conexión:.*${label}`));
     assert.equal(h.button(label).props['aria-pressed'], true);
   }
   assert.deepEqual(h.calls, ['low', 'medium', 'high']);
@@ -1700,7 +1709,7 @@ test('Vinca volume controls show only sent levels, no default, and disable unsaf
   h.ble.sessionState.volumeBusy = false; h.ble.sessionState.volumeReconnectRequired = true;
   h.ble.sessionState.volumeError = { message: 'Resultado desconocido; reconecta' };
   assert.match(JSON.stringify(h.render()), /Resultado desconocido/); assert.doesNotMatch(JSON.stringify(h.render()), /Ajuste enviado:/);
-  assert.equal(h.button('Bajo').props.disabled, true); assert.equal(h.button('Reiniciar escucha').props.disabled, false);
+  assert.equal(h.button('Bajo').props.disabled, true); assert.equal(h.button('Recuperar conexión').props.disabled, false);
   h.ble.sessionState.volumeReconnectRequired = false;
   for (const flag of ['clockBusy', 'deviceInfoBusy']) { h.ble.sessionState[flag] = true; assert.equal(h.button('Bajo').props.disabled, true); h.ble.sessionState[flag] = false; }
   h.ble.sessionState.status = 'stopped'; assert.equal(h.button('Alto').props.disabled, true);
@@ -1745,7 +1754,11 @@ test('volume lab simulates two stages, errors, timeout and exclusions without na
     assert.equal(lab().sessionState.volumeResult, null); assert.equal(lab().pendingCount, 3);
     await lab().sessionRef.current.setVolume('low');
     await lab().sessionRef.current.readDeviceInfo(); await lab().sessionRef.current.syncClock(); assert.equal(timers.size, 0);
-    await lab().sessionRef.current.stop(); lab().sessionRef.current.start(); advance(); advance();
+    select('Escenario de volumen', 'accepted');
+    await lab().sessionRef.current.stop(); lab().sessionRef.current.start();
+    for (let step = 0; step < 10 && timers.size; step++) { advance(); await flush(); lab(); }
+    assert.equal(lab().sessionState.volumeResult.level, 'high');
+    select('Escenario visual', 'multiple'); // Begin the next explicit failure with no connection result.
     assert.equal(lab().sessionState.volumeResult, null);
   }
   select('Escenario de volumen', 'accepted');
@@ -1779,7 +1792,7 @@ test('volume cannot write while listener initialization is pending or readiness 
   for (const flag of ['listenerReady', 'indicationsActive']) {
     const incomplete = bridge(); incomplete.flags[flag] = false;
     let state; const owner = incomplete.factory('a', next => { state = next; }, () => {});
-    await owner.start(); await owner.setVolume('low');
+    await owner.start(); assert.equal(state.status, 'error'); assert.equal(state.error.code, 'LISTENER_NOT_READY'); await owner.setVolume('low');
     assert.deepEqual(incomplete.calls.volume, []); assert.equal(state.volumeError.code, 'VOLUME_NOT_CONNECTED');
     await owner.dispose();
   }
@@ -1907,7 +1920,7 @@ test('measurement mode cancellation and late completion cannot cross account or 
 test('Vinca measurement mode controls show only sent levels, no default, and disable unsafe actions', async () => {
   const h = await vincaPanelFixture({ remembered: true, status: 'listening', capabilities: { modeConfiguration: true, clockRead: true, clockSync: true } });
   assert.equal(h.button('Rápido').props.disabled, true);
-  assert.match(JSON.stringify(h.render()), /Estado desconocido/);
+  assert.match(JSON.stringify(h.render()), /Sin preferencia guardada/);
   h.ble.sessionState.listenerResult = { connectionReady: true, indicationsActive: true };
   for (const label of ['Rápido', 'Normal', 'Preciso']) {
     assert.equal(h.button(label).props['aria-pressed'], false); assert.match(h.button(label).props.className, /min-h-11/);
@@ -1917,7 +1930,8 @@ test('Vinca measurement mode controls show only sent levels, no default, and dis
   for (const [level, label] of [['quick', 'Rápido'], ['normal', 'Normal'], ['precise', 'Preciso']]) {
     await h.button(label).props.onClick();
     h.ble.sessionState.measurementModeResult = { level, commandsAccepted: true, verified: false };
-    assert.match(JSON.stringify(h.render()), new RegExp(`Ajuste enviado: ${label}`));
+    h.ble.sessionState.preferences = { ...h.ble.sessionState.preferences, measurementMode: level };
+    assert.match(JSON.stringify(h.render()), new RegExp(`Modo aplicado en esta conexión:.*${label}`));
     assert.equal(h.button(label).props['aria-pressed'], true);
   }
   assert.deepEqual(h.calls, ['quick', 'normal', 'precise']);
@@ -1927,7 +1941,7 @@ test('Vinca measurement mode controls show only sent levels, no default, and dis
   h.ble.sessionState.measurementModeBusy = false; h.ble.sessionState.measurementModeReconnectRequired = true;
   h.ble.sessionState.measurementModeError = { message: 'Resultado desconocido; reconecta' };
   assert.match(JSON.stringify(h.render()), /Resultado desconocido/); assert.doesNotMatch(JSON.stringify(h.render()), /Ajuste enviado:/);
-  assert.equal(h.button('Rápido').props.disabled, true); assert.equal(h.button('Reiniciar escucha').props.disabled, false);
+  assert.equal(h.button('Rápido').props.disabled, true); assert.equal(h.button('Recuperar conexión').props.disabled, false);
   h.ble.sessionState.measurementModeReconnectRequired = false;
   for (const flag of ['clockBusy', 'deviceInfoBusy']) { h.ble.sessionState[flag] = true; assert.equal(h.button('Rápido').props.disabled, true); h.ble.sessionState[flag] = false; }
   h.ble.sessionState.status = 'stopped'; assert.equal(h.button('Preciso').props.disabled, true);
@@ -1973,7 +1987,11 @@ test('measurement mode lab simulates two stages, errors, timeout and exclusions 
     assert.equal(lab().sessionState.measurementModeResult, null); assert.equal(lab().pendingCount, 3);
     await lab().sessionRef.current.setMeasurementMode('quick');
     await lab().sessionRef.current.readDeviceInfo(); await lab().sessionRef.current.syncClock(); assert.equal(timers.size, 0);
-    await lab().sessionRef.current.stop(); lab().sessionRef.current.start(); advance(); advance();
+    select('Escenario de modo de medición', 'accepted');
+    await lab().sessionRef.current.stop(); lab().sessionRef.current.start();
+    for (let step = 0; step < 10 && timers.size; step++) { advance(); await flush(); lab(); }
+    assert.equal(lab().sessionState.measurementModeResult.level, 'precise');
+    select('Escenario visual', 'multiple'); // Begin the next explicit failure with no connection result.
     assert.equal(lab().sessionState.measurementModeResult, null);
   }
   select('Escenario de modo de medición', 'accepted');
@@ -2012,7 +2030,7 @@ test('measurement mode cannot write while listener initialization is pending or 
   for (const flag of ['listenerReady', 'indicationsActive']) {
     const incomplete = bridge(); incomplete.flags[flag] = false;
     let state; const owner = incomplete.factory('a', next => { state = next; }, () => {});
-    await owner.start(); await owner.setMeasurementMode('quick');
+    await owner.start(); assert.equal(state.status, 'error'); assert.equal(state.error.code, 'LISTENER_NOT_READY'); await owner.setMeasurementMode('quick');
     assert.deepEqual(incomplete.calls.measurementMode, []); assert.equal(state.measurementModeError.code, 'MEASUREMENT_MODE_NOT_CONNECTED');
     await owner.dispose();
   }
@@ -2044,4 +2062,275 @@ test('measurement mode and volume exclude each other and quarantine their shared
   assert.deepEqual(native.calls.volume, ['low', 'high']); assert.equal(native.calls.info, 0);
   assert.equal(native.calls.clock, 2); assert.equal(state.status, 'listening');
   await session.dispose();
+});
+
+// Final integration: independent groups for local preferences, binding, lifecycle,
+// clock policy and individual discard. All transports and storage are in memory.
+const integratedSession = (options = {}) => {
+  const native = bridge();
+  const local = createFemometerLocalState(native.storage, 'a');
+  if (options.preferences) for (const [field, value] of Object.entries(options.preferences)) local.savePreference('bound-a', field, value);
+  const order = [];
+  for (const [method, label] of [['readFemometerClock', 'read'], ['syncFemometerClock', 'sync'], ['setFemometerVolume', 'volume'], ['setFemometerMeasurementMode', 'mode'], ['disconnectFemometer', 'disconnect']]) {
+    const original = native.api[method];
+    native.api[method] = (...args) => { order.push([label, ...args]); return original(...args); };
+  }
+  let state;
+  const temperatures = [];
+  const session = native.factory('a', next => { state = next; }, event => temperatures.push(event), local);
+  return { ...native, local, session, order, temperatures, state: () => state };
+};
+
+test('preferences: account/device isolation, legacy absence, invalid values and non-destructive persistence', () => {
+  const storage = memoryStorage(); const local = createFemometerLocalState(storage, 'a');
+  local.activate('old');
+  local.saveReadings([{ uiId: 1, deviceKey: 'old', importStatus: 'pending', temperatureC: 36.4, draft: { time: '07:00' }, receivedOrder: 1 }]);
+  local.saveClock('old', { operation: 'read', driftSeconds: 600, checkedAt: 1 });
+  const pending = local.recover(); const clock = local.clock('old');
+  assert.deepEqual(local.preferences('old'), {});
+  assert.deepEqual(local.initializePreferences('new'), { volume: 'medium', measurementMode: 'normal' });
+  local.savePreference('old', 'volume', 'low'); local.savePreference('old', 'measurementMode', 'precise');
+  for (const [field, value] of [['volume', 'loud'], ['measurementMode', 'fast'], ['mac', 'address']]) assert.throws(() => local.savePreference('old', field, value));
+  assert.deepEqual(local.recover(), pending); assert.deepEqual(local.clock('old'), clock);
+  assert.deepEqual(createFemometerLocalState(storage, 'b').preferences('old'), {});
+  const reopened = createFemometerLocalState(storage, 'a');
+  assert.deepEqual(reopened.preferences('old'), { volume: 'low', measurementMode: 'precise' });
+  assert.deepEqual(reopened.preferences('new'), { volume: 'medium', measurementMode: 'normal' });
+  storage.setItem = () => { throw Error('quota'); };
+  assert.throws(() => reopened.savePreference('old', 'volume', 'high'));
+  assert.equal(reopened.preferences('old').volume, 'low');
+});
+
+test('preferences: accepted manual changes persist; rejected writes and failed storage retain the last durable choice', async () => {
+  const h = integratedSession({ preferences: { volume: 'low', measurementMode: 'precise' } });
+  await h.session.start();
+  await h.session.setVolume('medium'); assert.equal(h.local.preferences('bound-a').volume, 'medium');
+  h.storage.setItem = () => { throw Error('quota'); };
+  await h.session.setVolume('high');
+  assert.equal(h.state().volumeResult.level, 'high'); // GATT accepted, storage did not.
+  assert.equal(h.state().preferences.volume, 'medium'); assert.match(h.state().preferenceError, /no se pudo guardar/);
+  h.flags.measurementModeError = { code: 'MEASUREMENT_MODE_FIRST_WRITE_FAILED' };
+  await h.session.setMeasurementMode('quick');
+  assert.equal(h.state().preferences.measurementMode, 'precise'); assert.equal(h.state().measurementModeResult, null);
+  await h.session.stop(); assert.equal(h.state().preferences.volume, 'medium'); assert.equal(h.state().volumeResult, null);
+  await h.session.dispose();
+});
+
+test('binding: confirmed link survives a subsequent listener failure and retry does not bind again', async () => {
+  const h = await coordinatedBindingFixture();
+  h.api.startFemometerTemperatureListener = async () => { throw { code: 'CONNECTION_TIMEOUT' }; };
+  assert.equal(await h.session.selectAndRemember('new'), true);
+  assert.equal(h.state().remembered, true); assert.equal(h.state().deviceKey, 'new'); assert.equal(h.state().status, 'error');
+  assert.deepEqual(h.local.preferences('new'), { volume: 'medium', measurementMode: 'normal' });
+  h.api.scanForFemometer = async () => [{ id: 'new', isRemembered: true }];
+  h.api.startFemometerTemperatureListener = async () => ({ deviceKey: 'new', connectionReady: true, indicationsActive: true });
+  await h.session.start(); assert.equal(h.state().status, 'listening');
+  assert.equal(h.calls.filter(row => row[0] === 'remember').length, 1);
+  await h.session.dispose();
+});
+
+test('binding: unlink drains configuration and closes before forget, preserving pending review', async () => {
+  const h = integratedSession({ preferences: { volume: 'low', measurementMode: 'precise' } });
+  h.flags.volumeWait = deferred();
+  h.api.forgetFemometer = async () => { h.order.push(['forget']); return { remembered: false }; };
+  const starting = h.session.start(); await flush();
+  const unlink = h.session.unlink(); await flush();
+  assert.equal(h.state().bindingBusy, true); assert.equal(h.order.some(row => row[0] === 'forget'), false);
+  await h.session.setMeasurementMode('quick');
+  h.flags.volumeWait.resolve({ level: 'low', commandsAccepted: true, outcome: 'accepted' });
+  await starting; assert.equal(await unlink, true);
+  assert.deepEqual(h.order.map(row => row[0]), ['read', 'volume', 'disconnect', 'forget']);
+  assert.equal(h.state().remembered, false); assert.deepEqual(h.local.preferences('bound-a'), { volume: 'low', measurementMode: 'precise' });
+  await h.session.dispose();
+});
+
+test('binding: failed close or native forget keeps binding; change suppresses foreground reconnect until cancelled', async () => {
+  for (const failure of ['close', 'forget']) {
+    const h = integratedSession(); await h.session.start();
+    let forgets = 0;
+    h.api.forgetFemometer = async () => { forgets++; throw Error('forget failed'); };
+    const close = h.api.disconnectFemometer;
+    if (failure === 'close') h.api.disconnectFemometer = async () => { throw { code: 'GATT_CLOSE_FAILED' }; };
+    assert.equal(await h.session.unlink(), false); assert.equal(h.state().remembered, true);
+    assert.equal(h.state().deviceKey, 'bound-a'); assert.equal(forgets, failure === 'close' ? 0 : 1);
+    h.api.disconnectFemometer = close;
+    assert.equal(await h.session.beginChange(), true);
+    const connections = h.calls.connections;
+    await h.session.resume(); await h.session.start(); assert.equal(h.calls.connections, connections);
+    await h.session.cancelChange(); assert.equal(h.calls.connections, connections + 1);
+    await h.session.dispose();
+  }
+});
+
+test('lifecycle: automatic settings serialize, exclude manual work and still deliver temperatures', async () => {
+  const h = integratedSession({ preferences: { volume: 'medium', measurementMode: 'normal' } });
+  h.flags.clockWait = deferred(); h.flags.volumeWait = deferred();
+  const starting = h.session.start(); await flush();
+  assert.equal(h.state().configurationBusy, true); assert.equal(h.state().status, 'listening');
+  h.emit({ temperatureC: 36.5 });
+  await h.session.setVolume('high'); await h.session.setMeasurementMode('quick'); await h.session.readDeviceInfo(); await h.session.syncClock();
+  assert.deepEqual(h.order, [['read']]); assert.equal(h.temperatures.length, 1);
+  h.flags.clockWait.resolve({ deviceLocalTime: localText(h.flags.now) }); await flush();
+  assert.deepEqual(h.order, [['read'], ['volume', 'medium']]);
+  h.flags.volumeWait.resolve({ level: 'medium', outcome: 'accepted', commandsAccepted: true }); await starting;
+  assert.deepEqual(h.order, [['read'], ['volume', 'medium'], ['mode', 'normal']]);
+  assert.equal(h.state().configurationBusy, false); assert.equal(h.state().listenerResult.timeoutSeconds, 360);
+  assert.equal(h.calls.connections, 1); assert.equal(h.calls.disconnects, 0);
+  await h.session.dispose();
+});
+
+test('lifecycle: uncertain configuration stops the sequence without stopping temperatures; late result cannot cross accounts', async () => {
+  const h = integratedSession({ preferences: { volume: 'high', measurementMode: 'quick' } });
+  h.flags.volumeError = { code: 'VOLUME_TIMEOUT' }; await h.session.start();
+  assert.deepEqual(h.calls.measurementMode, []); assert.equal(h.state().volumeReconnectRequired, true);
+  assert.equal(h.state().configurationIssue, true); assert.equal(h.state().status, 'listening');
+  h.emit({ temperatureC: 36.6 }); assert.equal(h.temperatures.length, 1);
+  await h.session.readDeviceInfo(); await h.session.setVolume('low'); assert.equal(h.calls.volume.length, 1);
+  await h.session.stop(); h.flags.volumeError = null; h.flags.volumeWait = deferred();
+  const starting = h.session.start(); await flush();
+  let nextState; const next = h.factory('b', value => { nextState = value; }, () => {}, createFemometerLocalState(h.storage, 'b'));
+  const nextStart = next.start();
+  h.flags.volumeWait.resolve({ level: 'high', outcome: 'accepted', commandsAccepted: true });
+  await starting; await nextStart;
+  assert.deepEqual(nextState.preferences, {}); assert.equal(nextState.volumeResult, null); assert.equal(nextState.deviceKey, 'bound-b');
+  assert.equal(h.calls.peakListeners, 1); await next.dispose();
+});
+
+test('clock: local thresholds of 120 seconds and 24 hours, one automatic correction with read-back verification', async () => {
+  for (const seconds of [0, 120, 121, 86400, 86401, -86401]) {
+    const h = integratedSession(); h.flags.now = new Date(2026, 10, 10, 12, 0, 0).getTime();
+    h.api.readFemometerClock = async () => ({ deviceKey: 'bound-a', deviceLocalTime: localText(h.flags.now + seconds * 1000) });
+    h.api.syncFemometerClock = async () => { h.calls.sync++; return { deviceKey: 'bound-a', deviceLocalTime: localText(h.flags.now), verified: true }; };
+    await h.session.start();
+    assert.equal(h.calls.sync, Math.abs(seconds) > 86400 ? 1 : 0);
+    assert.equal(h.state().clockResult.verified, Math.abs(seconds) > 86400);
+    assert.equal(h.state().clockResult.significantDrift, Math.abs(seconds) > 120 && Math.abs(seconds) <= 86400);
+    await h.session.resume(); assert.ok(h.calls.sync <= 1); await h.session.dispose();
+  }
+});
+
+test('clock: failed/unverified correction is not a verified sync, does not loop or mutate pending history', async () => {
+  for (const result of ['unverified', 'failed', 'timeout']) {
+    const h = integratedSession({ preferences: { volume: 'low' } });
+    h.api.readFemometerClock = async () => ({ deviceLocalTime: '2020-01-01T08:00:00' });
+    h.flags.now = new Date(2026, 10, 10, 12).getTime();
+    h.api.syncFemometerClock = async () => {
+      h.calls.sync++;
+      if (result !== 'unverified') throw { code: result === 'timeout' ? 'CLOCK_TIMEOUT' : 'CLOCK_WRITE_FAILED' };
+      return { deviceLocalTime: '2020-01-01T08:00:00', verified: true };
+    };
+    await h.session.start(); await h.session.resume();
+    assert.equal(h.calls.sync, 1); assert.equal(h.state().status, 'listening'); assert.ok(h.state().clockError);
+    assert.notEqual(h.state().clockResult?.verified, true);
+    assert.equal(h.calls.volume.length, result === 'timeout' ? 0 : 1);
+    await h.session.dispose();
+  }
+});
+
+test('discard: ordinary pending review requests confirmation, cancel retains it, confirm never incorporates', async () => {
+  const h = await uncertainEditorFixture({ importStatus: 'pending', attempt: undefined });
+  try {
+    await h.render().onDiscard(); assert.equal(h.counts().removed, 0);
+    h.render().onRequestDiscard(); assert.equal(h.render().discardConfirm, true);
+    h.render().onCancelDiscard(); assert.equal(h.counts().removed, 0);
+    h.render().onRequestDiscard(); await h.render().onDiscard();
+    assert.deepEqual(h.counts(), { writes: 0, removed: 1, closed: 1 }); assert.equal(h.requests.length, 0);
+  } finally { h.cleanup(); }
+});
+
+test('discard: unlink leaves pending readings reviewable with original binding and individual durable removal', async () => {
+  const native = bridge(); native.api.forgetFemometer = async () => { native.flags.remembered = false; return { remembered: false }; };
+  const owner = await mountedOwner(native);
+  try {
+    native.emit({ temperatureC: 36.4 }); native.emit({ temperatureC: 36.6 });
+    const session = owner.render().sessionRef.current;
+    assert.equal(await session.unlink(), true);
+    assert.equal(owner.render().pendingCount, 2); assert.equal(owner.render().readings[0].deviceKey, 'bound-a');
+    owner.render().discardReading(1, session);
+    assert.equal(owner.render().pendingCount, 1);
+    assert.deepEqual(createFemometerLocalState(native.storage, 'a').recover().map(row => row.uiId), [2]);
+  } finally { owner.cleanup(); await flush(); }
+});
+
+test('UI: stored preferences remain selected when disconnected, and normal review puts discard before the primary incorporation action', async () => {
+  const h = await vincaPanelFixture({ remembered: true, status: 'stopped', preferences: { volume: 'medium', measurementMode: 'normal' } });
+  for (const label of ['Medio', 'Normal']) {
+    assert.equal(h.button(label).props['aria-pressed'], true);
+    assert.equal(h.button(label).props.disabled, true);
+    assert.match(h.button(label).props.className, /bg-rose-50/);
+    assert.match(JSON.stringify(h.button(label)), /✓/);
+  }
+  assert.match(JSON.stringify(h.render()), /Preferencia guardada/);
+  assert.doesNotMatch(JSON.stringify(h.render()), /aplicado en esta conexión/);
+  h.cleanup();
+  const harness = hooks();
+  const { BleReadingReviewView } = await loadFrontend('src/components/BleReadingReviewView.jsx', {
+    ...harness.bindings, measurementDisplay, measurementSourceLabel, CheckCircle2: 'check', Trash2: 'trash', PlusCircle: 'plus', Button: 'button', Input: 'input',
+  }, ['BleReadingReviewView']);
+  const nodes = treeNodes(BleReadingReviewView({ reading: { importStatus: 'pending' }, draft: { isoDate: '2026-11-10', time: '08:00' } }));
+  const discard = nodes.findIndex(n => n.type === 'button' && JSON.stringify(n.props.children).includes('Descartar temperatura'));
+  const incorporate = nodes.findIndex(n => n.type === 'button' && JSON.stringify(n.props.children).includes('Confirmar e incorporar'));
+  assert.ok(discard >= 0 && incorporate > discard);
+  assert.equal(nodes[discard].props.variant, 'ghost'); assert.match(nodes[discard].props.className, /min-h-11/);
+  assert.match(nodes[incorporate].props.className, /ml-auto.*min-h-11.*bg-fertiliapp-fuerte/);
+  assert.ok(nodes.some(n => n.props.className?.includes('flex-wrap') && n.props.className.includes('safe-area-inset-bottom')));
+  harness.cleanup();
+});
+
+test('lab integration: new binding prepares preferences, restoration is serial, cancellation and unlink keep fictitious pending work', async () => {
+  const { createBleLabScenario, bleLabScenarios } = await import('../src/lib/bleVisualLab.js');
+  const harness = hooks(); const timers = new Set();
+  const { BluetoothVisualLab } = await loadFrontend('src/components/dev/BluetoothVisualLab.jsx', {
+    ...harness.bindings, useLocation: () => ({ key: 'devices' }), useNavigate: () => () => {},
+    createBleLabScenario, bleLabScenarios, Button: 'button', FemometerReviewCard: 'card', BleReadingReviewView: 'editor', BleSavedNotice: 'notice', FemometerFeedback: 'clock',
+    setTimeout: fn => { timers.add(fn); return fn; }, clearTimeout: fn => timers.delete(fn),
+  }, ['BluetoothVisualLab'], source => source.replace('export default function BluetoothVisualLab', 'function BluetoothVisualLab'));
+  const render = () => harness.render(() => ({ props: { value: BluetoothVisualLab({ Provider: 'provider', children: null }) } }));
+  const lab = () => render().props.value;
+  const advance = async () => { for (const fn of [...timers]) { timers.delete(fn); fn(); } await flush(); render(); };
+  const drain = async () => { for (let i = 0; i < 12 && timers.size; i++) await advance(); assert.equal(timers.size, 0); };
+  treeNodes(render()).find(n => n.type === 'button' && n.props['aria-expanded'] === false).props.onClick();
+  const select = (label, value) => treeNodes(render()).find(n => n.type === 'select' && n.props['aria-label'] === label).props.onChange({ target: { value } });
+  select('Modo de previsualización', 'android'); select('Escenario visual', 'unlinked');
+  lab().sessionRef.current.scan(); await drain();
+  const binding = lab().sessionRef.current.selectAndRemember('lab-vinca'); await advance(); assert.equal(await binding, true);
+  await advance(); assert.equal(lab().sessionState.configurationBusy, true);
+  await lab().sessionRef.current.setVolume('high'); // Excluded while preparing defaults.
+  await drain();
+  assert.deepEqual(lab().sessionState.preferences, { volume: 'medium', measurementMode: 'normal' });
+  assert.equal(lab().sessionState.volumeResult.level, 'medium'); assert.equal(lab().sessionState.measurementModeResult.level, 'normal');
+  await lab().sessionRef.current.stop(); assert.equal(lab().sessionState.preferences.volume, 'medium');
+  lab().sessionRef.current.start(); await drain(); assert.equal(lab().sessionState.measurementModeResult.level, 'normal');
+  select('Escenario visual', 'multiple');
+  const pending = lab().sessionRef.current.setVolume('low'); await advance();
+  await lab().sessionRef.current.unlink(); await pending;
+  assert.equal(lab().sessionState.remembered, false); assert.equal(lab().pendingCount, 3); assert.equal(lab().sessionState.volumeResult, null);
+  let editor = () => treeNodes(render()).find(n => n.type === 'editor').props;
+  editor().onRequestDiscard(); editor().onCancelDiscard(); assert.equal(lab().pendingCount, 3);
+  editor().onRequestDiscard(); editor().onDiscard(); assert.equal(lab().pendingCount, 2);
+  assert.equal(lab().readings[0].deviceKey, 'fictional-device');
+  await assert.rejects(lab().incorporateReading(), /guardados reales/);
+  select('Escenario visual', 'legacyPreferences'); await lab().sessionRef.current.stop(); lab().sessionRef.current.start(); await drain();
+  assert.deepEqual(lab().sessionState.preferences, {}); assert.equal(lab().sessionState.volumeResult, null);
+  select('Escenario visual', 'clockReset'); await lab().sessionRef.current.stop(); lab().sessionRef.current.start(); await drain();
+  assert.equal(lab().sessionState.clockResult.verified, true);
+  harness.cleanup(); assert.equal(timers.size, 0);
+});
+
+test('preferences: an existing binding without preferences never receives defaults, including reselecting the same thermometer', async () => {
+  const h = integratedSession(); await h.session.start();
+  assert.deepEqual(h.state().preferences, {}); assert.deepEqual(h.calls.volume, []); assert.deepEqual(h.calls.measurementMode, []);
+  await h.session.dispose();
+  const existing = await coordinatedBindingFixture();
+  assert.equal(await existing.session.selectAndRemember('old'), true);
+  assert.deepEqual(existing.state().preferences, {}); assert.deepEqual(existing.local.preferences('old'), {});
+  await existing.session.dispose();
+});
+
+test('lifecycle: a listener reporting another binding is closed before any automatic settings', async () => {
+  const h = integratedSession({ preferences: { volume: 'medium', measurementMode: 'normal' } });
+  h.api.startFemometerTemperatureListener = async () => ({ deviceKey: 'different', connectionReady: true, indicationsActive: true });
+  await h.session.start(); assert.equal(h.state().error.code, 'CONNECTION_IDENTITY_MISMATCH');
+  assert.equal(h.state().status, 'error'); assert.equal(h.calls.clock, 0); assert.deepEqual(h.calls.volume, []);
+  assert.equal(h.calls.disconnects, 1); assert.equal(h.calls.listeners, 0); await h.session.dispose();
 });

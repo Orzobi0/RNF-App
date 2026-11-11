@@ -19,7 +19,7 @@ export function FemometerFeedback({ sessionState, sessionRef, readings, clockHis
   const [working, setWorking] = useState(false);
   const [actionError, setActionError] = useState(null);
   const connecting = ['checking', 'searching', 'connecting', 'inspecting', 'stopping'].includes(status);
-  const busy = working || clockBusy || sessionState.busy || connecting;
+  const busy = sessionState.configurationBusy || sessionState.bindingBusy || sessionState.volumeBusy || sessionState.measurementModeBusy || sessionState.deviceInfoBusy || working || clockBusy || sessionState.busy || connecting;
   const run = async operation => {
     if (operationLock.current || busy) return;
     if (operation === 'syncClock' && (status !== 'listening' || !capabilities?.clockSync)) return;
@@ -42,7 +42,8 @@ export function FemometerFeedback({ sessionState, sessionRef, readings, clockHis
       savedBatch.current = { time: now, count };
     }
   }, [readings, navigate, openReadingReview]);
-  const connected = status === 'listening';
+  const connected = status === 'listening' && sessionState.listenerResult?.connectionReady === true && sessionState.listenerResult?.indicationsActive === true;
+  const reconnect = sessionState.gattReconnectRequired || sessionState.volumeReconnectRequired || sessionState.measurementModeReconnectRequired;
   return <><BleSavedNotice notice={notice} onDismiss={() => setNotice(null)}
     onViewDay={isoDate => navigate('/records', { state: { selectedDate: isoDate, scrollToDayDetail: true } })} /><Dialog open={clockDialogOpen} onOpenChange={setClockDialogOpen}>
     <DialogContent className="top-[calc(env(safe-area-inset-top,0px)+16px)] max-h-[85dvh] w-[calc(100%-32px)] max-w-md translate-y-0 overflow-y-auto rounded-3xl motion-reduce:animate-none">
@@ -55,8 +56,8 @@ export function FemometerFeedback({ sessionState, sessionRef, readings, clockHis
         {issue && <p className="text-amber-800">{clockResult?.significantDrift || clockHistory?.state === 'misaligned'
           ? 'Se ha comprobado una desviación significativa del reloj.'
           : 'Hay una incidencia pendiente al comprobar o ajustar el reloj.'}</p>}
-        {!connected && <p>Conecta el termómetro primero. La sincronización requiere otra pulsación explícita.</p>}
-        {busy && <p role="status">{clockBusy || (working && connected) ? 'Sincronizando / comprobando el reloj…' : 'Conectando con el termómetro…'}</p>}
+        {!connected && <p>Conecta el termómetro primero. Los desfases superiores a 24 horas se intentan corregir al conectar.</p>}
+        {busy && <p role="status">{sessionState.configurationBusy ? 'Preparando ajustes…' : clockBusy || (working && connected) ? 'Sincronizando / comprobando el reloj…' : 'Conectando con el termómetro…'}</p>}
         {(clockError || actionError) && <p role="alert" className="text-amber-800">{actionError || clockError.message || 'No se pudo comprobar o ajustar el reloj. Puedes reintentarlo.'}</p>}
         {!connected && sessionState.error && <p role="alert">{sessionState.error.code === 'CONNECTION_CANCELLED' ? 'Conexión cancelada.' : sessionState.error.message || 'No se pudo conectar.'}</p>}
         {status === 'missing' && <p role="status">Termómetro no encontrado. Acércalo y vuelve a conectar.</p>}
@@ -70,7 +71,8 @@ export function FemometerFeedback({ sessionState, sessionRef, readings, clockHis
         <Button variant="outline" onClick={() => setClockDialogOpen(false)}>Cerrar</Button>
         <Button variant="outline" onClick={() => { setClockDialogOpen(false); navigate('/settings/devices'); }}>Dispositivos</Button>
         {!connected && <Button disabled={busy} onClick={() => void run(sessionState.remembered ? 'start' : 'scan')}>Conectar</Button>}
-        {connected && capabilities?.clockSync && <Button disabled={busy} onClick={() => void run('syncClock')}>Sincronizar y verificar</Button>}
+        {connected && reconnect && <Button disabled={busy} onClick={() => void run('restart')}>Recuperar conexión</Button>}
+        {connected && capabilities?.clockSync && <Button disabled={Boolean(busy || reconnect)} onClick={() => void run('syncClock')}>Sincronizar y verificar</Button>}
       </DialogFooter>
     </DialogContent>
   </Dialog></>;

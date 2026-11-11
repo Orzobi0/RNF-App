@@ -14,6 +14,13 @@ export default function BluetoothVisualLab({ Provider, children }) {
   const location = useLocation();
   const [mode, setMode] = useState('web');
   const [scenario, setScenario] = useState('disconnected');
+  // Fictional preferences live only for this laboratory mount.
+  const preferencesByDevice = useRef({});
+  const configurationToken = useRef(0);
+  const configurationTimer = useRef(null);
+  const configurationActive = useRef(false);
+  const cancelConfiguration = () => { ++configurationToken.current; clearTimeout(configurationTimer.current); configurationActive.current = false; };
+  useEffect(() => () => { cancelConfiguration(); }, []);
   const [volumeScenario, setVolumeScenario] = useState('accepted');
   const volumeJob = useRef(null);
   const volumeTimer = useRef(null);
@@ -89,6 +96,7 @@ export default function BluetoothVisualLab({ Provider, children }) {
   useEffect(() => () => { cancelBinding(); clearTimeout(timer.current); }, []);
   useEffect(() => { setNotice(null); }, [location.key]);
   const chooseScenario = value => {
+    cancelConfiguration();
     cancelMeasurementMode(); cancelVolume(); labClockBusy.current = false;
     cancelInfo();
     cancelBinding();
@@ -102,6 +110,9 @@ export default function BluetoothVisualLab({ Provider, children }) {
     next.sessionState.capabilities.volumeWrite = true;
     next.sessionState.capabilities.modeConfiguration = true;
     next.sessionState.listenerResult = next.sessionState.status === 'listening' ? { connectionReady: true, indicationsActive: true } : null;
+    if (value === 'savedPreferences') preferencesByDevice.current['fictional-device'] = { volume: 'low', measurementMode: 'precise' };
+    if (value === 'legacyPreferences') delete preferencesByDevice.current['fictional-device'];
+    next.sessionState.preferences = preferencesByDevice.current['fictional-device'] ?? {};
     setScenario(value); setClockHistory(next.clockHistory); setReadings(next.readings); setSessionState(next.sessionState);
     setReviewVisibleOn(next.readings.length ? location.key : null);
     setExpanded(next.expanded); setSelectedId(null); setNotice(next.notice); setCheckedUncertain(false);
@@ -112,14 +123,43 @@ export default function BluetoothVisualLab({ Provider, children }) {
   const draft = selected?.draft;
   const error = selected?.reviewError ?? null;
   const restartLock = useRef(false);
-  const operationBlocked = () => bindingJob.current || restartLock.current || sessionState.busy || infoJob.current || volumeJob.current || measurementModeJob.current || labClockBusy.current || sessionState.clockBusy || ['checking', 'searching', 'connecting', 'inspecting', 'stopping', 'listening'].includes(sessionState.status);
+  const operationBlocked = () => configurationActive.current || bindingJob.current || restartLock.current || sessionState.busy || infoJob.current || volumeJob.current || measurementModeJob.current || labClockBusy.current || sessionState.clockBusy || ['checking', 'searching', 'connecting', 'inspecting', 'stopping', 'listening'].includes(sessionState.status);
+  const prepareListening = (deviceKey = sessionState.deviceKey, preferences = preferencesByDevice.current[deviceKey] ?? {}) => {
+    const token = ++configurationToken.current;
+    configurationActive.current = true;
+    setSessionState(previous => ({ ...previous, deviceKey, preferences, status: 'listening', busy: false, restarting: false,
+      configurationBusy: true, configurationIssue: false, clockBusy: true, clockError: null,
+      capabilities: { ...previous.capabilities, volumeWrite: true, modeConfiguration: true },
+      listenerResult: { connectionReady: true, indicationsActive: true, timeoutSeconds: 360 } }));
+    configurationTimer.current = setTimeout(async () => {
+      const current = () => token === configurationToken.current;
+      if (!current()) return;
+      const failed = scenario === 'clockFailure';
+      const corrected = scenario === 'clockReset';
+      setSessionState(previous => ({ ...previous, clockBusy: false,
+        clockError: failed ? { message: 'Simulación: no se pudo verificar el reloj.' } : null,
+        clockResult: failed ? null : { operation: corrected ? 'sync' : 'read', verified: corrected, driftSeconds: 0, significantDrift: false } }));
+      setClockHistory({ state: failed ? 'unknown' : corrected ? 'synchronized_verified' : 'read_correct' });
+      // Allow the rendered fake session to observe readiness before each operation.
+      configurationTimer.current = setTimeout(async () => {
+        if (!current()) return;
+        if (preferences.volume) await sessionRef.current.setVolume(preferences.volume, true);
+        if (!current()) return;
+        if (!volumeBlocked.current && preferences.measurementMode) await sessionRef.current.setMeasurementMode(preferences.measurementMode, true);
+        if (!current()) return;
+        configurationActive.current = false;
+        setSessionState(previous => ({ ...previous, configurationBusy: false,
+          configurationIssue: Boolean(failed || volumeBlocked.current || measurementModeBlocked.current) }));
+      }, 100);
+    }, 500);
+  };
   const search = () => {
     if (operationBlocked()) return;
-    if (!sessionState.remembered) return;
+    if (!sessionState.remembered || sessionState.changingDevice) return;
     setSessionState(previous => ({ ...previous, status: 'searching', busy: true, error: null }));
     timer.current = setTimeout(() => {
       setSessionState(previous => ({ ...previous, status: 'connecting' }));
-      timer.current = setTimeout(() => setSessionState(previous => ({ ...previous, status: 'listening', busy: false, capabilities: { ...previous.capabilities, volumeWrite: true, modeConfiguration: true }, listenerResult: { connectionReady: true, indicationsActive: true, timeoutSeconds: 360 } })), 500);
+      timer.current = setTimeout(() => prepareListening(), 500);
     }, 900);
   };
   const updateDraft = patch => setReadings(rows => rows.map(row => row.uiId === selected.uiId ? { ...row, reviewError: row.reviewError?.code === 'ble-possible-duplicate' ? null : row.reviewError, draft: { ...row.draft, ...patch } } : row));
@@ -173,8 +213,9 @@ export default function BluetoothVisualLab({ Provider, children }) {
   // invocation from a real consumer cannot call native plugins or a save callback.
   sessionRef.current = {
     start: search, listen: search,
-    setVolume: level => {
-      if (measurementModeJob.current || volumeJob.current || infoJob.current || labClockBusy.current || sessionState.clockBusy || sessionState.busy || restartLock.current || bindingJob.current) return Promise.resolve();
+    setVolume: (level, automatic = false) => {
+      if (configurationActive.current && !automatic) return Promise.resolve();
+      if (measurementModeJob.current || volumeJob.current || infoJob.current || labClockBusy.current || (!automatic && sessionState.clockBusy) || sessionState.busy || restartLock.current || bindingJob.current) return Promise.resolve();
       const fail = (code, message, outcome = 'error') => {
         setSessionState(previous => ({ ...previous, volumeResult: null, volumeError: { code, message, outcome } }));
         return Promise.resolve();
@@ -189,7 +230,8 @@ export default function BluetoothVisualLab({ Provider, children }) {
         const finish = (code = null) => {
           if (volumeJob.current !== resolve) return;
           volumeBlocked.current = code !== null;
-          setSessionState(previous => ({ ...previous, volumeBusy: false, volumeReconnectRequired: code !== null,
+          if (!code && !automatic) preferencesByDevice.current[sessionState.deviceKey] = { ...preferencesByDevice.current[sessionState.deviceKey], volume: level };
+          setSessionState(previous => ({ ...previous, preferences: preferencesByDevice.current[sessionState.deviceKey] ?? previous.preferences, volumeBusy: false, volumeReconnectRequired: code !== null,
             volumeResult: code ? null : { level, outcome: 'accepted', commandsAccepted: true, verified: false },
             volumeError: code ? { code, outcome: code === 'VOLUME_TIMEOUT' ? 'unknown' : 'error',
               message: code === 'VOLUME_TIMEOUT' ? 'Simulación: resultado desconocido. Detén y reconecta.'
@@ -205,8 +247,9 @@ export default function BluetoothVisualLab({ Provider, children }) {
         }, 350);
       });
     },
-    setMeasurementMode: level => {
-      if (volumeJob.current || measurementModeJob.current || infoJob.current || labClockBusy.current || sessionState.clockBusy || sessionState.busy || restartLock.current || bindingJob.current) return Promise.resolve();
+    setMeasurementMode: (level, automatic = false) => {
+      if (configurationActive.current && !automatic) return Promise.resolve();
+      if (volumeJob.current || measurementModeJob.current || infoJob.current || labClockBusy.current || (!automatic && sessionState.clockBusy) || sessionState.busy || restartLock.current || bindingJob.current) return Promise.resolve();
       const fail = (code, message, outcome = 'error') => {
         setSessionState(previous => ({ ...previous, measurementModeResult: null, measurementModeError: { code, message, outcome } }));
         return Promise.resolve();
@@ -221,7 +264,8 @@ export default function BluetoothVisualLab({ Provider, children }) {
         const finish = (code = null) => {
           if (measurementModeJob.current !== resolve) return;
           measurementModeBlocked.current = code !== null;
-          setSessionState(previous => ({ ...previous, measurementModeBusy: false, measurementModeReconnectRequired: code !== null,
+          if (!code && !automatic) preferencesByDevice.current[sessionState.deviceKey] = { ...preferencesByDevice.current[sessionState.deviceKey], measurementMode: level };
+          setSessionState(previous => ({ ...previous, preferences: preferencesByDevice.current[sessionState.deviceKey] ?? previous.preferences, measurementModeBusy: false, measurementModeReconnectRequired: code !== null,
             measurementModeResult: code ? null : { level, outcome: 'accepted', commandsAccepted: true, verified: false },
             measurementModeError: code ? { code, outcome: code === 'MEASUREMENT_MODE_TIMEOUT' ? 'unknown' : 'error',
               message: code === 'MEASUREMENT_MODE_TIMEOUT' ? 'Simulación: resultado desconocido. Detén y reconecta.'
@@ -238,6 +282,7 @@ export default function BluetoothVisualLab({ Provider, children }) {
       });
     },
     readDeviceInfo: () => {
+      if (configurationActive.current) return Promise.resolve();
       if (!enabled || volumeBlocked.current || measurementModeBlocked.current || sessionState.status !== 'listening' || !sessionState.listenerResult?.connectionReady || !sessionState.listenerResult?.indicationsActive || infoJob.current || volumeJob.current || measurementModeJob.current || labClockBusy.current || sessionState.clockBusy) return Promise.resolve();
       setSessionState(previous => ({ ...previous, deviceInfoBusy: true, deviceInfoStatus: 'loading', deviceInfoResult: null, deviceInfoError: null }));
       return new Promise(resolve => {
@@ -285,12 +330,17 @@ export default function BluetoothVisualLab({ Provider, children }) {
               devices: previous.devices.map(device => ({ ...device, isRemembered: device.id === deviceId })) } : {}),
           }));
           bindingJob.current = null;
+          if (confirmed) {
+            preferencesByDevice.current['fictional-device-new'] ??= { volume: 'medium', measurementMode: 'normal' };
+            setSessionState(previous => ({ ...previous, changingDevice: false, status: 'connecting', busy: true }));
+            timer.current = setTimeout(() => prepareListening('fictional-device-new'), 400);
+          }
           resolve(confirmed);
         }, 600);
       });
     },
     restart: () => {
-      if (bindingJob.current || restartLock.current || sessionState.busy || infoJob.current || volumeJob.current || measurementModeJob.current || labClockBusy.current || sessionState.clockBusy) return;
+      if (configurationActive.current || bindingJob.current || restartLock.current || sessionState.busy || infoJob.current || volumeJob.current || measurementModeJob.current || labClockBusy.current || sessionState.clockBusy) return;
       restartLock.current = true;
       cancelMeasurementMode(); cancelVolume(); labClockBusy.current = false;
       cancelInfo();
@@ -300,11 +350,25 @@ export default function BluetoothVisualLab({ Provider, children }) {
         setSessionState(previous => ({ ...previous, status: 'searching', error: null }));
         timer.current = setTimeout(() => {
           restartLock.current = false;
-          setSessionState(previous => ({ ...previous, status: 'listening', restarting: false, busy: false, listenerResult: { connectionReady: true, indicationsActive: true } }));
+          prepareListening();
         }, 900);
       }, 400);
     },
-    stop: async () => { cancelMeasurementMode(true); cancelVolume(true); labClockBusy.current = false; cancelInfo(); cancelBinding(); clearTimeout(timer.current); restartLock.current = false; setSessionState(previous => ({ ...previous, status: 'stopped', restarting: false, busy: false, clockBusy: false })); },
+    stop: async () => { cancelConfiguration(); cancelMeasurementMode(true); cancelVolume(true); labClockBusy.current = false; cancelInfo(); cancelBinding(); clearTimeout(timer.current); restartLock.current = false; setSessionState(previous => ({ ...previous, status: 'stopped', listenerResult: null, configurationBusy: false, configurationIssue: false, restarting: false, busy: false, clockBusy: false })); },
+    unlink: async () => {
+      await sessionRef.current.stop();
+      setSessionState(previous => ({ ...previous, remembered: false, deviceKey: null, preferences: {}, changingDevice: false }));
+      return true;
+    },
+    beginChange: async () => {
+      await sessionRef.current.stop();
+      setSessionState(previous => ({ ...previous, changingDevice: true }));
+      return true;
+    },
+    cancelChange: async () => {
+      setSessionState(previous => ({ ...previous, changingDevice: false }));
+      prepareListening();
+    },
     select: id => {
       if (operationBlocked() || !sessionState.devices.some(device => device.id === id)) return;
       setSessionState(previous => ({ ...previous, selectedDeviceId: id, inspectionResult: null }));
@@ -317,17 +381,20 @@ export default function BluetoothVisualLab({ Provider, children }) {
           temperatureMeasurementFound: previous.selectedDeviceId === 'lab-vinca', services: [{ uuid: '00001809-0000-1000-8000-00805f9b34fb', characteristics: [{ uuid: '00002a1c-0000-1000-8000-00805f9b34fb', properties: ['indicate'] }] }] } })), 600);
     },
     remember: async forget => {
+      if (forget) return sessionRef.current.unlink();
       if (operationBlocked() || (!forget && !sessionState.inspectionResult?.compatible)) return;
       setSessionState(previous => ({ ...previous, remembered: !forget, status: 'idle', clockResult: null, clockError: null,
         devices: previous.devices.map(device => ({ ...device, isRemembered: !forget && device.id === previous.selectedDeviceId })) }));
       if (forget) setClockHistory(null);
     },
     readClock: async () => {
+      if (configurationActive.current) return;
       if (volumeBlocked.current || measurementModeBlocked.current || sessionState.status !== 'listening' || infoJob.current || volumeJob.current || measurementModeJob.current || labClockBusy.current || sessionState.clockBusy || !sessionState.capabilities.clockRead) return;
       setSessionState(previous => ({ ...previous, clockResult: { operation: 'read', significantDrift: false, driftSeconds: 0 }, clockError: null }));
       setClockHistory({ state: 'read_correct' });
     },
     syncClock: async () => {
+      if (configurationActive.current) return;
       if (volumeBlocked.current || measurementModeBlocked.current || sessionState.status !== 'listening' || infoJob.current || volumeJob.current || measurementModeJob.current || labClockBusy.current || sessionState.clockBusy || !sessionState.capabilities.clockSync) return;
       labClockBusy.current = true;
       setSessionState(previous => ({ ...previous, clockBusy: true, clockError: null, clockResult: null }));
@@ -355,7 +422,7 @@ export default function BluetoothVisualLab({ Provider, children }) {
       <Button variant="ghost" className="min-h-11" aria-expanded={panelOpen} onClick={() => setPanelOpen(value => !value)}>{panelOpen ? 'Minimizar laboratorio' : 'Laboratorio BLE'}</Button>
       {panelOpen && <div className="w-56 space-y-3 p-2">
         <p className="text-xs">Solo Bluetooth es ficticio. El resto de la cuenta Staging es real.</p>
-        <label className="block">Modo<select className="mt-1 min-h-11 w-full rounded border bg-white" aria-label="Modo de previsualización" value={mode} onChange={event => { cancelMeasurementMode(); cancelVolume(); labClockBusy.current = false; cancelInfo(); cancelBinding(); clearTimeout(timer.current); restartLock.current = false; setMode(event.target.value); setReviewVisibleOn(null); setSessionState(previous => ({ ...previous, restarting: false, busy: false, clockBusy: false, status: previous.restarting || previous.busy ? 'stopped' : previous.status })); setNotice(null); setClockDialogOpen(false); }}><option value="web">Web / PWA</option><option value="android">Android visual</option></select></label>
+        <label className="block">Modo<select className="mt-1 min-h-11 w-full rounded border bg-white" aria-label="Modo de previsualización" value={mode} onChange={event => { cancelConfiguration(); cancelMeasurementMode(); cancelVolume(); labClockBusy.current = false; cancelInfo(); cancelBinding(); clearTimeout(timer.current); restartLock.current = false; setMode(event.target.value); setReviewVisibleOn(null); setSessionState(previous => ({ ...previous, configurationBusy: false, restarting: false, busy: false, clockBusy: false, status: previous.restarting || previous.busy ? 'stopped' : previous.status })); setNotice(null); setClockDialogOpen(false); }}><option value="web">Web / PWA</option><option value="android">Android visual</option></select></label>
         {enabled && <label className="block">Escenario<select className="mt-1 min-h-11 w-full rounded border bg-white" aria-label="Escenario visual" value={scenario} onChange={event => chooseScenario(event.target.value)}>{Object.entries(bleLabScenarios).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>}
         {enabled && scenario === 'uncertain' && <label className="flex items-center gap-2"><input type="checkbox" checked={queryFails} onChange={event => { setQueryFails(event.target.checked); resetReview(); }} />Simular fallo de consulta</label>}
         {enabled && <label className="block">Consulta de datos<select aria-label="Escenario de datos" className="mt-1 min-h-11 w-full rounded border bg-white" value={deviceInfoScenario} onChange={event => { cancelInfo(); setDeviceInfoScenario(event.target.value); }}>
@@ -377,6 +444,7 @@ export default function BluetoothVisualLab({ Provider, children }) {
           check={check} canCheck={Boolean(selected.attempt)} onCheck={checkDay}
           duplicateApproved={duplicateApproved} discardConfirm={discardConfirm} storedConfirm={storedConfirm} incorporationRequested={incorporationRequested}
           onDifferent={() => { setDiscardConfirm(false); setDuplicateApproved(true); }} onRepeated={() => { setDuplicateApproved(false); setDiscardConfirm(true); }}
+          onRequestDiscard={() => { if (selected?.importStatus === 'pending') setDiscardConfirm(true); }}
           onCancelDiscard={() => { setDiscardConfirm(false); setDuplicateApproved(false); }} onDiscard={discard}
           onAlreadyStored={() => { if (check.status === 'complete') { setCheckedUncertain(false); setIncorporationRequested(false); setDiscardConfirm(false); setDuplicateApproved(false); setStoredConfirm(true); } }}
           onConfirmStored={discard} onBackStored={() => { setStoredConfirm(false); setCheckedUncertain(false); }}

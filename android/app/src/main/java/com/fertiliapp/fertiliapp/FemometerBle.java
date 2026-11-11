@@ -75,6 +75,7 @@ public class FemometerBle extends Plugin {
     private final BleDeviceInfoOperation deviceInfoOperation = new BleDeviceInfoOperation(mainHandler);
     private final BleVolumeOperation volumeOperation = new BleVolumeOperation(mainHandler);
     private final BleMeasurementModeOperation measurementModeOperation = new BleMeasurementModeOperation(mainHandler);
+    private final BleGattCleanup gattCleanup = new BleGattCleanup();
     private volatile boolean temperatureReady;
     private final Map<String, ScannedDevice> devicesById = new LinkedHashMap<>();
     private final Map<String, String> idsByAddress = new LinkedHashMap<>();
@@ -165,7 +166,7 @@ public class FemometerBle extends Plugin {
     public void rememberDevice(PluginCall call) {
         String userId = requireUser(call);
         if (userId == null) return;
-        if (temperatureGatt != null || temperatureListenerCall != null) { call.reject("Deten la escucha antes de cambiar la vinculacion.", "CONNECTION_ACTIVE"); return; }
+        if (temperatureGatt != null || temperatureListenerCall != null || activeGatt != null || !gattCleanup.complete()) { call.reject("Deten la escucha antes de cambiar la vinculacion.", "CONNECTION_ACTIVE"); return; }
         ScannedDevice device = devicesById.get(call.getString("deviceId"));
         if (scanCall != null || device == null) {
             call.reject("Vuelve a buscar el termometro.", "DEVICE_NOT_FOUND");
@@ -187,7 +188,7 @@ public class FemometerBle extends Plugin {
     public void forgetDevice(PluginCall call) {
         String userId = requireUser(call);
         if (userId == null) return;
-        if (temperatureGatt != null || temperatureListenerCall != null) { call.reject("Deten la escucha antes de olvidar.", "CONNECTION_ACTIVE"); return; }
+        if (temperatureGatt != null || temperatureListenerCall != null || activeGatt != null || !gattCleanup.complete()) { call.reject("Deten la escucha antes de olvidar.", "CONNECTION_ACTIVE"); return; }
         try {
             identities().forget(userId);
             call.resolve(publicBinding(userId));
@@ -736,11 +737,13 @@ public class FemometerBle extends Plugin {
     }
 
     @PluginMethod
-    public void disconnect(PluginCall call) {
+    public synchronized void disconnect(PluginCall call) {
+        gattCleanup.retry();
         cancelScan();
         rejectPendingConnect("Conexion cancelada.", "CONNECTION_CANCELLED");
         rejectTemperatureStart("Escucha cancelada.", "CONNECTION_CANCELLED");
         closeActiveGatt();
+        if (!gattCleanup.complete()) { call.reject("No se pudo cerrar GATT. Reintenta antes de conectar o desvincular.", "GATT_CLOSE_FAILED"); return; }
         call.resolve();
     }
 
@@ -1107,6 +1110,7 @@ public class FemometerBle extends Plugin {
     }
 
     private String getBlockedOperationCode() {
+        if (!gattCleanup.complete()) return "GATT_CLOSE_FAILED";
         String unavailableCode = getUnavailableCode();
         if (unavailableCode != null) return unavailableCode;
         if (!hasRequiredRuntimePermissions()) {
@@ -1321,15 +1325,7 @@ public class FemometerBle extends Plugin {
             Log.e(TAG, "Unexpected exception disconnecting BLE GATT");
             // Best effort cleanup only.
         }
-        try {
-            gatt.close();
-        } catch (SecurityException error) {
-            Log.e(TAG, "SecurityException closing BLE GATT");
-            // Best effort cleanup only.
-        } catch (Exception error) {
-            Log.e(TAG, "Unexpected exception closing BLE GATT");
-            // Best effort cleanup only.
-        }
+        if (!gattCleanup.close(gatt, gatt::close)) Log.e(TAG, "Unable to close BLE GATT; further operations blocked");
     }
 
     private void rejectWithCode(PluginCall call, String code) {

@@ -1,3 +1,9 @@
+export const femometerPreferenceValues = {
+  volume: ['low', 'medium', 'high'], measurementMode: ['quick', 'normal', 'precise'],
+};
+const validPreferences = values => Object.fromEntries(Object.entries(femometerPreferenceValues)
+  .filter(([field, allowed]) => allowed.includes(values?.[field])).map(([field]) => [field, values[field]]));
+
 // One small local document per account. Never a second collection of daily records.
 // Local IDs identify review work only, not unique thermometer measurements.
 export const createFemometerLocalState = (storage, userId) => {
@@ -8,6 +14,22 @@ export const createFemometerLocalState = (storage, userId) => {
   if (state.version !== 1 || !state.devices || typeof state.devices !== 'object') throw new Error('Almacenamiento Bluetooth no válido.');
   const commit = next => { storage.setItem(key, JSON.stringify(next)); state = next; };
   return {
+    preferences: deviceKey => validPreferences(state.devices[deviceKey]?.preferences),
+    initializePreferences: deviceKey => {
+      if (!deviceKey) throw new Error('Vinculación no confirmada.');
+      const device = state.devices[deviceKey] ?? { pending: [], clock: null };
+      if (device.preferences) return validPreferences(device.preferences);
+      const preferences = { volume: 'medium', measurementMode: 'normal' };
+      commit({ ...state, devices: { ...state.devices, [deviceKey]: { ...device, preferences } } });
+      return { ...preferences };
+    },
+    savePreference: (deviceKey, field, value) => {
+      if (!deviceKey || !femometerPreferenceValues[field]?.includes(value)) throw new Error('Preferencia Bluetooth no válida.');
+      const device = state.devices[deviceKey] ?? { pending: [], clock: null };
+      const preferences = { ...validPreferences(device.preferences), [field]: value };
+      commit({ ...state, devices: { ...state.devices, [deviceKey]: { ...device, preferences } } });
+      return { ...preferences };
+    },
     recover: () => Object.entries(state.devices).flatMap(([deviceKey, device]) => (device.pending ?? []).map(row => ({
       ...row, deviceKey, importStatus: row.importStatus === 'saving' ? 'uncertain' : row.importStatus,
       reviewError: row.importStatus === 'saving' ? { code: 'ble-result-uncertain', message: 'El guardado se interrumpió. Comprueba el día en Mis registros antes de volver a incorporar.' } : row.reviewError,

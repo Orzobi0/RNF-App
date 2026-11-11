@@ -10,10 +10,11 @@ export const DeviceStatusButtonView = ({ ble, navigate }) => {
   const { issue } = useClockIssue(state, ble.clockHistory);
   if (!ble.enabled) return null;
   const { status, remembered, error } = state;
-  const searching = ['checking', 'searching', 'connecting', 'inspecting'].includes(status);
-  const listening = status === 'listening';
+  const searching = ['checking', 'searching', 'connecting', 'inspecting', 'binding'].includes(status);
+  const listening = status === 'listening' && state.listenerResult?.connectionReady === true && state.listenerResult?.indicationsActive === true;
+  const reconnect = state.gattReconnectRequired || state.volumeReconnectRequired || state.measurementModeReconnectRequired;
   const unlinked = !searching && !listening && remembered === false;
-  const label = state.restarting ? 'Reconectando' : listening ? 'Escuchando temperaturas' : status === 'stopping' ? 'Desconectando'
+  const label = state.configurationBusy ? 'Preparando ajustes…' : state.restarting ? 'Reconectando' : listening ? 'Escuchando temperaturas' : status === 'stopping' ? 'Desconectando'
     : searching ? 'Buscando / conectando' : unlinked ? 'Sin vincular' : 'Desconectado';
   const Icon = listening || searching || unlinked ? Bluetooth : BluetoothOff;
   const explanation = error?.code === 'CONNECTION_CANCELLED' ? 'Conexión cancelada. Puedes buscar de nuevo.'
@@ -38,8 +39,8 @@ export const DeviceStatusButtonView = ({ ble, navigate }) => {
       {explanation && <p className="text-xs text-slate-600">{explanation}</p>}
       {issue && <p className="text-xs text-amber-800">El reloj requiere atención.</p>}
       <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-        <Button type="button" size="icon" className="h-11 w-11 rounded-full" title={state.restarting ? 'Reconectando' : listening ? 'Reiniciar escucha' : 'Buscar nuevas'} aria-label={state.restarting ? 'Reconectando' : listening ? 'Reiniciar escucha' : 'Buscar nuevas'}
-          disabled={searching || state.restarting || status === 'stopping' || state.busy || state.clockBusy || (ble.preview && !ble.visualLab)}
+        <Button type="button" size="icon" className="h-11 w-11 rounded-full" title={state.restarting ? 'Reconectando' : listening ? reconnect ? 'Recuperar conexión' : 'Reiniciar escucha' : 'Buscar nuevas'} aria-label={state.restarting ? 'Reconectando' : listening ? reconnect ? 'Recuperar conexión' : 'Reiniciar escucha' : 'Buscar nuevas'}
+          disabled={state.configurationBusy || state.bindingBusy || state.changingDevice || state.volumeBusy || state.measurementModeBusy || state.deviceInfoBusy || searching || state.restarting || status === 'stopping' || state.busy || state.clockBusy || (ble.preview && !ble.visualLab)}
           onClick={() => { setOpen(false); void (listening ? ble.sessionRef.current?.restart() : remembered ? ble.sessionRef.current?.start() : ble.sessionRef.current?.scan()); }}>
           <RefreshCw className="h-5 w-5" aria-hidden="true" />
         </Button>

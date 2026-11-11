@@ -54,7 +54,10 @@ export const FemometerSessionOwner = ({ userId, children }) => {
   const [clockHistory, setClockHistory] = useState(null);
   const [lifecycleStatus, setLifecycleStatus] = useState('registering');
   const updateReadings = (next, requireDurable = false) => {
-    try { localRef.current?.saveReadings(next); }
+    try {
+      if (requireDurable && !localRef.current) throw new Error('Almacenamiento local no disponible.');
+      localRef.current?.saveReadings(next);
+    }
     catch (error) {
       setStorageError('No se han podido conservar los pendientes en este dispositivo. No cierres la aplicación.');
       if (requireDurable) throw error;
@@ -120,7 +123,7 @@ export const FemometerSessionOwner = ({ userId, children }) => {
         setTemperatureListenerMessage(normalized.device_key ? 'Lectura recibida y pendiente de revisión.' : 'Lectura de un termómetro sin vincular: solo se conserva durante esta sesión. Vincúlalo antes de nuevas tomas.');
       } else if (event?.status === 'timeout') setTemperatureListenerMessage('Escucha finalizada. Las lecturas recibidas siguen disponibles.');
       else if (event?.message) setTemperatureListenerMessage(event.message);
-    });
+    }, localRef.current);
     sessionRef.current = session;
     void session.start();
     let foregroundTimer;
