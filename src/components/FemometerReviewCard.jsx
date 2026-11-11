@@ -143,6 +143,7 @@ suppressExpandClick.current = false;
     ) : null;
   }
 
+  const otherBinding = Boolean(deviceKey) && readings.some(row => row.deviceKey && row.deviceKey !== deviceKey);
   const uncertain = selected?.importStatus === 'uncertain';
   const duplicate = !uncertain && selected?.reviewError?.code === 'ble-possible-duplicate';
   const HeaderIcon = uncertain ? AlertTriangle : duplicate ? Copy : PlusCircle;
@@ -165,12 +166,12 @@ suppressExpandClick.current = false;
         }
       }}
       className={`fixed z-[60] max-w-sm overscroll-contain rounded-3xl text-slate-700
-        ${expanded ? 'left-3 w-[calc(100%-24px)] overflow-y-auto border border-rose-400 bg-white p-4 shadow-lg'
+        ${expanded ? 'left-3 w-[calc(100%-24px)] overflow-y-auto border border-rose-200 bg-white p-4 shadow-lg'
           : 'left-3 w-[calc(100%-80px)] overflow-visible border border-rose-200 bg-gradient-to-br from-white via-rose-50 to-pink-50 p-3 shadow-[0_8px_22px_rgba(190,60,100,0.13)]'}
         transition-[transform,opacity] duration-200 ease-out motion-reduce:transition-none`}
       style={{
         top: `calc(${viewport?.top ?? 0}px + var(--ble-safe-top, env(safe-area-inset-top, 0px)) + 12px + var(--ble-notice-height, 0px))`,
-        maxHeight: `calc(${viewport ? `${viewport.height}px` : '100dvh'} - var(--ble-safe-top, env(safe-area-inset-top, 0px)) - env(safe-area-inset-bottom, 0px) - 24px - var(--ble-notice-height, 0px))`,
+        maxHeight: `calc(${viewport ? `${viewport.height}px` : '100dvh'} - var(--ble-safe-top, env(safe-area-inset-top, 0px)) - env(safe-area-inset-bottom, 0px) - 24px - var(--bottom-nav-safe, 64px) - var(--ble-notice-height, 0px))`,
         transform: compact ? `translate3d(${offset.x}px, ${offset.y}px, 0)` : undefined,
         opacity: compact ? opacity : undefined,
         transition: dragging ? 'none' : undefined,
@@ -190,7 +191,7 @@ suppressExpandClick.current = false;
       role="status"
       className={`font-semibold ${
         compact
-          ? `${uncertain || duplicate ? 'whitespace-normal' : 'whitespace-nowrap'} text-[clamp(14px,3.2vw,13px)] leading-4`
+          ? 'whitespace-normal text-sm leading-5'
           : 'text-md'
       }`}
     >
@@ -259,24 +260,25 @@ suppressExpandClick.current = false;
 
       {/* Keep the editor mounted even if the notice is hidden or minimized. */}
       <div hidden={!expanded} id="ble-pending-review" className="mt-3 space-y-3">
-        <ul className="max-h-32 space-y-2 overflow-y-auto" aria-label="Seleccionar temperatura pendiente">
+        {otherBinding && <p role="note" className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">Hay temperaturas de otra vinculación. Comprueba su origen y confirma la fecha antes de incorporarlas.</p>}
+        <ul className="max-h-48 space-y-2 overflow-y-auto" aria-label="Seleccionar temperatura pendiente">
   {readings.map(row => (
     <li key={row.uiId}>
       <button
         type="button"
         disabled={saving}
         aria-pressed={selected?.uiId === row.uiId}
-        className="min-h-11 w-full rounded-2xl border border-rose-200 bg-rose-50/40 px-3 py-2.5 text-left aria-pressed:border-rose-400 aria-pressed:bg-rose-50"
+        className="min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-left aria-pressed:border-rose-400 aria-pressed:bg-rose-50 focus-visible:outline-2 focus-visible:outline-rose-400 disabled:opacity-60"
         onClick={() => onSelect(row.uiId)}
       >
-        <span className="flex flex-wrap items-baseline justify-start gap-x-4 gap-y-0.5">
-          <span className="text-md font-semibold text-rose-700">
+        <span className="block space-y-0.5">
+          <span className="text-lg font-semibold text-titulo">
             {typeof row.temperatureC === 'number'
-              ? row.temperatureC.toLocaleString('es-ES', { maximumFractionDigits: 2 })
+              ? row.temperatureC.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
               : '—'} °C
           </span>
 
-          <span className="whitespace-nowrap text-md font-medium text-slate-800">
+          <span className="block text-sm text-slate-600">
             {formatBleDateTime(row.deviceTimestamp)}
           </span>
         </span>
@@ -286,8 +288,8 @@ suppressExpandClick.current = false;
 
           {!row.deviceKey
             ? ' · Origen sin vincular'
-            : row.deviceKey !== deviceKey
-              ? ' · Otra vinculación: revisar origen'
+            : deviceKey && row.deviceKey !== deviceKey
+              ? ' · Otra vinculación'
               : ''}
 
           {row.dateReview?.reason === 'older-than-24-hours'

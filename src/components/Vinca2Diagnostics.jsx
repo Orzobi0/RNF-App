@@ -45,6 +45,8 @@ const Vinca2Diagnostics = () => {
     <summary className="flex min-h-11 cursor-pointer items-center py-3 text-sm font-medium text-slate-500">Diagnóstico técnico</summary>
     <div className="min-w-0 space-y-4 break-words pb-4 text-xs text-slate-600">
 
+      {sessionState.volumeResult?.commandsAccepted && <p>Comandos Bluetooth de volumen aceptados; volumen físico no verificado.</p>}
+      {sessionState.measurementModeResult?.commandsAccepted && <p>Comandos Bluetooth de modo aceptados; modo real no verificado.</p>}
       <p>Estado de escucha: {sessionState.status}</p>
       {clockHistory && <div><p>Historial del reloj: {clockHistory.state}</p>
         {clockHistory.lastVerifiedSync && <p>Última sincronización verificada: {new Date(clockHistory.lastVerifiedSync.checkedAt).toLocaleString()}</p>}

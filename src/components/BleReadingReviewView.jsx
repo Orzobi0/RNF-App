@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { measurementDisplay, measurementSourceLabel } from '@/lib/temperatureMeasurements';
 import { Input } from '@/components/ui/input';
 
-const decisionButton = 'h-auto min-h-11 min-w-0 whitespace-normal rounded-xl px-2 py-2 text-sm leading-snug';
+const decisionButton = 'h-auto min-h-11 min-w-0 gap-2 whitespace-normal rounded-xl px-2 py-2 text-sm leading-snug';
 const positive = `${decisionButton} border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100`;
 const alternative = `${decisionButton} border-rose-200 bg-rose-50 text-rose-800 hover:bg-rose-100`;
 const warning = 'space-y-3 rounded-2xl border border-amber-200 bg-amber-50/60 p-3 text-sm';
@@ -29,7 +29,7 @@ export function BleReadingReviewView({
       {!canCheck && <p>Este intento no conserva un destino seguro. Revisa Mis registros antes de decidir.</p>}
       {check.status === 'loading' && <p role="status">Consultando temperaturas…</p>}
       {check.status === 'error' && <p role="alert">{check.message}</p>}
-      {canCheck && <Button type="button" variant="ghost" className="h-auto min-h-9 px-1 text-xs" disabled={busy || check.status === 'loading'} onClick={onCheck}>
+      {canCheck && <Button type="button" variant="ghost" className="h-auto min-h-11 px-1 text-sm" disabled={busy || check.status === 'loading'} onClick={onCheck}>
         {check.status === 'error' ? 'Reintentar consulta' : 'Actualizar temperaturas'}
       </Button>}
       {complete && <div aria-live="polite">
@@ -44,7 +44,7 @@ export function BleReadingReviewView({
         <p>¿Confirmas que ya está guardada? Solo retiraremos esta pendiente local.</p>
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="outline" className={positive} disabled={busy || !complete} onClick={onConfirmStored}>Confirmar que ya está guardada</Button>
-          <Button type="button" variant="ghost" disabled={busy} onClick={onBackStored}>Volver</Button>
+          <Button type="button" className="min-h-11" variant="ghost" disabled={busy} onClick={onBackStored}>Volver</Button>
         </div>
       </div> : <>
         <p className="font-semibold">¿Esta temperatura ya está guardada?</p>
@@ -67,7 +67,7 @@ export function BleReadingReviewView({
               value={draft.isoDate}
               disabled={busy}
               onChange={event => change({ isoDate: event.target.value })}
-              className="mt-1 min-w-0 w-full border-rose-200 bg-white text-slate-700 focus-visible:ring-rose-300"
+              className="mt-1 h-11 min-w-0 w-full max-w-full rounded-xl border-slate-200 px-2 bg-white text-slate-700 focus-visible:ring-rose-300"
             />
           </label>
 
@@ -78,7 +78,7 @@ export function BleReadingReviewView({
               value={draft.time}
               disabled={busy}
               onChange={event => change({ time: event.target.value })}
-              className="mt-1 min-w-0 w-full border-rose-200 bg-white text-slate-700 focus-visible:ring-rose-300"
+              className="mt-1 h-11 min-w-0 w-full max-w-full rounded-xl border-slate-200 px-2 bg-white text-slate-700 focus-visible:ring-rose-300"
             />
           </label>
         </div>
@@ -88,7 +88,7 @@ export function BleReadingReviewView({
         <p>¿Descartar esta temperatura pendiente? Se eliminará de FertiliApp en este dispositivo. No se borrarán registros ya guardados.</p>
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="outline" className={alternative} disabled={busy} onClick={onDiscard}><Trash2 className="h-4 w-4 shrink-0" aria-hidden="true" />Confirmar descarte</Button>
-          <Button type="button" variant="ghost" disabled={busy} onClick={onCancelDiscard}>Volver</Button>
+          <Button type="button" className="min-h-11" variant="ghost" disabled={busy} onClick={onCancelDiscard}>Volver</Button>
         </div>
       </div> : <>
         <p>Hemos encontrado una posible coincidencia con otra medición registrada.</p>
@@ -98,18 +98,22 @@ export function BleReadingReviewView({
           <Button type="button" variant="outline" className={alternative} disabled={busy} onClick={onRepeated}><Trash2 className="h-4 w-4 shrink-0" aria-hidden="true" /><span>No, está repetida</span></Button>
         </div>
       </>}
-      {!uncertain && <Button type="button" variant="ghost" disabled={busy} onClick={onClose}>Cancelar</Button>}
+      {!uncertain && discardConfirm && <Button type="button" className="min-h-11" variant="ghost" disabled={busy} onClick={onClose}>Cancelar</Button>}
     </section>}
     {error && !duplicate && <p role="alert" className="text-sm text-amber-800">Requiere revisión: {error.message}</p>}
     {error?.code === 'ble-import-conflict' && <Button variant="outline" onClick={() => { onClose(); navigate('/records'); }}>Revisar ciclo en Mis registros</Button>}
-    {!discardConfirm && !storedConfirm && showFields && <div className="flex flex-wrap items-center justify-between gap-2 pb-[env(safe-area-inset-bottom,0px)]">
-      {!uncertain && !duplicate && <Button type="button" variant="ghost" className="mr-auto min-h-11 h-auto max-w-full whitespace-normal px-2 text-left text-slate-600" disabled={busy || reading.importStatus !== 'pending'} onClick={onRequestDiscard}><Trash2 className="h-4 w-4 shrink-0" aria-hidden="true" />Descartar temperatura</Button>}
-      <Button type="button" className="ml-auto min-h-11 h-auto max-w-full whitespace-normal rounded-full bg-fertiliapp-fuerte px-4 py-2 text-white hover:brightness-95"
-        disabled={busy || !draft.isoDate || !draft.time || (uncertain && !checkedUncertain) || (duplicate && !duplicateApproved)} onClick={confirm}>
-        {busy ? 'Incorporando…' : 'Confirmar e incorporar'}
-      </Button>
+    {!discardConfirm && !storedConfirm && showFields && <footer aria-label="Acciones de revisión" className="space-y-2 border-t border-slate-100 pt-3 pb-[env(safe-area-inset-bottom,0px)]">
+      <div className="flex items-center justify-between gap-2">
+        {!uncertain && !duplicate && <Button type="button" variant="ghost" className="min-h-11 h-auto min-w-0 gap-2 whitespace-normal rounded-xl px-1 py-2 text-left text-sm text-slate-600" disabled={busy || reading.importStatus !== 'pending'} onClick={onRequestDiscard}><Trash2 className="h-4 w-4 shrink-0" aria-hidden="true" /><span>Descartar temperatura</span></Button>}
+        {!uncertain && <Button type="button" className="ml-auto min-h-11 shrink-0 rounded-xl px-2 text-slate-600" variant="ghost" disabled={busy} onClick={onClose}>Cancelar</Button>}
+      </div>
+      <div className="flex justify-end">
+        <Button type="button" className="ml-auto min-h-11 h-auto max-w-full whitespace-normal rounded-xl bg-fertiliapp-fuerte px-4 py-2 text-white hover:brightness-95"
+          disabled={busy || !draft.isoDate || !draft.time || (uncertain && !checkedUncertain) || (duplicate && !duplicateApproved)} onClick={confirm}>
+          {busy ? 'Incorporando…' : 'Confirmar e incorporar'}
+        </Button>
+      </div>
+    </footer>}
 
-    </div>}
-    {!uncertain && !duplicate && !discardConfirm && <Button type="button" className="min-h-11" variant="ghost" disabled={busy} onClick={onClose}>Cancelar</Button>}
   </div>;
 }
