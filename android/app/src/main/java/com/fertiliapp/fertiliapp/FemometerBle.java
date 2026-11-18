@@ -292,6 +292,8 @@ public class FemometerBle extends Plugin {
 
     @PluginMethod
     public void scan(PluginCall call) {
+        // Scan callbacks, timeout and cancellation share one ordered queue.
+        if (Looper.myLooper() != Looper.getMainLooper()) { mainHandler.post(() -> scan(call)); return; }
         Log.d(TAG, "scan called");
         String blockedCode = getBlockedOperationCode();
         if (blockedCode != null) {
@@ -823,6 +825,7 @@ public class FemometerBle extends Plugin {
 
     @PluginMethod
     public synchronized void disconnect(PluginCall call) {
+        if (Looper.myLooper() != Looper.getMainLooper()) { mainHandler.post(() -> disconnect(call)); return; }
         gattCleanup.retry();
         cancelScan();
         rejectPendingConnect("Conexion cancelada.", "CONNECTION_CANCELLED");

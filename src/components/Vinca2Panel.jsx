@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ChevronRight, Clock3, Info, Thermometer, Unlink } from 'lucide-react';
+import { ChevronRight, Clock3, Info, Thermometer, Link2, Unlink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { useFemometer } from '@/contexts/FemometerContext';
@@ -61,13 +61,15 @@ const Vinca2Panel = ({ deviceKey } = {}) => {
   const measurementModeLabels = { quick: 'Rápido', normal: 'Normal', precise: 'Preciso' };
   const measurementModeResult = listening && sessionState.measurementModeResult?.commandsAccepted ? sessionState.measurementModeResult : null;
   const measurementModeReady = listening && sessionState.listenerResult?.connectionReady && sessionState.listenerResult?.indicationsActive;
+  const healthyListening = listening && sessionState.listenerResult?.connectionReady === true && sessionState.listenerResult?.indicationsActive === true;
   const rowClass = 'flex min-h-14 w-full items-center gap-3 py-4 text-left text-sm disabled:opacity-50';
-  return <div id="bluetooth-readings" className="min-w-0 bg-white text-slate-700">
-    <div className="flex items-center gap-4 pb-5 pt-1">
-      <>{vinca ? <img src="/images/vinca2.jpg" alt="Femometer Vinca 2 con funda rosa" width="56" height="88" className="h-[88px] w-14 shrink-0 object-contain" /> : <Thermometer className="h-12 w-12" aria-hidden="true" />}</>
+  return <div id="bluetooth-readings" className="min-w-0 text-slate-700">
+    <div className="flex items-center gap-3 rounded-2xl border border-slate-200/70 bg-white p-3">
+      <>{vinca ? <img src="/images/vinca2.jpg" alt="Femometer Vinca 2 con funda rosa" width="56" height="88" className="h-20 w-12 shrink-0 object-contain" /> : <Thermometer className="h-12 w-12" aria-hidden="true" />}</>
       <div className="min-w-0">
         <h2 className="text-xl font-semibold text-titulo">{vinca ? 'Femometer Vinca 2' : model || 'Termómetro'}</h2>
-        <p role="status" className={`mt-1 text-sm ${retry ? 'text-amber-800' : listening && !sessionState.configurationBusy ? 'text-fertiliapp-fuerte' : 'text-slate-600'}`}>{vinca2StatusText(status, sessionState)}</p>
+        <p className="mt-1 flex items-center gap-1 text-xs text-slate-500">{remembered && <><Link2 className="h-3 w-3" aria-hidden="true" />Vinculado</>}</p>
+        <p role="status" className={`mt-1 text-sm ${retry ? 'text-amber-800' : listening && !sessionState.configurationBusy ? 'text-fertiliapp-fuerte' : 'text-slate-600'}`}>{healthyListening && <svg aria-hidden="true" viewBox="0 0 44 44" className="mr-1 inline-block h-5 w-5 animate-pulse motion-reduce:animate-none" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M13 16 Q8 22 13 28 M8 12 Q0 22 8 32 M31 16 Q36 22 31 28 M36 12 Q44 22 36 32" /></svg>}{healthyListening ? 'Escuchando temperaturas' : vinca2StatusText(status, sessionState)}</p>
         {listening && sessionState.configurationIssue && !sessionState.configurationBusy && <p className="text-xs text-amber-800">La recepción está activa; revisa los ajustes pendientes.</p>}
       </div>
     </div>
@@ -76,9 +78,9 @@ const Vinca2Panel = ({ deviceKey } = {}) => {
       {sessionState.error?.code === 'PERMISSION_NOT_GRANTED' && <p>Permite el acceso a Bluetooth al reintentar. Si el móvil ya no lo solicita, revisa los permisos de FertiliApp en los ajustes del teléfono.</p>}
       {sessionState.error?.code === 'BLUETOOTH_DISABLED' && <p>Activa Bluetooth en los ajustes del móvil y vuelve a intentarlo.</p>}
     </div>}
-    <div className="flex flex-wrap items-center gap-2 pb-3">
-    <Button type="button" className="inline-flex min-h-11 h-auto rounded-xl w-fit max-w-full px-4 py-2 whitespace-normal bg-fertiliapp-fuerte text-white hover:brightness-95"
-      disabled={busy} onClick={() => run(operation)}>{primaryLabel}</Button>
+    <div className="flex flex-wrap items-center gap-2 py-2">
+    {!listening && <Button type="button" className="inline-flex min-h-11 h-auto rounded-xl w-fit max-w-full px-4 py-2 whitespace-normal bg-fertiliapp-fuerte text-white hover:brightness-95"
+      disabled={busy} onClick={() => run(operation)}>{primaryLabel}</Button>}
     {listening && <Button type="button" variant="ghost" className="inline-flex min-h-11 h-auto rounded-xl w-fit max-w-full px-4 py-2 whitespace-normal" disabled={busy} onClick={() => run('stop')}>Detener escucha</Button>}
     </div>
         {pendingCount > 0 && (
@@ -100,9 +102,7 @@ const Vinca2Panel = ({ deviceKey } = {}) => {
             </span>
           </span>
 
-          <span className="mt-0.5 block text-sm text-slate-600">
-            Pendientes de revisar e incorporar
-          </span>
+
         </span>
 
         <ChevronRight
@@ -112,7 +112,7 @@ const Vinca2Panel = ({ deviceKey } = {}) => {
       </button>
     )}
     {sessionState.preferenceError && <p role="alert" className="py-2 text-sm text-amber-800">{sessionState.preferenceError}</p>}
-    <section aria-labelledby="vinca-configuration" className="pt-6">
+    <section aria-labelledby="vinca-configuration" className="mt-4 rounded-2xl border border-slate-200/70 bg-white px-4 pt-3">
       <h3 id="vinca-configuration" className="text-base font-semibold text-titulo">Configuración</h3>
       <div className="divide-y divide-slate-100">
         {(capabilities?.clockRead || capabilities?.clockSync || (!listening && vinca)) && <div>
@@ -194,7 +194,7 @@ const Vinca2Panel = ({ deviceKey } = {}) => {
       {sessionState.error && <p role="alert" className="text-sm text-amber-800">{sessionState.error.message || 'No se pudo confirmar la desvinculación. La vinculación se conserva; puedes reintentar.'}</p>}
       <DialogFooter><Button variant="outline" className="inline-flex min-h-11 h-auto rounded-xl w-fit max-w-full whitespace-normal px-4 py-2" onClick={() => setConfirmForget(false)}>Cancelar</Button><Button className="inline-flex min-h-11 h-auto rounded-xl w-fit max-w-full whitespace-normal px-4 py-2" disabled={Boolean(sessionState.bindingBusy || !remembered)} onClick={() => run('unlink')}>Confirmar desvinculación</Button></DialogFooter>
     </DialogContent></Dialog>
-    {active && <Vinca2Diagnostics />}
+    {active && <Vinca2Diagnostics onRestart={() => run('restart')} restartDisabled={busy} recoveryRequired={Boolean(recover)} />}
   </div>;
 };
 export default Vinca2Panel;

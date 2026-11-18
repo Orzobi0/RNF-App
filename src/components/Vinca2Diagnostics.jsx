@@ -5,8 +5,8 @@ import { cn } from '@/lib/utils';
 
 const DEFAULT_TEMPERATURE_LISTEN_SECONDS = 6 * 60;
 
-// Read-only session diagnostics. Opening this disclosure never starts BLE work.
-const Vinca2Diagnostics = () => {
+// Opening diagnostics never starts BLE work; recovery requires an explicit action.
+const Vinca2Diagnostics = ({ onRestart, restartDisabled, recoveryRequired } = {}) => {
   const { sessionState, readings, listeningStartedAt, temperatureListenerMessage, openReadingReview, lifecycleStatus, clockHistory } = useFemometer();
   const { inspectionResult } = sessionState;
   const isStartingTemperatureListener = sessionState.status === 'connecting';
@@ -47,6 +47,7 @@ const Vinca2Diagnostics = () => {
 
       {sessionState.volumeResult?.commandsAccepted && <p>Comandos Bluetooth de volumen aceptados; volumen físico no verificado.</p>}
       {sessionState.measurementModeResult?.commandsAccepted && <p>Comandos Bluetooth de modo aceptados; modo real no verificado.</p>}
+      {onRestart && sessionState.status === 'listening' && <Button variant="outline" className="min-h-11 w-fit rounded-xl px-3 py-2" disabled={restartDisabled} onClick={onRestart}>{recoveryRequired ? 'Recuperar conexión' : 'Reiniciar escucha'}</Button>}
       <p>Estado de escucha: {sessionState.status}</p>
       <p>Modelo de la conexión: {sessionState.listenerResult?.capabilities?.model || 'sin validar'} · Protocolo: {sessionState.listenerResult?.capabilities?.protocol || 'no disponible'}</p>
       {clockHistory && <div><p>Historial del reloj: {clockHistory.state}</p>

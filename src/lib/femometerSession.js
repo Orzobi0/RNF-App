@@ -50,6 +50,7 @@ export const createFemometerSessionManager = (api) => {
     let automaticConfigurationPending = false;
     let configurationJob;
     let bindingJob;
+    let cancelChangeJob;
     let stopping;
     let disposal;
     let subscription;
@@ -410,7 +411,17 @@ export const createFemometerSessionManager = (api) => {
         });
       },
       beginChange: () => changeBinding(false),
-      cancelChange: () => { if (disposed || bindingJob || job || stopping) return Promise.resolve(); publish({ changingDevice: false }); return session.start(); },
+      cancelChange: () => {
+        if (cancelChangeJob) return cancelChangeJob;
+        if (disposed || bindingJob) return Promise.resolve();
+        cancelChangeJob = (async () => {
+          await session.stop();
+          if (disposed || suspended || state.error) return;
+          publish({ changingDevice: false });
+          await session.start();
+        })().finally(() => { cancelChangeJob = null; });
+        return cancelChangeJob;
+      },
       setMeasurementMode,
       setVolume,
       readDeviceInfo,

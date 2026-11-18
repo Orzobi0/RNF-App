@@ -307,7 +307,7 @@ export default function BluetoothVisualLab({ Provider, children }) {
       if (operationBlocked()) return;
       setSessionState(previous => ({ ...previous, status: 'searching', busy: true, error: null, devices: [], selectedDeviceId: '', inspectionResult: null }));
       timer.current = setTimeout(() => setSessionState(previous => ({ ...previous, status: 'idle', busy: false,
-        devices: [{ id: 'lab-vinca', name: 'BM-Vinca2 (simulado)', rssi: -48 }, { id: 'lab-other', name: 'Otra marca (simulado)', compatibility: 'unknown', rssi: -72 }, { id: 'lab-standard', name: null, compatibility: 'possible_standard', rssi: -68 }, ...(expanded ? [{ id: 'lab-unknown', name: 'BLE sin identificar (simulado)', compatibility: 'unknown', rssi: -80 }] : []), { id: 'lab-inspection-error', name: 'BM-Vinca2 (fallo de inspección simulado)', rssi: -65 }, { id: 'lab-save-error', name: 'BM-Vinca2 (fallo de vinculación simulado)', rssi: -60 }] })), 900);
+        devices: [...(previous.bindings ?? []).map(device => ({ id: `lab-saved-${device.deviceKey}`, deviceKey: device.deviceKey, name: 'BM-Vinca2 (simulado)', rssi: -45 })), { id: 'lab-vinca', name: 'BM-Vinca2 (simulado)', rssi: -48 }, { id: 'lab-other', name: 'Otra marca (simulado)', compatibility: 'unknown', rssi: -72 }, { id: 'lab-standard', name: null, compatibility: 'possible_standard', rssi: -68 }, ...(expanded ? [{ id: 'lab-unknown', name: 'BLE sin identificar (simulado)', compatibility: 'unknown', rssi: -80 }] : []), { id: 'lab-inspection-error', name: 'BM-Vinca2 (fallo de inspección simulado)', rssi: -65 }, { id: 'lab-save-error', name: 'BM-Vinca2 (fallo de vinculación simulado)', rssi: -60 }] })), 900);
     },
     selectAndRemember: deviceId => {
       if (operationBlocked()) return Promise.resolve(false);
@@ -384,8 +384,9 @@ export default function BluetoothVisualLab({ Provider, children }) {
       return true;
     },
     cancelChange: async () => {
+      await sessionRef.current.stop();
       setSessionState(previous => ({ ...previous, changingDevice: false }));
-      prepareListening();
+      if (sessionState.remembered) prepareListening();
     },
     select: id => {
       if (operationBlocked() || !sessionState.devices.some(device => device.id === id)) return;
