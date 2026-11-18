@@ -72,6 +72,9 @@ test('Android message bridge receives multiple readings and releases the subscri
     for (const [method, invoke, options, response] of [
       ['getRememberedDevice', () => ble.getRememberedFemometer('user-a'), { userId: 'user-a' }, { remembered: true }],
       ['rememberDevice', () => ble.rememberFemometer('user-a', 'temporary-id'), { userId: 'user-a', deviceId: 'temporary-id' }, { remembered: true }],
+      ['selectRememberedDevice', () => ble.selectRememberedFemometer('user-a', 'opaque-key'), { userId: 'user-a', deviceKey: 'opaque-key' }, { remembered: true, deviceKey: 'opaque-key' }],
+      ['forgetDevice', () => ble.forgetFemometer('user-a', 'opaque-key'), { userId: 'user-a', deviceKey: 'opaque-key' }, { remembered: false, bindings: [] }],
+      ['startStandardTrial', () => ble.startStandardThermometerTrial('candidate', 'user-a'), { deviceId: 'candidate', userId: 'user-a' }, { experimental: true }],
       ['forgetDevice', () => ble.forgetFemometer('user-b'), { userId: 'user-b' }, { remembered: false }],
     ]) {
       const pending = invoke();
@@ -81,6 +84,13 @@ test('Android message bridge receives multiple readings and releases the subscri
       deliver({ callbackId: request.callbackId, success: true, data: response });
       assert.deepEqual(await pending, response);
     }
+    const trials = [];
+    const trialListener = await ble.addStandardThermometerTrialListener(value => trials.push(value));
+    const trialRegistration = messages.at(-1);
+    assert.equal(trialRegistration.options.eventName, 'thermometerTrialReading');
+    deliver({ callbackId: trialRegistration.callbackId, success: true, save: true, data: { experimental: true, temperatureC: 36.5 } });
+    assert.equal(trials.length, 1); assert.equal(readings.length, 2);
+    await trialListener.remove();
     const rememberedScan = ble.scanForFemometer('user-a');
     const rememberedRequest = messages.at(-1);
     assert.deepEqual(rememberedRequest.options, { userId: 'user-a' });

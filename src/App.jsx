@@ -285,6 +285,7 @@ const routeErrorBoundaryKey = location.pathname.startsWith('/cycle/')
                 }
               />
               <Route path="/settings/devices" element={<ProtectedRoute><MainLayout><DevicesPage /></MainLayout></ProtectedRoute>} />
+              <Route path="/settings/devices/:deviceKey" element={<ProtectedRoute><MainLayout><Vinca2DevicePage /></MainLayout></ProtectedRoute>} />
               <Route path="/settings/devices/vinca2" element={<ProtectedRoute><MainLayout><Vinca2DevicePage /></MainLayout></ProtectedRoute>} />
               <Route
                 path="/settings/support"

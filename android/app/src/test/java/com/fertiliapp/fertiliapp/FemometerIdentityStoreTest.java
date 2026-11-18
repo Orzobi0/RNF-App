@@ -9,6 +9,11 @@ public class FemometerIdentityStoreTest {
     static class Memory implements FemometerIdentityStore.Storage {
         Map<String, String> legacy = new HashMap<>();
         Map<String, FemometerIdentityStore.Binding> records = new HashMap<>();
+        Map<String, FemometerIdentityStore.Bindings> groups = new HashMap<>();
+        public FemometerIdentityStore.Bindings readBindings(String user) { return groups.get(user); }
+        public boolean writeBindings(String user, FemometerIdentityStore.Bindings value) {
+            if (fail) return false; groups.put(user, value); return true;
+        }
         boolean fail;
         public String legacyAddress(String user) { return legacy.get(user); }
         public FemometerIdentityStore.Binding read(String user) { return records.get(user); }
@@ -26,7 +31,7 @@ public class FemometerIdentityStoreTest {
         assertEquals(first, next.keyForAddress("a", "private-address"));
         assertNull(next.keyForAddress("a", "different-address"));
     }
-    @Test public void separatesAccountsAndRotatesOnReplacementOrForget() {
+    @Test public void separatesAccountsAndRetainsOtherDevicesWhenSelectedDeviceIsForgotten() {
         Memory memory = new Memory(); memory.legacy.put("a", "one");
         FemometerIdentityStore store = new FemometerIdentityStore(memory);
         String first = store.get("a").key;
@@ -35,12 +40,35 @@ public class FemometerIdentityStoreTest {
         assertNotEquals(first, store.remember("a", "two").key);
         store.forget("a");
         assertNull(new FemometerIdentityStore(memory).get("a").key); // old legacy must not resurrect
-        assertNull(store.keyForAddress("a", "one"));
-        assertNotEquals(first, store.remember("a", "one").key);
+        assertEquals(first, store.keyForAddress("a", "one"));
+        assertEquals(first, store.remember("a", "one").key);
     }
     @Test public void failedMigrationCannotReturnEphemeralIdentity() {
         Memory memory = new Memory(); memory.legacy.put("a", "one"); memory.fail = true;
         try { new FemometerIdentityStore(memory).get("a"); fail("must reject failed commit"); }
         catch (IllegalStateException expected) { assertEquals("PERSISTENCE_FAILED", expected.getMessage()); }
     }
+    @Test public void migratesV2WithoutRotatingKeyAndKeepsMultipleBindings() {
+        Memory memory = new Memory(); memory.records.put("a", new FemometerIdentityStore.Binding("one", "existing-key"));
+        FemometerIdentityStore store = new FemometerIdentityStore(memory);
+        assertEquals("existing-key", store.get("a").key);
+        String second = store.remember("a", "two").key;
+        assertEquals(2, store.all("a").devices.size());
+        store.select("a", "existing-key"); assertEquals("existing-key", store.get("a").key);
+        assertEquals(second, store.remember("a", "two").key); assertEquals(2, store.all("a").devices.size());
+        store.forget("a", "existing-key"); assertEquals(second, store.get("a").key);
+        store.forget("a", second); assertNull(store.get("a").key);
+        assertEquals(0, new FemometerIdentityStore(memory).all("a").devices.size());
+    }
+    @Test public void failedAdditionOrSelectionDoesNotChangePreviousCollection() {
+        Memory memory = new Memory(); FemometerIdentityStore store = new FemometerIdentityStore(memory);
+        String first = store.remember("a", "one").key; String second = store.remember("a", "two").key;
+        memory.fail = true;
+        try { store.remember("a", "three"); fail(); } catch (IllegalStateException expected) { }
+        try { store.select("a", first); fail(); } catch (IllegalStateException expected) { }
+        assertEquals(2, store.all("a").devices.size()); assertEquals(second, store.get("a").key);
+        memory.fail = false; store.forget("a", second);
+        assertNull(store.get("a").key); assertEquals(first, store.all("a").devices.get(0).key);
+    }
+
 }

@@ -71,7 +71,7 @@ export const createFemometerSessionManager = (api) => {
     };
     let state = {
       preferences: {}, preferenceError: null, configurationBusy: false, configurationIssue: false, gattReconnectRequired: false, bindingBusy: false, changingDevice: false,
-      status: 'checking', busy: false, remembered: null, devices: [],
+      status: 'checking', busy: false, remembered: null, devices: [], bindings: [], preferencesByDevice: {},
       selectedDeviceId: '', inspectionResult: null, error: null, listenerResult: null,
       volumeBusy: false, volumeResult: null, volumeError: null, volumeReconnectRequired: false,
       measurementModeBusy: false, measurementModeResult: null, measurementModeError: null, measurementModeReconnectRequired: false,
@@ -82,10 +82,20 @@ export const createFemometerSessionManager = (api) => {
       state = { ...state, ...patch };
       if (!disposed) onState(state);
     };
+    const applyBindings = saved => {
+      const bindings = Array.isArray(saved.bindings) ? saved.bindings : saved.remembered && saved.deviceKey
+        ? [{ deviceKey: saved.deviceKey, model: saved.model ?? 'BM-Vinca2' }] : [];
+      const preferencesByDevice = Object.fromEntries(bindings.map(device => {
+        try { return [device.deviceKey, localState?.preferences(device.deviceKey) ?? {}]; } catch { return [device.deviceKey, {}]; }
+      }));
+      publish({ bindings, preferencesByDevice, remembered: saved.remembered, deviceKey: saved.deviceKey ?? null,
+        boundModel: saved.model ?? (saved.remembered ? 'BM-Vinca2' : null) });
+    };
     const loadPreferences = deviceKey => {
       try {
         if (!localState) throw new Error('Almacenamiento no disponible.');
-        publish({ preferences: localState.preferences(deviceKey), preferenceError: null });
+        const preferences = localState.preferences(deviceKey);
+        publish({ preferences, preferencesByDevice: { ...state.preferencesByDevice, [deviceKey]: preferences }, preferenceError: null });
       } catch {
         publish({ preferences: {}, preferenceError: 'No se pudieron recuperar las preferencias locales.' });
       }
@@ -94,7 +104,7 @@ export const createFemometerSessionManager = (api) => {
       try {
         if (!localState) throw new Error('Almacenamiento no disponible.');
         const preferences = localState.savePreference(state.deviceKey, field, level);
-        publish({ preferences, preferenceError: null });
+        publish({ preferences, preferencesByDevice: { ...state.preferencesByDevice, [state.deviceKey]: preferences }, preferenceError: null });
       } catch {
         publish({ preferenceError: 'El ajuste fue aceptado, pero no se pudo guardar la preferencia en este dispositivo.' });
       }
@@ -107,7 +117,7 @@ export const createFemometerSessionManager = (api) => {
       await old?.remove();
     };
     const run = (task, restarting = false) => {
-      if (disposed || suspended || bindingJob || configurationJob || (restartJob && !restarting) || job || clockJob || deviceInfoJob || volumeJob || measurementModeJob || stopping || state.status === 'listening') return Promise.resolve();
+      if (disposed || suspended || bindingJob || configurationJob || (restartJob && !restarting) || job || clockJob || deviceInfoJob || volumeJob || measurementModeJob || stopping || ['listening', 'trial'].includes(state.status)) return Promise.resolve();
       const token = ++version;
       const current = () => !disposed && token === version;
       const check = () => { if (!current()) throw { code: 'CONNECTION_CANCELLED' }; };
@@ -123,7 +133,7 @@ export const createFemometerSessionManager = (api) => {
         if (!current()) return;
         await disconnect().catch(() => {});
         await removeSubscription().catch(() => {});
-        if (current()) publish({ status: 'error', error, listenerResult: null });
+        if (current()) publish({ status: 'error', error, listenerResult: null, trial: state.trial ? { ...state.trial, status: 'complete' } : null });
       }).finally(() => {
         job = null;
         if (current()) {
@@ -141,7 +151,7 @@ export const createFemometerSessionManager = (api) => {
       publish({ configurationBusy: false, configurationIssue: false, gattReconnectRequired: false, measurementModeBusy: false, measurementModeResult: null, measurementModeError: null, measurementModeReconnectRequired: false, volumeBusy: false, volumeResult: null, volumeError: null, volumeReconnectRequired: false, deviceInfoStatus: 'idle', deviceInfoBusy: false, deviceInfoResult: null, deviceInfoError: null, status: 'connecting', listenerResult: null, clockResult: null, clockError: null, capabilities: thermometerCapabilities() });
       // Assign even a late subscription so cancellation can remove it after job settles.
       subscription = await api.addFemometerTemperatureListener(event => {
-        if (!current()) return;
+        if (!current() || event?.experimental === true) return;
         onTemperature({ ...event, deviceModel: event?.deviceModel ?? state.listenerResult?.capabilities?.model ?? null });
         if (['timeout', 'stopped', 'disconnected', 'error'].includes(event?.status)) {
           void session.stop(['timeout', 'stopped'].includes(event.status) ? 'stopped' : 'error',
@@ -163,7 +173,7 @@ export const createFemometerSessionManager = (api) => {
     const search = async (automatic, call, current, expanded = false) => {
       publish({ status: 'checking', devices: [], selectedDeviceId: '', inspectionResult: null });
       const saved = await call(() => api.getRememberedFemometer(userId));
-      publish({ remembered: saved.remembered, deviceKey: saved.deviceKey ?? null, boundModel: saved.model ?? (saved.remembered ? 'BM-Vinca2' : null) });
+      applyBindings(saved);
       loadPreferences(saved.deviceKey);
       if (automatic && !saved.remembered) {
         publish({ status: 'idle' });
@@ -353,8 +363,8 @@ export const createFemometerSessionManager = (api) => {
       });
       return configurationJob;
     };
-    const changeBinding = forget => {
-      if (bindingJob) return bindingJob;
+    const changeBinding = (forget, deviceKey = state.deviceKey) => {
+      if (bindingJob) return Promise.resolve(false);
       if (disposed || suspended) return Promise.resolve(false);
       const lifecycle = lifecycleVersion;
       publish({ bindingBusy: true });
@@ -364,10 +374,12 @@ export const createFemometerSessionManager = (api) => {
         if (!current()) return false;
         if (state.error || acquired) throw state.error || new Error('No se pudo cerrar la conexión.');
         if (!forget) { publish({ changingDevice: true, status: 'idle' }); return true; }
-        const result = await api.forgetFemometer(userId);
+        const result = await api.forgetFemometer(userId, deviceKey);
         if (!current()) return false;
-        if (result?.remembered !== false) throw new Error('No se pudo confirmar la desvinculación.');
-        publish({ remembered: false, boundModel: null, deviceKey: null, preferences: {}, preferenceError: null, changingDevice: false,
+        if (Array.isArray(result?.bindings) ? result.bindings.some(device => device.deviceKey === deviceKey) : result?.remembered !== false) throw new Error('No se pudo confirmar la desvinculación.');
+        applyBindings(result);
+        loadPreferences(result.deviceKey);
+        publish({ changingDevice: false,
           status: 'idle', devices: [], selectedDeviceId: '', inspectionResult: null, clockResult: null, clockError: null });
         return true;
       }).catch(error => { if (!disposed) publish({ error, status: 'error' }); return false; })
@@ -375,7 +387,28 @@ export const createFemometerSessionManager = (api) => {
       return bindingJob;
     };
     const session = {
-      unlink: () => changeBinding(true),
+      unlink: deviceKey => changeBinding(true, deviceKey),
+      connectSaved: deviceKey => {
+        if (bindingJob || disposed || suspended) return Promise.resolve(false);
+        if (!state.bindings.some(device => device.deviceKey === deviceKey)) return Promise.resolve(false);
+        const lifecycle = lifecycleVersion;
+        publish({ bindingBusy: true });
+        bindingJob = (async () => {
+          await session.stop();
+          if (disposed || suspended || lifecycle !== lifecycleVersion || state.error || acquired) return false;
+          const saved = await api.selectRememberedFemometer(userId, deviceKey);
+          if (disposed || suspended || lifecycle !== lifecycleVersion) return false;
+          if (saved?.deviceKey !== deviceKey) throw new Error('No se pudo confirmar la selección.');
+          applyBindings(saved); loadPreferences(deviceKey);
+          publish({ changingDevice: false, clockResult: null, clockError: null });
+          return true;
+        })().catch(error => { if (!disposed) publish({ error, status: 'error' }); return false; })
+          .finally(() => { bindingJob = null; if (!disposed) publish({ bindingBusy: false }); });
+        return bindingJob.then(async selected => {
+          if (selected && !disposed && !suspended && lifecycle === lifecycleVersion) await session.start();
+          return selected;
+        });
+      },
       beginChange: () => changeBinding(false),
       cancelChange: () => { if (disposed || bindingJob || job || stopping) return Promise.resolve(); publish({ changingDevice: false }); return session.start(); },
       setMeasurementMode,
@@ -451,31 +484,55 @@ export const createFemometerSessionManager = (api) => {
             throw { code: 'INSPECTION_FAILED', message: 'No se pudo comprobar la compatibilidad. Vuelve a intentarlo.' };
           }
           publish({ inspectionResult: inspection, devices: state.devices.map(device => device.id === deviceId
-            ? { ...device, model: inspection.model, manufacturer: inspection.manufacturer, compatibility: inspection.compatibility ?? 'unknown' } : device) });
+            ? { ...device, model: inspection.model, manufacturer: inspection.manufacturer, compatibility: inspection.compatibility ?? 'unknown', standardTrialAvailable: inspection.standardTrialAvailable === true } : device) });
           if (inspection?.compatible !== true || inspection.protocol !== 'vinca2' || inspection.model !== 'BM-Vinca2') {
             publish({ status: 'idle' });
             return;
           }
           const previousKey = state.deviceKey;
+          const previousKeys = state.bindings.map(device => device.deviceKey);
           publish({ status: 'binding' });
           const saved = await call(() => api.rememberFemometer(userId, deviceId));
           if (saved?.remembered !== true) {
             throw { code: 'PERSISTENCE_FAILED', message: 'No se pudo confirmar la vinculación. Vuelve a intentarlo.' };
           }
+          applyBindings(saved);
           publish({ remembered: true, boundModel: inspection.model, deviceKey: saved.deviceKey ?? null, status: 'idle', clockResult: null, clockError: null,
             devices: state.devices.map(device => ({ ...device, isRemembered: device.id === deviceId })) });
           confirmed = true;
           publish({ changingDevice: false });
-          if (saved.deviceKey && saved.deviceKey !== previousKey) {
+          if (saved.deviceKey && saved.deviceKey !== previousKey && !previousKeys.includes(saved.deviceKey)) {
             try {
               if (!localState) throw new Error('Almacenamiento no disponible.');
-              publish({ preferences: localState.initializePreferences(saved.deviceKey), preferenceError: null });
+              localState.initializePreferences(saved.deviceKey);
+              loadPreferences(saved.deviceKey);
             } catch { publish({ preferences: {}, preferenceError: 'Vinculación confirmada, pero no se pudieron guardar los ajustes iniciales.' }); }
           } else loadPreferences(saved.deviceKey);
           acquired = true;
           await listen(deviceId, call, current);
         }).then(() => confirmed);
       },
+      startTrial: deviceId => run(async (call, current) => {
+        if (state.selectedDeviceId !== deviceId || state.inspectionResult?.standardTrialAvailable !== true
+          || state.inspectionResult?.compatible === true) throw { code: 'DEVICE_NOT_VERIFIED', message: 'Comprueba primero la recepción estándar disponible.' };
+        publish({ changingDevice: true, status: 'connecting', trial: { status: 'connecting', deviceId, readings: [] } });
+        subscription = await api.addStandardThermometerTrialListener(event => {
+          if (!current()) return;
+          if (event?.experimental === true && Number.isFinite(event.temperatureC)) {
+            publish({ trial: { ...state.trial, readings: [...state.trial.readings, {
+              temperatureC: event.temperatureC, deviceTimestamp: event.deviceTimestamp ?? null, receivedAt: event.receivedAt,
+            }].slice(-50) } });
+          }
+          if (event?.error) publish({ trial: { ...state.trial, error: 'Medición no válida.' } });
+          if (['timeout', 'stopped', 'disconnected', 'error'].includes(event?.status)) void session.stop();
+        });
+        const result = await call(() => api.startStandardThermometerTrial(deviceId, userId));
+        if (result?.experimental !== true || result?.connectionReady !== true || result?.indicationsActive !== true) {
+          throw { code: 'LISTENER_NOT_READY', message: 'No se pudo iniciar la recepción de prueba.' };
+        }
+        publish({ status: 'trial', trial: { ...state.trial, status: 'listening' } });
+      }),
+      stopTrial: () => session.stop(),
       select: (id) => {
         if (disposed || job || stopping || state.status === 'listening') return;
         if (state.devices.some(device => device.id === id)) publish({ selectedDeviceId: id, inspectionResult: null });
@@ -515,7 +572,8 @@ export const createFemometerSessionManager = (api) => {
           }
         })().catch(failure => { status = 'error'; error = failure; }).finally(() => {
           stopping = null;
-          publish({ status, error, busy: false, listenerResult: null, clockBusy: false });
+          publish({ status, error, busy: false, listenerResult: null, clockBusy: false,
+            trial: state.trial ? { ...state.trial, status: 'complete' } : null });
         });
         return stopping;
       },

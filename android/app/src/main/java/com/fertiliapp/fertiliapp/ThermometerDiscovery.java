@@ -4,6 +4,10 @@ import java.util.Locale;
 
 /** Discovery evidence is not permission to use a protocol. No addresses cross this boundary. */
 final class ThermometerDiscovery {
+    static String preliminaryModel(String name) {
+        return Vinca2Profile.identifies(name, null) ? Vinca2Profile.MODEL : null;
+    }
+
     static boolean candidate(String name, boolean healthService, boolean vincaSignature, boolean expanded) {
         String text = name == null ? "" : name.toLowerCase(Locale.ROOT);
         return expanded || healthService || vincaSignature || text.contains("bm-vinca2")

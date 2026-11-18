@@ -106,7 +106,7 @@ export const FemometerSessionOwner = ({ userId, children }) => {
       }
       previousStatus = next.status;
     }, event => {
-      if (!alive) return;
+      if (!alive || event?.experimental === true) return;
       const normalized = normalizeBleMeasurement(event);
       if (normalized) {
         // UI-only sequence, never passed as a device identity or measurement key.

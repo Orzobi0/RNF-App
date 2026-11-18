@@ -5,6 +5,9 @@ import static org.junit.Assert.*;
 
 public class ThermometerDiscoveryTest {
     @Test public void normalDiscoveryIncludesThermometerEvidenceOnly() {
+        assertEquals("BM-Vinca2", ThermometerDiscovery.preliminaryModel("BM-Vinca2"));
+        assertNull(ThermometerDiscovery.preliminaryModel("BM-Vinca20"));
+        assertEquals("unknown", ThermometerDiscovery.classification(false, null, null, false));
         assertTrue(ThermometerDiscovery.candidate("BM-Vinca2", false, false, false));
         assertTrue(ThermometerDiscovery.candidate("Easy@Home", false, false, false));
         assertTrue(ThermometerDiscovery.candidate(null, true, false, false));

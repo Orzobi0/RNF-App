@@ -5,15 +5,21 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { useFemometer } from '@/contexts/FemometerContext';
 import Vinca2Diagnostics from '@/components/Vinca2Diagnostics';
 
-export const vinca2StatusText = (status, session = {}) => status === 'listening' && (!session.listenerResult?.connectionReady || !session.listenerResult?.indicationsActive) ? 'Preparando conexión…' : ({
-  checking: 'Consultando vinculación…', idle: 'Desconectado', stopped: 'Desconectado',
-  searching: 'Buscando termómetro…', inspecting: 'Comprobando compatibilidad…',
-  binding: 'Vinculando termómetro…', connecting: 'Conectando…', listening: 'Preparado para recibir temperaturas.', stopping: 'Deteniendo…',
-  missing: 'Termómetro no encontrado', error: 'No se pudo completar la conexión',
+export const vinca2StatusText = (status, session = {}) => status === 'listening' && (!session.listenerResult?.connectionReady || !session.listenerResult?.indicationsActive) ? 'Conectando…' : ({
+  checking: 'Conectando…', idle: 'Desconectado', stopped: 'Desconectado',
+  searching: 'Conectando…', inspecting: 'Conectando…',
+  binding: 'Conectando…', connecting: 'Conectando…', listening: 'Conectado', stopping: 'Desconectado',
+  missing: 'No disponible', error: 'No disponible',
 })[status] || 'Desconectado';
 
-const Vinca2Panel = () => {
-  const { sessionRef, sessionState, pendingCount, openReadingReview, openClockDialog, clockHistory } = useFemometer();
+const Vinca2Panel = ({ deviceKey } = {}) => {
+  const { sessionRef, sessionState: sharedState, pendingCount, openReadingReview, openClockDialog, clockHistory: sharedClock } = useFemometer();
+  const active = !deviceKey || deviceKey === sharedState.deviceKey;
+  const saved = sharedState.bindings?.find(device => device.deviceKey === deviceKey);
+  const sessionState = active ? sharedState : { status: 'stopped', remembered: Boolean(saved), boundModel: saved?.model,
+    preferences: sharedState.preferencesByDevice?.[deviceKey] ?? {}, bindings: sharedState.bindings,
+    bindingBusy: sharedState.bindingBusy, busy: sharedState.busy || sharedState.configurationBusy, capabilities: {} };
+  const clockHistory = active ? sharedClock : null;
   const { status, remembered, inspectionResult, capabilities } = sessionState;
   const [confirmForget, setConfirmForget] = useState(false);
   const [working, setWorking] = useState(false);
@@ -35,7 +41,8 @@ const Vinca2Panel = () => {
     operationLock.current = true;
     setWorking(true); setActionError(null);
     try {
-      const completed = await sessionRef.current?.[operation](argument);
+      const completed = await sessionRef.current?.[operation === 'start' && !active ? 'connectSaved' : operation](operation === 'unlink' || (operation === 'start' && !active) ? deviceKey : argument);
+      if (completed === false && (operation === 'unlink' || (operation === 'start' && !active))) setActionError('No se pudo completar la operación de este termómetro. Vuelve a intentarlo.');
       if (operation === 'unlink' && completed) setConfirmForget(false);
       if (operation === 'remember' && argument) setConfirmForget(false);
     } catch (error) {
@@ -60,8 +67,7 @@ const Vinca2Panel = () => {
       <>{vinca ? <img src="/images/vinca2.jpg" alt="Femometer Vinca 2 con funda rosa" width="56" height="88" className="h-[88px] w-14 shrink-0 object-contain" /> : <Thermometer className="h-12 w-12" aria-hidden="true" />}</>
       <div className="min-w-0">
         <h2 className="text-xl font-semibold text-titulo">{vinca ? 'Femometer Vinca 2' : model || 'Termómetro'}</h2>
-        <p className="mt-2 text-sm font-medium">{remembered === null ? 'Consultando vinculación…' : remembered ? 'Vinculado' : 'Sin configurar'}</p>
-        <p role="status" className={`mt-1 text-sm ${retry ? 'text-amber-800' : listening && !sessionState.configurationBusy ? 'text-fertiliapp-fuerte' : 'text-slate-600'}`}>{sessionState.configurationBusy ? 'Preparando ajustes…' : vinca2StatusText(status, sessionState)}</p>
+        <p role="status" className={`mt-1 text-sm ${retry ? 'text-amber-800' : listening && !sessionState.configurationBusy ? 'text-fertiliapp-fuerte' : 'text-slate-600'}`}>{vinca2StatusText(status, sessionState)}</p>
         {listening && sessionState.configurationIssue && !sessionState.configurationBusy && <p className="text-xs text-amber-800">La recepción está activa; revisa los ajustes pendientes.</p>}
       </div>
     </div>
@@ -110,7 +116,7 @@ const Vinca2Panel = () => {
       <h3 id="vinca-configuration" className="text-base font-semibold text-titulo">Configuración</h3>
       <div className="divide-y divide-slate-100">
         {(capabilities?.clockRead || capabilities?.clockSync || (!listening && vinca)) && <div>
-          <button type="button" className={rowClass} onClick={openClockDialog}><Clock3 className="h-4 w-4 shrink-0" aria-hidden="true" /><span className="flex-1">Reloj del termómetro<span className="mt-1 block text-sm text-slate-500">{clockLabel}</span></span><ChevronRight className="h-4 w-4" aria-hidden="true" /></button>
+          <button type="button" className={rowClass} disabled={!active} onClick={openClockDialog}><Clock3 className="h-4 w-4 shrink-0" aria-hidden="true" /><span className="flex-1">Reloj del termómetro<span className="mt-1 block text-sm text-slate-500">{clockLabel}</span></span><ChevronRight className="h-4 w-4" aria-hidden="true" /></button>
           {listening && <div className="space-y-2 pb-4 text-sm">
             <p className="text-xs text-slate-500">El ajuste utiliza la hora local del móvil. No corrige las fechas de lecturas anteriores.</p>
             <div className="flex flex-wrap items-center gap-2">
@@ -188,7 +194,7 @@ const Vinca2Panel = () => {
       {sessionState.error && <p role="alert" className="text-sm text-amber-800">{sessionState.error.message || 'No se pudo confirmar la desvinculación. La vinculación se conserva; puedes reintentar.'}</p>}
       <DialogFooter><Button variant="outline" className="inline-flex min-h-11 h-auto rounded-xl w-fit max-w-full whitespace-normal px-4 py-2" onClick={() => setConfirmForget(false)}>Cancelar</Button><Button className="inline-flex min-h-11 h-auto rounded-xl w-fit max-w-full whitespace-normal px-4 py-2" disabled={Boolean(sessionState.bindingBusy || !remembered)} onClick={() => run('unlink')}>Confirmar desvinculación</Button></DialogFooter>
     </DialogContent></Dialog>
-    <Vinca2Diagnostics />
+    {active && <Vinca2Diagnostics />}
   </div>;
 };
 export default Vinca2Panel;

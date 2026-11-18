@@ -410,18 +410,18 @@ test('device routes use the shared state and are unavailable outside the enabled
   const harness = hooks(); let enabled = true;
   let deviceState = { remembered: true, status: 'listening' };
   const { DevicesPage, Vinca2DevicePage } = await loadFrontend('src/pages/DevicesPage.jsx', {
-    ...harness.bindings, useAuth: () => ({ user: { uid: 'a' } }),
+    ...harness.bindings, useParams: () => ({}), useAuth: () => ({ user: { uid: 'a' } }),
     useFemometer: () => enabled ? { enabled, pendingCount: 2, sessionState: deviceState } : { enabled: false },
     Dialog: 'dialog', DialogContent: 'content', DialogHeader: 'header', DialogTitle: 'title', DialogDescription: 'description', DialogFooter: 'footer', Link: 'link', Navigate: 'redirect', Vinca2Panel: 'panel', vinca2StatusText: status => status === 'listening' ? 'Escuchando temperaturas' : 'Desconectado', Button: 'button', CheckCircle2: 'check', X: 'close', ChevronLeft: 'back', ChevronRight: 'next', Thermometer: 'thermometer',
   }, ['DevicesPage', 'Vinca2DevicePage']);
   const render = () => harness.render(() => ({ props: { value: DevicesPage() } }));
   assert.ok(treeNodes(render()).some(node => node.type === 'link' && node.props.to === '/settings/devices/vinca2'));
   assert.ok(treeNodes(Vinca2DevicePage()).some(node => node.type === 'panel'));
-  assert.match(JSON.stringify(render()), /Vinculado/);
+  assert.match(JSON.stringify(render()), /Femometer Vinca 2/);
   deviceState = { remembered: true, status: 'stopped' };
   assert.match(JSON.stringify(render()), /Desconectado/);
   deviceState = { remembered: false, status: 'idle' };
-  assert.match(JSON.stringify(render()), /Busca tu termómetro/);
+  assert.match(JSON.stringify(render()), /Enciende el termómetro/);
   assert.equal(treeNodes(render()).some(n => n.type === 'link' && n.props.to === '/settings/devices/vinca2'), false);
   assert.equal(Vinca2DevicePage().props.to, '/settings/devices');
   deviceState = { remembered: null, status: 'checking' };
@@ -1147,7 +1147,7 @@ test('special review sections replace decisions and hide unsafe or redundant inc
   assert.equal(hasButton('Cancelar'), false);
 });
 
-async function vincaPanelFixture(initial = {}) {
+async function vincaPanelFixture(initial = {}, props = {}) {
   const harness = hooks();
   const calls = [];
   let ble = { pendingCount: 2, clockHistory: null, sessionState: { remembered: false, status: 'idle', devices: [], ...initial },
@@ -1157,7 +1157,7 @@ async function vincaPanelFixture(initial = {}) {
     Button: 'button', Bluetooth: 'icon', ChevronRight: 'icon', Clock3: 'icon', Info: 'icon', Thermometer: 'icon', Unlink: 'icon',
     Dialog: 'dialog', DialogContent: 'dialog-content', DialogHeader: 'header', DialogTitle: 'title', DialogDescription: 'description', DialogFooter: 'footer', Vinca2Diagnostics: 'diagnostics',
   }, ['Vinca2Panel']);
-  const render = () => harness.render(() => ({ props: { value: Vinca2Panel() } }));
+  const render = () => harness.render(() => ({ props: { value: Vinca2Panel(props) } }));
   const button = label => treeNodes(render()).find(node => node.type === 'button' && JSON.stringify(node.props.children).includes(label));
   render();
   return { ble, calls, render, button, cleanup: harness.cleanup };
@@ -1169,7 +1169,7 @@ async function devicesFixture(initial = {}) {
   const ble = { enabled: true, pendingCount: 2, sessionState: { remembered: false, status: 'idle', devices: [], ...initial }, sessionRef: { current: {} } };
   const { DevicesPage } = await loadFrontend('src/pages/DevicesPage.jsx', {
     setTimeout: (fn, ms) => { timers.set(fn, ms); return fn; }, clearTimeout: fn => timers.delete(fn),
-    ...harness.bindings, useFemometer: () => ble, useAuth: () => ({ user: { uid: 'a' } }),
+    ...harness.bindings, useFemometer: () => ble, useParams: () => ({}), useAuth: () => ({ user: { uid: 'a' } }),
     Link: 'link', Navigate: 'redirect', Vinca2Panel: 'panel', vinca2StatusText: status => status === 'listening' ? 'Escuchando temperaturas' : 'Desconectado',
     Button: 'button', CheckCircle2: 'check', X: 'close', ChevronLeft: 'icon', ChevronRight: 'icon', Thermometer: 'icon',
     Dialog: 'dialog', DialogContent: 'content', DialogHeader: 'header', DialogTitle: 'title', DialogDescription: 'description', DialogFooter: 'footer',
@@ -1196,19 +1196,19 @@ test('Devices searches with one permission request and links with one result tap
   })('a', state => { h.ble.sessionState = state; }, () => {}, createFemometerLocalState(memoryStorage(), 'a'));
   h.ble.sessionRef.current = session;
   try {
-    assert.match(JSON.stringify(h.render()), /cierra otras aplicaciones conectadas al termómetro/);
+    assert.match(JSON.stringify(h.render()), /Cierra la aplicación conectada al termómetro/);
     const search = h.button('Buscar termómetros');
     assert.match(search.props.className, /w-fit/); assert.doesNotMatch(search.props.className, /(^|\s)w-full(\s|$)/);
     await search.props.onClick(); assert.equal(permissions, 1);
     assert.ok(h.button('Comprobar compatibilidad'));
     await h.button('Otro').props.onClick();
     assert.match(JSON.stringify(h.render()), /No se puede vincular actualmente/);
-    const click = h.button('BM-Vinca2').props.onClick;
+    const click = h.button('Pulsa para vincular').props.onClick;
     const first = click(); await click(); await first;
     assert.deepEqual(calls, ['inspect:other', 'disconnect', 'inspect:vinca', 'disconnect', 'remember:vinca', 'listen']);
     assert.match(JSON.stringify(h.render()), /Termómetro vinculado/);
     assert.equal(h.ble.sessionState.status, 'listening');
-    assert.ok(treeNodes(h.render()).some(n => n.type === 'link' && n.props.to === '/settings/devices/vinca2'));
+    assert.ok(treeNodes(h.render()).some(n => n.type === 'link' && n.props.to.startsWith('/settings/devices/')));
   } finally { await session.dispose(); h.cleanup(); }
 });
 
@@ -1228,22 +1228,17 @@ test('Devices loading and permission/Bluetooth failures are retryable without a 
   h.cleanup();
 });
 
-test('replacement requires confirmation, can be abandoned and retains the linked row on failure', async () => {
+test('adding can be abandoned and retains the existing device on failure', async () => {
   const h = await devicesFixture({ remembered: true, status: 'listening', deviceKey: 'old' });
   h.ble.sessionRef.current = { beginChange: async () => { h.ble.sessionState.status = 'stopped'; return true; }, cancelChange: async () => {}, scan: async () => { h.ble.sessionState.devices = [{ id: 'new', name: 'BM-Vinca2 nuevo' }]; },
     selectAndRemember: async id => { h.ble.sessionState = { ...h.ble.sessionState, status: 'error', selectedDeviceId: id, inspectionResult: null, error: { message: 'Timeout de comprobación' } }; return false; } };
-  h.button('Cambiar termómetro').props.onClick();
-  assert.equal(h.button('Continuar').props.disabled, false);
-  h.button('Cancelar').props.onClick();
-  h.ble.sessionState.status = 'stopped';
-  h.button('Cambiar termómetro').props.onClick(); await h.button('Continuar').props.onClick();
+  await h.button('+ Añadir termómetro').props.onClick();
   await h.button('Buscar termómetros').props.onClick();
-  await h.button('BM-Vinca2 nuevo').props.onClick();
-  assert.doesNotMatch(JSON.stringify(h.render()), /No se puede vincular actualmente/);
+  await h.button('Pulsa para vincular').props.onClick();
   assert.equal(h.ble.sessionState.deviceKey, 'old'); assert.equal(h.ble.pendingCount, 2);
-  await h.button('Cancelar cambio').props.onClick();
+  await h.button('Cancelar').props.onClick();
   assert.equal(h.button('Buscar termómetros'), undefined);
-  assert.ok(treeNodes(h.render()).some(n => n.type === 'link' && n.props.to === '/settings/devices/vinca2'));
+  assert.ok(treeNodes(h.render()).some(n => n.type === 'link' && n.props.to === '/settings/devices/old'));
   h.cleanup();
 });
 
@@ -1252,7 +1247,7 @@ test('linked Vinca exposes shared pending review and clock, serializes operation
   const wait = deferred();
   h.ble.sessionRef.current = { start: () => { h.calls.push('start'); return wait.promise; },
     restart: async () => h.calls.push('restart'), stop: async () => h.calls.push('stop'), unlink: async () => { h.calls.push(['unlink']); return true; } };
-  assert.match(JSON.stringify(h.render()), /Vinculado/); assert.match(JSON.stringify(h.render()), /Desconectado/);
+  assert.match(JSON.stringify(h.render()), /Femometer Vinca 2/); assert.match(JSON.stringify(h.render()), /Desconectado/);
   h.button('Temperaturas pendientes').props.onClick(); h.button('Reloj del termómetro').props.onClick();
   assert.deepEqual(h.calls, ['review', 'clock']);
   assert.match(h.button('Conectar').props.className, /w-fit/);
@@ -2407,16 +2402,16 @@ test('presentation: binding notice only follows confirmation, closes and expires
     return true;
   };
   await h.button('Vinca test').props.onClick();
-  assert.match(JSON.stringify(notice()), /La vinculación se ha guardado, pero no se pudo preparar la conexión/);
+  assert.match(JSON.stringify(notice()), /Termómetro vinculado/);
   h.ble.sessionState = { ...h.ble.sessionState, status: 'listening', configurationBusy: true, listenerResult: { connectionReady: true, indicationsActive: true } };
   assert.doesNotMatch(JSON.stringify(notice()), /está listo/);
   h.ble.sessionState.configurationBusy = false;
-  assert.match(JSON.stringify(notice()), /está listo para recibir temperaturas/);
+  assert.match(JSON.stringify(notice()), /Termómetro vinculado/);
   h.render(); h.render(); assert.equal(h.timers.size, 1);
   for (const [fn, ms] of h.timers) { assert.equal(ms, 8000); fn(); }
   assert.equal(notice(), undefined);
   assert.equal(h.timers.size, 0);
-  assert.ok(treeNodes(h.render()).some(n => n.type === 'link' && n.props.to === '/settings/devices/vinca2'));
+  assert.ok(treeNodes(h.render()).some(n => n.type === 'link' && n.props.to.startsWith('/settings/devices/')));
   h.ble.sessionState.status = 'stopped'; h.render(); h.ble.sessionState.status = 'listening';
   assert.equal(notice(), undefined);
   h.ble.sessionState = { ...h.ble.sessionState, remembered: false, status: 'idle' };
@@ -2455,10 +2450,10 @@ test('presentation: review footer has discard on the left and incorporation on t
 
 test('presentation: readiness requires active indications and connection, and product images keep their proportions', async () => {
   const { vinca2StatusText } = await loadFrontend('src/components/Vinca2Panel.jsx', {}, ['vinca2StatusText']);
-  assert.equal(vinca2StatusText('listening', { listenerResult: { connectionReady: true } }), 'Preparando conexión…');
-  assert.equal(vinca2StatusText('listening', { listenerResult: { connectionReady: true, indicationsActive: true } }), 'Preparado para recibir temperaturas.');
+  assert.equal(vinca2StatusText('listening', { listenerResult: { connectionReady: true } }), 'Conectando…');
+  assert.equal(vinca2StatusText('listening', { listenerResult: { connectionReady: true, indicationsActive: true } }), 'Conectado');
   assert.equal(vinca2StatusText('stopped'), 'Desconectado');
-  assert.equal(vinca2StatusText('error'), 'No se pudo completar la conexión');
+  assert.equal(vinca2StatusText('error'), 'No disponible');
   const h = await devicesFixture();
   for (const remembered of [false, true]) {
     h.ble.sessionState.remembered = remembered;
@@ -2543,13 +2538,15 @@ test('multibrand: UI distinguishes discovery states and expanded search; unknown
     { id: 'unknown', name: 'BLE device', compatibility: 'unknown' },
   ] });
   const scans = []; h.ble.sessionRef.current.scan = async value => scans.push(value);
-  assert.match(JSON.stringify(h.render()), /Posible termómetro estándar/);
-  assert.match(JSON.stringify(h.render()), /Modelo reconocido/);
-  assert.match(JSON.stringify(h.render()), /Dispositivo BLE sin identificar/);
-  assert.match(JSON.stringify(h.render()), /no garantiza.*termómetro basal/);
+  assert.match(JSON.stringify(h.render()), /Posible termómetro/);
+  assert.match(JSON.stringify(h.render()), /Soporte pendiente/);
+  assert.match(JSON.stringify(h.render()), /Dispositivo sin identificar/);
+  assert.doesNotMatch(JSON.stringify(h.render()), /La búsqueda ampliada incluye/);
   assert.equal(treeNodes(h.render()).filter(n => n.type === 'img').length, 0);
+  assert.equal(h.button('¿No encuentras tu termómetro?'), undefined);
+  await h.button('Buscar de nuevo').props.onClick();
   await h.button('¿No encuentras tu termómetro?').props.onClick();
-  assert.deepEqual(scans, [true]); h.cleanup();
+  assert.deepEqual(scans, [undefined, true]); h.cleanup();
   const panel = await vincaPanelFixture({ remembered: true, boundModel: 'Other model', status: 'listening', capabilities: {} });
   assert.equal(treeNodes(panel.render()).filter(n => n.type === 'img').length, 0);
   assert.equal(panel.button('Medio'), undefined); assert.equal(panel.button('Normal'), undefined);
@@ -2586,4 +2583,162 @@ test('review container dismissal retains the pending reading and draft in durabl
     owner.render().openReadingReview();
     assert.equal(owner.card().visible, true);
   } finally { owner.cleanup(); await flush(); }
+});
+
+
+test('search presentation replaces instructions with progress/results and recognizes Vinca before inspection', async () => {
+  const h = await devicesFixture(); const wait = deferred(); let inspected = 0;
+  h.ble.sessionRef.current.scan = async () => { h.ble.sessionState.status = 'searching'; await wait.promise;
+    h.ble.sessionState = { ...h.ble.sessionState, status: 'idle', devices: [{ id: 'vinca', name: 'BM-Vinca2' }] }; };
+  h.ble.sessionRef.current.selectAndRemember = async () => { inspected++; return false; };
+  assert.match(JSON.stringify(h.render()), /Cierra la aplicación conectada/);
+  assert.equal(h.button('¿No encuentras tu termómetro?'), undefined);
+  const scan = h.button('Buscar termómetros').props.onClick();
+  assert.doesNotMatch(JSON.stringify(h.render()), /Cierra la aplicación conectada/);
+  assert.match(JSON.stringify(h.render()), /Buscando termómetros/);
+  wait.resolve(); await scan;
+  assert.equal(inspected, 0);
+  assert.ok(h.button('¿No encuentras tu termómetro?'));
+  assert.ok(treeNodes(h.render()).some(node => node.type === 'img' && node.props.src === '/images/vinca2.jpg'));
+  assert.ok(h.button('Femometer Vinca 2'));
+  await h.button('Pulsa para vincular').props.onClick(); assert.equal(inspected, 1);
+  assert.equal(h.ble.sessionState.remembered, false);
+  assert.doesNotMatch(JSON.stringify(h.render()), /Dispositivo sin identificar/);
+  h.cleanup();
+});
+
+const multiDeviceFixture = () => {
+  const native = bridge(); let selected = 'first'; let devices = ['first', 'second']; let state;
+  const snapshot = () => ({ remembered: Boolean(selected), deviceKey: selected,
+    bindings: devices.map(deviceKey => ({ deviceKey, model: 'BM-Vinca2' })) });
+  native.api.getRememberedFemometer = async () => snapshot();
+  native.api.rememberFemometer = async (_, key) => { if (!devices.includes(key)) devices.push(key); selected = key; return snapshot(); };
+  native.api.selectRememberedFemometer = async (_, key) => { assert.ok(devices.includes(key)); selected = key; return snapshot(); };
+  native.api.scanForFemometer = async () => [...devices.map(id => ({ id, deviceKey: id, isRemembered: id === selected })), { id: 'candidate' }];
+  native.api.startFemometerTemperatureListener = async id => {
+    assert.equal(id, selected); native.calls.connections++;
+    return { deviceKey: selected, connectionReady: true, indicationsActive: true, capabilities: { model: 'BM-Vinca2', protocol: 'vinca2', compatibility: 'compatible' } };
+  };
+  native.api.forgetFemometer = async (_, key) => { devices = devices.filter(id => id !== key); if (selected === key) selected = null; return snapshot(); };
+  native.api.connectAndInspectFemometer = async () => ({ compatible: false, standardTrialAvailable: true, compatibility: 'possible_standard' });
+  const local = createFemometerLocalState(native.storage, 'a');
+  local.savePreference('first', 'volume', 'low'); local.savePreference('second', 'volume', 'high');
+  const session = native.factory('a', value => { state = value; }, () => {}, local);
+  return { native, local, session, state: () => state, snapshot };
+};
+
+test('multiple bindings switch one connection, preserve preferences and reconnect only the selected device', async () => {
+  const h = multiDeviceFixture();
+  await h.session.start(); assert.equal(h.state().preferences.volume, 'low');
+  const close = deferred(); h.native.flags.disconnectWait = close;
+  const switching = h.session.connectSaved('second'); await flush();
+  assert.equal(h.native.calls.connections, 1); assert.equal(h.snapshot().deviceKey, 'first');
+  close.resolve(); await switching;
+  assert.equal(h.native.calls.connections, 2); assert.equal(h.native.calls.peakListeners, 1);
+  assert.equal(h.state().preferences.volume, 'high'); assert.equal(h.snapshot().bindings.length, 2);
+  assert.equal(h.local.preferences('first').volume, 'low');
+  await h.session.stop(); await h.session.resume(); assert.equal(h.state().deviceKey, 'second');
+  assert.equal(h.state().preferences.volume, 'high');
+  await h.session.dispose();
+});
+
+test('failed addition and individual unlink preserve other bindings and durable pending temperatures', async () => {
+  const h = multiDeviceFixture();
+  h.local.saveReadings([{ deviceKey: 'first', uiId: 1, temperatureC: 36.5, importStatus: 'pending', receivedOrder: 1 }]);
+  await h.session.scan();
+  assert.equal(await h.session.selectAndRemember('candidate'), false);
+  assert.equal(h.snapshot().deviceKey, 'first'); assert.equal(h.snapshot().bindings.length, 2);
+  await h.session.unlink('second');
+  assert.deepEqual(h.snapshot().bindings.map(row => row.deviceKey), ['first']);
+  assert.equal(h.snapshot().deviceKey, 'first');
+  await h.session.unlink('first'); assert.equal(h.snapshot().deviceKey, null);
+  assert.equal(h.local.recover()[0].temperatureC, 36.5);
+  assert.equal(h.local.preferences('first').volume, 'low');
+  await h.session.dispose();
+});
+
+test('opening another device shows its own preferences and connects by its opaque key', async () => {
+  const h = await vincaPanelFixture({ remembered: true, status: 'listening', deviceKey: 'first',
+    bindings: [{ deviceKey: 'first', model: 'BM-Vinca2' }, { deviceKey: 'second', model: 'BM-Vinca2' }],
+    preferences: { volume: 'low' }, preferencesByDevice: { second: { volume: 'high', measurementMode: 'quick' } },
+    listenerResult: { connectionReady: true, indicationsActive: true }, capabilities: { volumeWrite: true } }, { deviceKey: 'second' });
+  assert.equal(h.button('Alto').props['aria-pressed'], true); assert.equal(h.button('Alto').props.disabled, true);
+  assert.equal(h.button('Bajo').props['aria-pressed'], false);
+  assert.equal(h.button('Reloj del termómetro').props.disabled, true);
+  let connected; h.ble.sessionRef.current.connectSaved = async key => { connected = key; };
+  await h.button('Conectar').props.onClick(); assert.equal(connected, 'second');
+  assert.equal(treeNodes(h.render()).some(node => node.type === 'diagnostics'), false);
+  h.cleanup();
+});
+
+test('standard trial is isolated from the normal queue, storage, settings and binding selection', async () => {
+  const native = bridge(); let trialEvent; let trialRemoves = 0;
+  native.api.scanForFemometer = async () => [{ id: 'temporary', isRemembered: true }, { id: 'standard' }];
+  native.api.connectAndInspectFemometer = async () => ({ compatible: false, standardTrialAvailable: true });
+  native.api.addStandardThermometerTrialListener = async callback => { trialEvent = callback; return { remove: async () => trialRemoves++ }; };
+  native.api.startStandardThermometerTrial = async () => ({ experimental: true, connectionReady: true, indicationsActive: true });
+  const owner = await mountedOwner(native);
+  try {
+    native.emit({ temperatureC: 36.4 });
+    native.emit({ temperatureC: 37, experimental: true });
+    assert.equal(owner.render().pendingCount, 1);
+    const session = owner.render().sessionRef.current;
+    await session.beginChange(); await session.scan(); await session.selectAndRemember('standard');
+    const before = JSON.stringify(createFemometerLocalState(native.storage, 'a').recover());
+    const configs = [native.calls.clock, native.calls.sync, native.calls.volume.length, native.calls.measurementMode.length];
+    await session.startTrial('standard');
+    trialEvent({ experimental: true, temperatureC: 36.65, deviceTimestamp: '2026-11-18T08:00:00' });
+    trialEvent({ experimental: false, temperatureC: 50 });
+    await session.setVolume('high'); await session.syncClock(); await session.setMeasurementMode('quick');
+    assert.equal(owner.render().sessionState.trial.readings.length, 1);
+    assert.equal(owner.render().pendingCount, 1);
+    assert.equal(JSON.stringify(createFemometerLocalState(native.storage, 'a').recover()), before);
+    assert.deepEqual([native.calls.clock, native.calls.sync, native.calls.volume.length, native.calls.measurementMode.length], configs);
+    assert.equal(owner.render().sessionState.deviceKey, 'bound-a');
+    trialEvent({ status: 'timeout' }); await flush();
+    assert.equal(trialRemoves, 1); assert.equal(owner.render().sessionState.trial.status, 'complete');
+    trialEvent({ experimental: true, temperatureC: 38 });
+    assert.equal(owner.render().sessionState.trial.readings.length, 1);
+  } finally { owner.cleanup(); await flush(); }
+});
+
+
+test('adding a supported device retains saved devices; reselecting an existing one never creates defaults', async () => {
+  const h = multiDeviceFixture();
+  h.native.api.connectAndInspectFemometer = async () => ({ compatible: true, protocol: 'vinca2', model: 'BM-Vinca2' });
+  await h.session.start(); await h.session.beginChange(); await h.session.scan();
+  assert.equal(await h.session.selectAndRemember('candidate'), true);
+  assert.equal(h.state().bindings.length, 3); assert.equal(h.state().deviceKey, 'candidate');
+  assert.deepEqual(h.local.preferences('candidate'), { volume: 'medium', measurementMode: 'normal' });
+  await h.session.beginChange(); await h.session.scan();
+  assert.equal(await h.session.selectAndRemember('first'), true);
+  assert.deepEqual(h.local.preferences('first'), { volume: 'low' });
+  assert.equal(h.state().bindings.length, 3); assert.equal(h.native.calls.peakListeners, 1);
+  await h.session.dispose();
+});
+
+test('trial cancellation drains a late start and rejects late trial events without reconnecting', async () => {
+  const h = multiDeviceFixture(); const start = deferred(); let event; let removed = 0;
+  h.native.api.addStandardThermometerTrialListener = async callback => { event = callback; return { remove: async () => removed++ }; };
+  h.native.api.startStandardThermometerTrial = () => start.promise;
+  await h.session.scan(); await h.session.selectAndRemember('candidate');
+  const beginning = h.session.startTrial('candidate'); await flush();
+  const stopped = h.session.stopTrial(); await flush();
+  event({ experimental: true, temperatureC: 38 });
+  start.resolve({ experimental: true, connectionReady: true, indicationsActive: true });
+  await beginning; await stopped; await h.session.resume();
+  assert.equal(h.state().trial.status, 'complete'); assert.equal(h.state().trial.readings.length, 0);
+  assert.equal(h.state().deviceKey, 'first'); assert.equal(h.native.calls.connections, 0);
+  assert.equal(removed, 1); await h.session.dispose();
+});
+
+
+test('concurrent unlink requests cannot report success for a different device', async () => {
+  const h = multiDeviceFixture(); await h.session.start();
+  const wait = deferred(); h.native.flags.disconnectWait = wait;
+  const first = h.session.unlink('first'); await flush();
+  assert.equal(await h.session.unlink('second'), false);
+  wait.resolve(); assert.equal(await first, true);
+  assert.deepEqual(h.snapshot().bindings.map(row => row.deviceKey), ['second']);
+  assert.equal(h.snapshot().deviceKey, null); await h.session.dispose();
 });

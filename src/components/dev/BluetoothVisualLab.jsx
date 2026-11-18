@@ -111,6 +111,8 @@ export default function BluetoothVisualLab({ Provider, children }) {
     next.sessionState.capabilities.modeConfiguration = true;
     next.sessionState.listenerResult = next.sessionState.status === 'listening' ? { connectionReady: true, indicationsActive: true } : null;
     if (value === 'savedPreferences') preferencesByDevice.current['fictional-device'] = { volume: 'low', measurementMode: 'precise' };
+    if (value === 'twoDevices') { preferencesByDevice.current['fictional-device'] = { volume: 'low', measurementMode: 'precise' }; preferencesByDevice.current['fictional-second'] = { volume: 'high', measurementMode: 'quick' }; }
+    next.sessionState.preferencesByDevice = { ...preferencesByDevice.current };
     if (value === 'legacyPreferences') delete preferencesByDevice.current['fictional-device'];
     next.sessionState.preferences = preferencesByDevice.current['fictional-device'] ?? {};
     setScenario(value); setClockHistory(next.clockHistory); setReadings(next.readings); setSessionState(next.sessionState);
@@ -123,11 +125,11 @@ export default function BluetoothVisualLab({ Provider, children }) {
   const draft = selected?.draft;
   const error = selected?.reviewError ?? null;
   const restartLock = useRef(false);
-  const operationBlocked = () => configurationActive.current || bindingJob.current || restartLock.current || sessionState.busy || infoJob.current || volumeJob.current || measurementModeJob.current || labClockBusy.current || sessionState.clockBusy || ['checking', 'searching', 'connecting', 'inspecting', 'stopping', 'listening'].includes(sessionState.status);
+  const operationBlocked = () => configurationActive.current || bindingJob.current || restartLock.current || sessionState.busy || infoJob.current || volumeJob.current || measurementModeJob.current || labClockBusy.current || sessionState.clockBusy || ['checking', 'searching', 'connecting', 'inspecting', 'stopping', 'listening', 'trial'].includes(sessionState.status);
   const prepareListening = (deviceKey = sessionState.deviceKey, preferences = preferencesByDevice.current[deviceKey] ?? {}) => {
     const token = ++configurationToken.current;
     configurationActive.current = true;
-    setSessionState(previous => ({ ...previous, deviceKey, preferences, status: 'listening', busy: false, restarting: false,
+    setSessionState(previous => ({ ...previous, deviceKey, preferences, preferencesByDevice: { ...preferencesByDevice.current }, status: 'listening', busy: false, restarting: false,
       configurationBusy: true, configurationIssue: false, clockBusy: true, clockError: null,
       capabilities: { ...previous.capabilities, volumeWrite: true, modeConfiguration: true },
       listenerResult: { connectionReady: true, indicationsActive: true, timeoutSeconds: 360 } }));
@@ -322,11 +324,11 @@ export default function BluetoothVisualLab({ Provider, children }) {
           const saveFailed = deviceId === 'lab-save-error';
           const confirmed = compatible && !saveFailed;
           setSessionState(previous => ({ ...previous, status: inspectionFailed || saveFailed ? 'error' : 'idle', busy: false,
-            inspectionResult: inspectionFailed ? null : { compatible, model: compatible ? 'BM-Vinca2' : deviceId === 'lab-other' ? 'Modelo de demostración' : null, protocol: compatible ? 'vinca2' : null, compatibility: compatible ? 'compatible' : deviceId === 'lab-other' ? 'recognized_unsupported' : deviceId === 'lab-standard' ? 'possible_standard' : 'unknown', healthThermometerFound: compatible, temperatureMeasurementFound: compatible,
+            inspectionResult: inspectionFailed ? null : { compatible, standardTrialAvailable: deviceId === 'lab-standard', model: compatible ? 'BM-Vinca2' : deviceId === 'lab-other' ? 'Modelo de demostración' : null, protocol: compatible ? 'vinca2' : null, compatibility: compatible ? 'compatible' : deviceId === 'lab-other' ? 'recognized_unsupported' : deviceId === 'lab-standard' ? 'possible_standard' : 'unknown', healthThermometerFound: compatible, temperatureMeasurementFound: compatible,
               services: [{ uuid: '00001809-0000-1000-8000-00805f9b34fb', characteristics: [{ uuid: '00002a1c-0000-1000-8000-00805f9b34fb', properties: ['indicate'] }] }] },
             error: inspectionFailed ? { code: 'CONNECTION_TIMEOUT', message: 'Simulación: no se pudo completar la comprobación.' }
               : saveFailed ? { code: 'PERSISTENCE_FAILED', message: 'Simulación: no se pudo confirmar la vinculación.' } : null,
-            ...(confirmed ? { remembered: true, deviceKey: 'fictional-device-new', clockResult: null, clockError: null,
+            ...(confirmed ? { bindings: [...(previous.bindings ?? []).filter(device => device.deviceKey !== 'fictional-device-new'), { deviceKey: 'fictional-device-new', model: 'BM-Vinca2' }], remembered: true, deviceKey: 'fictional-device-new', clockResult: null, clockError: null,
               devices: previous.devices.map(device => ({ ...device, isRemembered: device.id === deviceId })) } : {}),
           }));
           bindingJob.current = null;
@@ -354,12 +356,28 @@ export default function BluetoothVisualLab({ Provider, children }) {
         }, 900);
       }, 400);
     },
-    stop: async () => { cancelConfiguration(); cancelMeasurementMode(true); cancelVolume(true); labClockBusy.current = false; cancelInfo(); cancelBinding(); clearTimeout(timer.current); restartLock.current = false; setSessionState(previous => ({ ...previous, status: 'stopped', listenerResult: null, configurationBusy: false, configurationIssue: false, restarting: false, busy: false, clockBusy: false })); },
-    unlink: async () => {
+    stop: async () => { cancelConfiguration(); cancelMeasurementMode(true); cancelVolume(true); labClockBusy.current = false; cancelInfo(); cancelBinding(); clearTimeout(timer.current); restartLock.current = false; setSessionState(previous => ({ ...previous, status: 'stopped', trial: previous.trial ? { ...previous.trial, status: 'complete' } : null, listenerResult: null, configurationBusy: false, configurationIssue: false, restarting: false, busy: false, clockBusy: false })); },
+    connectSaved: async deviceKey => {
+      if (!sessionState.bindings?.some(device => device.deviceKey === deviceKey)) return false;
       await sessionRef.current.stop();
-      setSessionState(previous => ({ ...previous, remembered: false, deviceKey: null, preferences: {}, changingDevice: false }));
+      setSessionState(previous => ({ ...previous, changingDevice: false }));
+      prepareListening(deviceKey); return true;
+    },
+    unlink: async (deviceKey = sessionState.deviceKey) => {
+      await sessionRef.current.stop();
+      setSessionState(previous => ({ ...previous, bindings: (previous.bindings ?? []).filter(device => device.deviceKey !== deviceKey),
+        ...(previous.deviceKey === deviceKey ? { remembered: false, deviceKey: null, preferences: {} } : {}), changingDevice: false }));
       return true;
     },
+    startTrial: deviceId => {
+      if (operationBlocked() || deviceId !== sessionState.selectedDeviceId || !sessionState.inspectionResult?.standardTrialAvailable) return;
+      setSessionState(previous => ({ ...previous, status: 'trial', changingDevice: true, trial: { status: 'listening', deviceId, readings: [] } }));
+      timer.current = setTimeout(() => {
+        setSessionState(previous => ({ ...previous, trial: { ...previous.trial, readings: [{ temperatureC: 36.65, deviceTimestamp: '2026-11-18T08:05:00' }] } }));
+        timer.current = setTimeout(() => sessionRef.current.stopTrial(), 2000);
+      }, 1200);
+    },
+    stopTrial: () => sessionRef.current.stop(),
     beginChange: async () => {
       await sessionRef.current.stop();
       setSessionState(previous => ({ ...previous, changingDevice: true }));

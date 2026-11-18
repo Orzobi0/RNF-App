@@ -268,8 +268,11 @@ export const getRememberedFemometer = (userId) =>
 export const rememberFemometer = (userId, deviceId) =>
   callFemometerBle('rememberDevice', { userId, deviceId });
 
-export const forgetFemometer = (userId) =>
-  callFemometerBle('forgetDevice', { userId });
+export const forgetFemometer = (userId, deviceKey) =>
+  callFemometerBle('forgetDevice', { userId, ...(deviceKey ? { deviceKey } : {}) });
+
+export const selectRememberedFemometer = (userId, deviceKey) =>
+  callFemometerBle('selectRememberedDevice', { userId, deviceKey });
 
 export const connectAndInspectFemometer = async (deviceId) =>
   callFemometerBle('connectAndInspect', { deviceId });
@@ -277,13 +280,15 @@ export const connectAndInspectFemometer = async (deviceId) =>
 export const startFemometerTemperatureListener = async (deviceId, userId) =>
   callFemometerBle('startTemperatureListener', { deviceId, userId });
 
+export const startStandardThermometerTrial = (deviceId, userId) => callFemometerBle('startStandardTrial', { deviceId, userId });
+export const addStandardThermometerTrialListener = callback => addFemometerTemperatureListener(callback, 'thermometerTrialReading');
+
 export const stopFemometerTemperatureListener = async () =>
   callFemometerBle('stopTemperatureListener');
 
-export const addFemometerTemperatureListener = async (callback) => {
+export const addFemometerTemperatureListener = async (callback, eventName = 'femometerTemperatureIndication') => {
   assertAndroidNative();
   const bridge = getCapacitorBridge();
-  const eventName = 'femometerTemperatureIndication';
   const onEvent = (data, error) => {
     if (error) {
       callback({ status: 'error', message: normalizeFemometerBleError(error).message });
@@ -380,6 +385,7 @@ export const syncFemometerClock = () => callFemometerBle('syncClock');
 export const createFemometerPanelSession = createFemometerSessionManager({
   getRememberedFemometer, scanForFemometer, requestBluetoothPermissions,
   addFemometerTemperatureListener, startFemometerTemperatureListener,
-  disconnectFemometer, connectAndInspectFemometer, rememberFemometer, forgetFemometer,
+  disconnectFemometer, connectAndInspectFemometer, rememberFemometer, forgetFemometer, selectRememberedFemometer,
   readFemometerClock, syncFemometerClock, readFemometerDeviceInfo, setFemometerVolume, setFemometerMeasurementMode,
+  startStandardThermometerTrial, addStandardThermometerTrialListener,
 });
